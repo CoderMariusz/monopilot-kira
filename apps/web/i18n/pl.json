@@ -5173,6 +5173,166 @@
       "completed": "Zakończone",
       "closed": "Zamknięte",
       "cancelled": "Anulowane"
+    },
+    "workOrders": {
+      "title": "Zlecenia produkcyjne",
+      "subtitle": "Planuj, wydawaj i śledź zlecenia produkcyjne.",
+      "error": "Dane zleceń produkcyjnych są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+      "breadcrumb": {
+        "planning": "Planowanie",
+        "workOrders": "Zlecenia produkcyjne"
+      },
+      "woStatus": {
+        "draft": "Szkic",
+        "released": "Wydane",
+        "in_progress": "W toku",
+        "on_hold": "Wstrzymane",
+        "completed": "Zakończone",
+        "closed": "Zamknięte",
+        "cancelled": "Anulowane"
+      },
+      "actions": {
+        "createWo": "Utwórz ZP"
+      },
+      "list": {
+        "searchPlaceholder": "Szukaj numeru ZP lub kodu pozycji…",
+        "rowsCount": "{n} wierszy",
+        "tabs": {
+          "all": "Wszystkie"
+        },
+        "columns": {
+          "wo": "ZP",
+          "product": "Produkt",
+          "status": "Status",
+          "qty": "Ilość",
+          "scheduled": "Planowany start",
+          "line": "Linia",
+          "bom": "BOM",
+          "actions": ""
+        },
+        "bomBadge": "BOM",
+        "noBomBadge": "Brak BOM",
+        "notAssigned": "Nieprzypisana",
+        "release": "Wydaj",
+        "releasing": "Wydawanie…",
+        "confirmRelease": "Wydać zlecenie {wo}? Zostanie ono skierowane do produkcji.",
+        "empty": {
+          "title": "Żadne zlecenie nie pasuje do filtrów",
+          "body": "Wyczyść filtry lub przełącz się na inną zakładkę.",
+          "clear": "Wyczyść wszystkie filtry"
+        }
+      },
+      "create": {
+        "title": "Utwórz zlecenie produkcyjne",
+        "productLabel": "Produkt (wyrób gotowy)",
+        "productPlaceholder": "Szukaj wyrobów gotowych…",
+        "picker": {
+          "trigger": "+ Wybierz produkt",
+          "searchLabel": "Szukaj wyrobów gotowych",
+          "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+          "loading": "Wyszukiwanie…",
+          "empty": "Brak pasujących wyrobów gotowych",
+          "cancel": "Anuluj",
+          "error": "Wyszukiwanie produktu nie powiodło się"
+        },
+        "quantityLabel": "Planowana ilość",
+        "quantityPlaceholder": "np. 1000 lub 1000,500",
+        "scheduledStartLabel": "Planowany start",
+        "lineLabel": "Linia produkcyjna",
+        "machineLabel": "Maszyna",
+        "noneOption": "— Brak —",
+        "notesLabel": "Notatki",
+        "notesPlaceholder": "Opcjonalne notatki…",
+        "submit": "Utwórz zlecenie",
+        "submitting": "Tworzenie…",
+        "cancel": "Anuluj",
+        "selectedProduct": "Wybrany produkt",
+        "errors": {
+          "productRequired": "Wybierz produkt (wyrób gotowy).",
+          "quantityRequired": "Podaj dodatnią ilość (do 3 miejsc po przecinku)."
+        },
+        "noBomWarning": "Zlecenie utworzone, ale produkt nie ma aktywnego BOM — nie wygenerowano materiałów."
+      },
+      "detail": {
+        "title": "Zlecenie produkcyjne",
+        "breadcrumbCurrent": "Szczegóły",
+        "notFound": "Nie znaleziono tego zlecenia produkcyjnego.",
+        "backToList": "Powrót do zleceń",
+        "minutes": "min",
+        "summary": {
+          "product": "Produkt",
+          "qty": "Ilość",
+          "scheduledStart": "Planowany start",
+          "scheduledEnd": "Planowany koniec",
+          "line": "Linia",
+          "priority": "Priorytet",
+          "source": "Źródło"
+        },
+        "tabs": {
+          "overview": "Przegląd",
+          "outputs": "Wyjścia",
+          "dependencies": "Zależności",
+          "reservations": "Rezerwacje",
+          "sequencing": "Sekwencjonowanie",
+          "history": "Historia stanów",
+          "d365": "Synchronizacja D365"
+        },
+        "materials": {
+          "title": "Materiały (migawka BOM)",
+          "seq": "#",
+          "name": "Materiał",
+          "required": "Wymagane",
+          "source": "Źródło",
+          "empty": "Brak materiałów — to zlecenie nie ma aktywnego BOM."
+        },
+        "operations": {
+          "title": "Operacje (migawka marszruty)",
+          "seq": "#",
+          "op": "Operacja",
+          "expDur": "Oczek. czas",
+          "expYield": "Oczek. wydajność",
+          "status": "Status",
+          "empty": "Brak zarejestrowanych operacji dla tego zlecenia."
+        },
+        "outputs": {
+          "title": "Wyjścia",
+          "role": "Rola",
+          "product": "Produkt",
+          "planned": "Planowana ilość",
+          "allocation": "Alokacja %",
+          "disposition": "Dyspozycja",
+          "empty": "Brak planowanych wyjść dla tego zlecenia."
+        },
+        "dependencies": {
+          "title": "Zależności",
+          "direction": "Kierunek",
+          "wo": "Zlecenie",
+          "requiredQty": "Wymagana ilość",
+          "materialLink": "Powiązanie materiału",
+          "empty": "Brak zależności kaskadowych dla tego zlecenia."
+        },
+        "history": {
+          "title": "Historia stanów",
+          "from": "Z",
+          "to": "Do",
+          "timestamp": "Znacznik czasu",
+          "user": "Użytkownik",
+          "action": "Akcja",
+          "empty": "Brak zarejestrowanych przejść stanów."
+        },
+        "notLive": {
+          "reservations": "Rezerwacje materiałów nie są jeszcze dostępne — tworzone są przy przejściu do stanu WYDANE, gdy moduł rezerwacji zostanie uruchomiony.",
+          "sequencing": "Sekwencjonowanie alergenów nie jest jeszcze dostępne — brak danych sekwencjonowania linii.",
+          "d365": "To zlecenie nie jest powiązane z zamówieniem sprzedaży D365 — brak informacji o synchronizacji."
+        }
+      },
+      "errors": {
+        "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
+        "not_found": "Nie znaleziono zlecenia produkcyjnego.",
+        "invalid_state": "Zlecenie nie jest w stanie umożliwiającym tę akcję.",
+        "persistence_failed": "Wystąpił błąd podczas zapisu. Spróbuj ponownie za chwilę."
+      }
     }
   },
   "production": {
@@ -5239,7 +5399,11 @@
           "pause": "Wstrzymaj",
           "waste": "Odpad",
           "catchWeight": "Waga zmienna",
-          "complete": "Zakończ"
+          "complete": "Zakończ",
+          "start": "Rozpocznij",
+          "resume": "Wznów",
+          "cancel": "Anuluj",
+          "close": "Zamknij"
         },
         "tabs": {
           "overview": "Przegląd",
@@ -5359,6 +5523,97 @@
             "transition": "Przejście",
             "reason": "Powód"
           }
+        }
+      },
+      "actions": {
+        "common": {
+          "cancel": "Anuluj",
+          "confirm": "Potwierdź",
+          "submitting": "Wysyłanie…",
+          "optional": "opcjonalne"
+        },
+        "errors": {
+          "invalid_input": "Nieprawidłowe dane — sprawdź pola i spróbuj ponownie.",
+          "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
+          "not_found": "Nie znaleziono zlecenia produkcyjnego.",
+          "invalid_state_transition": "Ta akcja jest niedozwolona dla bieżącego stanu zlecenia.",
+          "concurrent_modification": "Zlecenie zostało w międzyczasie zmienione — odśwież i spróbuj ponownie.",
+          "quality_hold_active": "Zablokowane przez aktywne wstrzymanie jakości na tym zleceniu.",
+          "allergen_changeover_required": "Przed rozpoczęciem wymagane jest zatwierdzenie zmiany alergenowej.",
+          "closed_production_strict_failed": "Bramka uzysku nie spełniona — zarejestruj wyrób główny lub podaj powód obejścia.",
+          "esign_failed": "Podpis elektroniczny nieudany — sprawdź hasło i spróbuj ponownie.",
+          "wo_not_recordable": "Zlecenie nie jest w stanie pozwalającym na ten zapis.",
+          "already_recorded": "Ten wpis został już zarejestrowany.",
+          "invalid_reference": "Podano nieprawidłowe odniesienie.",
+          "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
+          "network_error": "Błąd sieci — sprawdź połączenie i spróbuj ponownie.",
+          "fallback": "Nie udało się wykonać akcji."
+        },
+        "start": {
+          "title": "Rozpocznij zlecenie",
+          "subtitle": "Rozpocznij realizację. Opcjonalnie podaj linię i zmianę.",
+          "line": "Linia",
+          "shift": "Zmiana"
+        },
+        "pause": {
+          "title": "Wstrzymaj zlecenie",
+          "subtitle": "Otwórz skategoryzowany przestój na czas wstrzymania zlecenia.",
+          "reason": "Powód przestoju",
+          "reasonPlaceholder": "Wybierz kategorię przestoju…",
+          "line": "Linia",
+          "shift": "Zmiana",
+          "notes": "Notatki",
+          "noCategories": "Brak skonfigurowanych kategorii przestoju dla Twojej organizacji."
+        },
+        "resume": {
+          "title": "Wznów zlecenie",
+          "subtitle": "Zamknij otwarty przestój i wznów realizację.",
+          "duration": "Rzeczywisty przestój (minuty)",
+          "durationHint": "Opcjonalne — pozostaw puste, aby zamknąć przestój w bieżącym czasie."
+        },
+        "cancelWo": {
+          "title": "Anuluj zlecenie",
+          "subtitle": "Anuluj to zlecenie. Wymagany jest kod powodu.",
+          "reasonCode": "Kod powodu",
+          "notes": "Notatki"
+        },
+        "complete": {
+          "title": "Zakończ zlecenie",
+          "subtitle": "Zakończ realizację. Bramka uzysku musi być zielona.",
+          "override": "Kod powodu obejścia",
+          "overrideHint": "Wymagane tylko do obejścia niespełnionej bramki uzysku."
+        },
+        "close": {
+          "title": "Zamknij zlecenie",
+          "subtitle": "Zamknięcie finansowe z podpisem elektronicznym przełożonego.",
+          "password": "Hasło",
+          "reason": "Powód",
+          "legal": "Potwierdzając, składasz podpis elektroniczny pod zamknięciem finansowym (CFR-21 część 11)."
+        },
+        "output": {
+          "title": "Zarejestruj wyrób",
+          "subtitle": "Zarejestruj wyrób dla tego zlecenia.",
+          "type": "Typ wyrobu",
+          "types": {
+            "primary": "Główny",
+            "co_product": "Współprodukt",
+            "by_product": "Produkt uboczny"
+          },
+          "product": "ID produktu",
+          "qty": "Ilość (kg)",
+          "batch": "Numer partii",
+          "batchHint": "Opcjonalne — generowane automatycznie, gdy puste."
+        },
+        "waste": {
+          "title": "Zarejestruj odpad",
+          "subtitle": "Zarejestruj skategoryzowany odpad dla tego zlecenia.",
+          "category": "Kategoria odpadu",
+          "categoryPlaceholder": "Wybierz kategorię odpadu…",
+          "qty": "Ilość (kg)",
+          "shift": "Zmiana",
+          "reasonCode": "Kod powodu",
+          "notes": "Notatki",
+          "noCategories": "Brak skonfigurowanych kategorii odpadu dla Twojej organizacji."
         }
       }
     },

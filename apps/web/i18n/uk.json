@@ -5173,6 +5173,166 @@
       "completed": "Completed",
       "closed": "Closed",
       "cancelled": "Cancelled"
+    },
+    "workOrders": {
+      "title": "Work orders",
+      "subtitle": "Plan, release and track production work orders.",
+      "error": "Live work-order data is currently unavailable. Please retry shortly.",
+      "breadcrumb": {
+        "planning": "Planning",
+        "workOrders": "Work orders"
+      },
+      "woStatus": {
+        "draft": "Draft",
+        "released": "Released",
+        "in_progress": "In progress",
+        "on_hold": "On hold",
+        "completed": "Completed",
+        "closed": "Closed",
+        "cancelled": "Cancelled"
+      },
+      "actions": {
+        "createWo": "Create WO"
+      },
+      "list": {
+        "searchPlaceholder": "Search WO number or item code…",
+        "rowsCount": "{n} rows",
+        "tabs": {
+          "all": "All"
+        },
+        "columns": {
+          "wo": "WO",
+          "product": "Product",
+          "status": "Status",
+          "qty": "Qty",
+          "scheduled": "Scheduled start",
+          "line": "Line",
+          "bom": "BOM",
+          "actions": ""
+        },
+        "bomBadge": "BOM",
+        "noBomBadge": "No BOM",
+        "notAssigned": "Not assigned",
+        "release": "Release",
+        "releasing": "Releasing…",
+        "confirmRelease": "Release work order {wo}? This commits it to production.",
+        "empty": {
+          "title": "No work orders match your filters",
+          "body": "Try clearing filters or switching to a different tab.",
+          "clear": "Clear all filters"
+        }
+      },
+      "create": {
+        "title": "Create work order",
+        "productLabel": "Product (finished good)",
+        "productPlaceholder": "Search finished goods…",
+        "picker": {
+          "trigger": "+ Select product",
+          "searchLabel": "Search finished goods",
+          "searchPlaceholder": "Search by code or name…",
+          "loading": "Searching…",
+          "empty": "No matching finished goods",
+          "cancel": "Cancel",
+          "error": "Product search failed"
+        },
+        "quantityLabel": "Planned quantity",
+        "quantityPlaceholder": "e.g. 1000 or 1000.500",
+        "scheduledStartLabel": "Scheduled start",
+        "lineLabel": "Production line",
+        "machineLabel": "Machine",
+        "noneOption": "— None —",
+        "notesLabel": "Notes",
+        "notesPlaceholder": "Optional notes…",
+        "submit": "Create work order",
+        "submitting": "Creating…",
+        "cancel": "Cancel",
+        "selectedProduct": "Selected product",
+        "errors": {
+          "productRequired": "Select a finished-good product.",
+          "quantityRequired": "Enter a positive quantity (up to 3 decimals)."
+        },
+        "noBomWarning": "Work order created, but the product has no active BOM — no materials were generated."
+      },
+      "detail": {
+        "title": "Work order",
+        "breadcrumbCurrent": "Detail",
+        "notFound": "This work order could not be found.",
+        "backToList": "Back to work orders",
+        "minutes": "min",
+        "summary": {
+          "product": "Product",
+          "qty": "Qty",
+          "scheduledStart": "Scheduled start",
+          "scheduledEnd": "Scheduled end",
+          "line": "Line",
+          "priority": "Priority",
+          "source": "Source"
+        },
+        "tabs": {
+          "overview": "Overview",
+          "outputs": "Outputs",
+          "dependencies": "Dependencies",
+          "reservations": "Reservations",
+          "sequencing": "Sequencing",
+          "history": "State history",
+          "d365": "D365 sync"
+        },
+        "materials": {
+          "title": "Materials (BOM snapshot)",
+          "seq": "#",
+          "name": "Material",
+          "required": "Required",
+          "source": "Source",
+          "empty": "No materials — this work order has no active BOM."
+        },
+        "operations": {
+          "title": "Operations (routing snapshot)",
+          "seq": "#",
+          "op": "Operation",
+          "expDur": "Expected dur.",
+          "expYield": "Expected yield",
+          "status": "Status",
+          "empty": "No operations recorded for this work order."
+        },
+        "outputs": {
+          "title": "Outputs",
+          "role": "Role",
+          "product": "Product",
+          "planned": "Planned qty",
+          "allocation": "Allocation %",
+          "disposition": "Disposition",
+          "empty": "No planned outputs for this work order."
+        },
+        "dependencies": {
+          "title": "Dependencies",
+          "direction": "Direction",
+          "wo": "Work order",
+          "requiredQty": "Required qty",
+          "materialLink": "Material link",
+          "empty": "No cascade dependencies for this work order."
+        },
+        "history": {
+          "title": "State history",
+          "from": "From",
+          "to": "To",
+          "timestamp": "Timestamp",
+          "user": "User",
+          "action": "Action",
+          "empty": "No state transitions recorded yet."
+        },
+        "notLive": {
+          "reservations": "Material reservations are not live yet — they are created on the RELEASED transition once the reservations module ships.",
+          "sequencing": "Allergen sequencing is not live yet — line sequencing data is not available.",
+          "d365": "This work order is not linked to a D365 sales order — no sync information to display."
+        }
+      },
+      "errors": {
+        "invalid_input": "Some fields are invalid. Please review and try again.",
+        "forbidden": "You do not have permission to perform this action.",
+        "not_found": "The work order could not be found.",
+        "invalid_state": "The work order is not in a state that allows this action.",
+        "persistence_failed": "Something went wrong saving. Please retry shortly."
+      }
     }
   },
   "production": {
@@ -5239,7 +5399,11 @@
           "pause": "Pause",
           "waste": "Waste",
           "catchWeight": "Catch-weight",
-          "complete": "Complete"
+          "complete": "Complete",
+          "start": "Start",
+          "resume": "Resume",
+          "cancel": "Cancel",
+          "close": "Close"
         },
         "tabs": {
           "overview": "Overview",
@@ -5359,6 +5523,97 @@
             "transition": "Transition",
             "reason": "Reason"
           }
+        }
+      },
+      "actions": {
+        "common": {
+          "cancel": "Cancel",
+          "confirm": "Confirm",
+          "submitting": "Submitting…",
+          "optional": "optional"
+        },
+        "errors": {
+          "invalid_input": "Invalid input — check the fields and try again.",
+          "forbidden": "You do not have permission to perform this action.",
+          "not_found": "Work order not found.",
+          "invalid_state_transition": "This action is not valid for the work order’s current state.",
+          "concurrent_modification": "The work order changed in the meantime — refresh and retry.",
+          "quality_hold_active": "Blocked by an active quality hold on this work order.",
+          "allergen_changeover_required": "An allergen changeover sign-off is required before starting.",
+          "closed_production_strict_failed": "Output yield gate not met — register a primary output or supply an override reason.",
+          "esign_failed": "E-signature failed — check your password and try again.",
+          "wo_not_recordable": "The work order is not in a state that accepts this record.",
+          "already_recorded": "This entry was already recorded.",
+          "invalid_reference": "An invalid reference was supplied.",
+          "persistence_failed": "Something went wrong saving the action. Please retry.",
+          "network_error": "Network error — please check your connection and retry.",
+          "fallback": "The action could not be completed."
+        },
+        "start": {
+          "title": "Start work order",
+          "subtitle": "Begin execution. Optionally record the line and shift.",
+          "line": "Line",
+          "shift": "Shift"
+        },
+        "pause": {
+          "title": "Pause work order",
+          "subtitle": "Open a categorized downtime while the work order is paused.",
+          "reason": "Downtime reason",
+          "reasonPlaceholder": "Select a downtime category…",
+          "line": "Line",
+          "shift": "Shift",
+          "notes": "Notes",
+          "noCategories": "No downtime categories are configured for your organization."
+        },
+        "resume": {
+          "title": "Resume work order",
+          "subtitle": "Close the open downtime and resume execution.",
+          "duration": "Actual downtime (minutes)",
+          "durationHint": "Optional — leave blank to close the downtime at the current time."
+        },
+        "cancelWo": {
+          "title": "Cancel work order",
+          "subtitle": "Cancel this work order. A reason code is required.",
+          "reasonCode": "Reason code",
+          "notes": "Notes"
+        },
+        "complete": {
+          "title": "Complete work order",
+          "subtitle": "Complete execution. The output yield gate must be green.",
+          "override": "Override reason code",
+          "overrideHint": "Required only to override an unmet yield gate."
+        },
+        "close": {
+          "title": "Close work order",
+          "subtitle": "Financial close with supervisor e-signature.",
+          "password": "Password",
+          "reason": "Reason",
+          "legal": "By confirming you electronically sign this financial close (CFR-21 Part 11)."
+        },
+        "output": {
+          "title": "Register output",
+          "subtitle": "Record a registered output for this work order.",
+          "type": "Output type",
+          "types": {
+            "primary": "Primary",
+            "co_product": "Co-product",
+            "by_product": "By-product"
+          },
+          "product": "Product ID",
+          "qty": "Quantity (kg)",
+          "batch": "Batch number",
+          "batchHint": "Optional — auto-generated when left blank."
+        },
+        "waste": {
+          "title": "Log waste",
+          "subtitle": "Record a categorized waste entry for this work order.",
+          "category": "Waste category",
+          "categoryPlaceholder": "Select a waste category…",
+          "qty": "Quantity (kg)",
+          "shift": "Shift",
+          "reasonCode": "Reason code",
+          "notes": "Notes",
+          "noCategories": "No waste categories are configured for your organization."
         }
       }
     },
