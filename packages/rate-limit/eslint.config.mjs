@@ -1,16 +1,8 @@
-import js from '@eslint/js';
-import tsParser from '@typescript-eslint/parser';
+// packages/rate-limit/eslint.config.mjs
+// ESLint v9 flat config for @monopilot/rate-limit.
+// Extends the shared workspace base (T-055) — the previous standalone config ran
+// bare js.configs.recommended, whose `no-unused-vars` false-positives on TS
+// interface method signatures kept repo-wide `pnpm lint` red.
+import base from '../../tooling/eslint/base.mjs';
 
-export default [
-  js.configs.recommended,
-  {
-    files: ['**/*.ts'],
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        project: './tsconfig.json',
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-  },
-];
+export default [...base];

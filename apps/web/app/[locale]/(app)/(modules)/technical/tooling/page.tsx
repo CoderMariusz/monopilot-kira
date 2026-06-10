@@ -7,8 +7,10 @@
  * withOrgContext + RLS (`app.current_org_id()`); no hardcoded data.
  *
  * Prototype parity:
- *   prototypes/design/Monopilot Design System/technical/other-screens.jsx:314-352
- *   (`tooling_screen`) — PageHeader + filter pills + list table + Create CTA.
+ *   No dedicated ToolingScreen JSX exists in the design SSOT; the nearest design
+ *   anchors are the TOOLING data constant (technical/other-screens.jsx:199-207)
+ *   and WORK_CENTERS (:160-170) rendered with the standard list-screen pattern.
+ *   (A prior comment mis-cited :314-352, which is MaterialsListScreen.)
  *   See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  *
  * UI states: loading (RSC streaming) / empty / error / permission-denied

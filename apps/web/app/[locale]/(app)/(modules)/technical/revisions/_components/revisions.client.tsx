@@ -158,7 +158,9 @@ export function RevisionsClient({
       return;
     }
     runQuery();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally re-runs only on filter changes (search applies on submit).
+    // No disable directive: react-hooks/exhaustive-deps is unregistered in this
+    // flat config and an unknown-rule comment is itself a lint error.
   }, [entityType, limit]);
 
   if (state === 'denied') {
