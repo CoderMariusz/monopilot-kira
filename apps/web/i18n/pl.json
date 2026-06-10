@@ -3934,7 +3934,9 @@
       "error": "Nie można przejść do następnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do przechodzenia tej bramki.",
       "recipeNeedsIngredient": "Receptura zawiera co najmniej jeden składnik",
-      "requiredIncompleteWarning": "{count} wymaganych pozycji checklisty nieukończonych — możesz mimo to kontynuować."
+      "requiredIncompleteWarning": "{count} wymaganych pozycji checklisty nieukończonych — możesz mimo to kontynuować.",
+      "esignRequiredError": "Przed handoffem wymagany jest e-podpis bramki G4 — zatwierdź ją na etapie Approval.",
+      "blockersPresentError": "Ten etap ma jeszcze blokery — rozwiąż je i spróbuj ponownie."
     },
     "briefModals": {
       "create": {

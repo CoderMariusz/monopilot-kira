@@ -31,6 +31,10 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
     storage: {
       createBucket: storageCreateBucket,
+      from: vi.fn(() => ({
+        upload: storageUpload,
+        remove: storageRemove,
+      })),
     },
   })),
 }));
@@ -76,6 +80,10 @@ describe('uploadDoc storage cleanup', () => {
       allowedMimeTypes: expect.arrayContaining(['application/pdf', 'image/png', 'image/jpeg']),
     });
     expect(storageUpload).toHaveBeenCalledTimes(1);
+    expect(storageUpload).toHaveBeenCalledWith(expect.stringMatching(/^fg-1\/spec\/v1\/.+-spec\.pdf$/), expect.any(ArrayBuffer), {
+      contentType: 'application/pdf',
+      upsert: false,
+    });
   });
 
   it('swallows bucket already-exists errors and still uploads', async () => {

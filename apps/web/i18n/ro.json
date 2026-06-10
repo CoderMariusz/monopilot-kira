@@ -3934,7 +3934,9 @@
       "error": "Nu s-a putut avansa poarta. Încercați din nou.",
       "forbidden": "Nu aveți permisiunea de a avansa această poartă.",
       "recipeNeedsIngredient": "Rețeta are cel puțin un ingredient",
-      "requiredIncompleteWarning": "{count} elemente obligatorii din checklist nu sunt finalizate — poți continua totuşi."
+      "requiredIncompleteWarning": "{count} elemente obligatorii din checklist nu sunt finalizate — poți continua totuşi.",
+      "esignRequiredError": "Înainte de handoff este necesară aprobarea cu semnătură electronică G4 — aprob-o în etapa Approval.",
+      "blockersPresentError": "Această etapă are încă blocaje — rezolvă-le şi încearcă din nou."
     },
     "briefModals": {
       "create": {

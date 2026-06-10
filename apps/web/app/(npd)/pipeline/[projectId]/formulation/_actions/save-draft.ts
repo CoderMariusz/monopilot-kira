@@ -10,7 +10,6 @@ type IngredientInput = {
   /** Lane-B: optional FK to the real items master row (null for legacy free text). */
   itemId: string | null;
   qtyKg: string | null;
-  pct: string | null;
   costPerKgEur: string | null;
   allergensInherited: string[];
   sequence: number;
@@ -78,7 +77,6 @@ export async function saveDraft(input: {
         rm_code: ingredient.rmCode,
         item_id: ingredient.itemId && resolvedItemIds.has(ingredient.itemId) ? ingredient.itemId : null,
         qty_kg: ingredient.qtyKg,
-        pct: ingredient.pct,
         cost_per_kg_eur: ingredient.costPerKgEur,
         allergens_inherited: ingredient.allergensInherited,
         sequence: ingredient.sequence,
@@ -92,7 +90,10 @@ export async function saveDraft(input: {
              x.rm_code,
              x.item_id::uuid,
              x.qty_kg::numeric,
-             x.pct::numeric,
+             case
+               when x.qty_kg::numeric is null then null
+               else round(x.qty_kg::numeric / nullif(sum(x.qty_kg::numeric) over (), 0) * 100, 3)
+             end,
              x.cost_per_kg_eur::numeric,
              coalesce(
                (select array_agg(e.value order by e.ord)
@@ -104,7 +105,6 @@ export async function saveDraft(input: {
              rm_code text,
              item_id text,
              qty_kg text,
-             pct text,
              cost_per_kg_eur text,
              allergens_inherited jsonb,
              sequence integer
@@ -167,16 +167,15 @@ function parseIngredient(value: unknown): IngredientInput | null {
   const rmCode = normalizeRmCode(candidate.rmCode);
   const itemId = normalizeUuidOrNull(candidate.itemId);
   const qtyKg = normalizeNumeric(candidate.qtyKg);
-  const pct = normalizeNumeric(candidate.pct);
   const costPerKgEur = normalizeNumeric(candidate.costPerKgEur);
   const sequence = candidate.sequence;
   const allergensInherited = parseTextArray(candidate.allergensInherited);
-  if (!rmCode || itemId === undefined || qtyKg === undefined || pct === undefined || costPerKgEur === undefined) {
+  if (!rmCode || itemId === undefined || qtyKg === undefined || costPerKgEur === undefined) {
     return null;
   }
   if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) return null;
   if (!allergensInherited) return null;
-  return { rmCode, itemId, qtyKg, pct, costPerKgEur, sequence, allergensInherited };
+  return { rmCode, itemId, qtyKg, costPerKgEur, sequence, allergensInherited };
 }
 
 function normalizeRmCode(value: unknown): string | null {

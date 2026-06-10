@@ -44,6 +44,16 @@ export async function createFormulationDraft(input: { projectId?: unknown }): Pr
       let formulationId: string;
       if (existing.rows[0]) {
         formulationId = existing.rows[0].formulation_id;
+        if (proj.rows[0].product_code) {
+          await ctx.client.query(
+            `update public.formulations
+                set product_code = $2
+              where id = $1::uuid
+                and org_id = app.current_org_id()
+                and product_code is null`,
+            [formulationId, proj.rows[0].product_code],
+          );
+        }
         if (existing.rows[0].current_version_id) {
           return { ok: true, data: { versionId: existing.rows[0].current_version_id } };
         }

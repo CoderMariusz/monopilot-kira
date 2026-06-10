@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 
-import { createServerSupabaseClient } from '../../../../../../lib/auth/supabase-server';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 export const COMPLIANCE_DOC_WRITE_PERMISSION = 'npd.compliance_doc.write';
@@ -21,6 +20,25 @@ const ALLOWED_DOC_TYPES = new Set(['CoA', 'SDS', 'Spec', 'Cert', 'Other']);
 export type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 export type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+
+type StorageOperationResult<T = unknown> = Promise<{ data: T | null; error: unknown }>;
+type ComplianceDocsStorageClient = {
+  storage: {
+    createBucket(
+      bucket: string,
+      options: { public: boolean; fileSizeLimit: number; allowedMimeTypes: string[] },
+    ): StorageOperationResult<{ name: string }>;
+    from(bucket: string): {
+      upload(
+        path: string,
+        body: ArrayBuffer,
+        options: { contentType: string; upsert: boolean },
+      ): StorageOperationResult<{ path: string }>;
+      remove(paths: string[]): StorageOperationResult;
+      createSignedUrl(path: string, expiresIn: number): StorageOperationResult<{ signedUrl: string }>;
+    };
+  };
 };
 
 export type ComplianceDocDto = {
@@ -97,10 +115,10 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
       const filePath = buildFilePath(parsed.value, docId, versionNumber);
       const bucket = complianceDocsBucket(orgId);
 
-      const supabase = await createServerSupabaseClient();
-      await ensureComplianceDocsBucket(bucket);
+      const storageAdmin = await createComplianceDocsStorageAdmin();
+      await ensureComplianceDocsBucket(storageAdmin, bucket);
       const bytes = await parsed.value.file.arrayBuffer();
-      const { error: storageError } = await supabase.storage
+      const { error: storageError } = await storageAdmin.storage
         .from(bucket)
         .upload(filePath, bytes, {
           contentType: parsed.value.mimeType,
@@ -134,12 +152,12 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
           ],
         );
       } catch (error) {
-        await deleteUploadedComplianceDoc(supabase, bucket, filePath);
+        await deleteUploadedComplianceDoc(storageAdmin, bucket, filePath);
         throw error;
       }
       const row = inserted.rows[0];
       if (!row) {
-        await deleteUploadedComplianceDoc(supabase, bucket, filePath);
+        await deleteUploadedComplianceDoc(storageAdmin, bucket, filePath);
         return { ok: false, code: 'PERSISTENCE_FAILED' };
       }
 
@@ -165,8 +183,7 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
   });
 }
 
-async function ensureComplianceDocsBucket(bucket: string): Promise<void> {
-  const admin = await createSupabaseStorageAdmin();
+async function ensureComplianceDocsBucket(admin: ComplianceDocsStorageClient, bucket: string): Promise<void> {
   const { error } = await admin.storage.createBucket(bucket, {
     public: false,
     fileSizeLimit: COMPLIANCE_DOC_MAX_BYTES,
@@ -175,7 +192,7 @@ async function ensureComplianceDocsBucket(bucket: string): Promise<void> {
   if (error && !isBucketAlreadyExistsError(error)) throw error;
 }
 
-async function createSupabaseStorageAdmin() {
+export async function createComplianceDocsStorageAdmin(): Promise<ComplianceDocsStorageClient> {
   const { createClient } = await import('@supabase/supabase-js');
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
@@ -197,7 +214,7 @@ function isBucketAlreadyExistsError(error: unknown): boolean {
 }
 
 async function deleteUploadedComplianceDoc(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  supabase: ComplianceDocsStorageClient,
   bucket: string,
   filePath: string,
 ): Promise<void> {

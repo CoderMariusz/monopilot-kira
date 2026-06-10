@@ -2016,7 +2016,9 @@
       "error": "Could not advance the gate. Try again.",
       "forbidden": "You do not have permission to advance this gate.",
       "recipeNeedsIngredient": "Recipe has at least one ingredient",
-      "requiredIncompleteWarning": "{count} required checklist items are not complete — you can still advance."
+      "requiredIncompleteWarning": "{count} required checklist items are not complete — you can still advance.",
+      "esignRequiredError": "Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.",
+      "blockersPresentError": "This stage still has blockers — resolve them and try again."
     },
     "briefModals": {
       "create": {

@@ -309,6 +309,7 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       current_gate: string;
       product_code: string | null;
       product_count: string;
+      formulation_product_code: string | null;
       fg_created_events: string;
       mapped_events: string;
       advanced_events: string;
@@ -316,6 +317,7 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       `select p.current_gate,
               p.product_code,
               (select count(*) from public.product pr where pr.org_id = p.org_id and pr.product_code = $2) as product_count,
+              (select max(f.product_code) from public.formulations f where f.org_id = p.org_id and f.project_id = p.id) as formulation_product_code,
               (select count(*) from public.outbox_events oe where oe.org_id = p.org_id and oe.event_type = 'fg.created' and oe.aggregate_id = $2) as fg_created_events,
               (select count(*) from public.outbox_events oe where oe.org_id = p.org_id and oe.event_type = 'npd.fg_candidate_mapped' and oe.aggregate_id = p.id::text) as mapped_events,
               (select count(*) from public.outbox_events oe where oe.org_id = p.org_id and oe.event_type = 'npd.gate.advanced' and oe.aggregate_id = p.id::text) as advanced_events
@@ -328,6 +330,7 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       current_gate: 'G3',
       product_code: productCode,
       product_count: '1',
+      formulation_product_code: productCode,
       fg_created_events: '1',
       mapped_events: '1',
       advanced_events: '2',

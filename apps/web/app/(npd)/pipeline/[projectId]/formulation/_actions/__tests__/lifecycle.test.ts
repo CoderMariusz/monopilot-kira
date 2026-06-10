@@ -303,13 +303,14 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
   it('rejects submit when ingredient percentages do not total 100', async () => {
     const draft = await seedDraftVersion(ownerPool);
 
-    await expect(
-      saveDraft({
-        projectId: draft.projectId,
-        versionId: draft.versionId,
-        ingredients: [{ rmCode: 'RM-T064-PCT', qtyKg: '9.500', pct: '99.500', costPerKgEur: '1.0000', sequence: 1 }],
-      }),
-    ).resolves.toEqual({ ok: true, data: { versionId: draft.versionId, ingredientCount: 1 } });
+    await ownerPool.query(
+      `
+        insert into public.formulation_ingredients
+          (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, sequence)
+        values ($1, 'RM-T064-PCT', 9.500, 99.500, 1.0000, 1)
+      `,
+      [draft.versionId],
+    );
 
     await expect(submitForTrial({ projectId: draft.projectId, versionId: draft.versionId })).resolves.toEqual({
       ok: false,
@@ -321,5 +322,35 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
       [draft.versionId],
     );
     expect(state.rows[0]?.state).toBe('draft');
+  });
+
+  it('derives ingredient pct from qty_kg in SQL when saving a draft', async () => {
+    const draft = await seedDraftVersion(ownerPool);
+
+    await expect(
+      saveDraft({
+        projectId: draft.projectId,
+        versionId: draft.versionId,
+        ingredients: [
+          { rmCode: 'RM-T064-DER-A', qtyKg: '0.333', costPerKgEur: '2.5000', sequence: 1 },
+          { rmCode: 'RM-T064-DER-B', qtyKg: '0.667', pct: null, costPerKgEur: '3.7500', sequence: 2 },
+        ],
+      }),
+    ).resolves.toEqual({ ok: true, data: { versionId: draft.versionId, ingredientCount: 2 } });
+
+    const saved = await ownerPool.query<{ rm_code: string; qty_kg: string; pct: string }>(
+      `
+        select rm_code, qty_kg::text, pct::text
+        from public.formulation_ingredients
+        where version_id = $1
+        order by sequence
+      `,
+      [draft.versionId],
+    );
+
+    expect(saved.rows).toEqual([
+      { rm_code: 'RM-T064-DER-A', qty_kg: '0.333', pct: '33.300' },
+      { rm_code: 'RM-T064-DER-B', qty_kg: '0.667', pct: '66.700' },
+    ]);
   });
 });

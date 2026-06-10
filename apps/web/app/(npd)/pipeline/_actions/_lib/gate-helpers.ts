@@ -419,6 +419,14 @@ export async function createFgCandidate(
         and product_code is null`,
     [project.id, productCode],
   );
+  await ctx.client.query(
+    `update public.formulations
+        set product_code = $2
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and product_code is null`,
+    [project.id, productCode],
+  );
 
   if (created) {
     await emitOutbox(ctx, {

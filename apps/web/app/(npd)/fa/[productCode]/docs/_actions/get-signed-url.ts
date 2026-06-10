@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import { createServerSupabaseClient } from '../../../../../../lib/auth/supabase-server';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
   COMPLIANCE_DOC_APP_VERSION,
   COMPLIANCE_DOC_SIGNED_URL_TTL_SECONDS,
   complianceDocsBucket,
+  createComplianceDocsStorageAdmin,
   hasComplianceDocWritePermission,
   type QueryClient,
 } from './upload-doc';
@@ -47,8 +47,8 @@ export async function getSignedUrl(input: GetSignedUrlInput): Promise<GetSignedU
       const row = doc.rows[0];
       if (!row) return { ok: false, code: 'DOC_NOT_FOUND' };
 
-      const supabase = await createServerSupabaseClient();
-      const { data, error } = await supabase.storage
+      const storageAdmin = await createComplianceDocsStorageAdmin();
+      const { data, error } = await storageAdmin.storage
         .from(complianceDocsBucket(orgId))
         .createSignedUrl(row.file_path, COMPLIANCE_DOC_SIGNED_URL_TTL_SECONDS);
       if (error || !data?.signedUrl) return { ok: false, code: 'STORAGE_FAILED' };

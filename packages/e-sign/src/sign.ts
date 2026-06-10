@@ -41,6 +41,55 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
 
+/**
+ * Login-password fallback for signers with NO enrolled PIN.
+ *
+ * The T-016 step-up PIN remains the primary credential, but no enrollment UI
+ * exists yet, so `user_pins` is empty for every real user and e-sign was
+ * unreachable app-wide (live D-4, 2026-06-10). When the signer has no PIN row,
+ * the supplied secret is verified as their Supabase LOGIN password via the
+ * auth password grant (no session is created or persisted; the issued token is
+ * discarded). A 'locked' PIN never falls back — lockout stays authoritative.
+ */
+async function verifyLoginPasswordFallback(
+  client: NonNullable<ESignTxOptions['client']>,
+  signerUserId: string,
+  secret: string,
+): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) return false;
+
+  const { rows } = await client.query<{ email: string | null }>(
+    `select email from public.users where id = $1::uuid limit 1`,
+    [signerUserId],
+  );
+  const email = rows[0]?.email;
+  if (!email) return false;
+
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: anonKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: secret }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function signerHasEnrolledPin(
+  client: NonNullable<ESignTxOptions['client']>,
+  signerUserId: string,
+): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok from public.user_pins where user_id = $1::uuid limit 1`,
+    [signerUserId],
+  );
+  return rows.length > 0;
+}
+
 async function signEventInClient(
   input: SignEventInput,
   client: NonNullable<ESignTxOptions['client']>,
@@ -49,7 +98,17 @@ async function signEventInClient(
   const parsed = signEventSchema.parse(input);
   const pinResult = await verifyPin(parsed.signerUserId, parsed.pin, { client });
   if (pinResult !== true) {
-    throw new EPinFailedError();
+    // 'locked' is final. A plain mismatch only falls back to the login-password
+    // check when the signer has no PIN enrolled at all (verifyPin returns false
+    // for both "wrong pin" and "no pin row" — disambiguate here).
+    const allowFallback =
+      pinResult === false && !(await signerHasEnrolledPin(client, parsed.signerUserId));
+    const fallbackOk =
+      allowFallback &&
+      (await verifyLoginPasswordFallback(client, parsed.signerUserId, parsed.pin));
+    if (!fallbackOk) {
+      throw new EPinFailedError();
+    }
   }
 
   const subjectHash = hashESignSubject(parsed.subject);
