@@ -189,6 +189,18 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(within(dialog).getByText('Advance to G3: Development')).toBeInTheDocument();
   });
 
+  it('notes are OPTIONAL for a plain advance: the label carries no required asterisk', () => {
+    renderModal({ items: readyItems });
+    const dialog = screen.getByRole('dialog');
+    // The notes label must NOT advertise a required marker — plain advances accept
+    // empty notes (the server only requires e-sign on approval→handoff, not notes).
+    expect(within(dialog).queryByLabelText('required')).not.toBeInTheDocument();
+    const notesLabel = within(dialog).getByText(/Gate advancement notes/);
+    expect(notesLabel.textContent ?? '').not.toContain('*');
+    // And Advance is still enabled with an empty notes field.
+    expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeEnabled();
+  });
+
   it('advisory state: when required items are incomplete, the warning lists each item while notes and Advance stay enabled', () => {
     renderModal({ items: blockedItems });
 
@@ -305,6 +317,24 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
       'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.',
     );
     expect(err.closest('[role="alert"]')).not.toBeNull();
+    expect(screen.queryByTestId('advance-gate-success')).not.toBeInTheDocument();
+  });
+
+  it('error state: surfaces an unknown server error CODE verbatim (HANDOFF_BOM_NOT_APPROVED is not swallowed)', async () => {
+    const user = userEvent.setup();
+    const advance = vi.fn().mockResolvedValue({
+      ok: false as const,
+      error: 'HANDOFF_BOM_NOT_APPROVED',
+      status: 409,
+    });
+    renderModal({ advanceProjectGate: advance });
+
+    await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
+
+    // The generic copy AND the specific code are both shown inside the alert.
+    const err = await screen.findByText('HANDOFF_BOM_NOT_APPROVED');
+    expect(err.closest('[role="alert"]')).not.toBeNull();
+    expect(screen.getByText('Could not advance the gate. Try again.')).toBeInTheDocument();
     expect(screen.queryByTestId('advance-gate-success')).not.toBeInTheDocument();
   });
 

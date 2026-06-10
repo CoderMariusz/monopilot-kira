@@ -235,6 +235,61 @@ describe('GateChecklistPanel — requiresApproval', () => {
   });
 });
 
+describe('GateChecklistPanel — terminal G4 / Mark as Launched', () => {
+  // G4 is the CURRENT (terminal) gate with every required item done: no `next`,
+  // no blockers → the panel renders the "Mark as launched" CTA instead of advance.
+  function makeTerminalGates(): GateView[] {
+    return [
+      {
+        key: 'G4',
+        label: 'Testing',
+        isCurrent: true,
+        next: null,
+        nextLabel: null,
+        requiresApproval: true,
+        pct: 100,
+        blockers: [],
+        items: [
+          { id: 'g4-t1', text: 'Pilot run validated', required: true, done: true, category: 'TECHNICAL', by: 'J. Lewis', at: '2026-01-05', file: null },
+        ],
+      },
+    ];
+  }
+
+  const TERMINAL_PROJECT: GateChecklistProject = { ...PROJECT, currentGate: 'G4' };
+
+  it('renders the Mark as Launched CTA at the terminal gate (no advance button)', () => {
+    render(
+      <GateChecklistPanel
+        project={TERMINAL_PROJECT}
+        gates={makeTerminalGates()}
+        labels={LABELS}
+        canWrite
+        state="ready"
+      />,
+    );
+    expect(screen.getByTestId('gate-mark-launched')).toHaveTextContent('lbl.markLaunched');
+    expect(screen.queryByTestId('gate-advance-button')).toBeNull();
+  });
+
+  it('wires Mark as Launched to openModal(advanceGate, {project}) — the launch confirm + error surface', async () => {
+    const user = userEvent.setup();
+    const openModal = vi.fn();
+    render(
+      <GateChecklistPanel
+        project={TERMINAL_PROJECT}
+        gates={makeTerminalGates()}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        openModal={openModal}
+      />,
+    );
+    await user.click(screen.getByTestId('gate-mark-launched'));
+    expect(openModal).toHaveBeenCalledWith('advanceGate', { project: TERMINAL_PROJECT });
+  });
+});
+
 describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
   it('calls toggleGateChecklistItem(itemId, !done) and reflects new state optimistically', async () => {
     const user = userEvent.setup();
@@ -263,12 +318,19 @@ describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
     expect(await screen.findByTestId('gate-blocker-alert')).toBeInTheDocument();
   });
 
-  it('disables checkboxes and omits attach when canWrite is false (RBAC server-resolved)', () => {
+  it('disables checkboxes when canWrite is false (RBAC server-resolved)', () => {
     renderPanel({ canWrite: false });
     for (const cb of screen.getAllByRole('checkbox')) {
       expect(cb).toBeDisabled();
     }
+  });
+
+  it('never renders the per-item Attach button (no upload backend — honest UI, attachments backlogged)', () => {
+    // canWrite true would previously render an "+ Attach" no-op; the modal-fix
+    // lane removed it. Assert it is absent for a writable, incomplete item too.
+    renderPanel({ canWrite: true });
     expect(screen.queryByTestId('gate-item-attach')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Attach/i })).toBeNull();
   });
 });
 

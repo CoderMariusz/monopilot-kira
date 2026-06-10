@@ -94,6 +94,8 @@ const LABELS: GateScreenLabels = {
     requiredComplete: '{done} of {total} required items complete',
     blockersTitle: '{count} blocker(s) must be resolved first',
     readyAlert: 'All required items complete — ready to advance.',
+    requiredIncompleteWarning:
+      '{count} required checklist items are not complete — you can still advance.',
     notesLabel: 'Advance notes',
     notesPlaceholder: 'Add a note for this gate transition…',
     notesHint: 'A short note is recorded with this gate transition.',

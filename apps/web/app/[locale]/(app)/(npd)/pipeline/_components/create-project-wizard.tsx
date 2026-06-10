@@ -92,6 +92,8 @@ export type WizardLabels = {
   startCloneDesc: string;
   startTemplateTitle: string;
   startTemplateDesc: string;
+  /** Tooltip + a11y hint on the disabled Clone/Template cards (no backend yet). */
+  startUnavailableHint: string;
   cloneAlert: string;
   reviewTitle: string;
   reviewReady: string;
@@ -126,9 +128,6 @@ const CATEGORY_VALUES = [
 
 /** Sales channel options mirror the prototype's <select> (project.jsx:164-166). */
 const SALES_CHANNEL_VALUES = ['Retail', 'HoReCa', 'Industrial', 'Export'] as const;
-
-/** Clone source suggested by the prototype (project.jsx:206/222). */
-const CLONE_SOURCE = 'BOM-214';
 
 type FormState = {
   name: string;
@@ -238,7 +237,9 @@ export function CreateProjectWizard({
         constraints: nullable(form.constraints),
         notes: nullable(form.notes),
         startFrom: form.startFrom,
-        cloneSource: form.startFrom === 'clone' ? CLONE_SOURCE : null,
+        // Clone has no backend yet — the card is disabled, so startFrom is always
+        // 'blank' here. Never send a hardcoded clone source (was 'BOM-214').
+        cloneSource: null,
         prio: 'normal',
         templateId: 'APEX_DEFAULT',
       });
@@ -254,10 +255,21 @@ export function CreateProjectWizard({
     }
   }, [createAction, form, labels, locale, router]);
 
-  const startingOptions: Array<{ key: WizardStartFrom; title: string; desc: string; icon: string }> = [
-    { key: 'blank', title: labels.startBlankTitle, desc: labels.startBlankDesc, icon: '◇' },
-    { key: 'clone', title: labels.startCloneTitle, desc: labels.startCloneDesc, icon: '⎘' },
-    { key: 'template', title: labels.startTemplateTitle, desc: labels.startTemplateDesc, icon: '▦' },
+  // Clone + Template have NO backend yet (clone forking / template seeding are not
+  // implemented). They are rendered as visibly DISABLED cards — Blank is the only
+  // selectable start and the default. Removing them entirely would diverge from the
+  // prototype's three-card layout, so we keep the cards but make their unavailability
+  // explicit (disabled + "Not available yet" title/aria).
+  const startingOptions: Array<{
+    key: WizardStartFrom;
+    title: string;
+    desc: string;
+    icon: string;
+    disabled: boolean;
+  }> = [
+    { key: 'blank', title: labels.startBlankTitle, desc: labels.startBlankDesc, icon: '◇', disabled: false },
+    { key: 'clone', title: labels.startCloneTitle, desc: labels.startCloneDesc, icon: '⎘', disabled: true },
+    { key: 'template', title: labels.startTemplateTitle, desc: labels.startTemplateDesc, icon: '▦', disabled: true },
   ];
 
   const startingReviewLabel =
@@ -479,21 +491,40 @@ export function CreateProjectWizard({
                   type="button"
                   role="radio"
                   aria-checked={selected}
+                  aria-disabled={opt.disabled || undefined}
+                  disabled={opt.disabled}
                   data-testid={`wizard-start-${opt.key}`}
-                  onClick={() => update('startFrom', opt.key)}
+                  data-disabled={opt.disabled || undefined}
+                  title={opt.disabled ? labels.startUnavailableHint : undefined}
+                  onClick={() => {
+                    if (opt.disabled) return;
+                    update('startFrom', opt.key);
+                  }}
                   style={{
                     textAlign: 'left',
                     padding: 14,
                     border: `2px solid ${selected ? 'var(--blue)' : 'var(--border)'}`,
                     borderRadius: 'var(--radius)',
-                    cursor: 'pointer',
+                    cursor: opt.disabled ? 'not-allowed' : 'pointer',
                     background: selected ? 'var(--blue-050)' : 'var(--card)',
+                    opacity: opt.disabled ? 0.5 : 1,
                   }}
                 >
                   <div style={{ fontSize: 22, marginBottom: 6 }} aria-hidden="true">
                     {opt.icon}
                   </div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{opt.title}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                    {opt.title}
+                    {opt.disabled ? (
+                      <span
+                        className="muted"
+                        data-testid={`wizard-start-${opt.key}-unavailable`}
+                        style={{ marginLeft: 6, fontSize: 11, fontWeight: 400 }}
+                      >
+                        · {labels.startUnavailableHint}
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="muted" style={{ fontSize: 11 }}>
                     {opt.desc}
                   </div>

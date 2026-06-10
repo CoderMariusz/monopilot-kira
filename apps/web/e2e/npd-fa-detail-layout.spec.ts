@@ -41,7 +41,9 @@ const sel = {
   deptCloseAction: '[data-testid="fa-right-panel-action-deptClose"]',
   d365Action: '[data-testid="fa-right-panel-action-d365Build"]',
   modalHost: '[data-testid="fa-modal-host"]',
-  deptCloseModal: '[data-testid="fa-modal-deptClose"]',
+  // The deptClose modal is now the REAL DeptCloseModal (T-022), keyed by its
+  // @monopilot/ui modalId (was the retired deferred-stub testid fa-modal-deptClose).
+  deptCloseModal: '[data-modal-id="npd-dept-close"]',
   d365Modal: '[data-testid="fa-modal-d365Build"]',
   tabTrigger: (slug: string) => `[data-slot="tabs-trigger"][data-value="${slug}"]`,
 };

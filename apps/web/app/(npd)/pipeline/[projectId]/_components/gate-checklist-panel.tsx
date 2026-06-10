@@ -289,16 +289,9 @@ function ChecklistItemRow({
             : labels.notStarted}
         </div>
       </div>
-      {!item.done && canWrite && (
-        <Button
-          type="button"
-          className="btn--secondary btn-sm shrink-0 text-xs"
-          data-testid="gate-item-attach"
-          onClick={(e) => e.stopPropagation()}
-        >
-          + {labels.attach}
-        </Button>
-      )}
+      {/* Per-item "Attach" was removed (2026-06-09 modal-fix lane): no upload
+          backend exists and the button was a pure no-op. Evidence attachments are
+          backlogged — an honest UI shows no affordance until the backend lands. */}
     </li>
   );
 }
@@ -607,7 +600,19 @@ export function GateChecklistPanel({
               </Button>
             )}
             {!currentGate.next && currentBlockers.length === 0 && (
-              <Button type="button" className="btn--primary" data-testid="gate-mark-launched">
+              // Terminal G4 → launched. The launch is the same stage-native advance
+              // the AdvanceGateModal performs (handoff → launched via advanceProjectGate);
+              // we open that modal as the confirm + error surface so the server's
+              // HANDOFF_BOM_NOT_APPROVED / ALREADY_CLOSED codes are shown inline, not
+              // swallowed. (Decision: reuse the existing modal rather than thread a
+              // second action + a new confirm dialog — the cheaper CORRECT option, and
+              // it needs no new i18n keys, which are locked for this lane.)
+              <Button
+                type="button"
+                className="btn--primary"
+                data-testid="gate-mark-launched"
+                onClick={() => openModal?.('advanceGate', { project })}
+              >
                 {labels.markLaunched}
               </Button>
             )}

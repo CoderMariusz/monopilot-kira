@@ -145,6 +145,13 @@ function resolveSubmitError(
       .filter((value): value is string => Boolean(value));
     return details.length > 0 ? `${title}\n${details.join('\n')}` : title;
   }
+  // Surface the server error CODE verbatim alongside the generic copy so terminal
+  // launch failures (e.g. HANDOFF_BOM_NOT_APPROVED, ALREADY_CLOSED) are visible to
+  // the user, not swallowed behind "Try again." `ALREADY_CLOSED` (status 200) means
+  // the project is already launched — treat it as informational, not an error.
+  if (result.error && result.error !== 'PERSISTENCE_FAILED') {
+    return `${labels.error}\n${result.error}`;
+  }
   return labels.error;
 }
 
@@ -412,7 +419,7 @@ export function AdvanceGateModal({
             {/* ——— Notes ——— */}
             <div className="grid gap-1">
               <label htmlFor="advance-gate-notes" className="text-sm font-medium text-slate-700">
-                {labels.notesLabel} <span aria-label="required">*</span>
+                {labels.notesLabel}
               </label>
               <Textarea
                 id="advance-gate-notes"

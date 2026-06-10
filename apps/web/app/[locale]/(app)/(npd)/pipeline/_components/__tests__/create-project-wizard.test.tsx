@@ -92,6 +92,7 @@ const LABELS: WizardLabels = {
   startCloneDesc: 'lbl.startCloneDesc',
   startTemplateTitle: 'lbl.startTemplateTitle',
   startTemplateDesc: 'lbl.startTemplateDesc',
+  startUnavailableHint: 'lbl.startUnavailableHint',
   cloneAlert: 'lbl.cloneAlert',
   reviewTitle: 'lbl.reviewTitle',
   reviewReady: 'lbl.reviewReady',
@@ -145,17 +146,32 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
     expect(cont).not.toBeDisabled();
   });
 
-  it('navigates Basics → Brief → Starting point and shows the clone alert on clone', () => {
+  it('navigates Basics → Brief → Starting point; Clone + Template cards are disabled (no backend), Blank stays selected', () => {
     renderWizard();
     fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham 200g' } });
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
     expect(screen.getByText(LABELS.briefTitle)).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Starting point
     expect(screen.getByText(LABELS.startingTitle)).toBeInTheDocument();
-    // clone alert hidden until clone chosen
+
+    // Blank is the default selected start.
+    expect(screen.getByTestId('wizard-start-blank')).toHaveAttribute('aria-checked', 'true');
+
+    // Clone + Template are visibly disabled with the "Not available yet" hint.
+    const clone = screen.getByTestId('wizard-start-clone');
+    const template = screen.getByTestId('wizard-start-template');
+    expect(clone).toBeDisabled();
+    expect(template).toBeDisabled();
+    expect(clone).toHaveAttribute('title', 'lbl.startUnavailableHint');
+    expect(template).toHaveAttribute('title', 'lbl.startUnavailableHint');
+    expect(screen.getByTestId('wizard-start-clone-unavailable')).toBeInTheDocument();
+    expect(screen.getByTestId('wizard-start-template-unavailable')).toBeInTheDocument();
+
+    // Clicking the disabled Clone card does NOT select it and does NOT show the clone alert.
+    fireEvent.click(clone);
+    expect(clone).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByTestId('wizard-start-blank')).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByTestId('wizard-clone-alert')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('wizard-start-clone'));
-    expect(screen.getByTestId('wizard-clone-alert')).toBeInTheDocument();
   });
 
   it('Back returns to the previous step', () => {
@@ -188,7 +204,8 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
     fireEvent.change(screen.getByLabelText(/lbl\.fieldNotes/), { target: { value: 'background' } });
     fireEvent.click(screen.getByTestId('wizard-continue'));
 
-    // Step 3
+    // Step 3 — Clone is disabled (no backend); attempting to select it is a no-op,
+    // so the start point stays 'blank' and NO hardcoded clone source is sent.
     fireEvent.click(screen.getByTestId('wizard-start-clone'));
     fireEvent.click(screen.getByTestId('wizard-continue'));
 
@@ -212,8 +229,8 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       marketingClaims: 'High protein',
       constraints: 'Shelf life >= 28 days',
       notes: 'background',
-      startFrom: 'clone',
-      cloneSource: 'BOM-214',
+      startFrom: 'blank',
+      cloneSource: null,
       prio: 'normal',
       templateId: 'APEX_DEFAULT',
     });

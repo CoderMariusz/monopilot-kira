@@ -68,6 +68,7 @@ const DEFAULT_LABELS: WizardLabels = {
   startCloneDesc: 'Fork a production recipe and modify. Suggested: Sliced Ham Standard (BOM-214).',
   startTemplateTitle: 'Category template',
   startTemplateDesc: 'Pre-filled skeleton for Meat · Cold cut with typical ingredients.',
+  startUnavailableHint: 'Not available yet',
   cloneAlert:
     'Will clone BOM-214 · Sliced Ham Standard (10 ingredients, last updated 2025-09-12). You can edit every value after creation.',
   reviewTitle: 'Review & create',
