@@ -127,6 +127,52 @@ function wireOrgContext(opts: { canRead?: boolean; canClose?: boolean; row?: Rec
   });
 }
 
+// ---------------------------------------------------------------------------
+// Dept-close Server Actions are imported directly by the (client) modal host
+// (same as deleteFa). Mock the two action modules so the REAL DeptCloseModal can
+// resolve its readiness checklist + run a close from the host without a DB. The
+// modal owns its own npd.deptClose i18n via next-intl; mock that too (jsdom has
+// no IntlProvider) so the modal body strings render.
+// ---------------------------------------------------------------------------
+
+const getRequiredFieldsForDeptMock = vi.fn();
+const closeDeptSectionMock = vi.fn();
+
+vi.mock('../../../../../../../(npd)/fa/actions/get-required-fields-for-dept', () => ({
+  getRequiredFieldsForDept: (...args: unknown[]) => getRequiredFieldsForDeptMock(...args),
+}));
+
+vi.mock('../../../../../../../(npd)/fa/actions/close-dept-section', () => ({
+  closeDeptSection: (...args: unknown[]) => closeDeptSectionMock(...args),
+}));
+
+const deptCloseLabels: Record<string, string> = {
+  titleClose: 'Close {dept} section',
+  subtitle: 'FA {faCode} · {productName}',
+  requiredCheckHeader: 'V05 · Required field check',
+  fieldPass: '{name} — filled',
+  fieldFail: '{name} — missing',
+  allPassBanner: 'All required fields filled — safe to close.',
+  cannotCloseBanner: 'Cannot close: fill all required fields before closing this section.',
+  noteLabel: 'Closing note (optional)',
+  notePlaceholder: 'Add a comment for the audit trail…',
+  cancel: 'Cancel',
+  confirm: 'Confirm close',
+  loading: 'Checking required fields…',
+  empty: 'No required fields configured for this department.',
+  error: 'Unable to load the required-field checklist. Try again.',
+  forbidden: 'You do not have permission to close this department.',
+  submitting: 'Closing…',
+  noteTooShort: 'The closing note must be at least 10 characters.',
+};
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string, values?: Record<string, string | number>) =>
+    (deptCloseLabels[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) =>
+      String(values?.[name] ?? `{${name}}`),
+    ),
+}));
+
 const Child = () => <div data-testid="layout-children">tab content here</div>;
 
 async function renderLayout(locale: Locale = 'en', productCode = 'FA0043') {
@@ -142,6 +188,15 @@ beforeEach(() => {
   searchParams = new URLSearchParams();
   vi.clearAllMocks();
   wireOrgContext();
+  getRequiredFieldsForDeptMock.mockResolvedValue({
+    dept: 'Core',
+    fields: [
+      { key: 'product_name', name: 'Product Name', ok: true },
+      { key: 'pack_size', name: 'Pack Size', ok: false },
+    ],
+    allPass: false,
+  });
+  closeDeptSectionMock.mockResolvedValue({ dept: 'Core', closedAt: '2026-06-10T00:00:00.000Z' });
 });
 
 afterEach(() => cleanup());
@@ -214,11 +269,66 @@ describe('T-138 FA detail layout — modal routing (acceptance #3)', () => {
     expect(screen.getByTestId('fa-right-panel-action-d365Build')).toBeDisabled();
   });
 
-  it('mounts the modal host that opens the deptClose modal when ?modal=deptClose', async () => {
+  it('mounts the REAL DeptCloseModal body (not the deferred stub) when ?modal=deptClose', async () => {
     searchParams = new URLSearchParams('modal=deptClose');
     await renderLayout();
     expect(screen.getByTestId('fa-modal-host')).toBeInTheDocument();
-    expect(screen.getByTestId('fa-modal-deptClose')).toBeInTheDocument();
+    // Real modal renders its dept-scoped title + required-field checklist body —
+    // the deferred placeholder ("opens here") is gone. The readiness probe is
+    // async, so wait for a body row before asserting the rest of the body.
+    expect(await screen.findByText('Close Core section')).toBeInTheDocument();
+    expect(await screen.findByText('Product Name — filled')).toBeInTheDocument();
+    expect(screen.getByText('V05 · Required field check')).toBeInTheDocument();
+    expect(screen.getByText('Pack Size — missing')).toBeInTheDocument();
+    // Real Confirm-close button + closing-note Textarea exist.
+    expect(screen.getByRole('button', { name: /Confirm close/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Closing note/i })).toBeInTheDocument();
+    // Stub copy is GONE from the render path.
+    expect(screen.queryByTestId('fa-modal-deptClose')).not.toBeInTheDocument();
+    expect(screen.queryByText(/opens here/i)).not.toBeInTheDocument();
+  });
+
+  it('resolves dept from ?tab= when ?dept= is absent (technical tab → Technical readiness)', async () => {
+    searchParams = new URLSearchParams('modal=deptClose&tab=technical');
+    getRequiredFieldsForDeptMock.mockResolvedValue({
+      dept: 'Technical',
+      fields: [{ key: 'allergen', name: 'Allergen', ok: true }],
+      allPass: true,
+    });
+    await renderLayout();
+    expect(await screen.findByText('Close Technical section')).toBeInTheDocument();
+    // The action was asked for the Technical dept, not Core.
+    expect(getRequiredFieldsForDeptMock).toHaveBeenCalledWith('FA0043', 'Technical');
+  });
+
+  it('shows the forbidden state when the caller lacks npd.fa.close (server-resolved, not client-trusted)', async () => {
+    wireOrgContext({ canClose: false });
+    searchParams = new URLSearchParams('modal=deptClose');
+    await renderLayout();
+    expect(await screen.findByText(/do not have permission to close/i)).toBeInTheDocument();
+    // No Confirm action offered when forbidden — and the readiness action is never called.
+    expect(screen.queryByRole('button', { name: /Confirm close/i })).not.toBeInTheDocument();
+    expect(getRequiredFieldsForDeptMock).not.toHaveBeenCalled();
+  });
+
+  it('runs closeDeptSection on Confirm then closes the modal (allPass branch)', async () => {
+    const user = userEvent.setup();
+    getRequiredFieldsForDeptMock.mockResolvedValue({
+      dept: 'Core',
+      fields: [{ key: 'product_name', name: 'Product Name', ok: true }],
+      allPass: true,
+    });
+    searchParams = new URLSearchParams('modal=deptClose');
+    await renderLayout();
+    // Wait for the readiness probe to resolve to allPass (success banner shows).
+    await screen.findByText(/safe to close/i);
+    const confirm = screen.getByRole('button', { name: /Confirm close/i });
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect(closeDeptSectionMock).toHaveBeenCalledWith('FA0043', 'Core');
+    // On success the host strips ?modal= (closes the modal).
+    expect(routerPush).toHaveBeenCalled();
+    expect(routerPush.mock.calls.at(-1)?.[0]).not.toMatch(/modal=deptClose/);
   });
 
   it('opens the d365Build modal when ?modal=d365Build', async () => {
@@ -269,11 +379,13 @@ describe('T-138 FA detail layout — RBAC + real-data wiring', () => {
 });
 
 describe('T-138 FA detail layout — i18n (next-intl, all four locales)', () => {
-  it('resolves the deferred deptClose modal copy through the npd.faDetailModals namespace (pl)', async () => {
+  it('renders the REAL DeptCloseModal body for ?modal=deptClose under a non-en locale (pl)', async () => {
     searchParams = new URLSearchParams('modal=deptClose');
     await renderLayout('pl');
-    // Proves pl.json carries the new faDetailModals key (no inline literal).
-    expect(screen.getByText('Tutaj otwiera się proces zamykania działu.')).toBeInTheDocument();
+    // The real modal owns its own npd.deptClose namespace (all four locales carry
+    // these keys); the deferred faDetailModals placeholder no longer renders.
+    expect(await screen.findByText('Close Core section')).toBeInTheDocument();
+    expect(screen.queryByText(/Tutaj otwiera się proces/i)).not.toBeInTheDocument();
   });
 
   it('localizes the D365 disabled hint through npd.faRightPanel (pl)', async () => {

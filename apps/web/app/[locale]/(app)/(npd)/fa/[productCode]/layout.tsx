@@ -288,10 +288,14 @@ export default async function FaDetailLayout(propsInput: unknown = {}) {
           every ?tab= switch (no remount). Wired quick actions route to modals. */}
       {rightPanel}
 
-      {/* Modal host (also layout-owned → persists across tabs). */}
+      {/* Modal host (also layout-owned → persists across tabs). The Dept Close
+          gate is resolved SERVER-SIDE here (npd.fa.read && npd.fa.close) and
+          threaded down — the modal renders its forbidden state when false and
+          never client-trusts a permission flag. */}
       <FaDetailModalHost
         productCode={data.fa?.productCode ?? productCode}
         productName={productName}
+        canClose={data.canRead && data.canClose}
         labels={modalLabels}
       />
     </div>

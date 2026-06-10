@@ -8,14 +8,21 @@
  * (T-035/T-121): the host never decides RBAC and never touches the DB — it only
  * turns URL state into the right injected modal and closes by stripping `?modal=`.
  *
- *   - `?modal=deptClose` → Dept Close modal (real dialog body is T-022).
- *   - `?modal=d365Build` → D365 Build modal (real dialog body is T-021).
+ *   - `?modal=deptClose` → REAL Dept Close modal (T-022 `DeptCloseModal`).
+ *   - `?modal=d365Build` → D365 Build modal (real dialog body is T-021 — deferred here).
  *
- * STRICT SCOPE: the dialog bodies themselves are OUT OF SCOPE for T-138
- * (T-021 d365Build / T-022 deptClose). This host therefore mounts the real
- * @monopilot/ui Modal shell with a deferred body + the carried context (FA code,
- * dept), so the wiring (open/route/close) is exercised end-to-end while the
- * dialog content lands in its owning task. No mock, no DB write here.
+ * Dept Close (now real, not a stub):
+ *   The host resolves the target dept from `?dept=` (explicit) or the active
+ *   `?tab=` slug, fetches the per-dept required-field checklist via the
+ *   `getRequiredFieldsForDept` Server Action (status loading → ready/error), and
+ *   mounts the controlled `DeptCloseModal`. RBAC is NEVER client-trusted: when the
+ *   server-resolved `canClose` is false the modal shows the forbidden state and no
+ *   readiness probe runs. Confirm calls `closeDeptSection` (the server recomputes
+ *   readiness) then strips `?modal=` and `router.refresh()`es the dept tabs.
+ *
+ * The Server Actions are imported directly into this client component — exactly
+ * the pattern already used for `deleteFa` (Next serializes the 'use server'
+ * reference across the boundary). No mock, no DB query in client code here.
  */
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -24,6 +31,55 @@ import React from 'react';
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
 import { deleteFa } from '../../../../../../(npd)/fa/actions/delete-fa';
+import {
+  DeptCloseModal,
+  type DeptCloseConfirmInput,
+  type DeptCloseModalStatus,
+} from '../../../../../../(npd)/_modals/dept-close-modal';
+import {
+  getRequiredFieldsForDept,
+  type Dept,
+  type RequiredFieldsForDept,
+} from '../../../../../../(npd)/fa/actions/get-required-fields-for-dept';
+import { closeDeptSection } from '../../../../../../(npd)/fa/actions/close-dept-section';
+
+/**
+ * Map an FA detail tab slug (lower-case, T-136 FaTabs) to the canonical `Dept`
+ * union the readiness/close actions accept. `bom`/`history` are not closeable
+ * departments — they fall back to `Core` (the only dept always actionable).
+ */
+const TAB_SLUG_TO_DEPT: Record<string, Dept> = {
+  core: 'Core',
+  planning: 'Planning',
+  commercial: 'Commercial',
+  production: 'Production',
+  technical: 'Technical',
+  mrp: 'MRP',
+  procurement: 'Procurement',
+};
+
+const DEPT_VALUES: readonly Dept[] = [
+  'Core',
+  'Planning',
+  'Commercial',
+  'Production',
+  'Technical',
+  'MRP',
+  'Procurement',
+];
+
+function resolveDept(deptParam: string | null, tabParam: string | null): Dept {
+  if (deptParam && (DEPT_VALUES as readonly string[]).includes(deptParam)) {
+    return deptParam as Dept;
+  }
+  if (deptParam && TAB_SLUG_TO_DEPT[deptParam.toLowerCase()]) {
+    return TAB_SLUG_TO_DEPT[deptParam.toLowerCase()];
+  }
+  if (tabParam && TAB_SLUG_TO_DEPT[tabParam.toLowerCase()]) {
+    return TAB_SLUG_TO_DEPT[tabParam.toLowerCase()];
+  }
+  return 'Core';
+}
 
 export type FaDetailModalHostLabels = {
   deptCloseTitle: string;
@@ -45,6 +101,12 @@ export type FaDetailModalHostLabels = {
 export type FaDetailModalHostProps = {
   productCode: string;
   productName: string | null;
+  /**
+   * Server-resolved `npd.fa.close` gate (the layout reads it once under
+   * withOrgContext). When false the Dept Close modal renders its forbidden state
+   * and never probes readiness — RBAC is never trusted client-side.
+   */
+  canClose: boolean;
   labels: FaDetailModalHostLabels;
 };
 
@@ -55,7 +117,7 @@ function isOpenKey(value: string | null): value is OpenKey {
   return value !== null && (OPEN_KEYS as readonly string[]).includes(value);
 }
 
-export function FaDetailModalHost({ productCode, productName, labels }: FaDetailModalHostProps) {
+export function FaDetailModalHost({ productCode, productName, canClose, labels }: FaDetailModalHostProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -66,6 +128,59 @@ export function FaDetailModalHost({ productCode, productName, labels }: FaDetail
 
   const rawModal = searchParams?.get('modal') ?? null;
   const modal = isOpenKey(rawModal) ? rawModal : null;
+
+  // ── Dept Close readiness state machine ──────────────────────────────────────
+  // The target dept is taken from ?dept= (explicit) or the active ?tab= slug.
+  const deptParam = searchParams?.get('dept') ?? null;
+  const tabParam = searchParams?.get('tab') ?? null;
+  const dept = resolveDept(deptParam, tabParam);
+
+  const deptCloseOpen = modal === 'deptClose';
+  const [deptStatus, setDeptStatus] = React.useState<DeptCloseModalStatus>('loading');
+  const [requiredFields, setRequiredFields] = React.useState<RequiredFieldsForDept | null>(null);
+
+  React.useEffect(() => {
+    if (!deptCloseOpen) {
+      setDeptStatus('loading');
+      setRequiredFields(null);
+      return;
+    }
+    // RBAC is server-resolved: a caller without npd.fa.close gets the forbidden
+    // state and we never run the readiness probe.
+    if (!canClose) {
+      setDeptStatus('forbidden');
+      setRequiredFields(null);
+      return;
+    }
+    let active = true;
+    setDeptStatus('loading');
+    setRequiredFields(null);
+    getRequiredFieldsForDept(productCode, dept)
+      .then((result) => {
+        if (!active) return;
+        setRequiredFields(result);
+        setDeptStatus('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setRequiredFields(null);
+        setDeptStatus('error');
+      });
+    return () => {
+      active = false;
+    };
+  }, [deptCloseOpen, canClose, productCode, dept]);
+
+  function confirmDeptClose({ dept: confirmDept }: DeptCloseConfirmInput) {
+    return closeDeptSection(productCode, confirmDept)
+      .then(() => {
+        closeModal();
+        router.refresh();
+      })
+      .catch(() => {
+        setDeptStatus('error');
+      });
+  }
 
   function closeModal() {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
@@ -97,27 +212,15 @@ export function FaDetailModalHost({ productCode, productName, labels }: FaDetail
 
   return (
     <div data-testid="fa-modal-host">
-      <Modal
-        open={modal === 'deptClose'}
-        onOpenChange={handleOpenChange}
-        size="md"
-        modalId="npd-fa-dept-close"
-      >
-        <Modal.Header title={labels.deptCloseTitle} />
-        <p data-slot="dialog-subtitle" className="mt-1 text-xs text-slate-500">
-          {subtitle}
-        </p>
-        <Modal.Body>
-          <p data-testid="fa-modal-deptClose" role="status" className="py-4 text-sm text-slate-600">
-            {labels.deptCloseDeferred}
-          </p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
-            {labels.close}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+      <DeptCloseModal
+        open={deptCloseOpen}
+        dept={dept}
+        fa={{ faCode: productCode, productName: productName ?? productCode }}
+        requiredFields={requiredFields}
+        status={deptStatus}
+        onClose={closeModal}
+        onConfirm={confirmDeptClose}
+      />
 
       <Modal
         open={modal === 'd365Build'}

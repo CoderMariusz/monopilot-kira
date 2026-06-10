@@ -56,6 +56,51 @@ vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: withOrgContextMock,
 }));
 
+// The real DeptCloseModal (now mounted by the host) imports two Server Actions
+// directly + owns its npd.deptClose i18n via next-intl. Mock both so the
+// evidence DOM captures the real modal body (no DB, no IntlProvider in jsdom).
+vi.mock('../../../../../../../(npd)/fa/actions/get-required-fields-for-dept', () => ({
+  getRequiredFieldsForDept: vi.fn(async () => ({
+    dept: 'Core',
+    fields: [
+      { key: 'product_name', name: 'Product Name', ok: true },
+      { key: 'pack_size', name: 'Pack Size', ok: false },
+    ],
+    allPass: false,
+  })),
+}));
+
+vi.mock('../../../../../../../(npd)/fa/actions/close-dept-section', () => ({
+  closeDeptSection: vi.fn(async () => ({ dept: 'Core', closedAt: '2026-06-10T00:00:00.000Z' })),
+}));
+
+const deptCloseEvidenceLabels: Record<string, string> = {
+  titleClose: 'Close {dept} section',
+  subtitle: 'FA {faCode} · {productName}',
+  requiredCheckHeader: 'V05 · Required field check',
+  fieldPass: '{name} — filled',
+  fieldFail: '{name} — missing',
+  allPassBanner: 'All required fields filled — safe to close.',
+  cannotCloseBanner: 'Cannot close: fill all required fields before closing this section.',
+  noteLabel: 'Closing note (optional)',
+  notePlaceholder: 'Add a comment for the audit trail…',
+  cancel: 'Cancel',
+  confirm: 'Confirm close',
+  loading: 'Checking required fields…',
+  empty: 'No required fields configured for this department.',
+  error: 'Unable to load the required-field checklist. Try again.',
+  forbidden: 'You do not have permission to close this department.',
+  submitting: 'Closing…',
+  noteTooShort: 'The closing note must be at least 10 characters.',
+};
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string, values?: Record<string, string | number>) =>
+    (deptCloseEvidenceLabels[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) =>
+      String(values?.[name] ?? `{${name}}`),
+    ),
+}));
+
 const ROW = {
   product_code: 'FA0043',
   product_name: 'Smoked Almond Yoghurt',
