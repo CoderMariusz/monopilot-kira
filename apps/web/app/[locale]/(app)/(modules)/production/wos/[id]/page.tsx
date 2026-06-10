@@ -23,22 +23,15 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getWorkOrderDetail } from '../../_actions/get-work-order-detail';
-import { WoDetailScreen, type WoDetailLabels } from './_components/wo-detail-screen';
+import { getWoActionContext } from '../../_actions/get-wo-action-context';
+import {
+  WoDetailScreen,
+  type WoDetailActions,
+  type WoDetailLabels,
+} from './_components/wo-detail-screen';
+import { buildWoModalLabels } from '../../_actions/wo-modal-labels';
 
 export const dynamic = 'force-dynamic';
-
-const QTY_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
-
-function fmtQty(n: number): string {
-  return QTY_FMT.format(Math.round(n));
-}
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toISOString().slice(0, 16).replace('T', ' ');
-}
 
 function WoDetailSkeleton() {
   return (
@@ -50,7 +43,7 @@ function WoDetailSkeleton() {
   );
 }
 
-async function WoDetailContent({ id }: { id: string }) {
+async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   const t = await getTranslations('production.wos.detail');
   const result = await getWorkOrderDetail(id);
 
@@ -95,10 +88,14 @@ async function WoDetailContent({ id }: { id: string }) {
     },
     deferredActionTitle: t('deferredActionTitle'),
     headerActions: {
+      start: t('headerActions.start'),
       pause: t('headerActions.pause'),
+      resume: t('headerActions.resume'),
       waste: t('headerActions.waste'),
       catchWeight: t('headerActions.catchWeight'),
       complete: t('headerActions.complete'),
+      cancel: t('headerActions.cancel'),
+      close: t('headerActions.close'),
     },
     tabs: {
       overview: t('tabs.overview'),
@@ -213,7 +210,26 @@ async function WoDetailContent({ id }: { id: string }) {
     },
   };
 
-  return <WoDetailScreen data={result.data} labels={labels} fmtQty={fmtQty} fmtDate={fmtDate} />;
+  // Resolve the server-side action context (RBAC + runtime status + reference
+  // lists + e-sign signer). A failed/forbidden read just hides the action bar —
+  // the read-only screen still renders.
+  const actionCtx = await getWoActionContext(id);
+  const at = await getTranslations('production.wos.actions');
+
+  let actions: WoDetailActions | null = null;
+  if (actionCtx.ok) {
+    actions = {
+      locale,
+      status: actionCtx.data.executionStatus,
+      permissions: actionCtx.data.permissions,
+      currentUserId: actionCtx.data.currentUserId,
+      downtimeCategories: actionCtx.data.downtimeCategories,
+      wasteCategories: actionCtx.data.wasteCategories,
+      modalLabels: buildWoModalLabels((k) => at(k)),
+    };
+  }
+
+  return <WoDetailScreen data={result.data} labels={labels} actions={actions} />;
 }
 
 export default async function ProductionWoDetailPage({
@@ -221,7 +237,7 @@ export default async function ProductionWoDetailPage({
 }: {
   params: Promise<{ id: string; locale: string }>;
 }) {
-  const { id } = await params;
+  const { id, locale } = await params;
   const t = await getTranslations('production.wos.detail');
 
   return (
@@ -238,7 +254,7 @@ export default async function ProductionWoDetailPage({
         ]}
       />
       <Suspense fallback={<WoDetailSkeleton />}>
-        <WoDetailContent id={id} />
+        <WoDetailContent id={id} locale={locale} />
       </Suspense>
     </main>
   );

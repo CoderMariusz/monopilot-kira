@@ -102,14 +102,15 @@ const STATUS_COUNTS: Record<WoListStatus, number> = {
 };
 
 function renderScreen(rows = ROWS) {
+  // actions=null exercises the read-only path (no live action context): per-row
+  // controls fall back to the deferred slot. The wired per-row Start/Pause/Resume
+  // is covered by wos/_components/modals/__tests__/wo-actions.test.tsx.
   return render(
     <WoListScreen
       rows={rows}
       statusCounts={STATUS_COUNTS}
       labels={LABELS}
-      detailHref={(id) => `/production/wos/${id}`}
-      fmtQty={(n) => String(Math.round(n))}
-      fmtDate={(iso) => (iso ? iso.slice(0, 10) : '—')}
+      actions={null}
     />,
   );
 }

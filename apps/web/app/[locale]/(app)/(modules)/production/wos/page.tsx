@@ -20,23 +20,16 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listWorkOrders, type WoListStatus } from '../_actions/list-work-orders';
-import { WoListScreen, type WoListLabels } from './_components/wo-list-screen';
+import { getWoListActionContext } from '../_actions/get-wo-action-context';
+import { buildWoModalLabels } from '../_actions/wo-modal-labels';
+import {
+  WoListScreen,
+  type WoListActions,
+  type WoListLabels,
+} from './_components/wo-list-screen';
 
 // Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';
-
-const QTY_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
-
-function fmtQty(n: number): string {
-  return QTY_FMT.format(Math.round(n));
-}
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toISOString().slice(0, 16).replace('T', ' ');
-}
 
 function WoListSkeleton() {
   return (
@@ -47,7 +40,7 @@ function WoListSkeleton() {
   );
 }
 
-async function WoListContent() {
+async function WoListContent({ locale }: { locale: string }) {
   const t = await getTranslations('production.wos');
   const result = await listWorkOrders();
 
@@ -135,19 +128,35 @@ async function WoListContent() {
     },
   };
 
+  // Org-level action affordances (RBAC + downtime categories) for the per-row
+  // Start / Pause / Resume controls. A failed read just hides the row actions.
+  const actionCtx = await getWoListActionContext();
+  const at = await getTranslations('production.wos.actions');
+  const actions: WoListActions | null = actionCtx.ok
+    ? {
+        locale,
+        permissions: actionCtx.data.permissions,
+        downtimeCategories: actionCtx.data.downtimeCategories,
+        modalLabels: buildWoModalLabels((k) => at(k)),
+      }
+    : null;
+
   return (
     <WoListScreen
       rows={rows}
       statusCounts={statusCounts}
       labels={labels}
-      detailHref={(id) => `/production/wos/${id}`}
-      fmtQty={fmtQty}
-      fmtDate={fmtDate}
+      actions={actions}
     />
   );
 }
 
-export default async function ProductionWoListPage() {
+export default async function ProductionWoListPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
   const t = await getTranslations('production.wos');
 
   return (
@@ -162,7 +171,7 @@ export default async function ProductionWoListPage() {
         breadcrumb={[{ label: t('breadcrumb.production') }, { label: t('breadcrumb.workOrders') }]}
       />
       <Suspense fallback={<WoListSkeleton />}>
-        <WoListContent />
+        <WoListContent locale={locale} />
       </Suspense>
     </main>
   );

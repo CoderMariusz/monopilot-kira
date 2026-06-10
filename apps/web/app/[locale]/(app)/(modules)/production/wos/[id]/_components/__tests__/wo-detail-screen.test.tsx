@@ -22,7 +22,7 @@ import type { WorkOrderDetailData } from '../../../../_actions/get-work-order-de
 const LABELS: WoDetailLabels = {
   status: { planned: 'Planned', in_progress: 'In progress', paused: 'Paused', completed: 'Completed', closed: 'Closed', cancelled: 'Cancelled' },
   deferredActionTitle: 'Wired in the next step',
-  headerActions: { pause: 'Pause', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete' },
+  headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', history: 'Event log' },
   overview: {
     summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine',
@@ -82,12 +82,14 @@ const DATA: WorkOrderDetailData = {
 };
 
 function renderScreen(data = DATA) {
+  // actions=null exercises the read-only path (no live action context): the
+  // wired action bar is NOT rendered; the per-tab triggers are absent. The action
+  // wiring itself is covered by wos/_components/modals/__tests__/wo-actions.test.tsx.
   return render(
     <WoDetailScreen
       data={data}
       labels={LABELS}
-      fmtQty={(n) => String(Math.round(n))}
-      fmtDate={(iso) => (iso ? iso.slice(0, 10) : '—')}
+      actions={null}
     />,
   );
 }
@@ -195,12 +197,11 @@ describe('WoDetailScreen (parity: wo-detail.jsx:4-530)', () => {
     expect(screen.getByTestId('wo-history-empty')).toBeInTheDocument();
   });
 
-  it('the header action bar is DISABLED (deferred mutation slots)', () => {
+  it('with no action context (read-only) the wired action bar is NOT rendered', () => {
     renderScreen();
-    for (const tid of ['wo-action-pause', 'wo-action-waste', 'wo-action-catchweight', 'wo-action-complete']) {
-      const btn = screen.getByTestId(tid);
-      expect(btn).toBeDisabled();
-      expect(btn).toHaveAttribute('title', 'Wired in the next step');
-    }
+    // The header action bar + its triggers only mount when `actions` resolves.
+    expect(screen.queryByTestId('wo-action-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('wo-action-pause')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('wo-action-complete')).not.toBeInTheDocument();
   });
 });

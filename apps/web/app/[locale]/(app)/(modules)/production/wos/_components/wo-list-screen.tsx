@@ -31,6 +31,13 @@ import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import type { WoListStatus, WorkOrderListItem } from '../../_actions/list-work-orders';
+import { WoRowActions } from './modals/wo-row-actions';
+import type {
+  WoActionPermissions,
+  WoModalLabels,
+  WoReasonCategory,
+} from './modals/types';
+import type { WoState } from '../../_actions/get-wo-action-context';
 
 const STATUS_VARIANT: Record<WoListStatus, BadgeVariant> = {
   planned: 'muted',
@@ -96,21 +103,42 @@ function ProgressBar({ pct, label }: { pct: number; label: string }) {
   );
 }
 
+/** Server-resolved per-row action context (RBAC + reference lists + signer). */
+export type WoListActions = {
+  locale: string;
+  permissions: WoActionPermissions;
+  downtimeCategories: WoReasonCategory[];
+  modalLabels: WoModalLabels;
+};
+
+// Formatters live IN this client module — passing them as props from the RSC
+// page crashed live with the Next16 "Functions cannot be passed to Client
+// Components" error (vitest can't catch it; wave-P1 live verify did).
+const QTY_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+function fmtQty(n: number): string {
+  return QTY_FMT.format(Math.round(n));
+}
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toISOString().slice(0, 16).replace('T', ' ');
+}
+function detailHref(id: string): string {
+  return `/production/wos/${id}`;
+}
+
 export function WoListScreen({
   rows,
   statusCounts,
   labels,
-  detailHref,
-  fmtQty,
-  fmtDate,
+  actions,
 }: {
   rows: WorkOrderListItem[];
   statusCounts: Record<WoListStatus, number>;
   labels: WoListLabels;
-  /** Builds the row's detail link (locale-prefix handled by middleware). */
-  detailHref: (id: string) => string;
-  fmtQty: (n: number) => string;
-  fmtDate: (iso: string | null) => string;
+  /** Null when the action-context read failed/forbade — rows show no actions. */
+  actions: WoListActions | null;
 }) {
   const [tab, setTab] = useState<'all' | WoListStatus>('all');
   const [search, setSearch] = useState('');
@@ -260,7 +288,24 @@ export function WoListScreen({
                     <div>{fmtDate(r.scheduledEnd)}</div>
                   </TableCell>
                   <TableCell>
-                    <RowAction status={r.status} labels={labels} />
+                    {actions ? (
+                      <WoRowActions
+                        locale={actions.locale}
+                        woId={r.id}
+                        status={r.status as WoState}
+                        lineId={r.lineId}
+                        permissions={actions.permissions}
+                        rowLabels={{
+                          start: labels.startAction,
+                          pause: labels.pauseAction,
+                          resume: labels.resumeAction,
+                        }}
+                        modalLabels={actions.modalLabels}
+                        downtimeCategories={actions.downtimeCategories}
+                      />
+                    ) : (
+                      <RowAction status={r.status} labels={labels} />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

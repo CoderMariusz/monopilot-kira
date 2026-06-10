@@ -18,12 +18,13 @@
  *   Genealogy    :454     LP links from wo_material_consumption (empty-state OK)
  *   History      :505     wo_status_history + execution events
  *
- * Deviations: the prototype's header action bar (Pause / Waste / Catch-weight /
- * Complete) + per-tab mutation buttons (Register output, Log waste, …) are
- * DEFERRED to a follow-up lane that wires the action modals. They are rendered
- * DISABLED with an explanatory title so the screen never looks broken. The
- * over-consumption approval banner + D365 push card from the prototype are mock-
- * only operational chrome and are omitted (no backing read-model in this lane).
+ * P2-MODALS: the prototype's header action bar (Pause / Waste / Catch-weight /
+ * Complete — plus Start / Resume / Cancel / Close) + per-tab mutation buttons
+ * (Register output, Log waste) are now WIRED to the existing WO route handlers
+ * via the <WoActionsProvider> orchestrator. Each button is rendered ONLY when the
+ * action is state-legal for the WO's runtime status AND the caller holds the
+ * matching permission (server-resolved). The over-consumption approval banner +
+ * D365 push card from the prototype remain omitted (no backing read-model here).
  */
 
 import { useState } from 'react';
@@ -37,6 +38,17 @@ import type {
   WorkOrderDetailData,
   WorkOrderDetailStatus,
 } from '../../../_actions/get-work-order-detail';
+import {
+  WoActionsProvider,
+  WoActionTrigger,
+} from '../../_components/modals/wo-actions';
+import type {
+  WoActionPermissions,
+  WoModalLabels,
+  WoReasonCategory,
+  WoWasteCategory,
+} from '../../_components/modals/types';
+import type { WoState } from '../../../_actions/get-wo-action-context';
 
 const STATUS_VARIANT: Record<WorkOrderDetailStatus, BadgeVariant> = {
   planned: 'muted',
@@ -60,7 +72,16 @@ type TabKey =
 export type WoDetailLabels = {
   status: Record<WorkOrderDetailStatus, string>;
   deferredActionTitle: string;
-  headerActions: { pause: string; waste: string; catchWeight: string; complete: string };
+  headerActions: {
+    start: string;
+    pause: string;
+    resume: string;
+    waste: string;
+    catchWeight: string;
+    complete: string;
+    cancel: string;
+    close: string;
+  };
   tabs: Record<TabKey, string>;
   overview: {
     summaryTitle: string;
@@ -126,6 +147,11 @@ export type WoDetailLabels = {
   };
 };
 
+/**
+ * Out-of-lane mutation slots (Consumption "Scan LP", Downtime "Log downtime")
+ * stay DEFERRED — they belong to separate flows (LP scan / manual downtime) not
+ * wired by P2-MODALS. Rendered DISABLED with an explanatory title.
+ */
 function DeferredButton({ label, title, testid }: { label: string; title: string; testid: string }) {
   return (
     <button
@@ -156,16 +182,40 @@ function ProgressBar({ pct, label }: { pct: number; label: string }) {
   );
 }
 
+/** Server-resolved action context handed down to the modal orchestrator. */
+export type WoDetailActions = {
+  locale: string;
+  status: WoState | null;
+  permissions: WoActionPermissions;
+  currentUserId: string;
+  downtimeCategories: WoReasonCategory[];
+  wasteCategories: WoWasteCategory[];
+  modalLabels: WoModalLabels;
+};
+
+// Formatters live IN this client module — passing them as props from the RSC
+// page crashed live (Next16 "Functions cannot be passed to Client Components";
+// wave-P1 live verify, digests 568085975/520930007).
+const QTY_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+function fmtQty(n: number): string {
+  return QTY_FMT.format(Math.round(n));
+}
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toISOString().slice(0, 16).replace('T', ' ');
+}
+
 export function WoDetailScreen({
   data,
   labels,
-  fmtQty,
-  fmtDate,
+  actions,
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
-  fmtQty: (n: number) => string;
-  fmtDate: (iso: string | null) => string;
+  /** Null when the action-context read failed/forbade — buttons are then hidden. */
+  actions: WoDetailActions | null;
 }) {
   const [tab, setTab] = useState<TabKey>('overview');
   const { header: h } = data;
@@ -191,9 +241,9 @@ export function WoDetailScreen({
 
   const wasteTotalKg = data.waste.reduce((a, w) => a + w.qtyKg, 0);
 
-  return (
+  const body = (
     <div className="flex flex-col gap-4">
-      {/* WO header — code, name, status, key facts + deferred action bar */}
+      {/* WO header — code, name, status, key facts + wired action bar */}
       <Card data-testid="wo-detail-header" className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -213,12 +263,18 @@ export function WoDetailScreen({
               {labels.overview.elapsed} <b>{h.elapsedMin === null ? '—' : `${h.elapsedMin} ${labels.overview.elapsedMin}`}</b>
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <DeferredButton label={labels.headerActions.pause} title={labels.deferredActionTitle} testid="wo-action-pause" />
-            <DeferredButton label={labels.headerActions.waste} title={labels.deferredActionTitle} testid="wo-action-waste" />
-            <DeferredButton label={labels.headerActions.catchWeight} title={labels.deferredActionTitle} testid="wo-action-catchweight" />
-            <DeferredButton label={labels.headerActions.complete} title={labels.deferredActionTitle} testid="wo-action-complete" />
-          </div>
+          {actions ? (
+            <div className="flex shrink-0 flex-wrap gap-2" data-testid="wo-action-bar">
+              <WoActionTrigger kind="start" label={labels.headerActions.start} />
+              <WoActionTrigger kind="pause" label={labels.headerActions.pause} />
+              <WoActionTrigger kind="resume" label={labels.headerActions.resume} />
+              <WoActionTrigger kind="waste" label={labels.headerActions.waste} testid="wo-action-waste-header" />
+              <WoActionTrigger kind="output" label={labels.headerActions.catchWeight} testid="wo-action-catchweight" />
+              <WoActionTrigger kind="complete" label={labels.headerActions.complete} />
+              <WoActionTrigger kind="close" label={labels.headerActions.close} />
+              <WoActionTrigger kind="cancel" label={labels.headerActions.cancel} />
+            </div>
+          ) : null}
         </div>
 
         {/* Twin progress bars */}
@@ -335,7 +391,9 @@ export function WoDetailScreen({
         <TabsContent value="output" className="mt-4">
           <Card data-testid="wo-tab-output" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <CardHead title={labels.output.title}>
-              <DeferredButton label={labels.output.addAction} title={labels.deferredActionTitle} testid="wo-output-add" />
+              {actions ? (
+                <WoActionTrigger kind="output" label={labels.output.addAction} variant="tab" testid="wo-output-add" />
+              ) : null}
             </CardHead>
             {data.outputs.length === 0 ? (
               <Empty testid="wo-output-empty" copy={labels.output.empty} />
@@ -374,7 +432,9 @@ export function WoDetailScreen({
         <TabsContent value="waste" className="mt-4">
           <Card data-testid="wo-tab-waste" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <CardHead title={labels.waste.title}>
-              <DeferredButton label={labels.waste.addAction} title={labels.deferredActionTitle} testid="wo-waste-add" />
+              {actions ? (
+                <WoActionTrigger kind="waste" label={labels.waste.addAction} variant="tab" testid="wo-waste-add" />
+              ) : null}
             </CardHead>
             {data.waste.length === 0 ? (
               <Empty testid="wo-waste-empty" copy={labels.waste.empty} />
@@ -536,6 +596,28 @@ export function WoDetailScreen({
         </TabsContent>
       </Tabs>
     </div>
+  );
+
+  // When the action context resolved, wrap the screen in the orchestrator so the
+  // header / per-tab triggers can open the wired modals. Otherwise (read failed /
+  // forbidden) the body renders with no action affordances.
+  if (!actions) return body;
+
+  return (
+    <WoActionsProvider
+      locale={actions.locale}
+      woId={h.id}
+      status={actions.status}
+      permissions={actions.permissions}
+      labels={actions.modalLabels}
+      currentUserId={actions.currentUserId}
+      downtimeCategories={actions.downtimeCategories}
+      wasteCategories={actions.wasteCategories}
+      defaultLineId={h.lineId}
+      defaultProductId={h.productId}
+    >
+      {body}
+    </WoActionsProvider>
   );
 }
 
