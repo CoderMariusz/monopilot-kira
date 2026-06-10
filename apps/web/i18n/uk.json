@@ -5108,5 +5108,443 @@
         }
       }
     }
+  },
+  "Planning": {
+    "title": "Planning — dashboard",
+    "subtitle": "Work orders, purchasing and transfers across the planning horizon.",
+    "breadcrumb": {
+      "planning": "Planning",
+      "dashboard": "Dashboard"
+    },
+    "error": "Live planning data is currently unavailable. Please retry shortly.",
+    "denied": "You do not have permission to view the planning dashboard.",
+    "notLive": "Module not live yet",
+    "kpiNotLive": "Module not live yet",
+    "kpis": {
+      "openWos": {
+        "label": "Open WOs",
+        "hint": "Released, in progress or on hold"
+      },
+      "wosToday": {
+        "label": "WOs scheduled today",
+        "hint": "Starting in the current day"
+      },
+      "openPos": {
+        "label": "Open POs",
+        "hint": "Purchasing not live yet"
+      },
+      "openTos": {
+        "label": "Open TOs",
+        "hint": "Transfers not live yet"
+      }
+    },
+    "actions": {
+      "createWo": "Create WO",
+      "createPo": "Create PO",
+      "createTo": "Create TO",
+      "runSequencing": "Run sequencing",
+      "triggerD365": "Trigger D365 pull",
+      "notAvailable": "Not available yet"
+    },
+    "alerts": {
+      "wo": "WO alerts",
+      "po": "PO alerts",
+      "to": "TO alerts",
+      "empty": "No work-order alerts",
+      "view": "View WO",
+      "reasons": {
+        "pastStartNotRunning": "Past scheduled start and not yet running"
+      }
+    },
+    "upcoming": {
+      "woTab": "WO schedule",
+      "poTab": "PO calendar",
+      "toTab": "TO timeline",
+      "empty": "No work orders scheduled in the next 7 days.",
+      "woCol": "WO",
+      "statusCol": "Status",
+      "timeCol": "Time"
+    },
+    "woStatus": {
+      "draft": "Draft",
+      "released": "Released",
+      "in_progress": "In progress",
+      "on_hold": "On hold",
+      "completed": "Completed",
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    }
+  },
+  "production": {
+    "wos": {
+      "title": "Work orders",
+      "subtitle": "Browse and open released work orders for execution.",
+      "breadcrumb": {
+        "production": "Production",
+        "workOrders": "Work orders"
+      },
+      "denied": "You do not have permission to view work orders.",
+      "error": "Work orders could not be loaded. Please retry shortly.",
+      "countLine": "{count} orders",
+      "searchPlaceholder": "Search WO number or product…",
+      "rowsLabel": "{count} rows",
+      "emptyAll": "No work orders yet — released work orders from Planning appear here.",
+      "emptyFiltered": "No work orders match this filter.",
+      "allergenBadge": "Allergen",
+      "deferredActionTitle": "Wired in the next step",
+      "tab": {
+        "all": "All",
+        "in_progress": "In progress",
+        "paused": "Paused",
+        "planned": "Planned",
+        "completed": "Completed",
+        "closed": "Closed",
+        "cancelled": "Cancelled"
+      },
+      "status": {
+        "planned": "Planned",
+        "in_progress": "In progress",
+        "paused": "Paused",
+        "completed": "Completed",
+        "closed": "Closed",
+        "cancelled": "Cancelled"
+      },
+      "action": {
+        "pause": "Pause",
+        "resume": "Resume",
+        "start": "Start",
+        "view": "View"
+      },
+      "col": {
+        "wo": "WO",
+        "product": "Product",
+        "line": "Line",
+        "status": "Status",
+        "planned": "Planned",
+        "progress": "Progress",
+        "output": "Output",
+        "schedule": "Start / end",
+        "actions": ""
+      },
+      "detail": {
+        "title": "Work order",
+        "breadcrumb": {
+          "production": "Production",
+          "workOrders": "Work orders"
+        },
+        "denied": "You do not have permission to view this work order.",
+        "error": "This work order could not be loaded. Please retry shortly.",
+        "deferredActionTitle": "Wired in the next step",
+        "headerActions": {
+          "pause": "Pause",
+          "waste": "Waste",
+          "catchWeight": "Catch-weight",
+          "complete": "Complete"
+        },
+        "tabs": {
+          "overview": "Overview",
+          "consumption": "Consumption",
+          "output": "Output",
+          "waste": "Waste",
+          "downtime": "Downtime",
+          "qa": "QA results",
+          "genealogy": "Genealogy",
+          "history": "Event log"
+        },
+        "status": {
+          "planned": "Planned",
+          "in_progress": "In progress",
+          "paused": "Paused",
+          "completed": "Completed",
+          "closed": "Closed",
+          "cancelled": "Cancelled"
+        },
+        "overview": {
+          "summaryTitle": "Work order summary",
+          "kpisTitle": "KPIs",
+          "wo": "WO",
+          "product": "Product",
+          "line": "Line",
+          "machine": "Machine",
+          "planned": "Planned qty",
+          "output": "Output",
+          "plannedWindow": "Planned window",
+          "actualStart": "Actual start",
+          "elapsed": "Elapsed",
+          "allergens": "Allergens",
+          "bomVersion": "BOM v",
+          "consumption": "Consumption",
+          "consumptionKpi": "Consumption",
+          "outputKpi": "Output",
+          "allergenYes": "Allergen profile present",
+          "allergenNo": "None",
+          "elapsedMin": "min"
+        },
+        "consumption": {
+          "title": "Component consumption",
+          "empty": "No components recorded for this work order.",
+          "addAction": "Scan LP",
+          "col": {
+            "code": "Code",
+            "component": "Component",
+            "planned": "Planned",
+            "consumed": "Consumed",
+            "remaining": "Remaining",
+            "progress": "Progress"
+          }
+        },
+        "output": {
+          "title": "Registered output",
+          "empty": "No output registered yet.",
+          "addAction": "Register output",
+          "col": {
+            "type": "Type",
+            "product": "Product",
+            "qty": "Qty",
+            "batch": "Batch / lot",
+            "expiry": "Expiry",
+            "qa": "QA",
+            "lp": "LP"
+          }
+        },
+        "waste": {
+          "title": "Waste events",
+          "empty": "No waste recorded for this work order.",
+          "addAction": "Log waste",
+          "totalLabel": "Total: {kg} kg",
+          "col": {
+            "time": "Time",
+            "category": "Category",
+            "qty": "Qty",
+            "reason": "Reason"
+          }
+        },
+        "downtime": {
+          "title": "Downtime events",
+          "empty": "No downtime recorded for this work order.",
+          "addAction": "Log downtime",
+          "openLabel": "Open",
+          "col": {
+            "category": "Category",
+            "start": "Start",
+            "end": "End",
+            "duration": "Duration",
+            "reason": "Reason"
+          }
+        },
+        "qa": {
+          "title": "QA results",
+          "empty": "No inspections linked to this work order yet.",
+          "total": "Total",
+          "pass": "Pass",
+          "hold": "Hold",
+          "fail": "Fail"
+        },
+        "genealogy": {
+          "title": "WO genealogy",
+          "empty": "No consumption links yet — genealogy builds as LPs are scanned.",
+          "inputsLabel": "Consumed inputs",
+          "fefoOk": "FEFO",
+          "fefoDeviation": "Deviation"
+        },
+        "history": {
+          "title": "Event log",
+          "empty": "No events recorded for this work order yet.",
+          "sourceStatus": "Status",
+          "sourceExecution": "Execution",
+          "col": {
+            "time": "Time",
+            "source": "Source",
+            "action": "Action",
+            "transition": "Transition",
+            "reason": "Reason"
+          }
+        }
+      }
+    },
+    "downtime": {
+      "title": "Downtime",
+      "subtitle": "Recorded line-stoppage events and their categories.",
+      "breadcrumb": {
+        "production": "Production",
+        "downtime": "Downtime"
+      },
+      "error": "Live downtime data is currently unavailable. Please retry shortly.",
+      "denied": "You do not have permission to view downtime.",
+      "summary": "{events} events · {hours}h {mins}m total",
+      "hoursMins": "{hours}h {mins}m",
+      "kpi": {
+        "events": "Events",
+        "total": "Total downtime",
+        "open": "Open events"
+      },
+      "paretoTitle": "Downtime by category",
+      "paretoEmpty": "No downtime has been recorded yet.",
+      "paretoMin": "{min} min",
+      "paretoEvents": "{count} ev",
+      "eventLog": "Event log",
+      "kind": {
+        "planned": "Planned",
+        "unplanned": "Unplanned",
+        "changeover": "Changeover"
+      },
+      "source": {
+        "manual": "Manual",
+        "wo_pause": "Auto (WO pause)",
+        "plc_auto": "PLC auto",
+        "changeover": "Changeover"
+      },
+      "table": {
+        "empty": "No downtime events have been recorded yet.",
+        "open": "Open",
+        "uncategorized": "Uncategorized",
+        "minutes": "{min} min",
+        "col": {
+          "started": "Started",
+          "line": "Line",
+          "wo": "Linked WO",
+          "category": "Category",
+          "reason": "Reason",
+          "operator": "Operator",
+          "duration": "Duration",
+          "source": "Source"
+        }
+      }
+    },
+    "waste": {
+      "title": "Waste analytics",
+      "subtitle": "Consolidated cross-line waste log and category breakdown.",
+      "breadcrumb": {
+        "production": "Production",
+        "waste": "Waste"
+      },
+      "error": "Live waste data is currently unavailable. Please retry shortly.",
+      "denied": "You do not have permission to view waste analytics.",
+      "kg": "{kg} kg",
+      "paretoKg": "{kg} kg",
+      "paretoEvents": "{count} ev",
+      "kpi": {
+        "total": "Total waste",
+        "events": "Events",
+        "topCategory": "Top category",
+        "lines": "Lines",
+        "none": "No waste yet"
+      },
+      "paretoTitle": "Waste by category",
+      "paretoEmpty": "No waste has been recorded yet.",
+      "byLineTitle": "Waste by line",
+      "byLineEmpty": "No line-attributed waste yet.",
+      "eventsTitle": "Waste events ({count})",
+      "table": {
+        "empty": "No waste events have been recorded yet.",
+        "uncategorized": "Uncategorized",
+        "col": {
+          "time": "Time",
+          "line": "Line",
+          "wo": "WO",
+          "category": "Category",
+          "qty": "Qty (kg)",
+          "operator": "Operator",
+          "reason": "Reason"
+        }
+      }
+    },
+    "changeover": {
+      "title": "Allergen changeover",
+      "subtitle": "Changeover events, allergen risk and dual sign-off status.",
+      "breadcrumb": {
+        "production": "Production",
+        "changeover": "Changeover"
+      },
+      "error": "Live changeover data is currently unavailable. Please retry shortly.",
+      "denied": "You do not have permission to view changeovers.",
+      "signOffNote": "Medium-risk and above changeovers require a dual sign-off (Shift Lead + Quality) before the next WO is released.",
+      "kpi": {
+        "events": "Changeovers",
+        "open": "In progress",
+        "highRisk": "High risk"
+      },
+      "eventsTitle": "Changeover events",
+      "risk": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "segregated": "Segregated"
+      },
+      "signOff": {
+        "pending": "Pending",
+        "first_signed": "First signed",
+        "completed": "Completed"
+      },
+      "table": {
+        "empty": "No changeover events have been recorded yet.",
+        "none": "None",
+        "col": {
+          "started": "Started",
+          "line": "Line",
+          "transition": "From → To",
+          "allergens": "Allergens",
+          "risk": "Risk",
+          "signOff": "Sign-off"
+        }
+      }
+    },
+    "shifts": {
+      "title": "Shifts & crew",
+      "subtitle": "Per-shift roll-up of downtime, waste and OEE.",
+      "breadcrumb": {
+        "production": "Production",
+        "shifts": "Shifts"
+      },
+      "error": "Live shift data is currently unavailable. Please retry shortly.",
+      "denied": "You do not have permission to view shifts.",
+      "note": "There is no shift master record yet — this roll-up is aggregated from the shift tag on downtime, waste and OEE rows.",
+      "minutes": "{min} min",
+      "kg": "{kg} kg",
+      "empty": {
+        "title": "No shift data yet",
+        "body": "Once downtime, waste or OEE rows carry a shift tag, per-shift totals will appear here."
+      },
+      "col": {
+        "shift": "Shift",
+        "downtime": "Downtime",
+        "downtimeEvents": "DT events",
+        "waste": "Waste",
+        "wasteEvents": "Waste events",
+        "oee": "OEE"
+      }
+    },
+    "analytics": {
+      "title": "Analytics",
+      "subtitle": "Plant-wide OEE, yield, waste and downtime trends.",
+      "breadcrumb": {
+        "production": "Production",
+        "analytics": "Analytics"
+      },
+      "error": "Live analytics data is currently unavailable. Please retry shortly.",
+      "denied": "You do not have permission to view analytics.",
+      "noData": "No data",
+      "uncategorized": "Uncategorized",
+      "kpi": {
+        "oee": "OEE · 7 day avg",
+        "fpq": "First-pass quality",
+        "yield": "Yield · 7 day",
+        "waste": "Waste · 7 day"
+      },
+      "trendTitle": "OEE — 7 day trend",
+      "trendEmpty": "No OEE snapshots in the last 7 days.",
+      "trendAria": "OEE 7-day trend sparkline",
+      "yieldTitle": "Yield by line (7 day)",
+      "yieldEmpty": "No line yield data in the last 7 days.",
+      "topDowntimeTitle": "Top downtime drivers — 30 day",
+      "topDowntimeEmpty": "No downtime in the last 30 days.",
+      "col": {
+        "category": "Category",
+        "line": "Line",
+        "events": "Events",
+        "minutes": "Minutes",
+        "avg": "Avg"
+      }
+    }
   }
 }

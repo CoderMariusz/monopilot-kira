@@ -5108,5 +5108,443 @@
         }
       }
     }
+  },
+  "Planning": {
+    "title": "Planowanie — pulpit",
+    "subtitle": "Zlecenia produkcyjne, zakupy i transfery w horyzoncie planowania.",
+    "breadcrumb": {
+      "planning": "Planowanie",
+      "dashboard": "Pulpit"
+    },
+    "error": "Dane planowania są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+    "denied": "Nie masz uprawnień do wyświetlenia pulpitu planowania.",
+    "notLive": "Moduł nie jest jeszcze aktywny",
+    "kpiNotLive": "Moduł nie jest jeszcze aktywny",
+    "kpis": {
+      "openWos": {
+        "label": "Otwarte ZP",
+        "hint": "Wydane, w toku lub wstrzymane"
+      },
+      "wosToday": {
+        "label": "ZP zaplanowane na dziś",
+        "hint": "Rozpoczynające się dzisiaj"
+      },
+      "openPos": {
+        "label": "Otwarte ZZ",
+        "hint": "Zakupy jeszcze nieaktywne"
+      },
+      "openTos": {
+        "label": "Otwarte transfery",
+        "hint": "Transfery jeszcze nieaktywne"
+      }
+    },
+    "actions": {
+      "createWo": "Utwórz ZP",
+      "createPo": "Utwórz ZZ",
+      "createTo": "Utwórz transfer",
+      "runSequencing": "Uruchom sekwencjonowanie",
+      "triggerD365": "Pobierz z D365",
+      "notAvailable": "Jeszcze niedostępne"
+    },
+    "alerts": {
+      "wo": "Alerty ZP",
+      "po": "Alerty ZZ",
+      "to": "Alerty transferów",
+      "empty": "Brak alertów dla zleceń produkcyjnych",
+      "view": "Zobacz ZP",
+      "reasons": {
+        "pastStartNotRunning": "Po planowanym starcie, jeszcze nie uruchomione"
+      }
+    },
+    "upcoming": {
+      "woTab": "Harmonogram ZP",
+      "poTab": "Kalendarz ZZ",
+      "toTab": "Oś czasu transferów",
+      "empty": "Brak zleceń zaplanowanych na najbliższe 7 dni.",
+      "woCol": "ZP",
+      "statusCol": "Status",
+      "timeCol": "Godzina"
+    },
+    "woStatus": {
+      "draft": "Szkic",
+      "released": "Wydane",
+      "in_progress": "W toku",
+      "on_hold": "Wstrzymane",
+      "completed": "Zakończone",
+      "closed": "Zamknięte",
+      "cancelled": "Anulowane"
+    }
+  },
+  "production": {
+    "wos": {
+      "title": "Zlecenia produkcyjne",
+      "subtitle": "Przeglądaj i otwieraj wydane zlecenia produkcyjne do realizacji.",
+      "breadcrumb": {
+        "production": "Produkcja",
+        "workOrders": "Zlecenia produkcyjne"
+      },
+      "denied": "Nie masz uprawnień do przeglądania zleceń produkcyjnych.",
+      "error": "Nie udało się załadować zleceń produkcyjnych. Spróbuj ponownie za chwilę.",
+      "countLine": "{count} zleceń",
+      "searchPlaceholder": "Szukaj numeru WO lub produktu…",
+      "rowsLabel": "{count} wierszy",
+      "emptyAll": "Brak zleceń produkcyjnych — wydane zlecenia z Planowania pojawią się tutaj.",
+      "emptyFiltered": "Żadne zlecenie nie pasuje do tego filtra.",
+      "allergenBadge": "Alergen",
+      "deferredActionTitle": "Zostanie podłączone w kolejnym kroku",
+      "tab": {
+        "all": "Wszystkie",
+        "in_progress": "W toku",
+        "paused": "Wstrzymane",
+        "planned": "Zaplanowane",
+        "completed": "Zakończone",
+        "closed": "Zamknięte",
+        "cancelled": "Anulowane"
+      },
+      "status": {
+        "planned": "Zaplanowane",
+        "in_progress": "W toku",
+        "paused": "Wstrzymane",
+        "completed": "Zakończone",
+        "closed": "Zamknięte",
+        "cancelled": "Anulowane"
+      },
+      "action": {
+        "pause": "Wstrzymaj",
+        "resume": "Wznów",
+        "start": "Rozpocznij",
+        "view": "Podgląd"
+      },
+      "col": {
+        "wo": "WO",
+        "product": "Produkt",
+        "line": "Linia",
+        "status": "Status",
+        "planned": "Planowane",
+        "progress": "Postęp",
+        "output": "Wyjście",
+        "schedule": "Start / koniec",
+        "actions": ""
+      },
+      "detail": {
+        "title": "Zlecenie produkcyjne",
+        "breadcrumb": {
+          "production": "Produkcja",
+          "workOrders": "Zlecenia produkcyjne"
+        },
+        "denied": "Nie masz uprawnień do przeglądania tego zlecenia produkcyjnego.",
+        "error": "Nie udało się załadować tego zlecenia produkcyjnego. Spróbuj ponownie za chwilę.",
+        "deferredActionTitle": "Zostanie podłączone w kolejnym kroku",
+        "headerActions": {
+          "pause": "Wstrzymaj",
+          "waste": "Odpad",
+          "catchWeight": "Waga zmienna",
+          "complete": "Zakończ"
+        },
+        "tabs": {
+          "overview": "Przegląd",
+          "consumption": "Zużycie",
+          "output": "Wyjście",
+          "waste": "Odpady",
+          "downtime": "Przestoje",
+          "qa": "Wyniki QA",
+          "genealogy": "Genealogia",
+          "history": "Dziennik zdarzeń"
+        },
+        "status": {
+          "planned": "Zaplanowane",
+          "in_progress": "W toku",
+          "paused": "Wstrzymane",
+          "completed": "Zakończone",
+          "closed": "Zamknięte",
+          "cancelled": "Anulowane"
+        },
+        "overview": {
+          "summaryTitle": "Podsumowanie zlecenia",
+          "kpisTitle": "KPI",
+          "wo": "WO",
+          "product": "Produkt",
+          "line": "Linia",
+          "machine": "Maszyna",
+          "planned": "Ilość planowana",
+          "output": "Wyjście",
+          "plannedWindow": "Okno planowane",
+          "actualStart": "Rzeczywisty start",
+          "elapsed": "Czas",
+          "allergens": "Alergeny",
+          "bomVersion": "BOM v",
+          "consumption": "Zużycie",
+          "consumptionKpi": "Zużycie",
+          "outputKpi": "Wyjście",
+          "allergenYes": "Profil alergenów obecny",
+          "allergenNo": "Brak",
+          "elapsedMin": "min"
+        },
+        "consumption": {
+          "title": "Zużycie składników",
+          "empty": "Brak składników dla tego zlecenia produkcyjnego.",
+          "addAction": "Skanuj LP",
+          "col": {
+            "code": "Kod",
+            "component": "Składnik",
+            "planned": "Planowane",
+            "consumed": "Zużyte",
+            "remaining": "Pozostałe",
+            "progress": "Postęp"
+          }
+        },
+        "output": {
+          "title": "Zarejestrowane wyjście",
+          "empty": "Nie zarejestrowano jeszcze wyjścia.",
+          "addAction": "Zarejestruj wyjście",
+          "col": {
+            "type": "Typ",
+            "product": "Produkt",
+            "qty": "Ilość",
+            "batch": "Partia / lot",
+            "expiry": "Ważność",
+            "qa": "QA",
+            "lp": "LP"
+          }
+        },
+        "waste": {
+          "title": "Zdarzenia odpadów",
+          "empty": "Brak odpadów dla tego zlecenia produkcyjnego.",
+          "addAction": "Zarejestruj odpad",
+          "totalLabel": "Razem: {kg} kg",
+          "col": {
+            "time": "Czas",
+            "category": "Kategoria",
+            "qty": "Ilość",
+            "reason": "Powód"
+          }
+        },
+        "downtime": {
+          "title": "Zdarzenia przestoju",
+          "empty": "Brak przestojów dla tego zlecenia produkcyjnego.",
+          "addAction": "Zarejestruj przestój",
+          "openLabel": "Otwarte",
+          "col": {
+            "category": "Kategoria",
+            "start": "Start",
+            "end": "Koniec",
+            "duration": "Czas trwania",
+            "reason": "Powód"
+          }
+        },
+        "qa": {
+          "title": "Wyniki QA",
+          "empty": "Brak inspekcji powiązanych z tym zleceniem produkcyjnym.",
+          "total": "Razem",
+          "pass": "Zaliczone",
+          "hold": "Wstrzymane",
+          "fail": "Niezaliczone"
+        },
+        "genealogy": {
+          "title": "Genealogia WO",
+          "empty": "Brak powiązań zużycia — genealogia buduje się wraz ze skanowaniem LP.",
+          "inputsLabel": "Zużyte wejścia",
+          "fefoOk": "FEFO",
+          "fefoDeviation": "Odchylenie"
+        },
+        "history": {
+          "title": "Dziennik zdarzeń",
+          "empty": "Brak zdarzeń dla tego zlecenia produkcyjnego.",
+          "sourceStatus": "Status",
+          "sourceExecution": "Realizacja",
+          "col": {
+            "time": "Czas",
+            "source": "Źródło",
+            "action": "Akcja",
+            "transition": "Przejście",
+            "reason": "Powód"
+          }
+        }
+      }
+    },
+    "downtime": {
+      "title": "Przestoje",
+      "subtitle": "Zarejestrowane zdarzenia zatrzymania linii i ich kategorie.",
+      "breadcrumb": {
+        "production": "Produkcja",
+        "downtime": "Przestoje"
+      },
+      "error": "Dane o przestojach są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+      "denied": "Nie masz uprawnień do przeglądania przestojów.",
+      "summary": "{events} zdarzeń · łącznie {hours}h {mins}m",
+      "hoursMins": "{hours}h {mins}m",
+      "kpi": {
+        "events": "Zdarzenia",
+        "total": "Łączny przestój",
+        "open": "Otwarte zdarzenia"
+      },
+      "paretoTitle": "Przestoje wg kategorii",
+      "paretoEmpty": "Nie zarejestrowano jeszcze żadnych przestojów.",
+      "paretoMin": "{min} min",
+      "paretoEvents": "{count} zd.",
+      "eventLog": "Dziennik zdarzeń",
+      "kind": {
+        "planned": "Planowany",
+        "unplanned": "Nieplanowany",
+        "changeover": "Przezbrojenie"
+      },
+      "source": {
+        "manual": "Ręczny",
+        "wo_pause": "Auto (wstrzymanie WO)",
+        "plc_auto": "PLC auto",
+        "changeover": "Przezbrojenie"
+      },
+      "table": {
+        "empty": "Nie zarejestrowano jeszcze żadnych zdarzeń przestoju.",
+        "open": "Otwarte",
+        "uncategorized": "Bez kategorii",
+        "minutes": "{min} min",
+        "col": {
+          "started": "Rozpoczęto",
+          "line": "Linia",
+          "wo": "Powiązane WO",
+          "category": "Kategoria",
+          "reason": "Powód",
+          "operator": "Operator",
+          "duration": "Czas trwania",
+          "source": "Źródło"
+        }
+      }
+    },
+    "waste": {
+      "title": "Analiza odpadów",
+      "subtitle": "Skonsolidowany dziennik odpadów i podział na kategorie.",
+      "breadcrumb": {
+        "production": "Produkcja",
+        "waste": "Odpady"
+      },
+      "error": "Dane o odpadach są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+      "denied": "Nie masz uprawnień do przeglądania analizy odpadów.",
+      "kg": "{kg} kg",
+      "paretoKg": "{kg} kg",
+      "paretoEvents": "{count} zd.",
+      "kpi": {
+        "total": "Łącznie odpadów",
+        "events": "Zdarzenia",
+        "topCategory": "Główna kategoria",
+        "lines": "Linie",
+        "none": "Brak odpadów"
+      },
+      "paretoTitle": "Odpady wg kategorii",
+      "paretoEmpty": "Nie zarejestrowano jeszcze żadnych odpadów.",
+      "byLineTitle": "Odpady wg linii",
+      "byLineEmpty": "Brak odpadów przypisanych do linii.",
+      "eventsTitle": "Zdarzenia odpadów ({count})",
+      "table": {
+        "empty": "Nie zarejestrowano jeszcze żadnych zdarzeń odpadów.",
+        "uncategorized": "Bez kategorii",
+        "col": {
+          "time": "Czas",
+          "line": "Linia",
+          "wo": "WO",
+          "category": "Kategoria",
+          "qty": "Ilość (kg)",
+          "operator": "Operator",
+          "reason": "Powód"
+        }
+      }
+    },
+    "changeover": {
+      "title": "Przezbrojenie alergenowe",
+      "subtitle": "Zdarzenia przezbrojenia, ryzyko alergenowe i status podwójnego podpisu.",
+      "breadcrumb": {
+        "production": "Produkcja",
+        "changeover": "Przezbrojenie"
+      },
+      "error": "Dane o przezbrojeniach są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+      "denied": "Nie masz uprawnień do przeglądania przezbrojeń.",
+      "signOffNote": "Przezbrojenia o ryzyku średnim i wyższym wymagają podwójnego podpisu (Lider zmiany + Jakość) przed zwolnieniem kolejnego WO.",
+      "kpi": {
+        "events": "Przezbrojenia",
+        "open": "W toku",
+        "highRisk": "Wysokie ryzyko"
+      },
+      "eventsTitle": "Zdarzenia przezbrojenia",
+      "risk": {
+        "low": "Niskie",
+        "medium": "Średnie",
+        "high": "Wysokie",
+        "segregated": "Segregowane"
+      },
+      "signOff": {
+        "pending": "Oczekuje",
+        "first_signed": "Pierwszy podpis",
+        "completed": "Zakończono"
+      },
+      "table": {
+        "empty": "Nie zarejestrowano jeszcze żadnych zdarzeń przezbrojenia.",
+        "none": "Brak",
+        "col": {
+          "started": "Rozpoczęto",
+          "line": "Linia",
+          "transition": "Z → Do",
+          "allergens": "Alergeny",
+          "risk": "Ryzyko",
+          "signOff": "Podpis"
+        }
+      }
+    },
+    "shifts": {
+      "title": "Zmiany i obsada",
+      "subtitle": "Zestawienie przestojów, odpadów i OEE w podziale na zmiany.",
+      "breadcrumb": {
+        "production": "Produkcja",
+        "shifts": "Zmiany"
+      },
+      "error": "Dane o zmianach są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+      "denied": "Nie masz uprawnień do przeglądania zmian.",
+      "note": "Nie istnieje jeszcze rejestr zmian — to zestawienie jest agregowane z oznaczenia zmiany w wierszach przestojów, odpadów i OEE.",
+      "minutes": "{min} min",
+      "kg": "{kg} kg",
+      "empty": {
+        "title": "Brak danych o zmianach",
+        "body": "Gdy wiersze przestojów, odpadów lub OEE będą miały oznaczenie zmiany, pojawią się tutaj sumy dla każdej zmiany."
+      },
+      "col": {
+        "shift": "Zmiana",
+        "downtime": "Przestój",
+        "downtimeEvents": "Zd. przestoju",
+        "waste": "Odpady",
+        "wasteEvents": "Zd. odpadów",
+        "oee": "OEE"
+      }
+    },
+    "analytics": {
+      "title": "Analityka",
+      "subtitle": "Trendy OEE, uzysku, odpadów i przestojów w skali zakładu.",
+      "breadcrumb": {
+        "production": "Produkcja",
+        "analytics": "Analityka"
+      },
+      "error": "Dane analityczne są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+      "denied": "Nie masz uprawnień do przeglądania analityki.",
+      "noData": "Brak danych",
+      "uncategorized": "Bez kategorii",
+      "kpi": {
+        "oee": "OEE · śr. 7 dni",
+        "fpq": "Jakość za pierwszym razem",
+        "yield": "Uzysk · 7 dni",
+        "waste": "Odpady · 7 dni"
+      },
+      "trendTitle": "OEE — trend 7-dniowy",
+      "trendEmpty": "Brak migawek OEE z ostatnich 7 dni.",
+      "trendAria": "Wykres trendu OEE z 7 dni",
+      "yieldTitle": "Uzysk wg linii (7 dni)",
+      "yieldEmpty": "Brak danych o uzysku linii z ostatnich 7 dni.",
+      "topDowntimeTitle": "Główne przyczyny przestojów — 30 dni",
+      "topDowntimeEmpty": "Brak przestojów w ostatnich 30 dniach.",
+      "col": {
+        "category": "Kategoria",
+        "line": "Linia",
+        "events": "Zdarzenia",
+        "minutes": "Minuty",
+        "avg": "Śr."
+      }
+    }
   }
 }
