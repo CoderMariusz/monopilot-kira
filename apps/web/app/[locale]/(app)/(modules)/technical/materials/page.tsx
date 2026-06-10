@@ -74,7 +74,9 @@ export default async function TechnicalMaterialsPage() {
           <p className="helper mt-1 max-w-3xl">{t('description')}</p>
         </div>
         {canCreate ? (
-          <Link href="../items" className="btn btn-secondary">
+          // Absolute locale-less href — relative `../items` resolved against
+          // /technical/materials to /<locale>/items → 404 (same class as the BOM CTA).
+          <Link href="/technical/items" prefetch={false} className="btn btn-secondary">
             {t('manageInItems')}
           </Link>
         ) : null}

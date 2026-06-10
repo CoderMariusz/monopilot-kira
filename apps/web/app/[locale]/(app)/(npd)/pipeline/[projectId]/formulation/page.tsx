@@ -51,6 +51,9 @@ import { submitForTrial } from '../../../../../../(npd)/pipeline/[projectId]/for
 import { compareVersions } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/compare-versions';
 // C1 — lock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
 import { lockVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/lock-version';
+// Costing v2 — editable batch size (= pack weight): persist via the brief's
+// updateProjectBrief action (batch = pack weight). Imported, never re-authored.
+import { updateProjectBrief } from '../brief/_actions/update-project-brief';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -133,6 +136,7 @@ const DEFAULT_LABELS: FormulationLabels = {
     'Ingredient total is {qty} kg vs a {pack} kg pack. Adjust to match the pack weight (±1%) before submitting for trial.',
   packWeightUnsetHint:
     'Set the pack weight on the Brief to validate the recipe against the pack size.',
+  batchSizeHint: 'Batch size = pack weight; ingredients must total this.',
   composition: 'Composition',
   qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',
@@ -623,6 +627,9 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       // gate as save). The action ALSO enforces `npd.formulation.lock` server-side
       // and surfaces `forbidden` inline if the user lacks the lock grant.
       lockVersionAction={loaded.canEdit ? lockVersion : undefined}
+      // Costing v2 — editable batch size (= pack weight). Only threaded when the
+      // user can write (same gate as save); the action also enforces RBAC server-side.
+      updatePackWeightAction={loaded.canEdit ? updatePackWeightAdapter : undefined}
       projectId={projectId}
       createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
     />
@@ -634,5 +641,22 @@ export default async function FormulationPage(propsInput: unknown = {}) {
 async function createDraftAdapter(input: { projectId: string }): Promise<{ ok: boolean }> {
   'use server';
   const result = await createFormulationDraft(input);
+  return { ok: result.ok };
+}
+
+// Costing v2 — batch size (= pack weight, grams) commit adapter. Narrow shim over
+// the brief's updateProjectBrief action: it builds the EXACT zod patch
+// ({ projectId, patch: { packWeightG } }) the reviewed action expects (packWeightG
+// is an optionalDecimal NUMERIC string; null clears it). RBAC (npd.core.write) is
+// enforced inside the action; only injected when canEdit. Never re-authored.
+async function updatePackWeightAdapter(input: {
+  projectId: string;
+  packWeightG: string | null;
+}): Promise<{ ok: boolean }> {
+  'use server';
+  const result = await updateProjectBrief({
+    projectId: input.projectId,
+    patch: { packWeightG: input.packWeightG },
+  });
   return { ok: result.ok };
 }

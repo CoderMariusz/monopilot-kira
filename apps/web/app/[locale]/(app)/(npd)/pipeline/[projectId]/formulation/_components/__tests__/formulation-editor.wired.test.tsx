@@ -76,6 +76,7 @@ const LABELS: FormulationLabels = {
   total: 'Total',
   qtyBalanceWarning: 'Ingredient total is {qty} kg vs a {pack} kg pack.',
   packWeightUnsetHint: 'Set the pack weight on the Brief.',
+  batchSizeHint: 'Batch size = pack weight; ingredients must total this.',
   composition: 'Composition',
   qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',

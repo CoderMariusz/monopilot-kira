@@ -1,21 +1,22 @@
 /**
  * @vitest-environment jsdom
  *
- * NPD project-stage Brief screen — edit affordance test (additive to the
- * read-only parity view).
+ * NPD project-stage Brief screen — inline-edit form test.
  *
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/project.jsx:45-105 (BriefScreen).
- *   The read view structure is unchanged; the "Edit brief" button + modal is an
- *   additive write affordance gated server-side via canWrite (never client-trusted).
+ *   The prototype BriefScreen is itself a LIVE inline editable form (every field is
+ *   bound to setForm), so the write view here mirrors that: the ready card is the
+ *   form, gated server-side by canWrite (never client-trusted). Read-only users
+ *   keep the static read view.
  *
  * Asserts:
- *   - the Edit button is ONLY rendered when canWrite (RBAC, server-resolved);
- *   - the modal pre-fills with the current brief values;
+ *   - read-only user (canWrite=false): static read view, no inputs, no Save;
+ *   - write user (canWrite=true): editable controls + a dirty-gated "Save changes";
  *   - Save calls the injected Server Action with the EXACT zod patch payload
  *     ({ projectId, patch: { productName, category, ... } }) and refreshes;
- *   - the action error codes map to inline messages (INVALID_INPUT/FORBIDDEN/
- *     NOT_FOUND/PERSISTENCE_FAILED).
+ *   - empty optional fields are sent as null (zod optionalText/-Decimal contract);
+ *   - action error codes map to inline messages + no refresh on failure.
  *
  * The mutation Server Action is passed as a prop across the RSC boundary (Next16
  * function-prop crash guard) — here we inject a vi.fn() stand-in.
@@ -32,22 +33,6 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/en/pipeline/p1/brief',
   useSearchParams: () => new URLSearchParams(),
 }));
-
-// ── @monopilot/ui/Modal: render body/footer inline when open (jsdom-friendly). ──
-vi.mock('@monopilot/ui/Modal', () => {
-  function Modal({ children, open, modalId }: { children: React.ReactNode; open: boolean; modalId?: string }) {
-    if (!open) return null;
-    return (
-      <div role="dialog" aria-modal="true" data-modal-id={modalId}>
-        {children}
-      </div>
-    );
-  }
-  Modal.Header = ({ title }: { title: string }) => <h2>{title}</h2>;
-  Modal.Body = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-body">{children}</div>;
-  Modal.Footer = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-footer">{children}</div>;
-  return { __esModule: true, default: Modal };
-});
 
 import { ProjectBriefScreen, type ProjectBriefLabels } from '../project-brief-screen';
 import type { ProjectBriefView } from '../_actions/read-project-brief';
@@ -82,6 +67,8 @@ const LABELS: ProjectBriefLabels = {
   save: 'Save',
   saving: 'Saving…',
   cancel: 'Cancel',
+  saveChanges: 'Save changes',
+  saved: 'Saved',
   errInvalidInput: 'Some fields are invalid. Check and try again.',
   errForbidden: 'You do not have permission to edit this brief.',
   errNotFound: 'This project could not be found.',
@@ -112,27 +99,31 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('ProjectBriefScreen — edit affordance (project.jsx:45-105, additive)', () => {
-  it('RBAC: the Edit button is hidden when canWrite is false (server-resolved)', () => {
+describe('ProjectBriefScreen — read-only view (project.jsx:45-105)', () => {
+  it('RBAC: read-only user (canWrite=false) sees the static read view — no inline form, no Save', () => {
     render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite={false} />);
-    expect(screen.queryByTestId('project-brief-edit')).not.toBeInTheDocument();
-  });
-
-  it('RBAC: the Edit button renders when canWrite is true', () => {
-    render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={vi.fn()} />);
-    expect(screen.getByTestId('project-brief-edit')).toHaveTextContent('Edit brief');
-  });
-
-  it('parity: read view is unchanged — card title + ✓ Completed badge still present with canWrite', () => {
-    render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={vi.fn()} />);
     expect(screen.getByTestId('project-brief-card-title')).toHaveTextContent('Project brief');
     expect(screen.getByTestId('project-brief-completed-badge')).toHaveTextContent('✓ Completed');
+    // No editable controls / Save in the read view.
+    expect(screen.queryByTestId('brief-inline-form')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('brief-save')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('brief-field-productName')).not.toBeInTheDocument();
+    // The read field still renders the value as static text.
+    expect(screen.getByTestId('project-brief-field-product-name')).toHaveTextContent('Sliced Ham 200g');
+    // Upload stays disabled in both views.
     expect(screen.getByTestId('project-brief-upload')).toBeDisabled();
   });
 
-  it('modal: pre-fills inputs with the current brief values', () => {
+  it('RBAC: no inline form when canWrite is true but no onUpdate action is injected', () => {
+    render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite />);
+    expect(screen.queryByTestId('brief-inline-form')).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectBriefScreen — inline edit form (write grant)', () => {
+  it('renders editable controls bound to the current brief values + a Save changes button', () => {
     render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={vi.fn()} />);
-    fireEvent.click(screen.getByTestId('project-brief-edit'));
+    expect(screen.getByTestId('brief-inline-form')).toBeInTheDocument();
     expect(screen.getByTestId('brief-field-productName')).toHaveValue('Sliced Ham 200g');
     expect(screen.getByTestId('brief-field-targetLaunchDate')).toHaveValue('2026-09-01');
     expect(screen.getByTestId('brief-field-targetRetailPriceEur')).toHaveValue('19.90');
@@ -143,17 +134,27 @@ describe('ProjectBriefScreen — edit affordance (project.jsx:45-105, additive)'
     expect(screen.getByTestId('brief-field-marketingClaims')).toHaveValue('High protein');
     expect(screen.getByTestId('brief-field-constraints')).toHaveValue('Shelf life >= 28 days');
     expect(screen.getByTestId('brief-field-notes')).toHaveValue('Carrefour PL listing target');
+    // Category / Sales channel render as accessible comboboxes (shadcn Select, not raw <select>).
+    expect(screen.getByRole('combobox', { name: LABELS.fieldCategory })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: LABELS.fieldSalesChannel })).toBeInTheDocument();
+    expect(document.querySelector('select')).toBeNull();
+  });
+
+  it('dirty gating: Save changes is disabled until a field is edited, then enabled', () => {
+    render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={vi.fn()} />);
+    const save = screen.getByTestId('brief-save');
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByTestId('brief-field-notes'), { target: { value: 'Updated note' } });
+    expect(save).toBeEnabled();
   });
 
   it('submit: calls the action with the exact zod patch payload, then refreshes', async () => {
     const onUpdate = vi.fn(async () => ({ ok: true as const }));
     render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={onUpdate} />);
-    fireEvent.click(screen.getByTestId('project-brief-edit'));
 
     fireEvent.change(screen.getByTestId('brief-field-productName'), { target: { value: 'Sliced Ham 250g' } });
     fireEvent.change(screen.getByTestId('brief-field-notes'), { target: { value: 'Updated note' } });
-
-    fireEvent.click(screen.getByTestId('brief-submit'));
+    fireEvent.click(screen.getByTestId('brief-save'));
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
     expect(onUpdate).toHaveBeenCalledWith({
@@ -176,24 +177,26 @@ describe('ProjectBriefScreen — edit affordance (project.jsx:45-105, additive)'
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
   });
 
-  it('submit: empty optional fields are sent as null (zod optionalText contract)', async () => {
+  it('submit: empty optional fields are sent as null (zod optionalText/-Decimal contract)', async () => {
     const onUpdate = vi.fn(async () => ({ ok: true as const }));
     const sparse: ProjectBriefView = { ...READY, salesChannel: null, notes: null, packWeightG: null };
     render(<ProjectBriefScreen state="ready" data={sparse} labels={LABELS} canWrite onUpdate={onUpdate} />);
-    fireEvent.click(screen.getByTestId('project-brief-edit'));
-    fireEvent.click(screen.getByTestId('brief-submit'));
+    // Make the form dirty (Save is dirty-gated) without re-populating the empty fields.
+    fireEvent.change(screen.getByTestId('brief-field-productName'), { target: { value: 'Renamed' } });
+    fireEvent.click(screen.getByTestId('brief-save'));
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
     const arg = onUpdate.mock.calls[0]![0] as { patch: Record<string, unknown> };
     expect(arg.patch.notes).toBeNull();
     expect(arg.patch.packWeightG).toBeNull();
+    expect(arg.patch.salesChannel).toBeNull();
   });
 
   it('error path: FORBIDDEN maps to the inline permission message + no refresh', async () => {
     const onUpdate = vi.fn(async () => ({ ok: false as const, error: 'FORBIDDEN' as const }));
     render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={onUpdate} />);
-    fireEvent.click(screen.getByTestId('project-brief-edit'));
-    fireEvent.click(screen.getByTestId('brief-submit'));
+    fireEvent.change(screen.getByTestId('brief-field-notes'), { target: { value: 'Updated note' } });
+    fireEvent.click(screen.getByTestId('brief-save'));
 
     await waitFor(() =>
       expect(screen.getByTestId('brief-form-error')).toHaveTextContent(
@@ -206,8 +209,8 @@ describe('ProjectBriefScreen — edit affordance (project.jsx:45-105, additive)'
   it('error path: PERSISTENCE_FAILED maps to the retry message', async () => {
     const onUpdate = vi.fn(async () => ({ ok: false as const, error: 'PERSISTENCE_FAILED' as const }));
     render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={onUpdate} />);
-    fireEvent.click(screen.getByTestId('project-brief-edit'));
-    fireEvent.click(screen.getByTestId('brief-submit'));
+    fireEvent.change(screen.getByTestId('brief-field-notes'), { target: { value: 'Updated note' } });
+    fireEvent.click(screen.getByTestId('brief-save'));
 
     await waitFor(() =>
       expect(screen.getByTestId('brief-form-error')).toHaveTextContent('Could not save the brief. Try again.'),

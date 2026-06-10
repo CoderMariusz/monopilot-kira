@@ -187,6 +187,8 @@ export type FormulationLabels = {
   qtyBalanceWarning: string;
   /** Shown when pack weight is unset so the balance gate can't be evaluated. */
   packWeightUnsetHint: string;
+  /** Helper line under the editable batch-size (pack weight) field. */
+  batchSizeHint: string;
   composition: string;
   qtyRangeError: string;
   rmCodeRequired: string;
@@ -232,6 +234,17 @@ export type RecomputeAction = (input: {
   projectId: string;
   versionId: string;
 }) => Promise<unknown>;
+
+/**
+ * Persist the project's pack weight (g) — Costing v2 batch size. The editor edits
+ * the pack weight inline (batch = pack weight); committing it persists via the
+ * brief's `updateProjectBrief` action (threaded as a narrow adapter from
+ * formulation/page.tsx). NUMERIC string semantics: grams in/out, never a float.
+ */
+export type UpdatePackWeightAction = (input: {
+  projectId: string;
+  packWeightG: string | null;
+}) => Promise<{ ok: boolean }>;
 
 /**
  * Submit-for-trial Server Action (legacy actions tree, `_actions/submit-for-trial.ts`).
@@ -504,6 +517,7 @@ export function FormulationEditor({
   submitForTrialAction,
   compareVersionsAction,
   lockVersionAction,
+  updatePackWeightAction,
   searchItemsAction,
   projectId,
   createDraftAction,
@@ -535,6 +549,8 @@ export function FormulationEditor({
   compareVersionsAction?: CompareVersionsAction;
   /** Lock-version Server Action (C1) — freezes the current version. Gated server-side. */
   lockVersionAction?: LockVersionAction;
+  /** Costing v2: persist the editable batch size (= pack weight g) via the brief action. */
+  updatePackWeightAction?: UpdatePackWeightAction;
   /** Lane-B: org-scoped item-search action for the ingredient picker (defaults to searchItems). */
   searchItemsAction?: ItemSearchFn;
   /** Server-side refresh (router.refresh) — called after a successful submit. */
@@ -571,8 +587,16 @@ export function FormulationEditor({
 
   const [rows, setRows] = React.useState<EditableIngredient[]>(data ? toEditable(data) : []);
   const [errors, setErrors] = React.useState<Record<string, RowError>>({});
-  // Costing v2: batch size is READ-ONLY = pack weight (g→kg). No editable batch input.
-  const packWeightKg = packWeightKgFromG(data?.packWeightG ?? null);
+  // Costing v2: batch size = pack weight (grams). Editable when canEdit — typing
+  // + commit (blur/enter) persists `packWeightG` via the brief action. The grams
+  // value is the local source of truth so balance/composition recompute live; the
+  // table/calc use it converted to kg (exact, no float).
+  const [packWeightG, setPackWeightG] = React.useState<string>(data?.packWeightG ?? '');
+  // Last-committed grams baseline — drives the dirty check on commit.
+  const committedPackWeightGRef = React.useRef<string>(data?.packWeightG ?? '');
+  type PackStatus = 'idle' | 'saving' | 'saved' | 'error';
+  const [packStatus, setPackStatus] = React.useState<PackStatus>('idle');
+  const packWeightKg = packWeightKgFromG(packWeightG || null);
   const [targetPrice, setTargetPrice] = React.useState<string>(data?.targetPriceEur ?? '');
   const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
   const [versionId, setVersionId] = React.useState<string>(data?.versionId ?? '');
@@ -916,6 +940,49 @@ export function FormulationEditor({
     })();
   }, [lockVersionAction, data, versionId, lockStatus, refresh, lockErrorMessage, labels.lockError]);
 
+  // Re-seed the editable pack weight when the persisted value changes (after a
+  // successful commit the action revalidated and refresh() re-runs the RSC loader,
+  // so `data.packWeightG` arrives fresh).
+  React.useEffect(() => {
+    const next = data?.packWeightG ?? '';
+    setPackWeightG(next);
+    committedPackWeightGRef.current = next;
+    setPackStatus('idle');
+  }, [data?.packWeightG]);
+
+  /**
+   * Commit the edited batch size (= pack weight, grams) on blur/Enter. Persists
+   * `packWeightG` (NUMERIC string, empty→null) via the brief action, then refreshes
+   * so balance/composition recompute against the new pack weight from Supabase.
+   * No-op when unchanged, invalid, or the user can't edit.
+   */
+  const commitPackWeight = React.useCallback(() => {
+    if (!editable || !updatePackWeightAction) return;
+    const raw = packWeightG.trim();
+    // Empty → null; otherwise must be a valid decimal string (no float drift).
+    if (raw !== '' && !isDecimalString(raw)) return;
+    if (raw === committedPackWeightGRef.current) return;
+    setPackStatus('saving');
+    void (async () => {
+      try {
+        const result = await updatePackWeightAction({
+          projectId: data?.projectId ?? projectId ?? '',
+          packWeightG: raw === '' ? null : raw,
+        });
+        if (result.ok) {
+          committedPackWeightGRef.current = raw;
+          setPackStatus('saved');
+          // Re-run the RSC loader so balance/composition recompute server-side.
+          refresh();
+        } else {
+          setPackStatus('error');
+        }
+      } catch {
+        setPackStatus('error');
+      }
+    })();
+  }, [editable, updatePackWeightAction, packWeightG, data?.projectId, projectId, refresh]);
+
   // Costing v2 — the table total is now the qty roll-up (kg/pack); the raw cost is
   // the per-pack RM cost. Both come from the same NUMERIC-exact roll-up that feeds
   // the panels, so the table total and the CostPanel never disagree (single source).
@@ -957,18 +1024,36 @@ export function FormulationEditor({
 
           <div>
             <label htmlFor="batch-size" className="block text-[10px] uppercase tracking-wide muted">
-              {labels.batchSize}
+              {`${labels.batchSize} (g)`}
             </label>
-            {/* Costing v2: batch size = pack weight (READ-ONLY, kg, from the project). */}
+            {/* Costing v2: batch size = pack weight (grams). Editable when canEdit —
+                commit on blur/Enter persists packWeightG via the brief action and
+                refreshes so balance/composition recompute. Read-only otherwise. */}
             <Input
               id="batch-size"
-              type="text"
-              readOnly
-              aria-readonly="true"
+              inputMode="decimal"
               className="form-input w-24"
-              value={batchKgDisplay}
-              data-testid="batch-size-readonly"
+              value={packWeightG}
+              disabled={!editable || !updatePackWeightAction}
+              readOnly={!updatePackWeightAction}
+              aria-readonly={!updatePackWeightAction || undefined}
+              data-status={packStatus}
+              onChange={(e) => {
+                setPackWeightG(e.target.value);
+                setPackStatus((s) => (s === 'saving' ? s : 'idle'));
+              }}
+              onBlur={commitPackWeight}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitPackWeight();
+                }
+              }}
+              data-testid="batch-size-input"
             />
+            <p className="mt-1 text-[10px] muted" data-testid="batch-size-hint">
+              {labels.batchSizeHint}
+            </p>
           </div>
 
           <div>

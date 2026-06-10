@@ -165,13 +165,15 @@ describe('NPD project-stage Brief page (project.jsx:45-105)', () => {
     );
   });
 
-  it('RBAC: Edit button is hidden when the server resolves canWrite=false', async () => {
+  it('RBAC: static read view (no inline form) when the server resolves canWrite=false', async () => {
     await renderPage({ state: 'ready', data: READY, canWrite: false });
-    expect(screen.queryByTestId('project-brief-edit')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('brief-inline-form')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('brief-save')).not.toBeInTheDocument();
   });
 
-  it('RBAC: Edit button surfaces when the server resolves canWrite=true (npd.core.write)', async () => {
+  it('RBAC: inline editable form surfaces when the server resolves canWrite=true (npd.core.write)', async () => {
     await renderPage({ state: 'ready', data: READY, canWrite: true });
-    expect(screen.getByTestId('project-brief-edit')).toHaveTextContent('Edit brief');
+    expect(screen.getByTestId('brief-inline-form')).toBeInTheDocument();
+    expect(screen.getByTestId('brief-save')).toBeInTheDocument();
   });
 });

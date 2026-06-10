@@ -34,7 +34,7 @@ import {
   type ProjectBriefView,
 } from './_actions/read-project-brief';
 import { updateProjectBrief } from './_actions/update-project-brief';
-import type { UpdateBriefCall, UpdateBriefOutcome } from './_components/edit-brief-modal';
+import type { UpdateBriefCall, UpdateBriefOutcome } from './_components/project-brief-screen';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   hasPermission,
@@ -83,6 +83,8 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   save: 'Save',
   saving: 'Saving…',
   cancel: 'Cancel',
+  saveChanges: 'Save changes',
+  saved: 'Saved',
   errInvalidInput: 'Some fields are invalid. Check the values and try again.',
   errForbidden: 'You do not have permission to edit this brief.',
   errNotFound: 'This project could not be found.',

@@ -75,6 +75,7 @@ const LABELS: FormulationLabels = {
   qtyBalanceWarning:
     'Ingredient total is {qty} kg vs a {pack} kg pack. Adjust to match the pack weight (±1%) before submitting for trial.',
   packWeightUnsetHint: 'Set the pack weight on the Brief to validate the recipe against the pack size.',
+  batchSizeHint: 'Batch size = pack weight; ingredients must total this.',
   composition: 'Composition',
   qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',
@@ -153,8 +154,8 @@ describe('FormulationEditor — parity (recipe.jsx:124-264)', () => {
   it('renders the editor shell with toolbar inputs and the ingredients table', () => {
     renderEditor();
     expect(screen.getByTestId('formulation-editor')).toBeInTheDocument();
-    // Toolbar: READ-ONLY batch size (= pack weight kg) + version select + target price.
-    expect(screen.getByTestId('batch-size-readonly')).toHaveValue('0.200000');
+    // Toolbar: editable batch size (= pack weight, grams) + version select + target price.
+    expect(screen.getByTestId('batch-size-input')).toHaveValue('200');
     expect(screen.getByLabelText(LABELS.targetPrice)).toBeInTheDocument();
     // shadcn Select (NOT a raw <select>) for version.
     expect(screen.getByRole('combobox', { name: LABELS.version })).toBeInTheDocument();
