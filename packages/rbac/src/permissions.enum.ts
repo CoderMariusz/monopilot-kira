@@ -298,10 +298,18 @@ export const Permission = {
   FIN_STANDARD_COST_APPROVE: 'fin.standard_cost.approve',
   /** WO actual costing read; PRD 10-FINANCE §3, §7. */
   FIN_ACTUAL_COST_VIEW: 'fin.actual_cost.view',
+  /** Finance cost surfaces read; minimal sitemap RBAC family, 2026-06-09 audit. */
+  FIN_COSTS_READ: 'fin.costs.read',
+  /** Finance cost surfaces manage; minimal sitemap RBAC family, 2026-06-09 audit. */
+  FIN_COSTS_MANAGE: 'fin.costs.manage',
+  /** Inventory valuation read; minimal sitemap RBAC family, 2026-06-09 audit. */
+  FIN_VALUATION_READ: 'fin.valuation.read',
   /** Inventory valuation (FIFO/WAC) read; PRD 10-FINANCE §3, §7. */
   FIN_VALUATION_VIEW: 'fin.valuation.view',
   /** Monthly valuation close (period freeze); PRD 10-FINANCE §3, §7. */
   FIN_VALUATION_CLOSE: 'fin.valuation.close',
+  /** Cost variance read; minimal sitemap RBAC family, 2026-06-09 audit. */
+  FIN_VARIANCE_READ: 'fin.variance.read',
   /** Cost variance read; PRD 10-FINANCE §3, §7. */
   FIN_VARIANCE_VIEW: 'fin.variance.view',
   /** Cost variance finalize; PRD 10-FINANCE §3, §7. */
@@ -705,7 +713,7 @@ export const ALL_QUALITY_PERMISSIONS = [
 /**
  * Finance (10-finance) module permission group; PRD 10-FINANCE §3 (RBAC) + §5 (standard cost) +
  * §7 (WO actual costing + FIFO/WAC valuation + variance) + §6 (D365 stage-5 export-only, R15).
- * 14 page/action permissions. Standard-cost approve + variance finalize + valuation close +
+ * 18 page/action permissions. Standard-cost approve + variance finalize + valuation close +
  * D365 DLQ replay are the elevated/SoD strings. Recognised by the ESLint enum-lock guard via the
  * ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130). Seeded to the org-admin role
  * family + a finance operator role family by migration 199.
@@ -717,8 +725,12 @@ export const ALL_FINANCE_PERMISSIONS = [
   Permission.FIN_STANDARD_COST_EDIT,
   Permission.FIN_STANDARD_COST_APPROVE,
   Permission.FIN_ACTUAL_COST_VIEW,
+  Permission.FIN_COSTS_READ,
+  Permission.FIN_COSTS_MANAGE,
+  Permission.FIN_VALUATION_READ,
   Permission.FIN_VALUATION_VIEW,
   Permission.FIN_VALUATION_CLOSE,
+  Permission.FIN_VARIANCE_READ,
   Permission.FIN_VARIANCE_VIEW,
   Permission.FIN_VARIANCE_FINALIZE,
   Permission.FIN_DASHBOARD_VIEW,

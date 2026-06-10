@@ -210,6 +210,27 @@ const expectedReportingPermissions = [
   'rpt.rules_usage.read',
 ] as const;
 
+const expectedFinancePermissions = [
+  'fin.settings.view',
+  'fin.settings.edit',
+  'fin.standard_cost.view',
+  'fin.standard_cost.edit',
+  'fin.standard_cost.approve',
+  'fin.actual_cost.view',
+  'fin.costs.read',
+  'fin.costs.manage',
+  'fin.valuation.read',
+  'fin.valuation.view',
+  'fin.valuation.close',
+  'fin.variance.read',
+  'fin.variance.view',
+  'fin.variance.finalize',
+  'fin.dashboard.view',
+  'fin.reports.view',
+  'fin.d365.view',
+  'fin.d365_dlq.replay',
+] as const;
+
 const expectedMultiSitePermissions = [
   'multi_site.site.view',
   'multi_site.site.create',
@@ -385,8 +406,12 @@ const expectedCanonicalPermissions = [
   'fin.standard_cost.edit',
   'fin.standard_cost.approve',
   'fin.actual_cost.view',
+  'fin.costs.read',
+  'fin.costs.manage',
+  'fin.valuation.read',
   'fin.valuation.view',
   'fin.valuation.close',
+  'fin.variance.read',
   'fin.variance.view',
   'fin.variance.finalize',
   'fin.dashboard.view',
@@ -503,6 +528,8 @@ type PermissionsModule = {
   ALL_PRODUCTION_PERMISSIONS: readonly string[];
   ALL_WAREHOUSE_PERMISSIONS: readonly string[];
   ALL_QUALITY_PERMISSIONS: readonly string[];
+  ALL_FINANCE_PERMISSIONS: readonly string[];
+  ALL_OEE_PERMISSIONS: readonly string[];
   ALL_SHIP_PERMISSIONS: readonly string[];
   ALL_REPORTING_CORE_PERMISSIONS: readonly string[];
   ALL_MULTI_SITE_PERMISSIONS: readonly string[];
@@ -730,6 +757,31 @@ describe('rbac permission source of truth', () => {
       /export\s+const\s+ALL_QUALITY_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
     );
     expect(qualityExport?.[0]).toContain('ALL_QUALITY_PERMISSIONS');
+  });
+
+  it('exports the finance permissions as a typed Permission array literal with the minimal fin.* sitemap family', async () => {
+    const { ALL_PERMISSIONS, ALL_FINANCE_PERMISSIONS, Permission } = await loadPermissionsModule();
+
+    expect(ALL_FINANCE_PERMISSIONS).toEqual(expectedFinancePermissions);
+    expect(ALL_FINANCE_PERMISSIONS).toHaveLength(18);
+    expect(new Set(ALL_FINANCE_PERMISSIONS).size).toBe(ALL_FINANCE_PERMISSIONS.length);
+    expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
+
+    for (const permission of ALL_FINANCE_PERMISSIONS) {
+      expect(ALL_PERMISSIONS).toContain(permission);
+      expect(permission.startsWith('fin.')).toBe(true);
+      expect(permission).toMatch(/^fin\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*$/);
+    }
+
+    expect(ALL_FINANCE_PERMISSIONS).toEqual(
+      expect.arrayContaining(['fin.costs.read', 'fin.costs.manage', 'fin.valuation.read', 'fin.variance.read']),
+    );
+
+    const source = readFileSync(permissionsModulePath, 'utf8');
+    const financeExport = source.match(
+      /export\s+const\s+ALL_FINANCE_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
+    );
+    expect(financeExport?.[0]).toContain('ALL_FINANCE_PERMISSIONS');
   });
 
   it('exports the shipping permissions as a typed Permission array literal (T-031 §3)', async () => {

@@ -2,6 +2,24 @@ import type { AppModuleDefinition, AppModuleId } from "./types";
 
 const RBAC_TODO = "UI-128 keeps navigation ungated; wire permission_key in the future RBAC module.";
 
+export const MODULE_PERMISSION_KEYS = {
+  settings: "settings.org.read",
+  technical: "technical.sensory.read", // No module-level technical read exists; this is the only technical.* read string.
+  npd: "npd.dashboard.view",
+  "planning-basic": "scheduler.run.read", // No planning-basic read string exists; use the basic planning/scheduler read gate.
+  warehouse: "warehouse.inventory.read",
+  scanner: "warehouse.inventory.read", // Scanner has no scanner.* enum family; inventory read is the basic warehouse/scanner data gate.
+  "planning-ext": "scheduler.run.read",
+  production: "production.oee.read", // No production dashboard read string exists; production.oee.read is the existing read-level production gate.
+  quality: "quality.dashboard.view",
+  finance: "fin.costs.read",
+  shipping: "ship.dashboard.view",
+  reporting: "rpt.dashboard.view",
+  maintenance: "mnt.asset.read",
+  "multi-site": "multi_site.site.view",
+  oee: "oee.dashboard.read",
+} as const satisfies Partial<Record<AppModuleId, AppModuleDefinition["permission_key"]>>;
+
 export const APP_MODULES = [
   {
     id: "foundation",
@@ -30,7 +48,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "core",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.settings,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -47,7 +65,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "premium",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.npd,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -62,7 +80,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "premium",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.technical,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -77,7 +95,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "operations",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS["planning-basic"],
     rbac_todo: RBAC_TODO,
   },
   {
@@ -92,7 +110,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "operations",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.warehouse,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -107,7 +125,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: null,
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.scanner,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -122,7 +140,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "operations",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS["planning-ext"],
     rbac_todo: RBAC_TODO,
   },
   {
@@ -137,7 +155,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "operations",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.production,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -152,7 +170,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "qa-shipping",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.quality,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -167,7 +185,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "premium",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.finance,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -182,7 +200,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "qa-shipping",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.shipping,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -197,7 +215,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "analytics-network",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.reporting,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -212,7 +230,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "premium",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.maintenance,
     rbac_todo: RBAC_TODO,
   },
   {
@@ -227,7 +245,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "analytics-network",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS["multi-site"],
     rbac_todo: RBAC_TODO,
   },
   {
@@ -242,7 +260,7 @@ export const APP_MODULES = [
     merged_into: null,
     nav_group: "premium",
     count_slot: null,
-    permission_key: null,
+    permission_key: MODULE_PERMISSION_KEYS.oee,
     rbac_todo: RBAC_TODO,
   },
 ] as const satisfies readonly AppModuleDefinition[];

@@ -26,7 +26,22 @@ export type NavGroupId = "core" | "operations" | "qa-shipping" | "premium" | "an
 
 export type CountSlot = null;
 
-export type PermissionKey = null;
+export type ModulePermissionKey =
+  | "settings.org.read"
+  | "technical.sensory.read"
+  | "npd.dashboard.view"
+  | "scheduler.run.read"
+  | "production.oee.read"
+  | "warehouse.inventory.read"
+  | "quality.dashboard.view"
+  | "ship.dashboard.view"
+  | "fin.costs.read"
+  | "rpt.dashboard.view"
+  | "mnt.asset.read"
+  | "multi_site.site.view"
+  | "oee.dashboard.read";
+
+export type PermissionKey = ModulePermissionKey | null;
 
 export interface RbacDeferredMetadata {
   count_slot: CountSlot;

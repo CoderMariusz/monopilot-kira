@@ -1,7 +1,7 @@
 {
   "$comment": "LOCKED RBAC permission baseline (T-130). Regenerate ONLY via `pnpm --filter @monopilot/eslint-rules snapshot`. PR must carry the `permissions-enum-update` label.",
   "source": "packages/rbac/src/permissions.enum.ts",
-  "count": 246,
+  "count": 250,
   "members": {
     "AUDIT_READ": "audit.read",
     "BRIEF_CONVERT_TO_NPD_PROJECT": "brief.convert_to_npd_project",
@@ -9,6 +9,8 @@
     "FG_CREATE": "fg.create",
     "FG_EDIT": "fg.edit",
     "FIN_ACTUAL_COST_VIEW": "fin.actual_cost.view",
+    "FIN_COSTS_MANAGE": "fin.costs.manage",
+    "FIN_COSTS_READ": "fin.costs.read",
     "FIN_D365_DLQ_REPLAY": "fin.d365_dlq.replay",
     "FIN_D365_VIEW": "fin.d365.view",
     "FIN_DASHBOARD_VIEW": "fin.dashboard.view",
@@ -19,8 +21,10 @@
     "FIN_STANDARD_COST_EDIT": "fin.standard_cost.edit",
     "FIN_STANDARD_COST_VIEW": "fin.standard_cost.view",
     "FIN_VALUATION_CLOSE": "fin.valuation.close",
+    "FIN_VALUATION_READ": "fin.valuation.read",
     "FIN_VALUATION_VIEW": "fin.valuation.view",
     "FIN_VARIANCE_FINALIZE": "fin.variance.finalize",
+    "FIN_VARIANCE_READ": "fin.variance.read",
     "FIN_VARIANCE_VIEW": "fin.variance.view",
     "GDPR_ERASURE_EXECUTE": "gdpr.erasure.execute",
     "IMPERSONATE_ORG": "impersonate.org",

@@ -11,7 +11,7 @@ type NavItem = {
   route: string;
   i18n_key: string;
   count_slot: null;
-  permission_key: null;
+  permission_key: string | null;
   rbac_todo: string;
 };
 
@@ -19,6 +19,24 @@ type MessageTree = Record<string, unknown>;
 
 const locales = ['en', 'pl', 'uk', 'ro'] as const;
 const i18nDir = path.resolve(process.cwd(), 'i18n');
+const expectedModulePermissionKeys = {
+  foundation: null,
+  settings: 'settings.org.read',
+  npd: 'npd.dashboard.view',
+  technical: 'technical.sensory.read',
+  'planning-basic': 'scheduler.run.read',
+  warehouse: 'warehouse.inventory.read',
+  scanner: 'warehouse.inventory.read',
+  'planning-ext': 'scheduler.run.read',
+  production: 'production.oee.read',
+  quality: 'quality.dashboard.view',
+  finance: 'fin.costs.read',
+  shipping: 'ship.dashboard.view',
+  reporting: 'rpt.dashboard.view',
+  maintenance: 'mnt.asset.read',
+  'multi-site': 'multi_site.site.view',
+  oee: 'oee.dashboard.read',
+} as const;
 
 function loadMessages(locale: (typeof locales)[number]): MessageTree {
   return JSON.parse(readFileSync(path.join(i18nDir, `${locale}.json`), 'utf8')) as MessageTree;
@@ -52,7 +70,7 @@ function expectUnique(values: string[], label: string) {
 
 function expectDeferredRbac(item: NavItem, label: string) {
   expect(item.count_slot, `${label} count_slot must stay null until live counters land`).toBeNull();
-  expect(item.permission_key, `${label} permission_key must stay null until T-130 RBAC lands`).toBeNull();
+  expect(item.permission_key, `${label} permission_key remains deferred here`).toBeNull();
   expect(item.rbac_todo?.trim(), `${label} rbac_todo must document the deferred RBAC gate`).not.toBe('');
 }
 
@@ -97,7 +115,11 @@ describe('T-135 navigation manifest integrity contracts', () => {
       for (const item of group.items) {
         expectLocaleRelativeRoute(item.route, `APP_NAV_GROUPS.${item.key}`);
         expectI18nResolves(item.i18n_key);
-        expectDeferredRbac(item, `APP_NAV_GROUPS.${item.key}`);
+        expect(item.count_slot, `APP_NAV_GROUPS.${item.key} count_slot must stay null until live counters land`).toBeNull();
+        expect(item.permission_key, `APP_NAV_GROUPS.${item.key} permission_key must pass through from APP_MODULES`).toBe(
+          item.module_id === null ? null : expectedModulePermissionKeys[item.module_id],
+        );
+        expect(item.rbac_todo?.trim(), `APP_NAV_GROUPS.${item.key} rbac_todo must document the deferred RBAC gate`).not.toBe('');
       }
     }
 
@@ -107,7 +129,9 @@ describe('T-135 navigation manifest integrity contracts', () => {
         expectLocaleRelativeRoute(module.route, `APP_MODULES.${module.id}`);
       }
       expect(module.count_slot, `APP_MODULES.${module.id} count_slot must be null`).toBeNull();
-      expect(module.permission_key, `APP_MODULES.${module.id} permission_key must be null`).toBeNull();
+      expect(module.permission_key, `APP_MODULES.${module.id} permission_key must match the enum-backed module gate`).toBe(
+        expectedModulePermissionKeys[module.id],
+      );
       expect(module.rbac_todo.trim(), `APP_MODULES.${module.id} rbac_todo must be populated`).not.toBe('');
     }
   });

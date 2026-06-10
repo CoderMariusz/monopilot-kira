@@ -4,7 +4,9 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const appRoot = process.cwd().endsWith("/apps/web") ? process.cwd() : resolve(process.cwd(), "apps/web");
+const repoRoot = resolve(appRoot, "../..");
 const navigationDir = resolve(appRoot, "lib/navigation");
+const permissionsModulePath = resolve(repoRoot, "packages/rbac/src/permissions.enum.ts");
 
 const MODULE_IDS = [
   "foundation",
@@ -24,6 +26,25 @@ const MODULE_IDS = [
   "multi-site",
   "oee",
 ] as const;
+
+const EXPECTED_MODULE_PERMISSION_KEYS = {
+  foundation: null,
+  settings: "settings.org.read",
+  npd: "npd.dashboard.view",
+  technical: "technical.sensory.read",
+  "planning-basic": "scheduler.run.read",
+  warehouse: "warehouse.inventory.read",
+  scanner: "warehouse.inventory.read",
+  "planning-ext": "scheduler.run.read",
+  production: "production.oee.read",
+  quality: "quality.dashboard.view",
+  finance: "fin.costs.read",
+  shipping: "ship.dashboard.view",
+  reporting: "rpt.dashboard.view",
+  maintenance: "mnt.asset.read",
+  "multi-site": "multi_site.site.view",
+  oee: "oee.dashboard.read",
+} as const;
 
 const EXPECTED_NAV_GROUPS = [
   {
@@ -154,14 +175,28 @@ describe("UI-128 APP_MODULES", () => {
     expect(byId.scanner).toMatchObject({ module_kind: "scanner", shell_kind: "scanner", nav_exposure: "excluded", route: null });
   });
 
-  it("keeps count and permission gates unset while preserving future-RBAC todos", async () => {
+  it("keeps counts unset and exposes the UI-lane module permission keys", async () => {
     const { APP_MODULES } = await loadNavigationModule<{ APP_MODULES?: Record<string, unknown>[] }>("module-registry.ts");
 
     for (const module of APP_MODULES ?? []) {
       expect(module.count_slot, `${module.id}.count_slot remains unimplemented in UI-128`).toBeNull();
-      expect(module.permission_key, `${module.id}.permission_key remains unimplemented in UI-128`).toBeNull();
+      expect(module.permission_key, `${module.id}.permission_key must match the enum-backed module gate`).toBe(
+        EXPECTED_MODULE_PERMISSION_KEYS[module.id as keyof typeof EXPECTED_MODULE_PERMISSION_KEYS],
+      );
       expect(module.rbac_todo, `${module.id}.rbac_todo documents the future RBAC gate`).toEqual(expect.any(String));
       expect(String(module.rbac_todo).trim().length, `${module.id}.rbac_todo must be non-empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it("uses only permission_key strings that exist in the canonical Permission enum", async () => {
+    const { APP_MODULES } = await loadNavigationModule<{ APP_MODULES?: Record<string, unknown>[] }>("module-registry.ts");
+    const permissionsSource = readFileSync(permissionsModulePath, "utf8");
+
+    for (const module of APP_MODULES ?? []) {
+      if (module.permission_key === null) continue;
+      expect(permissionsSource, `${module.id}.permission_key must exist in permissions.enum.ts`).toContain(
+        `'${module.permission_key}'`,
+      );
     }
   });
 });
@@ -200,13 +235,16 @@ describe("UI-128 APP_NAV_GROUPS", () => {
     }
   });
 
-  it("keeps sidebar item counts and permissions unset with documented RBAC todos", async () => {
+  it("keeps sidebar item counts unset and passes through module permission keys with documented RBAC todos", async () => {
     const { APP_NAV_GROUPS } = await loadNavigationModule<{ APP_NAV_GROUPS?: Record<string, unknown>[] }>("app-nav.ts");
 
     for (const item of (APP_NAV_GROUPS ?? []).flatMap(itemsOf)) {
       expect(iconOf(item), `${labelOf(item)} must declare an icon token`).toEqual(expect.any(String));
       expect(item.count_slot, `${labelOf(item)} count_slot remains unimplemented in UI-128`).toBeNull();
-      expect(item.permission_key, `${labelOf(item)} permission_key remains unimplemented in UI-128`).toBeNull();
+      const moduleId = moduleIdOf(item);
+      expect(item.permission_key, `${labelOf(item)} permission_key must pass through from APP_MODULES`).toBe(
+        moduleId === null ? null : EXPECTED_MODULE_PERMISSION_KEYS[moduleId as keyof typeof EXPECTED_MODULE_PERMISSION_KEYS],
+      );
       expect(item.rbac_todo, `${labelOf(item)} rbac_todo documents the future RBAC gate`).toEqual(expect.any(String));
       expect(String(item.rbac_todo).trim().length, `${labelOf(item)} rbac_todo must be non-empty`).toBeGreaterThan(0);
     }
