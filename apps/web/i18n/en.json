@@ -2866,7 +2866,16 @@
       "emptyBody": "Add a primary or secondary packaging component to get started.",
       "error": "Unable to load packaging data.",
       "forbidden": "You do not have permission to view packaging data.",
-      "artworkUnavailable": "Not available yet"
+      "artworkUnavailable": "Not available yet",
+      "pickerTrigger": "+ Pick from catalog",
+      "pickerSearchLabel": "Search packaging items",
+      "pickerSearchPlaceholder": "Search by code or name…",
+      "pickerLoading": "Searching…",
+      "pickerEmpty": "No matching packaging items",
+      "pickerCancel": "Cancel",
+      "pickerError": "Item search failed",
+      "pickedHint": "Linked to {code}",
+      "pickerClear": "Clear link"
     },
     "stepper": {
       "brief": "Brief",
@@ -3227,7 +3236,8 @@
           "routing": "Routing",
           "supplierSpecs": "Supplier specs",
           "labResults": "Lab results",
-          "d365": "D365 status"
+          "d365": "D365 status",
+          "nutrition": "Nutrition"
         },
         "overview": {
           "identification": "Identification",
@@ -3248,7 +3258,7 @@
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
-          "costPerKg": "Cost / kg",
+          "costPerKg": "Cost / base UoM",
           "updated": "Updated",
           "none": "—"
         },
@@ -3352,7 +3362,63 @@
             "pendingBody": "The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands."
           }
         },
-        "allergens": "Allergens"
+        "allergens": "Allergens",
+        "nutrition": {
+          "title": "Nutrition (per 100 g)",
+          "subtitle": "Per-100 g nutrient declaration and inherited EU-14 allergens.",
+          "perHundred": "Per 100 g",
+          "fields": {
+            "energy_kj": "Energy (kJ)",
+            "fat_g": "Fat (g)",
+            "saturates_g": "Saturates (g)",
+            "carbs_g": "Carbohydrate (g)",
+            "sugars_g": "Sugars (g)",
+            "protein_g": "Protein (g)",
+            "salt_g": "Salt (g)"
+          },
+          "allergensLegend": "Inherited allergens (EU-14)",
+          "allergensHint": "Allergens this material contributes to any finished good that consumes it.",
+          "allergenNames": {
+            "A01": "Gluten",
+            "A02": "Crustaceans",
+            "A03": "Eggs",
+            "A04": "Fish",
+            "A05": "Peanuts",
+            "A06": "Soybeans",
+            "A07": "Milk",
+            "A08": "Nuts",
+            "A09": "Celery",
+            "A10": "Mustard",
+            "A11": "Sesame",
+            "A12": "Sulphites",
+            "A13": "Lupin",
+            "A14": "Molluscs"
+          },
+          "save": "Save nutrition",
+          "saving": "Saving…",
+          "saved": "Nutrition saved.",
+          "loading": "Loading nutrition…",
+          "empty": "No nutrition recorded yet",
+          "emptyBody": "Enter the per-100 g values and inherited allergens, then save.",
+          "error": "Unable to load nutrition. Please try again.",
+          "forbidden": "You can view nutrition but cannot edit this item.",
+          "notApplicable": "Nutrition data is not applicable for this item type.",
+          "saveError": "Could not save the nutrition. Please try again.",
+          "readonlyTitle": "Computed nutrition (per 100 g)",
+          "colNutrient": "Nutrient",
+          "colPer100g": "Per 100 g",
+          "colPerPortion": "Per portion",
+          "colAllergen": "Allergen",
+          "colPresence": "Presence",
+          "noComputed": "No computed nutrition yet for this finished good.",
+          "computedNote": "Recomputed from the BOM on {when}.",
+          "presence": {
+            "contains": "Contains",
+            "may_contain": "May contain",
+            "free_from": "Free from",
+            "unknown": "Unknown"
+          }
+        }
       },
       "create": {
         "title": "Create item",
@@ -3396,7 +3462,8 @@
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required."
-        }
+        },
+        "intermediateHint": "= WIP (work in progress)"
       },
       "deactivate": {
         "title": "Deactivate item",
@@ -3584,7 +3651,8 @@
           "RM": "RM",
           "Intermediate": "Intermediate",
           "Process": "Process",
-          "FG": "FG"
+          "FG": "FG",
+          "Packaging": "Packaging"
         }
       },
       "contamination": {
@@ -4508,17 +4576,19 @@
       "searchPlaceholder": "Search by code or name…",
       "searchAria": "Search materials",
       "manageInItems": "Manage in Items",
-      "countSummary": "{count} of {total} materials",
+      "countSummary": "{shown} of {total} materials",
       "tabs": {
         "all": "All",
         "rm": "Raw materials",
         "ingredient": "Ingredients",
-        "intermediate": "Intermediate"
+        "intermediate": "Intermediate",
+        "packaging": "Packaging"
       },
       "types": {
         "rm": "Raw material",
         "ingredient": "Ingredient",
-        "intermediate": "Intermediate"
+        "intermediate": "Intermediate",
+        "packaging": "Packaging"
       },
       "statuses": {
         "active": "Active",
@@ -4531,7 +4601,7 @@
         "name": "Name",
         "type": "Type",
         "uom": "UoM",
-        "cost": "Cost / kg (zł)",
+        "cost": "Cost / base UoM",
         "updated": "Updated",
         "status": "Status"
       },

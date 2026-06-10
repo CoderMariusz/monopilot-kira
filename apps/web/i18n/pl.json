@@ -1326,7 +1326,8 @@
           "routing": "Routing",
           "supplierSpecs": "Supplier specs",
           "labResults": "Lab results",
-          "d365": "D365 status"
+          "d365": "D365 status",
+          "nutrition": "Wartości odżywcze"
         },
         "overview": {
           "identification": "Identification",
@@ -1347,7 +1348,7 @@
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
-          "costPerKg": "Cost / kg",
+          "costPerKg": "Koszt / bazowa JM",
           "updated": "Updated",
           "none": "—"
         },
@@ -1451,7 +1452,63 @@
             "pendingBody": "The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands."
           }
         },
-        "allergens": "Allergens"
+        "allergens": "Allergens",
+        "nutrition": {
+          "title": "Wartości odżywcze (na 100 g)",
+          "subtitle": "Deklaracja składników odżywczych na 100 g i dziedziczone alergeny EU-14.",
+          "perHundred": "Na 100 g",
+          "fields": {
+            "energy_kj": "Energia (kJ)",
+            "fat_g": "Tłuszcz (g)",
+            "saturates_g": "Kwasy nasycone (g)",
+            "carbs_g": "Węglowodany (g)",
+            "sugars_g": "Cukry (g)",
+            "protein_g": "Białko (g)",
+            "salt_g": "Sól (g)"
+          },
+          "allergensLegend": "Dziedziczone alergeny (EU-14)",
+          "allergensHint": "Alergeny, które ten materiał wnosi do każdego wyrobu gotowego.",
+          "allergenNames": {
+            "A01": "Gluten",
+            "A02": "Skorupiaki",
+            "A03": "Jaja",
+            "A04": "Ryby",
+            "A05": "Orzeszki ziemne",
+            "A06": "Soja",
+            "A07": "Mleko",
+            "A08": "Orzechy",
+            "A09": "Seler",
+            "A10": "Gorczyca",
+            "A11": "Sezam",
+            "A12": "Siarczyny",
+            "A13": "Łubin",
+            "A14": "Mięczaki"
+          },
+          "save": "Zapisz wartości",
+          "saving": "Zapisywanie…",
+          "saved": "Zapisano wartości odżywcze.",
+          "loading": "Ładowanie wartości…",
+          "empty": "Brak zapisanych wartości",
+          "emptyBody": "Wprowadź wartości na 100 g i alergeny, następnie zapisz.",
+          "error": "Nie można załadować wartości. Spróbuj ponownie.",
+          "forbidden": "Możesz przeglądać wartości, ale nie możesz edytować.",
+          "notApplicable": "Dane odżywcze nie dotyczą tego typu pozycji.",
+          "saveError": "Nie udało się zapisać. Spróbuj ponownie.",
+          "readonlyTitle": "Obliczone wartości (na 100 g)",
+          "colNutrient": "Składnik",
+          "colPer100g": "Na 100 g",
+          "colPerPortion": "Na porcję",
+          "colAllergen": "Alergen",
+          "colPresence": "Obecność",
+          "noComputed": "Brak obliczonych wartości dla tego wyrobu.",
+          "computedNote": "Przeliczono z BOM dnia {when}.",
+          "presence": {
+            "contains": "Zawiera",
+            "may_contain": "Może zawierać",
+            "free_from": "Wolne od",
+            "unknown": "Nieznane"
+          }
+        }
       },
       "create": {
         "title": "Create item",
@@ -1495,7 +1552,8 @@
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required."
-        }
+        },
+        "intermediateHint": "= WIP (produkcja w toku)"
       },
       "deactivate": {
         "title": "Deactivate item",
@@ -1683,7 +1741,8 @@
           "RM": "RM",
           "Intermediate": "Intermediate",
           "Process": "Process",
-          "FG": "FG"
+          "FG": "FG",
+          "Packaging": "Opakowania"
         }
       },
       "contamination": {
@@ -2607,17 +2666,19 @@
       "searchPlaceholder": "Szukaj wg kodu lub nazwy…",
       "searchAria": "Szukaj materiałów",
       "manageInItems": "Zarządzaj w Pozycjach",
-      "countSummary": "{count} z {total} materiałów",
+      "countSummary": "{shown} z {total} materiałów",
       "tabs": {
         "all": "Wszystkie",
         "rm": "Surowce",
         "ingredient": "Składniki",
-        "intermediate": "Półprodukty"
+        "intermediate": "Półprodukty",
+        "packaging": "Opakowania"
       },
       "types": {
         "rm": "Surowiec",
         "ingredient": "Składnik",
-        "intermediate": "Półprodukt"
+        "intermediate": "Półprodukt",
+        "packaging": "Opakowanie"
       },
       "statuses": {
         "active": "Aktywny",
@@ -2630,7 +2691,7 @@
         "name": "Nazwa",
         "type": "Typ",
         "uom": "JM",
-        "cost": "Koszt / kg (zł)",
+        "cost": "Koszt / bazowa JM",
         "updated": "Aktualizacja",
         "status": "Status"
       },
@@ -4761,7 +4822,16 @@
       "emptyBody": "Dodaj element opakowania podstawowego lub zbiorczego, aby rozpocząć.",
       "error": "Nie można załadować danych opakowań.",
       "forbidden": "Nie masz uprawnień do wyświetlania danych opakowań.",
-      "artworkUnavailable": "Not available yet"
+      "artworkUnavailable": "Not available yet",
+      "pickerTrigger": "+ Wybierz z katalogu",
+      "pickerSearchLabel": "Szukaj opakowań",
+      "pickerSearchPlaceholder": "Szukaj po kodzie lub nazwie…",
+      "pickerLoading": "Szukanie…",
+      "pickerEmpty": "Brak pasujących opakowań",
+      "pickerCancel": "Anuluj",
+      "pickerError": "Wyszukiwanie nie powiodło się",
+      "pickedHint": "Powiązano z {code}",
+      "pickerClear": "Usuń powiązanie"
     },
     "stepper": {
       "brief": "Brief",

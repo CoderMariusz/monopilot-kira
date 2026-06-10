@@ -1326,7 +1326,8 @@
           "routing": "Routing",
           "supplierSpecs": "Supplier specs",
           "labResults": "Lab results",
-          "d365": "D365 status"
+          "d365": "D365 status",
+          "nutrition": "Поживність"
         },
         "overview": {
           "identification": "Identification",
@@ -1347,7 +1348,7 @@
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
-          "costPerKg": "Cost / kg",
+          "costPerKg": "Вартість / баз. ОВ",
           "updated": "Updated",
           "none": "—"
         },
@@ -1451,7 +1452,63 @@
             "pendingBody": "The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands."
           }
         },
-        "allergens": "Allergens"
+        "allergens": "Allergens",
+        "nutrition": {
+          "title": "Поживність (на 100 г)",
+          "subtitle": "Декларація поживних речовин на 100 г та успадковані алергени ЄС-14.",
+          "perHundred": "На 100 г",
+          "fields": {
+            "energy_kj": "Енергія (кДж)",
+            "fat_g": "Жири (г)",
+            "saturates_g": "Насичені жири (г)",
+            "carbs_g": "Вуглеводи (г)",
+            "sugars_g": "Цукри (г)",
+            "protein_g": "Білки (г)",
+            "salt_g": "Сіль (г)"
+          },
+          "allergensLegend": "Успадковані алергени (ЄС-14)",
+          "allergensHint": "Алергени, які цей матеріал додає до будь-якого готового виробу.",
+          "allergenNames": {
+            "A01": "Глютен",
+            "A02": "Ракоподібні",
+            "A03": "Яйця",
+            "A04": "Риба",
+            "A05": "Арахіс",
+            "A06": "Соя",
+            "A07": "Молоко",
+            "A08": "Горіхи",
+            "A09": "Селера",
+            "A10": "Гірчиця",
+            "A11": "Кунжут",
+            "A12": "Сульфіти",
+            "A13": "Люпин",
+            "A14": "Молюски"
+          },
+          "save": "Зберегти поживність",
+          "saving": "Збереження…",
+          "saved": "Поживність збережено.",
+          "loading": "Завантаження поживності…",
+          "empty": "Поживність ще не задано",
+          "emptyBody": "Введіть значення на 100 г та алергени, потім збережіть.",
+          "error": "Не вдалося завантажити поживність. Спробуйте ще раз.",
+          "forbidden": "Ви можете переглядати поживність, але не редагувати.",
+          "notApplicable": "Дані про поживність не застосовні для цього типу позиції.",
+          "saveError": "Не вдалося зберегти. Спробуйте ще раз.",
+          "readonlyTitle": "Обчислена поживність (на 100 г)",
+          "colNutrient": "Поживна речовина",
+          "colPer100g": "На 100 г",
+          "colPerPortion": "На порцію",
+          "colAllergen": "Алерген",
+          "colPresence": "Наявність",
+          "noComputed": "Обчислена поживність для цього виробу відсутня.",
+          "computedNote": "Перераховано з BOM {when}.",
+          "presence": {
+            "contains": "Містить",
+            "may_contain": "Може містити",
+            "free_from": "Не містить",
+            "unknown": "Невідомо"
+          }
+        }
       },
       "create": {
         "title": "Create item",
@@ -1495,7 +1552,8 @@
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required."
-        }
+        },
+        "intermediateHint": "= WIP (незавершене виробництво)"
       },
       "deactivate": {
         "title": "Deactivate item",
@@ -1683,7 +1741,8 @@
           "RM": "RM",
           "Intermediate": "Intermediate",
           "Process": "Process",
-          "FG": "FG"
+          "FG": "FG",
+          "Packaging": "Пакування"
         }
       },
       "contamination": {
@@ -2607,17 +2666,19 @@
       "searchPlaceholder": "Пошук за кодом або назвою…",
       "searchAria": "Пошук матеріалів",
       "manageInItems": "Керувати в Позиціях",
-      "countSummary": "{count} з {total} матеріалів",
+      "countSummary": "{shown} з {total} матеріалів",
       "tabs": {
         "all": "Усі",
         "rm": "Сировина",
         "ingredient": "Інгредієнти",
-        "intermediate": "Напівфабрикати"
+        "intermediate": "Напівфабрикати",
+        "packaging": "Пакування"
       },
       "types": {
         "rm": "Сировина",
         "ingredient": "Інгредієнт",
-        "intermediate": "Напівфабрикат"
+        "intermediate": "Напівфабрикат",
+        "packaging": "Пакування"
       },
       "statuses": {
         "active": "Активний",
@@ -2630,7 +2691,7 @@
         "name": "Назва",
         "type": "Тип",
         "uom": "ОВ",
-        "cost": "Собівартість / кг (zł)",
+        "cost": "Вартість / баз. ОВ",
         "updated": "Оновлено",
         "status": "Статус"
       },
@@ -4761,7 +4822,16 @@
       "emptyBody": "Додайте компонент первинного або вторинного пакування, щоб почати.",
       "error": "Не вдалося завантажити дані пакування.",
       "forbidden": "У вас немає дозволу переглядати дані пакування.",
-      "artworkUnavailable": "Not available yet"
+      "artworkUnavailable": "Not available yet",
+      "pickerTrigger": "+ Вибрати з каталогу",
+      "pickerSearchLabel": "Пошук пакування",
+      "pickerSearchPlaceholder": "Пошук за кодом або назвою…",
+      "pickerLoading": "Пошук…",
+      "pickerEmpty": "Немає відповідного пакування",
+      "pickerCancel": "Скасувати",
+      "pickerError": "Помилка пошуку",
+      "pickedHint": "Звʼязано з {code}",
+      "pickerClear": "Видалити звʼязок"
     },
     "stepper": {
       "brief": "Бриф",

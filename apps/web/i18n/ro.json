@@ -1326,7 +1326,8 @@
           "routing": "Routing",
           "supplierSpecs": "Supplier specs",
           "labResults": "Lab results",
-          "d365": "D365 status"
+          "d365": "D365 status",
+          "nutrition": "Nutriție"
         },
         "overview": {
           "identification": "Identification",
@@ -1347,7 +1348,7 @@
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
-          "costPerKg": "Cost / kg",
+          "costPerKg": "Cost / UM de bază",
           "updated": "Updated",
           "none": "—"
         },
@@ -1451,7 +1452,63 @@
             "pendingBody": "The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands."
           }
         },
-        "allergens": "Allergens"
+        "allergens": "Allergens",
+        "nutrition": {
+          "title": "Nutriție (la 100 g)",
+          "subtitle": "Declarația nutrienților la 100 g şi alergenii UE-14 moşteniți.",
+          "perHundred": "La 100 g",
+          "fields": {
+            "energy_kj": "Energie (kJ)",
+            "fat_g": "Grăsimi (g)",
+            "saturates_g": "Acizi graşi saturați (g)",
+            "carbs_g": "Glucide (g)",
+            "sugars_g": "Zaharuri (g)",
+            "protein_g": "Proteine (g)",
+            "salt_g": "Sare (g)"
+          },
+          "allergensLegend": "Alergeni moşteniți (UE-14)",
+          "allergensHint": "Alergenii pe care acest material îi contribuie oricărui produs finit.",
+          "allergenNames": {
+            "A01": "Gluten",
+            "A02": "Crustacee",
+            "A03": "Ouă",
+            "A04": "Peşte",
+            "A05": "Arahide",
+            "A06": "Soia",
+            "A07": "Lapte",
+            "A08": "Fructe cu coajă lemnoasă",
+            "A09": "Țelină",
+            "A10": "Muştar",
+            "A11": "Susan",
+            "A12": "Sulfiți",
+            "A13": "Lupin",
+            "A14": "Moluşte"
+          },
+          "save": "Salvează nutriția",
+          "saving": "Se salvează…",
+          "saved": "Nutriție salvată.",
+          "loading": "Se încarcă nutriția…",
+          "empty": "Nicio nutriție înregistrată",
+          "emptyBody": "Introduceți valorile la 100 g şi alergenii, apoi salvați.",
+          "error": "Nu se poate încărca nutriția. Încercați din nou.",
+          "forbidden": "Puteți vizualiza nutriția, dar nu o puteți edita.",
+          "notApplicable": "Datele nutriționale nu se aplică acestui tip de articol.",
+          "saveError": "Nu s-a putut salva. Încercați din nou.",
+          "readonlyTitle": "Nutriție calculată (la 100 g)",
+          "colNutrient": "Nutrient",
+          "colPer100g": "La 100 g",
+          "colPerPortion": "La porție",
+          "colAllergen": "Alergen",
+          "colPresence": "Prezență",
+          "noComputed": "Nicio nutriție calculată pentru acest produs finit.",
+          "computedNote": "Recalculat din BOM la {when}.",
+          "presence": {
+            "contains": "Conține",
+            "may_contain": "Poate conține",
+            "free_from": "Fără",
+            "unknown": "Necunoscut"
+          }
+        }
       },
       "create": {
         "title": "Create item",
@@ -1495,7 +1552,8 @@
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required."
-        }
+        },
+        "intermediateHint": "= WIP (în curs de producție)"
       },
       "deactivate": {
         "title": "Deactivate item",
@@ -1683,7 +1741,8 @@
           "RM": "RM",
           "Intermediate": "Intermediate",
           "Process": "Process",
-          "FG": "FG"
+          "FG": "FG",
+          "Packaging": "Ambalaje"
         }
       },
       "contamination": {
@@ -2607,17 +2666,19 @@
       "searchPlaceholder": "Căutați după cod sau nume…",
       "searchAria": "Căutați materiale",
       "manageInItems": "Gestionați în Articole",
-      "countSummary": "{count} din {total} materiale",
+      "countSummary": "{shown} din {total} materiale",
       "tabs": {
         "all": "Toate",
         "rm": "Materii prime",
         "ingredient": "Ingrediente",
-        "intermediate": "Intermediare"
+        "intermediate": "Intermediare",
+        "packaging": "Ambalaje"
       },
       "types": {
         "rm": "Materie primă",
         "ingredient": "Ingredient",
-        "intermediate": "Intermediar"
+        "intermediate": "Intermediar",
+        "packaging": "Ambalaj"
       },
       "statuses": {
         "active": "Activ",
@@ -2630,7 +2691,7 @@
         "name": "Nume",
         "type": "Tip",
         "uom": "UM",
-        "cost": "Cost / kg (zł)",
+        "cost": "Cost / UM de bază",
         "updated": "Actualizat",
         "status": "Status"
       },
@@ -4761,7 +4822,16 @@
       "emptyBody": "Adaugă un component de ambalaj primar sau secundar pentru a începe.",
       "error": "Datele de ambalaj nu pot fi încărcate.",
       "forbidden": "Nu ai permisiunea de a vizualiza datele de ambalaj.",
-      "artworkUnavailable": "Not available yet"
+      "artworkUnavailable": "Not available yet",
+      "pickerTrigger": "+ Alege din catalog",
+      "pickerSearchLabel": "Caută ambalaje",
+      "pickerSearchPlaceholder": "Caută după cod sau nume…",
+      "pickerLoading": "Se caută…",
+      "pickerEmpty": "Niciun ambalaj potrivit",
+      "pickerCancel": "Anulează",
+      "pickerError": "Căutarea a eşuat",
+      "pickedHint": "Legat la {code}",
+      "pickerClear": "Şterge legătura"
     },
     "stepper": {
       "brief": "Brief",
