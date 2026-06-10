@@ -36,8 +36,8 @@ import type {
   WoModalLabels,
   WoReasonCategory,
   WoWasteCategory,
+  WoState,
 } from './types';
-import type { WoState } from '../../../_actions/get-wo-action-context';
 
 type WoActionsContextValue = {
   status: WoState | null;

@@ -23,8 +23,8 @@ import type {
   WoActionPermissions,
   WoModalLabels,
   WoReasonCategory,
+  WoState,
 } from './types';
-import type { WoState } from '../../../_actions/get-wo-action-context';
 
 export type WoListRowActionLabels = {
   start: string;

@@ -40,9 +40,6 @@ import {
   type WoState,
 } from '../../../../../../lib/production/shared';
 
-/** Runtime WO lifecycle state — re-exported for the client screens/modals. */
-export type { WoState };
-
 export type WoActionPermissions = {
   start: boolean;
   pause: boolean;

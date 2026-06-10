@@ -36,8 +36,8 @@ import type {
   WoActionPermissions,
   WoModalLabels,
   WoReasonCategory,
+  WoState,
 } from './modals/types';
-import type { WoState } from '../../_actions/get-wo-action-context';
 
 const STATUS_VARIANT: Record<WoListStatus, BadgeVariant> = {
   planned: 'muted',

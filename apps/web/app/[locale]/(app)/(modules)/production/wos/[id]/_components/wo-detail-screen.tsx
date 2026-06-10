@@ -47,8 +47,8 @@ import type {
   WoModalLabels,
   WoReasonCategory,
   WoWasteCategory,
+  WoState,
 } from '../../_components/modals/types';
-import type { WoState } from '../../../_actions/get-wo-action-context';
 
 const STATUS_VARIANT: Record<WorkOrderDetailStatus, BadgeVariant> = {
   planned: 'muted',

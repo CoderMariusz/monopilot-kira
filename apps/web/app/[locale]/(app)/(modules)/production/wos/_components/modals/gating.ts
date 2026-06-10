@@ -15,8 +15,7 @@
  *   null (no execution row yet) → treated as planned: start is the only verb.
  */
 
-import type { WoState } from '../../../_actions/get-wo-action-context';
-import type { WoActionKind, WoActionPermissions } from './types';
+import type { WoActionKind, WoActionPermissions, WoState } from './types';
 
 /** OUTPUT_RECORDABLE_STATES from lib/production/shared.ts. */
 const RECORDABLE: ReadonlySet<WoState> = new Set<WoState>(['in_progress', 'paused', 'completed']);

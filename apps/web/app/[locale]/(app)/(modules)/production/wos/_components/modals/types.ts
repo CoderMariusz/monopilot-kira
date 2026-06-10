@@ -16,6 +16,11 @@ import type {
 
 export type { WoActionPermissions, WoReasonCategory, WoWasteCategory };
 
+// Runtime WO lifecycle state. Re-exported HERE (a directive-free module) — a
+// bare `export type { X };` clause inside the 'use server' action file breaks
+// the turbopack Vercel build ("only async functions may be exported").
+export type { WoState } from '../../../../../../../../lib/production/shared';
+
 /** The lifecycle verbs + the two recording actions wired by this lane. */
 export type WoActionKind =
   | 'start'

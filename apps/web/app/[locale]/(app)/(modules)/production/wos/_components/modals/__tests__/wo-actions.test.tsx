@@ -27,8 +27,7 @@ const refresh = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
 
 import { WoActionsProvider, WoActionTrigger } from '../wo-actions';
-import type { WoActionPermissions, WoModalLabels } from '../types';
-import type { WoState } from '../../../../_actions/get-wo-action-context';
+import type { WoActionPermissions, WoModalLabels, WoState } from '../types';
 
 const ALL_PERMS: WoActionPermissions = {
   start: true,
