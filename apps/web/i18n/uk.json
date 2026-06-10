@@ -3762,7 +3762,8 @@
       "stageApproval": "Затвердження",
       "stageHandoff": "Передача",
       "esignRequiredError": "Перед handoff потрібне затвердження з е-підписом G4 — затвердіть його на етапі Approval.",
-      "checklistIncompleteError": "Чек-лист воріт не завершено — виконайте відкриті пункти перед просуванням."
+      "checklistIncompleteError": "Чек-лист воріт не завершено — виконайте відкриті пункти перед просуванням.",
+      "stageLaunched": "Запущено"
     },
     "pipelineTable": {
       "title": "Pipeline",
@@ -4520,7 +4521,8 @@
         "duplicate": "Дублювати",
         "duplicateDisabledHint": "Дублювання проєктів поки недоступне.",
         "advanceStage": "Наступний етап →",
-        "advanceDisabledHint": "Ви не маєте дозволу просувати цей етап."
+        "advanceDisabledHint": "Ви не маєте дозволу просувати цей етап.",
+        "advanceTerminalHint": "Запущено — повністю завершено"
       },
       "prio": {
         "high": "Високий пріоритет",
@@ -4669,7 +4671,11 @@
       "save": "Save",
       "saving": "Saving…",
       "cancel": "Cancel",
-      "saveError": "Could not save. Check the values and try again."
+      "saveError": "Could not save. Check the values and try again.",
+      "fieldStatus": "Статус",
+      "statusPlanned": "Заплановано",
+      "statusInProgress": "В процесі",
+      "statusCompleted": "Завершено"
     },
     "trial": {
       "title": "Лабораторні та кухонні випробування",

@@ -103,6 +103,10 @@ const DEFAULT_LABELS: PilotLabels = {
   fieldExpectedYield: 'Expected yield (%)',
   fieldDuration: 'Duration (hours)',
   fieldSupervisor: 'Supervisor',
+  fieldStatus: 'Status',
+  statusPlanned: 'Planned',
+  statusInProgress: 'In progress',
+  statusCompleted: 'Completed',
   fieldIngredient: 'Ingredient',
   fieldRequired: 'Required (kg)',
   fieldAvailable: 'Available (kg)',
@@ -214,6 +218,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
       expectedYieldPct: call.expectedYieldPct,
       durationHours: call.durationHours,
       supervisorUserId: call.supervisorUserId,
+      status: call.status,
     });
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   }

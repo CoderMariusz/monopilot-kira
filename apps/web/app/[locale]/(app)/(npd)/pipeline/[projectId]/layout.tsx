@@ -113,6 +113,7 @@ const HEADER_DEFAULTS: ProjectHeaderLabels = {
   duplicateDisabledHint: 'Duplicating projects is not available yet.',
   advanceStage: 'Advance stage →',
   advanceDisabledHint: 'You do not have permission to advance this gate.',
+  advanceTerminalHint: 'Launched — fully advanced',
   deleteProject: 'Delete',
   deleting: 'Deleting…',
   deleteConfirm: 'Delete this project? This cannot be undone.',
@@ -271,6 +272,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     duplicateDisabledHint: p('header.duplicateDisabledHint', HEADER_DEFAULTS.duplicateDisabledHint),
     advanceStage: p('header.advanceStage', HEADER_DEFAULTS.advanceStage),
     advanceDisabledHint: p('header.advanceDisabledHint', HEADER_DEFAULTS.advanceDisabledHint),
+    advanceTerminalHint: p('header.advanceTerminalHint', HEADER_DEFAULTS.advanceTerminalHint),
     deleteProject: p('header.deleteProject', HEADER_DEFAULTS.deleteProject),
     deleting: p('header.deleting', HEADER_DEFAULTS.deleting),
     deleteConfirm: p('header.deleteConfirm', HEADER_DEFAULTS.deleteConfirm),
@@ -371,6 +373,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
         labels={headerLabels}
         advanceModal={advanceModal}
         canAdvance={canAdvance}
+        isTerminal={currentGate === 'Launched'}
         advanceProjectGate={advanceAdapter}
         canDelete={canDelete}
         deleteProject={deleteAdapter}

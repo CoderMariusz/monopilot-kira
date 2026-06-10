@@ -3762,7 +3762,8 @@
       "stageApproval": "Zatwierdzenie",
       "stageHandoff": "Przekazanie",
       "esignRequiredError": "Przed handoffem wymagany jest e-podpis bramki G4 — zatwierdź ją na etapie Approval.",
-      "checklistIncompleteError": "Checklista bramki jest nieukończona — dokończ otwarte pozycje przed przejściem dalej."
+      "checklistIncompleteError": "Checklista bramki jest nieukończona — dokończ otwarte pozycje przed przejściem dalej.",
+      "stageLaunched": "Wdrożony"
     },
     "pipelineTable": {
       "title": "Pipeline",
@@ -4520,7 +4521,8 @@
         "duplicate": "Duplikuj",
         "duplicateDisabledHint": "Duplikowanie projektów nie jest jeszcze dostępne.",
         "advanceStage": "Następny etap →",
-        "advanceDisabledHint": "Nie masz uprawnień do przejścia tej bramki."
+        "advanceDisabledHint": "Nie masz uprawnień do przejścia tej bramki.",
+        "advanceTerminalHint": "Wdrożony — w pełni zakończony"
       },
       "prio": {
         "high": "Wysoki priorytet",
@@ -4669,7 +4671,11 @@
       "save": "Save",
       "saving": "Saving…",
       "cancel": "Cancel",
-      "saveError": "Could not save. Check the values and try again."
+      "saveError": "Could not save. Check the values and try again.",
+      "fieldStatus": "Status",
+      "statusPlanned": "Zaplanowany",
+      "statusInProgress": "W toku",
+      "statusCompleted": "Zakończony"
     },
     "trial": {
       "title": "Próby laboratoryjne i kuchenne",

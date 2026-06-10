@@ -58,6 +58,8 @@ export type ProjectHeaderLabels = {
   duplicateDisabledHint: string;
   advanceStage: string;
   advanceDisabledHint: string;
+  /** Shown on the (disabled) Advance control once the project is Launched (terminal). */
+  advanceTerminalHint: string;
   deleteProject: string;
   deleting: string;
   deleteConfirm: string;
@@ -96,6 +98,13 @@ export type ProjectHeaderProps = {
   };
   /** Server-resolved permission to advance the gate (never client-trusted). */
   canAdvance: boolean;
+  /**
+   * True once the project has reached the terminal Launched gate. The Advance
+   * affordance is hidden entirely (no stale "advance to G4: Testing" modal on a
+   * launched project — FINAL-NIGHT gap 3). Resolved server-side from the real
+   * current_gate; never client-trusted.
+   */
+  isTerminal?: boolean;
   /** Injected only when the user may advance (RBAC resolved server-side). */
   advanceProjectGate?: AdvanceProjectGateAction;
   /** Server-resolved permission to delete the project (never client-trusted). */
@@ -109,6 +118,7 @@ export function ProjectHeader({
   labels,
   advanceModal,
   canAdvance,
+  isTerminal = false,
   advanceProjectGate,
   canDelete,
   deleteProject,
@@ -203,28 +213,44 @@ export function ProjectHeader({
               {deleting ? labels.deleting : labels.deleteProject}
             </button>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={openAdvance}
-            disabled={!canAdvance || !advanceProjectGate}
-            title={!canAdvance ? labels.advanceDisabledHint : undefined}
-            data-testid="project-header-advance"
-          >
-            {labels.advanceStage}
-          </button>
+          {/* Launched is terminal: there is no next gate, so the Advance
+              affordance is hidden entirely (no stale "advance to G4: Testing"
+              modal on a launched project). */}
+          {isTerminal ? (
+            <span
+              className="badge badge-green"
+              title={labels.advanceTerminalHint}
+              data-testid="project-header-advance-terminal"
+            >
+              {labels.advanceTerminalHint}
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={openAdvance}
+              disabled={!canAdvance || !advanceProjectGate}
+              title={!canAdvance ? labels.advanceDisabledHint : undefined}
+              data-testid="project-header-advance"
+            >
+              {labels.advanceStage}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* EXISTING AdvanceGateModal flow, driven by ?modal=advanceGate. */}
-      <AdvanceGateModalHost
-        labels={advanceModal.labels}
-        project={advanceModal.project}
-        gateInfo={advanceModal.gateInfo}
-        items={advanceModal.items}
-        state="ready"
-        advanceProjectGate={advanceProjectGate}
-      />
+      {/* EXISTING AdvanceGateModal flow, driven by ?modal=advanceGate. Suppressed
+          on the terminal Launched gate (a stale query param must not reopen it). */}
+      {isTerminal ? null : (
+        <AdvanceGateModalHost
+          labels={advanceModal.labels}
+          project={advanceModal.project}
+          gateInfo={advanceModal.gateInfo}
+          items={advanceModal.items}
+          state="ready"
+          advanceProjectGate={advanceProjectGate}
+        />
+      )}
     </section>
   );
 }

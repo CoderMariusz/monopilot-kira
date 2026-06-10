@@ -101,6 +101,7 @@ const DEFAULT_LABELS: KanbanLabels = {
   stagePilot: 'Pilot',
   stageApproval: 'Approval',
   stageHandoff: 'Handoff',
+  stageLaunched: 'Launched',
   gateG0: 'G0 · Concept',
   gateG1: 'G1 · Brief',
   gateG2: 'G2 · Recipe',

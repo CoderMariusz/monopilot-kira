@@ -23,7 +23,13 @@ import Input from '@monopilot/ui/Input';
 import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
 
-import type { PilotActionOutcome, SupervisorOption, PilotLabels, PilotRunView } from './pilot-screen';
+import type {
+  PilotActionOutcome,
+  SupervisorOption,
+  PilotLabels,
+  PilotRunStatus,
+  PilotRunView,
+} from './pilot-screen';
 
 export type PilotRunFormValues = {
   plannedDate: string;
@@ -32,6 +38,8 @@ export type PilotRunFormValues = {
   expectedYieldPct: string;
   durationHours: string;
   supervisorUserId: string;
+  /** pilot_runs status (migration 234 CHECK / upsertPilotRun zod enum). */
+  status: PilotRunStatus;
 };
 
 const EMPTY: PilotRunFormValues = {
@@ -41,6 +49,7 @@ const EMPTY: PilotRunFormValues = {
   expectedYieldPct: '',
   durationHours: '',
   supervisorUserId: '',
+  status: 'planned',
 };
 
 function fromRun(run: PilotRunView | null): PilotRunFormValues {
@@ -52,6 +61,7 @@ function fromRun(run: PilotRunView | null): PilotRunFormValues {
     expectedYieldPct: run.expectedYieldPct ?? '',
     durationHours: run.durationHours ?? '',
     supervisorUserId: run.supervisorUserId ?? '',
+    status: run.status ?? 'planned',
   };
 }
 
@@ -101,6 +111,14 @@ export function PilotRunModal({
   const supervisorOptions = [
     { value: '', label: labels.noSupervisor },
     ...supervisors.map((s) => ({ value: s.id, label: s.name })),
+  ];
+
+  // pilot_runs.status (migration 234 CHECK). Marking a run "completed" is what
+  // clears the launch gate PILOT_WO_NOT_LINKED, so the control is always offered.
+  const statusOptions: { value: PilotRunFormValues['status']; label: string }[] = [
+    { value: 'planned', label: labels.statusPlanned },
+    { value: 'in_progress', label: labels.statusInProgress },
+    { value: 'completed', label: labels.statusCompleted },
   ];
 
   const title = run ? labels.editPlan : labels.planPilotRun;
@@ -163,6 +181,15 @@ export function PilotRunModal({
                 onValueChange={(v) => update('supervisorUserId', v)}
                 options={supervisorOptions}
                 placeholder={labels.noSupervisor}
+              />
+            </div>
+            <div className="field" data-testid="pilot-status-field">
+              <label id="pilot-status-label">{labels.fieldStatus}</label>
+              <Select
+                aria-labelledby="pilot-status-label"
+                value={values.status}
+                onValueChange={(v) => update('status', v as PilotRunFormValues['status'])}
+                options={statusOptions}
               />
             </div>
             {submitState === 'error' ? (

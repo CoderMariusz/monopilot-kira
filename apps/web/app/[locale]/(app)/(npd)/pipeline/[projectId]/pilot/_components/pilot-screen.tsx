@@ -134,6 +134,13 @@ export type PilotLabels = {
   fieldExpectedYield: string;
   fieldDuration: string;
   fieldSupervisor: string;
+  // Run status control (gap 1): lets a planned run be marked completed from the UI
+  // so the launch gate (PILOT_WO_NOT_LINKED) can clear. Values match the pilot_runs
+  // CHECK constraint (migration 234) and the upsertPilotRun zod enum.
+  fieldStatus: string;
+  statusPlanned: string;
+  statusInProgress: string;
+  statusCompleted: string;
   fieldIngredient: string;
   fieldRequired: string;
   fieldAvailable: string;
@@ -149,6 +156,8 @@ export type ToggleChecklistOutcome = { ok: boolean; error?: string };
 
 export type PilotActionOutcome = { ok: boolean; error?: string };
 
+export type PilotRunStatus = 'planned' | 'in_progress' | 'completed';
+
 export type UpsertRunCall = {
   pilotRunId: string | null;
   plannedDate: string | null;
@@ -157,6 +166,7 @@ export type UpsertRunCall = {
   expectedYieldPct: string | null;
   durationHours: string | null;
   supervisorUserId: string | null;
+  status: PilotRunStatus;
 };
 
 export type UpsertMaterialCall = {
@@ -278,6 +288,7 @@ export function PilotScreen({
       expectedYieldPct: values.expectedYieldPct.trim() || null,
       durationHours: values.durationHours.trim() || null,
       supervisorUserId: values.supervisorUserId || null,
+      status: values.status,
     });
   }
 

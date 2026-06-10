@@ -3762,7 +3762,8 @@
       "stageApproval": "Aprobare",
       "stageHandoff": "Predare",
       "esignRequiredError": "Înainte de handoff este necesară aprobarea cu semnătură electronică G4 — aprob-o în etapa Approval.",
-      "checklistIncompleteError": "Checklist-ul porții este incomplet — finalizează elementele deschise înainte de a avansa."
+      "checklistIncompleteError": "Checklist-ul porții este incomplet — finalizează elementele deschise înainte de a avansa.",
+      "stageLaunched": "Lansat"
     },
     "pipelineTable": {
       "title": "Pipeline",
@@ -4520,7 +4521,8 @@
         "duplicate": "Duplică",
         "duplicateDisabledHint": "Duplicarea proiectelor nu este încă disponibilă.",
         "advanceStage": "Avansează etapa →",
-        "advanceDisabledHint": "Nu aveți permisiunea de a avansa această poartă."
+        "advanceDisabledHint": "Nu aveți permisiunea de a avansa această poartă.",
+        "advanceTerminalHint": "Lansat — complet avansat"
       },
       "prio": {
         "high": "Prioritate ridicată",
@@ -4669,7 +4671,11 @@
       "save": "Save",
       "saving": "Saving…",
       "cancel": "Cancel",
-      "saveError": "Could not save. Check the values and try again."
+      "saveError": "Could not save. Check the values and try again.",
+      "fieldStatus": "Stare",
+      "statusPlanned": "Planificat",
+      "statusInProgress": "În curs",
+      "statusCompleted": "Finalizat"
     },
     "trial": {
       "title": "Probe de laborator și bucătărie",

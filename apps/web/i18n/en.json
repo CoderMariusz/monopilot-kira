@@ -1823,7 +1823,8 @@
       "stageApproval": "Approval",
       "stageHandoff": "Handoff",
       "esignRequiredError": "Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.",
-      "checklistIncompleteError": "The gate checklist is incomplete — finish the open checklist items before advancing."
+      "checklistIncompleteError": "The gate checklist is incomplete — finish the open checklist items before advancing.",
+      "stageLaunched": "Launched"
     },
     "pipelineTable": {
       "title": "Pipeline",
@@ -2625,7 +2626,8 @@
         "duplicate": "Duplicate",
         "duplicateDisabledHint": "Duplicating projects is not available yet.",
         "advanceStage": "Advance stage →",
-        "advanceDisabledHint": "You do not have permission to advance this gate."
+        "advanceDisabledHint": "You do not have permission to advance this gate.",
+        "advanceTerminalHint": "Launched — fully advanced"
       },
       "prio": {
         "high": "High priority",
@@ -2774,7 +2776,11 @@
       "save": "Save",
       "saving": "Saving…",
       "cancel": "Cancel",
-      "saveError": "Could not save. Check the values and try again."
+      "saveError": "Could not save. Check the values and try again.",
+      "fieldStatus": "Status",
+      "statusPlanned": "Planned",
+      "statusInProgress": "In progress",
+      "statusCompleted": "Completed"
     },
     "trial": {
       "title": "Lab & kitchen trials",

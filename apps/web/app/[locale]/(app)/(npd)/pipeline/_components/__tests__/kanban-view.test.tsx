@@ -86,6 +86,22 @@ const PROJECTS: KanbanProject[] = [
     targetLaunch: null,
     progressPercent: 100,
   },
+  {
+    // FINAL-NIGHT gap 2: a project whose terminal stage is the real
+    // `current_stage = 'launched'` value (migration 242). It must land in the
+    // dedicated Launched column — NOT fall back into BRIEF — and carry no
+    // Advance affordance (terminal gate).
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    code: 'DEV-088',
+    name: 'Mango Sorbet 250g',
+    type: 'single',
+    currentGate: 'Launched',
+    currentStage: 'launched',
+    prio: 'normal',
+    owner: 'Cy Owner',
+    targetLaunch: '2026-05-01',
+    progressPercent: 100,
+  },
 ];
 
 // Distinct sentinel strings so the test proves the component renders LABELS
@@ -101,6 +117,7 @@ const LABELS: KanbanLabels = {
   stagePilot: 'lbl.stagePilot',
   stageApproval: 'lbl.stageApproval',
   stageHandoff: 'lbl.stageHandoff',
+  stageLaunched: 'lbl.stageLaunched',
   gateG0: 'lbl.gateG0',
   gateG1: 'lbl.gateG1',
   gateG2: 'lbl.gateG2',
@@ -147,10 +164,10 @@ function renderView(overrides: Partial<React.ComponentProps<typeof KanbanView>> 
 }
 
 describe('KanbanView — prototype parity (pipeline.jsx:36-52, stage board)', () => {
-  it('renders 8 stage columns in order brief → recipe → packaging → trial → sensory → pilot → approval → handoff', () => {
+  it('renders 9 stage columns in order brief → recipe → packaging → trial → sensory → pilot → approval → handoff → launched', () => {
     renderView();
     const cols = screen.getAllByTestId(/^kanban-col-/);
-    expect(cols).toHaveLength(8);
+    expect(cols).toHaveLength(9);
     const order = cols.map((c) => c.getAttribute('data-stage'));
     expect(order).toEqual([
       'brief',
@@ -161,7 +178,19 @@ describe('KanbanView — prototype parity (pipeline.jsx:36-52, stage board)', ()
       'pilot',
       'approval',
       'handoff',
+      'launched',
     ]);
+  });
+
+  it('buckets a launched project into the Launched column (not BRIEF) with no Advance affordance', () => {
+    renderView();
+    const launchedCol = screen.getByTestId('kanban-col-launched');
+    const card = within(launchedCol).getByTestId('kanban-card-DEV-088');
+    expect(card).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: LABELS.advance })).toBeNull();
+    // …and it must NOT have leaked into BRIEF.
+    const brief = screen.getByTestId('kanban-col-brief');
+    expect(within(brief).queryByTestId('kanban-card-DEV-088')).toBeNull();
   });
 
   it('renders each column header label + a per-column count', () => {

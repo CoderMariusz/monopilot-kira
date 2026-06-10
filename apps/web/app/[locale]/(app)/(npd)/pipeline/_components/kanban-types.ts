@@ -21,11 +21,18 @@ export const GATE_ORDER: ProjectGate[] = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launche
  * PACKAGING → TRIAL → SENSORY → PILOT → APPROVAL → HANDOFF.
  *
  * DEVIATION (honest real-data note): the live `npd_projects.current_stage` CHECK
- * constraint (migration 085) only persists 5 of these 8 values
- * ('brief','recipe','trial','approval','handoff'). PACKAGING / SENSORY / PILOT
- * columns are rendered for prototype parity but can never hold a real card until
- * the schema is extended — they always show the empty "—" placeholder. No mock
- * rows are injected to fake them.
+ * constraint (migration 242) now persists all 8 operational stages PLUS the
+ * terminal 'launched'. PACKAGING / SENSORY / PILOT columns are rendered for
+ * prototype parity but rarely hold a real card until those per-stage flows are
+ * fully wired — they show the empty "—" placeholder. No mock rows are injected.
+ *
+ * 'launched' is the TERMINAL stage (migration 242 / gate-helpers STAGE_ORDER +
+ * nextStage → null). Launched projects (current_gate === 'Launched') own a final,
+ * non-advanceable "Launched" column. Before this column existed an unknown
+ * 'launched' value fell back to BRIEF via {@link normalizeStage} — the gap this
+ * fixes (FINAL-NIGHT gap 2). The prototype (pipeline.jsx) has no launched stage
+ * column — "Launched YTD" there is only a KPI tile — so this column is an additive
+ * deviation, documented in the closeout log.
  */
 export type ProjectStage =
   | 'brief'
@@ -35,7 +42,8 @@ export type ProjectStage =
   | 'sensory'
   | 'pilot'
   | 'approval'
-  | 'handoff';
+  | 'handoff'
+  | 'launched';
 
 export const STAGE_ORDER: ProjectStage[] = [
   'brief',
@@ -46,6 +54,7 @@ export const STAGE_ORDER: ProjectStage[] = [
   'pilot',
   'approval',
   'handoff',
+  'launched',
 ];
 
 /** Stages the DB can actually persist (migration 085 CHECK constraint). */
@@ -110,6 +119,7 @@ export type KanbanLabels = {
   stagePilot: string;
   stageApproval: string;
   stageHandoff: string;
+  stageLaunched: string;
   gateG0: string;
   gateG1: string;
   gateG2: string;
@@ -154,6 +164,8 @@ export function stageLabel(stage: ProjectStage, labels: KanbanLabels): string {
       return labels.stageApproval;
     case 'handoff':
       return labels.stageHandoff;
+    case 'launched':
+      return labels.stageLaunched;
     default:
       return stage;
   }

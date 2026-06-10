@@ -49,6 +49,7 @@ const LABELS: KanbanLabels = {
   stagePilot: 'Pilot',
   stageApproval: 'Approval',
   stageHandoff: 'Handoff',
+  stageLaunched: 'Launched',
   gateG0: 'G0 · Concept',
   gateG1: 'G1 · Brief',
   gateG2: 'G2 · Recipe',
@@ -224,7 +225,7 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
     // Sanity gates so the evidence run is also a real assertion.
     const readyState = (report.states as Record<string, ReturnType<typeof regionSummary>>).ready;
     expect(readyState.pageRoot).toBe(true);
-    expect(readyState.columns).toBe(8);
+    expect(readyState.columns).toBe(9);
     expect(readyState.stageOrder).toEqual([
       'brief',
       'recipe',
@@ -234,6 +235,7 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
       'pilot',
       'approval',
       'handoff',
+      'launched',
     ]);
     expect(readyState.cards).toBe(PROJECTS.length);
     expect(readyState.rawSelects).toBe(0);
