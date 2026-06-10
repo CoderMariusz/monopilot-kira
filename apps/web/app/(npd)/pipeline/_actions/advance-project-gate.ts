@@ -18,6 +18,7 @@ import {
   getBlockers,
   loadProjectForUpdate,
   requireActionPermission,
+  seedHandoffChecklist,
   serializeGateError,
   updateProjectStage,
   type AnyStage,
@@ -102,8 +103,11 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
       let productCode = project.product_code;
 
       // E-sign checkpoint: approval → handoff requires a valid G4 e-signature.
+      // Entering handoff also seeds the handoff checklist — without it the stage
+      // is a dead end (get-handoff not_found, promote impossible, launch 409).
       if (project.current_stage === 'approval' && targetStage === 'handoff') {
         await assertG4ESignForHandoff(context, project.id);
+        await seedHandoffChecklist(context, project);
       }
 
       // FG candidate is created ENTERING the packaging stage (the 3rd stage = G3).

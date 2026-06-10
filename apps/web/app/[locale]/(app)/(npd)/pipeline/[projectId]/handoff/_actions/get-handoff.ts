@@ -19,6 +19,7 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { seedHandoffChecklist } from '../../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 
 const Input = z.object({
   projectId: z.string().uuid(),
@@ -153,9 +154,44 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           limit 1`,
         [projectId],
       );
-      const checklist = checklistRes.rows[0];
+      let checklist = checklistRes.rows[0];
       if (!checklist) {
-        return { ok: false as const, error: 'not_found' as const };
+        // Self-heal (live deadlock 2026-06-10): projects that ENTERED handoff before
+        // the advance-transition started seeding the checklist have no row and the
+        // stage was a button-less dead end. Seed it here for at/past-handoff projects;
+        // pre-handoff stages legitimately have none.
+        const stageRes = await ctx.client.query<{ current_stage: string }>(
+          `select current_stage
+             from public.npd_projects
+            where id = $1::uuid
+              and org_id = app.current_org_id()
+            limit 1`,
+          [projectId],
+        );
+        const stage = stageRes.rows[0]?.current_stage;
+        if (stage !== 'handoff' && stage !== 'launched') {
+          return { ok: false as const, error: 'not_found' as const };
+        }
+        await seedHandoffChecklist(
+          ctx as Parameters<typeof seedHandoffChecklist>[0],
+          { id: projectId },
+        );
+        const reread = await ctx.client.query<ChecklistRow>(
+          `select id,
+                  bom_verification_status,
+                  destination_bom_code,
+                  promote_to_production_date::text as promote_to_production_date,
+                  destination_warehouse_id
+             from public.handoff_checklists
+            where project_id = $1::uuid
+              and org_id = app.current_org_id()
+            limit 1`,
+          [projectId],
+        );
+        checklist = reread.rows[0];
+        if (!checklist) {
+          return { ok: false as const, error: 'not_found' as const };
+        }
       }
 
       const itemsRes = await ctx.client.query<ItemRow>(

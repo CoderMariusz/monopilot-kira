@@ -521,3 +521,64 @@ export function serializeGateError(error: unknown):
   }
   return null;
 }
+
+/**
+ * Default handoff checklist labels (prototype other-stages.jsx:488-534,
+ * generalized from its sample data).
+ */
+const HANDOFF_CHECKLIST_DEFAULT_ITEMS = [
+  'Recipe locked',
+  'Nutrition label approved by regulatory',
+  'Packaging artwork finalized',
+  'Pilot production successful',
+  'Training material prepared',
+  'First production order scheduled',
+] as const;
+
+/**
+ * Seeds the project's handoff checklist when it enters the handoff stage.
+ *
+ * Nothing else ever INSERTs into handoff_checklists (live deadlock 2026-06-10):
+ * get-handoff returned not_found forever, promote-to-production required the row
+ * to pre-exist, and closeOutLegacyStagesForLaunch then rejected handoff→launched
+ * with HANDOFF_BOM_NOT_APPROVED — so no project could ever reach `launched`.
+ * Idempotent: ON CONFLICT on (org_id, project_id); items seeded only when the
+ * checklist has none.
+ */
+export async function seedHandoffChecklist(
+  ctx: OrgContextLike,
+  project: Pick<GateProjectRow, 'id'>,
+): Promise<void> {
+  const checklist = await ctx.client.query<{ id: string }>(
+    `insert into public.handoff_checklists
+       (org_id, project_id, bom_verification_status, created_by, updated_by)
+     values
+       (app.current_org_id(), $1::uuid, 'pending', $2::uuid, $2::uuid)
+     on conflict on constraint handoff_checklists_org_project_unique do update
+       set updated_by = excluded.updated_by
+     returning id`,
+    [project.id, ctx.userId],
+  );
+  const checklistId = checklist.rows[0]?.id;
+  if (!checklistId) return;
+
+  const existing = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.handoff_checklist_items
+      where org_id = app.current_org_id()
+        and handoff_checklist_id = $1::uuid
+      limit 1`,
+    [checklistId],
+  );
+  if (existing.rows.length > 0) return;
+
+  for (let i = 0; i < HANDOFF_CHECKLIST_DEFAULT_ITEMS.length; i++) {
+    await ctx.client.query(
+      `insert into public.handoff_checklist_items
+         (org_id, handoff_checklist_id, label, is_checked, display_order, created_by, updated_by)
+       values
+         (app.current_org_id(), $1::uuid, $2, false, $3::integer, $4::uuid, $4::uuid)`,
+      [checklistId, HANDOFF_CHECKLIST_DEFAULT_ITEMS[i], i, ctx.userId],
+    );
+  }
+}
