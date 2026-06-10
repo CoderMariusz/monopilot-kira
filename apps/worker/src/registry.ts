@@ -22,10 +22,16 @@ type RegistryEntry = {
   handler: JobHandler;
 };
 
+type SimpleDailyCron = {
+  minute: number;
+  hour: number;
+};
+
 export class JobRegistry {
   private readonly entries = new Map<string, RegistryEntry>();
   private readonly timers = new Set<NodeJS.Timeout>();
   private readonly inFlight = new Set<Promise<void>>();
+  private readonly lastCronRuns = new Map<string, string>();
   private readonly abortController = new AbortController();
   private started = false;
   private shuttingDown = false;
@@ -56,10 +62,25 @@ export class JobRegistry {
     this.started = true;
 
     for (const entry of this.entries.values()) {
-      if (entry.schedule.kind !== 'interval') {
-        this.ctx.logger.warn('cron schedule skipped; cron evaluation is deferred', {
-          job: entry.name,
-        });
+      if (entry.schedule.kind === 'cron') {
+        const cron = parseSimpleDailyCron(entry.schedule.expr);
+        if (!cron) {
+          this.ctx.logger.warn('unsupported cron schedule skipped', {
+            job: entry.name,
+            expr: entry.schedule.expr,
+          });
+          continue;
+        }
+
+        const timer = setInterval(() => {
+          const now = new Date();
+          if (!isCronDue(entry.name, cron, now, this.lastCronRuns)) return;
+          this.runEntry(entry).catch((err: unknown) => {
+            this.ctx.logger.error('scheduled job failed', { job: entry.name, err });
+          });
+        }, 60_000);
+
+        this.timers.add(timer);
         continue;
       }
 
@@ -127,4 +148,32 @@ export class JobRegistry {
       }
     }
   }
+}
+
+function parseSimpleDailyCron(expr: string): SimpleDailyCron | null {
+  const match = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$/.exec(expr.trim());
+  if (!match) return null;
+  const minute = Number(match[1]);
+  const hour = Number(match[2]);
+  if (!Number.isInteger(minute) || !Number.isInteger(hour)) return null;
+  if (minute < 0 || minute > 59 || hour < 0 || hour > 23) return null;
+  return { minute, hour };
+}
+
+function isCronDue(
+  jobName: string,
+  cron: SimpleDailyCron,
+  now: Date,
+  lastCronRuns: Map<string, string>,
+): boolean {
+  if (now.getMinutes() !== cron.minute || now.getHours() !== cron.hour) {
+    return false;
+  }
+
+  const runKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
+  if (lastCronRuns.get(jobName) === runKey) {
+    return false;
+  }
+  lastCronRuns.set(jobName, runKey);
+  return true;
 }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { findMissingD365Constants } from '../../lib/integrations/d365/gate';
 
 export type SetCoreFlagInput = {
   flagCode: string;
@@ -51,7 +52,6 @@ type FeatureFlagRow = {
 const FORBIDDEN = 'forbidden' as const;
 const FLAG_CODE_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const D365_FLAG = 'integration.d365.enabled';
-const D365_REQUIRED_CONSTANT_KEYS = ['V-SET-42', 'V-SET-50', 'V-SET-52'] as const;
 const NPD_POST_RELEASE_EDIT_FLAG = 'npd.post_release_edit.enabled';
 const TECHNICAL_PRODUCT_SPEC_APPROVAL_FLAG = 'technical.product_spec_approval.required';
 const NPD_POLICY_CODE = 'npd_post_release_edit';
@@ -160,30 +160,14 @@ async function runEnablePreflight({
   if (!enabled) return null;
 
   if (flagCode === D365_FLAG) {
-    const [constants, connection] = await Promise.all([
-      client.query<{ key: string; value: string }>(
-        `select key, value
-           from public.d365_constants
-          where org_id = app.current_org_id()
-            and key = any($1::text[])
-            and nullif(value, '') is not null`,
-        [[...D365_REQUIRED_CONSTANT_KEYS]],
-      ),
-      client.query<{ ok?: boolean; passed?: boolean }>(
-        `select passed as ok, passed
-           from public.d365_connection
-          where org_id = app.current_org_id()
-            and check_code = 'test connection'
-            and passed = true
-          order by checked_at desc
-          limit 1`,
-      ),
-    ]);
-    const connectionPassed = connection.rows.some((row) => row.ok === true || row.passed === true);
-    const configuredKeys = new Set(constants.rows.map((row) => String((row as { key?: unknown }).key ?? '')));
-    const missingKeys = D365_REQUIRED_CONSTANT_KEYS.filter((key) => !configuredKeys.has(key));
-    if (missingKeys.length > 0 || !connectionPassed) {
-      return { ok: false, error: 'd365_preflight_failed', failedChecks: [...D365_REQUIRED_CONSTANT_KEYS] };
+    const missingConstants = await findMissingD365Constants(client);
+    const failedChecks: string[] = [];
+    if (missingConstants.length > 0) failedChecks.push('V-SET-42');
+    if (!hasRuntimeD365ConnectionConfig()) {
+      failedChecks.push('V-SET-50', 'V-SET-52');
+    }
+    if (failedChecks.length > 0) {
+      return { ok: false, error: 'd365_preflight_failed', failedChecks };
     }
   }
 
@@ -231,6 +215,14 @@ async function runEnablePreflight({
   }
 
   return null;
+}
+
+function hasRuntimeD365ConnectionConfig(): boolean {
+  const baseUrl = process.env.D365_BASE_URL ?? process.env.NEXT_PUBLIC_D365_BASE_URL;
+  const tenantId = process.env.D365_TENANT_ID;
+  const clientId = process.env.D365_CLIENT_ID;
+  const secretConfigured = Boolean(process.env.D365_CLIENT_SECRET_REF || process.env.D365_CLIENT_SECRET_SET);
+  return Boolean(baseUrl && tenantId && clientId && secretConfigured && process.env.D365_OAUTH_BEARER);
 }
 
 async function readAuthorizationPolicy(

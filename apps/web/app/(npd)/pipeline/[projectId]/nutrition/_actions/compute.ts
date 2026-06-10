@@ -41,6 +41,7 @@ interface IngredientRow {
 interface RawMaterialRow {
   rm_code: string;
   nutrition_per_100g: Record<string, unknown> | null;
+  allergens_inherited: string[] | null;
 }
 
 export async function computeNutrition(raw: unknown): Promise<ComputeNutritionResult> {
@@ -52,7 +53,7 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ orgId, client }) => {
+    return await withOrgContext(async ({ orgId, userId, client }) => {
       const version = await client.query<VersionRow>(
         `select f.product_code
            from public.formulation_versions fv
@@ -76,17 +77,24 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
 
       const rmCodes = [...new Set(ingredientsRes.rows.map((row) => row.rm_code))];
       const nutritionByRm: Record<string, Record<string, string>> = {};
+      const allergenCodes = new Set<string>();
       if (rmCodes.length > 0) {
         const rawMaterials = await client.query<RawMaterialRow>(
-          `select rm_code, nutrition_per_100g
+          `select rm_code, nutrition_per_100g, allergens_inherited
              from "Reference"."RawMaterials"
-            where rm_code = any($1::text[])`,
+            where org_id = app.current_org_id()
+              and rm_code = any($1::text[])`,
           [rmCodes],
         );
 
         for (const row of rawMaterials.rows) {
-          if (!row.nutrition_per_100g) continue;
-          nutritionByRm[row.rm_code] = stringifyNutrition(row.nutrition_per_100g);
+          if (row.nutrition_per_100g) {
+            nutritionByRm[row.rm_code] = stringifyNutrition(row.nutrition_per_100g);
+          }
+          for (const allergen of row.allergens_inherited ?? []) {
+            const code = allergen.trim();
+            if (code.length > 0) allergenCodes.add(code);
+          }
         }
       }
 
@@ -124,6 +132,36 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
                 per_portion_value: row.perPortion,
               })),
             ),
+          ],
+        );
+      }
+
+      await client.query(
+        `delete from public.nutrition_allergens
+          where org_id = app.current_org_id()
+            and product_code = $1
+            and formulation_version_id = $2::uuid`,
+        [productCode, input.formulationVersionId],
+      );
+
+      const allergens = [...allergenCodes].sort();
+      if (allergens.length > 0) {
+        await client.query(
+          `insert into public.nutrition_allergens
+             (org_id, product_code, formulation_version_id, allergen_code, presence, audited_by_user, audited_at)
+           select $1::uuid, $2, $3::uuid, x.allergen_code, 'contains', $4::uuid, now()
+             from jsonb_to_recordset($5::jsonb) as x(allergen_code text)
+           on conflict on constraint nutrition_allergens_org_product_allergen_unique
+           do update
+             set presence = excluded.presence,
+                 audited_by_user = excluded.audited_by_user,
+                 audited_at = excluded.audited_at`,
+          [
+            orgId,
+            productCode,
+            input.formulationVersionId,
+            userId,
+            JSON.stringify(allergens.map((allergenCode) => ({ allergen_code: allergenCode }))),
           ],
         );
       }

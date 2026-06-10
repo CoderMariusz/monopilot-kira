@@ -25,6 +25,7 @@ import { useRouter } from 'next/navigation';
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
+import Input from '@monopilot/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
@@ -65,6 +66,7 @@ export type NutritionScreenData = {
 export type ComputeNutriScoreAction = (input: {
   projectId: string;
   formulationVersionId: string;
+  portionGrams?: string;
 }) => Promise<{ ok: true } | { ok: false; error: string; message?: string }>;
 
 export type NutritionLabels = {
@@ -228,6 +230,7 @@ export function NutritionScreen({
   labels,
   projectId,
   formulationVersionId,
+  defaultPortionGrams,
   computeAction,
   onRefresh,
 }: {
@@ -237,6 +240,8 @@ export function NutritionScreen({
   /** Project + current formulation version — needed to compute the NutriScore (C2). */
   projectId?: string;
   formulationVersionId?: string | null;
+  /** Default portion size in grams, sourced from npd_projects.pack_weight_g when present. */
+  defaultPortionGrams?: string | null;
   /** Compute-NutriScore Server Action (injected only when the user can write). */
   computeAction?: ComputeNutriScoreAction;
   /** Server refresh after a successful compute. Test seam overrides router.refresh. */
@@ -251,8 +256,10 @@ export function NutritionScreen({
   type ComputeStatus = 'idle' | 'computing' | 'computed' | 'error';
   const [computeStatus, setComputeStatus] = React.useState<ComputeStatus>('idle');
   const [computeError, setComputeError] = React.useState<string>('');
+  const [portionGrams, setPortionGrams] = React.useState(defaultPortionGrams ?? '');
 
   const canCompute = !!computeAction && !!projectId && !!formulationVersionId;
+  const portionInput = portionGrams.trim();
 
   const runCompute = React.useCallback(() => {
     if (!computeAction || !projectId || !formulationVersionId || computeStatus === 'computing') {
@@ -262,7 +269,11 @@ export function NutritionScreen({
     setComputeError('');
     void (async () => {
       try {
-        const result = await computeAction({ projectId, formulationVersionId });
+        const result = await computeAction({
+          projectId,
+          formulationVersionId,
+          ...(portionInput.length > 0 ? { portionGrams: portionInput } : {}),
+        });
         if (result.ok) {
           setComputeStatus('computed');
           refresh();
@@ -280,7 +291,7 @@ export function NutritionScreen({
         setComputeError(labels.computeError);
       }
     })();
-  }, [computeAction, projectId, formulationVersionId, computeStatus, refresh, labels.computeError, labels.computeErrorNotFound]);
+  }, [computeAction, projectId, formulationVersionId, portionInput, computeStatus, refresh, labels.computeError, labels.computeErrorNotFound]);
 
   function handleExportCsv() {
     if (!data) return;
@@ -313,8 +324,24 @@ export function NutritionScreen({
           </h1>
           <p className="mt-1 text-sm muted">{labels.subtitle}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-end justify-end gap-2">
           {/* C2 — recompute affordance when data already exists (ready state). */}
+          {state === 'ready' && canCompute ? (
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <span>Portion (g)</span>
+              <Input
+                type="number"
+                min="0"
+                step="0.001"
+                inputMode="decimal"
+                value={portionGrams}
+                onChange={(event) => setPortionGrams(event.currentTarget.value)}
+                aria-label="Portion (g)"
+                className="h-8 w-24"
+                data-testid="nutrition-portion-grams"
+              />
+            </label>
+          ) : null}
           {state === 'ready' && canCompute ? (
             <Button
               type="button"
@@ -360,7 +387,21 @@ export function NutritionScreen({
           <StateNotice state={state === 'ready' ? 'empty' : state} labels={labels} />
           {/* C2 — Compute NutriScore CTA in the empty state (write-gated server-side). */}
           {(state === 'empty' || state === 'ready') && canCompute ? (
-            <div style={{ textAlign: 'center' }}>
+            <div className="flex flex-wrap items-end justify-center gap-2">
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <span>Portion (g)</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  inputMode="decimal"
+                  value={portionGrams}
+                  onChange={(event) => setPortionGrams(event.currentTarget.value)}
+                  aria-label="Portion (g)"
+                  className="h-9 w-28"
+                  data-testid="nutrition-portion-grams"
+                />
+              </label>
               <Button
                 type="button"
                 className="btn-primary"

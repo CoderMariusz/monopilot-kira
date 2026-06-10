@@ -98,13 +98,14 @@ async function seed(pool: pg.Pool) {
     [versionA, formulationA],
   );
   await pool.query(
-    `insert into "Reference"."RawMaterials" (org_id, rm_code, display_name, nutrition_per_100g)
+    `insert into "Reference"."RawMaterials" (org_id, rm_code, display_name, nutrition_per_100g, allergens_inherited)
        values
-         ($1, 'RM-T072-1', 'RM T072 1', $2::jsonb),
-         ($1, 'RM-T072-2', 'RM T072 2', $3::jsonb),
-         ($1, 'RM-T072-3', 'RM T072 3', $4::jsonb)
+         ($1, 'RM-T072-1', 'RM T072 1', $2::jsonb, array['milk', 'soy']::text[]),
+         ($1, 'RM-T072-2', 'RM T072 2', $3::jsonb, array['soy']::text[]),
+         ($1, 'RM-T072-3', 'RM T072 3', $4::jsonb, array[]::text[])
      on conflict (org_id, rm_code) do update
-       set nutrition_per_100g = excluded.nutrition_per_100g`,
+       set nutrition_per_100g = excluded.nutrition_per_100g,
+           allergens_inherited = excluded.allergens_inherited`,
     [
       orgA,
       JSON.stringify({ energy_kj: '300', fat_g: '9', saturates_g: '3', carbs_g: '30', sugars_g: '6', protein_g: '12', salt_g: '0.9' }),
@@ -113,6 +114,64 @@ async function seed(pool: pg.Pool) {
     ],
   );
 }
+
+describe('computeNutrition action unit coverage', () => {
+  it('writes contains allergen declarations from Reference.RawMaterials allergens_inherited', async () => {
+    const calls: Array<{ sql: string; params: readonly unknown[] }> = [];
+    const fakeClient = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        calls.push({ sql, params });
+        const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+        if (normalized.includes('from public.formulation_versions')) {
+          return { rows: [{ product_code: productA }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.formulation_ingredients')) {
+          return {
+            rows: [
+              { rm_code: 'RM-T072-1', pct: '50' },
+              { rm_code: 'RM-T072-2', pct: '50' },
+            ],
+            rowCount: 2,
+          };
+        }
+        if (normalized.includes('from "reference"."rawmaterials"')) {
+          return {
+            rows: [
+              {
+                rm_code: 'RM-T072-1',
+                nutrition_per_100g: { energy_kj: '100', fat_g: '1', saturates_g: '0.1', carbs_g: '2', sugars_g: '0.5', protein_g: '3', salt_g: '0.1' },
+                allergens_inherited: ['milk', 'soy'],
+              },
+              {
+                rm_code: 'RM-T072-2',
+                nutrition_per_100g: { energy_kj: '200', fat_g: '2', saturates_g: '0.2', carbs_g: '4', sugars_g: '1', protein_g: '6', salt_g: '0.2' },
+                allergens_inherited: ['soy'],
+              },
+            ],
+            rowCount: 2,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+    ctxHolder.client = fakeClient as unknown as pg.PoolClient;
+
+    const { computeNutrition } = await import('../compute');
+    const result = await computeNutrition({ projectId: projectA, formulationVersionId: versionA, portionGrams: '40' });
+
+    expect(result.ok).toBe(true);
+    const deleteIndex = calls.findIndex((call) => call.sql.includes('delete from public.nutrition_allergens'));
+    const insertIndex = calls.findIndex((call) => call.sql.includes('insert into public.nutrition_allergens'));
+    expect(deleteIndex).toBeGreaterThanOrEqual(0);
+    expect(insertIndex).toBeGreaterThan(deleteIndex);
+    expect(calls[insertIndex]?.sql).toContain("'contains'");
+    expect(calls[insertIndex]?.params[3]).toBe(userA);
+    expect(JSON.parse(String(calls[insertIndex]?.params[4]))).toEqual([
+      { allergen_code: 'milk' },
+      { allergen_code: 'soy' },
+    ]);
+  });
+});
 
 runIntegration('computeNutrition action', () => {
   let computeNutrition: typeof import('../compute').computeNutrition;
@@ -148,6 +207,7 @@ runIntegration('computeNutrition action', () => {
 
   beforeEach(async () => {
     await appClient.query('delete from public.nutri_score_results where formulation_version_id = $1::uuid', [versionA]);
+    await appClient.query('delete from public.nutrition_allergens where formulation_version_id = $1::uuid', [versionA]);
     await appClient.query('delete from public.nutrition_profiles where formulation_version_id = $1::uuid', [versionA]);
     await appClient.query('delete from public.formulation_ingredients where version_id = $1::uuid', [versionA]);
     await appClient.query(
@@ -187,5 +247,26 @@ runIntegration('computeNutrition action', () => {
       [versionA],
     );
     expect(scores.rows[0]?.count).toBe('1');
+  });
+
+  it('derives idempotent contains allergen declarations from raw material inherited allergens', async () => {
+    const first = await computeNutrition({ projectId: projectA, formulationVersionId: versionA, portionGrams: '40' });
+    const second = await computeNutrition({ projectId: projectA, formulationVersionId: versionA, portionGrams: '40' });
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+
+    const allergens = await appClient.query<{ allergen_code: string; presence: string; audited_by_user: string }>(
+      `select allergen_code, presence, audited_by_user::text as audited_by_user
+         from public.nutrition_allergens
+        where formulation_version_id = $1::uuid
+        order by allergen_code`,
+      [versionA],
+    );
+
+    expect(allergens.rows).toEqual([
+      { allergen_code: 'milk', presence: 'contains', audited_by_user: userA },
+      { allergen_code: 'soy', presence: 'contains', audited_by_user: userA },
+    ]);
   });
 });

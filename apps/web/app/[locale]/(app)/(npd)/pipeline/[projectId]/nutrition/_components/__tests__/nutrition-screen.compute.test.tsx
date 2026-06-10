@@ -143,6 +143,32 @@ describe('C2 — Compute NutriScore (empty state)', () => {
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
   });
 
+  it('defaults the portion input and passes portionGrams through computeAction', async () => {
+    const compute = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <NutritionScreen
+        state="empty"
+        data={null}
+        labels={LABELS}
+        projectId={PROJECT_ID}
+        formulationVersionId={VERSION_ID}
+        defaultPortionGrams="200.000"
+        computeAction={compute}
+      />,
+    );
+    const input = screen.getByTestId('nutrition-portion-grams');
+    expect(input).toHaveValue(200);
+    await act(async () => {
+      fireEvent.change(input, { target: { value: '125.5' } });
+      fireEvent.click(screen.getByTestId('nutrition-compute'));
+    });
+    expect(compute).toHaveBeenCalledWith({
+      projectId: PROJECT_ID,
+      formulationVersionId: VERSION_ID,
+      portionGrams: '125.5',
+    });
+  });
+
   it('surfaces the action message inline on error and does NOT refresh', async () => {
     const compute = vi.fn().mockResolvedValue({
       ok: false,

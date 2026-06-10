@@ -55,6 +55,7 @@ type LoaderResult = {
   // C2 — write gate + the current formulation version to compute from.
   canCompute: boolean;
   formulationVersionId: string | null;
+  portionGrams: string | null;
 };
 
 const READ_PERMISSION = 'npd.fa.read';
@@ -167,7 +168,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
       const canRead = await hasPermission(ctx, READ_PERMISSION);
       if (!canRead) {
-        return { state: 'permission_denied', data: null, canCompute: false, formulationVersionId: null };
+        return { state: 'permission_denied', data: null, canCompute: false, formulationVersionId: null, portionGrams: null };
       }
 
       // C2 — write gate + the project's current formulation version (the input the
@@ -187,8 +188,9 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       const canCompute = canWrite && !!formulationVersionId;
 
       // Resolve the FA candidate for this project. RLS scopes to the org.
-      const project = await ctx.client.query<{ product_code: string | null }>(
-        `select product_code
+      const project = await ctx.client.query<{ product_code: string | null; pack_weight_g: string | null }>(
+        `select product_code,
+                pack_weight_g::text as pack_weight_g
            from public.npd_projects
           where id = $1::uuid
             and org_id = app.current_org_id()
@@ -196,9 +198,10 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         [projectId],
       );
       const productCode = project.rows[0]?.product_code;
+      const portionGrams = project.rows[0]?.pack_weight_g ?? null;
       if (!productCode) {
         // Project not found in this org, or no FG candidate mapped yet (pre-G3).
-        return { state: 'empty', data: null, canCompute, formulationVersionId };
+        return { state: 'empty', data: null, canCompute, formulationVersionId, portionGrams };
       }
 
       // 7-row nutrient table, joined to Reference.Nutrients for label/unit and
@@ -218,7 +221,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       );
 
       if (profiles.rows.length === 0) {
-        return { state: 'empty', data: null, canCompute, formulationVersionId };
+        return { state: 'empty', data: null, canCompute, formulationVersionId, portionGrams };
       }
 
       const score = await ctx.client.query<{ grade: string }>(
@@ -270,11 +273,12 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         },
         canCompute,
         formulationVersionId,
+        portionGrams,
       };
     });
   } catch (error) {
     console.error('[nutrition] org-scoped read failed:', error);
-    return { state: 'error', data: null, canCompute: false, formulationVersionId: null };
+    return { state: 'error', data: null, canCompute: false, formulationVersionId: null, portionGrams: null };
   }
 }
 
@@ -293,6 +297,7 @@ export default async function NutritionPage(propsInput: unknown = {}) {
         data: props.data ?? null,
         canCompute: false,
         formulationVersionId: null,
+        portionGrams: null,
       }
     : await readPageData(projectId);
 
@@ -303,6 +308,7 @@ export default async function NutritionPage(propsInput: unknown = {}) {
       labels={labels}
       projectId={projectId}
       formulationVersionId={loaded.formulationVersionId}
+      defaultPortionGrams={loaded.portionGrams}
       // C2 — only thread the compute action when the user can write (server-resolved).
       computeAction={loaded.canCompute ? computeNutriScoreAction : undefined}
     />
@@ -318,6 +324,7 @@ export default async function NutritionPage(propsInput: unknown = {}) {
 async function computeNutriScoreAction(input: {
   projectId: string;
   formulationVersionId: string;
+  portionGrams?: string;
 }): Promise<{ ok: true } | { ok: false; error: string; message?: string }> {
   'use server';
   const result = await computeNutrition(input);

@@ -26,6 +26,10 @@ function deferred() {
   return { promise, resolve };
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('JobRegistry', () => {
   it('starts and stops cleanly when no jobs are registered', async () => {
     const registry = new JobRegistry({
@@ -86,6 +90,28 @@ describe('JobRegistry', () => {
     await running;
     await shutdown;
     expect(shutdownResolved).toBe(true);
+  });
+
+  it('runs supported daily cron jobs once when the scheduled minute is reached', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T01:59:00'));
+    const registry = new JobRegistry({
+      pool: createPoolStub(),
+      logger: createLoggerStub(),
+    });
+    const handler = vi.fn(async (_ctx: JobContext) => undefined);
+
+    registry.register('daily', { kind: 'cron', expr: '0 2 * * *' }, handler);
+    registry.start();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    await registry.shutdown();
+    vi.useRealTimers();
   });
 });
 

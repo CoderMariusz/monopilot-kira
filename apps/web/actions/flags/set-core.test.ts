@@ -59,10 +59,12 @@ type FakeClient = {
 };
 
 let currentClient: FakeClient;
+const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  process.env = { ...ORIGINAL_ENV };
   currentClient = makeClient();
   _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, sessionToken: 'session-token-stub', client: currentClient }),
@@ -72,7 +74,6 @@ beforeEach(() => {
 describe('setCoreFlag Server Action (TASK-000106/T-020 RED)', () => {
   it('blocks integration.d365.enabled=true until V-SET-42/V-SET-50/V-SET-52 D365 preflights pass and leaves no partial writes', async () => {
     currentClient.d365ConstantsPopulated = 3;
-    currentClient.d365ConnectionPassed = false;
 
     const { setCoreFlag } = await loadSetCoreFlag();
     const result = await setCoreFlag({
@@ -86,8 +87,8 @@ describe('setCoreFlag Server Action (TASK-000106/T-020 RED)', () => {
       error: 'd365_preflight_failed',
       failedChecks: ['V-SET-42', 'V-SET-50', 'V-SET-52'],
     });
-    expect(statementIndex('d365_constants')).toBeGreaterThanOrEqual(0);
-    expect(statementIndex('d365_connection')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('"Reference"."D365_Constants"')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('d365_connection')).toBe(-1);
     expect(statementIndex('feature_flags_core')).toBe(-1);
     expect(currentClient.featureFlags.get('integration.d365.enabled')).toBe(false);
     expect(currentClient.auditEvents).toHaveLength(0);
@@ -95,8 +96,8 @@ describe('setCoreFlag Server Action (TASK-000106/T-020 RED)', () => {
   });
 
   it('allows integration.d365.enabled=true when all three required D365 constants and connection preflight pass', async () => {
-    currentClient.d365ConstantsPopulated = 3;
-    currentClient.d365ConnectionPassed = true;
+    currentClient.d365ConstantsPopulated = 5;
+    setConfiguredD365Env();
 
     const { setCoreFlag } = await loadSetCoreFlag();
     const result = await setCoreFlag({
@@ -107,9 +108,29 @@ describe('setCoreFlag Server Action (TASK-000106/T-020 RED)', () => {
 
     expect(result).toEqual({ ok: true, data: { flagCode: 'integration.d365.enabled', enabled: true } });
     expect(currentClient.featureFlags.get('integration.d365.enabled')).toBe(true);
-    expect(statementIndex('d365_constants')).toBeGreaterThanOrEqual(0);
-    expect(statementIndex('d365_connection')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('"Reference"."D365_Constants"')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('d365_connection')).toBe(-1);
     expect(currentClient.outboxEvents[0]?.eventType).toBe('settings.core_flag.updated');
+  });
+
+  it('returns a friendly D365 preflight error when constants exist but runtime connection config is absent', async () => {
+    currentClient.d365ConstantsPopulated = 5;
+
+    const { setCoreFlag } = await loadSetCoreFlag();
+    const result = await setCoreFlag({
+      flagCode: 'integration.d365.enabled',
+      enabled: true,
+      auditReason: 'connection config must be present',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'd365_preflight_failed',
+      failedChecks: ['V-SET-50', 'V-SET-52'],
+    });
+    expect(statementIndex('"Reference"."D365_Constants"')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('public.d365_connection')).toBe(-1);
+    expect(statementIndex('feature_flags_core')).toBe(-1);
   });
 
   it('blocks npd.post_release_edit.enabled=true unless the T-126 npd_post_release_edit policy satisfies V-SET-43', async () => {
@@ -290,12 +311,18 @@ function makeClient(): FakeClient {
         return { rows: [], rowCount: 0 };
       }
 
-      if (normalized.includes('d365_constants')) {
-        const requiredKeys = ['V-SET-42', 'V-SET-50', 'V-SET-52'];
+      if (normalized.includes('"reference"."d365_constants"')) {
+        const requiredKeys = [
+          'PRODUCTIONSITEID',
+          'APPROVERPERSONNELNUMBER',
+          'CONSUMPTIONWAREHOUSEID',
+          'PRODUCTGROUPID_FG',
+          'COSTINGOPERATIONRESOURCEID_DEFAULT',
+        ];
         return {
           rows: Array.from({ length: client.d365ConstantsPopulated }, (_, index) => ({
-            key: requiredKeys[index] ?? `D365_EXTRA_${index + 1}`,
-            value: `configured-${index + 1}`,
+            constant_key: requiredKeys[index] ?? `D365_EXTRA_${index + 1}`,
+            constant_value: `configured-${index + 1}`,
           })),
           rowCount: client.d365ConstantsPopulated,
         };
@@ -353,6 +380,14 @@ function makeClient(): FakeClient {
     },
   };
   return client;
+}
+
+function setConfiguredD365Env(): void {
+  process.env.D365_BASE_URL = 'https://d365.example.test';
+  process.env.D365_TENANT_ID = 'tenant-id';
+  process.env.D365_CLIENT_ID = 'client-id';
+  process.env.D365_CLIENT_SECRET_REF = 'secret-ref';
+  process.env.D365_OAUTH_BEARER = 'redacted-token';
 }
 
 function statementIndex(fragment: string): number {
