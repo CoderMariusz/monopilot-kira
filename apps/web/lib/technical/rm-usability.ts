@@ -202,7 +202,9 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
   if (!req.supplier || req.supplier.supplierStatus !== 'approved') {
     blockingReasons.push('SUPPLIER_NOT_APPROVED');
     checks.push(
-      row('SUPPLIER_NOT_APPROVED', 'Supplier is approved', 'block', 'public.supplier_specs.supplier_status', {
+      // Failure phrasing — the positively-named requirement read as "blocked
+      // (SUPPLIER_NOT_APPROVED): Supplier is approved" in the BOM dialog.
+      row('SUPPLIER_NOT_APPROVED', 'Supplier approval is missing', 'block', 'public.supplier_specs.supplier_status', {
         remediationHref: req.supplier ? `/technical/suppliers/${req.supplier.supplierCode}` : null,
         evidenceAt: req.supplier?.updatedAt ?? null,
       }),
