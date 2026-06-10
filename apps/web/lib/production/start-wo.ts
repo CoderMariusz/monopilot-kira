@@ -171,11 +171,16 @@ export async function startWo(
       // T-030); the column is nullable day-1 (migration 181) and every other
       // wo_outputs write path (register-output / record-waste) binds it explicitly,
       // so the START materialization matches the canonical site_id contract.
+      // qty_kg = 0: the materialized row is a PLACEHOLDER for the planned
+      // output role — actual produced kg arrive via register-output rows.
+      // Materializing with expected_qty made recorded output == planned the
+      // moment the WO started (live E2E: 100/100 kg at start, 150% after the
+      // first real registration), so progress/yield were meaningless.
       `insert into public.wo_outputs
          (org_id, site_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, uom,
           qa_status, registered_by, created_by)
        values (app.current_org_id(), null, $1::uuid, $2::uuid, $3, $4::uuid,
-               $5, $6::numeric, $7, 'PENDING', $8::uuid, $8::uuid)
+               $5, 0, $6, 'PENDING', $7::uuid, $7::uuid)
        on conflict (transaction_id) do nothing
        returning id`,
       [
@@ -184,7 +189,6 @@ export async function startWo(
         outputType,
         row.product_id,
         deriveBatchNumber(input.woId, row.output_role),
-        row.expected_qty,
         row.uom,
         ctx.userId,
       ],

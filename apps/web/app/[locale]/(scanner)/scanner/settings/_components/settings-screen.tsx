@@ -17,13 +17,13 @@ import {
   ScannerScreen,
   Topbar,
   scannerTokens as T,
-} from "../../../../../components/shell/scanner-primitives";
-import { LanguageSheet, LogoutSheet } from "../../_components/scanner-modals";
-import { useScannerSession } from "../../_components/scanner-session";
+} from "../../../../../../components/shell/scanner-primitives";
+import { LanguageSheet, LogoutSheet } from "../../../_components/scanner-modals";
+import { useScannerSession } from "../../../_components/scanner-session";
 import {
   SCANNER_LANGUAGE_OPTIONS,
   type ScannerLabels,
-} from "../../_components/scanner-labels";
+} from "../../../_components/scanner-labels";
 
 export function SettingsScreen({ locale, labels }: { locale: string; labels: ScannerLabels }) {
   const router = useRouter();
@@ -41,7 +41,7 @@ export function SettingsScreen({ locale, labels }: { locale: string; labels: Sca
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (ready && !session) router.replace(`/${locale}/login`);
+    if (ready && !session) router.replace(`/${locale}/scanner/login`);
   }, [ready, session, locale, router]);
 
   const changePin = async () => {
@@ -93,12 +93,12 @@ export function SettingsScreen({ locale, labels }: { locale: string; labels: Sca
       }
     }
     clearSession();
-    router.replace(`/${locale}/login`);
+    router.replace(`/${locale}/scanner/login`);
   };
 
   const changeLanguage = (next: string) => {
     // Switch the locale segment; the (scanner) group lives under [locale].
-    router.replace(`/${next}/settings`);
+    router.replace(`/${next}/scanner/settings`);
   };
 
   const activeSession = session
@@ -109,7 +109,7 @@ export function SettingsScreen({ locale, labels }: { locale: string; labels: Sca
     <ScannerScreen>
       <Topbar
         title={L.title}
-        onBack={() => router.push(`/${locale}/home`)}
+        onBack={() => router.push(`/${locale}/scanner/home`)}
         syncState="online"
         initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}

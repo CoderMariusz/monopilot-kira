@@ -49,13 +49,32 @@ export async function createWorkOrder(params: {
       );
       const bom = activeBom.rows[0];
 
+      // Factory-release snapshot: production start-wo.ts hard-requires BOTH
+      // active_bom_header_id AND active_factory_spec_id (factory_release_missing
+      // 409 otherwise — live E2E walk hit this for every Planning-created WO).
+      // Resolve the newest approved/released spec for the FG item here, at the
+      // same point the BOM snapshot is taken.
+      const approvedSpec = await ctx.client.query<{ id: string }>(
+        `select id
+           from public.factory_specs
+          where org_id = app.current_org_id()
+            and fg_item_id = $1::uuid
+            and status in ('approved_for_factory', 'released_to_factory')
+          order by version desc
+          limit 1`,
+        [input.productId],
+      );
+      const spec = approvedSpec.rows[0];
+
       const insertedWo = await ctx.client.query<WorkOrderRow>(
         `insert into public.work_orders
            (id, org_id, wo_number, product_id, item_type_at_creation, active_bom_header_id,
+            active_factory_spec_id,
             planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
             source_of_demand, source_reference, ext_jsonb, created_by, updated_by)
          values
            ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
+            $12::uuid,
             $5::numeric, 'kg', 'DRAFT', $6::timestamptz, $7::uuid, $8::uuid,
             'manual', $9, $10::jsonb, $11::uuid, $11::uuid)
          returning id, wo_number, product_id, $9::text as item_code, item_type_at_creation,
@@ -74,6 +93,7 @@ export async function createWorkOrder(params: {
           input.itemCode,
           JSON.stringify({ notes: input.notes ?? null, app_version: APP_VERSION }),
           ctx.userId,
+          spec?.id ?? null,
         ],
       );
       const workOrder = insertedWo.rows[0];
@@ -128,7 +148,7 @@ export async function createWorkOrder(params: {
         workOrder: mapWoHeader(workOrder),
         materials: materialRows.map(mapMaterial),
         primarySchedule: mapSchedule(primarySchedule),
-        warning: bom ? undefined : 'no_active_bom',
+        warning: !bom ? 'no_active_bom' : !spec ? 'no_approved_factory_spec' : undefined,
       };
     });
   } catch (error) {

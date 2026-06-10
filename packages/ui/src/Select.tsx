@@ -408,10 +408,15 @@ export function SelectContent({ children }: { children?: React.ReactNode }) {
       // Inline positioning guarantees the popover is fixed, on top, and aligned
       // to the trigger regardless of the host page's CSS. `pos` is null only for
       // the first synchronous paint before useLayoutEffect runs.
+      // pointerEvents:'auto' is load-bearing inside a Radix modal Dialog: the
+      // dialog sets `pointer-events:none` on <body> while open, and this
+      // listbox is portaled to <body> (outside the dialog content), so without
+      // the override every option click fell through to the modal beneath it
+      // (live E2E: line/machine/waste/pause selects unusable by mouse).
       style={
         pos
-          ? { position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth }
-          : { position: 'fixed', visibility: 'hidden' }
+          ? { position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth, pointerEvents: 'auto' }
+          : { position: 'fixed', visibility: 'hidden', pointerEvents: 'auto' }
       }
       onKeyDown={handleKeyDown}
     >

@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { LoginScreen } from "../login-screen";
-import { getScannerLabels } from "../../../_components/scanner-labels";
+import { getScannerLabels } from "../../../../_components/scanner-labels";
 import {
   ScannerSessionProvider,
   SCANNER_SESSION_STORAGE_KEY,
-} from "../../../_components/scanner-session";
+} from "../../../../_components/scanner-session";
 
 const replace = vi.fn();
 const push = vi.fn();
@@ -75,7 +75,7 @@ describe("LoginScreen", () => {
     typeEmailAndPin("1234");
     fireEvent.click(screen.getByRole("button", { name: labels.login.submit }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/login/site"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/scanner/login/site"));
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/scanner/login",
       expect.objectContaining({ method: "POST" }),
@@ -112,6 +112,6 @@ describe("LoginScreen", () => {
     typeEmailAndPin("1357");
     fireEvent.click(screen.getByRole("button", { name: labels.login.submit }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/login/pin-setup"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/scanner/login/pin-setup"));
   });
 });

@@ -113,9 +113,17 @@ function Modal({ open, onOpenChange, size = 'md', modalId, dismissible = true, c
     ? undefined
     : (e: KeyboardEvent) => { e.preventDefault(); };
 
-  const handlePointerDownOutside = dismissible
-    ? undefined
-    : (e: Event) => { e.preventDefault(); };
+  // A body-portaled Select listbox lives OUTSIDE the Radix content node, so a
+  // click on an option counts as "outside" and would dismiss the dialog before
+  // the option's own handler runs. Never treat select-content as outside.
+  const isInsideSelectPopover = (e: Event): boolean => {
+    const target = e.target as Element | null;
+    return Boolean(target?.closest?.('[data-slot="select-content"]'));
+  };
+
+  const handlePointerDownOutside = (e: Event) => {
+    if (!dismissible || isInsideSelectPopover(e)) e.preventDefault();
+  };
 
   const sizeVar = `var(--modal-size-${size}-width)`;
 

@@ -109,7 +109,7 @@ describe("ScannerSessionProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "set" }));
     fireEvent.click(screen.getByRole("button", { name: "call" }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/login"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/scanner/login"));
     expect(window.sessionStorage.getItem(SCANNER_SESSION_STORAGE_KEY)).toBeNull();
     expect(screen.getByTestId("user").textContent).toBe("none");
   });

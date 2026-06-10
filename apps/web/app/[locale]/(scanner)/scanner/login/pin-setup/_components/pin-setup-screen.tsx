@@ -17,8 +17,8 @@ import {
   ScannerScreen,
   Topbar,
   scannerTokens as T,
-} from "../../../../../../components/shell/scanner-primitives";
-import type { ScannerLabels } from "../../../_components/scanner-labels";
+} from "../../../../../../../components/shell/scanner-primitives";
+import type { ScannerLabels } from "../../../../_components/scanner-labels";
 
 const MIN_LEN = 4;
 const MAX_LEN = 6;
@@ -63,7 +63,7 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
         body: JSON.stringify({ email: email.trim(), password, newPin: confirmedPin }),
       });
       if (res.ok) {
-        router.replace(`/${locale}/login`);
+        router.replace(`/${locale}/scanner/login`);
         return;
       }
       setErr(L.errSaveFailed);
@@ -105,7 +105,7 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
     <ScannerScreen>
       <Topbar
         title={title}
-        onBack={() => router.push(`/${locale}/login`)}
+        onBack={() => router.push(`/${locale}/scanner/login`)}
         syncState="online"
         labels={labels.topbar}
       />

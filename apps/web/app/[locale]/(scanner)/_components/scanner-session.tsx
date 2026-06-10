@@ -122,7 +122,7 @@ export function ScannerSessionProvider({ children }: { children: ReactNode }) {
       });
       if (res.status === 401) {
         clearSession();
-        router.replace(`/${locale}/login`);
+        router.replace(`/${locale}/scanner/login`);
       }
       return res;
     },

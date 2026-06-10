@@ -14,10 +14,10 @@ import {
   ScannerScreen,
   Topbar,
   scannerTokens as T,
-} from "../../../../../components/shell/scanner-primitives";
-import { LogoutSheet } from "../../_components/scanner-modals";
-import { useScannerSession } from "../../_components/scanner-session";
-import type { ScannerLabels } from "../../_components/scanner-labels";
+} from "../../../../../../components/shell/scanner-primitives";
+import { LogoutSheet } from "../../../_components/scanner-modals";
+import { useScannerSession } from "../../../_components/scanner-session";
+import type { ScannerLabels } from "../../../_components/scanner-labels";
 
 type Tile = {
   key: keyof ScannerLabels["home"]["tiles"];
@@ -63,7 +63,7 @@ export function HomeScreen({ locale, labels }: { locale: string; labels: Scanner
 
   // Permission-denied / unauthenticated: no session → back to login.
   useEffect(() => {
-    if (ready && !session) router.replace(`/${locale}/login`);
+    if (ready && !session) router.replace(`/${locale}/scanner/login`);
   }, [ready, session, locale, router]);
 
   const sectionLabel = (k: Section["key"]) =>
@@ -75,7 +75,7 @@ export function HomeScreen({ locale, labels }: { locale: string; labels: Scanner
 
   const logout = () => {
     clearSession();
-    router.replace(`/${locale}/login`);
+    router.replace(`/${locale}/scanner/login`);
   };
 
   return (
@@ -85,7 +85,7 @@ export function HomeScreen({ locale, labels }: { locale: string; labels: Scanner
         showBack={false}
         syncState="online"
         initials={session ? initials(session.user.name) : "JK"}
-        onMenu={() => router.push(`/${locale}/settings`)}
+        onMenu={() => router.push(`/${locale}/scanner/settings`)}
         onAvatar={() => setShowLogout(true)}
         labels={labels.topbar}
       />

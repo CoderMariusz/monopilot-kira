@@ -155,7 +155,9 @@ export function WoListScreen({
         (tab === 'all' || r.status === tab) &&
         (q === '' ||
           r.woNumber.toLowerCase().includes(q) ||
-          r.productId.toLowerCase().includes(q)),
+          r.productId.toLowerCase().includes(q) ||
+          (r.itemCode ?? '').toLowerCase().includes(q) ||
+          (r.productName ?? '').toLowerCase().includes(q)),
     );
   }, [rows, tab, search]);
 
@@ -258,9 +260,20 @@ export function WoListScreen({
                       ) : null}
                     </Link>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-slate-500">{r.productId.slice(0, 8)}</TableCell>
+                  <TableCell className="text-xs text-slate-600">
+                    {r.productName ? (
+                      <div className="flex flex-col">
+                        <span className="text-sm text-slate-900">{r.productName}</span>
+                        {r.itemCode ? (
+                          <span className="font-mono text-[11px] text-slate-500">{r.itemCode}</span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="font-mono text-slate-500">{r.productId.slice(0, 8)}</span>
+                    )}
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-slate-500">
-                    {r.lineId ? r.lineId.slice(0, 8) : '—'}
+                    {r.lineCode ?? (r.lineId ? r.lineId.slice(0, 8) : '—')}
                   </TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[r.status]}>{labels.status[r.status]}</Badge>

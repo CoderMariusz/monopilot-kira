@@ -1,4 +1,4 @@
-import { getScannerLabels } from "../../_components/scanner-labels";
+import { getScannerLabels } from "../../../_components/scanner-labels";
 import { SiteSelectScreen } from "./_components/site-select-screen";
 
 export const dynamic = "force-dynamic";

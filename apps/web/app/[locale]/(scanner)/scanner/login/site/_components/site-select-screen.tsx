@@ -19,9 +19,9 @@ import {
   ScannerScreen,
   Topbar,
   scannerTokens as T,
-} from "../../../../../../components/shell/scanner-primitives";
-import { useScannerSession } from "../../../_components/scanner-session";
-import type { ScannerLabels } from "../../../_components/scanner-labels";
+} from "../../../../../../../components/shell/scanner-primitives";
+import { useScannerSession } from "../../../../_components/scanner-session";
+import type { ScannerLabels } from "../../../../_components/scanner-labels";
 
 type Site = { id: string; name: string };
 type Line = { id: string; name: string; siteId: string };
@@ -53,7 +53,7 @@ export function SiteSelectScreen({ locale, labels }: { locale: string; labels: S
     setState("loading");
     const token = session?.token;
     if (!token) {
-      router.replace(`/${locale}/login`);
+      router.replace(`/${locale}/scanner/login`);
       return;
     }
     try {
@@ -62,7 +62,7 @@ export function SiteSelectScreen({ locale, labels }: { locale: string; labels: S
       });
       if (res.status === 401) {
         clearSession();
-        router.replace(`/${locale}/login`);
+        router.replace(`/${locale}/scanner/login`);
         return;
       }
       if (!res.ok) {
@@ -106,7 +106,7 @@ export function SiteSelectScreen({ locale, labels }: { locale: string; labels: S
       });
       if (res.status === 401) {
         clearSession();
-        router.replace(`/${locale}/login`);
+        router.replace(`/${locale}/scanner/login`);
         return;
       }
       if (!res.ok) {
@@ -114,7 +114,7 @@ export function SiteSelectScreen({ locale, labels }: { locale: string; labels: S
         setSaveErr(L.errLoad);
         return;
       }
-      router.replace(`/${locale}/home`);
+      router.replace(`/${locale}/scanner/home`);
     } catch {
       patchSession(previous);
       setSaveErr(L.errLoad);
@@ -127,7 +127,7 @@ export function SiteSelectScreen({ locale, labels }: { locale: string; labels: S
     <ScannerScreen>
       <Topbar
         title={L.title}
-        onBack={() => router.push(`/${locale}/login`)}
+        onBack={() => router.push(`/${locale}/scanner/login`)}
         syncState="online"
         labels={labels.topbar}
       />

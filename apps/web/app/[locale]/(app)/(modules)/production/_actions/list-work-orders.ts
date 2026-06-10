@@ -54,8 +54,13 @@ export type WorkOrderListItem = {
   id: string;
   woNumber: string;
   productId: string;
+  /** items.item_code / items.name — null when the product row is missing. */
+  itemCode: string | null;
+  productName: string | null;
   status: WoListStatus;
   lineId: string | null;
+  /** production_lines.code — null when no line is assigned. */
+  lineCode: string | null;
   /** Planned qty in the WO's UOM. */
   plannedQty: number;
   uom: string;
@@ -137,8 +142,11 @@ export async function listWorkOrders(): Promise<WorkOrderListResult> {
         id: string;
         wo_number: string | null;
         product_id: string;
+        item_code: string | null;
+        product_name: string | null;
         status: string;
         production_line_id: string | null;
+        line_code: string | null;
         planned_quantity: string | number | null;
         uom: string | null;
         output_kg: string | number | null;
@@ -150,6 +158,9 @@ export async function listWorkOrders(): Promise<WorkOrderListResult> {
         `select w.id::text as id,
                 w.wo_number,
                 w.product_id::text as product_id,
+                i.item_code,
+                i.name as product_name,
+                pl.code as line_code,
                 coalesce(
                   e.status,
                   case w.status
@@ -177,6 +188,10 @@ export async function listWorkOrders(): Promise<WorkOrderListResult> {
            from public.work_orders w
            left join public.wo_executions e
              on e.wo_id = w.id and e.org_id = w.org_id
+           left join public.items i
+             on i.org_id = w.org_id and i.id = w.product_id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
            left join lateral (
              select coalesce(sum(o.qty_kg), 0) as qty_kg
                from public.wo_outputs o
@@ -199,8 +214,11 @@ export async function listWorkOrders(): Promise<WorkOrderListResult> {
           id: r.id,
           woNumber: r.wo_number ?? r.id.slice(0, 8),
           productId: r.product_id,
+          itemCode: r.item_code,
+          productName: r.product_name,
           status,
           lineId: r.production_line_id,
+          lineCode: r.line_code,
           plannedQty: Number(r.planned_quantity ?? 0),
           uom: r.uom ?? 'kg',
           outputKg,

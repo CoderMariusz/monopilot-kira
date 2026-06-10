@@ -1,4 +1,4 @@
-import { getScannerLabels } from "../_components/scanner-labels";
+import { getScannerLabels } from "../../_components/scanner-labels";
 import { HomeScreen } from "./_components/home-screen";
 
 export const dynamic = "force-dynamic";

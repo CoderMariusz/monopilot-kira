@@ -137,7 +137,7 @@ export type GetPlanningWorkOrderResult =
   | { ok: false; error: PlanningWorkOrderError };
 
 export type CreateWorkOrderResult =
-  | { ok: true; workOrder: WOHeader; materials: WOMaterial[]; primarySchedule: ScheduleOutput; warning?: 'no_active_bom' }
+  | { ok: true; workOrder: WOHeader; materials: WOMaterial[]; primarySchedule: ScheduleOutput; warning?: 'no_active_bom' | 'no_approved_factory_spec' }
   | { ok: false; error: PlanningWorkOrderError; issues?: z.ZodIssue[] };
 
 export type ReleaseWorkOrderResult =

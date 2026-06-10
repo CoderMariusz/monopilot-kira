@@ -17,9 +17,9 @@ import {
   ScannerScreen,
   Topbar,
   scannerTokens as T,
-} from "../../../../../components/shell/scanner-primitives";
-import { useScannerSession } from "../../_components/scanner-session";
-import type { ScannerLabels } from "../../_components/scanner-labels";
+} from "../../../../../../components/shell/scanner-primitives";
+import { useScannerSession } from "../../../_components/scanner-session";
+import type { ScannerLabels } from "../../../_components/scanner-labels";
 
 type LoginResponse =
   | { ok: true; token: string; user: { id: string; name: string }; expiresAt?: string }
@@ -62,12 +62,12 @@ export function LoginScreen({ locale, labels }: { locale: string; labels: Scanne
           user: data.user,
           expiresAt: data.expiresAt ?? null,
         });
-        router.replace(`/${locale}/login/site`);
+        router.replace(`/${locale}/scanner/login/site`);
         return;
       }
       if (res.status === 409) {
         // pin_not_enrolled → first-time PIN setup
-        router.replace(`/${locale}/login/pin-setup`);
+        router.replace(`/${locale}/scanner/login/pin-setup`);
         return;
       }
       if (res.status === 423) {
@@ -175,7 +175,7 @@ export function LoginScreen({ locale, labels }: { locale: string; labels: Scanne
         <Btn variant="p" disabled={!canSubmit} onClick={submit}>
           {submitting ? L.signingIn : L.submit}
         </Btn>
-        <GhostBtn onClick={() => router.push(`/${locale}/login/pin-setup`)}>
+        <GhostBtn onClick={() => router.push(`/${locale}/scanner/login/pin-setup`)}>
           {L.setupCta}
         </GhostBtn>
       </div>

@@ -29,9 +29,33 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
       if (!status) return { ok: false, error: 'not_found' };
       if (status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
 
+      // Release = factory handoff: self-heal the factory-release snapshot for
+      // WOs created before createWorkOrder stamped it (production start-wo.ts
+      // 409s with factory_release_missing when either id is NULL).
       const updated = await ctx.client.query<WorkOrderRow>(
         `update public.work_orders wo
             set status = 'RELEASED',
+                active_factory_spec_id = coalesce(wo.active_factory_spec_id, (
+                  select fs.id
+                    from public.factory_specs fs
+                   where fs.org_id = app.current_org_id()
+                     and fs.fg_item_id = wo.product_id
+                     and fs.status in ('approved_for_factory', 'released_to_factory')
+                   order by fs.version desc
+                   limit 1
+                )),
+                active_bom_header_id = coalesce(wo.active_bom_header_id, (
+                  select bh.id
+                    from public.bom_headers bh
+                   where bh.org_id = app.current_org_id()
+                     and bh.product_id = (
+                       select i.item_code from public.items i
+                        where i.id = wo.product_id and i.org_id = app.current_org_id()
+                     )
+                     and bh.status = 'active'
+                   order by bh.version desc
+                   limit 1
+                )),
                 updated_by = $2::uuid
           where wo.org_id = app.current_org_id()
             and wo.id = $1::uuid
