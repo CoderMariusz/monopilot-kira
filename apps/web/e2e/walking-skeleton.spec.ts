@@ -91,21 +91,27 @@ test.describe('Walking Skeleton — clickable, DB-backed product (Wave 0 DoD)', 
       }
     }
 
-    // DoD #4 — dashboard renders the live org summary with all metric tiles.
+    // DoD #4 — dashboard renders the prototype org overview (5 KPI cards,
+    // quick-actions bar, activity timeline, alerts panel) from live data.
     await page.goto(url('/en/dashboard'), { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('[data-testid="dashboard-org-summary"]')).toBeVisible();
-    await expect(page.locator('[data-testid^="dashboard-metric-"]')).toHaveCount(6);
+    await expect(page.locator('[data-testid="dashboard-kpis"]')).toBeVisible();
+    await expect(page.locator('[data-testid^="dashboard-kpi-"]')).toHaveCount(5);
+    await expect(page.locator('[data-testid^="dashboard-quick-action-"]')).toHaveCount(6);
+    await expect(page.locator('[data-testid="dashboard-activity"]')).toBeVisible();
+    await expect(page.locator('[data-testid="dashboard-alerts"]')).toBeVisible();
 
-    // DoD #4 (strict) — against a real Supabase-backed target, the counts must
-    // be live numbers, not the "unavailable" fallback.
+    // DoD #4 (strict) — against a real Supabase-backed target, the live read
+    // must succeed (live badge), not degrade to the "unavailable" fallback, and
+    // the Active WOs KPI must surface a real number.
     if (requireDbValues) {
       await page.goto(url('/en/production'), { waitUntil: 'domcontentloaded' });
       const liveText = await page.locator('[data-testid="module-live-data"]').innerText();
       expect(liveText, 'production live panel must show a real record count').toMatch(/\d/);
 
       await page.goto(url('/en/dashboard'), { waitUntil: 'domcontentloaded' });
-      const usersTile = await page.locator('[data-testid="dashboard-metric-users"]').innerText();
-      expect(usersTile, 'dashboard users metric must be a live number').toMatch(/\d/);
+      await expect(page.locator('[data-testid="dashboard-live-badge"]')).toBeVisible();
+      const activeWosTile = await page.locator('[data-testid="dashboard-kpi-activeWos"]').innerText();
+      expect(activeWosTile, 'dashboard Active WOs KPI must be a live number').toMatch(/\d/);
     }
   });
 });

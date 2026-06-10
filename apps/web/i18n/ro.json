@@ -5037,5 +5037,76 @@
       "emptyBody": "Acest produs finit nu are listă de materiale.",
       "technicalLink": "Deschide în Tehnic"
     }
+  },
+  "Errors": {
+    "notFound": {
+      "title": "Page not found",
+      "body": "The page you are looking for does not exist or may have moved. Check the address or head back to your dashboard.",
+      "backToDashboard": "Back to dashboard"
+    },
+    "boundary": {
+      "title": "Something went wrong",
+      "body": "An unexpected error occurred while loading this screen. You can try again, or head back to your dashboard.",
+      "digestLabel": "Reference",
+      "retry": "Try again"
+    }
+  },
+  "Dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Live operational overview for your organization.",
+    "liveBadge": "Live · Supabase",
+    "unavailableBadge": "Live data unavailable",
+    "kpiNotLive": "Module not live yet",
+    "kpis": {
+      "activeWos": {
+        "label": "Active Work Orders",
+        "hint": "Released, in progress or on hold"
+      },
+      "pendingPos": {
+        "label": "Pending POs",
+        "hint": "Purchasing not live yet"
+      },
+      "lowStock": {
+        "label": "Low Stock Alerts",
+        "hint": "Stock thresholds not live yet"
+      },
+      "qualityHolds": {
+        "label": "Quality Holds",
+        "hint": "Open holds requiring action"
+      },
+      "shipmentsToday": {
+        "label": "Today's Shipments",
+        "hint": "Created today"
+      }
+    },
+    "quickActions": {
+      "title": "Quick actions",
+      "createWo": "Create Work Order",
+      "createPo": "Create Purchase Order",
+      "receive": "Receive Goods",
+      "qualityCheck": "Quality Check",
+      "createShipment": "Create Shipment",
+      "runMrp": "Run MRP"
+    },
+    "activity": {
+      "title": "Recent activity",
+      "emptyTitle": "No activity yet",
+      "emptyBody": "Actions across your organization will appear here as they happen."
+    },
+    "alerts": {
+      "title": "System alerts",
+      "emptyTitle": "All clear",
+      "emptyBody": "No active alerts for your organization right now.",
+      "items": {
+        "openHolds": {
+          "title": "Open quality holds",
+          "body": "{count, plural, one {# quality hold is open and needs attention} other {# quality holds are open and need attention}}"
+        },
+        "shipmentExceptions": {
+          "title": "Shipment exceptions",
+          "body": "{count, plural, one {# shipment is in an exception state} other {# shipments are in an exception state}}"
+        }
+      }
+    }
   }
 }

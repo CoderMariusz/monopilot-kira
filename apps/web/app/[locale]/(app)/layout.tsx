@@ -4,6 +4,9 @@ import { redirect } from 'next/navigation';
 import { AppSidebar } from '../../../components/shell/app-sidebar';
 import { AppTopbar } from '../../../components/shell/app-topbar';
 import { createServerSupabaseClient } from '../../../lib/auth/supabase-server';
+import { APP_NAV_GROUPS } from '../../../lib/navigation/app-nav';
+import { filterNavGroupsByPermissions } from '../../../lib/navigation/filter-nav';
+import { getNavPermissionContext } from '../../../lib/navigation/nav-permissions';
 import type { PhaseOneLanguage, UserLanguage } from '../../../lib/i18n/user-language';
 
 type Locale = 'en' | 'pl' | 'uk' | 'ro';
@@ -136,6 +139,14 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
 
   const metadata = user.user_metadata ?? {};
   const shellUser = shellUserFromSupabase(user);
+
+  // Shell gap #2 — resolve the signed-in user's permission set ONCE here and
+  // hand the RBAC-filtered nav to the sidebar. Admin/owner sees everything;
+  // ungated (permission_key == null) modules stay visible to all. A failed
+  // resolution degrades to the ungated set (see nav-permissions.ts), so the
+  // sidebar never blanks.
+  const navPermissionContext = await getNavPermissionContext();
+  const navGroups = filterNavGroupsByPermissions(APP_NAV_GROUPS, navPermissionContext);
   const effectiveLanguage = phaseOneLocale(locale);
   const userLanguage = userLanguageFromMetadata(metadata.language ?? metadata.locale);
   const topbar = await AppTopbar({
@@ -162,7 +173,7 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
       }}
     >
       <div style={{ gridColumn: '1 / -1', gridRow: '1 / 2' }}>{topbar}</div>
-      <AppSidebar locale={locale} />
+      <AppSidebar locale={locale} groups={navGroups} />
       <main data-testid="app-shell-main" className="min-w-0 overflow-auto bg-slate-50">
         {children}
       </main>

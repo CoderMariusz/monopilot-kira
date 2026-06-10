@@ -7,11 +7,17 @@ import { usePathname } from "next/navigation";
 import { Badge } from "@monopilot/ui/Badge";
 
 import { APP_NAV_GROUPS } from "../../lib/navigation/app-nav";
-import type { AppSidebarNavItem } from "../../lib/navigation/types";
+import type { AppNavGroup, AppSidebarNavItem } from "../../lib/navigation/types";
 
 type AppSidebarProps = {
   locale: string;
   pathnameOverride?: string;
+  /**
+   * RBAC-filtered nav groups resolved server-side in the (app) shell layout
+   * (shell gap #2). Defaults to the full, ungated registry so existing callers
+   * and RTL harnesses that render the sidebar standalone keep working.
+   */
+  groups?: readonly AppNavGroup[];
 };
 
 function cx(...values: Array<string | false | null | undefined>) {
@@ -64,10 +70,11 @@ function CountSlot() {
   );
 }
 
-export function AppSidebar({ locale, pathnameOverride }: AppSidebarProps): JSX.Element {
+export function AppSidebar({ locale, pathnameOverride, groups }: AppSidebarProps): JSX.Element {
   const pathname = usePathname();
   const t = useTranslations(NAV_I18N_NAMESPACE);
   const activePathname = pathnameOverride ?? pathname ?? localizedHref(locale, "/dashboard");
+  const navGroups = groups ?? APP_NAV_GROUPS;
 
   return (
     <nav
@@ -78,7 +85,7 @@ export function AppSidebar({ locale, pathnameOverride }: AppSidebarProps): JSX.E
       style={{ width: "var(--shell-sidebar-w)" }}
     >
       <div className="flex flex-col gap-5">
-        {APP_NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <section key={group.id} className="space-y-1.5">
             <h2
               data-slot="group"

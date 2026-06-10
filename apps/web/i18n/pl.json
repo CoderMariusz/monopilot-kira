@@ -5037,5 +5037,76 @@
       "emptyBody": "Ten wyrób gotowy nie ma listy materiałowej.",
       "technicalLink": "Otwórz w module Technicznym"
     }
+  },
+  "Errors": {
+    "notFound": {
+      "title": "Nie znaleziono strony",
+      "body": "Strona, której szukasz, nie istnieje lub została przeniesiona. Sprawdź adres lub wróć do pulpitu.",
+      "backToDashboard": "Wróć do pulpitu"
+    },
+    "boundary": {
+      "title": "Coś poszło nie tak",
+      "body": "Podczas ładowania tego ekranu wystąpił nieoczekiwany błąd. Spróbuj ponownie lub wróć do pulpitu.",
+      "digestLabel": "Identyfikator",
+      "retry": "Spróbuj ponownie"
+    }
+  },
+  "Dashboard": {
+    "title": "Pulpit",
+    "subtitle": "Bieżący przegląd operacyjny Twojej organizacji.",
+    "liveBadge": "Na żywo · Supabase",
+    "unavailableBadge": "Dane na żywo niedostępne",
+    "kpiNotLive": "Moduł jeszcze niedostępny",
+    "kpis": {
+      "activeWos": {
+        "label": "Aktywne zlecenia produkcyjne",
+        "hint": "Wydane, w toku lub wstrzymane"
+      },
+      "pendingPos": {
+        "label": "Oczekujące zamówienia zakupu",
+        "hint": "Zakupy jeszcze niedostępne"
+      },
+      "lowStock": {
+        "label": "Alerty niskiego stanu",
+        "hint": "Progi zapasów jeszcze niedostępne"
+      },
+      "qualityHolds": {
+        "label": "Wstrzymania jakościowe",
+        "hint": "Otwarte wstrzymania wymagające działania"
+      },
+      "shipmentsToday": {
+        "label": "Dzisiejsze wysyłki",
+        "hint": "Utworzone dzisiaj"
+      }
+    },
+    "quickActions": {
+      "title": "Szybkie akcje",
+      "createWo": "Utwórz zlecenie produkcyjne",
+      "createPo": "Utwórz zamówienie zakupu",
+      "receive": "Przyjmij towar",
+      "qualityCheck": "Kontrola jakości",
+      "createShipment": "Utwórz wysyłkę",
+      "runMrp": "Uruchom MRP"
+    },
+    "activity": {
+      "title": "Ostatnia aktywność",
+      "emptyTitle": "Brak aktywności",
+      "emptyBody": "Działania w Twojej organizacji pojawią się tutaj na bieżąco."
+    },
+    "alerts": {
+      "title": "Alerty systemowe",
+      "emptyTitle": "Wszystko w porządku",
+      "emptyBody": "Brak aktywnych alertów dla Twojej organizacji.",
+      "items": {
+        "openHolds": {
+          "title": "Otwarte wstrzymania jakościowe",
+          "body": "{count, plural, one {# wstrzymanie jakościowe jest otwarte i wymaga uwagi} few {# wstrzymania jakościowe są otwarte i wymagają uwagi} many {# wstrzymań jakościowych jest otwartych i wymaga uwagi} other {# wstrzymania jakościowego jest otwartych i wymaga uwagi}}"
+        },
+        "shipmentExceptions": {
+          "title": "Wyjątki wysyłek",
+          "body": "{count, plural, one {# wysyłka jest w stanie wyjątku} few {# wysyłki są w stanie wyjątku} many {# wysyłek jest w stanie wyjątku} other {# wysyłki jest w stanie wyjątku}}"
+        }
+      }
+    }
   }
 }

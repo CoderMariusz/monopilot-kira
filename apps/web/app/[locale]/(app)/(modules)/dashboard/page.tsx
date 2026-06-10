@@ -1,50 +1,166 @@
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
-import { getOrgSummary } from "../_actions/skeleton-data";
+import { getDashboardData, type DashboardKpi } from "../_actions/dashboard-summary";
 
 // Reads the signed-in user's session + org-scoped DB, so this page must render
 // per-request (never statically prerendered at build time).
 export const dynamic = "force-dynamic";
 
-const METRIC_KEYS = ["users", "workOrders", "lots", "qualityEvents", "shipments", "bomItems"] as const;
+type DashboardPageProps = {
+  params: Promise<{ locale: string }>;
+};
 
-export default async function DashboardRoutePage() {
-  const t = await getTranslations("Navigation.app.items");
-  const s = await getTranslations("Skeleton");
-  const summary = await getOrgSummary();
+// Quick-action bar — maps to the prototype's 6 buttons (sitemap line 123).
+// Some routes land on a module landing page rather than a pre-opened modal;
+// that is honest and acceptable per the shell gap brief.
+const QUICK_ACTIONS = [
+  { key: "createWo", route: "/planning", variant: "primary" as const },
+  { key: "createPo", route: "/planning", variant: "primary" as const },
+  { key: "receive", route: "/warehouse", variant: "secondary" as const },
+  { key: "qualityCheck", route: "/quality", variant: "secondary" as const },
+  { key: "createShipment", route: "/shipping", variant: "secondary" as const },
+  { key: "runMrp", route: "/scheduler", variant: "secondary" as const },
+];
+
+function kpiColorClass(color: DashboardKpi["color"]): string {
+  switch (color) {
+    case "green":
+      return "kpi green";
+    case "amber":
+      return "kpi amber";
+    case "red":
+      return "kpi red";
+    default:
+      return "kpi";
+  }
+}
+
+export default async function DashboardRoutePage({ params }: DashboardPageProps) {
+  const { locale } = await params;
+  const t = await getTranslations("Dashboard");
+  const data = await getDashboardData();
+
+  const dateFormatter = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <section className="p-8" aria-labelledby="dashboard-route-title">
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 id="dashboard-route-title" className="text-3xl font-semibold tracking-tight text-slate-950">
-          {t("dashboard")}
-        </h1>
-        <p className="mt-2 text-sm text-slate-500">{s("summary.subtitle")}</p>
-
-        <div data-testid="dashboard-org-summary" className="mt-6">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {s("liveBadge")}
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 id="dashboard-route-title" className="text-2xl font-semibold tracking-tight text-slate-950">
+            {t("title")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">{t("subtitle")}</p>
+        </div>
+        {data.ok ? (
+          <span className="badge badge-green" data-testid="dashboard-live-badge">
+            {t("liveBadge")}
           </span>
-          <h2 className="mt-3 text-lg font-semibold text-slate-900">{s("summary.title")}</h2>
-          <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            {METRIC_KEYS.map((key) => {
-              const value = summary[key];
-              return (
+        ) : (
+          <span className="badge badge-amber" data-testid="dashboard-unavailable-badge">
+            {t("unavailableBadge")}
+          </span>
+        )}
+      </div>
+
+      {/* KPI row — 5 cards, prototype parity (Active WOs / Pending POs / Low Stock / Quality Holds / Today's Shipments). */}
+      <div className="kpi-row" data-testid="dashboard-kpis">
+        {data.kpis.map((kpi) => (
+          <div key={kpi.key} className={kpiColorClass(kpi.color)} data-testid={`dashboard-kpi-${kpi.key}`}>
+            <div className="kpi-label">{t(`kpis.${kpi.key}.label`)}</div>
+            <div className="kpi-value">{kpi.value === null ? "—" : kpi.value.toLocaleString(locale)}</div>
+            <div className="kpi-change text-slate-400">
+              {kpi.notLive ? t("kpiNotLive") : t(`kpis.${kpi.key}.hint`)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick-actions bar — 6 buttons linking to module routes. */}
+      <div className="card mt-6">
+        <div className="card-head">
+          <h2 className="card-title">{t("quickActions.title")}</h2>
+        </div>
+        <div className="flex flex-wrap gap-2" data-testid="dashboard-quick-actions">
+          {QUICK_ACTIONS.map((action) => (
+            <Link
+              key={action.key}
+              href={`/${locale}${action.route}`}
+              prefetch={false}
+              data-testid={`dashboard-quick-action-${action.key}`}
+              className={`btn ${action.variant === "primary" ? "btn-primary" : "btn-secondary"}`}
+            >
+              {t(`quickActions.${action.key}`)}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {/* Recent activity timeline — latest 10 audit events, org-scoped. */}
+        <div className="card" data-testid="dashboard-activity">
+          <div className="card-head">
+            <h2 className="card-title">{t("activity.title")}</h2>
+          </div>
+          {data.activity.length === 0 ? (
+            <div className="empty-state" data-testid="dashboard-activity-empty">
+              <div className="empty-state-icon" aria-hidden>
+                🕑
+              </div>
+              <div className="empty-state-title">{t("activity.emptyTitle")}</div>
+              <div className="empty-state-body">{t("activity.emptyBody")}</div>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {data.activity.map((event) => (
+                <li key={event.id} className="flex items-start gap-3 text-sm" data-testid="dashboard-activity-item">
+                  <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-800">
+                      {event.action} · {event.resourceType}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {event.resourceId} — {dateFormatter.format(new Date(event.occurredAt))}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* System alerts panel — derived from cheap real signals. */}
+        <div className="card" data-testid="dashboard-alerts">
+          <div className="card-head">
+            <h2 className="card-title">{t("alerts.title")}</h2>
+          </div>
+          {data.alerts.length === 0 ? (
+            <div className="empty-state" data-testid="dashboard-alerts-empty">
+              <div className="empty-state-icon" aria-hidden>
+                ✅
+              </div>
+              <div className="empty-state-title">{t("alerts.emptyTitle")}</div>
+              <div className="empty-state-body">{t("alerts.emptyBody")}</div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data.alerts.map((alert) => (
                 <div
-                  key={key}
-                  data-testid={`dashboard-metric-${key}`}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                  key={alert.id}
+                  className={`alert alert-${alert.severity}`}
+                  data-testid={`dashboard-alert-${alert.id}`}
                 >
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{s(`summary.${key}`)}</dt>
-                  <dd className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
-                    {value === null ? s("summary.unavailable") : value.toLocaleString()}
-                  </dd>
+                  <div className="alert-title">{t(`alerts.items.${alert.messageKey}.title`)}</div>
+                  <div>{t(`alerts.items.${alert.messageKey}.body`, { count: alert.count })}</div>
                 </div>
-              );
-            })}
-          </dl>
-          <p className="mt-4 text-xs text-slate-500">{s("rlsNote")}</p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </section>
