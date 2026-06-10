@@ -1,0 +1,272 @@
+{
+  "en": {
+    "Planning": {
+      "transferOrders": {
+        "title": "Transfer orders",
+        "subtitle": "Inter-warehouse transfers",
+        "error": "We couldn't load transfer orders. Please retry.",
+        "breadcrumb": {
+          "planning": "Planning",
+          "transferOrders": "Transfer orders"
+        },
+        "actions": {
+          "createTo": "Create TO"
+        },
+        "toStatus": {
+          "draft": "Draft",
+          "in_transit": "In transit",
+          "received": "Received",
+          "cancelled": "Cancelled"
+        },
+        "list": {
+          "searchPlaceholder": "Search TO number…",
+          "rowsCount": "{n} rows",
+          "tabs": {
+            "all": "All"
+          },
+          "columns": {
+            "to": "TO number",
+            "from": "From",
+            "to_wh": "To",
+            "scheduled": "Scheduled",
+            "status": "Status",
+            "lines": "Lines",
+            "actions": "Actions"
+          },
+          "linesCount": "{n} lines",
+          "empty": {
+            "title": "No transfer orders yet",
+            "body": "Create a transfer order to move stock between warehouses.",
+            "clear": "Clear filters"
+          }
+        },
+        "errors": {
+          "invalid_input": "Some fields are invalid. Please review and retry.",
+          "forbidden": "You don't have permission to do that.",
+          "not_found": "That transfer order no longer exists.",
+          "already_exists": "A transfer order with that number already exists.",
+          "invalid_state": "That action isn't allowed in the current status.",
+          "persistence_failed": "Something went wrong saving your changes. Please retry."
+        },
+        "create": {
+          "title": "Create transfer order",
+          "toNumberLabel": "TO number",
+          "toNumberPlaceholder": "e.g. TO-2026-0001",
+          "fromWarehouseLabel": "From warehouse",
+          "toWarehouseLabel": "To warehouse",
+          "warehousePlaceholder": "Select warehouse",
+          "scheduledDateLabel": "Scheduled date",
+          "notesLabel": "Notes",
+          "notesPlaceholder": "Optional — visible to warehouse ops",
+          "linesTitle": "TO lines",
+          "addLine": "Add line",
+          "noLines": "No lines yet — add at least one line to begin.",
+          "lineColumns": {
+            "seq": "#",
+            "product": "Product",
+            "qty": "Qty",
+            "uom": "UoM",
+            "remove": "Remove"
+          },
+          "picker": {
+            "trigger": "Select product",
+            "searchLabel": "Search products",
+            "searchPlaceholder": "Search by code or name…",
+            "loading": "Searching…",
+            "empty": "No matching products",
+            "cancel": "Cancel",
+            "error": "Product search failed"
+          },
+          "qtyPlaceholder": "0",
+          "submit": "Save & Plan",
+          "submitting": "Saving…",
+          "cancel": "Cancel",
+          "errors": {
+            "toNumberRequired": "TO number is required.",
+            "warehousesRequired": "Both warehouses are required.",
+            "sameWarehouse": "To warehouse must differ from From warehouse.",
+            "linesRequired": "Add at least one line.",
+            "lineProductRequired": "Select a product for every line.",
+            "lineQtyRequired": "Quantity must be greater than 0.",
+            "invalid_input": "Some fields are invalid. Please review and retry.",
+            "forbidden": "You don't have permission to create transfer orders.",
+            "not_found": "A referenced record no longer exists.",
+            "already_exists": "A transfer order with that number already exists.",
+            "invalid_state": "That action isn't allowed in the current status.",
+            "persistence_failed": "Something went wrong saving your changes. Please retry."
+          }
+        },
+        "detail": {
+          "title": "Transfer order",
+          "breadcrumbCurrent": "Detail",
+          "notFound": "This transfer order doesn't exist or you don't have access.",
+          "backToList": "Back to transfer orders",
+          "summary": {
+            "title": "TO summary",
+            "toNumber": "TO number",
+            "from": "From",
+            "to": "To",
+            "status": "Status",
+            "scheduled": "Scheduled date",
+            "created": "Created",
+            "updated": "Updated",
+            "notes": "Notes",
+            "none": "—"
+          },
+          "lines": {
+            "title": "TO lines",
+            "seq": "#",
+            "product": "Product",
+            "qty": "Qty",
+            "uom": "UoM",
+            "empty": "No lines on this transfer order."
+          },
+          "transitions": {
+            "title": "Status actions",
+            "ship": "Ship",
+            "receive": "Receive",
+            "cancel": "Cancel",
+            "confirm": "Change status of {to} to \"{status}\"?",
+            "pending": "Updating…",
+            "none": "No further status actions available."
+          }
+        }
+      }
+    }
+  },
+  "pl": {
+    "Planning": {
+      "transferOrders": {
+        "title": "Zlecenia przesunięcia",
+        "subtitle": "Przesunięcia między magazynami",
+        "error": "Nie udało się wczytać zleceń przesunięcia. Spróbuj ponownie.",
+        "breadcrumb": {
+          "planning": "Planowanie",
+          "transferOrders": "Zlecenia przesunięcia"
+        },
+        "actions": {
+          "createTo": "Utwórz zlecenie"
+        },
+        "toStatus": {
+          "draft": "Szkic",
+          "in_transit": "W transporcie",
+          "received": "Przyjęte",
+          "cancelled": "Anulowane"
+        },
+        "list": {
+          "searchPlaceholder": "Szukaj numeru zlecenia…",
+          "rowsCount": "{n} wierszy",
+          "tabs": {
+            "all": "Wszystkie"
+          },
+          "columns": {
+            "to": "Numer zlecenia",
+            "from": "Z",
+            "to_wh": "Do",
+            "scheduled": "Termin",
+            "status": "Status",
+            "lines": "Pozycje",
+            "actions": "Akcje"
+          },
+          "linesCount": "{n} pozycji",
+          "empty": {
+            "title": "Brak zleceń przesunięcia",
+            "body": "Utwórz zlecenie przesunięcia, aby przenieść zapasy między magazynami.",
+            "clear": "Wyczyść filtry"
+          }
+        },
+        "errors": {
+          "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź i spróbuj ponownie.",
+          "forbidden": "Nie masz uprawnień do tej operacji.",
+          "not_found": "To zlecenie przesunięcia już nie istnieje.",
+          "already_exists": "Zlecenie o tym numerze już istnieje.",
+          "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
+          "persistence_failed": "Coś poszło nie tak przy zapisie. Spróbuj ponownie."
+        },
+        "create": {
+          "title": "Utwórz zlecenie przesunięcia",
+          "toNumberLabel": "Numer zlecenia",
+          "toNumberPlaceholder": "np. TO-2026-0001",
+          "fromWarehouseLabel": "Magazyn źródłowy",
+          "toWarehouseLabel": "Magazyn docelowy",
+          "warehousePlaceholder": "Wybierz magazyn",
+          "scheduledDateLabel": "Termin",
+          "notesLabel": "Notatki",
+          "notesPlaceholder": "Opcjonalnie — widoczne dla obsługi magazynu",
+          "linesTitle": "Pozycje zlecenia",
+          "addLine": "Dodaj pozycję",
+          "noLines": "Brak pozycji — dodaj co najmniej jedną pozycję, aby rozpocząć.",
+          "lineColumns": {
+            "seq": "#",
+            "product": "Produkt",
+            "qty": "Ilość",
+            "uom": "JM",
+            "remove": "Usuń"
+          },
+          "picker": {
+            "trigger": "Wybierz produkt",
+            "searchLabel": "Szukaj produktów",
+            "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+            "loading": "Szukanie…",
+            "empty": "Brak pasujących produktów",
+            "cancel": "Anuluj",
+            "error": "Wyszukiwanie produktów nie powiodło się"
+          },
+          "qtyPlaceholder": "0",
+          "submit": "Zapisz i zaplanuj",
+          "submitting": "Zapisywanie…",
+          "cancel": "Anuluj",
+          "errors": {
+            "toNumberRequired": "Numer zlecenia jest wymagany.",
+            "warehousesRequired": "Oba magazyny są wymagane.",
+            "sameWarehouse": "Magazyn docelowy musi różnić się od źródłowego.",
+            "linesRequired": "Dodaj co najmniej jedną pozycję.",
+            "lineProductRequired": "Wybierz produkt dla każdej pozycji.",
+            "lineQtyRequired": "Ilość musi być większa od 0.",
+            "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź i spróbuj ponownie.",
+            "forbidden": "Nie masz uprawnień do tworzenia zleceń przesunięcia.",
+            "not_found": "Powiązany rekord już nie istnieje.",
+            "already_exists": "Zlecenie o tym numerze już istnieje.",
+            "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
+            "persistence_failed": "Coś poszło nie tak przy zapisie. Spróbuj ponownie."
+          }
+        },
+        "detail": {
+          "title": "Zlecenie przesunięcia",
+          "breadcrumbCurrent": "Szczegóły",
+          "notFound": "To zlecenie przesunięcia nie istnieje lub nie masz do niego dostępu.",
+          "backToList": "Powrót do zleceń przesunięcia",
+          "summary": {
+            "title": "Podsumowanie zlecenia",
+            "toNumber": "Numer zlecenia",
+            "from": "Z",
+            "to": "Do",
+            "status": "Status",
+            "scheduled": "Termin",
+            "created": "Utworzono",
+            "updated": "Zaktualizowano",
+            "notes": "Notatki",
+            "none": "—"
+          },
+          "lines": {
+            "title": "Pozycje zlecenia",
+            "seq": "#",
+            "product": "Produkt",
+            "qty": "Ilość",
+            "uom": "JM",
+            "empty": "Brak pozycji w tym zleceniu przesunięcia."
+          },
+          "transitions": {
+            "title": "Akcje statusu",
+            "ship": "Wyślij",
+            "receive": "Przyjmij",
+            "cancel": "Anuluj",
+            "confirm": "Zmienić status {to} na \"{status}\"?",
+            "pending": "Aktualizowanie…",
+            "none": "Brak dostępnych dalszych akcji statusu."
+          }
+        }
+      }
+    }
+  }
+}

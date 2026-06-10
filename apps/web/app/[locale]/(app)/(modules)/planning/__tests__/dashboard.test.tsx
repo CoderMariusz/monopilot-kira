@@ -102,13 +102,30 @@ describe("Planning alert panels (parity: dashboard.jsx:62-126)", () => {
 });
 
 describe("Planning header actions (parity: dashboard.jsx:25-29)", () => {
-  it("links Create WO and disables the other four with a not-available title", () => {
-    render(<PlanningHeaderActions createWoHref="/en/planning/work-orders?new=1" labels={HEADER_LABELS} />);
+  it("links Create WO/PO/TO and disables sequencing + D365 with a not-available title", () => {
+    render(
+      <PlanningHeaderActions
+        createWoHref="/en/planning/work-orders?new=1"
+        createPoHref="/en/planning/purchase-orders"
+        createToHref="/en/planning/transfer-orders"
+        labels={HEADER_LABELS}
+      />,
+    );
 
-    const createWo = screen.getByTestId("planning-action-createWo");
-    expect(createWo).toHaveAttribute("href", "/en/planning/work-orders?new=1");
+    expect(screen.getByTestId("planning-action-createWo")).toHaveAttribute(
+      "href",
+      "/en/planning/work-orders?new=1",
+    );
+    expect(screen.getByTestId("planning-action-createPo")).toHaveAttribute(
+      "href",
+      "/en/planning/purchase-orders",
+    );
+    expect(screen.getByTestId("planning-action-createTo")).toHaveAttribute(
+      "href",
+      "/en/planning/transfer-orders",
+    );
 
-    for (const key of ["createPo", "createTo", "runSequencing", "triggerD365"]) {
+    for (const key of ["runSequencing", "triggerD365"]) {
       const btn = screen.getByTestId(`planning-action-${key}`);
       expect(btn).toBeDisabled();
       expect(btn).toHaveAttribute("title", "Not available yet");

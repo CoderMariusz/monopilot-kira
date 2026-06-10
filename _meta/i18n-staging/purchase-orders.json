@@ -1,0 +1,280 @@
+{
+  "en": {
+    "Planning": {
+      "purchaseOrders": {
+        "title": "Purchase orders",
+        "subtitle": "Supplier purchase orders, line items and receiving status.",
+        "error": "Couldn't load purchase orders. Please retry.",
+        "breadcrumb": {
+          "planning": "Planning",
+          "purchaseOrders": "Purchase orders"
+        },
+        "actions": {
+          "createPo": "Create PO"
+        },
+        "poStatus": {
+          "draft": "Draft",
+          "sent": "Sent",
+          "confirmed": "Confirmed",
+          "partially_received": "Partially received",
+          "received": "Received",
+          "cancelled": "Cancelled"
+        },
+        "list": {
+          "searchPlaceholder": "Search PO number or supplier…",
+          "rowsCount": "{n} rows",
+          "supplierFilterLabel": "Supplier",
+          "allSuppliers": "All suppliers",
+          "clearFilters": "Clear all filters",
+          "tabs": {
+            "all": "All"
+          },
+          "columns": {
+            "po": "PO number",
+            "supplier": "Supplier",
+            "expected": "Expected delivery",
+            "lines": "Lines",
+            "status": "Status",
+            "currency": "Currency",
+            "actions": "Actions"
+          },
+          "view": "View",
+          "empty": {
+            "title": "No purchase orders yet",
+            "body": "Create your first purchase order to start ordering from suppliers.",
+            "clear": "Clear filters"
+          }
+        },
+        "errors": {
+          "invalid_input": "That input isn't valid. Please review and try again.",
+          "forbidden": "You don't have permission to do that.",
+          "not_found": "That purchase order no longer exists.",
+          "already_exists": "A purchase order with that number already exists.",
+          "invalid_state": "That action isn't allowed in the current status.",
+          "persistence_failed": "Something went wrong saving. Please retry."
+        },
+        "create": {
+          "title": "Create purchase order",
+          "poNumberLabel": "PO number",
+          "poNumberPlaceholder": "e.g. PO-2026-0001",
+          "supplierLabel": "Supplier",
+          "supplierPlaceholder": "Select a supplier",
+          "expectedLabel": "Expected delivery",
+          "currencyLabel": "Currency",
+          "notesLabel": "Notes",
+          "notesPlaceholder": "Optional notes for this purchase order",
+          "linesTitle": "Lines",
+          "addLine": "+ Add line",
+          "removeLine": "Remove line",
+          "lineItem": "Item",
+          "lineQty": "Qty",
+          "lineUom": "UoM",
+          "lineUnitPrice": "Unit price",
+          "uomPlaceholder": "e.g. kg",
+          "qtyPlaceholder": "0",
+          "unitPricePlaceholder": "0.00",
+          "submit": "Create PO",
+          "submitting": "Creating…",
+          "cancel": "Cancel",
+          "errors": {
+            "poNumberRequired": "Enter a PO number.",
+            "supplierRequired": "Select a supplier.",
+            "linesRequired": "Add at least one line with an item and a positive quantity.",
+            "invalid_input": "That input isn't valid. Please review and try again.",
+            "forbidden": "You don't have permission to create purchase orders.",
+            "not_found": "The selected supplier or item no longer exists.",
+            "already_exists": "A purchase order with that number already exists.",
+            "invalid_state": "That action isn't allowed right now.",
+            "persistence_failed": "Something went wrong saving. Please retry."
+          },
+          "picker": {
+            "trigger": "+ Add item",
+            "searchLabel": "Search items",
+            "searchPlaceholder": "Search by code or name…",
+            "loading": "Searching…",
+            "empty": "No matching items",
+            "cancel": "Cancel",
+            "error": "Item search failed"
+          }
+        },
+        "detail": {
+          "title": "Purchase order",
+          "breadcrumbCurrent": "Detail",
+          "backToList": "Back to purchase orders",
+          "notFound": "This purchase order doesn't exist or you don't have access to it.",
+          "summary": {
+            "title": "PO summary",
+            "supplier": "Supplier",
+            "status": "Status",
+            "expected": "Expected delivery",
+            "currency": "Currency",
+            "total": "Total",
+            "created": "Created"
+          },
+          "lines": {
+            "title": "PO lines",
+            "seq": "#",
+            "item": "Item",
+            "qty": "Qty",
+            "uom": "UoM",
+            "unitPrice": "Unit price",
+            "lineTotal": "Line total",
+            "empty": "No lines on this purchase order."
+          },
+          "transitions": {
+            "title": "Status",
+            "send": "Submit",
+            "confirm": "Confirm",
+            "receivePartial": "Mark partially received",
+            "receive": "Mark received",
+            "cancel": "Cancel PO",
+            "pending": "Updating…",
+            "confirmPrompt": "Change status of {po} to {status}?"
+          }
+        },
+        "notes": {
+          "title": "Notes"
+        }
+      }
+    }
+  },
+  "pl": {
+    "Planning": {
+      "purchaseOrders": {
+        "title": "Zamówienia zakupu",
+        "subtitle": "Zamówienia zakupu u dostawców, pozycje i status przyjęć.",
+        "error": "Nie udało się wczytać zamówień zakupu. Spróbuj ponownie.",
+        "breadcrumb": {
+          "planning": "Planowanie",
+          "purchaseOrders": "Zamówienia zakupu"
+        },
+        "actions": {
+          "createPo": "Utwórz zamówienie"
+        },
+        "poStatus": {
+          "draft": "Wersja robocza",
+          "sent": "Wysłane",
+          "confirmed": "Potwierdzone",
+          "partially_received": "Częściowo przyjęte",
+          "received": "Przyjęte",
+          "cancelled": "Anulowane"
+        },
+        "list": {
+          "searchPlaceholder": "Szukaj numeru zamówienia lub dostawcy…",
+          "rowsCount": "Wiersze: {n}",
+          "supplierFilterLabel": "Dostawca",
+          "allSuppliers": "Wszyscy dostawcy",
+          "clearFilters": "Wyczyść wszystkie filtry",
+          "tabs": {
+            "all": "Wszystkie"
+          },
+          "columns": {
+            "po": "Numer zamówienia",
+            "supplier": "Dostawca",
+            "expected": "Oczekiwana dostawa",
+            "lines": "Pozycje",
+            "status": "Status",
+            "currency": "Waluta",
+            "actions": "Akcje"
+          },
+          "view": "Podgląd",
+          "empty": {
+            "title": "Brak zamówień zakupu",
+            "body": "Utwórz pierwsze zamówienie zakupu, aby rozpocząć zamawianie u dostawców.",
+            "clear": "Wyczyść filtry"
+          }
+        },
+        "errors": {
+          "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
+          "forbidden": "Nie masz uprawnień do tej operacji.",
+          "not_found": "To zamówienie zakupu już nie istnieje.",
+          "already_exists": "Zamówienie zakupu o tym numerze już istnieje.",
+          "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
+          "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+        },
+        "create": {
+          "title": "Utwórz zamówienie zakupu",
+          "poNumberLabel": "Numer zamówienia",
+          "poNumberPlaceholder": "np. PO-2026-0001",
+          "supplierLabel": "Dostawca",
+          "supplierPlaceholder": "Wybierz dostawcę",
+          "expectedLabel": "Oczekiwana dostawa",
+          "currencyLabel": "Waluta",
+          "notesLabel": "Notatki",
+          "notesPlaceholder": "Opcjonalne notatki do tego zamówienia",
+          "linesTitle": "Pozycje",
+          "addLine": "+ Dodaj pozycję",
+          "removeLine": "Usuń pozycję",
+          "lineItem": "Pozycja",
+          "lineQty": "Ilość",
+          "lineUom": "JM",
+          "lineUnitPrice": "Cena jedn.",
+          "uomPlaceholder": "np. kg",
+          "qtyPlaceholder": "0",
+          "unitPricePlaceholder": "0,00",
+          "submit": "Utwórz zamówienie",
+          "submitting": "Tworzenie…",
+          "cancel": "Anuluj",
+          "errors": {
+            "poNumberRequired": "Podaj numer zamówienia.",
+            "supplierRequired": "Wybierz dostawcę.",
+            "linesRequired": "Dodaj co najmniej jedną pozycję z pozycją i dodatnią ilością.",
+            "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
+            "forbidden": "Nie masz uprawnień do tworzenia zamówień zakupu.",
+            "not_found": "Wybrany dostawca lub pozycja już nie istnieje.",
+            "already_exists": "Zamówienie zakupu o tym numerze już istnieje.",
+            "invalid_state": "Ta akcja jest teraz niedozwolona.",
+            "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+          },
+          "picker": {
+            "trigger": "+ Dodaj pozycję",
+            "searchLabel": "Szukaj pozycji",
+            "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+            "loading": "Szukanie…",
+            "empty": "Brak pasujących pozycji",
+            "cancel": "Anuluj",
+            "error": "Wyszukiwanie pozycji nie powiodło się"
+          }
+        },
+        "detail": {
+          "title": "Zamówienie zakupu",
+          "breadcrumbCurrent": "Szczegóły",
+          "backToList": "Wróć do zamówień zakupu",
+          "notFound": "To zamówienie zakupu nie istnieje lub nie masz do niego dostępu.",
+          "summary": {
+            "title": "Podsumowanie zamówienia",
+            "supplier": "Dostawca",
+            "status": "Status",
+            "expected": "Oczekiwana dostawa",
+            "currency": "Waluta",
+            "total": "Razem",
+            "created": "Utworzono"
+          },
+          "lines": {
+            "title": "Pozycje zamówienia",
+            "seq": "#",
+            "item": "Pozycja",
+            "qty": "Ilość",
+            "uom": "JM",
+            "unitPrice": "Cena jedn.",
+            "lineTotal": "Wartość pozycji",
+            "empty": "Brak pozycji w tym zamówieniu."
+          },
+          "transitions": {
+            "title": "Status",
+            "send": "Wyślij",
+            "confirm": "Potwierdź",
+            "receivePartial": "Oznacz jako częściowo przyjęte",
+            "receive": "Oznacz jako przyjęte",
+            "cancel": "Anuluj zamówienie",
+            "pending": "Aktualizowanie…",
+            "confirmPrompt": "Zmienić status {po} na {status}?"
+          }
+        },
+        "notes": {
+          "title": "Notatki"
+        }
+      }
+    }
+  }
+}

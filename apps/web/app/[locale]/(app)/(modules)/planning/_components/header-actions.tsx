@@ -3,13 +3,13 @@
  *
  * Prototype header buttons: Create WO, Create PO, Create TO, Run sequencing,
  * Trigger D365 pull. Reality today:
- *   - Create WO  → links to /planning/work-orders?new=1 (the WO-list route is
- *                  owned by a sibling lane; the link is honest even if it 404s
- *                  for a few hours — noted in the lane report).
- *   - Create PO / Create TO / Run sequencing / Trigger D365 → disabled with a
- *     "Not available yet" title (the backing modules/tables don't exist).
+ *   - Create WO  → links to /planning/work-orders?new=1
+ *   - Create PO  → links to /planning/purchase-orders (tables landed in mig 262)
+ *   - Create TO  → links to /planning/transfer-orders (mig 263)
+ *   - Run sequencing / Trigger D365 → disabled with a "Not available yet"
+ *     title (no sequencing/D365 backend exists).
  *
- * Pure presentational; the route href is composed upstream (locale-prefixed).
+ * Pure presentational; the route hrefs are composed upstream (locale-prefixed).
  */
 import Link from "next/link";
 
@@ -24,14 +24,16 @@ export type PlanningHeaderLabels = {
 
 export function PlanningHeaderActions({
   createWoHref,
+  createPoHref,
+  createToHref,
   labels,
 }: {
   createWoHref: string;
+  createPoHref: string;
+  createToHref: string;
   labels: PlanningHeaderLabels;
 }) {
   const disabled = [
-    { key: "createPo", label: labels.createPo },
-    { key: "createTo", label: labels.createTo },
     { key: "runSequencing", label: labels.runSequencing },
     { key: "triggerD365", label: labels.triggerD365 },
   ];
@@ -45,6 +47,22 @@ export function PlanningHeaderActions({
         className="btn btn-primary"
       >
         + {labels.createWo}
+      </Link>
+      <Link
+        href={createPoHref}
+        prefetch={false}
+        data-testid="planning-action-createPo"
+        className="btn btn-secondary"
+      >
+        + {labels.createPo}
+      </Link>
+      <Link
+        href={createToHref}
+        prefetch={false}
+        data-testid="planning-action-createTo"
+        className="btn btn-secondary"
+      >
+        + {labels.createTo}
       </Link>
       {disabled.map((action) => (
         <button

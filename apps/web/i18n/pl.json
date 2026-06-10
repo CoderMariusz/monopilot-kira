@@ -5333,6 +5333,421 @@
         "invalid_state": "Zlecenie nie jest w stanie umożliwiającym tę akcję.",
         "persistence_failed": "Wystąpił błąd podczas zapisu. Spróbuj ponownie za chwilę."
       }
+    },
+    "suppliers": {
+      "title": "Rejestr dostawców",
+      "subtitle": "Tylko usuwanie miękkie — dostawcy przechodzą między Aktywny / Nieaktywny / Zablokowany, historia jest zachowana.",
+      "error": "Nie udało się załadować dostawców. Odczyt na żywo nie powiódł się — spróbuj ponownie.",
+      "breadcrumb": {
+        "planning": "Planowanie",
+        "suppliers": "Dostawcy"
+      },
+      "actions": {
+        "newSupplier": "Nowy dostawca"
+      },
+      "kpis": {
+        "active": "Aktywni dostawcy",
+        "activeSub": "Dostępni na zamówieniach zakupu",
+        "inactive": "Nieaktywni",
+        "inactiveSub": "Usunięci miękko — zachowani w historii",
+        "blocked": "Zablokowani",
+        "blockedSub": "Nie mogą być użyci na nowych ZZ",
+        "avgLeadTime": "Śr. czas dostawy",
+        "avgLeadTimeSub": "Dla aktywnych dostawców",
+        "days": "dni"
+      },
+      "list": {
+        "searchPlaceholder": "Szukaj nazwy lub kodu dostawcy…",
+        "rowsCount": "{n} wierszy",
+        "showing": "Pokazano {n} z {total}",
+        "tabs": {
+          "all": "Wszyscy",
+          "active": "Aktywni",
+          "inactive": "Nieaktywni",
+          "blocked": "Zablokowani"
+        },
+        "columns": {
+          "code": "Kod",
+          "name": "Nazwa",
+          "contact": "Kontakt",
+          "currency": "Waluta",
+          "leadTime": "Czas dostawy",
+          "status": "Status",
+          "actions": "Akcje"
+        },
+        "view": "Podgląd",
+        "empty": {
+          "title": "Żaden dostawca nie pasuje do tego filtra",
+          "body": "Zmień zakładkę lub wyczyść filtry, aby zobaczyć dostawców w innych stanach.",
+          "clear": "Wyczyść filtry"
+        }
+      },
+      "status": {
+        "active": "Aktywny",
+        "inactive": "Nieaktywny",
+        "blocked": "Zablokowany"
+      },
+      "create": {
+        "title": "Utwórz dostawcę",
+        "subtitle": "Pola oznaczone * są wymagane.",
+        "codeLabel": "Kod dostawcy *",
+        "codePlaceholder": "SUP-0078",
+        "nameLabel": "Nazwa *",
+        "namePlaceholder": "Acme Meats Sp. z o.o.",
+        "currencyLabel": "Waluta (ISO-4217) *",
+        "leadTimeLabel": "Domyślny czas dostawy (dni) *",
+        "leadTimePlaceholder": "7",
+        "statusLabel": "Status *",
+        "emailLabel": "E-mail",
+        "emailPlaceholder": "zamowienia@example.com",
+        "phoneLabel": "Telefon (E.164)",
+        "phonePlaceholder": "+48 22 123 45 67",
+        "countryLabel": "Kraj (ISO-3166)",
+        "countryPlaceholder": "PL",
+        "notesLabel": "Notatki",
+        "notesPlaceholder": "Uwagi wewnętrzne, ryzyko alergenów krzyżowych, zakres EUDR…",
+        "submit": "Utwórz dostawcę",
+        "submitting": "Tworzenie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "codeRequired": "Kod dostawcy jest wymagany.",
+          "nameRequired": "Nazwa jest wymagana (min. 2 znaki).",
+          "currencyRequired": "Waluta musi być 3-literowym kodem ISO-4217 (np. EUR).",
+          "leadTimeRange": "Czas dostawy musi mieścić się w zakresie 0–3650 dni.",
+          "emailInvalid": "Podaj prawidłowy adres e-mail.",
+          "countryInvalid": "Użyj kodu ISO-3166 alpha-2 (np. GB, PL)."
+        }
+      },
+      "detail": {
+        "title": "Dostawca",
+        "notFound": "Ten dostawca nie istnieje lub nie należy do Twojej organizacji.",
+        "backToList": "Powrót do dostawców",
+        "breadcrumbCurrent": "Szczegóły",
+        "edit": "Edytuj",
+        "info": {
+          "title": "Informacje o dostawcy",
+          "code": "Kod dostawcy",
+          "name": "Nazwa",
+          "currency": "Waluta (ISO-4217)",
+          "leadTime": "Domyślny czas dostawy",
+          "status": "Status",
+          "country": "Kraj",
+          "email": "E-mail",
+          "phone": "Telefon",
+          "paymentTerms": "Warunki płatności",
+          "days": "dni",
+          "none": "—"
+        },
+        "notes": {
+          "title": "Notatki",
+          "empty": "Brak notatek."
+        },
+        "transitions": {
+          "title": "Status",
+          "current": "Bieżący status",
+          "activate": "Aktywuj",
+          "deactivate": "Dezaktywuj (miękko)",
+          "block": "Zablokuj",
+          "pending": "Zapisywanie…",
+          "hint": "Usuwanie miękkie — żadne dane nie są usuwane. Nieaktywni i zablokowani dostawcy zachowują historię, ale nie mogą być wybierani na nowych zamówieniach zakupu.",
+          "confirmDeactivate": "Dezaktywować {code}? Istniejące ZZ zachowują powiązanie; nowe ZZ nie mogą wybrać tego dostawcy.",
+          "confirmBlock": "Zablokować {code}? Będzie niedostępny dla nowych zamówień zakupu do czasu reaktywacji.",
+          "confirmActivate": "Aktywować {code}? Stanie się dostępny dla nowych zamówień zakupu."
+        }
+      },
+      "errors": {
+        "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź formularz i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
+        "not_found": "Nie znaleziono tego dostawcy.",
+        "already_exists": "Dostawca z tym kodem już istnieje.",
+        "invalid_state": "Ta akcja nie jest dozwolona w bieżącym stanie.",
+        "persistence_failed": "Coś poszło nie tak podczas zapisywania zmiany. Spróbuj ponownie."
+      }
+    },
+    "purchaseOrders": {
+      "title": "Zamówienia zakupu",
+      "subtitle": "Zamówienia zakupu u dostawców, pozycje i status przyjęć.",
+      "error": "Nie udało się wczytać zamówień zakupu. Spróbuj ponownie.",
+      "breadcrumb": {
+        "planning": "Planowanie",
+        "purchaseOrders": "Zamówienia zakupu"
+      },
+      "actions": {
+        "createPo": "Utwórz zamówienie"
+      },
+      "poStatus": {
+        "draft": "Wersja robocza",
+        "sent": "Wysłane",
+        "confirmed": "Potwierdzone",
+        "partially_received": "Częściowo przyjęte",
+        "received": "Przyjęte",
+        "cancelled": "Anulowane"
+      },
+      "list": {
+        "searchPlaceholder": "Szukaj numeru zamówienia lub dostawcy…",
+        "rowsCount": "Wiersze: {n}",
+        "supplierFilterLabel": "Dostawca",
+        "allSuppliers": "Wszyscy dostawcy",
+        "clearFilters": "Wyczyść wszystkie filtry",
+        "tabs": {
+          "all": "Wszystkie"
+        },
+        "columns": {
+          "po": "Numer zamówienia",
+          "supplier": "Dostawca",
+          "expected": "Oczekiwana dostawa",
+          "lines": "Pozycje",
+          "status": "Status",
+          "currency": "Waluta",
+          "actions": "Akcje"
+        },
+        "view": "Podgląd",
+        "empty": {
+          "title": "Brak zamówień zakupu",
+          "body": "Utwórz pierwsze zamówienie zakupu, aby rozpocząć zamawianie u dostawców.",
+          "clear": "Wyczyść filtry"
+        }
+      },
+      "errors": {
+        "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do tej operacji.",
+        "not_found": "To zamówienie zakupu już nie istnieje.",
+        "already_exists": "Zamówienie zakupu o tym numerze już istnieje.",
+        "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+      },
+      "create": {
+        "title": "Utwórz zamówienie zakupu",
+        "poNumberLabel": "Numer zamówienia",
+        "poNumberPlaceholder": "np. PO-2026-0001",
+        "supplierLabel": "Dostawca",
+        "supplierPlaceholder": "Wybierz dostawcę",
+        "expectedLabel": "Oczekiwana dostawa",
+        "currencyLabel": "Waluta",
+        "notesLabel": "Notatki",
+        "notesPlaceholder": "Opcjonalne notatki do tego zamówienia",
+        "linesTitle": "Pozycje",
+        "addLine": "+ Dodaj pozycję",
+        "removeLine": "Usuń pozycję",
+        "lineItem": "Pozycja",
+        "lineQty": "Ilość",
+        "lineUom": "JM",
+        "lineUnitPrice": "Cena jedn.",
+        "uomPlaceholder": "np. kg",
+        "qtyPlaceholder": "0",
+        "unitPricePlaceholder": "0,00",
+        "submit": "Utwórz zamówienie",
+        "submitting": "Tworzenie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "poNumberRequired": "Podaj numer zamówienia.",
+          "supplierRequired": "Wybierz dostawcę.",
+          "linesRequired": "Dodaj co najmniej jedną pozycję z pozycją i dodatnią ilością.",
+          "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
+          "forbidden": "Nie masz uprawnień do tworzenia zamówień zakupu.",
+          "not_found": "Wybrany dostawca lub pozycja już nie istnieje.",
+          "already_exists": "Zamówienie zakupu o tym numerze już istnieje.",
+          "invalid_state": "Ta akcja jest teraz niedozwolona.",
+          "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+        },
+        "picker": {
+          "trigger": "+ Dodaj pozycję",
+          "searchLabel": "Szukaj pozycji",
+          "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+          "loading": "Szukanie…",
+          "empty": "Brak pasujących pozycji",
+          "cancel": "Anuluj",
+          "error": "Wyszukiwanie pozycji nie powiodło się"
+        }
+      },
+      "detail": {
+        "title": "Zamówienie zakupu",
+        "breadcrumbCurrent": "Szczegóły",
+        "backToList": "Wróć do zamówień zakupu",
+        "notFound": "To zamówienie zakupu nie istnieje lub nie masz do niego dostępu.",
+        "summary": {
+          "title": "Podsumowanie zamówienia",
+          "supplier": "Dostawca",
+          "status": "Status",
+          "expected": "Oczekiwana dostawa",
+          "currency": "Waluta",
+          "total": "Razem",
+          "created": "Utworzono"
+        },
+        "lines": {
+          "title": "Pozycje zamówienia",
+          "seq": "#",
+          "item": "Pozycja",
+          "qty": "Ilość",
+          "uom": "JM",
+          "unitPrice": "Cena jedn.",
+          "lineTotal": "Wartość pozycji",
+          "empty": "Brak pozycji w tym zamówieniu."
+        },
+        "transitions": {
+          "title": "Status",
+          "send": "Wyślij",
+          "confirm": "Potwierdź",
+          "receivePartial": "Oznacz jako częściowo przyjęte",
+          "receive": "Oznacz jako przyjęte",
+          "cancel": "Anuluj zamówienie",
+          "pending": "Aktualizowanie…",
+          "confirmPrompt": "Zmienić status {po} na {status}?"
+        }
+      },
+      "notes": {
+        "title": "Notatki"
+      }
+    },
+    "transferOrders": {
+      "title": "Zlecenia przesunięcia",
+      "subtitle": "Przesunięcia między magazynami",
+      "error": "Nie udało się wczytać zleceń przesunięcia. Spróbuj ponownie.",
+      "breadcrumb": {
+        "planning": "Planowanie",
+        "transferOrders": "Zlecenia przesunięcia"
+      },
+      "actions": {
+        "createTo": "Utwórz zlecenie"
+      },
+      "toStatus": {
+        "draft": "Szkic",
+        "in_transit": "W transporcie",
+        "received": "Przyjęte",
+        "cancelled": "Anulowane"
+      },
+      "list": {
+        "searchPlaceholder": "Szukaj numeru zlecenia…",
+        "rowsCount": "{n} wierszy",
+        "tabs": {
+          "all": "Wszystkie"
+        },
+        "columns": {
+          "to": "Numer zlecenia",
+          "from": "Z",
+          "to_wh": "Do",
+          "scheduled": "Termin",
+          "status": "Status",
+          "lines": "Pozycje",
+          "actions": "Akcje"
+        },
+        "linesCount": "{n} pozycji",
+        "empty": {
+          "title": "Brak zleceń przesunięcia",
+          "body": "Utwórz zlecenie przesunięcia, aby przenieść zapasy między magazynami.",
+          "clear": "Wyczyść filtry"
+        }
+      },
+      "errors": {
+        "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do tej operacji.",
+        "not_found": "To zlecenie przesunięcia już nie istnieje.",
+        "already_exists": "Zlecenie o tym numerze już istnieje.",
+        "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
+        "persistence_failed": "Coś poszło nie tak przy zapisie. Spróbuj ponownie."
+      },
+      "create": {
+        "title": "Utwórz zlecenie przesunięcia",
+        "toNumberLabel": "Numer zlecenia",
+        "toNumberPlaceholder": "np. TO-2026-0001",
+        "fromWarehouseLabel": "Magazyn źródłowy",
+        "toWarehouseLabel": "Magazyn docelowy",
+        "warehousePlaceholder": "Wybierz magazyn",
+        "scheduledDateLabel": "Termin",
+        "notesLabel": "Notatki",
+        "notesPlaceholder": "Opcjonalnie — widoczne dla obsługi magazynu",
+        "linesTitle": "Pozycje zlecenia",
+        "addLine": "Dodaj pozycję",
+        "noLines": "Brak pozycji — dodaj co najmniej jedną pozycję, aby rozpocząć.",
+        "lineColumns": {
+          "seq": "#",
+          "product": "Produkt",
+          "qty": "Ilość",
+          "uom": "JM",
+          "remove": "Usuń"
+        },
+        "picker": {
+          "trigger": "Wybierz produkt",
+          "searchLabel": "Szukaj produktów",
+          "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+          "loading": "Szukanie…",
+          "empty": "Brak pasujących produktów",
+          "cancel": "Anuluj",
+          "error": "Wyszukiwanie produktów nie powiodło się"
+        },
+        "qtyPlaceholder": "0",
+        "submit": "Zapisz i zaplanuj",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "toNumberRequired": "Numer zlecenia jest wymagany.",
+          "warehousesRequired": "Oba magazyny są wymagane.",
+          "sameWarehouse": "Magazyn docelowy musi różnić się od źródłowego.",
+          "linesRequired": "Dodaj co najmniej jedną pozycję.",
+          "lineProductRequired": "Wybierz produkt dla każdej pozycji.",
+          "lineQtyRequired": "Ilość musi być większa od 0.",
+          "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź i spróbuj ponownie.",
+          "forbidden": "Nie masz uprawnień do tworzenia zleceń przesunięcia.",
+          "not_found": "Powiązany rekord już nie istnieje.",
+          "already_exists": "Zlecenie o tym numerze już istnieje.",
+          "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
+          "persistence_failed": "Coś poszło nie tak przy zapisie. Spróbuj ponownie."
+        }
+      },
+      "detail": {
+        "title": "Zlecenie przesunięcia",
+        "breadcrumbCurrent": "Szczegóły",
+        "notFound": "To zlecenie przesunięcia nie istnieje lub nie masz do niego dostępu.",
+        "backToList": "Powrót do zleceń przesunięcia",
+        "summary": {
+          "title": "Podsumowanie zlecenia",
+          "toNumber": "Numer zlecenia",
+          "from": "Z",
+          "to": "Do",
+          "status": "Status",
+          "scheduled": "Termin",
+          "created": "Utworzono",
+          "updated": "Zaktualizowano",
+          "notes": "Notatki",
+          "none": "—"
+        },
+        "lines": {
+          "title": "Pozycje zlecenia",
+          "seq": "#",
+          "product": "Produkt",
+          "qty": "Ilość",
+          "uom": "JM",
+          "empty": "Brak pozycji w tym zleceniu przesunięcia."
+        },
+        "transitions": {
+          "title": "Akcje statusu",
+          "ship": "Wyślij",
+          "receive": "Przyjmij",
+          "cancel": "Anuluj",
+          "confirm": "Zmienić status {to} na \"{status}\"?",
+          "pending": "Aktualizowanie…",
+          "none": "Brak dostępnych dalszych akcji statusu."
+        }
+      }
+    },
+    "nav": {
+      "label": "Sekcje planowania",
+      "workOrders": {
+        "title": "Zlecenia produkcyjne",
+        "desc": "Twórz, zwalniaj i śledź zlecenia"
+      },
+      "purchaseOrders": {
+        "title": "Zamówienia zakupu",
+        "desc": "Zamawiaj materiały u dostawców"
+      },
+      "transferOrders": {
+        "title": "Przesunięcia",
+        "desc": "Przesuwaj zapasy między magazynami"
+      },
+      "suppliers": {
+        "title": "Dostawcy",
+        "desc": "Kartoteka dostawców i statusy"
+      }
     }
   },
   "production": {
@@ -5801,5 +6216,191 @@
         "avg": "Śr."
       }
     }
+  },
+  "Scanner": {
+    "topbar": {
+      "back": "Wróć",
+      "profile": "Profil",
+      "menu": "Menu",
+      "syncTitle": "Status synchronizacji",
+      "online": "ONLINE",
+      "queued": "W KOLEJCE",
+      "syncErr": "BŁĄD SYNC"
+    },
+    "scanTools": {
+      "camera": "Kamera",
+      "manual": "Ręcznie"
+    },
+    "reasonSheet": {
+      "confirm": "Potwierdź",
+      "cancel": "Anuluj",
+      "close": "Zamknij",
+      "otherPlaceholder": "Opisz powód…"
+    },
+    "language": {
+      "title": "Język interfejsu",
+      "apply": "Zastosuj",
+      "cancel": "Anuluj",
+      "close": "Zamknij"
+    },
+    "logout": {
+      "title": "Wylogować się?",
+      "bannerTitle": "Sesja zostanie zakończona",
+      "bannerBody": "Niezapisane operacje mogą zostać utracone (P1 — brak offline queue).",
+      "logout": "Wyloguj",
+      "cancel": "Anuluj",
+      "close": "Zamknij"
+    },
+    "scanError": {
+      "retry": "Spróbuj ponownie",
+      "back": "Wróć",
+      "close": "Zamknij",
+      "codeLabel": "Kod błędu"
+    },
+    "qtyKeypad": {
+      "title": "Podaj ilość",
+      "maxLabel": "Maks",
+      "confirm": "Zatwierdź",
+      "close": "Zamknij"
+    },
+    "block": {
+      "retry": "Spróbuj ponownie",
+      "backToMenu": "Wróć do menu",
+      "codeLabel": "Kod"
+    },
+    "login": {
+      "title": "Zaloguj się",
+      "appName": "MonoPilot",
+      "appSub": "Scanner · System MES",
+      "emailLabel": "Email / Login",
+      "emailPlaceholder": "nazwa@firma.pl",
+      "pinLabel": "PIN",
+      "pinHint": "Wpisz swój 4–6 cyfrowy PIN",
+      "submit": "Zaloguj się →",
+      "setupCta": "Pierwszy raz? Ustaw PIN",
+      "version": "v3.0 · MonoPilot MES",
+      "errInvalidPin": "Nieprawidłowy email lub PIN.",
+      "errPinLocked": "PIN zablokowany po zbyt wielu próbach. Skontaktuj się z supervisorem.",
+      "errNetwork": "Błąd połączenia. Spróbuj ponownie.",
+      "signingIn": "Logowanie…",
+      "backspace": "Usuń"
+    },
+    "pinSetup": {
+      "titleSet": "Ustaw PIN (pierwsze logowanie)",
+      "titleConfirm": "Potwierdź PIN",
+      "emailLabel": "Email / Login",
+      "emailPlaceholder": "nazwa@firma.pl",
+      "passwordLabel": "Hasło logowania",
+      "passwordPlaceholder": "••••••••",
+      "hintSet": "Wybierz 4–6 cyfrowy PIN. Unikaj trywialnych sekwencji.",
+      "hintConfirm": "Wpisz ponownie ten sam PIN, aby potwierdzić.",
+      "step1": "KROK 1 Z 2",
+      "step2": "KROK 2 Z 2",
+      "digits": "cyfr",
+      "min": "min",
+      "nextBtn": "Dalej → Potwierdź PIN",
+      "saveBtn": "Zapisz PIN",
+      "backspace": "Usuń",
+      "errMinLen": "PIN musi mieć min. {min} cyfr",
+      "errWeak": "PIN za prosty — wybierz inny",
+      "errRepeat": "PIN nie może być same powtórzone cyfry",
+      "errMismatch": "PIN-y nie są identyczne — wpisz ponownie",
+      "errMissingCreds": "Najpierw wpisz email i hasło logowania",
+      "errSaveFailed": "Nie udało się zapisać PIN. Sprawdź dane logowania.",
+      "saving": "Zapisywanie…"
+    },
+    "site": {
+      "title": "Start zmiany",
+      "loggedIn": "ZALOG.",
+      "siteSection": "Zakład / firma",
+      "lineSection": "Linia produkcyjna",
+      "shiftSection": "Zmiana",
+      "pickPrompt": "Wybierz zakład, linię i zmianę",
+      "start": "▶ Rozpocznij zmianę",
+      "loading": "Ładowanie zakładów…",
+      "empty": "Brak dostępnych zakładów dla Twojego konta.",
+      "errLoad": "Nie udało się załadować zakładów. Spróbuj ponownie.",
+      "retry": "Spróbuj ponownie",
+      "saving": "Rozpoczynanie…",
+      "shiftMorning": "Ranna",
+      "shiftAfternoon": "Popołudniowa",
+      "shiftNight": "Nocna"
+    },
+    "home": {
+      "title": "Scanner",
+      "sectionProduction": "Produkcja",
+      "sectionWarehouse": "Magazyn",
+      "sectionQuality": "Jakość",
+      "comingSoon": "Wkrótce",
+      "footer": "Skaner v3.0 · MonoPilot MES",
+      "tiles": {
+        "wos": {
+          "title": "Work Orders",
+          "desc": "Konsumpcja + wyrób"
+        },
+        "consume": {
+          "title": "Konsumpcja",
+          "desc": "Skanuj materiały BOM"
+        },
+        "output": {
+          "title": "Wyrób",
+          "desc": "Zarejestruj produkt"
+        },
+        "receive": {
+          "title": "Przyjęcie PO",
+          "desc": "Zamówienie zakupu"
+        },
+        "move": {
+          "title": "Przesuń LP",
+          "desc": "Przenieś paletę"
+        },
+        "putaway": {
+          "title": "Putaway",
+          "desc": "Odłóż LP (FEFO)"
+        },
+        "pick": {
+          "title": "Pick dla WO",
+          "desc": "Zbierz materiały"
+        },
+        "qa": {
+          "title": "Inspekcja QC",
+          "desc": "PASS / FAIL / HOLD"
+        },
+        "inquiry": {
+          "title": "LP info",
+          "desc": "Wyszukaj License Plate"
+        },
+        "settings": {
+          "title": "Ustawienia",
+          "desc": "Preferencje skanera"
+        }
+      }
+    },
+    "settings": {
+      "title": "Ustawienia skanera",
+      "sessionSection": "Sesja",
+      "deviceMode": "Tryb urządzenia",
+      "deviceModeValue": "Osobiste · 300s timeout",
+      "activeSession": "Aktywna sesja",
+      "noSession": "Brak aktywnej sesji",
+      "languageSection": "Język",
+      "languageRow": "Język interfejsu",
+      "securitySection": "Bezpieczeństwo",
+      "changePin": "Zmień PIN",
+      "changePinDesc": "Trzymaj swój PIN w tajemnicy",
+      "accountSection": "Konto",
+      "logout": "Wyloguj",
+      "footer": "MonoPilot MES · Skaner v3.0",
+      "currentPin": "Aktualny PIN",
+      "newPin": "Nowy PIN",
+      "confirmNewPin": "Potwierdź nowy PIN",
+      "save": "Zapisz nowy PIN",
+      "pinChanged": "PIN zaktualizowany",
+      "pinChangeFailed": "Nie udało się zmienić PIN. Sprawdź aktualny PIN.",
+      "saving": "Zapisywanie…",
+      "errMismatch": "Nowe PIN-y nie są identyczne",
+      "errMinLen": "PIN musi mieć min. 4 cyfry"
+    },
+    "loading": "Ładowanie…"
   }
 }

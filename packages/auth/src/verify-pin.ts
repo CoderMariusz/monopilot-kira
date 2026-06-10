@@ -27,6 +27,20 @@ const ARGON2_OPTS: argon2.Options & { raw?: false } = {
   parallelism: 1,
 };
 
+// Memoised module-singleton owner pool (same pattern as apps/web saml.ts
+// Slot F-4 / packages/auth/src/totp.ts). The previous per-call
+// getOwnerConnection() + pool.end() paid a TCP connect + auth handshake on
+// every PIN operation and leaked half-closed sockets on hot paths (the
+// scanner login route calls verifyPin per attempt).
+let ownerPool: ReturnType<typeof getOwnerConnection> | null = null;
+
+function getPool(): ReturnType<typeof getOwnerConnection> {
+  if (!ownerPool) {
+    ownerPool = getOwnerConnection();
+  }
+  return ownerPool;
+}
+
 /** Window in milliseconds within which failed attempts are counted */
 const ATTEMPT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -42,22 +56,17 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
  */
 export async function setPin(userId: string, pin: string): Promise<void> {
   const hash = await argon2.hash(pin, ARGON2_OPTS);
-  const pool = getOwnerConnection();
-  try {
-    await pool.query(
-      `INSERT INTO public.user_pins (user_id, pin_hash, attempts_count, locked_until, last_attempt_at)
-       VALUES ($1, $2, 0, NULL, NULL)
-       ON CONFLICT (user_id) DO UPDATE
-         SET pin_hash       = EXCLUDED.pin_hash,
-             attempts_count = 0,
-             locked_until   = NULL,
-             last_attempt_at = NULL,
-             updated_at     = now()`,
-      [userId, hash],
-    );
-  } finally {
-    await pool.end();
-  }
+  await getPool().query(
+    `INSERT INTO public.user_pins (user_id, pin_hash, attempts_count, locked_until, last_attempt_at)
+     VALUES ($1, $2, 0, NULL, NULL)
+     ON CONFLICT (user_id) DO UPDATE
+       SET pin_hash       = EXCLUDED.pin_hash,
+           attempts_count = 0,
+           locked_until   = NULL,
+           last_attempt_at = NULL,
+           updated_at     = now()`,
+    [userId, hash],
+  );
 }
 
 /**
@@ -86,8 +95,7 @@ export async function verifyPin(
     return verifyPinWithClient(options.client, userId, pin);
   }
 
-  const pool = getOwnerConnection();
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const result = await verifyPinWithClient(client, userId, pin);
@@ -98,7 +106,6 @@ export async function verifyPin(
     throw err;
   } finally {
     client.release();
-    await pool.end();
   }
 }
 

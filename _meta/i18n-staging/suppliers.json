@@ -1,0 +1,270 @@
+{
+  "en": {
+    "Planning": {
+      "suppliers": {
+        "title": "Supplier master",
+        "subtitle": "Soft-delete only — suppliers move between Active / Inactive / Blocked, history is preserved.",
+        "error": "Could not load suppliers. The live read failed — try again.",
+        "breadcrumb": {
+          "planning": "Planning",
+          "suppliers": "Suppliers"
+        },
+        "actions": {
+          "newSupplier": "New supplier"
+        },
+        "kpis": {
+          "active": "Active suppliers",
+          "activeSub": "Available on purchase orders",
+          "inactive": "Inactive",
+          "inactiveSub": "Soft-deleted — kept for history",
+          "blocked": "Blocked",
+          "blockedSub": "Cannot be used on new POs",
+          "avgLeadTime": "Avg lead time",
+          "avgLeadTimeSub": "Across active suppliers",
+          "days": "d"
+        },
+        "list": {
+          "searchPlaceholder": "Search supplier name or code…",
+          "rowsCount": "{n} rows",
+          "showing": "Showing {n} of {total}",
+          "tabs": {
+            "all": "All",
+            "active": "Active",
+            "inactive": "Inactive",
+            "blocked": "Blocked"
+          },
+          "columns": {
+            "code": "Code",
+            "name": "Name",
+            "contact": "Contact",
+            "currency": "Currency",
+            "leadTime": "Lead time",
+            "status": "Status",
+            "actions": "Actions"
+          },
+          "view": "View",
+          "empty": {
+            "title": "No suppliers match this filter",
+            "body": "Switch tab or clear filters to see suppliers in other states.",
+            "clear": "Clear filters"
+          }
+        },
+        "status": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "blocked": "Blocked"
+        },
+        "create": {
+          "title": "Create supplier",
+          "subtitle": "Fields marked * are required.",
+          "codeLabel": "Supplier code *",
+          "codePlaceholder": "SUP-0078",
+          "nameLabel": "Name *",
+          "namePlaceholder": "Acme Meats Ltd.",
+          "currencyLabel": "Currency (ISO-4217) *",
+          "leadTimeLabel": "Default lead time (days) *",
+          "leadTimePlaceholder": "7",
+          "statusLabel": "Status *",
+          "emailLabel": "Email",
+          "emailPlaceholder": "orders@example.com",
+          "phoneLabel": "Phone (E.164)",
+          "phonePlaceholder": "+44 20 7946 0891",
+          "countryLabel": "Country (ISO-3166)",
+          "countryPlaceholder": "GB",
+          "notesLabel": "Notes",
+          "notesPlaceholder": "Internal comments, allergen cross-risk notes, EUDR scope…",
+          "submit": "Create supplier",
+          "submitting": "Creating…",
+          "cancel": "Cancel",
+          "errors": {
+            "codeRequired": "Supplier code is required.",
+            "nameRequired": "Name is required (min 2 characters).",
+            "currencyRequired": "Currency must be a 3-letter ISO-4217 code (e.g. EUR).",
+            "leadTimeRange": "Lead time must be between 0 and 3650 days.",
+            "emailInvalid": "Enter a valid email address.",
+            "countryInvalid": "Use an ISO-3166 alpha-2 code (e.g. GB, PL)."
+          }
+        },
+        "detail": {
+          "title": "Supplier",
+          "notFound": "This supplier does not exist or is not in your organisation.",
+          "backToList": "Back to suppliers",
+          "breadcrumbCurrent": "Detail",
+          "edit": "Edit",
+          "info": {
+            "title": "Supplier info",
+            "code": "Supplier code",
+            "name": "Name",
+            "currency": "Currency (ISO-4217)",
+            "leadTime": "Default lead time",
+            "status": "Status",
+            "country": "Country",
+            "email": "Email",
+            "phone": "Phone",
+            "paymentTerms": "Payment terms",
+            "days": "days",
+            "none": "—"
+          },
+          "notes": {
+            "title": "Notes",
+            "empty": "No notes recorded."
+          },
+          "transitions": {
+            "title": "Status",
+            "current": "Current status",
+            "activate": "Activate",
+            "deactivate": "Deactivate (soft)",
+            "block": "Block",
+            "pending": "Saving…",
+            "hint": "Soft delete — no data is removed. Inactive and blocked suppliers keep their history but cannot be selected on new purchase orders.",
+            "confirmDeactivate": "Deactivate {code}? Existing POs keep their link; new POs cannot select this supplier.",
+            "confirmBlock": "Block {code}? It will be unavailable for new purchase orders until reactivated.",
+            "confirmActivate": "Activate {code}? It will become available for new purchase orders."
+          }
+        },
+        "errors": {
+          "invalid_input": "Some fields are invalid. Check the form and try again.",
+          "forbidden": "You do not have permission to perform this action.",
+          "not_found": "This supplier could not be found.",
+          "already_exists": "A supplier with this code already exists.",
+          "invalid_state": "This action is not allowed in the current state.",
+          "persistence_failed": "Something went wrong saving the change. Try again."
+        }
+      }
+    }
+  },
+  "pl": {
+    "Planning": {
+      "suppliers": {
+        "title": "Rejestr dostawców",
+        "subtitle": "Tylko usuwanie miękkie — dostawcy przechodzą między Aktywny / Nieaktywny / Zablokowany, historia jest zachowana.",
+        "error": "Nie udało się załadować dostawców. Odczyt na żywo nie powiódł się — spróbuj ponownie.",
+        "breadcrumb": {
+          "planning": "Planowanie",
+          "suppliers": "Dostawcy"
+        },
+        "actions": {
+          "newSupplier": "Nowy dostawca"
+        },
+        "kpis": {
+          "active": "Aktywni dostawcy",
+          "activeSub": "Dostępni na zamówieniach zakupu",
+          "inactive": "Nieaktywni",
+          "inactiveSub": "Usunięci miękko — zachowani w historii",
+          "blocked": "Zablokowani",
+          "blockedSub": "Nie mogą być użyci na nowych ZZ",
+          "avgLeadTime": "Śr. czas dostawy",
+          "avgLeadTimeSub": "Dla aktywnych dostawców",
+          "days": "dni"
+        },
+        "list": {
+          "searchPlaceholder": "Szukaj nazwy lub kodu dostawcy…",
+          "rowsCount": "{n} wierszy",
+          "showing": "Pokazano {n} z {total}",
+          "tabs": {
+            "all": "Wszyscy",
+            "active": "Aktywni",
+            "inactive": "Nieaktywni",
+            "blocked": "Zablokowani"
+          },
+          "columns": {
+            "code": "Kod",
+            "name": "Nazwa",
+            "contact": "Kontakt",
+            "currency": "Waluta",
+            "leadTime": "Czas dostawy",
+            "status": "Status",
+            "actions": "Akcje"
+          },
+          "view": "Podgląd",
+          "empty": {
+            "title": "Żaden dostawca nie pasuje do tego filtra",
+            "body": "Zmień zakładkę lub wyczyść filtry, aby zobaczyć dostawców w innych stanach.",
+            "clear": "Wyczyść filtry"
+          }
+        },
+        "status": {
+          "active": "Aktywny",
+          "inactive": "Nieaktywny",
+          "blocked": "Zablokowany"
+        },
+        "create": {
+          "title": "Utwórz dostawcę",
+          "subtitle": "Pola oznaczone * są wymagane.",
+          "codeLabel": "Kod dostawcy *",
+          "codePlaceholder": "SUP-0078",
+          "nameLabel": "Nazwa *",
+          "namePlaceholder": "Acme Meats Sp. z o.o.",
+          "currencyLabel": "Waluta (ISO-4217) *",
+          "leadTimeLabel": "Domyślny czas dostawy (dni) *",
+          "leadTimePlaceholder": "7",
+          "statusLabel": "Status *",
+          "emailLabel": "E-mail",
+          "emailPlaceholder": "zamowienia@example.com",
+          "phoneLabel": "Telefon (E.164)",
+          "phonePlaceholder": "+48 22 123 45 67",
+          "countryLabel": "Kraj (ISO-3166)",
+          "countryPlaceholder": "PL",
+          "notesLabel": "Notatki",
+          "notesPlaceholder": "Uwagi wewnętrzne, ryzyko alergenów krzyżowych, zakres EUDR…",
+          "submit": "Utwórz dostawcę",
+          "submitting": "Tworzenie…",
+          "cancel": "Anuluj",
+          "errors": {
+            "codeRequired": "Kod dostawcy jest wymagany.",
+            "nameRequired": "Nazwa jest wymagana (min. 2 znaki).",
+            "currencyRequired": "Waluta musi być 3-literowym kodem ISO-4217 (np. EUR).",
+            "leadTimeRange": "Czas dostawy musi mieścić się w zakresie 0–3650 dni.",
+            "emailInvalid": "Podaj prawidłowy adres e-mail.",
+            "countryInvalid": "Użyj kodu ISO-3166 alpha-2 (np. GB, PL)."
+          }
+        },
+        "detail": {
+          "title": "Dostawca",
+          "notFound": "Ten dostawca nie istnieje lub nie należy do Twojej organizacji.",
+          "backToList": "Powrót do dostawców",
+          "breadcrumbCurrent": "Szczegóły",
+          "edit": "Edytuj",
+          "info": {
+            "title": "Informacje o dostawcy",
+            "code": "Kod dostawcy",
+            "name": "Nazwa",
+            "currency": "Waluta (ISO-4217)",
+            "leadTime": "Domyślny czas dostawy",
+            "status": "Status",
+            "country": "Kraj",
+            "email": "E-mail",
+            "phone": "Telefon",
+            "paymentTerms": "Warunki płatności",
+            "days": "dni",
+            "none": "—"
+          },
+          "notes": {
+            "title": "Notatki",
+            "empty": "Brak notatek."
+          },
+          "transitions": {
+            "title": "Status",
+            "current": "Bieżący status",
+            "activate": "Aktywuj",
+            "deactivate": "Dezaktywuj (miękko)",
+            "block": "Zablokuj",
+            "pending": "Zapisywanie…",
+            "hint": "Usuwanie miękkie — żadne dane nie są usuwane. Nieaktywni i zablokowani dostawcy zachowują historię, ale nie mogą być wybierani na nowych zamówieniach zakupu.",
+            "confirmDeactivate": "Dezaktywować {code}? Istniejące ZZ zachowują powiązanie; nowe ZZ nie mogą wybrać tego dostawcy.",
+            "confirmBlock": "Zablokować {code}? Będzie niedostępny dla nowych zamówień zakupu do czasu reaktywacji.",
+            "confirmActivate": "Aktywować {code}? Stanie się dostępny dla nowych zamówień zakupu."
+          }
+        },
+        "errors": {
+          "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź formularz i spróbuj ponownie.",
+          "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
+          "not_found": "Nie znaleziono tego dostawcy.",
+          "already_exists": "Dostawca z tym kodem już istnieje.",
+          "invalid_state": "Ta akcja nie jest dozwolona w bieżącym stanie.",
+          "persistence_failed": "Coś poszło nie tak podczas zapisywania zmiany. Spróbuj ponownie."
+        }
+      }
+    }
+  }
+}

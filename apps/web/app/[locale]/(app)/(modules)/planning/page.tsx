@@ -26,9 +26,18 @@
  * See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  */
 import { Suspense } from "react";
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 import { PageHeader } from "@monopilot/ui/PageHeader";
+
+/** Sub-module deep links (the prototype sidebar's pos/tos/suppliers screens). */
+const PLANNING_NAV_CARDS = [
+  { key: "workOrders", href: "/planning/work-orders" },
+  { key: "purchaseOrders", href: "/planning/purchase-orders" },
+  { key: "transferOrders", href: "/planning/transfer-orders" },
+  { key: "suppliers", href: "/planning/suppliers" },
+] as const;
 
 import {
   getPlanningDashboard,
@@ -214,6 +223,8 @@ export default async function PlanningRoutePage({ params }: PlanningPageProps) {
         actions={
           <PlanningHeaderActions
             createWoHref={`/${locale}/planning/work-orders?new=1`}
+            createPoHref={`/${locale}/planning/purchase-orders`}
+            createToHref={`/${locale}/planning/transfer-orders`}
             labels={{
               createWo: t("actions.createWo"),
               createPo: t("actions.createPo"),
@@ -225,6 +236,26 @@ export default async function PlanningRoutePage({ params }: PlanningPageProps) {
           />
         }
       />
+      {/* Sub-module nav cards (mirrors production/page.tsx NAV_CARDS): the
+          planning prototype reaches WOs/POs/TOs/Suppliers via its sidebar
+          (prototypes/planning/app.jsx:7-25); the app exposes them as cards. */}
+      <nav aria-label={t("nav.label")}>
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {PLANNING_NAV_CARDS.map((card) => (
+            <li key={card.key}>
+              <Link
+                href={`/${locale}${card.href}`}
+                prefetch={false}
+                data-testid={`planning-nav-${card.key}`}
+                className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+              >
+                <span className="text-base font-semibold text-slate-950">{t(`nav.${card.key}.title`)}</span>
+                <span className="mt-1 text-sm text-slate-600">{t(`nav.${card.key}.desc`)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent locale={locale} />
       </Suspense>

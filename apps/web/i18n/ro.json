@@ -5333,6 +5333,421 @@
         "invalid_state": "The work order is not in a state that allows this action.",
         "persistence_failed": "Something went wrong saving. Please retry shortly."
       }
+    },
+    "suppliers": {
+      "title": "Supplier master",
+      "subtitle": "Soft-delete only — suppliers move between Active / Inactive / Blocked, history is preserved.",
+      "error": "Could not load suppliers. The live read failed — try again.",
+      "breadcrumb": {
+        "planning": "Planning",
+        "suppliers": "Suppliers"
+      },
+      "actions": {
+        "newSupplier": "New supplier"
+      },
+      "kpis": {
+        "active": "Active suppliers",
+        "activeSub": "Available on purchase orders",
+        "inactive": "Inactive",
+        "inactiveSub": "Soft-deleted — kept for history",
+        "blocked": "Blocked",
+        "blockedSub": "Cannot be used on new POs",
+        "avgLeadTime": "Avg lead time",
+        "avgLeadTimeSub": "Across active suppliers",
+        "days": "d"
+      },
+      "list": {
+        "searchPlaceholder": "Search supplier name or code…",
+        "rowsCount": "{n} rows",
+        "showing": "Showing {n} of {total}",
+        "tabs": {
+          "all": "All",
+          "active": "Active",
+          "inactive": "Inactive",
+          "blocked": "Blocked"
+        },
+        "columns": {
+          "code": "Code",
+          "name": "Name",
+          "contact": "Contact",
+          "currency": "Currency",
+          "leadTime": "Lead time",
+          "status": "Status",
+          "actions": "Actions"
+        },
+        "view": "View",
+        "empty": {
+          "title": "No suppliers match this filter",
+          "body": "Switch tab or clear filters to see suppliers in other states.",
+          "clear": "Clear filters"
+        }
+      },
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "blocked": "Blocked"
+      },
+      "create": {
+        "title": "Create supplier",
+        "subtitle": "Fields marked * are required.",
+        "codeLabel": "Supplier code *",
+        "codePlaceholder": "SUP-0078",
+        "nameLabel": "Name *",
+        "namePlaceholder": "Acme Meats Ltd.",
+        "currencyLabel": "Currency (ISO-4217) *",
+        "leadTimeLabel": "Default lead time (days) *",
+        "leadTimePlaceholder": "7",
+        "statusLabel": "Status *",
+        "emailLabel": "Email",
+        "emailPlaceholder": "orders@example.com",
+        "phoneLabel": "Phone (E.164)",
+        "phonePlaceholder": "+44 20 7946 0891",
+        "countryLabel": "Country (ISO-3166)",
+        "countryPlaceholder": "GB",
+        "notesLabel": "Notes",
+        "notesPlaceholder": "Internal comments, allergen cross-risk notes, EUDR scope…",
+        "submit": "Create supplier",
+        "submitting": "Creating…",
+        "cancel": "Cancel",
+        "errors": {
+          "codeRequired": "Supplier code is required.",
+          "nameRequired": "Name is required (min 2 characters).",
+          "currencyRequired": "Currency must be a 3-letter ISO-4217 code (e.g. EUR).",
+          "leadTimeRange": "Lead time must be between 0 and 3650 days.",
+          "emailInvalid": "Enter a valid email address.",
+          "countryInvalid": "Use an ISO-3166 alpha-2 code (e.g. GB, PL)."
+        }
+      },
+      "detail": {
+        "title": "Supplier",
+        "notFound": "This supplier does not exist or is not in your organisation.",
+        "backToList": "Back to suppliers",
+        "breadcrumbCurrent": "Detail",
+        "edit": "Edit",
+        "info": {
+          "title": "Supplier info",
+          "code": "Supplier code",
+          "name": "Name",
+          "currency": "Currency (ISO-4217)",
+          "leadTime": "Default lead time",
+          "status": "Status",
+          "country": "Country",
+          "email": "Email",
+          "phone": "Phone",
+          "paymentTerms": "Payment terms",
+          "days": "days",
+          "none": "—"
+        },
+        "notes": {
+          "title": "Notes",
+          "empty": "No notes recorded."
+        },
+        "transitions": {
+          "title": "Status",
+          "current": "Current status",
+          "activate": "Activate",
+          "deactivate": "Deactivate (soft)",
+          "block": "Block",
+          "pending": "Saving…",
+          "hint": "Soft delete — no data is removed. Inactive and blocked suppliers keep their history but cannot be selected on new purchase orders.",
+          "confirmDeactivate": "Deactivate {code}? Existing POs keep their link; new POs cannot select this supplier.",
+          "confirmBlock": "Block {code}? It will be unavailable for new purchase orders until reactivated.",
+          "confirmActivate": "Activate {code}? It will become available for new purchase orders."
+        }
+      },
+      "errors": {
+        "invalid_input": "Some fields are invalid. Check the form and try again.",
+        "forbidden": "You do not have permission to perform this action.",
+        "not_found": "This supplier could not be found.",
+        "already_exists": "A supplier with this code already exists.",
+        "invalid_state": "This action is not allowed in the current state.",
+        "persistence_failed": "Something went wrong saving the change. Try again."
+      }
+    },
+    "purchaseOrders": {
+      "title": "Purchase orders",
+      "subtitle": "Supplier purchase orders, line items and receiving status.",
+      "error": "Couldn't load purchase orders. Please retry.",
+      "breadcrumb": {
+        "planning": "Planning",
+        "purchaseOrders": "Purchase orders"
+      },
+      "actions": {
+        "createPo": "Create PO"
+      },
+      "poStatus": {
+        "draft": "Draft",
+        "sent": "Sent",
+        "confirmed": "Confirmed",
+        "partially_received": "Partially received",
+        "received": "Received",
+        "cancelled": "Cancelled"
+      },
+      "list": {
+        "searchPlaceholder": "Search PO number or supplier…",
+        "rowsCount": "{n} rows",
+        "supplierFilterLabel": "Supplier",
+        "allSuppliers": "All suppliers",
+        "clearFilters": "Clear all filters",
+        "tabs": {
+          "all": "All"
+        },
+        "columns": {
+          "po": "PO number",
+          "supplier": "Supplier",
+          "expected": "Expected delivery",
+          "lines": "Lines",
+          "status": "Status",
+          "currency": "Currency",
+          "actions": "Actions"
+        },
+        "view": "View",
+        "empty": {
+          "title": "No purchase orders yet",
+          "body": "Create your first purchase order to start ordering from suppliers.",
+          "clear": "Clear filters"
+        }
+      },
+      "errors": {
+        "invalid_input": "That input isn't valid. Please review and try again.",
+        "forbidden": "You don't have permission to do that.",
+        "not_found": "That purchase order no longer exists.",
+        "already_exists": "A purchase order with that number already exists.",
+        "invalid_state": "That action isn't allowed in the current status.",
+        "persistence_failed": "Something went wrong saving. Please retry."
+      },
+      "create": {
+        "title": "Create purchase order",
+        "poNumberLabel": "PO number",
+        "poNumberPlaceholder": "e.g. PO-2026-0001",
+        "supplierLabel": "Supplier",
+        "supplierPlaceholder": "Select a supplier",
+        "expectedLabel": "Expected delivery",
+        "currencyLabel": "Currency",
+        "notesLabel": "Notes",
+        "notesPlaceholder": "Optional notes for this purchase order",
+        "linesTitle": "Lines",
+        "addLine": "+ Add line",
+        "removeLine": "Remove line",
+        "lineItem": "Item",
+        "lineQty": "Qty",
+        "lineUom": "UoM",
+        "lineUnitPrice": "Unit price",
+        "uomPlaceholder": "e.g. kg",
+        "qtyPlaceholder": "0",
+        "unitPricePlaceholder": "0.00",
+        "submit": "Create PO",
+        "submitting": "Creating…",
+        "cancel": "Cancel",
+        "errors": {
+          "poNumberRequired": "Enter a PO number.",
+          "supplierRequired": "Select a supplier.",
+          "linesRequired": "Add at least one line with an item and a positive quantity.",
+          "invalid_input": "That input isn't valid. Please review and try again.",
+          "forbidden": "You don't have permission to create purchase orders.",
+          "not_found": "The selected supplier or item no longer exists.",
+          "already_exists": "A purchase order with that number already exists.",
+          "invalid_state": "That action isn't allowed right now.",
+          "persistence_failed": "Something went wrong saving. Please retry."
+        },
+        "picker": {
+          "trigger": "+ Add item",
+          "searchLabel": "Search items",
+          "searchPlaceholder": "Search by code or name…",
+          "loading": "Searching…",
+          "empty": "No matching items",
+          "cancel": "Cancel",
+          "error": "Item search failed"
+        }
+      },
+      "detail": {
+        "title": "Purchase order",
+        "breadcrumbCurrent": "Detail",
+        "backToList": "Back to purchase orders",
+        "notFound": "This purchase order doesn't exist or you don't have access to it.",
+        "summary": {
+          "title": "PO summary",
+          "supplier": "Supplier",
+          "status": "Status",
+          "expected": "Expected delivery",
+          "currency": "Currency",
+          "total": "Total",
+          "created": "Created"
+        },
+        "lines": {
+          "title": "PO lines",
+          "seq": "#",
+          "item": "Item",
+          "qty": "Qty",
+          "uom": "UoM",
+          "unitPrice": "Unit price",
+          "lineTotal": "Line total",
+          "empty": "No lines on this purchase order."
+        },
+        "transitions": {
+          "title": "Status",
+          "send": "Submit",
+          "confirm": "Confirm",
+          "receivePartial": "Mark partially received",
+          "receive": "Mark received",
+          "cancel": "Cancel PO",
+          "pending": "Updating…",
+          "confirmPrompt": "Change status of {po} to {status}?"
+        }
+      },
+      "notes": {
+        "title": "Notes"
+      }
+    },
+    "transferOrders": {
+      "title": "Transfer orders",
+      "subtitle": "Inter-warehouse transfers",
+      "error": "We couldn't load transfer orders. Please retry.",
+      "breadcrumb": {
+        "planning": "Planning",
+        "transferOrders": "Transfer orders"
+      },
+      "actions": {
+        "createTo": "Create TO"
+      },
+      "toStatus": {
+        "draft": "Draft",
+        "in_transit": "In transit",
+        "received": "Received",
+        "cancelled": "Cancelled"
+      },
+      "list": {
+        "searchPlaceholder": "Search TO number…",
+        "rowsCount": "{n} rows",
+        "tabs": {
+          "all": "All"
+        },
+        "columns": {
+          "to": "TO number",
+          "from": "From",
+          "to_wh": "To",
+          "scheduled": "Scheduled",
+          "status": "Status",
+          "lines": "Lines",
+          "actions": "Actions"
+        },
+        "linesCount": "{n} lines",
+        "empty": {
+          "title": "No transfer orders yet",
+          "body": "Create a transfer order to move stock between warehouses.",
+          "clear": "Clear filters"
+        }
+      },
+      "errors": {
+        "invalid_input": "Some fields are invalid. Please review and retry.",
+        "forbidden": "You don't have permission to do that.",
+        "not_found": "That transfer order no longer exists.",
+        "already_exists": "A transfer order with that number already exists.",
+        "invalid_state": "That action isn't allowed in the current status.",
+        "persistence_failed": "Something went wrong saving your changes. Please retry."
+      },
+      "create": {
+        "title": "Create transfer order",
+        "toNumberLabel": "TO number",
+        "toNumberPlaceholder": "e.g. TO-2026-0001",
+        "fromWarehouseLabel": "From warehouse",
+        "toWarehouseLabel": "To warehouse",
+        "warehousePlaceholder": "Select warehouse",
+        "scheduledDateLabel": "Scheduled date",
+        "notesLabel": "Notes",
+        "notesPlaceholder": "Optional — visible to warehouse ops",
+        "linesTitle": "TO lines",
+        "addLine": "Add line",
+        "noLines": "No lines yet — add at least one line to begin.",
+        "lineColumns": {
+          "seq": "#",
+          "product": "Product",
+          "qty": "Qty",
+          "uom": "UoM",
+          "remove": "Remove"
+        },
+        "picker": {
+          "trigger": "Select product",
+          "searchLabel": "Search products",
+          "searchPlaceholder": "Search by code or name…",
+          "loading": "Searching…",
+          "empty": "No matching products",
+          "cancel": "Cancel",
+          "error": "Product search failed"
+        },
+        "qtyPlaceholder": "0",
+        "submit": "Save & Plan",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "errors": {
+          "toNumberRequired": "TO number is required.",
+          "warehousesRequired": "Both warehouses are required.",
+          "sameWarehouse": "To warehouse must differ from From warehouse.",
+          "linesRequired": "Add at least one line.",
+          "lineProductRequired": "Select a product for every line.",
+          "lineQtyRequired": "Quantity must be greater than 0.",
+          "invalid_input": "Some fields are invalid. Please review and retry.",
+          "forbidden": "You don't have permission to create transfer orders.",
+          "not_found": "A referenced record no longer exists.",
+          "already_exists": "A transfer order with that number already exists.",
+          "invalid_state": "That action isn't allowed in the current status.",
+          "persistence_failed": "Something went wrong saving your changes. Please retry."
+        }
+      },
+      "detail": {
+        "title": "Transfer order",
+        "breadcrumbCurrent": "Detail",
+        "notFound": "This transfer order doesn't exist or you don't have access.",
+        "backToList": "Back to transfer orders",
+        "summary": {
+          "title": "TO summary",
+          "toNumber": "TO number",
+          "from": "From",
+          "to": "To",
+          "status": "Status",
+          "scheduled": "Scheduled date",
+          "created": "Created",
+          "updated": "Updated",
+          "notes": "Notes",
+          "none": "—"
+        },
+        "lines": {
+          "title": "TO lines",
+          "seq": "#",
+          "product": "Product",
+          "qty": "Qty",
+          "uom": "UoM",
+          "empty": "No lines on this transfer order."
+        },
+        "transitions": {
+          "title": "Status actions",
+          "ship": "Ship",
+          "receive": "Receive",
+          "cancel": "Cancel",
+          "confirm": "Change status of {to} to \"{status}\"?",
+          "pending": "Updating…",
+          "none": "No further status actions available."
+        }
+      }
+    },
+    "nav": {
+      "label": "Planning sections",
+      "workOrders": {
+        "title": "Work orders",
+        "desc": "Create, release and track WOs"
+      },
+      "purchaseOrders": {
+        "title": "Purchase orders",
+        "desc": "Order materials from suppliers"
+      },
+      "transferOrders": {
+        "title": "Transfer orders",
+        "desc": "Move stock between warehouses"
+      },
+      "suppliers": {
+        "title": "Suppliers",
+        "desc": "Supplier master and approval status"
+      }
     }
   },
   "production": {
@@ -5801,5 +6216,191 @@
         "avg": "Avg"
       }
     }
+  },
+  "Scanner": {
+    "topbar": {
+      "back": "Back",
+      "profile": "Profile",
+      "menu": "Menu",
+      "syncTitle": "Sync status",
+      "online": "ONLINE",
+      "queued": "QUEUED",
+      "syncErr": "SYNC ERR"
+    },
+    "scanTools": {
+      "camera": "Camera",
+      "manual": "Manual"
+    },
+    "reasonSheet": {
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "close": "Close",
+      "otherPlaceholder": "Describe the reason…"
+    },
+    "language": {
+      "title": "Interface language",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "logout": {
+      "title": "Log out?",
+      "bannerTitle": "Session will end",
+      "bannerBody": "Unsaved operations may be lost (P1 — no offline queue).",
+      "logout": "Log out",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "scanError": {
+      "retry": "Try again",
+      "back": "Back",
+      "close": "Close",
+      "codeLabel": "Error code"
+    },
+    "qtyKeypad": {
+      "title": "Enter quantity",
+      "maxLabel": "Max",
+      "confirm": "Confirm",
+      "close": "Close"
+    },
+    "block": {
+      "retry": "Try again",
+      "backToMenu": "Back to menu",
+      "codeLabel": "Code"
+    },
+    "login": {
+      "title": "Sign in",
+      "appName": "MonoPilot",
+      "appSub": "Scanner · MES System",
+      "emailLabel": "Email / Login",
+      "emailPlaceholder": "name@company.com",
+      "pinLabel": "PIN",
+      "pinHint": "Enter your 4–6 digit PIN",
+      "submit": "Sign in →",
+      "setupCta": "First time? Set up your PIN",
+      "version": "v3.0 · MonoPilot MES",
+      "errInvalidPin": "Invalid email or PIN.",
+      "errPinLocked": "PIN locked after too many attempts. Contact your supervisor.",
+      "errNetwork": "Connection error. Try again.",
+      "signingIn": "Signing in…",
+      "backspace": "Delete"
+    },
+    "pinSetup": {
+      "titleSet": "Set PIN (first sign-in)",
+      "titleConfirm": "Confirm PIN",
+      "emailLabel": "Email / Login",
+      "emailPlaceholder": "name@company.com",
+      "passwordLabel": "Login password",
+      "passwordPlaceholder": "••••••••",
+      "hintSet": "Choose a 4–6 digit PIN. Avoid trivial sequences.",
+      "hintConfirm": "Re-enter the same PIN to confirm.",
+      "step1": "STEP 1 OF 2",
+      "step2": "STEP 2 OF 2",
+      "digits": "digits",
+      "min": "min",
+      "nextBtn": "Next → Confirm PIN",
+      "saveBtn": "Save PIN",
+      "backspace": "Delete",
+      "errMinLen": "PIN must be at least {min} digits",
+      "errWeak": "PIN too simple — choose another",
+      "errRepeat": "PIN cannot be all repeated digits",
+      "errMismatch": "PINs do not match — try again",
+      "errMissingCreds": "Enter email and login password first",
+      "errSaveFailed": "Could not save PIN. Check your credentials.",
+      "saving": "Saving…"
+    },
+    "site": {
+      "title": "Start shift",
+      "loggedIn": "SIGNED IN",
+      "siteSection": "Site / company",
+      "lineSection": "Production line",
+      "shiftSection": "Shift",
+      "pickPrompt": "Choose site, line and shift",
+      "start": "▶ Start shift",
+      "loading": "Loading sites…",
+      "empty": "No sites available for your account.",
+      "errLoad": "Could not load sites. Try again.",
+      "retry": "Try again",
+      "saving": "Starting…",
+      "shiftMorning": "Morning",
+      "shiftAfternoon": "Afternoon",
+      "shiftNight": "Night"
+    },
+    "home": {
+      "title": "Scanner",
+      "sectionProduction": "Production",
+      "sectionWarehouse": "Warehouse",
+      "sectionQuality": "Quality",
+      "comingSoon": "Coming soon",
+      "footer": "Scanner v3.0 · MonoPilot MES",
+      "tiles": {
+        "wos": {
+          "title": "Work Orders",
+          "desc": "Consume + output"
+        },
+        "consume": {
+          "title": "Consume",
+          "desc": "Scan BOM materials"
+        },
+        "output": {
+          "title": "Output",
+          "desc": "Register finished goods"
+        },
+        "receive": {
+          "title": "Receive PO",
+          "desc": "Purchase order"
+        },
+        "move": {
+          "title": "Move LP",
+          "desc": "Relocate a pallet"
+        },
+        "putaway": {
+          "title": "Putaway",
+          "desc": "Put away LP (FEFO)"
+        },
+        "pick": {
+          "title": "Pick for WO",
+          "desc": "Collect materials"
+        },
+        "qa": {
+          "title": "QC Inspection",
+          "desc": "PASS / FAIL / HOLD"
+        },
+        "inquiry": {
+          "title": "LP info",
+          "desc": "Look up a License Plate"
+        },
+        "settings": {
+          "title": "Settings",
+          "desc": "Scanner preferences"
+        }
+      }
+    },
+    "settings": {
+      "title": "Scanner settings",
+      "sessionSection": "Session",
+      "deviceMode": "Device mode",
+      "deviceModeValue": "Personal · 300s timeout",
+      "activeSession": "Active session",
+      "noSession": "No active session",
+      "languageSection": "Language",
+      "languageRow": "Interface language",
+      "securitySection": "Security",
+      "changePin": "Change PIN",
+      "changePinDesc": "Keep your PIN private",
+      "accountSection": "Account",
+      "logout": "Log out",
+      "footer": "MonoPilot MES · Scanner v3.0",
+      "currentPin": "Current PIN",
+      "newPin": "New PIN",
+      "confirmNewPin": "Confirm new PIN",
+      "save": "Save new PIN",
+      "pinChanged": "PIN updated",
+      "pinChangeFailed": "Could not change PIN. Check your current PIN.",
+      "saving": "Saving…",
+      "errMismatch": "New PINs do not match",
+      "errMinLen": "PIN must be at least 4 digits"
+    },
+    "loading": "Loading…"
   }
 }
