@@ -37,7 +37,7 @@ export type FinalAllergen = {
 };
 
 export type ChainNode = {
-  level: 'RM' | 'Intermediate' | 'Process' | 'FG';
+  level: 'RM' | 'Intermediate' | 'Packaging' | 'Process' | 'FG';
   code: string;
   name: string;
   detail: string;
@@ -191,7 +191,12 @@ export async function loadAllergenCascade(): Promise<LoadCascadeResult> {
           let node = componentMap.get(c.item_code);
           if (!node) {
             node = {
-              level: c.item_type === 'intermediate' ? 'Intermediate' : 'RM',
+              level:
+                c.item_type === 'intermediate'
+                  ? 'Intermediate'
+                  : c.item_type === 'packaging'
+                    ? 'Packaging'
+                    : 'RM',
               code: c.item_code,
               name: c.name,
               detail: `${fg.item_code} → ${c.item_code}`,

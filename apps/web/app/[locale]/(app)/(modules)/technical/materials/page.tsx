@@ -24,9 +24,12 @@ import { MaterialsTableClient, type MaterialsTableLabels } from './_components/m
 
 export const dynamic = 'force-dynamic';
 
-// Material types in our item master (the prototype's "packaging" maps to none —
-// the canonical item_type domain is rm / intermediate / fg / co_product / byproduct).
-const MATERIAL_TYPES: readonly ItemType[] = ['rm', 'ingredient', 'intermediate'];
+// Material types in our item master. The prototype (other-screens.jsx:307/315)
+// lists raw materials, intermediates AND packaging as the consumed-material domain
+// (`typeTag.packaging = badge-amber`); we mirror that 1:1 now that 'packaging' is a
+// first-class item_type (migs 255/256). fg / co_product / byproduct are NOT
+// materials and stay out of this list.
+const MATERIAL_TYPES: readonly ItemType[] = ['rm', 'ingredient', 'intermediate', 'packaging'];
 
 export default async function TechnicalMaterialsPage() {
   const t = await getTranslations('technical.materials');
@@ -37,6 +40,7 @@ export default async function TechnicalMaterialsPage() {
     { key: 'rm', label: t('tabs.rm') },
     { key: 'ingredient', label: t('tabs.ingredient') },
     { key: 'intermediate', label: t('tabs.intermediate') },
+    { key: 'packaging', label: t('tabs.packaging') },
   ];
 
   const tableLabels: MaterialsTableLabels = {
@@ -53,7 +57,12 @@ export default async function TechnicalMaterialsPage() {
     noMatchTitle: t('noMatchTitle'),
     noMatchBody: t('noMatchBody'),
     countSummary: t('countSummary'),
-    typeLabels: { rm: t('types.rm'), ingredient: t('types.ingredient'), intermediate: t('types.intermediate') },
+    typeLabels: {
+      rm: t('types.rm'),
+      ingredient: t('types.ingredient'),
+      intermediate: t('types.intermediate'),
+      packaging: t('types.packaging'),
+    },
     statusLabels: {
       draft: t('statuses.draft'),
       active: t('statuses.active'),

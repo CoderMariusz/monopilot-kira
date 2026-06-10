@@ -28,6 +28,8 @@ const ctx = {
   projectExists: true,
   // Whether an existing component lookup returns a row (for update/delete).
   componentExists: true,
+  // Whether packaging item lookup returns a packaging row.
+  packagingItemExists: true,
   calls: [] as Call[],
 };
 
@@ -45,6 +47,10 @@ function fakeClient() {
       // Project existence probe.
       if (s.includes('from public.npd_projects')) {
         return { rows: ctx.projectExists ? [{ id: 'proj', product_code: 'FA1', product_name: 'Ham' }] : [] };
+      }
+      // Packaging item validation probe.
+      if (s.includes('from public.items')) {
+        return { rows: ctx.packagingItemExists ? [{ id: params[0], item_type: 'packaging' }] : [] };
       }
       // Existing-component probe (update/delete "before" SELECT).
       if (s.startsWith('select id, tier, component_name')) {
@@ -87,6 +93,7 @@ beforeEach(() => {
   ctx.grantedPerms = new Set<string>();
   ctx.projectExists = true;
   ctx.componentExists = true;
+  ctx.packagingItemExists = true;
   ctx.calls = [];
 });
 afterEach(() => vi.clearAllMocks());
@@ -161,6 +168,35 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
 
     const audit = ctx.calls.find((c) => /insert into\s+public\.audit_log/i.test(c.sql));
     expect(audit).toBeTruthy();
+  });
+
+  it('validates optional itemId as a packaging item before writing', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    ctx.packagingItemExists = false;
+
+    const res = await upsertPackagingComponent({
+      ...valid,
+      itemId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    });
+
+    expect(res).toEqual({ ok: false, error: 'invalid_input' });
+    expect(ctx.calls.some((c) => /insert into public\.packaging_components/i.test(c.sql))).toBe(false);
+  });
+
+  it('persists optional itemId to packaging_components.item_id', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const itemId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+    const res = await upsertPackagingComponent({ ...valid, itemId });
+
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+    const validation = ctx.calls.find((c) => /from public\.items/i.test(c.sql));
+    expect(validation?.params).toEqual([itemId]);
+
+    const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
+    expect(insert).toBeTruthy();
+    expect(insert!.sql).toContain('item_id');
+    expect(insert!.params).toContain(itemId);
   });
 });
 

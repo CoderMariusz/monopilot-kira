@@ -37,6 +37,7 @@ const ITEM_TYPE_LABELS: Record<ItemListItem['itemType'], string> = {
   fg: 'Finished good',
   co_product: 'Co-product',
   byproduct: 'By-product',
+  packaging: 'Packaging',
 };
 
 const STATUS_LABELS: Record<ItemListItem['status'], string> = {

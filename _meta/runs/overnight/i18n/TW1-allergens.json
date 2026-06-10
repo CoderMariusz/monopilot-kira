@@ -6,6 +6,7 @@
   "technical.allergens.cascade.source.brief_declared": "brief declared",
   "technical.allergens.cascade.level.RM": "RM",
   "technical.allergens.cascade.level.Intermediate": "Intermediate",
+  "technical.allergens.cascade.level.Packaging": "Packaging",
   "technical.allergens.cascade.level.Process": "Process",
   "technical.allergens.cascade.level.FG": "FG",
   "technical.allergens.process.modal.subtitle": "Map a manufacturing operation to an allergen it adds; the cascade rule merges it into every FG that uses the operation.",

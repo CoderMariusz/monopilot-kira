@@ -33,6 +33,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { PackagingComponentModal } from './packaging-component-modal';
+import type { ItemSearchFn } from '../../../../_components/item-picker';
 import type {
   PackagingComponentRow,
   PackagingStatus,
@@ -96,6 +97,16 @@ export type PackagingLabels = {
   saveError: string;
   confirmDelete: string;
   emDash: string;
+  // Catalog item picker (optional packaging-item link).
+  pickerTrigger: string;
+  pickerSearchLabel: string;
+  pickerSearchPlaceholder: string;
+  pickerLoading: string;
+  pickerEmpty: string;
+  pickerCancel: string;
+  pickerError: string;
+  pickedHint: string; // "Linked to {code}"
+  pickerClear: string;
   // States.
   loading: string;
   empty: string;
@@ -114,6 +125,8 @@ export type UpsertCall = {
   spec: string | null;
   costPerUnit: string | null;
   status: PackagingStatus;
+  /** Optional FK to a `packaging` item in the catalog (item picker). */
+  itemId?: string | null;
 };
 export type MutationOutcome = { ok: boolean; error?: string };
 
@@ -215,6 +228,7 @@ export function PackagingScreen({
   canWrite = false,
   onUpsert,
   onDelete,
+  searchItemsAction,
 }: {
   state?: PageState;
   data: PackagingScreenData | null;
@@ -223,6 +237,8 @@ export function PackagingScreen({
   canWrite?: boolean;
   onUpsert?: (call: UpsertCall) => Promise<MutationOutcome>;
   onDelete?: (call: { id: string; projectId: string }) => Promise<MutationOutcome>;
+  /** Org-scoped item search seam for the optional packaging catalog picker. */
+  searchItemsAction?: ItemSearchFn;
 }) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = React.useState(false);
@@ -547,6 +563,7 @@ export function PackagingScreen({
           labels={labels}
           onUpsert={onUpsert}
           onMutated={handleMutated}
+          searchItemsAction={searchItemsAction}
         />
       )}
     </main>

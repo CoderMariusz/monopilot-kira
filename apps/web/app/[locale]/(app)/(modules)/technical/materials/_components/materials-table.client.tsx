@@ -24,7 +24,10 @@ const STATUS_TONE: Record<ItemStatus, string> = {
   blocked: 'badge-red',
 };
 const STATUS_GLYPH: Record<ItemStatus, string> = { draft: '○', active: '●', deprecated: '⚠', blocked: '⚠' };
-const TYPE_TONE: Record<string, string> = { rm: 'badge-blue', intermediate: 'badge-gray' };
+// Prototype other-screens.jsx:307 `typeTag` — RM=blue, packaging=amber.
+// (intermediate kept gray as shipped; the prototype's violet is a deferred
+// cosmetic deviation — not in scope to regress the already-live screen.)
+const TYPE_TONE: Record<string, string> = { rm: 'badge-blue', intermediate: 'badge-gray', packaging: 'badge-amber' };
 
 function formatCost(costPerKg: string | null): string {
   if (costPerKg === null) return '—';

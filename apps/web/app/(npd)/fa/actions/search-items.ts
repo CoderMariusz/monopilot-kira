@@ -24,9 +24,16 @@ type QueryClient = {
 };
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
-/** Item types valid as a production/recipe component (NOT fg/byproduct).
- *  'ingredient' behaves like a raw material for production usage. */
-const COMPONENT_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product'] as const;
+/** Item types the search action will ACCEPT in its `itemTypes` filter.
+ *  'ingredient' behaves like a raw material for production usage; 'packaging' is
+ *  accepted ONLY so the NPD packaging stage can request a packaging-restricted
+ *  picker — it is deliberately excluded from DEFAULT_COMPONENT_ITEM_TYPES so a
+ *  caller that omits `itemTypes` (the recipe picker) never receives packaging. */
+const SEARCHABLE_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product', 'packaging'] as const;
+
+/** The default fan-out when a caller passes no `itemTypes` — recipe/component
+ *  types only, NEVER packaging (packaging must be requested explicitly). */
+const DEFAULT_COMPONENT_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product'] as const;
 
 export type ItemPickerOption = {
   id: string;
@@ -41,8 +48,9 @@ export type ItemPickerOption = {
 
 const searchInputSchema = z.object({
   query: z.string().trim().max(120).optional().default(''),
-  /** Restrict to a subset of component types; defaults to all component types. */
-  itemTypes: z.array(z.enum(COMPONENT_ITEM_TYPES)).optional(),
+  /** Restrict to a subset of searchable types; defaults to component types only
+   *  (NEVER packaging unless the caller requests it explicitly). */
+  itemTypes: z.array(z.enum(SEARCHABLE_ITEM_TYPES)).optional(),
   limit: z.number().int().min(1).max(50).optional().default(20),
 });
 
@@ -69,7 +77,7 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
     throw new ValidationError('INVALID_INPUT', 'Invalid item search input');
   }
   const { query, itemTypes, limit } = parsed.data;
-  const types = itemTypes && itemTypes.length > 0 ? itemTypes : [...COMPONENT_ITEM_TYPES];
+  const types = itemTypes && itemTypes.length > 0 ? itemTypes : [...DEFAULT_COMPONENT_ITEM_TYPES];
   const term = query.trim();
 
   return withOrgContext<ItemPickerOption[]>(async (ctx) => {

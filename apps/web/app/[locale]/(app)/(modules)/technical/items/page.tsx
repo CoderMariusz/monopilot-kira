@@ -65,6 +65,7 @@ function buildWizardLabels(t: Translator): ItemWizardLabels {
       shelfLifeMode: t('create.fields.shelfLifeMode'),
     },
     catchHint: t('create.catchHint'),
+    intermediateHint: t('create.intermediateHint'),
     review: { ready: t('create.review.ready') },
     errors: {
       codeRequired: t('create.errors.codeRequired'),

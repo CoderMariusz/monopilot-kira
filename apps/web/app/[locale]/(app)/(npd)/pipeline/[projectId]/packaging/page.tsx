@@ -35,6 +35,8 @@ import {
 } from './_components/packaging-screen';
 import { upsertPackagingComponent } from './_actions/upsertPackagingComponent';
 import { deletePackagingComponent } from './_actions/deletePackagingComponent';
+import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemSearchFn } from '../../../_components/item-picker';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   PACKAGING_READ_PERMISSION,
@@ -102,6 +104,15 @@ const DEFAULT_LABELS: PackagingLabels = {
   emptyBody: 'Add a primary or secondary packaging component to get started.',
   error: 'Unable to load packaging data.',
   forbidden: 'You do not have permission to view packaging data.',
+  pickerTrigger: '+ Pick from catalog',
+  pickerSearchLabel: 'Search packaging items',
+  pickerSearchPlaceholder: 'Search by code or name…',
+  pickerLoading: 'Searching…',
+  pickerEmpty: 'No matching packaging items',
+  pickerCancel: 'Cancel',
+  pickerError: 'Item search failed',
+  pickedHint: 'Linked to {code}',
+  pickerClear: 'Clear link',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PackagingLabels>;
@@ -228,6 +239,18 @@ async function deleteAction(call: { id: string; projectId: string }): Promise<Mu
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
+// Org-scoped catalog search seam for the optional packaging item picker. Restricts
+// callers to the 'packaging' subset (the recipe pickers pass their own non-packaging
+// subsets, so nothing leaks across stages).
+async function searchPackagingItemsAction(input: {
+  query?: string;
+  itemTypes?: Array<'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'packaging'>;
+  limit?: number;
+}): Promise<ItemPickerOption[]> {
+  'use server';
+  return searchItems({ ...input, itemTypes: ['packaging'] });
+}
+
 export default async function PackagingPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PackagingPageProps;
   const { locale, projectId } = props.params
@@ -253,6 +276,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
       canWrite={loaded.canWrite}
       onUpsert={upsertAction}
       onDelete={deleteAction}
+      searchItemsAction={searchPackagingItemsAction}
     />
   );
 }

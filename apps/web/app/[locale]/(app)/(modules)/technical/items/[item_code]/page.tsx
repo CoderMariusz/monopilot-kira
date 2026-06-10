@@ -31,6 +31,8 @@ import { ItemDetailTabs, type ItemDetailTabsLabels } from './_components/item-de
 import { ItemOverviewTab, type ItemOverviewLabels } from './_components/item-overview-tab';
 import { AllergensTabServer } from './_components/allergens-tab-server';
 import { buildAllergensTabLabels } from './_components/allergen-labels';
+import { NutritionTabServer } from './_components/nutrition-tab-server';
+import { buildNutritionTabLabels } from './_components/nutrition-labels';
 import {
   BomTab,
   CostTab,
@@ -61,6 +63,7 @@ const TYPE_LABEL: Record<ItemType, string> = {
   fg: 'Finished good',
   co_product: 'Co-product',
   byproduct: 'By-product',
+  packaging: 'Packaging',
 };
 
 type PageProps = {
@@ -149,6 +152,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       overview: t('detail.tabs.overview'),
       bom: t('detail.tabs.bom'),
       allergens: t('detail.tabs.allergens'),
+      nutrition: t('detail.tabs.nutrition'),
       cost: t('detail.tabs.cost'),
       routing: t('detail.tabs.routing'),
       supplierSpecs: t('detail.tabs.supplierSpecs'),
@@ -216,6 +220,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       shelfLifeMode: t('create.fields.shelfLifeMode'),
     },
     catchHint: t('create.catchHint'),
+    intermediateHint: t('create.intermediateHint'),
     review: { ready: t('create.review.ready') },
     errors: {
       codeRequired: t('create.errors.codeRequired'),
@@ -264,6 +269,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   const [
     dataTabLabels,
     allergensTabLabels,
+    nutritionTabLabels,
     bomData,
     costData,
     routingData,
@@ -274,6 +280,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   ] = await Promise.all([
     buildDataTabLabels(locale),
     buildAllergensTabLabels(locale),
+    buildNutritionTabLabels(locale),
     loadBomTab(item.itemCode),
     loadCostTab(item.itemCode),
     loadRoutingTab(item.itemCode),
@@ -335,6 +342,14 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
         panels={{
           overview: <ItemOverviewTab item={item} labels={overviewLabels} />,
           allergens: <AllergensTabServer itemCode={item.itemCode} labels={allergensTabLabels} />,
+          nutrition: (
+            <NutritionTabServer
+              itemCode={item.itemCode}
+              itemType={item.itemType}
+              canEdit={canEdit}
+              labels={nutritionTabLabels}
+            />
+          ),
           bom: (
             <BomTab
               data={bomData}

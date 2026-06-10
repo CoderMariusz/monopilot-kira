@@ -43,6 +43,7 @@ export const UpsertPackagingComponentSchema = z.object({
   // When omitted → INSERT; when present → UPDATE (must already belong to the org).
   id: z.string().uuid().optional(),
   projectId: z.string().uuid(),
+  itemId: z.string().uuid().optional().nullable(),
   tier: z.enum(PACKAGING_TIERS),
   componentName: z.string().trim().min(1).max(160),
   material: z.string().trim().max(240).optional().nullable(),

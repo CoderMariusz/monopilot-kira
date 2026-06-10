@@ -24,6 +24,7 @@ export const dynamic = 'force-dynamic';
 const LEVEL_BADGE: Record<ChainNode['level'], string> = {
   RM: 'badge-gray',
   Intermediate: 'badge-blue',
+  Packaging: 'badge-amber',
   Process: 'badge-blue',
   FG: 'badge-green',
 };

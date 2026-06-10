@@ -131,6 +131,34 @@ describe('ComponentAddModal (TEC-022 parity + behavior)', () => {
     expect(mocks.refresh).toHaveBeenCalled();
   });
 
+  it('infers component_type from the item master type (rm → RM)', async () => {
+    const user = userEvent.setup();
+    render(<ComponentAddModal open onClose={vi.fn()} context={DRAFT_CTX} />);
+    await user.click(await screen.findByRole('option', { name: /RM-1001/ }));
+    await screen.findByText('Component is usable.');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Mixing' }));
+    await user.click(screen.getByRole('button', { name: 'Add component' }));
+    await waitFor(() => expect(mocks.createBomDraft).toHaveBeenCalledTimes(1));
+    expect(mocks.createBomDraft.mock.calls[0][0].lines[0].componentType).toBe('RM');
+  });
+
+  it('infers component_type for a packaging item (packaging → PM)', async () => {
+    const user = userEvent.setup();
+    const PM_ITEM = { ...ITEM, id: '22222222-2222-2222-2222-222222222222', itemCode: 'PM-2001', name: 'Pouch', itemType: 'packaging' as const, uomBase: 'ea' };
+    mocks.listItems.mockResolvedValue({ items: [PM_ITEM], canCreate: true, canEdit: true, canDeactivate: true, state: 'ready' });
+    mocks.validateBomComponent.mockResolvedValue({ ok: true, verdict: usableVerdict(true) });
+    render(<ComponentAddModal open onClose={vi.fn()} context={DRAFT_CTX} />);
+    await user.click(await screen.findByRole('option', { name: /PM-2001/ }));
+    await screen.findByText('Component is usable.');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Mixing' }));
+    await user.click(screen.getByRole('button', { name: 'Add component' }));
+    await waitFor(() => expect(mocks.createBomDraft).toHaveBeenCalledTimes(1));
+    const line = mocks.createBomDraft.mock.calls[0][0].lines[0];
+    expect(line).toMatchObject({ componentCode: 'PM-2001', componentType: 'PM' });
+  });
+
   it('keeps the dialog open and surfaces createBomDraft invalid-reference failures', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

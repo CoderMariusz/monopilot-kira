@@ -81,6 +81,8 @@ export type ItemWizardLabels = {
     shelfLifeMode: string;
   };
   catchHint: string;
+  /** Wizard-only helper shown under the "Intermediate" item type — "= WIP (work in progress)". */
+  intermediateHint: string;
   review: { ready: string };
   errors: { codeRequired: string; nameRequired: string; uomRequired: string };
   actionErrors: Record<ItemsActionError, string>;
@@ -115,6 +117,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     shelfLifeMode: 'Shelf-life mode',
   },
   catchHint: 'Catch weight requires nominal weight, gross weight max and a variance tolerance.',
+  intermediateHint: '= WIP (work in progress)',
   review: { ready: 'Ready to create. An audit record will be logged.' },
   errors: {
     codeRequired: 'Item code is required (min 1 char).',
@@ -137,6 +140,7 @@ const ITEM_TYPE_LABELS: Record<(typeof ITEM_TYPES)[number], string> = {
   fg: 'Finished good',
   co_product: 'Co-product',
   byproduct: 'By-product',
+  packaging: 'Packaging',
 };
 const STATUS_LABELS: Record<(typeof ITEM_STATUSES)[number], string> = {
   draft: 'Draft',
@@ -569,7 +573,11 @@ export function ItemWizard({
 
       {step === 'classification' ? (
         <div data-step-panel="classification">
-          <Field label={labels.fields.itemType} required>
+          <Field
+            label={labels.fields.itemType}
+            required
+            help={form.itemType === 'intermediate' ? labels.intermediateHint : undefined}
+          >
             <LabeledSelect
               value={form.itemType}
               onValueChange={(v) => update('itemType', v as WizardFormState['itemType'])}

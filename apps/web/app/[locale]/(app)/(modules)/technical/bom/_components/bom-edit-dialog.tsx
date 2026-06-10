@@ -36,9 +36,26 @@ import { Button } from '@monopilot/ui/Button';
 import { Select } from '@monopilot/ui/Select';
 
 import { createBomDraft } from '../_actions/create-draft';
-import type { BomStatus, BomValidationCode } from '../_actions/shared';
+import type { BomStatus, BomValidationCode, ComponentType } from '../_actions/shared';
 import { listItems } from '../../items/_actions/list-items';
-import type { ItemListItem } from '../../items/_actions/shared';
+import type { ItemListItem, ItemType } from '../../items/_actions/shared';
+
+/**
+ * Auto-map the picked item's master type → the BOM line's component_type
+ * (COMPONENT_TYPES = RM | PM | WIP | FG). Previously every added line landed with
+ * a null component_type; this classifies it from the item master so packaging
+ * resolves to PM, intermediates to WIP, etc. fg is never a component but mapped
+ * for completeness.
+ */
+const ITEM_TYPE_TO_COMPONENT_TYPE: Record<ItemType, ComponentType> = {
+  rm: 'RM',
+  ingredient: 'RM',
+  intermediate: 'WIP',
+  packaging: 'PM',
+  fg: 'FG',
+  co_product: 'RM',
+  byproduct: 'RM',
+};
 import { listManufacturingOperations } from '../../../../../../../actions/reference/manufacturing-ops/list';
 import { validateBomComponent } from '../../../../../../../actions/technical/boms/validate-component';
 import type { RmUsabilityVerdict } from '../../../../../../../lib/technical/rm-usability';
@@ -257,6 +274,7 @@ export function ComponentAddModal({
           {
             itemId: picked.id,
             componentCode: picked.itemCode,
+            componentType: ITEM_TYPE_TO_COMPONENT_TYPE[picked.itemType],
             quantity: qtyNum,
             uom: picked.uomBase,
             scrapPct: Number(scrap) || 0,

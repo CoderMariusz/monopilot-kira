@@ -51,6 +51,7 @@ const TYPE_TONE: Record<ItemType, string> = {
   fg: 'badge-green',
   co_product: 'badge-blue',
   byproduct: 'badge-gray',
+  packaging: 'badge-gray',
 };
 
 const D365_FILTERS: Array<{ key: string; label: string; match: (s: string | null) => boolean }> = [
@@ -78,6 +79,7 @@ const TYPE_TAB_TONE: Record<ItemType, string> = {
   fg: 'tone-ok',
   co_product: 'tone-info',
   byproduct: 'tone-neutral',
+  packaging: 'tone-neutral',
 };
 function tabTone(key: 'all' | ItemType): string {
   return key === 'all' ? '' : TYPE_TAB_TONE[key];

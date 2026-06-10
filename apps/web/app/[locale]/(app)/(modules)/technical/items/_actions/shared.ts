@@ -32,7 +32,7 @@ export const APP_VERSION = 'technical-items-v1';
 // ── Enums (mirror items_*_check CHECK constraints in migration 153) ───────────
 // 'ingredient' (ING) behaves like a raw material in production/BOMs but is
 // classified + accounted separately from 'rm'. See migration 247.
-export const ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct'] as const;
+export const ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct', 'packaging'] as const;
 export const ITEM_STATUSES = ['draft', 'active', 'deprecated', 'blocked'] as const;
 export const WEIGHT_MODES = ['fixed', 'catch'] as const;
 export const SHELF_LIFE_MODES = ['use_by', 'best_before'] as const;

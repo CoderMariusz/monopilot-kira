@@ -100,7 +100,9 @@ describe('ItemDetailTabs (TEC-012)', () => {
     expect(list).toHaveAttribute('data-slot', 'tabs-list');
     const tabs = within(list).getAllByRole('tab');
     expect(tabs).toHaveLength(ITEM_DETAIL_TAB_SLUGS.length);
-    expect(tabs).toHaveLength(8);
+    // 9 tabs: overview / BOM / allergens / nutrition / cost / routing /
+    // supplier specs / lab results / D365 (nutrition added by the TAXONOMY lane).
+    expect(tabs).toHaveLength(9);
     tabs.forEach((tab) => expect(tab).toHaveAttribute('data-slot', 'tabs-trigger'));
   });
 

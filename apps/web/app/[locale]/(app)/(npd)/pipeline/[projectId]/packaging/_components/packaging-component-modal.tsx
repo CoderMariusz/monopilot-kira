@@ -17,6 +17,7 @@ import Input from '@monopilot/ui/Input';
 import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
 
+import { ItemPicker, type ItemSearchFn } from '../../../../_components/item-picker';
 import type { PackagingLabels, MutationOutcome, UpsertCall } from './packaging-screen';
 import type {
   PackagingComponentRow,
@@ -32,6 +33,10 @@ type FormState = {
   costPerUnit: string;
   status: PackagingStatus;
   tier: PackagingTier;
+  /** Optional FK to a `packaging` item in the catalog (item picker). */
+  itemId: string | null;
+  /** Catalog code of the linked item (display-only). */
+  itemCode: string | null;
 };
 
 function rowToForm(row: PackagingComponentRow | null, defaultTier: PackagingTier): FormState {
@@ -43,6 +48,13 @@ function rowToForm(row: PackagingComponentRow | null, defaultTier: PackagingTier
     costPerUnit: row?.costPerUnit ?? '',
     status: row?.status ?? 'draft',
     tier: row?.tier ?? defaultTier,
+    // The list row does not carry item_id; the link is (re)established via the
+    // picker on each open. Editing without re-picking leaves the link untouched
+    // on the server only if itemId is undefined — here we send null explicitly,
+    // so an edit clears a stale link unless re-picked. (Acceptable: packaging
+    // links are advisory and re-pickable.)
+    itemId: null,
+    itemCode: null,
   };
 }
 
@@ -55,6 +67,7 @@ export function PackagingComponentModal({
   labels,
   onUpsert,
   onMutated,
+  searchItemsAction,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -65,6 +78,8 @@ export function PackagingComponentModal({
   onUpsert: (call: UpsertCall) => Promise<MutationOutcome>;
   /** Called after a successful add/edit so the parent can refresh the RSC loader. */
   onMutated?: () => void;
+  /** Optional org-scoped item search seam; when present, the catalog picker renders. */
+  searchItemsAction?: ItemSearchFn;
 }) {
   const [form, setForm] = React.useState<FormState>(() => rowToForm(editing, defaultTier));
   const [saving, setSaving] = React.useState(false);
@@ -80,6 +95,30 @@ export function PackagingComponentModal({
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  // Picking a catalog packaging item pre-fills name / material / cost (each still
+  // overridable) and records the FK so the saved component links to the item master.
+  function onPickItem(item: {
+    id: string;
+    itemCode: string;
+    name: string;
+    itemType: string;
+    costPerKgEur: string | null;
+  }) {
+    setForm((prev) => ({
+      ...prev,
+      itemId: item.id,
+      itemCode: item.itemCode,
+      componentName: item.name || prev.componentName,
+      material: prev.material || item.itemCode,
+      costPerUnit: item.costPerKgEur ?? prev.costPerUnit,
+    }));
+    setError(null);
+  }
+
+  function clearPickedItem() {
+    setForm((prev) => ({ ...prev, itemId: null, itemCode: null }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -108,6 +147,7 @@ export function PackagingComponentModal({
         spec: form.spec.trim() || null,
         costPerUnit: cost || null,
         status: form.status,
+        itemId: form.itemId,
       });
       if (result.ok) {
         onOpenChange(false);
@@ -138,6 +178,40 @@ export function PackagingComponentModal({
       <form onSubmit={handleSubmit} data-testid="packaging-component-form">
         <Modal.Body>
           <div className="grid gap-3">
+            {searchItemsAction ? (
+              <div className="flex items-center gap-2" data-testid="packaging-item-picker-row">
+                <ItemPicker
+                  labels={{
+                    trigger: labels.pickerTrigger,
+                    searchLabel: labels.pickerSearchLabel,
+                    searchPlaceholder: labels.pickerSearchPlaceholder,
+                    loading: labels.pickerLoading,
+                    empty: labels.pickerEmpty,
+                    cancel: labels.pickerCancel,
+                    error: labels.pickerError,
+                  }}
+                  searchItemsAction={searchItemsAction}
+                  itemTypes={['packaging']}
+                  onSelect={onPickItem}
+                  triggerClassName="btn-ghost btn-sm"
+                />
+                {form.itemCode ? (
+                  <span className="flex items-center gap-2 text-xs" data-testid="packaging-linked-item">
+                    <span className="badge badge-amber">
+                      {labels.pickedHint.replace('{code}', form.itemCode)}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs underline"
+                      onClick={clearPickedItem}
+                      data-testid="packaging-clear-item"
+                    >
+                      {labels.pickerClear}
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <label>
               <span>{labels.fieldComponent}</span>
               <Input

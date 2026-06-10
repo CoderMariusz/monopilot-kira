@@ -23,7 +23,7 @@ const FRAGMENT = join(
 // migration 161 item_allergen_profiles_source_check
 const SOURCE_DOMAIN = ['brief_declared', 'supplier_spec', 'lab_result', 'cascaded', 'manual_override'];
 // ChainNode['level'] in load-cascade.ts
-const LEVEL_DOMAIN = ['RM', 'Intermediate', 'Process', 'FG'];
+const LEVEL_DOMAIN = ['RM', 'Intermediate', 'Packaging', 'Process', 'FG'];
 
 describe('cascade dynamic i18n keys are fully enumerated in the lane fragment', () => {
   const fragment = JSON.parse(readFileSync(FRAGMENT, 'utf8')) as Record<string, string>;

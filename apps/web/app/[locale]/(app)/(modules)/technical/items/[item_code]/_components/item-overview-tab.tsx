@@ -57,6 +57,7 @@ const TYPE_LABEL: Record<ItemDetail['itemType'], string> = {
   fg: 'Finished good',
   co_product: 'Co-product',
   byproduct: 'By-product',
+  packaging: 'Packaging',
 };
 
 const STATUS_LABEL: Record<ItemDetail['status'], string> = {

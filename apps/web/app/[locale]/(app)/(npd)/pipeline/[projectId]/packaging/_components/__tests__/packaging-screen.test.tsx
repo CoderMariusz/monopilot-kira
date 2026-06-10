@@ -97,6 +97,15 @@ const LABELS: PackagingLabels = {
   emptyBody: 'Add a primary or secondary packaging component to get started.',
   error: 'Unable to load packaging data.',
   forbidden: 'You do not have permission to view packaging data.',
+  pickerTrigger: '+ Pick from catalog',
+  pickerSearchLabel: 'Search packaging items',
+  pickerSearchPlaceholder: 'Search by code or name…',
+  pickerLoading: 'Searching…',
+  pickerEmpty: 'No matching packaging items',
+  pickerCancel: 'Cancel',
+  pickerError: 'Item search failed',
+  pickedHint: 'Linked to {code}',
+  pickerClear: 'Clear link',
 };
 
 const PRIMARY: PackagingComponentRow[] = [
@@ -335,6 +344,8 @@ describe('PackagingScreen — add via modal calls the Server Action', () => {
       spec: null,
       costPerUnit: '0.18',
       status: 'draft',
+      // The optional catalog link defaults to null when no item is picked.
+      itemId: null,
     });
     // After a successful upsert the RSC loader is re-run.
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
