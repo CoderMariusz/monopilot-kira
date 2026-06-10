@@ -3845,7 +3845,7 @@
       "submitting": "Submitting…",
       "submittedForTrial": "Submitted for trial",
       "submitError": "Could not submit for trial. Try again.",
-      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorTotalPct": "Сума інгредієнтів має відповідати вазі паковання перед відправленням на випробування.",
       "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
       "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
       "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
@@ -3879,7 +3879,8 @@
       "lockErrorForbidden": "У вас немає дозволу блокувати цю рецептуру.",
       "lockErrorLocked": "Цю версію вже заблоковано.",
       "lockErrorNotSubmitted": "Заблокувати можна лише чернетку або пробну версію.",
-      "lockErrorNotFound": "Цю версію не знайдено."
+      "lockErrorNotFound": "Цю версію не знайдено.",
+      "batchSizeHint": "Розмір партії = вага паковання; інгредієнти мають у сумі дорівнювати їй."
     },
     "costPanel": {
       "title": "Вартість і маржа",
@@ -4603,7 +4604,9 @@
       "errInvalidInput": "Деякі значення недійсні. Перевірте значення та спробуйте ще раз.",
       "errForbidden": "У вас немає дозволу редагувати цей бриф.",
       "errNotFound": "Цей проєкт не знайдено.",
-      "errPersistence": "Не вдалося зберегти бриф. Спробуйте ще раз."
+      "errPersistence": "Не вдалося зберегти бриф. Спробуйте ще раз.",
+      "saveChanges": "Зберегти зміни",
+      "saved": "Збережено"
     },
     "sensory": {
       "title": "Сенсорна панель",
@@ -4930,7 +4933,8 @@
       "errorGeneric": "Не вдалося створити проєкт. Спробуйте ще раз.",
       "errorForbidden": "У вас немає дозволу створювати проєкти.",
       "fieldPackWeight": "Pack weight (g)",
-      "fieldPackWeightPlaceholder": "e.g. 200"
+      "fieldPackWeightPlaceholder": "e.g. 200",
+      "startUnavailableHint": "Поки недоступно"
     },
     "faBomTab": {
       "title": "BOM (обчислений вигляд)",

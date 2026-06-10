@@ -3845,7 +3845,7 @@
       "submitting": "Submitting…",
       "submittedForTrial": "Submitted for trial",
       "submitError": "Could not submit for trial. Try again.",
-      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorTotalPct": "Totalul ingredientelor trebuie să corespundă greutății ambalajului înainte de trimiterea la probe.",
       "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
       "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
       "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
@@ -3879,7 +3879,8 @@
       "lockErrorForbidden": "Nu ai permisiunea de a bloca această rețetă.",
       "lockErrorLocked": "Această versiune este deja blocată.",
       "lockErrorNotSubmitted": "Doar o versiune ciornă sau de probă poate fi blocată.",
-      "lockErrorNotFound": "Această versiune nu a putut fi găsită."
+      "lockErrorNotFound": "Această versiune nu a putut fi găsită.",
+      "batchSizeHint": "Mărimea lotului = greutatea ambalajului; ingredientele trebuie să totalizeze această valoare."
     },
     "costPanel": {
       "title": "Cost și marjă",
@@ -4603,7 +4604,9 @@
       "errInvalidInput": "Unele câmpuri sunt invalide. Verifică valorile şi încearcă din nou.",
       "errForbidden": "Nu ai permisiunea de a edita acest brief.",
       "errNotFound": "Acest proiect nu a fost găsit.",
-      "errPersistence": "Brief-ul nu a putut fi salvat. Încearcă din nou."
+      "errPersistence": "Brief-ul nu a putut fi salvat. Încearcă din nou.",
+      "saveChanges": "Salvează modificările",
+      "saved": "Salvat"
     },
     "sensory": {
       "title": "Panel senzorial",
@@ -4930,7 +4933,8 @@
       "errorGeneric": "Nu s-a putut crea proiectul. Încearcă din nou.",
       "errorForbidden": "Nu ai permisiunea de a crea proiecte.",
       "fieldPackWeight": "Pack weight (g)",
-      "fieldPackWeightPlaceholder": "e.g. 200"
+      "fieldPackWeightPlaceholder": "e.g. 200",
+      "startUnavailableHint": "Indisponibil încă"
     },
     "faBomTab": {
       "title": "BOM (vizualizare calculată)",

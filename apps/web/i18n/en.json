@@ -1907,7 +1907,7 @@
       "submitting": "Submitting…",
       "submittedForTrial": "Submitted for trial",
       "submitError": "Could not submit for trial. Try again.",
-      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorTotalPct": "Ingredient total must match the pack weight before submitting for trial.",
       "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
       "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
       "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
@@ -1941,7 +1941,8 @@
       "lockErrorForbidden": "You do not have permission to lock this recipe.",
       "lockErrorLocked": "This version is already locked.",
       "lockErrorNotSubmitted": "Only a draft or trial version can be locked.",
-      "lockErrorNotFound": "This version could not be found."
+      "lockErrorNotFound": "This version could not be found.",
+      "batchSizeHint": "Batch size = pack weight; ingredients must total this."
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -2708,7 +2709,9 @@
       "errInvalidInput": "Some fields are invalid. Check the values and try again.",
       "errForbidden": "You do not have permission to edit this brief.",
       "errNotFound": "This project could not be found.",
-      "errPersistence": "Could not save the brief. Please try again."
+      "errPersistence": "Could not save the brief. Please try again.",
+      "saveChanges": "Save changes",
+      "saved": "Saved"
     },
     "sensory": {
       "title": "Sensory panel",
@@ -3035,7 +3038,8 @@
       "errorGeneric": "Could not create the project. Try again.",
       "errorForbidden": "You do not have permission to create projects.",
       "fieldPackWeight": "Pack weight (g)",
-      "fieldPackWeightPlaceholder": "e.g. 200"
+      "fieldPackWeightPlaceholder": "e.g. 200",
+      "startUnavailableHint": "Not available yet"
     },
     "faBomTab": {
       "title": "BOM (computed view)",

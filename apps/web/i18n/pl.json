@@ -3845,7 +3845,7 @@
       "submitting": "Submitting…",
       "submittedForTrial": "Submitted for trial",
       "submitError": "Could not submit for trial. Try again.",
-      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorTotalPct": "Suma składników musi odpowiadać wadze opakowania przed wysłaniem do prób.",
       "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
       "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
       "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
@@ -3879,7 +3879,8 @@
       "lockErrorForbidden": "Nie masz uprawnień do zablokowania tej receptury.",
       "lockErrorLocked": "Ta wersja jest już zablokowana.",
       "lockErrorNotSubmitted": "Zablokować można tylko wersję roboczą lub próbną.",
-      "lockErrorNotFound": "Nie znaleziono tej wersji."
+      "lockErrorNotFound": "Nie znaleziono tej wersji.",
+      "batchSizeHint": "Wielkość partii = masa opakowania; składniki muszą się do niej sumować."
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -4603,7 +4604,9 @@
       "errInvalidInput": "Niektóre pola są nieprawidłowe. Sprawdź wartości i spróbuj ponownie.",
       "errForbidden": "Nie masz uprawnień do edycji tego briefu.",
       "errNotFound": "Nie znaleziono tego projektu.",
-      "errPersistence": "Nie udało się zapisać briefu. Spróbuj ponownie."
+      "errPersistence": "Nie udało się zapisać briefu. Spróbuj ponownie.",
+      "saveChanges": "Zapisz zmiany",
+      "saved": "Zapisano"
     },
     "sensory": {
       "title": "Panel sensoryczny",
@@ -4930,7 +4933,8 @@
       "errorGeneric": "Nie udało się utworzyć projektu. Spróbuj ponownie.",
       "errorForbidden": "Nie masz uprawnień do tworzenia projektów.",
       "fieldPackWeight": "Pack weight (g)",
-      "fieldPackWeightPlaceholder": "e.g. 200"
+      "fieldPackWeightPlaceholder": "e.g. 200",
+      "startUnavailableHint": "Jeszcze niedostępne"
     },
     "faBomTab": {
       "title": "BOM (widok obliczony)",
