@@ -35,6 +35,8 @@ export type WoRowView = {
   allergenGate: boolean;
   /** Deep-link to the Planning release queue for not-yet-startable (planned) WOs. */
   planningHref: string | null;
+  /** Deep-link to the WO Execution detail (`/production/wos/<id>`). */
+  detailHref?: string;
 };
 
 const STATUS_VARIANT: Record<WoExecStatus, BadgeVariant> = {
@@ -106,18 +108,37 @@ export function WoListTable({ rows, labels }: { rows: WoRowView[]; labels: WoLis
             {rows.map((row) => (
               <TableRow key={row.id} data-testid={`production-wo-row-${row.id}`}>
                 <TableCell className="font-mono text-sm font-semibold text-slate-900">
-                  <span className="inline-flex items-center gap-2">
-                    {row.woNumber}
-                    {row.allergenGate ? (
-                      <Badge
-                        variant="warning"
-                        data-testid={`production-wo-allergen-${row.id}`}
-                        className="text-[10px]"
-                      >
-                        {labels.allergenBadge}
-                      </Badge>
-                    ) : null}
-                  </span>
+                  {row.detailHref ? (
+                    <Link
+                      href={row.detailHref}
+                      data-testid={`production-wo-detail-link-${row.id}`}
+                      className="inline-flex items-center gap-2 hover:underline"
+                    >
+                      {row.woNumber}
+                      {row.allergenGate ? (
+                        <Badge
+                          variant="warning"
+                          data-testid={`production-wo-allergen-${row.id}`}
+                          className="text-[10px]"
+                        >
+                          {labels.allergenBadge}
+                        </Badge>
+                      ) : null}
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      {row.woNumber}
+                      {row.allergenGate ? (
+                        <Badge
+                          variant="warning"
+                          data-testid={`production-wo-allergen-${row.id}`}
+                          className="text-[10px]"
+                        >
+                          {labels.allergenBadge}
+                        </Badge>
+                      ) : null}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="font-mono text-xs text-slate-500">{row.lineLabel}</TableCell>
                 <TableCell>

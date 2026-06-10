@@ -173,6 +173,7 @@ async function DashboardContent() {
     progressPct: r.progressPct,
     allergenGate: r.allergenGate,
     planningHref: PLANNING_RELEASE_HREF,
+    detailHref: `/production/wos/${r.id}`,
   }));
 
   return (
