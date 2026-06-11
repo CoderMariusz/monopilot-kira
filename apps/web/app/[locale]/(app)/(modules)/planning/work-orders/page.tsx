@@ -30,13 +30,34 @@ import { createWorkOrder } from './_actions/createWorkOrder';
 import { releaseWorkOrder } from './_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from './_actions/wo-form-data';
 import { WoListView, type WoListLabels } from './_components/wo-list-view';
+import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string }>;
 };
+
+/**
+ * Archive-tab labels staged in _meta/i18n-staging/archive-tabs.json (en/pl real)
+ * until the merge lane lands. Prefer the live bundle (t.has) then staging.
+ */
+function archiveLabel(
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  locale: string,
+  key: 'list.tabs.archive' | 'list.archivedHint' | 'list.backToActive',
+): string {
+  if (t.has(key)) return t(key);
+  const path = key.split('.');
+  const staging = archiveTabsStaging as unknown as Record<string, { Planning?: { workOrders?: unknown } }>;
+  const pick = (loc: 'en' | 'pl') => {
+    let node: unknown = staging[loc]?.Planning?.workOrders;
+    for (const p of path) node = (node as Record<string, unknown> | undefined)?.[p];
+    return typeof node === 'string' ? node : undefined;
+  };
+  return (locale === 'pl' ? pick('pl') : undefined) ?? pick('en') ?? key;
+}
 
 function ListSkeleton() {
   return (
@@ -48,7 +69,7 @@ function ListSkeleton() {
   );
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoListLabels {
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): WoListLabels {
   // P0-UOM — staged keys (_meta/i18n-staging/wo-uom.json) read defensively with
   // `t.has` so a not-yet-merged bundle never throws at runtime; fall back to the
   // real en values inline until the bundle-merge lane lands.
@@ -90,6 +111,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoListLabe
     release: t('list.release'),
     releasing: t('list.releasing'),
     confirmRelease: t('list.confirmRelease'),
+    tabArchive: archiveLabel(t, locale, 'list.tabs.archive'),
+    archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
+    backToActive: archiveLabel(t, locale, 'list.backToActive'),
     empty: {
       title: t('list.empty.title'),
       body: t('list.empty.body'),
@@ -167,9 +191,20 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoListLabe
   };
 }
 
-async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpenCreate: boolean }) {
+async function ListContent({
+  locale,
+  autoOpenCreate,
+  archived,
+}: {
+  locale: string;
+  autoOpenCreate: boolean;
+  archived: boolean;
+}) {
   const t = await getTranslations('Planning.workOrders');
-  const [listResult, resources] = await Promise.all([listPlanningWorkOrders({ limit: 200 }), listProductionResources()]);
+  const [listResult, resources] = await Promise.all([
+    listPlanningWorkOrders({ limit: 200, archived }),
+    listProductionResources(),
+  ]);
 
   if (!listResult.ok) {
     return (
@@ -184,8 +219,10 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
       locale={locale}
       workOrders={listResult.workOrders}
       resources={resources}
+      archived={archived}
+      archivedCount={listResult.archivedCount}
       autoOpenCreate={autoOpenCreate}
-      labels={buildLabels(t)}
+      labels={buildLabels(t, locale)}
       searchFgProductsAction={searchFgProducts}
       createWorkOrderAction={createWorkOrder}
       releaseWorkOrderAction={releaseWorkOrder}
@@ -197,6 +234,7 @@ export default async function WorkOrdersListPage({ params, searchParams }: PageP
   const { locale } = await params;
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
+  const archived = sp.archived === '1';
   const t = await getTranslations('Planning.workOrders');
 
   return (
@@ -211,7 +249,7 @@ export default async function WorkOrdersListPage({ params, searchParams }: PageP
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.workOrders') }]}
       />
       <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} />
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} />
       </Suspense>
     </main>
   );

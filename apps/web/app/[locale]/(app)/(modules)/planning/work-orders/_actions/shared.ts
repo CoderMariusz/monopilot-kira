@@ -134,7 +134,11 @@ export type WOStatusHistory = {
 };
 
 export type ListPlanningWorkOrdersResult =
-  | { ok: true; workOrders: Array<WOSummary & { latestExecution?: WOExecutionState; primarySchedule?: ScheduleOutput }> }
+  | {
+      ok: true;
+      workOrders: Array<WOSummary & { latestExecution?: WOExecutionState; primarySchedule?: ScheduleOutput }>;
+      archivedCount: number;
+    }
   | { ok: false; error: PlanningWorkOrderError };
 
 export type GetPlanningWorkOrderResult =
@@ -208,6 +212,10 @@ export async function hasPermission(ctx: OrgActionContext, permission: string): 
     [ctx.userId, ctx.orgId, permission],
   );
   return rows.length > 0;
+}
+
+export function isPgError(err: unknown): err is { code: string } {
+  return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
 }
 
 export function mapWoHeader(row: WorkOrderRow): WOHeader {

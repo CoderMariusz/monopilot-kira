@@ -30,12 +30,35 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import { listPurchaseOrders, createPurchaseOrder } from './_actions/actions';
 import { listPoSuppliers, listPurchaseOrderLineCounts, searchPoItems } from './_actions/po-form-data';
 import { PoListView, type PoListLabels } from './_components/po-list-view';
+import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Archive-tab + auto-number labels are staged in _meta/i18n-staging/archive-tabs.json
+ * (en/pl real, two-locale rule) until the parent merge lane folds them into the live
+ * i18n bundles. Resolved defensively: prefer the live bundle (t.has) then the staging
+ * value, then the EN staging value — so an un-merged bundle never throws.
+ */
+function archiveLabel(
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  locale: string,
+  key: 'list.tabs.archive' | 'list.archivedHint' | 'list.backToActive' | 'create.poNumberPlaceholder' | 'create.poNumberHelp',
+): string {
+  if (t.has(key)) return t(key);
+  const path = key.split('.');
+  const staging = archiveTabsStaging as unknown as Record<string, { Planning?: { purchaseOrders?: unknown } }>;
+  const pick = (loc: 'en' | 'pl') => {
+    let node: unknown = staging[loc]?.Planning?.purchaseOrders;
+    for (const p of path) node = (node as Record<string, unknown> | undefined)?.[p];
+    return typeof node === 'string' ? node : undefined;
+  };
+  return (locale === 'pl' ? pick('pl') : undefined) ?? pick('en') ?? key;
+}
+
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string }>;
 };
 
 function ListSkeleton() {
@@ -78,6 +101,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     allSuppliers: t('list.allSuppliers'),
     clearFilters: t('list.clearFilters'),
     tabsAll: t('list.tabs.all'),
+    tabArchive: archiveLabel(t, locale, 'list.tabs.archive'),
+    archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
+    backToActive: archiveLabel(t, locale, 'list.backToActive'),
     status: {
       draft: t('poStatus.draft'),
       sent: t('poStatus.sent'),
@@ -104,7 +130,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     create: {
       title: t('create.title'),
       poNumberLabel: t('create.poNumberLabel'),
-      poNumberPlaceholder: t('create.poNumberPlaceholder'),
+      // Number is now OPTIONAL (createPurchaseOrder auto-generates per-org). Updated
+      // placeholder + helper come from the staging bundle until the merge lane lands.
+      poNumberPlaceholder: archiveLabel(t, locale, 'create.poNumberPlaceholder'),
+      poNumberHelp: archiveLabel(t, locale, 'create.poNumberHelp'),
       supplierLabel: t('create.supplierLabel'),
       supplierPlaceholder: t('create.supplierPlaceholder'),
       expectedLabel: t('create.expectedLabel'),
@@ -153,10 +182,18 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
   };
 }
 
-async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpenCreate: boolean }) {
+async function ListContent({
+  locale,
+  autoOpenCreate,
+  archived,
+}: {
+  locale: string;
+  autoOpenCreate: boolean;
+  archived: boolean;
+}) {
   const t = await getTranslations('Planning.purchaseOrders');
   const [listResult, suppliers, lineCounts] = await Promise.all([
-    listPurchaseOrders({ limit: 200 }),
+    listPurchaseOrders({ limit: 200, archived }),
     listPoSuppliers(),
     listPurchaseOrderLineCounts(),
   ]);
@@ -185,6 +222,8 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
         lineCount: lineCounts[po.id] ?? 0,
       }))}
       suppliers={suppliers}
+      archived={archived}
+      archivedCount={listResult.archivedCount}
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale)}
       searchPoItemsAction={searchPoItems}
@@ -197,6 +236,7 @@ export default async function PurchaseOrdersListPage({ params, searchParams }: P
   const { locale } = await params;
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
+  const archived = sp.archived === '1';
   const t = await getTranslations('Planning.purchaseOrders');
 
   return (
@@ -211,7 +251,7 @@ export default async function PurchaseOrdersListPage({ params, searchParams }: P
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.purchaseOrders') }]}
       />
       <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} />
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} />
       </Suspense>
     </main>
   );

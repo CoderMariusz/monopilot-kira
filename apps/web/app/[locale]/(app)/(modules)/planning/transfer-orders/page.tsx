@@ -32,13 +32,34 @@ import {
   searchTransferItems,
 } from './_actions/to-form-data';
 import { ToListView, type ToListLabels } from './_components/to-list-view';
+import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string }>;
 };
+
+/**
+ * Archive-tab + auto-number labels staged in _meta/i18n-staging/archive-tabs.json
+ * (en/pl real) until the merge lane lands. Prefer the live bundle (t.has) then staging.
+ */
+function archiveLabel(
+  t: Awaited<ReturnType<typeof getTranslations>>,
+  locale: string,
+  key: 'list.tabs.archive' | 'list.archivedHint' | 'list.backToActive' | 'create.toNumberPlaceholder' | 'create.toNumberHelp',
+): string {
+  if (t.has(key)) return t(key);
+  const path = key.split('.');
+  const staging = archiveTabsStaging as unknown as Record<string, { Planning?: { transferOrders?: unknown } }>;
+  const pick = (loc: 'en' | 'pl') => {
+    let node: unknown = staging[loc]?.Planning?.transferOrders;
+    for (const p of path) node = (node as Record<string, unknown> | undefined)?.[p];
+    return typeof node === 'string' ? node : undefined;
+  };
+  return (locale === 'pl' ? pick('pl') : undefined) ?? pick('en') ?? key;
+}
 
 function ListSkeleton() {
   return (
@@ -99,6 +120,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       actions: t('list.columns.actions'),
     },
     linesCount: t('list.linesCount'),
+    tabArchive: archiveLabel(t, locale, 'list.tabs.archive'),
+    archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
+    backToActive: archiveLabel(t, locale, 'list.backToActive'),
     empty: {
       title: t('list.empty.title'),
       body: t('list.empty.body'),
@@ -107,7 +131,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     create: {
       title: t('create.title'),
       toNumberLabel: t('create.toNumberLabel'),
-      toNumberPlaceholder: t('create.toNumberPlaceholder'),
+      // Number is now OPTIONAL (createTransferOrder auto-generates per-org).
+      toNumberPlaceholder: archiveLabel(t, locale, 'create.toNumberPlaceholder'),
+      toNumberHelp: archiveLabel(t, locale, 'create.toNumberHelp'),
       fromWarehouseLabel: t('create.fromWarehouseLabel'),
       toWarehouseLabel: t('create.toWarehouseLabel'),
       warehousePlaceholder: t('create.warehousePlaceholder'),
@@ -157,10 +183,18 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
   };
 }
 
-async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpenCreate: boolean }) {
+async function ListContent({
+  locale,
+  autoOpenCreate,
+  archived,
+}: {
+  locale: string;
+  autoOpenCreate: boolean;
+  archived: boolean;
+}) {
   const t = await getTranslations('Planning.transferOrders');
   const [listResult, warehouses, lineCounts] = await Promise.all([
-    listTransferOrders({ limit: 200 }),
+    listTransferOrders({ limit: 200, archived }),
     listTransferWarehouses(),
     listTransferOrderLineCounts(),
   ]);
@@ -179,6 +213,8 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
       transferOrders={listResult.data}
       lineCounts={lineCounts}
       warehouses={warehouses}
+      archived={archived}
+      archivedCount={listResult.archivedCount}
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale)}
       searchTransferItemsAction={searchTransferItems}
@@ -191,6 +227,7 @@ export default async function TransferOrdersListPage({ params, searchParams }: P
   const { locale } = await params;
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
+  const archived = sp.archived === '1';
   const t = await getTranslations('Planning.transferOrders');
 
   return (
@@ -205,7 +242,7 @@ export default async function TransferOrdersListPage({ params, searchParams }: P
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.transferOrders') }]}
       />
       <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} />
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} />
       </Suspense>
     </main>
   );

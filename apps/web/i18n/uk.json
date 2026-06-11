@@ -5250,7 +5250,8 @@
         "searchPlaceholder": "Search WO number or item code…",
         "rowsCount": "{n} rows",
         "tabs": {
-          "all": "All"
+          "all": "All",
+          "archive": "Archive"
         },
         "columns": {
           "wo": "WO",
@@ -5272,7 +5273,9 @@
           "title": "No work orders match your filters",
           "body": "Try clearing filters or switching to a different tab.",
           "clear": "Clear all filters"
-        }
+        },
+        "archivedHint": "Showing archived work orders.",
+        "backToActive": "Back to active"
       },
       "create": {
         "title": "Create work order",
@@ -5556,7 +5559,8 @@
         "allSuppliers": "All suppliers",
         "clearFilters": "Clear all filters",
         "tabs": {
-          "all": "All"
+          "all": "All",
+          "archive": "Archive"
         },
         "columns": {
           "po": "PO number",
@@ -5572,7 +5576,9 @@
           "title": "No purchase orders yet",
           "body": "Create your first purchase order to start ordering from suppliers.",
           "clear": "Clear filters"
-        }
+        },
+        "archivedHint": "Showing archived purchase orders (received / cancelled past the org's archive window).",
+        "backToActive": "Back to active"
       },
       "errors": {
         "invalid_input": "That input isn't valid. Please review and try again.",
@@ -5585,7 +5591,7 @@
       "create": {
         "title": "Create purchase order",
         "poNumberLabel": "PO number",
-        "poNumberPlaceholder": "e.g. PO-2026-0001",
+        "poNumberPlaceholder": "Auto (e.g. PO-202606-0007)",
         "supplierLabel": "Supplier",
         "supplierPlaceholder": "Select a supplier",
         "expectedLabel": "Expected delivery",
@@ -5624,7 +5630,8 @@
           "empty": "No matching items",
           "cancel": "Cancel",
           "error": "Item search failed"
-        }
+        },
+        "poNumberHelp": "Leave empty to auto-number (format in Settings → Documents)."
       },
       "detail": {
         "title": "Purchase order",
@@ -5686,7 +5693,8 @@
         "searchPlaceholder": "Search TO number…",
         "rowsCount": "{n} rows",
         "tabs": {
-          "all": "All"
+          "all": "All",
+          "archive": "Archive"
         },
         "columns": {
           "to": "TO number",
@@ -5702,7 +5710,9 @@
           "title": "No transfer orders yet",
           "body": "Create a transfer order to move stock between warehouses.",
           "clear": "Clear filters"
-        }
+        },
+        "archivedHint": "Showing archived transfer orders (received / cancelled past the org's archive window).",
+        "backToActive": "Back to active"
       },
       "errors": {
         "invalid_input": "Some fields are invalid. Please review and retry.",
@@ -5715,7 +5725,7 @@
       "create": {
         "title": "Create transfer order",
         "toNumberLabel": "TO number",
-        "toNumberPlaceholder": "e.g. TO-2026-0001",
+        "toNumberPlaceholder": "Auto (e.g. TO-202606-0007)",
         "fromWarehouseLabel": "From warehouse",
         "toWarehouseLabel": "To warehouse",
         "warehousePlaceholder": "Select warehouse",
@@ -5758,7 +5768,8 @@
           "already_exists": "A transfer order with that number already exists.",
           "invalid_state": "That action isn't allowed in the current status.",
           "persistence_failed": "Something went wrong saving your changes. Please retry."
-        }
+        },
+        "toNumberHelp": "Leave empty to auto-number (format in Settings → Documents)."
       },
       "detail": {
         "title": "Transfer order",

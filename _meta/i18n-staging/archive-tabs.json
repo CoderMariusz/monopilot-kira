@@ -1,0 +1,81 @@
+{
+  "_note": "Staged archive-tab + auto-number labels for the three planning list pages (PO / TO / WO) + the PO/TO create modals. en/pl carry real values per the two-locale rule; the parent merge lane folds these under Planning.{purchaseOrders,transferOrders,workOrders} in apps/web/i18n/{en,pl,ro,uk}.json (ro/uk mirror the en value). Threaded into the pages defensively via t.has so an un-merged bundle never throws.",
+  "en": {
+    "Planning": {
+      "purchaseOrders": {
+        "list": {
+          "tabs": {
+            "archive": "Archive"
+          },
+          "archivedHint": "Showing archived purchase orders (received / cancelled past the org's archive window).",
+          "backToActive": "Back to active"
+        },
+        "create": {
+          "poNumberPlaceholder": "Auto (e.g. PO-202606-0007)",
+          "poNumberHelp": "Leave empty to auto-number (format in Settings → Documents)."
+        }
+      },
+      "transferOrders": {
+        "list": {
+          "tabs": {
+            "archive": "Archive"
+          },
+          "archivedHint": "Showing archived transfer orders (received / cancelled past the org's archive window).",
+          "backToActive": "Back to active"
+        },
+        "create": {
+          "toNumberPlaceholder": "Auto (e.g. TO-202606-0007)",
+          "toNumberHelp": "Leave empty to auto-number (format in Settings → Documents)."
+        }
+      },
+      "workOrders": {
+        "list": {
+          "tabs": {
+            "archive": "Archive"
+          },
+          "archivedHint": "Showing archived work orders.",
+          "backToActive": "Back to active"
+        }
+      }
+    }
+  },
+  "pl": {
+    "Planning": {
+      "purchaseOrders": {
+        "list": {
+          "tabs": {
+            "archive": "Archiwum"
+          },
+          "archivedHint": "Pokazano zarchiwizowane zamówienia zakupu (przyjęte / anulowane po okresie archiwizacji organizacji).",
+          "backToActive": "Powrót do aktywnych"
+        },
+        "create": {
+          "poNumberPlaceholder": "Auto (np. PO-202606-0007)",
+          "poNumberHelp": "Pozostaw puste, aby ponumerować automatycznie (format w Ustawienia → Dokumenty)."
+        }
+      },
+      "transferOrders": {
+        "list": {
+          "tabs": {
+            "archive": "Archiwum"
+          },
+          "archivedHint": "Pokazano zarchiwizowane zlecenia przesunięcia (przyjęte / anulowane po okresie archiwizacji organizacji).",
+          "backToActive": "Powrót do aktywnych"
+        },
+        "create": {
+          "toNumberPlaceholder": "Auto (np. TO-202606-0007)",
+          "toNumberHelp": "Pozostaw puste, aby ponumerować automatycznie (format w Ustawienia → Dokumenty)."
+        }
+      },
+      "workOrders": {
+        "list": {
+          "tabs": {
+            "archive": "Archiwum"
+          },
+          "archivedHint": "Pokazano zarchiwizowane zlecenia produkcyjne.",
+          "backToActive": "Powrót do aktywnych"
+        }
+      }
+    }
+  }
+}

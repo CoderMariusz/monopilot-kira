@@ -53,6 +53,8 @@ export type CreateToLabels = {
   title: string;
   toNumberLabel: string;
   toNumberPlaceholder: string;
+  /** Helper under the (now optional) number field: "Leave empty to auto-number…". */
+  toNumberHelp: string;
   fromWarehouseLabel: string;
   toWarehouseLabel: string;
   warehousePlaceholder: string;
@@ -100,7 +102,8 @@ export type CreateToModalProps = {
   /** Server Action seams (passed from the RSC; never authored here). */
   searchTransferItemsAction: (input: SearchTransferItemsInput) => Promise<ItemPickerOption[]>;
   createTransferOrderAction: (input: {
-    toNumber: string;
+    /** Optional — createTransferOrder auto-generates a per-org number when omitted. */
+    toNumber?: string;
     fromWarehouseId?: string;
     toWarehouseId?: string;
     scheduledDate?: string;
@@ -190,10 +193,7 @@ export function CreateToModal({
     e.preventDefault();
     setFormError(null);
 
-    if (!toNumber.trim()) {
-      setFormError(labels.errors.toNumberRequired);
-      return;
-    }
+    // Number is OPTIONAL: blank → the action auto-numbers per-org. No required check.
     if (!fromWarehouseId || !toWarehouseId) {
       setFormError(labels.errors.warehousesRequired);
       return;
@@ -218,7 +218,7 @@ export function CreateToModal({
     setPending(true);
     try {
       const result = await createTransferOrderAction({
-        toNumber: toNumber.trim(),
+        toNumber: toNumber.trim() || undefined,
         fromWarehouseId,
         toWarehouseId,
         scheduledDate: scheduledDate || undefined,
@@ -259,6 +259,9 @@ export function CreateToModal({
               placeholder={labels.toNumberPlaceholder}
               onChange={(e) => setToNumber(e.target.value)}
             />
+            <span className="text-xs text-slate-500" data-testid="create-to-number-help">
+              {labels.toNumberHelp}
+            </span>
           </label>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

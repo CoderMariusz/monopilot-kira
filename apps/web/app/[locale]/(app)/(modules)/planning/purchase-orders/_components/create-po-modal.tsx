@@ -48,6 +48,8 @@ export type CreatePoLabels = {
   title: string;
   poNumberLabel: string;
   poNumberPlaceholder: string;
+  /** Helper under the (now optional) number field: "Leave empty to auto-number…". */
+  poNumberHelp: string;
   supplierLabel: string;
   supplierPlaceholder: string;
   expectedLabel: string;
@@ -111,7 +113,8 @@ export type CreatePoModalProps = {
   /** Server Action seams (passed from the RSC; never authored here). */
   searchPoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
   createPurchaseOrderAction: (input: {
-    poNumber: string;
+    /** Optional — createPurchaseOrder auto-generates a per-org number when omitted. */
+    poNumber?: string;
     supplierId: string;
     expectedDelivery?: string;
     currency: string;
@@ -177,10 +180,7 @@ export function CreatePoModal({
     e.preventDefault();
     setFormError(null);
 
-    if (!poNumber.trim()) {
-      setFormError(labels.errors.poNumberRequired);
-      return;
-    }
+    // Number is OPTIONAL: blank → the action auto-numbers per-org. No required check.
     if (!supplierId) {
       setFormError(labels.errors.supplierRequired);
       return;
@@ -196,7 +196,7 @@ export function CreatePoModal({
     setPending(true);
     try {
       const result = await createPurchaseOrderAction({
-        poNumber: poNumber.trim(),
+        poNumber: poNumber.trim() || undefined,
         supplierId,
         expectedDelivery: expected || undefined,
         currency,
@@ -246,6 +246,9 @@ export function CreatePoModal({
                 placeholder={labels.poNumberPlaceholder}
                 onChange={(e) => setPoNumber(e.target.value)}
               />
+              <span className="text-xs text-slate-500" data-testid="create-po-number-help">
+                {labels.poNumberHelp}
+              </span>
             </label>
 
             {/* Supplier — real suppliers master */}

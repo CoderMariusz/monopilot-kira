@@ -64,7 +64,10 @@ export const PurchaseOrderLineInput = z.object({
 });
 
 export const PurchaseOrderCreateInput = z.object({
-  poNumber: z.string().trim().min(1).max(80),
+  poNumber: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().min(1).max(80).optional(),
+  ),
   supplierId: uuidSchema,
   status: PurchaseOrderStatusSchema.default('draft'),
   expectedDelivery: dateSchema.optional(),
@@ -81,7 +84,10 @@ export const TransferOrderLineInput = z.object({
 });
 
 export const TransferOrderCreateInput = z.object({
-  toNumber: z.string().trim().min(1).max(80),
+  toNumber: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().min(1).max(80).optional(),
+  ),
   fromWarehouseId: uuidSchema.optional(),
   toWarehouseId: uuidSchema.optional(),
   status: TransferOrderStatusSchema.default('draft'),

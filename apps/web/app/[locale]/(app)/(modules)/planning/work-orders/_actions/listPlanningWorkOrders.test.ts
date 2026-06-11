@@ -21,7 +21,12 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 describe('listPlanningWorkOrders', () => {
   beforeEach(() => {
     client = {
-      query: vi.fn(async () => ({
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (normalized.startsWith('select count(*) as archived_count')) {
+          return { rows: [{ archived_count: 2 }], rowCount: 1 };
+        }
+        return {
         rows: [
           {
             id: WO_ID,
@@ -72,7 +77,8 @@ describe('listPlanningWorkOrders', () => {
           },
         ],
         rowCount: 1,
-      })),
+        };
+      }),
     };
   });
 
@@ -92,7 +98,14 @@ describe('listPlanningWorkOrders', () => {
         primarySchedule: expect.objectContaining({ id: SCHEDULE_ID, outputRole: 'primary' }),
       }),
     ]);
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('from public.work_orders wo'), ['RELEASED', 'FG', 10]);
+    expect(result.archivedCount).toBe(2);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('from public.work_orders wo'), ['RELEASED', 'FG', 10, false]);
+  });
+
+  it('passes archived=true to return only archived work orders', async () => {
+    await listPlanningWorkOrders({ archived: true });
+
+    expect(vi.mocked(client.query).mock.calls[0]?.[1]).toEqual([null, null, 50, true]);
   });
 
   it('returns persistence_failed when the query fails', async () => {

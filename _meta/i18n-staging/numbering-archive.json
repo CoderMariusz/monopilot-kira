@@ -1,0 +1,20 @@
+{
+  "en": {
+    "settings.documents.title": "Document numbering and archive",
+    "settings.documents.numberPrefix": "Number prefix",
+    "settings.documents.datePart": "Date part",
+    "settings.documents.sequencePadding": "Sequence padding",
+    "settings.documents.archiveAfterDays": "Archive after days",
+    "settings.documents.neverArchive": "Never auto-archive",
+    "planning.archive.tab": "Archive"
+  },
+  "pl": {
+    "settings.documents.title": "Numeracja dokumentow i archiwum",
+    "settings.documents.numberPrefix": "Prefiks numeru",
+    "settings.documents.datePart": "Czesc daty",
+    "settings.documents.sequencePadding": "Wypelnienie sekwencji",
+    "settings.documents.archiveAfterDays": "Archiwizuj po dniach",
+    "settings.documents.neverArchive": "Nigdy nie archiwizuj automatycznie",
+    "planning.archive.tab": "Archiwum"
+  }
+}

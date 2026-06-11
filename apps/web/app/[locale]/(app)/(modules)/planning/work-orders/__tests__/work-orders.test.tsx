@@ -67,6 +67,10 @@ const listLabels: WoListLabels = {
   release: enWo.list.release,
   releasing: enWo.list.releasing,
   confirmRelease: enWo.list.confirmRelease,
+  // Archive tab + archived-mode chrome — staged in _meta/i18n-staging/archive-tabs.json.
+  tabArchive: 'Archive',
+  archivedHint: 'Showing archived work orders.',
+  backToActive: 'Back to active',
   empty: enWo.list.empty,
   releaseError: enWo.errors,
   create: {
@@ -138,6 +142,7 @@ function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}
       workOrders={ROWS}
       resources={resources}
       labels={listLabels}
+      archivedCount={3}
       searchFgProductsAction={searchFgProductsAction}
       createWorkOrderAction={createWorkOrderAction}
       releaseWorkOrderAction={releaseWorkOrderAction}
@@ -173,6 +178,29 @@ describe('WoListView — structure + filtering (parity: wo-list.jsx:106-262)', (
     fireEvent.click(screen.getByTestId('wo-list-tab-RELEASED'));
     expect(screen.queryByTestId('wo-row-wo-1')).toBeNull();
     expect(screen.getByTestId('wo-row-wo-2')).toBeInTheDocument();
+  });
+
+  it('renders an Archive tab carrying the archivedCount chip and linking to ?archived=1', () => {
+    renderList({ archivedCount: 5 });
+    const archiveTab = screen.getByTestId('wo-list-tab-archive');
+    expect(archiveTab).toHaveTextContent('Archive');
+    expect(archiveTab).toHaveTextContent('5');
+    expect(archiveTab).toHaveAttribute('href', '/en/planning/work-orders?archived=1');
+    expect(archiveTab).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('renders the archived rows + archived-mode chrome when archived data is passed', () => {
+    const archivedRows = [
+      makeRow({ id: 'wo-arch-1', woNumber: 'WO-ARCH-1', status: 'COMPLETED' }),
+      makeRow({ id: 'wo-arch-2', woNumber: 'WO-ARCH-2', status: 'CLOSED' }),
+    ];
+    renderList({ workOrders: archivedRows, archived: true, archivedCount: 2 });
+    expect(screen.getByTestId('wo-row-wo-arch-1')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-row-wo-arch-2')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-list-tab-archive')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('wo-list-archived-hint')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-list-back-active')).toHaveAttribute('href', '/en/planning/work-orders');
+    expect(screen.getByTestId('wo-list-tab-all')).toHaveAttribute('href', '/en/planning/work-orders');
   });
 
   it('filters by search over WO number and item code', () => {

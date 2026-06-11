@@ -64,6 +64,9 @@ const listLabels: PoListLabels = {
   allSuppliers: 'All suppliers',
   clearFilters: 'Clear all filters',
   tabsAll: 'All',
+  tabArchive: 'Archive',
+  archivedHint: 'Showing archived purchase orders.',
+  backToActive: 'Back to active',
   status: statusLabels,
   columns: {
     po: 'PO number',
@@ -79,7 +82,8 @@ const listLabels: PoListLabels = {
   create: {
     title: 'Create purchase order',
     poNumberLabel: 'PO number',
-    poNumberPlaceholder: 'e.g. PO-2026-0001',
+    poNumberPlaceholder: 'Auto (e.g. PO-202606-0007)',
+    poNumberHelp: 'Leave empty to auto-number (format in Settings → Documents).',
     supplierLabel: 'Supplier',
     supplierPlaceholder: 'Select a supplier',
     expectedLabel: 'Expected delivery',
@@ -191,6 +195,7 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
       purchaseOrders={ROWS}
       suppliers={suppliers}
       labels={listLabels}
+      archivedCount={2}
       searchPoItemsAction={searchPoItemsAction}
       createPurchaseOrderAction={createPurchaseOrderAction}
       {...props}
@@ -245,6 +250,34 @@ describe('PoListView — structure + filtering (parity: po-screens.jsx:56-126)',
   });
 });
 
+describe('PoListView — archive tab (server re-fetch via ?archived=1)', () => {
+  it('renders an Archive tab carrying the archivedCount chip and linking to ?archived=1', () => {
+    renderList({ archivedCount: 7 });
+    const archiveTab = screen.getByTestId('po-list-tab-archive');
+    expect(archiveTab).toHaveTextContent('Archive');
+    expect(archiveTab).toHaveTextContent('7');
+    expect(archiveTab).toHaveAttribute('href', '/en/planning/purchase-orders?archived=1');
+    expect(archiveTab).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('renders the archived rows + archived-mode chrome when archived data is passed', () => {
+    const archivedRows: PoRow[] = [
+      makeRow({ id: 'po-arch-1', poNumber: 'PO-ARCH-1', status: 'received' }),
+      makeRow({ id: 'po-arch-2', poNumber: 'PO-ARCH-2', status: 'cancelled' }),
+    ];
+    renderList({ purchaseOrders: archivedRows, archived: true, archivedCount: 2 });
+    // archived rows render
+    expect(screen.getByTestId('po-row-po-arch-1')).toBeInTheDocument();
+    expect(screen.getByTestId('po-row-po-arch-2')).toBeInTheDocument();
+    // archive tab is the active one + hint + back-to-active affordance
+    expect(screen.getByTestId('po-list-tab-archive')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('po-list-archived-hint')).toBeInTheDocument();
+    expect(screen.getByTestId('po-list-back-active')).toHaveAttribute('href', '/en/planning/purchase-orders');
+    // status tabs become links back to the active list (not client-filter buttons)
+    expect(screen.getByTestId('po-list-tab-all')).toHaveAttribute('href', '/en/planning/purchase-orders');
+  });
+});
+
 describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create-PO)', () => {
   it('auto-opens the create modal on ?new=1 deep-link', () => {
     renderList({ autoOpenCreate: true });
@@ -295,6 +328,36 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
         }),
       ),
     );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('submits WITHOUT a PO number (auto-numbered) — poNumber omitted from the payload', async () => {
+    const { createPurchaseOrderAction } = renderList();
+    createPurchaseOrderAction.mockResolvedValue({ ok: true, data: {} });
+
+    fireEvent.click(screen.getByTestId('po-list-create'));
+    // The number field shows the auto-number placeholder + the helper copy.
+    expect(screen.getByTestId('create-po-number')).toHaveAttribute('placeholder', 'Auto (e.g. PO-202606-0007)');
+    expect(screen.getByTestId('create-po-number-help')).toHaveTextContent(
+      'Leave empty to auto-number (format in Settings → Documents).',
+    );
+
+    // Leave the number BLANK — only supplier + a line are filled.
+    const form = screen.getByTestId('create-po-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-po-line-item')).toHaveTextContent('RM-001'));
+    fireEvent.change(screen.getByTestId('create-po-line-qty'), { target: { value: '5' } });
+
+    fireEvent.click(screen.getByTestId('create-po-submit'));
+
+    await waitFor(() => expect(createPurchaseOrderAction).toHaveBeenCalledTimes(1));
+    const payload = createPurchaseOrderAction.mock.calls[0][0] as { poNumber?: string };
+    expect(payload.poNumber).toBeUndefined();
+    expect(screen.queryByTestId('create-po-error')).toBeNull();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 

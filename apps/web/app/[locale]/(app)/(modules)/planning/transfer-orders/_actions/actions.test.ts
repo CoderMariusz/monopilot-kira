@@ -18,6 +18,8 @@ const TO_WAREHOUSE_ID = '88888888-8888-4888-8888-888888888888';
 let client: QueryClient;
 let allowPermission = true;
 let orderExists = true;
+let generatedSeq = 7;
+let failNextAutoInsert = false;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -55,19 +57,34 @@ function line() {
 
 function makeClient(): QueryClient {
   return {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
+      if (normalized.startsWith('update public.org_document_settings')) {
+        return {
+          rows: [{ old_seq: generatedSeq++, number_prefix: 'TO', number_date_part: 'YYYYMM', number_seq_padding: 4 }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.startsWith('select count(*) as archived_count')) {
+        return { rows: [{ archived_count: 1 }], rowCount: 1 };
+      }
       if (normalized.includes('from public.transfer_order_lines')) {
         return { rows: [line()], rowCount: 1 };
       }
-      if (normalized.startsWith('select id, to_number')) {
+      if (normalized.startsWith('select id, to_number') || normalized.startsWith('select transfer_orders.id')) {
         return { rows: orderExists ? [header()] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.transfer_orders')) {
-        return { rows: [header()], rowCount: 1 };
+        if (failNextAutoInsert) {
+          failNextAutoInsert = false;
+          const error = new Error('duplicate') as Error & { code: string };
+          error.code = '23505';
+          throw error;
+        }
+        return { rows: [header({ to_number: String(params[0]) })], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.transfer_order_lines')) {
         return { rows: [], rowCount: 1 };
@@ -90,6 +107,8 @@ describe('planning transfer order actions', () => {
   beforeEach(() => {
     allowPermission = true;
     orderExists = true;
+    generatedSeq = 7;
+    failNextAutoInsert = false;
     client = makeClient();
   });
 
@@ -99,6 +118,16 @@ describe('planning transfer order actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data[0]).toEqual(expect.objectContaining({ toNumber: 'TO-TEST-001' }));
+    expect(result.archivedCount).toBe(1);
+  });
+
+  it('passes archived=false by default and archived=true for archive views', async () => {
+    await listTransferOrders({});
+    await listTransferOrders({ archived: true });
+
+    const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.transfer_orders transfer_orders'));
+    expect(listCalls[0]?.[1]).toEqual([null, null, 100, false]);
+    expect(listCalls[2]?.[1]).toEqual([null, null, 100, true]);
   });
 
   it('gets transfer order detail with lines', async () => {
@@ -118,9 +147,37 @@ describe('planning transfer order actions', () => {
     });
 
     expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.toNumber).toBe('TO-TEST-001');
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => sql);
     expect(calls.some((sql) => sql.includes('insert into public.transfer_order_lines'))).toBe(true);
     expect(calls.some((sql) => sql.includes('insert into public.audit_events'))).toBe(true);
+  });
+
+  it('auto-generates a transfer order number when absent', async () => {
+    const result = await createTransferOrder({
+      fromWarehouseId: FROM_WAREHOUSE_ID,
+      toWarehouseId: TO_WAREHOUSE_ID,
+      lines: [{ itemId: ITEM_ID, qty: '12.000', uom: 'kg', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.toNumber).toMatch(/^TO-\d{6}-0007$/);
+  });
+
+  it('retries once with a fresh generated number on unique violation', async () => {
+    failNextAutoInsert = true;
+
+    const result = await createTransferOrder({
+      fromWarehouseId: FROM_WAREHOUSE_ID,
+      toWarehouseId: TO_WAREHOUSE_ID,
+      lines: [{ itemId: ITEM_ID, qty: '12.000', uom: 'kg', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.toNumber).toMatch(/^TO-\d{6}-0008$/);
   });
 
   it('rejects create when caller lacks planning write permission', async () => {

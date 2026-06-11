@@ -79,6 +79,10 @@ export type ToListLabels = {
     actions: string;
   };
   linesCount: string;
+  /** Archive tab + archived-mode chrome (staged: _meta/i18n-staging/archive-tabs.json). */
+  tabArchive: string;
+  archivedHint: string;
+  backToActive: string;
   empty: { title: string; body: string; clear: string };
   create: CreateToLabels;
 };
@@ -90,11 +94,20 @@ export type ToListViewProps = {
   lineCounts: Record<string, number>;
   warehouses: WarehouseOption[];
   labels: ToListLabels;
+  /**
+   * Archived mode — when true the page fetched with archived:true (?archived=1) and
+   * `transferOrders` holds the archived rows. Status tabs are client filters over the
+   * active set, so archive is a server re-fetch (link), not a client filter.
+   */
+  archived?: boolean;
+  /** Count of archived TOs (from the active fetch's payload) for the chip. */
+  archivedCount: number;
   /** Open the create modal immediately on mount (?new=1 deep-link). */
   autoOpenCreate?: boolean;
   searchTransferItemsAction: (input: SearchTransferItemsInput) => Promise<ItemPickerOption[]>;
   createTransferOrderAction: (input: {
-    toNumber: string;
+    /** Optional — createTransferOrder auto-generates a per-org number when omitted. */
+    toNumber?: string;
     fromWarehouseId?: string;
     toWarehouseId?: string;
     scheduledDate?: string;
@@ -116,11 +129,14 @@ export function ToListView({
   lineCounts,
   warehouses,
   labels,
+  archived = false,
+  archivedCount,
   autoOpenCreate = false,
   searchTransferItemsAction,
   createTransferOrderAction,
 }: ToListViewProps) {
   const router = useRouter();
+  const basePath = `/${locale}/planning/transfer-orders`;
   const [tab, setTab] = React.useState<TabKey>('all');
   const [search, setSearch] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
@@ -173,31 +189,73 @@ export function ToListView({
         </Button>
       </div>
 
-      {/* Status tabs */}
+      {/* Status tabs + Archive tab.
+          Status tabs are client filters over the active (non-archived) dataset; the
+          Archive tab is a server re-fetch (link → ?archived=1) since archived rows are
+          excluded from the active fetch. */}
       <div role="tablist" aria-label={labels.tabs.all} data-testid="to-list-tabs" className="flex flex-wrap gap-2">
-        {TAB_ORDER.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            data-testid={`to-list-tab-${key}`}
-            onClick={() => setTab(key)}
-            className={[
-              'rounded-md px-3 py-1.5 text-sm font-medium',
-              tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
-            ].join(' ')}
-          >
-            {labels.tabs[key]}
-            <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
-              {counts[key]}
-            </span>
-          </button>
-        ))}
+        {TAB_ORDER.map((key) =>
+          archived ? (
+            <Link
+              key={key}
+              href={key === 'all' ? basePath : `${basePath}?status=${key}`}
+              prefetch={false}
+              role="tab"
+              aria-selected={false}
+              data-testid={`to-list-tab-${key}`}
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {labels.tabs[key]}
+            </Link>
+          ) : (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              data-testid={`to-list-tab-${key}`}
+              onClick={() => setTab(key)}
+              className={[
+                'rounded-md px-3 py-1.5 text-sm font-medium',
+                tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              {labels.tabs[key]}
+              <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
+                {counts[key]}
+              </span>
+            </button>
+          ),
+        )}
+        <Link
+          href={`${basePath}?archived=1`}
+          prefetch={false}
+          role="tab"
+          aria-selected={archived}
+          data-testid="to-list-tab-archive"
+          className={[
+            'rounded-md px-3 py-1.5 text-sm font-medium',
+            archived ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+          ].join(' ')}
+        >
+          {labels.tabArchive}
+          <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
+            {archivedCount}
+          </span>
+        </Link>
         <span className="ml-auto self-center text-xs text-slate-500" data-testid="to-list-rows-count">
           {labels.rowsCount.replace('{n}', String(visible.length))}
         </span>
       </div>
+
+      {archived ? (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" data-testid="to-list-archived-hint">
+          <span>{labels.archivedHint}</span>
+          <Link href={basePath} prefetch={false} data-testid="to-list-back-active" className="font-medium text-blue-700 hover:underline">
+            {labels.backToActive}
+          </Link>
+        </div>
+      ) : null}
 
       {visible.length === 0 ? (
         <EmptyState

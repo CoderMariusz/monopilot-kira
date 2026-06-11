@@ -3,6 +3,7 @@
 import { randomUUID } from 'crypto';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
 import {
   APP_VERSION,
@@ -12,6 +13,7 @@ import {
   mapMaterial,
   mapSchedule,
   mapWoHeader,
+  isPgError,
   type CreateWorkOrderResult,
   type ScheduleOutputRow,
   type UomConversionResult,
@@ -48,7 +50,8 @@ export async function createWorkOrder(params: {
 
       const input = parsed.data;
       const woId = randomUUID();
-      const woNumber = `WO-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${woId.slice(0, 8).toUpperCase()}`;
+      // Replaces the old WO-<timestamp>-<uuid8> local composition with org-configured numbering.
+      const woNumber = await nextDocumentNumber(ctx.client, ctx.orgId, 'wo', new Date());
 
       const itemUomResult = await ctx.client.query<ItemUomRow>(
         `select output_uom, uom_base, net_qty_per_each::text as net_qty_per_each,
@@ -119,41 +122,51 @@ export async function createWorkOrder(params: {
       );
       const spec = approvedSpec.rows[0];
 
-      const insertedWo = await ctx.client.query<WorkOrderRow>(
-        `insert into public.work_orders
-           (id, org_id, wo_number, product_id, item_type_at_creation, active_bom_header_id,
-            active_factory_spec_id,
-            planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
-            source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
-            ext_jsonb, created_by, updated_by)
-         values
-           ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
-            $12::uuid,
-            $5::numeric, $16, 'DRAFT', $6::timestamptz, $7::uuid, $8::uuid,
-            'manual', $9, $13::numeric, $14, $15::jsonb, $10::jsonb, $11::uuid, $11::uuid)
-         returning id, wo_number, product_id, $9::text as item_code, item_type_at_creation,
-                   planned_quantity::text as planned_quantity, produced_quantity::text as produced_quantity,
-                   uom, status, scheduled_start_time, scheduled_end_time, production_line_id, machine_id,
-                   priority, source_of_demand, source_reference, ext_jsonb->>'notes' as notes, created_at, updated_at`,
-        [
-          woId,
-          woNumber,
-          input.productId,
-          bom?.id ?? null,
-          plannedBaseQty,
-          input.scheduledStartTime ?? null,
-          input.productionLineId ?? null,
-          input.machineId ?? null,
-          input.itemCode,
-          JSON.stringify({ notes: input.notes ?? null, app_version: APP_VERSION }),
-          ctx.userId,
-          spec?.id ?? null,
-          input.quantityEntered ?? null,
-          input.quantityEnteredUom ?? null,
-          JSON.stringify(dbUomSnapshot),
-          uomSnapshot.uomBase,
-        ],
-      );
+      async function insertWorkOrderHeader(documentNumber: string) {
+        return ctx.client.query<WorkOrderRow>(
+          `insert into public.work_orders
+             (id, org_id, wo_number, product_id, item_type_at_creation, active_bom_header_id,
+              active_factory_spec_id,
+              planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
+              source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
+              ext_jsonb, created_by, updated_by)
+           values
+             ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
+              $12::uuid,
+              $5::numeric, $16, 'DRAFT', $6::timestamptz, $7::uuid, $8::uuid,
+              'manual', $9, $13::numeric, $14, $15::jsonb, $10::jsonb, $11::uuid, $11::uuid)
+           returning id, wo_number, product_id, $9::text as item_code, item_type_at_creation,
+                     planned_quantity::text as planned_quantity, produced_quantity::text as produced_quantity,
+                     uom, status, scheduled_start_time, scheduled_end_time, production_line_id, machine_id,
+                     priority, source_of_demand, source_reference, ext_jsonb->>'notes' as notes, created_at, updated_at`,
+          [
+            woId,
+            documentNumber,
+            input.productId,
+            bom?.id ?? null,
+            plannedBaseQty,
+            input.scheduledStartTime ?? null,
+            input.productionLineId ?? null,
+            input.machineId ?? null,
+            input.itemCode,
+            JSON.stringify({ notes: input.notes ?? null, app_version: APP_VERSION }),
+            ctx.userId,
+            spec?.id ?? null,
+            input.quantityEntered ?? null,
+            input.quantityEnteredUom ?? null,
+            JSON.stringify(dbUomSnapshot),
+            uomSnapshot.uomBase,
+          ],
+        );
+      }
+
+      let insertedWo: Awaited<ReturnType<typeof insertWorkOrderHeader>>;
+      try {
+        insertedWo = await insertWorkOrderHeader(woNumber);
+      } catch (error) {
+        if (!isPgError(error) || error.code !== '23505') throw error;
+        insertedWo = await insertWorkOrderHeader(await nextDocumentNumber(ctx.client, ctx.orgId, 'wo', new Date()));
+      }
       const workOrder = insertedWo.rows[0];
       if (!workOrder) throw new Error('work_order_insert_returned_no_row');
 

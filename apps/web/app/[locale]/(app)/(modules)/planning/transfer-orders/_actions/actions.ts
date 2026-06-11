@@ -1,10 +1,12 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
   TransferOrderCreateInput,
   TransferOrderStatusSchema,
   hasPlanningWritePermission,
+  isPgError,
   pgErrorToResult,
   toIso,
   writeProcurementAudit,
@@ -61,6 +63,9 @@ type TransferOrder = {
 
 type TransferOrderDetail = TransferOrder & { lines: TransferOrderLine[] };
 type TransferOrderResult<T> = { ok: true; data: T } | { ok: false; error: ProcurementError; message?: string };
+type TransferOrderListResult =
+  | { ok: true; data: TransferOrder[]; archivedCount: number }
+  | { ok: false; error: ProcurementError; message?: string };
 
 function mapTransferOrder(row: TransferOrderRow): TransferOrder {
   return {
@@ -103,27 +108,55 @@ async function fetchLines(client: QueryClient, toId: string): Promise<TransferOr
   return rows.map(mapLine);
 }
 
-export async function listTransferOrders(params: unknown = {}): Promise<TransferOrderResult<TransferOrder[]>> {
-  const input = (params ?? {}) as { status?: unknown; q?: unknown; limit?: unknown };
+export async function listTransferOrders(params: unknown = {}): Promise<TransferOrderListResult> {
+  const input = (params ?? {}) as { status?: unknown; q?: unknown; limit?: unknown; archived?: unknown };
   const status = typeof input.status === 'string' ? TransferOrderStatusSchema.safeParse(input.status) : null;
   if (status && !status.success) return { ok: false, error: 'invalid_input' };
   const q = typeof input.q === 'string' && input.q.trim() ? input.q.trim() : null;
   const limit = typeof input.limit === 'number' && Number.isInteger(input.limit) ? Math.min(Math.max(input.limit, 1), 200) : 100;
+  const archived = input.archived === true;
 
   try {
-    return await withOrgContext(async ({ client }): Promise<TransferOrderResult<TransferOrder[]>> => {
+    return await withOrgContext(async ({ client }): Promise<TransferOrderListResult> => {
       const { rows } = await (client as QueryClient).query<TransferOrderRow>(
-        `select id, to_number, from_warehouse_id, to_warehouse_id, status,
-                scheduled_date::text as scheduled_date, notes, created_at, updated_at
-           from public.transfer_orders
-          where org_id = app.current_org_id()
-            and ($1::text is null or status = $1)
-            and ($2::text is null or to_number ilike '%' || $2 || '%')
-          order by scheduled_date asc nulls last, to_number asc
+        `select transfer_orders.id, transfer_orders.to_number, transfer_orders.from_warehouse_id,
+                transfer_orders.to_warehouse_id, transfer_orders.status,
+                transfer_orders.scheduled_date::text as scheduled_date, transfer_orders.notes,
+                transfer_orders.created_at, transfer_orders.updated_at
+           from public.transfer_orders transfer_orders
+           left join public.org_document_settings ods
+             on ods.org_id = transfer_orders.org_id
+            and ods.doc_type = 'to'
+          where transfer_orders.org_id = app.current_org_id()
+            and ($1::text is null or transfer_orders.status = $1)
+            and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
+            and coalesce(
+              (
+                transfer_orders.status in ('received', 'cancelled')
+                and ods.archive_after_days is not null
+                and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)
+              ),
+              false
+            ) = $4::boolean
+          order by transfer_orders.scheduled_date asc nulls last, transfer_orders.to_number asc
           limit $3::integer`,
-        [status?.success ? status.data : null, q, limit],
+        [status?.success ? status.data : null, q, limit, archived],
       );
-      return { ok: true, data: rows.map(mapTransferOrder) };
+      const count = await (client as QueryClient).query<{ archived_count: string | number }>(
+        `select count(*) as archived_count
+           from public.transfer_orders transfer_orders
+           left join public.org_document_settings ods
+             on ods.org_id = transfer_orders.org_id
+            and ods.doc_type = 'to'
+          where transfer_orders.org_id = app.current_org_id()
+            and ($1::text is null or transfer_orders.status = $1)
+            and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
+            and transfer_orders.status in ('received', 'cancelled')
+            and ods.archive_after_days is not null
+            and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)`,
+        [status?.success ? status.data : null, q],
+      );
+      return { ok: true, data: rows.map(mapTransferOrder), archivedCount: Number(count.rows[0]?.archived_count ?? 0) };
     });
   } catch (err) {
     console.error('[planning/transfer-orders] listTransferOrders failed', err);
@@ -164,23 +197,36 @@ export async function createTransferOrder(rawInput: unknown): Promise<TransferOr
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
 
-      const { rows } = await ctx.client.query<TransferOrderRow>(
-        `insert into public.transfer_orders
-           (org_id, to_number, from_warehouse_id, to_warehouse_id, status, scheduled_date, notes, created_by, updated_by)
-         values
-           (app.current_org_id(), $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7::uuid, $7::uuid)
-         returning id, to_number, from_warehouse_id, to_warehouse_id, status,
-                   scheduled_date::text as scheduled_date, notes, created_at, updated_at`,
-        [
-          input.toNumber,
-          input.fromWarehouseId ?? null,
-          input.toWarehouseId ?? null,
-          input.status,
-          input.scheduledDate ?? null,
-          input.notes ?? null,
-          userId,
-        ],
-      );
+      async function insertHeader(toNumber: string) {
+        return ctx.client.query<TransferOrderRow>(
+          `insert into public.transfer_orders
+             (org_id, to_number, from_warehouse_id, to_warehouse_id, status, scheduled_date, notes, created_by, updated_by)
+           values
+             (app.current_org_id(), $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7::uuid, $7::uuid)
+           returning id, to_number, from_warehouse_id, to_warehouse_id, status,
+                     scheduled_date::text as scheduled_date, notes, created_at, updated_at`,
+          [
+            toNumber,
+            input.fromWarehouseId ?? null,
+            input.toWarehouseId ?? null,
+            input.status,
+            input.scheduledDate ?? null,
+            input.notes ?? null,
+            userId,
+          ],
+        );
+      }
+
+      const initialToNumber = input.toNumber ?? (await nextDocumentNumber(ctx.client, orgId, 'to', new Date()));
+      let insertResult: Awaited<ReturnType<typeof insertHeader>>;
+      try {
+        insertResult = await insertHeader(initialToNumber);
+      } catch (error) {
+        if (input.toNumber || !isPgError(error) || error.code !== '23505') throw error;
+        insertResult = await insertHeader(await nextDocumentNumber(ctx.client, orgId, 'to', new Date()));
+      }
+
+      const { rows } = insertResult;
       const header = rows[0];
       if (!header) return { ok: false, error: 'persistence_failed' };
 

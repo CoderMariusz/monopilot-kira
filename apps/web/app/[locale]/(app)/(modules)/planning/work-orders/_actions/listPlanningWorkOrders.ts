@@ -13,10 +13,12 @@ export async function listPlanningWorkOrders(params: {
   status?: string;
   search?: string;
   limit?: number;
+  archived?: boolean;
 }): Promise<ListPlanningWorkOrdersResult> {
   const status = params.status?.trim();
   const search = params.search?.trim();
   const limit = Math.min(Math.max(Math.trunc(params.limit ?? 50), 1), 200);
+  const archived = params.archived === true;
 
   try {
     return await withOrgContext(async ({ client }): Promise<ListPlanningWorkOrdersResult> => {
@@ -34,6 +36,9 @@ export async function listPlanningWorkOrders(params: {
            to_jsonb(sched.*) as primary_schedule
          from public.work_orders wo
          left join public.items i on i.id = wo.product_id and i.org_id = app.current_org_id()
+         left join public.org_document_settings ods
+           on ods.org_id = wo.org_id
+          and ods.doc_type = 'wo'
          left join lateral (
            select count(*)::int as material_count
              from public.wo_materials wm
@@ -71,9 +76,36 @@ export async function listPlanningWorkOrders(params: {
              or wo.wo_number ilike '%' || $2 || '%'
              or coalesce(i.item_code, wo.source_reference, '') ilike '%' || $2 || '%'
            )
+           and coalesce(
+             (
+               wo.status in ('CLOSED', 'CANCELLED')
+               and ods.archive_after_days is not null
+               and wo.updated_at < now() - make_interval(days => ods.archive_after_days)
+             ),
+             false
+           ) = $4::boolean
          order by wo.scheduled_start_time nulls last, wo.created_at desc
          limit $3`,
-        [status || null, search || null, limit],
+        [status || null, search || null, limit, archived],
+      );
+      const count = await client.query<{ archived_count: string | number }>(
+        `select count(*) as archived_count
+           from public.work_orders wo
+           left join public.items i on i.id = wo.product_id and i.org_id = app.current_org_id()
+           left join public.org_document_settings ods
+             on ods.org_id = wo.org_id
+            and ods.doc_type = 'wo'
+          where wo.org_id = app.current_org_id()
+            and ($1::text is null or wo.status = $1)
+            and (
+              $2::text is null
+              or wo.wo_number ilike '%' || $2 || '%'
+              or coalesce(i.item_code, wo.source_reference, '') ilike '%' || $2 || '%'
+            )
+            and wo.status in ('CLOSED', 'CANCELLED')
+            and ods.archive_after_days is not null
+            and wo.updated_at < now() - make_interval(days => ods.archive_after_days)`,
+        [status || null, search || null],
       );
 
       return {
@@ -85,6 +117,7 @@ export async function listPlanningWorkOrders(params: {
           latestExecution: row.latest_execution ? mapExecution(row.latest_execution) : undefined,
           primarySchedule: row.primary_schedule ? mapSchedule(row.primary_schedule) : undefined,
         })),
+        archivedCount: Number(count.rows[0]?.archived_count ?? 0),
       };
     });
   } catch (error) {

@@ -17,6 +17,8 @@ const ITEM_ID = '55555555-5555-4555-8555-555555555555';
 let client: QueryClient;
 let allowPermission = true;
 let poExists = true;
+let generatedSeq = 7;
+let failNextAutoInsert = false;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -57,19 +59,34 @@ function line() {
 
 function makeClient(): QueryClient {
   return {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      if (normalized.startsWith('update public.org_document_settings')) {
+        return {
+          rows: [{ old_seq: generatedSeq++, number_prefix: 'PO', number_date_part: 'YYYYMM', number_seq_padding: 4 }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.startsWith('select count(*) as archived_count')) {
+        return { rows: [{ archived_count: 1 }], rowCount: 1 };
       }
       if (normalized.includes('from public.purchase_order_lines')) {
         return { rows: [line()], rowCount: 1 };
       }
       if (normalized.startsWith('select po.id')) {
-        return { rows: poExists ? [header()] : [], rowCount: poExists ? 1 : 0 };
+        return { rows: poExists ? [header({ status: params[3] === true ? 'received' : 'draft' })] : [], rowCount: poExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.purchase_orders')) {
-        return { rows: [header({ supplier_code: null, supplier_name: null })], rowCount: 1 };
+        if (failNextAutoInsert) {
+          failNextAutoInsert = false;
+          const error = new Error('duplicate') as Error & { code: string };
+          error.code = '23505';
+          throw error;
+        }
+        return { rows: [header({ po_number: String(params[0]), supplier_code: null, supplier_name: null })], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.purchase_order_lines')) {
         return { rows: [], rowCount: 1 };
@@ -92,6 +109,8 @@ describe('planning purchase order actions', () => {
   beforeEach(() => {
     allowPermission = true;
     poExists = true;
+    generatedSeq = 7;
+    failNextAutoInsert = false;
     client = makeClient();
   });
 
@@ -101,6 +120,16 @@ describe('planning purchase order actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data[0]).toEqual(expect.objectContaining({ poNumber: 'PO-TEST-001', supplierCode: 'SUP-TEST-01' }));
+    expect(result.archivedCount).toBe(1);
+  });
+
+  it('passes archived=false by default and archived=true for archive views', async () => {
+    await listPurchaseOrders({});
+    await listPurchaseOrders({ archived: true });
+
+    const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.purchase_orders po'));
+    expect(listCalls[0]?.[1]).toEqual([null, null, 100, false]);
+    expect(listCalls[2]?.[1]).toEqual([null, null, 100, true]);
   });
 
   it('gets purchase order detail with ordered lines', async () => {
@@ -119,9 +148,35 @@ describe('planning purchase order actions', () => {
     });
 
     expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.poNumber).toBe('PO-TEST-001');
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => sql);
     expect(calls.some((sql) => sql.includes('insert into public.purchase_order_lines'))).toBe(true);
     expect(calls.some((sql) => sql.includes('insert into public.audit_events'))).toBe(true);
+  });
+
+  it('auto-generates a purchase order number when absent', async () => {
+    const result = await createPurchaseOrder({
+      supplierId: SUPPLIER_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.poNumber).toMatch(/^PO-\d{6}-0007$/);
+  });
+
+  it('retries once with a fresh generated number on unique violation', async () => {
+    failNextAutoInsert = true;
+
+    const result = await createPurchaseOrder({
+      supplierId: SUPPLIER_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.poNumber).toMatch(/^PO-\d{6}-0008$/);
   });
 
   it('rejects create when caller lacks planning write permission', async () => {

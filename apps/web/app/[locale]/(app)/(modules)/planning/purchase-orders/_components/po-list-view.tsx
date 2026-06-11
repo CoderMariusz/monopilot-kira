@@ -86,6 +86,10 @@ export type PoListLabels = {
     actions: string;
   };
   view: string;
+  /** Archive tab + archived-mode chrome (staged: _meta/i18n-staging/archive-tabs.json). */
+  tabArchive: string;
+  archivedHint: string;
+  backToActive: string;
   empty: {
     title: string;
     body: string;
@@ -99,11 +103,22 @@ export type PoListViewProps = {
   purchaseOrders: PoRow[];
   suppliers: PoSupplierOption[];
   labels: PoListLabels;
+  /**
+   * Archived mode — when true the page fetched with archived:true (server-side via
+   * ?archived=1) and `purchaseOrders` holds the archived rows; the status tabs are
+   * replaced by the active/archive split. The status-tab client filter only applies
+   * to the active (non-archived) dataset, so archive is a server re-fetch, not a
+   * client filter. Pattern documented in po-list-view header + page.tsx.
+   */
+  archived?: boolean;
+  /** Count of archived POs (always supplied from the active fetch's payload) for the chip. */
+  archivedCount: number;
   /** Open the create modal immediately on mount (?new=1 deep-link). */
   autoOpenCreate?: boolean;
   searchPoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
   createPurchaseOrderAction: (input: {
-    poNumber: string;
+    /** Optional — createPurchaseOrder auto-generates a per-org number when omitted. */
+    poNumber?: string;
     supplierId: string;
     expectedDelivery?: string;
     currency: string;
@@ -124,11 +139,14 @@ export function PoListView({
   purchaseOrders,
   suppliers,
   labels,
+  archived = false,
+  archivedCount,
   autoOpenCreate = false,
   searchPoItemsAction,
   createPurchaseOrderAction,
 }: PoListViewProps) {
   const router = useRouter();
+  const basePath = `/${locale}/planning/purchase-orders`;
   const [tab, setTab] = React.useState<TabKey>('all');
   const [search, setSearch] = React.useState('');
   const [supplierFilter, setSupplierFilter] = React.useState('');
@@ -189,28 +207,71 @@ export function PoListView({
         </Button>
       </div>
 
-      {/* Status tabs */}
+      {/* Status tabs + Archive tab.
+          The status tabs are client-side filters over the active (non-archived)
+          dataset; the Archive tab is a server re-fetch (link → ?archived=1) because
+          archived rows are excluded from the active fetch. In archived mode the
+          status tabs link back to the active list. */}
       <div role="tablist" aria-label={labels.tabsAll} data-testid="po-list-tabs" className="flex flex-wrap gap-2">
-        {TAB_ORDER.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            data-testid={`po-list-tab-${key}`}
-            onClick={() => setTab(key)}
-            className={[
-              'rounded-md px-3 py-1.5 text-sm font-medium',
-              tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
-            ].join(' ')}
-          >
-            {tabLabel(key)}
-            <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
-              {counts[key]}
-            </span>
-          </button>
-        ))}
+        {TAB_ORDER.map((key) =>
+          archived ? (
+            <Link
+              key={key}
+              href={key === 'all' ? basePath : `${basePath}?status=${key}`}
+              prefetch={false}
+              role="tab"
+              aria-selected={false}
+              data-testid={`po-list-tab-${key}`}
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {tabLabel(key)}
+            </Link>
+          ) : (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              data-testid={`po-list-tab-${key}`}
+              onClick={() => setTab(key)}
+              className={[
+                'rounded-md px-3 py-1.5 text-sm font-medium',
+                tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              {tabLabel(key)}
+              <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
+                {counts[key]}
+              </span>
+            </button>
+          ),
+        )}
+        <Link
+          href={`${basePath}?archived=1`}
+          prefetch={false}
+          role="tab"
+          aria-selected={archived}
+          data-testid="po-list-tab-archive"
+          className={[
+            'rounded-md px-3 py-1.5 text-sm font-medium',
+            archived ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+          ].join(' ')}
+        >
+          {labels.tabArchive}
+          <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
+            {archivedCount}
+          </span>
+        </Link>
       </div>
+
+      {archived ? (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" data-testid="po-list-archived-hint">
+          <span>{labels.archivedHint}</span>
+          <Link href={basePath} prefetch={false} data-testid="po-list-back-active" className="font-medium text-blue-700 hover:underline">
+            {labels.backToActive}
+          </Link>
+        </div>
+      ) : null}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">

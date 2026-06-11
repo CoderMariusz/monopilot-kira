@@ -5250,7 +5250,8 @@
         "searchPlaceholder": "Szukaj numeru ZP lub kodu pozycji…",
         "rowsCount": "{n} wierszy",
         "tabs": {
-          "all": "Wszystkie"
+          "all": "Wszystkie",
+          "archive": "Archiwum"
         },
         "columns": {
           "wo": "ZP",
@@ -5272,7 +5273,9 @@
           "title": "Żadne zlecenie nie pasuje do filtrów",
           "body": "Wyczyść filtry lub przełącz się na inną zakładkę.",
           "clear": "Wyczyść wszystkie filtry"
-        }
+        },
+        "archivedHint": "Pokazano zarchiwizowane zlecenia produkcyjne.",
+        "backToActive": "Powrót do aktywnych"
       },
       "create": {
         "title": "Utwórz zlecenie produkcyjne",
@@ -5556,7 +5559,8 @@
         "allSuppliers": "Wszyscy dostawcy",
         "clearFilters": "Wyczyść wszystkie filtry",
         "tabs": {
-          "all": "Wszystkie"
+          "all": "Wszystkie",
+          "archive": "Archiwum"
         },
         "columns": {
           "po": "Numer zamówienia",
@@ -5572,7 +5576,9 @@
           "title": "Brak zamówień zakupu",
           "body": "Utwórz pierwsze zamówienie zakupu, aby rozpocząć zamawianie u dostawców.",
           "clear": "Wyczyść filtry"
-        }
+        },
+        "archivedHint": "Pokazano zarchiwizowane zamówienia zakupu (przyjęte / anulowane po okresie archiwizacji organizacji).",
+        "backToActive": "Powrót do aktywnych"
       },
       "errors": {
         "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
@@ -5585,7 +5591,7 @@
       "create": {
         "title": "Utwórz zamówienie zakupu",
         "poNumberLabel": "Numer zamówienia",
-        "poNumberPlaceholder": "np. PO-2026-0001",
+        "poNumberPlaceholder": "Auto (np. PO-202606-0007)",
         "supplierLabel": "Dostawca",
         "supplierPlaceholder": "Wybierz dostawcę",
         "expectedLabel": "Oczekiwana dostawa",
@@ -5624,7 +5630,8 @@
           "empty": "Brak pasujących pozycji",
           "cancel": "Anuluj",
           "error": "Wyszukiwanie pozycji nie powiodło się"
-        }
+        },
+        "poNumberHelp": "Pozostaw puste, aby ponumerować automatycznie (format w Ustawienia → Dokumenty)."
       },
       "detail": {
         "title": "Zamówienie zakupu",
@@ -5686,7 +5693,8 @@
         "searchPlaceholder": "Szukaj numeru zlecenia…",
         "rowsCount": "{n} wierszy",
         "tabs": {
-          "all": "Wszystkie"
+          "all": "Wszystkie",
+          "archive": "Archiwum"
         },
         "columns": {
           "to": "Numer zlecenia",
@@ -5702,7 +5710,9 @@
           "title": "Brak zleceń przesunięcia",
           "body": "Utwórz zlecenie przesunięcia, aby przenieść zapasy między magazynami.",
           "clear": "Wyczyść filtry"
-        }
+        },
+        "archivedHint": "Pokazano zarchiwizowane zlecenia przesunięcia (przyjęte / anulowane po okresie archiwizacji organizacji).",
+        "backToActive": "Powrót do aktywnych"
       },
       "errors": {
         "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź i spróbuj ponownie.",
@@ -5715,7 +5725,7 @@
       "create": {
         "title": "Utwórz zlecenie przesunięcia",
         "toNumberLabel": "Numer zlecenia",
-        "toNumberPlaceholder": "np. TO-2026-0001",
+        "toNumberPlaceholder": "Auto (np. TO-202606-0007)",
         "fromWarehouseLabel": "Magazyn źródłowy",
         "toWarehouseLabel": "Magazyn docelowy",
         "warehousePlaceholder": "Wybierz magazyn",
@@ -5758,7 +5768,8 @@
           "already_exists": "Zlecenie o tym numerze już istnieje.",
           "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
           "persistence_failed": "Coś poszło nie tak przy zapisie. Spróbuj ponownie."
-        }
+        },
+        "toNumberHelp": "Pozostaw puste, aby ponumerować automatycznie (format w Ustawienia → Dokumenty)."
       },
       "detail": {
         "title": "Zlecenie przesunięcia",

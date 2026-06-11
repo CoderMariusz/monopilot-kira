@@ -1,10 +1,12 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
   PurchaseOrderCreateInput,
   PurchaseOrderStatusSchema,
   hasPlanningWritePermission,
+  isPgError,
   pgErrorToResult,
   toIso,
   writeProcurementAudit,
@@ -67,6 +69,9 @@ type PurchaseOrder = {
 
 type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: ProcurementError; message?: string };
+type PurchaseOrderListResult =
+  | { ok: true; data: PurchaseOrder[]; archivedCount: number }
+  | { ok: false; error: ProcurementError; message?: string };
 
 function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
   return {
@@ -112,29 +117,56 @@ async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOr
   return rows.map(mapLine);
 }
 
-export async function listPurchaseOrders(params: unknown = {}): Promise<PurchaseOrderResult<PurchaseOrder[]>> {
-  const input = (params ?? {}) as { status?: unknown; q?: unknown; limit?: unknown };
+export async function listPurchaseOrders(params: unknown = {}): Promise<PurchaseOrderListResult> {
+  const input = (params ?? {}) as { status?: unknown; q?: unknown; limit?: unknown; archived?: unknown };
   const status = typeof input.status === 'string' ? PurchaseOrderStatusSchema.safeParse(input.status) : null;
   if (status && !status.success) return { ok: false, error: 'invalid_input' };
   const q = typeof input.q === 'string' && input.q.trim() ? input.q.trim() : null;
   const limit = typeof input.limit === 'number' && Number.isInteger(input.limit) ? Math.min(Math.max(input.limit, 1), 200) : 100;
+  const archived = input.archived === true;
 
   try {
-    return await withOrgContext(async ({ client }): Promise<PurchaseOrderResult<PurchaseOrder[]>> => {
+    return await withOrgContext(async ({ client }): Promise<PurchaseOrderListResult> => {
       const { rows } = await (client as QueryClient).query<PurchaseOrderRow>(
         `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
                 po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
                 po.created_at, po.updated_at
            from public.purchase_orders po
            left join public.suppliers s on s.org_id = app.current_org_id() and s.id = po.supplier_id
+           left join public.org_document_settings ods
+             on ods.org_id = po.org_id
+            and ods.doc_type = 'po'
           where po.org_id = app.current_org_id()
             and ($1::text is null or po.status = $1)
             and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
+            and coalesce(
+              (
+                po.status in ('received', 'cancelled')
+                and ods.archive_after_days is not null
+                and po.updated_at < now() - make_interval(days => ods.archive_after_days)
+              ),
+              false
+            ) = $4::boolean
           order by po.expected_delivery asc nulls last, po.po_number asc
           limit $3::integer`,
-        [status?.success ? status.data : null, q, limit],
+        [status?.success ? status.data : null, q, limit, archived],
       );
-      return { ok: true, data: rows.map(mapPurchaseOrder) };
+      const count = await (client as QueryClient).query<{ archived_count: string | number }>(
+        `select count(*) as archived_count
+           from public.purchase_orders po
+           left join public.suppliers s on s.org_id = app.current_org_id() and s.id = po.supplier_id
+           left join public.org_document_settings ods
+             on ods.org_id = po.org_id
+            and ods.doc_type = 'po'
+          where po.org_id = app.current_org_id()
+            and ($1::text is null or po.status = $1)
+            and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
+            and po.status in ('received', 'cancelled')
+            and ods.archive_after_days is not null
+            and po.updated_at < now() - make_interval(days => ods.archive_after_days)`,
+        [status?.success ? status.data : null, q],
+      );
+      return { ok: true, data: rows.map(mapPurchaseOrder), archivedCount: Number(count.rows[0]?.archived_count ?? 0) };
     });
   } catch (err) {
     console.error('[planning/purchase-orders] listPurchaseOrders failed', err);
@@ -177,23 +209,36 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
 
-      const { rows } = await ctx.client.query<PurchaseOrderRow>(
-        `insert into public.purchase_orders
-           (org_id, po_number, supplier_id, status, expected_delivery, currency, notes, created_by, updated_by)
-         values
-           (app.current_org_id(), $1, $2::uuid, $3, $4::date, $5, $6, $7::uuid, $7::uuid)
-         returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
-                   status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
-        [
-          input.poNumber,
-          input.supplierId,
-          input.status,
-          input.expectedDelivery ?? null,
-          input.currency,
-          input.notes ?? null,
-          userId,
-        ],
-      );
+      async function insertHeader(poNumber: string) {
+        return ctx.client.query<PurchaseOrderRow>(
+          `insert into public.purchase_orders
+             (org_id, po_number, supplier_id, status, expected_delivery, currency, notes, created_by, updated_by)
+           values
+             (app.current_org_id(), $1, $2::uuid, $3, $4::date, $5, $6, $7::uuid, $7::uuid)
+           returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+                     status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+          [
+            poNumber,
+            input.supplierId,
+            input.status,
+            input.expectedDelivery ?? null,
+            input.currency,
+            input.notes ?? null,
+            userId,
+          ],
+        );
+      }
+
+      const initialPoNumber = input.poNumber ?? (await nextDocumentNumber(ctx.client, orgId, 'po', new Date()));
+      let insertResult: Awaited<ReturnType<typeof insertHeader>>;
+      try {
+        insertResult = await insertHeader(initialPoNumber);
+      } catch (error) {
+        if (input.poNumber || !isPgError(error) || error.code !== '23505') throw error;
+        insertResult = await insertHeader(await nextDocumentNumber(ctx.client, orgId, 'po', new Date()));
+      }
+
+      const { rows } = insertResult;
       const header = rows[0];
       if (!header) return { ok: false, error: 'persistence_failed' };
 

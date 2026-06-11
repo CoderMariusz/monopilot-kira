@@ -12,6 +12,8 @@ const SPEC_ID = '99999999-9999-4999-8999-999999999999';
 let client: QueryClient;
 let allowPermission = true;
 let hasBom = true;
+let generatedSeq = 7;
+let failNextHeaderInsert = false;
 let itemUom = {
   output_uom: 'base',
   uom_base: 'kg',
@@ -34,6 +36,12 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
+      if (normalized.startsWith('update public.org_document_settings')) {
+        return {
+          rows: [{ old_seq: generatedSeq++, number_prefix: 'WO', number_date_part: 'YYYYMM', number_seq_padding: 4 }],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes('from public.bom_headers')) {
         return { rows: hasBom ? [{ id: BOM_ID, version: 3 }] : [], rowCount: hasBom ? 1 : 0 };
       }
@@ -44,6 +52,12 @@ function makeClient(): QueryClient {
         return { rows: [itemUom], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.work_orders')) {
+        if (failNextHeaderInsert) {
+          failNextHeaderInsert = false;
+          const error = new Error('duplicate') as Error & { code: string };
+          error.code = '23505';
+          throw error;
+        }
         const woId = String(params[0]);
         return {
           rows: [
@@ -125,6 +139,8 @@ describe('createWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
     hasBom = true;
+    generatedSeq = 7;
+    failNextHeaderInsert = false;
     itemUom = {
       output_uom: 'base',
       uom_base: 'kg',
@@ -147,9 +163,24 @@ describe('createWorkOrder', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.workOrder).toEqual(expect.objectContaining({ status: 'DRAFT', itemCode: 'FG-NPD-004' }));
+    expect(result.workOrder.woNumber).toMatch(/^WO-\d{6}-0007$/);
     expect(result.materials).toEqual([expect.objectContaining({ materialName: 'DEMO-RM-FLOUR', bomVersion: 3 })]);
     expect(result.primarySchedule).toEqual(expect.objectContaining({ outputRole: 'primary', expectedQty: '1000.000' }));
     expect(result.warning).toBeUndefined();
+  });
+
+  it('retries once with a fresh generated WO number on unique violation', async () => {
+    failNextHeaderInsert = true;
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '1000.000',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrder.woNumber).toMatch(/^WO-\d{6}-0008$/);
   });
 
   it('converts entered output units to base quantity for WO, materials, and schedule output', async () => {

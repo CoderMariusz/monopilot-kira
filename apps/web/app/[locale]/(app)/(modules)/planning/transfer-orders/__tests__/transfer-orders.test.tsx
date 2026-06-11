@@ -58,6 +58,10 @@ const listLabels: ToListLabels = {
   },
   columns: enTo.list.columns,
   linesCount: enTo.list.linesCount,
+  // Archive tab + archived-mode chrome — staged in _meta/i18n-staging/archive-tabs.json.
+  tabArchive: 'Archive',
+  archivedHint: 'Showing archived transfer orders.',
+  backToActive: 'Back to active',
   empty: enTo.list.empty,
   create: {
     ...enTo.create,
@@ -65,6 +69,9 @@ const listLabels: ToListLabels = {
     // threaded through the page label object; injected here to mirror that.
     uomPlaceholder: 'Unit',
     uomOptions: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
+    // Number is now optional — auto-number placeholder + helper (archive-tabs.json).
+    toNumberPlaceholder: 'Auto (e.g. TO-202606-0007)',
+    toNumberHelp: 'Leave empty to auto-number (format in Settings → Documents).',
     errors: { ...enTo.create.errors, ...enTo.errors },
   },
 };
@@ -115,6 +122,7 @@ function renderList(props: Partial<React.ComponentProps<typeof ToListView>> = {}
       lineCounts={{ 'to-1': 2, 'to-2': 1, 'to-3': 0 }}
       warehouses={warehouses}
       labels={listLabels}
+      archivedCount={2}
       searchTransferItemsAction={searchTransferItemsAction}
       createTransferOrderAction={createTransferOrderAction}
       {...props}
@@ -182,22 +190,77 @@ describe('ToListView — structure + filtering (parity: to-screens.jsx:8-96)', (
   });
 });
 
+describe('ToListView — archive tab (server re-fetch via ?archived=1)', () => {
+  it('renders an Archive tab carrying the archivedCount chip and linking to ?archived=1', () => {
+    renderList({ archivedCount: 4 });
+    const archiveTab = screen.getByTestId('to-list-tab-archive');
+    expect(archiveTab).toHaveTextContent('Archive');
+    expect(archiveTab).toHaveTextContent('4');
+    expect(archiveTab).toHaveAttribute('href', '/en/planning/transfer-orders?archived=1');
+    expect(archiveTab).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('renders the archived rows + archived-mode chrome when archived data is passed', () => {
+    const archivedRows = [
+      makeRow({ id: 'to-arch-1', toNumber: 'TO-ARCH-1', status: 'received' }),
+      makeRow({ id: 'to-arch-2', toNumber: 'TO-ARCH-2', status: 'cancelled' }),
+    ];
+    renderList({ transferOrders: archivedRows, archived: true, archivedCount: 2 });
+    expect(screen.getByTestId('to-row-to-arch-1')).toBeInTheDocument();
+    expect(screen.getByTestId('to-row-to-arch-2')).toBeInTheDocument();
+    expect(screen.getByTestId('to-list-tab-archive')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('to-list-archived-hint')).toBeInTheDocument();
+    expect(screen.getByTestId('to-list-back-active')).toHaveAttribute('href', '/en/planning/transfer-orders');
+    expect(screen.getByTestId('to-list-tab-all')).toHaveAttribute('href', '/en/planning/transfer-orders');
+  });
+});
+
 describe('ToListView — create modal (parity: to-screens.jsx:37 + modals.jsx:697-845)', () => {
   it('auto-opens the create modal on ?new=1 deep-link', () => {
     renderList({ autoOpenCreate: true });
     expect(screen.getByTestId('create-to-form')).toBeInTheDocument();
   });
 
-  it('validates same-warehouse and missing-line rules before calling the action', async () => {
+  it('validates missing-warehouse rules before calling the action (number no longer required)', async () => {
     const { createTransferOrderAction } = renderList();
     fireEvent.click(screen.getByTestId('to-list-create'));
     expect(screen.getByTestId('create-to-form')).toBeInTheDocument();
-    // Missing TO number first.
+    // Number is now OPTIONAL — submitting with no warehouses surfaces the warehouse
+    // rule, NOT a "number required" error.
     fireEvent.click(screen.getByTestId('create-to-submit'));
     await waitFor(() =>
-      expect(screen.getByTestId('create-to-error')).toHaveTextContent(enTo.create.errors.toNumberRequired),
+      expect(screen.getByTestId('create-to-error')).toHaveTextContent(enTo.create.errors.warehousesRequired),
     );
     expect(createTransferOrderAction).not.toHaveBeenCalled();
+  });
+
+  it('submits WITHOUT a TO number (auto-numbered) — toNumber omitted from the payload', async () => {
+    const { createTransferOrderAction } = renderList();
+    createTransferOrderAction.mockResolvedValue({ ok: true, data: {} });
+
+    fireEvent.click(screen.getByTestId('to-list-create'));
+    expect(screen.getByTestId('create-to-number')).toHaveAttribute('placeholder', 'Auto (e.g. TO-202606-0007)');
+    expect(screen.getByTestId('create-to-number-help')).toHaveTextContent(
+      'Leave empty to auto-number (format in Settings → Documents).',
+    );
+
+    // Leave the number BLANK — only warehouses + a line are filled.
+    pickWarehouse(0, 'WH-A — Factory A');
+    pickWarehouse(1, 'WH-B — Dist Central');
+    fireEvent.click(screen.getByTestId('create-to-add-line'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-to-line-product-0')).toHaveTextContent('RM-001'));
+    fireEvent.change(screen.getByTestId('create-to-line-qty-0'), { target: { value: '5' } });
+
+    fireEvent.click(screen.getByTestId('create-to-submit'));
+
+    await waitFor(() => expect(createTransferOrderAction).toHaveBeenCalledTimes(1));
+    const payload = createTransferOrderAction.mock.calls[0][0] as { toNumber?: string };
+    expect(payload.toNumber).toBeUndefined();
+    expect(screen.queryByTestId('create-to-error')).toBeNull();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   it('builds the createTransferOrder payload from a picked item + qty (optimistic submit)', async () => {
