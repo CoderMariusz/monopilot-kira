@@ -20,6 +20,7 @@ let allowPermission = true;
 let orderExists = true;
 let generatedSeq = 7;
 let failNextAutoInsert = false;
+let currentStatus = 'draft';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -90,10 +91,10 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith('select status from public.transfer_orders')) {
-        return { rows: orderExists ? [{ status: 'draft' }] : [], rowCount: orderExists ? 1 : 0 };
+        return { rows: orderExists ? [{ status: currentStatus }] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('update public.transfer_orders')) {
-        return { rows: orderExists ? [header({ status: 'in_transit' })] : [], rowCount: orderExists ? 1 : 0 };
+        return { rows: orderExists ? [header({ status: String(params[1]) })] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.audit_events')) {
         return { rows: [], rowCount: 1 };
@@ -109,6 +110,7 @@ describe('planning transfer order actions', () => {
     orderExists = true;
     generatedSeq = 7;
     failNextAutoInsert = false;
+    currentStatus = 'draft';
     client = makeClient();
   });
 
@@ -190,11 +192,37 @@ describe('planning transfer order actions', () => {
     ).resolves.toEqual({ ok: false, error: 'forbidden' });
   });
 
-  it('transitions transfer order status', async () => {
+  it('transitions transfer order status on a legal move (draft -> in_transit)', async () => {
+    currentStatus = 'draft';
     const result = await transitionTransferOrderStatus(TO_ID, 'in_transit');
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data.status).toBe('in_transit');
+  });
+
+  it('transitions transfer order status on a legal move (in_transit -> received)', async () => {
+    currentStatus = 'in_transit';
+    const result = await transitionTransferOrderStatus(TO_ID, 'received');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.status).toBe('received');
+  });
+
+  it('refuses an illegal transition (draft -> received) server-side', async () => {
+    currentStatus = 'draft';
+    const result = await transitionTransferOrderStatus(TO_ID, 'received');
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.transfer_orders'))).toBe(false);
+  });
+
+  it('refuses any transition out of a terminal status (received -> cancelled)', async () => {
+    currentStatus = 'received';
+    const result = await transitionTransferOrderStatus(TO_ID, 'cancelled');
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
   });
 });

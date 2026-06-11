@@ -19,6 +19,7 @@ let allowPermission = true;
 let poExists = true;
 let generatedSeq = 7;
 let failNextAutoInsert = false;
+let currentStatus = 'draft';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -92,10 +93,10 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith('select status from public.purchase_orders')) {
-        return { rows: poExists ? [{ status: 'draft' }] : [], rowCount: poExists ? 1 : 0 };
+        return { rows: poExists ? [{ status: currentStatus }] : [], rowCount: poExists ? 1 : 0 };
       }
       if (normalized.startsWith('update public.purchase_orders')) {
-        return { rows: poExists ? [header({ status: 'confirmed', supplier_code: null, supplier_name: null })] : [], rowCount: poExists ? 1 : 0 };
+        return { rows: poExists ? [header({ status: String(params[1]), supplier_code: null, supplier_name: null })] : [], rowCount: poExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.audit_events')) {
         return { rows: [], rowCount: 1 };
@@ -111,6 +112,7 @@ describe('planning purchase order actions', () => {
     poExists = true;
     generatedSeq = 7;
     failNextAutoInsert = false;
+    currentStatus = 'draft';
     client = makeClient();
   });
 
@@ -190,11 +192,38 @@ describe('planning purchase order actions', () => {
     ).resolves.toEqual({ ok: false, error: 'forbidden' });
   });
 
-  it('transitions purchase order status', async () => {
-    const result = await transitionPurchaseOrderStatus(PO_ID, 'confirmed');
+  it('transitions purchase order status on a legal move (draft -> sent)', async () => {
+    currentStatus = 'draft';
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'sent');
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
-    expect(result.data.status).toBe('confirmed');
+    expect(result.data.status).toBe('sent');
+  });
+
+  it('transitions purchase order status on a legal move (confirmed -> partially_received)', async () => {
+    currentStatus = 'confirmed';
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'partially_received');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.status).toBe('partially_received');
+  });
+
+  it('refuses an illegal transition (draft -> confirmed) server-side', async () => {
+    currentStatus = 'draft';
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'confirmed');
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    // The illegal request must never reach the UPDATE.
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders'))).toBe(false);
+  });
+
+  it('refuses any transition out of a terminal status (received -> cancelled)', async () => {
+    currentStatus = 'received';
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'cancelled');
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
   });
 });

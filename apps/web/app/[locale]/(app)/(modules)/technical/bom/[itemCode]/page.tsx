@@ -47,7 +47,7 @@ type OrgContextLike = {
 };
 
 /** Server-resolved BOM-detail RBAC (never client-trusted). */
-async function resolveDetailPermissions(): Promise<{ canCreate: boolean; canApprove: boolean }> {
+async function resolveDetailPermissions(): Promise<{ canCreate: boolean; canApprove: boolean; canPublish: boolean }> {
   try {
     return await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as OrgContextLike;
@@ -57,14 +57,18 @@ async function resolveDetailPermissions(): Promise<{ canCreate: boolean; canAppr
            join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
            left join public.role_permissions rp on rp.role_id = r.id
           where ur.user_id = $1::uuid and ur.org_id = $2::uuid
-            and rp.permission in ('technical.bom.create', 'technical.bom.approve')`,
+            and rp.permission in ('technical.bom.create', 'technical.bom.approve', 'technical.bom.version_publish')`,
         [ctx.userId, ctx.orgId],
       );
       const set = new Set(rows.map((r) => r.permission));
-      return { canCreate: set.has('technical.bom.create'), canApprove: set.has('technical.bom.approve') };
+      return {
+        canCreate: set.has('technical.bom.create'),
+        canApprove: set.has('technical.bom.approve'),
+        canPublish: set.has('technical.bom.version_publish'),
+      };
     });
   } catch {
-    return { canCreate: false, canApprove: false };
+    return { canCreate: false, canApprove: false, canPublish: false };
   }
 }
 
@@ -358,6 +362,7 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
           }))}
           canCreate={perms.canCreate}
           canApprove={perms.canApprove}
+          canPublish={perms.canPublish}
         />
       }
     />

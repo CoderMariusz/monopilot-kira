@@ -23,6 +23,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   listItems: vi.fn(),
   approveBom: vi.fn(),
+  publishBom: vi.fn(),
   deleteBomVersion: vi.fn(),
   push: vi.fn(),
   refresh: vi.fn(),
@@ -35,7 +36,7 @@ vi.mock('next/navigation', () => ({
 // which resolves to `technical/items/_actions/list-items`. From THIS test file
 // (one level deeper, in `__tests__`) that same module is `../../../items/...`.
 vi.mock('../../../items/_actions/list-items', () => ({ listItems: mocks.listItems }));
-vi.mock('../../_actions/workflow', () => ({ approveBom: mocks.approveBom }));
+vi.mock('../../_actions/workflow', () => ({ approveBom: mocks.approveBom, publishBom: mocks.publishBom }));
 vi.mock('../../_actions/delete-bom-version', () => ({ deleteBomVersion: mocks.deleteBomVersion }));
 
 import { BomListScreen, type BomListData, type BomListLabels } from '../bom-list-screen';
@@ -188,6 +189,7 @@ describe('TW1-bom — detail action bar is wired', () => {
     currentVersion: 3,
     snapshotCount: 0,
     lines: [{ componentCode: 'RM-1', quantity: 1, uom: 'kg' }],
+    canPublish: false,
   };
 
   it('renders Add component + Save version when create is granted', () => {
@@ -217,5 +219,28 @@ describe('TW1-bom — detail action bar is wired', () => {
   it('hides Approve for an already-active version (not approvable)', () => {
     render(<BomDetailActions {...baseProps} status="active" canCreate={false} canApprove />);
     expect(screen.queryByTestId('bom-approve-cta')).not.toBeInTheDocument();
+  });
+
+  // B-1: a technical_approved BOM was a dead end — publishBom existed but no CTA
+  // called it, so no BOM could become 'active' (and WO release needs an active BOM).
+  it('Publish calls the real publishBom action on a technical_approved version', async () => {
+    const user = userEvent.setup();
+    mocks.publishBom.mockResolvedValue({ ok: true, data: { id: 'h1', status: 'active', version: 3 } });
+    render(<BomDetailActions {...baseProps} status="technical_approved" canCreate={false} canApprove={false} canPublish />);
+
+    await user.click(screen.getByTestId('bom-publish-cta'));
+    await waitFor(() =>
+      expect(mocks.publishBom).toHaveBeenCalledWith({ productId: 'FG-1001', version: 3 }),
+    );
+  });
+
+  it('hides Publish unless the version is technical_approved', () => {
+    render(<BomDetailActions {...baseProps} status="draft" canCreate={false} canApprove={false} canPublish />);
+    expect(screen.queryByTestId('bom-publish-cta')).not.toBeInTheDocument();
+  });
+
+  it('hides Publish when the server denied version_publish', () => {
+    render(<BomDetailActions {...baseProps} status="technical_approved" canCreate={false} canApprove={false} canPublish={false} />);
+    expect(screen.queryByTestId('bom-publish-cta')).not.toBeInTheDocument();
   });
 });

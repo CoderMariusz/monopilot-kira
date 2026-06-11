@@ -8,10 +8,11 @@
  * file and are imported verbatim — never rewritten. The create modal additionally
  * needs two SMALL org-scoped reads that no existing action surfaces:
  *
- *   1. searchFgProducts — the product picker is restricted to FINISHED GOODS
- *      (item_type = 'fg'). The shared `searchItems` action (npd) only accepts
- *      rm/ingredient/intermediate/co_product/packaging — never 'fg' — so it
- *      cannot back an fg-only picker. This is a tiny dedicated read.
+ *   1. searchFgProducts — the product picker is restricted to PLANNABLE OUTPUTS
+ *      (item_type in 'fg' | 'co_product'). A co-product is a primary sellable
+ *      output of a production run and must be able to anchor its own work order,
+ *      so it is plannable too. The shared `searchItems` action (npd) cannot back
+ *      this picker, so this is a tiny dedicated read.
  *   2. listProductionResources — the line/machine selects load from the real
  *      public.production_lines / public.machines masters (seeded by migration
  *      259), never a hardcoded list.
@@ -92,7 +93,10 @@ export async function searchFgProducts(input: SearchFgProductsInput = {}): Promi
               i.output_uom, i.net_qty_per_each, i.each_per_box, i.boxes_per_pallet, i.weight_mode
          from public.items i
         where i.org_id = app.current_org_id()
-          and i.item_type = 'fg'
+          -- co_product items are plannable too: a co-product is a primary sellable
+          -- output of a production run and must be able to anchor its own work order
+          -- (the create modal labels these generically as 'product').
+          and i.item_type in ('fg', 'co_product')
           and i.status <> 'blocked'
           and (
             $1::text is null

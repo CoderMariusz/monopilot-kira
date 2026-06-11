@@ -256,7 +256,11 @@ export function CreateWoModal({
         plannedQuantity: plannedBase,
         quantityEntered: quantity.trim(),
         quantityEnteredUom: outputUom,
-        scheduledStartTime: scheduledStart ? new Date(scheduledStart).toISOString() : undefined,
+        // Parse the date-only input as LOCAL midnight (`+ 'T00:00:00'`) before
+        // converting to ISO. `new Date('2026-06-15')` parses as UTC midnight, which
+        // rolls back to the previous calendar day in UTC+ zones — the scheduled day
+        // the user picked must be preserved in their own timezone.
+        scheduledStartTime: scheduledStart ? new Date(scheduledStart + 'T00:00:00').toISOString() : undefined,
         productionLineId: lineId || undefined,
         machineId: machineId || undefined,
         notes: notes.trim() || undefined,

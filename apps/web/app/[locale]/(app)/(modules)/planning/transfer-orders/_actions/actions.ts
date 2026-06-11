@@ -256,6 +256,16 @@ export async function createTransferOrder(rawInput: unknown): Promise<TransferOr
   }
 }
 
+// Server-side state machine for TO status. Terminal states (received, cancelled)
+// have no legal successors. Re-validated server-side so a forged/stale request
+// can never apply an illegal jump.
+const TO_TRANSITIONS: Record<string, readonly string[]> = {
+  draft: ['in_transit', 'cancelled'],
+  in_transit: ['received', 'cancelled'],
+  received: [],
+  cancelled: [],
+};
+
 export async function transitionTransferOrderStatus(id: string, status: string): Promise<TransferOrderResult<TransferOrder>> {
   const parsed = TransferOrderStatusSchema.safeParse(status);
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
@@ -271,6 +281,10 @@ export async function transitionTransferOrderStatus(id: string, status: string):
       );
       const previous = before.rows[0];
       if (!previous) return { ok: false, error: 'not_found' };
+
+      // Guard the transition server-side against the legal state machine.
+      const allowed = TO_TRANSITIONS[previous.status] ?? [];
+      if (!allowed.includes(parsed.data)) return { ok: false, error: 'invalid_state' };
 
       const { rows } = await ctx.client.query<TransferOrderRow>(
         `update public.transfer_orders

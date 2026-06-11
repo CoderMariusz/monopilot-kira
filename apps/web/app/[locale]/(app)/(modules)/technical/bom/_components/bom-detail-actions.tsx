@@ -32,7 +32,7 @@ import { useTranslations } from 'next-intl';
 import { ComponentAddModal, VersionSaveModal, type BomEditContext } from './bom-edit-dialog';
 import { DeleteBomVersionModal, type DeleteVersionLabels } from './delete-version-modal';
 import { deleteBomVersion } from '../_actions/delete-bom-version';
-import { approveBom } from '../_actions/workflow';
+import { approveBom, publishBom } from '../_actions/workflow';
 import type { BomStatus } from '../_actions/shared';
 
 type EditLine = {
@@ -53,6 +53,7 @@ export function BomDetailActions({
   lines,
   canCreate,
   canApprove,
+  canPublish,
 }: {
   productId: string;
   productName: string | null;
@@ -62,6 +63,7 @@ export function BomDetailActions({
   lines: EditLine[];
   canCreate: boolean;
   canApprove: boolean;
+  canPublish: boolean;
 }) {
   const t = useTranslations('technical.bom.actions');
   const tDelete = useTranslations('technical.bomDelete');
@@ -72,6 +74,8 @@ export function BomDetailActions({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [approveState, setApproveState] = React.useState<'idle' | 'pending' | 'error'>('idle');
   const [approveMsg, setApproveMsg] = React.useState<string | null>(null);
+  const [publishState, setPublishState] = React.useState<'idle' | 'pending' | 'error'>('idle');
+  const [publishMsg, setPublishMsg] = React.useState<string | null>(null);
   const [deleteMsg, setDeleteMsg] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -84,6 +88,8 @@ export function BomDetailActions({
 
   // Approve only makes sense for a draft / in_review version.
   const approvable = status === 'draft' || status === 'in_review';
+  // Publish (technical_approved -> active) only makes sense once approved.
+  const publishable = status === 'technical_approved';
   const deletable = status === 'draft';
   const deleteLabels: DeleteVersionLabels = {
     title: tDelete('title'),
@@ -115,6 +121,25 @@ export function BomDetailActions({
     });
   }
 
+  function onPublish() {
+    setPublishState('pending');
+    setPublishMsg(null);
+    startTransition(async () => {
+      const res = await publishBom({ productId, version: currentVersion });
+      if (res.ok) {
+        setPublishState('idle');
+        router.refresh();
+      } else {
+        setPublishState('error');
+        setPublishMsg(
+          res.error === 'forbidden'
+            ? t('publishForbidden')
+            : res.message ?? t('publishError'),
+        );
+      }
+    });
+  }
+
   function onDelete() {
     setDeleteMsg(null);
     startTransition(async () => {
@@ -138,7 +163,7 @@ export function BomDetailActions({
     });
   }
 
-  if (!canCreate && !canApprove) return null;
+  if (!canCreate && !canApprove && !canPublish) return null;
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2" data-testid="bom-detail-actions">
@@ -185,9 +210,26 @@ export function BomDetailActions({
         </button>
       ) : null}
 
+      {canPublish && publishable ? (
+        <button
+          type="button"
+          className="btn btn-primary"
+          data-testid="bom-publish-cta"
+          disabled={pending || publishState === 'pending'}
+          onClick={onPublish}
+        >
+          {publishState === 'pending' || pending ? t('publishing') : t('publish')}
+        </button>
+      ) : null}
+
       {approveState === 'error' && approveMsg ? (
         <span role="alert" className="text-sm" style={{ color: 'var(--red)' }}>
           {approveMsg}
+        </span>
+      ) : null}
+      {publishState === 'error' && publishMsg ? (
+        <span role="alert" className="text-sm" style={{ color: 'var(--red)' }}>
+          {publishMsg}
         </span>
       ) : null}
       {deleteMsg ? (

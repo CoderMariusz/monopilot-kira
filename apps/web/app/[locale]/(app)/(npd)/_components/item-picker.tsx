@@ -40,9 +40,12 @@ export type ItemPickerLabels = {
   error: string;
 };
 
-export type ItemSearchFn = (input: {
+export type SearchableItemType = 'fg' | 'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'packaging';
+export type ComponentItemType = Exclude<SearchableItemType, 'fg'>;
+
+export type ItemSearchFn<TItemType extends SearchableItemType = ComponentItemType> = (input: {
   query?: string;
-  itemTypes?: Array<'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'packaging'>;
+  itemTypes?: TItemType[];
   limit?: number;
 }) => Promise<ItemPickerOption[]>;
 
@@ -59,7 +62,7 @@ const DEFAULT_PICKER_LABELS: ItemPickerLabels = {
   error: 'Item search failed',
 };
 
-export function ItemPicker({
+export function ItemPicker<TItemType extends SearchableItemType = ComponentItemType>({
   labels: labelsProp,
   onSelect,
   searchItemsAction,
@@ -71,8 +74,8 @@ export function ItemPicker({
   /** Called with the chosen real item; the caller persists item_id + code. */
   onSelect: (item: ItemPickerOption) => void;
   /** Server Action seam (defaults to the org-scoped searchItems action). */
-  searchItemsAction: ItemSearchFn;
-  itemTypes?: Array<'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'packaging'>;
+  searchItemsAction: ItemSearchFn<TItemType>;
+  itemTypes?: TItemType[];
   disabled?: boolean;
   triggerClassName?: string;
 }) {

@@ -268,6 +268,18 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
   }
 }
 
+// Server-side state machine for PO status. Terminal states (received, cancelled)
+// have no legal successors. The client surfaces only legal transitions, but we
+// re-validate here so a forged/stale request can never apply an illegal jump.
+const PO_TRANSITIONS: Record<string, readonly string[]> = {
+  draft: ['sent', 'cancelled'],
+  sent: ['confirmed', 'cancelled'],
+  confirmed: ['partially_received', 'received', 'cancelled'],
+  partially_received: ['received', 'cancelled'],
+  received: [],
+  cancelled: [],
+};
+
 export async function transitionPurchaseOrderStatus(id: string, status: string): Promise<PurchaseOrderResult<PurchaseOrder>> {
   const parsed = PurchaseOrderStatusSchema.safeParse(status);
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
@@ -283,6 +295,10 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       );
       const previous = before.rows[0];
       if (!previous) return { ok: false, error: 'not_found' };
+
+      // Guard the transition server-side against the legal state machine.
+      const allowed = PO_TRANSITIONS[previous.status] ?? [];
+      if (!allowed.includes(parsed.data)) return { ok: false, error: 'invalid_state' };
 
       const { rows } = await ctx.client.query<PurchaseOrderRow>(
         `update public.purchase_orders
