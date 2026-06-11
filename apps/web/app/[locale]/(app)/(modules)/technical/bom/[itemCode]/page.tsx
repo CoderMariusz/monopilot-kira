@@ -88,6 +88,7 @@ const DEFAULT_LABELS: BomDetailLabels = {
   colUom: 'UoM',
   colScrap: 'Scrap',
   colOperation: 'Operation',
+  colActions: 'Actions',
   phantomBadge: 'phantom',
   colCoProduct: 'Co-product item',
   colAllocation: 'Allocation',
@@ -327,6 +328,12 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
       uom: w.uom,
     })),
     detailHrefBase: DETAIL_HREF_BASE,
+    // Per-row component edit/delete (Components tab). The selected version's
+    // header id keys the line actions; editability mirrors the server guard
+    // (draft | in_review). RBAC is server-resolved (never client-trusted).
+    selectedHeaderId: d.header.id,
+    isEditable: d.header.status === 'draft' || d.header.status === 'in_review',
+    canEditLines: perms.canCreate,
   };
 
   return (

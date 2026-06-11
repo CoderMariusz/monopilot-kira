@@ -33,6 +33,8 @@ import Link from 'next/link';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@monopilot/ui/Tabs';
 
+import { BomLineRowActions } from './bom-line-row-actions';
+
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied' | 'not_found';
 
 export type BomStatus =
@@ -112,6 +114,12 @@ export type BomDetailData = {
   snapshots: BomSnapshotView[];
   whereUsed: BomWhereUsedView[];
   detailHrefBase: string;
+  /** The selected version's bom_headers.id — keys the per-row edit/delete actions. */
+  selectedHeaderId?: string;
+  /** Whether the selected version is editable (draft | in_review). Row actions render disabled otherwise. */
+  isEditable?: boolean;
+  /** Server-resolved RBAC (technical.bom.create) — gates the component row actions. */
+  canEditLines?: boolean;
 };
 
 export type BomDetailLabels = {
@@ -134,6 +142,7 @@ export type BomDetailLabels = {
   colUom: string;
   colScrap: string;
   colOperation: string;
+  colActions: string;
   phantomBadge: string;
   // co-products
   colCoProduct: string;
@@ -382,6 +391,9 @@ export function BomDetailScreen({
                     <th scope="col">{labels.colUom}</th>
                     <th scope="col" style={{ textAlign: 'right' }}>{labels.colScrap}</th>
                     <th scope="col">{labels.colOperation}</th>
+                    {data.canEditLines ? (
+                      <th scope="col" style={{ textAlign: 'right' }}>{labels.colActions}</th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -397,6 +409,22 @@ export function BomDetailScreen({
                       <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{l.uom}</td>
                       <td className="mono tabular-nums" style={{ textAlign: 'right' }}>{Number(l.scrapPct).toFixed(1)}%</td>
                       <td>{l.manufacturingOperationName ?? '—'}</td>
+                      {data.canEditLines && data.selectedHeaderId ? (
+                        <td style={{ textAlign: 'right' }}>
+                          <BomLineRowActions
+                            target={{
+                              bomHeaderId: data.selectedHeaderId,
+                              lineId: l.id,
+                              componentCode: l.componentCode,
+                              quantity: l.quantity,
+                              uom: l.uom,
+                              notes: l.manufacturingOperationName ?? null,
+                            }}
+                            editable={data.isEditable ?? false}
+                            canEdit={data.canEditLines}
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

@@ -44,6 +44,7 @@ const LABELS: BomDetailLabels = {
   colUom: 'UoM',
   colScrap: 'Scrap',
   colOperation: 'Operation',
+  colActions: 'Actions',
   phantomBadge: 'phantom',
   colCoProduct: 'Co-product item',
   colAllocation: 'Allocation',

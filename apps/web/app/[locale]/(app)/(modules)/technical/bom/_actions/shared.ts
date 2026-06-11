@@ -317,6 +317,54 @@ export const BomDiffInput = z.object({
 });
 export type BomDiffInputType = z.input<typeof BomDiffInput>;
 
+// ── Line edit / delete input (BOM component row actions) ──────────────────────
+// A header is editable while its status is still in a pre-released state
+// (draft | in_review). Released statuses (technical_approved | active) and
+// terminal statuses (superseded | archived) are clone-on-write — the line
+// actions refuse with `bom_not_editable`, mirroring createBomDraft's red-line
+// (it always opens a NEW draft rather than mutating a released row in place).
+export const BOM_LINE_EDITABLE_STATUSES: ReadonlySet<BomStatus> = new Set<BomStatus>([
+  'draft',
+  'in_review',
+]);
+
+// qty is a DECIMAL STRING on the wire (no float coercion at the form seam); it is
+// validated as a positive finite number before persisting as ::numeric.
+const DecimalString = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((v) => Number.isFinite(Number(v)) && Number(v) > 0, { message: 'quantity must be a positive number' });
+
+export const UpdateBomLineInput = z.object({
+  bomHeaderId: z.string().uuid(),
+  lineId: z.string().uuid(),
+  qty: DecimalString,
+  uom: z.string().trim().min(1).max(32).optional(),
+  notes: z.string().trim().max(256).optional(),
+});
+export type UpdateBomLineInputType = z.input<typeof UpdateBomLineInput>;
+
+export const DeleteBomLineInput = z.object({
+  bomHeaderId: z.string().uuid(),
+  lineId: z.string().uuid(),
+});
+export type DeleteBomLineInputType = z.input<typeof DeleteBomLineInput>;
+
+export type BomLineActionError =
+  | 'invalid_input'
+  | 'forbidden'
+  | 'not_found'
+  | 'bom_not_editable'
+  | 'persistence_failed';
+
+export type BomLineActionResult =
+  | { ok: true; data: { lineId: string; bomHeaderId: string } }
+  | { ok: false; error: BomLineActionError; message?: string };
+
+export const AUDIT_BOM_LINE_UPDATED = 'bom.line_updated';
+export const AUDIT_BOM_LINE_DELETED = 'bom.line_deleted';
+
 // ── Generator input (T-016) ───────────────────────────────────────────────────
 export const BomGeneratorInput = z.object({
   scope: z.enum(GENERATOR_SCOPES).optional().default('all_complete'),

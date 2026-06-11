@@ -1,0 +1,54 @@
+{
+  "technical.bom.rowActions": {
+    "en": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "editTitle": "Edit component line",
+      "editSubtitle": "Update the quantity, unit of measure or notes for {component}.",
+      "quantity": "Quantity",
+      "quantityInvalid": "Enter a quantity greater than zero.",
+      "uom": "Unit of measure",
+      "notes": "Notes",
+      "notesPlaceholder": "Optional line note",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "deleteTitle": "Remove component line",
+      "deleteConfirm": "Remove {component} from this BOM version? This cannot be undone.",
+      "deleting": "Removing…",
+      "deleteAction": "Remove component",
+      "rowActionsLabel": "Row actions",
+      "notEditable": "This BOM version is approved or active — its components can no longer be edited.",
+      "forbidden": "You do not have permission to edit BOM components.",
+      "saveError": "Unable to update this component line. Please try again.",
+      "deleteError": "Unable to remove this component line. Please try again."
+    },
+    "pl": {
+      "edit": "Edytuj",
+      "delete": "Usuń",
+      "editTitle": "Edytuj pozycję składnika",
+      "editSubtitle": "Zaktualizuj ilość, jednostkę miary lub notatki dla {component}.",
+      "quantity": "Ilość",
+      "quantityInvalid": "Podaj ilość większą od zera.",
+      "uom": "Jednostka miary",
+      "notes": "Notatki",
+      "notesPlaceholder": "Opcjonalna notatka pozycji",
+      "save": "Zapisz zmiany",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj",
+      "deleteTitle": "Usuń pozycję składnika",
+      "deleteConfirm": "Usunąć {component} z tej wersji BOM? Tej operacji nie można cofnąć.",
+      "deleting": "Usuwanie…",
+      "deleteAction": "Usuń składnik",
+      "rowActionsLabel": "Akcje wiersza",
+      "notEditable": "Ta wersja BOM jest zatwierdzona lub aktywna — jej składników nie można już edytować.",
+      "forbidden": "Nie masz uprawnień do edycji składników BOM.",
+      "saveError": "Nie udało się zaktualizować tej pozycji składnika. Spróbuj ponownie.",
+      "deleteError": "Nie udało się usunąć tej pozycji składnika. Spróbuj ponownie."
+    }
+  },
+  "technical.bomDetail.openBom": {
+    "en": "Open BOM →",
+    "pl": "Otwórz BOM →"
+  }
+}
