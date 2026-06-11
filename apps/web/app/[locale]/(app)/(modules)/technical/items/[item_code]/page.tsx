@@ -44,6 +44,13 @@ import {
 import { buildDataTabLabels } from './_components/item-data-tab-labels';
 import { loadBomTab, loadCostTab, loadRoutingTab, loadLabTab, loadD365Tab } from './_actions/tab-data';
 import { listSupplierSpecs } from './_actions/list-supplier-specs';
+import {
+  SupplierSpecAdd,
+  type SupplierOption,
+  type SupplierSpecAddLabels,
+} from './_components/supplier-spec-add.client';
+import { createItemSupplierSpec } from '../_actions/supplier-spec-actions';
+import { listSuppliers } from '../../../planning/suppliers/_actions/actions';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
 import { buildWizardLabels } from '../_components/item-wizard-labels';
 
@@ -250,6 +257,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     d365Data,
     supplierSpecsData,
     canCreateBom,
+    suppliersResult,
   ] = await Promise.all([
     buildDataTabLabels(locale),
     buildAllergensTabLabels(locale),
@@ -261,7 +269,64 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     loadD365Tab(item.itemCode),
     listSupplierSpecs(item.itemCode),
     resolveCanCreateBom(),
+    // Read-only reuse of the planning suppliers master for the "+ Add supplier"
+    // Select. The action re-validates RBAC server-side before any write.
+    listSuppliers({ limit: 200 }),
   ]);
+
+  // ── "+ Add supplier" modal: lets an item NOT born in NPD attach/approve a
+  // supplier_spec. Writing an approved+active row clears the BOM readiness gates
+  // SUPPLIER_NOT_APPROVED / SUPPLIER_SPEC_NOT_ACTIVE for this item.
+  const supplierOptions: SupplierOption[] = suppliersResult.ok
+    ? suppliersResult.data.map((s) => ({ id: s.id, code: s.code, name: s.name }))
+    : [];
+
+  const a = (key: string, fallback: string): string => {
+    const dotted = `detail.dataTabs.supplier.add.${key}`;
+    try {
+      return t.has(dotted) ? t(dotted) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const supplierAddLabels: SupplierSpecAddLabels = {
+    cta: a('cta', '+ Add supplier'),
+    title: a('title', 'Add supplier specification'),
+    subtitle: a('subtitle', 'Attach an approved supplier spec so this item clears the BOM supplier-readiness gates.'),
+    supplier: a('supplier', 'Supplier'),
+    supplierPlaceholder: a('supplierPlaceholder', 'Select a supplier'),
+    specVersion: a('specVersion', 'Spec version'),
+    issuedDate: a('issuedDate', 'Issued date'),
+    effectiveFrom: a('effectiveFrom', 'Effective from'),
+    expiryDate: a('expiryDate', 'Expiry date'),
+    approveNow: a('approveNow', 'Approve now (activates the spec and clears the readiness warnings)'),
+    submit: a('submit', 'Add supplier'),
+    submitting: a('submitting', 'Adding…'),
+    cancel: a('cancel', 'Cancel'),
+    success: a('success', 'Supplier specification added. BOM readiness warnings for this item are now cleared.'),
+    successUpdated: a('successUpdated', 'Supplier specification refreshed for this item.'),
+    noSuppliers: a('noSuppliers', 'No suppliers found. Create a supplier in Planning first.'),
+    forbidden: a('forbidden', 'You do not have permission to add a supplier to this item.'),
+    errors: {
+      invalid_input: a('errors.invalid_input', 'Please check the supplier and dates and try again.'),
+      forbidden: a('forbidden', 'You do not have permission to add a supplier to this item.'),
+      item_not_found: a('errors.item_not_found', 'This item no longer exists.'),
+      supplier_not_found: a('errors.supplier_not_found', 'The selected supplier could not be found.'),
+      already_exists: a('errors.already_exists', 'An approved supplier spec already exists for this supplier and item.'),
+      persistence_failed: a('errors.persistence_failed', 'Could not save the supplier specification. Please try again.'),
+      load_failed: a('errors.load_failed', 'Could not load suppliers. Please try again.'),
+    },
+  };
+
+  const supplierAddAction = (
+    <SupplierSpecAdd
+      itemCode={item.itemCode}
+      canEdit={canEdit}
+      suppliers={supplierOptions}
+      labels={supplierAddLabels}
+      addSupplierSpec={createItemSupplierSpec}
+    />
+  );
 
   // Item-detail BOM tab "+ New BOM" CTA: only a finished good gets a BOM, and only
   // when the caller may create. Routes to the BOM list with this FG preselected
@@ -278,6 +343,15 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     bomCreateCtaResolved === bomCreateCtaKey || bomCreateCtaResolved.endsWith('.createCta')
       ? '+ New BOM'
       : bomCreateCtaResolved;
+
+  // Per-row "Open BOM →" deep-link label (keys staged in bom-row-actions.json).
+  // Resolve with the same has-guard fallback so a missing bundle key never throws.
+  const openBomKey = 'detail.dataTabs.bom.openBom';
+  const openBomResolved = t(openBomKey);
+  const openBomLabel =
+    openBomResolved === openBomKey || openBomResolved.endsWith('.openBom')
+      ? 'Open BOM →'
+      : openBomResolved;
 
   return (
     <main data-screen="technical-item-detail" className="flex w-full flex-col gap-4 px-6 py-6">
@@ -326,17 +400,24 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
           bom: (
             <BomTab
               data={bomData}
-              labels={{ ...dataTabLabels.bom, createCta: bomCreateCta }}
+              labels={{ ...dataTabLabels.bom, createCta: bomCreateCta, openBom: openBomLabel }}
               isFinishedGood={isFinishedGood}
               canCreateBom={canCreateBom}
               createBomHref={createBomHref}
+              itemCode={item.itemCode}
             />
           ),
           cost: <CostTab data={costData} labels={dataTabLabels.cost} />,
           routing: <RoutingTab data={routingData} labels={dataTabLabels.routing} />,
           labResults: <LabTab data={labData} labels={dataTabLabels.lab} />,
           d365: <D365Tab data={d365Data} labels={dataTabLabels.d365} />,
-          supplierSpecs: <SupplierSpecsTab data={supplierSpecsData} labels={dataTabLabels.supplier} />,
+          supplierSpecs: (
+            <SupplierSpecsTab
+              data={supplierSpecsData}
+              labels={dataTabLabels.supplier}
+              addAction={supplierAddAction}
+            />
+          ),
         }}
       />
     </main>

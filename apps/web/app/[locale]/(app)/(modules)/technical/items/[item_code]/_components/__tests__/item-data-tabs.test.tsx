@@ -98,6 +98,39 @@ describe('BomTab', () => {
     expect(screen.getByText('7')).toBeInTheDocument();
   });
 
+  it('renders a per-row "Open BOM →" deep-link to the BOM detail route keyed by item_code', () => {
+    render(
+      <BomTab
+        data={{
+          state: 'ready',
+          versions: [
+            { id: '1', version: 3, status: 'draft', effectiveFrom: '2026-04-14T00:00:00Z', effectiveTo: null, approvedBy: null, approvedAt: null, lineCount: 2 },
+          ],
+        }}
+        labels={{ ...bomLabels, openBom: 'Open BOM →' }}
+        itemCode="FG1234"
+      />,
+    );
+    const link = screen.getByTestId('item-bom-open-link');
+    expect(link).toHaveTextContent('Open BOM →');
+    expect(link).toHaveAttribute('href', '/technical/bom/FG1234?v=3');
+  });
+
+  it('omits the open-bom link column when no itemCode is supplied', () => {
+    render(
+      <BomTab
+        data={{
+          state: 'ready',
+          versions: [
+            { id: '1', version: 2, status: 'active', effectiveFrom: '2026-04-14T00:00:00Z', effectiveTo: null, approvedBy: 'u', approvedAt: '2026-04-14T00:00:00Z', lineCount: 7 },
+          ],
+        }}
+        labels={bomLabels}
+      />,
+    );
+    expect(screen.queryByTestId('item-bom-open-link')).not.toBeInTheDocument();
+  });
+
   it('renders an EmptyState (not a blank tbody) when empty', () => {
     render(<BomTab data={{ state: 'empty', versions: [] }} labels={bomLabels} />);
     expect(screen.getByText('No BOM versions yet')).toBeInTheDocument();

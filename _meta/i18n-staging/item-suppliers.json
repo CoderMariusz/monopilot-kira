@@ -1,0 +1,103 @@
+{
+  "_note": "ITEM SUPPLIER MANAGEMENT lane — staged i18n for the Item Detail supplier-specs '+ Add supplier' modal (technical.items.detail.dataTabs.supplier.add.*) + the Create Item wizard co_product/byproduct type labels (technical.items.create.typeLabels.*). en + pl are real translations; merge into apps/web/i18n/<locale>.json via the established i18n-staging step (ro/uk mirror the EN value per the two-locale policy). Resolved at runtime via the page's existing t.has-guard fallback, so these keys are safe to surface before merge. Do NOT hand-edit apps/web/i18n/** in this lane.",
+  "en": {
+    "technical": {
+      "items": {
+        "create": {
+          "typeLabels": {
+            "rm": "Raw material",
+            "ingredient": "Ingredient",
+            "intermediate": "Intermediate",
+            "fg": "Finished good",
+            "co_product": "Co-product",
+            "byproduct": "By-product",
+            "packaging": "Packaging"
+          }
+        },
+        "detail": {
+          "dataTabs": {
+            "supplier": {
+              "add": {
+                "cta": "+ Add supplier",
+                "title": "Add supplier specification",
+                "subtitle": "Attach an approved supplier spec so this item clears the BOM supplier-readiness gates.",
+                "supplier": "Supplier",
+                "supplierPlaceholder": "Select a supplier",
+                "specVersion": "Spec version",
+                "issuedDate": "Issued date",
+                "effectiveFrom": "Effective from",
+                "expiryDate": "Expiry date",
+                "approveNow": "Approve now (activates the spec and clears the readiness warnings)",
+                "submit": "Add supplier",
+                "submitting": "Adding…",
+                "cancel": "Cancel",
+                "success": "Supplier specification added. BOM readiness warnings for this item are now cleared.",
+                "successUpdated": "Supplier specification refreshed for this item.",
+                "noSuppliers": "No suppliers found. Create a supplier in Planning first.",
+                "forbidden": "You do not have permission to add a supplier to this item.",
+                "errors": {
+                  "invalid_input": "Please check the supplier and dates and try again.",
+                  "item_not_found": "This item no longer exists.",
+                  "supplier_not_found": "The selected supplier could not be found.",
+                  "already_exists": "An approved supplier spec already exists for this supplier and item.",
+                  "persistence_failed": "Could not save the supplier specification. Please try again.",
+                  "load_failed": "Could not load suppliers. Please try again."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "pl": {
+    "technical": {
+      "items": {
+        "create": {
+          "typeLabels": {
+            "rm": "Surowiec",
+            "ingredient": "Składnik",
+            "intermediate": "Półprodukt",
+            "fg": "Wyrób gotowy",
+            "co_product": "Produkt towarzyszący",
+            "byproduct": "Produkt uboczny",
+            "packaging": "Opakowanie"
+          }
+        },
+        "detail": {
+          "dataTabs": {
+            "supplier": {
+              "add": {
+                "cta": "+ Dodaj dostawcę",
+                "title": "Dodaj specyfikację dostawcy",
+                "subtitle": "Dołącz zatwierdzoną specyfikację dostawcy, aby ten indeks przeszedł bramki gotowości dostawcy w BOM.",
+                "supplier": "Dostawca",
+                "supplierPlaceholder": "Wybierz dostawcę",
+                "specVersion": "Wersja specyfikacji",
+                "issuedDate": "Data wystawienia",
+                "effectiveFrom": "Obowiązuje od",
+                "expiryDate": "Data wygaśnięcia",
+                "approveNow": "Zatwierdź teraz (aktywuje specyfikację i usuwa ostrzeżenia o gotowości)",
+                "submit": "Dodaj dostawcę",
+                "submitting": "Dodawanie…",
+                "cancel": "Anuluj",
+                "success": "Dodano specyfikację dostawcy. Ostrzeżenia o gotowości BOM dla tego indeksu zostały usunięte.",
+                "successUpdated": "Zaktualizowano specyfikację dostawcy dla tego indeksu.",
+                "noSuppliers": "Nie znaleziono dostawców. Najpierw utwórz dostawcę w module Planowanie.",
+                "forbidden": "Nie masz uprawnień do dodania dostawcy do tego indeksu.",
+                "errors": {
+                  "invalid_input": "Sprawdź dostawcę i daty, a następnie spróbuj ponownie.",
+                  "item_not_found": "Ten indeks już nie istnieje.",
+                  "supplier_not_found": "Nie znaleziono wybranego dostawcy.",
+                  "already_exists": "Zatwierdzona specyfikacja dostawcy już istnieje dla tego dostawcy i indeksu.",
+                  "persistence_failed": "Nie udało się zapisać specyfikacji dostawcy. Spróbuj ponownie.",
+                  "load_failed": "Nie udało się wczytać dostawców. Spróbuj ponownie."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

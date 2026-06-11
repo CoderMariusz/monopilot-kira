@@ -133,6 +133,8 @@ export type BomTabLabels = TabStateLabels & {
   none: string;
   /** "+ New BOM" CTA label, shown in the empty state for an FG item. */
   createCta?: string;
+  /** Per-row deep-link to the BOM detail screen for this FG version. */
+  openBom?: string;
 };
 
 /**
@@ -148,12 +150,19 @@ export function BomTab({
   isFinishedGood = false,
   canCreateBom = false,
   createBomHref,
+  itemCode,
 }: {
   data: BomTabData;
   labels: BomTabLabels;
   isFinishedGood?: boolean;
   canCreateBom?: boolean;
   createBomHref?: string;
+  /**
+   * The FG item_code (= bom_headers.product_id) — keys the per-row "Open BOM →"
+   * deep-link so the owner no longer has to navigate to /technical/bom and search
+   * manually. BOM detail is routed by product_id, not by header id.
+   */
+  itemCode?: string;
 }) {
   if (data.state === 'error') return <ErrorCard message={labels.error} />;
   if (data.state === 'empty') {
@@ -187,6 +196,7 @@ export function BomTab({
             <th scope="col">{labels.effectiveTo}</th>
             <th scope="col">{labels.lines}</th>
             <th scope="col">{labels.approved}</th>
+            {itemCode ? <th scope="col" style={{ textAlign: 'right' }} /> : null}
           </tr>
         </thead>
         <tbody>
@@ -204,6 +214,17 @@ export function BomTab({
               <td className="mono" style={{ color: 'var(--muted)' }}>
                 {fmtDate(v.approvedAt, labels.none)}
               </td>
+              {itemCode ? (
+                <td style={{ textAlign: 'right' }}>
+                  <Link
+                    href={`/technical/bom/${encodeURIComponent(itemCode)}?v=${v.version}`}
+                    className="text-blue-600 underline-offset-4 hover:underline"
+                    data-testid="item-bom-open-link"
+                  >
+                    {labels.openBom ?? 'Open BOM →'}
+                  </Link>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
@@ -467,14 +488,32 @@ export type SupplierTabLabels = TabStateLabels & {
   certificates: string;
 };
 
-export function SupplierSpecsTab({ data, labels }: { data: SupplierSpecsData; labels: SupplierTabLabels }) {
+/**
+ * The supplier-specs tab. `addAction` is the "+ Add supplier" island (the
+ * SupplierSpecAdd modal, gated by technical.items.edit). It is surfaced in BOTH
+ * the empty state and the populated header so an item that was NOT born in NPD
+ * can finally get an approved supplier_spec — which is what clears the BOM
+ * readiness gates SUPPLIER_NOT_APPROVED / SUPPLIER_SPEC_NOT_ACTIVE
+ * (apps/web/lib/technical/rm-usability.ts). The page injects it as a prop seam.
+ */
+export function SupplierSpecsTab({
+  data,
+  labels,
+  addAction,
+}: {
+  data: SupplierSpecsData;
+  labels: SupplierTabLabels;
+  addAction?: ReactNode;
+}) {
   if (data.state === 'error') return <ErrorCard message={labels.error} />;
-  if (data.state === 'empty') return <EmptyCard icon="📄" title={labels.empty} body={labels.emptyBody} />;
+  if (data.state === 'empty')
+    return <EmptyCard icon="📄" title={labels.empty} body={labels.emptyBody} action={addAction} />;
 
   return (
     <div className="card" style={{ padding: 0, overflowX: 'auto' }} data-testid="supplier-specs-tab">
-      <div className="card-head" style={SECTION_HEAD}>
+      <div className="card-head" style={{ ...SECTION_HEAD, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <strong>{labels.title}</strong>
+        {addAction}
       </div>
       <table aria-label={labels.title}>
         <thead>

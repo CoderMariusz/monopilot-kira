@@ -70,6 +70,19 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(L.errors.codeRequired);
   });
 
+  it('offers Co-product and By-product in the item-type dropdown (legal per mig 248/255)', async () => {
+    const user = userEvent.setup();
+    render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('combobox', { name: L.fields.itemType }));
+    expect(screen.getByRole('option', { name: L.typeLabels.co_product })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: L.typeLabels.byproduct })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: L.typeLabels.packaging })).toBeInTheDocument();
+    // and selecting co_product sticks
+    await user.click(screen.getByRole('option', { name: L.typeLabels.co_product }));
+    expect(screen.getByRole('combobox', { name: L.fields.itemType })).toHaveTextContent(L.typeLabels.co_product);
+  });
+
   it('reveals catch-weight fields when weight_mode = catch', async () => {
     const user = userEvent.setup();
     render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);

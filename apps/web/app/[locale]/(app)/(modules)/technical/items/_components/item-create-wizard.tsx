@@ -82,7 +82,9 @@ const SHELF_MODE_LABELS: Record<(typeof SHELF_LIFE_MODES)[number], string> = {
   best_before: 'Best before',
 };
 
-const TYPE_OPTIONS = ITEM_TYPES.map((value) => ({ value, label: ITEM_TYPE_LABELS[value] }));
+// (item-type options are built per-render from the localized labels bundle —
+// see `typeOptions` inside the component — so co_product / byproduct / packaging
+// surface with translated labels, not the hardcoded English fallback below.)
 const STATUS_OPTIONS = ITEM_STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] }));
 const WEIGHT_MODE_OPTIONS = WEIGHT_MODES.map((value) => ({ value, label: WEIGHT_MODE_LABELS[value] }));
 const SHELF_MODE_OPTIONS = SHELF_LIFE_MODES.map((value) => ({ value, label: SHELF_MODE_LABELS[value] }));
@@ -358,6 +360,12 @@ export function ItemWizard({
     () => OUTPUT_UOMS.map((value) => ({ value, label: labels.outputUomLabels[value] })),
     [labels.outputUomLabels],
   );
+  // Item-type select — LOCALIZED labels (co_product / byproduct / packaging are
+  // all legal per mig 248 + 255; co_product/byproduct were the reported gap).
+  const typeOptions: SelectOption[] = React.useMemo(
+    () => ITEM_TYPES.map((value) => ({ value, label: labels.typeLabels[value] ?? ITEM_TYPE_LABELS[value] })),
+    [labels.typeLabels],
+  );
 
   const basicValid =
     form.itemCode.trim().length >= 1 && form.name.trim().length >= 1 && form.uomBase.trim().length >= 1;
@@ -589,7 +597,7 @@ export function ItemWizard({
             <LabeledSelect
               value={form.itemType}
               onValueChange={(v) => update('itemType', v as WizardFormState['itemType'])}
-              options={TYPE_OPTIONS}
+              options={typeOptions}
               ariaLabel={labels.fields.itemType}
             />
           </Field>
@@ -841,7 +849,7 @@ export function ItemWizard({
               [
                 [labels.fields.itemCode, form.itemCode, true],
                 [labels.fields.name, form.name, false],
-                [labels.fields.itemType, ITEM_TYPE_LABELS[form.itemType], false],
+                [labels.fields.itemType, labels.typeLabels[form.itemType] ?? ITEM_TYPE_LABELS[form.itemType], false],
                 [labels.fields.status, STATUS_LABELS[form.status], false],
                 [labels.fields.uomBase, labels.uomLabels[form.uomBase as keyof typeof labels.uomLabels] ?? form.uomBase, true],
                 [labels.review.packaging, packagingReview, false],

@@ -7,7 +7,7 @@
  * reference proxy under the Vercel turbopack build (live crash digests
  * 2219404667 / 1606090766 — local builds and jsdom tests never catch it).
  */
-import { CANONICAL_UOMS, type ItemsActionError, type OutputUom } from '../_actions/shared';
+import { CANONICAL_UOMS, type ItemsActionError, type ItemType, type OutputUom } from '../_actions/shared';
 
 export type ItemWizardLabels = {
   title: string;
@@ -43,6 +43,8 @@ export type ItemWizardLabels = {
     eachPerBox: string;
     boxesPerPallet: string;
   };
+  /** Localized labels for the item-type select (rm/ingredient/…/co_product/byproduct/packaging). */
+  typeLabels: Record<ItemType, string>;
   /** Localized labels for the canonical base-UoM list (kg/g/l/ml/szt). */
   uomLabels: Record<(typeof CANONICAL_UOMS)[number], string>;
   /** Empty-option label for the optional secondary UoM select. */
@@ -97,6 +99,15 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     netQtyPerEach: 'Net content per each',
     eachPerBox: 'Each per box',
     boxesPerPallet: 'Boxes per pallet',
+  },
+  typeLabels: {
+    rm: 'Raw material',
+    ingredient: 'Ingredient',
+    intermediate: 'Intermediate',
+    fg: 'Finished good',
+    co_product: 'Co-product',
+    byproduct: 'By-product',
+    packaging: 'Packaging',
   },
   uomLabels: {
     kg: 'kg',
@@ -191,6 +202,15 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       netQtyPerEach: get('create.fields.netQtyPerEach', D.fields.netQtyPerEach),
       eachPerBox: get('create.fields.eachPerBox', D.fields.eachPerBox),
       boxesPerPallet: get('create.fields.boxesPerPallet', D.fields.boxesPerPallet),
+    },
+    typeLabels: {
+      rm: get('create.typeLabels.rm', D.typeLabels.rm),
+      ingredient: get('create.typeLabels.ingredient', D.typeLabels.ingredient),
+      intermediate: get('create.typeLabels.intermediate', D.typeLabels.intermediate),
+      fg: get('create.typeLabels.fg', D.typeLabels.fg),
+      co_product: get('create.typeLabels.co_product', D.typeLabels.co_product),
+      byproduct: get('create.typeLabels.byproduct', D.typeLabels.byproduct),
+      packaging: get('create.typeLabels.packaging', D.typeLabels.packaging),
     },
     uomLabels: {
       kg: get('create.uomLabels.kg', D.uomLabels.kg),
