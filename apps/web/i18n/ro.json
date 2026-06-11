@@ -1143,7 +1143,8 @@
         "gallery": "Galerie modale",
         "my_profile": "Profilul meu",
         "my_notifications": "Notificări",
-        "d365_cost_import": "Import costuri D365"
+        "d365_cost_import": "Import costuri D365",
+        "documents": "Document numbering"
       }
     },
     "npd": {

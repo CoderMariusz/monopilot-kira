@@ -301,7 +301,8 @@
     "create_user_button": "Utwórz użytkownika",
     "create_user_help": "Konto zostanie utworzone jako aktywne z tym hasłem. E-mail nie zostanie wysłany.",
     "user_created": "Utworzono użytkownika {email}.",
-    "user_creation_failed": "Tworzenie użytkownika nie powiodło się: {error}"
+    "user_creation_failed": "Tworzenie użytkownika nie powiodło się: {error}",
+    "user_creation_forbidden_role": "Wybrana rola jest rolą systemową i nie może być przypisana bezpośrednio. Wybierz rolę inną niż systemowa (np. Menedżer NPD, Przeglądający)."
   },
   "roles": {
     "screen_title": "Role i uprawnienia",
@@ -2120,5 +2121,37 @@
       "delete_confirm_cancel": "Anuluj",
       "delete_confirm_confirm": "Usuń szablon"
     }
+  },
+  "documents": {
+    "title": "Numeracja dokumentów",
+    "subtitle": "Formaty numerów i archiwizacja zamówień zakupu, transferów i zleceń produkcyjnych.",
+    "loading": "Ładowanie ustawień dokumentów...",
+    "empty": "Nie skonfigurowano jeszcze ustawień dokumentów.",
+    "load_error": "Nie można załadować ustawień dokumentów.",
+    "denied_title": "Brak dostępu",
+    "denied_body": "Nie masz uprawnień do przeglądania ustawień dokumentów.",
+    "read_only_label": "Tylko do odczytu",
+    "read_only_notice": "Możesz przeglądać ustawienia dokumentów, ale nie możesz ich zmieniać.",
+    "doc_type_po": "Zamówienia zakupu",
+    "doc_type_to": "Zlecenia transferu",
+    "doc_type_wo": "Zlecenia produkcyjne",
+    "field_prefix": "Prefiks",
+    "field_prefix_hint": "Tekst wiodący przed datą i numerem kolejnym, np. PO.",
+    "field_date_part": "Część daty",
+    "field_padding": "Wypełnienie numeru",
+    "field_archive": "Archiwizuj po (dni)",
+    "field_archive_hint": "Otrzymane/zamknięte dokumenty starsze niż to przejdą do zakładki Archiwum w Planowaniu. Pozostaw puste, aby nigdy nie archiwizować.",
+    "date_part_none": "Brak",
+    "date_part_year": "Rok",
+    "date_part_year_month": "Rok-miesiąc",
+    "date_part_year_month_day": "Rok-miesiąc-dzień",
+    "preview_label": "Podgląd na żywo",
+    "preview_example": "przykład",
+    "archive_never": "Nigdy nie archiwizuj",
+    "save": "Zapisz",
+    "saving": "Zapisywanie...",
+    "saved": "Zapisano.",
+    "save_error": "Nie udało się zapisać ustawień dokumentów.",
+    "invalid_input": "Sprawdź wyróżnione pola i spróbuj ponownie."
   }
 }

@@ -1143,7 +1143,8 @@
         "gallery": "Галерея модалів",
         "my_profile": "Мій профіль",
         "my_notifications": "Сповіщення",
-        "d365_cost_import": "Імпорт витрат D365"
+        "d365_cost_import": "Імпорт витрат D365",
+        "documents": "Document numbering"
       }
     },
     "npd": {

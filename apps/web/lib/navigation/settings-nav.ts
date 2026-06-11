@@ -49,7 +49,10 @@ export const SETTINGS_NAV_GROUPS = [
     item("features", "Feature flags", "◨"),
   ]),
   group("integrations", "Integrations", true, [item("integrations", "Integrations", "⇄")]),
-  group("documentTemplates", "Document templates", true, [item("labels", "Label templates", "▭", true)]),
+  group("documentTemplates", "Document templates", true, [
+    item("labels", "Label templates", "▭", true),
+    item("documents", "Document numbering", "№"),
+  ]),
   group("onboarding", "Onboarding", true, [item("onboarding", "Onboarding wizard", "✦", true)]),
   group("admin", "Admin", true, [
     item("d365-conn", "D365 connection", "⇆", false, "/settings/integrations/d365"),

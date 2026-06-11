@@ -1162,7 +1162,8 @@
         "gallery": "Modal gallery",
         "my_profile": "My profile",
         "my_notifications": "Notifications",
-        "d365_cost_import": "D365 cost import"
+        "d365_cost_import": "D365 cost import",
+        "documents": "Document numbering"
       }
     },
     "npd": {

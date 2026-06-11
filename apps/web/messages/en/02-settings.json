@@ -301,7 +301,8 @@
     "create_user_button": "Create user",
     "create_user_help": "The account is created active with this password. No email is sent.",
     "user_created": "User {email} created.",
-    "user_creation_failed": "User creation failed: {error}"
+    "user_creation_failed": "User creation failed: {error}",
+    "user_creation_forbidden_role": "The selected role is a system role and cannot be assigned directly. Please choose a non-system role (e.g. NPD Manager, Viewer)."
   },
   "roles": {
     "screen_title": "Roles and permissions",
@@ -2120,5 +2121,37 @@
       "delete_confirm_cancel": "Cancel",
       "delete_confirm_confirm": "Delete template"
     }
+  },
+  "documents": {
+    "title": "Document numbering",
+    "subtitle": "Number formats and archiving for purchase, transfer and work orders.",
+    "loading": "Loading document settings...",
+    "empty": "No document settings are configured yet.",
+    "load_error": "Unable to load document settings.",
+    "denied_title": "Access denied",
+    "denied_body": "You do not have permission to view document settings.",
+    "read_only_label": "Read-only",
+    "read_only_notice": "You can view document settings but cannot change them.",
+    "doc_type_po": "Purchase orders",
+    "doc_type_to": "Transfer orders",
+    "doc_type_wo": "Work orders",
+    "field_prefix": "Prefix",
+    "field_prefix_hint": "Leading text shown before the date and sequence, e.g. PO.",
+    "field_date_part": "Date part",
+    "field_padding": "Sequence padding",
+    "field_archive": "Archive after (days)",
+    "field_archive_hint": "Received/closed documents older than this move to the Archive tab in Planning. Leave empty to never archive.",
+    "date_part_none": "None",
+    "date_part_year": "Year",
+    "date_part_year_month": "Year-month",
+    "date_part_year_month_day": "Year-month-day",
+    "preview_label": "Live preview",
+    "preview_example": "example",
+    "archive_never": "Never archive",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Saved.",
+    "save_error": "Could not save document settings.",
+    "invalid_input": "Check the highlighted fields and try again."
   }
 }

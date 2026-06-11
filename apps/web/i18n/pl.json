@@ -1143,7 +1143,8 @@
         "gallery": "Galeria modali",
         "my_profile": "Mój profil",
         "my_notifications": "Powiadomienia",
-        "d365_cost_import": "Import kosztów D365"
+        "d365_cost_import": "Import kosztów D365",
+        "documents": "Numeracja dokumentów"
       }
     },
     "npd": {
