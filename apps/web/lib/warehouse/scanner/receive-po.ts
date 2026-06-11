@@ -355,6 +355,10 @@ async function loadLineForUpdate(
   session: ScannerSessionRow,
   poLineId: string,
 ): Promise<LineForReceive | null> {
+  // LIVE 500 fix: Postgres forbids FOR UPDATE with GROUP BY ("FOR UPDATE is
+  // not allowed with GROUP BY clause"). The received-qty aggregate moves into
+  // a correlated scalar subquery so the row-lock applies to plain pol/po rows.
+  // (The unit tests mock the client, so only the live walk caught this.)
   const { rows } = await client.query<LineForReceive>(
     `select pol.id,
             pol.org_id,
@@ -364,18 +368,19 @@ async function loadLineForUpdate(
             pol.line_no,
             pol.qty::text as ordered_qty,
             pol.uom,
-            coalesce(sum(gi.received_qty), 0)::text as received_qty
+            (
+              select coalesce(sum(gi.received_qty), 0)::text
+                from public.grn_items gi
+               where gi.po_line_id = pol.id
+                 and gi.org_id = pol.org_id
+            ) as received_qty
        from public.purchase_order_lines pol
        join public.purchase_orders po
          on po.id = pol.po_id
         and po.org_id = pol.org_id
-       left join public.grn_items gi
-         on gi.po_line_id = pol.id
-        and gi.org_id = pol.org_id
       where pol.org_id = $1::uuid
         and pol.id = $2::uuid
         and po.status = any($3::text[])
-      group by pol.id, pol.org_id, pol.po_id, pol.item_id, po.supplier_id, pol.line_no, pol.qty, pol.uom
       for update of pol, po`,
     [session.org_id, poLineId, OPEN_PO_STATUSES],
   );
