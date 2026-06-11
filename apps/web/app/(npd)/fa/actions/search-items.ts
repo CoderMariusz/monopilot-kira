@@ -29,7 +29,7 @@ type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
  *  accepted ONLY so the NPD packaging stage can request a packaging-restricted
  *  picker — it is deliberately excluded from DEFAULT_COMPONENT_ITEM_TYPES so a
  *  caller that omits `itemTypes` (the recipe picker) never receives packaging. */
-const SEARCHABLE_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product', 'packaging'] as const;
+const SEARCHABLE_ITEM_TYPES = ['fg', 'rm', 'ingredient', 'intermediate', 'co_product', 'packaging'] as const;
 
 /** The default fan-out when a caller passes no `itemTypes` — recipe/component
  *  types only, NEVER packaging (packaging must be requested explicitly). */
