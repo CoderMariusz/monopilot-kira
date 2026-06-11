@@ -1106,7 +1106,8 @@
         "documentTemplates": "Шаблони документів",
         "onboarding": "Онбординг",
         "admin": "Адмін",
-        "myAccount": "Мій акаунт"
+        "myAccount": "Мій акаунт",
+        "signoff": "Sign-off"
       },
       "items": {
         "profile": "Профіль компанії",
@@ -1146,7 +1147,11 @@
         "my_profile": "Мій профіль",
         "my_notifications": "Сповіщення",
         "d365_cost_import": "Імпорт витрат D365",
-        "documents": "Document numbering"
+        "documents": "Document numbering",
+        "machines": "Machines",
+        "signoff": "Sign-off policies",
+        "lines": "Production lines",
+        "locations": "Locations"
       }
     },
     "npd": {
@@ -1648,6 +1653,24 @@
         "viewerOnly": "You have view-only access to items.",
         "filterEmptyTitle": "No items match your filters",
         "filterEmptyBody": "Adjust the type tab, status, or search to see more items."
+      },
+      "transition": {
+        "activate": "Activate",
+        "deprecate": "Deprecate",
+        "reactivate": "Reactivate",
+        "activateTitle": "Activate item",
+        "activateBody": "Activate this item? It becomes available for BOMs, purchasing and production.",
+        "deprecateTitle": "Deprecate item",
+        "deprecateBody": "Deprecate this item? Existing BOMs and stock remain, but it should no longer be used in new BOMs, purchases or production.",
+        "reactivateTitle": "Reactivate item",
+        "reactivateBody": "Reactivate this item? It becomes available again for BOMs, purchasing and production.",
+        "cancel": "Cancel",
+        "confirm": "Confirm",
+        "working": "Saving…",
+        "errors": {
+          "invalid_transition": "This status change is not allowed from the item's current status.",
+          "activation_gate_failed": "This item cannot be activated yet — its base unit is not one of the canonical units. Edit the item first."
+        }
       }
     },
     "allergens": {
@@ -4754,7 +4777,18 @@
       "errNotFound": "Цей проєкт не знайдено.",
       "errPersistence": "Не вдалося зберегти бриф. Спробуйте ще раз.",
       "saveChanges": "Зберегти зміни",
-      "saved": "Збережено"
+      "saved": "Збережено",
+      "uploading": "Uploading…",
+      "attachColName": "File",
+      "attachColSize": "Size",
+      "attachColUploaded": "Uploaded",
+      "attachDownload": "Download",
+      "attachDelete": "Delete",
+      "attachDeleteConfirm": "Remove this attachment?",
+      "attachTooLarge": "File is larger than 20 MB.",
+      "attachUnsupportedType": "Unsupported file type. Allowed: PDF, PNG, JPG, DOCX, XLSX.",
+      "attachUploadFailed": "Could not upload the attachment. Please try again.",
+      "attachDeleteFailed": "Could not delete the attachment. Please try again."
     },
     "sensory": {
       "title": "Сенсорна панель",
@@ -4918,7 +4952,18 @@
       "pickerCancel": "Скасувати",
       "pickerError": "Помилка пошуку",
       "pickedHint": "Звʼязано з {code}",
-      "pickerClear": "Видалити звʼязок"
+      "pickerClear": "Видалити звʼязок",
+      "artworkUpload": "Upload artwork",
+      "artworkUploading": "Uploading…",
+      "artworkHistoryTitle": "Version history",
+      "artworkCurrent": "Current",
+      "artworkDownload": "Download",
+      "artworkDelete": "Delete",
+      "artworkDeleteConfirm": "Remove this artwork version?",
+      "artworkTooLarge": "File is larger than 20 MB.",
+      "artworkUnsupportedType": "Unsupported file type. Allowed: PDF, PNG, JPG.",
+      "artworkUploadFailed": "Could not upload the artwork. Please try again.",
+      "artworkDeleteFailed": "Could not delete the artwork version. Please try again."
     },
     "stepper": {
       "brief": "Бриф",
@@ -5690,7 +5735,10 @@
           "uom": "UoM",
           "unitPrice": "Unit price",
           "lineTotal": "Line total",
-          "empty": "No lines on this purchase order."
+          "empty": "No lines on this purchase order.",
+          "received": "Received",
+          "receivedFull": "Received",
+          "receivedPartial": "Partial"
         },
         "transitions": {
           "title": "Status",
@@ -5701,6 +5749,10 @@
           "cancel": "Cancel PO",
           "pending": "Updating…",
           "confirmPrompt": "Change status of {po} to {status}?"
+        },
+        "receivedSummary": {
+          "title": "Receipt progress",
+          "lines": "{received} / {total} lines"
         }
       },
       "notes": {
@@ -5950,6 +6002,10 @@
         "scanner": {
           "title": "Scanner",
           "desc": "Open the mobile scanner — consume, output, waste"
+        },
+        "changeovers": {
+          "title": "Changeovers",
+          "desc": "Allergen changeover dual sign-off"
         }
       }
     },
@@ -6166,6 +6222,11 @@
             "transition": "Transition",
             "reason": "Reason"
           }
+        },
+        "changeoverGate": {
+          "title": "Allergen changeover sign-off required",
+          "body": "This line requires the allergen changeover to be dual-signed before this work order can start.",
+          "link": "Open changeovers"
         }
       },
       "actions": {
@@ -6182,6 +6243,7 @@
           "invalid_state_transition": "This action is not valid for the work order’s current state.",
           "concurrent_modification": "The work order changed in the meantime — refresh and retry.",
           "quality_hold_active": "Blocked by an active quality hold on this work order.",
+          "changeover_signoff_required": "A changeover sign-off is required on this line before starting.",
           "allergen_changeover_required": "An allergen changeover sign-off is required before starting.",
           "closed_production_strict_failed": "Output yield gate not met — register a primary output or supply an override reason.",
           "esign_failed": "E-signature failed — check your password and try again.",
@@ -6462,6 +6524,112 @@
         "minutes": "Minutes",
         "avg": "Avg"
       }
+    },
+    "changeovers": {
+      "breadcrumb": {
+        "production": "Production",
+        "changeovers": "Changeovers"
+      },
+      "list": {
+        "title": "Allergen changeovers",
+        "subtitle": "Dual sign-off register — Shift Lead + Quality must both sign each allergen changeover before the next WO starts.",
+        "newButton": "+ New changeover",
+        "filters": {
+          "all": "All",
+          "pending": "Pending",
+          "first_signed": "Awaiting 2nd signature",
+          "complete": "Complete"
+        },
+        "loading": "Loading changeovers…",
+        "empty": "No changeovers match this filter.",
+        "error": "Live changeover data is currently unavailable. Please retry shortly.",
+        "denied": "You do not have permission to view changeovers.",
+        "col": {
+          "line": "Line",
+          "transition": "From → To",
+          "cleaning": "Cleaning",
+          "atp": "ATP",
+          "status": "Sign-off",
+          "signers": "Signers"
+        },
+        "cleaningYes": "Done",
+        "cleaningNo": "Pending",
+        "none": "None",
+        "status": {
+          "pending": "Pending",
+          "first_signed": "Awaiting 2nd signature",
+          "complete": "Complete"
+        },
+        "signerNone": "—",
+        "reviewButton": "Review & sign"
+      },
+      "create": {
+        "title": "New allergen changeover",
+        "subtitle": "Record a changeover event. Both signatures are collected after the cleaning checklist is complete.",
+        "line": "Line",
+        "linePlaceholder": "Select a line…",
+        "fromProduct": "From product (optional)",
+        "toProduct": "To product",
+        "cleaning": "Cleaning & sanitation checklist completed",
+        "atp": "ATP swab result",
+        "atpPlaceholder": "e.g. 7 RLU",
+        "notes": "Notes",
+        "notesPlaceholder": "Optional notes…",
+        "cancel": "Cancel",
+        "submit": "Create changeover",
+        "submitting": "Saving…",
+        "picker": {
+          "trigger": "+ Select product",
+          "searchLabel": "Search products",
+          "searchPlaceholder": "Search by code or name…",
+          "loading": "Searching…",
+          "empty": "No matching products",
+          "cancel": "Cancel",
+          "error": "Search failed. Try again."
+        },
+        "clearProduct": "Clear",
+        "validation": {
+          "lineRequired": "Select a line.",
+          "toProductRequired": "Select the product being changed to."
+        },
+        "errors": {
+          "forbidden": "You are not authorized to create changeovers.",
+          "invalid_input": "Check the changeover details and try again.",
+          "generic": "Could not create the changeover. Try again."
+        }
+      },
+      "sign": {
+        "title": "Dual sign-off",
+        "subtitle": "Sign-off status",
+        "firstSlot": "Shift Lead (1st signature)",
+        "secondSlot": "Quality (2nd signature)",
+        "signedBy": "Signed by",
+        "signedAt": "Signed at",
+        "awaiting": "Awaiting signature",
+        "signFirst": "Sign (1st)",
+        "signSecond": "Sign (2nd)",
+        "completeBanner": "Dual sign-off complete — the next work order may start.",
+        "close": "Close",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "Entering your account password constitutes your legally binding signature for this allergen changeover.",
+          "password": "Account password",
+          "passwordPlaceholder": "Your password",
+          "passwordHelp": "Your identity and the signing time are recorded by the system.",
+          "submit": "Sign",
+          "submitting": "Signing…",
+          "cancel": "Cancel",
+          "passwordRequired": "Enter your password to sign."
+        },
+        "errors": {
+          "forbidden": "You are not authorized to sign changeovers.",
+          "wrong_role": "Your role is not authorized for this signature slot",
+          "same_user": "Second signature must be a different user",
+          "invalid_state": "This changeover is not in a state that can be signed.",
+          "esign_failed": "Signature failed — the password did not match. Try again.",
+          "generic": "Could not sign. Try again."
+        }
+      }
     }
   },
   "Scanner": {
@@ -6692,24 +6860,6 @@
       }
     }
   },
-  "Planning.purchaseOrders.create.uomPlaceholder": "Unit",
-  "Planning.purchaseOrders.create.uomOptions.kg": "kg",
-  "Planning.purchaseOrders.create.uomOptions.g": "g",
-  "Planning.purchaseOrders.create.uomOptions.l": "l",
-  "Planning.purchaseOrders.create.uomOptions.ml": "ml",
-  "Planning.purchaseOrders.create.uomOptions.pcs": "pcs",
-  "Planning.purchaseOrders.create.uomOptions.pack": "pack",
-  "Planning.purchaseOrders.create.uomOptions.box": "box",
-  "Planning.purchaseOrders.create.uomOptions.pallet": "pallet",
-  "Planning.transferOrders.create.uomPlaceholder": "Unit",
-  "Planning.transferOrders.create.uomOptions.kg": "kg",
-  "Planning.transferOrders.create.uomOptions.g": "g",
-  "Planning.transferOrders.create.uomOptions.l": "l",
-  "Planning.transferOrders.create.uomOptions.ml": "ml",
-  "Planning.transferOrders.create.uomOptions.pcs": "pcs",
-  "Planning.transferOrders.create.uomOptions.pack": "pack",
-  "Planning.transferOrders.create.uomOptions.box": "box",
-  "Planning.transferOrders.create.uomOptions.pallet": "pallet",
   "scanner": {
     "prod": {
       "list": {

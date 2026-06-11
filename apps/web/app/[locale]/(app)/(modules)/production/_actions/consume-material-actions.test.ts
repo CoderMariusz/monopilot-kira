@@ -15,6 +15,8 @@ type State = {
   materialExists: boolean;
   lpDecrementSucceeds: boolean;
   replayExists: boolean;
+  overLimit: boolean;
+  overWarn: boolean;
 };
 
 let state: State;
@@ -50,6 +52,29 @@ function makeClient(): QueryClient {
       if (n.includes('from public.wo_material_consumption c')) {
         return state.replayExists
           ? { rows: [{ material_id: MATERIAL_ID, consumed_qty: '12.500', uom: 'kg', lp_id: LP_ID }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      // over-consumption gate (locked read of required/consumed + tenant threshold)
+      if (n.includes('for update of wm')) {
+        return state.materialExists
+          ? {
+              rows: [
+                {
+                  id: MATERIAL_ID,
+                  product_id: PRODUCT_ID,
+                  material_name: 'Lean beef 80/20',
+                  required_qty: '120.000',
+                  consumed_qty: '2.500',
+                  uom: 'kg',
+                  threshold_pct: '0',
+                  warn_pct: state.overWarn ? '5' : '0',
+                  over_limit: state.overLimit,
+                  over_warn: state.overWarn,
+                  over_pct: state.overLimit || state.overWarn ? '10.0000000000000000' : null,
+                },
+              ],
+              rowCount: 1,
+            }
           : { rows: [], rowCount: 0 };
       }
       if (n.startsWith('update public.wo_materials')) {
@@ -99,7 +124,7 @@ function makeClient(): QueryClient {
 }
 
 beforeEach(() => {
-  state = { granted: new Set(['production.consumption.write']), materialExists: true, lpDecrementSucceeds: true, replayExists: false };
+  state = { granted: new Set(['production.consumption.write']), materialExists: true, lpDecrementSucceeds: true, replayExists: false, overLimit: false, overWarn: false };
   queries = [];
   client = makeClient();
 });
@@ -149,6 +174,46 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
       const result = await recordDesktopConsumption({ ...VALID_INPUT, qty });
       expect(result).toEqual({ ok: false, reason: 'invalid_qty' });
     }
+  });
+});
+
+describe('recordDesktopConsumption — over-consumption gate', () => {
+  it('returns overconsume_blocked (no mutation) when consumed+qty exceeds required × (1+threshold)', async () => {
+    state.overLimit = true;
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('overconsume_blocked');
+      expect(String(result.message ?? '')).toContain('threshold');
+    }
+    // The gate fires BEFORE any stock mutation or ledger write.
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+  });
+
+  it('WARN band (over warn_pct, ≤ threshold_pct): proceeds with ok:true + warning field and flags the ledger ext', async () => {
+    state.overWarn = true; // over_limit stays false → warn tier only
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.replay).toBe(false);
+      expect(result.data.warning).toEqual({ overconsumed: true, overPct: 10, warnPct: 5 });
+    }
+    // The write went through (stock mutation + ledger row both present) …
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(true);
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(ledger).toBeDefined();
+    // … and the event is logged: ext_jsonb carries warned:true + overPct.
+    const ext = ledger!.params.find((p) => typeof p === 'string' && (p as string).includes('clientOpId')) as string;
+    expect(JSON.parse(ext)).toMatchObject({ warned: true, overPct: 10 });
+  });
+
+  it('reads BOTH tier flags in the same locked gate statement', async () => {
+    await recordDesktopConsumption(VALID_INPUT);
+    const gate = queries.find((q) => normalize(q.sql).includes('for update of wm'));
+    expect(gate).toBeDefined();
+    expect(gate!.sql).toContain('overconsume_threshold_pct');
+    expect(gate!.sql).toContain('overconsume_warn_pct');
   });
 });
 

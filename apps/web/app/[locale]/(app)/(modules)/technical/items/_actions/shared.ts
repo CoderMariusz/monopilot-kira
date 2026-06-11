@@ -278,6 +278,45 @@ export type DeactivateItemResult =
   | { ok: true; data: { id: string; status: ItemStatus } }
   | { ok: false; error: ItemsActionError; message?: string };
 
+// ── Status transition (Wave 8b Lane IA — audit finding #8) ────────────────────
+// items born 'draft' (e.g. via import or NPD handoff) previously had NO UI path
+// to 'active'. transitionItemStatus moves an item along the explicit lifecycle
+// below. 'blocked' stays owned by the deactivate flow (TEC-081, reason+confirm);
+// nothing ever returns to 'draft'.
+//
+//   draft      → active      (Activate)
+//   active     → deprecated  (Deprecate)
+//   deprecated → active      (Reactivate)
+export const TRANSITION_TARGETS = ['active', 'deprecated'] as const;
+export type TransitionTarget = (typeof TRANSITION_TARGETS)[number];
+
+const ALLOWED_STATUS_TRANSITIONS: ReadonlyArray<readonly [ItemStatus, TransitionTarget]> = [
+  ['draft', 'active'],
+  ['active', 'deprecated'],
+  ['deprecated', 'active'],
+];
+
+export function isAllowedStatusTransition(from: string, to: string): boolean {
+  return ALLOWED_STATUS_TRANSITIONS.some(([f, t]) => f === from && t === to);
+}
+
+export const TransitionItemStatusInput = z.object({
+  id: z.string().uuid(),
+  toStatus: z.enum(TRANSITION_TARGETS),
+});
+export type TransitionItemStatusInputType = z.input<typeof TransitionItemStatusInput>;
+
+export type TransitionItemStatusError =
+  | ItemsActionError
+  // current → toStatus is not in ALLOWED_STATUS_TRANSITIONS (e.g. blocked → active)
+  | 'invalid_transition'
+  // draft → active data gate failed (non-canonical uom_base on a legacy row)
+  | 'activation_gate_failed';
+
+export type TransitionItemStatusResult =
+  | { ok: true; data: { id: string; status: ItemStatus } }
+  | { ok: false; error: TransitionItemStatusError; message?: string };
+
 // ── RBAC helper — resolves a permission for the caller, org-scoped under RLS ───
 // Checks BOTH the normalized role_permissions table AND the legacy
 // roles.permissions jsonb cache, because migration 154 writes to both and some

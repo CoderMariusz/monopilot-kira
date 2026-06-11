@@ -39,6 +39,7 @@ type PurchaseOrderLineRow = {
   uom: string;
   unit_price: string;
   line_no: number;
+  received_qty: string | null;
 };
 
 type PurchaseOrderLine = {
@@ -51,6 +52,8 @@ type PurchaseOrderLine = {
   uom: string;
   unitPrice: string;
   lineNo: number;
+  /** Sum of grn_items.received_qty for this PO line (non-cancelled GRNs). */
+  receivedQty: string;
 };
 
 type PurchaseOrder = {
@@ -100,15 +103,32 @@ function mapLine(row: PurchaseOrderLineRow): PurchaseOrderLine {
     uom: row.uom,
     unitPrice: String(row.unit_price),
     lineNo: Number(row.line_no),
+    receivedQty: String(row.received_qty ?? '0'),
   };
 }
 
 async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOrderLine[]> {
+  // Received = Σ grn_items.received_qty per PO line. GRNs are joined to scope the
+  // org and to exclude cancelled receipts; DRAFT GRNs count — the scanner receive
+  // flow books receipts onto a draft day-GRN and the PO status flip (receive-po.ts)
+  // already counts them, so the detail page must agree with the chip/status.
   const { rows } = await client.query<PurchaseOrderLineRow>(
     `select l.id, l.po_id, l.item_id, i.item_code, i.name as item_name,
-            l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no
+            l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+            coalesce(rec.received_qty, 0)::text as received_qty
        from public.purchase_order_lines l
        left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
+       left join (
+         select gi.po_line_id, sum(gi.received_qty) as received_qty
+           from public.grn_items gi
+           join public.grns g
+             on g.id = gi.grn_id
+            and g.org_id = app.current_org_id()
+            and g.status <> 'cancelled'
+          where gi.org_id = app.current_org_id()
+            and gi.po_line_id is not null
+          group by gi.po_line_id
+       ) rec on rec.po_line_id = l.id
       where l.org_id = app.current_org_id()
         and l.po_id = $1::uuid
       order by l.line_no asc`,

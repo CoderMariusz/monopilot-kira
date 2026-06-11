@@ -27,6 +27,7 @@
  */
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { findOpenLineChangeover } from '../../../../../../lib/production/start-wo';
 import {
   hasPermission,
   type ProductionContext,
@@ -50,6 +51,10 @@ export type WoDetailHeader = {
   /** production_lines.code — null when no line is assigned. */
   lineCode: string | null;
   machineId: string | null;
+  /** machines.code / machines.name (mig 042) — null when no machine is assigned
+   *  or the machine row is missing. The UI must render these, never the uuid. */
+  machineCode: string | null;
+  machineName: string | null;
   plannedQty: number;
   uom: string;
   outputKg: number;
@@ -74,6 +79,10 @@ export type WoDetailHeader = {
 export type WoDetailComponent = {
   id: string;
   productId: string;
+  /** items.item_code / items.name for the component product — null when the
+   *  item row is missing. The UI must render these, never the uuid. */
+  itemCode: string | null;
+  itemName: string | null;
   materialName: string;
   requiredQty: number;
   consumedQty: number;
@@ -87,6 +96,9 @@ export type WoDetailOutput = {
   id: string;
   outputType: string;
   productId: string;
+  /** items.item_code / items.name for the output product — null when missing. */
+  productCode: string | null;
+  productName: string | null;
   batchNumber: string;
   qtyKg: number;
   uom: string;
@@ -152,6 +164,12 @@ export type WorkOrderDetailData = {
   genealogyInputs: WoDetailGenealogyInput[];
   history: WoDetailHistoryEvent[];
   qa: WoDetailQa;
+  /**
+   * Newest OPEN medium+ allergen changeover on this WO's line (start gate 3a) —
+   * resolved by the gate's single owner findOpenLineChangeover so the detail
+   * callout can never disagree with the START 409. Null = line clear.
+   */
+  openChangeoverId: string | null;
 };
 
 export type WorkOrderDetailResult =
@@ -182,6 +200,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         production_line_id: string | null;
         line_code: string | null;
         machine_id: string | null;
+        machine_code: string | null;
+        machine_name: string | null;
         planned_quantity: string | number | null;
         uom: string | null;
         bom_version: number | null;
@@ -216,6 +236,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                 ) as status,
                 w.production_line_id::text as production_line_id,
                 w.machine_id::text as machine_id,
+                mc.code as machine_code,
+                mc.name as machine_name,
                 w.planned_quantity,
                 w.uom,
                 (select max(bom_version) from public.wo_materials m
@@ -244,6 +266,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
              on i.org_id = w.org_id and i.id = w.product_id
            left join public.production_lines pl
              on pl.org_id = w.org_id and pl.id = w.production_line_id
+           left join public.machines mc
+             on mc.org_id = w.org_id and mc.id = w.machine_id
           where w.org_id = app.current_org_id() and w.id = $1::uuid`,
         [woId],
       );
@@ -263,22 +287,29 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         c.query<{
           id: string;
           product_id: string;
+          item_code: string | null;
+          item_name: string | null;
           material_name: string;
           required_qty: string | number;
           consumed_qty: string | number;
           uom: string;
         }>(
-          `select id::text as id, product_id::text as product_id, material_name,
-                  required_qty, consumed_qty, uom
-             from public.wo_materials
-            where org_id = app.current_org_id() and wo_id = $1::uuid
-            order by sequence asc, material_name asc`,
+          `select m.id::text as id, m.product_id::text as product_id,
+                  i.item_code, i.name as item_name, m.material_name,
+                  m.required_qty, m.consumed_qty, m.uom
+             from public.wo_materials m
+             left join public.items i
+               on i.org_id = m.org_id and i.id = m.product_id
+            where m.org_id = app.current_org_id() and m.wo_id = $1::uuid
+            order by m.sequence asc, m.material_name asc`,
           [woId],
         ),
         c.query<{
           id: string;
           output_type: string;
           product_id: string;
+          product_code: string | null;
+          product_name: string | null;
           batch_number: string;
           qty_kg: string | number;
           uom: string;
@@ -286,11 +317,14 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           lp_id: string | null;
           expiry_date: string | Date | null;
         }>(
-          `select id::text as id, output_type, product_id::text as product_id,
-                  batch_number, qty_kg, uom, qa_status, lp_id::text as lp_id, expiry_date
-             from public.wo_outputs
-            where org_id = app.current_org_id() and wo_id = $1::uuid
-            order by output_type asc, registered_at asc`,
+          `select o.id::text as id, o.output_type, o.product_id::text as product_id,
+                  i.item_code as product_code, i.name as product_name,
+                  o.batch_number, o.qty_kg, o.uom, o.qa_status, o.lp_id::text as lp_id, o.expiry_date
+             from public.wo_outputs o
+             left join public.items i
+               on i.org_id = o.org_id and i.id = o.product_id
+            where o.org_id = app.current_org_id() and o.wo_id = $1::uuid
+            order by o.output_type asc, o.registered_at asc`,
           [woId],
         ),
         c.query<{
@@ -379,6 +413,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         return {
           id: r.id,
           productId: r.product_id,
+          itemCode: r.item_code,
+          itemName: r.item_name,
           materialName: r.material_name,
           requiredQty: required,
           consumedQty: consumed,
@@ -392,6 +428,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         id: r.id,
         outputType: r.output_type,
         productId: r.product_id,
+        productCode: r.product_code,
+        productName: r.product_name,
         batchNumber: r.batch_number,
         qtyKg: Number(r.qty_kg),
         uom: r.uom,
@@ -473,6 +511,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         lineId: h.production_line_id,
         lineCode: h.line_code,
         machineId: h.machine_id,
+        machineCode: h.machine_code,
+        machineName: h.machine_name,
         plannedQty: Number(h.planned_quantity ?? 0),
         uom: h.uom ?? 'kg',
         outputKg: Number(h.output_kg ?? 0),
@@ -491,9 +531,25 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
       // QA read-model not yet built — render an honest empty/zero summary.
       const qa: WoDetailQa = { total: 0, pass: 0, hold: 0, fail: 0 };
 
+      // Start-gate preview: only meaningful before the WO is running/done.
+      const openChangeoverId =
+        status === 'planned'
+          ? await findOpenLineChangeover(c, null, h.production_line_id)
+          : null;
+
       return {
         ok: true,
-        data: { header, components, outputs, waste, downtime, genealogyInputs, history, qa },
+        data: {
+          header,
+          components,
+          outputs,
+          waste,
+          downtime,
+          genealogyInputs,
+          history,
+          qa,
+          openChangeoverId,
+        },
       };
     });
   } catch (error) {

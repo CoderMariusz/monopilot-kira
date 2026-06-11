@@ -48,6 +48,7 @@ const LABELS = {
       lp: 'License plate (FEFO)', lpLoading: 'Loading license plates…', lpEmpty: 'No license plates available for this component.',
       lpError: 'Unable to load license plates.', lpNone: '— no LP —', lpSuggested: 'suggested', submit: 'Record consumption',
       submitting: 'Recording…', cancel: 'Cancel',
+      warningOver: 'Over required quantity by {pct}% — recorded and flagged.', warningClose: 'Close',
       errors: {
         forbidden: 'No permission to record consumption.',
         lp_unavailable: 'Not enough free stock on that LP.',
@@ -84,6 +85,7 @@ const DATA = {
   ],
   outputs: [], waste: [], downtime: [], genealogyInputs: [], history: [],
   qa: { total: 0, pass: 0, hold: 0, fail: 0 },
+  openChangeoverId: null,
 } as unknown as WorkOrderDetailData;
 
 // Minimal non-null action context so canRecordConsumption is true. The desktop
@@ -187,6 +189,37 @@ describe('Desktop Record-consumption modal', () => {
 
     await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
     expect(record.mock.calls[0][0].materialId).toBe('comp-2222-2222-2222-222222222222');
+  });
+
+  it('warn-tier success keeps the modal open with the amber line, then Close refreshes', async () => {
+    const record = vi.fn(async () => ({
+      ok: true,
+      data: {
+        materialId: 'comp-1111-1111-1111-111111111111',
+        consumedQty: '405',
+        uom: 'kg',
+        lpId: null,
+        replay: false,
+        warning: { overconsumed: true as const, overPct: 7.5, warnPct: 5 },
+      },
+    }));
+    const user = userEvent.setup();
+    renderScreen(record, makeListLps());
+    await openConsumptionTab(user);
+    await user.click(screen.getByTestId('wo-consumption-record'));
+    await waitFor(() => expect(screen.getByText(/LP-001/)).toBeInTheDocument());
+    await user.type(screen.getByTestId('wo-consume-qty'), '15.5');
+    await user.click(screen.getByTestId('wo-consume-submit'));
+
+    // The write succeeded but landed in the warn band → non-blocking amber line,
+    // NOT an immediate close (no refresh yet).
+    const warning = await screen.findByTestId('wo-consume-warning');
+    expect(warning).toHaveTextContent('Over required quantity by 7.50% — recorded and flagged.');
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('wo-consume-submit')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('wo-consume-warning-close'));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   it('surfaces the verbatim lp_unavailable error in the modal banner', async () => {

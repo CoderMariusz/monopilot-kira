@@ -17,6 +17,7 @@ import React from 'react';
 import { type ItemListItem, type ItemStatus, type ItemType } from '../_actions/shared';
 import { type DeactivateLabels } from './deactivate-modal';
 import { type ItemWizardLabels } from './item-create-wizard';
+import { type StatusTransitionLabels } from './item-transition-labels';
 import { ItemRowActions, ITEM_TYPE_LABELS, STATUS_LABELS } from './items-manager.client';
 
 const TYPE_TABS: Array<{ key: 'all' | ItemType; label: string }> = [
@@ -96,6 +97,7 @@ export function ItemsTableClient({
   filterEmptyBody = 'Adjust the type tab, status, or search to see more items.',
   wizardLabels,
   deactivateLabels,
+  transitionLabels,
 }: {
   items: ItemListItem[];
   canEdit: boolean;
@@ -107,6 +109,7 @@ export function ItemsTableClient({
   filterEmptyBody?: string;
   wizardLabels: ItemWizardLabels;
   deactivateLabels: DeactivateLabels;
+  transitionLabels?: StatusTransitionLabels;
 }) {
   const [tab, setTab] = React.useState<'all' | ItemType>('all');
   const [status, setStatus] = React.useState<'all' | ItemStatus>('all');
@@ -263,6 +266,7 @@ export function ItemsTableClient({
                       allergensLabel={allergensLabel}
                       wizardLabels={wizardLabels}
                       deactivateLabels={deactivateLabels}
+                      transitionLabels={transitionLabels}
                     />
                   </td>
                 </tr>

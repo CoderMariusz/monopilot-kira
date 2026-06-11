@@ -26,13 +26,19 @@ export const SETTINGS_NAV_GROUPS = [
   group("organization", "Organization", true, [
     item("profile", "Company profile", "◆", false, "/settings/company"),
     item("sites", "Sites & lines", "▤"),
+    // Working infra screens that were URL-only dead-ends (2026-06-11 clickthrough §1).
+    // NOTE: /settings/infra/machines is deliberately NOT added — the newer
+    // /settings/machines CRUD screen (Data group) supersedes it.
+    item("lines", "Production lines", "≣", false, "/settings/infra/lines"),
     item("warehouses", "Warehouses", "▥", false, "/settings/infra/warehouses"),
+    item("locations", "Locations", "⌖", false, "/settings/infra/locations"),
     item("shifts", "Shifts & calendar", "⧗"),
   ]),
   group("data", "Data", true, [
     item("products", "Products & SKUs", "▢"),
     item("boms", "BOMs & recipes", "⛓"),
     item("processes", "Processes", "⟶", true),
+    item("machines", "Machines", "⚙"),
     item("manufacturing-ops", "Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
     item("partners", "Suppliers & customers", "↔"),
     item("units", "Units & conversions", "⚖"),
@@ -43,6 +49,7 @@ export const SETTINGS_NAV_GROUPS = [
     item("security", "Security", "🔒"),
     item("audit-logs", "Audit logs", "◷", true, "/settings/audit"),
   ]),
+  group("signoff", "Sign-off", true, [item("signoff", "Sign-off policies", "✍")]),
   group("operations", "Operations", true, [
     item("devices", "Scanner devices", "📱"),
     item("notifications", "Notifications", "◔"),

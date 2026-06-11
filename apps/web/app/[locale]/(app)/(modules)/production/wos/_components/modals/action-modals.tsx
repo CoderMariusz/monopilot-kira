@@ -688,10 +688,12 @@ export function OutputModal({
     }
   }
 
+  // productCode/productName are threaded from the WO detail query (items join).
+  // When the item row is missing, render an honest em-dash — NEVER the raw uuid.
   const productDisplay =
     uom?.productCode || uom?.productName
       ? [uom?.productCode, uom?.productName].filter(Boolean).join(' — ')
-      : productId.slice(0, 8);
+      : '—';
 
   return (
     <Modal open={open} onOpenChange={(n) => (n ? undefined : onClose())} modalId="wo-output" size="md">

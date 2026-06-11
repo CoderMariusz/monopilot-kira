@@ -143,6 +143,8 @@ interface ScannerLabelsShape {
     receiving: string;
     overTitle: string;
     overBody: string;
+    qcHoldTitle: string;
+    qcHoldBody: string;
     doneTitle: string;
     doneSub: string;
     newLp: string;
@@ -179,6 +181,201 @@ interface ScannerLabelsShape {
     saving: string;
     errMismatch: string;
     errMinLen: string;
+  };
+  putawayScreen: {
+    title: string;
+    doneTitle: string;
+    scanLabel: string;
+    scanPlaceholder: string;
+    scanHint: string;
+    lookingUp: string;
+    lpNotFound: string;
+    scanInvalid: string;
+    cardProduct: string;
+    cardQty: string;
+    cardBatch: string;
+    cardExpiry: string;
+    cardCurrentLoc: string;
+    cardStatus: string;
+    cardQa: string;
+    noLocation: string;
+    suggestTitle: string;
+    suggestLoading: string;
+    suggestEmpty: string;
+    suggestError: string;
+    reasonSameProduct: string;
+    reasonEmpty: string;
+    reasonDefault: string;
+    chooseSuggestion: string;
+    confirm: string;
+    confirming: string;
+    successTitle: string;
+    successTo: string;
+    nextLp: string;
+    backToMenu: string;
+    errNotMovable: string;
+    errInvalid: string;
+    errGeneric: string;
+    retry: string;
+    permissionDenied: string;
+    manualGap: string;
+    manualLabel: string;
+    manualPlaceholder: string;
+    manualHint: string;
+    resolving: string;
+    locationNotFound: string;
+    resolvedLabel: string;
+  };
+  moveScreen: {
+    title: string;
+    doneTitle: string;
+    scanLabel: string;
+    scanPlaceholder: string;
+    scanHint: string;
+    lookingUp: string;
+    lpNotFound: string;
+    cardProduct: string;
+    cardQty: string;
+    cardBatch: string;
+    cardExpiry: string;
+    cardCurrentLoc: string;
+    cardStatus: string;
+    cardQa: string;
+    noLocation: string;
+    destLabel: string;
+    destPlaceholder: string;
+    destHint: string;
+    suggestionsTitle: string;
+    suggestionsLoading: string;
+    sameLocation: string;
+    reasonLabel: string;
+    reasonRelocation: string;
+    reasonConsolidation: string;
+    reasonDamage: string;
+    reasonOther: string;
+    confirm: string;
+    confirming: string;
+    successTitle: string;
+    successFrom: string;
+    successTo: string;
+    nextLp: string;
+    backToMenu: string;
+    errNotMovable: string;
+    errInvalid: string;
+    errGeneric: string;
+    retry: string;
+    permissionDenied: string;
+    resolving: string;
+    locationNotFound: string;
+    resolvedLabel: string;
+  };
+  pickScreen: {
+    title: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    searchHint: string;
+    line: string;
+    loadingWos: string;
+    emptyTitle: string;
+    emptyBody: string;
+    noMatchBody: string;
+    errorLoad: string;
+    permissionDenied: string;
+    retry: string;
+    materialsTitle: string;
+    materialsEmpty: string;
+    needed: string;
+    done: string;
+    lpTitle: string;
+    lpLoading: string;
+    lpEmpty: string;
+    lpError: string;
+    lpSuggested: string;
+    lpExpiry: string;
+    lpLocation: string;
+    confirm: string;
+    confirming: string;
+    destinationLabel: string;
+    destinationPlaceholder: string;
+    destinationHint: string;
+    destinationRequired: string;
+    err409: string;
+    lpNotReleased: string;
+    errGeneric: string;
+    doneTitle: string;
+    doneBody: string;
+    pickNext: string;
+    backToWo: string;
+    stepMaterial: string;
+    stepLp: string;
+    stepConfirm: string;
+    status: Record<string, string>;
+  };
+  lpInfoScreen: {
+    title: string;
+    scanLabel: string;
+    scanPlaceholder: string;
+    scanHint: string;
+    promptTitle: string;
+    promptBody: string;
+    loading: string;
+    notFound: string;
+    errorLoad: string;
+    permissionDenied: string;
+    product: string;
+    quantity: string;
+    reserved: string;
+    available: string;
+    statusLabel: string;
+    qaStatusLabel: string;
+    expiry: string;
+    expiryPast: string;
+    batch: string;
+    location: string;
+    warehouse: string;
+    lastMove: string;
+    genealogyTitle: string;
+    parents: string;
+    children: string;
+    noParents: string;
+    noChildren: string;
+    scanNext: string;
+    backToMenu: string;
+    statusValues: Record<string, string>;
+    qaValues: Record<string, string>;
+  };
+  qaScreen: {
+    title: string;
+    scanLabel: string;
+    scanPlaceholder: string;
+    scanHint: string;
+    promptTitle: string;
+    promptBody: string;
+    loadingLp: string;
+    notFoundTitle: string;
+    notFoundBody: string;
+    errorLoad: string;
+    permissionDenied: string;
+    retry: string;
+    product: string;
+    quantity: string;
+    location: string;
+    expiry: string;
+    qaStatus: string;
+    decisionPrompt: string;
+    pass: string;
+    fail: string;
+    hold: string;
+    noteLabel: string;
+    notePlaceholder: string;
+    submitting: string;
+    doneTitle: string;
+    doneBody: string;
+    newQaStatus: string;
+    scanNext: string;
+    backToMenu: string;
+    errGeneric: string;
+    statusValues: Record<string, string>;
   };
   loading: string;
 }
@@ -337,6 +534,8 @@ const en: ScannerLabelsShape = {
     receiving: "Receiving…",
     overTitle: "Over-receive",
     overBody: "This receipt exceeds the ordered quantity but is within the 10% tolerance.",
+    qcHoldTitle: "QC inspection required",
+    qcHoldBody: "QC inspection required — LP held as pending.",
     doneTitle: "Received",
     doneSub: "New license plate created",
     newLp: "New LP",
@@ -379,6 +578,228 @@ const en: ScannerLabelsShape = {
     saving: "Saving…",
     errMismatch: "New PINs do not match",
     errMinLen: "PIN must be at least 4 digits",
+  },
+  putawayScreen: {
+    title: "Putaway",
+    doneTitle: "Putaway complete",
+    scanLabel: "Scan LP to put away",
+    scanPlaceholder: "LP-XXXXX or type…",
+    scanHint: "Scan the label from the receiving document",
+    lookingUp: "Looking up license plate…",
+    lpNotFound: "License plate not found.",
+    scanInvalid: "Enter a license plate code.",
+    cardProduct: "Product",
+    cardQty: "Quantity",
+    cardBatch: "Batch",
+    cardExpiry: "Expiry",
+    cardCurrentLoc: "Current location",
+    cardStatus: "Status",
+    cardQa: "QA status",
+    noLocation: "No location",
+    suggestTitle: "Suggested locations",
+    suggestLoading: "Finding suggestions…",
+    suggestEmpty: "No location suggestions. Pick one from the list once available.",
+    suggestError: "Could not load suggestions.",
+    reasonSameProduct: "Same product",
+    reasonEmpty: "Empty",
+    reasonDefault: "Default",
+    chooseSuggestion: "Choose a location",
+    confirm: "Confirm putaway",
+    confirming: "Saving…",
+    successTitle: "LP put away",
+    successTo: "Moved to",
+    nextLp: "Next LP",
+    backToMenu: "Back to menu",
+    errNotMovable: "This LP cannot be moved right now.",
+    errInvalid: "Invalid putaway request.",
+    errGeneric: "Could not complete putaway. Try again.",
+    retry: "Try again",
+    permissionDenied: "Session expired or permission denied.",
+    manualGap: "Manual location entry is unavailable — pick a suggested location.",
+    manualLabel: "Or scan / type a location",
+    manualPlaceholder: "LOC-XXX-XX-XX…",
+    manualHint: "Scan a location code or pick a suggestion above",
+    resolving: "Resolving location…",
+    locationNotFound: "Location not found.",
+    resolvedLabel: "Selected location",
+  },
+  moveScreen: {
+    title: "Move LP",
+    doneTitle: "Moved",
+    scanLabel: "Scan LP to move",
+    scanPlaceholder: "LP-XXXXX or type…",
+    scanHint: "Scan the LP label",
+    lookingUp: "Looking up license plate…",
+    lpNotFound: "License plate not found.",
+    cardProduct: "Product",
+    cardQty: "Quantity",
+    cardBatch: "Batch",
+    cardExpiry: "Expiry",
+    cardCurrentLoc: "Current location",
+    cardStatus: "Status",
+    cardQa: "QA status",
+    noLocation: "No location",
+    destLabel: "Destination location",
+    destPlaceholder: "LOC-XXX-XX-XX…",
+    destHint: "Scan a location or pick a suggestion below",
+    suggestionsTitle: "Suggestions",
+    suggestionsLoading: "Finding suggestions…",
+    sameLocation: "LP is already in this location.",
+    reasonLabel: "Reason (optional)",
+    reasonRelocation: "Relocation",
+    reasonConsolidation: "Consolidation",
+    reasonDamage: "Damage",
+    reasonOther: "Other",
+    confirm: "Move",
+    confirming: "Saving…",
+    successTitle: "LP moved",
+    successFrom: "From",
+    successTo: "To",
+    nextLp: "Move another",
+    backToMenu: "Back to menu",
+    errNotMovable: "This LP cannot be moved right now.",
+    errInvalid: "Invalid move request.",
+    errGeneric: "Could not complete move. Try again.",
+    retry: "Try again",
+    permissionDenied: "Session expired or permission denied.",
+    resolving: "Resolving location…",
+    locationNotFound: "Location not found.",
+    resolvedLabel: "Selected location",
+  },
+  pickScreen: {
+    title: "Pick for WO",
+    searchLabel: "Search work order",
+    searchPlaceholder: "WO-XXXX or product…",
+    searchHint: "Scan or type a work order number",
+    line: "Line",
+    loadingWos: "Loading work orders…",
+    emptyTitle: "Nothing to pick",
+    emptyBody: "There are no released work orders awaiting picking.",
+    noMatchBody: "No work order matches the search.",
+    errorLoad: "Could not load work orders.",
+    permissionDenied: "Session expired or permission denied.",
+    retry: "Try again",
+    materialsTitle: "BOM materials",
+    materialsEmpty: "This work order has no materials to pick.",
+    needed: "needed",
+    done: "Picked",
+    lpTitle: "Choose a license plate",
+    lpLoading: "Finding FEFO candidates…",
+    lpEmpty: "No available license plates for this material.",
+    lpError: "Could not load license plates.",
+    lpSuggested: "FEFO",
+    lpExpiry: "Exp",
+    lpLocation: "Loc",
+    confirm: "Confirm pick",
+    confirming: "Saving…",
+    destinationLabel: "Staging location",
+    destinationPlaceholder: "LOC-XXX-XX-XX…",
+    destinationHint: "Scan or type the staging location for this material",
+    destinationRequired: "A staging location is required for this pick.",
+    err409: "This material has already been picked. Reloading…",
+    lpNotReleased: "This LP is not QA-released and cannot be picked.",
+    errGeneric: "Could not complete pick. Try again.",
+    doneTitle: "Material staged",
+    doneBody: "The license plate was moved to staging.",
+    pickNext: "Pick next material",
+    backToWo: "Back to materials",
+    stepMaterial: "Material",
+    stepLp: "License plate",
+    stepConfirm: "Confirm",
+    status: {
+      released: "Released",
+      inprog: "In progress",
+      in_progress: "In progress",
+      scheduled: "Scheduled",
+      planned: "Planned",
+    },
+  },
+  lpInfoScreen: {
+    title: "LP info",
+    scanLabel: "Scan any license plate",
+    scanPlaceholder: "LP-XXXXX…",
+    scanHint: "Scan or type a license plate code",
+    promptTitle: "Scan a license plate",
+    promptBody: "Look up product, quantity, status and genealogy for any LP.",
+    loading: "Looking up license plate…",
+    notFound: "License plate not found.",
+    errorLoad: "Could not look up the license plate.",
+    permissionDenied: "Session expired or permission denied.",
+    product: "Product",
+    quantity: "Quantity",
+    reserved: "Reserved",
+    available: "Available",
+    statusLabel: "Status",
+    qaStatusLabel: "QA status",
+    expiry: "Expiry",
+    expiryPast: "Expired",
+    batch: "Batch",
+    location: "Location",
+    warehouse: "Warehouse",
+    lastMove: "Last move",
+    genealogyTitle: "Genealogy",
+    parents: "Parents",
+    children: "Children",
+    noParents: "No parent LPs",
+    noChildren: "No child LPs",
+    scanNext: "Scan next",
+    backToMenu: "Back to menu",
+    statusValues: {
+      available: "Available",
+      reserved: "Reserved",
+      consumed: "Consumed",
+      shipped: "Shipped",
+      on_hold: "On hold",
+      quarantine: "Quarantine",
+    },
+    qaValues: {
+      passed: "Passed",
+      pending: "Pending",
+      hold: "Hold",
+      failed: "Failed",
+      none: "—",
+    },
+  },
+  qaScreen: {
+    title: "QC Inspection",
+    scanLabel: "Scan a license plate",
+    scanPlaceholder: "LP-XXXXX…",
+    scanHint: "Scan or type the LP to inspect",
+    promptTitle: "Scan a license plate",
+    promptBody: "Look up an LP, then record a PASS / FAIL / HOLD decision.",
+    loadingLp: "Looking up license plate…",
+    notFoundTitle: "License plate not found",
+    notFoundBody: "No LP matches that code. Check the code and scan again.",
+    errorLoad: "Could not look up the license plate.",
+    permissionDenied: "Session expired or permission denied.",
+    retry: "Try again",
+    product: "Product",
+    quantity: "Quantity",
+    location: "Location",
+    expiry: "Expiry",
+    qaStatus: "QA status",
+    decisionPrompt: "Record decision",
+    pass: "PASS",
+    fail: "FAIL",
+    hold: "HOLD",
+    noteLabel: "Note (optional)",
+    notePlaceholder: "Add a note for this decision…",
+    submitting: "Recording…",
+    doneTitle: "Decision recorded",
+    doneBody: "The QC decision was saved.",
+    newQaStatus: "New QA status",
+    scanNext: "Scan next",
+    backToMenu: "Back to menu",
+    errGeneric: "Could not record the decision. Try again.",
+    statusValues: {
+      passed: "Passed",
+      pending: "Pending",
+      hold: "Hold",
+      on_hold: "On hold",
+      failed: "Failed",
+      released: "Released",
+      none: "—",
+    },
   },
   loading: "Loading…",
 } as const;
@@ -534,6 +955,8 @@ const pl: ScannerLabelsShape = {
     receiving: "Przyjmowanie…",
     overTitle: "Przekroczenie zamówienia",
     overBody: "To przyjęcie przekracza ilość zamówioną, ale mieści się w tolerancji 10%.",
+    qcHoldTitle: "Wymagana kontrola jakości",
+    qcHoldBody: "Wymagana kontrola jakości — LP oczekuje na zwolnienie.",
     doneTitle: "Przyjęto",
     doneSub: "Utworzono nowy License Plate",
     newLp: "Nowy LP",
@@ -575,6 +998,228 @@ const pl: ScannerLabelsShape = {
     saving: "Zapisywanie…",
     errMismatch: "Nowe PIN-y nie są identyczne",
     errMinLen: "PIN musi mieć min. 4 cyfry",
+  },
+  putawayScreen: {
+    title: "Putaway",
+    doneTitle: "Putaway gotowe",
+    scanLabel: "Zeskanuj LP do odłożenia",
+    scanPlaceholder: "LP-XXXXX lub wpisz…",
+    scanHint: "Skanuj etykietę z dokumentu przyjęcia",
+    lookingUp: "Wyszukiwanie License Plate…",
+    lpNotFound: "Nie znaleziono License Plate.",
+    scanInvalid: "Wpisz kod License Plate.",
+    cardProduct: "Produkt",
+    cardQty: "Ilość",
+    cardBatch: "Partia",
+    cardExpiry: "Termin ważności",
+    cardCurrentLoc: "Obecna lokalizacja",
+    cardStatus: "Status",
+    cardQa: "Status QA",
+    noLocation: "Bez lokalizacji",
+    suggestTitle: "Sugerowane lokalizacje",
+    suggestLoading: "Szukanie sugestii…",
+    suggestEmpty: "Brak sugestii lokalizacji. Wybierz z listy, gdy będą dostępne.",
+    suggestError: "Nie udało się załadować sugestii.",
+    reasonSameProduct: "Ten sam produkt",
+    reasonEmpty: "Pusta",
+    reasonDefault: "Domyślna",
+    chooseSuggestion: "Wybierz lokalizację",
+    confirm: "Potwierdź odłożenie",
+    confirming: "Zapisywanie…",
+    successTitle: "LP odłożony",
+    successTo: "Przeniesiono do",
+    nextLp: "Następny LP",
+    backToMenu: "Wróć do menu",
+    errNotMovable: "Tego LP nie można teraz przenieść.",
+    errInvalid: "Nieprawidłowe żądanie odłożenia.",
+    errGeneric: "Nie udało się odłożyć LP. Spróbuj ponownie.",
+    retry: "Spróbuj ponownie",
+    permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    manualGap: "Ręczne wpisanie lokalizacji niedostępne — wybierz sugerowaną lokalizację.",
+    manualLabel: "Lub zeskanuj / wpisz lokalizację",
+    manualPlaceholder: "LOC-XXX-XX-XX…",
+    manualHint: "Zeskanuj kod lokalizacji lub wybierz sugestię powyżej",
+    resolving: "Wyszukiwanie lokalizacji…",
+    locationNotFound: "Nie znaleziono lokalizacji.",
+    resolvedLabel: "Wybrana lokalizacja",
+  },
+  moveScreen: {
+    title: "Przesuń LP",
+    doneTitle: "Przeniesiono",
+    scanLabel: "Zeskanuj LP do przeniesienia",
+    scanPlaceholder: "LP-XXXXX lub wpisz…",
+    scanHint: "Skanuj etykietę LP",
+    lookingUp: "Wyszukiwanie License Plate…",
+    lpNotFound: "Nie znaleziono License Plate.",
+    cardProduct: "Produkt",
+    cardQty: "Ilość",
+    cardBatch: "Partia",
+    cardExpiry: "Termin ważności",
+    cardCurrentLoc: "Obecna lokalizacja",
+    cardStatus: "Status",
+    cardQa: "Status QA",
+    noLocation: "Bez lokalizacji",
+    destLabel: "Lokalizacja docelowa",
+    destPlaceholder: "LOC-XXX-XX-XX…",
+    destHint: "Skanuj lokalizację lub wybierz sugestię poniżej",
+    suggestionsTitle: "Sugestie",
+    suggestionsLoading: "Szukanie sugestii…",
+    sameLocation: "LP już jest w tej lokalizacji.",
+    reasonLabel: "Powód (opcjonalnie)",
+    reasonRelocation: "Relokacja",
+    reasonConsolidation: "Konsolidacja",
+    reasonDamage: "Uszkodzenie",
+    reasonOther: "Inny",
+    confirm: "Przenieś",
+    confirming: "Zapisywanie…",
+    successTitle: "LP przeniesiony",
+    successFrom: "Z",
+    successTo: "Do",
+    nextLp: "Przesuń kolejny",
+    backToMenu: "Wróć do menu",
+    errNotMovable: "Tego LP nie można teraz przenieść.",
+    errInvalid: "Nieprawidłowe żądanie przeniesienia.",
+    errGeneric: "Nie udało się przenieść LP. Spróbuj ponownie.",
+    retry: "Spróbuj ponownie",
+    permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    resolving: "Wyszukiwanie lokalizacji…",
+    locationNotFound: "Nie znaleziono lokalizacji.",
+    resolvedLabel: "Wybrana lokalizacja",
+  },
+  pickScreen: {
+    title: "Pick dla WO",
+    searchLabel: "Szukaj zlecenia",
+    searchPlaceholder: "WO-XXXX lub produkt…",
+    searchHint: "Zeskanuj lub wpisz numer zlecenia",
+    line: "Linia",
+    loadingWos: "Ładowanie zleceń…",
+    emptyTitle: "Brak pozycji do zebrania",
+    emptyBody: "Nie ma wydanych zleceń oczekujących na kompletację.",
+    noMatchBody: "Żadne zlecenie nie pasuje do wyszukiwania.",
+    errorLoad: "Nie udało się załadować zleceń.",
+    permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    retry: "Spróbuj ponownie",
+    materialsTitle: "Komponenty BOM",
+    materialsEmpty: "To zlecenie nie ma materiałów do zebrania.",
+    needed: "potrzeba",
+    done: "Zebrano",
+    lpTitle: "Wybierz License Plate",
+    lpLoading: "Wyszukiwanie kandydatów FEFO…",
+    lpEmpty: "Brak dostępnych License Plate dla tego materiału.",
+    lpError: "Nie udało się załadować License Plate.",
+    lpSuggested: "FEFO",
+    lpExpiry: "Ważn.",
+    lpLocation: "Lok.",
+    confirm: "Zatwierdź pobranie",
+    confirming: "Zapisywanie…",
+    destinationLabel: "Lokalizacja kompletacji",
+    destinationPlaceholder: "LOC-XXX-XX-XX…",
+    destinationHint: "Zeskanuj lub wpisz lokalizację kompletacji dla tego materiału",
+    destinationRequired: "Dla tego pobrania wymagana jest lokalizacja kompletacji.",
+    err409: "Ten materiał został już zebrany. Odświeżanie…",
+    lpNotReleased: "Ten LP nie ma zwolnienia QA i nie może zostać pobrany.",
+    errGeneric: "Nie udało się wykonać pobrania. Spróbuj ponownie.",
+    doneTitle: "Materiał skompletowany",
+    doneBody: "License Plate został przeniesiony do strefy kompletacji.",
+    pickNext: "Zbierz kolejny materiał",
+    backToWo: "Wróć do materiałów",
+    stepMaterial: "Materiał",
+    stepLp: "License Plate",
+    stepConfirm: "Potwierdź",
+    status: {
+      released: "Wydane",
+      inprog: "W toku",
+      in_progress: "W toku",
+      scheduled: "Zaplanowane",
+      planned: "Zaplanowane",
+    },
+  },
+  lpInfoScreen: {
+    title: "LP info",
+    scanLabel: "Zeskanuj dowolny License Plate",
+    scanPlaceholder: "LP-XXXXX…",
+    scanHint: "Zeskanuj lub wpisz kod License Plate",
+    promptTitle: "Zeskanuj License Plate",
+    promptBody: "Sprawdź produkt, ilość, status i genealogię dowolnego LP.",
+    loading: "Wyszukiwanie License Plate…",
+    notFound: "Nie znaleziono License Plate.",
+    errorLoad: "Nie udało się wyszukać License Plate.",
+    permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    product: "Produkt",
+    quantity: "Ilość",
+    reserved: "Zarezerwowane",
+    available: "Dostępne",
+    statusLabel: "Status",
+    qaStatusLabel: "Status QA",
+    expiry: "Ważność",
+    expiryPast: "Przeterminowane",
+    batch: "Partia",
+    location: "Lokalizacja",
+    warehouse: "Magazyn",
+    lastMove: "Ostatni ruch",
+    genealogyTitle: "Genealogia",
+    parents: "Rodzice",
+    children: "Dzieci",
+    noParents: "Brak nadrzędnych LP",
+    noChildren: "Brak podrzędnych LP",
+    scanNext: "Skanuj kolejny",
+    backToMenu: "Wróć do menu",
+    statusValues: {
+      available: "Dostępny",
+      reserved: "Zarezerwowany",
+      consumed: "Zużyty",
+      shipped: "Wysłany",
+      on_hold: "Wstrzymany",
+      quarantine: "Kwarantanna",
+    },
+    qaValues: {
+      passed: "Zaakceptowany",
+      pending: "Oczekuje",
+      hold: "Wstrzymany",
+      failed: "Odrzucony",
+      none: "—",
+    },
+  },
+  qaScreen: {
+    title: "Inspekcja QC",
+    scanLabel: "Zeskanuj License Plate",
+    scanPlaceholder: "LP-XXXXX…",
+    scanHint: "Zeskanuj lub wpisz LP do inspekcji",
+    promptTitle: "Zeskanuj License Plate",
+    promptBody: "Wyszukaj LP, a następnie zarejestruj decyzję PASS / FAIL / HOLD.",
+    loadingLp: "Wyszukiwanie License Plate…",
+    notFoundTitle: "Nie znaleziono License Plate",
+    notFoundBody: "Żaden LP nie pasuje do tego kodu. Sprawdź kod i zeskanuj ponownie.",
+    errorLoad: "Nie udało się wyszukać License Plate.",
+    permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    retry: "Spróbuj ponownie",
+    product: "Produkt",
+    quantity: "Ilość",
+    location: "Lokalizacja",
+    expiry: "Ważność",
+    qaStatus: "Status QA",
+    decisionPrompt: "Zarejestruj decyzję",
+    pass: "PASS",
+    fail: "FAIL",
+    hold: "HOLD",
+    noteLabel: "Notatka (opcjonalnie)",
+    notePlaceholder: "Dodaj notatkę do tej decyzji…",
+    submitting: "Rejestrowanie…",
+    doneTitle: "Decyzja zapisana",
+    doneBody: "Decyzja QC została zapisana.",
+    newQaStatus: "Nowy status QA",
+    scanNext: "Skanuj kolejny",
+    backToMenu: "Wróć do menu",
+    errGeneric: "Nie udało się zapisać decyzji. Spróbuj ponownie.",
+    statusValues: {
+      passed: "Zaakceptowany",
+      pending: "Oczekuje",
+      hold: "Wstrzymany",
+      on_hold: "Wstrzymany",
+      failed: "Odrzucony",
+      released: "Zwolniony",
+      none: "—",
+    },
   },
   loading: "Ładowanie…",
 };

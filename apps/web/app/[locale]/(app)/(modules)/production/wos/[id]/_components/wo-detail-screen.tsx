@@ -28,6 +28,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
@@ -90,6 +91,12 @@ type TabKey =
 export type WoDetailLabels = {
   status: Record<WorkOrderDetailStatus, string>;
   deferredActionTitle: string;
+  /**
+   * B-2 — amber callout shown when the WO start/release action returns the
+   * `changeover_signoff_required` typed error (C4). Links to the changeovers
+   * register filtered to this WO's line.
+   */
+  changeoverGate: { title: string; body: string; link: string };
   headerActions: {
     start: string;
     pause: string;
@@ -145,6 +152,9 @@ export type WoDetailLabels = {
       submit: string;
       submitting: string;
       cancel: string;
+      /** Warn-tier over-consumption: amber non-blocking line after a flagged success. */
+      warningOver: string;
+      warningClose: string;
       errors: {
         forbidden: string;
         lp_unavailable: string;
@@ -260,6 +270,7 @@ export function WoDetailScreen({
   data,
   labels,
   actions,
+  changeoverGate,
   releaseOutputQaAction,
   recordConsumptionAction,
   listConsumableLpsAction,
@@ -268,6 +279,12 @@ export function WoDetailScreen({
   labels: WoDetailLabels;
   /** Null when the action-context read failed/forbade — buttons are then hidden. */
   actions: WoDetailActions | null;
+  /**
+   * B-2 — set (with the WO's lineId) when start/release was blocked by the
+   * `changeover_signoff_required` error from C4; renders the amber callout +
+   * deep-link to /production/changeovers. Null = no gate (default).
+   */
+  changeoverGate?: { lineId: string | null } | null;
   releaseOutputQaAction: (input: ReleaseWoOutputQaInput) => Promise<OutputQaActionResult<ReleaseWoOutputQaResult>>;
   recordConsumptionAction: (
     input: RecordDesktopConsumptionInput,
@@ -341,6 +358,33 @@ export function WoDetailScreen({
 
   const body = (
     <div className="flex flex-col gap-4">
+      {/* B-2 — allergen changeover sign-off gate: shown when start/release was
+          blocked by the `changeover_signoff_required` error (C4). Amber callout
+          + deep-link to the changeovers register filtered to this WO's line. */}
+      {changeoverGate ? (
+        <div
+          role="alert"
+          data-testid="wo-changeover-gate"
+          className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-amber-900">⚠ {labels.changeoverGate.title}</p>
+            <p className="mt-0.5 text-xs text-amber-800">{labels.changeoverGate.body}</p>
+          </div>
+          <Link
+            href={
+              changeoverGate.lineId
+                ? `/production/changeovers?lineId=${encodeURIComponent(changeoverGate.lineId)}`
+                : '/production/changeovers'
+            }
+            data-testid="wo-changeover-gate-link"
+            className="shrink-0 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+          >
+            {labels.changeoverGate.link}
+          </Link>
+        </div>
+      ) : null}
+
       {/* WO header — code, name, status, key facts + wired action bar */}
       <Card data-testid="wo-detail-header" className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -355,12 +399,12 @@ export function WoDetailScreen({
               ) : null}
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              <span className={h.productName ? undefined : 'font-mono'}>
+              <span className={h.productName ? undefined : 'text-slate-400'} title={h.productName ? undefined : h.productId}>
                 {h.productName
                   ? `${h.productName}${h.itemCode ? ` (${h.itemCode})` : ''}`
-                  : h.productId.slice(0, 8)}
+                  : '—'}
               </span>
-              {h.lineCode ? <> · {h.lineCode}</> : h.lineId ? <> · {h.lineId.slice(0, 8)}</> : null}
+              {h.lineCode ? <> · {h.lineCode}</> : null}
               {' · '}
               {labels.overview.elapsed} <b>{h.elapsedMin === null ? '—' : `${h.elapsedMin} ${labels.overview.elapsedMin}`}</b>
             </p>
@@ -431,16 +475,20 @@ export function WoDetailScreen({
                 value={
                   h.productName
                     ? `${h.productName}${h.itemCode ? ` (${h.itemCode})` : ''}`
-                    : h.productId.slice(0, 8)
+                    : '—'
                 }
                 mono={!h.productName}
               />
+              <Fact label={labels.overview.line} value={h.lineCode ?? '—'} mono />
               <Fact
-                label={labels.overview.line}
-                value={h.lineCode ?? (h.lineId ? h.lineId.slice(0, 8) : '—')}
-                mono
+                label={labels.overview.machine}
+                value={
+                  h.machineCode
+                    ? `${h.machineCode}${h.machineName ? ` — ${h.machineName}` : ''}`
+                    : '—'
+                }
+                mono={!h.machineName}
               />
-              <Fact label={labels.overview.machine} value={h.machineId ? h.machineId.slice(0, 8) : '—'} mono />
               <Fact label={labels.overview.planned} value={`${fmtQty(h.plannedQty)} ${h.uom}`} mono />
               <Fact label={labels.overview.output} value={`${fmtQty(h.outputKg)} ${h.uom}`} mono />
               <Fact label={labels.overview.plannedWindow} value={`${fmtDate(h.scheduledStart)} → ${fmtDate(h.scheduledEnd)}`} mono />
@@ -498,8 +546,14 @@ export function WoDetailScreen({
                 <TableBody>
                   {data.components.map((c) => (
                     <TableRow key={c.id} data-testid="wo-component-row">
-                      <TableCell className="font-mono text-xs text-slate-500">{c.productId.slice(0, 8)}</TableCell>
-                      <TableCell className="text-sm font-medium text-slate-800">{c.materialName}</TableCell>
+                      <TableCell className="font-mono text-xs text-slate-500">
+                        {c.itemCode ?? (
+                          <span className="text-slate-400" title={c.productId}>—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium text-slate-800">
+                        {c.itemName ?? c.materialName}
+                      </TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums">{fmtQty(c.requiredQty)} {c.uom}</TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums">{fmtQty(c.consumedQty)} {c.uom}</TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums">{fmtQty(c.remainingQty)} {c.uom}</TableCell>
@@ -558,12 +612,14 @@ export function WoDetailScreen({
                     <TableRow key={o.id} data-testid="wo-output-row">
                       <TableCell><Badge variant="muted" className="text-[10px]">{o.outputType}</Badge></TableCell>
                       <TableCell className="text-xs text-slate-600">
-                        {/* Outputs are nearly always the WO's FG — show its code
-                            instead of a UUID fragment when the ids match. */}
-                        {o.productId === h.productId && h.itemCode ? (
-                          h.itemCode
+                        {/* product code + name come from the wo_outputs ⨝ items join —
+                            never render the uuid; missing item row → muted em-dash. */}
+                        {o.productCode || o.productName ? (
+                          <span title={o.productName ?? undefined}>
+                            {o.productCode ?? o.productName}
+                          </span>
                         ) : (
-                          <span className="font-mono text-slate-500">{o.productId.slice(0, 8)}</span>
+                          <span className="text-slate-400" title={o.productId}>—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums">{fmtQty(o.qtyKg)} {o.uom}</TableCell>
@@ -889,6 +945,10 @@ function RecordConsumptionModal({
   const [lpStatus, setLpStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Warn-tier over-consumption: the write SUCCEEDED but landed above the warn
+  // threshold (≤ approval threshold). Keep the modal open with a non-blocking
+  // amber line; Close then runs the normal onRecorded refresh path.
+  const [warning, setWarning] = useState<{ overPct: number; warnPct: number } | null>(null);
 
   const selected = useMemo(
     () => components.find((c) => c.id === materialId) ?? null,
@@ -904,6 +964,7 @@ function RecordConsumptionModal({
     setLps([]);
     setLpStatus('idle');
     setError(null);
+    setWarning(null);
     setBusy(false);
   }, [open, preselectId, components]);
 
@@ -947,7 +1008,7 @@ function RecordConsumptionModal({
     [labels],
   );
 
-  const canSubmit = materialId !== '' && qty.trim() !== '' && !busy;
+  const canSubmit = materialId !== '' && qty.trim() !== '' && !busy && warning === null;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -966,6 +1027,12 @@ function RecordConsumptionModal({
     });
     setBusy(false);
     if (result.ok) {
+      if (result.data.warning) {
+        // Warn tier: recorded + flagged — surface the amber line instead of
+        // silently closing; the Close button runs onRecorded (close + refresh).
+        setWarning({ overPct: result.data.warning.overPct, warnPct: result.data.warning.warnPct });
+        return;
+      }
       onRecorded();
       return;
     }
@@ -1002,6 +1069,15 @@ function RecordConsumptionModal({
             {error}
           </div>
         ) : null}
+        {warning ? (
+          <div
+            role="status"
+            data-testid="wo-consume-warning"
+            className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+          >
+            {labels.warningOver.replace('{pct}', warning.overPct.toFixed(2))}
+          </div>
+        ) : null}
         <div className="space-y-3">
           <div>
             <label htmlFor="wo-consume-material" className="mb-1 block text-sm font-medium text-slate-700">
@@ -1014,7 +1090,7 @@ function RecordConsumptionModal({
               onValueChange={setMaterialId}
               options={materialOptions}
               placeholder={labels.materialPlaceholder}
-              disabled={busy}
+              disabled={busy || warning !== null}
             />
           </div>
 
@@ -1028,7 +1104,7 @@ function RecordConsumptionModal({
               data-testid="wo-consume-qty"
               inputMode="decimal"
               value={qty}
-              disabled={busy}
+              disabled={busy || warning !== null}
               onChange={(e) => setQty(e.target.value)}
             />
             <p className="mt-1 text-xs text-slate-500">{labels.qtyHint}</p>
@@ -1054,7 +1130,7 @@ function RecordConsumptionModal({
                   value={lpId}
                   onValueChange={setLpId}
                   options={lpOptions}
-                  disabled={busy}
+                  disabled={busy || warning !== null}
                 />
                 {lpStatus === 'ready' && lps.length === 0 ? (
                   <p data-testid="wo-consume-lp-empty" className="mt-1 text-xs text-slate-500">
@@ -1067,12 +1143,21 @@ function RecordConsumptionModal({
         </div>
       </Modal.Body>
       <Modal.Footer>
-        <Button type="button" data-testid="wo-consume-cancel" disabled={busy} onClick={onClose}>
-          {labels.cancel}
-        </Button>
-        <Button type="button" data-testid="wo-consume-submit" disabled={!canSubmit} onClick={handleSubmit}>
-          {busy ? labels.submitting : labels.submit}
-        </Button>
+        {warning ? (
+          // Recorded + flagged: the only exit is the normal close+refresh path.
+          <Button type="button" data-testid="wo-consume-warning-close" onClick={onRecorded}>
+            {labels.warningClose}
+          </Button>
+        ) : (
+          <>
+            <Button type="button" data-testid="wo-consume-cancel" disabled={busy} onClick={onClose}>
+              {labels.cancel}
+            </Button>
+            <Button type="button" data-testid="wo-consume-submit" disabled={!canSubmit} onClick={handleSubmit}>
+              {busy ? labels.submitting : labels.submit}
+            </Button>
+          </>
+        )}
       </Modal.Footer>
     </Modal>
   );

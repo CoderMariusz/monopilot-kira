@@ -26,6 +26,7 @@ import type { WorkOrderDetailData } from '../../../../_actions/get-work-order-de
 const LABELS: WoDetailLabels = {
   status: { planned: 'Planned', in_progress: 'In progress', paused: 'Paused', completed: 'Completed', closed: 'Closed', cancelled: 'Cancelled' },
   deferredActionTitle: 'Wired in the next step',
+  changeoverGate: { title: 'Allergen changeover sign-off required', body: 'This line requires the allergen changeover to be dual-signed before this work order can start.', link: 'Open changeovers' },
   headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', history: 'Event log' },
   overview: {
@@ -45,6 +46,7 @@ const LABELS: WoDetailLabels = {
       lp: 'License plate (FEFO)', lpLoading: 'Loading license plates…', lpEmpty: 'No license plates available for this component.',
       lpError: 'Unable to load license plates.', lpNone: '— no LP —', lpSuggested: 'suggested', submit: 'Record consumption',
       submitting: 'Recording…', cancel: 'Cancel',
+      warningOver: 'Over required quantity by {pct}% — recorded and flagged.', warningClose: 'Close',
       errors: { forbidden: 'No permission to record consumption.', lp_unavailable: 'Not enough free stock on that LP.', invalid_material: 'Component no longer valid.', invalid_qty: 'Enter a quantity greater than zero.', generic: 'Unable to record consumption.' },
     },
   },
@@ -109,6 +111,7 @@ const DATA: WorkOrderDetailData = {
     { id: 'h1', occurredAt: '2026-06-10T06:10:00.000Z', source: 'execution', action: 'start', fromStatus: 'planned', toStatus: 'in_progress', reason: null },
   ],
   qa: { total: 0, pass: 0, hold: 0, fail: 0 },
+  openChangeoverId: null,
 };
 const releaseOutputQaActionStub: any = async () => ({
   ok: true,
@@ -247,5 +250,44 @@ describe('WoDetailScreen (parity: wo-detail.jsx:4-530)', () => {
     expect(screen.queryByTestId('wo-action-bar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-action-pause')).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-action-complete')).not.toBeInTheDocument();
+  });
+});
+
+describe('WoDetailScreen — B-2 allergen changeover sign-off callout', () => {
+  function renderWithGate(gate: { lineId: string | null } | null) {
+    return render(
+      React.createElement(WoDetailScreen, {
+        data: DATA,
+        labels: LABELS,
+        actions: null,
+        changeoverGate: gate,
+        releaseOutputQaAction: releaseOutputQaActionStub,
+        recordConsumptionAction: recordConsumptionActionStub,
+        listConsumableLpsAction: listConsumableLpsActionStub,
+      }),
+    );
+  }
+
+  it('does NOT render the callout when there is no gate', () => {
+    renderWithGate(null);
+    expect(screen.queryByTestId('wo-changeover-gate')).not.toBeInTheDocument();
+  });
+
+  it('renders the amber callout with title/body + a deep-link to the WO line', () => {
+    renderWithGate({ lineId: 'bbbbbbbb-2222-2222-2222-222222222222' });
+    const callout = screen.getByTestId('wo-changeover-gate');
+    expect(callout).toHaveTextContent(LABELS.changeoverGate.title);
+    expect(callout).toHaveTextContent(LABELS.changeoverGate.body);
+    const link = screen.getByTestId('wo-changeover-gate-link');
+    expect(link).toHaveTextContent(LABELS.changeoverGate.link);
+    expect(link).toHaveAttribute(
+      'href',
+      '/production/changeovers?lineId=bbbbbbbb-2222-2222-2222-222222222222',
+    );
+  });
+
+  it('links to the bare register when the lineId is unknown', () => {
+    renderWithGate({ lineId: null });
+    expect(screen.getByTestId('wo-changeover-gate-link')).toHaveAttribute('href', '/production/changeovers');
   });
 });

@@ -73,6 +73,17 @@ const LABELS: ProjectBriefLabels = {
   errForbidden: 'You do not have permission to edit this brief.',
   errNotFound: 'This project could not be found.',
   errPersistence: 'Could not save the brief. Try again.',
+  uploading: 'Uploading…',
+  attachColName: 'File',
+  attachColSize: 'Size',
+  attachColUploaded: 'Uploaded',
+  attachDownload: 'Download',
+  attachDelete: 'Delete',
+  attachDeleteConfirm: 'Remove this attachment?',
+  attachTooLarge: 'File is larger than 20 MB.',
+  attachUnsupportedType: 'Unsupported file type. Allowed: PDF, PNG, JPG, DOCX, XLSX.',
+  attachUploadFailed: 'Could not upload the attachment. Please try again.',
+  attachDeleteFailed: 'Could not delete the attachment. Please try again.',
 };
 
 const READY: ProjectBriefView = {

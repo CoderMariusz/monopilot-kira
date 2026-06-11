@@ -30,6 +30,9 @@ type TechnicalRevisionRow = {
   status: string | null;
   statusTone: 'success' | 'warning' | 'danger' | 'info' | 'muted';
   actorUserId: string | null;
+  /** Resolved from public.users (name/display_name + email) — never render the uuid. */
+  actorName: string | null;
+  actorEmail: string | null;
   occurredAt: string;
   action: string;
   payload: unknown;
@@ -48,6 +51,8 @@ type RevisionDbRow = {
   status: string | null;
   status_tone: string;
   actor_user_id: string | null;
+  actor_name: string | null;
+  actor_email: string | null;
   occurred_at: string;
   action: string;
   payload: unknown;
@@ -62,28 +67,33 @@ export async function listTechnicalRevisions(rawInput: unknown = {}): Promise<Li
     return await withOrgContext(async ({ client }): Promise<ListTechnicalRevisionsResult> => {
       const qc = client as QueryClient;
       const { rows } = await qc.query<RevisionDbRow>(
-        `select entity_type,
-                entity_id,
-                entity_code,
-                entity_title,
-                revision,
-                status,
-                status_tone,
-                actor_user_id,
-                occurred_at::text as occurred_at,
-                action,
-                payload
-           from public.v_technical_revision_history
-          where org_id = app.current_org_id()
-            and ($1::text is null or entity_type = $1)
-            and ($2::text is null or entity_id = $2)
+        `select r.entity_type,
+                r.entity_id,
+                r.entity_code,
+                r.entity_title,
+                r.revision,
+                r.status,
+                r.status_tone,
+                r.actor_user_id,
+                coalesce(u.name, u.display_name) as actor_name,
+                u.email::text as actor_email,
+                r.occurred_at::text as occurred_at,
+                r.action,
+                r.payload
+           from public.v_technical_revision_history r
+           left join public.users u
+             on u.id = r.actor_user_id
+            and u.org_id = app.current_org_id()
+          where r.org_id = app.current_org_id()
+            and ($1::text is null or r.entity_type = $1)
+            and ($2::text is null or r.entity_id = $2)
             and (
               $3::text is null
-              or entity_code ilike '%' || $3 || '%'
-              or entity_title ilike '%' || $3 || '%'
-              or action ilike '%' || $3 || '%'
+              or r.entity_code ilike '%' || $3 || '%'
+              or r.entity_title ilike '%' || $3 || '%'
+              or r.action ilike '%' || $3 || '%'
             )
-          order by occurred_at desc
+          order by r.occurred_at desc
           limit $4::integer`,
         [input.entityType ?? null, input.entityId ?? null, input.search ?? null, input.limit],
       );
@@ -100,6 +110,8 @@ export async function listTechnicalRevisions(rawInput: unknown = {}): Promise<Li
             status: row.status,
             statusTone: row.status_tone as TechnicalRevisionRow['statusTone'],
             actorUserId: row.actor_user_id,
+            actorName: row.actor_name,
+            actorEmail: row.actor_email,
             occurredAt: row.occurred_at,
             action: row.action,
             payload: row.payload,

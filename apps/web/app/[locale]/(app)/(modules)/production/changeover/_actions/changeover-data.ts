@@ -24,7 +24,12 @@ const PRODUCTION_VIEW_PERMISSION = 'production.oee.read';
 /** changeover_events.risk_level (migration 184). */
 export type ChangeoverRisk = 'low' | 'medium' | 'high' | 'segregated';
 
-export type SignOffStatus = 'pending' | 'first_signed' | 'completed' | string;
+/**
+ * C4/F2: canonical write value is 'complete' (migration 280 normalizes legacy
+ * 'completed' rows and adds the CHECK). The open `| string` keeps the read lane
+ * tolerant while pre-280 rows can still surface 'completed'.
+ */
+export type SignOffStatus = 'pending' | 'first_signed' | 'complete' | string;
 
 export type ChangeoverEventRow = {
   id: string;

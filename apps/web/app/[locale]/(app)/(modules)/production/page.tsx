@@ -54,6 +54,7 @@ const NAV_CARDS: NavCard[] = [
   { key: 'downtime', href: '/production/downtime' },
   { key: 'waste', href: '/production/waste' },
   { key: 'changeover', href: '/production/changeover' },
+  { key: 'changeovers', href: '/production/changeovers' },
   { key: 'shifts', href: '/production/shifts' },
   { key: 'analytics', href: '/production/analytics' },
   { key: 'oee', href: '/oee' },

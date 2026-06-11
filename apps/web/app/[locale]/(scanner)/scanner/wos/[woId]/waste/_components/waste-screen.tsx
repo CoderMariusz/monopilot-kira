@@ -5,17 +5,15 @@
 // Parity: prototypes/scanner/flow-register.jsx:226-315 (WasteScreen +
 // WasteDoneScreen). Category list + qty (kg) + reason → POST.
 //
-// Categories: P1 static code list (SCANNER_WASTE_CATEGORIES). The scanner runs
-// on a Bearer session that is not compatible with the desktop org-context
-// server actions, and the waste API accepts free category codes — so a small
-// static, localized list is the P1 source (deviation logged).
+// Categories load from live waste_categories through the scanner API, with the
+// static SCANNER_WASTE_CATEGORIES list as the offline/error fallback.
 //
 // Five states: loading (header), error, permission-denied (401 → login
 // redirect), optimistic (submit disabled + "Saving…"; clientOpId held until
-// success). No empty state — the category list is static.
+// success). No empty state — the category list falls back to static codes.
 // ============================================================
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -35,9 +33,16 @@ import {
   type ScannerProdLabels,
 } from "../../../../../_components/scanner-prod-labels";
 import { useWoFetch } from "../../../_components/use-wo-fetch";
-import type { MutationResult, WastePayload } from "../../../_components/wo-types";
+import type { MutationResult, WastePayload, WoDetailResponse, WoHeader } from "../../../_components/wo-types";
+import { toBaseQty, type UomSnapshot } from "../../../../../../../../lib/uom/convert";
 
 type Phase = "form" | "done";
+type WasteCategory = {
+  code: string;
+  name: string;
+  icon: string;
+};
+type WasteCategoriesResponse = { ok: true; categories: Array<{ code: string; name: string }> } | { ok: false; error: string };
 
 export function WasteScreen({
   locale,
@@ -52,10 +57,12 @@ export function WasteScreen({
 }) {
   const router = useRouter();
   const { session, ready } = useScannerSession();
-  const { woPost } = useWoFetch();
+  const { woFetch, woPost } = useWoFetch();
   const L = labels.waste;
 
   const [phase, setPhase] = useState<Phase>("form");
+  const [header, setHeader] = useState<WoHeader | null>(null);
+  const [categories, setCategories] = useState<WasteCategory[]>(() => fallbackCategories(labels));
   const [categoryCode, setCategoryCode] = useState<string | null>(null);
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState("");
@@ -67,6 +74,55 @@ export function WasteScreen({
   useEffect(() => {
     if (ready && !session) router.replace(`/${locale}/scanner/login`);
   }, [ready, session, locale, router]);
+
+  const load = useCallback(async () => {
+    if (!ready) return;
+
+    const [categoriesRes, detailRes] = await Promise.all([
+      woFetch('/api/production/scanner/waste-categories'),
+      woFetch(`/api/production/scanner/wos/${woId}`),
+    ]);
+
+    if (categoriesRes?.ok) {
+      const data = (await categoriesRes.json()) as WasteCategoriesResponse;
+      if (data.ok && data.categories.length > 0) {
+        setCategories(
+          data.categories.map((c) => ({
+            code: c.code,
+            name: c.name,
+            icon: iconForCategory(c.code),
+          })),
+        );
+      } else {
+        setCategories(fallbackCategories(labels));
+      }
+    } else {
+      setCategories(fallbackCategories(labels));
+    }
+
+    if (detailRes?.ok) {
+      const data = (await detailRes.json()) as WoDetailResponse;
+      if (data.ok) setHeader(data.header);
+    }
+  }, [labels, ready, woFetch, woId]);
+
+  const didLoad = useRef(false);
+  useEffect(() => {
+    if (!ready || didLoad.current) return;
+    didLoad.current = true;
+    void load();
+  }, [ready, load]);
+
+  const boxConversion = useMemo(() => {
+    const snap = header?.uomSnapshot;
+    if (!snap || snap.eachPerBox == null || snap.netQtyPerEach == null) return null;
+    try {
+      const kg = toBaseQty(snap as UomSnapshot, 1, "box");
+      return L.boxConversion.replace("{kg}", kg.toFixed(3));
+    } catch {
+      return null;
+    }
+  }, [header, L]);
 
   const canSubmit = !!categoryCode && !!qty && Number(qty) > 0 && !submitting;
 
@@ -158,7 +214,7 @@ export function WasteScreen({
               {L.categoryTitle} <span style={{ color: T.red }}>*</span>
             </div>
             <div style={{ display: "grid", gap: 8, padding: "0 16px" }}>
-              {SCANNER_WASTE_CATEGORIES.map((c) => {
+              {categories.map((c) => {
                 const on = categoryCode === c.code;
                 return (
                   <button
@@ -171,7 +227,7 @@ export function WasteScreen({
                     <span aria-hidden="true" style={{ fontSize: 20 }}>
                       {c.icon}
                     </span>
-                    <span style={{ flex: 1, textAlign: "left" }}>{L[c.labelKey]}</span>
+                    <span style={{ flex: 1, textAlign: "left" }}>{c.name}</span>
                     <span aria-hidden="true">{on ? "✓" : ""}</span>
                   </button>
                 );
@@ -192,6 +248,11 @@ export function WasteScreen({
                 <span style={{ fontSize: 14, color: T.mute, fontWeight: 400 }}>{labels.output.unitBase}</span>
               </button>
               <div style={{ marginTop: 6, fontSize: 11, color: T.hint }}>{L.qtyHint}</div>
+              {boxConversion && (
+                <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: T.blue2 }}>
+                  {boxConversion}
+                </div>
+              )}
             </div>
 
             <div style={{ padding: "16px 16px 0" }}>
@@ -229,6 +290,18 @@ export function WasteScreen({
       />
     </ScannerScreen>
   );
+}
+
+function fallbackCategories(labels: ScannerProdLabels): WasteCategory[] {
+  return SCANNER_WASTE_CATEGORIES.map((c) => ({
+    code: c.code,
+    name: labels.waste[c.labelKey],
+    icon: c.icon,
+  }));
+}
+
+function iconForCategory(code: string): string {
+  return SCANNER_WASTE_CATEGORIES.find((c) => c.code === code)?.icon ?? "•";
 }
 
 const sectionTitleStyle = {

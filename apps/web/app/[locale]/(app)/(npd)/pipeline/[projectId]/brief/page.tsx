@@ -34,7 +34,16 @@ import {
   type ProjectBriefView,
 } from './_actions/read-project-brief';
 import { updateProjectBrief } from './_actions/update-project-brief';
-import type { UpdateBriefCall, UpdateBriefOutcome } from './_components/project-brief-screen';
+import { uploadBriefAttachment } from './_actions/upload-brief-attachment';
+import { listBriefAttachments } from './_actions/list-brief-attachments';
+import { deleteBriefAttachment } from './_actions/delete-brief-attachment';
+import type {
+  BriefAttachmentItem,
+  DeleteAttachmentOutcome,
+  UpdateBriefCall,
+  UpdateBriefOutcome,
+  UploadAttachmentOutcome,
+} from './_components/project-brief-screen';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   hasPermission,
@@ -89,6 +98,17 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   errForbidden: 'You do not have permission to edit this brief.',
   errNotFound: 'This project could not be found.',
   errPersistence: 'Could not save the brief. Please try again.',
+  uploading: 'Uploading…',
+  attachColName: 'File',
+  attachColSize: 'Size',
+  attachColUploaded: 'Uploaded',
+  attachDownload: 'Download',
+  attachDelete: 'Delete',
+  attachDeleteConfirm: 'Remove this attachment?',
+  attachTooLarge: 'File is larger than 20 MB.',
+  attachUnsupportedType: 'Unsupported file type. Allowed: PDF, PNG, JPG, DOCX, XLSX.',
+  attachUploadFailed: 'Could not upload the attachment. Please try again.',
+  attachDeleteFailed: 'Could not delete the attachment. Please try again.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof ProjectBriefLabels>;
@@ -134,6 +154,34 @@ async function updateBriefAction(call: UpdateBriefCall): Promise<UpdateBriefOutc
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
+// Attachment Server Action adapters (npd-attachments bucket, mig 279).
+async function uploadAttachmentAction(form: FormData): Promise<UploadAttachmentOutcome> {
+  'use server';
+  const result = await uploadBriefAttachment(form);
+  return result.ok ? { ok: true } : { ok: false, error: result.code };
+}
+
+async function deleteAttachmentAction(call: {
+  projectId: string;
+  objectName: string;
+}): Promise<DeleteAttachmentOutcome> {
+  'use server';
+  const result = await deleteBriefAttachment(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.code };
+}
+
+// Attachments are loaded server-side (signed URLs, 15 min TTL). A listing
+// failure must not take down the brief — it degrades to an empty list (the
+// mutation paths surface their own errors).
+async function readAttachments(projectId: string): Promise<BriefAttachmentItem[]> {
+  try {
+    const result = await listBriefAttachments({ projectId });
+    return result.ok ? result.attachments : [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function ProjectBriefPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as ProjectBriefPageProps;
   const { locale, projectId } = props.params
@@ -157,6 +205,9 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
         ? await resolveCanWrite()
         : false;
 
+  const attachments =
+    !injected && loaded.state === 'ready' && projectId ? await readAttachments(projectId) : [];
+
   return (
     <ProjectBriefScreen
       state={loaded.state}
@@ -164,6 +215,9 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
       labels={labels}
       canWrite={canWrite}
       onUpdate={updateBriefAction}
+      attachments={attachments}
+      onUploadAttachment={uploadAttachmentAction}
+      onDeleteAttachment={deleteAttachmentAction}
     />
   );
 }

@@ -93,6 +93,13 @@ interface ScannerProdLabelsShape {
     errGeneric: string;
     err409: string;
     err422: string;
+    approvalTitle: string;
+    approvalBody: string;
+    approvalEmail: string;
+    approvalPin: string;
+    approvalSubmit: string;
+    approvalOver: string;
+    warnOver: string;
     back: string;
   };
   output: {
@@ -130,6 +137,7 @@ interface ScannerProdLabelsShape {
     categoryTitle: string;
     qtyLabel: string;
     qtyHint: string;
+    boxConversion: string;
     reasonLabel: string;
     reasonPlaceholder: string;
     enterQty: string;
@@ -153,6 +161,8 @@ interface ScannerProdLabelsShape {
   /** Honest copy for API error codes, keyed by the wire code. */
   errors: {
     wo_not_recordable: string;
+    /** B-2 — line requires allergen changeover dual sign-off before start (409). */
+    changeover_signoff_required: string;
   };
   loading: string;
 }
@@ -231,6 +241,13 @@ const en: ScannerProdLabelsShape = {
     errGeneric: "Could not save. Try again.",
     err409: "Conflict — this material state changed. Refresh and retry.",
     err422: "Invalid quantity for this material.",
+    approvalTitle: "Supervisor approval",
+    approvalBody: "This consumption is above the allowed threshold.",
+    approvalEmail: "Supervisor email",
+    approvalPin: "Supervisor PIN",
+    approvalSubmit: "Approve and save",
+    approvalOver: "{pct}% over required",
+    warnOver: "Over required quantity by {pct}% — recorded and flagged.",
     back: "Back",
   },
   output: {
@@ -268,6 +285,7 @@ const en: ScannerProdLabelsShape = {
     categoryTitle: "Waste category",
     qtyLabel: "Waste quantity (kg)",
     qtyHint: "In kilograms",
+    boxConversion: "1 box ≈ {kg} kg",
     reasonLabel: "Reason (optional)",
     reasonPlaceholder: "Optional notes…",
     enterQty: "Enter quantity",
@@ -291,6 +309,8 @@ const en: ScannerProdLabelsShape = {
   errors: {
     wo_not_recordable:
       "Start the work order first — outputs can only be recorded while it is running",
+    changeover_signoff_required:
+      "Line requires allergen changeover sign-off before start.",
   },
   loading: "Loading…",
 } as const;
@@ -369,6 +389,13 @@ const pl: ScannerProdLabelsShape = {
     errGeneric: "Nie udało się zapisać. Spróbuj ponownie.",
     err409: "Konflikt — stan materiału się zmienił. Odśwież i ponów.",
     err422: "Nieprawidłowa ilość dla tego materiału.",
+    approvalTitle: "Zgoda przełożonego",
+    approvalBody: "Ta konsumpcja przekracza dozwolony próg.",
+    approvalEmail: "Email przełożonego",
+    approvalPin: "PIN przełożonego",
+    approvalSubmit: "Zatwierdź i zapisz",
+    approvalOver: "{pct}% ponad wymagane",
+    warnOver: "Przekroczono wymaganą ilość o {pct}% — zarejestrowano i oznaczono.",
     back: "Wróć",
   },
   output: {
@@ -406,6 +433,7 @@ const pl: ScannerProdLabelsShape = {
     categoryTitle: "Kategoria odpadu",
     qtyLabel: "Ilość odpadu (kg)",
     qtyHint: "W kilogramach",
+    boxConversion: "1 karton ≈ {kg} kg",
     reasonLabel: "Powód (opcjonalne)",
     reasonPlaceholder: "Opcjonalne notatki…",
     enterQty: "Podaj ilość",
@@ -429,6 +457,8 @@ const pl: ScannerProdLabelsShape = {
   errors: {
     wo_not_recordable:
       "Najpierw uruchom work order — wyroby można rejestrować tylko, gdy jest w toku",
+    changeover_signoff_required:
+      "Linia wymaga podpisania przezbrojenia alergenowego przed startem.",
   },
   loading: "Ładowanie…",
 };

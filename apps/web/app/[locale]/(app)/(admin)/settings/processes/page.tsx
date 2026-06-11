@@ -43,6 +43,17 @@ const PROCESSES_CONFIG: SingleReferenceScreenConfig = {
     },
     { key: 'cost_rate', label: 'Rate', type: 'number', formOnly: true },
     { key: 'currency', label: 'Currency', type: 'text', formOnly: true },
+    // Migration 276 — machine assignment + staffing + setup cost (reference.processes
+    // jsonb keys, mirroring how 269 exposed cost_mode/cost_rate/currency).
+    // machine_id is a soft text reference to public.machines (code or id): the
+    // shared SingleReferenceScreen.enumOptions is a static string[] with no dynamic
+    // dropdown source, so the machine is entered as text here and managed in the
+    // dedicated Machines screen (/settings/machines). See deviation log in the
+    // K4 report — a dynamic machines dropdown would require a non-trivial
+    // enhancement to the concurrently-edited shared reference screen.
+    { key: 'machine_id', label: 'Machine (code/id)', type: 'text', formOnly: true },
+    { key: 'staffing_count', label: 'Staffing', type: 'number', formOnly: true },
+    { key: 'setup_cost', label: 'Setup cost', type: 'number', formOnly: true },
     { key: 'process_cost', label: 'Cost', type: 'text', tableOnly: true },
   ],
 };

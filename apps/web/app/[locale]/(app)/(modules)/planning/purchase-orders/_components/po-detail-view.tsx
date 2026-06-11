@@ -47,6 +47,8 @@ export type PoDetailLine = {
   uom: string;
   unitPrice: string;
   lineNo: number;
+  /** Σ grn_items.received_qty for this line (non-cancelled GRNs), decimal string. */
+  receivedQty: string;
 };
 
 export type PoDetail = {
@@ -81,7 +83,15 @@ export type PoDetailLabels = {
     uom: string;
     unitPrice: string;
     lineTotal: string;
+    received: string;
+    receivedFull: string;
+    receivedPartial: string;
     empty: string;
+  };
+  receivedSummary: {
+    title: string;
+    /** Template with {received} / {total} placeholders, e.g. "{received} / {total} lines". */
+    lines: string;
   };
   transitions: {
     title: string;
@@ -152,6 +162,16 @@ export function PoDetailView({
 
   const orderTotal = po.lines.reduce((sum, l) => sum + Number(l.qty) * Number(l.unitPrice), 0);
 
+  // Receipt rollup. Lines can carry mixed UoMs, so the header progress is
+  // line-based (fully received lines / total lines), never a cross-UoM qty sum.
+  const receiptOf = (l: PoDetailLine): 'none' | 'partial' | 'full' => {
+    const received = Number(l.receivedQty);
+    if (!(received > 0)) return 'none';
+    return received >= Number(l.qty) ? 'full' : 'partial';
+  };
+  const fullyReceivedLines = po.lines.filter((l) => receiptOf(l) === 'full').length;
+  const receiptPct = po.lines.length > 0 ? Math.round((fullyReceivedLines / po.lines.length) * 100) : 0;
+
   async function onTransition(to: string) {
     if (pending) return;
     const prompt = labels.transitions.confirmPrompt
@@ -211,6 +231,7 @@ export function PoDetailView({
                     <th className="px-3 py-2">{labels.lines.uom}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.unitPrice}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.lineTotal}</th>
+                    <th className="px-3 py-2 text-right">{labels.lines.received}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -226,6 +247,22 @@ export function PoDetailView({
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{money(Number(l.unitPrice), po.currency)}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold">
                         {money(Number(l.qty) * Number(l.unitPrice), po.currency)}
+                      </td>
+                      <td className="px-3 py-2 text-right" data-testid={`po-line-received-${l.id}`}>
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="font-mono text-xs tabular-nums text-slate-700">
+                            {Number(l.receivedQty) > 0 ? `${l.receivedQty} ${l.uom}` : '—'}
+                          </span>
+                          {receiptOf(l) === 'full' ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                              {labels.lines.receivedFull}
+                            </span>
+                          ) : receiptOf(l) === 'partial' ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                              {labels.lines.receivedPartial}
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -268,6 +305,22 @@ export function PoDetailView({
               <div className="flex justify-between gap-2">
                 <dt className="text-slate-500">{labels.summary.created}</dt>
                 <dd className="font-mono text-xs text-slate-800">{fmtDate(po.createdAt, locale)}</dd>
+              </div>
+              <div className="mt-1 border-t border-slate-200 pt-2" data-testid="po-detail-received-summary">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-slate-500">{labels.receivedSummary.title}</dt>
+                  <dd className="font-mono text-xs text-slate-800">
+                    {labels.receivedSummary.lines
+                      .replace('{received}', String(fullyReceivedLines))
+                      .replace('{total}', String(po.lines.length))}
+                  </dd>
+                </div>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                  <div
+                    className={`h-full rounded-full ${receiptPct >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                    style={{ width: `${Math.min(100, receiptPct)}%` }}
+                  />
+                </div>
               </div>
               <div className="mt-1 flex justify-between gap-2 border-t border-slate-200 pt-2">
                 <dt className="font-semibold text-slate-700">{labels.summary.total}</dt>

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../scanner/txn-org-context';
+
 import type { QueryClient } from '../../scanner/db';
 import type { ScannerSessionRow } from '../../scanner/session';
 
@@ -57,6 +59,8 @@ export type ReceiveLineResult =
       uom: string;
       overReceived: boolean;
       poStatus: 'partially_received' | 'received';
+      qcInspectionRequired: boolean;
+      inspectionId: string | null;
     }
   | {
       ok: true;
@@ -70,6 +74,8 @@ export type ReceiveLineResult =
       uom: string | null;
       overReceived: boolean;
       poStatus: string | null;
+      qcInspectionRequired: boolean;
+      inspectionId: string | null;
     };
 
 type PoSummaryRow = {
@@ -221,7 +227,20 @@ export async function receiveScannerPoLine(
   if (replay) return replay;
 
   await client.query('begin');
+  let orgContextToken: string | null = null;
   try {
+    // Review fix F1: register a TRANSACTION-scoped org context right after BEGIN.
+    // The QC-flag branch below calls public.next_quality_inspection_number($org)
+    // which raises 28000 unless app.current_org_id() = $org, and
+    // app.current_org_id() resolves via app.active_org_contexts keyed on the
+    // CURRENT txid (migration 002) — the autocommit set_config done by
+    // withScannerOrg's 3-arg overload never reaches it. See
+    // lib/scanner/txn-org-context.ts for the full rationale.
+    // Audit note: every other statement in this function passes session.org_id
+    // explicitly ($1::uuid) and the scanner client is the owner pool (BYPASSRLS),
+    // so the allocator call is the only app.current_org_id()-dependent SQL here.
+    orgContextToken = await registerTxnOrgContext(client, session.org_id);
+
     const inTxnReplay = await findReplay(client, session, input.clientOpId);
     if (inTxnReplay) {
       await client.query('commit');
@@ -294,6 +313,14 @@ export async function receiveScannerPoLine(
       transactionId: randomUUID(),
     });
 
+    // Audit finding #4: honor tenant_variations.feature_flags->require_grn_qc_inspection.
+    // The LP above is always inserted with qa_status='pending' (never auto-released);
+    // when the flag is ON we additionally open a pending quality inspection for the LP.
+    const qcInspectionRequired = await requiresGrnQcInspection(client, session);
+    const inspectionId = qcInspectionRequired
+      ? await insertQcInspectionForLp(client, session, { lpId: lp.id, productId: line.item_id })
+      : null;
+
     const poStatus = await rollupPurchaseOrderStatus(client, session, line.po_id);
     const overReceived = afterLine > ordered;
     await insertAudit(client, session, input.clientOpId, 'ok', {
@@ -307,6 +334,8 @@ export async function receiveScannerPoLine(
       uom: line.uom,
       overReceived,
       poStatus,
+      qcInspectionRequired,
+      inspectionId,
     });
 
     await client.query('commit');
@@ -321,10 +350,16 @@ export async function receiveScannerPoLine(
       uom: line.uom,
       overReceived,
       poStatus,
+      qcInspectionRequired,
+      inspectionId,
     };
   } catch (err) {
     await client.query('rollback').catch(() => undefined);
     throw err;
+  } finally {
+    // After COMMIT the session token row persists — delete it (no-op after
+    // ROLLBACK, where the in-txn insert already vanished).
+    await cleanupTxnOrgContext(client, orgContextToken);
   }
 }
 
@@ -581,6 +616,43 @@ async function insertLpGenesis(
   );
 }
 
+async function requiresGrnQcInspection(client: QueryClient, session: ScannerSessionRow): Promise<boolean> {
+  const { rows } = await client.query<{ require_qc: boolean }>(
+    `select (tv.feature_flags->>'require_grn_qc_inspection') = 'true' as require_qc
+       from public.tenant_variations tv
+      where tv.org_id = $1::uuid`,
+    [session.org_id],
+  );
+  return rows[0]?.require_qc === true;
+}
+
+async function insertQcInspectionForLp(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  input: { lpId: string; productId: string },
+): Promise<string | null> {
+  // Idempotency: the receive itself is guarded by scanner_audit_log(org_id, client_op_id)
+  // replay detection, so this only runs once per client operation. The NOT EXISTS guard is
+  // belt-and-suspenders against a second pending inspection ever being opened for the same LP.
+  const { rows } = await client.query<{ id: string }>(
+    `insert into public.quality_inspections (
+       org_id, inspection_number, reference_type, reference_id, product_id, status, created_by
+     )
+     select $1::uuid, public.next_quality_inspection_number($1::uuid), 'lp', $2::uuid, $3::uuid, 'pending', $4::uuid
+      where not exists (
+        select 1
+          from public.quality_inspections qi
+         where qi.org_id = $1::uuid
+           and qi.reference_type = 'lp'
+           and qi.reference_id = $2::uuid
+           and qi.status = 'pending'
+      )
+     returning id`,
+    [session.org_id, input.lpId, input.productId, session.user_id],
+  );
+  return rows[0]?.id ?? null;
+}
+
 async function rollupPurchaseOrderStatus(
   client: QueryClient,
   session: ScannerSessionRow,
@@ -659,6 +731,8 @@ async function findReplay(
     uom: stringOrNull(ext.uom),
     overReceived: ext.overReceived === true,
     poStatus: stringOrNull(ext.poStatus),
+    qcInspectionRequired: ext.qcInspectionRequired === true,
+    inspectionId: stringOrNull(ext.inspectionId),
   };
 }
 

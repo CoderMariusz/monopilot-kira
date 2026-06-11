@@ -22,6 +22,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { listItems } from './_actions/list-items';
 import type { DeactivateLabels } from './_components/deactivate-modal';
+import { buildTransitionLabels } from './_components/item-transition-labels';
 import { buildWizardLabels } from './_components/item-wizard-labels';
 import { NewItemButton } from './_components/items-manager.client';
 import { ItemsTableClient } from './_components/items-table.client';
@@ -68,6 +69,7 @@ export default async function TechnicalItemsPage() {
 
   const wizardLabels = buildWizardLabels(t);
   const deactivateLabels = buildDeactivateLabels(t);
+  const transitionLabels = buildTransitionLabels(t);
   const newItemLabel = t('create.open');
   const editLabel = t('detail.edit');
   const deactivateLabel = t('detail.deactivate');
@@ -124,6 +126,7 @@ export default async function TechnicalItemsPage() {
             filterEmptyBody={t('list.filterEmptyBody')}
             wizardLabels={wizardLabels}
             deactivateLabels={deactivateLabels}
+            transitionLabels={transitionLabels}
           />
         </>
       )}

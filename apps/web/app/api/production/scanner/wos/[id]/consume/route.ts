@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 
 import { hasPermission, type ProductionContext } from '../../../../../../../lib/production/shared';
+import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
 import { requireScannerSession } from '../../../../../../../lib/scanner/guard';
-import { stringField } from '../../../../../../../lib/scanner/route-utils';
+import { isRecord, stringField } from '../../../../../../../lib/scanner/route-utils';
 import {
   auditAttempt,
   getWoId,
@@ -23,6 +24,26 @@ type MaterialUpdateRow = {
   uom: string;
 };
 
+type MaterialGateRow = {
+  id: string;
+  product_id: string;
+  material_name: string;
+  required_qty: string;
+  consumed_qty: string;
+  uom: string;
+  threshold_pct: string;
+  warn_pct: string;
+  over_limit: boolean;
+  over_warn: boolean;
+  over_pct: string | null;
+};
+
+function numericJson(value: string | null): number {
+  if (value === null) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export async function POST(request: NextRequest, context: RouteContext) {
   const woId = await getWoId(context);
   const operation = 'production.scanner.wos.consume';
@@ -33,6 +54,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const materialId = stringField(body, 'materialId');
   const qty = stringField(body, 'qty');
   const lpId = stringField(body, 'lpId');
+  const approverBody = isRecord(body.approver) ? body.approver : null;
   if (!clientOpId || !materialId || !qty) {
     return scannerValidationError(request, body, operation, 'missing_fields', 400, { woId });
   }
@@ -56,8 +78,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         `${session.org_id}:scanner:${clientOpId}`,
       ]);
 
-      const replay = await client.query<{ exists: boolean }>(
-        `select true as exists
+      // Replay fidelity: only the success path writes client_op_id (auditAttempt
+      // rows never carry it), so this row's ext is the original 'ok' response
+      // material — reconstruct the original payload instead of a bare marker.
+      const replay = await client.query<{ ext: Record<string, unknown> | null }>(
+        `select ext
            from public.scanner_audit_log
           where org_id = $1::uuid
             and client_op_id = $2
@@ -67,7 +92,172 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (replay.rows[0]) {
         await client.query('commit');
         await auditAttempt(client, session, 'production.scanner.wos.consume', 'replay', { woId, materialId, lpId });
-        return scannerOk({ replay: true });
+        const storedExt = isRecord(replay.rows[0].ext) ? replay.rows[0].ext : {};
+        return scannerOk({
+          replay: true,
+          ...(typeof storedExt.materialId === 'string' ? { materialId: storedExt.materialId } : {}),
+          ...(typeof storedExt.consumedQty === 'string' ? { consumedQty: storedExt.consumedQty } : {}),
+          ...(typeof storedExt.uom === 'string' ? { uom: storedExt.uom } : {}),
+          approverUserId: typeof storedExt.approverUserId === 'string' ? storedExt.approverUserId : null,
+          ...(storedExt.warned === true
+            ? {
+                warning: {
+                  overconsumed: true,
+                  overPct: typeof storedExt.overPct === 'number' ? storedExt.overPct : 0,
+                  warnPct: typeof storedExt.warnPct === 'number' ? storedExt.warnPct : 0,
+                },
+              }
+            : {}),
+        });
+      }
+
+      // Two-tier gate, BOTH flags read in the same locked statement:
+      //   warn tier  (overconsume_warn_pct,      absent = 0) — proceed + warn,
+      //   approve tier (overconsume_threshold_pct, absent = 0) — PIN approval.
+      const materialGateRes = await client.query<MaterialGateRow>(
+        `with cfg as (
+           select coalesce(
+                    case
+                      when (tv.feature_flags->>'overconsume_threshold_pct') ~ '^[0-9]+(\\.[0-9]+)?$'
+                        then (tv.feature_flags->>'overconsume_threshold_pct')::numeric
+                      else 0
+                    end,
+                    0
+                  ) as threshold_pct,
+                  coalesce(
+                    case
+                      when (tv.feature_flags->>'overconsume_warn_pct') ~ '^[0-9]+(\\.[0-9]+)?$'
+                        then (tv.feature_flags->>'overconsume_warn_pct')::numeric
+                      else 0
+                    end,
+                    0
+                  ) as warn_pct
+             from public.tenant_variations tv
+            where tv.org_id = $1::uuid
+         )
+         select wm.id,
+                wm.product_id,
+                wm.material_name,
+                wm.required_qty::text as required_qty,
+                wm.consumed_qty::text as consumed_qty,
+                wm.uom,
+                coalesce((select threshold_pct from cfg), 0)::text as threshold_pct,
+                coalesce((select warn_pct from cfg), 0)::text as warn_pct,
+                (wm.consumed_qty + $4::numeric)
+                  > (wm.required_qty * (1 + coalesce((select threshold_pct from cfg), 0) / 100)) as over_limit,
+                (wm.consumed_qty + $4::numeric)
+                  > (wm.required_qty * (1 + coalesce((select warn_pct from cfg), 0) / 100)) as over_warn,
+                case
+                  when wm.required_qty > 0 then
+                    (((wm.consumed_qty + $4::numeric) / wm.required_qty - 1) * 100)::text
+                  else null
+                end as over_pct
+           from public.wo_materials wm
+          where wm.org_id = $1::uuid
+            and wm.wo_id = $2::uuid
+            and wm.id = $3::uuid
+            and $4::numeric > 0
+          limit 1
+          for update of wm`,
+        [session.org_id, woId, materialId, qty],
+      );
+      const gate = materialGateRes.rows[0];
+      if (!gate) {
+        await client.query('rollback');
+        await auditAttempt(client, session, 'production.scanner.wos.consume', 'invalid_material', {
+          woId,
+          materialId,
+        });
+        return scannerError('invalid_material', 422);
+      }
+
+      // Between the tiers: consume PROCEEDS, the response carries a warning
+      // payload and the audit row is flagged (warned + overPct). Above the
+      // approve tier the 409/PIN path below is unchanged.
+      const warnBand = gate.over_warn && !gate.over_limit;
+
+      let approverUserId: string | null = null;
+      if (gate.over_limit) {
+        const overPayload = {
+          requiredQty: numericJson(gate.required_qty),
+          consumedQty: numericJson(gate.consumed_qty),
+          attemptedQty: numericJson(qty),
+          thresholdPct: numericJson(gate.threshold_pct),
+          overPct: numericJson(gate.over_pct),
+        };
+
+        if (!approverBody) {
+          await client.query('rollback');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'overconsume_approval_required', {
+            woId,
+            materialId,
+            ...overPayload,
+          });
+          return scannerError('overconsume_approval_required', 409, overPayload);
+        }
+
+        const approverEmail = stringField(approverBody, 'email')?.toLowerCase();
+        const approverPin = stringField(approverBody, 'pin');
+        if (!approverEmail || !approverPin) {
+          await client.query('rollback');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'invalid_approver', {
+            woId,
+            materialId,
+          });
+          return scannerError('invalid_approver', 401);
+        }
+
+        const approver = await findUserByEmail(client, approverEmail);
+        if (!approver || approver.org_id !== session.org_id || approver.id === session.user_id) {
+          await client.query('rollback');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'invalid_approver', {
+            woId,
+            materialId,
+          });
+          return scannerError('invalid_approver', 401);
+        }
+        if (!(await userHasPin(client, approver.id))) {
+          await client.query('rollback');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'pin_not_enrolled', {
+            woId,
+            materialId,
+          });
+          return scannerError('pin_not_enrolled', 409);
+        }
+
+        const pinResult = await verifyPin(approver.id, approverPin, { client });
+        if (pinResult === 'locked') {
+          await client.query('rollback');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'pin_locked', {
+            woId,
+            materialId,
+          });
+          return scannerError('pin_locked', 423);
+        }
+        if (pinResult !== true) {
+          // COMMIT (not rollback): nothing has been written in this txn except
+          // verifyPin's failed-attempt counter — rolling back would erase the
+          // lockout increment and allow unlimited PIN brute-force via consume.
+          await client.query('commit');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'invalid_pin', {
+            woId,
+            materialId,
+          });
+          return scannerError('invalid_pin', 401);
+        }
+
+        const approverCtx = { client, userId: approver.id, orgId: session.org_id } as unknown as ProductionContext;
+        // Canonical RBAC string (seeded by migration 185 to the org-admin +
+        // production-supervisor role families): production.consumption.override_approve.
+        if (!(await hasPermission(approverCtx, 'production.consumption.override_approve'))) {
+          await client.query('rollback');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'approver_forbidden', {
+            woId,
+            materialId,
+          });
+          return scannerError('approver_forbidden', 403);
+        }
+        approverUserId = approver.id;
       }
 
       const materialRes = await client.query<MaterialUpdateRow>(
@@ -137,7 +327,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
             materialId,
             materialName: material.material_name,
             qty,
+            // consumedQty/uom/warnPct mirror the success response so an
+            // idempotent replay can reconstruct the original payload.
+            consumedQty: material.consumed_qty,
             uom: material.uom,
+            approverUserId,
+            overPct: gate.over_limit || warnBand ? numericJson(gate.over_pct) : null,
+            ...(warnBand ? { warned: true, warnPct: numericJson(gate.warn_pct) } : {}),
           }),
         ],
       );
@@ -148,6 +344,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         consumedQty: material.consumed_qty,
         uom: material.uom,
         replay: false,
+        ...(warnBand
+          ? {
+              warning: {
+                overconsumed: true,
+                overPct: numericJson(gate.over_pct),
+                warnPct: numericJson(gate.warn_pct),
+              },
+            }
+          : {}),
       });
     } catch (error) {
       try {

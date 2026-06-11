@@ -106,6 +106,17 @@ const LABELS: PackagingLabels = {
   pickerError: 'Item search failed',
   pickedHint: 'Linked to {code}',
   pickerClear: 'Clear link',
+  artworkUpload: 'Upload artwork',
+  artworkUploading: 'Uploading…',
+  artworkHistoryTitle: 'Version history',
+  artworkCurrent: 'Current',
+  artworkDownload: 'Download',
+  artworkDelete: 'Delete',
+  artworkDeleteConfirm: 'Remove this artwork version?',
+  artworkTooLarge: 'File is larger than 20 MB.',
+  artworkUnsupportedType: 'Unsupported file type. Allowed: PDF, PNG, JPG.',
+  artworkUploadFailed: 'Could not upload the artwork. Please try again.',
+  artworkDeleteFailed: 'Could not delete the artwork version. Please try again.',
 };
 
 const PRIMARY: PackagingComponentRow[] = [
@@ -352,15 +363,17 @@ describe('PackagingScreen — add via modal calls the Server Action', () => {
   });
 });
 
-describe('PackagingScreen — artwork buttons are disabled until backend exists', () => {
-  it('renders Preview / New version as disabled with the "Not available yet" tooltip', () => {
+describe('PackagingScreen — artwork affordances track the storage backend', () => {
+  // Storage backend exists now (npd-attachments bucket, mig 279). Preview stays
+  // disabled only when the artwork has no signed URL; New version renders only
+  // when the upload Server Action is injected. Wired flows are covered in
+  // artwork-panel.test.tsx.
+  it('disables Preview without a signed URL and hides New version without an upload action', () => {
     renderReady({ canWrite: true, onUpsert: vi.fn(), onDelete: vi.fn() });
     const preview = screen.getByTestId('artwork-preview');
-    const newVersion = screen.getByTestId('artwork-new-version');
     expect(preview).toBeDisabled();
     expect(preview).toHaveAttribute('title', 'Not available yet');
-    expect(newVersion).toBeDisabled();
-    expect(newVersion).toHaveAttribute('title', 'Not available yet');
+    expect(screen.queryByTestId('artwork-new-version')).toBeNull();
   });
 });
 

@@ -5,12 +5,21 @@ import { resolve } from 'node:path';
 // Source-parse helpers: read sw.ts as text so assertions don't require a SW runtime.
 // These tests verify the static shape of the service-worker entry file.
 // Runtime behaviour (SW lifecycle, offline fallback, cache hits) is tested in T-042 E2E.
+//
+// REALITY CHECK (wave 8a, fix K5-7): app/sw.ts is a @serwist/next (webpack-plugin)
+// entry, but the production build runs Turbopack, which never emits it — so
+// nothing below describes what production actually serves at /sw.js. The
+// `import('../sw.js')` in the first test is resolved BY VITE to ../sw.ts
+// (standard .js→.ts extension rewriting), which is why this suite was green
+// while every live page 404'd on /sw.js. The worker production actually serves
+// is the static no-op public/sw.js — covered by its own describe block below.
 const swSource = readFileSync(resolve(__dirname, '../sw.ts'), 'utf8');
 
-describe('sw.ts (Service Worker)', () => {
+describe('sw.ts (Serwist entry — NOT emitted by the Turbopack production build)', () => {
   it('should export a valid service worker module', async () => {
     // Guard is in sw.ts: new Serwist() is only called inside a ServiceWorkerGlobalScope
-    // check, so importing in Node/Vitest is safe.
+    // check, so importing in Node/Vitest is safe. NOTE: '../sw.js' resolves to
+    // ../sw.ts under Vite — this does NOT prove a /sw.js asset exists.
     const sw = await import('../sw.js');
     expect(sw).toBeDefined();
   });
@@ -80,5 +89,27 @@ describe('sw.ts (Service Worker)', () => {
     // Verify in apps/web/e2e/pwa.spec.ts using Playwright page.context().setOffline(true).
     // T-042 AC3: "Given /api/health was hit twice online, when offline + third fetch runs,
     // then the SW returns the cached response with header X-Served-By='sw' and status 200."
+  });
+});
+
+// What production ACTUALLY serves at /sw.js: the static no-op worker in
+// public/. It exists so RegisterSW's probe stops 404ing on every page and
+// registration succeeds; it must do NOTHING beyond the lifecycle handshake.
+describe('public/sw.js (the worker production actually serves)', () => {
+  const publicSwSource = readFileSync(resolve(__dirname, '../../public/sw.js'), 'utf8');
+
+  it('exists and activates immediately (skipWaiting on install)', () => {
+    expect(publicSwSource).toMatch(/addEventListener\(\s*['"]install['"]/);
+    expect(publicSwSource).toContain('self.skipWaiting()');
+  });
+
+  it('claims clients on activate', () => {
+    expect(publicSwSource).toMatch(/addEventListener\(\s*['"]activate['"]/);
+    expect(publicSwSource).toContain('self.clients.claim()');
+  });
+
+  it('is a no-op: NO fetch handler and NO caching (stale precache must never shadow deploys)', () => {
+    expect(publicSwSource).not.toMatch(/addEventListener\(\s*['"]fetch['"]/);
+    expect(publicSwSource).not.toMatch(/caches\.(open|match|keys)/);
   });
 });

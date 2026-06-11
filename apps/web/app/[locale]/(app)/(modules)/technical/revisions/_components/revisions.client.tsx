@@ -35,6 +35,9 @@ export type RevisionRow = {
   status: string | null;
   statusTone: BadgeVariant;
   actorUserId: string | null;
+  /** Resolved actor identity (users join) — render these, never the uuid. */
+  actorName: string | null;
+  actorEmail: string | null;
   occurredAt: string;
   action: string;
 };
@@ -314,7 +317,9 @@ export function RevisionsClient({
                     {r.entityType}
                   </Badge>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 500 }}>{r.actorUserId ?? labels.unknownActor}</div>
+                <div style={{ fontSize: 12, fontWeight: 500 }} title={r.actorEmail ?? undefined}>
+                  {r.actorName ?? r.actorEmail ?? labels.unknownActor}
+                </div>
                 <div style={{ fontSize: 13 }}>
                   <span style={{ color: 'var(--muted)' }}>{r.action}: </span>
                   <span className="mono" style={{ fontWeight: 600 }}>

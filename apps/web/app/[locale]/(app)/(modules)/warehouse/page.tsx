@@ -53,8 +53,7 @@ export const dynamic = "force-dynamic";
 type WarehouseNavCard = { key: string; href: string; disabled: boolean };
 
 /**
- * Warehouse sub-areas. `expiry` is now live (LANE-D). `locations` stays disabled
- * until its page lands (honest — disabled cards never navigate to a 404).
+ * Warehouse sub-areas. All cards live as of wave 8 (locations page landed in WH-018).
  */
 const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
   { key: "inbound", href: "/warehouse/inbound", disabled: false },
@@ -63,7 +62,7 @@ const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
   { key: "inventory", href: "/warehouse/inventory", disabled: false },
   { key: "movements", href: "/warehouse/movements", disabled: false },
   { key: "reservations", href: "/warehouse/reservations", disabled: false },
-  { key: "locations", href: "/warehouse/locations", disabled: true },
+  { key: "locations", href: "/warehouse/locations", disabled: false },
   { key: "expiry", href: "/warehouse/expiry", disabled: false },
   // Cross-shell: opens the chrome-less device scanner (owner-reported the
   // scanner was otherwise unreachable from the app).

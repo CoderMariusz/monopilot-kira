@@ -72,6 +72,101 @@ describe('scanner receive PO service', () => {
     expect(findCall(client, 'insert into public.lp_state_history')).toBeTruthy();
     expect(findCall(client, 'update public.purchase_orders')?.params).toEqual([ORG_A, PO_ID, 'received', USER_A]);
     expect(auditExt(client)).toMatchObject({ poLineId: LINE_ID, lpId: 'lp-1', qty: '10.5', overReceived: true });
+    // flag OFF (default): no QC inspection is opened and the response says so
+    expect(result).toMatchObject({ qcInspectionRequired: false, inspectionId: null });
+    expect(findCall(client, 'insert into public.quality_inspections')).toBeUndefined();
+  });
+
+  it('opens a pending QC inspection for the LP when require_grn_qc_inspection is ON', async () => {
+    const client = makeReceiveClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      isReceived: true,
+      requireGrnQc: true,
+    });
+
+    const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-qc' });
+
+    expect(result).toMatchObject({ ok: true, lpId: 'lp-1', qcInspectionRequired: true, inspectionId: 'insp-1' });
+
+    // LP is held as pending (qa_status='pending' in the insert), never auto-released
+    const lpInsert = findCall(client, 'insert into public.license_plates');
+    expect(lpInsert?.sql).toContain("'received', 'pending'");
+
+    // inspection insert: numbered via next_quality_inspection_number, org-scoped, lp-referenced,
+    // guarded against a duplicate pending inspection for the same LP
+    const inspInsert = findCall(client, 'insert into public.quality_inspections');
+    expect(inspInsert).toBeTruthy();
+    expect(inspInsert?.sql).toContain('public.next_quality_inspection_number($1::uuid)');
+    expect(inspInsert?.sql).toContain('not exists');
+    expect(inspInsert?.params).toEqual([ORG_A, 'lp-1', ITEM_ID, USER_A]);
+
+    // flag is read once per receive
+    expect(client.calls.filter((call) => call.sql.includes('from public.tenant_variations'))).toHaveLength(1);
+
+    // replay payload carries the inspection so a retried op can answer without re-inserting
+    expect(auditExt(client)).toMatchObject({ qcInspectionRequired: true, inspectionId: 'insp-1' });
+    expect(client.statements).toContain('commit');
+  });
+
+  it('registers the txn-scoped org context INSIDE the transaction, before the QC allocator (review fix F1)', async () => {
+    const client = makeReceiveClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      isReceived: true,
+      requireGrnQc: true,
+    });
+
+    await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-ctx' });
+
+    // The pg mock records query order: begin → session token insert →
+    // app.set_org_context → quality_inspections insert (allocator) → commit →
+    // token cleanup. app.current_org_id() resolves via active_org_contexts
+    // keyed on the txn's txid (mig 002), so registration MUST be in-txn.
+    const sqls = client.calls.map((call) => call.sql);
+    const beginIdx = sqls.indexOf('begin');
+    const tokenIdx = sqls.findIndex((sql) => sql.includes('insert into app.session_org_contexts'));
+    const setCtxIdx = sqls.findIndex((sql) => sql.includes('app.set_org_context'));
+    const allocatorIdx = sqls.findIndex((sql) => sql.includes('insert into public.quality_inspections'));
+    const commitIdx = sqls.indexOf('commit');
+    const cleanupIdx = sqls.findIndex((sql) => sql.includes('delete from app.session_org_contexts'));
+
+    expect(beginIdx).toBeGreaterThanOrEqual(0);
+    expect(tokenIdx).toBeGreaterThan(beginIdx);
+    expect(setCtxIdx).toBeGreaterThan(tokenIdx);
+    expect(allocatorIdx).toBeGreaterThan(setCtxIdx);
+    expect(commitIdx).toBeGreaterThan(allocatorIdx);
+    expect(cleanupIdx).toBeGreaterThan(commitIdx);
+
+    // the registered context binds the SESSION org (org_id discipline)
+    expect(client.calls[tokenIdx]?.params?.[1]).toBe(ORG_A);
+    expect(client.calls[setCtxIdx]?.params?.[1]).toBe(ORG_A);
+  });
+
+  it('replaying a QC-flagged receive returns the inspection without inserting a duplicate', async () => {
+    const client = makeReceiveClient({
+      requireGrnQc: true,
+      replayExt: {
+        grnId: 'grn-1',
+        grnNumber: 'GRN-20260611-0001',
+        grnItemId: 'grn-item-1',
+        lpId: 'lp-1',
+        lpNumber: 'LP-1',
+        qty: '2.5',
+        uom: 'kg',
+        overReceived: false,
+        poStatus: 'partially_received',
+        qcInspectionRequired: true,
+        inspectionId: 'insp-1',
+      },
+    });
+
+    const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-qc-replay', qty: '2.5' });
+
+    expect(result).toMatchObject({ ok: true, replay: true, qcInspectionRequired: true, inspectionId: 'insp-1' });
+    expect(client.calls.some((call) => call.sql.includes('insert into public.quality_inspections'))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes('insert into public.grn_items'))).toBe(false);
+    expect(client.statements).not.toContain('begin');
   });
 
   it('replays an existing client operation without double receiving', async () => {
@@ -135,6 +230,7 @@ function makeReceiveClient(options: {
   isReceived?: boolean;
   lineMissing?: boolean;
   replayExt?: Record<string, unknown>;
+  requireGrnQc?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   const statements: string[] = [];
@@ -197,6 +293,12 @@ function makeReceiveClient(options: {
       }
       if (normalized.includes('insert into public.grn_items')) {
         return { rows: [{ id: 'grn-item-1' }] as T[], rowCount: 1 };
+      }
+      if (normalized.includes('from public.tenant_variations')) {
+        return { rows: [{ require_qc: options.requireGrnQc ?? false }] as T[], rowCount: 1 };
+      }
+      if (normalized.includes('insert into public.quality_inspections')) {
+        return { rows: [{ id: 'insp-1' }] as T[], rowCount: 1 };
       }
       return { rows: [] as T[], rowCount: 1 };
     },

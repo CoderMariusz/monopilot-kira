@@ -31,12 +31,16 @@ import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { listLocations } from '../../_actions/location-read-actions';
 import { createStockMove } from '../../_actions/stock-move-actions';
 import { getLpTranslator } from '../lp-labels';
+// RSC boundary: runtime VALUES must come from the server-safe constants module —
+// importing them from the 'use client' module yields client-reference proxies and
+// crashed every LP detail render (`LP_DEFERRED_ACTIONS is not iterable`, live
+// error digest 1984471676). Type-only imports from the client module are erased
+// at compile time and stay safe.
+import { LpDetailClient, type LpDetailLabels } from './_components/lp-detail.client';
 import {
-  LpDetailClient,
   LP_DEFERRED_ACTIONS,
-  type LpDetailLabels,
   type LpDeferredAction,
-} from './_components/lp-detail.client';
+} from './_components/lp-detail-constants';
 
 // Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';

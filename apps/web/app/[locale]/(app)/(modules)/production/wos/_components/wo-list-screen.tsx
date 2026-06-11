@@ -269,7 +269,9 @@ export function WoListScreen({
                         ) : null}
                       </div>
                     ) : (
-                      <span className="font-mono text-slate-500">{r.productId.slice(0, 8)}</span>
+                      // Product join missed — muted em-dash with the uuid only as a
+                      // hover title for debugging, never a naked uuid in the cell.
+                      <span className="text-slate-400" title={r.productId}>—</span>
                     )}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-slate-500">

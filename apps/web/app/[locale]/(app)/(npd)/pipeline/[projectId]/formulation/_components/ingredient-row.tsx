@@ -34,6 +34,7 @@ import {
   type ItemSearchFn,
 } from '../../../../_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
+import { symbolFor } from './cost-panel';
 
 export type IngredientField = 'rmCode' | 'name' | 'qtyKg' | 'pct' | 'costPerKgEur' | 'itemId';
 
@@ -101,6 +102,7 @@ export function IngredientRow({
   disabled,
   error,
   searchItemsAction,
+  currency = 'EUR',
   onChange,
   onSelectItem,
   onCommit,
@@ -113,6 +115,12 @@ export function IngredientRow({
   error: RowError | undefined;
   /** Org-scoped item-search Server Action for the ingredient picker. */
   searchItemsAction: ItemSearchFn;
+  /**
+   * F-D08b — ISO-4217 currency code for the contribution cell (same map as
+   * CostPanel: PLN → zł). Optional with the EUR default for back-compat; the
+   * formulation editor threads its own `currency` prop through.
+   */
+  currency?: string;
   onChange: (index: number, field: IngredientField, value: string) => void;
   /** Lane-B: a real item was chosen — wire item_id + populate code/name/cost/allergen. */
   onSelectItem: (index: number, item: ItemPickerOption) => void;
@@ -211,7 +219,7 @@ export function IngredientRow({
       </TableCell>
 
       <TableCell className="text-right mono" data-testid="ingredient-contribution">
-        {contribution ? `${contribution} €` : '—'}
+        {contribution ? `${contribution} ${symbolFor(currency)}` : '—'}
       </TableCell>
 
       <TableCell>

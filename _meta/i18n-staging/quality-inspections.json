@@ -1,0 +1,315 @@
+{
+  "_note": "Staged QUALITY INSPECTIONS i18n bundle (QA-005 incoming inspections list, QA-005a inspection detail + e-sign decision, MODAL-INSPECTION-CREATE, scanner QC screen handled separately in scanner-labels.ts qaScreen). Resolved server-side by quality/qa-inspections-labels.ts (mirrors quality/qa-holds-labels.ts FIXED loader: requested locale -> EN fallback -> humanized last segment, NEVER the raw dotted key) until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "en": {
+    "common": {
+      "quality": "Quality",
+      "denied": "You do not have permission to view inspections. Ask an administrator for the quality.dashboard.view permission.",
+      "error": "We could not load inspections right now. Refresh to try again.",
+      "loading": "Loading…"
+    },
+    "list": {
+      "title": "Incoming Inspections",
+      "subtitle": "Incoming, in-process and final inspection records.",
+      "breadcrumb": { "quality": "Quality", "inspections": "Inspections" },
+      "createInspection": "New inspection",
+      "searchPlaceholder": "Search inspection # or reference…",
+      "searchLabel": "Search inspections",
+      "rowsLabel": "{count} rows",
+      "denied": "You do not have permission to view inspections. Ask an administrator for the quality.dashboard.view permission.",
+      "error": "We could not load inspections right now. Refresh to try again.",
+      "emptyAll": "No inspections yet. Create a manual inspection to get started.",
+      "emptyFiltered": "No inspections match the current filters.",
+      "noProduct": "—",
+      "unassigned": "Unassigned",
+      "tabs": {
+        "all": "All",
+        "pending": "Pending",
+        "in_progress": "In progress",
+        "passed": "Passed",
+        "failed": "Failed",
+        "on_hold": "On hold",
+        "cancelled": "Cancelled"
+      },
+      "status": {
+        "pending": "Pending",
+        "in_progress": "In progress",
+        "passed": "Passed",
+        "failed": "Failed",
+        "on_hold": "On hold",
+        "cancelled": "Cancelled"
+      },
+      "columns": {
+        "inspectionNumber": "Inspection #",
+        "reference": "Reference",
+        "product": "Product",
+        "status": "Status",
+        "assigned": "Assigned to",
+        "due": "Due",
+        "created": "Created"
+      }
+    },
+    "createModal": {
+      "title": "Create manual inspection",
+      "subtitle": "Open an inspection against a license plate, GRN receipt or work-order output.",
+      "refType": "Reference type",
+      "refTypeOptions": { "lp": "License plate", "grn": "GRN", "wo_output": "WO output" },
+      "referenceId": "Reference",
+      "referenceIdHelp": "License plate number, GRN number or WO output id.",
+      "referenceIdPlaceholder": "LP-XXXX / GRN-XXXX / output id",
+      "assignee": "Assign to",
+      "assigneeHelp": "Inspector email (optional — leave blank to keep unassigned).",
+      "assigneePlaceholder": "inspector@company.com",
+      "dueDate": "Due date",
+      "notes": "Notes",
+      "notesPlaceholder": "Optional context for the inspector…",
+      "cancel": "Cancel",
+      "submit": "Create inspection",
+      "submitting": "Creating…",
+      "validation": { "referenceRequired": "A reference is required." },
+      "error": "Could not create inspection: {message}",
+      "success": "Inspection created.",
+      "lookup": {
+        "lpSearchLabel": "License plate",
+        "lpSearchPlaceholder": "Search LP number or item code…",
+        "lpSearchHelp": "Search and pick a license plate — its id is resolved automatically.",
+        "searching": "Searching…",
+        "noMatches": "No license plates match “{query}”.",
+        "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
+        "clearPick": "Clear",
+        "resultLine": "{lpNumber} · {itemCode} · {qty} {uom} · {status}",
+        "refInputLabel": { "grn": "GRN number", "wo_output": "WO output batch number" },
+        "refInputHelp": {
+          "grn": "Enter the GRN number — it is resolved to the receipt on submit.",
+          "wo_output": "Enter the work-order output batch number — it is resolved on submit."
+        },
+        "refInputPlaceholder": { "grn": "GRN-XXXXXX", "wo_output": "Batch number…" },
+        "unresolvedRef": "Could not resolve “{value}”. Check the number and try again.",
+        "assigneeSearchPlaceholder": "Search inspector name or email…",
+        "assigneePickedChip": "{name} · {email}",
+        "assigneeResultLine": "{name} · {email}",
+        "assigneeNoMatches": "No users match “{query}”."
+      }
+    },
+    "detail": {
+      "backToInspections": "Inspections",
+      "denied": "You do not have permission to view this inspection. Ask an administrator for the quality.dashboard.view permission.",
+      "error": "We could not load this inspection right now. Refresh to try again.",
+      "signedBanner": "This inspection was decided on {date} by {user}. Record is immutable (21 CFR Part 11).",
+      "header": {
+        "title": "Test Parameters",
+        "context": "Reference",
+        "product": "Product",
+        "assigned": "Assigned to",
+        "due": "Due",
+        "created": "Created",
+        "unassigned": "Unassigned"
+      },
+      "params": {
+        "name": "Parameter",
+        "expected": "Expected",
+        "actual": "Measured value",
+        "result": "Result",
+        "pass": "Pass",
+        "fail": "Fail",
+        "actualPlaceholder": "Enter value…",
+        "empty": "No parameters recorded yet.",
+        "save": "Save results",
+        "saving": "Saving…",
+        "saved": "Results saved.",
+        "saveError": "Could not save results: {message}",
+        "notes": "Result notes",
+        "notesPlaceholder": "Optional notes on the recorded results…"
+      },
+      "overall": {
+        "label": "Overall result",
+        "pass": "PASS",
+        "fail": "FAIL",
+        "pending": "PENDING",
+        "passBody": "All parameters pass.",
+        "failBody": "One or more parameters fail. Submitting a Fail decision creates a hold.",
+        "pendingBody": "Waiting for results on {count} parameter(s)."
+      },
+      "decision": {
+        "title": "Decision",
+        "pass": "Pass",
+        "fail": "Fail",
+        "hold": "Hold",
+        "held": "This inspection is on hold. {link}",
+        "holdLink": "View hold",
+        "passed": "This inspection passed.",
+        "failed": "This inspection failed."
+      },
+      "esign": {
+        "title": "Electronic signature (21 CFR Part 11)",
+        "meaning": "By signing you confirm this {decision} decision as your own act.",
+        "password": "Account password",
+        "passwordHelp": "Re-enter your account password to sign. The signature is verified server-side.",
+        "passwordPlaceholder": "••••••••",
+        "note": "Decision note",
+        "notePlaceholder": "Optional note recorded with the decision…",
+        "cancel": "Cancel",
+        "submit": "Sign & submit",
+        "submitting": "Submitting…",
+        "validation": { "passwordRequired": "Your account password is required to sign." },
+        "error": "Could not submit decision: {message}",
+        "success": "Decision recorded."
+      }
+    }
+  },
+  "pl": {
+    "common": {
+      "quality": "Jakość",
+      "denied": "Nie masz uprawnień do przeglądania inspekcji. Poproś administratora o uprawnienie quality.dashboard.view.",
+      "error": "Nie udało się załadować inspekcji. Odśwież, aby spróbować ponownie.",
+      "loading": "Ładowanie…"
+    },
+    "list": {
+      "title": "Inspekcje przyjęć",
+      "subtitle": "Rekordy inspekcji przyjęć, międzyoperacyjnych i końcowych.",
+      "breadcrumb": { "quality": "Jakość", "inspections": "Inspekcje" },
+      "createInspection": "Nowa inspekcja",
+      "searchPlaceholder": "Szukaj nr inspekcji lub referencji…",
+      "searchLabel": "Szukaj inspekcji",
+      "rowsLabel": "{count} wierszy",
+      "denied": "Nie masz uprawnień do przeglądania inspekcji. Poproś administratora o uprawnienie quality.dashboard.view.",
+      "error": "Nie udało się załadować inspekcji. Odśwież, aby spróbować ponownie.",
+      "emptyAll": "Brak inspekcji. Utwórz inspekcję ręczną, aby rozpocząć.",
+      "emptyFiltered": "Żadna inspekcja nie pasuje do bieżących filtrów.",
+      "noProduct": "—",
+      "unassigned": "Nieprzypisana",
+      "tabs": {
+        "all": "Wszystkie",
+        "pending": "Oczekujące",
+        "in_progress": "W toku",
+        "passed": "Zaliczone",
+        "failed": "Niezaliczone",
+        "on_hold": "Wstrzymane",
+        "cancelled": "Anulowane"
+      },
+      "status": {
+        "pending": "Oczekująca",
+        "in_progress": "W toku",
+        "passed": "Zaliczona",
+        "failed": "Niezaliczona",
+        "on_hold": "Wstrzymana",
+        "cancelled": "Anulowana"
+      },
+      "columns": {
+        "inspectionNumber": "Nr inspekcji",
+        "reference": "Referencja",
+        "product": "Produkt",
+        "status": "Status",
+        "assigned": "Przypisana do",
+        "due": "Termin",
+        "created": "Utworzona"
+      }
+    },
+    "createModal": {
+      "title": "Utwórz inspekcję ręczną",
+      "subtitle": "Otwórz inspekcję dla License Plate, przyjęcia GRN lub wyrobu zlecenia.",
+      "refType": "Typ referencji",
+      "refTypeOptions": { "lp": "License Plate", "grn": "GRN", "wo_output": "Wyrób WO" },
+      "referenceId": "Referencja",
+      "referenceIdHelp": "Numer License Plate, numer GRN lub id wyrobu WO.",
+      "referenceIdPlaceholder": "LP-XXXX / GRN-XXXX / id wyrobu",
+      "assignee": "Przypisz do",
+      "assigneeHelp": "Email inspektora (opcjonalnie — puste = nieprzypisana).",
+      "assigneePlaceholder": "inspektor@firma.pl",
+      "dueDate": "Termin",
+      "notes": "Notatki",
+      "notesPlaceholder": "Opcjonalny kontekst dla inspektora…",
+      "cancel": "Anuluj",
+      "submit": "Utwórz inspekcję",
+      "submitting": "Tworzenie…",
+      "validation": { "referenceRequired": "Referencja jest wymagana." },
+      "error": "Nie udało się utworzyć inspekcji: {message}",
+      "success": "Inspekcja utworzona.",
+      "lookup": {
+        "lpSearchLabel": "License Plate",
+        "lpSearchPlaceholder": "Szukaj numeru LP lub kodu pozycji…",
+        "lpSearchHelp": "Wyszukaj i wybierz License Plate — jego id jest ustalane automatycznie.",
+        "searching": "Wyszukiwanie…",
+        "noMatches": "Brak License Plate pasujących do „{query}”.",
+        "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
+        "clearPick": "Wyczyść",
+        "resultLine": "{lpNumber} · {itemCode} · {qty} {uom} · {status}",
+        "refInputLabel": { "grn": "Numer GRN", "wo_output": "Numer partii wyrobu WO" },
+        "refInputHelp": {
+          "grn": "Wpisz numer GRN — zostanie powiązany z przyjęciem przy zapisie.",
+          "wo_output": "Wpisz numer partii wyrobu zlecenia — zostanie ustalony przy zapisie."
+        },
+        "refInputPlaceholder": { "grn": "GRN-XXXXXX", "wo_output": "Numer partii…" },
+        "unresolvedRef": "Nie udało się ustalić „{value}”. Sprawdź numer i spróbuj ponownie.",
+        "assigneeSearchPlaceholder": "Szukaj imienia lub e-maila inspektora…",
+        "assigneePickedChip": "{name} · {email}",
+        "assigneeResultLine": "{name} · {email}",
+        "assigneeNoMatches": "Brak użytkowników pasujących do „{query}”."
+      }
+    },
+    "detail": {
+      "backToInspections": "Inspekcje",
+      "denied": "Nie masz uprawnień do przeglądania tej inspekcji. Poproś administratora o uprawnienie quality.dashboard.view.",
+      "error": "Nie udało się załadować tej inspekcji. Odśwież, aby spróbować ponownie.",
+      "signedBanner": "Decyzja w tej inspekcji została podjęta {date} przez {user}. Rekord jest niezmienny (21 CFR Part 11).",
+      "header": {
+        "title": "Parametry badań",
+        "context": "Referencja",
+        "product": "Produkt",
+        "assigned": "Przypisana do",
+        "due": "Termin",
+        "created": "Utworzona",
+        "unassigned": "Nieprzypisana"
+      },
+      "params": {
+        "name": "Parametr",
+        "expected": "Oczekiwane",
+        "actual": "Zmierzona wartość",
+        "result": "Wynik",
+        "pass": "Zalicz",
+        "fail": "Odrzuć",
+        "actualPlaceholder": "Wpisz wartość…",
+        "empty": "Brak zarejestrowanych parametrów.",
+        "save": "Zapisz wyniki",
+        "saving": "Zapisywanie…",
+        "saved": "Wyniki zapisane.",
+        "saveError": "Nie udało się zapisać wyników: {message}",
+        "notes": "Notatki do wyników",
+        "notesPlaceholder": "Opcjonalne notatki do zapisanych wyników…"
+      },
+      "overall": {
+        "label": "Wynik łączny",
+        "pass": "ZALICZONA",
+        "fail": "NIEZALICZONA",
+        "pending": "OCZEKUJE",
+        "passBody": "Wszystkie parametry zaliczone.",
+        "failBody": "Co najmniej jeden parametr niezaliczony. Decyzja Odrzuć tworzy wstrzymanie.",
+        "pendingBody": "Oczekiwanie na wyniki {count} parametru/ów."
+      },
+      "decision": {
+        "title": "Decyzja",
+        "pass": "Zalicz",
+        "fail": "Odrzuć",
+        "hold": "Wstrzymaj",
+        "held": "Ta inspekcja jest wstrzymana. {link}",
+        "holdLink": "Zobacz wstrzymanie",
+        "passed": "Inspekcja zaliczona.",
+        "failed": "Inspekcja niezaliczona."
+      },
+      "esign": {
+        "title": "Podpis elektroniczny (21 CFR Part 11)",
+        "meaning": "Podpisując potwierdzasz decyzję {decision} jako własne działanie.",
+        "password": "Hasło konta",
+        "passwordHelp": "Wpisz ponownie hasło konta, aby podpisać. Podpis jest weryfikowany po stronie serwera.",
+        "passwordPlaceholder": "••••••••",
+        "note": "Notatka decyzji",
+        "notePlaceholder": "Opcjonalna notatka zapisana z decyzją…",
+        "cancel": "Anuluj",
+        "submit": "Podpisz i wyślij",
+        "submitting": "Wysyłanie…",
+        "validation": { "passwordRequired": "Hasło konta jest wymagane do podpisu." },
+        "error": "Nie udało się wysłać decyzji: {message}",
+        "success": "Decyzja zapisana."
+      }
+    }
+  }
+}

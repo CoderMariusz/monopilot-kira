@@ -65,6 +65,10 @@ export type ProductionError =
   | 'invalid_state_transition'
   | 'concurrent_modification'
   | 'quality_hold_active'
+  // C4: canonical changeover-gate code emitted going forward (scanner + desktop
+  // share it). 'allergen_changeover_required' is the legacy alias kept mapped
+  // for pre-wave-8 consumers (wo-modal-labels i18n) — do not emit it anew.
+  | 'changeover_signoff_required'
   | 'allergen_changeover_required'
   | 'closed_production_strict_failed'
   | 'esign_failed'
@@ -84,6 +88,7 @@ export const ERROR_STATUS: Record<ProductionError, number> = {
   invalid_state_transition: 409,
   concurrent_modification: 409,
   quality_hold_active: 409,
+  changeover_signoff_required: 409,
   allergen_changeover_required: 409,
   closed_production_strict_failed: 409,
   esign_failed: 403,

@@ -52,6 +52,7 @@ import {
 import { createItemSupplierSpec } from '../_actions/supplier-spec-actions';
 import { listSuppliers } from '../../../planning/suppliers/_actions/actions';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
+import { buildTransitionLabels } from '../_components/item-transition-labels';
 import { buildWizardLabels } from '../_components/item-wizard-labels';
 
 export const dynamic = 'force-dynamic';
@@ -215,6 +216,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   };
 
   const wizardLabels = buildWizardLabels(t);
+  const transitionLabels = buildTransitionLabels(t);
 
   const deactivateLabels: DeactivateLabels = {
     title: t('deactivate.title'),
@@ -380,6 +382,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
           deactivateLabel={t('detail.deactivate')}
           wizardLabels={wizardLabels}
           deactivateLabels={deactivateLabels}
+          transitionLabels={transitionLabels}
         />
       </header>
 

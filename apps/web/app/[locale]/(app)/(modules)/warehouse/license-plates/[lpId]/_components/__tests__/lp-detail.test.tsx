@@ -13,6 +13,8 @@
  *   - i18n: en + pl staged detail keys resolve (no leaked dotted keys)
  */
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -28,6 +30,7 @@ import {
   type LpDetailLabels,
   type LpDeferredAction,
 } from '../lp-detail.client';
+import { LP_DEFERRED_ACTIONS as LP_DEFERRED_ACTIONS_SERVER_SAFE } from '../lp-detail-constants';
 import { getLpTranslator } from '../../../lp-labels';
 import type { LicensePlateDetail } from '../../../../_actions/shared';
 
@@ -341,5 +344,62 @@ describe('LpDetailClient (WH-003 parity)', () => {
       expect(flat).not.toMatch(/detail\.[a-z]/i);
     }
     expect(buildLabels('pl').tab.overview).not.toBe(EN.tab.overview);
+  });
+});
+
+/**
+ * REGRESSION — live crash on EVERY LP detail page (error digest 1984471676).
+ *
+ * The RSC page iterated LP_DEFERRED_ACTIONS imported from the 'use client'
+ * module; in the React server module graph every export of a client module is a
+ * client-reference proxy, so `for (const k of LP_DEFERRED_ACTIONS)` threw
+ * `TypeError: ... LP_DEFERRED_ACTIONS is not iterable` and 500'd the success
+ * path of every existing pallet (verified against Next 16.2.7). The vitest
+ * runner does not apply the RSC transform, so these tests pin the *structure*
+ * that makes the crash impossible:
+ *   1. the runtime array lives in a server-safe module (no 'use client'),
+ *   2. the page imports the VALUE only from that module (client imports are
+ *      type-only / component-only),
+ *   3. the client re-export stays identical so client consumers see one array.
+ */
+describe('LP detail RSC crash regression (digest 1984471676)', () => {
+  const constantsPath = resolve(__dirname, '../lp-detail-constants.ts');
+  const pagePath = resolve(__dirname, '../../page.tsx');
+
+  it('keeps lp-detail-constants server-safe (no "use client") and a real iterable', () => {
+    const src = readFileSync(constantsPath, 'utf8');
+    // A directive is a standalone statement line — not the doc-comment mention.
+    expect(src).not.toMatch(/^\s*['"]use client['"]\s*;?\s*$/m);
+
+    // The exact shape buildLabels() relies on at runtime in the RSC.
+    expect(Array.isArray(LP_DEFERRED_ACTIONS_SERVER_SAFE)).toBe(true);
+    const collected: string[] = [];
+    for (const k of LP_DEFERRED_ACTIONS_SERVER_SAFE) collected.push(k);
+    expect(collected).toEqual(['split', 'merge', 'qa', 'reserve', 'move', 'block', 'destroy']);
+  });
+
+  it('client module re-exports the same array (single source of truth)', () => {
+    expect(LP_DEFERRED_ACTIONS).toBe(LP_DEFERRED_ACTIONS_SERVER_SAFE);
+  });
+
+  it('page.tsx imports runtime values only from the server-safe module, types-only from the client module', () => {
+    const src = readFileSync(pagePath, 'utf8');
+
+    // The value import must target the constants module.
+    expect(src).toMatch(/LP_DEFERRED_ACTIONS[\s\S]{0,200}from '\.\/_components\/lp-detail-constants'/);
+
+    // Every import from the client module must be the component or `type ...`.
+    const clientImport = src.match(/import\s*\{([^}]+)\}\s*from '\.\/_components\/lp-detail\.client'/);
+    expect(clientImport).not.toBeNull();
+    const specifiers = clientImport![1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const spec of specifiers) {
+      expect(
+        spec === 'LpDetailClient' || spec.startsWith('type '),
+        `non-type value "${spec}" imported from the 'use client' module into the RSC page — this is the digest-1984471676 crash shape`,
+      ).toBe(true);
+    }
   });
 });

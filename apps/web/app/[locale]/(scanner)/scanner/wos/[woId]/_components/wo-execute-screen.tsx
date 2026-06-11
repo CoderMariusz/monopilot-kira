@@ -118,7 +118,13 @@ export function WoExecuteScreen({
       } catch {
         /* non-JSON error body */
       }
-      setStartErr(code === "wo_not_recordable" ? labels.errors.wo_not_recordable : L.startError);
+      setStartErr(
+        code === "wo_not_recordable"
+          ? labels.errors.wo_not_recordable
+          : code === "changeover_signoff_required"
+            ? labels.errors.changeover_signoff_required
+            : L.startError,
+      );
     } catch {
       setStartErr(L.startError);
     } finally {

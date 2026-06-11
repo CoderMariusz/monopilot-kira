@@ -58,6 +58,11 @@ import type { WarehouseResult } from '../../../_actions/shared';
 import type { createStockMove } from '../../../_actions/stock-move-actions';
 import type { listLocations } from '../../../_actions/location-read-actions';
 import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
+import { LP_DEFERRED_ACTIONS, type LpDeferredAction } from './lp-detail-constants';
+
+// Client-side consumers (tests) may keep importing these from here; SERVER code
+// must import from './lp-detail-constants' — see the regression note there.
+export { LP_DEFERRED_ACTIONS, type LpDeferredAction };
 
 /** LP statuses for which the "move" action is NOT allowed (terminal lifecycle). */
 const IMMOVABLE_STATUSES = new Set(['consumed', 'merged', 'shipped', 'returned', 'destroyed']);
@@ -81,17 +86,6 @@ export const LP_DETAIL_TABS: LpDetailTab[] = [
   'raw',
 ];
 
-/** Action keys from the prototype's action group — all deferred (disabled). */
-export const LP_DEFERRED_ACTIONS = [
-  'split',
-  'merge',
-  'qa',
-  'reserve',
-  'move',
-  'block',
-  'destroy',
-] as const;
-export type LpDeferredAction = (typeof LP_DEFERRED_ACTIONS)[number];
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   available: 'success',

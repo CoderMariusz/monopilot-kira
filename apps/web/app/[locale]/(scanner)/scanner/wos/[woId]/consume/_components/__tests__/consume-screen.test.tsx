@@ -247,6 +247,71 @@ describe("ConsumeScreen", () => {
     expect(screen.getByText(remainingText)).toBeInTheDocument();
   });
 
+  it("shows the amber warn banner on a success that carries the warn-tier warning payload", async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        // Warn tier of the two-tier gate: 200 ok WITH a warning payload.
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () => ({
+            ok: true,
+            warning: { overconsumed: true, overPct: 7.5, warnPct: 5 },
+          }),
+        });
+      }
+      if (url.includes("/lps")) return Promise.resolve(lpsOk([]));
+      return Promise.resolve(detailOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConsume();
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Pork shoulder").closest("button")!);
+    await waitFor(() => expect(screen.getByText(labels.consume.lpEmpty)).toBeInTheDocument());
+    fireEvent.click(screen.getByText(labels.consume.lpManual).closest("button")!);
+    await screen.findByLabelText(labels.consume.enterQty);
+    fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
+
+    // done state + amber banner with the resolved warn copy (i18n label, {pct} filled)
+    await waitFor(() =>
+      expect(screen.getAllByText(labels.consume.doneTitle).length).toBeGreaterThan(0),
+    );
+    expect(
+      screen.getByText(labels.consume.warnOver.replace("{pct}", "7.50")),
+    ).toBeInTheDocument();
+    // success copy still renders — the warning is non-blocking
+    expect(screen.getByText(labels.consume.bomUpdated)).toBeInTheDocument();
+  });
+
+  it("does NOT render the warn banner on a plain success (no warning payload)", async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true }) });
+      }
+      if (url.includes("/lps")) return Promise.resolve(lpsOk([]));
+      return Promise.resolve(detailOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConsume();
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Pork shoulder").closest("button")!);
+    await waitFor(() => expect(screen.getByText(labels.consume.lpEmpty)).toBeInTheDocument());
+    fireEvent.click(screen.getByText(labels.consume.lpManual).closest("button")!);
+    await screen.findByLabelText(labels.consume.enterQty);
+    fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText(labels.consume.doneTitle).length).toBeGreaterThan(0),
+    );
+    expect(
+      screen.queryByText(labels.consume.warnOver.replace("{pct}", "7.50")),
+    ).not.toBeInTheDocument();
+  });
+
   it("redirects to ../login when the detail load returns 401 (permission-denied)", async () => {
     seedSession();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 401, ok: false, json: async () => ({}) }));

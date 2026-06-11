@@ -1106,7 +1106,8 @@
         "documentTemplates": "Szablony dokumentów",
         "onboarding": "Wdrożenie",
         "admin": "Administracja",
-        "myAccount": "Moje konto"
+        "myAccount": "Moje konto",
+        "signoff": "Zatwierdzenia"
       },
       "items": {
         "profile": "Profil firmy",
@@ -1146,7 +1147,11 @@
         "my_profile": "Mój profil",
         "my_notifications": "Powiadomienia",
         "d365_cost_import": "Import kosztów D365",
-        "documents": "Numeracja dokumentów"
+        "documents": "Numeracja dokumentów",
+        "machines": "Maszyny",
+        "signoff": "Zasady zatwierdzeń",
+        "lines": "Linie produkcyjne",
+        "locations": "Lokalizacje"
       }
     },
     "npd": {
@@ -1648,6 +1653,24 @@
         "viewerOnly": "You have view-only access to items.",
         "filterEmptyTitle": "No items match your filters",
         "filterEmptyBody": "Adjust the type tab, status, or search to see more items."
+      },
+      "transition": {
+        "activate": "Aktywuj",
+        "deprecate": "Wycofaj",
+        "reactivate": "Przywróć",
+        "activateTitle": "Aktywuj pozycję",
+        "activateBody": "Aktywować pozycję? Stanie się dostępna dla BOM-ów, zakupów i produkcji.",
+        "deprecateTitle": "Wycofaj pozycję",
+        "deprecateBody": "Wycofać pozycję? Istniejące BOM-y i zapasy pozostają, ale nie należy jej używać w nowych BOM-ach, zakupach ani produkcji.",
+        "reactivateTitle": "Przywróć pozycję",
+        "reactivateBody": "Przywrócić pozycję? Ponownie stanie się dostępna dla BOM-ów, zakupów i produkcji.",
+        "cancel": "Anuluj",
+        "confirm": "Potwierdź",
+        "working": "Zapisywanie…",
+        "errors": {
+          "invalid_transition": "Ta zmiana statusu nie jest dozwolona z bieżącego statusu pozycji.",
+          "activation_gate_failed": "Tej pozycji nie można jeszcze aktywować — jej jednostka bazowa nie należy do listy kanonicznej. Najpierw edytuj pozycję."
+        }
       }
     },
     "allergens": {
@@ -4754,7 +4777,18 @@
       "errNotFound": "Nie znaleziono tego projektu.",
       "errPersistence": "Nie udało się zapisać briefu. Spróbuj ponownie.",
       "saveChanges": "Zapisz zmiany",
-      "saved": "Zapisano"
+      "saved": "Zapisano",
+      "uploading": "Przesyłanie…",
+      "attachColName": "Plik",
+      "attachColSize": "Rozmiar",
+      "attachColUploaded": "Przesłano",
+      "attachDownload": "Pobierz",
+      "attachDelete": "Usuń",
+      "attachDeleteConfirm": "Usunąć ten załącznik?",
+      "attachTooLarge": "Plik jest większy niż 20 MB.",
+      "attachUnsupportedType": "Nieobsługiwany typ pliku. Dozwolone: PDF, PNG, JPG, DOCX, XLSX.",
+      "attachUploadFailed": "Nie udało się przesłać załącznika. Spróbuj ponownie.",
+      "attachDeleteFailed": "Nie udało się usunąć załącznika. Spróbuj ponownie."
     },
     "sensory": {
       "title": "Panel sensoryczny",
@@ -4918,7 +4952,18 @@
       "pickerCancel": "Anuluj",
       "pickerError": "Wyszukiwanie nie powiodło się",
       "pickedHint": "Powiązano z {code}",
-      "pickerClear": "Usuń powiązanie"
+      "pickerClear": "Usuń powiązanie",
+      "artworkUpload": "Prześlij grafikę",
+      "artworkUploading": "Przesyłanie…",
+      "artworkHistoryTitle": "Historia wersji",
+      "artworkCurrent": "Aktualna",
+      "artworkDownload": "Pobierz",
+      "artworkDelete": "Usuń",
+      "artworkDeleteConfirm": "Usunąć tę wersję grafiki?",
+      "artworkTooLarge": "Plik jest większy niż 20 MB.",
+      "artworkUnsupportedType": "Nieobsługiwany typ pliku. Dozwolone: PDF, PNG, JPG.",
+      "artworkUploadFailed": "Nie udało się przesłać grafiki. Spróbuj ponownie.",
+      "artworkDeleteFailed": "Nie udało się usunąć wersji grafiki. Spróbuj ponownie."
     },
     "stepper": {
       "brief": "Brief",
@@ -5690,7 +5735,10 @@
           "uom": "JM",
           "unitPrice": "Cena jedn.",
           "lineTotal": "Wartość pozycji",
-          "empty": "Brak pozycji w tym zamówieniu."
+          "empty": "Brak pozycji w tym zamówieniu.",
+          "received": "Przyjęto",
+          "receivedFull": "Przyjęte",
+          "receivedPartial": "Częściowo"
         },
         "transitions": {
           "title": "Status",
@@ -5701,6 +5749,10 @@
           "cancel": "Anuluj zamówienie",
           "pending": "Aktualizowanie…",
           "confirmPrompt": "Zmienić status {po} na {status}?"
+        },
+        "receivedSummary": {
+          "title": "Postęp przyjęcia",
+          "lines": "{received} / {total} pozycji"
         }
       },
       "notes": {
@@ -5950,6 +6002,10 @@
         "scanner": {
           "title": "Skaner",
           "desc": "Otwórz skaner mobilny — zużycie, produkcja, odpady"
+        },
+        "changeovers": {
+          "title": "Przezbrojenia",
+          "desc": "Podwójny podpis przezbrojenia alergenowego"
         }
       }
     },
@@ -6166,6 +6222,11 @@
             "transition": "Przejście",
             "reason": "Powód"
           }
+        },
+        "changeoverGate": {
+          "title": "Wymagany podpis przezbrojenia alergenowego",
+          "body": "Ta linia wymaga podwójnego podpisu przezbrojenia alergenowego przed startem tego work order.",
+          "link": "Otwórz przezbrojenia"
         }
       },
       "actions": {
@@ -6182,6 +6243,7 @@
           "invalid_state_transition": "Ta akcja jest niedozwolona dla bieżącego stanu zlecenia.",
           "concurrent_modification": "Zlecenie zostało w międzyczasie zmienione — odśwież i spróbuj ponownie.",
           "quality_hold_active": "Zablokowane przez aktywne wstrzymanie jakości na tym zleceniu.",
+          "changeover_signoff_required": "Przed rozpoczęciem wymagane jest podpisanie przezbrojenia (changeover) na tej linii.",
           "allergen_changeover_required": "Przed rozpoczęciem wymagane jest zatwierdzenie zmiany alergenowej.",
           "closed_production_strict_failed": "Bramka uzysku nie spełniona — zarejestruj wyrób główny lub podaj powód obejścia.",
           "esign_failed": "Podpis elektroniczny nieudany — sprawdź hasło i spróbuj ponownie.",
@@ -6462,6 +6524,112 @@
         "minutes": "Minuty",
         "avg": "Śr."
       }
+    },
+    "changeovers": {
+      "breadcrumb": {
+        "production": "Produkcja",
+        "changeovers": "Przezbrojenia"
+      },
+      "list": {
+        "title": "Przezbrojenia alergenowe",
+        "subtitle": "Rejestr podwójnego podpisu — lider zmiany i jakość muszą podpisać każde przezbrojenie alergenowe przed startem kolejnego WO.",
+        "newButton": "+ Nowe przezbrojenie",
+        "filters": {
+          "all": "Wszystkie",
+          "pending": "Oczekujące",
+          "first_signed": "Czeka na 2. podpis",
+          "complete": "Zakończone"
+        },
+        "loading": "Ładowanie przezbrojeń…",
+        "empty": "Brak przezbrojeń dla tego filtra.",
+        "error": "Dane przezbrojeń są chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+        "denied": "Nie masz uprawnień do przeglądania przezbrojeń.",
+        "col": {
+          "line": "Linia",
+          "transition": "Z → Na",
+          "cleaning": "Czyszczenie",
+          "atp": "ATP",
+          "status": "Podpis",
+          "signers": "Podpisujący"
+        },
+        "cleaningYes": "Wykonane",
+        "cleaningNo": "Oczekuje",
+        "none": "Brak",
+        "status": {
+          "pending": "Oczekujące",
+          "first_signed": "Czeka na 2. podpis",
+          "complete": "Zakończone"
+        },
+        "signerNone": "—",
+        "reviewButton": "Przejrzyj i podpisz"
+      },
+      "create": {
+        "title": "Nowe przezbrojenie alergenowe",
+        "subtitle": "Zarejestruj zdarzenie przezbrojenia. Oba podpisy są zbierane po ukończeniu listy czyszczenia.",
+        "line": "Linia",
+        "linePlaceholder": "Wybierz linię…",
+        "fromProduct": "Produkt z (opcjonalnie)",
+        "toProduct": "Produkt na",
+        "cleaning": "Lista czyszczenia i sanityzacji ukończona",
+        "atp": "Wynik wymazu ATP",
+        "atpPlaceholder": "np. 7 RLU",
+        "notes": "Notatki",
+        "notesPlaceholder": "Opcjonalne notatki…",
+        "cancel": "Anuluj",
+        "submit": "Utwórz przezbrojenie",
+        "submitting": "Zapisywanie…",
+        "picker": {
+          "trigger": "+ Wybierz produkt",
+          "searchLabel": "Szukaj produktów",
+          "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+          "loading": "Wyszukiwanie…",
+          "empty": "Brak pasujących produktów",
+          "cancel": "Anuluj",
+          "error": "Wyszukiwanie nie powiodło się. Spróbuj ponownie."
+        },
+        "clearProduct": "Wyczyść",
+        "validation": {
+          "lineRequired": "Wybierz linię.",
+          "toProductRequired": "Wybierz produkt docelowy przezbrojenia."
+        },
+        "errors": {
+          "forbidden": "Nie masz uprawnień do tworzenia przezbrojeń.",
+          "invalid_input": "Sprawdź dane przezbrojenia i spróbuj ponownie.",
+          "generic": "Nie udało się utworzyć przezbrojenia. Spróbuj ponownie."
+        }
+      },
+      "sign": {
+        "title": "Podwójny podpis",
+        "subtitle": "Status podpisu",
+        "firstSlot": "Lider zmiany (1. podpis)",
+        "secondSlot": "Jakość (2. podpis)",
+        "signedBy": "Podpisał",
+        "signedAt": "Podpisano",
+        "awaiting": "Oczekuje na podpis",
+        "signFirst": "Podpisz (1.)",
+        "signSecond": "Podpisz (2.)",
+        "completeBanner": "Podwójny podpis zakończony — kolejny work order może wystartować.",
+        "close": "Zamknij",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Wpisanie hasła do konta stanowi Twój prawnie wiążący podpis dla tego przezbrojenia alergenowego.",
+          "password": "Hasło konta",
+          "passwordPlaceholder": "Twoje hasło",
+          "passwordHelp": "Twoja tożsamość i czas podpisu są rejestrowane przez system.",
+          "submit": "Podpisz",
+          "submitting": "Podpisywanie…",
+          "cancel": "Anuluj",
+          "passwordRequired": "Wpisz hasło, aby podpisać."
+        },
+        "errors": {
+          "forbidden": "Nie masz uprawnień do podpisywania przezbrojeń.",
+          "wrong_role": "Twoja rola nie jest uprawniona do tego slotu podpisu",
+          "same_user": "Drugi podpis musi złożyć inny użytkownik",
+          "invalid_state": "To przezbrojenie nie jest w stanie umożliwiającym podpis.",
+          "esign_failed": "Podpis nie powiódł się — hasło nie pasuje. Spróbuj ponownie.",
+          "generic": "Nie udało się podpisać. Spróbuj ponownie."
+        }
+      }
     }
   },
   "Scanner": {
@@ -6692,24 +6860,6 @@
       }
     }
   },
-  "Planning.purchaseOrders.create.uomPlaceholder": "Jednostka",
-  "Planning.purchaseOrders.create.uomOptions.kg": "kg",
-  "Planning.purchaseOrders.create.uomOptions.g": "g",
-  "Planning.purchaseOrders.create.uomOptions.l": "l",
-  "Planning.purchaseOrders.create.uomOptions.ml": "ml",
-  "Planning.purchaseOrders.create.uomOptions.pcs": "szt",
-  "Planning.purchaseOrders.create.uomOptions.pack": "opak.",
-  "Planning.purchaseOrders.create.uomOptions.box": "karton",
-  "Planning.purchaseOrders.create.uomOptions.pallet": "paleta",
-  "Planning.transferOrders.create.uomPlaceholder": "Jednostka",
-  "Planning.transferOrders.create.uomOptions.kg": "kg",
-  "Planning.transferOrders.create.uomOptions.g": "g",
-  "Planning.transferOrders.create.uomOptions.l": "l",
-  "Planning.transferOrders.create.uomOptions.ml": "ml",
-  "Planning.transferOrders.create.uomOptions.pcs": "szt",
-  "Planning.transferOrders.create.uomOptions.pack": "opak.",
-  "Planning.transferOrders.create.uomOptions.box": "karton",
-  "Planning.transferOrders.create.uomOptions.pallet": "paleta",
   "scanner": {
     "prod": {
       "list": {

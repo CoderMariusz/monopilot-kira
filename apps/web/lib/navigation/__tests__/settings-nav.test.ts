@@ -13,7 +13,10 @@ const EXPECTED_SETTINGS_NAV = [
     items: [
       { key: "profile", label: "Company profile", icon: "◆" },
       { key: "sites", label: "Sites & lines", icon: "▤" },
+      // LANE QF — infra screens surfaced from URL-only dead-ends (clickthrough §1).
+      { key: "lines", label: "Production lines", icon: "≣" },
       { key: "warehouses", label: "Warehouses", icon: "▥" },
+      { key: "locations", label: "Locations", icon: "⌖" },
       { key: "shifts", label: "Shifts & calendar", icon: "⧗" },
     ],
   },
@@ -24,6 +27,8 @@ const EXPECTED_SETTINGS_NAV = [
       { key: "products", label: "Products & SKUs", icon: "▢" },
       { key: "boms", label: "BOMs & recipes", icon: "⛓" },
       { key: "processes", label: "Processes", icon: "⟶", highlight: true },
+      // Wave-7 machines CRUD screen (supersedes /settings/infra/machines).
+      { key: "machines", label: "Machines", icon: "⚙" },
       { key: "manufacturing-ops", label: "Manufacturing operations", icon: "⚒", highlight: true },
       { key: "partners", label: "Suppliers & customers", icon: "↔" },
       { key: "units", label: "Units & conversions", icon: "⚖" },
@@ -38,6 +43,11 @@ const EXPECTED_SETTINGS_NAV = [
       { key: "security", label: "Security", icon: "🔒" },
       { key: "audit-logs", label: "Audit logs", icon: "◷", highlight: true },
     ],
+  },
+  {
+    label: "Sign-off",
+    admin: true,
+    items: [{ key: "signoff", label: "Sign-off policies", icon: "✍" }],
   },
   {
     label: "Operations",

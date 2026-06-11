@@ -44,6 +44,21 @@ import type {
 
 type Phase = "loading" | "pick" | "lp" | "qty" | "done" | "error" | "empty";
 type LpState = "loading" | "ready" | "error";
+type OverconsumeApproval = {
+  requiredQty: number;
+  consumedQty: number;
+  attemptedQty: number;
+  thresholdPct: number;
+  overPct: number;
+};
+// Warn tier of the two-tier over-consumption gate: the consume SUCCEEDED but
+// landed above overconsume_warn_pct (and ≤ the approval threshold) — the 200
+// response carries this payload and the done screen shows an amber banner.
+type OverconsumeWarning = {
+  overconsumed: boolean;
+  overPct: number;
+  warnPct: number;
+};
 
 export function ConsumeScreen({
   locale,
@@ -72,6 +87,10 @@ export function ConsumeScreen({
   const [showKeypad, setShowKeypad] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
+  const [approval, setApproval] = useState<OverconsumeApproval | null>(null);
+  const [doneWarning, setDoneWarning] = useState<OverconsumeWarning | null>(null);
+  const [approverEmail, setApproverEmail] = useState("");
+  const [approverPin, setApproverPin] = useState("");
   // clientOpId is created fresh per ATTEMPT and held until success so a retry
   // of the SAME attempt reuses it (idempotent replay).
   const [clientOpId, setClientOpId] = useState<string | null>(null);
@@ -139,6 +158,10 @@ export function ConsumeScreen({
     setQty(remaining > 0 ? String(remaining) : "");
     setSelectedLp(null);
     setSubmitErr(null);
+    setApproval(null);
+    setDoneWarning(null);
+    setApproverEmail("");
+    setApproverPin("");
     setClientOpId(null);
     setPhase("lp");
     void loadLps(m);
@@ -149,11 +172,12 @@ export function ConsumeScreen({
   const chooseLp = (lp: LpCandidate | null) => {
     setSelectedLp(lp);
     setSubmitErr(null);
+    setApproval(null);
     setClientOpId(null);
     setPhase("qty");
   };
 
-  const confirm = async () => {
+  const confirm = async (approver?: { email: string; pin: string }) => {
     if (!selected || !qty || Number(qty) <= 0 || submitting) return;
     setSubmitting(true);
     setSubmitErr(null);
@@ -166,6 +190,7 @@ export function ConsumeScreen({
       qty: String(qty),
     };
     if (selectedLp) payload.lpId = selectedLp.lpId;
+    if (approver) payload.approver = approver;
     try {
       const res = await woPost(`/api/production/scanner/wos/${woId}/consume`, payload);
       if (!res) return; // 401 → redirect
@@ -174,16 +199,33 @@ export function ConsumeScreen({
         return;
       }
       if (res.status === 409) {
+        const data = await res.json().catch(() => null);
+        if (data?.error === "overconsume_approval_required") {
+          setApproval({
+            requiredQty: Number(data.requiredQty ?? 0),
+            consumedQty: Number(data.consumedQty ?? 0),
+            attemptedQty: Number(data.attemptedQty ?? 0),
+            thresholdPct: Number(data.thresholdPct ?? 0),
+            overPct: Number(data.overPct ?? 0),
+          });
+          setSubmitErr(null);
+          return;
+        }
         setSubmitErr(L.err409);
         return;
       }
-      const data = (await res.json()) as MutationResult;
+      const data = (await res.json()) as MutationResult & { warning?: OverconsumeWarning };
       if (!res.ok || !data.ok) {
         setSubmitErr(L.errGeneric);
         return;
       }
-      // success — release the attempt's clientOpId.
+      // success — release the attempt's clientOpId. A warn-tier success carries
+      // a warning payload (over warn threshold, ≤ approval threshold) → amber.
+      setDoneWarning(data.warning?.overconsumed ? data.warning : null);
       setClientOpId(null);
+      setApproval(null);
+      setApproverEmail("");
+      setApproverPin("");
       setPhase("done");
     } catch {
       setSubmitErr(L.errGeneric);
@@ -198,6 +240,10 @@ export function ConsumeScreen({
     setLps([]);
     setQty("");
     setSubmitErr(null);
+    setApproval(null);
+    setDoneWarning(null);
+    setApproverEmail("");
+    setApproverPin("");
     setClientOpId(null);
     setPhase("pick");
     void load();
@@ -237,6 +283,11 @@ export function ConsumeScreen({
                 </div>
               )}
             </div>
+            {doneWarning && (
+              <Banner kind="warn" title={L.warnOver.replace("{pct}", doneWarning.overPct.toFixed(2))}>
+                {" "}
+              </Banner>
+            )}
             <Banner kind="success" title={L.bomUpdated}>
               {L.bomUpdatedBody}
             </Banner>
@@ -396,6 +447,55 @@ export function ConsumeScreen({
                     {" "}
                   </Banner>
                 )}
+                {approval && (
+                  <div style={approvalSheetStyle}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: T.txt }}>
+                      {L.approvalTitle}
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: T.mute }}>
+                      {L.approvalBody}
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: T.amber }}>
+                      {L.approvalOver.replace("{pct}", approval.overPct.toFixed(2))}
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <input
+                        aria-label={L.approvalEmail}
+                        value={approverEmail}
+                        onChange={(e) => setApproverEmail(e.target.value)}
+                        placeholder={L.approvalEmail}
+                        style={textFieldStyle}
+                        autoComplete="username"
+                      />
+                    </div>
+                    <div style={{ marginTop: 8 }}>
+                      <input
+                        aria-label={L.approvalPin}
+                        value={approverPin}
+                        onChange={(e) => setApproverPin(e.target.value)}
+                        placeholder={L.approvalPin}
+                        style={textFieldStyle}
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <Btn
+                        variant="p"
+                        disabled={!approverEmail.trim() || !approverPin.trim() || submitting}
+                        onClick={() =>
+                          void confirm({
+                            email: approverEmail.trim(),
+                            pin: approverPin.trim(),
+                          })
+                        }
+                      >
+                        {submitting ? L.submitting : L.approvalSubmit}
+                      </Btn>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </Content>
@@ -405,7 +505,9 @@ export function ConsumeScreen({
               <Btn
                 variant="p"
                 disabled={!qty || Number(qty) <= 0 || submitting}
-                onClick={confirm}
+                // confirm takes an optional approver arg — NEVER pass it the
+                // click event (circular JSON → the POST silently dies).
+                onClick={() => void confirm()}
               >
                 {submitting ? L.submitting : L.confirm}
               </Btn>
@@ -418,7 +520,6 @@ export function ConsumeScreen({
         open={showKeypad}
         onClose={() => setShowKeypad(false)}
         initial={qty}
-        max={selected ? remainingQty(selected) : undefined}
         uom={selected?.uom ?? labels.output.unitBase}
         onConfirm={(v) => setQty(v)}
         labels={shellLabels.qtyKeypad}
@@ -538,4 +639,24 @@ const qtyFieldStyle = {
   fontSize: 22,
   fontWeight: 700,
   cursor: "pointer",
+} as const;
+
+const approvalSheetStyle = {
+  margin: "12px 16px 0",
+  padding: 14,
+  borderRadius: 12,
+  border: `1px solid ${T.amber}`,
+  background: "#241d08",
+} as const;
+
+const textFieldStyle = {
+  width: "100%",
+  height: 46,
+  borderRadius: 10,
+  border: `1px solid ${T.elev}`,
+  background: T.surf,
+  color: T.txt,
+  padding: "0 12px",
+  fontSize: 14,
+  outline: "none",
 } as const;

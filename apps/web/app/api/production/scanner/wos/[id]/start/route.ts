@@ -50,6 +50,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (!started.ok) {
       await auditAttempt(client, session, operation, started.error, { woId, clientOpId, transactionId });
+      // C4/F6: startWo emits the canonical 'changeover_signoff_required' going
+      // forward; 'allergen_changeover_required' is the pre-wave-8 alias kept
+      // accepted here so an older service build can never bypass the remap.
+      if (
+        (started.error === 'changeover_signoff_required' ||
+          started.error === 'allergen_changeover_required') &&
+        started.details &&
+        typeof started.details === 'object' &&
+        'changeoverId' in started.details
+      ) {
+        return scannerError('changeover_signoff_required', 409, {
+          changeoverId: (started.details as { changeoverId: unknown }).changeoverId,
+        });
+      }
       return scannerError(started.error, started.status, { details: started.details ?? null });
     }
 

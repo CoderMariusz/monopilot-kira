@@ -17,6 +17,9 @@ const ERROR_CODES = [
   'invalid_state_transition',
   'concurrent_modification',
   'quality_hold_active',
+  // C4/F6: canonical changeover-gate code; allergen_changeover_required is the
+  // legacy alias kept mapped for older payloads.
+  'changeover_signoff_required',
   'allergen_changeover_required',
   'closed_production_strict_failed',
   'esign_failed',

@@ -67,16 +67,22 @@ async function ChangeoverContent() {
   const data = result.data;
   const dtf = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  // C4/F2: canonical write value is 'complete' (migration 280); legacy rows may
+  // still read 'completed' until normalized — the shim accepts both.
+  const normalizeStatus = (status: SignOffStatus): SignOffStatus =>
+    status === 'complete' ? 'completed' : status;
   const signOffLabel = (status: SignOffStatus): string => {
-    if (status === 'pending' || status === 'first_signed' || status === 'completed') {
-      return t(`signOff.${status}`);
+    const s = normalizeStatus(status);
+    if (s === 'pending' || s === 'first_signed' || s === 'completed') {
+      return t(`signOff.${s}`);
     }
     return status;
   };
   const signOffVariant = (status: SignOffStatus): BadgeVariant => {
-    if (status === 'completed') return 'success';
-    if (status === 'first_signed') return 'warning';
-    if (status === 'pending') return 'muted';
+    const s = normalizeStatus(status);
+    if (s === 'completed') return 'success';
+    if (s === 'first_signed') return 'warning';
+    if (s === 'pending') return 'muted';
     return 'muted';
   };
 

@@ -35,22 +35,22 @@ const SECTIONS: Section[] = [
       { key: "wos", icon: "🏭", to: "scanner/wos" },
       { key: "consume", icon: "📥", to: "scanner/wos" },
       { key: "output", icon: "📤", to: "scanner/wos" },
-      { key: "pick", icon: "🧺", to: null },
+      { key: "pick", icon: "🧺", to: "scanner/pick" },
     ],
   },
   {
     key: "warehouse",
     tiles: [
       { key: "receive", icon: "📦", to: "scanner/receive-po" },
-      { key: "putaway", icon: "📍", to: null },
-      { key: "move", icon: "🚚", to: null },
+      { key: "putaway", icon: "📍", to: "scanner/putaway" },
+      { key: "move", icon: "🚚", to: "scanner/move" },
     ],
   },
   {
     key: "quality",
     tiles: [
-      { key: "qa", icon: "🔍", to: null },
-      { key: "inquiry", icon: "🔎", to: null },
+      { key: "qa", icon: "🔍", to: "scanner/qa" },
+      { key: "inquiry", icon: "🔎", to: "scanner/lp" },
     ],
   },
 ];

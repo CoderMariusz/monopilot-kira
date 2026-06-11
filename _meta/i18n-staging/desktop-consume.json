@@ -71,6 +71,14 @@
           "en": "Cancel",
           "pl": "Anuluj"
         },
+        "warningOver": {
+          "en": "Over required quantity by {pct}% — recorded and flagged.",
+          "pl": "Przekroczono wymaganą ilość o {pct}% — zarejestrowano i oznaczono."
+        },
+        "warningClose": {
+          "en": "Close",
+          "pl": "Zamknij"
+        },
         "errors": {
           "forbidden": {
             "en": "You do not have permission to record consumption.",

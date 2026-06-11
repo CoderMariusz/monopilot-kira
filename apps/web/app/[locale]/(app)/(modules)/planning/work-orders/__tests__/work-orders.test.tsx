@@ -310,8 +310,8 @@ describe('WoListView — create modal (parity: wo-list.jsx:94 + modals wo_create
 // releaseWorkOrder 'factory_release_incomplete' result must surface which
 // artifacts are missing and that they are created in Technical.
 describe('WoListView — P0-UOM create-WO output unit + conversion', () => {
-  // UOM-aware labels (staged in _meta/i18n-staging/wo-uom.json; here passed
-  // explicitly since they are not yet merged into the en bundle).
+  // UOM-aware labels passed explicitly to pin the component contract; the
+  // REAL-bundle loading path is covered by the F-D08a describe below.
   const uomLabels: WoListLabels = {
     ...listLabels,
     factoryReleaseIncomplete: {
@@ -456,6 +456,96 @@ describe('WoListView — P0-UOM create-WO output unit + conversion', () => {
       expect(banner).toHaveTextContent('These are created in Technical.');
     });
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+// ── F-D08a (2026-06-11 cross-module audit) — silent 100 szt→50 kg root cause ──
+//
+// The conversion preview's i18n labels were once planned for a staged file
+// (_meta/i18n-staging/wo-uom.json) that was never created. The keys now live
+// directly in the REAL bundles (apps/web/i18n/{en,pl,ro,uk}.json, landed in
+// b86812de). This block proves the preview renders end-to-end through the SAME
+// loading seam page.tsx uses — `t.has(key) ? t.raw(key) : fallback` — fed from
+// the real bundle JSON, not hand-written labels. `t.raw` is load-bearing: in
+// next-intl's development build a bare `t(key)` on a `{…}`-templated message
+// raises FORMATTING_ERROR and returns the key path (this test caught that).
+describe('F-D08a — conversion preview renders from the REAL i18n bundles', () => {
+  const BOX_PRODUCT = {
+    id: 'p1',
+    itemCode: 'FG-001',
+    name: 'Demo FG',
+    uomBase: 'kg',
+    output_uom: 'box',
+    net_qty_per_each: 6,
+    each_per_box: 50,
+    weight_mode: 'fixed',
+  };
+
+  it.each([
+    // 2 box × 50 each × 6 kg = 600.000 kg; PL box unit word = "karton".
+    ['en', enMessages, 'box', '2 box = 600.000 kg'],
+    ['pl', plMessages, 'karton', '2 karton = 600.000 kg'],
+  ])('%s: builds UoM labels via the page t.has/t() seam and renders the live preview', async (locale, messages, boxWord, expectedPreview) => {
+    const { createTranslator } = await import('next-intl');
+    const t = createTranslator({
+      locale,
+      messages: messages as any,
+      namespace: 'Planning.workOrders',
+    } as any) as any;
+    // EXACT seam from page.tsx buildLabels() — templates are read with t.raw.
+    const opt = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
+    const optTpl = (key: string, fallback: string): string => (t.has(key) ? String(t.raw(key)) : fallback);
+
+    // The keys must resolve from the bundle itself — the fallback must NOT be hit.
+    expect(t.has('create.quantityUom.box')).toBe(true);
+    expect(t.has('create.conversionPreview')).toBe(true);
+
+    const realLabels: WoListLabels = {
+      ...listLabels,
+      create: {
+        ...listLabels.create,
+        quantityLabel: t('create.quantityLabel'),
+        quantityUom: {
+          base: opt('create.quantityUom.base', 'kg'),
+          each: opt('create.quantityUom.each', 'each'),
+          box: opt('create.quantityUom.box', 'box'),
+        },
+        conversionPreview: optTpl('create.conversionPreview', '{qty} {unit} = {kg} {base}'),
+      },
+    };
+    expect(realLabels.create.quantityUom?.box).toBe(boxWord);
+
+    const searchFgProductsAction = vi.fn().mockResolvedValue([BOX_PRODUCT]);
+    render(
+      <WoListView
+        locale={locale}
+        workOrders={ROWS}
+        resources={resources}
+        labels={realLabels}
+        searchFgProductsAction={searchFgProductsAction}
+        createWorkOrderAction={vi.fn()}
+        releaseWorkOrderAction={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('wo-list-create'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-wo-selected-product')).toHaveTextContent('FG-001'));
+
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '2' } });
+    await waitFor(() =>
+      expect(screen.getByTestId('create-wo-conversion')).toHaveTextContent(expectedPreview),
+    );
+  });
+
+  it('ro/uk mirror the EN UoM keys (i18n two-locale policy)', () => {
+    for (const messages of [roMessages, ukMessages]) {
+      const create = (messages as any).Planning.workOrders.create;
+      expect(create.quantityUom).toEqual((enMessages as any).Planning.workOrders.create.quantityUom);
+      expect(create.conversionPreview).toBe((enMessages as any).Planning.workOrders.create.conversionPreview);
+    }
   });
 });
 

@@ -76,8 +76,9 @@ export type CreateWoLabels = {
   /**
    * P0-UOM — unit suffix used to build the quantity label in the product's
    * OUTPUT unit ("Quantity (box)") and the live conversion preview template
-   * "{qty} {unit} = {kg} {base}". Optional so the existing label assembly still
-   * type-checks until the staged keys land (_meta/i18n-staging/wo-uom.json).
+   * "{qty} {unit} = {kg} {base}". The keys live in the real bundles
+   * (apps/web/i18n/{en,pl,ro,uk}.json, Planning.workOrders.create.*; F-D08a);
+   * optional only so legacy callers that predate them still type-check.
    */
   quantityUom?: { base: string; each: string; box: string };
   conversionPreview?: string;

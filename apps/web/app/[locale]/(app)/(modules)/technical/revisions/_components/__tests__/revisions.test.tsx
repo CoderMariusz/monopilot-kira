@@ -60,7 +60,9 @@ const ROWS: RevisionRow[] = [
     revision: 7,
     status: 'active',
     statusTone: 'success',
-    actorUserId: 'A. Majewska',
+    actorUserId: '7d9f1d3a-0000-4000-8000-000000000001',
+    actorName: 'A. Majewska',
+    actorEmail: 'a.majewska@monopilot.test',
     occurredAt: '2026-04-14 11:10:00+00',
     action: 'bom.active',
   },
@@ -72,7 +74,9 @@ const ROWS: RevisionRow[] = [
     revision: 1,
     status: 'draft',
     statusTone: 'muted',
-    actorUserId: 'A. Majewska',
+    actorUserId: '7d9f1d3a-0000-4000-8000-000000000001',
+    actorName: 'A. Majewska',
+    actorEmail: 'a.majewska@monopilot.test',
     occurredAt: '2026-04-18 09:41:00+00',
     action: 'eco.draft',
   },
@@ -112,6 +116,21 @@ describe('RevisionsClient — parity + states', () => {
     // mono when column, minute precision
     expect(within(timeline).getByText('2026-04-14 11:10')).toBeInTheDocument();
     expect(screen.getByTestId('revisions-count')).toHaveTextContent('2 revisions');
+  });
+
+  it('Who column never shows the uuid: falls back to email, then unknownActor', () => {
+    renderClient({
+      initialRevisions: [
+        { ...ROWS[0], actorName: null },
+        { ...ROWS[1], actorName: null, actorEmail: null },
+      ],
+    });
+    // name missing → email shown
+    expect(within(screen.getByTestId('revisions-row-0')).getByText('a.majewska@monopilot.test')).toBeInTheDocument();
+    // name + email missing → unknownActor label, NOT the uuid
+    const row1 = screen.getByTestId('revisions-row-1');
+    expect(within(row1).getByText('System')).toBeInTheDocument();
+    expect(within(row1).queryByText(/7d9f1d3a/)).toBeNull();
   });
 
   it('entity-type pill drives the Server Action entityType arg', async () => {

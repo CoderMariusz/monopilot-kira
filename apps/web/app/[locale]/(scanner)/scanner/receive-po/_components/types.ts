@@ -40,4 +40,6 @@ export type ReceiveResponse = {
   uom?: string;
   overReceived?: boolean;
   poStatus?: string;
+  qcInspectionRequired?: boolean;
+  inspectionId?: string | null;
 };

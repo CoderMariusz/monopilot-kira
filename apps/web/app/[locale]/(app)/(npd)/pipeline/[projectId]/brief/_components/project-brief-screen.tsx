@@ -61,6 +61,31 @@ export type UpdateBriefOutcome =
   | { ok: true }
   | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED' };
 
+// ── Attachments (npd-attachments bucket, mig 279) ─────────────────────────────
+export type BriefAttachmentItem = {
+  /** Storage object name inside the project prefix (delete handle). */
+  objectName: string;
+  /** Display name (uuid prefix stripped server-side). */
+  fileName: string;
+  sizeBytes: number;
+  /** ISO timestamp. */
+  uploadedAt: string;
+  /** Short-lived signed download URL. */
+  signedUrl: string;
+};
+
+export type AttachmentErrorCode =
+  | 'INVALID_INPUT'
+  | 'FILE_TOO_LARGE'
+  | 'UNSUPPORTED_MIME_TYPE'
+  | 'FORBIDDEN'
+  | 'PROJECT_NOT_FOUND'
+  | 'STORAGE_FAILED'
+  | 'PERSISTENCE_FAILED';
+
+export type UploadAttachmentOutcome = { ok: true } | { ok: false; error: AttachmentErrorCode };
+export type DeleteAttachmentOutcome = { ok: true } | { ok: false; error: AttachmentErrorCode };
+
 export type ProjectBriefLabels = {
   cardTitle: string;
   completed: string;
@@ -99,6 +124,18 @@ export type ProjectBriefLabels = {
   errForbidden: string;
   errNotFound: string;
   errPersistence: string;
+  // Attachments backend (additive — wired to the npd-attachments bucket).
+  uploading: string;
+  attachColName: string;
+  attachColSize: string;
+  attachColUploaded: string;
+  attachDownload: string;
+  attachDelete: string;
+  attachDeleteConfirm: string;
+  attachTooLarge: string;
+  attachUnsupportedType: string;
+  attachUploadFailed: string;
+  attachDeleteFailed: string;
 };
 
 export type ProjectBriefScreenProps = {
@@ -109,6 +146,14 @@ export type ProjectBriefScreenProps = {
   canWrite?: boolean;
   /** Mutation Server Action passed across the RSC boundary (Next16 guard). */
   onUpdate?: (call: UpdateBriefCall) => Promise<UpdateBriefOutcome>;
+  /** Server-loaded attachments (npd-attachments bucket; signed URLs, 15 min). */
+  attachments?: BriefAttachmentItem[];
+  /** Attachment Server Actions (RSC boundary). Upload stays disabled without them. */
+  onUploadAttachment?: (form: FormData) => Promise<UploadAttachmentOutcome>;
+  onDeleteAttachment?: (call: {
+    projectId: string;
+    objectName: string;
+  }) => Promise<DeleteAttachmentOutcome>;
 };
 
 type FormState = {
@@ -488,12 +533,220 @@ function EditBriefCard({
   );
 }
 
+// ── Attachments card (brief "+ Upload" — npd-attachments bucket backend) ──────
+
+const ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
+const ATTACHMENT_ACCEPT = '.pdf,.png,.jpg,.jpeg,.docx,.xlsx';
+const ATTACHMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatUploadedAt(iso: string): string {
+  return iso ? iso.slice(0, 10) : '';
+}
+
+function attachmentErrorMessage(code: AttachmentErrorCode, labels: ProjectBriefLabels): string {
+  switch (code) {
+    case 'FILE_TOO_LARGE':
+      return labels.attachTooLarge;
+    case 'UNSUPPORTED_MIME_TYPE':
+      return labels.attachUnsupportedType;
+    case 'FORBIDDEN':
+      return labels.errForbidden;
+    default:
+      return labels.attachUploadFailed;
+  }
+}
+
+function AttachmentsCard({
+  projectId,
+  attachments,
+  labels,
+  canWrite,
+  onUploadAttachment,
+  onDeleteAttachment,
+}: {
+  projectId: string;
+  attachments: BriefAttachmentItem[];
+  labels: ProjectBriefLabels;
+  canWrite: boolean;
+  onUploadAttachment?: (form: FormData) => Promise<UploadAttachmentOutcome>;
+  onDeleteAttachment?: (call: { projectId: string; objectName: string }) => Promise<DeleteAttachmentOutcome>;
+}) {
+  const router = useRouter();
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = React.useState<'idle' | 'uploading' | 'deleting'>('idle');
+  const [error, setError] = React.useState<string | null>(null);
+
+  const uploadEnabled = canWrite && !!onUploadAttachment;
+
+  const handlePick = React.useCallback(() => {
+    setError(null);
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFile = React.useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      // Allow re-selecting the same file later.
+      event.target.value = '';
+      if (!file || !onUploadAttachment) return;
+      // Honest client-side pre-checks (server revalidates — never trusted alone).
+      if (file.size > ATTACHMENT_MAX_BYTES) {
+        setError(labels.attachTooLarge);
+        return;
+      }
+      if (!ATTACHMENT_MIME_TYPES.has(file.type)) {
+        setError(labels.attachUnsupportedType);
+        return;
+      }
+      setBusy('uploading');
+      setError(null);
+      try {
+        const form = new FormData();
+        form.set('projectId', projectId);
+        form.set('file', file);
+        const result = await onUploadAttachment(form);
+        if (result.ok) {
+          router.refresh();
+        } else {
+          setError(attachmentErrorMessage(result.error, labels));
+        }
+      } catch {
+        setError(labels.attachUploadFailed);
+      } finally {
+        setBusy('idle');
+      }
+    },
+    [onUploadAttachment, projectId, router, labels],
+  );
+
+  const handleDelete = React.useCallback(
+    async (objectName: string) => {
+      if (!onDeleteAttachment) return;
+      if (typeof window !== 'undefined' && !window.confirm(labels.attachDeleteConfirm)) return;
+      setBusy('deleting');
+      setError(null);
+      try {
+        const result = await onDeleteAttachment({ projectId, objectName });
+        if (result.ok) {
+          router.refresh();
+        } else {
+          setError(labels.attachDeleteFailed);
+        }
+      } catch {
+        setError(labels.attachDeleteFailed);
+      } finally {
+        setBusy('idle');
+      }
+    },
+    [onDeleteAttachment, projectId, router, labels],
+  );
+
+  return (
+    <Card data-testid="project-brief-attachments">
+      <CardHeader className="card-head">
+        <CardTitle>{labels.attachmentsTitle}</CardTitle>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={!uploadEnabled || busy === 'uploading'}
+          title={uploadEnabled ? undefined : labels.uploadDisabledHint}
+          onClick={handlePick}
+          data-testid="project-brief-upload"
+        >
+          {busy === 'uploading' ? labels.uploading : `+ ${labels.upload}`}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ATTACHMENT_ACCEPT}
+          style={{ display: 'none' }}
+          onChange={handleFile}
+          data-testid="project-brief-upload-input"
+          aria-hidden="true"
+          tabIndex={-1}
+        />
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <div role="alert" className="alert alert-red" data-testid="project-brief-attachments-error">
+            {error}
+          </div>
+        ) : null}
+        {attachments.length === 0 ? (
+          <p className="muted" data-testid="project-brief-attachments-empty">
+            {labels.attachmentsEmpty}
+          </p>
+        ) : (
+          <table className="table" data-testid="project-brief-attachments-table">
+            <thead>
+              <tr>
+                <th>{labels.attachColName}</th>
+                <th>{labels.attachColSize}</th>
+                <th>{labels.attachColUploaded}</th>
+                <th aria-hidden="true" />
+              </tr>
+            </thead>
+            <tbody>
+              {attachments.map((attachment) => (
+                <tr key={attachment.objectName} data-testid="project-brief-attachment-row">
+                  <td style={{ fontWeight: 500 }}>
+                    <a
+                      href={attachment.signedUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      data-testid="project-brief-attachment-download"
+                      title={labels.attachDownload}
+                    >
+                      {attachment.fileName}
+                    </a>
+                  </td>
+                  <td className="mono num">{formatFileSize(attachment.sizeBytes)}</td>
+                  <td className="muted">{formatUploadedAt(attachment.uploadedAt)}</td>
+                  <td>
+                    {canWrite && onDeleteAttachment ? (
+                      <Button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        disabled={busy !== 'idle'}
+                        onClick={() => handleDelete(attachment.objectName)}
+                        data-testid="project-brief-attachment-delete"
+                      >
+                        {labels.attachDelete}
+                      </Button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ProjectBriefScreen({
   state,
   data,
   labels,
   canWrite = false,
   onUpdate,
+  attachments = [],
+  onUploadAttachment,
+  onDeleteAttachment,
 }: ProjectBriefScreenProps) {
   if (state === 'loading') {
     return (
@@ -528,26 +781,14 @@ export function ProjectBriefScreen({
         <ReadBriefCard data={data} labels={labels} />
       )}
 
-      <Card data-testid="project-brief-attachments">
-        <CardHeader className="card-head">
-          <CardTitle>{labels.attachmentsTitle}</CardTitle>
-          {/* Upload backend is not wired yet — rendered per prototype, not faked. */}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled
-            title={labels.uploadDisabledHint}
-            data-testid="project-brief-upload"
-          >
-            {`+ ${labels.upload}`}
-          </button>
-        </CardHeader>
-        <CardContent>
-          <p className="muted" data-testid="project-brief-attachments-empty">
-            {labels.attachmentsEmpty}
-          </p>
-        </CardContent>
-      </Card>
+      <AttachmentsCard
+        projectId={data.briefId}
+        attachments={attachments}
+        labels={labels}
+        canWrite={canWrite}
+        onUploadAttachment={onUploadAttachment}
+        onDeleteAttachment={onDeleteAttachment}
+      />
     </div>
   );
 }

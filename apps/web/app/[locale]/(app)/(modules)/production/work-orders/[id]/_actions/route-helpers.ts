@@ -27,7 +27,18 @@ import {
   type QueryClient,
 } from '../../../../../../../../lib/production/shared';
 
-/** Map a ProductionResult to a NextResponse using the service's status. */
+/**
+ * Map a ProductionResult to a NextResponse using the service's status.
+ *
+ * C4/F6 (error-shape unification): this passthrough is the DESKTOP start
+ * mapping. startWo historically failed with the outer code
+ * 'allergen_changeover_required' (pre-wave-8, commit 100eb4be) while the
+ * scanner route remapped it to 'changeover_signoff_required' — two different
+ * codes for one gate. startWo now emits 'changeover_signoff_required' on both
+ * paths (details.legacyCode carries the old alias); the legacy code remains in
+ * the ProductionError union + wo-modal-labels/i18n so older payloads still
+ * render. No rewrite happens here — the service owns the canonical code.
+ */
 export function toResponse<T>(result: ProductionResult<T>): NextResponse {
   if (result.ok) {
     return NextResponse.json({ ok: true, data: result.data }, { status: 200 });

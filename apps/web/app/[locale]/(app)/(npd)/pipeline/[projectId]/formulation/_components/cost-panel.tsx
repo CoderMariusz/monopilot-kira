@@ -96,7 +96,11 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   UAH: '₴',
 };
 
-function symbolFor(currency: string): string {
+/**
+ * Exported as THE single ISO-4217 → symbol seam for the formulation components
+ * (F-D08b: ingredient-row / formulation-editor must never hardcode '€').
+ */
+export function symbolFor(currency: string): string {
   return CURRENCY_SYMBOLS[currency] ?? currency;
 }
 

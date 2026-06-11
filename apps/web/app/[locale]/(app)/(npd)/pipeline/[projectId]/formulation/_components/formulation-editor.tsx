@@ -60,7 +60,7 @@ import {
   type AllergenStatus,
 } from './allergen-panel';
 import { CompositionBar, type CompositionBarLabels, type CompositionSegment } from './composition-bar';
-import { CostPanel, type CostBreakdown, type CostPanelLabels } from './cost-panel';
+import { CostPanel, symbolFor, type CostBreakdown, type CostPanelLabels } from './cost-panel';
 import {
   NutritionPanel,
   NUTRIENT_ROW_ORDER,
@@ -1300,6 +1300,7 @@ export function FormulationEditor({
                       disabled={!editable}
                       error={errors[ingredient.id]}
                       searchItemsAction={searchAction}
+                      currency={currency}
                       onChange={handleChange}
                       onSelectItem={handleSelectItem}
                       onCommit={handleCommit}
@@ -1316,7 +1317,8 @@ export function FormulationEditor({
                     </TableCell>
                     <TableCell className="text-right muted">—</TableCell>
                     <TableCell className="text-right mono" data-testid="total-cost">
-                      {`${cost} €`}
+                      {/* F-D08b — same ISO-4217 seam as CostPanel/IngredientRow (never a hardcoded €). */}
+                      {`${cost} ${symbolFor(currency)}`}
                     </TableCell>
                     <TableCell />
                     <TableCell />

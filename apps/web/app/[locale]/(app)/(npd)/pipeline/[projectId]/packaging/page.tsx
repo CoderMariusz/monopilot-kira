@@ -27,6 +27,8 @@ import { getTranslations } from 'next-intl/server';
 
 import {
   PackagingScreen,
+  type ArtworkDeleteCall,
+  type ArtworkView,
   type PackagingLabels,
   type PackagingScreenData,
   type PageState,
@@ -35,6 +37,9 @@ import {
 } from './_components/packaging-screen';
 import { upsertPackagingComponent } from './_actions/upsertPackagingComponent';
 import { deletePackagingComponent } from './_actions/deletePackagingComponent';
+import { uploadArtworkVersion } from './_actions/uploadArtworkVersion';
+import { listArtworkVersions } from './_actions/listArtworkVersions';
+import { deleteArtworkVersion } from './_actions/deleteArtworkVersion';
 import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 import type { ItemSearchFn } from '../../../_components/item-picker';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -84,6 +89,17 @@ const DEFAULT_LABELS: PackagingLabels = {
   artworkNewVersion: 'New version',
   artworkNone: 'No artwork uploaded yet.',
   artworkUnavailable: 'Not available yet',
+  artworkUpload: 'Upload artwork',
+  artworkUploading: 'Uploading…',
+  artworkHistoryTitle: 'Version history',
+  artworkCurrent: 'Current',
+  artworkDownload: 'Download',
+  artworkDelete: 'Delete',
+  artworkDeleteConfirm: 'Remove this artwork version?',
+  artworkTooLarge: 'File is larger than 20 MB.',
+  artworkUnsupportedType: 'Unsupported file type. Allowed: PDF, PNG, JPG.',
+  artworkUploadFailed: 'Could not upload the artwork. Please try again.',
+  artworkDeleteFailed: 'Could not delete the artwork version. Please try again.',
   fieldComponent: 'Component name',
   fieldMaterial: 'Material',
   fieldSupplier: 'Supplier',
@@ -226,11 +242,62 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
   }
 }
 
+// Artwork view assembly — versions come from the npd-attachments bucket via the
+// listArtworkVersions action (separate withOrgContext call, AFTER the page read;
+// a storage failure degrades to artwork:null instead of killing the page).
+function formatArtworkBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function readArtworkView(projectId: string): Promise<ArtworkView | null> {
+  try {
+    const result = await listArtworkVersions({ projectId });
+    if (!result.ok || result.versions.length === 0) return null;
+    const versions = result.versions.map((v) => ({
+      version: v.version,
+      objectName: v.objectName,
+      fileName: v.fileName,
+      uploadedAt: v.uploadedAt ? v.uploadedAt.slice(0, 10) : '',
+      fileSize: formatArtworkBytes(v.sizeBytes),
+      signedUrl: v.signedUrl,
+      isImage: v.isImage,
+    }));
+    const current = versions[0]!;
+    return {
+      fileName: current.fileName,
+      uploadedAt: current.uploadedAt,
+      fileSize: current.fileSize,
+      signedUrl: current.signedUrl,
+      isImage: current.isImage,
+      objectName: current.objectName,
+      versions,
+    };
+  } catch (error) {
+    console.error('[packaging] artwork listing failed:', error);
+    return null;
+  }
+}
+
 // ─── Server Action adapters (passed across the RSC boundary, Next16 guard) ─────
 async function upsertAction(call: UpsertCall): Promise<MutationOutcome> {
   'use server';
   const result = await upsertPackagingComponent(call);
   return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+async function uploadArtworkAction(form: FormData): Promise<MutationOutcome> {
+  'use server';
+  const result = await uploadArtworkVersion(form);
+  return result.ok ? { ok: true } : { ok: false, error: result.code };
+}
+
+async function deleteArtworkAction(call: ArtworkDeleteCall): Promise<MutationOutcome> {
+  'use server';
+  const result = await deleteArtworkVersion(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.code };
 }
 
 async function deleteAction(call: { id: string; projectId: string }): Promise<MutationOutcome> {
@@ -268,6 +335,12 @@ export default async function PackagingPage(propsInput: unknown = {}) {
       }
     : await readPageData(projectId);
 
+  // Real artwork from the npd-attachments bucket (never fabricated). Injected
+  // test data keeps whatever artwork the test provided.
+  if (!injected && loaded.state === 'ready' && loaded.data) {
+    loaded.data.artwork = await readArtworkView(projectId);
+  }
+
   return (
     <PackagingScreen
       state={loaded.state}
@@ -276,6 +349,8 @@ export default async function PackagingPage(propsInput: unknown = {}) {
       canWrite={loaded.canWrite}
       onUpsert={upsertAction}
       onDelete={deleteAction}
+      onUploadArtwork={uploadArtworkAction}
+      onDeleteArtwork={deleteArtworkAction}
       searchItemsAction={searchPackagingItemsAction}
     />
   );

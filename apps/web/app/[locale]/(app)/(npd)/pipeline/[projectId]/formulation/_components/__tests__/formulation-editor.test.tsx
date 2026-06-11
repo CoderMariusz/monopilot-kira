@@ -195,6 +195,31 @@ describe('FormulationEditor — parity (recipe.jsx:124-264)', () => {
   });
 });
 
+// ── F-D08b (2026-06-11 cross-module audit) — no hardcoded '€' in the rows ──
+//
+// ingredient-row.tsx used to hardcode '€' in the contribution cell (and the
+// editor's total row did too) while cost-panel.tsx had the correct ISO-4217
+// map (PLN → zł). The `currency` prop is now threaded from the editor into
+// every IngredientRow + the total row via the SAME exported symbolFor seam.
+describe('FormulationEditor — F-D08b currency threading (PLN → zł)', () => {
+  it('renders contributions and the total cost with zł when currency="PLN"', () => {
+    renderEditor({ currency: 'PLN' });
+    const rows = screen.getAllByTestId('ingredient-row');
+    // contribution = 0.170 × 4.20 = 0.714, suffixed with the PLN symbol.
+    expect(within(rows[0]).getByTestId('ingredient-contribution')).toHaveTextContent('0.714 zł');
+    expect(within(rows[0]).getByTestId('ingredient-contribution')).not.toHaveTextContent('€');
+    expect(screen.getByTestId('total-cost')).toHaveTextContent(/zł/);
+    expect(screen.getByTestId('total-cost')).not.toHaveTextContent('€');
+  });
+
+  it('keeps the EUR default when no currency is passed (back-compat)', () => {
+    renderEditor();
+    const rows = screen.getAllByTestId('ingredient-row');
+    expect(within(rows[0]).getByTestId('ingredient-contribution')).toHaveTextContent('0.714 €');
+    expect(screen.getByTestId('total-cost')).toHaveTextContent(/€/);
+  });
+});
+
 describe('FormulationEditor — CRUD + debounce + validation', () => {
   it('adds a new ingredient row', () => {
     renderEditor();

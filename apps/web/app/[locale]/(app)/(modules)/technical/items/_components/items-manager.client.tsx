@@ -29,6 +29,11 @@ import {
   ItemWizard,
   type WizardFormState,
 } from './item-create-wizard';
+import {
+  DEFAULT_TRANSITION_LABELS,
+  type StatusTransitionLabels,
+} from './item-transition-labels';
+import { StatusTransitionModal } from './status-transition-modal';
 
 const ITEM_TYPE_LABELS: Record<ItemListItem['itemType'], string> = {
   rm: 'Raw material',
@@ -108,6 +113,7 @@ export function ItemRowActions({
   allergensLabel = 'Allergens',
   wizardLabels,
   deactivateLabels,
+  transitionLabels = DEFAULT_TRANSITION_LABELS,
 }: {
   item: ItemListItem;
   canEdit: boolean;
@@ -117,9 +123,14 @@ export function ItemRowActions({
   allergensLabel?: string;
   wizardLabels?: ItemWizardLabels;
   deactivateLabels?: DeactivateLabels;
+  transitionLabels?: StatusTransitionLabels;
 }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [deactivateOpen, setDeactivateOpen] = React.useState(false);
+  const [activateOpen, setActivateOpen] = React.useState(false);
+  // Row quick-action for audit finding #8: draft rows get an inline "Activate"
+  // (the dominant stuck case). Deprecate/Reactivate live on the detail header.
+  const canActivateDraft = canEdit && item.status === 'draft';
 
   const allergensLink = (
     <a
@@ -138,6 +149,16 @@ export function ItemRowActions({
   return (
     <span className="flex justify-end gap-2">
       {allergensLink}
+      {canActivateDraft ? (
+        <button
+          type="button"
+          data-testid={`item-activate-${item.itemCode}`}
+          className="font-medium text-green-700 underline-offset-4 hover:underline"
+          onClick={() => setActivateOpen(true)}
+        >
+          {transitionLabels.activate}
+        </button>
+      ) : null}
       {canEdit ? (
         <button
           type="button"
@@ -175,6 +196,20 @@ export function ItemRowActions({
           itemCode={item.itemCode}
           itemName={item.name}
           labels={deactivateLabels}
+        />
+      ) : null}
+
+      {canActivateDraft ? (
+        <StatusTransitionModal
+          open={activateOpen}
+          onClose={() => setActivateOpen(false)}
+          itemId={item.id}
+          itemCode={item.itemCode}
+          itemName={item.name}
+          toStatus="active"
+          title={transitionLabels.activateTitle}
+          body={transitionLabels.activateBody}
+          labels={transitionLabels}
         />
       ) : null}
     </span>

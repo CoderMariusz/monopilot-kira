@@ -58,12 +58,25 @@ export type RecordDesktopConsumptionInput = {
   clientOpId: string;
 };
 
+export type OverconsumeWarning = {
+  overconsumed: true;
+  overPct: number;
+  warnPct: number;
+};
+
 export type RecordDesktopConsumptionData = {
   materialId: string;
   consumedQty: string;
   uom: string;
   lpId: string | null;
   replay: boolean;
+  /**
+   * Two-tier over-consumption gate: present when the consumption landed ABOVE
+   * the warn tier (`overconsume_warn_pct`) but at/below the approval tier
+   * (`overconsume_threshold_pct`) — the write succeeded, the caller should
+   * surface a non-blocking warning. Absent/undefined otherwise.
+   */
+  warning?: OverconsumeWarning;
 };
 
 export type ConsumableLp = {
@@ -79,12 +92,33 @@ export type ConsumeActionError =
   | 'invalid_material'
   | 'invalid_qty'
   | 'lp_unavailable'
+  | 'overconsume_blocked'
   | 'invalid_input'
   | 'error';
 
 export type ConsumeActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; reason: ConsumeActionError; message?: string };
+
+type MaterialGateRow = {
+  id: string;
+  product_id: string;
+  material_name: string;
+  required_qty: string;
+  consumed_qty: string;
+  uom: string;
+  threshold_pct: string;
+  warn_pct: string;
+  over_limit: boolean;
+  over_warn: boolean;
+  over_pct: string | null;
+};
+
+function numericJson(value: string | null | undefined): number {
+  if (value == null) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 function asTrimmed(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
@@ -254,7 +288,79 @@ export async function recordDesktopConsumption(
         };
       }
 
-      // (3) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.
+      // (3) Two-tier over-consumption gate under the same transaction before
+      // mutation — BOTH flags read in the same locked statement (mirrors the
+      // scanner route): warn tier (overconsume_warn_pct, absent = 0) proceeds
+      // with a warning; approve tier (overconsume_threshold_pct) blocks.
+      const materialGateRes = await ctx.client.query<MaterialGateRow>(
+        `with cfg as (
+           select coalesce(
+                    case
+                      when (tv.feature_flags->>'overconsume_threshold_pct') ~ '^[0-9]+(\\.[0-9]+)?$'
+                        then (tv.feature_flags->>'overconsume_threshold_pct')::numeric
+                      else 0
+                    end,
+                    0
+                  ) as threshold_pct,
+                  coalesce(
+                    case
+                      when (tv.feature_flags->>'overconsume_warn_pct') ~ '^[0-9]+(\\.[0-9]+)?$'
+                        then (tv.feature_flags->>'overconsume_warn_pct')::numeric
+                      else 0
+                    end,
+                    0
+                  ) as warn_pct
+             from public.tenant_variations tv
+            where tv.org_id = app.current_org_id()
+         )
+         select wm.id::text as id,
+                wm.product_id::text as product_id,
+                wm.material_name,
+                wm.required_qty::text as required_qty,
+                wm.consumed_qty::text as consumed_qty,
+                wm.uom,
+                coalesce((select threshold_pct from cfg), 0)::text as threshold_pct,
+                coalesce((select warn_pct from cfg), 0)::text as warn_pct,
+                (wm.consumed_qty + $3::numeric)
+                  > (wm.required_qty * (1 + coalesce((select threshold_pct from cfg), 0) / 100)) as over_limit,
+                (wm.consumed_qty + $3::numeric)
+                  > (wm.required_qty * (1 + coalesce((select warn_pct from cfg), 0) / 100)) as over_warn,
+                case
+                  when wm.required_qty > 0 then
+                    (((wm.consumed_qty + $3::numeric) / wm.required_qty - 1) * 100)::text
+                  else null
+                end as over_pct
+           from public.wo_materials wm
+          where wm.org_id = app.current_org_id()
+            and wm.wo_id = $1::uuid
+            and wm.id = $2::uuid
+            and $3::numeric > 0
+          limit 1
+          for update of wm`,
+        [woId, materialId, qty],
+      );
+      const gate = materialGateRes.rows[0];
+      if (!gate) {
+        return { ok: false, reason: 'invalid_material' };
+      }
+      if (gate.over_limit) {
+        return {
+          ok: false,
+          reason: 'overconsume_blocked',
+          message: `Over-consumption blocked: required ${gate.required_qty} ${gate.uom}, consumed ${gate.consumed_qty} ${gate.uom}, attempted ${qty} ${gate.uom}, threshold ${gate.threshold_pct}%.`,
+        };
+      }
+      // Between the tiers: proceed, but flag the ledger row + the response.
+      const warnBand = gate.over_warn && !gate.over_limit;
+      const warning: OverconsumeWarning | undefined = warnBand
+        ? {
+            overconsumed: true,
+            overPct: numericJson(gate.over_pct),
+            warnPct: numericJson(gate.warn_pct),
+          }
+        : undefined;
+
+      // (4) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.
       const materialRes = await ctx.client.query<{
         id: string;
         product_id: string;
@@ -322,7 +428,7 @@ export async function recordDesktopConsumption(
         fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }
 
-      // (4) Ledger row LAST — its UNIQUE(transaction_id) is the final
+      // (5) Ledger row LAST — its UNIQUE(transaction_id) is the final
       // exactly-once gate (a racing replay that slipped past the probe trips
       // the constraint and rolls the whole txn back).
       await ctx.client.query(
@@ -342,7 +448,13 @@ export async function recordDesktopConsumption(
           material.uom,
           userId,
           fefoAdherence,
-          JSON.stringify({ source: 'desktop', clientOpId, materialId: material.id, materialName: material.material_name }),
+          JSON.stringify({
+            source: 'desktop',
+            clientOpId,
+            materialId: material.id,
+            materialName: material.material_name,
+            ...(warning ? { warned: true, overPct: warning.overPct } : {}),
+          }),
         ],
       );
 
@@ -354,6 +466,7 @@ export async function recordDesktopConsumption(
           uom: material.uom,
           lpId: lpId ?? null,
           replay: false,
+          ...(warning ? { warning } : {}),
         },
       };
     });

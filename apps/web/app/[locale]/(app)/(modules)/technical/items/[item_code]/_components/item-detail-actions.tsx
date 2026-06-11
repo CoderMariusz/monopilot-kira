@@ -25,6 +25,12 @@ import {
   ItemWizard,
   type WizardFormState,
 } from '../../_components/item-create-wizard';
+import {
+  DEFAULT_TRANSITION_LABELS,
+  type StatusTransitionLabels,
+  transitionForStatus,
+} from '../../_components/item-transition-labels';
+import { StatusTransitionModal } from '../../_components/status-transition-modal';
 
 function detailToForm(item: ItemDetail): WizardFormState {
   return {
@@ -61,6 +67,7 @@ export function ItemDetailActions({
   deactivateLabel,
   wizardLabels,
   deactivateLabels,
+  transitionLabels = DEFAULT_TRANSITION_LABELS,
 }: {
   item: ItemDetail;
   canEdit: boolean;
@@ -69,15 +76,32 @@ export function ItemDetailActions({
   deactivateLabel: string;
   wizardLabels?: ItemWizardLabels;
   deactivateLabels?: DeactivateLabels;
+  transitionLabels?: StatusTransitionLabels;
 }) {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
   const [deactivateOpen, setDeactivateOpen] = React.useState(false);
+  const [transitionOpen, setTransitionOpen] = React.useState(false);
 
   if (!canEdit && !canDeactivate) return null;
 
+  // Lifecycle action for the current status (audit finding #8): draft → Activate
+  // (primary), active → Deprecate, deprecated → Reactivate; blocked offers none
+  // (it stays owned by the TEC-081 deactivate flow). Same write permission as Edit.
+  const transition = canEdit ? transitionForStatus(item.status, transitionLabels) : null;
+
   return (
     <div className="flex gap-2">
+      {transition ? (
+        <Button
+          type="button"
+          className={transition.primary ? 'btn-primary' : 'btn-secondary'}
+          data-action={`item-status-${transition.toStatus}`}
+          onClick={() => setTransitionOpen(true)}
+        >
+          {transition.label}
+        </Button>
+      ) : null}
       {canEdit ? (
         <Button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
           {editLabel}
@@ -87,6 +111,21 @@ export function ItemDetailActions({
         <Button type="button" className="btn-danger" onClick={() => setDeactivateOpen(true)}>
           {deactivateLabel}
         </Button>
+      ) : null}
+
+      {transition ? (
+        <StatusTransitionModal
+          open={transitionOpen}
+          onClose={() => setTransitionOpen(false)}
+          itemId={item.id}
+          itemCode={item.itemCode}
+          itemName={item.name}
+          toStatus={transition.toStatus}
+          title={transition.title}
+          body={transition.body}
+          labels={transitionLabels}
+          onTransitioned={() => router.refresh()}
+        />
       ) : null}
 
       {canEdit ? (

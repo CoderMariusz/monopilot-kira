@@ -25,8 +25,8 @@ type PageProps = { params: Promise<{ locale: string }> };
 
 const NAV_CARDS = [
   { key: "holds", href: "/quality/holds", live: true },
-  { key: "ncrs", href: null, live: false },
-  { key: "inspections", href: null, live: false },
+  { key: "ncrs", href: "/quality/ncrs", live: true },
+  { key: "inspections", href: "/quality/inspections", live: true },
   { key: "specifications", href: "/quality/specifications", live: true },
 ] as const;
 

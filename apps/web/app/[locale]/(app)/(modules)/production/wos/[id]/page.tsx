@@ -97,6 +97,11 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       cancelled: status('cancelled'),
     },
     deferredActionTitle: t('deferredActionTitle'),
+    changeoverGate: {
+      title: t('changeoverGate.title'),
+      body: t('changeoverGate.body'),
+      link: t('changeoverGate.link'),
+    },
     headerActions: {
       start: t('headerActions.start'),
       pause: t('headerActions.pause'),
@@ -171,6 +176,8 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         submit: rec('submit', 'Record consumption'),
         submitting: rec('submitting', 'Recording…'),
         cancel: rec('cancel', 'Cancel'),
+        warningOver: rec('warningOver', 'Over required quantity by {pct}% — recorded and flagged.'),
+        warningClose: rec('warningClose', 'Close'),
         errors: {
           forbidden: rec('errors.forbidden', 'You do not have permission to record consumption.'),
           lp_unavailable: rec(
@@ -326,6 +333,9 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       data={result.data}
       labels={labels}
       actions={actions}
+      changeoverGate={
+        result.data.openChangeoverId ? { lineId: result.data.header.lineId } : null
+      }
       releaseOutputQaAction={releaseWoOutputQa}
       recordConsumptionAction={recordDesktopConsumption}
       listConsumableLpsAction={listConsumableLps}

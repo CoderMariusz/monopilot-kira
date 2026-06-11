@@ -42,10 +42,30 @@ import type {
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
+export type ArtworkVersionView = {
+  version: number;
+  /** Storage object name (delete handle). */
+  objectName: string;
+  fileName: string;
+  uploadedAt: string;
+  fileSize: string;
+  /** Short-lived signed URL (15 min). */
+  signedUrl: string;
+  isImage: boolean;
+};
+
 export type ArtworkView = {
   fileName: string;
   uploadedAt: string;
   fileSize: string;
+  /** Signed preview/download URL of the CURRENT version (additive — nullable). */
+  signedUrl?: string | null;
+  /** True when the current version is a previewable image (png/jpg). */
+  isImage?: boolean;
+  /** Storage object name of the current version (delete handle). */
+  objectName?: string;
+  /** Full version history, DESC (versions[0] = current). */
+  versions?: ArtworkVersionView[];
 };
 
 export type PackagingScreenData = {
@@ -81,6 +101,18 @@ export type PackagingLabels = {
   artworkNewVersion: string;
   artworkNone: string;
   artworkUnavailable: string;
+  // Artwork storage backend (additive — npd-attachments bucket, mig 279).
+  artworkUpload: string;
+  artworkUploading: string;
+  artworkHistoryTitle: string;
+  artworkCurrent: string;
+  artworkDownload: string;
+  artworkDelete: string;
+  artworkDeleteConfirm: string;
+  artworkTooLarge: string;
+  artworkUnsupportedType: string;
+  artworkUploadFailed: string;
+  artworkDeleteFailed: string;
   // Modal field labels.
   fieldComponent: string;
   fieldMaterial: string;
@@ -129,6 +161,8 @@ export type UpsertCall = {
   itemId?: string | null;
 };
 export type MutationOutcome = { ok: boolean; error?: string };
+
+export type ArtworkDeleteCall = { projectId: string; objectName: string };
 
 const CURRENCY = '€';
 
@@ -221,6 +255,251 @@ function StateNotice({ state, labels }: { state: PageState; labels: PackagingLab
   return null;
 }
 
+// ── Artwork panel (npd-attachments bucket backend, mig 279) ───────────────────
+
+const ARTWORK_MAX_BYTES = 20 * 1024 * 1024;
+const ARTWORK_ACCEPT = '.pdf,.png,.jpg,.jpeg';
+const ARTWORK_PANEL_MIME_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg']);
+
+function ArtworkPanel({
+  projectId,
+  productName,
+  artwork,
+  labels,
+  canWrite,
+  onUploadArtwork,
+  onDeleteArtwork,
+}: {
+  projectId: string;
+  productName: string;
+  artwork: ArtworkView | null;
+  labels: PackagingLabels;
+  canWrite: boolean;
+  onUploadArtwork?: (form: FormData) => Promise<MutationOutcome>;
+  onDeleteArtwork?: (call: ArtworkDeleteCall) => Promise<MutationOutcome>;
+}) {
+  const router = useRouter();
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = React.useState<'idle' | 'uploading' | 'deleting'>('idle');
+  const [error, setError] = React.useState<string | null>(null);
+
+  const uploadEnabled = canWrite && !!onUploadArtwork;
+  const versions = artwork?.versions ?? [];
+
+  const handlePick = React.useCallback(() => {
+    setError(null);
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFile = React.useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file || !onUploadArtwork) return;
+      if (file.size > ARTWORK_MAX_BYTES) {
+        setError(labels.artworkTooLarge);
+        return;
+      }
+      if (!ARTWORK_PANEL_MIME_TYPES.has(file.type)) {
+        setError(labels.artworkUnsupportedType);
+        return;
+      }
+      setBusy('uploading');
+      setError(null);
+      try {
+        const form = new FormData();
+        form.set('projectId', projectId);
+        form.set('file', file);
+        const result = await onUploadArtwork(form);
+        if (result.ok) {
+          router.refresh();
+        } else {
+          setError(labels.artworkUploadFailed);
+        }
+      } catch {
+        setError(labels.artworkUploadFailed);
+      } finally {
+        setBusy('idle');
+      }
+    },
+    [onUploadArtwork, projectId, router, labels],
+  );
+
+  const handleDelete = React.useCallback(
+    async (objectName: string) => {
+      if (!onDeleteArtwork) return;
+      if (typeof window !== 'undefined' && !window.confirm(labels.artworkDeleteConfirm)) return;
+      setBusy('deleting');
+      setError(null);
+      try {
+        const result = await onDeleteArtwork({ projectId, objectName });
+        if (result.ok) {
+          router.refresh();
+        } else {
+          setError(labels.artworkDeleteFailed);
+        }
+      } catch {
+        setError(labels.artworkDeleteFailed);
+      } finally {
+        setBusy('idle');
+      }
+    },
+    [onDeleteArtwork, projectId, router, labels],
+  );
+
+  const uploadButton = uploadEnabled ? (
+    <Button
+      type="button"
+      className="btn-secondary btn-sm"
+      disabled={busy === 'uploading'}
+      onClick={handlePick}
+      data-testid={artwork ? 'artwork-new-version' : 'artwork-upload'}
+    >
+      {busy === 'uploading'
+        ? labels.artworkUploading
+        : artwork
+          ? labels.artworkNewVersion
+          : labels.artworkUpload}
+    </Button>
+  ) : null;
+
+  return (
+    <Card data-testid="artwork-card">
+      <CardHeader>
+        <CardTitle>{labels.artworkTitle}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ARTWORK_ACCEPT}
+          style={{ display: 'none' }}
+          onChange={handleFile}
+          data-testid="artwork-upload-input"
+          aria-hidden="true"
+          tabIndex={-1}
+        />
+        {error ? (
+          <div role="alert" className="alert alert-red" data-testid="artwork-error" style={{ marginBottom: 8 }}>
+            {error}
+          </div>
+        ) : null}
+        {artwork ? (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {artwork.isImage && artwork.signedUrl ? (
+              <img
+                src={artwork.signedUrl}
+                alt={artwork.fileName}
+                style={{ width: 120, height: 90, objectFit: 'cover', borderRadius: 6 }}
+                data-testid="artwork-thumbnail"
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 120,
+                  height: 90,
+                  background: 'linear-gradient(135deg, #fde68a, #f59e0b)',
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 600,
+                  color: '#78350f',
+                  textAlign: 'center',
+                }}
+                data-testid="artwork-thumbnail"
+              >
+                {productName}
+              </div>
+            )}
+            <div>
+              <div style={{ fontWeight: 500 }} data-testid="artwork-filename">
+                {artwork.fileName}
+              </div>
+              <div className="muted" style={{ fontSize: 11 }} data-testid="artwork-meta">
+                {artwork.uploadedAt} · {artwork.fileSize}
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                <Button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  data-testid="artwork-preview"
+                  disabled={!artwork.signedUrl}
+                  title={artwork.signedUrl ? undefined : labels.artworkUnavailable}
+                  onClick={() => {
+                    if (artwork.signedUrl && typeof window !== 'undefined') {
+                      window.open(artwork.signedUrl, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                >
+                  {labels.artworkPreview}
+                </Button>
+                {uploadButton}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="muted" data-testid="artwork-none">
+              {labels.artworkNone}
+            </div>
+            {uploadButton ? <div style={{ marginTop: 8 }}>{uploadButton}</div> : null}
+          </div>
+        )}
+
+        {versions.length > 0 ? (
+          <div style={{ marginTop: 12 }} data-testid="artwork-history">
+            <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>
+              {labels.artworkHistoryTitle}
+            </div>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              {versions.map((version, index) => (
+                <li
+                  key={version.objectName}
+                  data-testid="artwork-version-row"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}
+                >
+                  <span className="mono" style={{ fontSize: 11 }}>{`v${version.version}`}</span>
+                  <a
+                    href={version.signedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={labels.artworkDownload}
+                    data-testid="artwork-version-download"
+                    style={{ fontWeight: 500 }}
+                  >
+                    {version.fileName}
+                  </a>
+                  <span className="muted" style={{ fontSize: 11 }}>
+                    {version.uploadedAt} · {version.fileSize}
+                  </span>
+                  {index === 0 ? (
+                    <Badge variant="success" className="badge-green" data-testid="artwork-version-current">
+                      {labels.artworkCurrent}
+                    </Badge>
+                  ) : null}
+                  {canWrite && onDeleteArtwork ? (
+                    <Button
+                      type="button"
+                      className="btn-ghost btn-sm"
+                      disabled={busy !== 'idle'}
+                      onClick={() => handleDelete(version.objectName)}
+                      data-testid="artwork-version-delete"
+                    >
+                      {labels.artworkDelete}
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PackagingScreen({
   state = 'ready',
   data,
@@ -228,6 +507,8 @@ export function PackagingScreen({
   canWrite = false,
   onUpsert,
   onDelete,
+  onUploadArtwork,
+  onDeleteArtwork,
   searchItemsAction,
 }: {
   state?: PageState;
@@ -237,6 +518,9 @@ export function PackagingScreen({
   canWrite?: boolean;
   onUpsert?: (call: UpsertCall) => Promise<MutationOutcome>;
   onDelete?: (call: { id: string; projectId: string }) => Promise<MutationOutcome>;
+  /** Artwork storage Server Actions (npd-attachments bucket). */
+  onUploadArtwork?: (form: FormData) => Promise<MutationOutcome>;
+  onDeleteArtwork?: (call: ArtworkDeleteCall) => Promise<MutationOutcome>;
   /** Org-scoped item search seam for the optional packaging catalog picker. */
   searchItemsAction?: ItemSearchFn;
 }) {
@@ -483,74 +767,16 @@ export function PackagingScreen({
           </CardContent>
         </Card>
 
-        {/* ── Artwork panel ───────────────────────────────────────────────────── */}
-        <Card data-testid="artwork-card">
-          <CardHeader>
-            <CardTitle>{labels.artworkTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.artwork ? (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <div
-                  aria-hidden="true"
-                  style={{
-                    width: 120,
-                    height: 90,
-                    background: 'linear-gradient(135deg, #fde68a, #f59e0b)',
-                    borderRadius: 6,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 600,
-                    color: '#78350f',
-                    textAlign: 'center',
-                  }}
-                  data-testid="artwork-thumbnail"
-                >
-                  {data.productName}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 500 }} data-testid="artwork-filename">
-                    {data.artwork.fileName}
-                  </div>
-                  <div className="muted" style={{ fontSize: 11 }} data-testid="artwork-meta">
-                    {data.artwork.uploadedAt} · {data.artwork.fileSize}
-                  </div>
-                  <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-                    {/* Artwork file store is a future deliverable (mig 232 leaves
-                        artwork_file_id a soft nullable ref). These buttons stay
-                        visible but disabled until that backend exists — never an
-                        invented artwork API. */}
-                    <Button
-                      type="button"
-                      className="btn-ghost btn-sm"
-                      data-testid="artwork-preview"
-                      disabled
-                      title={labels.artworkUnavailable}
-                    >
-                      {labels.artworkPreview}
-                    </Button>
-                    {canWrite && (
-                      <Button
-                        type="button"
-                        className="btn-secondary btn-sm"
-                        data-testid="artwork-new-version"
-                        disabled
-                        title={labels.artworkUnavailable}
-                      >
-                        {labels.artworkNewVersion}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="muted" data-testid="artwork-none">
-                {labels.artworkNone}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* ── Artwork panel (storage backend: npd-attachments bucket, mig 279) ── */}
+        <ArtworkPanel
+          projectId={data.projectId}
+          productName={data.productName}
+          artwork={data.artwork}
+          labels={labels}
+          canWrite={canWrite}
+          onUploadArtwork={onUploadArtwork}
+          onDeleteArtwork={onDeleteArtwork}
+        />
       </div>
 
       {canWrite && onUpsert && (

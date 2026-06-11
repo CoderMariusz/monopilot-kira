@@ -70,7 +70,14 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PoDetailLa
       uom: t('detail.lines.uom'),
       unitPrice: t('detail.lines.unitPrice'),
       lineTotal: t('detail.lines.lineTotal'),
+      received: t('detail.lines.received'),
+      receivedFull: t('detail.lines.receivedFull'),
+      receivedPartial: t('detail.lines.receivedPartial'),
       empty: t('detail.lines.empty'),
+    },
+    receivedSummary: {
+      title: t('detail.receivedSummary.title'),
+      lines: t('detail.receivedSummary.lines'),
     },
     transitions: {
       title: t('detail.transitions.title'),
@@ -138,6 +145,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
           uom: l.uom,
           unitPrice: l.unitPrice,
           lineNo: l.lineNo,
+          receivedQty: l.receivedQty,
         })),
       }}
       labels={buildLabels(t)}

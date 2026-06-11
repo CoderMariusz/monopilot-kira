@@ -34,7 +34,10 @@ const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password
 const tenantId = randomUUID();
 const orgId = randomUUID();
 const userId = randomUUID();
-const roleId = randomUUID();
+// let: the seed_system_roles_on_org_insert trigger (post-185) auto-creates the
+// org's 'admin'-slug role on org insert — baseSeed adopts that row's id instead
+// of colliding on roles_org_id_slug_key with a fresh uuid.
+let roleId = randomUUID();
 const bomHeaderId = randomUUID();
 const factorySpecId = randomUUID();
 const SUPERVISOR_PIN = '824193';
@@ -55,6 +58,33 @@ async function ensureAppUser(): Promise<void> {
   `);
 }
 
+/**
+ * Run a seed statement inside a real app.set_org_context transaction — some
+ * tables (e.g. public.product, whose fa-allergen auto-refresh trigger calls
+ * app.current_org_id()) reject context-less owner inserts. Mirrors the
+ * withOrgContext token flow: register the token (owner), set_org_context in-txn.
+ */
+async function withSeedOrgContext<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  const token = randomUUID();
+  await owner.query(`insert into app.session_org_contexts (session_token, org_id) values ($1, $2)`, [token, orgId]);
+  const c = await owner.connect();
+  try {
+    await c.query('begin');
+    await c.query(`select app.set_org_context($1::uuid, $2::uuid)`, [token, orgId]);
+    const out = await fn(c);
+    await c.query('commit');
+    return out;
+  } catch (err) {
+    await c.query('rollback').catch(() => undefined);
+    throw err;
+  } finally {
+    c.release();
+    await owner
+      .query(`delete from app.session_org_contexts where session_token = $1`, [token])
+      .catch(() => undefined);
+  }
+}
+
 async function baseSeed(): Promise<void> {
   await ensureAppUser();
   await owner.query(
@@ -70,11 +100,14 @@ async function baseSeed(): Promise<void> {
   );
   // org-admin role: the migration-185 backfill ran at migrate-time BEFORE this org
   // existed, so seed the production.* grants explicitly on this role.
-  await owner.query(
+  const roleRow = await owner.query<{ id: string }>(
     `insert into public.roles (id, org_id, code, slug, name, permissions)
-     values ($1, $2, 'admin', 'admin', 'E1 Admin', '[]'::jsonb) on conflict (id) do nothing`,
+     values ($1, $2, 'admin', 'admin', 'E1 Admin', '[]'::jsonb)
+     on conflict (org_id, slug) do update set name = excluded.name
+     returning id`,
     [roleId, orgId],
   );
+  roleId = roleRow.rows[0]?.id ?? roleId;
   await owner.query(`select public.seed_production_permissions_for_org($1)`, [orgId]);
   // Parallel migration seeds this in production; keep the code-only integration
   // setup aligned so cancel RBAC can be asserted before that migration lands here.
@@ -86,8 +119,8 @@ async function baseSeed(): Promise<void> {
   );
   await owner.query(
     `insert into public.users (id, org_id, email, name, role_id)
-     values ($1, $2, 'e1-action@example.test', 'E1 Action User', $3) on conflict (id) do nothing`,
-    [userId, orgId, roleId],
+     values ($1, $2, $4, 'E1 Action User', $3) on conflict (id) do nothing`,
+    [userId, orgId, roleId, `e1-action+${userId.slice(0, 8)}@example.test`],
   );
   await owner.query(
     `insert into public.user_roles (org_id, user_id, role_id)
@@ -95,15 +128,35 @@ async function baseSeed(): Promise<void> {
     [orgId, userId, roleId],
   );
   // BOM header + line so the T-025 snapshot service can freeze a recipe at start.
+  // approved_by/approved_at: status 'active' now requires them
+  // (bom_headers_approved_status_requires_approval_check); product_id now FKs
+  // public.product(org_id, product_code) — both post-suite migrations, so seed
+  // a real NPD product aggregate row first (product_id IS the product_code).
+  const bomProductCode = `FG-E1-${bomHeaderId.slice(0, 8)}`;
+  await withSeedOrgContext((c) =>
+    c.query(
+      `insert into public.product (org_id, product_code, created_by_user)
+       values ($1, $2, $3) on conflict do nothing`,
+      [orgId, bomProductCode, userId],
+    ),
+  );
+  // Insert as draft + lines first, THEN activate: the BOM immutability trigger
+  // (post-suite migration) rejects line inserts under an approved/active header.
   await owner.query(
     `insert into public.bom_headers (id, org_id, product_id, origin_module, status, version)
-     values ($1, $2, $3, 'technical', 'active', 1) on conflict (id) do nothing`,
-    [bomHeaderId, orgId, randomUUID()],
+     values ($1, $2, $3, 'technical', 'draft', 1) on conflict (id) do nothing`,
+    [bomHeaderId, orgId, bomProductCode],
   );
   await owner.query(
     `insert into public.bom_lines (org_id, bom_header_id, line_no, component_code, quantity, uom)
      values ($1, $2, 1, 'RM-E1-A', 1.000, 'kg')`,
     [orgId, bomHeaderId],
+  );
+  await owner.query(
+    `update public.bom_headers
+        set status = 'active', approved_by = $2, approved_at = now()
+      where id = $1`,
+    [bomHeaderId, userId],
   );
   // Seed the supervisor PIN for the close e-sign (argon2id via setPin).
   await setPin(userId, SUPERVISOR_PIN);
@@ -138,6 +191,19 @@ async function seedWorkOrder(opts?: { withSegregation?: boolean }): Promise<{ wo
     [orgId, woId, componentId],
   );
   return { woId, componentId };
+}
+
+/**
+ * Yield-gate arrange step (post-suite gate): completeWo now requires a primary
+ * wo_output with qty_kg > 0 — simulate the operator's register-output by
+ * setting the materialized primary output's actual quantity.
+ */
+async function markPrimaryOutputRegistered(woId: string): Promise<void> {
+  await owner.query(
+    `update public.wo_outputs set qty_kg = 90.000
+      where org_id = $1 and wo_id = $2 and output_type = 'primary'`,
+    [orgId, woId],
+  );
 }
 
 /** Seed a downtime category for the pause side-effect. */
@@ -314,6 +380,7 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     );
     expect(closedDt.rowCount).toBe(1);
 
+    await markPrimaryOutputRegistered(woId);
     const completed = await withOrgContext((ctx: ProductionContext) =>
       completeWo(ctx, { woId, transactionId: randomUUID() }),
     );
@@ -364,6 +431,7 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
   it('blocks close with a wrong PIN (esign_failed) and does not transition', async () => {
     const { woId } = await seedWorkOrder();
     await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
+    await markPrimaryOutputRegistered(woId);
     await withOrgContext((ctx: ProductionContext) => completeWo(ctx, { woId, transactionId: randomUUID() }));
 
     const bad = await withOrgContext((ctx: ProductionContext) =>
@@ -387,7 +455,12 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     );
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected segregation block');
-    expect(result.error).toBe('allergen_changeover_required');
+    // C4/F6: canonical code on both desktop + scanner paths; the legacy
+    // 'allergen_changeover_required' alias is carried in details.legacyCode.
+    expect(result.error).toBe('changeover_signoff_required');
+    expect((result.details as { legacyCode?: string } | null)?.legacyCode).toBe(
+      'allergen_changeover_required',
+    );
   });
 
   it('start is idempotent under R14 transaction_id replay (single event, single output set)', async () => {

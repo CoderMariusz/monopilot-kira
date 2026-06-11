@@ -21138,10 +21138,18 @@ CREATE POLICY license_plates_org_context ON public.license_plates TO app_user US
 ALTER TABLE public.line_machines ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: line_machines line_machines_app_user_access; Type: POLICY; Schema: public; Owner: -
+-- Name: line_machines line_machines_org_context_access; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY line_machines_app_user_access ON public.line_machines TO app_user USING (true) WITH CHECK (true);
+CREATE POLICY line_machines_org_context_access ON public.line_machines TO app_user USING (((EXISTS ( SELECT 1
+   FROM public.production_lines pl
+  WHERE ((pl.id = line_machines.line_id) AND (pl.org_id = app.current_org_id())))) AND (EXISTS ( SELECT 1
+   FROM public.machines m
+  WHERE ((m.id = line_machines.machine_id) AND (m.org_id = app.current_org_id())))))) WITH CHECK (((EXISTS ( SELECT 1
+   FROM public.production_lines pl
+  WHERE ((pl.id = line_machines.line_id) AND (pl.org_id = app.current_org_id())))) AND (EXISTS ( SELECT 1
+   FROM public.machines m
+  WHERE ((m.id = line_machines.machine_id) AND (m.org_id = app.current_org_id()))))));
 
 
 --

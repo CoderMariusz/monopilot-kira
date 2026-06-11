@@ -70,14 +70,23 @@ function ListSkeleton() {
 }
 
 function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): WoListLabels {
-  // P0-UOM — staged keys (_meta/i18n-staging/wo-uom.json) read defensively with
-  // `t.has` so a not-yet-merged bundle never throws at runtime; fall back to the
-  // real en values inline until the bundle-merge lane lands.
+  // P0-UOM — the UoM keys live in the REAL bundles (apps/web/i18n/{en,pl,ro,uk}
+  // .json under Planning.workOrders.create.*; F-D08a). `t.has` + inline EN
+  // fallback is kept as a defensive seam so a key regression degrades to EN
+  // copy instead of throwing at runtime.
   const opt = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
+  // F-D08a — messages that are CLIENT-side `.replace()` templates ("{qty} {unit}
+  // = {kg} {base}") must be read with `t.raw`: next-intl's development build
+  // treats `{…}` as ICU arguments and a bare `t(key)` (no values) raises
+  // FORMATTING_ERROR, returning the key path instead of the template (the
+  // production build only passes the template through by accident). `t.raw`
+  // returns the literal string in both builds.
+  const tpl = (key: string): string => String(t.raw(key));
+  const optTpl = (key: string, fallback: string): string => (t.has(key) ? tpl(key) : fallback);
   return {
     createWo: t('actions.createWo'),
     searchPlaceholder: t('list.searchPlaceholder'),
-    rowsCount: t('list.rowsCount'),
+    rowsCount: tpl('list.rowsCount'),
     tabs: {
       all: t('list.tabs.all'),
       DRAFT: t('woStatus.draft'),
@@ -110,7 +119,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     notAssigned: t('list.notAssigned'),
     release: t('list.release'),
     releasing: t('list.releasing'),
-    confirmRelease: t('list.confirmRelease'),
+    confirmRelease: tpl('list.confirmRelease'),
     tabArchive: archiveLabel(t, locale, 'list.tabs.archive'),
     archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
     backToActive: archiveLabel(t, locale, 'list.backToActive'),
@@ -127,7 +136,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       persistence_failed: t('errors.persistence_failed'),
     },
     factoryReleaseIncomplete: {
-      title: opt(
+      title: optTpl(
         'create.factoryReleaseIncomplete.title',
         'This work order can’t be released — missing {missing}.',
       ),
@@ -158,7 +167,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         each: opt('create.quantityUom.each', 'each'),
         box: opt('create.quantityUom.box', 'box'),
       },
-      conversionPreview: opt('create.conversionPreview', '{qty} {unit} = {kg} {base}'),
+      conversionPreview: optTpl('create.conversionPreview', '{qty} {unit} = {kg} {base}'),
       scheduledStartLabel: t('create.scheduledStartLabel'),
       lineLabel: t('create.lineLabel'),
       machineLabel: t('create.machineLabel'),

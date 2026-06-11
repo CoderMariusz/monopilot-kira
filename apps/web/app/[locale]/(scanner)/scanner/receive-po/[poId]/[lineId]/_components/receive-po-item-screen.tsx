@@ -159,6 +159,9 @@ export function ReceivePoItemScreen({
               </div>
             </div>
             {done.overReceived && <Banner kind="warn" title={L.overTitle}>{L.overBody}</Banner>}
+            {done.qcInspectionRequired && (
+              <Banner kind="info" title={L.qcHoldTitle}>{L.qcHoldBody}</Banner>
+            )}
           </div>
         )}
       </Content>

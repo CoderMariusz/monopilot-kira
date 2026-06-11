@@ -125,6 +125,9 @@ type WarehouseRow = { name: string };
 type ReleaseRow = {
   release_status: string | null;
   active_bom_header_id: string | null;
+  /** Human-readable BOM identity resolved from bom_headers (fa_code / product_id
+   *  + version) — bom_headers has NO `code` column, so this is the display id. */
+  bom_display_code: string | null;
 };
 
 export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
@@ -231,10 +234,18 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
       }
 
       const releaseRes = await ctx.client.query<ReleaseRow>(
-        `select release_status, active_bom_header_id
-           from public.factory_release_status
-          where project_id = $1::uuid
-            and org_id = app.current_org_id()
+        `select frs.release_status,
+                frs.active_bom_header_id,
+                case
+                  when bh.id is null then null
+                  else coalesce(bh.fa_code, bh.product_id) || ' v' || bh.version::text
+                end as bom_display_code
+           from public.factory_release_status frs
+           left join public.bom_headers bh
+             on bh.id = frs.active_bom_header_id
+            and bh.org_id = frs.org_id
+          where frs.project_id = $1::uuid
+            and frs.org_id = app.current_org_id()
           limit 1`,
         [projectId],
       );
@@ -262,7 +273,10 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           promoted,
           checklist: items,
           destinationBom: {
-            bomCode: checklist.destination_bom_code ?? release?.active_bom_header_id ?? null,
+            // Fallback resolves bom_headers to a HUMAN-READABLE identity (fa_code /
+            // product code + version) — never the raw active_bom_header_id uuid.
+            // When neither exists the screen renders its notSet em-dash.
+            bomCode: checklist.destination_bom_code ?? release?.bom_display_code ?? null,
             productSku: project.product_code,
             productName: project.product_name,
             effectiveFrom: checklist.promote_to_production_date,

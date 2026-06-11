@@ -141,7 +141,14 @@ const detailLabels: PoDetailLabels = {
     uom: 'UoM',
     unitPrice: 'Unit price',
     lineTotal: 'Line total',
+    received: 'Received',
+    receivedFull: 'Received',
+    receivedPartial: 'Partial',
     empty: 'No lines on this purchase order.',
+  },
+  receivedSummary: {
+    title: 'Receipt progress',
+    lines: '{received} / {total} lines',
   },
   transitions: {
     title: 'Status',
@@ -435,8 +442,8 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
     notes: 'Deliver to dock 3',
     createdAt: '2026-06-01T00:00:00.000Z',
     lines: [
-      { id: 'l1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '500', uom: 'kg', unitPrice: '2.50', lineNo: 1 },
-      { id: 'l2', itemCode: 'RM-002', itemName: 'Salt', qty: '10', uom: 'kg', unitPrice: '1.00', lineNo: 2 },
+      { id: 'l1', itemCode: 'RM-001', itemName: 'Pork Belly', qty: '500', uom: 'kg', unitPrice: '2.50', lineNo: 1, receivedQty: '500' },
+      { id: 'l2', itemCode: 'RM-002', itemName: 'Salt', qty: '10', uom: 'kg', unitPrice: '1.00', lineNo: 2, receivedQty: '4' },
     ],
   };
 
@@ -495,6 +502,33 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
   it('renders an honest empty lines panel when the PO has no lines', () => {
     renderDetail({ lines: [] });
     expect(screen.getByTestId('po-lines-empty')).toHaveTextContent('No lines on this purchase order.');
+  });
+
+  it('shows per-line received qty + chip (full/partial) from the grn_items aggregate', () => {
+    renderDetail();
+    // l1: 500/500 received → qty + "Received" chip.
+    expect(screen.getByTestId('po-line-received-l1')).toHaveTextContent('500 kg');
+    expect(screen.getByTestId('po-line-received-l1')).toHaveTextContent('Received');
+    // l2: 4/10 received → qty + "Partial" chip.
+    expect(screen.getByTestId('po-line-received-l2')).toHaveTextContent('4 kg');
+    expect(screen.getByTestId('po-line-received-l2')).toHaveTextContent('Partial');
+  });
+
+  it('shows an em-dash and no chip for a line with nothing received', () => {
+    renderDetail({
+      lines: [
+        { id: 'l3', itemCode: 'RM-003', itemName: 'Pepper', qty: '5', uom: 'kg', unitPrice: '3.00', lineNo: 1, receivedQty: '0' },
+      ],
+    });
+    expect(screen.getByTestId('po-line-received-l3')).toHaveTextContent('—');
+    expect(screen.getByTestId('po-line-received-l3')).not.toHaveTextContent('Partial');
+    expect(screen.getByTestId('po-line-received-l3')).not.toHaveTextContent('Received');
+  });
+
+  it('summarises receipt progress line-based in the header panel (1/2 fully received)', () => {
+    renderDetail();
+    expect(screen.getByTestId('po-detail-received-summary')).toHaveTextContent('Receipt progress');
+    expect(screen.getByTestId('po-detail-received-summary')).toHaveTextContent('1 / 2 lines');
   });
 
   it('renders no transition buttons for terminal statuses (received / cancelled)', () => {

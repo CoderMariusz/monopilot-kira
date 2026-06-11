@@ -8,10 +8,13 @@
  *      BOM/spec (Forbidden pattern: auto-select newer BOM/spec at START).
  *   2. Freeze the BOM via the T-025 snapshot service (apps/web/lib/technical/bom/
  *      snapshot.ts) — idempotent per (org, wo, bom_header).
- *   3. Allergen changeover gate hook: when the WO snapshot demands segregation
- *      (segregation_required), START is HARD-BLOCKED until a dual-sign completes.
- *      Full dual-sign is a stub seam (09-quality/E7 wire the ATP+PIN flow); the
- *      hard-block itself is unbypassable here.
+ *   3. Allergen changeover gate (two prongs, both unbypassable, both emitting
+ *      the canonical 'changeover_signoff_required' code — C4/F6):
+ *      (3a) an OPEN medium+ changeover_events row on the WO's line (line key
+ *           resolved uuid↔code via production_lines — C4/F1) blocks START until
+ *           the dual-sign completes;
+ *      (3b) the WO snapshot's segregation_required flag blocks START even when
+ *           no changeover_events row was ever logged (no event ≠ no risk).
  *   4. Materialize wo_outputs rows from each schedule_outputs row for the WO
  *      (output_role → output_type 1:1; planning 'byproduct' → production
  *      'by_product'). 08-production is the CANONICAL owner of wo_outputs.
@@ -65,6 +68,7 @@ type WoSnapshotRow = {
   active_bom_header_id: string | null;
   active_factory_spec_id: string | null;
   allergen_profile_snapshot: { segregation_required?: boolean } | null;
+  production_line_id: string | null;
 };
 
 /**
@@ -82,7 +86,8 @@ export async function startWo(
 
   // (1) Factory-release preflight — read the WO SNAPSHOT, never the live BOM/spec.
   const woRes = await client.query<WoSnapshotRow>(
-    `select id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot
+      `select id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
+              production_line_id::text
        from public.work_orders
       where org_id = app.current_org_id() and id = $1::uuid`,
     [input.woId],
@@ -129,7 +134,8 @@ export async function startWo(
               ))
         where wo.org_id = app.current_org_id()
           and wo.id = $1::uuid
-        returning id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot`,
+        returning id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
+                  production_line_id::text`,
       [input.woId],
     );
     wo = healed.rows[0] ?? wo;
@@ -141,14 +147,58 @@ export async function startWo(
     });
   }
 
-  // (3) Allergen changeover gate hook — hard-block when segregation is required.
-  // Full dual-sign (ATP + PIN) is wired by E7 (T-043/T-048); the hard-block is
-  // unbypassable here (no override surface).
-  const segregationRequired = wo.allergen_profile_snapshot?.segregation_required === true;
-  if (segregationRequired) {
-    return fail('allergen_changeover_required', {
+  // (3) Allergen changeover gate — hard-block when this WO's line has an
+  // incomplete allergen-relevant changeover. changeover_events has no boolean
+  // allergen flag; risk_level is the migrated classifier, so medium+ is gated.
+  //
+  // Line identity (C4/F1): changeover_events.line_id is TEXT and legacy rows may
+  // hold a production_lines CODE while starts pass the line UUID. The write side
+  // (createChangeoverEvent) now always persists production_lines.id::text, and
+  // this read side ALSO resolves the start's line key through production_lines
+  // so a code-keyed legacy changeover still gates a uuid-keyed start (and vice
+  // versa). The raw-equality branch is kept for free-text legacy rows that never
+  // resolved to a production_lines row.
+  //
+  // Staleness (C4/F4 — DECIDED): the block is intentionally UNBOUNDED in time.
+  // BRCGS safety-first: an unsigned medium+ changeover blocks the line forever;
+  // the escape hatch is signing it in the changeovers UI, never a timeout.
+  // The gate predicate (dual_sign_off_status not in ('complete','completed'))
+  // implies dual_sign_off_status <> 'complete', so the partial index
+  // idx_changeover_open_signoff (migration 280) supports this lookup.
+  const blockedChangeoverId = await findOpenLineChangeover(
+    client,
+    input.lineId ?? null,
+    wo.production_line_id,
+  );
+  if (blockedChangeoverId) {
+    // C4/F6: 'changeover_signoff_required' is the canonical code on BOTH the
+    // desktop (route-helpers passthrough) and scanner paths. The legacy outer
+    // code 'allergen_changeover_required' (100eb4be, 2026-06-05) stays in the
+    // ProductionError union + UI label maps but is no longer emitted.
+    return fail('changeover_signoff_required', {
       message: 'allergen changeover segregation required — dual-sign gate must clear before START',
-      details: { code: 'segregation_required' },
+      details: {
+        code: 'changeover_signoff_required',
+        legacyCode: 'allergen_changeover_required',
+        changeoverId: blockedChangeoverId,
+      },
+    });
+  }
+
+  // (3b) Snapshot segregation hard-block — the ORIGINAL (pre-C4) gate, kept
+  // alongside the changeover_events gate above: when the WO's
+  // allergen_profile_snapshot demands segregation, START stays HARD-BLOCKED even
+  // if nobody has logged a changeover_events row yet (no event ≠ no risk).
+  // Unbypassable here (no override surface); the escape hatch is recording +
+  // dual-signing the changeover. Emits the same canonical C4/F6 code —
+  // details.code distinguishes the trigger for the UI.
+  if (wo.allergen_profile_snapshot?.segregation_required === true) {
+    return fail('changeover_signoff_required', {
+      message: 'allergen changeover segregation required — dual-sign gate must clear before START',
+      details: {
+        code: 'segregation_required',
+        legacyCode: 'allergen_changeover_required',
+      },
     });
   }
 
@@ -292,4 +342,39 @@ function uuidFromSeed(seed: string): string {
     .toString(16)
     .padStart(2, '0')}${h.slice(18, 20)}-${h.slice(20, 32)}`;
   return v;
+}
+
+/**
+ * Gate 3a's SINGLE owner: the open-allergen-changeover predicate for a line.
+ * Used by startWo AND by the WO-detail loader's proactive callout — keep ONE
+ * definition (F-D11 lesson: inline-duplicated gate predicates drift).
+ *
+ * Line identity: changeover_events.line_id is TEXT; rows written by
+ * createChangeoverEvent hold production_lines.id::text, legacy rows may hold a
+ * line CODE or free text — both branches are matched (see gate (3) commentary).
+ * Returns the newest blocking changeover_events id, or null when the line is clear.
+ */
+export async function findOpenLineChangeover(
+  client: ProductionContext['client'],
+  lineKey: string | null,
+  fallbackLineKey: string | null,
+): Promise<string | null> {
+  const res = await client.query<{ id: string }>(
+    `select ce.id::text
+       from public.changeover_events ce
+       left join public.production_lines pl
+         on pl.org_id = ce.org_id
+        and (pl.id::text = coalesce($1::text, $2::text) or pl.code = coalesce($1::text, $2::text))
+      where ce.org_id = app.current_org_id()
+        and (
+          ce.line_id = coalesce($1::text, $2::text)
+          or (pl.id is not null and (ce.line_id = pl.id::text or ce.line_id = pl.code))
+        )
+        and ce.risk_level in ('medium', 'high', 'segregated')
+        and ce.dual_sign_off_status not in ('complete', 'completed')
+      order by ce.created_at desc
+      limit 1`,
+    [lineKey, fallbackLineKey],
+  );
+  return res.rows[0]?.id ?? null;
 }
