@@ -4,7 +4,7 @@
 // SCN-home — Workflow launcher
 // Port of prototypes/scanner/home.jsx:7-61 (HomeScreen).
 // Flow tiles whose screens don't exist yet are rendered DISABLED with
-// title="Coming soon" (no fake links). Settings is the only live tile.
+// title="Coming soon" (no fake links). Receive PO and Settings are live.
 // ============================================================
 
 import { useEffect, useState } from "react";
@@ -32,16 +32,16 @@ const SECTIONS: Section[] = [
   {
     key: "production",
     tiles: [
-      { key: "wos", icon: "🏭", to: null },
-      { key: "consume", icon: "📥", to: null },
-      { key: "output", icon: "📤", to: null },
+      { key: "wos", icon: "🏭", to: "scanner/wos" },
+      { key: "consume", icon: "📥", to: "scanner/wos" },
+      { key: "output", icon: "📤", to: "scanner/wos" },
       { key: "pick", icon: "🧺", to: null },
     ],
   },
   {
     key: "warehouse",
     tiles: [
-      { key: "receive", icon: "📦", to: null },
+      { key: "receive", icon: "📦", to: "scanner/receive-po" },
       { key: "putaway", icon: "📍", to: null },
       { key: "move", icon: "🚚", to: null },
     ],

@@ -118,6 +118,43 @@ interface ScannerLabelsShape {
       settings: TileLabel;
     };
   };
+  receivePo: {
+    listTitle: string;
+    scanLabel: string;
+    scanPlaceholder: string;
+    scanHint: string;
+    emptyTitle: string;
+    emptyBody: string;
+    noMatchBody: string;
+    supplier: string;
+    expected: string;
+    lines: string;
+    receivedLines: string;
+    linesTitle: string;
+    qtyTitle: string;
+    ordered: string;
+    received: string;
+    remaining: string;
+    batch: string;
+    batchPlaceholder: string;
+    bestBefore: string;
+    qty: string;
+    receive: string;
+    receiving: string;
+    overTitle: string;
+    overBody: string;
+    doneTitle: string;
+    doneSub: string;
+    newLp: string;
+    nextLine: string;
+    backToList: string;
+    loadingPo: string;
+    loadingLines: string;
+    errorLoad: string;
+    permissionDenied: string;
+    retry: string;
+    status: Record<string, string>;
+  };
   settings: {
     title: string;
     sessionSection: string;
@@ -275,6 +312,48 @@ const en: ScannerLabelsShape = {
       settings: { title: "Settings", desc: "Scanner preferences" },
     },
   },
+  receivePo: {
+    listTitle: "Receive PO",
+    scanLabel: "Scan PO number",
+    scanPlaceholder: "PO-XXXX or type…",
+    scanHint: "Scan the supplier delivery document",
+    emptyTitle: "No POs to receive",
+    emptyBody: "There are no open purchase orders for your organization.",
+    noMatchBody: "No purchase order matches the search.",
+    supplier: "Supplier",
+    expected: "Expected",
+    lines: "Lines",
+    receivedLines: "Received lines",
+    linesTitle: "PO lines",
+    qtyTitle: "Receiving",
+    ordered: "Ordered",
+    received: "Received",
+    remaining: "Remaining",
+    batch: "Batch / serial",
+    batchPlaceholder: "B-...",
+    bestBefore: "Best before",
+    qty: "Quantity",
+    receive: "Receive",
+    receiving: "Receiving…",
+    overTitle: "Over-receive",
+    overBody: "This receipt exceeds the ordered quantity but is within the 10% tolerance.",
+    doneTitle: "Received",
+    doneSub: "New license plate created",
+    newLp: "New LP",
+    nextLine: "Next PO line",
+    backToList: "Back to PO list",
+    loadingPo: "Loading purchase orders…",
+    loadingLines: "Loading PO lines…",
+    errorLoad: "Could not load data.",
+    permissionDenied: "Session expired or permission denied.",
+    retry: "Try again",
+    status: {
+      sent: "Sent",
+      confirmed: "Confirmed",
+      partially_received: "Partially received",
+      received: "Received",
+    },
+  },
   settings: {
     title: "Scanner settings",
     sessionSection: "Session",
@@ -428,6 +507,48 @@ const pl: ScannerLabelsShape = {
       qa: { title: "Inspekcja QC", desc: "PASS / FAIL / HOLD" },
       inquiry: { title: "LP info", desc: "Wyszukaj License Plate" },
       settings: { title: "Ustawienia", desc: "Preferencje skanera" },
+    },
+  },
+  receivePo: {
+    listTitle: "Przyjęcie PO",
+    scanLabel: "Zeskanuj numer PO",
+    scanPlaceholder: "PO-XXXX lub wpisz…",
+    scanHint: "Skanuj kod z dokumentu dostawy",
+    emptyTitle: "Brak PO do przyjęcia",
+    emptyBody: "Nie ma oczekujących zamówień dla Twojej organizacji.",
+    noMatchBody: "Żadne PO nie pasuje do wyszukiwania.",
+    supplier: "Dostawca",
+    expected: "Planowana",
+    lines: "Linie",
+    receivedLines: "Przyjęte linie",
+    linesTitle: "Pozycje PO",
+    qtyTitle: "Przyjęcie",
+    ordered: "Zamówiono",
+    received: "Przyjęto",
+    remaining: "Pozostało",
+    batch: "Partia / numer serii",
+    batchPlaceholder: "B-...",
+    bestBefore: "Najlepiej przed",
+    qty: "Ilość",
+    receive: "Przyjmij",
+    receiving: "Przyjmowanie…",
+    overTitle: "Przekroczenie zamówienia",
+    overBody: "To przyjęcie przekracza ilość zamówioną, ale mieści się w tolerancji 10%.",
+    doneTitle: "Przyjęto",
+    doneSub: "Utworzono nowy License Plate",
+    newLp: "Nowy LP",
+    nextLine: "Następna pozycja PO",
+    backToList: "Wróć do listy PO",
+    loadingPo: "Ładowanie PO…",
+    loadingLines: "Ładowanie pozycji PO…",
+    errorLoad: "Nie udało się załadować danych.",
+    permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    retry: "Spróbuj ponownie",
+    status: {
+      sent: "Wysłane",
+      confirmed: "Potwierdzone",
+      partially_received: "Częściowo przyjęte",
+      received: "Przyjęte",
     },
   },
   settings: {

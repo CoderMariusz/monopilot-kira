@@ -40,8 +40,12 @@ type SessionContextValue = {
   setSession: (next: ScannerSession | null) => void;
   patchSession: (patch: Partial<ScannerSession>) => void;
   clearSession: () => void;
-  /** authenticated POST to /api/scanner/<path>; redirects to ../login on 401 */
-  scannerFetch: (path: string, body?: unknown) => Promise<Response>;
+  /** authenticated fetch; relative paths default to POST /api/scanner/<path> */
+  scannerFetch: (
+    path: string,
+    body?: unknown,
+    options?: { method?: "GET" | "POST"; namespace?: "scanner" | "absolute" },
+  ) => Promise<Response>;
   ready: boolean;
 };
 
@@ -110,15 +114,23 @@ export function ScannerSessionProvider({ children }: { children: ReactNode }) {
   }, [persist]);
 
   const scannerFetch = useCallback(
-    async (path: string, body?: unknown) => {
+    async (
+      path: string,
+      body?: unknown,
+      options?: { method?: "GET" | "POST"; namespace?: "scanner" | "absolute" },
+    ) => {
       const token = sessionRef.current?.token;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-      const url = path.startsWith("/api/") ? path : `/api/scanner/${path.replace(/^\//, "")}`;
+      const url =
+        path.startsWith("/api/") || options?.namespace === "absolute"
+          ? path
+          : `/api/scanner/${path.replace(/^\//, "")}`;
+      const method = options?.method ?? "POST";
       const res = await fetch(url, {
-        method: "POST",
+        method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: method === "GET" || body === undefined ? undefined : JSON.stringify(body),
       });
       if (res.status === 401) {
         clearSession();
