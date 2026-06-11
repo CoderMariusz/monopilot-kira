@@ -3,6 +3,20 @@
 /**
  * T-039 — TEC-022 BOM Edit modals (component add + version save).
  *
+ * PRODUCT DECISION (BOM draft authoring, locked 2026-06-11): readiness checks on
+ * the component picker are WARNINGS, not hard blocks, while the BOM is in a
+ * draft / non-released state. A freshly created item (no supplier_specs, no cost
+ * or spec review) MUST be addable to a draft BOM — its missing-readiness states
+ * render as visible WARNING badges (supplier approval missing, supplier spec not
+ * active, cost/spec review pending) but the "Add component" button stays enabled.
+ * Only a genuinely un-addable item HARD-blocks: ITEM_NOT_ACTIVE (the picker lists
+ * active items only) and ALLERGEN_CONFLICT (food-safety incompatibility). The
+ * server side enforces the SAME matrix: `validateRmUsability(..., 'bom_edit')`
+ * demotes supplier-readiness reasons to warnings, so `createBomDraft` accepts the
+ * line — this is not client-cosmetic relaxation. The HARD supplier-readiness gate
+ * stays DOWNSTREAM at factory-release / BOM approval (`factory_spec_approval`
+ * context, workflow.ts) and is intentionally NOT touched here.
+ *
  * Prototype parity:
  *   - `prototypes/design/Monopilot Design System/technical/modals.jsx:192-243`
  *     (bom_component_add_modal) → ComponentAddModal: search-picker over the
@@ -144,10 +158,14 @@ function Dialog({
 }
 
 // ── MODAL-03: BOM Component Add ───────────────────────────────────────────────
+/** One advisory readiness gap to render as a visible warning badge (draft authoring). */
+type UsabilityWarning = { code: string; label: string };
+
 type UsabilityState =
   | { kind: 'idle' }
   | { kind: 'checking' }
-  | { kind: 'ok' }
+  /** Addable: green when warnings is empty, otherwise renders the warning badges. */
+  | { kind: 'ok'; warnings: UsabilityWarning[] }
   | { kind: 'blocked'; code: string; message: string };
 
 /** Map the structured RM-usability verdict → the dialog's blocked state (AC5). */
@@ -158,6 +176,16 @@ function verdictToBlocked(verdict: RmUsabilityVerdict): { kind: 'blocked'; code:
     code: verdict.blockingReasons[0] ?? failing?.code ?? 'BLOCKED',
     message: failing?.label ?? 'Component is not usable.',
   };
+}
+
+/**
+ * Collect the advisory (non-blocking) readiness gaps from a usable verdict so the
+ * dialog can render them as visible WARNING badges while authoring a draft BOM.
+ */
+function verdictWarnings(verdict: RmUsabilityVerdict): UsabilityWarning[] {
+  return verdict.checks
+    .filter((c) => c.severity === 'warn')
+    .map((c) => ({ code: c.code, label: c.label }));
 }
 
 export function ComponentAddModal({
@@ -174,6 +202,15 @@ export function ComponentAddModal({
 }) {
   const t = useTranslations('technical.bom.edit');
   const router = useRouter();
+
+  // New keys staged in _meta/i18n-staging/bom-fix.json. Until the i18n bundles
+  // are updated, resolve them with the established t.has-guarded fallback so a
+  // missing key never throws — labels degrade to readable English.
+  const tg = React.useCallback(
+    (key: string, fallback: string, vars?: Record<string, string | number>): string =>
+      t.has(key) ? t(key, vars) : fallback.replace(/\{(\w+)\}/g, (_, k: string) => String(vars?.[k] ?? '')),
+    [t],
+  );
 
   const [search, setSearch] = React.useState('');
   const [materials, setMaterials] = React.useState<ItemListItem[] | null>(null);
@@ -244,7 +281,7 @@ export function ComponentAddModal({
     setUsability({ kind: 'checking' });
     const res = await validateBomComponent({ itemId: material.id });
     if (res.ok) {
-      setUsability({ kind: 'ok' });
+      setUsability({ kind: 'ok', warnings: verdictWarnings(res.verdict) });
     } else if (res.error === 'blocked' && res.verdict) {
       setUsability(verdictToBlocked(res.verdict));
     } else if (res.error === 'item_not_found') {
@@ -375,6 +412,22 @@ export function ComponentAddModal({
             <p className="muted" style={{ fontSize: 12 }} role="status">
               {t('checkingUsability')}
             </p>
+          ) : usability.kind === 'ok' && usability.warnings.length > 0 ? (
+            // Draft authoring: addable, but surface every readiness gap as a
+            // visible warning badge so the user knows what factory-release will
+            // later require. The "Add component" button stays enabled.
+            <div role="status" className="alert alert-amber" data-testid="bom-component-warnings">
+              <div className="alert-title">
+                {tg('usabilityWarningsTitle', 'Addable now — readiness warnings (resolve before factory release)')}
+              </div>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12px]">
+                {usability.warnings.map((w) => (
+                  <li key={w.code} data-warning-code={w.code}>
+                    {tg('usabilityWarning', '{label} ({code})', { code: w.code, label: w.label })}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : usability.kind === 'ok' ? (
             <p style={{ fontSize: 12, color: 'var(--green-700)' }} role="status">
               {t('usableOk')}

@@ -52,19 +52,24 @@ describe('T-074 validateRmUsability — reason codes (RED table)', () => {
   });
 
   it('AC2: missing supplier_spec → SUPPLIER_SPEC_NOT_ACTIVE (+ SUPPLIER_NOT_APPROVED)', () => {
-    const v = validateRmUsability(baseRequest({ supplier: null }));
+    // factory_spec_approval keeps supplier-readiness HARD (release-critical seam).
+    const v = validateRmUsability(baseRequest({ context: 'factory_spec_approval', supplier: null }));
     expect(v.usable).toBe(false);
     expect(v.blockingReasons).toContain('SUPPLIER_SPEC_NOT_ACTIVE');
   });
 
   it('AC2: expired supplier_spec → SUPPLIER_SPEC_NOT_ACTIVE', () => {
-    const v = validateRmUsability(baseRequest({ supplier: activeSpec({ expiryDate: '2026-01-01' }) }));
+    const v = validateRmUsability(
+      baseRequest({ context: 'factory_spec_approval', supplier: activeSpec({ expiryDate: '2026-01-01' }) }),
+    );
     expect(v.usable).toBe(false);
     expect(v.blockingReasons).toContain('SUPPLIER_SPEC_NOT_ACTIVE');
   });
 
   it('supplier not approved → SUPPLIER_NOT_APPROVED', () => {
-    const v = validateRmUsability(baseRequest({ supplier: activeSpec({ supplierStatus: 'pending' }) }));
+    const v = validateRmUsability(
+      baseRequest({ context: 'factory_spec_approval', supplier: activeSpec({ supplierStatus: 'pending' }) }),
+    );
     expect(v.usable).toBe(false);
     expect(v.blockingReasons).toContain('SUPPLIER_NOT_APPROVED');
   });
@@ -86,12 +91,16 @@ describe('T-074 validateRmUsability — reason codes (RED table)', () => {
   });
 
   it('cost review blocked → COST_REVIEW_PENDING', () => {
-    const v = validateRmUsability(baseRequest({ supplier: activeSpec({ costReviewBlocked: true }) }));
+    const v = validateRmUsability(
+      baseRequest({ context: 'factory_spec_approval', supplier: activeSpec({ costReviewBlocked: true }) }),
+    );
     expect(v.blockingReasons).toContain('COST_REVIEW_PENDING');
   });
 
   it('spec review blocked → SPEC_REVIEW_PENDING', () => {
-    const v = validateRmUsability(baseRequest({ supplier: activeSpec({ specReviewBlocked: true }) }));
+    const v = validateRmUsability(
+      baseRequest({ context: 'factory_spec_approval', supplier: activeSpec({ specReviewBlocked: true }) }),
+    );
     expect(v.blockingReasons).toContain('SPEC_REVIEW_PENDING');
   });
 
@@ -115,6 +124,55 @@ describe('T-074 validateRmUsability — reason codes (RED table)', () => {
   it('every reason code is reachable from at least one input', () => {
     // Guard against an orphaned code that no branch can ever emit.
     expect(new Set(RM_USABILITY_REASON_CODES).size).toBe(RM_USABILITY_REASON_CODES.length);
+  });
+});
+
+describe('BOM draft authoring — supplier-readiness demotes to WARNINGS in bom_edit', () => {
+  // PRODUCT DECISION (locked 2026-06-11): a fresh item with NO supplier_specs must
+  // be addable to a draft BOM; supplier-readiness gaps warn, they do not block.
+  it('fresh item with no supplier spec → usable=true in bom_edit, gaps are warnings', () => {
+    const v = validateRmUsability(baseRequest({ context: 'bom_edit', supplier: null }));
+    expect(v.usable).toBe(true);
+    expect(v.blockingReasons).toHaveLength(0);
+    expect(v.warnings).toEqual(expect.arrayContaining(['SUPPLIER_NOT_APPROVED', 'SUPPLIER_SPEC_NOT_ACTIVE']));
+    // The codes are still REPORTED so the dialog can render warning badges.
+    expect(v.checks.some((c) => c.code === 'SUPPLIER_NOT_APPROVED' && c.severity === 'warn')).toBe(true);
+    expect(v.checks.some((c) => c.code === 'SUPPLIER_SPEC_NOT_ACTIVE' && c.severity === 'warn')).toBe(true);
+  });
+
+  it('cost/spec review pending → warnings (not blocks) in bom_edit', () => {
+    const v = validateRmUsability(
+      baseRequest({ context: 'bom_edit', supplier: activeSpec({ costReviewBlocked: true, specReviewBlocked: true }) }),
+    );
+    expect(v.usable).toBe(true);
+    expect(v.warnings).toEqual(expect.arrayContaining(['COST_REVIEW_PENDING', 'SPEC_REVIEW_PENDING']));
+    expect(v.blockingReasons).toHaveLength(0);
+  });
+
+  it('the SAME supplier-readiness gaps STILL HARD-BLOCK at factory_spec_approval', () => {
+    const v = validateRmUsability(baseRequest({ context: 'factory_spec_approval', supplier: null }));
+    expect(v.usable).toBe(false);
+    expect(v.blockingReasons).toEqual(
+      expect.arrayContaining(['SUPPLIER_NOT_APPROVED', 'SUPPLIER_SPEC_NOT_ACTIVE']),
+    );
+  });
+
+  it('ITEM_NOT_ACTIVE still HARD-BLOCKS in bom_edit (picker lists active items only)', () => {
+    const v = validateRmUsability(baseRequest({ context: 'bom_edit', item: { id: 'x', status: 'blocked' } }));
+    expect(v.usable).toBe(false);
+    expect(v.blockingReasons).toContain('ITEM_NOT_ACTIVE');
+  });
+
+  it('ALLERGEN_CONFLICT still HARD-BLOCKS in bom_edit (food-safety, not a readiness gap)', () => {
+    const v = validateRmUsability(
+      baseRequest({
+        context: 'bom_edit',
+        rmAllergens: [{ allergenCode: 'milk', intensity: 'contains' }],
+        targetFgForbiddenAllergens: ['MILK'],
+      }),
+    );
+    expect(v.usable).toBe(false);
+    expect(v.blockingReasons).toContain('ALLERGEN_CONFLICT');
   });
 });
 

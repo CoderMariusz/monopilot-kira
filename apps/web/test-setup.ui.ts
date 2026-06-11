@@ -101,6 +101,12 @@ function createTranslator(arg?: string | { namespace?: string; locale?: string }
     const resolved = lookup(enMessages as MsgTree, full);
     return resolved === undefined ? full : resolved;
   };
+  // next-intl's `t.has(key)` reports whether a message exists — used by the
+  // t.has-guarded fallback pattern for keys still staged in _meta/i18n-staging.
+  t.has = (key: string) => {
+    const full = namespace ? `${namespace}.${key}` : key;
+    return lookup(enMessages as MsgTree, full) !== undefined;
+  };
   return t;
 }
 

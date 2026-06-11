@@ -430,6 +430,17 @@
       "empty": "No manufacturing operations match the current filters.",
       "reset_dialog_title": "Reset to industry seed data",
       "reset_dialog_body": "This will replace all current operations with the selected industry seed data. Existing operation order, suffixes, and inactive rows will be reset.",
+      "add_dialog_title": "Add manufacturing operation",
+      "field_operation_name": "Operation name",
+      "field_process_suffix": "Process suffix",
+      "field_description": "Description",
+      "field_sequence": "Sequence",
+      "field_active": "Active",
+      "create": "Create",
+      "creating": "Creating…",
+      "duplicate_operation_name": "An operation with this name already exists.",
+      "duplicate_process_suffix": "An operation with this suffix already exists for this industry.",
+      "create_failed": "Unable to create manufacturing operation.",
       "cancel": "Cancel",
       "reset": "Reset"
     },
@@ -717,6 +728,12 @@
           "packaging": "Packaging",
           "quality": "Quality",
           "logistics": "Logistics"
+        }
+      },
+      "cost_mode": {
+        "options": {
+          "per_hour": "Per hour",
+          "per_run": "Per run"
         }
       },
       "modal": {
@@ -3833,7 +3850,9 @@
         "close": "Close",
         "saveError": "Could not save. Please try again.",
         "forbidden": "You do not have permission to perform this action.",
-        "conflict": "This version conflicts with an existing one. Refresh and retry."
+        "conflict": "This version conflicts with an existing one. Refresh and retry.",
+        "usabilityWarningsTitle": "Addable now — readiness warnings (resolve before factory release)",
+        "usabilityWarning": "{label} ({code})"
       },
       "diff": {
         "title": "BOM version diff",

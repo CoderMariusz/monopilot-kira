@@ -1,0 +1,11 @@
+{
+  "_note": "Staged i18n keys for the BOM draft-authoring readiness-warning fix (technical/bom). Merge into i18n/en.json + i18n/pl.json under technical.bom.edit. ro/uk auto-mirror the EN value per the two-locale policy. Resolved in bom-edit-dialog.tsx via the t.has-guarded fallback until merged.",
+  "technical.bom.edit.usabilityWarningsTitle": {
+    "en": "Addable now — readiness warnings (resolve before factory release)",
+    "pl": "Można dodać — ostrzeżenia gotowości (rozwiąż przed zwolnieniem produkcyjnym)"
+  },
+  "technical.bom.edit.usabilityWarning": {
+    "en": "{label} ({code})",
+    "pl": "{label} ({code})"
+  }
+}

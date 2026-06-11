@@ -322,7 +322,10 @@ run('03-technical BOM API (RLS + RBAC + state machine, real DB)', () => {
     if (!res.ok) expect(res.code).toBe('V-TEC-14');
   });
 
-  it('T-013: V-TEC-14 expired supplier spec blocks draft creation with RM usability reasons', async () => {
+  it('T-013: draft authoring ACCEPTS an active item whose supplier spec is not ready (warning, not block)', async () => {
+    // PRODUCT DECISION (locked 2026-06-11): supplier-readiness gaps WARN at the
+    // bom_edit seam — a draft BOM must be freely authorable. The HARD gate stays
+    // downstream at approve (factory_spec_approval), asserted in the T-014 case.
     const { productCode } = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'exp', 0);
     const expiredId = randomUUID();
     const expiredCode = `RM-EXP-${randomUUID().slice(0, 6)}`;
@@ -337,17 +340,34 @@ run('03-technical BOM API (RLS + RBAC + state machine, real DB)', () => {
       createBomDraft({ productId: productCode, parentAllocationPct: 100, lines: [{ itemId: expiredId, componentCode: expiredCode, quantity: 1, uom: 'kg' }] }),
     );
 
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.code).toBe('V-TEC-14');
-      expect(res.message).toContain(expiredCode);
-      expect(res.message).toContain('SUPPLIER_SPEC_NOT_ACTIVE');
-      expect(res.rmUsabilityFailures?.[0]).toMatchObject({
-        componentCode: expiredCode,
-        itemId: expiredId,
-        reasons: ['SUPPLIER_SPEC_NOT_ACTIVE'],
-      });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      // The draft line really persisted with the not-yet-ready supplier item.
+      const lines = await owner.query<{ component_code: string }>(
+        `select component_code from public.bom_lines where org_id = $1 and bom_header_id = $2`,
+        [seed.orgAId, res.data.id],
+      );
+      expect(lines.rows.map((r) => r.component_code)).toContain(expiredCode);
     }
+  });
+
+  it('T-013: draft authoring ACCEPTS a brand-new active item with NO supplier spec at all', async () => {
+    // The exact owner-reported live bug: an item created via the wizard has no
+    // supplier_specs / cost / spec review, yet must be addable to a draft BOM.
+    const { productCode } = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'fresh', 0);
+    const freshId = randomUUID();
+    const freshCode = `RM-FRESH-${randomUUID().slice(0, 6)}`;
+    await owner.query(
+      `insert into public.items (id, org_id, item_code, item_type, name, status, uom_base, weight_mode, created_by)
+       values ($1, $2, $3, 'rm', 'Fresh wizard RM', 'active', 'kg', 'fixed', $4)`,
+      [freshId, seed.orgAId, freshCode, seed.adminAUserId],
+    );
+
+    const res = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createBomDraft({ productId: productCode, parentAllocationPct: 100, lines: [{ itemId: freshId, componentCode: freshCode, quantity: 1, uom: 'kg' }] }),
+    );
+
+    expect(res.ok).toBe(true);
   });
 
   it('T-014: publish on a draft fails V-TEC-10; approve→publish supersedes prior active atomically + audit bom.approve', async () => {

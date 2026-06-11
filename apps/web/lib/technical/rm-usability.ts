@@ -174,6 +174,60 @@ function qcReleaseSeverityForContext(context: RmUsabilityContext): 'block' | 'wa
   return context === 'factory_spec_approval' || context === 'material_issue' ? 'block' : 'warn';
 }
 
+/**
+ * PRODUCT DECISION (BOM draft authoring, locked 2026-06-11): a BOM under draft /
+ * non-released authoring must be FREELY editable, so the supplier-readiness checks
+ * downgrade from `block` to `warn` in the `bom_edit` context. A freshly created
+ * item (no supplier_specs, no cost/spec review) MUST be addable to a draft BOM;
+ * its missing-readiness states render as VISIBLE WARNING badges, never hard blocks.
+ *
+ * What still HARD-BLOCKS in `bom_edit`:
+ *   - ITEM_NOT_ACTIVE  — the component picker only lists active org items, and a
+ *     blocked/deprecated/draft item is never a legitimate BOM component.
+ *   - ALLERGEN_CONFLICT — a genuine food-safety incompatibility with the target
+ *     FG's free-from claims, not a "not-yet-ready" gap. Never silently downgraded.
+ *
+ * The HARD enforcement of supplier readiness stays DOWNSTREAM and UNCHANGED:
+ *   - `factory_spec_approval` (BOM approve preflight, workflow.ts) and
+ *     `material_issue` keep every supplier-readiness reason as a `block`.
+ * This is a single source of truth: every enforcement seam (client validate gate,
+ * createBomDraft server action, approve workflow) routes through this matrix, so
+ * the relaxation is server-enforced, not client-cosmetic.
+ *
+ * Reasons that are advisory-only while authoring a draft BOM (bom_edit context).
+ */
+const BOM_EDIT_SOFT_READINESS: ReadonlySet<RmUsabilityReasonCode> = new Set<RmUsabilityReasonCode>([
+  'SUPPLIER_NOT_APPROVED',
+  'SUPPLIER_SPEC_NOT_ACTIVE',
+  'COST_REVIEW_PENDING',
+  'SPEC_REVIEW_PENDING',
+]);
+
+/**
+ * Resolve the effective severity of a failing supplier-readiness reason for the
+ * given context. In `bom_edit` the soft-readiness set warns (draft is editable);
+ * everywhere else (factory_spec_approval / material_issue / po_receipt) the
+ * historical hard-block contract is preserved unchanged.
+ */
+function readinessSeverityForContext(
+  reason: RmUsabilityReasonCode,
+  context: RmUsabilityContext,
+): 'block' | 'warn' {
+  if (context === 'bom_edit' && BOM_EDIT_SOFT_READINESS.has(reason)) return 'warn';
+  return 'block';
+}
+
+/** Push a failing reason onto blocking-vs-warning bucket per its effective severity. */
+function recordReason(
+  reason: RmUsabilityReasonCode,
+  severity: 'block' | 'warn',
+  blockingReasons: RmUsabilityReasonCode[],
+  warnings: RmUsabilityReasonCode[],
+): void {
+  if (severity === 'block') blockingReasons.push(reason);
+  else warnings.push(reason);
+}
+
 // ── The decision ───────────────────────────────────────────────────────────────
 
 export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict {
@@ -200,11 +254,12 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
 
   // 2. Supplier approved (AC2 family — never silently approve unknown supplier).
   if (!req.supplier || req.supplier.supplierStatus !== 'approved') {
-    blockingReasons.push('SUPPLIER_NOT_APPROVED');
+    const sev = readinessSeverityForContext('SUPPLIER_NOT_APPROVED', req.context);
+    recordReason('SUPPLIER_NOT_APPROVED', sev, blockingReasons, warnings);
     checks.push(
       // Failure phrasing — the positively-named requirement read as "blocked
       // (SUPPLIER_NOT_APPROVED): Supplier is approved" in the BOM dialog.
-      row('SUPPLIER_NOT_APPROVED', 'Supplier approval is missing', 'block', 'public.supplier_specs.supplier_status', {
+      row('SUPPLIER_NOT_APPROVED', 'Supplier approval is missing', sev, 'public.supplier_specs.supplier_status', {
         remediationHref: req.supplier ? `/technical/suppliers/${req.supplier.supplierCode}` : null,
         evidenceAt: req.supplier?.updatedAt ?? null,
       }),
@@ -225,9 +280,10 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
     spec.reviewStatus === 'approved' &&
     !isSpecExpired(spec, now);
   if (!specActive) {
-    blockingReasons.push('SUPPLIER_SPEC_NOT_ACTIVE');
+    const sev = readinessSeverityForContext('SUPPLIER_SPEC_NOT_ACTIVE', req.context);
+    recordReason('SUPPLIER_SPEC_NOT_ACTIVE', sev, blockingReasons, warnings);
     checks.push(
-      row('SUPPLIER_SPEC_NOT_ACTIVE', 'Supplier spec is active and in-date', 'block', 'public.supplier_specs', {
+      row('SUPPLIER_SPEC_NOT_ACTIVE', 'Supplier spec is active and in-date', sev, 'public.supplier_specs', {
         remediationHref: spec ? `/technical/suppliers/${spec.supplierCode}/spec` : null,
         evidenceAt: spec?.expiryDate ?? spec?.updatedAt ?? null,
       }),
@@ -269,9 +325,10 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
 
   // 5. Cost review done (AC: cost/spec review done before usable).
   if (spec?.costReviewBlocked) {
-    blockingReasons.push('COST_REVIEW_PENDING');
+    const sev = readinessSeverityForContext('COST_REVIEW_PENDING', req.context);
+    recordReason('COST_REVIEW_PENDING', sev, blockingReasons, warnings);
     checks.push(
-      row('COST_REVIEW_PENDING', 'Cost review complete', 'block', 'public.supplier_specs.cost_review_blocked', {
+      row('COST_REVIEW_PENDING', 'Cost review complete', sev, 'public.supplier_specs.cost_review_blocked', {
         remediationHref: `/technical/items/${itemId}/cost`,
         evidenceAt: spec.updatedAt ?? null,
       }),
@@ -282,9 +339,10 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
 
   // 6. Spec review done.
   if (spec?.specReviewBlocked) {
-    blockingReasons.push('SPEC_REVIEW_PENDING');
+    const sev = readinessSeverityForContext('SPEC_REVIEW_PENDING', req.context);
+    recordReason('SPEC_REVIEW_PENDING', sev, blockingReasons, warnings);
     checks.push(
-      row('SPEC_REVIEW_PENDING', 'Spec review complete', 'block', 'public.supplier_specs.spec_review_blocked', {
+      row('SPEC_REVIEW_PENDING', 'Spec review complete', sev, 'public.supplier_specs.spec_review_blocked', {
         remediationHref: spec ? `/technical/suppliers/${spec.supplierCode}/spec` : null,
         evidenceAt: spec.updatedAt ?? null,
       }),

@@ -411,6 +411,17 @@
       "empty": "Nicio operațiune de producție nu corespunde filtrelor curente.",
       "reset_dialog_title": "Resetează la date seed de industrie",
       "reset_dialog_body": "Aceasta va înlocui operațiunile curente cu datele seed ale industriei selectate. Ordinea, sufixele și rândurile inactive vor fi resetate.",
+      "add_dialog_title": "Add manufacturing operation",
+      "field_operation_name": "Operation name",
+      "field_process_suffix": "Process suffix",
+      "field_description": "Description",
+      "field_sequence": "Sequence",
+      "field_active": "Active",
+      "create": "Create",
+      "creating": "Creating…",
+      "duplicate_operation_name": "An operation with this name already exists.",
+      "duplicate_process_suffix": "An operation with this suffix already exists for this industry.",
+      "create_failed": "Unable to create manufacturing operation.",
       "cancel": "Anulează",
       "reset": "Resetează"
     },
@@ -698,6 +709,12 @@
           "packaging": "Packaging",
           "quality": "Quality",
           "logistics": "Logistics"
+        }
+      },
+      "cost_mode": {
+        "options": {
+          "per_hour": "Per hour",
+          "per_run": "Per run"
         }
       },
       "modal": {
@@ -1923,7 +1940,9 @@
         "close": "Close",
         "saveError": "Could not save. Please try again.",
         "forbidden": "You do not have permission to perform this action.",
-        "conflict": "This version conflicts with an existing one. Refresh and retry."
+        "conflict": "This version conflicts with an existing one. Refresh and retry.",
+        "usabilityWarningsTitle": "Addable now — readiness warnings (resolve before factory release)",
+        "usabilityWarning": "{label} ({code})"
       },
       "diff": {
         "title": "BOM version diff",

@@ -411,6 +411,17 @@
       "empty": "Brak operacji produkcyjnych pasujących do filtrów.",
       "reset_dialog_title": "Przywróć dane seed branży",
       "reset_dialog_body": "Zastąpi to bieżące operacje wybranymi danymi seed branży. Kolejność, sufiksy i nieaktywne wiersze zostaną zresetowane.",
+      "add_dialog_title": "Dodaj operację produkcyjną",
+      "field_operation_name": "Nazwa operacji",
+      "field_process_suffix": "Sufiks procesu",
+      "field_description": "Opis",
+      "field_sequence": "Kolejność",
+      "field_active": "Aktywna",
+      "create": "Utwórz",
+      "creating": "Tworzenie…",
+      "duplicate_operation_name": "Operacja o tej nazwie już istnieje.",
+      "duplicate_process_suffix": "Operacja z tym sufiksem już istnieje dla tej branży.",
+      "create_failed": "Nie udało się utworzyć operacji produkcyjnej.",
       "cancel": "Anuluj",
       "reset": "Resetuj"
     },
@@ -698,6 +709,12 @@
           "packaging": "Packaging",
           "quality": "Quality",
           "logistics": "Logistics"
+        }
+      },
+      "cost_mode": {
+        "options": {
+          "per_hour": "Za godzinę",
+          "per_run": "Za uruchomienie"
         }
       },
       "modal": {
@@ -1923,7 +1940,9 @@
         "close": "Close",
         "saveError": "Could not save. Please try again.",
         "forbidden": "You do not have permission to perform this action.",
-        "conflict": "This version conflicts with an existing one. Refresh and retry."
+        "conflict": "This version conflicts with an existing one. Refresh and retry.",
+        "usabilityWarningsTitle": "Można dodać — ostrzeżenia gotowości (rozwiąż przed zwolnieniem produkcyjnym)",
+        "usabilityWarning": "{label} ({code})"
       },
       "diff": {
         "title": "BOM version diff",

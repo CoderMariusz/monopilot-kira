@@ -179,6 +179,47 @@ describe('ComponentAddModal (TEC-022 parity + behavior)', () => {
     render(<ComponentAddModal open onClose={() => {}} context={{ ...DRAFT_CTX, sourceStatus: 'active' }} />);
     expect(await screen.findByText(/Saving creates a new draft version/)).toBeInTheDocument();
   });
+
+  it('DRAFT AUTHORING: a fresh item with readiness warnings is ADDABLE; warning badges render', async () => {
+    // PRODUCT DECISION (2026-06-11): supplier-readiness gaps warn (not block) on a
+    // draft BOM. The picker still lists the item, the warnings show, Add is enabled.
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    mocks.validateBomComponent.mockResolvedValue({
+      ok: true,
+      verdict: {
+        usable: true,
+        context: 'bom_edit' as const,
+        itemId: ITEM.id,
+        blockingReasons: [],
+        warnings: ['SUPPLIER_NOT_APPROVED', 'SUPPLIER_SPEC_NOT_ACTIVE'],
+        checks: [
+          { code: 'OK', label: 'Item is active', severity: 'pass', source: 'items', remediationHref: null, evidenceAt: null },
+          { code: 'SUPPLIER_NOT_APPROVED', label: 'Supplier approval is missing', severity: 'warn', source: 's', remediationHref: null, evidenceAt: null },
+          { code: 'SUPPLIER_SPEC_NOT_ACTIVE', label: 'Supplier spec is active and in-date', severity: 'warn', source: 's', remediationHref: null, evidenceAt: null },
+        ],
+        evaluatedAt: '2026-01-01T00:00:00Z',
+      },
+    });
+    render(<ComponentAddModal open onClose={onClose} context={DRAFT_CTX} />);
+    await user.click(await screen.findByRole('option', { name: /RM-1001/ }));
+
+    // Warning panel renders both readiness gaps as visible badges.
+    const warnPanel = await screen.findByTestId('bom-component-warnings');
+    expect(within(warnPanel).getByText(/Supplier approval is missing/)).toBeInTheDocument();
+    expect(within(warnPanel).getByText(/Supplier spec is active and in-date/)).toBeInTheDocument();
+    expect(warnPanel.querySelector('[data-warning-code="SUPPLIER_NOT_APPROVED"]')).not.toBeNull();
+
+    // Add works: pick op, click, createBomDraft is invoked for the fresh item.
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Mixing' }));
+    const addBtn = screen.getByRole('button', { name: 'Add component' });
+    expect(addBtn).toBeEnabled();
+    await user.click(addBtn);
+    await waitFor(() => expect(mocks.createBomDraft).toHaveBeenCalledTimes(1));
+    expect(mocks.createBomDraft.mock.calls[0][0].lines[0]).toMatchObject({ itemId: ITEM.id, componentCode: 'RM-1001' });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
 });
 
 describe('VersionSaveModal (TEC-022 parity + behavior)', () => {
