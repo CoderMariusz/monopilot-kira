@@ -208,14 +208,29 @@ describe('createUserWithPassword RBAC + provisioning (behavior)', () => {
     expect(_mockCreateUser).not.toHaveBeenCalled();
   });
 
-  it('refuses to self-serve a privileged system role', async () => {
+  it('refuses to self-serve a privileged system role with dedicated forbidden_role code (not opaque invalid_input)', async () => {
+    // Regression test: previously returned invalid_input for ALL error cases including
+    // forbidden system roles, giving the user zero field-level guidance. The dedicated
+    // `forbidden_role` code lets the UI surface "choose a non-system role" instead.
     currentClient = makeClient({ hasPermission: true, seatLimit: null, activeUsers: 0, rolesById: { [OWNER_ROLE_ID]: { id: OWNER_ROLE_ID, org_id: ORG_ID, code: 'org.access.admin', is_system: true, display_order: 0 } } });
     const { createUserWithPassword } = await load();
     const result = await createUserWithPassword({ email: 'new@example.com', password: STRONG_PASSWORD, roleId: OWNER_ROLE_ID });
 
-    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(result).toEqual({ ok: false, error: 'forbidden_role' });
     expect(_mockCreateUser).not.toHaveBeenCalled();
   });
+
+  it.each(['admin', 'owner', 'org.access.admin', 'org.platform.admin', 'org.schema.admin'] as const)(
+    'returns forbidden_role for system role code "%s"',
+    async (code) => {
+      currentClient = makeClient({ hasPermission: true, seatLimit: null, activeUsers: 0, rolesById: { [OWNER_ROLE_ID]: { id: OWNER_ROLE_ID, org_id: ORG_ID, code, is_system: true, display_order: 0 } } });
+      const { createUserWithPassword } = await load();
+      const result = await createUserWithPassword({ email: 'new@example.com', password: STRONG_PASSWORD, roleId: OWNER_ROLE_ID });
+
+      expect(result).toEqual({ ok: false, error: 'forbidden_role' });
+      expect(_mockCreateUser).not.toHaveBeenCalled();
+    },
+  );
 
   it('returns email_taken when the email already exists in the org', async () => {
     currentClient = makeClient({ hasPermission: true, seatLimit: null, activeUsers: 0, rolesById: { [VIEWER_ROLE_ID]: VIEWER_ROLE }, existingEmailInOrg: true });

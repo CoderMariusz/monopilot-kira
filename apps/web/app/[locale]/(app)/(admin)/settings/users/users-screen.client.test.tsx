@@ -416,4 +416,37 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     expect(createUserWithPasswordAction).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent(/do not match/i);
   });
+
+  it('shows the forbidden-role specific message (not the opaque invalid_input toast) when the action returns forbidden_role', async () => {
+    // Regression: previously ALL action failures surfaced as "User creation failed: invalid_input"
+    // even when the root cause was a forbidden system role — giving zero field-level guidance.
+    // After the fix the modal must show the dedicated forbidden-role message.
+    const user = userEvent.setup();
+    const createUserWithPasswordAction = vi.fn().mockResolvedValue({ ok: false, error: 'forbidden_role' });
+    renderScreen({
+      labels: {
+        ...labels,
+        setPasswordToggle: 'Set password instead of sending invite',
+        password: 'Password',
+        confirmPassword: 'Confirm password',
+        createUserButton: 'Create user',
+        userCreationFailed: 'User creation failed: {error}',
+        userCreationForbiddenRole: 'The selected role is a system role and cannot be assigned directly.',
+      },
+      createUserWithPasswordAction,
+    } as Partial<SettingsUsersScreenProps>);
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite team member/i });
+    await user.click(within(dialog).getByRole('checkbox', { name: /set password instead of sending invite/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /email address/i }), 'admin2@example.com');
+    await user.type(within(dialog).getByLabelText('Password'), 'Sup3r-Str0ng-Pass!');
+    await user.type(within(dialog).getByLabelText('Confirm password'), 'Sup3r-Str0ng-Pass!');
+    await user.click(within(dialog).getByRole('button', { name: /create user/i }));
+
+    const alert = await screen.findByRole('alert');
+    // Must show the specific forbidden-role message, NOT "invalid_input"
+    expect(alert).toHaveTextContent(/system role.*cannot be assigned/i);
+    expect(alert).not.toHaveTextContent(/invalid_input/i);
+  });
 });

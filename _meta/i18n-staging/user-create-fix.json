@@ -1,0 +1,7 @@
+{
+  "namespace": "settings.users_screen",
+  "key": "user_creation_forbidden_role",
+  "en": "The selected role is a system role and cannot be assigned directly. Please choose a non-system role (e.g. NPD Manager, Viewer).",
+  "pl": "Wybrana rola jest rolą systemową i nie może być przypisana bezpośrednio. Wybierz rolę inną niż systemowa (np. Menedżer NPD, Przeglądający).",
+  "reason": "Bug fix: createUserWithPassword returned opaque invalid_input when a system role (admin, org.access.admin, etc.) was selected in the invite dialog. New forbidden_role error code surfaces a field-level message pointing at the role selector."
+}

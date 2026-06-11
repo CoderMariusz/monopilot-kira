@@ -58,6 +58,7 @@ export type CreateUserWithPasswordResult =
         | 'invalid_input'
         | 'weak_password'
         | 'forbidden'
+        | 'forbidden_role' // role is in SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT — valid UUID but not self-serveable
         | 'seat_limit_exceeded'
         | 'email_taken'
         | 'service_unavailable'
@@ -168,7 +169,9 @@ export async function createUserWithPassword(
       return { ok: false, error: 'invalid_input' };
     }
     if (SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT.has(role.code)) {
-      return { ok: false, error: 'invalid_input' };
+      // Dedicated code so the UI can surface "this role cannot be self-served"
+      // rather than the opaque invalid_input that gives no field-level guidance.
+      return { ok: false, error: 'forbidden_role' };
     }
     const roleId = role.id;
 

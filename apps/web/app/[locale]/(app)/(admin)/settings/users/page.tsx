@@ -436,6 +436,7 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     createUserHelp: t('create_user_help'),
     userCreated: t('user_created'),
     userCreationFailed: t('user_creation_failed'),
+    userCreationForbiddenRole: t('user_creation_forbidden_role'),
   };
 }
 

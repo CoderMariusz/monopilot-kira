@@ -143,6 +143,8 @@ export type UsersScreenLabels = {
   createUserHelp?: string;
   userCreated?: string;
   userCreationFailed?: string;
+  /** Shown when the chosen role is a privileged system role that cannot be self-served (forbidden_role). */
+  userCreationForbiddenRole?: string;
 };
 
 export type InviteUserAction = (input: {
@@ -340,10 +342,11 @@ function InviteDialog({
           onOpenChange(false);
           return;
         }
-        onFeedback({
-          kind: 'alert',
-          message: interpolate(labels.userCreationFailed ?? 'User creation failed: {error}', { error: result.error }),
-        });
+        // forbidden_role has its own label so the user knows WHICH field is wrong
+        const errorMessage = result.error === 'forbidden_role'
+          ? (labels.userCreationForbiddenRole ?? 'The selected role cannot be assigned directly — choose a non-system role.')
+          : interpolate(labels.userCreationFailed ?? 'User creation failed: {error}', { error: result.error });
+        onFeedback({ kind: 'alert', message: errorMessage });
       });
       return;
     }
