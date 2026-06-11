@@ -71,7 +71,17 @@
         "expiry": "Expiry",
         "location": "Location",
         "qa": "QA",
-        "lp": "LP created"
+        "lp": "LP created",
+        "action": ""
+      },
+      "qaRelease": {
+        "action": "Release QC",
+        "released": "Released",
+        "rejected": "Rejected",
+        "note": "Released from GRN detail",
+        "denied": "You do not have permission to release receiving QC.",
+        "invalidState": "This LP is no longer pending QC.",
+        "error": "We could not release QC. Try again."
       },
       "emptyItems": "No receipt lines recorded for this GRN."
     },
@@ -287,7 +297,17 @@
         "expiry": "Termin",
         "location": "Lokalizacja",
         "qa": "QA",
-        "lp": "Utworzony LP"
+        "lp": "Utworzony LP",
+        "action": ""
+      },
+      "qaRelease": {
+        "action": "Zwolnij QC",
+        "released": "Zwolnione",
+        "rejected": "Odrzucone",
+        "note": "Zwolnione z widoku GRN",
+        "denied": "Nie masz uprawnień do zwalniania QC przyjęć.",
+        "invalidState": "Ten LP nie oczekuje już na QC.",
+        "error": "Nie udało się zwolnić QC. Spróbuj ponownie."
       },
       "emptyItems": "Brak pozycji przyjęcia dla tego GRN."
     },

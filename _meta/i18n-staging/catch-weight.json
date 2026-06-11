@@ -1,0 +1,41 @@
+{
+  "_note": "B-3 catch-weight lane — staged i18n keys for the production Register-output modal's per-unit weight capture. en+pl are real human values (ro/uk auto-mirror EN via the merge script per the two-locale policy). The bundle-merge lane folds these into production.wos.actions.output.catchWeight.*. Until merged, wos/[id]/page.tsx reads them with `at.has` guards and falls back to these EN values inline so nothing crashes live. Surfaced only when the WO's item.weight_mode === 'catch'; the service (register-output.ts) 422s catch items without catch_weight_kg_per_unit.",
+  "production.wos.actions": {
+    "output": {
+      "catchWeight": {
+        "sectionTitle": {
+          "en": "Per-unit weights (kg)",
+          "pl": "Wagi poszczególnych sztuk (kg)"
+        },
+        "sectionHint": {
+          "en": "Catch-weight item — enter the actual scale reading for each unit.",
+          "pl": "Pozycja ważona indywidualnie — wpisz rzeczywisty odczyt wagi dla każdej sztuki."
+        },
+        "unitLabel": {
+          "en": "Unit {n}",
+          "pl": "Sztuka {n}"
+        },
+        "sumLabel": {
+          "en": "Σ {total} kg",
+          "pl": "Σ {total} kg"
+        },
+        "tooMany": {
+          "en": "Too many units to enter individually (max {max}). Reduce the quantity or register in smaller batches.",
+          "pl": "Za dużo sztuk do wpisania pojedynczo (maks. {max}). Zmniejsz ilość lub zarejestruj w mniejszych partiach."
+        },
+        "baseTextareaLabel": {
+          "en": "Per-unit weights (one per line, kg)",
+          "pl": "Wagi sztuk (jedna na wiersz, kg)"
+        },
+        "baseTextareaHint": {
+          "en": "Enter one positive weight per line.",
+          "pl": "Wpisz jedną dodatnią wagę w każdym wierszu."
+        },
+        "invalidWeights": {
+          "en": "Every unit weight must be a positive number.",
+          "pl": "Każda waga sztuki musi być liczbą dodatnią."
+        }
+      }
+    }
+  }
+}

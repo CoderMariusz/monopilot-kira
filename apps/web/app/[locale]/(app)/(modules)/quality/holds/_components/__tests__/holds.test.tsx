@@ -52,7 +52,22 @@ function makeRow(over: Partial<HoldRow>): HoldRow {
   };
 }
 
-function renderList(rows: HoldRow[], createHoldAction = vi.fn()) {
+// AUDIT #4: the create modal now resolves human numbers to UUIDs via lookup
+// reads. Default mocks resolve any wo/grn number and any LP number to a stable id
+// so the existing parity tests assert the post-resolution payload.
+function defaultLookups() {
+  return {
+    resolveLpAction: vi.fn(async ({ lpNumber }: { lpNumber: string }) => ({
+      ok: true as const,
+      data: { id: `id-${lpNumber}`, lpNumber, itemCode: 'RM-1', qty: '1', uom: 'kg', status: 'available', qaStatus: 'released' },
+    })),
+    searchLpsAction: vi.fn(async () => ({ ok: true as const, data: [] })),
+    resolveWoAction: vi.fn(async ({ woNumber }: { woNumber: string }) => ({ ok: true as const, data: { id: 'wo-uuid', display: woNumber } })),
+    resolveGrnAction: vi.fn(async ({ grnNumber }: { grnNumber: string }) => ({ ok: true as const, data: { id: 'grn-uuid', display: grnNumber } })),
+  };
+}
+
+function renderList(rows: HoldRow[], createHoldAction = vi.fn(), lookups = defaultLookups()) {
   return render(
     <HoldsListClient
       rows={rows}
@@ -60,6 +75,10 @@ function renderList(rows: HoldRow[], createHoldAction = vi.fn()) {
       createLabels={CREATE_LABELS}
       locale="en"
       createHoldAction={createHoldAction as never}
+      resolveLpAction={lookups.resolveLpAction as never}
+      searchLpsAction={lookups.searchLpsAction as never}
+      resolveWoAction={lookups.resolveWoAction as never}
+      resolveGrnAction={lookups.resolveGrnAction as never}
     />,
   );
 }
@@ -137,7 +156,9 @@ describe('HoldsListClient (QA-002 parity)', () => {
     fireEvent.click(screen.getByTestId('hold-create-priority-critical'));
     expect(screen.getByTestId('hold-create-sod-warning')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId('hold-create-reference'), { target: { value: '  wo-uuid  ' } });
+    // AUDIT #4: WO reference is a typed NUMBER resolved to a UUID on submit; the
+    // additional-LP field takes NUMBERS resolved to UUIDs (comma/newline split).
+    fireEvent.change(screen.getByTestId('hold-create-reference'), { target: { value: '  WO-000001  ' } });
     fireEvent.change(screen.getByTestId('hold-create-reason'), { target: { value: 'WO output failed CCP' } });
     fireEvent.change(screen.getByTestId('hold-create-lpids'), { target: { value: 'lp-1, lp-2 ,, lp-3' } });
     fireEvent.change(screen.getByTestId('hold-create-estrelease'), { target: { value: '2026-05-01' } });
@@ -146,10 +167,10 @@ describe('HoldsListClient (QA-002 parity)', () => {
     await waitFor(() => expect(createHoldAction).toHaveBeenCalledTimes(1));
     expect(createHoldAction).toHaveBeenCalledWith({
       referenceType: 'wo',
-      referenceId: 'wo-uuid',
+      referenceId: 'wo-uuid', // resolved from "WO-000001"
       reasonText: 'WO output failed CCP',
       priority: 'critical',
-      lpIds: ['lp-1', 'lp-2', 'lp-3'],
+      lpIds: ['id-lp-1', 'id-lp-2', 'id-lp-3'], // resolved from the typed numbers
       estimatedReleaseAt: '2026-05-01',
     });
   });
@@ -157,9 +178,11 @@ describe('HoldsListClient (QA-002 parity)', () => {
   it('keeps the create submit disabled until reference + reason are present', () => {
     renderList([makeRow({ id: 'a' })]);
     fireEvent.click(screen.getByTestId('holds-create-open'));
+    // Use a non-lp ref type (honest text input); lp uses the live search box.
+    fireEvent.click(screen.getByTestId('hold-create-reftype-wo'));
     const submit = screen.getByTestId('hold-create-submit');
     expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByTestId('hold-create-reference'), { target: { value: 'ref-uuid' } });
+    fireEvent.change(screen.getByTestId('hold-create-reference'), { target: { value: 'WO-1' } });
     expect(submit).toBeDisabled();
     fireEvent.change(screen.getByTestId('hold-create-reason'), { target: { value: 'because' } });
     expect(submit).toBeEnabled();

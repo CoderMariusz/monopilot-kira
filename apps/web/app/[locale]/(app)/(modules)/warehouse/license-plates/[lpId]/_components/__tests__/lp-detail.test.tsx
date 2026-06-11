@@ -15,7 +15,11 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 import {
   LpDetailClient,
@@ -60,7 +64,48 @@ function buildLabels(locale: string): LpDetailLabels {
       parentLp: t('detail.identity.parentLp'),
       none: t('detail.identity.none'),
     },
-    actions: { comingSoon: t('detail.actions.comingSoon'), labelByKey },
+    actions: {
+      comingSoon: t('detail.actions.comingSoon'),
+      labelByKey,
+      qaRelease: {
+        title: t('detail.actions.qaRelease.title'),
+        decision: t('detail.actions.qaRelease.decision'),
+        released: t('detail.actions.qaRelease.released'),
+        rejected: t('detail.actions.qaRelease.rejected'),
+        note: t('detail.actions.qaRelease.note'),
+        notePlaceholder: t('detail.actions.qaRelease.notePlaceholder'),
+        cancel: t('detail.actions.qaRelease.cancel'),
+        confirm: t('detail.actions.qaRelease.confirm'),
+        unavailable: t('detail.actions.qaRelease.unavailable'),
+        denied: t('detail.actions.qaRelease.denied'),
+        invalidState: t('detail.actions.qaRelease.invalidState'),
+        error: t('detail.actions.qaRelease.error'),
+      },
+    },
+    move: {
+      title: t('detail.move.title'),
+      subtitle: t('detail.move.subtitle'),
+      destination: t('detail.move.destination'),
+      destinationHelp: t('detail.move.destinationHelp'),
+      destinationPlaceholder: t('detail.move.destinationPlaceholder'),
+      reason: t('detail.move.reason'),
+      reasonHelp: t('detail.move.reasonHelp'),
+      reasonPlaceholder: t('detail.move.reasonPlaceholder'),
+      currentLocation: t('detail.move.currentLocation'),
+      loadingLocations: t('detail.move.loadingLocations'),
+      noLocations: t('detail.move.noLocations'),
+      locationsError: t('detail.move.locationsError'),
+      cancel: t('detail.move.cancel'),
+      submit: t('detail.move.submit'),
+      submitting: t('detail.move.submitting'),
+      validation: { destinationRequired: t('detail.move.validation.destinationRequired') },
+      error: t('detail.move.error'),
+      errorForbidden: t('detail.move.errorForbidden'),
+      errorLocked: t('detail.move.errorLocked'),
+      errorInvalidState: t('detail.move.errorInvalidState'),
+      errorNotFound: t('detail.move.errorNotFound'),
+      success: t('detail.move.success'),
+    },
     ruleNote: t('detail.ruleNote'),
     tab: {
       overview: t('detail.tabs.overview'),
@@ -113,6 +158,27 @@ function buildLabels(locale: string): LpDetailLabels {
 }
 
 const EN = buildLabels('en');
+const releaseQaActionStub: any = async () => ({
+  ok: true,
+  data: { lpId: 'lp-1', lpNumber: 'LP-0001', status: 'available', qaStatus: 'released' },
+});
+const listLocationsActionStub: any = async () => ({ ok: true, data: [] });
+const createStockMoveActionStub: any = async () => ({
+  ok: true,
+  data: {
+    id: 'move-1',
+    moveNumber: 'SM-001',
+    lpId: 'lp-1',
+    lpNumber: 'LP-0001',
+    moveType: 'transfer',
+    fromLocationCode: 'A',
+    toLocationCode: 'B',
+    quantity: '1',
+    uom: 'kg',
+    moveDate: '2026-06-11T00:00:00.000Z',
+    reasonText: null,
+  },
+});
 
 function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail {
   return {
@@ -153,7 +219,16 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
 }
 
 function renderDetail(over: Partial<LicensePlateDetail> = {}, labels: LpDetailLabels = EN) {
-  return render(<LpDetailClient detail={makeDetail(over)} labels={labels} locale="en" />);
+  return render(
+    React.createElement(LpDetailClient, {
+      detail: makeDetail(over),
+      labels,
+      locale: 'en',
+      releaseQaAction: releaseQaActionStub,
+      listLocationsAction: listLocationsActionStub,
+      createStockMoveAction: createStockMoveActionStub,
+    }),
+  );
 }
 
 describe('LpDetailClient (WH-003 parity)', () => {
@@ -175,13 +250,29 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-raw-json')).toBeInTheDocument();
   });
 
-  it('renders every prototype action DISABLED with a "Coming soon" title (red-line)', () => {
+  it('keeps deferred actions disabled but makes QA live only while pending', () => {
     renderDetail();
     for (const key of LP_DEFERRED_ACTIONS) {
       const btn = screen.getByTestId(`lp-action-${key}`);
-      expect(btn).toBeDisabled();
-      expect(btn).toHaveAttribute('title', EN.actions.comingSoon);
+      if (key === 'qa') {
+        expect(btn).toBeDisabled();
+        expect(btn).toHaveAttribute('title', EN.actions.qaRelease.unavailable);
+      } else if (key === 'move') {
+        expect(btn).toBeEnabled();
+      } else {
+        expect(btn).toBeDisabled();
+        expect(btn).toHaveAttribute('title', EN.actions.comingSoon);
+      }
     }
+  });
+
+  it('opens the QA release modal for pending LPs', () => {
+    renderDetail({ qaStatus: 'pending' });
+    const btn = screen.getByTestId('lp-action-qa');
+    expect(btn).toBeEnabled();
+    fireEvent.click(btn);
+    expect(screen.getByTestId('lp-qa-release-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-qa-confirm')).toBeInTheDocument();
   });
 
   it('renders the genealogy parent + children as detail links', () => {

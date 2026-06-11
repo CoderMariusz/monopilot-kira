@@ -483,6 +483,36 @@ function fmtKg(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
+// B-3 catch-weight: per-unit input cap. Beyond this we refuse the dynamic grid
+// (an honest "reduce the quantity" message) rather than rendering 100s of inputs.
+const CATCH_WEIGHT_MAX_UNITS = 50;
+
+const DECIMAL_RE = /^\d+(\.\d+)?$/;
+function isPositiveDecimal(s: string): boolean {
+  const t = s.trim();
+  return DECIMAL_RE.test(t) && Number(t) > 0;
+}
+
+/**
+ * Exact 3-dp sum of catch-weight decimal STRINGS using integer micro-units
+ * (1e-6) so the live Σ line never drifts on binary-float addition. Mirrors the
+ * service's toMicro/microToDecimal contract (register-output.ts). Skips blanks.
+ */
+function sumCatchWeightsKg(weights: readonly string[]): string {
+  const SCALE = 1_000_000n;
+  let micro = 0n;
+  for (const w of weights) {
+    const t = w.trim();
+    if (t === '' || !DECIMAL_RE.test(t)) continue;
+    const [intPart, fracRaw = ''] = t.split('.');
+    const frac = (fracRaw + '000000').slice(0, 6);
+    micro += BigInt(intPart || '0') * SCALE + BigInt(frac || '0');
+  }
+  const intPart = micro / SCALE;
+  const frac = (micro % SCALE).toString().padStart(6, '0').slice(0, 3);
+  return `${intPart}.${frac}`;
+}
+
 export function OutputModal({
   open,
   woId,
@@ -496,6 +526,11 @@ export function OutputModal({
   const [qty, setQty] = useState('');
   const [actualWeight, setActualWeight] = useState('');
   const [batch, setBatch] = useState('');
+  // B-3 catch-weight per-unit captures. `catchUnits` backs the dynamic per-unit
+  // grid (each/box catch items); `catchText` backs the base-uom textarea fallback
+  // (one weight per line) where the unit count is unknown up front.
+  const [catchUnits, setCatchUnits] = useState<string[]>([]);
+  const [catchText, setCatchText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -520,7 +555,46 @@ export function OutputModal({
   const qtyValid = /^\d+(\.\d+)?$/.test(qty.trim()) && Number(qty.trim()) > 0;
   const weightTrimmed = actualWeight.trim();
   const weightValid = weightTrimmed === '' || (/^\d+(\.\d+)?$/.test(weightTrimmed) && Number(weightTrimmed) > 0);
-  const canConfirm = productId !== '' && qtyValid && weightValid && !busy;
+
+  // ── B-3 catch-weight ────────────────────────────────────────────────────────
+  // The service (register-output.ts) REQUIRES catch_weight_kg_per_unit for any
+  // item whose weight_mode === 'catch' and 422s without it. We surface a per-unit
+  // capture section: for each/box the qty (units) determines N compact inputs; for
+  // base (N unknown) a textarea taking one weight per line. Nothing changes for
+  // 'fixed' items.
+  const isCatch = snap.weightMode === 'catch';
+  // N from qty for the dynamic grid (each/box). Whole units only.
+  const catchN = !isBase && qtyValid ? Math.floor(Number(qty.trim())) : 0;
+  const catchOverCap = isCatch && !isBase && catchN > CATCH_WEIGHT_MAX_UNITS;
+
+  // The per-unit list, sized to N. We keep entered values stable as N grows/shrinks.
+  const catchInputs: string[] = isCatch && !isBase && !catchOverCap
+    ? Array.from({ length: catchN }, (_, i) => catchUnits[i] ?? '')
+    : [];
+
+  // Parse the base-uom textarea into trimmed non-empty lines.
+  const catchTextLines = isCatch && isBase
+    ? catchText.split('\n').map((l) => l.trim()).filter((l) => l !== '')
+    : [];
+
+  // The effective per-unit weight strings for sum/payload/validation.
+  const catchWeights = isCatch ? (isBase ? catchTextLines : catchInputs) : [];
+  const catchSumKg = isCatch ? sumCatchWeightsKg(catchWeights) : '0';
+  const catchValid = isCatch
+    ? !catchOverCap &&
+      catchWeights.length > 0 &&
+      catchWeights.every(isPositiveDecimal) &&
+      // each/box: every rendered slot must be filled (length already === N).
+      (isBase || catchWeights.length === catchN)
+    : true;
+
+  const canConfirm = productId !== '' && qtyValid && weightValid && catchValid && !busy;
+
+  const cw = labels.output.catchWeight;
+  const catchSumLine = cw ? cw.sumLabel.replace('{total}', catchSumKg) : `Σ ${catchSumKg} kg`;
+  const catchTooManyLine = cw
+    ? cw.tooMany.replace('{max}', String(CATCH_WEIGHT_MAX_UNITS))
+    : `Too many units (max ${CATCH_WEIGHT_MAX_UNITS}).`;
 
   // Live nominal conversion preview for each/box (hidden for base). When the pack
   // factors are missing the preview shows the conversion-unavailable copy.
@@ -569,6 +643,9 @@ export function OutputModal({
         // DecimalString schema rejects numbers by design (live 422 otherwise).
         ...(weightTrimmed ? { actualWeightKg: weightTrimmed } : {}),
         ...(batch.trim() ? { batch_number: batch.trim() } : {}),
+        // B-3 catch-weight: per-unit kg as decimal STRINGS (DecimalString boundary
+        // rejects numbers). Only for weight_mode='catch' items.
+        ...(isCatch ? { catch_weight_kg_per_unit: catchWeights.map((w) => w.trim()) } : {}),
       };
     } else {
       // Validate the conversion is possible client-side (mirrors the handler).
@@ -592,6 +669,8 @@ export function OutputModal({
         unitsUom: outputUom,
         ...(weightTrimmed ? { actualWeightKg: weightTrimmed } : {}),
         ...(batch.trim() ? { batch_number: batch.trim() } : {}),
+        // B-3 catch-weight per-unit kg (decimal STRINGS) for weight_mode='catch'.
+        ...(isCatch ? { catch_weight_kg_per_unit: catchWeights.map((w) => w.trim()) } : {}),
       };
     }
 
@@ -601,6 +680,8 @@ export function OutputModal({
       setQty('');
       setActualWeight('');
       setBatch('');
+      setCatchUnits([]);
+      setCatchText('');
       onClose();
     } else {
       setError(mapError(labels, result.errorCode));
@@ -651,6 +732,74 @@ export function OutputModal({
               </span>
             ) : null}
           </FieldRow>
+          {/* B-3 catch-weight — per-unit scale capture for weight_mode='catch'.
+              Parity anchor: production/modals.jsx:173-201 (catch_weight_modal):
+              per-unit numbered weights + a running total/avg summary line. */}
+          {isCatch ? (
+            <div
+              data-testid="wo-output-catch-weights"
+              className="rounded-md border border-slate-200 bg-slate-50 p-3"
+            >
+              <div className="mb-1 text-sm font-medium text-slate-900">
+                {cw?.sectionTitle ?? 'Per-unit weights (kg)'}
+              </div>
+              <p className="mb-2 text-xs text-slate-500">
+                {cw?.sectionHint ?? 'Catch-weight item — enter the scale reading for each unit.'}
+              </p>
+              {isBase ? (
+                // Base uom: unit count is unknown up front — one weight per line.
+                <>
+                  <label htmlFor="wo-output-catch-textarea" className="sr-only">
+                    {cw?.baseTextareaLabel ?? 'Per-unit weights (one per line, kg)'}
+                  </label>
+                  <Textarea
+                    id="wo-output-catch-textarea"
+                    rows={4}
+                    inputMode="decimal"
+                    value={catchText}
+                    disabled={busy}
+                    onChange={(e) => setCatchText(e.target.value)}
+                    data-testid="wo-output-catch-textarea"
+                    placeholder={cw?.baseTextareaHint ?? 'Enter one positive weight per line.'}
+                  />
+                </>
+              ) : catchOverCap ? (
+                <p data-testid="wo-output-catch-toomany" className="text-sm text-amber-700">
+                  {catchTooManyLine}
+                </p>
+              ) : catchN > 0 ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {catchInputs.map((value, i) => (
+                    <Input
+                      key={i}
+                      inputMode="decimal"
+                      aria-label={(cw?.unitLabel ?? 'Unit {n}').replace('{n}', String(i + 1))}
+                      value={value}
+                      disabled={busy}
+                      onChange={(e) =>
+                        setCatchUnits((prev) => {
+                          const next = prev.slice();
+                          // Grow the backing array to at least N before writing.
+                          while (next.length < catchN) next.push('');
+                          next[i] = e.target.value;
+                          return next;
+                        })
+                      }
+                      data-testid={`wo-output-catch-weight-${i}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {(isBase ? catchTextLines.length > 0 : catchN > 0 && !catchOverCap) ? (
+                <div
+                  data-testid="wo-output-catch-sum"
+                  className="mt-2 text-sm font-medium tabular-nums text-slate-800"
+                >
+                  {catchSumLine}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {/* Optional actual weighed kg — always visible (nominal otherwise). */}
           <FieldRow id="wo-output-actual-weight" label={labels.output.actualWeight ?? labels.output.qty} hint={labels.output.actualWeightHint}>
             <Input

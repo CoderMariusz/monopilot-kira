@@ -43,6 +43,7 @@ const LABELS: WoModalLabels = {
   submitting: 'Submitting…',
   errorFallback: 'The action could not be completed.',
   errors: {
+    invalid_input: 'Check the values you entered.',
     invalid_state_transition: 'Not valid for the current state.',
     uom_conversion_unavailable: 'Missing pack data — set it in Technical.',
   },
@@ -65,6 +66,16 @@ const LABELS: WoModalLabels = {
     actualWeight: 'Actual weight (kg)',
     actualWeightHint: 'Leave empty to use the nominal conversion.',
     conversionPreview: '{qty} {unit} = {kg} {base}',
+    catchWeight: {
+      sectionTitle: 'Per-unit weights (kg)',
+      sectionHint: 'Catch-weight item — enter the scale reading for each unit.',
+      unitLabel: 'Unit {n}',
+      sumLabel: 'Σ {total} kg',
+      tooMany: 'Too many units to enter individually (max {max}). Reduce the quantity.',
+      baseTextareaLabel: 'Per-unit weights (one per line, kg)',
+      baseTextareaHint: 'Enter one positive weight per line.',
+      invalidWeights: 'Every unit weight must be a positive number.',
+    },
   },
   waste: { title: 'Log waste', subtitle: '.', category: 'Category', categoryPlaceholder: 'Select…', qty: 'Quantity (kg)', shift: 'Shift', reasonCode: 'Reason', notes: 'Notes', noCategories: 'None' },
 };
@@ -81,6 +92,28 @@ const BOX_UOM: OutputUomContext = {
   netQtyPerEach: 6,
   eachPerBox: 50,
   weightMode: 'fixed',
+};
+
+// A catch-weight EACH product: qty = number of units; each unit needs a scale read.
+const CATCH_EACH_UOM: OutputUomContext = {
+  productCode: 'FG-CW',
+  productName: 'Schab b/k (catch-weight)',
+  outputUom: 'each',
+  uomBase: 'kg',
+  netQtyPerEach: 2.5,
+  eachPerBox: null,
+  weightMode: 'catch',
+};
+
+// A catch-weight BASE product: N is unknown up front ⇒ textarea fallback.
+const CATCH_BASE_UOM: OutputUomContext = {
+  productCode: 'FG-CWB',
+  productName: 'Karkówka luz (catch-weight)',
+  outputUom: 'base',
+  uomBase: 'kg',
+  netQtyPerEach: null,
+  eachPerBox: null,
+  weightMode: 'catch',
 };
 
 function Harness({ uom }: { uom: OutputUomContext | null }) {
@@ -251,5 +284,139 @@ describe('Register output — uom_conversion_unavailable', () => {
     await waitFor(() =>
       expect(screen.getByTestId('wo-output-error')).toHaveTextContent('Missing pack data — set it in Technical.'),
     );
+  });
+});
+
+// ── B-3 catch-weight ─────────────────────────────────────────────────────────
+
+describe('Register output — catch-weight per-unit capture', () => {
+  it('renders N per-unit weight inputs driven by the qty (units) field', async () => {
+    const user = userEvent.setup();
+    render(<Harness uom={CATCH_EACH_UOM} />);
+    await user.click(screen.getByTestId('wo-action-output'));
+
+    // The per-unit section appears only for catch items.
+    expect(screen.getByTestId('wo-output-catch-weights')).toBeInTheDocument();
+    // No qty yet ⇒ no per-unit inputs.
+    expect(screen.queryByTestId('wo-output-catch-weight-0')).not.toBeInTheDocument();
+
+    await user.type(screen.getByTestId('wo-output-qty'), '3');
+    await waitFor(() =>
+      expect(screen.getByTestId('wo-output-catch-weight-0')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('wo-output-catch-weight-1')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-output-catch-weight-2')).toBeInTheDocument();
+    expect(screen.queryByTestId('wo-output-catch-weight-3')).not.toBeInTheDocument();
+  });
+
+  it('shows a live Σ sum line from the entered per-unit weights', async () => {
+    const user = userEvent.setup();
+    render(<Harness uom={CATCH_EACH_UOM} />);
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '2');
+
+    await user.type(screen.getByTestId('wo-output-catch-weight-0'), '2.480');
+    await user.type(screen.getByTestId('wo-output-catch-weight-1'), '2.530');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('wo-output-catch-sum')).toHaveTextContent('Σ 5.010 kg'),
+    );
+  });
+
+  it('posts catch_weight_kg_per_unit as an array of DECIMAL STRINGS', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness uom={CATCH_EACH_UOM} />);
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '2');
+    await user.type(screen.getByTestId('wo-output-catch-weight-0'), '2.48');
+    await user.type(screen.getByTestId('wo-output-catch-weight-1'), '2.53');
+    await user.click(screen.getByTestId('wo-output-confirm'));
+
+    await waitFor(() => expect(captured.body).toBeDefined());
+    expect(captured.body).toMatchObject({
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qtyUnits: '2',
+      unitsUom: 'each',
+      catch_weight_kg_per_unit: ['2.48', '2.53'],
+    });
+    // Decimal STRINGS, never JS numbers.
+    expect(captured.body.catch_weight_kg_per_unit.every((w: unknown) => typeof w === 'string')).toBe(true);
+  });
+
+  it('blocks submit until every per-unit weight is a positive decimal', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const user = userEvent.setup();
+    render(<Harness uom={CATCH_EACH_UOM} />);
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '2');
+    await user.type(screen.getByTestId('wo-output-catch-weight-0'), '2.48');
+    // second weight left blank ⇒ confirm disabled, no round-trip.
+    expect(screen.getByTestId('wo-output-confirm')).toBeDisabled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('maps the verbatim invalid_input (catch_weight_kg_per_unit) error inline', async () => {
+    vi.stubGlobal('fetch', mockFetchError('invalid_input'));
+    const user = userEvent.setup();
+    render(<Harness uom={CATCH_EACH_UOM} />);
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '1');
+    await user.type(screen.getByTestId('wo-output-catch-weight-0'), '2.48');
+    await user.click(screen.getByTestId('wo-output-confirm'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('wo-output-error')).toHaveTextContent('Check the values you entered.'),
+    );
+  });
+
+  it('uses a textarea fallback (one weight per line) for a base-uom catch item', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness uom={CATCH_BASE_UOM} />);
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    // qty (kg base) still required by the legacy path.
+    await user.type(screen.getByTestId('wo-output-qty'), '7.49');
+    const ta = screen.getByTestId('wo-output-catch-textarea');
+    expect(ta).toBeInTheDocument();
+    await user.type(ta, '2.48\n2.51\n2.50');
+    await waitFor(() =>
+      expect(screen.getByTestId('wo-output-catch-sum')).toHaveTextContent('Σ 7.490 kg'),
+    );
+    await user.click(screen.getByTestId('wo-output-confirm'));
+
+    await waitFor(() => expect(captured.body).toBeDefined());
+    expect(captured.body).toMatchObject({
+      qty_kg: '7.49',
+      catch_weight_kg_per_unit: ['2.48', '2.51', '2.50'],
+    });
+  });
+
+  it('caps the dynamic per-unit list at 50 and shows an honest message', async () => {
+    const user = userEvent.setup();
+    render(<Harness uom={CATCH_EACH_UOM} />);
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '51');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('wo-output-catch-toomany')).toBeInTheDocument(),
+    );
+    // The per-unit grid is not rendered when over the cap.
+    expect(screen.queryByTestId('wo-output-catch-weight-0')).not.toBeInTheDocument();
+  });
+
+  it('does not render the catch section for a fixed-weight item', async () => {
+    const user = userEvent.setup();
+    render(<Harness uom={BOX_UOM} />);
+    await user.click(screen.getByTestId('wo-action-output'));
+    expect(screen.queryByTestId('wo-output-catch-weights')).not.toBeInTheDocument();
   });
 });

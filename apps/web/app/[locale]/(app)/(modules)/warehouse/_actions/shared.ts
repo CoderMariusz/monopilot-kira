@@ -157,6 +157,7 @@ export type GrnDetail = GrnListItem & {
     expiryDate: string | null;
     lpId: string | null;
     lpNumber: string | null;
+    lpQaStatus: string | null;
   }>;
   licensePlates: Array<{ id: string; lpNumber: string; status: string; quantity: string; uom: string }>;
 };

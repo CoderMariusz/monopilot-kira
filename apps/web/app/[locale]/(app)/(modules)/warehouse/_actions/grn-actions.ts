@@ -134,6 +134,7 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
           expiry_date: string | Date | null;
           lp_id: string | null;
           lp_number: string | null;
+          lp_qa_status: string | null;
         }>(
           `select gi.id::text,
                   gi.line_number,
@@ -147,7 +148,8 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
                   gi.batch_number,
                   gi.expiry_date,
                   gi.lp_id::text,
-                  lp.lp_number
+                  lp.lp_number,
+                  lp.qa_status as lp_qa_status
              from public.grn_items gi
              left join public.items i on i.org_id = app.current_org_id() and i.id = gi.product_id
              left join public.license_plates lp on lp.org_id = app.current_org_id() and lp.id = gi.lp_id
@@ -185,6 +187,7 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
             expiryDate: toIso(item.expiry_date),
             lpId: item.lp_id,
             lpNumber: item.lp_number,
+            lpQaStatus: item.lp_qa_status,
           })),
           licensePlates: lps.rows.map((lp) => ({
             id: lp.id,

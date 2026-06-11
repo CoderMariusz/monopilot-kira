@@ -62,6 +62,12 @@ export type WoDetailHeader = {
   completedAt: string | null;
   elapsedMin: number | null;
   bomVersion: number | null;
+  /**
+   * B-3 — items.weight_mode for the WO's FG product. Drives the Register-output
+   * modal's per-unit catch-weight capture (the service 422s catch items without
+   * catch_weight_kg_per_unit). Defaults to 'fixed' when the item row is missing.
+   */
+  weightMode: 'fixed' | 'catch';
 };
 
 /** Consumption tab: BOM component required vs consumed. */
@@ -187,12 +193,14 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         output_kg: string | number | null;
         consumption_pct: string | number | null;
         output_pct: string | number | null;
+        weight_mode: string | null;
       }>(
         `select w.id::text as id,
                 w.wo_number,
                 w.product_id::text as product_id,
                 i.item_code,
                 i.name as product_name,
+                i.weight_mode,
                 pl.code as line_code,
                 coalesce(
                   e.status,
@@ -477,6 +485,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         completedAt,
         elapsedMin,
         bomVersion: h.bom_version,
+        weightMode: h.weight_mode === 'catch' ? 'catch' : 'fixed',
       };
 
       // QA read-model not yet built — render an honest empty/zero summary.

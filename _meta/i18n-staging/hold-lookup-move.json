@@ -1,0 +1,119 @@
+{
+  "_note": "Staged i18n bundle for the two UX dead-end fixes: (A) the MODAL-HOLD-CREATE LP lookup (quality holds — loaded by quality/qa-holds-labels.ts via getQaHoldsTranslator under the 'createModal.lookup.*' namespace) and (B) the LP MOVE modal (warehouse license-plates — loaded by warehouse/license-plates/lp-labels.ts via getLpTranslator under the 'detail.move.*' namespace). One consistent mechanism: each owning screen's EXISTING staged-bundle loader is extended by ADDING these keys into its own staged JSON (quality-holds.json / warehouse-lp.json). This file is the human-readable source-of-truth + review surface for the new keys; the keys themselves live merged in the two owning bundles (en + pl real values; ro/uk mirror EN per the two-locale policy when merged into apps/web/i18n).",
+  "quality-holds": {
+    "en": {
+      "createModal": {
+        "lookup": {
+          "lpSearchLabel": "License plate",
+          "lpSearchPlaceholder": "Type LP number or item code…",
+          "lpSearchHelp": "Search by LP number or item code, then pick a match — the resolved LP is used (operators never type a UUID).",
+          "searching": "Searching…",
+          "noMatches": "No license plates match \"{query}\".",
+          "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
+          "clearPick": "Change",
+          "resultLine": "{lpNumber} — {itemCode} · {qty} {uom} · {status}",
+          "lpNumbersLabel": "Additional LPs (optional)",
+          "lpNumbersHelp": "One LP NUMBER per line or comma-separated — resolved on submit. Unresolvable entries are listed below and nothing is submitted.",
+          "lpNumbersPlaceholder": "LP-000123\nLP-000124",
+          "unresolved": "These LP numbers could not be resolved (nothing was submitted): {list}",
+          "refTypeHelpLp": "Search the LP by number/item below — no UUIDs.",
+          "refTypeHelpWo": "Paste the WO number (e.g. WO-000123) — it is resolved on submit.",
+          "refTypeHelpGrn": "Paste the GRN number (e.g. GRN-000123) — it is resolved on submit.",
+          "refTypeHelpPo": "Paste the PO number exactly as printed.",
+          "refTypeHelpBatch": "Paste the batch number exactly as printed.",
+          "woPlaceholder": "WO-000123",
+          "grnPlaceholder": "GRN-000123",
+          "poPlaceholder": "PO-000123",
+          "batchPlaceholder": "BATCH-2026-0042",
+          "unresolvedRef": "Reference \"{value}\" could not be resolved — check the number and try again."
+        }
+      }
+    },
+    "pl": {
+      "createModal": {
+        "lookup": {
+          "lpSearchLabel": "Nośnik (LP)",
+          "lpSearchPlaceholder": "Wpisz numer LP lub kod pozycji…",
+          "lpSearchHelp": "Szukaj po numerze LP lub kodzie pozycji, następnie wybierz dopasowanie — używany jest rozpoznany LP (operatorzy nie wpisują UUID).",
+          "searching": "Wyszukiwanie…",
+          "noMatches": "Brak nośników pasujących do \"{query}\".",
+          "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
+          "clearPick": "Zmień",
+          "resultLine": "{lpNumber} — {itemCode} · {qty} {uom} · {status}",
+          "lpNumbersLabel": "Dodatkowe LP (opcjonalnie)",
+          "lpNumbersHelp": "Jeden NUMER LP w wierszu lub po przecinku — rozpoznawane przy zatwierdzaniu. Nierozpoznane pozycje są wypisane poniżej i nic nie zostaje zapisane.",
+          "lpNumbersPlaceholder": "LP-000123\nLP-000124",
+          "unresolved": "Tych numerów LP nie udało się rozpoznać (nic nie zapisano): {list}",
+          "refTypeHelpLp": "Wyszukaj LP po numerze/pozycji poniżej — bez UUID.",
+          "refTypeHelpWo": "Wklej numer WO (np. WO-000123) — rozpoznawany przy zatwierdzaniu.",
+          "refTypeHelpGrn": "Wklej numer GRN (np. GRN-000123) — rozpoznawany przy zatwierdzaniu.",
+          "refTypeHelpPo": "Wklej numer PO dokładnie tak, jak wydrukowano.",
+          "refTypeHelpBatch": "Wklej numer partii dokładnie tak, jak wydrukowano.",
+          "woPlaceholder": "WO-000123",
+          "grnPlaceholder": "GRN-000123",
+          "poPlaceholder": "PO-000123",
+          "batchPlaceholder": "BATCH-2026-0042",
+          "unresolvedRef": "Nie udało się rozpoznać referencji \"{value}\" — sprawdź numer i spróbuj ponownie."
+        }
+      }
+    }
+  },
+  "warehouse-lp": {
+    "en": {
+      "detail": {
+        "move": {
+          "title": "Move {lpNumber}",
+          "subtitle": "Transfer this license plate to another location. The move is recorded in the Movements tab.",
+          "destination": "Destination location",
+          "destinationHelp": "Pick the target location for this LP.",
+          "destinationPlaceholder": "Select a location…",
+          "reason": "Reason (optional)",
+          "reasonHelp": "Why is this LP being moved? Recorded with the stock move.",
+          "reasonPlaceholder": "e.g. consolidate to picking face",
+          "currentLocation": "Current location",
+          "loadingLocations": "Loading locations…",
+          "noLocations": "No locations are configured for this org.",
+          "locationsError": "Could not load locations — try again.",
+          "cancel": "Cancel",
+          "submit": "Move LP",
+          "submitting": "Moving…",
+          "validation": { "destinationRequired": "Pick a destination location." },
+          "error": "Move failed: {message}",
+          "errorForbidden": "You do not have permission to move license plates.",
+          "errorLocked": "This LP is locked by another user — try again shortly.",
+          "errorInvalidState": "This LP cannot be moved in its current state.",
+          "errorNotFound": "LP or destination location no longer exists.",
+          "success": "LP moved."
+        }
+      }
+    },
+    "pl": {
+      "detail": {
+        "move": {
+          "title": "Przenieś {lpNumber}",
+          "subtitle": "Przenieś ten nośnik do innej lokalizacji. Ruch jest zapisywany w zakładce Ruchy.",
+          "destination": "Lokalizacja docelowa",
+          "destinationHelp": "Wybierz lokalizację docelową dla tego LP.",
+          "destinationPlaceholder": "Wybierz lokalizację…",
+          "reason": "Powód (opcjonalnie)",
+          "reasonHelp": "Dlaczego ten LP jest przenoszony? Zapisywane razem z ruchem magazynowym.",
+          "reasonPlaceholder": "np. konsolidacja do strefy kompletacji",
+          "currentLocation": "Bieżąca lokalizacja",
+          "loadingLocations": "Wczytywanie lokalizacji…",
+          "noLocations": "Brak skonfigurowanych lokalizacji dla tej organizacji.",
+          "locationsError": "Nie udało się wczytać lokalizacji — spróbuj ponownie.",
+          "cancel": "Anuluj",
+          "submit": "Przenieś LP",
+          "submitting": "Przenoszenie…",
+          "validation": { "destinationRequired": "Wybierz lokalizację docelową." },
+          "error": "Przeniesienie nie powiodło się: {message}",
+          "errorForbidden": "Nie masz uprawnień do przenoszenia nośników.",
+          "errorLocked": "Ten LP jest zablokowany przez innego użytkownika — spróbuj za chwilę.",
+          "errorInvalidState": "Tego LP nie można przenieść w obecnym stanie.",
+          "errorNotFound": "LP lub lokalizacja docelowa już nie istnieje.",
+          "success": "LP przeniesiony."
+        }
+      }
+    }
+  }
+}

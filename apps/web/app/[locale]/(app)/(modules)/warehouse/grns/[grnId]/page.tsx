@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getGrnDetail } from '../../_actions/grn-actions';
+import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { getWhcTranslator } from '../../wh-c-labels';
 import { GrnDetailClient, type GrnDetailLabels } from './_components/grn-detail.client';
 
@@ -60,6 +61,16 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
       location: t('grnDetail.columns.location'),
       qa: t('grnDetail.columns.qa'),
       lp: t('grnDetail.columns.lp'),
+      action: t('grnDetail.columns.action'),
+    },
+    qaRelease: {
+      action: t('grnDetail.qaRelease.action'),
+      released: t('grnDetail.qaRelease.released'),
+      rejected: t('grnDetail.qaRelease.rejected'),
+      note: t('grnDetail.qaRelease.note'),
+      denied: t('grnDetail.qaRelease.denied'),
+      invalidState: t('grnDetail.qaRelease.invalidState'),
+      error: t('grnDetail.qaRelease.error'),
     },
   };
 }
@@ -141,7 +152,7 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
   return (
     <div className="flex flex-col gap-4">
       {backLink}
-      <GrnDetailClient grn={result.data} labels={buildLabels(t)} locale={locale} />
+      <GrnDetailClient grn={result.data} labels={buildLabels(t)} locale={locale} releaseQaAction={releaseLpQa} />
     </div>
   );
 }

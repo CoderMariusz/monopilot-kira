@@ -1,0 +1,11 @@
+{
+  "tool": "RTL role/accessible-name assertions",
+  "blocker": "jest-axe/vitest-axe not a dependency of apps/web; adding it is out of STRICT SCOPE (no package.json edits). Same documented substitute as allergen-panel.evidence + T-040.",
+  "checks": {
+    "dialogRole": true,
+    "perUnitInputsHaveAccessibleNames": true,
+    "sumExposedAsText": true,
+    "errorBannerUsesAlertRole": "verified in state-error capture (role=\"alert\")"
+  },
+  "violations": []
+}

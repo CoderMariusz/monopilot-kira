@@ -27,7 +27,8 @@
  * D365 push card from the prototype remain omitted (no backing read-model here).
  */
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -38,6 +39,12 @@ import type {
   WorkOrderDetailData,
   WorkOrderDetailStatus,
 } from '../../../_actions/get-work-order-detail';
+import type {
+  OutputQaActionResult,
+  ReleaseWoOutputQaDecision,
+  ReleaseWoOutputQaInput,
+  ReleaseWoOutputQaResult,
+} from '../../../_actions/output-qa-actions';
 import {
   WoActionsProvider,
   WoActionTrigger,
@@ -115,6 +122,11 @@ export type WoDetailLabels = {
     empty: string;
     addAction: string;
     col: { type: string; product: string; qty: string; batch: string; expiry: string; qa: string; lp: string };
+    qaPass: string;
+    qaFail: string;
+    qaDenied: string;
+    qaInvalidState: string;
+    qaError: string;
   };
   waste: {
     title: string;
@@ -211,13 +223,19 @@ export function WoDetailScreen({
   data,
   labels,
   actions,
+  releaseOutputQaAction,
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
   /** Null when the action-context read failed/forbade — buttons are then hidden. */
   actions: WoDetailActions | null;
+  releaseOutputQaAction: (input: ReleaseWoOutputQaInput) => Promise<OutputQaActionResult<ReleaseWoOutputQaResult>>;
 }) {
   const [tab, setTab] = useState<TabKey>('overview');
+  const [busyOutputId, setBusyOutputId] = useState<string | null>(null);
+  const [outputQaError, setOutputQaError] = useState<{ outputId: string; message: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const { header: h } = data;
 
   const tabOrder: TabKey[] = [
@@ -240,6 +258,28 @@ export function WoDetailScreen({
   };
 
   const wasteTotalKg = data.waste.reduce((a, w) => a + w.qtyKg, 0);
+
+  function releaseOutputQa(outputId: string, decision: ReleaseWoOutputQaDecision) {
+    setBusyOutputId(outputId);
+    setOutputQaError(null);
+    startTransition(async () => {
+      const result = await releaseOutputQaAction({ outputId, decision });
+      if (result.ok) {
+        setBusyOutputId(null);
+        router.refresh();
+        return;
+      }
+      const failure = result as Extract<OutputQaActionResult<ReleaseWoOutputQaResult>, { ok: false }>;
+      const message =
+        failure.reason === 'forbidden'
+          ? labels.output.qaDenied
+          : failure.message === 'invalid_state' || failure.message === 'on_hold_requires_holds_flow'
+            ? labels.output.qaInvalidState
+            : labels.output.qaError;
+      setBusyOutputId(null);
+      setOutputQaError({ outputId, message });
+    });
+  }
 
   const body = (
     <div className="flex flex-col gap-4">
@@ -424,6 +464,7 @@ export function WoDetailScreen({
                     <TableHead scope="col">{labels.output.col.expiry}</TableHead>
                     <TableHead scope="col">{labels.output.col.qa}</TableHead>
                     <TableHead scope="col">{labels.output.col.lp}</TableHead>
+                    <TableHead scope="col" className="text-right">{labels.output.col.qa}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -444,6 +485,39 @@ export function WoDetailScreen({
                       <TableCell className="font-mono text-xs text-slate-500">{fmtDate(o.expiryDate)}</TableCell>
                       <TableCell><Badge variant="muted" className="text-[10px]">{o.qaStatus}</Badge></TableCell>
                       <TableCell className="font-mono text-xs text-slate-500">{o.lpId ? o.lpId.slice(0, 8) : '—'}</TableCell>
+                      <TableCell className="text-right">
+                        {o.qaStatus === 'PENDING' ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex flex-wrap justify-end gap-1">
+                              <button
+                                type="button"
+                                data-testid={`wo-output-qa-pass-${o.id}`}
+                                disabled={isPending && busyOutputId === o.id}
+                                onClick={() => releaseOutputQa(o.id, 'PASSED')}
+                                className="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {labels.output.qaPass}
+                              </button>
+                              <button
+                                type="button"
+                                data-testid={`wo-output-qa-fail-${o.id}`}
+                                disabled={isPending && busyOutputId === o.id}
+                                onClick={() => releaseOutputQa(o.id, 'FAILED')}
+                                className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                {labels.output.qaFail}
+                              </button>
+                            </div>
+                            {outputQaError?.outputId === o.id ? (
+                              <p role="alert" data-testid={`wo-output-qa-error-${o.id}`} className="max-w-48 text-[11px] text-red-700">
+                                {outputQaError.message}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -627,16 +701,15 @@ export function WoDetailScreen({
   // forbidden) the body renders with no action affordances.
   if (!actions) return body;
 
-  // P0-UOM — thread the WO's output unit + read-only product identity to the
-  // Register-output modal. The pack fields (output_uom / net_qty_per_each /
-  // each_per_box / weight_mode) are surfaced on the header by the Codex backend
-  // lane; read them defensively (the header type may not expose them yet) and
-  // fall back to base-kg entry when absent.
+  // P0-UOM / B-3 — thread the WO's output unit + read-only product identity +
+  // catch-weight mode to the Register-output modal. weight_mode now lands on the
+  // typed header (get-work-order-detail.ts); the pack fields (output_uom /
+  // net_qty_per_each / each_per_box) are still read defensively (the header type
+  // may not expose them yet) and fall back to base-kg entry when absent.
   const hu = h as typeof h & {
     outputUom?: 'base' | 'each' | 'box';
     netQtyPerEach?: number | null;
     eachPerBox?: number | null;
-    weightMode?: 'fixed' | 'catch';
   };
   const outputUom = {
     productCode: h.itemCode,
@@ -645,7 +718,7 @@ export function WoDetailScreen({
     uomBase: h.uom,
     netQtyPerEach: hu.netQtyPerEach ?? null,
     eachPerBox: hu.eachPerBox ?? null,
-    weightMode: hu.weightMode ?? 'fixed',
+    weightMode: h.weightMode,
   } as const;
 
   return (

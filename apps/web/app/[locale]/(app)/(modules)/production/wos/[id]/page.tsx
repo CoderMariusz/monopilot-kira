@@ -24,6 +24,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getWorkOrderDetail } from '../../_actions/get-work-order-detail';
 import { getWoActionContext } from '../../_actions/get-wo-action-context';
+import { releaseWoOutputQa } from '../../_actions/output-qa-actions';
 import {
   WoDetailScreen,
   type WoDetailActions,
@@ -154,6 +155,11 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         qa: t('output.col.qa'),
         lp: t('output.col.lp'),
       },
+      qaPass: t.has('output.qaPass') ? t('output.qaPass') : 'QA pass',
+      qaFail: t.has('output.qaFail') ? t('output.qaFail') : 'QA fail',
+      qaDenied: t.has('output.qaDenied') ? t('output.qaDenied') : 'You do not have permission to release output QA.',
+      qaInvalidState: t.has('output.qaInvalidState') ? t('output.qaInvalidState') : 'This output is no longer pending QA.',
+      qaError: t.has('output.qaError') ? t('output.qaError') : 'Unable to update output QA.',
     },
     waste: {
       title: t('waste.title'),
@@ -241,6 +247,28 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         'This product is missing the pack data needed to convert units — set it in Technical.';
     }
 
+    // B-3 — inject the staged catch-weight per-unit capture labels (keys live in
+    // _meta/i18n-staging/catch-weight.json until the bundle-merge lane folds them
+    // into production.wos.actions.output.catchWeight.*). Guarded with `at.has` so
+    // a not-yet-merged bundle never throws; EN fallbacks keep it honest live.
+    modalLabels.output.catchWeight = {
+      sectionTitle: opt('output.catchWeight.sectionTitle') ?? 'Per-unit weights (kg)',
+      sectionHint:
+        opt('output.catchWeight.sectionHint') ??
+        'Catch-weight item — enter the actual scale reading for each unit.',
+      unitLabel: opt('output.catchWeight.unitLabel') ?? 'Unit {n}',
+      sumLabel: opt('output.catchWeight.sumLabel') ?? 'Σ {total} kg',
+      tooMany:
+        opt('output.catchWeight.tooMany') ??
+        'Too many units to enter individually (max {max}). Reduce the quantity or register in smaller batches.',
+      baseTextareaLabel:
+        opt('output.catchWeight.baseTextareaLabel') ?? 'Per-unit weights (one per line, kg)',
+      baseTextareaHint:
+        opt('output.catchWeight.baseTextareaHint') ?? 'Enter one positive weight per line.',
+      invalidWeights:
+        opt('output.catchWeight.invalidWeights') ?? 'Every unit weight must be a positive number.',
+    };
+
     actions = {
       locale,
       status: actionCtx.data.executionStatus,
@@ -252,7 +280,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
     };
   }
 
-  return <WoDetailScreen data={result.data} labels={labels} actions={actions} />;
+  return <WoDetailScreen data={result.data} labels={labels} actions={actions} releaseOutputQaAction={releaseWoOutputQa} />;
 }
 
 export default async function ProductionWoDetailPage({

@@ -21,13 +21,17 @@
  * columns render an em-dash rather than fabricated data.
  */
 
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import type { ReleaseLpQaInput, ReleaseLpQaResult } from '../../../_actions/lp-qa-actions';
 import type { GrnDetail } from '../../../_actions/shared';
+import type { WarehouseResult } from '../../../_actions/shared';
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   draft: 'warning',
@@ -60,6 +64,16 @@ export type GrnDetailLabels = {
     location: string;
     qa: string;
     lp: string;
+    action: string;
+  };
+  qaRelease: {
+    action: string;
+    released: string;
+    rejected: string;
+    note: string;
+    denied: string;
+    invalidState: string;
+    error: string;
   };
 };
 
@@ -76,12 +90,40 @@ export function GrnDetailClient({
   grn,
   labels,
   locale,
+  releaseQaAction,
 }: {
   grn: GrnDetail;
   labels: GrnDetailLabels;
   locale: string;
+  releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
 }) {
   const dash = labels.facts.none;
+  const router = useRouter();
+  const [busyLpId, setBusyLpId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ lpId: string; message: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function releaseRow(lpId: string) {
+    setBusyLpId(lpId);
+    setRowError(null);
+    startTransition(async () => {
+      const result = await releaseQaAction({ lpId, decision: 'released', note: labels.qaRelease.note });
+      if (result.ok) {
+        setBusyLpId(null);
+        router.refresh();
+        return;
+      }
+      const failure = result as Extract<WarehouseResult<ReleaseLpQaResult>, { ok: false }>;
+      const message =
+        failure.reason === 'forbidden'
+          ? labels.qaRelease.denied
+          : failure.message === 'invalid_state'
+            ? labels.qaRelease.invalidState
+            : labels.qaRelease.error;
+      setBusyLpId(null);
+      setRowError({ lpId, message });
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -143,6 +185,8 @@ export function GrnDetailClient({
                 <TableHead scope="col">{labels.col.supplierBatch}</TableHead>
                 <TableHead scope="col">{labels.col.expiry}</TableHead>
                 <TableHead scope="col">{labels.col.lp}</TableHead>
+                <TableHead scope="col">{labels.col.qa}</TableHead>
+                <TableHead scope="col" className="text-right">{labels.col.action}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -179,6 +223,31 @@ export function GrnDetailClient({
                       >
                         {it.lpNumber ?? it.lpId}
                       </Link>
+                    ) : (
+                      <span className="text-slate-400">{dash}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={it.lpQaStatus === 'pending' ? 'warning' : it.lpQaStatus === 'released' ? 'success' : 'muted'} className="text-[10px]">
+                      {it.lpQaStatus ?? dash}
+                    </Badge>
+                    {rowError?.lpId === it.lpId ? (
+                      <p role="alert" data-testid={`grn-release-qc-error-${it.id}`} className="mt-1 text-[11px] text-red-700">
+                        {rowError.message}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {it.lpId && it.lpQaStatus === 'pending' ? (
+                      <button
+                        type="button"
+                        data-testid={`grn-release-qc-${it.id}`}
+                        disabled={isPending && busyLpId === it.lpId}
+                        onClick={() => releaseRow(it.lpId!)}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {labels.qaRelease.action}
+                      </button>
                     ) : (
                       <span className="text-slate-400">{dash}</span>
                     )}

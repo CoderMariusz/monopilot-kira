@@ -10,20 +10,37 @@
     "landing": {
       "title": "Quality",
       "subtitle": "Holds, NCRs, inspections and specifications.",
-      "breadcrumb": { "quality": "Quality" },
+      "breadcrumb": {
+        "quality": "Quality"
+      },
       "comingSoon": "Coming soon",
       "nav": {
         "label": "Quality areas",
-        "holds": { "title": "Holds", "desc": "Quarantine LPs, batches, work orders, POs and GRNs pending quality review." },
-        "ncrs": { "title": "NCRs", "desc": "Non-conformance reports, root-cause and corrective actions." },
-        "inspections": { "title": "Inspections", "desc": "Incoming, in-process and final inspection records." },
-        "specifications": { "title": "Specifications", "desc": "Approved product and material quality specifications." }
+        "holds": {
+          "title": "Holds",
+          "desc": "Quarantine LPs, batches, work orders, POs and GRNs pending quality review."
+        },
+        "ncrs": {
+          "title": "NCRs",
+          "desc": "Non-conformance reports, root-cause and corrective actions."
+        },
+        "inspections": {
+          "title": "Inspections",
+          "desc": "Incoming, in-process and final inspection records."
+        },
+        "specifications": {
+          "title": "Specifications",
+          "desc": "Approved product and material quality specifications."
+        }
       }
     },
     "list": {
       "title": "Holds",
       "subtitle": "LP, Batch, WO, PO or GRN quarantined pending quality disposition.",
-      "breadcrumb": { "quality": "Quality", "holds": "Holds" },
+      "breadcrumb": {
+        "quality": "Quality",
+        "holds": "Holds"
+      },
       "createHold": "Create hold",
       "searchPlaceholder": "Search hold # or reference…",
       "searchLabel": "Search holds",
@@ -73,7 +90,10 @@
     },
     "detail": {
       "backToHolds": "Holds",
-      "breadcrumb": { "quality": "Quality", "holds": "Holds" },
+      "breadcrumb": {
+        "quality": "Quality",
+        "holds": "Holds"
+      },
       "notFound": "Hold not found.",
       "denied": "You do not have permission to view this hold.",
       "error": "We could not load this hold right now. Refresh to try again.",
@@ -137,7 +157,31 @@
         "reasonRequired": "A reason is required."
       },
       "error": "We could not create the hold. {message}",
-      "success": "Hold {holdNumber} created."
+      "success": "Hold {holdNumber} created.",
+      "lookup": {
+        "lpSearchLabel": "License plate",
+        "lpSearchPlaceholder": "Type LP number or item code…",
+        "lpSearchHelp": "Search by LP number or item code, then pick a match — the resolved LP is used (operators never type a UUID).",
+        "searching": "Searching…",
+        "noMatches": "No license plates match \"{query}\".",
+        "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
+        "clearPick": "Change",
+        "resultLine": "{lpNumber} — {itemCode} · {qty} {uom} · {status}",
+        "lpNumbersLabel": "Additional LPs (optional)",
+        "lpNumbersHelp": "One LP NUMBER per line or comma-separated — resolved on submit. Unresolvable entries are listed below and nothing is submitted.",
+        "lpNumbersPlaceholder": "LP-000123\nLP-000124",
+        "unresolved": "These LP numbers could not be resolved (nothing was submitted): {list}",
+        "refTypeHelpLp": "Search the LP by number/item below — no UUIDs.",
+        "refTypeHelpWo": "Paste the WO number (e.g. WO-000123) — it is resolved on submit.",
+        "refTypeHelpGrn": "Paste the GRN number (e.g. GRN-000123) — it is resolved on submit.",
+        "refTypeHelpPo": "Paste the PO number exactly as printed.",
+        "refTypeHelpBatch": "Paste the batch number exactly as printed.",
+        "woPlaceholder": "WO-000123",
+        "grnPlaceholder": "GRN-000123",
+        "poPlaceholder": "PO-000123",
+        "batchPlaceholder": "BATCH-2026-0042",
+        "unresolvedRef": "Reference \"{value}\" could not be resolved — check the number and try again."
+      }
     },
     "releaseModal": {
       "title": "Release hold — {holdNumber}",
@@ -189,20 +233,37 @@
     "landing": {
       "title": "Jakość",
       "subtitle": "Blokady, NCR, kontrole i specyfikacje.",
-      "breadcrumb": { "quality": "Jakość" },
+      "breadcrumb": {
+        "quality": "Jakość"
+      },
       "comingSoon": "Wkrótce",
       "nav": {
         "label": "Obszary jakości",
-        "holds": { "title": "Blokady", "desc": "Kwarantanna LP, partii, zleceń produkcyjnych, zamówień zakupu i przyjęć (GRN) oczekujących na ocenę jakości." },
-        "ncrs": { "title": "NCR", "desc": "Raporty niezgodności, analiza przyczyn i działania korygujące." },
-        "inspections": { "title": "Kontrole", "desc": "Zapisy kontroli przyjęcia, międzyoperacyjnej i końcowej." },
-        "specifications": { "title": "Specyfikacje", "desc": "Zatwierdzone specyfikacje jakości produktów i materiałów." }
+        "holds": {
+          "title": "Blokady",
+          "desc": "Kwarantanna LP, partii, zleceń produkcyjnych, zamówień zakupu i przyjęć (GRN) oczekujących na ocenę jakości."
+        },
+        "ncrs": {
+          "title": "NCR",
+          "desc": "Raporty niezgodności, analiza przyczyn i działania korygujące."
+        },
+        "inspections": {
+          "title": "Kontrole",
+          "desc": "Zapisy kontroli przyjęcia, międzyoperacyjnej i końcowej."
+        },
+        "specifications": {
+          "title": "Specyfikacje",
+          "desc": "Zatwierdzone specyfikacje jakości produktów i materiałów."
+        }
       }
     },
     "list": {
       "title": "Blokady",
       "subtitle": "LP, partia, zlecenie, zamówienie lub GRN w kwarantannie oczekujące na decyzję jakości.",
-      "breadcrumb": { "quality": "Jakość", "holds": "Blokady" },
+      "breadcrumb": {
+        "quality": "Jakość",
+        "holds": "Blokady"
+      },
       "createHold": "Utwórz blokadę",
       "searchPlaceholder": "Szukaj nr blokady lub referencji…",
       "searchLabel": "Szukaj blokad",
@@ -252,7 +313,10 @@
     },
     "detail": {
       "backToHolds": "Blokady",
-      "breadcrumb": { "quality": "Jakość", "holds": "Blokady" },
+      "breadcrumb": {
+        "quality": "Jakość",
+        "holds": "Blokady"
+      },
       "notFound": "Nie znaleziono blokady.",
       "denied": "Nie masz uprawnień do przeglądania tej blokady.",
       "error": "Nie udało się teraz wczytać tej blokady. Odśwież, aby spróbować ponownie.",
@@ -316,7 +380,31 @@
         "reasonRequired": "Powód jest wymagany."
       },
       "error": "Nie udało się utworzyć blokady. {message}",
-      "success": "Utworzono blokadę {holdNumber}."
+      "success": "Utworzono blokadę {holdNumber}.",
+      "lookup": {
+        "lpSearchLabel": "Nośnik (LP)",
+        "lpSearchPlaceholder": "Wpisz numer LP lub kod pozycji…",
+        "lpSearchHelp": "Szukaj po numerze LP lub kodzie pozycji, następnie wybierz dopasowanie — używany jest rozpoznany LP (operatorzy nie wpisują UUID).",
+        "searching": "Wyszukiwanie…",
+        "noMatches": "Brak nośników pasujących do \"{query}\".",
+        "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
+        "clearPick": "Zmień",
+        "resultLine": "{lpNumber} — {itemCode} · {qty} {uom} · {status}",
+        "lpNumbersLabel": "Dodatkowe LP (opcjonalnie)",
+        "lpNumbersHelp": "Jeden NUMER LP w wierszu lub po przecinku — rozpoznawane przy zatwierdzaniu. Nierozpoznane pozycje są wypisane poniżej i nic nie zostaje zapisane.",
+        "lpNumbersPlaceholder": "LP-000123\nLP-000124",
+        "unresolved": "Tych numerów LP nie udało się rozpoznać (nic nie zapisano): {list}",
+        "refTypeHelpLp": "Wyszukaj LP po numerze/pozycji poniżej — bez UUID.",
+        "refTypeHelpWo": "Wklej numer WO (np. WO-000123) — rozpoznawany przy zatwierdzaniu.",
+        "refTypeHelpGrn": "Wklej numer GRN (np. GRN-000123) — rozpoznawany przy zatwierdzaniu.",
+        "refTypeHelpPo": "Wklej numer PO dokładnie tak, jak wydrukowano.",
+        "refTypeHelpBatch": "Wklej numer partii dokładnie tak, jak wydrukowano.",
+        "woPlaceholder": "WO-000123",
+        "grnPlaceholder": "GRN-000123",
+        "poPlaceholder": "PO-000123",
+        "batchPlaceholder": "BATCH-2026-0042",
+        "unresolvedRef": "Nie udało się rozpoznać referencji \"{value}\" — sprawdź numer i spróbuj ponownie."
+      }
     },
     "releaseModal": {
       "title": "Zwolnij blokadę — {holdNumber}",

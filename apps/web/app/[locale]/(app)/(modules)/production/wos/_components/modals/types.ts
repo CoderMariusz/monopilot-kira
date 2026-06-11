@@ -102,6 +102,30 @@ export type WoModalLabels = {
     actualWeight?: string;
     actualWeightHint?: string;
     conversionPreview?: string;
+    /**
+     * B-3 catch-weight additions (OPTIONAL — same staging pattern as the P0-UOM
+     * keys above; keys live in _meta/i18n-staging/catch-weight.json until merged).
+     * Rendered only when the WO's item.weight_mode === 'catch'. The qty field
+     * (units) determines how many per-unit weight inputs render; the payload adds
+     * catch_weight_kg_per_unit (decimal STRINGS).
+     *
+     *   sectionTitle / sectionHint — the per-unit capture region copy
+     *   unitLabel — per-input aria label, "{n}" → 1-based index
+     *   sumLabel — running total line, "{total}" → 3-dp kg sum ("Σ 12.450 kg")
+     *   tooMany — over-cap message, "{max}" → 50
+     *   baseTextarea{Label,Hint} — base-uom fallback (one weight per line)
+     *   invalidWeights — client validation copy when a weight is non-positive
+     */
+    catchWeight?: {
+      sectionTitle: string;
+      sectionHint: string;
+      unitLabel: string;
+      sumLabel: string;
+      tooMany: string;
+      baseTextareaLabel: string;
+      baseTextareaHint: string;
+      invalidWeights: string;
+    };
   };
   waste: {
     title: string;

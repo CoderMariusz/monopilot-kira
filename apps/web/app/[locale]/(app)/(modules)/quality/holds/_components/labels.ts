@@ -78,6 +78,34 @@ export function buildHoldCreateLabels(t: QaHoldsTranslator): HoldCreateLabels {
     },
     error: t('createModal.error'),
     success: t('createModal.success'),
+    lookup: {
+      lpSearchLabel: t('createModal.lookup.lpSearchLabel'),
+      lpSearchPlaceholder: t('createModal.lookup.lpSearchPlaceholder'),
+      lpSearchHelp: t('createModal.lookup.lpSearchHelp'),
+      searching: t('createModal.lookup.searching'),
+      noMatches: t('createModal.lookup.noMatches'),
+      pickedChip: t('createModal.lookup.pickedChip'),
+      clearPick: t('createModal.lookup.clearPick'),
+      resultLine: t('createModal.lookup.resultLine'),
+      lpNumbersLabel: t('createModal.lookup.lpNumbersLabel'),
+      lpNumbersHelp: t('createModal.lookup.lpNumbersHelp'),
+      lpNumbersPlaceholder: t('createModal.lookup.lpNumbersPlaceholder'),
+      unresolved: t('createModal.lookup.unresolved'),
+      refTypeHelp: {
+        lp: t('createModal.lookup.refTypeHelpLp'),
+        batch: t('createModal.lookup.refTypeHelpBatch'),
+        wo: t('createModal.lookup.refTypeHelpWo'),
+        po: t('createModal.lookup.refTypeHelpPo'),
+        grn: t('createModal.lookup.refTypeHelpGrn'),
+      },
+      refTypePlaceholder: {
+        batch: t('createModal.lookup.batchPlaceholder'),
+        wo: t('createModal.lookup.woPlaceholder'),
+        po: t('createModal.lookup.poPlaceholder'),
+        grn: t('createModal.lookup.grnPlaceholder'),
+      },
+      unresolvedRef: t('createModal.lookup.unresolvedRef'),
+    },
   };
 }
 

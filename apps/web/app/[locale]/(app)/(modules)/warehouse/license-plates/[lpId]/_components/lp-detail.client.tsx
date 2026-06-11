@@ -19,9 +19,13 @@
  * + resolved i18n labels from the RSC page and owns ONLY the active-tab state.
  *
  * DEVIATIONS (red-lines):
- *   - Action buttons (split / merge / QA / reserve / move / block / destroy —
- *     lp-screens.jsx:310-317) render DISABLED with title "Coming soon"; the modals
- *     are a later lane and we do NOT fake working mutations.
+ *   - Action buttons (split / merge / QA / reserve / block / destroy —
+ *     lp-screens.jsx:310-317) render DISABLED with title "Coming soon"; their
+ *     modals are a later lane and we do NOT fake working mutations.
+ *   - AUDIT DEFECT #5: the "move" action is now LIVE for movable LPs (not
+ *     consumed / merged / shipped / returned): it opens the LP MOVE modal which
+ *     wires the existing createStockMove action. For terminal LPs it stays
+ *     disabled with "Coming soon" parity styling.
  *   - Labels tab: print history is DEFERRED (the actions backend exposes no print
  *     log); the tab shows the deferred note + a disabled "Print label" affordance.
  *   - The prototype "audit" tab is realized as a "raw" tab (pretty ext_jsonb) per
@@ -31,14 +35,32 @@
  *     one-row reservation summary; empty when nothing is reserved.
  */
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
+import Modal from '@monopilot/ui/Modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+import Textarea from '@monopilot/ui/Textarea';
 
+import type { ReleaseLpQaDecision, ReleaseLpQaInput, ReleaseLpQaResult } from '../../../_actions/lp-qa-actions';
 import type { LicensePlateDetail } from '../../../_actions/shared';
+import type { WarehouseResult } from '../../../_actions/shared';
+import type { createStockMove } from '../../../_actions/stock-move-actions';
+import type { listLocations } from '../../../_actions/location-read-actions';
+import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
+
+/** LP statuses for which the "move" action is NOT allowed (terminal lifecycle). */
+const IMMOVABLE_STATUSES = new Set(['consumed', 'merged', 'shipped', 'returned', 'destroyed']);
 
 export type LpDetailTab =
   | 'overview'
@@ -113,7 +135,22 @@ export type LpDetailLabels = {
   actions: {
     comingSoon: string;
     labelByKey: Record<LpDeferredAction, string>;
+    qaRelease: {
+      title: string;
+      decision: string;
+      released: string;
+      rejected: string;
+      note: string;
+      notePlaceholder: string;
+      cancel: string;
+      confirm: string;
+      unavailable: string;
+      denied: string;
+      invalidState: string;
+      error: string;
+    };
   };
+  move: LpMoveLabels;
   ruleNote: string;
   tab: Record<LpDetailTab, string>;
   overview: { title: string };
@@ -176,15 +213,62 @@ export function LpDetailClient({
   detail,
   labels,
   locale,
+  releaseQaAction,
+  listLocationsAction,
+  createStockMoveAction,
 }: {
   detail: LicensePlateDetail;
   labels: LpDetailLabels;
   locale: string;
+  releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
+  listLocationsAction: typeof listLocations;
+  createStockMoveAction: typeof createStockMove;
 }) {
   const [tab, setTab] = useState<LpDetailTab>('overview');
+  const [qaModalOpen, setQaModalOpen] = useState(false);
+  const [qaDecision, setQaDecision] = useState<ReleaseLpQaDecision>('released');
+  const [qaNote, setQaNote] = useState('');
+  const [qaError, setQaError] = useState<string | null>(null);
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const lpHref = (id: string) => `/${locale}/warehouse/license-plates/${id}`;
   const hasReservation = Boolean(detail.reservedForWoId) && Number(detail.reservedQty) > 0;
+  const canReleaseQa = detail.qaStatus.toLowerCase() === 'pending';
+  // AUDIT #5: "move" is live unless the LP is in a terminal lifecycle state.
+  const canMove = !IMMOVABLE_STATUSES.has(detail.status.toLowerCase());
+
+  function closeQaModal() {
+    if (isPending) return;
+    setQaModalOpen(false);
+    setQaDecision('released');
+    setQaNote('');
+    setQaError(null);
+  }
+
+  function submitQaRelease() {
+    setQaError(null);
+    startTransition(async () => {
+      const result = await releaseQaAction({ lpId: detail.id, decision: qaDecision, note: qaNote });
+      if (result.ok) {
+        setQaModalOpen(false);
+        setQaDecision('released');
+        setQaNote('');
+        setQaError(null);
+        router.refresh();
+        return;
+      }
+      const failure = result as Extract<WarehouseResult<ReleaseLpQaResult>, { ok: false }>;
+      const message =
+        failure.reason === 'forbidden'
+          ? labels.actions.qaRelease.denied
+          : failure.message === 'invalid_state'
+            ? labels.actions.qaRelease.invalidState
+            : labels.actions.qaRelease.error;
+      setQaError(message);
+    });
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -290,20 +374,57 @@ export function LpDetailClient({
             )}
           </IdentityRow>
 
-          {/* Action group — DEFERRED. All disabled with "Coming soon" (red-line). */}
+          {/* Action group. QA release (pending qa_status) and Move (non-terminal
+              status, AUDIT #5) are live; the rest remains deferred. */}
           <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3" data-testid="lp-detail-actions">
-            {LP_DEFERRED_ACTIONS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                disabled
-                title={labels.actions.comingSoon}
-                data-testid={`lp-action-${key}`}
-                className="cursor-not-allowed rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-400"
-              >
-                {labels.actions.labelByKey[key]}
-              </button>
-            ))}
+            {LP_DEFERRED_ACTIONS.map((key) =>
+              key === 'qa' ? (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!canReleaseQa}
+                  title={canReleaseQa ? undefined : labels.actions.qaRelease.unavailable}
+                  data-testid={`lp-action-${key}`}
+                  onClick={() => setQaModalOpen(true)}
+                  className={[
+                    'rounded-md border px-2.5 py-1 text-xs',
+                    canReleaseQa
+                      ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                      : 'cursor-not-allowed border-slate-200 text-slate-400',
+                  ].join(' ')}
+                >
+                  {labels.actions.labelByKey[key]}
+                </button>
+              ) : key === 'move' ? (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!canMove}
+                  title={canMove ? undefined : labels.actions.comingSoon}
+                  data-testid={`lp-action-${key}`}
+                  onClick={() => setMoveModalOpen(true)}
+                  className={[
+                    'rounded-md border px-2.5 py-1 text-xs',
+                    canMove
+                      ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                      : 'cursor-not-allowed border-slate-200 text-slate-400',
+                  ].join(' ')}
+                >
+                  {labels.actions.labelByKey[key]}
+                </button>
+              ) : (
+                <button
+                  key={key}
+                  type="button"
+                  disabled
+                  title={labels.actions.comingSoon}
+                  data-testid={`lp-action-${key}`}
+                  className="cursor-not-allowed rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-400"
+                >
+                  {labels.actions.labelByKey[key]}
+                </button>
+              ),
+            )}
           </div>
           <p className="mt-2 text-[11px] text-slate-400">{labels.ruleNote}</p>
         </Card>
@@ -529,6 +650,85 @@ export function LpDetailClient({
           ) : null}
         </div>
       </div>
+
+      <Modal open={qaModalOpen} onOpenChange={(open) => (!open ? closeQaModal() : setQaModalOpen(true))} modalId="lpQaRelease" size="sm">
+        <Modal.Header title={labels.actions.qaRelease.title} />
+        <Modal.Body>
+          <div data-testid="lp-qa-release-modal" className="flex flex-col gap-3">
+            <label htmlFor="lp-qa-decision" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {labels.actions.qaRelease.decision}
+            </label>
+            <Select
+              id="lp-qa-decision"
+              value={qaDecision}
+              onValueChange={(value) => setQaDecision(value as ReleaseLpQaDecision)}
+              disabled={isPending}
+              aria-label={labels.actions.qaRelease.decision}
+              options={[
+                { value: 'released', label: labels.actions.qaRelease.released },
+                { value: 'rejected', label: labels.actions.qaRelease.rejected },
+              ]}
+            >
+              <SelectTrigger data-testid="lp-qa-decision">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="released">{labels.actions.qaRelease.released}</SelectItem>
+                <SelectItem value="rejected">{labels.actions.qaRelease.rejected}</SelectItem>
+              </SelectContent>
+            </Select>
+            <label htmlFor="lp-qa-note" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {labels.actions.qaRelease.note}
+            </label>
+            <Textarea
+              id="lp-qa-note"
+              rows={3}
+              value={qaNote}
+              disabled={isPending}
+              placeholder={labels.actions.qaRelease.notePlaceholder}
+              onChange={(event) => setQaNote(event.target.value)}
+              data-testid="lp-qa-note"
+            />
+            {qaError ? (
+              <p role="alert" data-testid="lp-qa-release-error" className="text-sm text-red-700">
+                {qaError}
+              </p>
+            ) : null}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={closeQaModal}
+            data-testid="lp-qa-cancel"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700"
+          >
+            {labels.actions.qaRelease.cancel}
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={submitQaRelease}
+            data-testid="lp-qa-confirm"
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          >
+            {labels.actions.qaRelease.confirm}
+          </button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* AUDIT #5: LP MOVE modal — wires createStockMove. Refreshes on success so
+          the Movements tab shows the new move. */}
+      <LpMoveModal
+        open={moveModalOpen}
+        onOpenChange={setMoveModalOpen}
+        lp={{ id: detail.id, lpNumber: detail.lpNumber, currentLocationCode: detail.locationCode }}
+        labels={labels.move}
+        listLocationsAction={listLocationsAction}
+        createStockMoveAction={createStockMoveAction}
+        onMoved={() => router.refresh()}
+      />
     </div>
   );
 }

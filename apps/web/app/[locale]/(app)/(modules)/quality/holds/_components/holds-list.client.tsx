@@ -40,6 +40,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 import { HoldCreateModal, type HoldCreateLabels } from './hold-create-modal.client';
 import type { createHold } from '../../_actions/hold-actions';
+import type {
+  resolveLpByNumber,
+  searchLps,
+  resolveWoByNumber,
+  resolveGrnByNumber,
+} from '../../_actions/lookup-actions';
 
 export type HoldStatusTab = 'active' | 'released' | 'all';
 export const HOLD_STATUS_TABS: HoldStatusTab[] = ['active', 'released', 'all'];
@@ -122,12 +128,20 @@ export function HoldsListClient({
   createLabels,
   locale,
   createHoldAction,
+  resolveLpAction,
+  searchLpsAction,
+  resolveWoAction,
+  resolveGrnAction,
 }: {
   rows: HoldRow[];
   labels: HoldsListLabels;
   createLabels: HoldCreateLabels;
   locale: string;
   createHoldAction: typeof createHold;
+  resolveLpAction: typeof resolveLpByNumber;
+  searchLpsAction: typeof searchLps;
+  resolveWoAction: typeof resolveWoByNumber;
+  resolveGrnAction: typeof resolveGrnByNumber;
 }) {
   const [tab, setTab] = useState<HoldStatusTab>('active');
   const [search, setSearch] = useState('');
@@ -318,6 +332,10 @@ export function HoldsListClient({
         onOpenChange={setCreateOpen}
         labels={createLabels}
         createHoldAction={createHoldAction}
+        resolveLpAction={resolveLpAction}
+        searchLpsAction={searchLpsAction}
+        resolveWoAction={resolveWoAction}
+        resolveGrnAction={resolveGrnAction}
       />
     </div>
   );

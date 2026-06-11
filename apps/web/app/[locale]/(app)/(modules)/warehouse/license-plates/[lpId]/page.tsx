@@ -27,6 +27,9 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 
 import { getLpDetail } from '../../_actions/lp-actions';
+import { releaseLpQa } from '../../_actions/lp-qa-actions';
+import { listLocations } from '../../_actions/location-read-actions';
+import { createStockMove } from '../../_actions/stock-move-actions';
 import { getLpTranslator } from '../lp-labels';
 import {
   LpDetailClient,
@@ -87,7 +90,48 @@ function buildLabels(locale: string): LpDetailLabels {
       parentLp: t('detail.identity.parentLp'),
       none: t('detail.identity.none'),
     },
-    actions: { comingSoon: t('detail.actions.comingSoon'), labelByKey },
+    actions: {
+      comingSoon: t('detail.actions.comingSoon'),
+      labelByKey,
+      qaRelease: {
+        title: t('detail.actions.qaRelease.title'),
+        decision: t('detail.actions.qaRelease.decision'),
+        released: t('detail.actions.qaRelease.released'),
+        rejected: t('detail.actions.qaRelease.rejected'),
+        note: t('detail.actions.qaRelease.note'),
+        notePlaceholder: t('detail.actions.qaRelease.notePlaceholder'),
+        cancel: t('detail.actions.qaRelease.cancel'),
+        confirm: t('detail.actions.qaRelease.confirm'),
+        unavailable: t('detail.actions.qaRelease.unavailable'),
+        denied: t('detail.actions.qaRelease.denied'),
+        invalidState: t('detail.actions.qaRelease.invalidState'),
+        error: t('detail.actions.qaRelease.error'),
+      },
+    },
+    move: {
+      title: t('detail.move.title'),
+      subtitle: t('detail.move.subtitle'),
+      destination: t('detail.move.destination'),
+      destinationHelp: t('detail.move.destinationHelp'),
+      destinationPlaceholder: t('detail.move.destinationPlaceholder'),
+      reason: t('detail.move.reason'),
+      reasonHelp: t('detail.move.reasonHelp'),
+      reasonPlaceholder: t('detail.move.reasonPlaceholder'),
+      currentLocation: t('detail.move.currentLocation'),
+      loadingLocations: t('detail.move.loadingLocations'),
+      noLocations: t('detail.move.noLocations'),
+      locationsError: t('detail.move.locationsError'),
+      cancel: t('detail.move.cancel'),
+      submit: t('detail.move.submit'),
+      submitting: t('detail.move.submitting'),
+      validation: { destinationRequired: t('detail.move.validation.destinationRequired') },
+      error: t('detail.move.error'),
+      errorForbidden: t('detail.move.errorForbidden'),
+      errorLocked: t('detail.move.errorLocked'),
+      errorInvalidState: t('detail.move.errorInvalidState'),
+      errorNotFound: t('detail.move.errorNotFound'),
+      success: t('detail.move.success'),
+    },
     ruleNote: t('detail.ruleNote'),
     tab: {
       overview: t('detail.tabs.overview'),
@@ -185,7 +229,16 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
     );
   }
 
-  return <LpDetailClient detail={result.data} labels={buildLabels(locale)} locale={locale} />;
+  return (
+    <LpDetailClient
+      detail={result.data}
+      labels={buildLabels(locale)}
+      locale={locale}
+      releaseQaAction={releaseLpQa}
+      listLocationsAction={listLocations}
+      createStockMoveAction={createStockMove}
+    />
+  );
 }
 
 export default async function LicensePlateDetailPage({ params }: PageProps) {

@@ -4,13 +4,34 @@
     "nav": {
       "label": "Warehouse areas",
       "comingSoon": "Coming soon",
-      "licensePlates": { "title": "License plates", "desc": "Inventory by LP — receipt to consumption." },
-      "grns": { "title": "Goods receipts", "desc": "GRNs against purchase orders." },
-      "inventory": { "title": "Inventory", "desc": "Stock on hand by item, location, batch." },
-      "movements": { "title": "Movements", "desc": "Stock moves and transfers." },
-      "reservations": { "title": "Reservations", "desc": "LPs allocated to work orders." },
-      "locations": { "title": "Locations", "desc": "Warehouse zones and bins." },
-      "expiry": { "title": "Expiry", "desc": "FEFO red / amber expiry dashboard." }
+      "licensePlates": {
+        "title": "License plates",
+        "desc": "Inventory by LP — receipt to consumption."
+      },
+      "grns": {
+        "title": "Goods receipts",
+        "desc": "GRNs against purchase orders."
+      },
+      "inventory": {
+        "title": "Inventory",
+        "desc": "Stock on hand by item, location, batch."
+      },
+      "movements": {
+        "title": "Movements",
+        "desc": "Stock moves and transfers."
+      },
+      "reservations": {
+        "title": "Reservations",
+        "desc": "LPs allocated to work orders."
+      },
+      "locations": {
+        "title": "Locations",
+        "desc": "Warehouse zones and bins."
+      },
+      "expiry": {
+        "title": "Expiry",
+        "desc": "FEFO red / amber expiry dashboard."
+      }
     },
     "list": {
       "title": "License plates",
@@ -97,7 +118,21 @@
         "reserve": "Reserve",
         "move": "Move",
         "block": "Block",
-        "destroy": "Destroy / scrap"
+        "destroy": "Destroy / scrap",
+        "qaRelease": {
+          "title": "Release LP QC",
+          "decision": "Decision",
+          "released": "Released",
+          "rejected": "Rejected",
+          "note": "Note",
+          "notePlaceholder": "Optional QC note…",
+          "cancel": "Cancel",
+          "confirm": "Confirm",
+          "unavailable": "Only pending QC license plates can be released here.",
+          "denied": "You do not have permission to release receiving QC.",
+          "invalidState": "This license plate is no longer pending QC.",
+          "error": "We could not update QC status. Try again."
+        }
       },
       "ruleNote": "Available actions are determined by the LP state machine. Action modals are wired in a later lane.",
       "tabs": {
@@ -154,6 +189,32 @@
       "raw": {
         "title": "Raw extension data (ext_jsonb)",
         "empty": "No custom fields configured for this LP."
+      },
+      "move": {
+        "title": "Move {lpNumber}",
+        "subtitle": "Transfer this license plate to another location. The move is recorded in the Movements tab.",
+        "destination": "Destination location",
+        "destinationHelp": "Pick the target location for this LP.",
+        "destinationPlaceholder": "Select a location…",
+        "reason": "Reason (optional)",
+        "reasonHelp": "Why is this LP being moved? Recorded with the stock move.",
+        "reasonPlaceholder": "e.g. consolidate to picking face",
+        "currentLocation": "Current location",
+        "loadingLocations": "Loading locations…",
+        "noLocations": "No locations are configured for this org.",
+        "locationsError": "Could not load locations — try again.",
+        "cancel": "Cancel",
+        "submit": "Move LP",
+        "submitting": "Moving…",
+        "validation": {
+          "destinationRequired": "Pick a destination location."
+        },
+        "error": "Move failed: {message}",
+        "errorForbidden": "You do not have permission to move license plates.",
+        "errorLocked": "This LP is locked by another user — try again shortly.",
+        "errorInvalidState": "This LP cannot be moved in its current state.",
+        "errorNotFound": "LP or destination location no longer exists.",
+        "success": "LP moved."
       }
     }
   },
@@ -161,13 +222,34 @@
     "nav": {
       "label": "Obszary magazynu",
       "comingSoon": "Wkrótce",
-      "licensePlates": { "title": "Numery LP", "desc": "Stan magazynowy wg LP — od przyjęcia do zużycia." },
-      "grns": { "title": "Przyjęcia towaru", "desc": "Przyjęcia (GRN) względem zamówień zakupu." },
-      "inventory": { "title": "Stan magazynowy", "desc": "Stan wg towaru, lokalizacji, partii." },
-      "movements": { "title": "Ruchy", "desc": "Ruchy magazynowe i przesunięcia." },
-      "reservations": { "title": "Rezerwacje", "desc": "LP przypisane do zleceń produkcyjnych." },
-      "locations": { "title": "Lokalizacje", "desc": "Strefy i miejsca magazynowe." },
-      "expiry": { "title": "Terminy", "desc": "Panel terminów FEFO (czerwone / bursztynowe)." }
+      "licensePlates": {
+        "title": "Numery LP",
+        "desc": "Stan magazynowy wg LP — od przyjęcia do zużycia."
+      },
+      "grns": {
+        "title": "Przyjęcia towaru",
+        "desc": "Przyjęcia (GRN) względem zamówień zakupu."
+      },
+      "inventory": {
+        "title": "Stan magazynowy",
+        "desc": "Stan wg towaru, lokalizacji, partii."
+      },
+      "movements": {
+        "title": "Ruchy",
+        "desc": "Ruchy magazynowe i przesunięcia."
+      },
+      "reservations": {
+        "title": "Rezerwacje",
+        "desc": "LP przypisane do zleceń produkcyjnych."
+      },
+      "locations": {
+        "title": "Lokalizacje",
+        "desc": "Strefy i miejsca magazynowe."
+      },
+      "expiry": {
+        "title": "Terminy",
+        "desc": "Panel terminów FEFO (czerwone / bursztynowe)."
+      }
     },
     "list": {
       "title": "Numery LP",
@@ -254,7 +336,21 @@
         "reserve": "Zarezerwuj",
         "move": "Przesuń",
         "block": "Zablokuj",
-        "destroy": "Zniszcz / złomuj"
+        "destroy": "Zniszcz / złomuj",
+        "qaRelease": {
+          "title": "Zwolnij QC LP",
+          "decision": "Decyzja",
+          "released": "Zwolnione",
+          "rejected": "Odrzucone",
+          "note": "Notatka",
+          "notePlaceholder": "Opcjonalna notatka QC…",
+          "cancel": "Anuluj",
+          "confirm": "Potwierdź",
+          "unavailable": "Tutaj można zwolnić tylko LP oczekujące na QC.",
+          "denied": "Nie masz uprawnień do zwalniania QC przyjęć.",
+          "invalidState": "Ten LP nie oczekuje już na QC.",
+          "error": "Nie udało się zmienić statusu QC. Spróbuj ponownie."
+        }
       },
       "ruleNote": "Dostępne akcje wynikają z maszyny stanów LP. Okna akcji zostaną podłączone w późniejszym etapie.",
       "tabs": {
@@ -311,6 +407,32 @@
       "raw": {
         "title": "Surowe dane rozszerzeń (ext_jsonb)",
         "empty": "Brak skonfigurowanych pól niestandardowych dla tego LP."
+      },
+      "move": {
+        "title": "Przenieś {lpNumber}",
+        "subtitle": "Przenieś ten nośnik do innej lokalizacji. Ruch jest zapisywany w zakładce Ruchy.",
+        "destination": "Lokalizacja docelowa",
+        "destinationHelp": "Wybierz lokalizację docelową dla tego LP.",
+        "destinationPlaceholder": "Wybierz lokalizację…",
+        "reason": "Powód (opcjonalnie)",
+        "reasonHelp": "Dlaczego ten LP jest przenoszony? Zapisywane razem z ruchem magazynowym.",
+        "reasonPlaceholder": "np. konsolidacja do strefy kompletacji",
+        "currentLocation": "Bieżąca lokalizacja",
+        "loadingLocations": "Wczytywanie lokalizacji…",
+        "noLocations": "Brak skonfigurowanych lokalizacji dla tej organizacji.",
+        "locationsError": "Nie udało się wczytać lokalizacji — spróbuj ponownie.",
+        "cancel": "Anuluj",
+        "submit": "Przenieś LP",
+        "submitting": "Przenoszenie…",
+        "validation": {
+          "destinationRequired": "Wybierz lokalizację docelową."
+        },
+        "error": "Przeniesienie nie powiodło się: {message}",
+        "errorForbidden": "Nie masz uprawnień do przenoszenia nośników.",
+        "errorLocked": "Ten LP jest zablokowany przez innego użytkownika — spróbuj za chwilę.",
+        "errorInvalidState": "Tego LP nie można przenieść w obecnym stanie.",
+        "errorNotFound": "LP lub lokalizacja docelowa już nie istnieje.",
+        "success": "LP przeniesiony."
       }
     }
   }

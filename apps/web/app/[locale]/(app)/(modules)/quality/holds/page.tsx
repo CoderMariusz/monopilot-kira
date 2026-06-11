@@ -22,6 +22,7 @@ import { Suspense } from 'react';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listHolds, createHold } from '../_actions/hold-actions';
+import { resolveLpByNumber, searchLps, resolveWoByNumber, resolveGrnByNumber } from '../_actions/lookup-actions';
 import { getQaHoldsTranslator } from '../qa-holds-labels';
 import { HoldsListClient, type HoldRow } from './_components/holds-list.client';
 import { buildHoldsListLabels, buildHoldCreateLabels } from './_components/labels';
@@ -95,6 +96,10 @@ async function ListContent({ locale }: { locale: string }) {
       createLabels={buildHoldCreateLabels(t)}
       locale={locale}
       createHoldAction={createHold}
+      resolveLpAction={resolveLpByNumber}
+      searchLpsAction={searchLps}
+      resolveWoAction={resolveWoByNumber}
+      resolveGrnAction={resolveGrnByNumber}
     />
   );
 }

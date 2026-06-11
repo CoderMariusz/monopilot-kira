@@ -65,6 +65,25 @@ test.describe('WO execution action modals (DEMO-WO-259)', () => {
     await expect(page.getByTestId('wo-output-row').first()).toBeVisible();
   });
 
+  test('B-3 catch-weight WO: Register output captures N per-unit weights + Σ sum', async ({ page }) => {
+    // A WO whose FG item.weight_mode='catch'. The qty (units) drives the per-unit
+    // grid; each scale reading is a decimal string; the payload carries
+    // catch_weight_kg_per_unit so the service no longer 422s the catch item.
+    await openWoByNumber(page, 'DEMO-WO-259-CW');
+
+    await page.getByTestId('wo-action-output').click();
+    await expect(page.getByTestId('wo-output-catch-weights')).toBeVisible();
+    await page.getByTestId('wo-output-qty').fill('2');
+    await page.getByTestId('wo-output-catch-weight-0').fill('2.480');
+    await page.getByTestId('wo-output-catch-weight-1').fill('2.530');
+    await expect(page.getByTestId('wo-output-catch-sum')).toContainText('Σ 5.010 kg');
+    await page.screenshot({ path: path.join(evidenceDir, 'output-modal-catch-weight.png') });
+    await page.getByTestId('wo-output-confirm').click();
+
+    await page.getByTestId('wo-detail-tab-output').click();
+    await expect(page.getByTestId('wo-output-row').first()).toBeVisible();
+  });
+
   test('COMPLETED WO: Close modal requires e-sign password + reason', async ({ page }) => {
     await openWoByNumber(page, 'DEMO-WO-259-005');
 

@@ -65,7 +65,9 @@ const OptionalIsoDate = z.preprocess(
     .optional(),
 );
 
-export const CreateItemSupplierSpecInput = z
+// NOT exported: a zod schema is an OBJECT and 'use server' files may only export
+// async functions (turbopack build error: "found object"). Types below stay.
+const CreateItemSupplierSpecInput = z
   .object({
     itemCode: z.string().trim().min(1).max(64),
     supplierId: z.string().uuid(),

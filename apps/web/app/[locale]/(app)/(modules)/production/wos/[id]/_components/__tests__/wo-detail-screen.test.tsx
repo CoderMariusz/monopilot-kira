@@ -14,7 +14,11 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 import { WoDetailScreen, type WoDetailLabels } from '../wo-detail-screen';
 import type { WorkOrderDetailData } from '../../../../_actions/get-work-order-detail';
@@ -31,7 +35,17 @@ const LABELS: WoDetailLabels = {
     allergenYes: 'Allergen profile present', allergenNo: 'None', elapsedMin: 'min',
   },
   consumption: { title: 'Component consumption', empty: 'No components recorded for this work order.', addAction: 'Scan LP', col: { code: 'Code', component: 'Component', planned: 'Planned', consumed: 'Consumed', remaining: 'Remaining', progress: 'Progress' } },
-  output: { title: 'Registered output', empty: 'No output registered yet.', addAction: 'Register output', col: { type: 'Type', product: 'Product', qty: 'Qty', batch: 'Batch / lot', expiry: 'Expiry', qa: 'QA', lp: 'LP' } },
+  output: {
+    title: 'Registered output',
+    empty: 'No output registered yet.',
+    addAction: 'Register output',
+    col: { type: 'Type', product: 'Product', qty: 'Qty', batch: 'Batch / lot', expiry: 'Expiry', qa: 'QA', lp: 'LP' },
+    qaPass: 'QA pass',
+    qaFail: 'QA fail',
+    qaDenied: 'No QA permission',
+    qaInvalidState: 'Output is no longer pending',
+    qaError: 'Unable to update QA',
+  },
   waste: { title: 'Waste events', empty: 'No waste recorded for this work order.', addAction: 'Log waste', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
   downtime: { title: 'Downtime events', empty: 'No downtime recorded for this work order.', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
   qa: { title: 'QA results', empty: 'No inspections linked to this work order yet.', total: 'Total', pass: 'Pass', hold: 'Hold', fail: 'Fail' },
@@ -83,17 +97,22 @@ const DATA: WorkOrderDetailData = {
   ],
   qa: { total: 0, pass: 0, hold: 0, fail: 0 },
 };
+const releaseOutputQaActionStub: any = async () => ({
+  ok: true,
+  data: { outputId: 'o1', qaStatus: 'PASSED', lpId: null, lpQaStatus: null },
+});
 
 function renderScreen(data = DATA) {
   // actions=null exercises the read-only path (no live action context): the
   // wired action bar is NOT rendered; the per-tab triggers are absent. The action
   // wiring itself is covered by wos/_components/modals/__tests__/wo-actions.test.tsx.
   return render(
-    <WoDetailScreen
-      data={data}
-      labels={LABELS}
-      actions={null}
-    />,
+    React.createElement(WoDetailScreen, {
+      data,
+      labels: LABELS,
+      actions: null,
+      releaseOutputQaAction: releaseOutputQaActionStub,
+    }),
   );
 }
 
@@ -138,6 +157,8 @@ describe('WoDetailScreen (parity: wo-detail.jsx:4-530)', () => {
     await user.click(screen.getByTestId('wo-detail-tab-output'));
     expect(screen.getByText('WO-2026-0042-OUT-001')).toBeInTheDocument();
     expect(screen.getAllByTestId('wo-output-row')).toHaveLength(1);
+    expect(screen.getByTestId('wo-output-qa-pass-o1')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-output-qa-fail-o1')).toBeInTheDocument();
   });
 
   it('switching to Waste renders the waste rows + total', async () => {

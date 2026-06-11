@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { traceGenealogy } from './genealogy-actions';
 import { listLPs } from './lp-actions';
+import { releaseLpQa } from './lp-qa-actions';
 import { releaseReservation } from './reservation-actions';
 import { createStockMove } from './stock-move-actions';
 import type { QueryClient } from './shared';
@@ -14,6 +15,7 @@ const LOC_ID = '44444444-4444-4444-8444-444444444444';
 let client: QueryClient;
 let grantedPermissions: Set<string>;
 let lpStatus = 'available';
+let lpQaStatus = 'pending';
 let lockActive = false;
 let lpExists = true;
 
@@ -60,6 +62,15 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (normalized.startsWith('select id::text, lp_number, status, qa_status from public.license_plates')) {
+        return {
+          rows: lpExists
+            ? [{ id: LP_ID, lp_number: 'LP-001', status: lpStatus, qa_status: lpQaStatus }]
+            : [],
+          rowCount: lpExists ? 1 : 0,
+        };
+      }
+
       if (normalized.startsWith('select id::text from public.locations')) {
         return { rows: [{ id: LOC_ID }], rowCount: 1 };
       }
@@ -88,11 +99,29 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (normalized.startsWith('update public.license_plates') && normalized.includes('returning id::text, lp_number, status, qa_status')) {
+        return {
+          rows: [
+            {
+              id: LP_ID,
+              lp_number: 'LP-001',
+              status: lpStatus,
+              qa_status: params?.[1],
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
       if (normalized.startsWith('update public.license_plates')) {
         return { rows: [], rowCount: 1 };
       }
 
       if (normalized.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('insert into public.outbox_events')) {
         return { rows: [], rowCount: 1 };
       }
 
@@ -197,8 +226,9 @@ function makeClient(): QueryClient {
 
 describe('warehouse backend actions', () => {
   beforeEach(() => {
-    grantedPermissions = new Set(['warehouse.inventory.read', 'warehouse.stock.move', 'warehouse.lp.reserve']);
+    grantedPermissions = new Set(['warehouse.inventory.read', 'warehouse.stock.move', 'warehouse.lp.reserve', 'warehouse.grn.receive']);
     lpStatus = 'available';
+    lpQaStatus = 'pending';
     lockActive = false;
     lpExists = true;
     client = makeClient();
@@ -286,6 +316,47 @@ describe('warehouse backend actions', () => {
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('releaseLpQa requires warehouse.grn.receive before touching LP rows', async () => {
+    grantedPermissions.delete('warehouse.grn.receive');
+
+    const result = await releaseLpQa({ lpId: LP_ID, decision: 'released' });
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('from public.user_roles');
+  });
+
+  it('releaseLpQa flips pending QA and writes history plus warehouse outbox', async () => {
+    const result = await releaseLpQa({ lpId: LP_ID, decision: 'released', note: 'visual OK' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.qaStatus).toBe('released');
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
+    expect(calls.some((call) => call.sql.startsWith('update public.license_plates') && call.params?.[1] === 'released')).toBe(true);
+    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
+    expect(history?.params?.[4]).toContain('"qaStatusFrom":"pending"');
+    expect(history?.params?.[4]).toContain('"qaStatusTo":"released"');
+    const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[1]).toContain('"qa_status_to":"released"');
+  });
+
+  it('releaseLpQa refuses non-pending and terminal LPs without updating', async () => {
+    lpQaStatus = 'released';
+    await expect(releaseLpQa({ lpId: LP_ID, decision: 'rejected' })).resolves.toMatchObject({
+      ok: false,
+      message: 'invalid_state',
+    });
+
+    lpQaStatus = 'pending';
+    lpStatus = 'consumed';
+    await expect(releaseLpQa({ lpId: LP_ID, decision: 'released' })).resolves.toMatchObject({
+      ok: false,
+      message: 'terminal_lp_status',
+    });
   });
 
   it('traceGenealogy uses a cycle-safe recursive CTE in both directions', async () => {
