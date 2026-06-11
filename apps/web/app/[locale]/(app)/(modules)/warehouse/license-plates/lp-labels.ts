@@ -36,15 +36,21 @@ function interpolate(template: string, values?: Record<string, string | number>)
 /**
  * Returns a translator for the staged warehouse-lp bundle.
  *
- * Resolution order per key: requested locale (pl) → EN fallback → the dotted key
- * itself (so a never-resolved key is visible in dev, never a thrown error).
+ * Resolution order per key: requested locale (pl) → EN fallback → humanized last
+ * key segment (review rule: NEVER leak the raw dotted key to the UI).
  */
 export function getLpTranslator(locale: string) {
   const primary = locale === 'pl' ? BUNDLE.pl : BUNDLE.en;
   const fallback = BUNDLE.en;
 
   const t = (key: string, values?: Record<string, string | number>): string => {
-    const raw = lookup(primary, key) ?? lookup(fallback, key) ?? key;
+    let raw = lookup(primary, key) ?? lookup(fallback, key);
+    if (raw === undefined) {
+      // Never leak "a.b.cKey" into the UI — humanize the last segment instead.
+      if (process.env.NODE_ENV !== 'production') console.warn(`[warehouse i18n] missing key: ${key}`);
+      const last = key.split('.').pop() ?? key;
+      raw = last.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+    }
     return interpolate(raw, values);
   };
   t.has = (key: string): boolean =>

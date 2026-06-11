@@ -1,0 +1,435 @@
+{
+  "_note": "Staged warehouse LANE-C i18n bundle (WH-010 GRN list+detail, WH-012 inventory browser, WH-006 movements, WH-017 reservations + release modal). Resolved server-side by warehouse/_components label loaders (warehouse/wh-c-labels.ts) via t.has-style guards with EN fallback until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "en": {
+    "common": {
+      "warehouse": "Warehouse",
+      "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load this data right now. Refresh to try again.",
+      "rowsLabel": "{count} rows",
+      "searchPlaceholder": "Search…",
+      "loading": "Loading…"
+    },
+    "grnList": {
+      "title": "Goods receipts (GRN)",
+      "subtitle": "Receipts from purchase orders, transfer orders and returns.",
+      "breadcrumb": { "warehouse": "Warehouse", "grns": "Goods receipts" },
+      "searchPlaceholder": "Search GRN#, supplier…",
+      "searchLabel": "Search goods receipts",
+      "rowsLabel": "{count} rows",
+      "sourceFilterLabel": "Source type",
+      "sourceAll": "All sources",
+      "tabs": {
+        "all": "All",
+        "draft": "Draft",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      },
+      "columns": {
+        "grn": "GRN",
+        "source": "Source",
+        "supplier": "Supplier / From",
+        "warehouse": "Warehouse",
+        "receiptDate": "Receipt date",
+        "status": "Status",
+        "items": "Items"
+      },
+      "status": {
+        "draft": "Draft",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "in_progress": "In progress"
+      },
+      "emptyAll": "No goods receipts yet — receive goods from a PO or TO to create your first GRN.",
+      "emptyFiltered": "No goods receipts match this filter. Try clearing the search or pick a different tab.",
+      "denied": "You do not have permission to view goods receipts. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load goods receipts right now. Refresh to try again."
+    },
+    "grnDetail": {
+      "breadcrumb": { "warehouse": "Warehouse", "grns": "Goods receipts" },
+      "back": "Back to goods receipts",
+      "notFound": "Goods receipt not found.",
+      "denied": "You do not have permission to view this goods receipt.",
+      "error": "We could not load this goods receipt right now. Refresh to try again.",
+      "subtitle": "{source} {sourceDoc} · Received {date} · {lpCount} LPs created · {warehouse}",
+      "facts": {
+        "source": "Source",
+        "supplier": "Supplier",
+        "receiptDate": "Receipt date",
+        "warehouse": "Warehouse",
+        "status": "Status",
+        "none": "—"
+      },
+      "notesLabel": "Notes",
+      "itemsTitle": "Receipt lines ({count})",
+      "columns": {
+        "line": "Line",
+        "item": "Item",
+        "ordered": "Ordered",
+        "received": "Received",
+        "batch": "Batch",
+        "supplierBatch": "Supplier batch",
+        "expiry": "Expiry",
+        "location": "Location",
+        "qa": "QA",
+        "lp": "LP created"
+      },
+      "emptyItems": "No receipt lines recorded for this GRN."
+    },
+    "inventory": {
+      "title": "Inventory browser",
+      "subtitle": "Aggregated on-hand stock across all active license plates.",
+      "breadcrumb": { "warehouse": "Warehouse", "inventory": "Inventory" },
+      "searchPlaceholder": "Search item, location, batch…",
+      "searchLabel": "Search inventory",
+      "rowsLabel": "{count} rows",
+      "pivots": {
+        "product": "By product",
+        "location": "By location",
+        "batch": "By batch"
+      },
+      "product": {
+        "columns": {
+          "item": "Product",
+          "total": "Total",
+          "available": "Available",
+          "lps": "LPs",
+          "earliestExpiry": "Earliest expiry"
+        }
+      },
+      "location": {
+        "columns": {
+          "location": "Location",
+          "warehouse": "Warehouse",
+          "total": "Total",
+          "available": "Available",
+          "lps": "LPs"
+        }
+      },
+      "batch": {
+        "columns": {
+          "batch": "Batch",
+          "item": "Product",
+          "total": "Total",
+          "available": "Available",
+          "lps": "LPs",
+          "earliestExpiry": "Earliest expiry"
+        }
+      },
+      "emptyAll": "No inventory on hand yet — receive goods to populate the inventory browser.",
+      "emptyFiltered": "No inventory matches this search. Try a different term or pivot.",
+      "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load inventory right now. Refresh to try again.",
+      "none": "—"
+    },
+    "movements": {
+      "title": "Stock movements",
+      "subtitle": "License-plate moves — receipts, consumption, transfers and adjustments.",
+      "breadcrumb": { "warehouse": "Warehouse", "movements": "Stock movements" },
+      "searchPlaceholder": "Search SM#, LP#…",
+      "searchLabel": "Search stock movements",
+      "rowsLabel": "{count} rows",
+      "tabs": {
+        "all": "All",
+        "receipts": "Receipts",
+        "consume": "Consume to WO",
+        "transfers": "Transfers",
+        "adjustments": "Adjustments"
+      },
+      "columns": {
+        "move": "Move #",
+        "lp": "LP",
+        "type": "Type",
+        "from": "From",
+        "to": "To",
+        "qty": "Qty",
+        "date": "Date",
+        "reason": "Reason"
+      },
+      "moveType": {
+        "receipt": "Receipt",
+        "putaway": "Putaway",
+        "transfer": "Transfer",
+        "consume_to_wo": "Consume to WO",
+        "adjustment": "Adjustment",
+        "quarantine": "Quarantine",
+        "return": "Return"
+      },
+      "emptyAll": "No stock movements yet — movements appear here when LPs are received, moved, consumed or adjusted.",
+      "emptyFiltered": "No stock movements match this filter. Try clearing the search or pick a different tab.",
+      "denied": "You do not have permission to view stock movements. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load stock movements right now. Refresh to try again.",
+      "none": "—"
+    },
+    "reservations": {
+      "title": "Reservations (LP hard-locks)",
+      "subtitle": "Hard-locks created on work-order release · cross-module view of reserved license plates.",
+      "breadcrumb": { "warehouse": "Warehouse", "reservations": "Reservations" },
+      "rowsLabel": "{count} rows",
+      "infoNote": "Hard-locks are auto-created at WO release. Release reason is audit-logged.",
+      "columns": {
+        "lp": "LP",
+        "item": "Material line",
+        "reservedQty": "Reserved",
+        "lpTotal": "LP total",
+        "wo": "WO",
+        "status": "Status",
+        "actions": ""
+      },
+      "status": {
+        "reserved": "Reserved",
+        "available": "Available",
+        "blocked": "Blocked"
+      },
+      "release": "Release",
+      "emptyAll": "No reservations — hard-locks are auto-created when a work order is released in Planning.",
+      "denied": "You do not have permission to view reservations. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load reservations right now. Refresh to try again.",
+      "none": "—",
+      "modal": {
+        "title": "Release reservation",
+        "intro": "You are about to release the hard-lock reservation. The LP will return to available status and can be picked by other work orders.",
+        "facts": {
+          "lp": "LP",
+          "wo": "WO",
+          "qty": "Reserved qty",
+          "item": "Material"
+        },
+        "reasonLabel": "Release reason",
+        "reasonPlaceholder": "— Select reason —",
+        "reasons": {
+          "consumed": "consumed",
+          "cancelled": "cancelled",
+          "wo_cancelled": "wo_cancelled",
+          "admin_override": "admin_override"
+        },
+        "overrideTextLabel": "Reason text",
+        "overrideTextPlaceholder": "Explain admin override…",
+        "overrideNote": "Admin override release is a high-visibility audit event. This action is logged and will appear in compliance reports.",
+        "cancel": "Cancel",
+        "confirm": "Confirm release",
+        "releasing": "Releasing…",
+        "denied": "You do not have permission to release reservations.",
+        "notFound": "This reservation no longer exists.",
+        "errorLocked": "This LP is locked by another user. Try again shortly.",
+        "error": "We could not release this reservation. Try again.",
+        "success": "Reservation released."
+      }
+    }
+  },
+  "pl": {
+    "common": {
+      "warehouse": "Magazyn",
+      "denied": "Nie masz uprawnień do podglądu stanu magazynowego. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać danych. Odśwież, aby spróbować ponownie.",
+      "rowsLabel": "{count} wierszy",
+      "searchPlaceholder": "Szukaj…",
+      "loading": "Wczytywanie…"
+    },
+    "grnList": {
+      "title": "Przyjęcia towaru (GRN)",
+      "subtitle": "Przyjęcia z zamówień zakupu, zleceń przesunięcia i zwrotów.",
+      "breadcrumb": { "warehouse": "Magazyn", "grns": "Przyjęcia towaru" },
+      "searchPlaceholder": "Szukaj GRN#, dostawca…",
+      "searchLabel": "Szukaj przyjęć towaru",
+      "rowsLabel": "{count} wierszy",
+      "sourceFilterLabel": "Typ źródła",
+      "sourceAll": "Wszystkie źródła",
+      "tabs": {
+        "all": "Wszystkie",
+        "draft": "Robocze",
+        "completed": "Zakończone",
+        "cancelled": "Anulowane"
+      },
+      "columns": {
+        "grn": "GRN",
+        "source": "Źródło",
+        "supplier": "Dostawca / Z",
+        "warehouse": "Magazyn",
+        "receiptDate": "Data przyjęcia",
+        "status": "Status",
+        "items": "Pozycje"
+      },
+      "status": {
+        "draft": "Robocze",
+        "completed": "Zakończone",
+        "cancelled": "Anulowane",
+        "in_progress": "W toku"
+      },
+      "emptyAll": "Brak przyjęć towaru — przyjmij towar z PO lub TO, aby utworzyć pierwsze GRN.",
+      "emptyFiltered": "Żadne przyjęcie nie pasuje do filtra. Wyczyść wyszukiwanie lub wybierz inną zakładkę.",
+      "denied": "Nie masz uprawnień do podglądu przyjęć towaru. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać przyjęć towaru. Odśwież, aby spróbować ponownie."
+    },
+    "grnDetail": {
+      "breadcrumb": { "warehouse": "Magazyn", "grns": "Przyjęcia towaru" },
+      "back": "Powrót do przyjęć towaru",
+      "notFound": "Nie znaleziono przyjęcia towaru.",
+      "denied": "Nie masz uprawnień do podglądu tego przyjęcia towaru.",
+      "error": "Nie udało się teraz wczytać tego przyjęcia towaru. Odśwież, aby spróbować ponownie.",
+      "subtitle": "{source} {sourceDoc} · Przyjęto {date} · utworzono {lpCount} LP · {warehouse}",
+      "facts": {
+        "source": "Źródło",
+        "supplier": "Dostawca",
+        "receiptDate": "Data przyjęcia",
+        "warehouse": "Magazyn",
+        "status": "Status",
+        "none": "—"
+      },
+      "notesLabel": "Uwagi",
+      "itemsTitle": "Pozycje przyjęcia ({count})",
+      "columns": {
+        "line": "Lp.",
+        "item": "Towar",
+        "ordered": "Zamówiono",
+        "received": "Przyjęto",
+        "batch": "Partia",
+        "supplierBatch": "Partia dostawcy",
+        "expiry": "Termin",
+        "location": "Lokalizacja",
+        "qa": "QA",
+        "lp": "Utworzony LP"
+      },
+      "emptyItems": "Brak pozycji przyjęcia dla tego GRN."
+    },
+    "inventory": {
+      "title": "Przegląd stanu magazynowego",
+      "subtitle": "Zagregowany stan na ręku ze wszystkich aktywnych numerów LP.",
+      "breadcrumb": { "warehouse": "Magazyn", "inventory": "Stan magazynowy" },
+      "searchPlaceholder": "Szukaj towar, lokalizacja, partia…",
+      "searchLabel": "Szukaj stanu magazynowego",
+      "rowsLabel": "{count} wierszy",
+      "pivots": {
+        "product": "Wg towaru",
+        "location": "Wg lokalizacji",
+        "batch": "Wg partii"
+      },
+      "product": {
+        "columns": {
+          "item": "Towar",
+          "total": "Razem",
+          "available": "Dostępne",
+          "lps": "LP",
+          "earliestExpiry": "Najwcześniejszy termin"
+        }
+      },
+      "location": {
+        "columns": {
+          "location": "Lokalizacja",
+          "warehouse": "Magazyn",
+          "total": "Razem",
+          "available": "Dostępne",
+          "lps": "LP"
+        }
+      },
+      "batch": {
+        "columns": {
+          "batch": "Partia",
+          "item": "Towar",
+          "total": "Razem",
+          "available": "Dostępne",
+          "lps": "LP",
+          "earliestExpiry": "Najwcześniejszy termin"
+        }
+      },
+      "emptyAll": "Brak stanu na ręku — przyjmij towar, aby zapełnić przegląd stanu magazynowego.",
+      "emptyFiltered": "Żaden stan nie pasuje do tego wyszukiwania. Spróbuj innego hasła lub przekroju.",
+      "denied": "Nie masz uprawnień do podglądu stanu magazynowego. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać stanu magazynowego. Odśwież, aby spróbować ponownie.",
+      "none": "—"
+    },
+    "movements": {
+      "title": "Ruchy magazynowe",
+      "subtitle": "Ruchy numerów LP — przyjęcia, zużycia, przesunięcia i korekty.",
+      "breadcrumb": { "warehouse": "Magazyn", "movements": "Ruchy magazynowe" },
+      "searchPlaceholder": "Szukaj SM#, LP#…",
+      "searchLabel": "Szukaj ruchów magazynowych",
+      "rowsLabel": "{count} wierszy",
+      "tabs": {
+        "all": "Wszystkie",
+        "receipts": "Przyjęcia",
+        "consume": "Zużycie do WO",
+        "transfers": "Przesunięcia",
+        "adjustments": "Korekty"
+      },
+      "columns": {
+        "move": "Nr ruchu",
+        "lp": "LP",
+        "type": "Typ",
+        "from": "Z",
+        "to": "Do",
+        "qty": "Ilość",
+        "date": "Data",
+        "reason": "Powód"
+      },
+      "moveType": {
+        "receipt": "Przyjęcie",
+        "putaway": "Odłożenie",
+        "transfer": "Przesunięcie",
+        "consume_to_wo": "Zużycie do WO",
+        "adjustment": "Korekta",
+        "quarantine": "Kwarantanna",
+        "return": "Zwrot"
+      },
+      "emptyAll": "Brak ruchów magazynowych — ruchy pojawiają się tu, gdy LP są przyjmowane, przesuwane, zużywane lub korygowane.",
+      "emptyFiltered": "Żaden ruch nie pasuje do filtra. Wyczyść wyszukiwanie lub wybierz inną zakładkę.",
+      "denied": "Nie masz uprawnień do podglądu ruchów magazynowych. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać ruchów magazynowych. Odśwież, aby spróbować ponownie.",
+      "none": "—"
+    },
+    "reservations": {
+      "title": "Rezerwacje (twarde blokady LP)",
+      "subtitle": "Twarde blokady tworzone przy wydaniu zlecenia produkcyjnego · widok zarezerwowanych numerów LP między modułami.",
+      "breadcrumb": { "warehouse": "Magazyn", "reservations": "Rezerwacje" },
+      "rowsLabel": "{count} wierszy",
+      "infoNote": "Twarde blokady są tworzone automatycznie przy wydaniu WO. Powód zwolnienia jest rejestrowany w audycie.",
+      "columns": {
+        "lp": "LP",
+        "item": "Pozycja materiałowa",
+        "reservedQty": "Zarezerwowano",
+        "lpTotal": "LP razem",
+        "wo": "WO",
+        "status": "Status",
+        "actions": ""
+      },
+      "status": {
+        "reserved": "Zarezerwowany",
+        "available": "Dostępny",
+        "blocked": "Zablokowany"
+      },
+      "release": "Zwolnij",
+      "emptyAll": "Brak rezerwacji — twarde blokady są tworzone automatycznie przy wydaniu zlecenia w Planowaniu.",
+      "denied": "Nie masz uprawnień do podglądu rezerwacji. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać rezerwacji. Odśwież, aby spróbować ponownie.",
+      "none": "—",
+      "modal": {
+        "title": "Zwolnij rezerwację",
+        "intro": "Zamierzasz zwolnić twardą blokadę rezerwacji. LP wróci do statusu dostępny i będzie mógł zostać pobrany przez inne zlecenia.",
+        "facts": {
+          "lp": "LP",
+          "wo": "WO",
+          "qty": "Zarezerwowana ilość",
+          "item": "Materiał"
+        },
+        "reasonLabel": "Powód zwolnienia",
+        "reasonPlaceholder": "— Wybierz powód —",
+        "reasons": {
+          "consumed": "zużyte",
+          "cancelled": "anulowane",
+          "wo_cancelled": "WO anulowane",
+          "admin_override": "nadpisanie administratora"
+        },
+        "overrideTextLabel": "Treść powodu",
+        "overrideTextPlaceholder": "Wyjaśnij nadpisanie administratora…",
+        "overrideNote": "Zwolnienie przez nadpisanie administratora to zdarzenie audytowe o wysokiej widoczności. Ta akcja jest rejestrowana i pojawi się w raportach zgodności.",
+        "cancel": "Anuluj",
+        "confirm": "Potwierdź zwolnienie",
+        "releasing": "Zwalnianie…",
+        "denied": "Nie masz uprawnień do zwalniania rezerwacji.",
+        "notFound": "Ta rezerwacja już nie istnieje.",
+        "errorLocked": "Ten LP jest zablokowany przez innego użytkownika. Spróbuj za chwilę.",
+        "error": "Nie udało się zwolnić tej rezerwacji. Spróbuj ponownie.",
+        "success": "Rezerwacja zwolniona."
+      }
+    }
+  }
+}

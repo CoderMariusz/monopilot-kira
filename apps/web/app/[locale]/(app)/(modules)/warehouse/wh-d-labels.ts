@@ -1,20 +1,20 @@
 /**
- * WAREHOUSE LANE-C — server-side i18n label resolver for the GRN / Inventory /
- * Movements / Reservations surfaces (WH-010, WH-012, WH-006, WH-017).
+ * WAREHOUSE LANE-D — server-side i18n label resolver for the Dashboard (WH-001)
+ * and Expiry-management (WH-019) surfaces.
  *
  * The `warehouse` namespace is NOT yet merged into the live next-intl bundle
  * (apps/web/i18n/{en,pl,ro,uk}.json), so we resolve from the staged bundle
- * `_meta/i18n-staging/warehouse-c.json` (en + pl real values) with a defensive
- * `t.has` guard + EN fallback per missing key — mirroring the staging pattern
- * the parallel LP lane established in `warehouse/license-plates/lp-labels.ts`.
+ * `_meta/i18n-staging/warehouse-d.json` (en + pl real values) with a defensive
+ * `t.has` guard + EN fallback per missing key — mirroring the staging pattern the
+ * parallel LANE-C loader established in `warehouse/wh-c-labels.ts`.
  *
  * When the bundle is merged into next-intl this loader collapses to a thin
- * `getTranslations` wrapper. Resolved server-side only; client components
- * receive plain resolved strings.
+ * `getTranslations` wrapper. Resolved server-side only; client components receive
+ * plain resolved strings.
  *
  * See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  */
-import stagedBundle from '../../../../../../../_meta/i18n-staging/warehouse-c.json';
+import stagedBundle from '../../../../../../../_meta/i18n-staging/warehouse-d.json';
 
 type MsgTree = { [k: string]: string | MsgTree };
 
@@ -38,12 +38,12 @@ function interpolate(template: string, values?: Record<string, string | number>)
 }
 
 /**
- * Returns a translator for the staged warehouse-c bundle.
+ * Returns a translator for the staged warehouse-d bundle.
  *
  * Resolution order per key: requested locale (pl) → EN fallback → humanized last
  * key segment (review rule: NEVER leak the raw dotted key to the UI).
  */
-export function getWhcTranslator(locale: string) {
+export function getWhdTranslator(locale: string) {
   const primary = locale === 'pl' ? BUNDLE.pl : BUNDLE.en;
   const fallback = BUNDLE.en;
 
@@ -62,4 +62,4 @@ export function getWhcTranslator(locale: string) {
   return t;
 }
 
-export type WhcTranslator = ReturnType<typeof getWhcTranslator>;
+export type WhdTranslator = ReturnType<typeof getWhdTranslator>;

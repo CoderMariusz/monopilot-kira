@@ -1,0 +1,191 @@
+{
+  "_note": "Staged warehouse LANE-D i18n bundle (WH-001 dashboard KPI strip + expiry summary top-5, WH-019 expiry management red/amber tiers). Resolved server-side by warehouse/wh-d-labels.ts via a t.has-guarded loader with EN fallback until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "en": {
+    "dashboard": {
+      "title": "Warehouse — dashboard",
+      "subtitle": "Live on-hand snapshot across all active license plates.",
+      "breadcrumb": { "warehouse": "Warehouse", "dashboard": "Dashboard" },
+      "denied": "You do not have permission to view the warehouse dashboard. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load the warehouse dashboard right now. Refresh to try again.",
+      "kpi": {
+        "activeLps": "Active LPs",
+        "activeLpsSub": "Available, reserved, allocated & on-hold",
+        "uniqueSkus": "Unique SKUs",
+        "uniqueSkusSub": "Distinct products in active LPs",
+        "expiring7d": "Expiring ≤ 7d",
+        "expiring7dSub": "Red threshold · review before picking",
+        "expiring30d": "Expiring ≤ 30d",
+        "expiring30dSub": "Amber threshold · FEFO priority",
+        "qcHold": "QC hold",
+        "qcHoldSub": "PENDING + HOLD + QUARANTINED",
+        "blocked": "Blocked LPs",
+        "blockedSub": "Operations prevented"
+      },
+      "expiry": {
+        "title": "Expiry summary",
+        "open": "Open expiry dashboard →",
+        "redCard": "LP(s) expiring ≤ 7 days",
+        "redCardSub": "Red tier · Review before picking",
+        "amberCard": "LP(s) expiring ≤ 30 days",
+        "amberCardSub": "Amber tier · FEFO priority",
+        "top5Title": "Top 5 soonest-expiring",
+        "columns": {
+          "lp": "LP",
+          "product": "Product",
+          "batch": "Batch",
+          "expiry": "Expiry",
+          "location": "Location",
+          "status": "Status"
+        },
+        "empty": "No license plates are nearing expiry. FEFO priority is maintained.",
+        "daysLeft": "{days}d left",
+        "expired": "expired {days}d ago",
+        "none": "—"
+      },
+      "omitted": {
+        "inventoryValue": "Inventory-value KPI omitted: no valuation/costing field is exposed by the warehouse read actions (would require a costing join not yet available).",
+        "fefoOverride": "FEFO override-rate KPI omitted: no FEFO-override telemetry source is exposed by the warehouse read actions."
+      },
+      "status": {
+        "available": "Available",
+        "reserved": "Reserved",
+        "allocated": "Allocated",
+        "received": "Received",
+        "quarantine": "Quarantine",
+        "blocked": "Blocked"
+      }
+    },
+    "expiryPage": {
+      "title": "Expiry management",
+      "subtitle": "License plates past or nearing their expiry date, split by FEFO tier.",
+      "breadcrumb": { "warehouse": "Warehouse", "expiry": "Expiry" },
+      "denied": "You do not have permission to view expiry management. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load expiry data right now. Refresh to try again.",
+      "summary": {
+        "red": "LPs in the red tier",
+        "redSub": "Expired or within the warning window. Immediate review required.",
+        "amber": "LPs in the amber tier",
+        "amberSub": "Approaching expiry within 30 days. FEFO priority."
+      },
+      "red": {
+        "title": "Red tier — expired or within warning window",
+        "empty": "No license plates are in the red tier. Nothing has expired or entered the warning window."
+      },
+      "amber": {
+        "title": "Amber tier — expiring within 30 days",
+        "empty": "No license plates are in the amber tier."
+      },
+      "columns": {
+        "lp": "LP",
+        "item": "Item",
+        "batch": "Batch",
+        "expiry": "Expiry",
+        "daysLeft": "Days left",
+        "location": "Location",
+        "status": "Status",
+        "action": "Action"
+      },
+      "rows": "{count} rows",
+      "daysLeft": "{days}d",
+      "expired": "expired {days}d ago",
+      "forceBlock": "Force block",
+      "forceBlockComingSoon": "Coming soon",
+      "none": "—",
+      "empty": "No license plates are past or nearing their expiry date. The daily expiry check runs automatically."
+    }
+  },
+  "pl": {
+    "dashboard": {
+      "title": "Magazyn — pulpit",
+      "subtitle": "Bieżący stan na ręku ze wszystkich aktywnych numerów LP.",
+      "breadcrumb": { "warehouse": "Magazyn", "dashboard": "Pulpit" },
+      "denied": "Nie masz uprawnień do podglądu pulpitu magazynu. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać pulpitu magazynu. Odśwież, aby spróbować ponownie.",
+      "kpi": {
+        "activeLps": "Aktywne LP",
+        "activeLpsSub": "Dostępne, zarezerwowane, przydzielone i wstrzymane",
+        "uniqueSkus": "Unikalne SKU",
+        "uniqueSkusSub": "Różne towary w aktywnych LP",
+        "expiring7d": "Termin ≤ 7 dni",
+        "expiring7dSub": "Próg czerwony · sprawdź przed pobraniem",
+        "expiring30d": "Termin ≤ 30 dni",
+        "expiring30dSub": "Próg bursztynowy · priorytet FEFO",
+        "qcHold": "Wstrzymane QC",
+        "qcHoldSub": "PENDING + HOLD + QUARANTINED",
+        "blocked": "Zablokowane LP",
+        "blockedSub": "Operacje wstrzymane"
+      },
+      "expiry": {
+        "title": "Podsumowanie terminów",
+        "open": "Otwórz pulpit terminów →",
+        "redCard": "LP z terminem ≤ 7 dni",
+        "redCardSub": "Strefa czerwona · sprawdź przed pobraniem",
+        "amberCard": "LP z terminem ≤ 30 dni",
+        "amberCardSub": "Strefa bursztynowa · priorytet FEFO",
+        "top5Title": "5 najbliższych terminów",
+        "columns": {
+          "lp": "LP",
+          "product": "Towar",
+          "batch": "Partia",
+          "expiry": "Termin",
+          "location": "Lokalizacja",
+          "status": "Status"
+        },
+        "empty": "Żadne numery LP nie zbliżają się do terminu. Priorytet FEFO zachowany.",
+        "daysLeft": "{days} dni",
+        "expired": "po terminie {days} dni",
+        "none": "—"
+      },
+      "omitted": {
+        "inventoryValue": "Pominięto KPI wartości zapasów: akcje odczytu magazynu nie udostępniają pola wyceny/kosztu (wymagałoby złączenia kosztowego, którego jeszcze nie ma).",
+        "fefoOverride": "Pominięto KPI wskaźnika nadpisań FEFO: akcje odczytu magazynu nie udostępniają źródła telemetrii nadpisań FEFO."
+      },
+      "status": {
+        "available": "Dostępny",
+        "reserved": "Zarezerwowany",
+        "allocated": "Przydzielony",
+        "received": "Przyjęty",
+        "quarantine": "Kwarantanna",
+        "blocked": "Zablokowany"
+      }
+    },
+    "expiryPage": {
+      "title": "Zarządzanie terminami",
+      "subtitle": "Numery LP po terminie lub zbliżające się do niego, podzielone wg strefy FEFO.",
+      "breadcrumb": { "warehouse": "Magazyn", "expiry": "Terminy" },
+      "denied": "Nie masz uprawnień do podglądu zarządzania terminami. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać danych o terminach. Odśwież, aby spróbować ponownie.",
+      "summary": {
+        "red": "LP w strefie czerwonej",
+        "redSub": "Po terminie lub w oknie ostrzegawczym. Wymagana natychmiastowa kontrola.",
+        "amber": "LP w strefie bursztynowej",
+        "amberSub": "Zbliżają się do terminu w ciągu 30 dni. Priorytet FEFO."
+      },
+      "red": {
+        "title": "Strefa czerwona — po terminie lub w oknie ostrzegawczym",
+        "empty": "Brak numerów LP w strefie czerwonej. Nic nie przekroczyło terminu ani nie weszło w okno ostrzegawcze."
+      },
+      "amber": {
+        "title": "Strefa bursztynowa — termin w ciągu 30 dni",
+        "empty": "Brak numerów LP w strefie bursztynowej."
+      },
+      "columns": {
+        "lp": "LP",
+        "item": "Towar",
+        "batch": "Partia",
+        "expiry": "Termin",
+        "daysLeft": "Pozostało dni",
+        "location": "Lokalizacja",
+        "status": "Status",
+        "action": "Akcja"
+      },
+      "rows": "{count} wierszy",
+      "daysLeft": "{days} dni",
+      "expired": "po terminie {days} dni",
+      "forceBlock": "Wymuś blokadę",
+      "forceBlockComingSoon": "Wkrótce",
+      "none": "—",
+      "empty": "Żadne numery LP nie są po terminie ani nie zbliżają się do niego. Codzienna kontrola terminów działa automatycznie."
+    }
+  }
+}
