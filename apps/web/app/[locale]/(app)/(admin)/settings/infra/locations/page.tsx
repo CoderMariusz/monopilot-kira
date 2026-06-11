@@ -1,9 +1,9 @@
 import { getTranslations } from 'next-intl/server';
-import { redirect } from 'next/navigation';
 
 import { LocationTreeScreen } from './location-tree-client';
 
 import { deleteLocation as removeLocation, upsertLocation as persistLocation } from '../../../../../../../actions/infra/location';
+import { importLocationCsvAction } from './_actions/import-location-csv';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
@@ -449,15 +449,13 @@ export default async function LocationTreePage(propsInput: unknown) {
   const requestedSelectedId = typeof searchParams?.selectedLocationId === 'string' ? searchParams.selectedLocationId : null;
   const requestedParentId = typeof searchParams?.parentId === 'string' ? searchParams.parentId : null;
 
-  async function importCsvAction(formData: FormData): Promise<void> {
-    'use server';
-    if (!canImport) return;
-    const file = formData.get('csvFile');
-    if (!(file instanceof File)) return;
-    const result = await importLocationCsvText(await readFileText(file), createLocation, labels);
-    redirect(importResultHref(selectedWarehouseId, result.ok, result.message));
-  }
-
+  // importLocationCsvAction is a module-level Server Action (no closure).
+  // Serializable params (selectedWarehouseId, locale) are bound here so that
+  // Next.js can pass this action reference safely to the LocationTreeScreen
+  // Client Component without violating the "no functions in Server Action
+  // closures" constraint. Permission enforcement happens inside the action
+  // via withOrgContext (re-checks settings.infra.update on every invocation).
+  const boundImportAction = importLocationCsvAction.bind(null, selectedWarehouseId, locale);
 
   return (
     <LocationTreeScreen
@@ -471,7 +469,7 @@ export default async function LocationTreePage(propsInput: unknown) {
       canUpdateInfra={canUpdateInfra}
       state={state}
       activeDialog={activeDialog}
-      importCsvAction={importCsvAction}
+      importCsvAction={boundImportAction}
       importToast={importToast}
       upsertToast={upsertToast}
       upsertLocation={upsertLocation}
