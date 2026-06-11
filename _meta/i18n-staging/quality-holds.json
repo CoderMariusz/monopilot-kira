@@ -1,0 +1,361 @@
+{
+  "_note": "Staged QUALITY HOLDS i18n bundle (QA-002 holds list, QA-002a hold detail, MODAL-HOLD-CREATE, MODAL-HOLD-RELEASE, quality module landing nav). Resolved server-side by quality/qa-holds-labels.ts (mirrors warehouse/wh-c-labels.ts FIXED loader: locale -> EN fallback -> humanized last segment, NEVER the raw dotted key) until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "en": {
+    "common": {
+      "quality": "Quality",
+      "denied": "You do not have permission to view quality holds. Ask an administrator for the quality.dashboard.view permission.",
+      "error": "We could not load quality holds right now. Refresh to try again.",
+      "loading": "Loading…"
+    },
+    "landing": {
+      "title": "Quality",
+      "subtitle": "Holds, NCRs, inspections and specifications.",
+      "breadcrumb": { "quality": "Quality" },
+      "comingSoon": "Coming soon",
+      "nav": {
+        "label": "Quality areas",
+        "holds": { "title": "Holds", "desc": "Quarantine LPs, batches, work orders, POs and GRNs pending quality review." },
+        "ncrs": { "title": "NCRs", "desc": "Non-conformance reports, root-cause and corrective actions." },
+        "inspections": { "title": "Inspections", "desc": "Incoming, in-process and final inspection records." },
+        "specifications": { "title": "Specifications", "desc": "Approved product and material quality specifications." }
+      }
+    },
+    "list": {
+      "title": "Holds",
+      "subtitle": "LP, Batch, WO, PO or GRN quarantined pending quality disposition.",
+      "breadcrumb": { "quality": "Quality", "holds": "Holds" },
+      "createHold": "Create hold",
+      "searchPlaceholder": "Search hold # or reference…",
+      "searchLabel": "Search holds",
+      "rowsLabel": "{count} rows",
+      "refTypeLabel": "Reference type",
+      "refTypeAll": "All refs",
+      "tabs": {
+        "active": "Active",
+        "released": "Released",
+        "all": "All"
+      },
+      "refType": {
+        "lp": "LP",
+        "batch": "Batch",
+        "wo": "WO",
+        "po": "PO",
+        "grn": "GRN"
+      },
+      "priority": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "critical": "Critical"
+      },
+      "status": {
+        "open": "Open",
+        "investigating": "Investigating",
+        "escalated": "Escalated",
+        "quarantined": "Quarantined",
+        "released": "Released"
+      },
+      "columns": {
+        "holdNumber": "Hold #",
+        "refType": "Ref type",
+        "reference": "Reference",
+        "reason": "Reason",
+        "priority": "Priority",
+        "status": "Status",
+        "created": "Created",
+        "estRelease": "Est. release"
+      },
+      "noReason": "—",
+      "emptyAll": "No holds yet. Create a hold to quarantine an LP, batch, work order, PO or GRN.",
+      "emptyFiltered": "No holds match your current filters. Try adjusting filters or create a new hold.",
+      "denied": "You do not have permission to view quality holds. Ask an administrator for the quality.dashboard.view permission.",
+      "error": "We could not load quality holds right now. Refresh to try again."
+    },
+    "detail": {
+      "backToHolds": "Holds",
+      "breadcrumb": { "quality": "Quality", "holds": "Holds" },
+      "notFound": "Hold not found.",
+      "denied": "You do not have permission to view this hold.",
+      "error": "We could not load this hold right now. Refresh to try again.",
+      "signedBanner": "This hold was released on {date} by {user}. Disposition: {disposition}. Record is immutable (21 CFR Part 11).",
+      "context": {
+        "title": "Hold context",
+        "reference": "Reference",
+        "reason": "Reason",
+        "priority": "Priority",
+        "disposition": "Disposition",
+        "created": "Created",
+        "estRelease": "Est. release",
+        "dispositionPending": "Pending"
+      },
+      "tabs": {
+        "items": "Held items",
+        "ncrs": "Linked NCRs"
+      },
+      "items": {
+        "lp": "LP",
+        "qtyHeld": "Qty held (kg)",
+        "qtyReleased": "Qty released (kg)",
+        "status": "Status",
+        "empty": "No held items on this hold."
+      },
+      "ncrs": {
+        "ncrNumber": "NCR #",
+        "ncrTitle": "Title",
+        "severity": "Severity",
+        "status": "Status",
+        "empty": "No NCRs linked to this hold."
+      },
+      "actions": {
+        "title": "Actions",
+        "release": "Release hold",
+        "sod": "Critical holds require segregation of duties — the releaser must differ from the creator (V-QA-HOLD-006)."
+      }
+    },
+    "createModal": {
+      "title": "Create hold",
+      "subtitle": "LP, Batch, WO, PO or GRN — quality_holds",
+      "refType": "Reference type",
+      "refTypeHelp": "Select what is being held.",
+      "referenceId": "Reference ID",
+      "referenceIdHelp": "The UUID of the LP, batch, work order, PO or GRN to hold.",
+      "referenceIdPlaceholder": "Paste the reference UUID…",
+      "lpIds": "Additional LP IDs (optional)",
+      "lpIdsHelp": "Comma-separated LP UUIDs to quarantine alongside the reference.",
+      "lpIdsPlaceholder": "lp-uuid-1, lp-uuid-2",
+      "reasonText": "Reason",
+      "reasonTextHelp": "Describe why this is being held (or select a reason code).",
+      "reasonTextPlaceholder": "Describe the hold reason…",
+      "priority": "Priority",
+      "estRelease": "Estimated release date (optional)",
+      "criticalWarning": "Critical holds require the creator and release approver to be different users — segregation of duties per V-QA-HOLD-006.",
+      "cancel": "Cancel",
+      "submit": "Create hold",
+      "submitting": "Creating…",
+      "validation": {
+        "referenceRequired": "A reference ID is required.",
+        "reasonRequired": "A reason is required."
+      },
+      "error": "We could not create the hold. {message}",
+      "success": "Hold {holdNumber} created."
+    },
+    "releaseModal": {
+      "title": "Release hold — {holdNumber}",
+      "summary": {
+        "hold": "Hold",
+        "reference": "Reference",
+        "reason": "Reason",
+        "priority": "Priority"
+      },
+      "disposition": "Disposition",
+      "dispositionHelp": "V-QA-HOLD-005 — disposition is required and must not be Pending.",
+      "dispositionPlaceholder": "Select…",
+      "dispositionOptions": {
+        "release": "Release as-is",
+        "scrap": "Scrap",
+        "rework": "Rework",
+        "partial": "Partial release"
+      },
+      "reasonText": "Release notes",
+      "reasonTextHelp": "Describe the release rationale and any conditions. Required.",
+      "reasonTextPlaceholder": "Describe the reason for release and any conditions…",
+      "sodWarning": "Critical holds must be released by a user other than the creator (V-QA-HOLD-006). If you created this hold, contact another Quality Lead.",
+      "esign": {
+        "title": "Electronic signature (21 CFR Part 11)",
+        "meaning": "Meaning: released",
+        "password": "Password",
+        "passwordHelp": "Your password verifies your identity. A signed, immutable record is stored. This action is permanent.",
+        "passwordPlaceholder": "Your account password"
+      },
+      "cancel": "Cancel",
+      "submit": "Release hold",
+      "submitting": "Releasing…",
+      "validation": {
+        "dispositionRequired": "A disposition is required.",
+        "reasonRequired": "Release notes are required.",
+        "passwordRequired": "Your password is required to sign."
+      },
+      "error": "Release failed: {message}",
+      "success": "Hold {holdNumber} released."
+    }
+  },
+  "pl": {
+    "common": {
+      "quality": "Jakość",
+      "denied": "Nie masz uprawnień do przeglądania blokad jakości. Poproś administratora o uprawnienie quality.dashboard.view.",
+      "error": "Nie udało się teraz wczytać blokad jakości. Odśwież, aby spróbować ponownie.",
+      "loading": "Wczytywanie…"
+    },
+    "landing": {
+      "title": "Jakość",
+      "subtitle": "Blokady, NCR, kontrole i specyfikacje.",
+      "breadcrumb": { "quality": "Jakość" },
+      "comingSoon": "Wkrótce",
+      "nav": {
+        "label": "Obszary jakości",
+        "holds": { "title": "Blokady", "desc": "Kwarantanna LP, partii, zleceń produkcyjnych, zamówień zakupu i przyjęć (GRN) oczekujących na ocenę jakości." },
+        "ncrs": { "title": "NCR", "desc": "Raporty niezgodności, analiza przyczyn i działania korygujące." },
+        "inspections": { "title": "Kontrole", "desc": "Zapisy kontroli przyjęcia, międzyoperacyjnej i końcowej." },
+        "specifications": { "title": "Specyfikacje", "desc": "Zatwierdzone specyfikacje jakości produktów i materiałów." }
+      }
+    },
+    "list": {
+      "title": "Blokady",
+      "subtitle": "LP, partia, zlecenie, zamówienie lub GRN w kwarantannie oczekujące na decyzję jakości.",
+      "breadcrumb": { "quality": "Jakość", "holds": "Blokady" },
+      "createHold": "Utwórz blokadę",
+      "searchPlaceholder": "Szukaj nr blokady lub referencji…",
+      "searchLabel": "Szukaj blokad",
+      "rowsLabel": "{count} wierszy",
+      "refTypeLabel": "Typ referencji",
+      "refTypeAll": "Wszystkie referencje",
+      "tabs": {
+        "active": "Aktywne",
+        "released": "Zwolnione",
+        "all": "Wszystkie"
+      },
+      "refType": {
+        "lp": "LP",
+        "batch": "Partia",
+        "wo": "ZP",
+        "po": "ZZ",
+        "grn": "GRN"
+      },
+      "priority": {
+        "low": "Niski",
+        "medium": "Średni",
+        "high": "Wysoki",
+        "critical": "Krytyczny"
+      },
+      "status": {
+        "open": "Otwarta",
+        "investigating": "W analizie",
+        "escalated": "Eskalowana",
+        "quarantined": "Kwarantanna",
+        "released": "Zwolniona"
+      },
+      "columns": {
+        "holdNumber": "Nr blokady",
+        "refType": "Typ ref.",
+        "reference": "Referencja",
+        "reason": "Powód",
+        "priority": "Priorytet",
+        "status": "Status",
+        "created": "Utworzono",
+        "estRelease": "Szac. zwolnienie"
+      },
+      "noReason": "—",
+      "emptyAll": "Brak blokad. Utwórz blokadę, aby objąć kwarantanną LP, partię, zlecenie, zamówienie lub GRN.",
+      "emptyFiltered": "Żadna blokada nie pasuje do bieżących filtrów. Zmień filtry lub utwórz nową blokadę.",
+      "denied": "Nie masz uprawnień do przeglądania blokad jakości. Poproś administratora o uprawnienie quality.dashboard.view.",
+      "error": "Nie udało się teraz wczytać blokad jakości. Odśwież, aby spróbować ponownie."
+    },
+    "detail": {
+      "backToHolds": "Blokady",
+      "breadcrumb": { "quality": "Jakość", "holds": "Blokady" },
+      "notFound": "Nie znaleziono blokady.",
+      "denied": "Nie masz uprawnień do przeglądania tej blokady.",
+      "error": "Nie udało się teraz wczytać tej blokady. Odśwież, aby spróbować ponownie.",
+      "signedBanner": "Blokada została zwolniona {date} przez {user}. Decyzja: {disposition}. Zapis jest niezmienny (21 CFR Part 11).",
+      "context": {
+        "title": "Kontekst blokady",
+        "reference": "Referencja",
+        "reason": "Powód",
+        "priority": "Priorytet",
+        "disposition": "Decyzja",
+        "created": "Utworzono",
+        "estRelease": "Szac. zwolnienie",
+        "dispositionPending": "Oczekuje"
+      },
+      "tabs": {
+        "items": "Zablokowane pozycje",
+        "ncrs": "Powiązane NCR"
+      },
+      "items": {
+        "lp": "LP",
+        "qtyHeld": "Ilość zablokowana (kg)",
+        "qtyReleased": "Ilość zwolniona (kg)",
+        "status": "Status",
+        "empty": "Brak zablokowanych pozycji w tej blokadzie."
+      },
+      "ncrs": {
+        "ncrNumber": "Nr NCR",
+        "ncrTitle": "Tytuł",
+        "severity": "Waga",
+        "status": "Status",
+        "empty": "Brak NCR powiązanych z tą blokadą."
+      },
+      "actions": {
+        "title": "Akcje",
+        "release": "Zwolnij blokadę",
+        "sod": "Blokady krytyczne wymagają rozdzielenia obowiązków — zwalniający musi być inny niż twórca (V-QA-HOLD-006)."
+      }
+    },
+    "createModal": {
+      "title": "Utwórz blokadę",
+      "subtitle": "LP, partia, ZP, ZZ lub GRN — quality_holds",
+      "refType": "Typ referencji",
+      "refTypeHelp": "Wybierz, co ma zostać zablokowane.",
+      "referenceId": "ID referencji",
+      "referenceIdHelp": "UUID LP, partii, zlecenia, zamówienia lub GRN do zablokowania.",
+      "referenceIdPlaceholder": "Wklej UUID referencji…",
+      "lpIds": "Dodatkowe ID LP (opcjonalnie)",
+      "lpIdsHelp": "UUID LP oddzielone przecinkami do objęcia kwarantanną wraz z referencją.",
+      "lpIdsPlaceholder": "lp-uuid-1, lp-uuid-2",
+      "reasonText": "Powód",
+      "reasonTextHelp": "Opisz, dlaczego zakładana jest blokada (lub wybierz kod powodu).",
+      "reasonTextPlaceholder": "Opisz powód blokady…",
+      "priority": "Priorytet",
+      "estRelease": "Szacowana data zwolnienia (opcjonalnie)",
+      "criticalWarning": "Blokady krytyczne wymagają, aby twórca i zatwierdzający zwolnienie byli różnymi użytkownikami — rozdzielenie obowiązków zgodnie z V-QA-HOLD-006.",
+      "cancel": "Anuluj",
+      "submit": "Utwórz blokadę",
+      "submitting": "Tworzenie…",
+      "validation": {
+        "referenceRequired": "ID referencji jest wymagane.",
+        "reasonRequired": "Powód jest wymagany."
+      },
+      "error": "Nie udało się utworzyć blokady. {message}",
+      "success": "Utworzono blokadę {holdNumber}."
+    },
+    "releaseModal": {
+      "title": "Zwolnij blokadę — {holdNumber}",
+      "summary": {
+        "hold": "Blokada",
+        "reference": "Referencja",
+        "reason": "Powód",
+        "priority": "Priorytet"
+      },
+      "disposition": "Decyzja",
+      "dispositionHelp": "V-QA-HOLD-005 — decyzja jest wymagana i nie może być „Oczekuje”.",
+      "dispositionPlaceholder": "Wybierz…",
+      "dispositionOptions": {
+        "release": "Zwolnij bez zmian",
+        "scrap": "Złom",
+        "rework": "Przeróbka",
+        "partial": "Zwolnienie częściowe"
+      },
+      "reasonText": "Uwagi do zwolnienia",
+      "reasonTextHelp": "Opisz uzasadnienie zwolnienia i ewentualne warunki. Wymagane.",
+      "reasonTextPlaceholder": "Opisz powód zwolnienia i warunki…",
+      "sodWarning": "Blokady krytyczne musi zwolnić użytkownik inny niż twórca (V-QA-HOLD-006). Jeśli utworzyłeś tę blokadę, skontaktuj się z innym liderem jakości.",
+      "esign": {
+        "title": "Podpis elektroniczny (21 CFR Part 11)",
+        "meaning": "Znaczenie: zwolnienie",
+        "password": "Hasło",
+        "passwordHelp": "Twoje hasło potwierdza tożsamość. Zapisywany jest podpisany, niezmienny rekord. Ta akcja jest nieodwracalna.",
+        "passwordPlaceholder": "Hasło do twojego konta"
+      },
+      "cancel": "Anuluj",
+      "submit": "Zwolnij blokadę",
+      "submitting": "Zwalnianie…",
+      "validation": {
+        "dispositionRequired": "Decyzja jest wymagana.",
+        "reasonRequired": "Uwagi do zwolnienia są wymagane.",
+        "passwordRequired": "Twoje hasło jest wymagane do podpisu."
+      },
+      "error": "Zwolnienie nie powiodło się: {message}",
+      "success": "Zwolniono blokadę {holdNumber}."
+    }
+  }
+}
