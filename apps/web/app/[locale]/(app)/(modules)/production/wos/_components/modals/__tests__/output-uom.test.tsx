@@ -177,9 +177,9 @@ describe('Register output — payload', () => {
     expect(captured.body).toMatchObject({
       output_type: 'primary',
       product_id: PRODUCT_ID,
-      qtyUnits: 2,
+      qtyUnits: '2',
       unitsUom: 'box',
-      actualWeightKg: 598.4,
+      actualWeightKg: '598.4',
     });
     expect(captured.body.qty_kg).toBeUndefined();
     expect(typeof captured.body.transaction_id).toBe('string');
@@ -197,7 +197,7 @@ describe('Register output — payload', () => {
     await user.click(screen.getByTestId('wo-output-confirm'));
 
     await waitFor(() => expect(captured.body).toBeDefined());
-    expect(captured.body).toMatchObject({ qtyUnits: 3, unitsUom: 'box' });
+    expect(captured.body).toMatchObject({ qtyUnits: '3', unitsUom: 'box' });
     expect(captured.body.actualWeightKg).toBeUndefined();
   });
 

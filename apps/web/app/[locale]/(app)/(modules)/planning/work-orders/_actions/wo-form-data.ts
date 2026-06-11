@@ -33,6 +33,13 @@ export type FgProductOption = {
   itemCode: string;
   name: string;
   uomBase: string;
+  /** Pack hierarchy (mig 267) — the create-WO modal labels qty in the output
+   *  unit and previews the base-kg conversion from these. */
+  outputUom: 'base' | 'each' | 'box';
+  netQtyPerEach: number | null;
+  eachPerBox: number | null;
+  boxesPerPallet: number | null;
+  weightMode: 'fixed' | 'catch';
 };
 
 export type ProductionLineOption = {
@@ -75,8 +82,14 @@ export async function searchFgProducts(input: SearchFgProductsInput = {}): Promi
       item_code: string;
       name: string;
       uom_base: string;
+      output_uom: 'base' | 'each' | 'box' | null;
+      net_qty_per_each: string | number | null;
+      each_per_box: number | null;
+      boxes_per_pallet: number | null;
+      weight_mode: 'fixed' | 'catch' | null;
     }>(
-      `select i.id, i.item_code, i.name, i.uom_base
+      `select i.id, i.item_code, i.name, i.uom_base,
+              i.output_uom, i.net_qty_per_each, i.each_per_box, i.boxes_per_pallet, i.weight_mode
          from public.items i
         where i.org_id = app.current_org_id()
           and i.item_type = 'fg'
@@ -98,6 +111,11 @@ export async function searchFgProducts(input: SearchFgProductsInput = {}): Promi
       itemCode: r.item_code,
       name: r.name,
       uomBase: r.uom_base,
+      outputUom: r.output_uom ?? 'base',
+      netQtyPerEach: r.net_qty_per_each === null || r.net_qty_per_each === undefined ? null : Number(r.net_qty_per_each),
+      eachPerBox: r.each_per_box,
+      boxesPerPallet: r.boxes_per_pallet,
+      weightMode: r.weight_mode ?? 'fixed',
     }));
   });
 }

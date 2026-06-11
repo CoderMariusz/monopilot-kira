@@ -45,7 +45,7 @@ import { buildDataTabLabels } from './_components/item-data-tab-labels';
 import { loadBomTab, loadCostTab, loadRoutingTab, loadLabTab, loadD365Tab } from './_actions/tab-data';
 import { listSupplierSpecs } from './_actions/list-supplier-specs';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
-import { buildWizardLabels } from '../page';
+import { buildWizardLabels } from '../_components/item-wizard-labels';
 
 export const dynamic = 'force-dynamic';
 

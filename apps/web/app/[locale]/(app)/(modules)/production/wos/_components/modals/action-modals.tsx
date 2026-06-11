@@ -530,7 +530,10 @@ export function OutputModal({
       : outputUom === 'each'
         ? labels.output.qtyUom?.each
         : labels.output.qtyUom?.base;
-  const qtyLabel = qtyUnitLabel ? `${labels.output.qty} (${qtyUnitLabel})` : labels.output.qty;
+  // The legacy base label already carries its unit ("Quantity (kg)") — only
+  // append a suffix for each/box, else live renders "Quantity (kg) (kg)".
+  const qtyLabel =
+    !isBase && qtyUnitLabel ? `${labels.output.qty} (${qtyUnitLabel})` : labels.output.qty;
 
   let preview: string | null = null;
   if (!isBase && qtyValid) {
@@ -562,7 +565,9 @@ export function OutputModal({
         output_type: outputType,
         product_id: productId,
         qty_kg: qty.trim(),
-        ...(weightTrimmed ? { actualWeightKg: Number(weightTrimmed) } : {}),
+        // REGULATED WEIGHT: decimal STRING, never a JS number — the route's
+        // DecimalString schema rejects numbers by design (live 422 otherwise).
+        ...(weightTrimmed ? { actualWeightKg: weightTrimmed } : {}),
         ...(batch.trim() ? { batch_number: batch.trim() } : {}),
       };
     } else {
@@ -582,9 +587,10 @@ export function OutputModal({
         transaction_id: freshTransactionId(),
         output_type: outputType,
         product_id: productId,
-        qtyUnits: Number(qty.trim()),
+        // REGULATED QUANTITIES: decimal STRINGS (DecimalString schema).
+        qtyUnits: qty.trim(),
         unitsUom: outputUom,
-        ...(weightTrimmed ? { actualWeightKg: Number(weightTrimmed) } : {}),
+        ...(weightTrimmed ? { actualWeightKg: weightTrimmed } : {}),
         ...(batch.trim() ? { batch_number: batch.trim() } : {}),
       };
     }

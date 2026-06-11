@@ -430,7 +430,15 @@ export function WoDetailScreen({
                   {data.outputs.map((o) => (
                     <TableRow key={o.id} data-testid="wo-output-row">
                       <TableCell><Badge variant="muted" className="text-[10px]">{o.outputType}</Badge></TableCell>
-                      <TableCell className="font-mono text-xs text-slate-500">{o.productId.slice(0, 8)}</TableCell>
+                      <TableCell className="text-xs text-slate-600">
+                        {/* Outputs are nearly always the WO's FG — show its code
+                            instead of a UUID fragment when the ids match. */}
+                        {o.productId === h.productId && h.itemCode ? (
+                          h.itemCode
+                        ) : (
+                          <span className="font-mono text-slate-500">{o.productId.slice(0, 8)}</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums">{fmtQty(o.qtyKg)} {o.uom}</TableCell>
                       <TableCell className="font-mono text-xs text-slate-600">{o.batchNumber}</TableCell>
                       <TableCell className="font-mono text-xs text-slate-500">{fmtDate(o.expiryDate)}</TableCell>
