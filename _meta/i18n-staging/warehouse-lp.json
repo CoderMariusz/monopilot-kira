@@ -1,0 +1,317 @@
+{
+  "_note": "Staged warehouse LP i18n bundle (WH-002 LP list + WH-003 LP detail). Resolved server-side by warehouse/license-plates/_actions-free label loaders via t.has-style guards with EN fallback until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "en": {
+    "nav": {
+      "label": "Warehouse areas",
+      "comingSoon": "Coming soon",
+      "licensePlates": { "title": "License plates", "desc": "Inventory by LP — receipt to consumption." },
+      "grns": { "title": "Goods receipts", "desc": "GRNs against purchase orders." },
+      "inventory": { "title": "Inventory", "desc": "Stock on hand by item, location, batch." },
+      "movements": { "title": "Movements", "desc": "Stock moves and transfers." },
+      "reservations": { "title": "Reservations", "desc": "LPs allocated to work orders." },
+      "locations": { "title": "Locations", "desc": "Warehouse zones and bins." },
+      "expiry": { "title": "Expiry", "desc": "FEFO red / amber expiry dashboard." }
+    },
+    "list": {
+      "title": "License plates",
+      "subtitle": "Inventory by license plate — receipt to consumption.",
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "licensePlates": "License plates"
+      },
+      "countLine": "{total} LPs · {reserved} reserved · {hold} on QC hold · {blocked} blocked",
+      "searchPlaceholder": "Search LP#, item, batch…",
+      "searchLabel": "Search license plates",
+      "rowsLabel": "{count} rows",
+      "tabs": {
+        "all": "All",
+        "available": "Available",
+        "reserved": "Reserved",
+        "blocked": "Blocked",
+        "qc_hold": "QC Hold"
+      },
+      "columns": {
+        "lp": "LP",
+        "item": "Item",
+        "qty": "Qty",
+        "batch": "Batch",
+        "expiry": "Expiry",
+        "status": "Status",
+        "qa": "QA",
+        "location": "Location"
+      },
+      "expiry": {
+        "expired": "{days}d ago",
+        "soon": "in {days}d"
+      },
+      "emptyAll": "No license plates yet — receive goods or register an LP from the Scanner to create your first LP.",
+      "emptyFiltered": "No license plates match this filter. Try clearing the search or pick a different tab.",
+      "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load license plates right now. Refresh to try again.",
+      "deferredMultiSelect": "Bulk select / actions are deferred to a later lane."
+    },
+    "status": {
+      "available": "Available",
+      "reserved": "Reserved",
+      "blocked": "Blocked",
+      "consumed": "Consumed",
+      "shipped": "Shipped",
+      "merged": "Merged"
+    },
+    "detail": {
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "licensePlates": "License plates"
+      },
+      "notFound": "License plate not found.",
+      "denied": "You do not have permission to view this license plate.",
+      "error": "We could not load this license plate right now. Refresh to try again.",
+      "back": "Back to license plates",
+      "expiryBanner": "This LP expires in {days} days on {date}. Review before picking — FEFO priority.",
+      "header": {
+        "qtyLine": "{qty} {uom} · Batch {batch} · Expiry {expiry}"
+      },
+      "identity": {
+        "title": "Identity",
+        "product": "Product",
+        "itemType": "Item type",
+        "quantity": "Quantity",
+        "reserved": "Reserved",
+        "available": "Available",
+        "batch": "Batch",
+        "supplierBatch": "Supplier batch",
+        "expiry": "Expiry date",
+        "bestBefore": "Best before",
+        "catchWeight": "Catch weight",
+        "location": "Location",
+        "warehouse": "Warehouse",
+        "source": "Source",
+        "parentLp": "Parent LP",
+        "none": "—"
+      },
+      "actions": {
+        "comingSoon": "Coming soon",
+        "split": "Split",
+        "merge": "Merge",
+        "qa": "Change QA status",
+        "reserve": "Reserve",
+        "move": "Move",
+        "block": "Block",
+        "destroy": "Destroy / scrap"
+      },
+      "ruleNote": "Available actions are determined by the LP state machine. Action modals are wired in a later lane.",
+      "tabs": {
+        "overview": "Overview",
+        "history": "State history",
+        "reservations": "Reservations",
+        "movements": "Movements",
+        "genealogy": "Genealogy",
+        "labels": "Labels",
+        "raw": "Raw"
+      },
+      "overview": {
+        "title": "Identity snapshot"
+      },
+      "history": {
+        "empty": "No state transitions recorded for this LP.",
+        "transition": "{from} → {to}",
+        "by": "by {user}",
+        "reason": "Reason: {reason}",
+        "from": "From",
+        "to": "To",
+        "at": "At",
+        "reasonCol": "Reason"
+      },
+      "reservations": {
+        "empty": "No reservations for this LP.",
+        "wo": "Work order",
+        "reservedQty": "Reserved",
+        "available": "Available",
+        "note": "Reservations are created for material LPs allocated to work orders."
+      },
+      "movements": {
+        "empty": "No stock movements recorded for this LP.",
+        "timestamp": "Timestamp",
+        "type": "Type",
+        "from": "From",
+        "to": "To",
+        "qty": "Qty",
+        "reason": "Reason",
+        "reference": "Reference"
+      },
+      "genealogy": {
+        "parentTitle": "Parent LP (upstream)",
+        "childrenTitle": "Child LPs (downstream)",
+        "noParent": "No parent LP — this is a root receipt.",
+        "noChildren": "No child LPs — this LP has not been split or consumed into other LPs.",
+        "status": "Status",
+        "qty": "Qty"
+      },
+      "labels": {
+        "deferred": "Label printing is deferred to a later lane.",
+        "printAction": "Print label"
+      },
+      "raw": {
+        "title": "Raw extension data (ext_jsonb)",
+        "empty": "No custom fields configured for this LP."
+      }
+    }
+  },
+  "pl": {
+    "nav": {
+      "label": "Obszary magazynu",
+      "comingSoon": "Wkrótce",
+      "licensePlates": { "title": "Numery LP", "desc": "Stan magazynowy wg LP — od przyjęcia do zużycia." },
+      "grns": { "title": "Przyjęcia towaru", "desc": "Przyjęcia (GRN) względem zamówień zakupu." },
+      "inventory": { "title": "Stan magazynowy", "desc": "Stan wg towaru, lokalizacji, partii." },
+      "movements": { "title": "Ruchy", "desc": "Ruchy magazynowe i przesunięcia." },
+      "reservations": { "title": "Rezerwacje", "desc": "LP przypisane do zleceń produkcyjnych." },
+      "locations": { "title": "Lokalizacje", "desc": "Strefy i miejsca magazynowe." },
+      "expiry": { "title": "Terminy", "desc": "Panel terminów FEFO (czerwone / bursztynowe)." }
+    },
+    "list": {
+      "title": "Numery LP",
+      "subtitle": "Stan magazynowy wg numeru LP — od przyjęcia do zużycia.",
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "licensePlates": "Numery LP"
+      },
+      "countLine": "{total} LP · {reserved} zarezerwowane · {hold} na blokadzie QC · {blocked} zablokowane",
+      "searchPlaceholder": "Szukaj LP#, towar, partia…",
+      "searchLabel": "Szukaj numerów LP",
+      "rowsLabel": "{count} wierszy",
+      "tabs": {
+        "all": "Wszystkie",
+        "available": "Dostępne",
+        "reserved": "Zarezerwowane",
+        "blocked": "Zablokowane",
+        "qc_hold": "Blokada QC"
+      },
+      "columns": {
+        "lp": "LP",
+        "item": "Towar",
+        "qty": "Ilość",
+        "batch": "Partia",
+        "expiry": "Termin",
+        "status": "Status",
+        "qa": "QA",
+        "location": "Lokalizacja"
+      },
+      "expiry": {
+        "expired": "{days} dni temu",
+        "soon": "za {days} dni"
+      },
+      "emptyAll": "Brak numerów LP — przyjmij towar lub zarejestruj LP w Skanerze, aby utworzyć pierwszy LP.",
+      "emptyFiltered": "Żaden LP nie pasuje do filtra. Wyczyść wyszukiwanie lub wybierz inną zakładkę.",
+      "denied": "Nie masz uprawnień do podglądu stanu magazynowego. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać numerów LP. Odśwież, aby spróbować ponownie.",
+      "deferredMultiSelect": "Zaznaczanie zbiorcze / akcje są odłożone na późniejszy etap."
+    },
+    "status": {
+      "available": "Dostępny",
+      "reserved": "Zarezerwowany",
+      "blocked": "Zablokowany",
+      "consumed": "Zużyty",
+      "shipped": "Wysłany",
+      "merged": "Scalony"
+    },
+    "detail": {
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "licensePlates": "Numery LP"
+      },
+      "notFound": "Nie znaleziono numeru LP.",
+      "denied": "Nie masz uprawnień do podglądu tego numeru LP.",
+      "error": "Nie udało się teraz wczytać tego numeru LP. Odśwież, aby spróbować ponownie.",
+      "back": "Powrót do numerów LP",
+      "expiryBanner": "Ten LP wygasa za {days} dni, dnia {date}. Sprawdź przed pobraniem — priorytet FEFO.",
+      "header": {
+        "qtyLine": "{qty} {uom} · Partia {batch} · Termin {expiry}"
+      },
+      "identity": {
+        "title": "Tożsamość",
+        "product": "Towar",
+        "itemType": "Typ towaru",
+        "quantity": "Ilość",
+        "reserved": "Zarezerwowano",
+        "available": "Dostępne",
+        "batch": "Partia",
+        "supplierBatch": "Partia dostawcy",
+        "expiry": "Termin ważności",
+        "bestBefore": "Najlepiej spożyć przed",
+        "catchWeight": "Waga rzeczywista",
+        "location": "Lokalizacja",
+        "warehouse": "Magazyn",
+        "source": "Źródło",
+        "parentLp": "Nadrzędny LP",
+        "none": "—"
+      },
+      "actions": {
+        "comingSoon": "Wkrótce",
+        "split": "Podziel",
+        "merge": "Scal",
+        "qa": "Zmień status QA",
+        "reserve": "Zarezerwuj",
+        "move": "Przesuń",
+        "block": "Zablokuj",
+        "destroy": "Zniszcz / złomuj"
+      },
+      "ruleNote": "Dostępne akcje wynikają z maszyny stanów LP. Okna akcji zostaną podłączone w późniejszym etapie.",
+      "tabs": {
+        "overview": "Przegląd",
+        "history": "Historia stanów",
+        "reservations": "Rezerwacje",
+        "movements": "Ruchy",
+        "genealogy": "Genealogia",
+        "labels": "Etykiety",
+        "raw": "Dane surowe"
+      },
+      "overview": {
+        "title": "Migawka tożsamości"
+      },
+      "history": {
+        "empty": "Brak zarejestrowanych zmian stanu dla tego LP.",
+        "transition": "{from} → {to}",
+        "by": "przez {user}",
+        "reason": "Powód: {reason}",
+        "from": "Z",
+        "to": "Do",
+        "at": "Kiedy",
+        "reasonCol": "Powód"
+      },
+      "reservations": {
+        "empty": "Brak rezerwacji dla tego LP.",
+        "wo": "Zlecenie",
+        "reservedQty": "Zarezerwowano",
+        "available": "Dostępne",
+        "note": "Rezerwacje tworzone są dla LP materiałowych przypisanych do zleceń produkcyjnych."
+      },
+      "movements": {
+        "empty": "Brak zarejestrowanych ruchów magazynowych dla tego LP.",
+        "timestamp": "Znacznik czasu",
+        "type": "Typ",
+        "from": "Z",
+        "to": "Do",
+        "qty": "Ilość",
+        "reason": "Powód",
+        "reference": "Referencja"
+      },
+      "genealogy": {
+        "parentTitle": "Nadrzędny LP (powyżej)",
+        "childrenTitle": "Podrzędne LP (poniżej)",
+        "noParent": "Brak nadrzędnego LP — to przyjęcie źródłowe.",
+        "noChildren": "Brak podrzędnych LP — ten LP nie został podzielony ani zużyty do innych LP.",
+        "status": "Status",
+        "qty": "Ilość"
+      },
+      "labels": {
+        "deferred": "Drukowanie etykiet jest odłożone na późniejszy etap.",
+        "printAction": "Drukuj etykietę"
+      },
+      "raw": {
+        "title": "Surowe dane rozszerzeń (ext_jsonb)",
+        "empty": "Brak skonfigurowanych pól niestandardowych dla tego LP."
+      }
+    }
+  }
+}
