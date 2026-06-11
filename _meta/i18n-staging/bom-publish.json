@@ -1,0 +1,19 @@
+{
+  "_note": "B-1 fix: Publish button (technical_approved -> active) on the BOM detail action bar. Keys live under technical.bom.actions. ro/uk mirror the EN value per the two-locale policy.",
+  "technical.bom.actions.publish": {
+    "en": "Publish",
+    "pl": "Opublikuj"
+  },
+  "technical.bom.actions.publishing": {
+    "en": "Publishing…",
+    "pl": "Publikowanie…"
+  },
+  "technical.bom.actions.publishError": {
+    "en": "Unable to publish this BOM version. Please try again.",
+    "pl": "Nie można opublikować tej wersji BOM. Spróbuj ponownie."
+  },
+  "technical.bom.actions.publishForbidden": {
+    "en": "You do not have permission to publish BOMs.",
+    "pl": "Nie masz uprawnień do publikowania BOM-ów."
+  }
+}
