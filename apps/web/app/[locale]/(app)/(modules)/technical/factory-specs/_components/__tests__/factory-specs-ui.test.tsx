@@ -26,6 +26,8 @@ const approveMock = vi.fn();
 const rejectMock = vi.fn();
 const loadBundleMock = vi.fn();
 const createFactorySpecMock = vi.fn();
+const submitForReviewMock = vi.fn();
+const linkBomMock = vi.fn();
 const refreshMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
@@ -44,6 +46,34 @@ vi.mock('../../_actions/bundle-data', async () => {
 });
 vi.mock('../../actions/create-factory-spec', () => ({
   createFactorySpec: (...args: unknown[]) => createFactorySpecMock(...args),
+}));
+vi.mock('../../actions/factory-spec-flow', () => ({
+  submitFactorySpecForReview: (...args: unknown[]) => submitForReviewMock(...args),
+  linkFactorySpecBom: (...args: unknown[]) => linkBomMock(...args),
+}));
+vi.mock('../../../../../../../(npd)/fa/actions/search-items', () => ({
+  searchItems: vi.fn(),
+}));
+vi.mock('../../../../../(npd)/_components/item-picker', () => ({
+  ItemPicker: ({ labels, onSelect }: { labels: { trigger: string }; onSelect: (item: unknown) => void }) =>
+    React.createElement(
+      'button',
+      {
+        type: 'button',
+        'data-testid': 'item-picker-trigger',
+        onClick: () =>
+          onSelect({
+            id: '33333333-3333-4333-8333-333333333333',
+            itemCode: 'FG5101',
+            name: 'Kielbasa slaska 450g',
+            itemType: 'fg',
+            status: 'active',
+            costPerKgEur: null,
+            uomBase: 'kg',
+          }),
+      },
+      labels.trigger,
+    ),
 }));
 
 // Imported AFTER the mocks above so the components pick up the mocked modules.
@@ -80,15 +110,16 @@ describe('Factory spec create modal', () => {
       data: { id: 'spec-new', specCode: 'FS-FG5101', version: 1 },
     });
 
-    render(<CreateFactorySpecButton label="+ New specification" />);
+    render(React.createElement(CreateFactorySpecButton, { label: "+ New specification" }));
     fireEvent.click(screen.getByRole('button', { name: '+ New specification' }));
 
     fireEvent.change(screen.getByLabelText('Specification code'), {
       target: { value: 'FS-FG5101' },
     });
-    fireEvent.change(screen.getByLabelText('FG item ID'), {
-      target: { value: '33333333-3333-4333-8333-333333333333' },
-    });
+    expect(screen.queryByLabelText('FG item ID')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    expect(screen.getByText('FG5101')).toBeInTheDocument();
+    expect(screen.getByText('Kielbasa slaska 450g')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Notes'), {
       target: { value: 'Initial technical draft' },
     });
@@ -107,12 +138,10 @@ describe('Factory spec create modal', () => {
   it('surfaces create action errors inline', async () => {
     createFactorySpecMock.mockResolvedValue({ ok: false, error: 'forbidden' });
 
-    render(<CreateFactorySpecButton label="+ New specification" />);
+    render(React.createElement(CreateFactorySpecButton, { label: "+ New specification" }));
     fireEvent.click(screen.getByRole('button', { name: '+ New specification' }));
     fireEvent.change(screen.getByLabelText('Specification code'), { target: { value: 'FS-FG5101' } });
-    fireEvent.change(screen.getByLabelText('FG item ID'), {
-      target: { value: '33333333-3333-4333-8333-333333333333' },
-    });
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
     fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission to create specifications.');
@@ -127,6 +156,10 @@ function bundleData(overrides: Partial<ReleaseBundleData> = {}): ReleaseBundleDa
     fg: { itemCode: 'FG5101', name: 'Kielbasa slaska 450g' },
     spec: { specCode: 'FS-FG5101', version: 3, status: 'in_review', source: 'technical', lastEdit: '2026-04-30T11:22', owner: 'A. Majewska' },
     bom: { id: 'bom-1', version: 8, status: 'in_review', clonedFrom: 'v7' },
+    bomOptions: [
+      { id: 'bom-1', version: 8, status: 'in_review', label: 'v8 · in_review' },
+      { id: 'bom-2', version: 7, status: 'draft', label: 'v7 · draft' },
+    ],
     blockers: [
       { kind: 'release', severity: 'info', code: 'D365_INFORMATIONAL', message: 'D365 informational.' },
     ],
@@ -141,7 +174,7 @@ function bundleData(overrides: Partial<ReleaseBundleData> = {}): ReleaseBundleDa
 // ── T-060 Review modal (TEC-085) ────────────────────────────────────────────────
 describe('T-060 FactorySpecRowActions review modal', () => {
   it('renders Review CTA and opens the review modal with release + paired-BOM status', () => {
-    render(<FactorySpecRowActions spec={baseSpec} canApprove reviewLabel="Review" />);
+    render(React.createElement(FactorySpecRowActions, { spec: baseSpec, canApprove: true, reviewLabel: "Review" }));
     fireEvent.click(screen.getByRole('button', { name: 'Review' }));
 
     const dialog = screen.getByRole('dialog');
@@ -160,18 +193,18 @@ describe('T-060 FactorySpecRowActions review modal', () => {
 
   it('shows the clone-on-write warning for an approved (immutable) version', () => {
     render(
-      <FactorySpecRowActions
-        spec={{ ...baseSpec, status: 'approved_for_factory', bomStatus: 'technical_approved' }}
-        canApprove
-        reviewLabel="Review"
-      />,
+      React.createElement(FactorySpecRowActions, {
+        spec: { ...baseSpec, status: 'approved_for_factory', bomStatus: 'technical_approved' },
+        canApprove: true,
+        reviewLabel: 'Review',
+      }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Review' }));
     expect(screen.getByText(/Editing creates a new version \(clone-on-write\)/i)).toBeInTheDocument();
   });
 
   it('hides the approve path and explains the Technical permission when canApprove is false', () => {
-    render(<FactorySpecRowActions spec={baseSpec} canApprove={false} reviewLabel="Review" />);
+    render(React.createElement(FactorySpecRowActions, { spec: baseSpec, canApprove: false, reviewLabel: "Review" }));
     fireEvent.click(screen.getByRole('button', { name: 'Review' }));
     expect(screen.queryByRole('button', { name: 'Mark reviewed' })).not.toBeInTheDocument();
     expect(screen.getByText(/do not have the Technical permission/i)).toBeInTheDocument();
@@ -184,7 +217,7 @@ describe('T-060 FactorySpecRowActions review modal', () => {
 describe('T-090 ReleaseBundlePanelButton', () => {
   it('loads the bundle on open and renders paired statuses + history', async () => {
     loadBundleMock.mockResolvedValue({ ok: true, data: bundleData() });
-    render(<ReleaseBundlePanelButton factorySpecId="spec-1" label="Open bundle approval" />);
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
     fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
 
     await waitFor(() => expect(loadBundleMock).toHaveBeenCalledWith('spec-1'));
@@ -205,7 +238,7 @@ describe('T-090 ReleaseBundlePanelButton', () => {
         ],
       }),
     });
-    render(<ReleaseBundlePanelButton factorySpecId="spec-1" label="Open bundle approval" />);
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
     fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
 
     const approveBtn = await screen.findByRole('button', { name: /Approve \(blocked\)/i });
@@ -214,10 +247,76 @@ describe('T-090 ReleaseBundlePanelButton', () => {
     expect(approveMock).not.toHaveBeenCalled();
   });
 
+  it('submits a draft spec for review from the bundle panel and reloads blockers', async () => {
+    loadBundleMock
+      .mockResolvedValueOnce({
+        ok: true,
+        data: bundleData({
+          bomHeaderId: null,
+          spec: { ...bundleData().spec, status: 'draft' },
+          bom: { id: null, version: null, status: null, clonedFrom: null },
+          blockers: [
+            { kind: 'release', severity: 'block', code: 'INVALID_STATE', message: 'factory_spec is draft; expected in_review' },
+            { kind: 'release', severity: 'block', code: 'NO_PAIRED_BOM', message: 'No shared BOM is paired with this factory_spec yet.' },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: bundleData({
+          bomHeaderId: null,
+          spec: { ...bundleData().spec, status: 'in_review' },
+          bom: { id: null, version: null, status: null, clonedFrom: null },
+          blockers: [
+            { kind: 'release', severity: 'block', code: 'NO_PAIRED_BOM', message: 'No shared BOM is paired with this factory_spec yet.' },
+          ],
+        }),
+      });
+    submitForReviewMock.mockResolvedValue({ ok: true, data: { specId: 'spec-1', status: 'in_review' } });
+
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
+
+    const submit = await screen.findByRole('button', { name: 'Submit for review' });
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(submitForReviewMock).toHaveBeenCalledWith({ specId: 'spec-1' }));
+    expect(await screen.findByText('Factory specification submitted for review.')).toBeInTheDocument();
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('links a selected BOM from the bundle panel and reloads the paired BOM state', async () => {
+    loadBundleMock
+      .mockResolvedValueOnce({
+        ok: true,
+        data: bundleData({
+          bomHeaderId: null,
+          bom: { id: null, version: null, status: null, clonedFrom: null },
+          blockers: [
+            { kind: 'release', severity: 'block', code: 'NO_PAIRED_BOM', message: 'No shared BOM is paired with this factory_spec yet.' },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, data: bundleData({ bomHeaderId: 'bom-2', bom: { id: 'bom-2', version: 7, status: 'draft', clonedFrom: null } }) });
+    linkBomMock.mockResolvedValue({ ok: true, data: { specId: 'spec-1', bomHeaderId: 'bom-2', bomVersion: 7, bomStatus: 'draft' } });
+
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
+
+    const select = await screen.findByLabelText('Linked BOM');
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByText('v7 · draft'));
+    fireEvent.click(screen.getByRole('button', { name: 'Link BOM' }));
+
+    await waitFor(() => expect(linkBomMock).toHaveBeenCalledWith({ specId: 'spec-1', bomHeaderId: 'bom-2' }));
+    expect(await screen.findByText('BOM v7 linked.')).toBeInTheDocument();
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
   it('approves the bundle with PIN + reason and calls the T-080 action', async () => {
     loadBundleMock.mockResolvedValue({ ok: true, data: bundleData() });
     approveMock.mockResolvedValue({ ok: true, data: { factorySpecId: 'spec-1' } });
-    render(<ReleaseBundlePanelButton factorySpecId="spec-1" label="Open bundle approval" />);
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
     fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
 
     await screen.findByText('factory_spec');
@@ -245,7 +344,7 @@ describe('T-090 ReleaseBundlePanelButton', () => {
   it('rejects the bundle with a reason via the T-080 reject action', async () => {
     loadBundleMock.mockResolvedValue({ ok: true, data: bundleData() });
     rejectMock.mockResolvedValue({ ok: true, data: { factorySpecId: 'spec-1' } });
-    render(<ReleaseBundlePanelButton factorySpecId="spec-1" label="Open bundle approval" />);
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
     fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
 
     await screen.findByText('factory_spec');
@@ -267,7 +366,7 @@ describe('T-090 ReleaseBundlePanelButton', () => {
 
   it('shows the error state when the read model fails to load', async () => {
     loadBundleMock.mockResolvedValue({ ok: false, error: 'error' });
-    render(<ReleaseBundlePanelButton factorySpecId="spec-1" label="Open bundle approval" />);
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
     fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
     expect(await screen.findByText(/Unable to load the release bundle/i)).toBeInTheDocument();
   });

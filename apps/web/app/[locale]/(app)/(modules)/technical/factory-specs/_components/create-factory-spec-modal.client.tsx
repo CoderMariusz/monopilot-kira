@@ -4,6 +4,8 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
+import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import { createFactorySpec } from '../actions/create-factory-spec';
 
 type CreateState = 'idle' | 'submitting' | 'success' | 'error';
@@ -38,7 +40,7 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
   const titleId = React.useId();
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   const [specCode, setSpecCode] = React.useState('');
-  const [fgItemId, setFgItemId] = React.useState('');
+  const [fgItem, setFgItem] = React.useState<ItemPickerOption | null>(null);
   const [notes, setNotes] = React.useState('');
   const [state, setState] = React.useState<CreateState>('idle');
   const [error, setError] = React.useState<string | null>(null);
@@ -46,7 +48,7 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
   React.useEffect(() => {
     if (!open) {
       setSpecCode('');
-      setFgItemId('');
+      setFgItem(null);
       setNotes('');
       setState('idle');
       setError(null);
@@ -62,7 +64,7 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
 
   if (!open) return null;
 
-  const canSubmit = state !== 'submitting' && specCode.trim().length > 0 && fgItemId.trim().length > 0;
+  const canSubmit = state !== 'submitting' && specCode.trim().length > 0 && fgItem !== null;
 
   const errorLabels: Record<string, string> = {
     invalid_input: tt('errors.invalid_input', 'Check the specification fields and try again.'),
@@ -78,7 +80,7 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
     setError(null);
 
     const result = await createFactorySpec({
-      fgItemId: fgItemId.trim(),
+      fgItemId: fgItem?.id ?? '',
       specCode: specCode.trim(),
       notes: notes.trim().length > 0 ? notes.trim() : undefined,
     });
@@ -150,16 +152,34 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
             </div>
 
             <div className="ff mt-3">
-              <label htmlFor="factory-spec-fg-item-id">{tt('fields.fgItemId', 'FG item ID')}</label>
-              <input
-                id="factory-spec-fg-item-id"
-                className="form-input mono"
-                value={fgItemId}
-                onChange={(event) => setFgItemId(event.target.value)}
-                required
-                disabled={state === 'submitting'}
-              />
-              <span className="ff-help">{tt('hints.fgItemId', 'UUID of the finished-good item in the item master.')}</span>
+              <span className="text-sm font-medium">{tt('fields.fgItemId', 'Finished good item')}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <ItemPicker
+                  labels={{
+                    trigger: fgItem
+                      ? tt('picker.change', 'Change finished good')
+                      : tt('picker.trigger', 'Choose finished good'),
+                    searchLabel: tt('picker.searchLabel', 'Search finished goods'),
+                    searchPlaceholder: tt('picker.searchPlaceholder', 'Search by FG code or name...'),
+                    loading: tt('picker.loading', 'Searching...'),
+                    empty: tt('picker.empty', 'No finished goods found'),
+                    cancel: tt('picker.cancel', 'Cancel'),
+                    error: tt('picker.error', 'Item search failed'),
+                  }}
+                  searchItemsAction={searchItems}
+                  itemTypes={['fg']}
+                  disabled={state === 'submitting'}
+                  onSelect={setFgItem}
+                  triggerClassName="btn btn-secondary btn-sm"
+                />
+                {fgItem ? (
+                  <span className="badge badge-blue">
+                    <span className="font-mono">{fgItem.itemCode}</span>
+                    <span className="ml-1">{fgItem.name}</span>
+                  </span>
+                ) : null}
+              </div>
+              <span className="ff-help">{tt('hints.fgItemId', 'Select a finished-good item from the item master.')}</span>
             </div>
 
             <div className="ff mt-3">

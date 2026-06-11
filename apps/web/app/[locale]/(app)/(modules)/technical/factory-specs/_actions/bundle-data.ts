@@ -51,6 +51,7 @@ export type ReleaseBundleData = {
   fg: { itemCode: string; name: string };
   spec: { specCode: string; version: number; status: string; source: string; lastEdit: string; owner: string };
   bom: { id: string | null; version: number | null; status: string | null; clonedFrom: string | null };
+  bomOptions: Array<{ id: string; version: number; status: string; label: string }>;
   blockers: BundleBlocker[];
   history: BundleHistoryEntry[];
   /** True when the approved/released factory_spec row is immutable (clone-on-write). */
@@ -139,6 +140,29 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
         );
         bom = bomResult.rows[0] ?? null;
       }
+
+      const bomOptionsResult = await db.query<{ id: string; version: number; status: string }>(
+        `select bh.id, bh.version, bh.status
+           from public.bom_headers bh
+          where bh.org_id = app.current_org_id()
+            and bh.product_id = $1
+          order by
+            case bh.status
+              when 'in_review' then 0
+              when 'draft' then 1
+              when 'technical_approved' then 2
+              when 'active' then 3
+              else 4
+            end,
+            bh.version desc`,
+        [spec.fg_item_code],
+      );
+      const bomOptions = bomOptionsResult.rows.map((row) => ({
+        id: row.id,
+        version: Number(row.version),
+        status: row.status,
+        label: `v${row.version} · ${row.status}`,
+      }));
 
       // Blockers (read-only preflight). Authorization + release-guard + RM usability.
       const blockers: BundleBlocker[] = [];
@@ -264,6 +288,7 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
             status: bom?.status ?? null,
             clonedFrom: bom?.supersedes_version != null ? `v${bom.supersedes_version}` : null,
           },
+          bomOptions,
           blockers,
           history,
           cloneOnWrite,

@@ -32,8 +32,11 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
+
 import { approveReleaseBundleAction } from '../../../../../../../actions/technical/release-bundles/approve-bundle';
 import { rejectReleaseBundleAction } from '../../../../../../../actions/technical/release-bundles/reject-bundle';
+import { linkFactorySpecBom, submitFactorySpecForReview } from '../actions/factory-spec-flow';
 import {
   type BundleBlocker,
   type LoadBundleResult,
@@ -165,10 +168,12 @@ function BundleModalBody({
   data,
   onDone,
   onClose,
+  onDataChange,
 }: {
   data: ReleaseBundleData;
   onDone: (message: string) => void;
   onClose: () => void;
+  onDataChange: (data: ReleaseBundleData) => void;
 }) {
   const t = useTranslations('Technical.releaseBundle');
   const router = useRouter();
@@ -176,10 +181,25 @@ function BundleModalBody({
   const [reason, setReason] = React.useState('');
   const [pin, setPin] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
+  const [flowMessage, setFlowMessage] = React.useState<string | null>(null);
+  const [selectedBomHeaderId, setSelectedBomHeaderId] = React.useState(data.bomHeaderId ?? '');
   const [pending, startTransition] = React.useTransition();
+  const [linkPending, startLinkTransition] = React.useTransition();
+  const [submitPending, startSubmitTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    setSelectedBomHeaderId(data.bomHeaderId ?? '');
+  }, [data.bomHeaderId]);
 
   const blockingIssues = data.blockers.filter((b) => b.severity === 'block');
   const canApprove = blockingIssues.length === 0 && data.canApprove && !data.cloneOnWrite && data.bomHeaderId != null;
+  const canSubmitForReview = data.canApprove && data.spec.status === 'draft';
+  const canLinkBom =
+    data.canApprove &&
+    ['draft', 'in_review'].includes(data.spec.status) &&
+    data.bomOptions.length > 0 &&
+    selectedBomHeaderId.length > 0 &&
+    selectedBomHeaderId !== data.bomHeaderId;
 
   const reasonValid = reason.trim().length >= 10;
   const valid =
@@ -226,6 +246,46 @@ function BundleModalBody({
       ? t('approveDisabled', { count: blockingIssues.length })
       : undefined;
 
+  async function reloadBundle() {
+    const fresh = await loadReleaseBundle(data.factorySpecId);
+    if (fresh.ok) onDataChange(fresh.data);
+  }
+
+  function submitForReview() {
+    if (!canSubmitForReview) return;
+    setError(null);
+    setFlowMessage(null);
+    startSubmitTransition(async () => {
+      const result = await submitFactorySpecForReview({ specId: data.factorySpecId });
+      if (!result.ok) {
+        setError(result.message ?? result.error);
+        return;
+      }
+      await reloadBundle();
+      router.refresh();
+      setFlowMessage(t('submitted'));
+    });
+  }
+
+  function linkBom() {
+    if (!canLinkBom) return;
+    setError(null);
+    setFlowMessage(null);
+    startLinkTransition(async () => {
+      const result = await linkFactorySpecBom({
+        specId: data.factorySpecId,
+        bomHeaderId: selectedBomHeaderId,
+      });
+      if (!result.ok) {
+        setError(result.message ?? result.error);
+        return;
+      }
+      await reloadBundle();
+      router.refresh();
+      setFlowMessage(t('bomLinked', { version: result.data.bomVersion }));
+    });
+  }
+
   return (
     <>
       {!data.canApprove ? (
@@ -267,6 +327,77 @@ function BundleModalBody({
             { label: t('clonedFrom'), value: data.bom.clonedFrom ?? '—' },
           ]}
         />
+      </div>
+
+      <div className="card mb-3" style={{ padding: 12 }}>
+        {flowMessage ? (
+          <div role="status" className="alert alert-green mb-2" style={{ fontSize: 12 }}>
+            {flowMessage}
+          </div>
+        ) : null}
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div>
+            <strong className="text-sm">{t('flowTitle')}</strong>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t('flowHelp')}</p>
+          </div>
+          {data.spec.status === 'draft' ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={!canSubmitForReview || submitPending}
+              title={!data.canApprove ? t('permissionDenied') : undefined}
+              onClick={submitForReview}
+            >
+              {submitPending ? t('submitting') : t('submitForReview')}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="ff" title={data.bomOptions.length === 0 ? t('noBomOptionsTitle') : undefined}>
+            <label htmlFor="factory-spec-bom-link">{t('linkBomLabel')}</label>
+            <Select
+              value={selectedBomHeaderId}
+              onValueChange={setSelectedBomHeaderId}
+              disabled={data.bomOptions.length === 0 || !['draft', 'in_review'].includes(data.spec.status)}
+              options={data.bomOptions.map((option) => ({
+                value: option.id,
+                label: option.label,
+              }))}
+            >
+              <SelectTrigger id="factory-spec-bom-link" aria-label={t('linkBomLabel')}>
+                <SelectValue placeholder={t('linkBomPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                {data.bomOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {t('bomOption', { version: option.version, status: option.status })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="ff-help">
+              {data.bomOptions.length === 0 ? t('noBomOptionsHelp') : t('linkBomHelp')}
+            </span>
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={!canLinkBom || linkPending}
+              title={
+                data.bomOptions.length === 0
+                  ? t('noBomOptionsTitle')
+                  : !['draft', 'in_review'].includes(data.spec.status)
+                    ? t('linkBomImmutable')
+                    : undefined
+              }
+              onClick={linkBom}
+            >
+              {linkPending ? t('linkingBom') : t('linkBomAction')}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="card mb-3" style={{ padding: 12 }}>
@@ -483,7 +614,7 @@ export function ReleaseBundlePanelButton({
             {t('error')}
           </div>
         ) : (
-          <BundleModalBody data={data} onDone={setDone} onClose={close} />
+          <BundleModalBody data={data} onDone={setDone} onClose={close} onDataChange={setData} />
         )}
       </Dialog>
     </>
