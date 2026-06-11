@@ -423,7 +423,18 @@
       "duplicate_process_suffix": "Operacja z tym sufiksem już istnieje dla tej branży.",
       "create_failed": "Nie udało się utworzyć operacji produkcyjnej.",
       "cancel": "Anuluj",
-      "reset": "Resetuj"
+      "reset": "Resetuj",
+      "field_industry": "Branża",
+      "edit_dialog_title": "Edytuj operację produkcyjną",
+      "save": "Zapisz",
+      "saving": "Zapisywanie...",
+      "update_failed": "Nie udało się zaktualizować operacji produkcyjnej.",
+      "immutable_field": "Nazwa operacji i sufiks procesu są niezmienne po utworzeniu.",
+      "delete_dialog_title": "Dezaktywuj operację produkcyjną",
+      "delete_dialog_body": "Dezaktywować \"{operation}\"? Nie będzie już dostępna dla nowych przypisań FA. Istniejące FA działają dalej.",
+      "confirm_delete": "Dezaktywuj",
+      "deleting": "Dezaktywowanie...",
+      "delete_failed": "Nie udało się dezaktywować operacji produkcyjnej."
     },
     "company_profile": {
       "title": "Company profile",
@@ -1151,7 +1162,8 @@
         "machines": "Maszyny",
         "signoff": "Zasady zatwierdzeń",
         "lines": "Linie produkcyjne",
-        "locations": "Lokalizacje"
+        "locations": "Lokalizacje",
+        "my_pin": "PIN e-podpisu i skanera"
       }
     },
     "npd": {
@@ -3117,8 +3129,8 @@
       "rejectReasonHelp": "Audit-logged, minimum 10 characters.",
       "approveReason": "Approval reason",
       "approveReasonHelp": "Audit-logged with your e-signature.",
-      "pin": "e-signature PIN",
-      "pinHelp": "Your password/PIN confirms this approval (CFR 21 Part 11). It is verified server-side and never stored.",
+      "pin": "PIN e-podpisu lub hasło konta",
+      "pinHelp": "Weryfikowane po stronie serwera, nigdy nie zapisywane (CFR 21 część 11). Hasło konta działa tylko dopóki nie masz ustawionego PIN-u e-podpisu.",
       "d365Disabled": "D365 integration is disabled. Local Technical approval still unlocks factory use — D365 sync is informational only.",
       "cancel": "Cancel",
       "approveAction": "Approve bundle",
@@ -3135,7 +3147,8 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
-      }
+      },
+      "pinSetupLink": "Nie masz PIN-u? Ustaw go w Ustawieniach →"
     },
     "eco": {
       "title": "Kontrola zmian (ECO)",
@@ -3531,7 +3544,8 @@
       "computeError": "Nie udało się obliczyć kalkulacji. Spróbuj ponownie.",
       "computeErrorNotFound": "Brak receptury do obliczenia kalkulacji.",
       "computeErrorNoCosts": "Każdy składnik musi mieć koszt, aby obliczyć kalkulację.",
-      "computeErrorHardFail": "Marża docelowa jest ujemna, więc kalkulacji nie można zapisać."
+      "computeErrorHardFail": "Marża docelowa jest ujemna, więc kalkulacji nie można zapisać.",
+      "computeErrorFgNotMapped": "Receptura istnieje, ale nie powiązano jeszcze wyrobu gotowego — najpierw przenieś projekt do etapu Pakowanie."
     },
     "risks": {
       "title": "Rejestr ryzyk",
@@ -4129,7 +4143,11 @@
       "recipeNeedsIngredient": "Receptura zawiera co najmniej jeden składnik",
       "requiredIncompleteWarning": "{count} wymaganych pozycji checklisty nieukończonych — możesz mimo to kontynuować.",
       "esignRequiredError": "Przed handoffem wymagany jest e-podpis bramki G4 — zatwierdź ją na etapie Approval.",
-      "blockersPresentError": "Ten etap ma jeszcze blokery — rozwiąż je i spróbuj ponownie."
+      "blockersPresentError": "Ten etap ma jeszcze blokery — rozwiąż je i spróbuj ponownie.",
+      "alreadyClosedError": "Ten projekt jest już wdrożony (launched) — nie ma kolejnego etapu do przejścia.",
+      "adjacencyError": "Projekt może przejść tylko o jeden etap naraz. Odśwież stronę — etap mógł się zmienić.",
+      "notFoundError": "Nie znaleziono projektu. Mógł zostać usunięty.",
+      "fgLinkedError": "Kod wyrobu gotowego jest już powiązany z innym aktywnym projektem NPD."
     },
     "briefModals": {
       "create": {
@@ -4297,9 +4315,9 @@
       "esignConfirm": "Potwierdzam zatwierdzenie tej bramki i rozumiem, że tworzy to audytowalny wpis podpisu.",
       "back": "Wstecz",
       "confirmSign": "Potwierdź i podpisz",
-      "doneApproved": "Przejście bramki zatwierdzone",
+      "doneApproved": "Zatwierdzenie e-podpisem zapisane",
       "doneRejected": "Przejście bramki odrzucone",
-      "doneDetail": "Powiadomienie wysłane · Dziennik audytu zaktualizowany",
+      "doneDetail": "Zatwierdzenie bramki zapisano w dzienniku audytu. Projekt pozostaje na bieżącym etapie — użyj „Przesuń etap\", aby kontynuować.",
       "errorEsign": "Weryfikacja podpisu nie powiodła się. Sprawdź hasło i spróbuj ponownie.",
       "errorBlockers": "Wymagane pozycje listy kontrolnej są niekompletne — usuń blokady przed zatwierdzeniem.",
       "errorGeneric": "Nie udało się zarejestrować decyzji o bramce. Spróbuj ponownie.",
@@ -5263,11 +5281,11 @@
       },
       "openPos": {
         "label": "Otwarte ZZ",
-        "hint": "Zakupy jeszcze nieaktywne"
+        "hint": "Robocze, wysłane, potwierdzone lub częściowo przyjęte"
       },
       "openTos": {
         "label": "Otwarte transfery",
-        "hint": "Transfery jeszcze nieaktywne"
+        "hint": "Robocze lub w drodze"
       }
     },
     "actions": {
@@ -5285,7 +5303,9 @@
       "empty": "Brak alertów dla zleceń produkcyjnych",
       "view": "Zobacz ZP",
       "reasons": {
-        "pastStartNotRunning": "Po planowanym starcie, jeszcze nie uruchomione"
+        "pastStartNotRunning": "Po planowanym starcie, jeszcze nie uruchomione",
+        "poOverdue": "Minął oczekiwany termin dostawy",
+        "toOverdue": "Minął zaplanowany termin"
       }
     },
     "upcoming": {
@@ -5295,7 +5315,9 @@
       "empty": "Brak zleceń zaplanowanych na najbliższe 7 dni.",
       "woCol": "ZP",
       "statusCol": "Status",
-      "timeCol": "Godzina"
+      "timeCol": "Godzina",
+      "openPos": "Otwórz listę zamówień zakupu",
+      "openTos": "Otwórz listę zleceń transferu"
     },
     "woStatus": {
       "draft": "Szkic",
@@ -5911,6 +5933,58 @@
       "suppliers": {
         "title": "Dostawcy",
         "desc": "Kartoteka dostawców i statusy"
+      },
+      "mrp": {
+        "title": "MRP",
+        "desc": "Bilans popytu, zapasów i otwartych dostaw"
+      }
+    },
+    "mrp": {
+      "title": "MRP",
+      "subtitle": "Zapotrzebowanie materiałowe — bilans popytu i podaży (tylko odczyt)",
+      "breadcrumb": "MRP",
+      "run": "Uruchom MRP",
+      "running": "Obliczanie…",
+      "ranAt": "Ostatnie uruchomienie",
+      "denied": "Nie masz uprawnień do uruchomienia MRP.",
+      "error": "Uruchomienie MRP nie powiodło się. Spróbuj ponownie.",
+      "emptyInitial": "MRP nie zostało jeszcze uruchomione",
+      "emptyInitialHint": "Uruchom MRP, aby zbilansować stan magazynowy i otwarte dostawy z zapotrzebowaniem otwartych zleceń.",
+      "emptyRows": "Brak zapotrzebowania materiałowego — brak otwartego popytu, dostaw i zapasów dla planowanych pozycji.",
+      "excludedUoms": "Pominięte JM (brak przeliczenia)",
+      "readOnlyNote": "Analiza tylko do odczytu: nic nie jest zapisywane i żadne zamówienia nie są tworzone.",
+      "kpis": {
+        "itemsShort": "Pozycje z brakiem",
+        "coverage": "Pokrycie popytu",
+        "itemsAnalyzed": "Przeanalizowane pozycje",
+        "totalDemand": "Łączny otwarty popyt",
+        "totalDemandHint": "Suma po pozycjach, każda w swojej bazowej JM"
+      },
+      "columns": {
+        "item": "Pozycja",
+        "type": "Typ",
+        "onHand": "Na stanie",
+        "reserved": "Zarezerwowane",
+        "openSupply": "Otwarte dostawy",
+        "demand": "Popyt",
+        "net": "Pozycja netto",
+        "action": "Sugerowane działanie"
+      },
+      "severity": {
+        "shortage": "Brak",
+        "atRisk": "Pokryte nadchodzącą dostawą",
+        "covered": "Pokryte"
+      },
+      "actionTypes": {
+        "buy": "KUP",
+        "make": "WYPRODUKUJ",
+        "none": "—"
+      },
+      "itemTypes": {
+        "rm": "Surowiec",
+        "ingredient": "Składnik",
+        "intermediate": "Półprodukt",
+        "packaging": "Opakowanie"
       }
     }
   },
@@ -6144,12 +6218,19 @@
             "lpError": "Nie można wczytać nośników.",
             "lpNone": "— bez nośnika —",
             "lpSuggested": "sugerowany",
+            "reasonCode": "Kod powodu ręcznego",
+            "reasonPlaceholder": "Wymagany przy rejestracji bez nośnika",
             "submit": "Zarejestruj zużycie",
             "submitting": "Rejestrowanie…",
             "cancel": "Anuluj",
             "errors": {
               "forbidden": "Nie masz uprawnień do rejestrowania zużycia.",
               "lp_unavailable": "Ten nośnik nie ma już wystarczającego wolnego stanu dla tej ilości.",
+              "lp_not_released": "Ten nośnik nie został zwolniony przez QA.",
+              "lp_expired": "Ten nośnik jest przeterminowany i nie może zostać zużyty.",
+              "lp_locked": "Ten nośnik jest zablokowany przez innego użytkownika.",
+              "quality_hold_active": "Ten nośnik ma aktywną blokadę jakości.",
+              "reason_required": "Wpisz kod powodu przy rejestracji bez nośnika.",
               "invalid_material": "Ten komponent nie jest już prawidłowy dla tego zlecenia produkcyjnego.",
               "invalid_qty": "Wpisz ilość większą od zera.",
               "generic": "Nie można zarejestrować zużycia."
@@ -6246,7 +6327,7 @@
           "changeover_signoff_required": "Przed rozpoczęciem wymagane jest podpisanie przezbrojenia (changeover) na tej linii.",
           "allergen_changeover_required": "Przed rozpoczęciem wymagane jest zatwierdzenie zmiany alergenowej.",
           "closed_production_strict_failed": "Bramka uzysku nie spełniona — zarejestruj wyrób główny lub podaj powód obejścia.",
-          "esign_failed": "Podpis elektroniczny nieudany — sprawdź hasło i spróbuj ponownie.",
+          "esign_failed": "Podpis elektroniczny nieudany — sprawdź PIN e-podpisu (lub hasło konta, jeśli nie masz PIN-u) i spróbuj ponownie.",
           "wo_not_recordable": "Zlecenie nie jest w stanie pozwalającym na ten zapis.",
           "already_recorded": "Ten wpis został już zarejestrowany.",
           "invalid_reference": "Podano nieprawidłowe odniesienie.",
@@ -6292,9 +6373,10 @@
         "close": {
           "title": "Zamknij zlecenie",
           "subtitle": "Zamknięcie finansowe z podpisem elektronicznym przełożonego.",
-          "password": "Hasło",
+          "password": "PIN e-podpisu lub hasło konta",
           "reason": "Powód",
-          "legal": "Potwierdzając, składasz podpis elektroniczny pod zamknięciem finansowym (CFR-21 część 11)."
+          "legal": "Potwierdzając, składasz podpis elektroniczny pod zamknięciem finansowym (CFR-21 część 11).",
+          "pinHint": "Nie masz PIN-u? Ustaw go w Ustawieniach →"
         },
         "output": {
           "title": "Zarejestruj wyrób",
@@ -7000,6 +7082,85 @@
       "shipments": "Wysyłki",
       "bomItems": "Pozycje BOM",
       "unavailable": "—"
+    }
+  },
+  "oee": {
+    "title": "OEE",
+    "subtitle": "Całkowita efektywność wyposażenia — dostępność, wydajność i jakość z zakończonych zleceń produkcyjnych",
+    "breadcrumb": "OEE",
+    "denied": "Nie masz uprawnień do przeglądania pulpitów OEE.",
+    "error": "Nie udało się załadować danych OEE. Spróbuj ponownie.",
+    "unassigned": "Nieprzypisana",
+    "kpi": {
+      "oee": "Śr. OEE",
+      "availability": "Śr. dostępność",
+      "quality": "Śr. jakość",
+      "snapshots": "Migawki",
+      "window": "Ostatnie 7 dni"
+    },
+    "col": {
+      "availability": "A %",
+      "performance": "P %",
+      "quality": "Q %",
+      "oee": "OEE %"
+    },
+    "lines": {
+      "title": "OEE wg linii — ostatnie 7 dni",
+      "empty": "Brak migawek z ostatnich 7 dni.",
+      "col": {
+        "line": "Linia",
+        "wos": "Zlecenia"
+      }
+    },
+    "recent": {
+      "title": "Ostatnie migawki",
+      "empty": "Nie zarejestrowano jeszcze żadnych migawek.",
+      "minutes": "{min} min",
+      "col": {
+        "time": "Zakończono",
+        "shift": "Zmiana",
+        "wo": "Zlecenie",
+        "output": "Produkcja (kg)",
+        "downtime": "Przestój",
+        "waste": "Odpady (kg)"
+      }
+    },
+    "empty": {
+      "title": "Brak migawek",
+      "body": "Migawki OEE powstają przy zakończeniu zlecenia produkcyjnego. Zakończ zlecenie w module Produkcja, aby zobaczyć tutaj dostępność, wydajność i jakość."
+    }
+  },
+  "account": {
+    "pin": {
+      "title": "PIN e-podpisu i skanera",
+      "subtitle": "Zarządzaj PIN-em używanym do logowania na skanerze i do podpisów elektronicznych.",
+      "sharedNotice": "Jeden wspólny PIN: ten sam PIN służy ZARÓWNO do logowania na skanerze, jak i do podpisów elektronicznych (CFR 21 część 11). Zmiana tutaj obowiązuje wszędzie. PIN jest przechowywany wyłącznie jako skrót (hash) i nigdy nie jest wyświetlany.",
+      "statusTitle": "Status PIN-u",
+      "statusSet": "PIN jest ustawiony",
+      "statusNotSet": "Brak PIN-u",
+      "statusError": "Nie udało się wczytać statusu PIN-u.",
+      "lockedUntil": "Zablokowany do {time} (UTC) po zbyt wielu nieudanych próbach. Nadal możesz autoryzować się hasłem konta.",
+      "failedAttempts": "Nieudane próby w bieżącym oknie: {count}",
+      "formTitleSet": "Zmień PIN",
+      "formTitleNotSet": "Ustaw PIN",
+      "authMethod": "Autoryzacja",
+      "authPassword": "Hasło konta",
+      "authPin": "Obecny PIN",
+      "currentPassword": "Obecne hasło konta",
+      "currentPin": "Obecny PIN",
+      "newPin": "Nowy PIN (4–6 cyfr)",
+      "confirmPin": "Powtórz nowy PIN",
+      "submit": "Zapisz PIN",
+      "submitting": "Zapisywanie…",
+      "success": "PIN zapisany. Obowiązuje teraz przy logowaniu na skanerze i przy podpisach elektronicznych.",
+      "errors": {
+        "invalid_input": "Wypełnij wszystkie pola.",
+        "invalid_pin_format": "PIN musi mieć 4–6 cyfr.",
+        "pin_mismatch": "Wpisane PIN-y różnią się od siebie.",
+        "invalid_credentials": "Autoryzacja nieudana — błędne hasło lub PIN.",
+        "pin_locked": "PIN jest tymczasowo zablokowany po zbyt wielu nieudanych próbach. Spróbuj później lub autoryzuj się hasłem konta.",
+        "persistence_failed": "Zapis PIN-u nie powiódł się. Spróbuj ponownie."
+      }
     }
   }
 }

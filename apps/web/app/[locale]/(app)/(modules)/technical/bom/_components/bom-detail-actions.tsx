@@ -29,28 +29,30 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-import { ComponentAddModal, VersionSaveModal, type BomEditContext } from './bom-edit-dialog';
+import {
+  ComponentAddModal,
+  VersionSaveModal,
+  type BomEditCoProduct,
+  type BomEditContext,
+  type BomEditLine,
+} from './bom-edit-dialog';
 import { DeleteBomVersionModal, type DeleteVersionLabels } from './delete-version-modal';
 import { deleteBomVersion } from '../_actions/delete-bom-version';
 import { approveBom, publishBom } from '../_actions/workflow';
 import type { BomStatus } from '../_actions/shared';
 
-type EditLine = {
-  itemId?: string;
-  componentCode: string;
-  quantity: number;
-  uom: string;
-  scrapPct?: number;
-  manufacturingOperationName?: string;
-};
+type EditLine = BomEditLine;
 
 export function BomDetailActions({
   productId,
   productName,
   currentVersion,
   status,
+  bomHeaderId,
   snapshotCount,
   lines,
+  coProducts,
+  yieldPct,
   canCreate,
   canApprove,
   canPublish,
@@ -59,8 +61,14 @@ export function BomDetailActions({
   productName: string | null;
   currentVersion: number;
   status: BomStatus;
+  /** Selected version's bom_headers.id — keys the in-place append (F-B01). */
+  bomHeaderId?: string;
   snapshotCount: number;
   lines: EditLine[];
+  /** Source version co-products — carried into a clone-on-write fork. */
+  coProducts?: BomEditCoProduct[];
+  /** Source version yield_pct — preserved on fork. */
+  yieldPct?: number;
   canCreate: boolean;
   canApprove: boolean;
   canPublish: boolean;
@@ -84,6 +92,12 @@ export function BomDetailActions({
     productName: productName ?? undefined,
     currentVersion,
     sourceStatus: status,
+    // F-B01: hand the modal everything it needs to either APPEND in place
+    // (editable draft) or fork COMPLETELY (released → all lines + co-products).
+    bomHeaderId,
+    existingLines: lines,
+    coProducts,
+    yieldPct,
   };
 
   // Approve only makes sense for a draft / in_review version.

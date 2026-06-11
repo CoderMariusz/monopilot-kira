@@ -80,3 +80,70 @@ describe('T-080 release-bundle-service — authorization preflight (AC5)', () =>
     expect(FACTORY_SPEC_APPROVE_PERMISSION).toBe('technical.product_spec.approve');
   });
 });
+
+// ── F2 (W9 cross-review HIGH) — bundle-internal FG↔product consistency ─────────
+// The factory_spec's fg_item_id must resolve (org-scoped) to an item whose
+// item_code equals bom_headers.product_id; otherwise a spec for product A could
+// be bundle-approved against product B's BOM.
+describe('F2 release-bundle-service — spec.fg_item_id must match the BOM product', () => {
+  const FG_ITEM_ID = '55555555-5555-4555-8555-555555555555';
+
+  function routedClient(options: { fgMatches: boolean }): QueryClient {
+    return {
+      query: vi.fn(async (sql: string) => {
+        const n = sql.replace(/\s+/g, ' ').toLowerCase();
+        if (n.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+        if (n.includes('from public.factory_specs')) {
+          return {
+            rows: [
+              {
+                id: validApprove.factorySpecId,
+                fg_item_id: FG_ITEM_ID,
+                status: 'in_review',
+                bom_header_id: validApprove.bomHeaderId,
+                bom_version: 4,
+              },
+            ],
+          };
+        }
+        if (n.includes('from public.bom_headers')) {
+          return {
+            rows: [
+              {
+                id: validApprove.bomHeaderId,
+                status: 'in_review',
+                version: 4,
+                product_id: 'FG-7001',
+                npd_project_id: null,
+              },
+            ],
+          };
+        }
+        // F2 consistency probe: items lookup by fg_item_id + item_code.
+        if (n.includes('from public.items i') && n.includes('i.item_code = $2')) {
+          return { rows: options.fgMatches ? [{ ok: true }] : [] };
+        }
+        // RM usability gate — report a blocked line so the positive-control run
+        // stops at release_blocked (proves it got PAST the F2 gate).
+        if (n.includes('count(*)::int as blocked')) return { rows: [{ blocked: 1 }] };
+        throw new Error(`Unhandled SQL in F2 stub: ${n}`);
+      }),
+    } as unknown as QueryClient;
+  }
+
+  it('rejects with invalid_state when the spec FG item does not carry the BOM product code', async () => {
+    const result = await approveReleaseBundle(ctx(routedClient({ fgMatches: false })), validApprove);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('invalid_state');
+      expect(result.message).toContain(`factory_spec FG item ${FG_ITEM_ID} does not match the BOM product FG-7001`);
+    }
+  });
+
+  it('proceeds past the FG↔product gate when the org-scoped items lookup confirms the match', async () => {
+    const result = await approveReleaseBundle(ctx(routedClient({ fgMatches: true })), validApprove);
+    expect(result.ok).toBe(false);
+    // Stopped LATER, at the RM-usability blocker — i.e. the F2 gate passed.
+    if (!result.ok) expect(result.error).toBe('release_blocked');
+  });
+});

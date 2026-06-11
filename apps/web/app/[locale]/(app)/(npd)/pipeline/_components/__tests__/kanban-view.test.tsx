@@ -5,13 +5,15 @@
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/pipeline.jsx:19-52 (KanbanCard + KanbanView)
  *
- * RED → GREEN: asserts the parity checklist (6 gate columns G0..Launched, the
+ * RED → GREEN: asserts the parity checklist (stage columns brief..launched, the
  * KanbanCard fields code+name+prio badge+owner+target_launch + progress, shadcn
- * Card + Badge primitives), the advance affordance wired to advanceProjectGate
- * (adjacency-guarded, optimistic move to the next column + rollback on 422), the
- * five required UI states (loading / empty / populated / error / permission), the
- * i18n-key resolution (no hard-coded user-facing strings), and the RBAC advance
- * gate (server-supplied canAdvance — no render-then-disable).
+ * Card + Badge primitives), the advance affordance ROUTING THROUGH THE GATE MODAL
+ * (F-C08 fix: "Advance →" navigates to /pipeline/[id]?modal=advanceGate — the
+ * AdvanceGateModal owns notes/checklist/e-sign; no direct advanceProjectGate call
+ * from the kanban), the five required UI states (loading / empty / populated /
+ * error / permission), the i18n-key resolution (no hard-coded user-facing
+ * strings), and the RBAC advance gate (server-supplied canAdvance — no
+ * render-then-disable).
  *
  * Conflict deviation (documented in closeout deviation log):
  *   The canonical prototype KanbanView (pipeline.jsx:36-52) is read-only and uses
@@ -222,19 +224,17 @@ describe('KanbanView — prototype parity (pipeline.jsx:36-52, stage board)', ()
     expect(card.querySelector('[data-slot="badge"]')).not.toBeNull();
   });
 
-  it('links each card to the Stage-Gate project detail (/pipeline/[id])', () => {
+  it('links each card to the Stage-Gate project detail (locale-prefixed /pipeline/[id])', () => {
     renderView();
     const card = screen.getByTestId('kanban-card-DEV-052');
     const link = within(card).getByRole('link', { name: /Strawberry Yogurt 150g/ });
-    expect(link).toHaveAttribute(
-      'href',
-      expect.stringContaining('/pipeline/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
-    );
+    // Batch-D F3: the open link carries the locale prefix from usePathname().
+    expect(link).toHaveAttribute('href', '/en/pipeline/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
   });
 });
 
-describe('KanbanView — advance affordance (advanceProjectGate / §17.12)', () => {
-  it('invokes advanceProjectGate with the adjacent target gate', async () => {
+describe('KanbanView — advance routes through the gate modal (F-C08 fix)', () => {
+  it('navigates to /pipeline/[id]?modal=advanceGate instead of calling advanceProjectGate directly', async () => {
     const advanceAction = vi.fn(async () => ({
       ok: true as const,
       data: { currentGate: 'G3' as const },
@@ -246,57 +246,35 @@ describe('KanbanView — advance affordance (advanceProjectGate / §17.12)', () 
       fireEvent.click(within(card).getByRole('button', { name: LABELS.advance }));
     });
 
-    // advance targets the adjacent GATE (G2 → G3); columns are stage-based, so the
-    // card stays in its 'recipe' stage column until the RSC refresh reconciles.
-    expect(advanceAction).toHaveBeenCalledWith({
-      projectId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-      targetGate: 'G3',
-    });
-    await waitFor(() => {
-      const recipe = screen.getByTestId('kanban-col-recipe');
-      expect(within(recipe).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
-    });
+    // F-C08: the kanban "Advance →" must route through the SAME AdvanceGateModal
+    // as the project header (notes / checklist / e-sign owned by the modal) — the
+    // direct Server-Action bypass is gone. Batch-D F3: the route carries the
+    // locale prefix derived from usePathname() ('/en/pipeline' mocked above).
+    expect(pushMock).toHaveBeenCalledWith(
+      '/en/pipeline/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb?modal=advanceGate',
+    );
+    expect(advanceAction).not.toHaveBeenCalled();
+    // The card stays in its stage column (no optimistic gate reshuffle).
+    const recipe = screen.getByTestId('kanban-col-recipe');
+    expect(within(recipe).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
   });
 
-  it('shows an accessible alert when the action returns 422 ADJACENCY_VIOLATION', async () => {
+  it('routes a G0/brief card through the modal too (no direct G0→G1 claim anywhere)', async () => {
     const advanceAction = vi.fn(async () => ({
-      ok: false as const,
-      error: 'ADJACENCY_VIOLATION',
-      status: 422,
+      ok: true as const,
+      data: { currentGate: 'G2' as const },
     }));
     renderView({ advanceAction });
 
-    const card = screen.getByTestId('kanban-card-DEV-061'); // recipe stage
+    const card = screen.getByTestId('kanban-card-DEV-052'); // G0 / brief stage
     await act(async () => {
       fireEvent.click(within(card).getByRole('button', { name: LABELS.advance }));
     });
 
-    // the card remains in its stage column …
-    await waitFor(() => {
-      const recipe = screen.getByTestId('kanban-col-recipe');
-      expect(within(recipe).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
-    });
-    // … and an accessible alert surfaces the adjacency error
-    expect(screen.getByRole('alert')).toHaveTextContent(LABELS.adjacencyError);
-  });
-
-  it('surfaces the ESIGN_REQUIRED-specific alert (not the generic revert message)', async () => {
-    const advanceAction = vi.fn(async () => ({
-      ok: false as const,
-      error: 'ESIGN_REQUIRED',
-      status: 403,
-    }));
-    renderView({ advanceAction });
-
-    const card = screen.getByTestId('kanban-card-DEV-061');
-    await act(async () => {
-      fireEvent.click(within(card).getByRole('button', { name: LABELS.advance }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(LABELS.esignRequiredError);
-    });
-    expect(screen.getByRole('alert')).not.toHaveTextContent(LABELS.advanceError);
+    expect(pushMock).toHaveBeenCalledWith(
+      '/en/pipeline/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa?modal=advanceGate',
+    );
+    expect(advanceAction).not.toHaveBeenCalled();
   });
 
   it('does not render an advance affordance on a Launched card (terminal gate)', () => {

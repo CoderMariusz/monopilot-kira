@@ -39,8 +39,11 @@
 import { createHash } from 'node:crypto';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { assertLpConsumableForProduction } from '../../../../../../lib/production/lp-safety-guard';
 import {
+  emitConsumeBlocked,
   hasPermission,
+  QualityHoldError,
   type ProductionContext,
   type QueryClient,
 } from '../../../../../../lib/production/shared';
@@ -54,6 +57,8 @@ export type RecordDesktopConsumptionInput = {
   qty: string;
   /** Optional license plate to decrement; omitted → consume without an LP. */
   lpId?: string | null;
+  /** Required when consuming without an LP (manual/silo path audit reason). */
+  reasonCode?: string | null;
   /** Client-generated idempotency token (deterministic replay key). */
   clientOpId: string;
 };
@@ -92,6 +97,12 @@ export type ConsumeActionError =
   | 'invalid_material'
   | 'invalid_qty'
   | 'lp_unavailable'
+  | 'lp_not_released'
+  | 'lp_expired'
+  | 'lp_locked'
+  // Canonical T-064 holdsGuard rejection (lib/production/holds-guard.ts:5-9).
+  | 'quality_hold_active'
+  | 'reason_required'
   | 'overconsume_blocked'
   | 'invalid_input'
   | 'error';
@@ -233,6 +244,7 @@ export async function recordDesktopConsumption(
   const materialId = asTrimmed(input?.materialId);
   const qty = asTrimmed(input?.qty);
   const lpId = asTrimmed(input?.lpId);
+  const reasonCode = asTrimmed(input?.reasonCode);
   const clientOpId = asTrimmed(input?.clientOpId);
 
   if (!woId || !isUuid(woId) || !materialId || !isUuid(materialId) || !clientOpId) {
@@ -243,6 +255,9 @@ export async function recordDesktopConsumption(
   }
   if (lpId && !isUuid(lpId)) {
     return { ok: false, reason: 'invalid_input' };
+  }
+  if (!lpId && !reasonCode) {
+    return { ok: false, reason: 'reason_required' };
   }
 
   try {
@@ -286,6 +301,30 @@ export async function recordDesktopConsumption(
           ok: true,
           data: { materialId, consumedQty: r.consumed_qty, uom: r.uom, lpId: r.lp_id, replay: true },
         };
+      }
+
+      if (lpId) {
+        const lpGate = await assertLpConsumableForProduction(ctx, lpId);
+        if (!lpGate.ok) {
+          if (lpGate.error === 'quality_hold_active') {
+            // T-064 contract (holds-guard.ts:5-9): an active hold MUST emit
+            // `production.consume.blocked`. Nothing has mutated yet in this
+            // txn, so the outbox row commits with the normal (non-throwing)
+            // withOrgContext return path; dedup_key keeps retries idempotent.
+            await emitConsumeBlocked(
+              ctx,
+              new QualityHoldError({
+                hold: lpGate.hold,
+                woId,
+                blockedPath: 'consume',
+                transactionId: txnId,
+                lpId,
+                lotId: null,
+              }),
+            );
+          }
+          return { ok: false, reason: lpGate.error };
+        }
       }
 
       // (3) Two-tier over-consumption gate under the same transaction before
@@ -451,6 +490,7 @@ export async function recordDesktopConsumption(
           JSON.stringify({
             source: 'desktop',
             clientOpId,
+            ...(reasonCode ? { reasonCode } : {}),
             materialId: material.id,
             materialName: material.material_name,
             ...(warning ? { warned: true, overPct: warning.overPct } : {}),

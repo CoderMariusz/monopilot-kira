@@ -112,6 +112,18 @@ function materialGate(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+function consumableLp(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: '90000000-0000-0000-0000-000000000001',
+    status: 'available',
+    qa_status: 'released',
+    expired: false,
+    locked_by: null,
+    lock_is_active_for_other_user: false,
+    ...overrides,
+  };
+}
+
 describe('production scanner WO routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -145,6 +157,8 @@ describe('production scanner WO routes', () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+      if (sql.includes('from public.v_active_holds')) return { rows: [] };
       if (sql.includes('for update of wm')) return { rows: [materialGate()] };
       if (sql.includes('update public.wo_materials')) {
         return {
@@ -206,6 +220,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-replay',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-replay',
       }) as never,
       context,
     );
@@ -251,6 +266,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-replay-plain',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '2.500',
+        reasonCode: 'manual-replay',
       }) as never,
       context,
     );
@@ -289,6 +305,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-cross-org',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-cross-org',
       }) as never,
       context,
     );
@@ -313,6 +330,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-forbidden',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-forbidden',
       }) as never,
       context,
     );
@@ -327,6 +345,8 @@ describe('production scanner WO routes', () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+      if (sql.includes('from public.v_active_holds')) return { rows: [] };
       if (sql.includes('for update of wm')) return { rows: [materialGate()] };
       if (sql.includes('update public.wo_materials')) {
         return {
@@ -364,6 +384,175 @@ describe('production scanner WO routes', () => {
     expect(okAudit).toBe(false);
   });
 
+  it('consume rejects a held LP with 409 quality_hold_active and emits production.consume.blocked', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+      if (sql.includes('from public.v_active_holds')) {
+        return { rows: [{ hold_id: 'hold-1', reference_type: 'lp', reference_id: '90000000-0000-0000-0000-000000000001' }] };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-held-lp',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'quality_hold_active' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+    // T-064 contract: the hold rejection emits production.consume.blocked and
+    // COMMITS (only the outbox row was written in the txn) instead of rolling back.
+    const outboxCall = fakeClient.query.mock.calls.find((call) =>
+      String(call[0]).includes('insert into public.outbox_events'),
+    );
+    expect(outboxCall).toBeDefined();
+    expect((outboxCall?.[1] as unknown[])?.[0]).toBe('production.consume.blocked');
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]) === 'commit')).toBe(true);
+  });
+
+  it('consume rejects a pending-QA LP with 409 lp_not_released', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp({ qa_status: 'pending' })] };
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-pending-qa',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_not_released' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+  });
+
+  it('consume rejects an expired LP with 409 lp_expired', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp({ expired: true })] };
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-expired-lp',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_expired' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+  });
+
+  it('consume rejects an LP locked by another user within the 5-minute window with 409 lp_locked', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) {
+        return { rows: [consumableLp({ locked_by: '99999999-0000-0000-0000-000000000001', lock_is_active_for_other_user: true })] };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-locked-lp',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_locked' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+  });
+
+  it('consume rejects no-LP manual consumption without reasonCode', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-manual-no-reason',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'reason_required' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+  });
+
+  it('consume records no-LP reasonCode in scanner audit ext when manual consumption succeeds', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
+      if (sql.includes('update public.wo_materials')) {
+        return {
+          rows: [{
+            id: '70000000-0000-0000-0000-000000000001',
+            product_id: '80000000-0000-0000-0000-000000000001',
+            material_name: 'Sugar',
+            consumed_qty: '6.000',
+            uom: 'kg',
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-manual-reason',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        reasonCode: 'silo-draw',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    const auditCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('insert into public.scanner_audit_log'));
+    const extParam = (auditCall?.[1] as unknown[] | undefined)?.find(
+      (p) => typeof p === 'string' && p.includes('reasonCode'),
+    ) as string | undefined;
+    expect(extParam).toBeDefined();
+    expect(JSON.parse(extParam ?? '{}')).toMatchObject({ reasonCode: 'silo-draw' });
+  });
+
   it('consume blocks over-consumption at 0 threshold without an approver', async () => {
     const { POST } = await import('../consume/route');
     fakeClient.query.mockImplementation(async (sql: string, params?: unknown[]) => {
@@ -381,6 +570,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-over-blocked',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-over',
       }) as never,
       context,
     );
@@ -426,6 +616,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-over-threshold',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-over',
       }) as never,
       context,
     );
@@ -473,6 +664,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-warn-band',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-warn',
       }) as never,
       context,
     );
@@ -526,6 +718,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-over-approved',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-approved',
         approver: { email: 'supervisor@example.com', pin: '1234' },
       }) as never,
       context,
@@ -560,6 +753,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-over-wrong-pin',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-pin',
         approver: { email: 'supervisor@example.com', pin: '9999' },
       }) as never,
       context,
@@ -592,6 +786,7 @@ describe('production scanner WO routes', () => {
         clientOpId: 'op-over-no-permission',
         materialId: '70000000-0000-0000-0000-000000000001',
         qty: '1.000',
+        reasonCode: 'manual-approver',
         approver: { email: 'supervisor@example.com', pin: '1234' },
       }) as never,
       context,

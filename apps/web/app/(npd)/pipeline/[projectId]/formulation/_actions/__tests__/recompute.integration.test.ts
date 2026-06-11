@@ -29,6 +29,9 @@ const projectId = randomUUID();
 const formulationId = randomUUID();
 const versionAId = randomUUID();
 const versionBId = randomUUID();
+/** F6: version with an ITEM-LINKED line whose STORED allergens are stale junk. */
+const versionCId = randomUUID();
+const linkedItemId = randomUUID();
 
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
@@ -87,14 +90,31 @@ async function seed(): Promise<void> {
     [formulationId, orgId, projectId],
   );
 
-  // Two versions; version A is the one we recompute.
+  // Three versions; version A is the one we recompute, version C is the F6
+  // SSOT-allergen scenario (item-linked line with a STALE stored cache).
   await owner.query(
     `insert into public.formulation_versions
        (id, formulation_id, version_number, state, batch_size_kg, target_yield_pct, target_price_eur)
      values ($1, $2, 1, 'draft', 100, 95, 2.00),
-            ($3, $2, 2, 'draft', 100, 95, 2.00)
+            ($3, $2, 2, 'draft', 100, 95, 2.00),
+            ($4, $2, 3, 'draft', 100, 95, 2.00)
      on conflict (id) do nothing`,
-    [versionAId, formulationId, versionBId],
+    [versionAId, formulationId, versionBId, versionCId],
+  );
+
+  // F6 — an items-master row + its SSOT allergen profile (mustard + milk).
+  await owner.query(
+    `insert into public.items (id, org_id, item_code, item_type, name, uom_base)
+     values ($1, $2, 'RM-T065-LINKED', 'rm', 'T-065 Linked RM', 'kg')
+     on conflict (id) do nothing`,
+    [linkedItemId, orgId],
+  );
+  await owner.query(
+    `insert into public.item_allergen_profiles (org_id, item_id, allergen_code, source, intensity, confidence)
+     values ($1, $2, 'mustard', 'supplier_spec', 'contains', 'declared'),
+            ($1, $2, 'milk', 'supplier_spec', 'may_contain', 'declared')
+     on conflict (org_id, item_id, allergen_code) do nothing`,
+    [orgId, linkedItemId],
   );
 
   // Canonical RM master with per-100g nutrition (the source for the weighted-sum).
@@ -129,11 +149,25 @@ async function seed(): Promise<void> {
        ($1, 'RM-B', 50, 50.000, 4.00, '{milk}', 3)`,
     [versionBId],
   );
+
+  // Version C (F6): seq 1 is a legacy free-text line (stored allergens are its
+  // only source); seq 2 is ITEM-LINKED and its STORED cache is stale junk —
+  // recompute must union the live profile (mustard, milk), never the junk.
+  await owner.query(
+    `insert into public.formulation_ingredients
+       (version_id, rm_code, item_id, qty_kg, pct, cost_per_kg_eur, allergens_inherited, sequence)
+     values
+       ($1, 'RM-A', null, 50, 50.000, 2.00, '{gluten}', 1),
+       ($1, 'RM-T065-LINKED', $2, 50, 50.000, 3.00, '{stale-junk-code}', 2)`,
+    [versionCId, linkedItemId],
+  );
 }
 
 async function cleanup(): Promise<void> {
   // Cascades remove versions/ingredients/cache via FKs.
   await owner.query(`delete from "Reference"."RawMaterials" where org_id = $1`, [orgId]);
+  await owner.query(`delete from public.item_allergen_profiles where org_id = $1`, [orgId]);
+  await owner.query(`delete from public.items where org_id = $1`, [orgId]);
   await owner.query(`delete from public.formulations where org_id = $1`, [orgId]);
   await owner.query(`delete from public.npd_projects where org_id = $1`, [orgId]);
   await owner.query(`delete from public.users where org_id = $1`, [orgId]);
@@ -183,6 +217,25 @@ run('formulation Server Actions — REAL DB integration (T-065 rework)', () => {
     expect(Object.keys(nutritionJson).length).toBeGreaterThan(0);
     expect(nutritionJson.protein_g).toBe('15.00');
     expect(nutritionJson.energy_kj).toBe('300.00');
+  });
+
+  it('F6: recompute unions PROFILE-derived allergens for item-linked lines, stored only for free-text', async () => {
+    const { recomputeAndCache } = await import('../recompute');
+
+    const result = await recomputeAndCache({ projectId, versionId: versionCId });
+
+    // gluten ← stored cache of the legacy free-text line (no SSOT source);
+    // milk + mustard ← LIVE item_allergen_profiles of the linked item.
+    expect(result.allergens).toEqual(['gluten', 'milk', 'mustard']);
+    // The stale stored junk on the item-linked line never reaches the union.
+    expect(result.allergens).not.toContain('stale-junk-code');
+
+    // And the persisted allergen_json cache row carries the same SSOT union.
+    const cache = await owner.query<{ allergen_json: { allergens: string[] } }>(
+      `select allergen_json from public.formulation_calc_cache where version_id = $1`,
+      [versionCId],
+    );
+    expect(cache.rows[0]?.allergen_json?.allergens).toEqual(['gluten', 'milk', 'mustard']);
   });
 
   it('compareVersions does NOT collapse duplicate rm_code rows (keyed by sequence)', async () => {

@@ -83,6 +83,7 @@ export function buildWoModalLabels(t: Translator): WoModalLabels {
       password: t('close.password'),
       reason: t('close.reason'),
       legal: t('close.legal'),
+      pinHint: t('close.pinHint'),
     },
     output: {
       title: t('output.title'),

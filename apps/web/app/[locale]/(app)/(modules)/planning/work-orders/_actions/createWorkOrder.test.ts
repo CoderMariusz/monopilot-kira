@@ -12,6 +12,7 @@ const SPEC_ID = '99999999-9999-4999-8999-999999999999';
 let client: QueryClient;
 let allowPermission = true;
 let hasBom = true;
+let hasRouting = true;
 let generatedSeq = 7;
 let failNextHeaderInsert = false;
 let itemUom = {
@@ -127,6 +128,9 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
+      if (normalized.startsWith('insert into public.wo_operations')) {
+        return { rows: [], rowCount: hasRouting ? 2 : 0 };
+      }
       if (normalized.startsWith('insert into public.wo_status_history')) {
         return { rows: [], rowCount: 1 };
       }
@@ -139,6 +143,7 @@ describe('createWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
     hasBom = true;
+    hasRouting = true;
     generatedSeq = 7;
     failNextHeaderInsert = false;
     itemUom = {
@@ -236,6 +241,43 @@ describe('createWorkOrder', () => {
         'kg',
       ]),
     );
+  });
+
+  it('F-B02: snapshots the active routing into wo_operations at WO create (same point as materials)', async () => {
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '1000.000',
+    });
+
+    expect(result.ok).toBe(true);
+    const opsCall = (client.query as ReturnType<typeof vi.fn>).mock.calls.find(([sql]: [string]) =>
+      String(sql).replace(/\s+/g, ' ').toLowerCase().startsWith('insert into public.wo_operations'),
+    );
+    expect(opsCall).toBeDefined();
+    const [sql, params] = opsCall as [string, readonly unknown[]];
+    const n = String(sql).replace(/\s+/g, ' ').toLowerCase();
+    // Source: the product's ACTIVE routing (routings ⨝ routing_operations).
+    expect(n).toContain('from public.routing_operations ro');
+    expect(n).toContain("r.status = 'active'");
+    // Idempotent per WO via the (wo_id, sequence) unique key.
+    expect(n).toContain('on conflict (wo_id, sequence) do nothing');
+    // Bound to this WO, the planned BASE qty (run-time × qty duration), the FG item uuid.
+    expect(params[1]).toBe('1000.000');
+    expect(params[2]).toBe(PRODUCT_ID);
+
+    // F5 (W9 cross-review): duration math hardening —
+    // 1. setup NULL no longer NULLs a real run-time sum (coalesce(setup_time_min, 0)).
+    expect(n).toContain('coalesce(ro.setup_time_min, 0)');
+    // 2. honest-NULL only when BOTH inputs are missing.
+    expect(n).toContain('when ro.run_time_per_unit_sec is null and ro.setup_time_min is null then null');
+    // 3. int4 overflow guard: computed minutes beyond 2^31−1 cap at NULL instead
+    //    of blowing up the whole WO insert with a numeric_value_out_of_range.
+    expect(n).toContain('> 2147483647');
+    expect(n).toMatch(/> 2147483647\s+then null/);
+    // The old broken shape (bare setup + run sum / nullif fallback) is gone.
+    expect(n).not.toContain('then (ro.setup_time_min + ceil');
+    expect(n).not.toContain('nullif(ro.setup_time_min, 0)');
   });
 
   it('creates a WO without materials and returns no_active_bom when no active BOM exists', async () => {

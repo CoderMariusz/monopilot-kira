@@ -27,6 +27,21 @@ export type ScannerPoDetail = ScannerPoSummary & {
   lines: ScannerPoLine[];
 };
 
+// Lane W9-L8: shape of GET /api/warehouse/scanner/location?code=… used by the
+// optional destination-location field (same resolver the putaway screen uses).
+export type ScannerLocation = {
+  id: string;
+  code: string;
+  name: string;
+  warehouseId: string;
+  warehouseCode: string;
+  locationType: string;
+};
+
+export type LocationLookupResponse =
+  | { location: ScannerLocation; error?: never }
+  | { location?: never; error: string };
+
 export type ReceiveResponse = {
   ok: boolean;
   replay?: boolean;

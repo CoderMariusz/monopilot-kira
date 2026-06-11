@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createBomDraft: vi.fn(),
+  addBomLine: vi.fn(),
   validateBomComponent: vi.fn(),
   listItems: vi.fn(),
   listManufacturingOperations: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('../../_actions/create-draft', () => ({ createBomDraft: mocks.createBomDraft }));
+vi.mock('../../_actions/line-actions', () => ({ addBomLine: mocks.addBomLine }));
 vi.mock('../../../items/_actions/list-items', () => ({ listItems: mocks.listItems }));
 vi.mock('../../../../../../../../actions/reference/manufacturing-ops/list', () => ({
   listManufacturingOperations: mocks.listManufacturingOperations,
@@ -77,6 +79,7 @@ beforeEach(() => {
   });
   mocks.validateBomComponent.mockResolvedValue({ ok: true, verdict: usableVerdict(true) });
   mocks.createBomDraft.mockResolvedValue({ ok: true, data: { id: 'bom-1', version: 8, warnings: [] } });
+  mocks.addBomLine.mockResolvedValue({ ok: true, data: { lineId: 'line-3', bomHeaderId: 'header-1' } });
 });
 
 afterEach(() => cleanup());
@@ -220,6 +223,74 @@ describe('ComponentAddModal (TEC-022 parity + behavior)', () => {
     expect(mocks.createBomDraft.mock.calls[0][0].lines[0]).toMatchObject({ itemId: ITEM.id, componentCode: 'RM-1001' });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
+
+  // ── F-B01 chain-critical fix — append vs complete fork ────────────────────────
+  const TWO_EXISTING_LINES = [
+    { itemId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', componentCode: 'RM-0001', quantity: 0.7, uom: 'kg', scrapPct: 0, manufacturingOperationName: 'Mixing' },
+    { itemId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', componentCode: 'RM-0002', quantity: 0.2, uom: 'kg', scrapPct: 1, manufacturingOperationName: 'Baking' },
+  ];
+
+  it('F-B01: adding to an existing 2-line DRAFT appends in place via addBomLine — NO version fork', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const draftWithHeader: BomEditContext = {
+      ...DRAFT_CTX,
+      bomHeaderId: '88888888-8888-4888-8888-888888888888',
+      existingLines: TWO_EXISTING_LINES,
+    };
+    render(<ComponentAddModal open onClose={onClose} context={draftWithHeader} />);
+    await user.click(await screen.findByRole('option', { name: /RM-1001/ }));
+    await screen.findByText('Component is usable.');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Mixing' }));
+    await user.click(screen.getByRole('button', { name: 'Add component' }));
+
+    await waitFor(() => expect(mocks.addBomLine).toHaveBeenCalledTimes(1));
+    expect(mocks.addBomLine.mock.calls[0][0]).toMatchObject({
+      bomHeaderId: '88888888-8888-4888-8888-888888888888',
+      itemId: ITEM.id,
+      componentCode: 'RM-1001',
+      uom: 'kg',
+      manufacturingOperationName: 'Mixing',
+    });
+    // The 2-line draft becomes 3 lines IN PLACE: createBomDraft (version fork) never fires.
+    expect(mocks.createBomDraft).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it('F-B01: adding from an ACTIVE 2-line BOM forks ONCE with all 3 lines (complete clone-on-write)', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const activeCtx: BomEditContext = {
+      ...DRAFT_CTX,
+      sourceStatus: 'active',
+      bomHeaderId: '88888888-8888-4888-8888-888888888888',
+      existingLines: TWO_EXISTING_LINES,
+      coProducts: [],
+      yieldPct: 97.5,
+    };
+    render(<ComponentAddModal open onClose={onClose} context={activeCtx} />);
+    await user.click(await screen.findByRole('option', { name: /RM-1001/ }));
+    await screen.findByText('Component is usable.');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Mixing' }));
+    await user.click(screen.getByRole('button', { name: 'Add component' }));
+
+    await waitFor(() => expect(mocks.createBomDraft).toHaveBeenCalledTimes(1));
+    const arg = mocks.createBomDraft.mock.calls[0][0];
+    expect(arg.productId).toBe('FG-900');
+    // The fork is COMPLETE: both existing lines + the new one (was: only the new line).
+    expect(arg.lines).toHaveLength(3);
+    expect(arg.lines[0]).toMatchObject({ componentCode: 'RM-0001', quantity: 0.7 });
+    expect(arg.lines[1]).toMatchObject({ componentCode: 'RM-0002', quantity: 0.2 });
+    expect(arg.lines[2]).toMatchObject({ componentCode: 'RM-1001', itemId: ITEM.id });
+    expect(arg.yieldPct).toBe(97.5);
+    expect(arg.parentAllocationPct).toBe(100);
+    // No in-place mutation of the released version.
+    expect(mocks.addBomLine).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
 });
 
 describe('VersionSaveModal (TEC-022 parity + behavior)', () => {
@@ -250,5 +321,21 @@ describe('VersionSaveModal (TEC-022 parity + behavior)', () => {
     expect(arg.productId).toBe('FG-900');
     expect(arg.lines).toHaveLength(1);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('F4: carrying a non-byproduct co-product reconstructs parentAllocationPct (V-TEC-12)', async () => {
+    const user = userEvent.setup();
+    const coProducts = [
+      { coProductItemId: 'cp-1', quantity: 2, uom: 'kg', allocationPct: 30, isByproduct: false },
+      { coProductItemId: 'cp-2', quantity: 1, uom: 'kg', allocationPct: 0, isByproduct: true },
+    ];
+    render(<VersionSaveModal open onClose={() => {}} context={ctx} lines={lines} coProducts={coProducts} />);
+    await user.type(screen.getByLabelText('Change reason'), 'Carry the co-product split');
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => expect(mocks.createBomDraft).toHaveBeenCalledTimes(1));
+    const arg = mocks.createBomDraft.mock.calls[0][0];
+    // parent share = 100 − Σ non-byproduct allocations (byproduct rows excluded).
+    expect(arg.parentAllocationPct).toBe(70);
+    expect(arg.coProducts).toEqual(coProducts);
   });
 });

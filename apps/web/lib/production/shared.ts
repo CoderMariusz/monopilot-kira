@@ -294,6 +294,9 @@ export type ProductionErrorCode =
   | 'already_recorded'
   | 'uom_conversion_unavailable'
   | 'invalid_reference'
+  // W9-K-II (F-A04): output-LP creation needs an org default warehouse; 409
+  // when the org has none configured (mirrors the scanner GRN receive contract).
+  | 'warehouse_not_configured'
   | 'persistence_failed';
 
 export class ProductionActionError extends Error {
@@ -319,7 +322,7 @@ export class ProductionActionError extends Error {
 export class QualityHoldError extends ProductionActionError {
   hold: ActiveHold;
   woId: string;
-  blockedPath: 'output' | 'waste' | 'complete';
+  blockedPath: 'output' | 'waste' | 'complete' | 'consume';
   transactionId: string;
   lpId: string | null;
   lotId: string | null;
@@ -327,7 +330,7 @@ export class QualityHoldError extends ProductionActionError {
   constructor(args: {
     hold: ActiveHold;
     woId: string;
-    blockedPath: 'output' | 'waste' | 'complete';
+    blockedPath: 'output' | 'waste' | 'complete' | 'consume';
     transactionId: string;
     lpId: string | null;
     lotId: string | null;

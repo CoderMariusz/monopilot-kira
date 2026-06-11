@@ -136,6 +136,35 @@ type Bundle = {
 };
 
 /**
+ * Owner statement wrapped in a REAL org context (app.session_org_contexts +
+ * app.set_org_context in one txn). Required since migration 222: the
+ * fa-allergen auto-refresh triggers on public.product raise when
+ * app.current_org_id() is NULL, so a bare owner-pool INSERT/DELETE fails.
+ */
+async function ownerQueryWithOrgContext(orgId: string, sql: string, params: readonly unknown[]): Promise<void> {
+  const sessionToken = randomUUID();
+  const client = await owner.connect();
+  try {
+    await client.query('begin');
+    await client.query(
+      `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
+      [sessionToken, orgId],
+    );
+    await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, orgId]);
+    await client.query(sql, params);
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+    await owner
+      .query(`delete from app.session_org_contexts where session_token = $1::uuid`, [sessionToken])
+      .catch(() => undefined);
+  }
+}
+
+/**
  * Seed an FG item, an active component item, a BOM header (draft) with a usable line, and
  * an in_review factory_spec in org A. When `npd` is true, also seed an NPD project +
  * product + a pending_technical_approval factory_release_status so the release-loop
@@ -163,7 +192,8 @@ async function seedBundle(opts: { npd: boolean; inactiveComponent?: boolean }): 
   if (opts.npd) {
     productCode = `FG-${suffix}`;
     projectId = randomUUID();
-    await owner.query(
+    await ownerQueryWithOrgContext(
+      seed.orgAId,
       `insert into public.product (product_code, org_id, created_by_user)
        values ($1, $2, $3)`,
       [productCode, seed.orgAId, seed.approverUserId],
@@ -217,7 +247,10 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.bom_lines where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.bom_headers where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.npd_projects where org_id = any($1)`, [orgs]);
-  await owner.query(`delete from public.product where org_id = any($1)`, [orgs]);
+  // The mig-222 product triggers also fire on DELETE and need an org context.
+  for (const orgId of orgs) {
+    await ownerQueryWithOrgContext(orgId, `delete from public.product where org_id = $1`, [orgId]);
+  }
   await owner.query(`delete from public.items where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.outbox_events where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.user_pins where user_id = any($1)`, [[seed.approverUserId, seed.viewerUserId, seed.orgBUserId]]);

@@ -24,6 +24,8 @@
 
 import { useState } from 'react';
 
+import Link from 'next/link';
+
 import Modal from '@monopilot/ui/Modal';
 import Input from '@monopilot/ui/Input';
 import Textarea from '@monopilot/ui/Textarea';
@@ -440,6 +442,16 @@ export function CloseModal({
               data-testid="wo-close-password"
             />
           </FieldRow>
+          {labels.close.pinHint ? (
+            // W9-L7 — escape hatch for the PIN wall: signEvent accepts the e-sign
+            // PIN (or the account password while no PIN is enrolled); the shared
+            // PIN is managed on /account/pin.
+            <p className="text-xs text-slate-500">
+              <Link href="/account/pin" className="underline" data-testid="wo-close-pin-link">
+                {labels.close.pinHint}
+              </Link>
+            </p>
+          ) : null}
           <FieldRow id="wo-close-reason" label={labels.close.reason}>
             <Textarea id="wo-close-reason" rows={3} value={reason} disabled={busy} onChange={(e) => setReason(e.target.value)} data-testid="wo-close-reason" />
           </FieldRow>

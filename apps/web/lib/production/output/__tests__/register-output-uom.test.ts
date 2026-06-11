@@ -76,6 +76,30 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('insert into public.outbox_events')) {
         return { rows: [], rowCount: 1 };
       }
+      // W9-K-II output→LP creation path (no caller-supplied lp_id):
+      if (normalized.includes('from public.warehouses')) {
+        return {
+          rows: [
+            {
+              id: '77777777-7777-4777-8777-777777777777',
+              default_location_id: '88888888-8888-4888-8888-888888888888',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('from public.wo_material_consumption')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (normalized.startsWith('insert into public.license_plates')) {
+        return { rows: [{ id: '99999999-9999-4999-8999-999999999999' }], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('update public.wo_outputs')) {
+        return { rows: [], rowCount: 1 };
+      }
       return { rows: [], rowCount: 0 };
     },
   };

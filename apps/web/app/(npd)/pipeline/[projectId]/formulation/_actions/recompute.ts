@@ -143,11 +143,35 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
     }
 
     // ── ingredient rows ──────────────────────────────────────────────────────
+    // F6 (W9 cross-review BLOCKER): allergens for ITEM-LINKED lines are resolved
+    // LIVE from the SSOT public.item_allergen_profiles (pre-aggregated CTE keyed
+    // by item_id, single left join — same shape as get-formulation.ts), so a
+    // recompute against a locked/legacy version can never union a stale stored
+    // cache into allergen_json. The stored column is read ONLY for legacy
+    // free-text lines (item_id IS NULL), which have no SSOT source.
     const ingRes = await client.query<IngredientRow>(
-      `select rm_code, qty_kg::text as qty_kg, pct, cost_per_kg_eur, allergens_inherited
-         from formulation_ingredients
-        where version_id = $1::uuid
-        order by sequence asc`,
+      `with profile_allergens as (
+         select iap.item_id,
+                array_agg(distinct iap.allergen_code order by iap.allergen_code) as codes
+           from public.item_allergen_profiles iap
+          where iap.org_id = app.current_org_id()
+            and iap.item_id in (
+              select fi2.item_id
+                from formulation_ingredients fi2
+               where fi2.version_id = $1::uuid
+                 and fi2.item_id is not null
+            )
+          group by iap.item_id
+       )
+       select fi.rm_code, fi.qty_kg::text as qty_kg, fi.pct, fi.cost_per_kg_eur,
+              case
+                when fi.item_id is not null then coalesce(pa.codes, '{}'::text[])
+                else coalesce(fi.allergens_inherited, '{}'::text[])
+              end as allergens_inherited
+         from formulation_ingredients fi
+         left join profile_allergens pa on pa.item_id = fi.item_id
+        where fi.version_id = $1::uuid
+        order by fi.sequence asc`,
       [input.versionId],
     );
 

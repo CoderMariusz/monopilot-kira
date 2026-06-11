@@ -84,6 +84,7 @@ export type ConsumePayload = {
   /** DECIMAL STRING in the material uom */
   qty: string;
   lpId?: string;
+  reasonCode?: string;
   approver?: {
     email: string;
     pin: string;

@@ -1,0 +1,393 @@
+/**
+ * W9-M3 — 12-Reporting overview client: RTL parity + state tests.
+ *
+ * Prototype: prototypes/design/Monopilot Design System/reporting/
+ * kpi-screens.jsx:5-175 (KPI row + dense table + EmptyState vocabulary).
+ * Tests the presentational <ReportingOverviewClient> directly (the page is an
+ * async RSC that reads Supabase via the four read actions and is exercised
+ * live). Asserts:
+ *   - all four sections render with their KPI tiles and tables,
+ *   - per-section CSV export goes through the shared download helper (mocked),
+ *   - CSV buttons render DISABLED (with explanatory title) without rpt.export.csv,
+ *   - honest NULL rendering: confirmed→GRN KPI shows the n/a placeholder,
+ *   - per-section empty states when a summary has no rows,
+ *   - i18n: en + pl staged bundles resolve every label (no leaked dotted key).
+ */
+import '@testing-library/jest-dom/vitest';
+import React from 'react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  ReportingOverviewClient,
+  type ReportingLabels,
+} from '../reporting-overview.client';
+import { getRptTranslator } from '../../rpt-labels';
+import type {
+  InventorySnapshot,
+  ProcurementSummary,
+  ProductionSummary,
+  QualitySummary,
+} from '../../_actions/shared';
+
+const downloadCsvMock = vi.fn((_content: string, filename: string) => filename);
+
+vi.mock('../../../../../../../lib/shared/download', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../../../../lib/shared/download')>();
+  return {
+    ...actual,
+    downloadCsv: (content: string, filename: string) => downloadCsvMock(content, filename),
+  };
+});
+
+// Mirrors the page's label builder (kept local to avoid importing the RSC page,
+// which transitively pulls the 'use server' action module into the jsdom test).
+function buildLabels(locale: string): ReportingLabels {
+  const t = getRptTranslator(locale);
+  return {
+    page: {
+      exportCsv: t('page.exportCsv'),
+      exportCsvDenied: t('page.exportCsvDenied'),
+      windowDays: t('page.windowDays', { days: 7 }),
+      asOfNow: t('page.asOfNow'),
+      notAvailable: t('page.notAvailable'),
+    },
+    production: {
+      title: t('production.title'),
+      window: t('page.windowDays', { days: 7 }),
+      kpi: {
+        wosCompleted: t('production.kpi.wosCompleted'),
+        outputKg: t('production.kpi.outputKg'),
+        wasteKg: t('production.kpi.wasteKg'),
+        wastePct: t('production.kpi.wastePct'),
+        avgYieldPct: t('production.kpi.avgYieldPct'),
+        downtimeMinutes: t('production.kpi.downtimeMinutes'),
+      },
+      downtimeNote: t('production.downtimeNote'),
+      columns: {
+        wo: t('production.columns.wo'),
+        item: t('production.columns.item'),
+        planned: t('production.columns.planned'),
+        actual: t('production.columns.actual'),
+        uom: t('production.columns.uom'),
+        yield: t('production.columns.yield'),
+        completedAt: t('production.columns.completedAt'),
+      },
+      empty: t('production.empty'),
+    },
+    inventory: {
+      title: t('inventory.title'),
+      window: t('page.asOfNow'),
+      kpi: {
+        lpCount: t('inventory.kpi.lpCount'),
+        qtyKg: t('inventory.kpi.qtyKg'),
+        blockedLpCount: t('inventory.kpi.blockedLpCount'),
+        expiredCount: t('inventory.kpi.expiredCount'),
+        expiring7dCount: t('inventory.kpi.expiring7dCount'),
+      },
+      qtyNote: t('inventory.qtyNote'),
+      columns: {
+        warehouse: t('inventory.columns.warehouse'),
+        lps: t('inventory.columns.lps'),
+        active: t('inventory.columns.active'),
+        blocked: t('inventory.columns.blocked'),
+        qtyKg: t('inventory.columns.qtyKg'),
+        expired: t('inventory.columns.expired'),
+        expiring7d: t('inventory.columns.expiring7d'),
+      },
+      empty: t('inventory.empty'),
+    },
+    quality: {
+      title: t('quality.title'),
+      window: t('page.windowDays', { days: 30 }),
+      kpi: {
+        openHolds: t('quality.kpi.openHolds'),
+        inspections: t('quality.kpi.inspections'),
+        ncrOpen: t('quality.kpi.ncrOpen'),
+        ncrClosed: t('quality.kpi.ncrClosed'),
+      },
+      entity: {
+        hold: t('quality.entity.hold'),
+        inspection: t('quality.entity.inspection'),
+        ncr: t('quality.entity.ncr'),
+      },
+      columns: {
+        entity: t('quality.columns.entity'),
+        status: t('quality.columns.status'),
+        count: t('quality.columns.count'),
+      },
+      empty: t('quality.empty'),
+    },
+    procurement: {
+      title: t('procurement.title'),
+      window: t('page.windowDays', { days: 30 }),
+      kpi: {
+        posInWindow: t('procurement.kpi.posInWindow'),
+        confirmedToGrn: t('procurement.kpi.confirmedToGrn'),
+        createdToGrn: t('procurement.kpi.createdToGrn'),
+        openTos: t('procurement.kpi.openTos'),
+      },
+      confirmedToGrnNote: t('procurement.confirmedToGrnNote'),
+      createdToGrnNote: t('procurement.createdToGrnNote'),
+      columns: {
+        status: t('procurement.columns.status'),
+        count: t('procurement.columns.count'),
+      },
+      empty: t('procurement.empty'),
+    },
+  };
+}
+
+const production: ProductionSummary = {
+  days: 7,
+  wosCompleted: 3,
+  outputKg: '80.000',
+  wasteKg: '20.000',
+  wastePct: '20.00',
+  avgYieldPct: '91.25',
+  downtimeMinutes: 45,
+  rows: [
+    {
+      woNumber: 'WO-0002',
+      itemCode: 'FG001',
+      itemName: 'Meat Box',
+      plannedQty: '100.000',
+      actualQty: '90.000',
+      uom: 'kg',
+      yieldPct: '90.00',
+      completedAt: '2026-06-10T10:00:00.000Z',
+    },
+  ],
+};
+
+const inventory: InventorySnapshot = {
+  totals: {
+    lpCount: 15,
+    activeLpCount: 13,
+    blockedLpCount: 2,
+    qtyKg: '120.500',
+    expiredCount: 1,
+    expiring7dCount: 3,
+  },
+  rows: [
+    {
+      warehouseId: 'wh-1',
+      warehouseCode: 'WH1',
+      warehouseName: 'Main',
+      lpCount: 15,
+      activeLpCount: 13,
+      blockedLpCount: 2,
+      qtyKg: '120.500',
+      expiredCount: 1,
+      expiring7dCount: 3,
+    },
+  ],
+};
+
+const quality: QualitySummary = {
+  days: 30,
+  openHolds: 3,
+  inspectionsByStatus: [
+    { status: 'pending', count: 4 },
+    { status: 'passed', count: 6 },
+  ],
+  ncrOpen: 3,
+  ncrClosedInWindow: 5,
+  rows: [
+    { entity: 'hold', status: 'open', count: 2 },
+    { entity: 'hold', status: 'investigating', count: 1 },
+    { entity: 'inspection', status: 'pending', count: 4 },
+    { entity: 'inspection', status: 'passed', count: 6 },
+    { entity: 'ncr', status: 'open', count: 3 },
+    { entity: 'ncr', status: 'closed_in_window', count: 5 },
+  ],
+};
+
+const procurement: ProcurementSummary = {
+  days: 30,
+  posByStatus: [
+    { status: 'confirmed', count: 2 },
+    { status: 'draft', count: 1 },
+  ],
+  avgConfirmedToFirstGrnDays: null,
+  avgCreatedToFirstGrnDays: '3.0',
+  openToCount: 4,
+};
+
+const emptyProduction: ProductionSummary = {
+  days: 7,
+  wosCompleted: 0,
+  outputKg: '0.000',
+  wasteKg: '0.000',
+  wastePct: null,
+  avgYieldPct: null,
+  downtimeMinutes: 0,
+  rows: [],
+};
+
+const emptyInventory: InventorySnapshot = {
+  totals: { lpCount: 0, activeLpCount: 0, blockedLpCount: 0, qtyKg: '0.000', expiredCount: 0, expiring7dCount: 0 },
+  rows: [],
+};
+
+const emptyQuality: QualitySummary = {
+  days: 30,
+  openHolds: 0,
+  inspectionsByStatus: [],
+  ncrOpen: 0,
+  ncrClosedInWindow: 0,
+  rows: [
+    { entity: 'ncr', status: 'open', count: 0 },
+    { entity: 'ncr', status: 'closed_in_window', count: 0 },
+  ],
+};
+
+const emptyProcurement: ProcurementSummary = {
+  days: 30,
+  posByStatus: [],
+  avgConfirmedToFirstGrnDays: null,
+  avgCreatedToFirstGrnDays: null,
+  openToCount: 0,
+};
+
+function renderOverview(overrides: Partial<React.ComponentProps<typeof ReportingOverviewClient>> = {}) {
+  return render(
+    <ReportingOverviewClient
+      production={production}
+      inventory={inventory}
+      quality={quality}
+      procurement={procurement}
+      canExportCsv
+      labels={buildLabels('en')}
+      {...overrides}
+    />,
+  );
+}
+
+beforeEach(() => {
+  downloadCsvMock.mockClear();
+});
+
+describe('ReportingOverviewClient', () => {
+  it('renders all four report sections with KPI tiles and tables', () => {
+    renderOverview();
+
+    const prod = within(screen.getByTestId('rpt-section-production'));
+    expect(prod.getByText('Production summary')).toBeInTheDocument();
+    expect(prod.getByText('WOs completed')).toBeInTheDocument();
+    expect(prod.getByText('80.000')).toBeInTheDocument();
+    expect(prod.getByText('20.00')).toBeInTheDocument(); // waste %
+    expect(prod.getByText('91.25')).toBeInTheDocument(); // avg yield %
+    expect(prod.getByText('WO-0002')).toBeInTheDocument();
+    expect(prod.getByText('FG001 — Meat Box')).toBeInTheDocument();
+
+    const inv = within(screen.getByTestId('rpt-section-inventory'));
+    expect(inv.getByText('Inventory snapshot')).toBeInTheDocument();
+    expect(inv.getByText('On-hand LPs')).toBeInTheDocument();
+    expect(inv.getByText('WH1')).toBeInTheDocument();
+
+    const qa = within(screen.getByTestId('rpt-section-quality'));
+    expect(qa.getByText('Quality summary')).toBeInTheDocument();
+    expect(qa.getByText('Open holds')).toBeInTheDocument();
+    expect(qa.getByText('investigating')).toBeInTheDocument();
+
+    const proc = within(screen.getByTestId('rpt-section-procurement'));
+    expect(proc.getByText('Procurement summary')).toBeInTheDocument();
+    expect(proc.getByText('confirmed')).toBeInTheDocument();
+  });
+
+  it('renders the honest n/a placeholder for the not-computable confirmed→GRN KPI', () => {
+    renderOverview();
+    const proc = within(screen.getByTestId('rpt-section-procurement'));
+    const tile = proc.getByText('Confirmed → first GRN (days)').closest('[data-testid="rpt-kpi"]');
+    expect(tile).not.toBeNull();
+    expect(within(tile as HTMLElement).getByText('—')).toBeInTheDocument();
+    expect(
+      within(tile as HTMLElement).getByText(
+        'Not computable — purchase orders do not record a confirmation timestamp',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('exports each section as CSV through the shared download helper', () => {
+    renderOverview();
+
+    fireEvent.click(screen.getByTestId('rpt-export-production'));
+    expect(downloadCsvMock).toHaveBeenCalledTimes(1);
+    const [prodCsv, prodName] = downloadCsvMock.mock.calls[0];
+    expect(prodName).toMatch(/^reporting-production-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(prodCsv).toContain('WO #,Item,Planned,Actual,UoM,Yield %,Completed');
+    expect(prodCsv).toContain('WO-0002,FG001 Meat Box,100.000,90.000,kg,90.00');
+
+    fireEvent.click(screen.getByTestId('rpt-export-inventory'));
+    expect(downloadCsvMock.mock.calls[1][1]).toMatch(/^reporting-inventory-/);
+    expect(downloadCsvMock.mock.calls[1][0]).toContain('WH1,15,13,2,120.500,1,3');
+
+    fireEvent.click(screen.getByTestId('rpt-export-quality'));
+    expect(downloadCsvMock.mock.calls[2][1]).toMatch(/^reporting-quality-/);
+    expect(downloadCsvMock.mock.calls[2][0]).toContain('Hold,open,2');
+
+    fireEvent.click(screen.getByTestId('rpt-export-procurement'));
+    expect(downloadCsvMock.mock.calls[3][1]).toMatch(/^reporting-procurement-/);
+    expect(downloadCsvMock.mock.calls[3][0]).toContain('confirmed,2');
+  });
+
+  it('disables CSV buttons (with explanatory title) without rpt.export.csv', () => {
+    renderOverview({ canExportCsv: false });
+    for (const id of [
+      'rpt-export-production',
+      'rpt-export-inventory',
+      'rpt-export-quality',
+      'rpt-export-procurement',
+    ]) {
+      const btn = screen.getByTestId(id);
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute('title', 'Requires the rpt.export.csv permission');
+    }
+    fireEvent.click(screen.getByTestId('rpt-export-production'));
+    expect(downloadCsvMock).not.toHaveBeenCalled();
+  });
+
+  it('renders the per-section empty states on an empty org', () => {
+    renderOverview({
+      production: emptyProduction,
+      inventory: emptyInventory,
+      quality: emptyQuality,
+      procurement: emptyProcurement,
+    });
+    expect(screen.getByTestId('rpt-empty-production')).toHaveTextContent(
+      'No work orders were completed in this window.',
+    );
+    expect(screen.getByTestId('rpt-empty-inventory')).toHaveTextContent('No on-hand license plates.');
+    expect(screen.getByTestId('rpt-empty-quality')).toHaveTextContent('No quality records in this window.');
+    expect(screen.getByTestId('rpt-empty-procurement')).toHaveTextContent(
+      'No purchase orders were created in this window.',
+    );
+  });
+
+  it('resolves real PL labels from the staged bundle (no leaked dotted keys)', () => {
+    render(
+      <ReportingOverviewClient
+        production={production}
+        inventory={inventory}
+        quality={quality}
+        procurement={procurement}
+        canExportCsv
+        labels={buildLabels('pl')}
+      />,
+    );
+    expect(screen.getByText('Podsumowanie produkcji')).toBeInTheDocument();
+    expect(screen.getByText('Stan zapasów')).toBeInTheDocument();
+    expect(screen.getByText('Podsumowanie jakości')).toBeInTheDocument();
+    expect(screen.getByText('Podsumowanie zaopatrzenia')).toBeInTheDocument();
+    const exportButtons = [
+      'rpt-export-production',
+      'rpt-export-inventory',
+      'rpt-export-quality',
+      'rpt-export-procurement',
+    ].map((id) => screen.getByTestId(id));
+    for (const btn of exportButtons) expect(btn).toHaveTextContent('Eksportuj CSV');
+    // no raw dotted key anywhere
+    expect(document.body.textContent).not.toMatch(/\b(production|inventory|quality|procurement)\.kpi\./);
+  });
+});

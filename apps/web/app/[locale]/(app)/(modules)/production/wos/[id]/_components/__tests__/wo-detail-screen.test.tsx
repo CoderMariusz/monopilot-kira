@@ -44,10 +44,11 @@ const LABELS: WoDetailLabels = {
       trigger: 'Record consumption', rowTrigger: 'Record', title: 'Record material consumption', subtitle: 'Decrement on-hand stock.',
       material: 'Component', materialPlaceholder: 'Select a component', qty: 'Quantity', qtyHint: "Amount in the component's UoM.",
       lp: 'License plate (FEFO)', lpLoading: 'Loading license plates…', lpEmpty: 'No license plates available for this component.',
-      lpError: 'Unable to load license plates.', lpNone: '— no LP —', lpSuggested: 'suggested', submit: 'Record consumption',
+      lpError: 'Unable to load license plates.', lpNone: '— no LP —', lpSuggested: 'suggested',
+      reasonCode: 'Manual reason code', reasonPlaceholder: 'Required without an LP', submit: 'Record consumption',
       submitting: 'Recording…', cancel: 'Cancel',
       warningOver: 'Over required quantity by {pct}% — recorded and flagged.', warningClose: 'Close',
-      errors: { forbidden: 'No permission to record consumption.', lp_unavailable: 'Not enough free stock on that LP.', invalid_material: 'Component no longer valid.', invalid_qty: 'Enter a quantity greater than zero.', generic: 'Unable to record consumption.' },
+      errors: { forbidden: 'No permission to record consumption.', lp_unavailable: 'Not enough free stock on that LP.', lp_not_released: 'LP is not QA released.', lp_expired: 'LP is expired.', lp_locked: 'LP is locked.', quality_hold_active: 'LP is on hold.', reason_required: 'Reason is required.', invalid_material: 'Component no longer valid.', invalid_qty: 'Enter a quantity greater than zero.', generic: 'Unable to record consumption.' },
     },
   },
   output: {

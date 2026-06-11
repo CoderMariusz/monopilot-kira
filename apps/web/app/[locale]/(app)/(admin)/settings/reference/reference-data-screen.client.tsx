@@ -94,8 +94,8 @@ export type ReferenceDataScreenProps = {
   labels: ReferenceDataLabels;
   state?: 'ready' | 'loading' | 'empty' | 'error';
   canEditReferenceData?: boolean;
-  upsertReferenceRow?: (input: UpsertReferenceRowInput) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
-  softDeleteReferenceRow?: (input: SoftDeleteReferenceRowInput) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
+  upsertReferenceRow?: (input: UpsertReferenceRowInput) => Promise<{ ok: boolean; data?: unknown; error?: string; message?: string }>;
+  softDeleteReferenceRow?: (input: SoftDeleteReferenceRowInput) => Promise<{ ok: boolean; data?: unknown; error?: string; message?: string }>;
   onReferenceDataChanged?: () => void;
   e2eHarnessOpenModals?: boolean;
 };
@@ -208,12 +208,21 @@ function emptyDeleteResult(): Promise<{ ok: false; error: string }> {
   return Promise.resolve({ ok: false, error: 'permission_denied' });
 }
 
-function friendlyActionError(error: string | undefined, labels: ReferenceDataLabels, fallback: string) {
-  if (!error) return fallback;
-  if (/^(forbidden|permission_denied|PERMISSION_DENIED)$/i.test(error)) {
+function friendlyActionError(
+  error: string | undefined,
+  labels: ReferenceDataLabels,
+  fallback: string,
+  message?: string,
+) {
+  if (/^(forbidden|permission_denied|PERMISSION_DENIED)$/i.test(error ?? '')) {
     return labels.permissionDenied ?? fallback;
   }
-  if (/^[A-Z0-9_]+$/.test(error)) return fallback;
+  // Server Actions return { error: <code>, message?: <field-level detail> }.
+  // Prefer the detail (e.g. "display_name is required") over the bare code —
+  // a naked `invalid_input` was the /settings/reference dead-end (2026-06-11).
+  if (message) return `${fallback} ${message}`;
+  if (!error) return fallback;
+  if (/^[A-Za-z0-9_]+$/.test(error)) return fallback;
   return error;
 }
 
@@ -255,7 +264,7 @@ export function ReferenceDataScreen({
       setActionError(null);
       return { ok: true as const, tableCode: input.tableCode, rowKey: input.rowKey, revalidatedPath: '/settings/reference' as const };
     }
-    const error = friendlyActionError(result.error, labels, labels.modal?.edit?.saveFailed ?? 'Unable to save reference row.');
+    const error = friendlyActionError(result.error, labels, labels.modal?.edit?.saveFailed ?? 'Unable to save reference row.', result.message);
     setActionError(error);
     return { ok: false as const, error };
   }
@@ -272,7 +281,7 @@ export function ReferenceDataScreen({
       notifyChanged();
       return { ok: true as const };
     }
-    const error = friendlyActionError(result.error, labels, labels.modal?.delete?.submitFailed ?? 'Unable to delete reference data.');
+    const error = friendlyActionError(result.error, labels, labels.modal?.delete?.submitFailed ?? 'Unable to delete reference data.', result.message);
     return { ok: false as const, error };
   }
 

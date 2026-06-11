@@ -1,0 +1,186 @@
+{
+  "en": {
+    "page": {
+      "title": "Reporting",
+      "subtitle": "Read-only operational summaries across production, inventory, quality and procurement",
+      "denied": "You do not have permission to view reports (rpt.dashboard.view).",
+      "error": "Reports could not be loaded. Please try again.",
+      "exportCsv": "Export CSV",
+      "exportCsvDenied": "Requires the rpt.export.csv permission",
+      "windowDays": "Last {days} days",
+      "asOfNow": "Live snapshot",
+      "notAvailable": "—"
+    },
+    "production": {
+      "title": "Production summary",
+      "kpi": {
+        "wosCompleted": "WOs completed",
+        "outputKg": "Output (kg)",
+        "wasteKg": "Waste (kg)",
+        "wastePct": "Waste %",
+        "avgYieldPct": "Avg yield %",
+        "downtimeMinutes": "Downtime (min)"
+      },
+      "downtimeNote": "Closed downtime events only — open events have no duration yet",
+      "columns": {
+        "wo": "WO #",
+        "item": "Item",
+        "planned": "Planned",
+        "actual": "Actual",
+        "uom": "UoM",
+        "yield": "Yield %",
+        "completedAt": "Completed"
+      },
+      "empty": "No work orders were completed in this window."
+    },
+    "inventory": {
+      "title": "Inventory snapshot",
+      "kpi": {
+        "lpCount": "On-hand LPs",
+        "qtyKg": "Qty (kg LPs)",
+        "blockedLpCount": "Blocked LPs",
+        "expiredCount": "Expired",
+        "expiring7dCount": "Expiring ≤ 7d"
+      },
+      "qtyNote": "Quantity totals cover kg-UoM license plates only (mixed UoM cannot be summed)",
+      "columns": {
+        "warehouse": "Warehouse",
+        "lps": "LPs",
+        "active": "Active",
+        "blocked": "Blocked",
+        "qtyKg": "Qty (kg)",
+        "expired": "Expired",
+        "expiring7d": "≤ 7d"
+      },
+      "empty": "No on-hand license plates."
+    },
+    "quality": {
+      "title": "Quality summary",
+      "kpi": {
+        "openHolds": "Open holds",
+        "inspections": "Inspections (window)",
+        "ncrOpen": "NCRs open",
+        "ncrClosed": "NCRs closed (window)"
+      },
+      "entity": {
+        "hold": "Hold",
+        "inspection": "Inspection",
+        "ncr": "NCR"
+      },
+      "columns": {
+        "entity": "Record",
+        "status": "Status",
+        "count": "Count"
+      },
+      "empty": "No quality records in this window."
+    },
+    "procurement": {
+      "title": "Procurement summary",
+      "kpi": {
+        "posInWindow": "POs created (window)",
+        "confirmedToGrn": "Confirmed → first GRN (days)",
+        "createdToGrn": "Created → first GRN (days)",
+        "openTos": "Open transfer orders"
+      },
+      "confirmedToGrnNote": "Not computable — purchase orders do not record a confirmation timestamp",
+      "createdToGrnNote": "Proxy metric: PO creation to earliest GRN receipt",
+      "columns": {
+        "status": "PO status",
+        "count": "Count"
+      },
+      "empty": "No purchase orders were created in this window."
+    }
+  },
+  "pl": {
+    "page": {
+      "title": "Raporty",
+      "subtitle": "Podsumowania operacyjne (tylko do odczytu): produkcja, zapasy, jakość i zaopatrzenie",
+      "denied": "Brak uprawnień do przeglądania raportów (rpt.dashboard.view).",
+      "error": "Nie udało się załadować raportów. Spróbuj ponownie.",
+      "exportCsv": "Eksportuj CSV",
+      "exportCsvDenied": "Wymaga uprawnienia rpt.export.csv",
+      "windowDays": "Ostatnie {days} dni",
+      "asOfNow": "Stan bieżący",
+      "notAvailable": "—"
+    },
+    "production": {
+      "title": "Podsumowanie produkcji",
+      "kpi": {
+        "wosCompleted": "Ukończone ZP",
+        "outputKg": "Produkcja (kg)",
+        "wasteKg": "Odpady (kg)",
+        "wastePct": "Odpady %",
+        "avgYieldPct": "Śr. uzysk %",
+        "downtimeMinutes": "Przestoje (min)"
+      },
+      "downtimeNote": "Tylko zakończone przestoje — otwarte zdarzenia nie mają jeszcze czasu trwania",
+      "columns": {
+        "wo": "Nr ZP",
+        "item": "Pozycja",
+        "planned": "Plan",
+        "actual": "Wykonanie",
+        "uom": "JM",
+        "yield": "Uzysk %",
+        "completedAt": "Ukończono"
+      },
+      "empty": "W tym okresie nie ukończono żadnych zleceń produkcyjnych."
+    },
+    "inventory": {
+      "title": "Stan zapasów",
+      "kpi": {
+        "lpCount": "Nośniki (LP) na stanie",
+        "qtyKg": "Ilość (LP w kg)",
+        "blockedLpCount": "Zablokowane LP",
+        "expiredCount": "Przeterminowane",
+        "expiring7dCount": "Wygasa ≤ 7 dni"
+      },
+      "qtyNote": "Sumy ilości obejmują wyłącznie nośniki w kg (różnych JM nie można sumować)",
+      "columns": {
+        "warehouse": "Magazyn",
+        "lps": "LP",
+        "active": "Aktywne",
+        "blocked": "Zablokowane",
+        "qtyKg": "Ilość (kg)",
+        "expired": "Przeterm.",
+        "expiring7d": "≤ 7 dni"
+      },
+      "empty": "Brak nośników (LP) na stanie."
+    },
+    "quality": {
+      "title": "Podsumowanie jakości",
+      "kpi": {
+        "openHolds": "Otwarte blokady",
+        "inspections": "Inspekcje (okres)",
+        "ncrOpen": "Otwarte NCR",
+        "ncrClosed": "Zamknięte NCR (okres)"
+      },
+      "entity": {
+        "hold": "Blokada",
+        "inspection": "Inspekcja",
+        "ncr": "NCR"
+      },
+      "columns": {
+        "entity": "Rekord",
+        "status": "Status",
+        "count": "Liczba"
+      },
+      "empty": "Brak rekordów jakościowych w tym okresie."
+    },
+    "procurement": {
+      "title": "Podsumowanie zaopatrzenia",
+      "kpi": {
+        "posInWindow": "Utworzone ZZ (okres)",
+        "confirmedToGrn": "Potwierdzenie → pierwsze PZ (dni)",
+        "createdToGrn": "Utworzenie → pierwsze PZ (dni)",
+        "openTos": "Otwarte przesunięcia (TO)"
+      },
+      "confirmedToGrnNote": "Nieobliczalne — zamówienia zakupu nie zapisują znacznika czasu potwierdzenia",
+      "createdToGrnNote": "Miernik zastępczy: od utworzenia ZZ do najwcześniejszego przyjęcia PZ",
+      "columns": {
+        "status": "Status ZZ",
+        "count": "Liczba"
+      },
+      "empty": "W tym okresie nie utworzono żadnych zamówień zakupu."
+    }
+  }
+}

@@ -100,13 +100,23 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.startsWith('update public.license_plates') && normalized.includes('returning id::text, lp_number, status, qa_status')) {
+        // Mirror the lifecycle CASE in releaseLpQa (audit F-A01): released
+        // promotes received→available, rejected maps received→blocked,
+        // every other status passes through unchanged.
+        const decision = params?.[1];
+        const statusAfter =
+          decision === 'released' && lpStatus === 'received'
+            ? 'available'
+            : decision === 'rejected' && lpStatus === 'received'
+              ? 'blocked'
+              : lpStatus;
         return {
           rows: [
             {
               id: LP_ID,
               lp_number: 'LP-001',
-              status: lpStatus,
-              qa_status: params?.[1],
+              status: statusAfter,
+              qa_status: decision,
             },
           ],
           rowCount: 1,
@@ -335,13 +345,66 @@ describe('warehouse backend actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.reason);
     expect(result.data.qaStatus).toBe('released');
+    // already-available LP: only qa_status changes, status passes through
+    expect(result.data.status).toBe('available');
     const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
     expect(calls.some((call) => call.sql.startsWith('update public.license_plates') && call.params?.[1] === 'released')).toBe(true);
     const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
-    expect(history?.params?.[4]).toContain('"qaStatusFrom":"pending"');
-    expect(history?.params?.[4]).toContain('"qaStatusTo":"released"');
+    expect(history?.params?.[5]).toContain('"qaStatusFrom":"pending"');
+    expect(history?.params?.[5]).toContain('"qaStatusTo":"released"');
     const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
     expect(outbox?.params?.[1]).toContain('"qa_status_to":"released"');
+  });
+
+  it('releaseLpQa promotes a received LP to available on release (audit F-A01)', async () => {
+    lpStatus = 'received';
+
+    const result = await releaseLpQa({ lpId: LP_ID, decision: 'released', note: 'visual OK' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.status).toBe('available');
+    expect(result.data.qaStatus).toBe('released');
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
+    // the single UPDATE carries the lifecycle CASE — promotion is atomic with the QA flip
+    const update = calls.find((call) => call.sql.startsWith('update public.license_plates'));
+    expect(update?.sql).toContain("when $2 = 'released' and status = 'received' then 'available'");
+    // ledger row records the real received→available transition
+    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
+    expect(history?.params?.[1]).toBe('received');
+    expect(history?.params?.[2]).toBe('available');
+    // outbox carries the promoted status
+    const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[1]).toContain('"status_from":"received"');
+    expect(outbox?.params?.[1]).toContain('"status_to":"available"');
+  });
+
+  it('releaseLpQa maps a rejected received LP to blocked, never available', async () => {
+    lpStatus = 'received';
+
+    const result = await releaseLpQa({ lpId: LP_ID, decision: 'rejected', note: 'damaged' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.status).toBe('blocked');
+    expect(result.data.qaStatus).toBe('rejected');
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
+    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
+    expect(history?.params?.[1]).toBe('received');
+    expect(history?.params?.[2]).toBe('blocked');
+    const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[1]).toContain('"status_to":"blocked"');
+  });
+
+  it('releaseLpQa leaves non-received statuses untouched on release', async () => {
+    lpStatus = 'quarantine';
+
+    const result = await releaseLpQa({ lpId: LP_ID, decision: 'released' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.status).toBe('quarantine');
+    expect(result.data.qaStatus).toBe('released');
   });
 
   it('releaseLpQa refuses non-pending and terminal LPs without updating', async () => {

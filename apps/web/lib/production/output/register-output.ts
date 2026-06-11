@@ -18,6 +18,10 @@
  *   7. Build catch_weight_details when weight_mode='catch' (variance vs
  *      item.nominal_weight; soft warning > tolerance).
  *   8. INSERT wo_outputs (V-PROD-24 batch-unique-per-year enforced by the schema).
+ *   8b. (W9-K-II, F-A04/F-B08) when no caller-supplied lp_id: create the output
+ *       LP in the SAME txn (status received / qa pending, org-default warehouse,
+ *       genealogy parent = first consumed LP, all consumed LPs in
+ *       ext_jsonb.consumed_lp_ids) and back-link wo_outputs.lp_id.
  *   9. emit production.output.recorded in the SAME txn.
  *
  * NUMERIC-exact: qty / per-unit kg never round-trip through a binary float. The
@@ -37,6 +41,7 @@
 import { z } from 'zod';
 
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
+import { makeLpNumber, resolveDefaultWarehouse } from '../../warehouse/lp-create';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
   PRODUCTION_OUTPUT_WRITE_PERMISSION,
@@ -103,6 +108,8 @@ export type CatchWeightSummary = {
 export type RegisterOutputResult = {
   output_id: string;
   lp_id: string | null;
+  /** Set when this call CREATED the output LP (F-A04/F-B08); null on caller-supplied lp_id. */
+  lp_number: string | null;
   batch_number: string;
   expiry_date: string | null;
   catch_weight_summary: CatchWeightSummary | null;
@@ -240,6 +247,106 @@ async function nextBatchNumber(
   );
   const seq = Number(rows[0]?.seq ?? '0') + 1;
   return `${woNumber}-OUT-${String(seq).padStart(3, '0')}`;
+}
+
+/**
+ * Genealogy source (F-B08): the LPs this WO consumed, from the canonical
+ * consumption ledger (wo_material_consumption — the only consume writer),
+ * ordered by first consumption so [0] is the primary parent.
+ */
+async function loadConsumedLpIds(ctx: OrgContextLike, woId: string): Promise<string[]> {
+  const { rows } = await ctx.client.query<{ lp_id: string }>(
+    `select lp_id::text as lp_id
+       from public.wo_material_consumption
+      where org_id = app.current_org_id()
+        and wo_id = $1::uuid
+      group by lp_id
+      order by min(consumed_at) asc, lp_id asc`,
+    [woId],
+  );
+  return rows.map((r) => r.lp_id);
+}
+
+/**
+ * 8b (F-A04/F-B08): materialize the output as INVENTORY. Creates the output LP
+ * in the SAME transaction as the wo_outputs row:
+ *   - warehouse/location = the org default warehouse + its first location (the
+ *     same "receiving default" the GRN flow resolves; work_orders/production
+ *     lines carry no warehouse mapping today, so this is the least-surprising
+ *     default — revisit when lines get a site/warehouse link);
+ *   - status 'received' + qa_status 'pending' — the LP is NOT born 'available';
+ *     it flows through the QA release → available promotion path;
+ *   - genealogy: parent_lp_id = FIRST consumed LP (license_plates models a
+ *     SINGLE parent); ALL consumed LPs are recorded in ext_jsonb.consumed_lp_ids.
+ *     MODELLING GAP (reported): N consumed parents cannot be expressed
+ *     relationally without a junction table (future lp_genealogy migration).
+ * Idempotency: on replay the wo_outputs transaction_id unique (23505) fires
+ * BEFORE this block and aborts the whole txn — no duplicate/orphan LP.
+ */
+async function createOutputLp(
+  ctx: OrgContextLike,
+  input: {
+    woId: string;
+    productId: string;
+    quantity: string;
+    uom: string;
+    batchNumber: string;
+    expiryDate: string | null; // 'YYYY-MM-DD' from the wo_outputs insert
+    transactionId: string;
+    actorUserId: string;
+  },
+): Promise<{ id: string; lp_number: string }> {
+  const warehouse = await resolveDefaultWarehouse(ctx.client);
+  if (!warehouse) throw new ProductionActionError('warehouse_not_configured', 409);
+
+  const consumedLpIds = await loadConsumedLpIds(ctx, input.woId);
+  const parentLpId = consumedLpIds[0] ?? null;
+  const lpNumber = makeLpNumber();
+
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `insert into public.license_plates (
+       org_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
+       status, qa_status, batch_number, expiry_date, best_before_date,
+       origin, wo_id, parent_lp_id, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2::uuid, $3, $4::uuid, $5::numeric, $6,
+       'received', 'pending', $7, $8::timestamptz, $8::timestamptz,
+       'production', $9::uuid, $10::uuid,
+       jsonb_build_object('consumed_lp_ids', $11::jsonb), $12::uuid, $12::uuid
+     )
+     returning id`,
+    [
+      warehouse.id,
+      warehouse.default_location_id,
+      lpNumber,
+      input.productId,
+      input.quantity,
+      input.uom,
+      input.batchNumber,
+      input.expiryDate,
+      input.woId,
+      parentLpId,
+      JSON.stringify(consumedLpIds),
+      input.actorUserId,
+    ],
+  );
+  const lp = rows[0];
+  if (!lp) throw new ProductionActionError('persistence_failed', 500);
+
+  // Genesis row in the LP transition ledger (same contract as the GRN flow).
+  await ctx.client.query(
+    `insert into public.lp_state_history (
+       org_id, lp_id, from_state, to_state, reason_code, reason_text,
+       wo_id, transaction_id, created_by
+     )
+     values (app.current_org_id(), $1::uuid, null, 'received', 'production_output',
+             'WO output registration', $2::uuid, $3::uuid, $4::uuid)
+     on conflict (org_id, transaction_id) do nothing`,
+    [lp.id, input.woId, input.transactionId, input.actorUserId],
+  );
+
+  return { id: lp.id, lp_number: lpNumber };
 }
 
 /**
@@ -389,6 +496,33 @@ export async function registerOutput(
     throw err;
   }
 
+  // 8b. Output → LP (F-A04/F-B08): when the caller did not hand us an existing
+  // LP, create the output LP atomically in this same txn and back-link it.
+  let lpNumber: string | null = null;
+  if (!lpId) {
+    const createdLp = await createOutputLp(ctx, {
+      woId,
+      productId: input.product_id,
+      quantity: resolvedQtyKg,
+      uom: input.uom ?? wo.uom,
+      batchNumber,
+      expiryDate,
+      transactionId: input.transaction_id,
+      actorUserId: input.operator_id ?? ctx.userId,
+    });
+    lpId = createdLp.id;
+    lpNumber = createdLp.lp_number;
+    await ctx.client.query(
+      `update public.wo_outputs
+          set lp_id = $2::uuid,
+              updated_by = $3::uuid,
+              updated_at = now()
+        where org_id = app.current_org_id()
+          and id = $1::uuid`,
+      [outputId, lpId, input.operator_id ?? ctx.userId],
+    );
+  }
+
   // 9. outbox (same txn).
   await emitOutbox(ctx, {
     eventType: PRODUCTION_OUTPUT_RECORDED_EVENT,
@@ -416,6 +550,7 @@ export async function registerOutput(
   return {
     output_id: outputId,
     lp_id: lpId,
+    lp_number: lpNumber,
     batch_number: batchNumber,
     expiry_date: expiryDate,
     catch_weight_summary: catchSummary,

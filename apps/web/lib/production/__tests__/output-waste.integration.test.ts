@@ -48,6 +48,10 @@ const seed = {
   productId: randomUUID(),
   catchProductId: randomUUID(),
   wasteCategoryId: randomUUID(),
+  // W9-K-II: registerOutput now creates the output LP — it needs an org
+  // default warehouse (+ location) to exist.
+  warehouseId: randomUUID(),
+  locationId: randomUUID(),
 };
 
 let owner: pg.Pool;
@@ -120,6 +124,17 @@ async function seedAll(): Promise<void> {
      on conflict (id) do nothing`,
     [seed.wasteCategoryId, seed.orgId],
   );
+  // W9-K-II: org default warehouse + location for the output LP destination.
+  await owner.query(
+    `insert into public.warehouses (id, org_id, code, name, warehouse_type, is_default)
+     values ($1, $2, $3, 'E3 WH', 'general', true) on conflict (id) do nothing`,
+    [seed.warehouseId, seed.orgId, `E3WH-${seed.warehouseId.slice(0, 8)}`],
+  );
+  await owner.query(
+    `insert into public.locations (id, org_id, warehouse_id, code, name, location_type, level, path)
+     values ($1, $2, $3, 'A-01', 'Rack A-01', 'rack', 1, 'A.01') on conflict (id) do nothing`,
+    [seed.locationId, seed.orgId, seed.warehouseId],
+  );
 }
 
 /** Create a WO + its wo_executions row in the given status. Returns the new ids. */
@@ -141,6 +156,9 @@ async function makeWo(status: string, productId = seed.productId): Promise<{ woI
 
 async function cleanupWoData(): Promise<void> {
   await owner.query(`delete from public.outbox_events where org_id = $1`, [seed.orgId]);
+  // W9-K-II: registerOutput also creates the output LP + its genesis ledger row.
+  await owner.query(`delete from public.lp_state_history where org_id = $1`, [seed.orgId]);
+  await owner.query(`delete from public.license_plates where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.wo_outputs where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.wo_waste_log where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.wo_executions where org_id = $1`, [seed.orgId]);
@@ -161,6 +179,8 @@ run('08-Production E3 output + waste (integration)', () => {
   });
 
   afterAll(async () => {
+    await owner.query(`delete from public.locations where org_id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.warehouses where org_id = $1`, [seed.orgId]);
     await owner.query(`delete from public.items where org_id = $1`, [seed.orgId]);
     await owner.query(`delete from public.waste_categories where org_id = $1`, [seed.orgId]);
     await owner.query(`delete from public.user_roles where org_id = $1`, [seed.orgId]);

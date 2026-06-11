@@ -61,6 +61,7 @@ export type ManufacturingOperationsScreenLabels = {
   fieldDescription: string;
   fieldSequence: string;
   fieldActive: string;
+  fieldIndustry: string;
   create: string;
   creating: string;
   duplicateOperationName: string;
@@ -68,6 +69,16 @@ export type ManufacturingOperationsScreenLabels = {
   createFailed: string;
   cancel: string;
   reset: string;
+  editDialogTitle: string;
+  save: string;
+  saving: string;
+  updateFailed: string;
+  immutableField: string;
+  deleteDialogTitle: string;
+  deleteDialogBody: string;
+  confirmDelete: string;
+  deleting: string;
+  deleteFailed: string;
 };
 
 export type ManufacturingOperationsScreenProps = {
@@ -85,6 +96,21 @@ export type ManufacturingOperationsScreenProps = {
     industryCode: IndustryCode;
     isActive: boolean;
   }) => Promise<{ ok: true; data: ManufacturingOperation } | { ok: false; error?: string }> | { ok: true; data: ManufacturingOperation } | { ok: false; error?: string };
+  updateOperation?: (input: {
+    id: string;
+    description?: string | null;
+    operationSeq?: number;
+    industryCode?: IndustryCode;
+    isActive?: boolean;
+  }) => Promise<{ ok: true; data: ManufacturingOperation } | { ok: false; error?: string }>;
+  deactivateOperation?: (input: {
+    id: string;
+    confirmDeactivateWarning?: boolean;
+    confirmReferenced?: boolean;
+  }) => Promise<
+    | { ok: true; data: ManufacturingOperation; warning?: { code: string; message: string } }
+    | { ok: false; error?: string; warning?: { code: string; message: string } }
+  >;
   onAddOperation?: () => void;
   onEditOperation?: (operation: ManufacturingOperation) => void;
   onDeactivateOperation?: (operation: ManufacturingOperation) => void;
@@ -131,6 +157,7 @@ function labelForIndustry(labels: ManufacturingOperationsScreenLabels, industry:
 }
 
 const industryValues: IndustryFilter[] = ['all', 'bakery', 'pharma', 'fmcg', 'generic', 'custom'];
+const industryCodeValues: IndustryCode[] = ['bakery', 'pharma', 'fmcg', 'generic', 'custom'];
 
 export default function ManufacturingOperationsScreen({
   operations = defaultOperations,
@@ -140,6 +167,8 @@ export default function ManufacturingOperationsScreen({
   reorderOperations,
   resetToSeed,
   createOperation,
+  updateOperation,
+  deactivateOperation,
   onAddOperation,
   onEditOperation,
   onDeactivateOperation,
@@ -155,6 +184,18 @@ export default function ManufacturingOperationsScreen({
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
+  // Industry is required by the table (CHECK constraint) — the create modal
+  // previously had NO industry field and silently sent the page filter value,
+  // which failed when the filter was "All" (2026-06-11 clickthrough §1).
+  const [addIndustry, setAddIndustry] = React.useState<IndustryCode>('generic');
+  const [editTarget, setEditTarget] = React.useState<ManufacturingOperation | null>(null);
+  const [editIndustry, setEditIndustry] = React.useState<IndustryCode>('generic');
+  const [editError, setEditError] = React.useState<string | null>(null);
+  const [updating, setUpdating] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState<ManufacturingOperation | null>(null);
+  const [deleteWarning, setDeleteWarning] = React.useState<string | null>(null);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
   const previousOperations = React.useRef(operations);
 
   React.useEffect(() => {
@@ -170,8 +211,8 @@ export default function ManufacturingOperationsScreen({
     return industryMatches && activeMatches;
   });
   const canAddOperation = canManage && Boolean(createOperation || onAddOperation);
-  const canEditOperation = canManage && Boolean(onEditOperation);
-  const canDeactivateOperation = canManage && Boolean(onDeactivateOperation);
+  const canEditOperation = canManage && Boolean(updateOperation || onEditOperation);
+  const canDeactivateOperation = canManage && Boolean(deactivateOperation || onDeactivateOperation);
 
   const handleDrop = (targetId: string) => {
     if (!draggedId) {
@@ -211,6 +252,32 @@ export default function ManufacturingOperationsScreen({
     void resetToSeed?.(industryCode);
   };
 
+  function openAddDialog() {
+    setCreateError(null);
+    setAddIndustry(selectedIndustry === 'all' ? 'generic' : selectedIndustry);
+    setAddDialogOpen(true);
+  }
+
+  function openEditDialog(operation: ManufacturingOperation) {
+    if (!updateOperation) {
+      onEditOperation?.(operation);
+      return;
+    }
+    setEditError(null);
+    setEditIndustry(operation.industry_code);
+    setEditTarget(operation);
+  }
+
+  function openDeleteDialog(operation: ManufacturingOperation) {
+    if (!deactivateOperation) {
+      onDeactivateOperation?.(operation);
+      return;
+    }
+    setDeleteError(null);
+    setDeleteWarning(null);
+    setDeleteTarget(operation);
+  }
+
   async function handleCreateOperation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!createOperation) {
@@ -223,7 +290,7 @@ export default function ManufacturingOperationsScreen({
       processSuffix: String(form.get('processSuffix') ?? '').trim().toUpperCase(),
       description: String(form.get('description') ?? '').trim() || null,
       operationSeq: Number(form.get('operationSeq') ?? visibleOperations.length + 1),
-      industryCode: (selectedIndustry === 'all' ? 'custom' : selectedIndustry) as IndustryCode,
+      industryCode: addIndustry,
       isActive: form.get('isActive') === 'on',
     };
     setCreating(true);
@@ -238,6 +305,56 @@ export default function ManufacturingOperationsScreen({
     if (result.error === 'duplicate_operation_name') setCreateError(labels.duplicateOperationName);
     else if (result.error === 'duplicate_process_suffix') setCreateError(labels.duplicateProcessSuffix);
     else setCreateError(labels.createFailed);
+  }
+
+  async function handleUpdateOperation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!updateOperation || !editTarget) return;
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      id: editTarget.id,
+      description: String(form.get('description') ?? '').trim() || null,
+      operationSeq: Number(form.get('operationSeq') ?? editTarget.operation_seq),
+      industryCode: editIndustry,
+      isActive: form.get('isActive') === 'on',
+    };
+    setUpdating(true);
+    setEditError(null);
+    const result = await updateOperation(payload);
+    setUpdating(false);
+    if (result.ok) {
+      setOrderedOperations((current) => sortBySequence(current.map((op) => (op.id === result.data.id ? { ...op, ...result.data } : op))));
+      setEditTarget(null);
+      return;
+    }
+    setEditError(result.error === 'immutable_field' ? labels.immutableField : labels.updateFailed);
+  }
+
+  async function handleDeactivateOperation() {
+    if (!deactivateOperation || !deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    // Two-step confirm: the first call carries the generic-deactivation consent;
+    // when the operation is referenced (FAs/templates) the action answers
+    // CONFIRMATION_REQUIRED with a usage warning, which we surface — the next
+    // click sends the referenced-consent too.
+    const result = await deactivateOperation({
+      id: deleteTarget.id,
+      confirmDeactivateWarning: true,
+      confirmReferenced: deleteWarning !== null,
+    });
+    setDeleting(false);
+    if (result.ok) {
+      setOrderedOperations((current) => current.map((op) => (op.id === deleteTarget.id ? { ...op, is_active: false } : op)));
+      setDeleteTarget(null);
+      setDeleteWarning(null);
+      return;
+    }
+    if (result.error === 'CONFIRMATION_REQUIRED' && result.warning) {
+      setDeleteWarning(result.warning.message);
+      return;
+    }
+    setDeleteError(labels.deleteFailed);
   }
 
   return (
@@ -282,7 +399,7 @@ export default function ManufacturingOperationsScreen({
         <Button
           type="button"
           className="btn-primary btn-sm"
-          onClick={() => (createOperation ? setAddDialogOpen(true) : onAddOperation?.())}
+          onClick={() => (createOperation ? openAddDialog() : onAddOperation?.())}
           disabled={!canAddOperation}
         >
           {labels.addNewOperation}
@@ -374,10 +491,10 @@ export default function ManufacturingOperationsScreen({
                   </span>
                 </td>
                 <td>
-                  <Button type="button" className="btn-secondary btn-sm" onClick={() => onEditOperation?.(operation)} disabled={!canEditOperation}>
+                  <Button type="button" className="btn-secondary btn-sm" onClick={() => openEditDialog(operation)} disabled={!canEditOperation}>
                     {labels.editOperation.replace('{operation}', operation.operation_name)}
                   </Button>{' '}
-                  <Button type="button" className="btn-secondary btn-sm" onClick={() => onDeactivateOperation?.(operation)} disabled={!canDeactivateOperation}>
+                  <Button type="button" className="btn-secondary btn-sm" onClick={() => openDeleteDialog(operation)} disabled={!canDeactivateOperation}>
                     {labels.deleteOperation.replace('{operation}', operation.operation_name)}
                   </Button>
                 </td>
@@ -433,6 +550,26 @@ export default function ManufacturingOperationsScreen({
               <label htmlFor="mfg-op-sequence">{labels.fieldSequence}</label>
               <input id="mfg-op-sequence" className="form-input" name="operationSeq" type="number" min={1} max={99} defaultValue={visibleOperations.length + 1} required />
             </div>
+            <div className="ff">
+              <label id="mfg-op-industry-label" htmlFor="mfg-op-industry">{labels.fieldIndustry}</label>
+              <Select
+                aria-labelledby="mfg-op-industry-label"
+                value={addIndustry}
+                onValueChange={(value) => setAddIndustry(value as IndustryCode)}
+                options={industryCodeValues.map((value) => ({ value, label: labelForIndustry(labels, value) }))}
+              >
+                <SelectTrigger id="mfg-op-industry" aria-label={labels.fieldIndustry}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {industryCodeValues.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {labelForIndustry(labels, value)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <label htmlFor="mfg-op-active" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
               <input id="mfg-op-active" name="isActive" type="checkbox" defaultChecked />
               {labels.fieldActive}
@@ -447,6 +584,107 @@ export default function ManufacturingOperationsScreen({
             </Button>
           </Modal.Footer>
         </form>
+      </Modal>
+
+      <Modal
+        open={editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+        size="md"
+        modalId="SET-055-edit-operation"
+      >
+        <Modal.Header title={labels.editDialogTitle} />
+        {editTarget ? (
+          <form onSubmit={handleUpdateOperation}>
+            <Modal.Body>
+              {editError ? <div role="alert" className="alert alert-red">{editError}</div> : null}
+              <p className="muted" style={{ fontSize: 11 }}>{labels.immutableField}</p>
+              <div className="ff">
+                <label htmlFor="mfg-op-edit-name">{labels.fieldOperationName}</label>
+                <input id="mfg-op-edit-name" className="form-input" value={editTarget.operation_name} readOnly aria-readonly="true" />
+              </div>
+              <div className="ff">
+                <label htmlFor="mfg-op-edit-suffix">{labels.fieldProcessSuffix}</label>
+                <input id="mfg-op-edit-suffix" className="form-input mono" value={editTarget.process_suffix} readOnly aria-readonly="true" />
+              </div>
+              <div className="ff">
+                <label htmlFor="mfg-op-edit-description">{labels.fieldDescription}</label>
+                <input id="mfg-op-edit-description" className="form-input" name="description" maxLength={200} defaultValue={editTarget.description ?? ''} />
+              </div>
+              <div className="ff">
+                <label htmlFor="mfg-op-edit-sequence">{labels.fieldSequence}</label>
+                <input id="mfg-op-edit-sequence" className="form-input" name="operationSeq" type="number" min={1} max={99} defaultValue={editTarget.operation_seq} required />
+              </div>
+              <div className="ff">
+                <label id="mfg-op-edit-industry-label" htmlFor="mfg-op-edit-industry">{labels.fieldIndustry}</label>
+                <Select
+                  aria-labelledby="mfg-op-edit-industry-label"
+                  value={editIndustry}
+                  onValueChange={(value) => setEditIndustry(value as IndustryCode)}
+                  options={industryCodeValues.map((value) => ({ value, label: labelForIndustry(labels, value) }))}
+                >
+                  <SelectTrigger id="mfg-op-edit-industry" aria-label={labels.fieldIndustry}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {industryCodeValues.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {labelForIndustry(labels, value)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label htmlFor="mfg-op-edit-active" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <input id="mfg-op-edit-active" name="isActive" type="checkbox" defaultChecked={editTarget.is_active} />
+                {labels.fieldActive}
+              </label>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button type="button" className="btn-secondary btn-sm" onClick={() => setEditTarget(null)}>
+                {labels.cancel}
+              </Button>
+              <Button type="submit" className="btn-primary btn-sm" disabled={updating}>
+                {updating ? labels.saving : labels.save}
+              </Button>
+            </Modal.Footer>
+          </form>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteWarning(null);
+          }
+        }}
+        size="md"
+        modalId="SET-055-delete-operation"
+      >
+        <Modal.Header title={labels.deleteDialogTitle} />
+        <Modal.Body>
+          {deleteError ? <div role="alert" className="alert alert-red">{deleteError}</div> : null}
+          {deleteWarning ? <div role="alert" className="alert alert-amber">{deleteWarning}</div> : null}
+          <p>{labels.deleteDialogBody.replace('{operation}', deleteTarget?.operation_name ?? '')}</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => {
+              setDeleteTarget(null);
+              setDeleteWarning(null);
+            }}
+          >
+            {labels.cancel}
+          </Button>
+          <Button type="button" className="btn-danger btn-sm" onClick={handleDeactivateOperation} disabled={deleting}>
+            {deleting ? labels.deleting : labels.confirmDelete}
+          </Button>
+        </Modal.Footer>
       </Modal>
     </main>
   );

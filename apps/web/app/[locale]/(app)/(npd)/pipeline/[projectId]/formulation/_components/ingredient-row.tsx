@@ -52,8 +52,12 @@ export type EditableIngredient = {
   pct: string;
   /** Decimal STRING cost €/kg. */
   costPerKgEur: string;
-  /** Inherited allergen label or null. */
-  allergen: string | null;
+  /**
+   * F-A08 (W9-L4): FULL inherited allergen set (derived server-side from the
+   * SSOT item_allergen_profiles) — one chip per allergen, never truncated to
+   * a single entry. Empty array → "—" (truly absent).
+   */
+  allergens: string[];
   sequence: number;
 };
 
@@ -223,8 +227,14 @@ export function IngredientRow({
       </TableCell>
 
       <TableCell>
-        {ingredient.allergen ? (
-          <Badge variant="warning" className="badge-amber">{ingredient.allergen}</Badge>
+        {ingredient.allergens.length > 0 ? (
+          <div className="flex flex-wrap gap-1" data-testid="ingredient-allergens">
+            {ingredient.allergens.map((allergen) => (
+              <Badge key={allergen} variant="warning" className="badge-amber">
+                {allergen}
+              </Badge>
+            ))}
+          </div>
         ) : (
           <span className="text-xs muted">{labels.noAllergen}</span>
         )}

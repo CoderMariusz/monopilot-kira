@@ -1,9 +1,11 @@
 /**
- * P-L5 — Planning Dashboard upcoming schedule (parity: dashboard.jsx:138-231).
+ * P-L5 / W9-M2 — Planning Dashboard upcoming schedule (parity: dashboard.jsx:138-231).
  *
  * The prototype renders tabbed "upcoming" lists (PO calendar / WO schedule / TO
- * timeline / Cascade). Only the WO schedule is live (real work_orders, 7-day
- * window grouped by day); PO/TO tabs are honest "not live yet" placeholders.
+ * timeline / Cascade). The WO schedule is live (real work_orders, 7-day window
+ * grouped by day); the PO/TO tabs link to the live PO/TO list screens (migs
+ * 262/263) — the in-dashboard PO calendar / TO timeline views are not built yet,
+ * so the tabs navigate instead of pretending the modules are not live.
  *
  * Pure presentational + empty-state safe. The day grouping itself is computed
  * upstream by `groupScheduleByDay` (unit-tested in dashboard-data.ts).
@@ -29,7 +31,10 @@ export type UpcomingScheduleLabels = {
   woTab: string;
   poTab: string;
   toTab: string;
-  notLive: string;
+  /** Title/aria text for the PO tab link (opens the live PO list). */
+  openPos: string;
+  /** Title/aria text for the TO tab link (opens the live TO list). */
+  openTos: string;
   empty: string;
   woCol: string;
   statusCol: string;
@@ -39,15 +44,21 @@ export type UpcomingScheduleLabels = {
 export function UpcomingSchedule({
   days,
   scheduledCount,
+  poListHref,
+  toListHref,
   labels,
 }: {
   days: ScheduleDayView[];
   scheduledCount: number;
+  /** Locale-prefixed href of the live PO list screen. */
+  poListHref: string;
+  /** Locale-prefixed href of the live TO list screen. */
+  toListHref: string;
   labels: UpcomingScheduleLabels;
 }) {
   return (
     <div className="card" data-testid="planning-upcoming">
-      {/* Tab strip — only WO schedule is interactive/live; PO/TO are disabled. */}
+      {/* Tab strip — WO schedule renders inline; PO/TO tabs navigate to the live lists. */}
       <div className="card-head">
         <div role="tablist" aria-label={labels.woTab} className="flex flex-wrap gap-2">
           <span
@@ -59,24 +70,24 @@ export function UpcomingSchedule({
             {labels.woTab}
             <span className="ml-1.5 rounded bg-white/20 px-1.5 text-xs">{scheduledCount}</span>
           </span>
-          <button
-            type="button"
-            disabled
+          <Link
+            href={poListHref}
+            prefetch={false}
             data-testid="planning-upcoming-tab-pos"
-            title={labels.notLive}
-            className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-400"
+            title={labels.openPos}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:border-slate-300 hover:bg-slate-50"
           >
-            {labels.poTab}
-          </button>
-          <button
-            type="button"
-            disabled
+            {labels.poTab} →
+          </Link>
+          <Link
+            href={toListHref}
+            prefetch={false}
             data-testid="planning-upcoming-tab-tos"
-            title={labels.notLive}
-            className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-400"
+            title={labels.openTos}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:border-slate-300 hover:bg-slate-50"
           >
-            {labels.toTab}
-          </button>
+            {labels.toTab} →
+          </Link>
         </div>
       </div>
 

@@ -19,6 +19,9 @@ export type ProcurementError =
   | 'not_found'
   | 'already_exists'
   | 'invalid_state'
+  | 'insufficient_stock'
+  /** W9 RF5 F3: cancel of an in_transit TO with already-received destination LPs is refused. */
+  | 'partially_received'
   | 'persistence_failed';
 
 export const uuidSchema = z.string().uuid();

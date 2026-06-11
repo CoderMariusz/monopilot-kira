@@ -1,9 +1,16 @@
 import { NextRequest } from 'next/server';
 
-import { hasPermission, type ProductionContext } from '../../../../../../../lib/production/shared';
+import { assertLpConsumableForProduction } from '../../../../../../../lib/production/lp-safety-guard';
+import {
+  emitConsumeBlocked,
+  hasPermission,
+  QualityHoldError,
+  type ProductionContext,
+} from '../../../../../../../lib/production/shared';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
 import { requireScannerSession } from '../../../../../../../lib/scanner/guard';
 import { isRecord, stringField } from '../../../../../../../lib/scanner/route-utils';
+import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../../../lib/scanner/txn-org-context';
 import {
   auditAttempt,
   getWoId,
@@ -54,12 +61,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const materialId = stringField(body, 'materialId');
   const qty = stringField(body, 'qty');
   const lpId = stringField(body, 'lpId');
+  const reasonCode = stringField(body, 'reasonCode');
   const approverBody = isRecord(body.approver) ? body.approver : null;
   if (!clientOpId || !materialId || !qty) {
     return scannerValidationError(request, body, operation, 'missing_fields', 400, { woId });
   }
   if (!isDecimalString(qty) || qty === '0' || /^0+(\.0+)?$/.test(qty)) {
     return scannerValidationError(request, body, operation, 'invalid_qty', 422, { woId, clientOpId });
+  }
+  if (!lpId && !reasonCode) {
+    return scannerValidationError(request, body, operation, 'reason_required', 422, { woId, clientOpId, materialId });
   }
 
   const result = await requireScannerSession(request, body, operation, async ({ client, session }) => {
@@ -73,43 +84,86 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     try {
+      let txnOrgContextToken: string | null = null;
       await client.query('begin');
-      await client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
-        `${session.org_id}:scanner:${clientOpId}`,
-      ]);
+      try {
+        txnOrgContextToken = await registerTxnOrgContext(client, session.org_id);
+        await client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+          `${session.org_id}:scanner:${clientOpId}`,
+        ]);
 
-      // Replay fidelity: only the success path writes client_op_id (auditAttempt
-      // rows never carry it), so this row's ext is the original 'ok' response
-      // material — reconstruct the original payload instead of a bare marker.
-      const replay = await client.query<{ ext: Record<string, unknown> | null }>(
-        `select ext
-           from public.scanner_audit_log
-          where org_id = $1::uuid
-            and client_op_id = $2
-          limit 1`,
-        [session.org_id, clientOpId],
-      );
-      if (replay.rows[0]) {
-        await client.query('commit');
-        await auditAttempt(client, session, 'production.scanner.wos.consume', 'replay', { woId, materialId, lpId });
-        const storedExt = isRecord(replay.rows[0].ext) ? replay.rows[0].ext : {};
-        return scannerOk({
-          replay: true,
-          ...(typeof storedExt.materialId === 'string' ? { materialId: storedExt.materialId } : {}),
-          ...(typeof storedExt.consumedQty === 'string' ? { consumedQty: storedExt.consumedQty } : {}),
-          ...(typeof storedExt.uom === 'string' ? { uom: storedExt.uom } : {}),
-          approverUserId: typeof storedExt.approverUserId === 'string' ? storedExt.approverUserId : null,
-          ...(storedExt.warned === true
-            ? {
-                warning: {
-                  overconsumed: true,
-                  overPct: typeof storedExt.overPct === 'number' ? storedExt.overPct : 0,
-                  warnPct: typeof storedExt.warnPct === 'number' ? storedExt.warnPct : 0,
-                },
-              }
-            : {}),
-        });
-      }
+        // Replay fidelity: only the success path writes client_op_id (auditAttempt
+        // rows never carry it), so this row's ext is the original 'ok' response
+        // material — reconstruct the original payload instead of a bare marker.
+        const replay = await client.query<{ ext: Record<string, unknown> | null }>(
+          `select ext
+             from public.scanner_audit_log
+            where org_id = $1::uuid
+              and client_op_id = $2
+            limit 1`,
+          [session.org_id, clientOpId],
+        );
+        if (replay.rows[0]) {
+          await client.query('commit');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'replay', { woId, materialId, lpId });
+          const storedExt = isRecord(replay.rows[0].ext) ? replay.rows[0].ext : {};
+          return scannerOk({
+            replay: true,
+            ...(typeof storedExt.materialId === 'string' ? { materialId: storedExt.materialId } : {}),
+            ...(typeof storedExt.consumedQty === 'string' ? { consumedQty: storedExt.consumedQty } : {}),
+            ...(typeof storedExt.uom === 'string' ? { uom: storedExt.uom } : {}),
+            approverUserId: typeof storedExt.approverUserId === 'string' ? storedExt.approverUserId : null,
+            ...(storedExt.warned === true
+              ? {
+                  warning: {
+                    overconsumed: true,
+                    overPct: typeof storedExt.overPct === 'number' ? storedExt.overPct : 0,
+                    warnPct: typeof storedExt.warnPct === 'number' ? storedExt.warnPct : 0,
+                  },
+                }
+              : {}),
+          });
+        }
+
+        if (lpId) {
+          const lpGate = await assertLpConsumableForProduction(
+            { client, userId: session.user_id } as unknown as Pick<ProductionContext, 'client' | 'userId'>,
+            lpId,
+          );
+          if (!lpGate.ok) {
+            if (lpGate.error === 'quality_hold_active') {
+              // T-064 contract (holds-guard.ts:5-9): an active hold MUST emit
+              // `production.consume.blocked`. Nothing stock-mutating has run
+              // yet in this txn (locks + reads only), so COMMIT persists just
+              // the outbox event; dedup_key (clientOpId) keeps retries no-ops.
+              const emitCtx = {
+                client,
+                userId: session.user_id,
+                orgId: session.org_id,
+              } as unknown as ProductionContext;
+              await emitConsumeBlocked(
+                emitCtx,
+                new QualityHoldError({
+                  hold: lpGate.hold,
+                  woId,
+                  blockedPath: 'consume',
+                  transactionId: clientOpId,
+                  lpId,
+                  lotId: null,
+                }),
+              );
+              await client.query('commit');
+            } else {
+              await client.query('rollback');
+            }
+            await auditAttempt(client, session, 'production.scanner.wos.consume', lpGate.error, {
+              woId,
+              materialId,
+              lpId,
+            });
+            return scannerError(lpGate.error, 409);
+          }
+        }
 
       // Two-tier gate, BOTH flags read in the same locked statement:
       //   warn tier  (overconsume_warn_pct,      absent = 0) — proceed + warn,
@@ -327,6 +381,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             materialId,
             materialName: material.material_name,
             qty,
+            ...(reasonCode ? { reasonCode } : {}),
             // consumedQty/uom/warnPct mirror the success response so an
             // idempotent replay can reconstruct the original payload.
             consumedQty: material.consumed_qty,
@@ -354,6 +409,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
             }
           : {}),
       });
+      } finally {
+        await cleanupTxnOrgContext(client, txnOrgContextToken);
+      }
     } catch (error) {
       try {
         await client.query('rollback');

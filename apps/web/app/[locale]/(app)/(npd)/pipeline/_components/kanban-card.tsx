@@ -23,11 +23,13 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent } from '@monopilot/ui/Card';
 
+import { projectRoute } from './pipeline-routes';
 import { LaunchedCardCloseoutPill } from './launched-card-closeout-pill';
 import type { KanbanLabels, KanbanProject, ProjectGate, ProjectPriority } from './kanban-types';
 
@@ -75,6 +77,9 @@ export function KanbanCard({
   nextGate,
   onAdvance,
 }: KanbanCardProps) {
+  // Batch-D F3: locale-prefixed open link (pipeline-routes.ts) — a bare
+  // /pipeline/… href escaped the /[locale] tree.
+  const pathname = usePathname();
   const prioText = prioLabel(project.prio, labels);
   const progress = Math.max(0, Math.min(100, project.progressPercent));
   const showAdvance = canAdvance && nextGate !== null;
@@ -102,7 +107,7 @@ export function KanbanCard({
               stage — see the index redirect). The Advance button is a SIBLING of
               this Link, so clicking it advances the stage instead of opening. */}
           <Link
-            href={`/pipeline/${project.id}`}
+            href={projectRoute(pathname, project.id)}
             // Perf: don't prefetch — opening a card redirects to the project's
             // current stage, a full server render; prefetching every visible card
             // multiplied DB/auth load and fed the connection-pool pressure.

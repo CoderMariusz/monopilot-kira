@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic';
 
 type ProjectDetailPageProps = {
   params?: Promise<{ locale: string; projectId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 /** Map a current_stage value → its route segment (e.g. 'recipe' → 'formulation'). */
@@ -43,5 +44,16 @@ export default async function ProjectDetailPage(propsInput: unknown = {}) {
     // fall through to /brief — the stage page renders its own error/empty state.
   }
 
-  redirect(`/${locale}/pipeline/${projectId}/${segment}`);
+  // Preserve query params across the redirect — the Kanban "Advance →" deep-links to
+  // /pipeline/[id]?modal=advanceGate (F-C08: the advance must route through the gate
+  // modal) and the AdvanceGateModalHost on the stage route opens from ?modal=.
+  const rawSearch = props.searchParams ? await props.searchParams : undefined;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(rawSearch ?? {})) {
+    const single = Array.isArray(value) ? value[0] : value;
+    if (typeof single === 'string') params.set(key, single);
+  }
+  const query = params.toString();
+
+  redirect(`/${locale}/pipeline/${projectId}/${segment}${query ? `?${query}` : ''}`);
 }

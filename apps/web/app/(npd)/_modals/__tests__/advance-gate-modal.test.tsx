@@ -364,3 +364,69 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(container.querySelector('[data-modal-id="advanceGate"]')).not.toBeNull();
   });
 });
+
+describe('AdvanceGateModal — F-C09: every ok:false surfaces visibly and the modal NEVER closes on failure', () => {
+  it('ALREADY_CLOSED: shows the honest already-launched message, stays open, and fires neither onAdvanced nor onClose', async () => {
+    const user = userEvent.setup();
+    const advance = vi.fn().mockResolvedValue({ ok: false as const, error: 'ALREADY_CLOSED', status: 409 });
+    const onAdvanced = vi.fn();
+    const onClose = vi.fn();
+    renderModal({ advanceProjectGate: advance, onAdvanced, onClose });
+
+    await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
+
+    const err = await screen.findByText(
+      'This project is already launched — there is no further stage to advance to.',
+    );
+    expect(err.closest('[role="alert"]')).not.toBeNull();
+    // The modal must NOT close on failure: form + notes still rendered, callbacks not fired.
+    expect(screen.getByLabelText(/Gate advancement notes/)).toBeInTheDocument();
+    expect(onAdvanced).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('advance-gate-success')).not.toBeInTheDocument();
+  });
+
+  it('ALREADY_CLOSED: prefers the injected i18n label over the built-in fallback', async () => {
+    const user = userEvent.setup();
+    const advance = vi.fn().mockResolvedValue({ ok: false as const, error: 'ALREADY_CLOSED', status: 409 });
+    renderModal({
+      advanceProjectGate: advance,
+      labels: { ...labels, alreadyClosedError: 'lbl.alreadyClosedError' },
+    });
+
+    await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
+
+    const err = await screen.findByText('lbl.alreadyClosedError');
+    expect(err.closest('[role="alert"]')).not.toBeNull();
+  });
+
+  it('ADJACENCY_VIOLATION: maps to the one-stage-at-a-time message and stays open', async () => {
+    const user = userEvent.setup();
+    const advance = vi
+      .fn()
+      .mockResolvedValue({ ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 });
+    const onClose = vi.fn();
+    renderModal({ advanceProjectGate: advance, onClose });
+
+    await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
+
+    const err = await screen.findByText(
+      'The project can only advance one stage at a time. Reload the page — the stage may have changed.',
+    );
+    expect(err.closest('[role="alert"]')).not.toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/Gate advancement notes/)).toBeInTheDocument();
+  });
+
+  it('FORBIDDEN: maps to the permission message instead of a raw code', async () => {
+    const user = userEvent.setup();
+    const advance = vi.fn().mockResolvedValue({ ok: false as const, error: 'FORBIDDEN', status: 403 });
+    renderModal({ advanceProjectGate: advance });
+
+    await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
+
+    const err = await screen.findByText('You do not have permission to advance this gate.');
+    expect(err.closest('[role="alert"]')).not.toBeNull();
+    expect(screen.queryByText('FORBIDDEN')).not.toBeInTheDocument();
+  });
+});

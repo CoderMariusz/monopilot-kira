@@ -61,6 +61,13 @@ export async function releaseLpQa(input: ReleaseLpQaInput): Promise<WarehouseRes
         return { ok: false, reason: 'error', message: 'invalid_state' };
       }
 
+      // Lifecycle (audit F-A01, owner decision W9-K-I): QA release auto-promotes
+      // received→available so QC-released stock is usable (v_inventory_available
+      // requires status='available' AND qa_status='released') without a separate
+      // putaway. Rejection maps received→'blocked' (mig 191 status CHECK family)
+      // so a later putaway can never promote rejected stock. Any other status
+      // (available/reserved/quarantine/...) is left untouched — qa_status alone
+      // changes, exactly as before.
       const updated = await ctx.client.query<{
         id: string;
         lp_number: string;
@@ -69,6 +76,11 @@ export async function releaseLpQa(input: ReleaseLpQaInput): Promise<WarehouseRes
       }>(
         `update public.license_plates
             set qa_status = $2,
+                status = case
+                  when $2 = 'released' and status = 'received' then 'available'
+                  when $2 = 'rejected' and status = 'received' then 'blocked'
+                  else status
+                end,
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -88,17 +100,18 @@ export async function releaseLpQa(input: ReleaseLpQaInput): Promise<WarehouseRes
              app.current_org_id(),
              $1::uuid,
              $2,
-             $2,
-             'qa_status_changed',
              $3,
-             $4::uuid,
-             $5::jsonb,
-             $6::uuid
+             'qa_status_changed',
+             $4,
+             $5::uuid,
+             $6::jsonb,
+             $7::uuid
            )
          on conflict (org_id, transaction_id) do nothing`,
         [
           lpId,
           lp.status,
+          row.status,
           note,
           txId,
           JSON.stringify({ qaStatusFrom: lp.qa_status, qaStatusTo: decision }),
@@ -119,7 +132,7 @@ export async function releaseLpQa(input: ReleaseLpQaInput): Promise<WarehouseRes
             lp_id: lpId,
             lp_number: lp.lp_number,
             status_from: lp.status,
-            status_to: lp.status,
+            status_to: row.status,
             qa_status_from: lp.qa_status,
             qa_status_to: decision,
             note,

@@ -19,6 +19,7 @@
  */
 
 import { holdsGuard } from './holds-guard';
+import { recordWoCompletionSnapshot } from './oee-snapshot-producer';
 import {
   EventType,
   QualityHoldError,
@@ -114,6 +115,15 @@ export async function completeWo(
     },
   });
   if (!transition.ok) return transition;
+
+  // D-OEE-1: 08-production is the SOLE producer of oee_snapshots — write the WO-grain
+  // snapshot INSIDE the completion txn, right after the state materializes. Idempotent
+  // (R14 replay / grain collision → recorded:false, no error, no second row).
+  await recordWoCompletionSnapshot(ctx, {
+    woId: input.woId,
+    startedAt: transition.data.startedAt,
+    completedAt: transition.data.completedAt,
+  });
 
   await writeOutbox(ctx, {
     eventType: EventType.PRODUCTION_WO_COMPLETED,

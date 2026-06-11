@@ -39,7 +39,10 @@ import { getTranslations } from 'next-intl/server';
 import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { deleteProject as deleteProjectAction } from '../../../../../(npd)/pipeline/_actions/delete-project';
-import { nextStage } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import {
+  advanceTransitionForStage,
+  nextStage,
+} from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   type ProjectGate,
   type ProjectPriority,
@@ -63,20 +66,23 @@ type ProjectLayoutProps = {
 // ─── Stage-Gate metadata (static G0..G4; mirrors prototype GATE_INFO). ───
 type GateKey = 'G0' | 'G1' | 'G2' | 'G3' | 'G4';
 
+// Static gate display metadata ONLY (label + badge tone). The advance TRANSITION
+// (next stage / target gate / e-sign requirement) is NOT static per gate — it is
+// derived from the stage machine via advanceTransitionForStage, so the modal can
+// never claim a target the engine will not land on (e.g. the old "G0 → G1" lie:
+// the first advance is brief→recipe which derives G2; G1 is collapsed into the
+// brief stage by the 2026-06-06 pivot and is never a forward target).
 type GateMeta = {
   label: string;
-  nextLabel: string;
-  advanceTarget: TargetGate;
-  requiresApproval: boolean;
   tone: ProjectHeaderBadgeTone;
 };
 
 const GATE_META: Record<GateKey, GateMeta> = {
-  G0: { label: 'Idea', nextLabel: 'Feasibility', advanceTarget: 'G1', requiresApproval: false, tone: 'gray' },
-  G1: { label: 'Feasibility', nextLabel: 'Business Case', advanceTarget: 'G2', requiresApproval: false, tone: 'blue' },
-  G2: { label: 'Business Case', nextLabel: 'Development', advanceTarget: 'G3', requiresApproval: true, tone: 'blue' },
-  G3: { label: 'Development', nextLabel: 'Testing', advanceTarget: 'G4', requiresApproval: true, tone: 'amber' },
-  G4: { label: 'Testing', nextLabel: 'Launched', advanceTarget: 'Launched', requiresApproval: true, tone: 'amber' },
+  G0: { label: 'Idea', tone: 'gray' },
+  G1: { label: 'Feasibility', tone: 'blue' },
+  G2: { label: 'Business Case', tone: 'blue' },
+  G3: { label: 'Development', tone: 'amber' },
+  G4: { label: 'Testing', tone: 'amber' },
 };
 
 const PRIO_TONE: Record<ProjectPriority, ProjectHeaderBadgeTone> = {
@@ -166,6 +172,11 @@ const ADVANCE_DEFAULTS = {
     'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.',
   blockersPresentError: '{count} blocker(s) prevent advancement.',
   recipeNeedsIngredient: 'Recipe has at least one ingredient',
+  alreadyClosedError: 'This project is already launched — there is no further stage to advance to.',
+  adjacencyError:
+    'The project can only advance one stage at a time. Reload the page — the stage may have changed.',
+  notFoundError: 'This project could not be found. It may have been deleted.',
+  fgLinkedError: 'The Finished Good code is already linked to another active NPD project.',
 };
 
 async function pickerFor(locale: string, namespace: string) {
@@ -289,6 +300,30 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   );
   const gateTone: ProjectHeaderBadgeTone = currentGate === 'Launched' ? 'green' : meta.tone;
 
+  // ── Canonical field: current_stage (current_gate is DERIVED from it at every
+  // write — updateProjectStage/updateProjectGate). The header badge shows BOTH so
+  // it can never look out of sync with the stage-based Kanban board ("Development/
+  // G3 header while the card sits in Pilot" — clickthrough §3): "Pilot · G3
+  // Development" and the Pilot column come from the same current_stage value. ──
+  const stageDisplay =
+    project.currentStage === 'launched'
+      ? p('gate.Launched', GATE_LABEL_DEFAULTS.Launched)
+      : (stepLabels[project.currentStage as ProjectStageKey] ?? project.currentStage);
+  const headerBadgeLabel =
+    currentGate === 'Launched' ? gateLabel : `${stageDisplay} · ${currentGate} ${gateLabel}`;
+
+  // ── Honest advance transition, derived from the STAGE machine (never static
+  // gate metadata). From brief (G0) the next step is recipe → gate G2 — the UI
+  // must not claim G1, which is collapsed into the brief stage by design. ──
+  const transition = advanceTransitionForStage(project.currentStage);
+  const targetGate = (transition?.targetGate ?? 'Launched') as TargetGate;
+  const targetGateLabel = p(`gate.${targetGate}`, GATE_LABEL_DEFAULTS[targetGate]);
+  const targetStageLabel =
+    transition && transition.nextStage !== 'launched'
+      ? (stepLabels[transition.nextStage as ProjectStageKey] ?? transition.nextStage)
+      : null;
+  const nextLabel = targetStageLabel ? `${targetGateLabel} · ${targetStageLabel}` : targetGateLabel;
+
   const headerView: ProjectHeaderView = {
     id: project.id,
     code: project.code,
@@ -296,7 +331,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     type: project.type,
     owner: project.owner,
     targetLaunch: project.targetLaunch,
-    gateLabel,
+    gateLabel: headerBadgeLabel,
     gateTone,
     prioLabel: p(`prio.${project.prio}`, PRIO_LABEL_DEFAULTS[project.prio]),
     prioTone: PRIO_TONE[project.prio],
@@ -353,14 +388,20 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
       forbidden: a('forbidden', ADVANCE_DEFAULTS.forbidden),
       esignRequiredError: a('esignRequiredError', ADVANCE_DEFAULTS.esignRequiredError),
       blockersPresentError: a('blockersPresentError', ADVANCE_DEFAULTS.blockersPresentError),
+      alreadyClosedError: a('alreadyClosedError', ADVANCE_DEFAULTS.alreadyClosedError),
+      adjacencyError: a('adjacencyError', ADVANCE_DEFAULTS.adjacencyError),
+      notFoundError: a('notFoundError', ADVANCE_DEFAULTS.notFoundError),
+      fgLinkedError: a('fgLinkedError', ADVANCE_DEFAULTS.fgLinkedError),
     },
     project: { id: project.id, code: project.code, name: project.name, currentGate: currentKey },
     gateInfo: {
       current: currentKey,
-      currentLabel: meta.label,
-      next: meta.advanceTarget,
-      nextLabel: meta.nextLabel,
-      requiresApproval: meta.requiresApproval,
+      currentLabel: gateLabel,
+      next: targetGate,
+      nextLabel,
+      // The only enforced approval checkpoint is the approval→handoff G4 e-sign
+      // (assertG4ESignForHandoff); claiming approval on other steps was dishonest.
+      requiresApproval: transition?.requiresESign ?? false,
     },
     items: advanceItems,
   };

@@ -204,3 +204,54 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     expect(screen.getByText(/Create the first routing version/)).toBeInTheDocument();
   });
 });
+
+describe('W9-L5 FIX 3 — routings label bundle survives the RSC boundary (2026-06-11 clickthrough §2)', () => {
+  it('keeps ROUTINGS_DEFAULT_LABELS in a PLAIN module so the Server Component page can Object.keys() it', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    // The labels module must NOT be a client module — importing a const from a
+    // 'use client' file into page.tsx yields a client-reference proxy whose
+    // Object.keys() are not the label keys (the empty-labels bug).
+    const labelsSource = await fs.readFile(path.join(__dirname, '..', 'routings-labels.ts'), 'utf8');
+    expect(labelsSource).not.toMatch(/['"]use client['"]/);
+
+    const pageSource = await fs.readFile(path.join(__dirname, '..', '..', 'page.tsx'), 'utf8');
+    expect(pageSource).toContain("from './_components/routings-labels'");
+    expect(pageSource).not.toMatch(
+      /import\s*\{[^}]*ROUTINGS_DEFAULT_LABELS[^}]*\}\s*from\s*'\.\/_components\/routings-manager\.client'/,
+    );
+
+    const { ROUTINGS_DEFAULT_LABELS } = await import('../routings-labels');
+    const entries = Object.entries(ROUTINGS_DEFAULT_LABELS);
+    expect(entries.length).toBeGreaterThanOrEqual(72);
+    for (const [key, value] of entries) {
+      expect(value, `default label "${key}" must be a non-empty string`).toBeTruthy();
+    }
+  });
+
+  it('builder renders non-empty headers/buttons and no "undefined" interpolation in op aria-labels', async () => {
+    const user = userEvent.setup();
+    listRoutings.mockResolvedValue(ROUTINGS);
+    render(
+      <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
+    );
+
+    // Non-empty list chrome: table label, column headers, CTA.
+    const table = await screen.findByRole('table', { name: 'Routing versions' });
+    for (const header of ['Version', 'Operations', 'Status', 'Effective from', 'Effective to', 'Actions']) {
+      expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
+    }
+    await user.click(screen.getByRole('button', { name: '+ New routing' }));
+
+    // The op-row resource selector aria-label interpolates operationLabel +
+    // index + fResourceType — was "undefined1 undefined" before the fix.
+    // (The Select component puts aria-label on its wrapper div, so assert on
+    // the attribute rather than an accessible role name.)
+    expect(document.querySelector('[aria-label="Operation 1 Resource type"]')).not.toBeNull();
+    expect(document.querySelector('[aria-label*="undefined"]')).toBeNull();
+    expect(screen.getByText('Operation name')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save routing' })).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('undefined');
+  });
+});

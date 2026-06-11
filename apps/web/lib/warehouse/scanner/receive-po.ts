@@ -44,6 +44,13 @@ export type ReceiveLineInput = {
   qty: DecimalString;
   batchNumber?: string | null;
   bestBefore?: string | null;
+  /**
+   * Lane W9-L8: optional destination location for the created LP. When set it
+   * must be an org-owned location (validated in-txn); the LP then lands there
+   * (with that location's warehouse_id) instead of the default warehouse
+   * location. Absent/null keeps the legacy default-location behaviour.
+   */
+  toLocationId?: string | null;
 };
 
 export type ReceiveLineResult =
@@ -271,8 +278,31 @@ export async function receiveScannerPoLine(
       throw new ReceivePoError('over_receive_cap', 409);
     }
 
+    // Lane W9-L8: optional explicit destination. Validated INSIDE the txn,
+    // org-scoped (l.org_id = session.org_id) — a location from another org or
+    // a vanished id is indistinguishable from "not found" → 422
+    // invalid_location, audited like the other in-txn rejections.
+    let requestedLocation: RequestedLocation | null = null;
+    if (input.toLocationId) {
+      requestedLocation = await resolveRequestedLocation(client, session, input.toLocationId);
+      if (!requestedLocation) {
+        await insertAudit(client, session, input.clientOpId, 'invalid_location', {
+          poLineId: input.poLineId,
+          toLocationId: input.toLocationId,
+        });
+        await client.query('commit');
+        throw new ReceivePoError('invalid_location', 422);
+      }
+    }
+
     const warehouse = await resolveWarehouse(client, session);
     if (!warehouse) throw new ReceivePoError('warehouse_not_configured', 409);
+
+    // Destination for the new LP (and its GRN item line): the validated
+    // explicit location wins, else the legacy default-warehouse location.
+    // The GRN header itself stays on the default warehouse — unchanged.
+    const destWarehouseId = requestedLocation?.warehouse_id ?? warehouse.id;
+    const destLocationId = requestedLocation?.id ?? warehouse.default_location_id;
 
     const grn = await getOrCreateOpenGrn(client, session, {
       poId: line.po_id,
@@ -282,15 +312,24 @@ export async function receiveScannerPoLine(
     });
 
     const lpNumber = makeLpNumber();
+    // Canonical expiry (audit F-B07, owner decision W9-K-I): every reader
+    // (v_inventory_available FEFO ordering, expiry tiers, alerts) reads
+    // expiry_date, so that is what receive writes. Source: the operator's
+    // explicit best-before input when provided, else computed from
+    // items.shelf_life_days (mig 153) off the receive date; best_before_date
+    // stays populated for back-compat and shelf_life_mode is snapshotted.
+    const expiryDate = computeExpiryDate(input.bestBefore ?? null, line.shelf_life_days);
     const lp = await insertLicensePlate(client, session, {
       lpNumber,
-      warehouseId: warehouse.id,
-      locationId: warehouse.default_location_id,
+      warehouseId: destWarehouseId,
+      locationId: destLocationId,
       productId: line.item_id,
       qty: formatDecimal(qty),
       uom: line.uom,
       batchNumber: input.batchNumber ?? null,
       bestBefore: input.bestBefore ?? null,
+      expiryDate,
+      shelfLifeModeSnapshot: line.shelf_life_mode ?? null,
       grnId: grn.id,
     });
 
@@ -303,7 +342,7 @@ export async function receiveScannerPoLine(
       uom: line.uom,
       batchNumber: input.batchNumber ?? null,
       bestBefore: input.bestBefore ?? null,
-      locationId: warehouse.default_location_id,
+      locationId: destLocationId,
       lpId: lp.id,
     });
 
@@ -383,6 +422,8 @@ type LineForReceive = {
   ordered_qty: string;
   uom: string;
   received_qty: string | null;
+  shelf_life_days: number | null;
+  shelf_life_mode: string | null;
 };
 
 async function loadLineForUpdate(
@@ -394,6 +435,11 @@ async function loadLineForUpdate(
   // not allowed with GROUP BY clause"). The received-qty aggregate moves into
   // a correlated scalar subquery so the row-lock applies to plain pol/po rows.
   // (The unit tests mock the client, so only the live walk caught this.)
+  // Expiry (audit F-B07): items.shelf_life_days + shelf_life_mode (migration
+  // 153, 03-Technical item master) ride along so the receive can compute the
+  // canonical expiry_date. LEFT JOIN — a missing item must not block the
+  // receive — and i stays OUT of `for update of pol, po` (the nullable side of
+  // an outer join cannot be row-locked).
   const { rows } = await client.query<LineForReceive>(
     `select pol.id,
             pol.org_id,
@@ -408,16 +454,43 @@ async function loadLineForUpdate(
                 from public.grn_items gi
                where gi.po_line_id = pol.id
                  and gi.org_id = pol.org_id
-            ) as received_qty
+            ) as received_qty,
+            i.shelf_life_days,
+            i.shelf_life_mode
        from public.purchase_order_lines pol
        join public.purchase_orders po
          on po.id = pol.po_id
         and po.org_id = pol.org_id
+       left join public.items i
+         on i.id = pol.item_id
+        and i.org_id = pol.org_id
       where pol.org_id = $1::uuid
         and pol.id = $2::uuid
         and po.status = any($3::text[])
       for update of pol, po`,
     [session.org_id, poLineId, OPEN_PO_STATUSES],
+  );
+  return rows[0] ?? null;
+}
+
+type RequestedLocation = { id: string; warehouse_id: string };
+
+// Lane W9-L8: org-scoped lookup of the operator-chosen destination. Runs
+// inside the receive txn so the validity check and the LP insert see the same
+// snapshot. Filters by session.org_id explicitly (org_id discipline — the
+// scanner pool is BYPASSRLS).
+async function resolveRequestedLocation(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  locationId: string,
+): Promise<RequestedLocation | null> {
+  const { rows } = await client.query<RequestedLocation>(
+    `select l.id, l.warehouse_id
+       from public.locations l
+      where l.org_id = $1::uuid
+        and l.id = $2::uuid
+      limit 1`,
+    [session.org_id, locationId],
   );
   return rows[0] ?? null;
 }
@@ -509,19 +582,23 @@ async function insertLicensePlate(
     uom: string;
     batchNumber: string | null;
     bestBefore: string | null;
+    expiryDate: string | null;
+    shelfLifeModeSnapshot: string | null;
     grnId: string;
   },
 ): Promise<{ id: string }> {
   const { rows } = await client.query<{ id: string }>(
     `insert into public.license_plates (
        org_id, warehouse_id, lp_number, product_id, quantity, uom,
-       status, qa_status, batch_number, best_before_date, location_id, origin,
+       status, qa_status, batch_number, best_before_date, expiry_date,
+       shelf_life_mode_snapshot, location_id, origin,
        grn_id, created_by, updated_by
      )
      values (
        $1::uuid, $2::uuid, $3, $4::uuid, $5::numeric, $6,
-       'received', 'pending', $7, $8::timestamptz, $9::uuid, 'grn',
-       $10::uuid, $11::uuid, $11::uuid
+       'received', 'pending', $7, $8::timestamptz, $9::timestamptz,
+       $10, $11::uuid, 'grn',
+       $12::uuid, $13::uuid, $13::uuid
      )
      returning id`,
     [
@@ -533,6 +610,8 @@ async function insertLicensePlate(
       input.uom,
       input.batchNumber,
       input.bestBefore,
+      input.expiryDate,
+      input.shelfLifeModeSnapshot,
       input.locationId,
       input.grnId,
       session.user_id,
@@ -743,6 +822,11 @@ function validateReceiveInput(input: ReceiveLineInput): void {
   if (input.bestBefore && !/^\d{4}-\d{2}-\d{2}$/.test(input.bestBefore)) {
     throw new ReceivePoError('invalid_best_before', 400);
   }
+  // Lane W9-L8: a malformed destination id can never resolve → same 422 as an
+  // org-invalid one (the route also shape-checks; this is defence in depth).
+  if (input.toLocationId && !isUuid(input.toLocationId)) {
+    throw new ReceivePoError('invalid_location', 422);
+  }
 }
 
 export function parseDecimal(input: string): bigint {
@@ -763,6 +847,16 @@ function normalizeDecimal(value: string): string {
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+// Audit F-B07: canonical expiry source. Operator-entered best-before wins;
+// otherwise receive date (today, UTC) + items.shelf_life_days; null when the
+// item has no shelf life configured (FEFO then orders it last via NULLS LAST).
+export function computeExpiryDate(bestBefore: string | null, shelfLifeDays: number | null): string | null {
+  if (bestBefore) return bestBefore;
+  if (shelfLifeDays == null || !Number.isFinite(shelfLifeDays) || shelfLifeDays < 0) return null;
+  const expiry = new Date(Date.now() + Math.trunc(shelfLifeDays) * 86_400_000);
+  return expiry.toISOString().slice(0, 10);
 }
 
 function makeLpNumber(): string {

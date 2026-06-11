@@ -50,7 +50,7 @@ export type UpsertReferenceRowResult =
 
 export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertReferenceRowResult> {
   const input = parseUpsertInput(rawInput);
-  if (!input) return { ok: false, error: 'invalid_input' };
+  if (!input) return { ok: false, error: 'invalid_input', message: describeParseFailure(rawInput) };
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<UpsertReferenceRowResult> => {
@@ -58,7 +58,7 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
       if (!allowed) return { ok: false, error: 'forbidden' };
 
       const schemaColumns = await loadGeneratedSchema(client, input.tableCode);
-      const schemaError = validateAgainstGeneratedSchema(input.rowData, schemaColumns);
+      const schemaError = validateAgainstGeneratedSchema(input.rowData, schemaColumns, input.tableCode);
       if (schemaError) return { ok: false, error: 'invalid_input', message: schemaError };
 
       const existing = await getExistingRow(client, input.tableCode, input.rowKey);
@@ -140,6 +140,26 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
   }
 }
 
+/**
+ * Pinpoints WHICH input field failed top-level parsing so the UI can show a
+ * field hint instead of a bare `invalid_input` (2026-06-11 clickthrough §1).
+ */
+function describeParseFailure(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return 'request body must be an object';
+  const candidate = raw as { tableCode?: unknown; rowKey?: unknown; rowData?: unknown; expectedVersion?: unknown; displayOrder?: unknown };
+  if (!normalizeCode(candidate.tableCode)) return 'tableCode is missing or not a valid table code';
+  if (!normalizeRowKey(candidate.rowKey)) return 'rowKey is required (1-128 chars)';
+  if (!isPlainObject(candidate.rowData)) return 'rowData must be an object of column values';
+  if (candidate.expectedVersion !== undefined) {
+    const version = Number(candidate.expectedVersion);
+    if (!Number.isInteger(version) || version < 1) return 'expectedVersion must be a positive integer';
+  }
+  if (candidate.displayOrder !== undefined && !Number.isInteger(Number(candidate.displayOrder))) {
+    return 'displayOrder must be an integer';
+  }
+  return 'invalid input';
+}
+
 function parseUpsertInput(raw: unknown): { tableCode: string; rowKey: string; rowData: Record<string, unknown>; expectedVersion?: number; displayOrder: number } | null {
   if (!raw || typeof raw !== 'object') return null;
   const candidate = raw as { tableCode?: unknown; rowKey?: unknown; rowData?: unknown; expectedVersion?: unknown; displayOrder?: unknown };
@@ -209,8 +229,10 @@ async function loadGeneratedSchema(client: QueryClient, tableCode: string): Prom
   return rows;
 }
 
-function validateAgainstGeneratedSchema(rowData: Record<string, unknown>, schemaColumns: ReferenceSchemaColumn[]): string | null {
-  if (schemaColumns.length === 0) return 'reference schema is not configured';
+function validateAgainstGeneratedSchema(rowData: Record<string, unknown>, schemaColumns: ReferenceSchemaColumn[], tableCode?: string): string | null {
+  if (schemaColumns.length === 0) {
+    return `reference schema is not configured for ${tableCode ?? 'this table'} (seed reference_schemas — see migration 286)`;
+  }
   for (const column of schemaColumns) {
     const required = Boolean(column.required_for_done ?? column.is_required ?? column.required);
     const value = rowData[column.column_code];

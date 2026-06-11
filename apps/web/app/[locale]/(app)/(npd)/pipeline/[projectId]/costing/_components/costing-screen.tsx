@@ -129,6 +129,8 @@ export type CostingLabels = {
   computeErrorNotFound: string;
   computeErrorNoCosts: string;
   computeErrorHardFail: string;
+  /** Formulation exists but no FG product is mapped yet (pre-packaging stage). */
+  computeErrorFgNotMapped?: string;
 };
 
 export type SaveScenarioCall = {
@@ -282,6 +284,13 @@ export function CostingScreen({
       switch (error) {
         case 'not_found':
           return labels.computeErrorNotFound;
+        case 'fg_not_mapped':
+          // Honest split from not_found: the formulation EXISTS (possibly locked)
+          // but the FG candidate has not been created yet (packaging stage).
+          return (
+            labels.computeErrorFgNotMapped ??
+            'The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first.'
+          );
         case 'invalid_input':
           // The action's message ("…has no complete ingredient costs") is the most
           // useful signal here; fall back to a localized hint.

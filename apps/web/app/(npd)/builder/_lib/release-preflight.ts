@@ -3,7 +3,13 @@ import { type OrgContextLike, hasPermission } from '../../pipeline/_actions/shar
 export const RELEASE_TO_FACTORY_PERMISSION = 'npd.gate.approve';
 
 export type ReleasePreflightBlocker = {
-  code: 'G4_REQUIRED' | 'FG_CANDIDATE_REQUIRED' | 'ACTIVE_SHARED_BOM_REQUIRED' | 'FACTORY_SPEC_REQUIRED';
+  code:
+    | 'G4_REQUIRED'
+    | 'FG_CANDIDATE_REQUIRED'
+    | 'ACTIVE_SHARED_BOM_REQUIRED'
+    | 'FACTORY_SPEC_REQUIRED'
+    | 'FACTORY_SPEC_MISMATCH'
+    | 'V18_OPEN_HIGH_RISK';
   message: string;
 };
 
@@ -24,6 +30,7 @@ type ProjectRow = {
 
 type BomRow = {
   id: string;
+  version: number | string | null;
   line_count: string | number;
 };
 
@@ -80,10 +87,29 @@ export async function runReleasePreflight(
   }
 
   const productCode = project.product_code;
+  if (productCode) {
+    const risks = await ctx.client.query<{ open_high_count: string | number }>(
+      `select count(*)::text as open_high_count
+         from public.risks
+        where org_id = app.current_org_id()
+          and product_code = $1
+          and bucket = 'High'
+          and state = 'Open'`,
+      [productCode],
+    );
+    if (Number(risks.rows[0]?.open_high_count ?? 0) > 0) {
+      blockers.push({
+        code: 'V18_OPEN_HIGH_RISK',
+        message: 'Factory release requires all High risks to be mitigated or closed.',
+      });
+    }
+  }
+
   let activeBomHeaderId: string | null = null;
+  let activeBomVersion: number | null = null;
   if (productCode) {
     const bom = await ctx.client.query<BomRow>(
-      `select h.id, count(l.id)::text as line_count
+      `select h.id, h.version, count(l.id)::text as line_count
          from public.bom_headers h
          join public.bom_lines l
            on l.org_id = h.org_id
@@ -99,7 +125,10 @@ export async function runReleasePreflight(
       [project.id, productCode],
     );
     const activeBom = bom.rows[0];
-    if (activeBom && Number(activeBom.line_count) > 0) activeBomHeaderId = activeBom.id;
+    if (activeBom && Number(activeBom.line_count) > 0) {
+      activeBomHeaderId = activeBom.id;
+      activeBomVersion = activeBom.version === null || activeBom.version === undefined ? null : Number(activeBom.version);
+    }
   }
   if (!activeBomHeaderId) {
     blockers.push({
@@ -108,12 +137,38 @@ export async function runReleasePreflight(
     });
   }
 
-  const activeFactorySpecId = input.activeFactorySpecId ?? (await loadExistingFactorySpecId(ctx, project.id, productCode));
-  if (!activeFactorySpecId) {
-    blockers.push({
-      code: 'FACTORY_SPEC_REQUIRED',
-      message: 'Factory release requires Technical factory_spec evidence.',
+  // F1 (W9 cross-review BLOCKER): a caller-supplied factory_spec id is NEVER
+  // trusted — it is later persisted into factory_release_status.active_factory_spec_id,
+  // so a forged / foreign-org / wrong-product / wrong-BOM uuid would be laundered
+  // into release evidence. Validate it against the SAME invariants the
+  // self-resolved path satisfies: org scope (RLS via app.current_org_id()),
+  // factory-usable status, FG item_code = the productCode under release, and the
+  // spec's bundled BOM (bom_header_id + bom_version) = the selected active BOM.
+  let activeFactorySpecId: string | null = null;
+  if (input.activeFactorySpecId) {
+    const supplied = await validateSuppliedFactorySpecId(ctx, {
+      factorySpecId: input.activeFactorySpecId,
+      productCode,
+      activeBomHeaderId,
+      activeBomVersion,
     });
+    if (supplied) {
+      activeFactorySpecId = supplied;
+    } else {
+      blockers.push({
+        code: 'FACTORY_SPEC_MISMATCH',
+        message:
+          'Supplied factory_spec id does not match an approved/released factory_spec for this product and its active shared BOM in the current org.',
+      });
+    }
+  } else {
+    activeFactorySpecId = await loadExistingFactorySpecId(ctx, project.id, productCode);
+    if (!activeFactorySpecId) {
+      blockers.push({
+        code: 'FACTORY_SPEC_REQUIRED',
+        message: 'Factory release requires Technical factory_spec evidence.',
+      });
+    }
   }
 
   if (blockers.length > 0) throw new ReleasePreflightError(blockers);
@@ -125,6 +180,44 @@ export async function runReleasePreflight(
     activeBomHeaderId: activeBomHeaderId as string,
     activeFactorySpecId: activeFactorySpecId as string,
   };
+}
+
+/**
+ * F1 — validate a CALLER-SUPPLIED factory_spec id before it is accepted as
+ * release evidence. Returns the id when every invariant holds, else null:
+ *   - org match: RLS + explicit fs.org_id = app.current_org_id()
+ *   - status in ('approved_for_factory', 'released_to_factory')
+ *   - items.item_code (via fs.fg_item_id) = the productCode under release
+ *   - fs.bom_header_id / fs.bom_version = the selected active shared BOM
+ * Missing productCode / active BOM ⇒ null (their own blockers already fired;
+ * a supplied spec id cannot be validated without them and is never trusted).
+ */
+async function validateSuppliedFactorySpecId(
+  ctx: OrgContextLike,
+  params: {
+    factorySpecId: string;
+    productCode: string | null;
+    activeBomHeaderId: string | null;
+    activeBomVersion: number | null;
+  },
+): Promise<string | null> {
+  if (!params.productCode || !params.activeBomHeaderId || params.activeBomVersion === null) return null;
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select fs.id
+       from public.factory_specs fs
+       join public.items i
+         on i.org_id = fs.org_id
+        and i.id = fs.fg_item_id
+      where fs.org_id = app.current_org_id()
+        and fs.id = $1::uuid
+        and fs.status in ('approved_for_factory', 'released_to_factory')
+        and i.item_code = $2
+        and fs.bom_header_id = $3::uuid
+        and fs.bom_version = $4::integer
+      limit 1`,
+    [params.factorySpecId, params.productCode, params.activeBomHeaderId, params.activeBomVersion],
+  );
+  return rows[0]?.id ?? null;
 }
 
 async function loadExistingFactorySpecId(

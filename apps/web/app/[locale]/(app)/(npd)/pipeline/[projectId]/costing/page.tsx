@@ -70,7 +70,9 @@ const DEFAULT_WARN_PCT = '15';
 /** Canonical display order for the 3 named scenarios (prototype parity). */
 const SCENARIO_ORDER = ['pessimistic', 'target', 'optimistic'] as const;
 
-const DEFAULT_LABELS: CostingLabels = {
+// Required<> so optional keys (e.g. computeErrorFgNotMapped) still always carry a
+// string fallback here — translateLabel can then safely return string.
+const DEFAULT_LABELS: Required<CostingLabels> = {
   title: 'Cost breakdown',
   subtitle: 'Waterfall from raw materials to final cost per kg',
   unitPerKg: 'Per kg',
@@ -112,6 +114,8 @@ const DEFAULT_LABELS: CostingLabels = {
   computeErrorNotFound: 'No formulation is available to compute costing from yet.',
   computeErrorNoCosts: 'Every ingredient needs a cost before costing can be computed.',
   computeErrorHardFail: 'The target margin is negative, so the breakdown cannot be saved.',
+  computeErrorFgNotMapped:
+    'The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof CostingLabels>;

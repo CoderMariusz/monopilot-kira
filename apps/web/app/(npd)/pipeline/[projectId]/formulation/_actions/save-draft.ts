@@ -11,6 +11,12 @@ type IngredientInput = {
   itemId: string | null;
   qtyKg: string | null;
   costPerKgEur: string | null;
+  /**
+   * F-A06 (W9-L4): still ACCEPTED for wire back-compat but IGNORED on persist.
+   * `allergens_inherited` is a derived cache — the SSOT is
+   * `public.item_allergen_profiles` and the full set is resolved server-side
+   * from the line's item_id at save time. Client values never reach the DB.
+   */
   allergensInherited: string[];
   sequence: number;
 };
@@ -57,30 +63,90 @@ export async function saveDraft(input: {
       if (row.state === 'locked') return { ok: false, error: 'VERSION_LOCKED' };
       if (row.state !== 'draft') return { ok: false, error: 'VERSION_NOT_DRAFT' };
 
+      // F-A06 carryover seam: legacy free-text lines (no item_id) have NO SSOT
+      // source, so their previously PERSISTED allergens are carried over
+      // server-side (keyed by rm_code) instead of trusting the wire. Read
+      // BEFORE the delete-and-reinsert below.
+      const priorAllergensByRmCode = new Map<string, string[]>(
+        (
+          await ctx.client.query<{ rm_code: string; allergens_inherited: string[] | null }>(
+            `select rm_code, allergens_inherited
+               from public.formulation_ingredients
+              where version_id = $1::uuid`,
+            [versionId],
+          )
+        ).rows.map((prior) => [prior.rm_code, prior.allergens_inherited ?? []]),
+      );
+
+      // F8 (W9 cross-review MEDIUM): the free-text carryover above can otherwise
+      // perpetuate legacy junk codes forever. Carried codes are validated against
+      // the CANONICAL allergen reference — Reference."Allergens".allergen_code
+      // (org-scoped EU-14 + org-custom; the ADR-028 soft-reference target that
+      // item_allergen_profiles.allergen_code itself points at). Unknown codes are
+      // DROPPED on save. Degradation: when the reference table is not provisioned
+      // (42P01) validation is impossible and the carryover is kept unchanged.
+      const canonicalAllergenCodes = await loadCanonicalAllergenCodes(ctx.client);
+      const sanitizeCarriedCodes = (codes: string[]): string[] =>
+        canonicalAllergenCodes === null ? codes : codes.filter((code) => canonicalAllergenCodes.has(code));
+
       await ctx.client.query(`delete from public.formulation_ingredients where version_id = $1::uuid`, [versionId]);
       const requestedItemIds = [...new Set(ingredients.map((ingredient) => ingredient.itemId).filter(Boolean))] as string[];
-      const resolvedItemIds =
+      // F-B12: items.cost_per_kg is read alongside the id validation — the item
+      // master is the cost source of record; the client value is only a fallback
+      // for items with no master cost (or legacy free-text lines).
+      const resolvedItems =
         requestedItemIds.length === 0
-          ? new Set<string>()
-          : new Set(
+          ? new Map<string, { costPerKg: string | null }>()
+          : new Map(
               (
-                await ctx.client.query<{ id: string }>(
-                  `select id from public.items
+                await ctx.client.query<{ id: string; cost_per_kg: string | null }>(
+                  `select id, cost_per_kg::text as cost_per_kg from public.items
                     where org_id = app.current_org_id()
                       and id = any($1::uuid[])
                       and item_type in ('rm', 'ingredient', 'intermediate', 'co_product')`,
                   [requestedItemIds],
                 )
-              ).rows.map((item) => item.id),
+              ).rows.map((item) => [item.id, { costPerKg: item.cost_per_kg }]),
             );
-      const ingredientRows = ingredients.map((ingredient) => ({
-        rm_code: ingredient.rmCode,
-        item_id: ingredient.itemId && resolvedItemIds.has(ingredient.itemId) ? ingredient.itemId : null,
-        qty_kg: ingredient.qtyKg,
-        cost_per_kg_eur: ingredient.costPerKgEur,
-        allergens_inherited: ingredient.allergensInherited,
-        sequence: ingredient.sequence,
-      }));
+      // F-A06 SSOT resolution: full allergen set per item from
+      // public.item_allergen_profiles (org-scoped). ALL intensities (contains /
+      // may_contain / trace) are included — a false "Absent" is the food-safety
+      // failure mode; the cascade engine unions the same way.
+      const resolvedIds = [...resolvedItems.keys()];
+      const allergensByItemId =
+        resolvedIds.length === 0
+          ? new Map<string, string[]>()
+          : new Map(
+              (
+                await ctx.client.query<{ item_id: string; codes: string[] }>(
+                  `select item_id, array_agg(distinct allergen_code order by allergen_code) as codes
+                     from public.item_allergen_profiles
+                    where org_id = app.current_org_id()
+                      and item_id = any($1::uuid[])
+                    group by item_id`,
+                  [resolvedIds],
+                )
+              ).rows.map((profile) => [profile.item_id, profile.codes]),
+            );
+      const ingredientRows = ingredients.map((ingredient) => {
+        const itemId = ingredient.itemId && resolvedItems.has(ingredient.itemId) ? ingredient.itemId : null;
+        const masterCost = itemId ? (resolvedItems.get(itemId)?.costPerKg ?? null) : null;
+        return {
+          rm_code: ingredient.rmCode,
+          item_id: itemId,
+          qty_kg: ingredient.qtyKg,
+          // F-B12: master cost wins; client value is the documented fallback.
+          cost_per_kg_eur: masterCost ?? ingredient.costPerKgEur,
+          // F-A06: client payload IGNORED. Item-linked line → profile-derived
+          // full array (truly-empty profile → []); free-text line → server-side
+          // carryover of what was already persisted (never the wire value).
+          // F8: free-text carryover is sanitized against the canonical reference.
+          allergens_inherited: itemId
+            ? (allergensByItemId.get(itemId) ?? [])
+            : sanitizeCarriedCodes(priorAllergensByRmCode.get(ingredient.rmCode) ?? []),
+          sequence: ingredient.sequence,
+        };
+      });
       if (ingredientRows.length > 0) {
         await ctx.client.query(
           `insert into public.formulation_ingredients
@@ -129,6 +195,31 @@ export async function saveDraft(input: {
       'formulation lifecycle action failed',
     );
     return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/** Postgres SQLSTATE for "undefined_table" (relation does not exist). */
+const PG_UNDEFINED_TABLE = '42P01';
+
+/**
+ * F8 — load the org's canonical allergen code list from Reference."Allergens"
+ * (EU-14 seed + org-custom rows, mig 082). Returns null when the reference
+ * table is not provisioned (42P01) — the caller then skips validation rather
+ * than dropping every carried code blind.
+ */
+async function loadCanonicalAllergenCodes(client: {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
+}): Promise<Set<string> | null> {
+  try {
+    const { rows } = await client.query<{ allergen_code: string }>(
+      `select allergen_code
+         from "Reference"."Allergens"
+        where org_id = app.current_org_id()`,
+    );
+    return new Set(rows.map((row) => row.allergen_code));
+  } catch (error) {
+    if ((error as { code?: string })?.code === PG_UNDEFINED_TABLE) return null;
+    throw error;
   }
 }
 

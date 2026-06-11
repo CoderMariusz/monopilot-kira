@@ -32,8 +32,14 @@ import {
   BomFirstAuthoring,
   type BomFirstAuthoringLabels,
 } from '../_components/bom-first-authoring';
+import { COMPONENT_TYPES, type ComponentType } from '../_actions/shared';
 
 export const dynamic = 'force-dynamic';
+
+/** Narrow a stored component_type string to the ComponentType enum (RM|PM|WIP|FG). */
+function isComponentType(v: string | null): v is ComponentType {
+  return v != null && (COMPONENT_TYPES as readonly string[]).includes(v);
+}
 
 type OrgContextLike = {
   userId: string;
@@ -351,15 +357,25 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
           productName={d.productName}
           currentVersion={d.selectedVersion}
           status={d.header.status}
+          bomHeaderId={d.header.id}
           snapshotCount={d.snapshots.length}
           lines={d.lines.map((l) => ({
             itemId: l.itemId ?? undefined,
             componentCode: l.componentCode,
+            componentType: isComponentType(l.componentType) ? l.componentType : undefined,
             quantity: Number(l.quantity),
             uom: l.uom,
             scrapPct: Number(l.scrapPct),
             manufacturingOperationName: l.manufacturingOperationName ?? undefined,
           }))}
+          coProducts={d.coProducts.map((cp) => ({
+            coProductItemId: cp.coProductItemId,
+            quantity: Number(cp.quantity),
+            uom: cp.uom,
+            allocationPct: Number(cp.allocationPct),
+            isByproduct: cp.isByproduct,
+          }))}
+          yieldPct={Number(d.header.yieldPct)}
           canCreate={perms.canCreate}
           canApprove={perms.canApprove}
           canPublish={perms.canPublish}

@@ -17,6 +17,11 @@ type State = {
   replayExists: boolean;
   overLimit: boolean;
   overWarn: boolean;
+  lpStatus: string;
+  lpQaStatus: string;
+  lpExpired: boolean;
+  lpLockedByOther: boolean;
+  lpHeld: boolean;
 };
 
 let state: State;
@@ -52,6 +57,24 @@ function makeClient(): QueryClient {
       if (n.includes('from public.wo_material_consumption c')) {
         return state.replayExists
           ? { rows: [{ material_id: MATERIAL_ID, consumed_qty: '12.500', uom: 'kg', lp_id: LP_ID }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      if (n.includes('from public.license_plates lp')) {
+        return {
+          rows: [{
+            id: LP_ID,
+            status: state.lpStatus,
+            qa_status: state.lpQaStatus,
+            expired: state.lpExpired,
+            locked_by: state.lpLockedByOther ? '99999999-9999-4999-8999-999999999999' : null,
+            lock_is_active_for_other_user: state.lpLockedByOther,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (n.includes('from public.v_active_holds')) {
+        return state.lpHeld
+          ? { rows: [{ hold_id: 'hold-1', reference_type: 'lp', reference_id: LP_ID }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
       // over-consumption gate (locked read of required/consumed + tenant threshold)
@@ -104,6 +127,10 @@ function makeClient(): QueryClient {
       if (n.startsWith('insert into public.wo_material_consumption')) {
         return { rows: [], rowCount: 1 };
       }
+      // production.consume.blocked outbox emit (T-064 hold rejection path)
+      if (n.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
+      }
       // listConsumableLps material lookup
       if (n.startsWith('select product_id::text as product_id, uom from public.wo_materials')) {
         return state.materialExists
@@ -124,7 +151,19 @@ function makeClient(): QueryClient {
 }
 
 beforeEach(() => {
-  state = { granted: new Set(['production.consumption.write']), materialExists: true, lpDecrementSucceeds: true, replayExists: false, overLimit: false, overWarn: false };
+  state = {
+    granted: new Set(['production.consumption.write']),
+    materialExists: true,
+    lpDecrementSucceeds: true,
+    replayExists: false,
+    overLimit: false,
+    overWarn: false,
+    lpStatus: 'available',
+    lpQaStatus: 'released',
+    lpExpired: false,
+    lpLockedByOther: false,
+    lpHeld: false,
+  };
   queries = [];
   client = makeClient();
 });
@@ -225,6 +264,38 @@ describe('recordDesktopConsumption — LP underflow refusal', () => {
     // The whole txn rolls back — no ledger row commits.
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
   });
+
+  it('rejects held LPs with the canonical quality_hold_active and emits production.consume.blocked', async () => {
+    state.lpHeld = true;
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result).toEqual({ ok: false, reason: 'quality_hold_active' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    // T-064 contract: the rejection emits production.consume.blocked (outbox).
+    const outbox = queries.find((q) => normalize(q.sql).startsWith('insert into public.outbox_events'));
+    expect(outbox).toBeDefined();
+    expect(outbox!.params[0]).toBe('production.consume.blocked');
+  });
+
+  it('rejects pending-QA LPs before material mutation', async () => {
+    state.lpQaStatus = 'pending';
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result).toEqual({ ok: false, reason: 'lp_not_released' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+  });
+
+  it('rejects expired LPs before material mutation', async () => {
+    state.lpExpired = true;
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result).toEqual({ ok: false, reason: 'lp_expired' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+  });
+
+  it('rejects LPs locked by another user within the 5-minute window before material mutation', async () => {
+    state.lpLockedByOther = true;
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result).toEqual({ ok: false, reason: 'lp_locked' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+  });
 });
 
 describe('recordDesktopConsumption — idempotent replay', () => {
@@ -248,11 +319,21 @@ describe('recordDesktopConsumption — idempotent replay', () => {
 });
 
 describe('recordDesktopConsumption — no-LP path', () => {
-  it('skips the LP update entirely when lpId is omitted', async () => {
+  it('rejects no-LP manual consumption without reasonCode', async () => {
     const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null });
+    expect(result).toEqual({ ok: false, reason: 'reason_required' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+  });
+
+  it('skips the LP update and logs reasonCode in ext_jsonb when lpId is omitted with a reason', async () => {
+    const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.lpId).toBeNull();
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(ledger).toBeDefined();
+    const ext = ledger!.params.find((p) => typeof p === 'string' && (p as string).includes('reasonCode')) as string;
+    expect(JSON.parse(ext)).toMatchObject({ reasonCode: 'silo-draw' });
   });
 });
 

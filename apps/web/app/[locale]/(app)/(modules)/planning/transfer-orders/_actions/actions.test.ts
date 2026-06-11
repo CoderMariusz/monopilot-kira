@@ -21,6 +21,13 @@ let orderExists = true;
 let generatedSeq = 7;
 let failNextAutoInsert = false;
 let currentStatus = 'draft';
+/** F3: junction rows already received (dest_lp_id NOT NULL) — blocks cancel. */
+let receivedJunctionCount = 0;
+
+const SOURCE_LP_ID = '99999999-9999-4999-8999-999999999999';
+const DEST_LOCATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const DEST_LP_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const JUNCTION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -75,8 +82,53 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.transfer_order_lines')) {
         return { rows: [line()], rowCount: 1 };
       }
+      // F3 — pre-cancel guard: count of already-received junction rows.
+      if (normalized.startsWith('select count(*)::text as received_count')) {
+        return { rows: [{ received_count: String(receivedJunctionCount) }], rowCount: 1 };
+      }
+      // Cancel path — un-received junction rows joined to their source LPs.
+      if (normalized.includes('lp.quantity::text as lp_quantity')) {
+        return {
+          rows: [{ id: JUNCTION_ID, source_lp_id: SOURCE_LP_ID, qty: '12.000000', lp_quantity: '8.000000', lp_status: 'available' }],
+          rowCount: 1,
+        };
+      }
+      // Receive path — pending junction rows carrying the source LP snapshot.
+      if (normalized.includes('lp.product_id, lp.batch_number')) {
+        return {
+          rows: [
+            {
+              id: JUNCTION_ID,
+              source_lp_id: SOURCE_LP_ID,
+              qty: '12.000000',
+              uom: 'kg',
+              product_id: ITEM_ID,
+              batch_number: 'B-1',
+              supplier_batch_number: null,
+              expiry_date: null,
+              best_before_date: null,
+              shelf_life_mode_snapshot: null,
+              qa_status: 'released',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      // Ship path — FEFO pick candidates at the source warehouse.
+      if (normalized.includes('from public.license_plates') && normalized.includes('reserved_qty::text as reserved_qty')) {
+        return {
+          rows: [{ id: SOURCE_LP_ID, quantity: '20.000000', reserved_qty: '0.000000', location_id: DEST_LOCATION_ID }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('from public.locations')) {
+        return { rows: [{ id: DEST_LOCATION_ID }], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.license_plates')) {
+        return { rows: [{ id: DEST_LP_ID }], rowCount: 1 };
+      }
       if (normalized.startsWith('select id, to_number') || normalized.startsWith('select transfer_orders.id')) {
-        return { rows: orderExists ? [header()] : [], rowCount: orderExists ? 1 : 0 };
+        return { rows: orderExists ? [header({ status: currentStatus })] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.transfer_orders')) {
         if (failNextAutoInsert) {
@@ -111,6 +163,7 @@ describe('planning transfer order actions', () => {
     generatedSeq = 7;
     failNextAutoInsert = false;
     currentStatus = 'draft';
+    receivedJunctionCount = 0;
     client = makeClient();
   });
 
@@ -224,5 +277,37 @@ describe('planning transfer order actions', () => {
     const result = await transitionTransferOrderStatus(TO_ID, 'cancelled');
 
     expect(result).toEqual({ ok: false, error: 'invalid_state' });
+  });
+
+  // ── F3 (W9 cross-review HIGH) — partial receive blocks cancel ───────────────
+  it('rejects cancel of a partially received TO with partially_received and mutates NOTHING', async () => {
+    currentStatus = 'in_transit';
+    receivedJunctionCount = 1;
+
+    const result = await transitionTransferOrderStatus(TO_ID, 'cancelled');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'partially_received',
+      message:
+        'Transfer order has already-received destination stock; cancel is not allowed. Receive the remainder or reverse the received LPs first.',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase());
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('delete from public.transfer_order_line_lps'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('update public.transfer_orders'))).toBe(false);
+  });
+
+  it('still cancels a fully un-received in_transit TO (source stock restored)', async () => {
+    currentStatus = 'in_transit';
+    receivedJunctionCount = 0;
+
+    const result = await transitionTransferOrderStatus(TO_ID, 'cancelled');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase());
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('delete from public.transfer_order_line_lps'))).toBe(true);
   });
 });

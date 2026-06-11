@@ -351,17 +351,34 @@ export const DeleteBomLineInput = z.object({
 });
 export type DeleteBomLineInputType = z.input<typeof DeleteBomLineInput>;
 
+// F-B01 fix — APPEND a component line to an EXISTING editable (draft | in_review)
+// version instead of forking a new 1-line draft. Line fields mirror LineInput
+// (create-draft) so the appended row carries the same shape as a created one.
+export const AddBomLineInput = z.object({
+  bomHeaderId: z.string().uuid(),
+  itemId: z.string().uuid().optional(),
+  componentCode: z.string().trim().min(1).max(128),
+  componentType: z.enum(COMPONENT_TYPES).optional(),
+  quantity: z.coerce.number().positive().finite(),
+  uom: z.string().trim().min(1).max(32),
+  scrapPct: z.coerce.number().min(0).max(100).optional().default(0),
+  manufacturingOperationName: z.string().trim().max(256).optional(),
+});
+export type AddBomLineInputType = z.input<typeof AddBomLineInput>;
+
 export type BomLineActionError =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
   | 'bom_not_editable'
+  | 'validation_failed'
   | 'persistence_failed';
 
 export type BomLineActionResult =
   | { ok: true; data: { lineId: string; bomHeaderId: string } }
-  | { ok: false; error: BomLineActionError; message?: string };
+  | { ok: false; error: BomLineActionError; code?: BomValidationCode; message?: string };
 
+export const AUDIT_BOM_LINE_ADDED = 'bom.line_added';
 export const AUDIT_BOM_LINE_UPDATED = 'bom.line_updated';
 export const AUDIT_BOM_LINE_DELETED = 'bom.line_deleted';
 

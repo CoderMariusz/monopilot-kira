@@ -6,11 +6,10 @@
  * actions). The prototype's PLAN_KPIS / WO_ALERTS / UPCOMING_WOS mock arrays are
  * replaced with REAL Supabase reads from public.work_orders (migration 176).
  *
- * Honest data policy (today's audit): only `work_orders` exists. The
- * `purchase_orders` and `transfer_orders` tables DO NOT exist yet, so their KPI
- * tiles + alert panels render as "—" with a "module not live yet" hint — the
- * exact pattern the org dashboard uses for Pending POs (see
- * apps/web/app/[locale]/(app)/(modules)/dashboard/_actions/dashboard-summary.ts).
+ * Honest data policy (re-audited W9-M2): `purchase_orders` (mig 262) and
+ * `transfer_orders` (mig 263) ARE live now, so the PO/TO KPI tiles show real
+ * open counts and the PO/TO alert panels show real overdue documents — the old
+ * "module not live yet" placeholders were lying after wave 8 and are gone.
  * No fake numbers are ever invented.
  *
  * Every read runs inside `withOrgContext`, executing as `app_user` with
@@ -64,6 +63,15 @@ export type PlanningWoAlert = {
   severity: "red" | "amber";
 };
 
+/** One overdue PO/TO alert row (real, org-scoped). */
+export type PlanningDocAlert = {
+  id: string;
+  refNumber: string;
+  /** i18n key suffix under Planning.alerts.reasons.* */
+  reasonKey: "poOverdue" | "toOverdue";
+  severity: "red" | "amber";
+};
+
 /** One scheduled WO inside the 7-day upcoming window. */
 export type PlanningScheduledWo = {
   id: string;
@@ -83,6 +91,10 @@ export type PlanningScheduleDay = {
 export type PlanningDashboardData = {
   kpis: PlanningKpi[];
   alerts: PlanningWoAlert[];
+  /** Overdue open POs (expected_delivery in the past). */
+  poAlerts: PlanningDocAlert[];
+  /** Overdue open TOs (scheduled_date in the past). */
+  toAlerts: PlanningDocAlert[];
   /** 7-day schedule grouped by UTC day, ascending. */
   schedule: PlanningScheduleDay[];
 };
@@ -234,16 +246,68 @@ export async function getPlanningDashboard(): Promise<PlanningDashboardResult> {
         severity: r.status === "RELEASED" ? "red" : "amber",
       }));
 
+      // KPI — Open POs (mig 262): every status that is not terminal.
+      const openPos = await countOf(
+        `select count(*)::int as n
+           from public.purchase_orders
+          where org_id = app.current_org_id()
+            and status in ('draft', 'sent', 'confirmed', 'partially_received')`,
+      );
+
+      // KPI — Open TOs (mig 263): draft or in transit.
+      const openTos = await countOf(
+        `select count(*)::int as n
+           from public.transfer_orders
+          where org_id = app.current_org_id()
+            and status in ('draft', 'in_transit')`,
+      );
+
+      // Alerts — open POs whose expected delivery date has passed.
+      const poAlertRes = await c.query<{ id: string; po_number: string; status: string }>(
+        `select id::text as id, po_number, status
+           from public.purchase_orders
+          where org_id = app.current_org_id()
+            and status in ('draft', 'sent', 'confirmed', 'partially_received')
+            and expected_delivery is not null
+            and expected_delivery < current_date
+          order by expected_delivery asc
+          limit 25`,
+      );
+      const poAlerts: PlanningDocAlert[] = poAlertRes.rows.map((r) => ({
+        id: r.id,
+        refNumber: r.po_number,
+        reasonKey: "poOverdue",
+        // Confirmed/partially received late = supply already committed → red.
+        severity: r.status === "draft" || r.status === "sent" ? "amber" : "red",
+      }));
+
+      // Alerts — open TOs whose scheduled date has passed.
+      const toAlertRes = await c.query<{ id: string; to_number: string; status: string }>(
+        `select id::text as id, to_number, status
+           from public.transfer_orders
+          where org_id = app.current_org_id()
+            and status in ('draft', 'in_transit')
+            and scheduled_date is not null
+            and scheduled_date < current_date
+          order by scheduled_date asc
+          limit 25`,
+      );
+      const toAlerts: PlanningDocAlert[] = toAlertRes.rows.map((r) => ({
+        id: r.id,
+        refNumber: r.to_number,
+        reasonKey: "toOverdue",
+        // Stock already moving late = red; a stale draft is amber.
+        severity: r.status === "in_transit" ? "red" : "amber",
+      }));
+
       const kpis: PlanningKpi[] = [
         { key: "openWos", value: openWos, color: "blue", notLive: false },
         { key: "wosToday", value: wosToday, color: "green", notLive: false },
-        // purchase_orders table does not exist yet — honest "module not live".
-        { key: "openPos", value: null, color: "amber", notLive: true },
-        // transfer_orders table does not exist yet — honest "module not live".
-        { key: "openTos", value: null, color: "amber", notLive: true },
+        { key: "openPos", value: openPos, color: "amber", notLive: false },
+        { key: "openTos", value: openTos, color: "amber", notLive: false },
       ];
 
-      return { ok: true, data: { kpis, alerts, schedule } };
+      return { ok: true, data: { kpis, alerts, poAlerts, toAlerts, schedule } };
     });
   } catch (error) {
     console.error("[planning/dashboard] aggregate read failed:", error);

@@ -1,7 +1,9 @@
 import { getTranslations } from 'next-intl/server';
 
 import { createManufacturingOperation } from '../../../../../../../actions/reference/manufacturing-ops/create';
+import { deactivateManufacturingOperation } from '../../../../../../../actions/reference/manufacturing-ops/deactivate';
 import { listManufacturingOperations } from '../../../../../../../actions/reference/manufacturing-ops/list';
+import { updateManufacturingOperation } from '../../../../../../../actions/reference/manufacturing-ops/update';
 import { reorderManufacturingOperations } from '../../../../../../../actions/reference/manufacturing-ops/reorder';
 import { resetManufacturingOperationsToSeed } from '../../../../../../../actions/reference/manufacturing-ops/reset-to-seed';
 import ManufacturingOperationsScreen, {
@@ -57,6 +59,7 @@ const LABEL_KEYS = [
   'field_description',
   'field_sequence',
   'field_active',
+  'field_industry',
   'create',
   'creating',
   'duplicate_operation_name',
@@ -64,6 +67,16 @@ const LABEL_KEYS = [
   'create_failed',
   'cancel',
   'reset',
+  'edit_dialog_title',
+  'save',
+  'saving',
+  'update_failed',
+  'immutable_field',
+  'delete_dialog_title',
+  'delete_dialog_body',
+  'confirm_delete',
+  'deleting',
+  'delete_failed',
 ] as const;
 
 type LabelKey = (typeof LABEL_KEYS)[number];
@@ -110,6 +123,7 @@ const LABEL_MAP: Record<LabelKey, LabelCamelKey> = {
   field_description: 'fieldDescription',
   field_sequence: 'fieldSequence',
   field_active: 'fieldActive',
+  field_industry: 'fieldIndustry',
   create: 'create',
   creating: 'creating',
   duplicate_operation_name: 'duplicateOperationName',
@@ -117,6 +131,16 @@ const LABEL_MAP: Record<LabelKey, LabelCamelKey> = {
   create_failed: 'createFailed',
   cancel: 'cancel',
   reset: 'reset',
+  edit_dialog_title: 'editDialogTitle',
+  save: 'save',
+  saving: 'saving',
+  update_failed: 'updateFailed',
+  immutable_field: 'immutableField',
+  delete_dialog_title: 'deleteDialogTitle',
+  delete_dialog_body: 'deleteDialogBody',
+  confirm_delete: 'confirmDelete',
+  deleting: 'deleting',
+  delete_failed: 'deleteFailed',
 };
 
 const EN_LABEL_FALLBACKS: Record<LabelKey, string> = {
@@ -160,6 +184,7 @@ const EN_LABEL_FALLBACKS: Record<LabelKey, string> = {
   field_description: 'Description',
   field_sequence: 'Sequence',
   field_active: 'Active',
+  field_industry: 'Industry',
   create: 'Create',
   creating: 'Creating...',
   duplicate_operation_name: 'An operation with this name already exists.',
@@ -167,6 +192,16 @@ const EN_LABEL_FALLBACKS: Record<LabelKey, string> = {
   create_failed: 'Unable to create manufacturing operation.',
   cancel: 'Cancel',
   reset: 'Reset',
+  edit_dialog_title: 'Edit manufacturing operation',
+  save: 'Save',
+  saving: 'Saving...',
+  update_failed: 'Unable to update manufacturing operation.',
+  immutable_field: 'Operation name and process suffix are immutable after creation.',
+  delete_dialog_title: 'Deactivate manufacturing operation',
+  delete_dialog_body: 'Deactivate "{operation}"? It will no longer be available for new FA assignments. Existing FAs keep working.',
+  confirm_delete: 'Deactivate',
+  deleting: 'Deactivating...',
+  delete_failed: 'Unable to deactivate manufacturing operation.',
 };
 
 async function buildLabels(locale: string): Promise<ManufacturingOperationsScreenLabels> {
@@ -217,6 +252,41 @@ async function addOperation(input: {
   return createManufacturingOperation(input);
 }
 
+async function editOperation(input: {
+  id: string;
+  description?: string | null;
+  operationSeq?: number;
+  industryCode?: IndustryCode;
+  isActive?: boolean;
+}): Promise<{ ok: true; data: ManufacturingOperation } | { ok: false; error?: string }> {
+  'use server';
+
+  const result = await updateManufacturingOperation(input);
+  if (!result.ok) return result;
+  return { ok: true, data: normalizeOperations([result.data])[0]! };
+}
+
+async function removeOperation(input: {
+  id: string;
+  confirmDeactivateWarning?: boolean;
+  confirmReferenced?: boolean;
+}): Promise<
+  | { ok: true; data: ManufacturingOperation; warning?: { code: string; message: string } }
+  | { ok: false; error?: string; warning?: { code: string; message: string } }
+> {
+  'use server';
+
+  const result = await deactivateManufacturingOperation(input);
+  if (!result.ok) return { ok: false, error: result.error, warning: result.warning };
+  return {
+    ok: true,
+    data: normalizeOperations([
+      { ...result.data, operation_seq: result.data.operation_seq ?? 0, industry_code: result.data.industry_code as IndustryCode },
+    ])[0]!,
+    warning: result.warning,
+  };
+}
+
 export default async function ManufacturingOperationsPage({ params }: PageProps) {
   const { locale } = await params;
   const labels = await buildLabels(locale);
@@ -230,6 +300,8 @@ export default async function ManufacturingOperationsPage({ params }: PageProps)
         error={result.error === 'forbidden' ? null : labels.error}
         canManage={result.error === 'forbidden' ? false : true}
         createOperation={addOperation}
+        updateOperation={editOperation}
+        deactivateOperation={removeOperation}
         reorderOperations={reorderOperations}
         resetToSeed={resetToSeed}
       />
@@ -241,6 +313,8 @@ export default async function ManufacturingOperationsPage({ params }: PageProps)
       labels={labels}
       operations={normalizeOperations(result.data)}
       createOperation={addOperation}
+      updateOperation={editOperation}
+      deactivateOperation={removeOperation}
       reorderOperations={reorderOperations}
       resetToSeed={resetToSeed}
     />

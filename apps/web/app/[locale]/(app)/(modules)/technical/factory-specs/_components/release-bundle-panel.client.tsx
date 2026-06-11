@@ -29,6 +29,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
@@ -500,7 +501,13 @@ function BundleModalBody({
               onChange={(e) => setPin(e.currentTarget.value)}
               aria-label={t('pin')}
             />
-            <span className="ff-help">{t('pinHelp')}</span>
+            <span className="ff-help">
+              {t('pinHelp')}{' '}
+              {/* W9-L7 — the shared scanner/e-sign PIN is managed on /account/pin. */}
+              <Link href="/account/pin" className="underline" data-testid="bundle-pin-setup-link">
+                {t('pinSetupLink')}
+              </Link>
+            </span>
           </div>
         </>
       ) : (

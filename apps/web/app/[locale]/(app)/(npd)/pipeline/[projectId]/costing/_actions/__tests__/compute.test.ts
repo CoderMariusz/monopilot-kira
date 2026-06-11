@@ -339,6 +339,90 @@ runIntegration('computeCosting (integration)', () => {
     expect(row.rows[0]!.params).toEqual(baseParams);
   });
 
+  it('W9-L6: a LOCKED formulation without an FG mapping returns fg_not_mapped (not the "no formulation" lie)', async () => {
+    const projectId = randomUUID();
+    const formulationId = randomUUID();
+    const versionId = randomUUID();
+    // Project WITHOUT product_code (pre-packaging) + locked current version.
+    await ownerPool.query(
+      `insert into public.npd_projects
+         (id, org_id, code, name, type, current_gate, current_stage, prio, product_code, created_by_user)
+       values
+         ($1::uuid, $2::uuid, $3, 'W9L6 Locked NoFG', 'Recipe Standard', 'G2', 'recipe', 'normal', null, $4::uuid)`,
+      [projectId, orgA, `NPD-W9L6-${randomUUID().slice(0, 8)}`, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulations (id, org_id, project_id, product_code, created_by_user)
+       values ($1::uuid, $2::uuid, $3::uuid, null, $4::uuid)`,
+      [formulationId, orgA, projectId, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_versions
+         (id, formulation_id, version_number, state, batch_size_kg, target_yield_pct, target_price_eur, created_by_user)
+       values ($1::uuid, $2::uuid, 1, 'locked', 10.000, 90.000, 5.0000, $3::uuid)`,
+      [versionId, formulationId, orgAUser],
+    );
+    await ownerPool.query(
+      `update public.formulations set current_version_id = $2::uuid where id = $1::uuid`,
+      [formulationId, versionId],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_ingredients
+         (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, sequence)
+       values ($1::uuid, 'RM-W9L6-A', 10.000, 100.000, 2.5000, 1)`,
+      [versionId],
+    );
+
+    const res = await computeAndSaveInitialBreakdown({ projectId });
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.error).toBe('fg_not_mapped');
+  });
+
+  it('W9-L6: COALESCEs the FG from npd_projects when only the project row carries it (locked v1 computes)', async () => {
+    const projectId = randomUUID();
+    const formulationId = randomUUID();
+    const versionId = randomUUID();
+    // Project HAS the FG; the formulation row predates nothing and was never
+    // backfilled (product_code null) — the exact live-clickthrough shape.
+    await ownerPool.query(
+      `insert into public.npd_projects
+         (id, org_id, code, name, type, current_gate, current_stage, prio, product_code, created_by_user)
+       values
+         ($1::uuid, $2::uuid, $3, 'W9L6 Coalesce FG', 'Recipe Standard', 'G3', 'packaging', 'normal', $4, $5::uuid)`,
+      [projectId, orgA, `NPD-W9L6-${randomUUID().slice(0, 8)}`, productA, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulations (id, org_id, project_id, product_code, created_by_user)
+       values ($1::uuid, $2::uuid, $3::uuid, null, $4::uuid)`,
+      [formulationId, orgA, projectId, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_versions
+         (id, formulation_id, version_number, state, batch_size_kg, target_yield_pct, target_price_eur, created_by_user)
+       values ($1::uuid, $2::uuid, 1, 'locked', 10.000, 90.000, 5.0000, $3::uuid)`,
+      [versionId, formulationId, orgAUser],
+    );
+    await ownerPool.query(
+      `update public.formulations set current_version_id = $2::uuid where id = $1::uuid`,
+      [formulationId, versionId],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_ingredients
+         (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, sequence)
+       values
+         ($1::uuid, 'RM-W9L6-B', 6.000, 60.000, 2.5000, 1),
+         ($1::uuid, 'RM-W9L6-C', 4.000, 40.000, 3.7500, 2)`,
+      [versionId],
+    );
+
+    const res = await computeAndSaveInitialBreakdown({ projectId });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.productCode).toBe(productA);
+    expect(res.data.scenario).toBe('target');
+  });
+
   it('computeAndSaveInitialBreakdown bootstraps the first target breakdown from the current formulation', async () => {
     const projectId = randomUUID();
     const formulationId = randomUUID();
@@ -481,5 +565,95 @@ describe('computeCosting (input validation)', () => {
     });
     expect(tooHighMargin.ok).toBe(false);
     if (!tooHighMargin.ok) expect(tooHighMargin.error).toBe('invalid_input');
+  });
+});
+
+// ── W9-L6: bootstrap-lookup honesty (always runs, no DB — fake client) ─────────
+//
+// Root cause of the live "No formulation available" on a project WITH a locked v1:
+// the bootstrap read formulations.product_code only. lockVersion writes
+// formulation_versions.state — never product_code (the FG mapping is written by
+// createFgCandidate when the project enters packaging, and only backfilled onto
+// formulations existing at that moment). A real, locked formulation without an FG
+// mapping therefore collapsed into `not_found` and the UI lied.
+describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)', () => {
+  type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
+  let handler: Handler = () => ({ rows: [] });
+
+  /** Bootstrap row exactly as the CTE projects it (LOCKED v1 fixture). */
+  function lockedFormulationRow(productCode: string | null) {
+    return {
+      product_code: productCode,
+      ingredient_count: '2',
+      missing_cost_count: '0',
+      raw_cost_eur: '2.5000',
+      yield_pct: '95',
+      margin_pct: '20',
+    };
+  }
+
+  beforeEach(() => {
+    handler = () => ({ rows: [] });
+    ctxHolder.client = {
+      query: async (sql: string, params?: readonly unknown[]) => handler(sql, params),
+    } as unknown as pg.PoolClient;
+  });
+
+  it('no formulation/current version at all → not_found', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    handler = () => ({ rows: [] });
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('LOCKED formulation, no FG anywhere → fg_not_mapped (NOT not_found)', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    handler = (sql) => {
+      if (sql.includes('with current_recipe')) return { rows: [lockedFormulationRow(null)] };
+      return { rows: [] };
+    };
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res).toEqual({ ok: false, error: 'fg_not_mapped' });
+  });
+
+  it('bootstrap SQL coalesces the FG from the project row (joins npd_projects)', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    const seen: string[] = [];
+    handler = (sql) => {
+      seen.push(sql);
+      if (sql.includes('with current_recipe')) {
+        expect(sql).toContain('coalesce(f.product_code, p.product_code)');
+        expect(sql).toContain('join public.npd_projects p');
+        return { rows: [lockedFormulationRow('FG-W9L6-007')] };
+      }
+      if (sql.includes('"Reference"."AlertThresholds"')) {
+        return { rows: [{ value_int: 15, value_text: null }] };
+      }
+      if (sql.includes('insert into public.costing_breakdowns')) {
+        return { rows: [{ id: randomUUID() }] };
+      }
+      return { rows: [] };
+    };
+
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.productCode).toBe('FG-W9L6-007');
+      expect(res.data.scenario).toBe('target');
+      expect(res.data.steps).toHaveLength(9);
+    }
+    expect(seen.filter((sql) => sql.includes('insert into public.costing_waterfall_steps'))).toHaveLength(9);
+  });
+
+  it('missing ingredient costs still report invalid_input (contract unchanged)', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    handler = (sql) => {
+      if (sql.includes('with current_recipe')) {
+        return { rows: [{ ...lockedFormulationRow('FG-W9L6-007'), missing_cost_count: '1' }] };
+      }
+      return { rows: [] };
+    };
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res).toMatchObject({ ok: false, error: 'invalid_input' });
   });
 });

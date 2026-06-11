@@ -147,6 +147,9 @@ describe("ConsumeScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "5" }));
     fireEvent.click(screen.getByRole("button", { name: "0" }));
     fireEvent.click(screen.getByRole("button", { name: shellLabels.qtyKeypad.confirm }));
+    fireEvent.change(screen.getByLabelText(new RegExp(labels.consume.reasonLabel)), {
+      target: { value: "silo-draw" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
 
@@ -170,6 +173,7 @@ describe("ConsumeScreen", () => {
     expect(Number(body.qty)).toBeGreaterThan(0);
     // manual / no LP: the POST must NOT carry an lpId
     expect(body.lpId).toBeUndefined();
+    expect(body.reasonCode).toBe("silo-draw");
 
     // done state + consume-next loop (doneTitle appears in the topbar AND body)
     await waitFor(() =>
@@ -272,6 +276,9 @@ describe("ConsumeScreen", () => {
     await waitFor(() => expect(screen.getByText(labels.consume.lpEmpty)).toBeInTheDocument());
     fireEvent.click(screen.getByText(labels.consume.lpManual).closest("button")!);
     await screen.findByLabelText(labels.consume.enterQty);
+    fireEvent.change(screen.getByLabelText(new RegExp(labels.consume.reasonLabel)), {
+      target: { value: "silo-draw" },
+    });
     fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
 
     // done state + amber banner with the resolved warn copy (i18n label, {pct} filled)
@@ -302,6 +309,9 @@ describe("ConsumeScreen", () => {
     await waitFor(() => expect(screen.getByText(labels.consume.lpEmpty)).toBeInTheDocument());
     fireEvent.click(screen.getByText(labels.consume.lpManual).closest("button")!);
     await screen.findByLabelText(labels.consume.enterQty);
+    fireEvent.change(screen.getByLabelText(new RegExp(labels.consume.reasonLabel)), {
+      target: { value: "silo-draw" },
+    });
     fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
 
     await waitFor(() =>

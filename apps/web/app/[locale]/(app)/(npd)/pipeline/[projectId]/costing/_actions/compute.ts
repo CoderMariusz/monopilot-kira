@@ -75,6 +75,14 @@ type ComputeCostingError =
   | 'invalid_input'
   | 'margin_hard_fail'
   | 'not_found'
+  /**
+   * A formulation EXISTS (locked or not) but no FG product is mapped yet —
+   * npd_projects.product_code AND formulations.product_code are both NULL (the FG
+   * candidate is only created when the project enters the packaging stage).
+   * Distinct from `not_found` so the UI stops claiming "no formulation available"
+   * on a project that has a locked v1 (live clickthrough §3).
+   */
+  | 'fg_not_mapped'
   | 'persistence_failed';
 
 type ComputeCostingResult =
@@ -228,11 +236,19 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
       const result = await client.query<InitialBreakdownRow>(
         `with current_recipe as (
            select
-             f.product_code,
+             -- lockVersion writes formulation_versions.state (never product_code);
+             -- product_code is mapped by createFgCandidate when the project enters
+             -- packaging, and only backfilled onto formulations that existed at
+             -- that moment. COALESCE with the project row so a formulation
+             -- created/locked later still resolves the FG.
+             coalesce(f.product_code, p.product_code) as product_code,
              fv.id as version_id,
              coalesce(nullif(fv.target_yield_pct, 0), 100)::numeric as yield_pct,
              fv.target_price_eur
            from public.formulations f
+           join public.npd_projects p
+             on p.id = f.project_id
+            and p.org_id = f.org_id
            join public.formulation_versions fv on fv.id = f.current_version_id
           where f.project_id = $1::uuid
             and f.org_id = app.current_org_id()
@@ -267,7 +283,12 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
       return result.rows[0] ?? null;
     });
 
-    if (!bootstrap?.product_code) return { ok: false, error: 'not_found' };
+    // Honest error split (live clickthrough §3): no formulation row at all is
+    // `not_found`; a real formulation WITHOUT an FG mapping is `fg_not_mapped`
+    // (the project has not reached the packaging stage where the FG candidate is
+    // created) — telling the user "no formulation available" there was a lie.
+    if (!bootstrap) return { ok: false, error: 'not_found' };
+    if (!bootstrap.product_code) return { ok: false, error: 'fg_not_mapped' };
     if (bootstrap.ingredient_count === '0' || bootstrap.missing_cost_count !== '0') {
       return { ok: false, error: 'invalid_input', message: 'current formulation has no complete ingredient costs' };
     }

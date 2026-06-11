@@ -81,5 +81,8 @@ export const SETTINGS_NAV_GROUPS = [
   group("myAccount", "My account", false, [
     item("my-profile", "My profile", "◯", false, "/account/profile"),
     item("my-notifications", "Notifications", "◔", false, "/account/notifications"),
+    // W9-L7 — desktop management for the SHARED scanner-login + e-sign PIN
+    // (chain dead-end #17: e-sign flows demanded a PIN only the scanner could set).
+    item("my-pin", "E-sign & scanner PIN", "✱", false, "/account/pin"),
   ]),
 ] as const satisfies readonly SettingsNavGroup[];

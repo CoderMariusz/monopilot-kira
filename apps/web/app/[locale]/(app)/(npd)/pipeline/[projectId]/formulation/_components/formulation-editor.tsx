@@ -95,7 +95,13 @@ export type FormulationEditorData = {
     qtyKg: string | null;
     pct: string | null;
     costPerKgEur: string | null;
-    allergen: string | null;
+    /** @deprecated legacy single-allergen input — superseded by `allergens`. */
+    allergen?: string | null;
+    /**
+     * F-A08 (W9-L4): FULL derived allergen array (server-resolved from the
+     * SSOT item_allergen_profiles). Preferred over the legacy `allergen`.
+     */
+    allergens?: string[];
     sequence: number;
     /**
      * Optional per-100g nutrient values for the RM (NUMERIC strings) read
@@ -355,7 +361,8 @@ function toRecomputeIngredients(
       qtyKg: qtyValid ? r.qtyKg : null,
       pct,
       costPerKgEur: isDecimalString(r.costPerKgEur) ? r.costPerKgEur : null,
-      allergensInherited: r.allergen ? [r.allergen] : [],
+      // F-A08: full array — the union feeding the AllergenPanel never truncates.
+      allergensInherited: r.allergens,
       ...(nutrition ? { nutritionPer100g: nutrition } : {}),
     };
   });
@@ -435,7 +442,9 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
     qtyKg: ing.qtyKg ?? '',
     pct: ing.pct ?? '',
     costPerKgEur: ing.costPerKgEur ?? '',
-    allergen: ing.allergen,
+    // F-A08: prefer the full derived array; the deprecated single `allergen`
+    // input is widened for back-compat (older callers/fixtures).
+    allergens: ing.allergens ?? (ing.allergen ? [ing.allergen] : []),
     sequence: ing.sequence,
   }));
 }
@@ -697,7 +706,9 @@ export function FormulationEditor({
             qtyKg: isDecimalString(r.qtyKg) ? r.qtyKg : null,
             pct: null,
             costPerKgEur: isDecimalString(r.costPerKgEur) ? r.costPerKgEur : null,
-            allergensInherited: r.allergen ? [r.allergen] : [],
+            // F-A06: sent for wire back-compat only — the server IGNORES this
+            // and re-derives allergens from item_allergen_profiles (SSOT).
+            allergensInherited: r.allergens,
             sequence: i + 1,
           })),
         });
@@ -754,7 +765,7 @@ export function FormulationEditor({
         qtyKg: '0',
         pct: '0',
         costPerKgEur: '0',
-        allergen: null,
+        allergens: [],
         sequence: prev.length + 1,
       },
     ]);
@@ -762,9 +773,10 @@ export function FormulationEditor({
 
   /**
    * Lane-B: a real item was chosen for an ingredient row — wire item_id and
-   * populate code/name/cost (and the inherited allergen, if the item carries one
-   * — items expose cost; allergen profiles are read elsewhere so we keep the
-   * existing allergen unless cleared). Triggers a debounced save like any edit.
+   * populate code/name/cost. Allergens are NOT set client-side (F-A06): the
+   * save action derives the full set from item_allergen_profiles (SSOT) and the
+   * next read returns it — the client never authors allergen data. Triggers a
+   * debounced save like any edit.
    */
   const handleSelectItem = React.useCallback(
     (index: number, item: ItemPickerOption) => {

@@ -194,6 +194,60 @@ export async function createWorkOrder(params: {
         materialRows = insertedMaterials.rows;
       }
 
+      // F-B02 fix — snapshot the product's ACTIVE routing into wo_operations at
+      // the SAME point materials are snapshotted (WO CREATE; start-wo.ts freezes
+      // only the BOM JSON + wo_outputs, wo_materials rows are written HERE).
+      // Source: routings (item_id = FG uuid, status='active', newest version —
+      // approve-routing enforces zero-or-one active per item) ⨝ routing_operations.
+      // Column mapping (mig 163 → mig 176):
+      //   sequence ← op_no · operation_name ← op_name · machine_id/line_id ← 1:1
+      //   expected_duration_minutes ← coalesce(setup_time_min, 0) + ceil(
+      //     run_time_per_unit_sec × planned base qty / 60). F5 (W9 cross-review):
+      //     a NULL setup with a real run time no longer NULLs the whole sum, and
+      //     honest-NULL applies only when BOTH inputs are missing. Overflow
+      //     guard: a computed value beyond int4 (2^31−1 minutes ≈ 4085 years —
+      //     only reachable via garbage run-time × qty) is CAPPED AT NULL
+      //     (honest-unknown) instead of failing the whole WO insert with 22003.
+      //   expected_yield_percent ← NULL (routing_operations has no yield column)
+      //   notes ← op_code (wo_operations has no op-code column; preserved here)
+      //   status 'pending' · site_id carried from the routing op (nullable day-1)
+      // Idempotent per WO via UNIQUE (wo_id, sequence) + ON CONFLICT DO NOTHING.
+      // A product with no active routing snapshots zero ops (mirrors the BOM-less
+      // zero-materials behaviour; F-B03 freeze-point decision is out of scope).
+      await ctx.client.query(
+        `insert into public.wo_operations
+           (org_id, site_id, wo_id, sequence, operation_name, machine_id, line_id,
+            expected_duration_minutes, status, notes)
+         select app.current_org_id(), ro.site_id, $1::uuid, ro.op_no, ro.op_name,
+                ro.machine_id, ro.line_id,
+                case
+                  when ro.run_time_per_unit_sec is null and ro.setup_time_min is null
+                    then null
+                  when coalesce(ro.setup_time_min, 0)::numeric
+                       + coalesce(ceil((ro.run_time_per_unit_sec * $2::numeric) / 60.0), 0) > 2147483647
+                    then null
+                  else (coalesce(ro.setup_time_min, 0)::numeric
+                        + coalesce(ceil((ro.run_time_per_unit_sec * $2::numeric) / 60.0), 0))::integer
+                end,
+                'pending', ro.op_code
+           from public.routing_operations ro
+           join public.routings r
+             on r.id = ro.routing_id
+            and r.org_id = ro.org_id
+          where ro.org_id = app.current_org_id()
+            and r.item_id = $3::uuid
+            and r.status = 'active'
+            and r.version = (
+              select max(r2.version) from public.routings r2
+               where r2.org_id = app.current_org_id()
+                 and r2.item_id = $3::uuid
+                 and r2.status = 'active'
+            )
+          order by ro.op_no
+         on conflict (wo_id, sequence) do nothing`,
+        [woId, plannedBaseQty, input.productId],
+      );
+
       const insertedSchedule = await ctx.client.query<ScheduleOutputRow>(
         `insert into public.schedule_outputs
            (org_id, planned_wo_id, product_id, output_role, expected_qty, uom, allocation_pct, disposition, notes)

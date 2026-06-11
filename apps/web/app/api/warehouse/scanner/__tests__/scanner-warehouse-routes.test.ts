@@ -80,6 +80,7 @@ function mockMoveQueries(options: {
   materialStagingLocationId?: string | null;
   isPick?: boolean;
   qaStatus?: string;
+  status?: string;
 }) {
   fakeClient.query.mockImplementation(async (sql: string, params?: unknown[]) => {
     if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
@@ -106,7 +107,7 @@ function mockMoveQueries(options: {
           available_qty: '8.000',
           reserved_qty: '2.000',
           uom: 'kg',
-          status: 'available',
+          status: options.status ?? 'available',
           qa_status: options.qaStatus ?? 'released',
           location_id: '71000000-0000-4000-8000-000000000001',
           locked_by: options.locked ? '99999999-0000-4000-8000-000000000001' : null,
@@ -116,7 +117,13 @@ function mockMoveQueries(options: {
     }
     if (sql.includes('from public.locations')) return { rows: [{ id: ids.location }] };
     if (sql.includes('insert into public.stock_moves')) return { rows: [{ id: ids.move }] };
+    // putaway promotion UPDATE (audit F-A01): guarded received→available with RETURNING
+    if (sql.includes("set status = 'available'") && sql.includes('returning id::text, lp_number')) {
+      return options.status === 'received' ? { rows: [{ id: ids.lp, lp_number: 'LP-001' }] } : { rows: [] };
+    }
     if (sql.includes('update public.license_plates')) return { rows: [] };
+    if (sql.includes('insert into public.lp_state_history')) return { rows: [] };
+    if (sql.includes('insert into public.outbox_events')) return { rows: [] };
     if (sql.includes('insert into public.scanner_audit_log')) return { rows: [] };
     return { rows: [] };
   });
@@ -249,6 +256,79 @@ describe('warehouse scanner routes', () => {
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_not_movable' });
     expect(fakeClient.query.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining(['rollback']));
+  });
+
+  it('putaway promotes a received LP to available with a ledger row (audit F-A01)', async () => {
+    const { POST } = await import('../putaway/route');
+    mockMoveQueries({ status: 'received', qaStatus: 'pending' });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/putaway', {
+        clientOpId: 'op-putaway-promote',
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, moveId: ids.move });
+    const sqls = fakeClient.query.mock.calls.map((call) => String(call[0]));
+    // guarded promotion: only flips status when it is still 'received'
+    const promote = fakeClient.query.mock.calls.find(
+      (call) => String(call[0]).includes("set status = 'available'") && String(call[0]).includes("and status = 'received'"),
+    );
+    expect(promote).toBeTruthy();
+    // ledger row: received → available, putaway reason
+    const history = fakeClient.query.mock.calls.find((call) =>
+      String(call[0]).includes('insert into public.lp_state_history'),
+    );
+    expect(history).toBeTruthy();
+    expect(String(history?.[0])).toContain("'received', 'available'");
+    expect(history?.[1]).toEqual(expect.arrayContaining([ids.lp, 'putaway', ids.move]));
+    // outbox event mirrors the transition
+    const outbox = fakeClient.query.mock.calls.find((call) =>
+      String(call[0]).includes('insert into public.outbox_events'),
+    );
+    expect(outbox).toBeTruthy();
+    expect(String(outbox?.[1]?.[1])).toContain('"status_to":"available"');
+    // qa_status is never touched by the warehouse transition
+    expect(sqls.some((sql) => sql.includes('set qa_status'))).toBe(false);
+  });
+
+  it('putaway of an already-available LP does not write a promotion or ledger row', async () => {
+    const { POST } = await import('../putaway/route');
+    mockMoveQueries({});
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/putaway', {
+        clientOpId: 'op-putaway-noop-promote',
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(200);
+    const sqls = fakeClient.query.mock.calls.map((call) => String(call[0]));
+    expect(sqls.some((sql) => sql.includes("set status = 'available'"))).toBe(false);
+    expect(sqls.some((sql) => sql.includes('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('move (transfer) of a received LP never promotes — putaway is the transition', async () => {
+    const { POST } = await import('../move/route');
+    mockMoveQueries({ status: 'received', qaStatus: 'pending' });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/move', {
+        clientOpId: 'op-move-received',
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(200);
+    const sqls = fakeClient.query.mock.calls.map((call) => String(call[0]));
+    expect(sqls.some((sql) => sql.includes("set status = 'available'"))).toBe(false);
+    expect(sqls.some((sql) => sql.includes('insert into public.lp_state_history'))).toBe(false);
   });
 
   it('move writes a transfer stock move', async () => {

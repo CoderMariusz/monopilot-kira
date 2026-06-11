@@ -116,6 +116,17 @@ const labels: ManufacturingOperationsScreenLabels = {
   createFailed: 'Unable to create manufacturing operation.',
   cancel: 'Cancel',
   reset: 'Reset',
+  fieldIndustry: 'Industry',
+  editDialogTitle: 'Edit manufacturing operation',
+  save: 'Save',
+  saving: 'Saving...',
+  updateFailed: 'Unable to update manufacturing operation.',
+  immutableField: 'Operation name and process suffix are immutable after creation.',
+  deleteDialogTitle: 'Deactivate manufacturing operation',
+  deleteDialogBody: 'Deactivate "{operation}"? It will no longer be available for new FA assignments. Existing FAs keep working.',
+  confirmDelete: 'Deactivate',
+  deleting: 'Deactivating...',
+  deleteFailed: 'Unable to deactivate manufacturing operation.',
 };
 
 const operations: ManufacturingOperation[] = [
@@ -256,6 +267,10 @@ describe('SET-055 Manufacturing Operations list view', () => {
     await user.type(within(dialog).getByLabelText(/description/i), 'Wet blend');
     await user.clear(within(dialog).getByLabelText(/sequence/i));
     await user.type(within(dialog).getByLabelText(/sequence/i), '4');
+    // W9-L5 FIX 2: the modal now carries an explicit Industry field (the table
+    // requires industry_code) instead of silently reusing the page filter.
+    await user.click(within(dialog).getByRole('combobox', { name: /industry/i }));
+    await user.click(await screen.findByRole('option', { name: /^bakery$/i }));
     await user.click(within(dialog).getByRole('button', { name: /^create$/i }));
 
     await waitFor(() => expect(createOperation).toHaveBeenCalledWith({
@@ -263,7 +278,7 @@ describe('SET-055 Manufacturing Operations list view', () => {
       processSuffix: 'BL',
       description: 'Wet blend',
       operationSeq: 4,
-      industryCode: 'custom',
+      industryCode: 'bakery',
       isActive: true,
     }));
     expect(await screen.findByText('Blend')).toBeInTheDocument();
@@ -320,6 +335,69 @@ describe('SET-055 Manufacturing Operations list view', () => {
     await user.click(within(screen.getByRole('dialog', { name: /reset to industry seed data/i })).getByRole('button', { name: /^reset$/i }));
     expect(resetToSeed).toHaveBeenCalledTimes(1);
     expect(resetToSeed).toHaveBeenCalledWith('generic');
+  });
+
+  it('opens the edit modal from a row action and submits the update payload with industry (W9-L5 FIX 2)', async () => {
+    const user = userEvent.setup();
+    const updateOperation = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { ...operations[0], description: 'Updated mix', industry_code: 'pharma' },
+    });
+    await renderManufacturingOperations({ updateOperation });
+
+    await user.click(screen.getByRole('button', { name: /edit mix/i }));
+    const dialog = screen.getByRole('dialog', { name: /edit manufacturing operation/i });
+
+    // immutable fields shown read-only
+    expect(within(dialog).getByLabelText(/operation name/i)).toHaveValue('Mix');
+    expect(within(dialog).getByLabelText(/process suffix/i)).toHaveValue('MX');
+
+    const description = within(dialog).getByLabelText(/description/i);
+    await user.clear(description);
+    await user.type(description, 'Updated mix');
+    await user.click(within(dialog).getByRole('combobox', { name: /industry/i }));
+    await user.click(await screen.findByRole('option', { name: /^pharma$/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(updateOperation).toHaveBeenCalledWith({
+      id: 'op-mix',
+      description: 'Updated mix',
+      operationSeq: 1,
+      industryCode: 'pharma',
+      isActive: true,
+    }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /edit manufacturing operation/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('deactivates via the row Delete action with the two-step referenced confirm (W9-L5 FIX 2)', async () => {
+    const user = userEvent.setup();
+    const deactivateOperation = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        error: 'CONFIRMATION_REQUIRED',
+        warning: { code: 'OPERATION_REFERENCED', message: 'Operation "Mix" is referenced by 2 active FAs and 1 templates.' },
+      })
+      .mockResolvedValueOnce({ ok: true, data: { ...operations[0], is_active: false } });
+    await renderManufacturingOperations({ deactivateOperation });
+
+    await user.click(screen.getByRole('button', { name: /delete mix/i }));
+    const dialog = screen.getByRole('dialog', { name: /deactivate manufacturing operation/i });
+    await user.click(within(dialog).getByRole('button', { name: /^deactivate$/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/referenced by 2 active fas/i);
+    expect(deactivateOperation).toHaveBeenCalledWith({ id: 'op-mix', confirmDeactivateWarning: true, confirmReferenced: false });
+
+    await user.click(within(dialog).getByRole('button', { name: /^deactivate$/i }));
+    await waitFor(() => expect(deactivateOperation).toHaveBeenLastCalledWith({
+      id: 'op-mix',
+      confirmDeactivateWarning: true,
+      confirmReferenced: true,
+    }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /deactivate manufacturing operation/i })).not.toBeInTheDocument();
+    });
   });
 
   it('auto-saves drag-to-reorder with the T-038 reorderOperations payload of id and operation_seq pairs', async () => {

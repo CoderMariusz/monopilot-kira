@@ -5,12 +5,13 @@
  * (plan_dashboard). The async RSC reads Supabase via withOrgContext and is exercised
  * live (Playwright/manual); here we test the pure presentational pieces + the pure
  * day-grouping helper:
- *   - KPI strip (4 tiles, 2 live + 2 honest "not live yet"),
- *   - alert panels (real WO alerts + PO/TO not-live placeholders, empty-state),
- *   - upcoming schedule (WO tab live + grouped-by-day rows, PO/TO tabs disabled),
- *   - header actions (Create WO link + 4 disabled buttons with not-available title),
+ *   - KPI strip (4 live tiles — PO/TO went live with migs 262/263, W9-M2),
+ *   - alert panels (real WO + PO + TO alert lists, empty-states),
+ *   - upcoming schedule (WO tab live + grouped-by-day rows, PO/TO tabs link to
+ *     the live list screens),
+ *   - header actions (Create WO/PO/TO links + disabled sequencing/D365 buttons),
  *   - groupScheduleByDay (7-day buckets, ascending, empty-state safe),
- *   - i18n key coverage across en/pl/ro/uk.
+ *   - i18n key coverage across en/pl/ro/uk (incl. the W9-M2 mrp.* namespace).
  */
 import "@testing-library/jest-dom/vitest";
 import React from "react";
@@ -31,17 +32,16 @@ import { PlanningHeaderActions } from "../_components/header-actions";
 const TILES: PlanningKpiTile[] = [
   { key: "openWos", label: "Open WOs", value: "7", sub: "Released, in progress or on hold", color: "blue", notLive: false },
   { key: "wosToday", label: "WOs scheduled today", value: "3", sub: "Starting in the current day", color: "green", notLive: false },
-  { key: "openPos", label: "Open POs", value: "—", sub: "Module not live yet", color: "amber", notLive: true },
-  { key: "openTos", label: "Open TOs", value: "—", sub: "Module not live yet", color: "amber", notLive: true },
+  { key: "openPos", label: "Open POs", value: "4", sub: "Draft, sent, confirmed or partially received", color: "amber", notLive: false },
+  { key: "openTos", label: "Open TOs", value: "2", sub: "Draft or in transit", color: "amber", notLive: false },
 ];
 
 const ALERT_LABELS = {
   woTitle: "WO alerts",
   poTitle: "PO alerts",
   toTitle: "TO alerts",
-  empty: "No work-order alerts",
-  notLive: "Module not live yet",
-  view: "View WO",
+  empty: "No alerts",
+  view: "View",
 };
 
 const HEADER_LABELS = {
@@ -57,7 +57,8 @@ const SCHEDULE_LABELS = {
   woTab: "WO schedule",
   poTab: "PO calendar",
   toTab: "TO timeline",
-  notLive: "Module not live yet",
+  openPos: "Open the Purchase orders list",
+  openTos: "Open the Transfer orders list",
   empty: "No work orders scheduled in the next 7 days.",
   woCol: "WO",
   statusCol: "Status",
@@ -65,7 +66,7 @@ const SCHEDULE_LABELS = {
 };
 
 describe("Planning KPI strip (parity: dashboard.jsx:32-50)", () => {
-  it("renders 4 tiles with 2 live values and 2 honest not-live tiles", () => {
+  it("renders 4 live tiles (PO/TO live since migs 262/263)", () => {
     render(<PlanningKpiStrip tiles={TILES} />);
     const strip = screen.getByTestId("planning-kpis");
     expect(within(strip).getAllByText(/Open WOs|WOs scheduled today|Open POs|Open TOs/)).toHaveLength(4);
@@ -74,30 +75,38 @@ describe("Planning KPI strip (parity: dashboard.jsx:32-50)", () => {
     expect(screen.getByTestId("planning-kpi-wosToday")).toHaveTextContent("3");
 
     const po = screen.getByTestId("planning-kpi-openPos");
-    expect(po).toHaveTextContent("—");
-    expect(po).toHaveTextContent("Module not live yet");
-    expect(po).toHaveAttribute("data-not-live", "true");
-    expect(screen.getByTestId("planning-kpi-openTos")).toHaveAttribute("data-not-live", "true");
+    expect(po).toHaveTextContent("4");
+    expect(po).not.toHaveAttribute("data-not-live");
+    const to = screen.getByTestId("planning-kpi-openTos");
+    expect(to).toHaveTextContent("2");
+    expect(to).not.toHaveAttribute("data-not-live");
   });
 });
 
 describe("Planning alert panels (parity: dashboard.jsx:62-126)", () => {
-  it("renders real WO alerts and honest PO/TO not-live placeholders", () => {
-    const alerts: PlanningAlertRow[] = [
-      { id: "a1", woNumber: "WO-2026-0001", reason: "Past scheduled start and not yet running", severity: "red", href: "/en/planning/work-orders?wo=a1" },
+  it("renders real WO, PO and TO alert rows", () => {
+    const woAlerts: PlanningAlertRow[] = [
+      { id: "a1", refNumber: "WO-2026-0001", reason: "Past scheduled start and not yet running", severity: "red", href: "/en/planning/work-orders?wo=a1" },
     ];
-    render(<PlanningAlertPanels woAlerts={alerts} labels={ALERT_LABELS} />);
+    const poAlerts: PlanningAlertRow[] = [
+      { id: "p1", refNumber: "PO-2026-0007", reason: "Expected delivery date passed", severity: "red", href: "/en/planning/purchase-orders/p1" },
+    ];
+    const toAlerts: PlanningAlertRow[] = [
+      { id: "t1", refNumber: "TO-2026-0002", reason: "Scheduled date passed", severity: "amber", href: "/en/planning/transfer-orders/t1" },
+    ];
+    render(<PlanningAlertPanels woAlerts={woAlerts} poAlerts={poAlerts} toAlerts={toAlerts} labels={ALERT_LABELS} />);
 
-    expect(screen.getByTestId("planning-wo-alert-a1")).toHaveTextContent("WO-2026-0001");
+    expect(screen.getByTestId("planning-wo-alerts-row-a1")).toHaveTextContent("WO-2026-0001");
     expect(screen.getByTestId("planning-wo-alerts-count")).toHaveTextContent("1");
-    // PO / TO panels are honest "not live" placeholders.
-    expect(screen.getByTestId("planning-po-alerts-not-live")).toHaveTextContent("Module not live yet");
-    expect(screen.getByTestId("planning-to-alerts-not-live")).toHaveTextContent("Module not live yet");
+    expect(screen.getByTestId("planning-po-alerts-row-p1")).toHaveTextContent("PO-2026-0007");
+    expect(screen.getByTestId("planning-to-alerts-row-t1")).toHaveTextContent("TO-2026-0002");
   });
 
-  it("shows an empty-state when there are no WO alerts", () => {
-    render(<PlanningAlertPanels woAlerts={[]} labels={ALERT_LABELS} />);
-    expect(screen.getByTestId("planning-wo-alerts-empty")).toHaveTextContent("No work-order alerts");
+  it("shows per-panel empty-states when there are no alerts", () => {
+    render(<PlanningAlertPanels woAlerts={[]} poAlerts={[]} toAlerts={[]} labels={ALERT_LABELS} />);
+    expect(screen.getByTestId("planning-wo-alerts-empty")).toHaveTextContent("No alerts");
+    expect(screen.getByTestId("planning-po-alerts-empty")).toHaveTextContent("No alerts");
+    expect(screen.getByTestId("planning-to-alerts-empty")).toHaveTextContent("No alerts");
   });
 });
 
@@ -145,20 +154,36 @@ describe("Planning upcoming schedule (parity: dashboard.jsx:138-231)", () => {
     { dateKey: "2026-06-11", label: "Thu, Jun 11", rows: [] },
   ];
 
-  it("renders grouped WO rows under day headings, with PO/TO tabs disabled", () => {
-    render(<UpcomingSchedule days={days} scheduledCount={1} labels={SCHEDULE_LABELS} />);
+  it("renders grouped WO rows under day headings, with PO/TO tabs linking to the live lists", () => {
+    render(
+      <UpcomingSchedule
+        days={days}
+        scheduledCount={1}
+        poListHref="/en/planning/purchase-orders"
+        toListHref="/en/planning/transfer-orders"
+        labels={SCHEDULE_LABELS}
+      />,
+    );
 
     expect(screen.getByTestId("planning-schedule-day-2026-06-10")).toHaveTextContent("WO-2026-0108");
     expect(screen.getByTestId("planning-schedule-row-w1")).toHaveTextContent("06:00");
     // Empty day is filtered out.
     expect(screen.queryByTestId("planning-schedule-day-2026-06-11")).toBeNull();
 
-    expect(screen.getByTestId("planning-upcoming-tab-pos")).toBeDisabled();
-    expect(screen.getByTestId("planning-upcoming-tab-tos")).toBeDisabled();
+    expect(screen.getByTestId("planning-upcoming-tab-pos")).toHaveAttribute("href", "/en/planning/purchase-orders");
+    expect(screen.getByTestId("planning-upcoming-tab-tos")).toHaveAttribute("href", "/en/planning/transfer-orders");
   });
 
   it("shows an empty-state when nothing is scheduled in the window", () => {
-    render(<UpcomingSchedule days={[]} scheduledCount={0} labels={SCHEDULE_LABELS} />);
+    render(
+      <UpcomingSchedule
+        days={[]}
+        scheduledCount={0}
+        poListHref="/en/planning/purchase-orders"
+        toListHref="/en/planning/transfer-orders"
+        labels={SCHEDULE_LABELS}
+      />,
+    );
     expect(screen.getByTestId("planning-upcoming-empty")).toHaveTextContent(
       "No work orders scheduled in the next 7 days.",
     );
@@ -216,8 +241,20 @@ describe("Planning i18n coverage (en/pl real, ro/uk mirror en)", () => {
       expect(p!.actions.createWo).toBeTruthy();
       expect(p!.actions.notAvailable).toBeTruthy();
       expect(p!.alerts.reasons.pastStartNotRunning).toBeTruthy();
+      expect(p!.alerts.reasons.poOverdue, `alerts.reasons.poOverdue missing in ${loc}`).toBeTruthy();
+      expect(p!.alerts.reasons.toOverdue, `alerts.reasons.toOverdue missing in ${loc}`).toBeTruthy();
       expect(p!.upcoming.woTab).toBeTruthy();
+      expect(p!.upcoming.openPos, `upcoming.openPos missing in ${loc}`).toBeTruthy();
+      expect(p!.upcoming.openTos, `upcoming.openTos missing in ${loc}`).toBeTruthy();
       expect(p!.woStatus.released).toBeTruthy();
+      // W9-M2 MRP namespace.
+      expect(p!.nav.mrp.title, `nav.mrp missing in ${loc}`).toBeTruthy();
+      expect(p!.mrp.title, `mrp.title missing in ${loc}`).toBeTruthy();
+      expect(p!.mrp.run, `mrp.run missing in ${loc}`).toBeTruthy();
+      expect(p!.mrp.kpis.itemsShort, `mrp.kpis.itemsShort missing in ${loc}`).toBeTruthy();
+      expect(p!.mrp.columns.net, `mrp.columns.net missing in ${loc}`).toBeTruthy();
+      expect(p!.mrp.severity.shortage, `mrp.severity.shortage missing in ${loc}`).toBeTruthy();
+      expect(p!.mrp.actionTypes.buy, `mrp.actionTypes.buy missing in ${loc}`).toBeTruthy();
     }
   });
 });

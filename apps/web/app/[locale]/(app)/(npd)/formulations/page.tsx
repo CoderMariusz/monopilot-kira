@@ -165,8 +165,22 @@ async function readPageData(): Promise<LoaderResult> {
       // enforced by RLS (org_id = app.current_org_id()); the explicit predicate
       // documents intent and survives a missing policy. The ingredient roll-up
       // (count + allergen union) is a correlated subquery per version.
+      //
+      // F6 (W9 cross-review BLOCKER): the allergen union resolves ITEM-LINKED
+      // ingredient lines LIVE from the SSOT public.item_allergen_profiles
+      // (pre-aggregated CTE keyed by item_id, single left join — the
+      // get-formulation.ts shape), so locked/legacy versions can never surface
+      // a stale stored cache here. The stored column is read ONLY for legacy
+      // free-text lines (item_id IS NULL), which have no SSOT source.
       const result = await ctx.client.query<FormulationLoaderRow>(
-        `select fv.id                                   as version_id,
+        `with profile_allergens as (
+           select iap.item_id,
+                  array_agg(distinct iap.allergen_code order by iap.allergen_code) as codes
+             from public.item_allergen_profiles iap
+            where iap.org_id = app.current_org_id()
+            group by iap.item_id
+         )
+         select fv.id                                   as version_id,
                 f.project_id                            as project_id,
                 f.product_code                          as fg_code,
                 p.product_name                          as fg_name,
@@ -184,8 +198,14 @@ async function readPageData(): Promise<LoaderResult> {
              select count(*)::int as item_count,
                     array(
                       select distinct a
-                        from public.formulation_ingredients fi2,
-                             unnest(fi2.allergens_inherited) as a
+                        from public.formulation_ingredients fi2
+                        left join profile_allergens pa on pa.item_id = fi2.item_id
+                        cross join lateral unnest(
+                          case
+                            when fi2.item_id is not null then coalesce(pa.codes, '{}'::text[])
+                            else coalesce(fi2.allergens_inherited, '{}'::text[])
+                          end
+                        ) as a
                        where fi2.version_id = fv.id
                        order by a
                     ) as allergen_codes

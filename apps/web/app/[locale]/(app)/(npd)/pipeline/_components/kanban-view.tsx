@@ -16,18 +16,22 @@
  *     buckets them by currentGate.
  *   - kanban-col-head label + count            → accessible column header + count.
  *   - empty column "—"                          → labelled placeholder per column.
- *   - (deviation) gate move = merged advanceProjectGate Server Action (T-058):
- *     adjacency-guarded; on click the card is OPTIMISTICALLY moved to the adjacent
- *     gate column; a 422 ADJACENCY_VIOLATION (or any error) SNAPS the card back to
- *     its source column and surfaces an accessible alert (§17.12 optimistic-revert).
+ *   - (deviation, F-C08 fix) the card's "Advance →" no longer calls
+ *     advanceProjectGate directly — that bypassed the gate modal (notes, checklist
+ *     summary, e-sign messaging). It now ROUTES THROUGH THE SAME AdvanceGateModal
+ *     as the project header: navigating to /pipeline/[id]?modal=advanceGate (the
+ *     project workbench layout mounts AdvanceGateModalHost, which reads ?modal=).
+ *     The modal owns notes / checklist display / e-sign errors; failures surface
+ *     there and the modal never closes on a failed advance.
  *
  * RBAC: `canAdvance` is resolved server-side (page.tsx) and never trusted from the
  * client — the affordance is omitted entirely when false (no render-then-disable).
  */
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
+import { projectRoute } from './pipeline-routes';
 import {
   STAGE_ORDER,
   nextGateOf,
@@ -98,8 +102,13 @@ export type KanbanViewProps = {
   /** Server-resolved RBAC gate (never client-trusted). */
   canAdvance: boolean;
   state?: PageState;
-  /** Merged advanceProjectGate Server Action (page.tsx) or a test stub. */
-  advanceAction: AdvanceAction;
+  /**
+   * @deprecated F-C08: the Kanban no longer advances directly — "Advance →" routes
+   * through the AdvanceGateModal (?modal=advanceGate on the project route) so the
+   * gate modal's notes / checklist / e-sign flow can never be bypassed. The prop is
+   * kept optional so existing callers (page.tsx adapter, test stubs) stay valid.
+   */
+  advanceAction?: AdvanceAction;
 };
 
 export function KanbanView({
@@ -107,49 +116,22 @@ export function KanbanView({
   labels,
   canAdvance,
   state = 'ready',
-  advanceAction,
 }: KanbanViewProps) {
   const router = useRouter();
-  const [pending, setPending] = React.useState<Record<string, boolean>>({});
-  const [advanceError, setAdvanceError] = React.useState<string | null>(null);
+  const pathname = usePathname();
 
-  // Advance moves the project to the adjacent GATE (G0..Launched, gate-helpers).
-  // The Kanban columns are STAGE-based (decoupled from the gate), so a successful
-  // advance refreshes the RSC instead of optimistically reshuffling a column.
+  // F-C08 fix: route the advance through the SAME gate modal as the project header.
+  // The project workbench layout mounts AdvanceGateModalHost on every stage route
+  // and opens it from the ?modal=advanceGate query param (the [projectId] index
+  // redirect preserves query params). The modal owns notes, the checklist summary,
+  // e-sign messaging and per-code failure surfacing — no direct action call here.
+  // Batch-D F3: the route is locale-prefixed (pipeline-routes.ts) — a bare
+  // /pipeline/… push escaped the /[locale] tree.
   const handleAdvance = React.useCallback(
-    async (project: KanbanProject) => {
-      const targetGate = nextGateOf(project.currentGate);
-      if (!targetGate) return;
-
-      setAdvanceError(null);
-      setPending((prev) => ({ ...prev, [project.id]: true }));
-
-      let result: Awaited<ReturnType<AdvanceAction>>;
-      try {
-        result = await advanceAction({ projectId: project.id, targetGate });
-      } catch {
-        result = { ok: false, error: 'PERSISTENCE_FAILED' };
-      }
-
-      setPending((prev) => {
-        const next = { ...prev };
-        delete next[project.id];
-        return next;
-      });
-
-      if (result.ok) {
-        // reconcile from the server (gate/stage may have advanced).
-        try {
-          router.refresh();
-        } catch {
-          // router.refresh is unavailable outside a Next request (vitest stub).
-        }
-        return;
-      }
-
-      setAdvanceError(resolveAdvanceError(result.error, labels));
+    (project: KanbanProject) => {
+      router.push(projectRoute(pathname, project.id, 'advanceGate'));
     },
-    [advanceAction, router, labels],
+    [router, pathname],
   );
 
   if (state !== 'ready' && state !== 'empty') {
@@ -201,12 +183,6 @@ export function KanbanView({
       className="space-y-4"
     >
       <KanbanHeader labels={labels} count={projects.length} />
-
-      {advanceError ? (
-        <div role="alert" className="alert alert-red">
-          {advanceError}
-        </div>
-      ) : null}
 
       <section
         aria-label={labels.title}
@@ -264,7 +240,7 @@ export function KanbanView({
                   project={project}
                   labels={labels}
                   canAdvance={canAdvance}
-                  advancing={pending[project.id] ?? false}
+                  advancing={false}
                   nextGate={nextGateOf(project.currentGate)}
                   onAdvance={handleAdvance}
                 />

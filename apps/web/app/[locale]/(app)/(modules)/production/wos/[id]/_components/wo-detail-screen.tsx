@@ -149,6 +149,8 @@ export type WoDetailLabels = {
       lpError: string;
       lpNone: string;
       lpSuggested: string;
+      reasonCode: string;
+      reasonPlaceholder: string;
       submit: string;
       submitting: string;
       cancel: string;
@@ -158,6 +160,11 @@ export type WoDetailLabels = {
       errors: {
         forbidden: string;
         lp_unavailable: string;
+        lp_not_released: string;
+        lp_expired: string;
+        lp_locked: string;
+        quality_hold_active: string;
+        reason_required: string;
         invalid_material: string;
         invalid_qty: string;
         generic: string;
@@ -941,6 +948,7 @@ function RecordConsumptionModal({
   const [materialId, setMaterialId] = useState('');
   const [qty, setQty] = useState('');
   const [lpId, setLpId] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [lps, setLps] = useState<ConsumableLp[]>([]);
   const [lpStatus, setLpStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [busy, setBusy] = useState(false);
@@ -961,6 +969,7 @@ function RecordConsumptionModal({
     setMaterialId(preselectId ?? components[0]?.id ?? '');
     setQty('');
     setLpId('');
+    setReasonCode('');
     setLps([]);
     setLpStatus('idle');
     setError(null);
@@ -997,6 +1006,16 @@ function RecordConsumptionModal({
           return labels.errors.forbidden;
         case 'lp_unavailable':
           return labels.errors.lp_unavailable;
+        case 'lp_not_released':
+          return labels.errors.lp_not_released;
+        case 'lp_expired':
+          return labels.errors.lp_expired;
+        case 'lp_locked':
+          return labels.errors.lp_locked;
+        case 'quality_hold_active':
+          return labels.errors.quality_hold_active;
+        case 'reason_required':
+          return labels.errors.reason_required;
         case 'invalid_material':
           return labels.errors.invalid_material;
         case 'invalid_qty':
@@ -1008,7 +1027,12 @@ function RecordConsumptionModal({
     [labels],
   );
 
-  const canSubmit = materialId !== '' && qty.trim() !== '' && !busy && warning === null;
+  const canSubmit =
+    materialId !== '' &&
+    qty.trim() !== '' &&
+    (lpId !== '' || reasonCode.trim() !== '') &&
+    !busy &&
+    warning === null;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -1023,6 +1047,7 @@ function RecordConsumptionModal({
       materialId,
       qty: qty.trim(),
       lpId: lpId || null,
+      reasonCode: lpId ? null : reasonCode.trim(),
       clientOpId,
     });
     setBusy(false);
@@ -1140,6 +1165,21 @@ function RecordConsumptionModal({
               </>
             )}
           </div>
+          {lpId === '' ? (
+            <div>
+              <label htmlFor="wo-consume-reason" className="mb-1 block text-sm font-medium text-slate-700">
+                {labels.reasonCode}
+              </label>
+              <Input
+                id="wo-consume-reason"
+                data-testid="wo-consume-reason"
+                value={reasonCode}
+                disabled={busy || warning !== null}
+                placeholder={labels.reasonPlaceholder}
+                onChange={(e) => setReasonCode(e.target.value)}
+              />
+            </div>
+          ) : null}
         </div>
       </Modal.Body>
       <Modal.Footer>

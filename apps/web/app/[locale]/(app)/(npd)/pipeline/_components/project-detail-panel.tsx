@@ -34,10 +34,12 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 
+import { projectRoute } from './pipeline-routes';
 import { gateLabelOf, type SplitLabels } from './split-labels';
 import type { KanbanProject, ProjectPriority } from './kanban-types';
 
@@ -80,6 +82,11 @@ export type ProjectDetailPanelProps = {
 };
 
 export function ProjectDetailPanel({ project, labels }: ProjectDetailPanelProps) {
+  // Batch-D F3: locale-prefixed "Open project" link (pipeline-routes.ts) — a
+  // bare /pipeline/… href escaped the /[locale] tree. (Hook before the early
+  // return so the hook order is stable.)
+  const pathname = usePathname();
+
   if (!project) {
     return (
       <aside
@@ -164,7 +171,7 @@ export function ProjectDetailPanel({ project, labels }: ProjectDetailPanelProps)
           </div>
 
           <Link
-            href={`/pipeline/${project.id}`}
+            href={projectRoute(pathname, project.id)}
             prefetch
             data-slot="button"
             className="btn btn-primary flex w-full items-center justify-center"

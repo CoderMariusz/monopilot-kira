@@ -82,9 +82,11 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
 
       const project = await loadProjectForUpdate(context, parsed.data.projectId);
 
-      // Terminal short-circuit: already launched.
+      // Terminal short-circuit: already launched. This is a real failure of the
+      // requested advance (F-C09: it used to carry status 200, which read as a
+      // silent success from the client) — 409 Conflict is the honest status.
       if (project.current_stage === 'launched' || project.current_gate === 'Launched') {
-        return { ok: false, error: 'ALREADY_CLOSED', status: 200 };
+        return { ok: false, error: 'ALREADY_CLOSED', status: 409 };
       }
 
       // Adjacency: the requested stage must be exactly the successor of the current

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -15,7 +15,13 @@ import {
 import { useScannerSession } from "../../../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../../../_components/scanner-labels";
 import { StateText } from "../../../_components/receive-po-list-screen";
-import type { ReceiveResponse, ScannerPoDetail, ScannerPoLine } from "../../../_components/types";
+import type {
+  LocationLookupResponse,
+  ReceiveResponse,
+  ScannerLocation,
+  ScannerPoDetail,
+  ScannerPoLine,
+} from "../../../_components/types";
 
 export function ReceivePoItemScreen({
   locale,
@@ -38,6 +44,13 @@ export function ReceivePoItemScreen({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<ReceiveResponse | null>(null);
+  // Lane W9-L8: optional destination — scan/type a location code, resolve it
+  // via GET /api/warehouse/scanner/location (same manual-location pattern as
+  // the putaway screen). Empty = default location (the hint says so).
+  const [destVal, setDestVal] = useState("");
+  const [destResolving, setDestResolving] = useState(false);
+  const [destErr, setDestErr] = useState<string | null>(null);
+  const [destLocation, setDestLocation] = useState<ScannerLocation | null>(null);
   const L = labels.receivePo;
 
   useEffect(() => {
@@ -73,9 +86,46 @@ export function ReceivePoItemScreen({
   const line = useMemo(() => po?.lines.find((candidate) => candidate.id === lineId) ?? null, [po, lineId]);
   const remaining = line ? remainingQty(line) : "0";
   const overReceive = line ? Number(qty || "0") > Number(remaining) : false;
+  // Typed-but-unresolved destination blocks Receive — never silently fall back
+  // to the default location when the operator clearly asked for one.
+  const destPending = destVal.trim() !== "" && (!destLocation || destResolving);
+
+  const resolveDestination = useCallback(
+    async (raw: string) => {
+      const code = raw.trim();
+      if (!code) return;
+      setDestResolving(true);
+      setDestErr(null);
+      try {
+        const res = await scannerFetch(
+          `/api/warehouse/scanner/location?code=${encodeURIComponent(code)}`,
+          undefined,
+          { method: "GET", namespace: "absolute" },
+        );
+        if (res.status === 404) {
+          setDestLocation(null);
+          setDestErr(L.locationNotFound);
+          return;
+        }
+        const body = (await res.json()) as LocationLookupResponse;
+        if (!res.ok || !body.location) {
+          setDestLocation(null);
+          setDestErr(L.locationNotFound);
+          return;
+        }
+        setDestLocation(body.location);
+      } catch {
+        setDestLocation(null);
+        setDestErr(L.errorLoad);
+      } finally {
+        setDestResolving(false);
+      }
+    },
+    [scannerFetch, L],
+  );
 
   async function submit() {
-    if (!line || submitting) return;
+    if (!line || submitting || destPending) return;
     setSubmitting(true);
     setError(null);
     const payload = {
@@ -84,6 +134,7 @@ export function ReceivePoItemScreen({
       qty,
       batchNumber: batchNumber.trim() || undefined,
       bestBefore: bestBefore || undefined,
+      toLocationId: destLocation?.id,
     };
     try {
       const res = await scannerFetch("/api/warehouse/scanner/receive-line", payload, { namespace: "absolute" });
@@ -91,7 +142,8 @@ export function ReceivePoItemScreen({
       if (!res.ok || !body.ok) throw new Error(body.error || `HTTP_${res.status}`);
       setDone(body);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "receive_failed");
+      const message = err instanceof Error ? err.message : "receive_failed";
+      setError(message === "invalid_location" ? L.locationNotFound : message);
     } finally {
       setSubmitting(false);
     }
@@ -132,6 +184,40 @@ export function ReceivePoItemScreen({
             <Field label={L.bestBefore}>
               <input value={bestBefore} onChange={(event) => setBestBefore(event.target.value)} type="date" style={inputStyle} />
             </Field>
+            {/* Lane W9-L8: optional destination — same manual-location UX as putaway. */}
+            <Field label={L.destinationLabel}>
+              <input
+                value={destVal}
+                onChange={(event) => {
+                  setDestVal(event.target.value);
+                  setDestErr(null);
+                  setDestLocation(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void resolveDestination(destVal);
+                  }
+                }}
+                placeholder={L.destinationPlaceholder}
+                aria-label={L.destinationLabel}
+                style={destInputStyle}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <div style={{ marginTop: 6, fontSize: 11, color: T.hint }}>{L.destinationHint}</div>
+              {destResolving && <div style={{ padding: "8px 0", color: T.mute, fontSize: 13 }}>{L.resolving}</div>}
+              {destErr && <Banner kind="err" title={destErr}>{" "}</Banner>}
+              {destLocation && !destResolving && (
+                <div style={resolvedChipStyle}>
+                  <div style={resolvedChipLabel}>{L.resolvedLabel}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
+                    <span style={monoLocStyle}>{destLocation.code}</span>
+                    <span style={{ fontSize: 12, color: T.mute }}>{destLocation.name}</span>
+                  </div>
+                </div>
+              )}
+            </Field>
             <Field label={`${L.qty} (${line.uom})`}>
               <div style={qtyDisplayStyle} data-testid="receive-po-uom-label">
                 <span>{qty || "0"}</span>
@@ -167,7 +253,7 @@ export function ReceivePoItemScreen({
       </Content>
       <BottomActions>
         {!done && (
-          <Btn onClick={submit} disabled={!line || !qty || submitting}>
+          <Btn onClick={submit} disabled={!line || !qty || submitting || destPending}>
             {submitting ? L.receiving : L.receive}
           </Btn>
         )}
@@ -253,6 +339,45 @@ const inputStyle = {
   padding: "0 12px",
   fontSize: 16,
   outline: "none",
+} as const;
+
+// Lane W9-L8: destination-location field — mirrors the putaway manual-location
+// input/chip styling (putaway-screen.tsx manualInputStyle / resolvedChip).
+const destInputStyle = {
+  width: "100%",
+  height: 48,
+  borderRadius: 8,
+  border: `1px solid ${T.elev}`,
+  background: T.surf,
+  color: T.txt,
+  padding: "0 12px",
+  fontSize: 16,
+  outline: "none",
+  fontFamily: "'Courier New', monospace",
+  fontWeight: 600,
+} as const;
+
+const resolvedChipStyle = {
+  marginTop: 10,
+  borderRadius: 12,
+  border: `1px solid ${T.blue}`,
+  background: "#0e2333",
+  padding: 12,
+} as const;
+
+const resolvedChipLabel = {
+  fontSize: 10,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: T.hint,
+  fontWeight: 700,
+} as const;
+
+const monoLocStyle = {
+  fontFamily: "'Courier New', monospace",
+  letterSpacing: 0.5,
+  fontWeight: 800,
+  color: T.txt,
 } as const;
 
 const qtyDisplayStyle = {

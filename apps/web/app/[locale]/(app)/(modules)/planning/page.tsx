@@ -9,15 +9,15 @@
  *     upcoming-schedule tabs (WO/PO/TO)          → dashboard.jsx:138-231
  *
  * The prototype's PLAN_KPIS / WO_ALERTS / UPCOMING_WOS mock arrays are replaced
- * with REAL Supabase reads (public.work_orders, migration 176) via withOrgContext.
- * Honest data policy: purchase_orders / transfer_orders tables DO NOT exist yet,
- * so those KPI tiles + alert panels + schedule tabs render "—" / "module not live
- * yet" (same pattern as the org dashboard Pending POs tile). No fake numbers.
+ * with REAL Supabase reads (work_orders mig 176, purchase_orders mig 262,
+ * transfer_orders mig 263) via withOrgContext. W9-M2 removed the stale
+ * "module not live yet" PO/TO placeholders — those tables are live now, so the
+ * PO/TO KPI tiles show real open counts and the PO/TO alert panels show real
+ * overdue documents. No fake numbers.
  *
- * Header actions: Create WO links to /planning/work-orders?new=1 (the WO-list
- * route is owned by a sibling lane; link is honest even if it 404s for a few
- * hours). Create PO / Create TO / Run sequencing / Trigger D365 are disabled with
- * a "Not available yet" title.
+ * Header actions: Create WO/PO/TO link to the live screens. Run sequencing /
+ * Trigger D365 stay disabled with a "Not available yet" title (no sequencing
+ * solver / D365 backend exists yet — that copy is still true).
  *
  * UI states: loading (Suspense skeleton, no CLS), empty (zero KPIs + empty
  * schedule/alert copy), error (failed read → banner, never a 500), permission-
@@ -37,6 +37,7 @@ const PLANNING_NAV_CARDS = [
   { key: "purchaseOrders", href: "/planning/purchase-orders" },
   { key: "transferOrders", href: "/planning/transfer-orders" },
   { key: "suppliers", href: "/planning/suppliers" },
+  { key: "mrp", href: "/planning/mrp" },
 ] as const;
 
 import {
@@ -151,7 +152,7 @@ async function DashboardContent({ locale }: { locale: string }) {
     );
   }
 
-  const { kpis, alerts, schedule } = result.data;
+  const { kpis, alerts, poAlerts, toAlerts, schedule } = result.data;
   const woHrefFor = (id: string) => `/${locale}/planning/work-orders?wo=${id}`;
   const statusLabelFor = (s: string): string => {
     const key = s.toLowerCase();
@@ -162,10 +163,24 @@ async function DashboardContent({ locale }: { locale: string }) {
 
   const alertRows: PlanningAlertRow[] = alerts.map((a) => ({
     id: a.id,
-    woNumber: a.woNumber,
+    refNumber: a.woNumber,
     reason: t(`alerts.reasons.${a.reasonKey}`),
     severity: a.severity,
     href: woHrefFor(a.id),
+  }));
+  const poAlertRows: PlanningAlertRow[] = poAlerts.map((a) => ({
+    id: a.id,
+    refNumber: a.refNumber,
+    reason: t(`alerts.reasons.${a.reasonKey}`),
+    severity: a.severity,
+    href: `/${locale}/planning/purchase-orders/${a.id}`,
+  }));
+  const toAlertRows: PlanningAlertRow[] = toAlerts.map((a) => ({
+    id: a.id,
+    refNumber: a.refNumber,
+    reason: t(`alerts.reasons.${a.reasonKey}`),
+    severity: a.severity,
+    href: `/${locale}/planning/transfer-orders/${a.id}`,
   }));
 
   const scheduleView = buildScheduleView(schedule, locale, woHrefFor, statusLabelFor);
@@ -177,12 +192,13 @@ async function DashboardContent({ locale }: { locale: string }) {
 
       <PlanningAlertPanels
         woAlerts={alertRows}
+        poAlerts={poAlertRows}
+        toAlerts={toAlertRows}
         labels={{
           woTitle: t("alerts.wo"),
           poTitle: t("alerts.po"),
           toTitle: t("alerts.to"),
           empty: t("alerts.empty"),
-          notLive: t("notLive"),
           view: t("alerts.view"),
         }}
       />
@@ -190,11 +206,14 @@ async function DashboardContent({ locale }: { locale: string }) {
       <UpcomingSchedule
         days={scheduleView}
         scheduledCount={scheduledCount}
+        poListHref={`/${locale}/planning/purchase-orders`}
+        toListHref={`/${locale}/planning/transfer-orders`}
         labels={{
           woTab: t("upcoming.woTab"),
           poTab: t("upcoming.poTab"),
           toTab: t("upcoming.toTab"),
-          notLive: t("notLive"),
+          openPos: t("upcoming.openPos"),
+          openTos: t("upcoming.openTos"),
           empty: t("upcoming.empty"),
           woCol: t("upcoming.woCol"),
           statusCol: t("upcoming.statusCol"),

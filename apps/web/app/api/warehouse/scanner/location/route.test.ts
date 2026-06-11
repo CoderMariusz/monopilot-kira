@@ -52,6 +52,19 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+/**
+ * The route runs inside withTxnOrgContext (begin → session_org_contexts insert →
+ * set_org_context → SELECT → commit → cleanup), so the location SELECT is no
+ * longer call #0 — find it by shape instead of position.
+ */
+function findLocationSelect(): [string, unknown[]] {
+  const call = fakeClient.query.mock.calls.find(
+    (c) => normalize(String(c[0])).includes('from public.locations loc'),
+  );
+  expect(call, 'location SELECT not issued').toBeDefined();
+  return call as [string, unknown[]];
+}
+
 describe('warehouse scanner location route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -87,7 +100,7 @@ describe('warehouse scanner location route', () => {
     });
     expect(withScannerOrgMock).toHaveBeenCalledTimes(1);
 
-    const [sql, params] = fakeClient.query.mock.calls[0] as [string, unknown[]];
+    const [sql, params] = findLocationSelect();
     const q = normalize(sql);
     expect(q).toContain('from public.locations loc');
     expect(q).toContain('join public.warehouses w');
@@ -119,7 +132,7 @@ describe('warehouse scanner location route', () => {
     const response = await GET(request(id) as never);
 
     expect(response.status).toBe(200);
-    expect(fakeClient.query.mock.calls[0]?.[1]).toEqual([id, id]);
+    expect(findLocationSelect()[1]).toEqual([id, id]);
   });
 
   it('returns location_not_found when no match exists', async () => {

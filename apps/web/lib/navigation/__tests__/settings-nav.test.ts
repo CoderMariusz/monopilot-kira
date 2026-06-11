@@ -103,6 +103,8 @@ const EXPECTED_SETTINGS_NAV = [
     items: [
       { key: "my-profile", label: "My profile", icon: "◯" },
       { key: "my-notifications", label: "Notifications", icon: "◔" },
+      // W9-L7 — shared scanner/e-sign PIN management screen.
+      { key: "my-pin", label: "E-sign & scanner PIN", icon: "✱" },
     ],
   },
 ] as const;

@@ -454,6 +454,20 @@ export async function moveScannerLp(
       materialId: null,
     });
     await updateLpLocation(client, session, input.lpId, input.toLocationId);
+    // Lifecycle (audit F-A01): putaway is the canonical received→available
+    // transition — v_inventory_available (mig 191) requires status='available',
+    // so without this promotion received stock never reaches FEFO/consume.
+    // Only 'received' promotes; every other state is left untouched (a transfer
+    // of available/quarantine/blocked stock is a pure location move).
+    if (input.moveType === 'putaway' && lp.status === 'received') {
+      await promoteLpReceivedToAvailable(client, session, {
+        lpId: input.lpId,
+        lpQaStatus: lp.qa_status,
+        reasonCode: 'putaway',
+        stockMoveId: moveId,
+        transactionId: transactionIdFor('warehouse.putaway.promote', input.clientOpId),
+      });
+    }
     return moveId;
   });
 }
@@ -742,6 +756,71 @@ async function insertStockMove(
   const move = existing.rows[0];
   if (!move) throw new WarehouseScannerError('move_not_recorded', 409);
   return move.id;
+}
+
+// Audit F-A01: the put-away state transition. Promotes status 'received' →
+// 'available' (guarded in SQL so a concurrent transition can never double-fire),
+// writes the lp_state_history ledger row (mig 193 pattern: same txn as the
+// license_plates UPDATE, deterministic transaction_id + ON CONFLICT for replay
+// safety) and emits the warehouse.lp.transitioned outbox event (mirrors
+// lp-qa-actions.ts). qa_status is NOT touched — that stays owned by 09-Quality;
+// v_inventory_available additionally requires qa_status='released', so putting
+// away still-pending stock keeps it invisible to FEFO until QA releases it.
+async function promoteLpReceivedToAvailable(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  input: {
+    lpId: string;
+    lpQaStatus: string;
+    reasonCode: string;
+    stockMoveId: string | null;
+    transactionId: string;
+  },
+): Promise<void> {
+  const updated = await client.query<{ id: string; lp_number: string }>(
+    `update public.license_plates
+        set status = 'available',
+            updated_by = $2::uuid,
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and status = 'received'
+      returning id::text, lp_number`,
+    [input.lpId, session.user_id],
+  );
+  const row = updated.rows[0];
+  if (!row) return;
+
+  await client.query(
+    `insert into public.lp_state_history
+       (org_id, lp_id, from_state, to_state, reason_code, stock_move_id, transaction_id, created_by)
+     values
+       (app.current_org_id(), $1::uuid, 'received', 'available', $2, $3::uuid, $4::uuid, $5::uuid)
+     on conflict (org_id, transaction_id) do nothing`,
+    [input.lpId, input.reasonCode, input.stockMoveId, input.transactionId, session.user_id],
+  );
+
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values
+       (app.current_org_id(), 'warehouse.lp.transitioned', 'license_plate', $1::uuid, $2::jsonb, 'warehouse-scanner-putaway-v1')`,
+    [
+      input.lpId,
+      JSON.stringify({
+        org_id: session.org_id,
+        actor_user_id: session.user_id,
+        lp_id: input.lpId,
+        lp_number: row.lp_number,
+        status_from: 'received',
+        status_to: 'available',
+        qa_status_from: input.lpQaStatus,
+        qa_status_to: input.lpQaStatus,
+        reason_code: input.reasonCode,
+        stock_move_id: input.stockMoveId,
+      }),
+    ],
+  );
 }
 
 async function updateLpLocation(

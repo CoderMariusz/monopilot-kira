@@ -358,51 +358,21 @@ const NUTRITION_TARGETS: NutritionTargets = {
   salt_g: { target: '1.5', max: '1.8' },
 };
 
-interface RmNutritionRow {
-  rm_code: string;
-  nutrition_per_100g: Record<string, unknown> | null;
-}
-
-/** Postgres SQLSTATE for "undefined_table" (relation does not exist). */
-const PG_UNDEFINED_TABLE = '42P01';
-
 /**
- * Load per-100g nutrition for the given rm_codes from the canonical
- * Reference.RawMaterials master (the same source the T-065 recompute action
- * uses), so the live NutritionPanel can recompute on pct edits client-side.
- * Degrades gracefully to an empty map when the table is not yet provisioned.
+ * F-B05 (W9-L4): per-100g nutrition now arrives JOINED on each ingredient row
+ * (getFormulation reads Reference.RawMaterials.nutrition_per_100g — the same
+ * canonical source the T-065 recompute action uses), so the page no longer runs
+ * its own round-trip. This helper only coerces the jsonb values to NUMERIC
+ * strings at the boundary (never a binary float on the nutrition path).
  */
-async function loadRmNutrition(
-  ctx: OrgContextLike,
-  rmCodes: string[],
-): Promise<Map<string, Record<string, string>>> {
-  const out = new Map<string, Record<string, string>>();
-  const unique = [...new Set(rmCodes)].filter(Boolean);
-  if (unique.length === 0) return out;
-  let rows: RmNutritionRow[];
-  try {
-    const res = await ctx.client.query<RmNutritionRow>(
-      `select rm_code, nutrition_per_100g
-         from "Reference"."RawMaterials"
-        where rm_code = any($1::text[])`,
-      [unique],
-    );
-    rows = res.rows;
-  } catch (err) {
-    if ((err as { code?: string })?.code === PG_UNDEFINED_TABLE) return out;
-    throw err;
+function coerceNutritionPer100g(src: Record<string, unknown> | null | undefined): Record<string, string> | null {
+  if (!src || typeof src !== 'object') return null;
+  const per: Record<string, string> = {};
+  for (const [k, v] of Object.entries(src)) {
+    if (v === null || v === undefined) continue;
+    per[k] = String(v);
   }
-  for (const row of rows) {
-    const src = row.nutrition_per_100g;
-    if (!src || typeof src !== 'object') continue;
-    const per: Record<string, string> = {};
-    for (const [k, v] of Object.entries(src)) {
-      if (v === null || v === undefined) continue;
-      per[k] = String(v);
-    }
-    out.set(row.rm_code, per);
-  }
-  return out;
+  return Object.keys(per).length > 0 ? per : null;
 }
 
 /**
@@ -517,22 +487,6 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
   const packWeightG = basics.packWeightG;
   const versionHistory = basics.versions;
 
-  // RM codes needed for the per-100g nutrition load (only when we have rows) —
-  // depends on the formulation result, so it runs after, and is SKIPPED entirely
-  // for an empty/new recipe (no extra round-trip).
-  const rmCodes =
-    result.ok && result.data.ingredients ? result.data.ingredients.map((i) => i.rm_code) : [];
-  let nutritionByRm = new Map<string, Record<string, string>>();
-  if (rmCodes.length > 0) {
-    try {
-      nutritionByRm = await withOrgContext(async (rawCtx) =>
-        loadRmNutrition(rawCtx as OrgContextLike, rmCodes),
-      );
-    } catch {
-      nutritionByRm = new Map();
-    }
-  }
-
   if (!result.ok) {
     if (result.error === 'not_found') return { state: 'empty', data: null, canEdit, submitAllowed };
     if (result.error === 'invalid_input') return { state: 'empty', data: null, canEdit, submitAllowed };
@@ -565,7 +519,8 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
           : [{ id: currentVersion.id, versionNumber: currentVersion.versionNumber }, ...versionHistory]
         : [{ id: currentVersion.id, versionNumber: currentVersion.versionNumber }],
     ingredients: ingredients.map((ing) => {
-      const nutrition = nutritionByRm.get(ing.rm_code);
+      // F-B05: nutrition is joined per ingredient by getFormulation now.
+      const nutrition = coerceNutritionPer100g(ing.nutrition_per_100g);
       return {
         id: ing.id,
         rmCode: ing.rm_code,
@@ -576,7 +531,9 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         qtyKg: ing.qty_kg,
         pct: ing.pct,
         costPerKgEur: ing.cost_per_kg_eur,
-        allergen: ing.allergens_inherited?.[0] ?? null,
+        // F-A08: FULL derived allergen array (SSOT-resolved server-side) — the
+        // old `?.[0]` silently truncated multi-allergen items to one entry.
+        allergens: ing.allergens_inherited ?? [],
         sequence: ing.sequence,
         ...(nutrition ? { nutritionPer100g: nutrition } : {}),
       };

@@ -30,9 +30,13 @@
  *   - the component picker reads the real item master via `listItems`
  *     (withOrgContext + RLS), the manufacturing-operation Select reads
  *     `listManufacturingOperations`, the usability gate calls the real
- *     `validateBomComponent` (T-074) Server Action, and the save persists a
- *     NEW draft version via `createBomDraft` (T-013) — never mutating an
- *     approved/active/released row in place (clone-on-write red-line).
+ *     `validateBomComponent` (T-074) Server Action, and the save persists via
+ *     `addBomLine` (append in place on an editable draft/in_review version) or
+ *     `createBomDraft` (clone-on-write fork carrying ALL existing lines +
+ *     co-products when the source is released/terminal, or the v1 draft in
+ *     first-authoring) — never mutating an approved/active/released row in
+ *     place (clone-on-write red-line). F-B01 fix: previously EVERY add forked
+ *     a new 1-line draft, so multi-ingredient recipes were impossible.
  *
  * Local `Dialog` (not the Radix-backed @monopilot/ui Modal): apps/web runs
  * React 19 while the workspace ships a React-18 peer @radix-ui/react-dialog, so
@@ -50,6 +54,7 @@ import { Button } from '@monopilot/ui/Button';
 import { Select } from '@monopilot/ui/Select';
 
 import { createBomDraft } from '../_actions/create-draft';
+import { addBomLine } from '../_actions/line-actions';
 import type { BomStatus, BomValidationCode, ComponentType } from '../_actions/shared';
 import { listItems } from '../../items/_actions/list-items';
 import type { ItemListItem, ItemType } from '../../items/_actions/shared';
@@ -80,6 +85,32 @@ const RELEASED_STATUSES: ReadonlySet<BomStatus> = new Set<BomStatus>([
   'active',
 ]);
 
+/** Statuses the server's line actions accept for an IN-PLACE append (mirrors
+ *  BOM_LINE_EDITABLE_STATUSES in _actions/shared.ts — never client-decided,
+ *  the server re-enforces it). */
+const EDITABLE_STATUSES: ReadonlySet<BomStatus> = new Set<BomStatus>(['draft', 'in_review']);
+
+/** One existing component line of the SOURCE version — carried into a
+ *  clone-on-write fork so the new draft is COMPLETE (F-B01: forking with only
+ *  the new line produced impossible 1-ingredient recipes). */
+export type BomEditLine = {
+  itemId?: string;
+  componentCode: string;
+  componentType?: ComponentType;
+  quantity: number;
+  uom: string;
+  scrapPct?: number;
+  manufacturingOperationName?: string;
+};
+
+export type BomEditCoProduct = {
+  coProductItemId: string;
+  quantity: number;
+  uom: string;
+  allocationPct: number;
+  isByproduct?: boolean;
+};
+
 export type BomEditContext = {
   /** Owning FG product_code (= bom_headers.product_id). */
   productId: string;
@@ -89,6 +120,18 @@ export type BomEditContext = {
   currentVersion: number;
   /** Source BOM status — drives the released/clone-on-write copy. */
   sourceStatus: BomStatus;
+  /**
+   * The SELECTED version's bom_headers.id. When present AND the status is
+   * editable (draft | in_review), "Add component" APPENDS the line in place via
+   * addBomLine — no version fork. Absent only in first-authoring (no BOM yet).
+   */
+  bomHeaderId?: string;
+  /** The source version's existing lines — carried fully into a clone-on-write fork. */
+  existingLines?: BomEditLine[];
+  /** The source version's co-products — carried into the fork (keeps V-TEC-12 true). */
+  coProducts?: BomEditCoProduct[];
+  /** Source version yield — preserved on fork (createBomDraft defaults to 100). */
+  yieldPct?: number;
 };
 
 // ── Local Dialog primitive (a11y-complete, no Radix) ──────────────────────────
@@ -281,7 +324,7 @@ export function ComponentAddModal({
     setUsability({ kind: 'checking' });
     const res = await validateBomComponent({ itemId: material.id });
     if (res.ok) {
-      setUsability({ kind: 'ok', warnings: verdictWarnings(res.verdict) });
+      setUsability({ kind: 'ok', warnings: res.verdict ? verdictWarnings(res.verdict) : [] });
     } else if (res.error === 'blocked' && res.verdict) {
       setUsability(verdictToBlocked(res.verdict));
     } else if (res.error === 'item_not_found') {
@@ -304,20 +347,53 @@ export function ComponentAddModal({
         return; // no BOM line mutation
       }
 
-      // Clone-on-write: always create a NEW draft version (never edit in place).
+      const newLine = {
+        itemId: picked.id,
+        componentCode: picked.itemCode,
+        componentType: ITEM_TYPE_TO_COMPONENT_TYPE[picked.itemType],
+        quantity: qtyNum,
+        uom: picked.uomBase,
+        scrapPct: Number(scrap) || 0,
+        manufacturingOperationName: operationName.trim(),
+      };
+
+      // F-B01 — three flows, two persistence paths:
+      //  (1) EXISTING editable draft/in_review version → APPEND the line in
+      //      place via addBomLine (no version fork).
+      //  (2) Released/terminal source version → clone-on-write fork via
+      //      createBomDraft with ALL existing lines + the new one (+ carried
+      //      co-products & yield), so the fork is COMPLETE — never 1-line.
+      //  (3) First-authoring (no bomHeaderId) → create the v1 draft with the
+      //      single new line (unchanged).
+      if (context.bomHeaderId && EDITABLE_STATUSES.has(context.sourceStatus)) {
+        const result = await addBomLine({ bomHeaderId: context.bomHeaderId, ...newLine });
+        if (result.ok) {
+          onAdded?.({ id: context.bomHeaderId, version: context.currentVersion });
+          router.refresh();
+          onClose();
+        } else if (result.error === 'forbidden') {
+          setError(t('forbidden'));
+        } else if (result.error === 'validation_failed') {
+          setUsability({ kind: 'blocked', code: result.code ?? 'V-TEC-14', message: result.message ?? '' });
+        } else {
+          setError(result.message ?? t('saveError'));
+        }
+        return;
+      }
+
+      const carriedLines = context.bomHeaderId ? context.existingLines ?? [] : [];
+      const carriedCoProducts = context.bomHeaderId ? context.coProducts ?? [] : [];
+      // V-TEC-12: parent share = 100 − Σ non-byproduct co-product allocations,
+      // reconstructing the validity the source version already satisfied.
+      const parentAllocationPct =
+        100 - carriedCoProducts.filter((cp) => !cp.isByproduct).reduce((acc, cp) => acc + cp.allocationPct, 0);
+
       const result = await createBomDraft({
         productId: context.productId,
-        lines: [
-          {
-            itemId: picked.id,
-            componentCode: picked.itemCode,
-            componentType: ITEM_TYPE_TO_COMPONENT_TYPE[picked.itemType],
-            quantity: qtyNum,
-            uom: picked.uomBase,
-            scrapPct: Number(scrap) || 0,
-            manufacturingOperationName: operationName.trim(),
-          },
-        ],
+        lines: [...carriedLines, newLine],
+        coProducts: carriedCoProducts,
+        parentAllocationPct,
+        ...(context.bomHeaderId && context.yieldPct != null ? { yieldPct: context.yieldPct } : {}),
       });
       if (result.ok) {
         onAdded?.({ id: result.data.id, version: result.data.version });
@@ -540,11 +616,19 @@ export function VersionSaveModal({
     startTransition(async () => {
       // Clone-on-write: createBomDraft always opens a NEW draft version; the
       // released v{currentVersion} is never mutated in place.
+      // F4 (W9 cross-review HIGH): same V-TEC-12 reconstruction as the
+      // add-component fork path — parent share = 100 − Σ non-byproduct
+      // co-product allocations. Without it, carrying any non-byproduct
+      // co-product fails the create-draft allocation validation.
+      const carriedCoProducts = coProducts ?? [];
+      const parentAllocationPct =
+        100 - carriedCoProducts.filter((cp) => !cp.isByproduct).reduce((acc, cp) => acc + cp.allocationPct, 0);
       const result = await createBomDraft({
         productId: context.productId,
         notes: `${label.trim()} — ${reason.trim()}`,
         lines,
-        coProducts: coProducts ?? [],
+        coProducts: carriedCoProducts,
+        parentAllocationPct,
       });
       if (result.ok) {
         onSaved?.({ id: result.data.id, version: result.data.version });

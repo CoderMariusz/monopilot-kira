@@ -119,6 +119,35 @@ export function assertAdjacentStage(currentStage: string, targetStage: AnyStage)
   }
 }
 
+/**
+ * The honest UI-facing advance transition for a stage: the single next stage and
+ * the gate that stage DERIVES into. This is the one source the advance modal /
+ * header / gate screen must use for their "advance to …" claims, so the UI never
+ * promises a gate the engine cannot land on.
+ *
+ * NOTE on G1 (intended skip, 2026-06-06 pivot — see the state-machine header):
+ * a project is created at stage 'brief' with gate G0; the first advance goes
+ * brief→recipe which derives gate G2. G1 (Feasibility) is collapsed into the
+ * brief stage and is NEVER a forward advance target — it can only appear via an
+ * admin gate revert. Any UI claiming "next: G1" is lying; use this helper.
+ */
+export type AdvanceTransition = {
+  nextStage: AnyStage;
+  targetGate: ProjectGate;
+  /** True only for the approval→handoff step (the enforced G4 e-sign checkpoint). */
+  requiresESign: boolean;
+};
+
+export function advanceTransitionForStage(currentStage: string): AdvanceTransition | null {
+  const next = nextStage(currentStage);
+  if (!next) return null;
+  return {
+    nextStage: next,
+    targetGate: gateForStage(next),
+    requiresESign: currentStage === 'approval' && next === 'handoff',
+  };
+}
+
 export type GateProjectRow = {
   id: string;
   code: string;

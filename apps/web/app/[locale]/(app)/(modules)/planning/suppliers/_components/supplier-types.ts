@@ -16,6 +16,11 @@ export type SupplierError =
   | 'not_found'
   | 'already_exists'
   | 'invalid_state'
+  // mirrors planning ProcurementError (W9-K-II added insufficient_stock for TO
+  // ship validation; W9-RF5 added partially_received for TO cancel refusal);
+  // supplier flows never return these but the seam types must stay aligned.
+  | 'insufficient_stock'
+  | 'partially_received'
   | 'persistence_failed';
 
 export type Supplier = {

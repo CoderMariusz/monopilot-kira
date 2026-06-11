@@ -84,6 +84,7 @@ export function ConsumeScreen({
   const [lpState, setLpState] = useState<LpState>("loading");
   const [selectedLp, setSelectedLp] = useState<LpCandidate | null>(null);
   const [qty, setQty] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
   const [showKeypad, setShowKeypad] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
@@ -157,6 +158,7 @@ export function ConsumeScreen({
     const remaining = remainingQty(m);
     setQty(remaining > 0 ? String(remaining) : "");
     setSelectedLp(null);
+    setReasonCode("");
     setSubmitErr(null);
     setApproval(null);
     setDoneWarning(null);
@@ -171,6 +173,7 @@ export function ConsumeScreen({
   // the flow alive when no LP candidates exist or the LP fetch failed.
   const chooseLp = (lp: LpCandidate | null) => {
     setSelectedLp(lp);
+    setReasonCode("");
     setSubmitErr(null);
     setApproval(null);
     setClientOpId(null);
@@ -190,12 +193,14 @@ export function ConsumeScreen({
       qty: String(qty),
     };
     if (selectedLp) payload.lpId = selectedLp.lpId;
+    if (!selectedLp) payload.reasonCode = reasonCode.trim();
     if (approver) payload.approver = approver;
     try {
       const res = await woPost(`/api/production/scanner/wos/${woId}/consume`, payload);
       if (!res) return; // 401 → redirect
       if (res.status === 422) {
-        setSubmitErr(L.err422);
+        const data = await res.json().catch(() => null);
+        setSubmitErr(data?.error === "reason_required" ? L.reasonRequired : L.err422);
         return;
       }
       if (res.status === 409) {
@@ -211,7 +216,7 @@ export function ConsumeScreen({
           setSubmitErr(null);
           return;
         }
-        setSubmitErr(L.err409);
+        setSubmitErr(mapConsumeConflict(data?.error, L));
         return;
       }
       const data = (await res.json()) as MutationResult & { warning?: OverconsumeWarning };
@@ -239,6 +244,7 @@ export function ConsumeScreen({
     setSelectedLp(null);
     setLps([]);
     setQty("");
+    setReasonCode("");
     setSubmitErr(null);
     setApproval(null);
     setDoneWarning(null);
@@ -424,6 +430,11 @@ export function ConsumeScreen({
                       {selectedLp.expiry ? ` · ${L.lpExpiry} ${selectedLp.expiry}` : ""}
                     </div>
                   )}
+                  {!selectedLp && (
+                    <div style={{ fontSize: 12, color: T.hint, marginTop: 2 }}>
+                      {L.lpManual}
+                    </div>
+                  )}
                 </div>
                 <div style={{ padding: "12px 16px" }}>
                   <div style={fieldLabelStyle}>
@@ -442,6 +453,20 @@ export function ConsumeScreen({
                     {L.qtyHint} · {remainingQty(selected)} {selected.uom} {L.needed}
                   </div>
                 </div>
+                {!selectedLp && (
+                  <div style={{ padding: "0 16px 12px" }}>
+                    <label htmlFor="consume-reason-code" style={fieldLabelStyle}>
+                      {L.reasonLabel} <span style={{ color: T.red }}>*</span>
+                    </label>
+                    <input
+                      id="consume-reason-code"
+                      value={reasonCode}
+                      onChange={(e) => setReasonCode(e.target.value)}
+                      placeholder={L.reasonPlaceholder}
+                      style={textFieldStyle}
+                    />
+                  </div>
+                )}
                 {submitErr && (
                   <Banner kind="err" title={submitErr}>
                     {" "}
@@ -504,7 +529,7 @@ export function ConsumeScreen({
             <BottomActions>
               <Btn
                 variant="p"
-                disabled={!qty || Number(qty) <= 0 || submitting}
+                disabled={!qty || Number(qty) <= 0 || submitting || (!selectedLp && !reasonCode.trim())}
                 // confirm takes an optional approver arg — NEVER pass it the
                 // click event (circular JSON → the POST silently dies).
                 onClick={() => void confirm()}
@@ -544,6 +569,25 @@ function lpRemainingText(lp: LpCandidate, qty: string): string {
   const remaining = Math.max(0, available - consumed);
   // trim trailing zeros while keeping up to 3 decimals (qty precision on the wire)
   return String(Number(remaining.toFixed(3)));
+}
+
+function mapConsumeConflict(error: unknown, labels: ScannerProdLabels["consume"]): string {
+  switch (error) {
+    case "lp_not_released":
+      return labels.lpNotReleased;
+    case "lp_unavailable":
+      return labels.lpUnavailable;
+    case "lp_expired":
+      return labels.lpExpired;
+    case "lp_locked":
+      return labels.lpLocked;
+    case "quality_hold_active":
+      return labels.lpOnHold;
+    case "reason_required":
+      return labels.reasonRequired;
+    default:
+      return labels.err409;
+  }
 }
 
 const sectionTitleStyle = {

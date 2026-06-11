@@ -323,7 +323,9 @@ describe('T-090 ReleaseBundlePanelButton', () => {
     fireEvent.change(screen.getByLabelText('Approval reason'), {
       target: { value: 'Bundle reviewed and approved.' },
     });
-    fireEvent.change(screen.getByLabelText('e-signature PIN'), { target: { value: '1234' } });
+    // W9-L7 — honest credential label: signEvent accepts the e-sign PIN, or the
+    // account password while no PIN is enrolled.
+    fireEvent.change(screen.getByLabelText('E-sign PIN or account password'), { target: { value: '1234' } });
 
     const approveBtn = screen.getByRole('button', { name: 'Approve bundle' });
     expect(approveBtn).toBeEnabled();

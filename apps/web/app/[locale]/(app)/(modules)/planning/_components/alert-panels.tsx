@@ -1,15 +1,18 @@
 /**
- * P-L5 — Planning Dashboard alert panels (parity: dashboard.jsx:62-126).
+ * P-L5 / W9-M2 — Planning Dashboard alert panels (parity: dashboard.jsx:62-126).
  *
- * Three alert columns: WO alerts (real, from past-start WOs), PO alerts + TO
- * alerts (honest "module not live yet" placeholders — those tables don't exist).
+ * Three alert columns: WO alerts (past-start WOs), PO alerts (overdue expected
+ * delivery on open POs, mig 262) and TO alerts (overdue scheduled date on open
+ * TOs, mig 263). All three are REAL org-scoped reads now — the former PO/TO
+ * "module not live yet" placeholders were lying after wave 8 and were removed.
  * Pure presentational. Empty-state safe.
  */
 import Link from "next/link";
 
 export type PlanningAlertRow = {
   id: string;
-  woNumber: string;
+  /** Document reference (WO/PO/TO number). */
+  refNumber: string;
   /** Pre-translated reason text. */
   reason: string;
   severity: "red" | "amber";
@@ -21,7 +24,6 @@ export type PlanningAlertLabels = {
   poTitle: string;
   toTitle: string;
   empty: string;
-  notLive: string;
   view: string;
 };
 
@@ -54,62 +56,72 @@ function PanelShell({
   );
 }
 
-function NotLivePanel({ testid, title, label }: { testid: string; title: string; label: string }) {
-  return (
-    <PanelShell testid={testid} title={title}>
-      <div className="empty-state" data-testid={`${testid}-not-live`}>
+function AlertList({
+  testid,
+  rows,
+  emptyLabel,
+  viewLabel,
+}: {
+  testid: string;
+  rows: PlanningAlertRow[];
+  emptyLabel: string;
+  viewLabel: string;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="empty-state" data-testid={`${testid}-empty`}>
         <div className="empty-state-icon" aria-hidden>
-          🧩
+          ✓
         </div>
-        <div className="empty-state-body">{label}</div>
+        <div className="empty-state-body">{emptyLabel}</div>
       </div>
-    </PanelShell>
+    );
+  }
+  return (
+    <ul className="space-y-2">
+      {rows.map((alert) => (
+        <li
+          key={alert.id}
+          className={`alert alert-${alert.severity === "red" ? "red" : "amber"} flex items-start justify-between gap-3`}
+          data-testid={`${testid}-row-${alert.id}`}
+        >
+          <div className="min-w-0">
+            <div className="font-mono text-xs font-semibold text-slate-800">{alert.refNumber}</div>
+            <div className={alert.severity === "red" ? "text-red-700 text-sm" : "text-amber-700 text-sm"}>
+              {alert.reason}
+            </div>
+            <Link href={alert.href} prefetch={false} className="text-xs text-blue-600 hover:underline">
+              {viewLabel} →
+            </Link>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 export function PlanningAlertPanels({
   woAlerts,
+  poAlerts,
+  toAlerts,
   labels,
 }: {
   woAlerts: PlanningAlertRow[];
+  poAlerts: PlanningAlertRow[];
+  toAlerts: PlanningAlertRow[];
   labels: PlanningAlertLabels;
 }) {
   return (
     <div className="grid gap-3 lg:grid-cols-3" data-testid="planning-alert-cols">
       <PanelShell testid="planning-wo-alerts" title={labels.woTitle} count={woAlerts.length}>
-        {woAlerts.length === 0 ? (
-          <div className="empty-state" data-testid="planning-wo-alerts-empty">
-            <div className="empty-state-icon" aria-hidden>
-              ✓
-            </div>
-            <div className="empty-state-body">{labels.empty}</div>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {woAlerts.map((alert) => (
-              <li
-                key={alert.id}
-                className={`alert alert-${alert.severity === "red" ? "red" : "amber"} flex items-start justify-between gap-3`}
-                data-testid={`planning-wo-alert-${alert.id}`}
-              >
-                <div className="min-w-0">
-                  <div className="font-mono text-xs font-semibold text-slate-800">{alert.woNumber}</div>
-                  <div className={alert.severity === "red" ? "text-red-700 text-sm" : "text-amber-700 text-sm"}>
-                    {alert.reason}
-                  </div>
-                  <Link href={alert.href} prefetch={false} className="text-xs text-blue-600 hover:underline">
-                    {labels.view} →
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <AlertList testid="planning-wo-alerts" rows={woAlerts} emptyLabel={labels.empty} viewLabel={labels.view} />
       </PanelShell>
-
-      {/* PO / TO panels — tables not live yet (honest placeholder). */}
-      <NotLivePanel testid="planning-po-alerts" title={labels.poTitle} label={labels.notLive} />
-      <NotLivePanel testid="planning-to-alerts" title={labels.toTitle} label={labels.notLive} />
+      <PanelShell testid="planning-po-alerts" title={labels.poTitle} count={poAlerts.length}>
+        <AlertList testid="planning-po-alerts" rows={poAlerts} emptyLabel={labels.empty} viewLabel={labels.view} />
+      </PanelShell>
+      <PanelShell testid="planning-to-alerts" title={labels.toTitle} count={toAlerts.length}>
+        <AlertList testid="planning-to-alerts" rows={toAlerts} emptyLabel={labels.empty} viewLabel={labels.view} />
+      </PanelShell>
     </div>
   );
 }

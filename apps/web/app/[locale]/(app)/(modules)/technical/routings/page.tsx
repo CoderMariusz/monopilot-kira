@@ -28,11 +28,12 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 
 import { listRoutingItems } from './_actions/list-routing-items';
-import {
-  RoutingsManager,
-  ROUTINGS_DEFAULT_LABELS,
-  type RoutingsLabels,
-} from './_components/routings-manager.client';
+// ROUTINGS_DEFAULT_LABELS must come from the PLAIN module — importing it from
+// the 'use client' manager module hands this Server Component a client-reference
+// proxy whose Object.keys() are NOT the label keys, which blanked every label
+// in the builder (W9-L5 FIX 3, 2026-06-11 clickthrough §2).
+import { ROUTINGS_DEFAULT_LABELS, type RoutingsLabels } from './_components/routings-labels';
+import { RoutingsManager } from './_components/routings-manager.client';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +44,8 @@ function buildLabels(t: Translator): RoutingsLabels {
   return keys.reduce((acc, key) => {
     try {
       const value = t(`manager.${key}`);
-      acc[key] = value === `manager.${key}` ? ROUTINGS_DEFAULT_LABELS[key] : value;
+      // next-intl echoes the (full) message path for a missing key.
+      acc[key] = !value || value.endsWith(`manager.${key}`) ? ROUTINGS_DEFAULT_LABELS[key] : value;
     } catch {
       acc[key] = ROUTINGS_DEFAULT_LABELS[key];
     }

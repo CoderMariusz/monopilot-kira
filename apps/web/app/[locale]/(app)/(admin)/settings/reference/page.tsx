@@ -25,6 +25,7 @@ type SchemaColumnRow = {
   column_code: string;
   data_type: string;
   presentation_json: unknown;
+  validation_json?: unknown;
 };
 
 type ReferenceDataRow = {
@@ -84,17 +85,17 @@ const FALLBACK_COLUMNS: Record<string, ReferenceColumn[]> = {
   uom_reference: [
     { key: 'code', label: 'Code', type: 'badge' },
     { key: 'name', label: 'Name', type: 'text' },
-    { key: 'active', label: 'Active', type: 'boolean' },
+    { key: 'is_active', label: 'Active', type: 'boolean' },
   ],
   currency_reference: [
     { key: 'code', label: 'Code', type: 'badge' },
     { key: 'name', label: 'Name', type: 'text' },
-    { key: 'active', label: 'Active', type: 'boolean' },
+    { key: 'is_active', label: 'Active', type: 'boolean' },
   ],
   country_iso_reference: [
     { key: 'code', label: 'Code', type: 'badge' },
     { key: 'name', label: 'Name', type: 'text' },
-    { key: 'active', label: 'Active', type: 'boolean' },
+    { key: 'is_active', label: 'Active', type: 'boolean' },
   ],
 };
 
@@ -319,12 +320,27 @@ function mapRows(rows: ReferenceDataRow[]): Record<string, ReferenceRow[]> {
   return grouped;
 }
 
+function enumOptionsFromValidation(row: SchemaColumnRow): string[] | undefined {
+  if (row.data_type !== 'enum') return undefined;
+  const validation = row.validation_json;
+  if (validation && typeof validation === 'object' && !Array.isArray(validation)) {
+    const values = (validation as { enum_values?: unknown }).enum_values;
+    if (Array.isArray(values) && values.length > 0) return values.map(String);
+  }
+  return undefined;
+}
+
 function mapColumns(rows: SchemaColumnRow[]): Record<string, ReferenceColumn[]> {
   const grouped: Record<string, ReferenceColumn[]> = {};
   for (const row of rows) {
     const tableCode = normalizeTableCode(row.table_code);
     grouped[tableCode] ??= [];
-    grouped[tableCode].push({ key: row.column_code, label: labelFromPresentation(row), type: columnType(row) });
+    grouped[tableCode].push({
+      key: row.column_code,
+      label: labelFromPresentation(row),
+      type: columnType(row),
+      enumOptions: enumOptionsFromValidation(row),
+    });
   }
   return grouped;
 }
@@ -348,7 +364,7 @@ async function readReferenceData(): Promise<ReferenceDataResult> {
       const schemaTableCodes = tableCodes.flatMap((code) => [code, `reference.${code}`]);
       const [schemaResult, countResult, rowResult, permissionResult] = await Promise.all([
         queryClient.query<SchemaColumnRow>(
-          `select table_code, column_code, data_type, presentation_json
+          `select table_code, column_code, data_type, presentation_json, validation_json
              from public.reference_schemas
             where table_code = any($1::text[])
               and deprecated_at is null

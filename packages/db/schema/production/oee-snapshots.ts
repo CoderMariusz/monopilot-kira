@@ -24,6 +24,13 @@ import { organizations } from '../baseline.js';
 // V-PROD-10: UNIQUE (org_id, line_id, shift_id, snapshot_minute) — duplicate rows would
 //   corrupt the 15-OEE consumer. V-PROD-25: A/P/Q each CHECK BETWEEN 0 AND 100.
 // oee_pct is GENERATED ALWAYS AS (A*P*Q/10000) STORED — never user-settable.
+//
+// Migration 286 (WO-complete producer, apps/web/lib/production/oee-snapshot-producer.ts):
+//   * performance_pct / quality_pct are NULLABLE — honest NULL when no standard-time
+//     source exists (performance) or the quality denominator is zero (quality).
+//     oee_pct propagates NULL whenever any component is NULL (GENERATED semantics).
+//   * partial unique index oee_snapshots_org_active_wo_uq (org_id, active_wo_id)
+//     WHERE active_wo_id IS NOT NULL — one WO-grain snapshot per completed WO (R14-safe).
 
 export const oeeSnapshots = pgTable(
   'oee_snapshots',
@@ -39,8 +46,10 @@ export const oeeSnapshots = pgTable(
     snapshotMinute: timestamp('snapshot_minute', { withTimezone: true }).notNull(),
 
     availabilityPct: numeric('availability_pct', { precision: 5, scale: 2 }).notNull(),
-    performancePct: numeric('performance_pct', { precision: 5, scale: 2 }).notNull(),
-    qualityPct: numeric('quality_pct', { precision: 5, scale: 2 }).notNull(),
+    // NULLABLE since migration 286 — honest NULL when no defensible standard-time source.
+    performancePct: numeric('performance_pct', { precision: 5, scale: 2 }),
+    // NULLABLE since migration 286 — honest NULL when the quality denominator is zero.
+    qualityPct: numeric('quality_pct', { precision: 5, scale: 2 }),
     // V-PROD-25: composite OEE, GENERATED + STORED, never user-settable.
     oeePct: numeric('oee_pct', { precision: 5, scale: 2 }).generatedAlwaysAs(
       sql`availability_pct * performance_pct * quality_pct / 10000`,

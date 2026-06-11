@@ -77,6 +77,12 @@ export type WoModalLabels = {
     password: string;
     reason: string;
     legal: string;
+    /**
+     * W9-L7 (OPTIONAL for older label fixtures) — "No PIN? Set it in Settings →"
+     * link text rendered under the credential field; signEvent accepts the
+     * e-sign PIN, or the account password while no PIN is enrolled.
+     */
+    pinHint?: string;
   };
   output: {
     title: string;

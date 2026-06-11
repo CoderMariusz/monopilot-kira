@@ -3,7 +3,8 @@
  * T-059 — parity evidence generator (RTL DOM artifacts).
  *
  * Renders all five required UI states (loading / empty / error / permission-denied /
- * ready) plus the optimistic advance + 422-revert interaction of the production
+ * ready) plus the advance interaction (F-C08: routed through the AdvanceGateModal
+ * via ?modal=advanceGate — no direct Server-Action call) of the production
  * KanbanView and writes per-state DOM HTML snapshots + a structural parity report +
  * an a11y fallback summary + a parity-map to apps/web/e2e/artifacts/T-059/ for the
  * parity diff against:
@@ -27,8 +28,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { KanbanView, type KanbanLabels, type KanbanProject } from '../kanban-view';
 
+const pushMock = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push: pushMock, replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/en/pipeline',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -100,7 +102,7 @@ function regionSummary(root: HTMLElement) {
 }
 
 describe('T-059 parity evidence — write per-state DOM artifacts', () => {
-  it('emits loading / empty / error / permission_denied / ready + optimistic advance + 422 revert HTML + reports', async () => {
+  it('emits loading / empty / error / permission_denied / ready + modal-routed advance HTML + reports', async () => {
     mkdirSync(evidenceDir, { recursive: true });
 
     const base = { labels: LABELS, canAdvance: true, advanceAction: okAction } as const;
@@ -129,9 +131,12 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
       unmount();
     }
 
-    // Advance (gate G2 → G3) confirmed by the action. Columns are stage-based, so
-    // the card remains in its 'recipe' stage column; the RSC refresh reconciles.
+    // Advance (F-C08 fix): "Advance →" no longer calls advanceProjectGate directly —
+    // it ROUTES THROUGH the AdvanceGateModal by navigating to ?modal=advanceGate on
+    // the project route (the workbench layout mounts AdvanceGateModalHost). The card
+    // stays in its stage column; notes/checklist/e-sign live in the modal.
     {
+      pushMock.mockClear();
       const { container, unmount } = render(
         <KanbanView labels={LABELS} canAdvance projects={PROJECTS} state="ready" advanceAction={okAction} />,
       );
@@ -139,32 +144,17 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
         fireEvent.click(within(screen.getByTestId('kanban-card-DEV-061')).getByRole('button', { name: LABELS.advance }));
       });
       await waitFor(() => {
-        expect(okAction).toHaveBeenCalledWith({ projectId: 'b2', targetGate: 'G3' });
+        // Batch-D F3: locale-prefixed route (usePathname mocked to '/en/pipeline').
+        expect(pushMock).toHaveBeenCalledWith('/en/pipeline/b2?modal=advanceGate');
       });
+      expect(okAction).not.toHaveBeenCalled();
       writeFileSync(resolve(evidenceDir, 'advance.html'), container.innerHTML, 'utf8');
       (report.states as Record<string, unknown>)['advance'] = {
-        actionCalled: okAction.mock.calls.length > 0,
+        routedThroughModal: pushMock.mock.calls.some(
+          (call) => call[0] === '/en/pipeline/b2?modal=advanceGate',
+        ),
+        directActionCalled: okAction.mock.calls.length > 0, // must stay false (F-C08)
         stillInStageColumn: Boolean(container.querySelector('[data-testid="kanban-col-recipe"] [data-testid="kanban-card-DEV-061"]')),
-      };
-      unmount();
-    }
-
-    // 422 ADJACENCY_VIOLATION → accessible alert (card stays in its stage column).
-    {
-      const failAction = vi.fn(async () => ({ ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 }));
-      const { container, unmount } = render(
-        <KanbanView labels={LABELS} canAdvance projects={PROJECTS} state="ready" advanceAction={failAction} />,
-      );
-      await act(async () => {
-        fireEvent.click(within(screen.getByTestId('kanban-card-DEV-061')).getByRole('button', { name: LABELS.advance }));
-      });
-      await waitFor(() => {
-        expect(within(screen.getByTestId('kanban-col-recipe')).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
-      });
-      writeFileSync(resolve(evidenceDir, 'advance-revert-422.html'), container.innerHTML, 'utf8');
-      (report.states as Record<string, unknown>)['advance_revert_422'] = {
-        stillInStageColumn: Boolean(container.querySelector('[data-testid="kanban-col-recipe"] [data-testid="kanban-card-DEV-061"]')),
-        alertShown: Boolean(container.querySelector('[role="alert"]')),
       };
       unmount();
     }
@@ -242,11 +232,13 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
     expect(a11y.progressBarsHaveAria).toBe(true);
     expect(a11y.prioBadgesHaveText).toBe(true);
     expect(a11y.noRawSelect).toBe(true);
-    const adv = (report.states as Record<string, { actionCalled: boolean; stillInStageColumn: boolean }>).advance;
-    expect(adv.actionCalled).toBe(true);
+    // F-C08: the advance is routed through the gate modal — never a direct call.
+    const adv = (report.states as Record<
+      string,
+      { routedThroughModal: boolean; directActionCalled: boolean; stillInStageColumn: boolean }
+    >).advance;
+    expect(adv.routedThroughModal).toBe(true);
+    expect(adv.directActionCalled).toBe(false);
     expect(adv.stillInStageColumn).toBe(true);
-    const rev = (report.states as Record<string, { stillInStageColumn: boolean; alertShown: boolean }>).advance_revert_422;
-    expect(rev.stillInStageColumn).toBe(true);
-    expect(rev.alertShown).toBe(true);
   });
 });

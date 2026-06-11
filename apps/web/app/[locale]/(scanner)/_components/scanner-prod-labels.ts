@@ -77,6 +77,8 @@ interface ScannerProdLabelsShape {
     lpExpiry: string;
     lpManual: string;
     lpManualDesc: string;
+    reasonLabel: string;
+    reasonPlaceholder: string;
     doneLpRemaining: string;
     needed: string;
     qtyLabel: string;
@@ -100,6 +102,12 @@ interface ScannerProdLabelsShape {
     approvalSubmit: string;
     approvalOver: string;
     warnOver: string;
+    lpNotReleased: string;
+    lpUnavailable: string;
+    lpExpired: string;
+    lpLocked: string;
+    lpOnHold: string;
+    reasonRequired: string;
     back: string;
   };
   output: {
@@ -225,6 +233,8 @@ const en: ScannerProdLabelsShape = {
     lpExpiry: "exp.",
     lpManual: "Manual / no LP",
     lpManualDesc: "Consume without selecting a license plate.",
+    reasonLabel: "Manual reason code",
+    reasonPlaceholder: "Required for manual / no-LP consumption",
     doneLpRemaining: "{qty} {uom} remaining on {lp}",
     needed: "still needed",
     qtyLabel: "Quantity to consume",
@@ -248,6 +258,12 @@ const en: ScannerProdLabelsShape = {
     approvalSubmit: "Approve and save",
     approvalOver: "{pct}% over required",
     warnOver: "Over required quantity by {pct}% — recorded and flagged.",
+    lpNotReleased: "This license plate has not been released by QA.",
+    lpUnavailable: "This license plate is not available for consumption.",
+    lpExpired: "This license plate is expired and cannot be consumed.",
+    lpLocked: "This license plate is locked by another user.",
+    lpOnHold: "This license plate is on an active quality hold.",
+    reasonRequired: "Enter a reason code for manual consumption.",
     back: "Back",
   },
   output: {
@@ -373,6 +389,8 @@ const pl: ScannerProdLabelsShape = {
     lpExpiry: "ważn.",
     lpManual: "Ręcznie / bez LP",
     lpManualDesc: "Konsumpcja bez wskazania nośnika.",
+    reasonLabel: "Kod powodu ręcznego",
+    reasonPlaceholder: "Wymagany przy konsumpcji ręcznej / bez LP",
     doneLpRemaining: "{qty} {uom} pozostało na {lp}",
     needed: "jeszcze potrzeba",
     qtyLabel: "Ilość do konsumpcji",
@@ -396,6 +414,12 @@ const pl: ScannerProdLabelsShape = {
     approvalSubmit: "Zatwierdź i zapisz",
     approvalOver: "{pct}% ponad wymagane",
     warnOver: "Przekroczono wymaganą ilość o {pct}% — zarejestrowano i oznaczono.",
+    lpNotReleased: "Ten nośnik nie został zwolniony przez QA.",
+    lpUnavailable: "Ten nośnik nie jest dostępny do konsumpcji.",
+    lpExpired: "Ten nośnik jest przeterminowany i nie może zostać zużyty.",
+    lpLocked: "Ten nośnik jest zablokowany przez innego użytkownika.",
+    lpOnHold: "Ten nośnik ma aktywną blokadę jakości.",
+    reasonRequired: "Wpisz kod powodu dla konsumpcji ręcznej.",
     back: "Wróć",
   },
   output: {

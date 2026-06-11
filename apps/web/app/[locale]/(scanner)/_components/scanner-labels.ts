@@ -155,6 +155,12 @@ interface ScannerLabelsShape {
     errorLoad: string;
     permissionDenied: string;
     retry: string;
+    destinationLabel: string;
+    destinationPlaceholder: string;
+    destinationHint: string;
+    resolving: string;
+    locationNotFound: string;
+    resolvedLabel: string;
     status: Record<string, string>;
   };
   settings: {
@@ -546,6 +552,12 @@ const en: ScannerLabelsShape = {
     errorLoad: "Could not load data.",
     permissionDenied: "Session expired or permission denied.",
     retry: "Try again",
+    destinationLabel: "Destination location",
+    destinationPlaceholder: "LOC-XXX-XX-XX…",
+    destinationHint: "Scan a location code or leave empty to receive into the default location",
+    resolving: "Resolving location…",
+    locationNotFound: "Location not found.",
+    resolvedLabel: "Selected location",
     status: {
       sent: "Sent",
       confirmed: "Confirmed",
@@ -967,6 +979,12 @@ const pl: ScannerLabelsShape = {
     errorLoad: "Nie udało się załadować danych.",
     permissionDenied: "Sesja wygasła lub brak uprawnień.",
     retry: "Spróbuj ponownie",
+    destinationLabel: "Lokalizacja docelowa",
+    destinationPlaceholder: "LOC-XXX-XX-XX…",
+    destinationHint: "Zeskanuj kod lokalizacji lub pozostaw puste, aby przyjąć do lokalizacji domyślnej",
+    resolving: "Wyszukiwanie lokalizacji…",
+    locationNotFound: "Nie znaleziono lokalizacji.",
+    resolvedLabel: "Wybrana lokalizacja",
     status: {
       sent: "Wysłane",
       confirmed: "Potwierdzone",

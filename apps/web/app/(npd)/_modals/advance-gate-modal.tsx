@@ -115,6 +115,11 @@ export type AdvanceGateLabels = {
   forbidden: string;
   esignRequiredError?: string;
   blockersPresentError?: string; // "{count} blocker(s) prevent advancement."
+  /** Honest per-code failure messages (F-C09 — every ok:false must be visible). */
+  alreadyClosedError?: string;
+  adjacencyError?: string;
+  notFoundError?: string;
+  fgLinkedError?: string;
 };
 
 function fmt(template: string, vars: Record<string, string | number>): string {
@@ -145,10 +150,28 @@ function resolveSubmitError(
       .filter((value): value is string => Boolean(value));
     return details.length > 0 ? `${title}\n${details.join('\n')}` : title;
   }
-  // Surface the server error CODE verbatim alongside the generic copy so terminal
-  // launch failures (e.g. HANDOFF_BOM_NOT_APPROVED, ALREADY_CLOSED) are visible to
-  // the user, not swallowed behind "Try again." `ALREADY_CLOSED` (status 200) means
-  // the project is already launched — treat it as informational, not an error.
+  // F-C09 honesty: every ok:false path maps to a specific, human-readable message
+  // (the modal NEVER closes on failure — see onSubmit). Codes without a dedicated
+  // label still surface verbatim alongside the generic copy so terminal launch
+  // failures (e.g. HANDOFF_BOM_NOT_APPROVED) are visible, never swallowed.
+  if (result.error === 'ALREADY_CLOSED') {
+    return labels.alreadyClosedError ??
+      'This project is already launched — there is no further stage to advance to.';
+  }
+  if (result.error === 'ADJACENCY_VIOLATION') {
+    return labels.adjacencyError ??
+      'The project can only advance one stage at a time. Reload the page — the stage may have changed.';
+  }
+  if (result.error === 'FORBIDDEN') {
+    return labels.forbidden;
+  }
+  if (result.error === 'NOT_FOUND') {
+    return labels.notFoundError ?? 'This project could not be found. It may have been deleted.';
+  }
+  if (result.error === 'FG_ALREADY_LINKED') {
+    return labels.fgLinkedError ??
+      'The Finished Good code is already linked to another active NPD project.';
+  }
   if (result.error && result.error !== 'PERSISTENCE_FAILED') {
     return `${labels.error}\n${result.error}`;
   }

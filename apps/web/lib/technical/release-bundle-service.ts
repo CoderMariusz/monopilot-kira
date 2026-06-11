@@ -75,7 +75,7 @@ export interface ApproveBundleData {
   factorySpecId: string;
   bomHeaderId: string;
   factorySpecStatus: 'approved_for_factory';
-  bomStatus: 'technical_approved';
+  bomStatus: 'technical_approved' | 'active';
   evidenceBundleId: string;
   signatureId: string;
   /** Set when the FG is NPD-originated and the release adapter closed the loop. */
@@ -168,6 +168,30 @@ async function loadBom(client: QueryClient, id: string): Promise<BomRow | null> 
     [id],
   );
   return rows[0] ?? null;
+}
+
+/**
+ * F2 — bundle-internal consistency: the factory_spec's FG item (fg_item_id →
+ * items, org-scoped via RLS + the app.current_org_id() predicate) must carry
+ * the SAME item_code the BOM names as its product (bom_headers.product_id is
+ * the item_code TEXT, not a uuid). Callers only invoke this for a non-null
+ * product_id (a NULL product carries no binding to verify).
+ */
+async function specFgMatchesBomProduct(
+  client: QueryClient,
+  fgItemId: string,
+  bomProductId: string,
+): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.items i
+      where i.org_id = app.current_org_id()
+        and i.id = $1::uuid
+        and i.item_code = $2
+      limit 1`,
+    [fgItemId, bomProductId],
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -328,13 +352,38 @@ export async function approveReleaseBundle(
     return { ok: false, error: 'invalid_state', message: transition.message };
   }
 
-  // The BOM side must itself be approvable (draft/in_review). Released only one side =
-  // red line: both must be eligible or neither moves.
-  if (!['draft', 'in_review'].includes(bom.status)) {
+  if (spec.bom_header_id !== bom.id || spec.bom_version !== bom.version) {
     return {
       ok: false,
       error: 'invalid_state',
-      message: `BOM ${bom.id} is ${bom.status}; the bundle requires a draft/in_review BOM`,
+      message: `factory_spec is paired to BOM ${spec.bom_header_id ?? 'none'} v${spec.bom_version ?? 'none'}; expected BOM ${bom.id} v${bom.version}`,
+    };
+  }
+
+  // F2 (W9 cross-review HIGH): the spec's FG must BE the product the BOM
+  // describes — spec.fg_item_id resolved through items (org-scoped) must carry
+  // item_code = bom.product_id. Without this, a spec for product A could be
+  // bundle-approved against product B's BOM and laundered into release evidence.
+  // A pure-Technical BOM with product_id NULL (legacy fa_code identification)
+  // carries no product binding to verify and is exempt — the reviewer's
+  // mismatch scenario requires a non-null product on both sides.
+  // FOLLOW-UP (noted, not in this fix): a DB-side trigger enforcing the same
+  // invariant on factory_specs writes would make this tamper-proof at rest.
+  if (bom.product_id !== null && !(await specFgMatchesBomProduct(ctx.client, spec.fg_item_id, bom.product_id))) {
+    return {
+      ok: false,
+      error: 'invalid_state',
+      message: `factory_spec FG item ${spec.fg_item_id} does not match the BOM product ${bom.product_id}`,
+    };
+  }
+
+  // The BOM side must be either still approvable (draft/in_review) or already factory
+  // usable (technical_approved/active). An already-active BOM must not be regressed.
+  if (!['draft', 'in_review', 'technical_approved', 'active'].includes(bom.status)) {
+    return {
+      ok: false,
+      error: 'invalid_state',
+      message: `BOM ${bom.id} is ${bom.status}; the bundle requires a draft/in_review/technical_approved/active BOM`,
     };
   }
 
@@ -394,19 +443,22 @@ export async function approveReleaseBundle(
       return { ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' };
     }
 
-    // Approve the BOM version in the SAME transaction (both sides or neither).
-    const updatedBom = await ctx.client.query<{ id: string }>(
-      `update public.bom_headers
-          set status = 'technical_approved',
-              approved_by = $2::uuid,
-              approved_at = now()
-        where id = $1::uuid
-          and status in ('draft', 'in_review')
-        returning id`,
-      [bom.id, ctx.userId],
-    );
-    if (updatedBom.rows.length === 0) {
-      throw new Error('bom_no_longer_approvable'); // forces rollback → neither released
+    const approvedBomStatus: 'technical_approved' | 'active' = bom.status === 'active' ? 'active' : 'technical_approved';
+    if (bom.status === 'draft' || bom.status === 'in_review') {
+      // Approve the BOM version in the SAME transaction (both sides or neither).
+      const updatedBom = await ctx.client.query<{ id: string }>(
+        `update public.bom_headers
+            set status = 'technical_approved',
+                approved_by = $2::uuid,
+                approved_at = now()
+          where id = $1::uuid
+            and status in ('draft', 'in_review')
+          returning id`,
+        [bom.id, ctx.userId],
+      );
+      if (updatedBom.rows.length === 0) {
+        throw new Error('bom_no_longer_approvable'); // forces rollback → neither released
+      }
     }
 
     // AC1 — emit the canonical Technical event. The outbox INSERT is in the same txn as
@@ -456,7 +508,7 @@ export async function approveReleaseBundle(
         factorySpecId: spec.id,
         bomHeaderId: bom.id,
         factorySpecStatus: 'approved_for_factory',
-        bomStatus: 'technical_approved',
+        bomStatus: approvedBomStatus,
         evidenceBundleId: signatureId,
         signatureId,
         factoryReleaseStatusId,
