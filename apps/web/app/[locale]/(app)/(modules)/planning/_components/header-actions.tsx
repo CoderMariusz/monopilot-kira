@@ -18,6 +18,9 @@ export type PlanningHeaderLabels = {
   createPo: string;
   createTo: string;
   runSequencing: string;
+  /** W8: honest title for the still-disabled sequencing button — points at the
+   * live /planning/schedule board (no optimizer backend exists). */
+  runSequencingHint?: string;
   triggerD365: string;
   notAvailable: string;
 };
@@ -34,8 +37,8 @@ export function PlanningHeaderActions({
   labels: PlanningHeaderLabels;
 }) {
   const disabled = [
-    { key: "runSequencing", label: labels.runSequencing },
-    { key: "triggerD365", label: labels.triggerD365 },
+    { key: "runSequencing", label: labels.runSequencing, title: labels.runSequencingHint ?? labels.notAvailable },
+    { key: "triggerD365", label: labels.triggerD365, title: labels.notAvailable },
   ];
 
   return (
@@ -69,7 +72,7 @@ export function PlanningHeaderActions({
           key={action.key}
           type="button"
           disabled
-          title={labels.notAvailable}
+          title={action.title}
           data-testid={`planning-action-${action.key}`}
           className="btn btn-secondary cursor-not-allowed opacity-50"
         >

@@ -23,6 +23,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { Card } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { getActiveSiteId } from '../../../../../lib/site/site-context';
 import { getOeeScreen } from './_actions/oee-data';
 import {
   OeeLinesTable,
@@ -70,7 +71,9 @@ function KpiTile({
 async function OeeContent() {
   const t = await getTranslations('oee');
   const locale = await getLocale();
-  const result = await getOeeScreen();
+  // 14-multi-site (CL4): topbar site picker cookie; null = All sites (no filter).
+  const siteId = await getActiveSiteId();
+  const result = await getOeeScreen({ siteId });
 
   if (!result.ok && result.reason === 'forbidden') {
     return (

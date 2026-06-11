@@ -89,7 +89,22 @@ export type WorkOrderListResult =
   | { ok: true; data: WorkOrderListData }
   | { ok: false; reason: 'forbidden' | 'error' };
 
-export async function listWorkOrders(): Promise<WorkOrderListResult> {
+/** Optional read filters (14-multi-site CL4 — additive, absent = unchanged). */
+export type WorkOrderListInput = {
+  /**
+   * Site filter (topbar picker cookie). Matches the WO's own site_id when set,
+   * else the assigned line's site_id (production_lines.site_id, backfilled to
+   * the org default site in mig 268 — work_orders.site_id is day-1 NULL until
+   * the T-030 backfill). null/undefined/non-uuid = All sites (no filter).
+   */
+  siteId?: string | null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOrderListResult> {
+  const siteId =
+    typeof input?.siteId === 'string' && UUID_RE.test(input.siteId) ? input.siteId : null;
   try {
     return await withOrgContext(async (ctx): Promise<WorkOrderListResult> => {
       const pctx = ctx as unknown as ProductionContext;
@@ -119,9 +134,13 @@ export async function listWorkOrders(): Promise<WorkOrderListResult> {
            from public.work_orders w
            left join public.wo_executions e
              on e.org_id = w.org_id and e.wo_id = w.id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
           where w.org_id = app.current_org_id()
             and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
+            and ($1::uuid is null or coalesce(w.site_id, pl.site_id) = $1::uuid)
           group by 1`,
+        [siteId],
       );
       const statusCounts = ALL_STATUSES.reduce(
         (acc, s) => {
@@ -200,8 +219,10 @@ export async function listWorkOrders(): Promise<WorkOrderListResult> {
            ) produced on true
           where w.org_id = app.current_org_id()
             and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
+            and ($1::uuid is null or coalesce(w.site_id, pl.site_id) = $1::uuid)
           order by w.scheduled_start_time desc nulls last, e.created_at desc nulls last
           limit 200`,
+        [siteId],
       );
 
       const rows: WorkOrderListItem[] = woRes.rows.map((r) => {

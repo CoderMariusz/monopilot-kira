@@ -11,6 +11,39 @@
     "update_failed": "Shift could not be updated.",
     "delete_failed": "Shift could not be deleted."
   },
+  "Finance": {
+    "woCosts": {
+      "title": "WO actual costs",
+      "subtitle": "Completed work orders costed from consumed materials, process runtime, setup, waste, and output kg.",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing...",
+      "permissionDenied": "You do not have permission to view finance costs.",
+      "empty": "No completed work orders with costing inputs were found in this window.",
+      "error": "Finance costs could not be loaded.",
+      "loading": "Loading WO costs...",
+      "notAvailable": "n/a",
+      "columns": {
+        "wo": "WO",
+        "product": "Product",
+        "outputKg": "Output kg",
+        "materials": "Materials",
+        "labor": "Labor",
+        "total": "Total",
+        "costPerKg": "Cost / kg"
+      },
+      "breakdown": {
+        "title": "Material breakdown",
+        "item": "Item",
+        "qtyKg": "Qty kg",
+        "costPerKg": "Cost / kg",
+        "cost": "Cost",
+        "noLabor": "No process cost",
+        "setup": "Setup",
+        "machine": "Machine",
+        "waste": "Waste"
+      }
+    }
+  },
   "schema_column_wizard": {
     "title": "Column Edit Wizard",
     "subtitle": "Add or edit a schema column for L2/L3 scope.",

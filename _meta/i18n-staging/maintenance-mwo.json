@@ -1,0 +1,232 @@
+{
+  "en": {
+    "list": {
+      "title": "Work orders",
+      "subtitle": "Maintenance work orders on registered machines",
+      "breadcrumb": { "maintenance": "Maintenance" },
+      "denied": "You do not have permission to view maintenance work orders. Ask an administrator for the mnt.asset.read permission.",
+      "error": "Could not load maintenance work orders. Please try again.",
+      "empty": "No maintenance work orders yet. Create the first one with “New MWO”.",
+      "emptyFiltered": "No work orders match the current tab or search.",
+      "searchPlaceholder": "Search MWO #, machine, title…",
+      "rows": "{count} rows",
+      "countLine": "{total} total · {open} open · {inProgress} in progress"
+    },
+    "view": { "workOrders": "Work orders", "pmSchedules": "PM schedules" },
+    "tabs": {
+      "all": "All",
+      "requested": "Requested",
+      "approved": "Approved",
+      "open": "Open",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "status": {
+      "requested": "Requested",
+      "approved": "Approved",
+      "open": "Open",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "priority": { "low": "Low", "medium": "Medium", "high": "High", "critical": "Critical" },
+    "source": {
+      "manual_request": "Manual",
+      "auto_downtime": "Auto-downtime",
+      "pm_schedule": "PM schedule",
+      "oee_trigger": "OEE trigger",
+      "calibration_alert": "Calibration alert"
+    },
+    "col": {
+      "mwo": "MWO #",
+      "machine": "Machine",
+      "title": "Title",
+      "priority": "Priority",
+      "status": "Status",
+      "source": "Source",
+      "due": "Due",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "actions": {
+      "start": "Start",
+      "complete": "Complete",
+      "cancel": "Cancel",
+      "overdue": "Overdue"
+    },
+    "create": {
+      "button": "+ New MWO",
+      "title": "Create maintenance work order",
+      "machine": "Machine",
+      "machinePlaceholder": "Select a machine…",
+      "noMachines": "No machines registered. Add machines under Settings → Machines first.",
+      "titleField": "Title",
+      "titlePlaceholder": "Short summary, e.g. Mixer bearing noise",
+      "description": "Problem description",
+      "descriptionPlaceholder": "Describe the maintenance task…",
+      "priority": "Priority",
+      "dueDate": "Due date",
+      "submit": "Create MWO",
+      "submitting": "Creating…",
+      "cancel": "Cancel",
+      "errorRequired": "Machine and title are required.",
+      "errorFailed": "Could not create the work order. Please try again."
+    },
+    "transition": {
+      "startTitle": "Start work order",
+      "completeTitle": "Complete work order",
+      "cancelTitle": "Cancel work order",
+      "noteComplete": "Completion notes (optional)",
+      "noteCancel": "Cancellation reason",
+      "confirmStart": "Start",
+      "confirmComplete": "Complete",
+      "confirmCancel": "Cancel MWO",
+      "dismiss": "Back",
+      "errorFailed": "The transition failed. Please try again.",
+      "errorIllegal": "This transition is not allowed from the current state.",
+      "errorForbidden": "You do not have permission for this transition."
+    },
+    "pm": {
+      "title": "PM schedules",
+      "subtitle": "Preventive maintenance schedules (read-only list)",
+      "empty": "No PM schedules yet. The PM engine and schedule editor arrive in a later slice.",
+      "col": {
+        "equipment": "Equipment",
+        "type": "Type",
+        "interval": "Interval",
+        "nextDue": "Next due",
+        "lastCompleted": "Last completed",
+        "active": "Active"
+      },
+      "type": {
+        "preventive": "Preventive",
+        "calibration": "Calibration",
+        "sanitation": "Sanitation",
+        "inspection": "Inspection"
+      },
+      "intervalUnit": {
+        "calendar_days": "days",
+        "usage_hours": "usage hours",
+        "usage_cycles": "cycles"
+      },
+      "activeYes": "Active",
+      "activeNo": "Inactive"
+    }
+  },
+  "pl": {
+    "list": {
+      "title": "Zlecenia pracy",
+      "subtitle": "Zlecenia utrzymania ruchu dla zarejestrowanych maszyn",
+      "breadcrumb": { "maintenance": "Utrzymanie ruchu" },
+      "denied": "Nie masz uprawnień do przeglądania zleceń utrzymania ruchu. Poproś administratora o uprawnienie mnt.asset.read.",
+      "error": "Nie udało się wczytać zleceń utrzymania ruchu. Spróbuj ponownie.",
+      "empty": "Brak zleceń utrzymania ruchu. Utwórz pierwsze przyciskiem „Nowe MWO”.",
+      "emptyFiltered": "Żadne zlecenie nie pasuje do wybranej zakładki lub wyszukiwania.",
+      "searchPlaceholder": "Szukaj MWO #, maszyny, tytułu…",
+      "rows": "{count} wierszy",
+      "countLine": "{total} łącznie · {open} otwarte · {inProgress} w toku"
+    },
+    "view": { "workOrders": "Zlecenia pracy", "pmSchedules": "Harmonogramy PM" },
+    "tabs": {
+      "all": "Wszystkie",
+      "requested": "Zgłoszone",
+      "approved": "Zatwierdzone",
+      "open": "Otwarte",
+      "in_progress": "W toku",
+      "completed": "Zakończone",
+      "cancelled": "Anulowane"
+    },
+    "status": {
+      "requested": "Zgłoszone",
+      "approved": "Zatwierdzone",
+      "open": "Otwarte",
+      "in_progress": "W toku",
+      "completed": "Zakończone",
+      "cancelled": "Anulowane"
+    },
+    "priority": { "low": "Niski", "medium": "Średni", "high": "Wysoki", "critical": "Krytyczny" },
+    "source": {
+      "manual_request": "Ręczne",
+      "auto_downtime": "Auto-przestój",
+      "pm_schedule": "Harmonogram PM",
+      "oee_trigger": "Wyzwalacz OEE",
+      "calibration_alert": "Alert kalibracji"
+    },
+    "col": {
+      "mwo": "MWO #",
+      "machine": "Maszyna",
+      "title": "Tytuł",
+      "priority": "Priorytet",
+      "status": "Status",
+      "source": "Źródło",
+      "due": "Termin",
+      "created": "Utworzono",
+      "actions": "Akcje"
+    },
+    "actions": {
+      "start": "Rozpocznij",
+      "complete": "Zakończ",
+      "cancel": "Anuluj",
+      "overdue": "Po terminie"
+    },
+    "create": {
+      "button": "+ Nowe MWO",
+      "title": "Utwórz zlecenie utrzymania ruchu",
+      "machine": "Maszyna",
+      "machinePlaceholder": "Wybierz maszynę…",
+      "noMachines": "Brak zarejestrowanych maszyn. Najpierw dodaj maszyny w Ustawienia → Maszyny.",
+      "titleField": "Tytuł",
+      "titlePlaceholder": "Krótki opis, np. Hałas łożyska miksera",
+      "description": "Opis problemu",
+      "descriptionPlaceholder": "Opisz zadanie utrzymania ruchu…",
+      "priority": "Priorytet",
+      "dueDate": "Termin wykonania",
+      "submit": "Utwórz MWO",
+      "submitting": "Tworzenie…",
+      "cancel": "Anuluj",
+      "errorRequired": "Maszyna i tytuł są wymagane.",
+      "errorFailed": "Nie udało się utworzyć zlecenia. Spróbuj ponownie."
+    },
+    "transition": {
+      "startTitle": "Rozpocznij zlecenie",
+      "completeTitle": "Zakończ zlecenie",
+      "cancelTitle": "Anuluj zlecenie",
+      "noteComplete": "Notatki z wykonania (opcjonalne)",
+      "noteCancel": "Powód anulowania",
+      "confirmStart": "Rozpocznij",
+      "confirmComplete": "Zakończ",
+      "confirmCancel": "Anuluj MWO",
+      "dismiss": "Wstecz",
+      "errorFailed": "Zmiana stanu nie powiodła się. Spróbuj ponownie.",
+      "errorIllegal": "Ta zmiana stanu nie jest dozwolona z bieżącego stanu.",
+      "errorForbidden": "Nie masz uprawnień do tej zmiany stanu."
+    },
+    "pm": {
+      "title": "Harmonogramy PM",
+      "subtitle": "Harmonogramy konserwacji zapobiegawczej (lista tylko do odczytu)",
+      "empty": "Brak harmonogramów PM. Silnik PM i edytor harmonogramów pojawią się w kolejnej części.",
+      "col": {
+        "equipment": "Urządzenie",
+        "type": "Typ",
+        "interval": "Interwał",
+        "nextDue": "Najbliższy termin",
+        "lastCompleted": "Ostatnio wykonano",
+        "active": "Aktywny"
+      },
+      "type": {
+        "preventive": "Zapobiegawczy",
+        "calibration": "Kalibracja",
+        "sanitation": "Sanitacja",
+        "inspection": "Inspekcja"
+      },
+      "intervalUnit": {
+        "calendar_days": "dni",
+        "usage_hours": "godz. pracy",
+        "usage_cycles": "cykli"
+      },
+      "activeYes": "Aktywny",
+      "activeNo": "Nieaktywny"
+    }
+  }
+}

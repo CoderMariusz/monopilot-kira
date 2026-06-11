@@ -38,6 +38,10 @@ const PLANNING_NAV_CARDS = [
   { key: "transferOrders", href: "/planning/transfer-orders" },
   { key: "suppliers", href: "/planning/suppliers" },
   { key: "mrp", href: "/planning/mrp" },
+  // CL2 — reorder thresholds config (mig 178, T-045 Material Demand).
+  { key: "reorderThresholds", href: "/planning/reorder-thresholds" },
+  // W8 — line schedule board (gantt.jsx SCREEN-08); replaces the sequencing stub.
+  { key: "schedule", href: "/planning/schedule" },
 ] as const;
 
 import {
@@ -249,6 +253,9 @@ export default async function PlanningRoutePage({ params }: PlanningPageProps) {
               createPo: t("actions.createPo"),
               createTo: t("actions.createTo"),
               runSequencing: t("actions.runSequencing"),
+              // Honest copy: the optimizer is still not built — the title now
+              // points at the live /planning/schedule board instead.
+              runSequencingHint: t("actions.runSequencingHint"),
               triggerD365: t("actions.triggerD365"),
               notAvailable: t("actions.notAvailable"),
             }}

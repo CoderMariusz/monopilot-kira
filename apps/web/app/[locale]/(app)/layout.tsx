@@ -7,6 +7,9 @@ import { createServerSupabaseClient } from '../../../lib/auth/supabase-server';
 import { APP_NAV_GROUPS } from '../../../lib/navigation/app-nav';
 import { filterNavGroupsByPermissions } from '../../../lib/navigation/filter-nav';
 import { getNavPermissionContext } from '../../../lib/navigation/nav-permissions';
+import { getOrgSites } from '../../../lib/site/get-org-sites';
+import { setActiveSite } from '../../../lib/site/site-actions';
+import { getActiveSiteId } from '../../../lib/site/site-context';
 import type { PhaseOneLanguage, UserLanguage } from '../../../lib/i18n/user-language';
 
 type Locale = 'en' | 'pl' | 'uk' | 'ro';
@@ -149,6 +152,9 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
   const navGroups = filterNavGroupsByPermissions(APP_NAV_GROUPS, navPermissionContext);
   const effectiveLanguage = phaseOneLocale(locale);
   const userLanguage = userLanguageFromMetadata(metadata.language ?? metadata.locale);
+  // 14-multi-site (CL4): org sites + the cookie-persisted active site for the
+  // topbar picker. getOrgSites degrades to [] on any failure → SiteCrumb fallback.
+  const [sites, activeSiteId] = await Promise.all([getOrgSites(), getActiveSiteId()]);
   const topbar = await AppTopbar({
     locale,
     user: shellUser,
@@ -160,6 +166,9 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
     signOutAction,
     onSelectLanguage: selectLanguageAction,
     switchNextIntlLocale: switchNextIntlLocaleAction,
+    sites,
+    activeSiteId,
+    setSiteAction: setActiveSite,
   });
 
   return (

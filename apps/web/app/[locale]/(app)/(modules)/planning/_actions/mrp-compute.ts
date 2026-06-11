@@ -35,6 +35,25 @@
  *
  * Suggested action: BUY for rm / ingredient / packaging, MAKE for intermediate;
  * suggested qty = shortage rounded UP to whole base units.
+ *
+ * Reorder thresholds (mig 178 reorder_thresholds, CL2 slice 2) — reorder-point
+ * semantics derived from the DDL (min_qty + reorder_qty per (org, item), both
+ * NUMERIC(18,6) >= 0, preferred_supplier_id a soft FK to suppliers):
+ *   - min_qty      = the floor the projected net position must not fall below.
+ *   - reorder_qty  = the configured replenishment lot (0 = no fixed lot;
+ *                    "just top up to min").
+ *   - net <  0                          → 'shortage' (red), unchanged.
+ *   - net >= 0 and 0 < net < min_qty,
+ *     or net == 0 with min_qty > 0      → 'below_min' (amber — its own severity,
+ *                    distinct from the red shortage badge AND from 'at_risk').
+ *   - Suggested qty WITH a threshold    = ceil(max(min_qty − net, reorder_qty))
+ *     (top back up to the floor, never less than the configured lot). Without
+ *     a threshold the existing rule holds: ceil(−net) on shortage only.
+ *   - Suggested due date = today + suppliers.lead_time_days (mig 261) ONLY when
+ *     preferred_supplier_id resolves to a supplier row; otherwise null (honest —
+ *     we never invent a lead time).
+ *   - An item with min_qty > 0 but NO stock/demand/supply anywhere still
+ *     surfaces as below_min (net 0 < min) — that is the point of the floor.
  */
 import {
   MICRO_SCALE,
@@ -71,7 +90,27 @@ export type MrpOnHandBucket = {
   reserved: string | number;
 };
 
-export type MrpSeverity = 'shortage' | 'at_risk' | 'covered';
+/** reorder_thresholds row (mig 178) + the preferred supplier's lead time (mig 261 soft join). */
+export type MrpThresholdRow = {
+  item_id: string;
+  min_qty: string | number;
+  reorder_qty: string | number;
+  preferred_supplier_id: string | null;
+  /** suppliers.lead_time_days resolved via preferred_supplier_id; null when unset/unresolved. */
+  lead_time_days: number | null;
+};
+
+export type MrpSeverity = 'shortage' | 'below_min' | 'at_risk' | 'covered';
+
+export type MrpSuggestedAction = {
+  type: 'buy' | 'make';
+  /** Whole base units, rounded up. */
+  qty: string;
+  /** today + suppliers.lead_time_days when a preferred supplier resolves; else null. */
+  dueDate: string | null;
+  /** reorder_thresholds.preferred_supplier_id when set; else null. */
+  supplierId: string | null;
+};
 
 export type MrpRow = {
   itemId: string;
@@ -86,8 +125,10 @@ export type MrpRow = {
   demand: string;
   net: string;
   severity: MrpSeverity;
-  /** null when no shortage. qty = shortage rounded up to whole base units. */
-  suggestedAction: { type: 'buy' | 'make'; qty: string } | null;
+  /** null when nothing to do (covered / at_risk with no threshold breach). */
+  suggestedAction: MrpSuggestedAction | null;
+  /** min_qty from reorder_thresholds (3-dp string) when configured; else null. */
+  minQty: string | null;
   /** UoMs whose quantities could NOT be netted (no clean base conversion). */
   excludedUoms: string[];
 };
@@ -95,6 +136,8 @@ export type MrpRow = {
 export type MrpKpis = {
   itemsAnalyzed: number;
   itemsShort: number;
+  /** Items with net >= 0 that still sit below their configured min_qty floor. */
+  itemsBelowMin: number;
   /** Σ demand across items, each in its own base UoM (indicator only — mixed bases). */
   totalDemand: string;
   /** Demand-weighted coverage: (1 − Σshortage/Σdemand) × 100, capped 0..100. */
@@ -154,7 +197,20 @@ export function normalizeToBase(item: MrpItemRow, uom: string, qty: number): num
   return micro === null ? null : Number(micro) / Number(MICRO_SCALE);
 }
 
-const SEVERITY_RANK: Record<MrpSeverity, number> = { shortage: 0, at_risk: 1, covered: 2 };
+const SEVERITY_RANK: Record<MrpSeverity, number> = {
+  shortage: 0,
+  below_min: 1,
+  at_risk: 2,
+  covered: 3,
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** today (yyyy-mm-dd) + N days, UTC-safe. */
+function addDaysIso(todayIso: string, days: number): string {
+  const base = new Date(`${todayIso}T00:00:00Z`);
+  return new Date(base.getTime() + days * DAY_MS).toISOString().slice(0, 10);
+}
 
 export function computeMrp(input: {
   items: MrpItemRow[];
@@ -162,9 +218,19 @@ export function computeMrp(input: {
   demand: MrpQtyBucket[];
   poSupply: MrpQtyBucket[];
   productionSupply: MrpQtyBucket[];
+  /** reorder_thresholds (mig 178) joined with supplier lead times; optional. */
+  thresholds?: MrpThresholdRow[];
+  /** Reference date (yyyy-mm-dd) for due-date math — injectable for tests. */
+  today?: string;
 }): MrpComputeResult {
   const itemById = new Map<string, MrpItemRow>();
   for (const item of input.items) itemById.set(item.id, item);
+
+  const todayIso = input.today ?? new Date().toISOString().slice(0, 10);
+  const thresholdByItem = new Map<string, MrpThresholdRow>();
+  for (const t of input.thresholds ?? []) {
+    if (itemById.has(t.item_id)) thresholdByItem.set(t.item_id, t);
+  }
 
   const accById = new Map<string, Acc>();
   const accFor = (itemId: string): Acc => {
@@ -227,8 +293,15 @@ export function computeMrp(input: {
     acc.openSupply += q;
   });
 
+  // A configured floor surfaces its item even with zero stock/demand/supply —
+  // net 0 < min_qty is exactly what the Material Demand dashboard must show.
+  for (const [itemId, t] of thresholdByItem) {
+    if (toMicro(t.min_qty) > 0n) accFor(itemId).touched = true;
+  }
+
   const rows: MrpRow[] = [];
   let itemsShort = 0;
+  let itemsBelowMin = 0;
   let totalDemand = 0n;
   let totalShortage = 0n;
 
@@ -237,29 +310,49 @@ export function computeMrp(input: {
     const item = itemById.get(itemId);
     if (!item) continue;
 
+    const threshold = thresholdByItem.get(itemId) ?? null;
+    const minQty = threshold ? toMicro(threshold.min_qty) : 0n;
+    const reorderQty = threshold ? toMicro(threshold.reorder_qty) : 0n;
+
     // Exact bigint netting — no EPS needed (no float dust to tolerate).
     const net = acc.onHand - acc.reserved + acc.openSupply - acc.demand;
     const isShort = net < 0n;
+    const isBelowMin = !isShort && minQty > 0n && net < minQty;
     const available = acc.onHand - acc.reserved;
     const severity: MrpSeverity = isShort
       ? 'shortage'
-      : acc.demand > 0n && available < acc.demand
-        ? 'at_risk'
-        : 'covered';
+      : isBelowMin
+        ? 'below_min'
+        : acc.demand > 0n && available < acc.demand
+          ? 'at_risk'
+          : 'covered';
 
     if (isShort) {
       itemsShort += 1;
       const shortage = -net;
       totalShortage += shortage < acc.demand ? shortage : acc.demand;
     }
+    if (isBelowMin) itemsBelowMin += 1;
     totalDemand += acc.demand;
 
-    const suggestedAction = isShort
-      ? {
-          type: item.item_type === 'intermediate' ? ('make' as const) : ('buy' as const),
-          qty: ceilMicroToWholeUnits(-net).toString(),
-        }
-      : null;
+    // Suggested qty: without a threshold, cover the shortage; with one, top
+    // back up to the min_qty floor and never order less than the configured
+    // reorder lot — ceil(max(min_qty − net, reorder_qty, −net)).
+    let suggestedAction: MrpSuggestedAction | null = null;
+    if (isShort || isBelowMin) {
+      const gap = minQty - net > -net ? minQty - net : -net;
+      const qtyMicro = gap > reorderQty ? gap : reorderQty;
+      const leadDays = threshold?.preferred_supplier_id ? threshold.lead_time_days : null;
+      suggestedAction = {
+        type: item.item_type === 'intermediate' ? 'make' : 'buy',
+        qty: ceilMicroToWholeUnits(qtyMicro).toString(),
+        dueDate:
+          leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays)
+            ? addDaysIso(todayIso, leadDays)
+            : null,
+        supplierId: threshold?.preferred_supplier_id ?? null,
+      };
+    }
 
     rows.push({
       itemId,
@@ -274,6 +367,7 @@ export function computeMrp(input: {
       net: microToFixed(net, 3),
       severity,
       suggestedAction,
+      minQty: threshold ? microToFixed(minQty, 3) : null,
       excludedUoms: [...acc.excludedUoms].sort(),
     });
   }
@@ -302,6 +396,7 @@ export function computeMrp(input: {
     kpis: {
       itemsAnalyzed: rows.length,
       itemsShort,
+      itemsBelowMin,
       totalDemand: microToFixed(totalDemand, 3),
       coveragePct,
     },

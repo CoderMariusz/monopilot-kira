@@ -45,6 +45,22 @@ vi.mock('../../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
 }));
 
+// 14-multi-site (CL4): the layout fetches the org's sites + the active-site
+// cookie for the topbar picker. Mocked here — this suite verifies shell
+// composition + the auth guard, not the site read seams (site-switcher.test.tsx
+// covers the picker; getOrgSites degrades to [] on its own failures).
+vi.mock('../../../../lib/site/get-org-sites', () => ({
+  getOrgSites: vi.fn(async () => []),
+}));
+vi.mock('../../../../lib/site/site-context', () => ({
+  SITE_COOKIE_NAME: 'mp_site_id',
+  asSiteId: (v: unknown) => (typeof v === 'string' ? v : null),
+  getActiveSiteId: vi.fn(async () => null),
+}));
+vi.mock('../../../../lib/site/site-actions', () => ({
+  setActiveSite: vi.fn(async () => ({ ok: true })),
+}));
+
 vi.mock('../../../../components/shell/app-topbar', () => ({
   AppTopbar: async (props: ShellComponentCall) => {
     mocks.topbarCalls.push(props);

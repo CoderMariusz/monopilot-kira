@@ -58,6 +58,7 @@ export async function listLPs(input: LicensePlateListInput = {}): Promise<Wareho
   const qaStatus = asTrimmed(input.qaStatus);
   const search = asTrimmed(input.search);
   const warehouseId = asTrimmed(input.warehouseId);
+  const siteId = asTrimmed(input.siteId);
   const limit = asLimit(input.limit);
 
   try {
@@ -102,9 +103,10 @@ export async function listLPs(input: LicensePlateListInput = {}): Promise<Wareho
               or i.item_code ilike '%' || $4 || '%'
               or i.name ilike '%' || $4 || '%'
             )
+            and ($6::uuid is null or lp.site_id = $6::uuid)
           order by lp.created_at desc, lp.lp_number asc
           limit $5::integer`,
-        [status, qaStatus, warehouseId, search, limit],
+        [status, qaStatus, warehouseId, search, limit, siteId],
       );
 
       return { ok: true, data: rows.map(mapLpListRow) };

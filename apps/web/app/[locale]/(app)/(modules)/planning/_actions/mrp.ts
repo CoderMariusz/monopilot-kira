@@ -2,12 +2,22 @@
 
 /**
  * W9-M2 — runMrp: read-first MRP vertical (04-planning T-032 family, first slice).
+ * CL2 slice 2 — optional PERSISTENCE into the mig-178 tables + reorder thresholds:
  *
- * Pure READ + compute — persists NOTHING (the mrp_runs / mrp_requirements /
- * mrp_planned_orders tables from migration 178 exist but this slice does not
- * write them; suggestions are returned to the screen only, no orders are
- * auto-created). All reads run inside withOrgContext as app_user, RLS-scoped
- * via app.current_org_id() — no service-role bypass.
+ *   - runMrp({ persist: true }) additionally writes ONE mrp_runs header row
+ *     (status='completed', org-unique run_number, requirement/exception counts)
+ *     and one mrp_requirements row PER ITEM (bucket_date = today, bom_level 0 —
+ *     this slice nets a single bucket with no BOM explosion; the (run_id,
+ *     item_id, bucket_date, bom_level) unique key makes the per-run write
+ *     idempotent via ON CONFLICT DO UPDATE). mrp_planned_orders is NOT written
+ *     in this slice — planned_order_count stays 0 (honest) and the on-screen
+ *     suggestion count goes into params_jsonb instead.
+ *   - reorder_thresholds (mig 178) now feeds the netting: below-min severity +
+ *     reorder-lot suggestions + due dates from suppliers.lead_time_days (mig
+ *     261) via preferred_supplier_id. Semantics documented in mrp-compute.ts.
+ *
+ * All reads run inside withOrgContext as app_user, RLS-scoped via
+ * app.current_org_id() — no service-role bypass.
  *
  * Demand / supply sources (see mrp-compute.ts for the netting formula + caveats):
  *   - demand:      wo_materials (required − consumed) on DRAFT/RELEASED/IN_PROGRESS WOs (mig 176)
@@ -17,12 +27,17 @@
  *                  fetchLines) on open POs (sent/confirmed/partially_received)
  *   - production:  schedule_outputs.expected_qty (mig 177, planning-owned) of open
  *                  WOs with disposition='to_stock' — intermediates incoming supply
+ *   - thresholds:  reorder_thresholds (mig 178) + suppliers.lead_time_days (mig 261)
  *
- * RBAC: gated on the planning READ permission `scheduler.run.read` (the same
- * gate the planning dashboard + module-registry use). Writes elsewhere in the
- * module gate on `npd.planning.write` — not needed here (no writes).
+ * RBAC: reads gate on `scheduler.run.read` (the planning READ gate the dashboard
+ * + module-registry use). Persisting is a WRITE and additionally gates on
+ * `npd.planning.write` — the same permission family PO/TO creates use
+ * (procurement-shared hasPlanningWritePermission).
  */
+import { randomUUID } from 'node:crypto';
+
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { hasPlanningWritePermission } from './procurement-shared';
 import {
   computeMrp,
   type MrpItemRow,
@@ -30,6 +45,7 @@ import {
   type MrpOnHandBucket,
   type MrpQtyBucket,
   type MrpRow,
+  type MrpThresholdRow,
 } from './mrp-compute';
 
 type QueryClient = {
@@ -50,15 +66,52 @@ const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'];
 const MRP_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'packaging'];
 
 export type MrpRunData = {
-  /** ISO timestamp of this (non-persisted) run. */
+  /** ISO timestamp of this run. */
   ranAt: string;
   rows: MrpRow[];
   kpis: MrpKpis;
+  /** Set ONLY when the run was persisted to mrp_runs ({ persist: true }). */
+  runId: string | null;
+  runNumber: string | null;
 };
 
 export type MrpRunResult =
   | { ok: true; data: MrpRunData }
   | { ok: false; error: 'forbidden' | 'persistence_failed' };
+
+export type MrpRunInput = { persist?: boolean };
+
+export type MrpRunSummary = {
+  id: string;
+  runNumber: string;
+  status: string;
+  /** yyyy-mm-dd bucket date of the persisted snapshot. */
+  horizonStart: string;
+  requirementCount: number;
+  exceptionCount: number;
+  createdAt: string;
+};
+
+export type MrpRunRequirement = {
+  itemId: string;
+  itemCode: string | null;
+  itemName: string | null;
+  bucketDate: string;
+  grossRequirement: string;
+  scheduledReceipts: string;
+  projectedOnHand: string;
+  netRequirement: string;
+  uom: string;
+  exceptionType: string | null;
+};
+
+export type MrpRunsListResult =
+  | { ok: true; data: MrpRunSummary[] }
+  | { ok: false; error: 'forbidden' | 'persistence_failed' };
+
+export type MrpRunRequirementsResult =
+  | { ok: true; data: MrpRunRequirement[] }
+  | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
 
 async function hasPlanningReadPermission(
   client: QueryClient,
@@ -79,12 +132,18 @@ async function hasPlanningReadPermission(
   return rows.length > 0;
 }
 
-export async function runMrp(): Promise<MrpRunResult> {
+export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
+  const persist = input?.persist === true;
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpRunResult> => {
       const c = client as QueryClient;
 
       if (!(await hasPlanningReadPermission(c, userId, orgId))) {
+        return { ok: false, error: 'forbidden' };
+      }
+      // Persisting writes mrp_runs/mrp_requirements → the planning WRITE gate
+      // (npd.planning.write — same family as PO/TO creates) must also hold.
+      if (persist && !(await hasPlanningWritePermission({ userId, orgId, client: c }))) {
         return { ok: false, error: 'forbidden' };
       }
 
@@ -178,18 +237,252 @@ export async function runMrp(): Promise<MrpRunResult> {
         [OPEN_WO_STATUSES],
       );
 
+      // 6) Reorder thresholds (mig 178) + the preferred supplier's lead time
+      //    (suppliers soft join, mig 261) — feeds below-min severity, reorder
+      //    lots and suggested due dates.
+      const thresholds = await c.query<MrpThresholdRow>(
+        `select rt.item_id,
+                rt.min_qty::text as min_qty,
+                rt.reorder_qty::text as reorder_qty,
+                rt.preferred_supplier_id,
+                s.lead_time_days
+           from public.reorder_thresholds rt
+           left join public.suppliers s
+             on s.org_id = app.current_org_id()
+            and s.id = rt.preferred_supplier_id
+          where rt.org_id = app.current_org_id()`,
+      );
+
+      const startedAt = new Date();
+      const today = startedAt.toISOString().slice(0, 10);
       const { rows, kpis } = computeMrp({
         items: items.rows,
         onHand: onHand.rows,
         demand: demand.rows,
         poSupply: poSupply.rows,
         productionSupply: productionSupply.rows,
+        thresholds: thresholds.rows,
+        today,
       });
 
-      return { ok: true, data: { ranAt: new Date().toISOString(), rows, kpis } };
+      let runId: string | null = null;
+      let runNumber: string | null = null;
+      if (persist) {
+        const persisted = await persistMrpRun(c, userId, {
+          today,
+          startedAt,
+          rows,
+          kpis,
+        });
+        runId = persisted.runId;
+        runNumber = persisted.runNumber;
+      }
+
+      return { ok: true, data: { ranAt: startedAt.toISOString(), rows, kpis, runId, runNumber } };
     });
   } catch (err) {
     console.error('[planning/mrp] runMrp failed', err);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * Write the run header + per-item requirement ledger exactly per the mig-178
+ * DDL. One mrp_runs row (org-unique run_number, status 'completed', horizon =
+ * the single netting bucket [today, today], counts from the computed result)
+ * and one mrp_requirements row per netted item:
+ *
+ *   gross_requirement  = open WO demand           (NUMERIC >= 0 — row.demand)
+ *   scheduled_receipts = open PO + WO supply       (NUMERIC >= 0 — row.openSupply)
+ *   projected_on_hand  = the netted position       (row.net — may be negative)
+ *   net_requirement    = unmet demand max(−net, 0)
+ *   bucket_date        = today, bom_level = 0 (single bucket, no BOM explosion)
+ *   source_type        = 'dependent' (demand comes from WO materials)
+ *   exception_type     = 'shortage' when net < 0 (mig-178 CHECK list), else null
+ *
+ * Decimal strings only — quantities never round-trip through JS floats.
+ * Idempotent per run: the (run_id, item_id, bucket_date, bom_level) unique key
+ * upserts via ON CONFLICT DO UPDATE. mrp_planned_orders is NOT written in this
+ * slice (planned_order_count = 0; suggestion counts live in params_jsonb).
+ */
+async function persistMrpRun(
+  c: QueryClient,
+  userId: string,
+  input: { today: string; startedAt: Date; rows: MrpRow[]; kpis: MrpKpis },
+): Promise<{ runId: string; runNumber: string }> {
+  const { today, startedAt, rows, kpis } = input;
+  const suggestionCount = rows.filter((r) => r.suggestedAction !== null).length;
+  const runNumber = `MRP-${today.replace(/-/g, '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
+
+  const header = await c.query<{ id: string; run_number: string }>(
+    `insert into public.mrp_runs
+       (org_id, run_number, status, demand_source, horizon_start, horizon_end,
+        bucket_days, params_jsonb, requirement_count, planned_order_count,
+        exception_count, started_at, completed_at, created_by)
+     values
+       (app.current_org_id(), $1, 'completed', 'manual', $2::date, $2::date,
+        1, $3::jsonb, $4::integer, 0,
+        $5::integer, $6::timestamptz, now(), $7::uuid)
+     returning id, run_number`,
+    [
+      runNumber,
+      today,
+      JSON.stringify({
+        slice: 'cl2-persist',
+        item_types: MRP_ITEM_TYPES,
+        suggested_actions: suggestionCount,
+        items_below_min: kpis.itemsBelowMin,
+        coverage_pct: kpis.coveragePct,
+      }),
+      rows.length,
+      kpis.itemsShort,
+      startedAt.toISOString(),
+      userId,
+    ],
+  );
+  const run = header.rows[0];
+  if (!run) throw new Error('mrp_runs insert returned no row');
+
+  for (const row of rows) {
+    // row.net is a canonical 3-dp decimal string from microToFixed — the sign
+    // test is exact on the string; |net| is a pure prefix strip (no floats).
+    const isShort = row.net.startsWith('-');
+    const netRequirement = isShort ? row.net.slice(1) : '0';
+    await c.query(
+      `insert into public.mrp_requirements
+         (org_id, run_id, item_id, bom_level, bucket_date, gross_requirement,
+          scheduled_receipts, projected_on_hand, net_requirement, uom,
+          source_type, exception_type)
+       values
+         (app.current_org_id(), $1::uuid, $2::uuid, 0, $3::date, $4::numeric,
+          $5::numeric, $6::numeric, $7::numeric, $8,
+          'dependent', $9)
+       on conflict on constraint mrp_requirements_run_item_bucket_unique
+       do update set gross_requirement = excluded.gross_requirement,
+                     scheduled_receipts = excluded.scheduled_receipts,
+                     projected_on_hand = excluded.projected_on_hand,
+                     net_requirement = excluded.net_requirement,
+                     uom = excluded.uom,
+                     exception_type = excluded.exception_type`,
+      [
+        run.id,
+        row.itemId,
+        today,
+        row.demand,
+        row.openSupply,
+        row.net,
+        netRequirement,
+        row.uomBase,
+        isShort ? 'shortage' : null,
+      ],
+    );
+  }
+
+  return { runId: run.id, runNumber: run.run_number };
+}
+
+/** Recent persisted MRP runs (newest first) — read-gated like runMrp. */
+export async function listMrpRuns(): Promise<MrpRunsListResult> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpRunsListResult> => {
+      const c = client as QueryClient;
+      if (!(await hasPlanningReadPermission(c, userId, orgId))) {
+        return { ok: false, error: 'forbidden' };
+      }
+      const { rows } = await c.query<{
+        id: string;
+        run_number: string;
+        status: string;
+        horizon_start: string;
+        requirement_count: number;
+        exception_count: number;
+        created_at: string | Date;
+      }>(
+        `select id, run_number, status, horizon_start::text as horizon_start,
+                requirement_count, exception_count, created_at
+           from public.mrp_runs
+          where org_id = app.current_org_id()
+          order by created_at desc
+          limit 20`,
+      );
+      return {
+        ok: true,
+        data: rows.map((r) => ({
+          id: r.id,
+          runNumber: r.run_number,
+          status: r.status,
+          horizonStart: r.horizon_start,
+          requirementCount: Number(r.requirement_count),
+          exceptionCount: Number(r.exception_count),
+          createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : new Date(r.created_at).toISOString(),
+        })),
+      };
+    });
+  } catch (err) {
+    console.error('[planning/mrp] listMrpRuns failed', err);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Requirement ledger of one persisted run, item-labelled — read-gated. */
+export async function getMrpRunRequirements(runId: string): Promise<MrpRunRequirementsResult> {
+  if (typeof runId !== 'string' || !UUID_RE.test(runId)) {
+    return { ok: false, error: 'invalid_input' };
+  }
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpRunRequirementsResult> => {
+      const c = client as QueryClient;
+      if (!(await hasPlanningReadPermission(c, userId, orgId))) {
+        return { ok: false, error: 'forbidden' };
+      }
+      const { rows } = await c.query<{
+        item_id: string;
+        item_code: string | null;
+        item_name: string | null;
+        bucket_date: string;
+        gross_requirement: string;
+        scheduled_receipts: string;
+        projected_on_hand: string;
+        net_requirement: string;
+        uom: string;
+        exception_type: string | null;
+      }>(
+        `select r.item_id, i.item_code, i.name as item_name,
+                r.bucket_date::text as bucket_date,
+                r.gross_requirement::text as gross_requirement,
+                r.scheduled_receipts::text as scheduled_receipts,
+                r.projected_on_hand::text as projected_on_hand,
+                r.net_requirement::text as net_requirement,
+                r.uom, r.exception_type
+           from public.mrp_requirements r
+           left join public.items i
+             on i.org_id = app.current_org_id()
+            and i.id = r.item_id
+          where r.org_id = app.current_org_id()
+            and r.run_id = $1::uuid
+          order by (r.exception_type is null) asc, r.net_requirement desc, i.item_code asc`,
+        [runId],
+      );
+      return {
+        ok: true,
+        data: rows.map((r) => ({
+          itemId: r.item_id,
+          itemCode: r.item_code,
+          itemName: r.item_name,
+          bucketDate: r.bucket_date,
+          grossRequirement: r.gross_requirement,
+          scheduledReceipts: r.scheduled_receipts,
+          projectedOnHand: r.projected_on_hand,
+          netRequirement: r.net_requirement,
+          uom: r.uom,
+          exceptionType: r.exception_type,
+        })),
+      };
+    });
+  } catch (err) {
+    console.error('[planning/mrp] getMrpRunRequirements failed', err);
     return { ok: false, error: 'persistence_failed' };
   }
 }

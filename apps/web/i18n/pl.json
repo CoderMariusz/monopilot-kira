@@ -1186,7 +1186,10 @@
     "userMenu": "Menu użytkownika",
     "openUserMenu": "Otwórz menu użytkownika dla {name}",
     "signOut": "Wyloguj",
-    "siteCrumbLabel": "Bieżąca organizacja"
+    "siteCrumbLabel": "Bieżąca organizacja",
+    "sitePickerLabel": "Zakład",
+    "sitePickerAllSites": "Wszystkie zakłady",
+    "sitePickerTooltip": "Filtruje tylko zlecenia produkcyjne, nośniki LP i OEE — pozostałe ekrany obejmują całą organizację"
   },
   "onboarding": {
     "wizard_title": "Kreator wdrożenia",
@@ -5294,7 +5297,8 @@
       "createTo": "Utwórz transfer",
       "runSequencing": "Uruchom sekwencjonowanie",
       "triggerD365": "Pobierz z D365",
-      "notAvailable": "Jeszcze niedostępne"
+      "notAvailable": "Jeszcze niedostępne",
+      "runSequencingHint": "Optymalizator sekwencji nie jest jeszcze zbudowany — użyj tablicy harmonogramu linii"
     },
     "alerts": {
       "wo": "Alerty ZP",
@@ -5937,6 +5941,14 @@
       "mrp": {
         "title": "MRP",
         "desc": "Bilans popytu, zapasów i otwartych dostaw"
+      },
+      "schedule": {
+        "title": "Harmonogram linii",
+        "desc": "7-dniowa tablica ZP na liniach produkcyjnych"
+      },
+      "reorderThresholds": {
+        "title": "Progi uzupełniania",
+        "desc": "Minimalne stany i partie uzupełnień dla MRP"
       }
     },
     "mrp": {
@@ -5958,7 +5970,8 @@
         "coverage": "Pokrycie popytu",
         "itemsAnalyzed": "Przeanalizowane pozycje",
         "totalDemand": "Łączny otwarty popyt",
-        "totalDemandHint": "Suma po pozycjach, każda w swojej bazowej JM"
+        "totalDemandHint": "Suma po pozycjach, każda w swojej bazowej JM",
+        "belowMin": "Poniżej minimum"
       },
       "columns": {
         "item": "Pozycja",
@@ -5973,7 +5986,8 @@
       "severity": {
         "shortage": "Brak",
         "atRisk": "Pokryte nadchodzącą dostawą",
-        "covered": "Pokryte"
+        "covered": "Pokryte",
+        "belowMin": "Poniżej zapasu minimalnego"
       },
       "actionTypes": {
         "buy": "KUP",
@@ -5985,6 +5999,133 @@
         "ingredient": "Składnik",
         "intermediate": "Półprodukt",
         "packaging": "Opakowanie"
+      },
+      "persistToggle": "Zapisz to uruchomienie",
+      "persistNote": "To uruchomienie zostanie zapisane w historii MRP (nagłówek + rejestr zapotrzebowań). Żadne zamówienia nie są tworzone.",
+      "persistedAs": "zapisano jako",
+      "minQty": "Min",
+      "dueBy": "Termin",
+      "previousRuns": {
+        "title": "Poprzednie uruchomienia",
+        "empty": "Brak zapisanych uruchomień — włącz „Zapisz to uruchomienie” przed startem.",
+        "loading": "Ładowanie…",
+        "error": "Nie udało się wczytać poprzednich uruchomień.",
+        "expand": "Szczegóły",
+        "collapse": "Ukryj",
+        "columns": {
+          "run": "Uruchomienie",
+          "date": "Data",
+          "items": "Pozycje",
+          "exceptions": "Braki",
+          "status": "Status"
+        },
+        "requirements": {
+          "item": "Pozycja",
+          "gross": "Zapotrzebowanie brutto",
+          "receipts": "Planowane przyjęcia",
+          "projected": "Prognozowany stan",
+          "net": "Zapotrzebowanie netto",
+          "empty": "Brak zapisanych zapotrzebowań dla tego uruchomienia."
+        }
+      }
+    },
+    "schedule": {
+      "title": "Harmonogram linii",
+      "subtitle": "Zlecenia produkcyjne na liniach — najbliższe 7 dni",
+      "breadcrumb": "Harmonogram",
+      "denied": "Brak uprawnień do podglądu tablicy harmonogramu.",
+      "error": "Nie udało się wczytać tablicy harmonogramu. Spróbuj ponownie.",
+      "legend": {
+        "conflict": "Nakładanie na tej samej linii",
+        "openEnd": "Brak czasu zakończenia (pokazano 1 godz.)"
+      },
+      "board": {
+        "linesCol": "Linie produkcyjne",
+        "noLine": "Bez przypisanej linii",
+        "emptyLines": "Brak aktywnych linii produkcyjnych. Zdefiniuj linie w Ustawieniach, aby korzystać z tablicy.",
+        "emptyScheduled": "Brak zaplanowanych zleceń w najbliższych 7 dniach."
+      },
+      "unscheduled": {
+        "title": "Niezaplanowane zlecenia",
+        "empty": "Każde otwarte zlecenie ma zaplanowany start.",
+        "cta": "Zaplanuj"
+      },
+      "modal": {
+        "title": "Przeplanuj",
+        "line": "Linia produkcyjna",
+        "lineKeep": "Zachowaj obecną linię",
+        "start": "Początek",
+        "end": "Koniec",
+        "item": "Pozycja",
+        "statusLabel": "Status",
+        "save": "Zapisz",
+        "saving": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "invalid_input": "Podaj prawidłowy czas rozpoczęcia i zakończenia.",
+          "invalid_range": "Koniec musi być po początku.",
+          "forbidden": "Brak uprawnień do przeplanowania zleceń.",
+          "not_found": "Nie znaleziono zlecenia.",
+          "invalid_state": "Przeplanować można tylko zlecenia w stanie szkic lub zwolnione.",
+          "invalid_line": "Wybrana linia nie jest aktywną linią tej organizacji.",
+          "dependency_cycle": "To ZP leży na cyklicznym łańcuchu zależności (V-PLAN-WO-CYCLE) — najpierw napraw zależności.",
+          "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie."
+        }
+      }
+    },
+    "reorderThresholds": {
+      "title": "Progi uzupełniania zapasów",
+      "subtitle": "Minimalne stany i partie uzupełnień per pozycja zasilające alerty poniżej minimum w MRP",
+      "breadcrumb": "Progi uzupełniania",
+      "add": "+ Dodaj próg",
+      "empty": "Brak skonfigurowanych progów uzupełniania",
+      "emptyHint": "Dodaj próg, aby w uruchomieniach MRP otrzymywać alerty poniżej minimum.",
+      "loading": "Ładowanie…",
+      "denied": "Nie masz uprawnień do podglądu progów uzupełniania.",
+      "error": "Nie udało się wczytać progów uzupełniania.",
+      "edit": "Edytuj",
+      "remove": "Usuń",
+      "removing": "Usuwanie…",
+      "days": "dni",
+      "noSupplier": "Brak preferowanego dostawcy",
+      "columns": {
+        "item": "Pozycja",
+        "minQty": "Ilość min.",
+        "reorderQty": "Ilość uzupełnienia",
+        "supplier": "Preferowany dostawca",
+        "leadTime": "Czas realizacji",
+        "updated": "Zaktualizowano"
+      },
+      "modal": {
+        "titleAdd": "Dodaj próg uzupełniania",
+        "titleEdit": "Edytuj próg uzupełniania",
+        "itemLabel": "Pozycja",
+        "minQtyLabel": "Ilość minimalna (jedn. bazowa)",
+        "reorderQtyLabel": "Ilość uzupełnienia (jedn. bazowa)",
+        "reorderQtyHint": "0 = brak stałej partii — sugestie uzupełniają tylko do minimum.",
+        "supplierLabel": "Preferowany dostawca",
+        "supplierNone": "Brak",
+        "submit": "Zapisz",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "clearItem": "Wyczyść pozycję",
+        "errors": {
+          "itemRequired": "Wybierz pozycję.",
+          "qtyInvalid": "Ilości muszą być liczbami nieujemnymi (do 6 miejsc po przecinku).",
+          "invalid_input": "Nieprawidłowe dane.",
+          "forbidden": "Nie masz uprawnień do edycji progów uzupełniania.",
+          "not_found": "Nie znaleziono pozycji lub dostawcy.",
+          "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie."
+        },
+        "picker": {
+          "trigger": "+ Wybierz pozycję",
+          "searchLabel": "Szukaj pozycji",
+          "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+          "loading": "Wyszukiwanie…",
+          "empty": "Brak pasujących pozycji",
+          "cancel": "Anuluj",
+          "error": "Wyszukiwanie pozycji nie powiodło się"
+        }
       }
     }
   },

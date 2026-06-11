@@ -67,6 +67,12 @@ export type LicensePlateListInput = {
   qaStatus?: string;
   search?: string;
   warehouseId?: string;
+  /**
+   * 14-multi-site (CL4): filter on license_plates.site_id (day-1 column,
+   * (org_id, site_id) index from mig 191). Absent/empty = All sites.
+   * NOTE: warehouses has NO site_id column — the LP row itself carries it.
+   */
+  siteId?: string;
   limit?: number;
 };
 

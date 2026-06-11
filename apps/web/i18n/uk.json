@@ -1186,7 +1186,10 @@
     "userMenu": "Меню користувача",
     "openUserMenu": "Відкрити меню користувача для {name}",
     "signOut": "Вийти",
-    "siteCrumbLabel": "Поточна організація"
+    "siteCrumbLabel": "Поточна організація",
+    "sitePickerLabel": "Site",
+    "sitePickerAllSites": "All sites",
+    "sitePickerTooltip": "Filters work orders, license plates and OEE only — other screens stay org-wide"
   },
   "onboarding": {
     "wizard_title": "Майстер впровадження",
@@ -5294,7 +5297,8 @@
       "createTo": "Create TO",
       "runSequencing": "Run sequencing",
       "triggerD365": "Trigger D365 pull",
-      "notAvailable": "Not available yet"
+      "notAvailable": "Not available yet",
+      "runSequencingHint": "Sequencing optimizer not built yet — use the Line schedule board"
     },
     "alerts": {
       "wo": "WO alerts",
@@ -5937,6 +5941,14 @@
       "mrp": {
         "title": "MRP",
         "desc": "Net demand vs stock and open supply"
+      },
+      "schedule": {
+        "title": "Line schedule",
+        "desc": "7-day board of WOs per production line"
+      },
+      "reorderThresholds": {
+        "title": "Reorder thresholds",
+        "desc": "Min stock floors & reorder lots for MRP"
       }
     },
     "mrp": {
@@ -5958,7 +5970,8 @@
         "coverage": "Demand coverage",
         "itemsAnalyzed": "Items analyzed",
         "totalDemand": "Total open demand",
-        "totalDemandHint": "Sum across items, each in its own base UoM"
+        "totalDemandHint": "Sum across items, each in its own base UoM",
+        "belowMin": "Below min"
       },
       "columns": {
         "item": "Item",
@@ -5973,7 +5986,8 @@
       "severity": {
         "shortage": "Shortage",
         "atRisk": "Covered by incoming supply",
-        "covered": "Covered"
+        "covered": "Covered",
+        "belowMin": "Below min stock"
       },
       "actionTypes": {
         "buy": "BUY",
@@ -5985,6 +5999,133 @@
         "ingredient": "Ingredient",
         "intermediate": "Intermediate",
         "packaging": "Packaging"
+      },
+      "persistToggle": "Save this run",
+      "persistNote": "This run will be saved to MRP history (run header + requirements ledger). No orders are created.",
+      "persistedAs": "saved as",
+      "minQty": "Min",
+      "dueBy": "Due",
+      "previousRuns": {
+        "title": "Previous runs",
+        "empty": "No persisted runs yet — enable “Save this run” before running.",
+        "loading": "Loading…",
+        "error": "Failed to load previous runs.",
+        "expand": "Details",
+        "collapse": "Hide",
+        "columns": {
+          "run": "Run",
+          "date": "Date",
+          "items": "Items",
+          "exceptions": "Shortages",
+          "status": "Status"
+        },
+        "requirements": {
+          "item": "Item",
+          "gross": "Gross demand",
+          "receipts": "Scheduled receipts",
+          "projected": "Projected on hand",
+          "net": "Net requirement",
+          "empty": "No requirements stored for this run."
+        }
+      }
+    },
+    "schedule": {
+      "title": "Line schedule",
+      "subtitle": "Work orders per production line — next 7 days",
+      "breadcrumb": "Schedule",
+      "denied": "You do not have permission to view the schedule board.",
+      "error": "Could not load the schedule board. Try again.",
+      "legend": {
+        "conflict": "Overlap on the same line",
+        "openEnd": "No end time (1 h shown)"
+      },
+      "board": {
+        "linesCol": "Production lines",
+        "noLine": "No line assigned",
+        "emptyLines": "No active production lines. Define lines in Settings to use the board.",
+        "emptyScheduled": "No scheduled work orders in the next 7 days."
+      },
+      "unscheduled": {
+        "title": "Unscheduled work orders",
+        "empty": "Every open work order has a scheduled start.",
+        "cta": "Schedule"
+      },
+      "modal": {
+        "title": "Reschedule",
+        "line": "Production line",
+        "lineKeep": "Keep current line",
+        "start": "Start",
+        "end": "End",
+        "item": "Item",
+        "statusLabel": "Status",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "errors": {
+          "invalid_input": "Enter a valid start and end time.",
+          "invalid_range": "End must be after start.",
+          "forbidden": "You do not have permission to reschedule work orders.",
+          "not_found": "Work order not found.",
+          "invalid_state": "Only draft or released work orders can be rescheduled.",
+          "invalid_line": "The selected line is not an active line of this organization.",
+          "dependency_cycle": "This WO sits on a cyclic dependency chain (V-PLAN-WO-CYCLE) — fix the dependencies first.",
+          "persistence_failed": "Saving failed. Try again."
+        }
+      }
+    },
+    "reorderThresholds": {
+      "title": "Reorder thresholds",
+      "subtitle": "Per-item minimum stock floors and reorder lots feeding MRP below-min alerts",
+      "breadcrumb": "Reorder thresholds",
+      "add": "+ Add threshold",
+      "empty": "No reorder thresholds configured",
+      "emptyHint": "Add a threshold to get below-minimum alerts in MRP runs.",
+      "loading": "Loading…",
+      "denied": "You don't have permission to view reorder thresholds.",
+      "error": "Failed to load reorder thresholds.",
+      "edit": "Edit",
+      "remove": "Delete",
+      "removing": "Deleting…",
+      "days": "days",
+      "noSupplier": "No preferred supplier",
+      "columns": {
+        "item": "Item",
+        "minQty": "Min qty",
+        "reorderQty": "Reorder qty",
+        "supplier": "Preferred supplier",
+        "leadTime": "Lead time",
+        "updated": "Updated"
+      },
+      "modal": {
+        "titleAdd": "Add reorder threshold",
+        "titleEdit": "Edit reorder threshold",
+        "itemLabel": "Item",
+        "minQtyLabel": "Minimum quantity (base UoM)",
+        "reorderQtyLabel": "Reorder quantity (base UoM)",
+        "reorderQtyHint": "0 = no fixed lot — suggestions just top back up to the minimum.",
+        "supplierLabel": "Preferred supplier",
+        "supplierNone": "None",
+        "submit": "Save",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "clearItem": "Clear item",
+        "errors": {
+          "itemRequired": "Pick an item.",
+          "qtyInvalid": "Quantities must be non-negative numbers (up to 6 decimals).",
+          "invalid_input": "Invalid input.",
+          "forbidden": "You don't have permission to edit reorder thresholds.",
+          "not_found": "Item or supplier not found.",
+          "persistence_failed": "Saving failed. Try again."
+        },
+        "picker": {
+          "trigger": "+ Pick item",
+          "searchLabel": "Search items",
+          "searchPlaceholder": "Search by code or name…",
+          "loading": "Searching…",
+          "empty": "No matching items",
+          "cancel": "Cancel",
+          "error": "Item search failed"
+        }
       }
     }
   },

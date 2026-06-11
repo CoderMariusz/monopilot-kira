@@ -1,0 +1,267 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  allocateSalesOrder,
+  createSalesOrder,
+  deallocateSalesOrder,
+  transitionSalesOrderStatus,
+} from '../so-actions';
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const USER_ID = '22222222-2222-4222-8222-222222222222';
+const SO_ID = '33333333-3333-4333-8333-333333333333';
+const CUSTOMER_ID = '44444444-4444-4444-8444-444444444444';
+const LINE_ID = '55555555-5555-4555-8555-555555555555';
+const ITEM_ID = '66666666-6666-4666-8666-666666666666';
+const LP_1 = '77777777-7777-4777-8777-777777777777';
+const LP_2 = '88888888-8888-4888-8888-888888888888';
+
+let client: QueryClient;
+let allowPermission = true;
+let status = 'draft';
+let soNumber = 'SO-202606-00001';
+let insertedSo: Record<string, unknown> | null = null;
+let insertedLines: Array<Record<string, unknown>> = [];
+let allocationRows: Array<{ lp_id: string; qty: string }> = [];
+let lpReserved: Record<string, string> = {};
+let lineAllocatedQty = '0';
+let candidateRows: Array<{ lp_id: string; available_qty: string }> = [];
+let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
+
+vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+    action({ userId: USER_ID, orgId: ORG_ID, client }),
+  ),
+}));
+
+function normalize(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function decimalAdd(a: string, b: string): string {
+  const toUnits = (value: string) => {
+    const [whole, fraction = ''] = value.split('.');
+    return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
+  };
+  const units = toUnits(a) + toUnits(b);
+  const whole = units / 1_000_000n;
+  const fraction = (units % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
+  return `${whole.toString()}${fraction ? `.${fraction}` : ''}`;
+}
+
+function makeClient(): QueryClient {
+  return {
+    query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      queryLog.push({ sql, params });
+      const q = normalize(sql);
+
+      if (q.includes('from public.user_roles')) {
+        return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      if (q.includes('next_sales_order_document_number')) {
+        return { rows: [{ so_number: soNumber }], rowCount: 1 };
+      }
+      if (q.startsWith('insert into public.sales_orders')) {
+        insertedSo = {
+          id: SO_ID,
+          order_number: params[1],
+          customer_id: params[2],
+          promised_ship_date: params[3],
+          notes: params[4],
+        };
+        return { rows: [{ id: SO_ID }], rowCount: 1 };
+      }
+      if (q.startsWith('insert into public.sales_order_lines')) {
+        insertedLines.push({
+          sales_order_id: params[1],
+          line_number: params[2],
+          product_id: params[3],
+          quantity_ordered: params[4],
+        });
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('select so.id::text')) {
+        return {
+          rows: [
+            {
+              id: SO_ID,
+              order_number: insertedSo?.order_number ?? soNumber,
+              status,
+              customer_id: CUSTOMER_ID,
+              customer_name: 'Acme Foods',
+              promised_ship_date: insertedSo?.promised_ship_date ?? '2026-06-20',
+              notes: insertedSo?.notes ?? 'deliver am',
+              created_at: '2026-06-11T10:00:00.000Z',
+              updated_at: '2026-06-11T10:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select sol.id::text')) {
+        return {
+          rows: [
+            {
+              id: LINE_ID,
+              line_number: 1,
+              product_id: ITEM_ID,
+              quantity_ordered: '10',
+              uom: 'kg',
+              quantity_allocated: lineAllocatedQty,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select status from public.sales_orders')) {
+        return { rows: [{ status }], rowCount: 1 };
+      }
+      if (q.startsWith('update public.sales_orders')) {
+        status = params[1] as string;
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('select sola.lp_id::text')) {
+        return { rows: allocationRows, rowCount: allocationRows.length };
+      }
+      if (q.startsWith('delete from public.sales_order_line_allocations')) {
+        allocationRows = [];
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.sales_order_lines') && q.includes('set quantity_allocated = 0')) {
+        lineAllocatedQty = '0';
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('select id::text, product_id::text')) {
+        return { rows: [{ id: LINE_ID, product_id: ITEM_ID, quantity_ordered: '10' }], rowCount: 1 };
+      }
+      if (q.startsWith('select lp.id::text as lp_id')) {
+        return { rows: candidateRows, rowCount: candidateRows.length };
+      }
+      if (q.startsWith('insert into public.sales_order_line_allocations')) {
+        allocationRows = allocationRows.filter((row) => row.lp_id !== params[2]);
+        allocationRows.push({ lp_id: params[2] as string, qty: params[3] as string });
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.license_plates') && q.includes('reserved_qty = reserved_qty +')) {
+        const lpId = params[0] as string;
+        lpReserved[lpId] = decimalAdd(lpReserved[lpId] ?? '0', params[1] as string);
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.license_plates') && q.includes('reserved_qty = greatest')) {
+        const lpId = params[0] as string;
+        lpReserved[lpId] = '0';
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.sales_order_lines') && q.includes('set quantity_allocated = $2')) {
+        lineAllocatedQty = params[1] as string;
+        return { rows: [], rowCount: 1 };
+      }
+
+      return { rows: [], rowCount: 0 };
+    }),
+  };
+}
+
+beforeEach(() => {
+  allowPermission = true;
+  status = 'draft';
+  soNumber = 'SO-202606-00001';
+  insertedSo = null;
+  insertedLines = [];
+  allocationRows = [];
+  lpReserved = {};
+  lineAllocatedQty = '0';
+  candidateRows = [];
+  queryLog = [];
+  client = makeClient();
+});
+
+describe('createSalesOrder', () => {
+  it('generates the SO number and inserts the order plus lines', async () => {
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      notes: 'deliver am',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    });
+
+    expect(result?.soNumber).toBe('SO-202606-00001');
+    expect(insertedSo).toMatchObject({ order_number: 'SO-202606-00001', customer_id: CUSTOMER_ID });
+    expect(insertedLines).toEqual([
+      { sales_order_id: SO_ID, line_number: 1, product_id: ITEM_ID, quantity_ordered: '10' },
+    ]);
+  });
+});
+
+describe('transitionSalesOrderStatus', () => {
+  it('allows a legal draft to confirmed transition', async () => {
+    const result = await transitionSalesOrderStatus(SO_ID, 'confirmed');
+
+    expect(status).toBe('confirmed');
+    expect(result).toMatchObject({ id: SO_ID, status: 'confirmed' });
+  });
+
+  it('returns ILLEGAL_TRANSITION for an invalid transition', async () => {
+    const result = await transitionSalesOrderStatus(SO_ID, 'shipped');
+
+    expect(result).toEqual({ error: 'ILLEGAL_TRANSITION', from: 'draft', to: 'shipped' });
+    expect(status).toBe('draft');
+  });
+});
+
+describe('allocateSalesOrder', () => {
+  it('allocates greedily across two FEFO LPs and marks the SO allocated', async () => {
+    status = 'confirmed';
+    candidateRows = [
+      { lp_id: LP_1, available_qty: '6' },
+      { lp_id: LP_2, available_qty: '10' },
+    ];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ id: SO_ID, status: 'allocated' });
+    expect(allocationRows).toEqual([
+      { lp_id: LP_1, qty: '6' },
+      { lp_id: LP_2, qty: '4' },
+    ]);
+    expect(lpReserved).toEqual({ [LP_1]: '6', [LP_2]: '4' });
+    expect(lineAllocatedQty).toBe('10');
+  });
+
+  it('returns INSUFFICIENT_STOCK without writing allocations when stock is short', async () => {
+    status = 'confirmed';
+    candidateRows = [{ lp_id: LP_1, available_qty: '3.5' }];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toEqual({ error: 'INSUFFICIENT_STOCK', item_id: ITEM_ID, needed: '10', available: '3.5' });
+    expect(allocationRows).toEqual([]);
+    expect(lineAllocatedQty).toBe('0');
+  });
+});
+
+describe('deallocateSalesOrder', () => {
+  it('decrements LP reserved qty, resets allocated qty, and deletes allocations', async () => {
+    allocationRows = [
+      { lp_id: LP_1, qty: '6' },
+      { lp_id: LP_2, qty: '4' },
+    ];
+    lpReserved = { [LP_1]: '6', [LP_2]: '4' };
+    lineAllocatedQty = '10';
+
+    const result = await deallocateSalesOrder(SO_ID);
+
+    expect(result).toEqual({ ok: true });
+    expect(lpReserved).toEqual({ [LP_1]: '0', [LP_2]: '0' });
+    expect(lineAllocatedQty).toBe('0');
+    expect(allocationRows).toEqual([]);
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('delete from public.sales_order_line_allocations'))).toBe(true);
+  });
+});

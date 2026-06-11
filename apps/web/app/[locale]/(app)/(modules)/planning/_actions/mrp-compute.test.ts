@@ -11,6 +11,7 @@ import {
   computeMrp,
   normalizeToBase,
   type MrpItemRow,
+  type MrpThresholdRow,
 } from './mrp-compute';
 
 const RM_FLOUR: MrpItemRow = {
@@ -115,10 +116,10 @@ describe('computeMrp — netting formula', () => {
     const flour = rows.find((r) => r.itemCode === 'RM-FLOUR')!;
     expect(flour.severity).toBe('shortage');
     expect(flour.net).toBe('-15.300');
-    expect(flour.suggestedAction).toEqual({ type: 'buy', qty: '16' });
+    expect(flour.suggestedAction).toEqual({ type: 'buy', qty: '16', dueDate: null, supplierId: null });
 
     const box = rows.find((r) => r.itemCode === 'PKG-BOX')!;
-    expect(box.suggestedAction).toEqual({ type: 'buy', qty: '7' });
+    expect(box.suggestedAction).toEqual({ type: 'buy', qty: '7', dueDate: null, supplierId: null });
 
     expect(kpis.itemsShort).toBe(2);
   });
@@ -135,7 +136,7 @@ describe('computeMrp — netting formula', () => {
     const dough = rows[0];
     expect(dough.openSupply).toBe('15.000');
     expect(dough.net).toBe('-25.000');
-    expect(dough.suggestedAction).toEqual({ type: 'make', qty: '25' });
+    expect(dough.suggestedAction).toEqual({ type: 'make', qty: '25', dueDate: null, supplierId: null });
   });
 
   it('marks demand covered only by incoming supply as at_risk', () => {
@@ -198,7 +199,7 @@ describe('computeMrp — netting formula', () => {
     expect(row.onHand).toBe('10.000');
     expect(row.demand).toBe('15.000');
     expect(row.net).toBe('-5.000');
-    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '5' });
+    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '5', dueDate: null, supplierId: null });
     expect(row.excludedUoms).toEqual([]);
   });
 
@@ -275,7 +276,7 @@ describe('computeMrp — netting formula', () => {
     expect(row.demand).toBe('45.999');
     expect(row.net).toBe('-0.001'); // exact 1g shortage
     expect(row.severity).toBe('shortage');
-    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '1' }); // ceil(0.001)
+    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '1', dueDate: null, supplierId: null }); // ceil(0.001)
   });
 
   it('covers 3 × 15.333 demand with exactly 45.999 on-hand (no phantom shortage)', () => {
@@ -316,7 +317,7 @@ describe('computeMrp — netting formula', () => {
     expect(row.onHand).toBe('1.000'); // 0.9999 exact in micro-units, 3dp display rounds
     expect(row.net).toBe('0.000'); // −0.0001 micro-exact rounds to 0.000 at 3dp (never "-0.000")
     expect(row.severity).toBe('shortage'); // exact: 0.9999 < 1.000 — a real (sub-display) shortage
-    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '1' });
+    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '1', dueDate: null, supplierId: null });
   });
 
   it('computes demand-weighted coverage', () => {
@@ -333,5 +334,170 @@ describe('computeMrp — netting formula', () => {
     // total demand 200, total shortage 125 → coverage 37.5%
     expect(kpis.totalDemand).toBe('200.000');
     expect(kpis.coveragePct).toBe(37.5);
+  });
+});
+
+describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
+  const SUPPLIER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const threshold = (over: Partial<MrpThresholdRow> = {}): MrpThresholdRow => ({
+    item_id: 'item-flour',
+    min_qty: '20.000',
+    reorder_qty: '0',
+    preferred_supplier_id: null,
+    lead_time_days: null,
+    ...over,
+  });
+
+  it('flags net >= 0 below min_qty as below_min with its own severity (not shortage)', () => {
+    const { rows, kpis } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '30.000', reserved: '0' }],
+      demand: [{ product_id: 'item-flour', uom: 'kg', qty: '15.000' }],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [threshold()], // min 20, net = 15 → below min
+      today: '2026-06-11',
+    });
+
+    const row = rows[0];
+    expect(row.net).toBe('15.000');
+    expect(row.severity).toBe('below_min');
+    expect(row.minQty).toBe('20.000');
+    // gap = 20 − 15 = 5; reorder lot 0 → top up to the floor only.
+    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '5', dueDate: null, supplierId: null });
+    expect(kpis.itemsBelowMin).toBe(1);
+    expect(kpis.itemsShort).toBe(0);
+  });
+
+  it('suggests at least the configured reorder lot when it exceeds the gap', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '19.000', reserved: '0' }],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [threshold({ reorder_qty: '50.000' })], // gap 1, lot 50 → 50
+      today: '2026-06-11',
+    });
+    expect(rows[0].suggestedAction).toEqual({ type: 'buy', qty: '50', dueDate: null, supplierId: null });
+  });
+
+  it('tops a thresholded SHORTAGE back up over the floor — qty = max(min−net, lot), exact bigints', () => {
+    const { rows, kpis } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '10.000', reserved: '0' }],
+      demand: [{ product_id: 'item-flour', uom: 'kg', qty: '25.300' }], // net −15.3
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [threshold({ min_qty: '20.000' })],
+      today: '2026-06-11',
+    });
+    const row = rows[0];
+    expect(row.severity).toBe('shortage'); // negative net stays RED
+    expect(row.net).toBe('-15.300');
+    // gap to the floor = 20 − (−15.3) = 35.3 → ceil 36 (not just the 16 shortage cover).
+    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '36', dueDate: null, supplierId: null });
+    expect(kpis.itemsShort).toBe(1);
+    expect(kpis.itemsBelowMin).toBe(0);
+  });
+
+  it('derives the due date from the preferred supplier lead time (today + N days)', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '5.000', reserved: '0' }],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [threshold({ preferred_supplier_id: SUPPLIER, lead_time_days: 7 })],
+      today: '2026-06-11',
+    });
+    expect(rows[0].suggestedAction).toEqual({
+      type: 'buy',
+      qty: '15', // gap 20 − 5
+      dueDate: '2026-06-18',
+      supplierId: SUPPLIER,
+    });
+  });
+
+  it('keeps the due date null when the preferred supplier is unset (honest)', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '5.000', reserved: '0' }],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      // lead_time_days present but NO preferred supplier → no due date.
+      thresholds: [threshold({ preferred_supplier_id: null, lead_time_days: 7 })],
+      today: '2026-06-11',
+    });
+    expect(rows[0].suggestedAction!.dueDate).toBeNull();
+    expect(rows[0].suggestedAction!.supplierId).toBeNull();
+  });
+
+  it('surfaces a zero-activity item whose floor is configured (net 0 < min)', () => {
+    const { rows, kpis } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [threshold({ min_qty: '12.500', reorder_qty: '10.000' })],
+      today: '2026-06-11',
+    });
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    expect(row.severity).toBe('below_min');
+    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '13', dueDate: null, supplierId: null }); // ceil(12.5) > lot 10
+    expect(kpis.itemsBelowMin).toBe(1);
+  });
+
+  it('MAKE for a thresholded intermediate; exact micro math on a 6dp min', () => {
+    const { rows } = computeMrp({
+      items: [INT_DOUGH],
+      onHand: [{ product_id: 'item-dough', uom: 'kg', on_hand: '0.999999', reserved: '0' }],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [threshold({ item_id: 'item-dough', min_qty: '1.000001', reorder_qty: '0' })],
+      today: '2026-06-11',
+    });
+    const row = rows[0];
+    expect(row.severity).toBe('below_min'); // 0.999999 < 1.000001 — exact, no float dust
+    // gap = 0.000002 → ceil to 1 whole unit.
+    expect(row.suggestedAction).toEqual({ type: 'make', qty: '1', dueDate: null, supplierId: null });
+  });
+
+  it('a satisfied floor changes nothing (net >= min → covered, no suggestion)', () => {
+    const { rows, kpis } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '20.000', reserved: '0' }],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [threshold()], // min 20, net 20 → NOT below
+      today: '2026-06-11',
+    });
+    expect(rows[0].severity).toBe('covered');
+    expect(rows[0].suggestedAction).toBeNull();
+    expect(kpis.itemsBelowMin).toBe(0);
+  });
+
+  it('sorts below_min between shortage and at_risk', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR, INT_DOUGH, PKG_BOX],
+      onHand: [
+        { product_id: 'item-flour', uom: 'kg', on_hand: '10.000', reserved: '0' }, // below min
+        { product_id: 'item-box', uom: 'pcs', on_hand: '5.000', reserved: '0' },
+      ],
+      demand: [
+        { product_id: 'item-dough', uom: 'kg', qty: '5.000' }, // shortage −5
+        { product_id: 'item-box', uom: 'pcs', qty: '10.000' }, // at_risk via PO supply
+      ],
+      poSupply: [{ product_id: 'item-box', uom: 'pcs', qty: '10.000' }],
+      productionSupply: [],
+      thresholds: [threshold()], // flour min 20 > net 10
+      today: '2026-06-11',
+    });
+    expect(rows.map((r) => r.severity)).toEqual(['shortage', 'below_min', 'at_risk']);
   });
 });

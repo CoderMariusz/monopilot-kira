@@ -271,7 +271,8 @@ describe('warehouse backend actions', () => {
     expect(normalize(String(listCall?.[0]))).toContain('lp.qa_status = $2');
     expect(normalize(String(listCall?.[0]))).toContain('lp.warehouse_id = $3');
     expect(normalize(String(listCall?.[0]))).toContain('ilike');
-    expect(listCall?.[1]).toEqual(['available', 'released', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'RM', 25]);
+    // 14-multi-site (CL4): trailing param is the optional site filter (null = All sites).
+    expect(listCall?.[1]).toEqual(['available', 'released', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'RM', 25, null]);
   });
 
   it('createStockMove rejects immovable LP statuses before inserting a stock move', async () => {

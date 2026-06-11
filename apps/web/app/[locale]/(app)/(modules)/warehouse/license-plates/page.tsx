@@ -29,6 +29,7 @@ import { Suspense } from 'react';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import { listLPs } from '../_actions/lp-actions';
 import { getLpTranslator } from './lp-labels';
 import { LpListClient, type LpListLabels } from './_components/lp-list.client';
@@ -90,7 +91,9 @@ function buildLabels(locale: string): LpListLabels {
 
 async function ListContent({ locale }: { locale: string }) {
   const t = getLpTranslator(locale);
-  const result = await listLPs({ limit: 200 });
+  // 14-multi-site (CL4): topbar site picker cookie; null = All sites (no filter).
+  const siteId = await getActiveSiteId();
+  const result = await listLPs({ limit: 200, siteId: siteId ?? undefined });
 
   // ── Permission-denied state (server-resolved by the action) ──────────────────
   if (!result.ok && result.reason === 'forbidden') {

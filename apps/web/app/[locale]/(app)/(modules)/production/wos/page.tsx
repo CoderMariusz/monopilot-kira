@@ -19,6 +19,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import { listWorkOrders, type WoListStatus } from '../_actions/list-work-orders';
 import { getWoListActionContext } from '../_actions/get-wo-action-context';
 import { buildWoModalLabels } from '../_actions/wo-modal-labels';
@@ -42,7 +43,9 @@ function WoListSkeleton() {
 
 async function WoListContent({ locale }: { locale: string }) {
   const t = await getTranslations('production.wos');
-  const result = await listWorkOrders();
+  // 14-multi-site (CL4): topbar site picker cookie; null = All sites (no filter).
+  const siteId = await getActiveSiteId();
+  const result = await listWorkOrders({ siteId });
 
   if (!result.ok && result.reason === 'forbidden') {
     return (

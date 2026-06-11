@@ -75,6 +75,17 @@ export type OeeScreenResult =
   | { ok: true; data: OeeScreenData }
   | { ok: false; reason: 'forbidden' | 'error' };
 
+/** Optional read filters (14-multi-site CL4 — additive, absent = unchanged). */
+export type OeeScreenInput = {
+  /**
+   * Site filter (topbar picker cookie) on oee_snapshots.site_id (day-1 column,
+   * mig 184). null/undefined/non-uuid = All sites (no filter).
+   */
+  siteId?: string | null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function hasPermission(
   c: QueryClient,
   userId: string,
@@ -95,7 +106,9 @@ async function hasPermission(
   return rows.length > 0;
 }
 
-export async function getOeeScreen(): Promise<OeeScreenResult> {
+export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenResult> {
+  const siteId =
+    typeof input?.siteId === 'string' && UUID_RE.test(input.siteId) ? input.siteId : null;
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<OeeScreenResult> => {
       const c = client as QueryClient;
@@ -119,7 +132,9 @@ export async function getOeeScreen(): Promise<OeeScreenResult> {
                 round(avg(quality_pct), 1)::text as avg_q
            from public.oee_snapshots
           where org_id = app.current_org_id()
-            and snapshot_minute >= pg_catalog.now() - interval '7 days'`,
+            and snapshot_minute >= pg_catalog.now() - interval '7 days'
+            and ($1::uuid is null or site_id = $1::uuid)`,
+        [siteId],
       );
       const k = kpiRes.rows[0];
       const kpis: OeeKpis = {
@@ -155,9 +170,11 @@ export async function getOeeScreen(): Promise<OeeScreenResult> {
              on pl.org_id = s.org_id and pl.id::text = s.line_id
           where s.org_id = app.current_org_id()
             and s.snapshot_minute >= pg_catalog.now() - interval '7 days'
+            and ($1::uuid is null or s.site_id = $1::uuid)
           group by s.line_id, pl.code, pl.name
           order by avg(s.oee_pct) desc nulls last, s.line_id
           limit 50`,
+        [siteId],
       );
       const lines: OeeLineRow[] = linesRes.rows.map((r) => ({
         lineId: r.line_id,
@@ -205,8 +222,10 @@ export async function getOeeScreen(): Promise<OeeScreenResult> {
            left join public.work_orders w
              on w.org_id = s.org_id and w.id = s.active_wo_id
           where s.org_id = app.current_org_id()
+            and ($1::uuid is null or s.site_id = $1::uuid)
           order by s.snapshot_minute desc, s.id desc
           limit 15`,
+        [siteId],
       );
       const recent: OeeSnapshotRow[] = recentRes.rows.map((r) => ({
         id: r.id,

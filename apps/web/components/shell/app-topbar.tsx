@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { getTranslations } from "next-intl/server";
 
 import { SiteCrumb } from "./site-crumb";
+import { SiteSwitcher, type SiteSwitcherOption } from "./site-switcher";
 import { UserMenu } from "./user-menu";
 import type { UserMenuLanguagePickerProps } from "../../app/_components/user-menu-language-picker";
 
@@ -23,6 +24,12 @@ type AppTopbarProps = {
   signOutAction: (formData: FormData) => Promise<never> | never;
   onSelectLanguage: UserMenuLanguagePickerProps["onSelectLanguage"];
   switchNextIntlLocale: UserMenuLanguagePickerProps["switchNextIntlLocale"];
+  /** 14-multi-site (CL4): org sites for the picker; empty/absent → SiteCrumb fallback. */
+  sites?: SiteSwitcherOption[];
+  /** Active site id (mp_site_id cookie); null/absent = All sites. */
+  activeSiteId?: string | null;
+  /** Cookie write seam (lib/site/site-actions.setActiveSite). */
+  setSiteAction?: (siteId: string | null) => Promise<{ ok: boolean }>;
 };
 
 export async function AppTopbar({
@@ -36,6 +43,9 @@ export async function AppTopbar({
   signOutAction,
   onSelectLanguage,
   switchNextIntlLocale,
+  sites,
+  activeSiteId,
+  setSiteAction,
 }: AppTopbarProps): Promise<JSX.Element> {
   const t = await getTranslations({ locale, namespace: "Topbar" });
   const brand = t("brand");
@@ -64,7 +74,20 @@ export async function AppTopbar({
       </div>
 
       <div className="ml-auto flex items-center gap-3">
-        <SiteCrumb orgName={orgName} />
+        {sites && sites.length > 0 && setSiteAction ? (
+          <SiteSwitcher
+            sites={sites}
+            activeSiteId={activeSiteId ?? null}
+            labels={{
+              label: t("sitePickerLabel"),
+              allSites: t("sitePickerAllSites"),
+              tooltip: t("sitePickerTooltip"),
+            }}
+            setSiteAction={setSiteAction}
+          />
+        ) : (
+          <SiteCrumb orgName={orgName} />
+        )}
         <UserMenu
           user={user}
           orgId={orgId}
