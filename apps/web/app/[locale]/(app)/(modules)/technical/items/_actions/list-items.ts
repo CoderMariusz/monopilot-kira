@@ -85,6 +85,13 @@ function mapRow(row: ItemRow): ItemListItem | null {
     varianceTolerancePct: row.variance_tolerance_pct,
     shelfLifeDays: row.shelf_life_days,
     shelfLifeMode: row.shelf_life_mode,
+    // Pack hierarchy (migration 267). Not selected in the list query (the columns
+    // are surfaced on the detail page); defaulted here so the list row keeps its
+    // contract while staying resilient to the parallel 267 rollout.
+    outputUom: 'base',
+    netQtyPerEach: null,
+    eachPerBox: null,
+    boxesPerPallet: null,
     costPerKg: row.cost_per_kg,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
     allergens: Array.isArray(row.allergens) ? row.allergens.filter((a): a is string => typeof a === 'string') : [],

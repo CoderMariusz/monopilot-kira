@@ -42,6 +42,7 @@ import { Select } from '@monopilot/ui/Select';
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import type { PoSupplierOption } from '../_actions/po-form-data';
+import { UomSelect, type UomValue } from '../../../../../../../components/forms/uom-select';
 
 export type CreatePoLabels = {
   title: string;
@@ -61,6 +62,8 @@ export type CreatePoLabels = {
   lineUom: string;
   lineUnitPrice: string;
   uomPlaceholder: string;
+  /** Localized labels for the canonical UoM dropdown options (kg/g/l/ml/pcs/pack/box/pallet). */
+  uomOptions: Partial<Record<UomValue, string>>;
   qtyPlaceholder: string;
   unitPricePlaceholder: string;
   submit: string;
@@ -331,14 +334,17 @@ export function CreatePoModal({
                           className="w-24 text-right"
                         />
                       </td>
-                      <td className="px-3 py-2">
-                        <Input
-                          type="text"
+                      <td className="px-3 py-2" data-testid="create-po-line-uom">
+                        {/* No free-text units: constrained dropdown defaulting to the
+                            picked item's base UoM (set on ItemPicker.onSelect), kept
+                            changeable. */}
+                        <UomSelect
                           value={line.uom}
-                          data-testid="create-po-line-uom"
+                          onValueChange={(uom) => updateLine(line.key, { uom })}
+                          labels={labels.uomOptions}
                           placeholder={labels.uomPlaceholder}
-                          onChange={(e) => updateLine(line.key, { uom: e.target.value })}
-                          className="w-20"
+                          aria-label={labels.lineUom}
+                          className="w-24"
                         />
                       </td>
                       <td className="px-3 py-2 text-right">

@@ -36,6 +36,7 @@
  */
 import { z } from 'zod';
 
+import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
   PRODUCTION_OUTPUT_WRITE_PERMISSION,
@@ -68,7 +69,11 @@ export const RegisterOutputInput = z.object({
   operator_id: z.string().uuid().optional(),
   output_type: z.enum(['primary', 'co_product', 'by_product']),
   product_id: z.string().uuid(),
-  qty_kg: DecimalString,
+  qty_kg: DecimalString.optional(),
+  qtyKg: DecimalString.optional(),
+  qtyUnits: DecimalString.optional(),
+  unitsUom: z.enum(['each', 'box']).optional(),
+  actualWeightKg: DecimalString.optional(),
   uom: z.string().min(1).max(16).optional(),
   lp_id: z.string().uuid().optional(),
   lot_id: z.string().uuid().optional(),
@@ -78,6 +83,12 @@ export const RegisterOutputInput = z.object({
   catch_weight_kg_per_unit: z.array(DecimalString).min(1).optional(),
   // Optional explicit tolerance override (fraction, e.g. 0.10). Defaults below.
   catch_weight_tolerance_pct: z.number().min(0).max(1).optional(),
+}).refine((value) => !value.qtyUnits || !!value.unitsUom, {
+  path: ['unitsUom'],
+  message: 'unitsUom is required when qtyUnits is present',
+}).refine((value) => !!value.actualWeightKg || !!value.qtyUnits || !!value.qty_kg || !!value.qtyKg, {
+  path: ['qty_kg'],
+  message: 'qty_kg, qtyKg, actualWeightKg, or qtyUnits is required',
 });
 
 export type RegisterOutputInputType = z.infer<typeof RegisterOutputInput>;
@@ -109,7 +120,12 @@ type ItemRow = {
   variance_tolerance_pct: string | null;
 };
 
-type WoRow = { id: string; wo_number: string };
+type WoRow = {
+  id: string;
+  wo_number: string;
+  uom: string;
+  uom_snapshot: Record<string, unknown> | null;
+};
 
 // ─── Fixed-point decimal helpers (NUMERIC-exact, no binary float on kg) ──────────
 // We keep kg as integer micro-units (1e-6) internally so summation/division for
@@ -179,6 +195,8 @@ export function computeCatchWeightSummary(
 async function loadWo(ctx: OrgContextLike, woId: string): Promise<WoRow> {
   const { rows } = await ctx.client.query<WoRow>(
     `select id, wo_number
+            , uom
+            , uom_snapshot
        from public.work_orders
       where id = $1::uuid
         and org_id = app.current_org_id()
@@ -243,11 +261,6 @@ export async function registerOutput(
   }
   const input = parsed.data;
 
-  // V-PROD-03: registered output quantity must be > 0.
-  if (toMicro(input.qty_kg) <= 0n) {
-    throw new ProductionActionError('invalid_input', 422, { fields: ['qty_kg'] });
-  }
-
   // 2. RBAC
   if (!(await hasPermission(ctx, PRODUCTION_OUTPUT_WRITE_PERMISSION))) {
     throw new ProductionActionError('forbidden', 403);
@@ -255,6 +268,11 @@ export async function registerOutput(
 
   // 3. load WO + item
   const wo = await loadWo(ctx, woId);
+  const resolvedQtyKg = resolveQtyKg(wo, input);
+  // V-PROD-03: registered output quantity must be > 0.
+  if (toMicro(resolvedQtyKg) <= 0n) {
+    throw new ProductionActionError('invalid_input', 422, { fields: ['qty_kg'] });
+  }
   const item = await loadItem(ctx, input.product_id);
 
   // 4. WO must be in a recordable lifecycle state (read-only).
@@ -329,11 +347,12 @@ export async function registerOutput(
       `insert into public.wo_outputs
          (org_id, site_id, transaction_id, wo_id, output_type, product_id, lp_id,
           batch_number, qty_kg, uom, catch_weight_details, registered_by, created_by,
-          expiry_date)
+          expiry_date, qty_units, units_uom, actual_weight_kg)
        values
          (app.current_org_id(), null, $1::uuid, $2::uuid, $3, $4::uuid, $5::uuid,
           $6, $7::numeric, $8, $9::jsonb, $10::uuid, $10::uuid,
-          case when $11::int is not null then (current_date + ($11::int || ' days')::interval)::date else null end)
+          case when $11::int is not null then (current_date + ($11::int || ' days')::interval)::date else null end,
+          $12::numeric, $13, $14::numeric)
        returning id, lp_id, to_char(expiry_date, 'YYYY-MM-DD') as expiry_date`,
       [
         input.transaction_id,
@@ -342,11 +361,14 @@ export async function registerOutput(
         input.product_id,
         input.lp_id ?? null,
         batchNumber,
-        input.qty_kg,
-        input.uom ?? 'kg',
+        resolvedQtyKg,
+        input.uom ?? wo.uom,
         catchDetailsJson,
         input.operator_id ?? ctx.userId,
         item.shelf_life_days,
+        input.qtyUnits ?? null,
+        input.unitsUom ?? null,
+        input.actualWeightKg ?? null,
       ],
     );
     const row = rows[0];
@@ -380,8 +402,11 @@ export async function registerOutput(
       product_id: input.product_id,
       lp_id: lpId,
       batch_number: batchNumber,
-      qty_kg: input.qty_kg,
-      uom: input.uom ?? 'kg',
+      qty_kg: resolvedQtyKg,
+      uom: input.uom ?? wo.uom,
+      qty_units: input.qtyUnits ?? null,
+      units_uom: input.unitsUom ?? null,
+      actual_weight_kg: input.actualWeightKg ?? null,
       catch_weight_variance_warning: catchSummary?.warning ?? false,
       actor_user_id: ctx.userId,
     },
@@ -396,4 +421,23 @@ export async function registerOutput(
     catch_weight_summary: catchSummary,
     label_pdf_url: null, // T-033
   };
+}
+
+function resolveQtyKg(wo: WoRow, input: RegisterOutputInputType): string {
+  if (input.actualWeightKg) return input.actualWeightKg;
+  if (input.qtyUnits && input.unitsUom) {
+    try {
+      const snapshotRow = wo.uom_snapshot ?? {};
+      const snap = snapshotFromItemRow({ ...snapshotRow, uom_base: wo.uom });
+      return toBaseQty(snap, Number(input.qtyUnits), input.unitsUom).toFixed(3);
+    } catch (error) {
+      if (error instanceof TypedError && error.code === 'uom_conversion_unavailable') {
+        throw new ProductionActionError('uom_conversion_unavailable', 422, {
+          fields: ['qtyUnits', 'unitsUom'],
+        });
+      }
+      throw error;
+    }
+  }
+  return input.qty_kg ?? input.qtyKg ?? '0';
 }

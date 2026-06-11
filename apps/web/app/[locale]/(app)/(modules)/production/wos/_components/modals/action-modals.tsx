@@ -31,6 +31,12 @@ import { Button } from '@monopilot/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import { freshTransactionId } from './use-wo-action';
+import {
+  toBaseQty,
+  TypedError,
+  type OutputUom,
+  type UomSnapshot,
+} from '../../../../../../../../lib/uom/convert';
 import type {
   RunWoAction,
   WoModalLabels,
@@ -456,6 +462,27 @@ export function CloseModal({
 
 const OUTPUT_TYPES = ['primary', 'co_product', 'by_product'] as const;
 
+/**
+ * P0-UOM — the per-WO output-unit snapshot threaded from the detail screen header
+ * (itemCode / productName / output_uom + pack fields). Null/absent → the modal
+ * falls back to entering quantity directly in base kg (legacy qty_kg payload).
+ */
+export type OutputUomContext = {
+  /** READ-ONLY product identity surfaced instead of an editable UUID textbox. */
+  productCode: string | null;
+  productName: string | null;
+  /** The product's output unit. Absent ⇒ treated as 'base'. */
+  outputUom?: OutputUom;
+  uomBase?: string;
+  netQtyPerEach?: number | null;
+  eachPerBox?: number | null;
+  weightMode?: 'fixed' | 'catch';
+};
+
+function fmtKg(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
 export function OutputModal({
   open,
   woId,
@@ -463,38 +490,121 @@ export function OutputModal({
   run,
   onClose,
   defaultProductId,
-}: BaseModalProps & { defaultProductId: string | null }) {
+  uom,
+}: BaseModalProps & { defaultProductId: string | null; uom?: OutputUomContext | null }) {
   const [outputType, setOutputType] = useState<(typeof OUTPUT_TYPES)[number]>('primary');
-  const [productId, setProductId] = useState(defaultProductId ?? '');
   const [qty, setQty] = useState('');
+  const [actualWeight, setActualWeight] = useState('');
   const [batch, setBatch] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Product id is FIXED to the WO's FG product — never an editable textbox. We
+  // surface the read-only code + name and keep the id in the payload.
+  const productId = (defaultProductId ?? '').trim();
+
+  // Resolve the output unit. With no snapshot (or 'base') the modal behaves like
+  // the legacy kg entry; for each/box we enter units + convert to base kg.
+  const outputUom: OutputUom = uom?.outputUom ?? 'base';
+  const snap: UomSnapshot = {
+    outputUom,
+    uomBase: uom?.uomBase ?? 'kg',
+    netQtyPerEach: uom?.netQtyPerEach ?? null,
+    eachPerBox: uom?.eachPerBox ?? null,
+    boxesPerPallet: null,
+    weightMode: uom?.weightMode ?? 'fixed',
+  };
+  const isBase = outputUom === 'base';
+
   // qty must be a plain decimal string (the handler REJECTS JS numbers).
   const qtyValid = /^\d+(\.\d+)?$/.test(qty.trim()) && Number(qty.trim()) > 0;
-  const canConfirm = productId.trim() !== '' && qtyValid && !busy;
+  const weightTrimmed = actualWeight.trim();
+  const weightValid = weightTrimmed === '' || (/^\d+(\.\d+)?$/.test(weightTrimmed) && Number(weightTrimmed) > 0);
+  const canConfirm = productId !== '' && qtyValid && weightValid && !busy;
+
+  // Live nominal conversion preview for each/box (hidden for base). When the pack
+  // factors are missing the preview shows the conversion-unavailable copy.
+  const qtyUnitLabel =
+    outputUom === 'box'
+      ? labels.output.qtyUom?.box
+      : outputUom === 'each'
+        ? labels.output.qtyUom?.each
+        : labels.output.qtyUom?.base;
+  const qtyLabel = qtyUnitLabel ? `${labels.output.qty} (${qtyUnitLabel})` : labels.output.qty;
+
+  let preview: string | null = null;
+  if (!isBase && qtyValid) {
+    try {
+      const baseKg = toBaseQty(snap, Number(qty.trim()), outputUom);
+      preview =
+        labels.output.conversionPreview
+          ?.replace('{qty}', qty.trim())
+          .replace('{unit}', qtyUnitLabel ?? outputUom)
+          .replace('{kg}', fmtKg(baseKg))
+          .replace('{base}', snap.uomBase) ?? null;
+    } catch {
+      preview = labels.errors.uom_conversion_unavailable ?? labels.errorFallback;
+    }
+  }
 
   async function handleConfirm() {
     if (!canConfirm) return;
     setBusy(true);
     setError(null);
-    const result = await run('output', {
-      transaction_id: freshTransactionId(),
-      output_type: outputType,
-      product_id: productId.trim(),
-      qty_kg: qty.trim(),
-      ...(batch.trim() ? { batch_number: batch.trim() } : {}),
-    });
+
+    // For base, post the legacy { qty_kg } shape. For each/box, post units +
+    // unitsUom + the OPTIONAL actualWeightKg; if the conversion factors are
+    // missing, surface uom_conversion_unavailable verbatim before the round-trip.
+    let body: Record<string, unknown>;
+    if (isBase) {
+      body = {
+        transaction_id: freshTransactionId(),
+        output_type: outputType,
+        product_id: productId,
+        qty_kg: qty.trim(),
+        ...(weightTrimmed ? { actualWeightKg: Number(weightTrimmed) } : {}),
+        ...(batch.trim() ? { batch_number: batch.trim() } : {}),
+      };
+    } else {
+      // Validate the conversion is possible client-side (mirrors the handler).
+      try {
+        toBaseQty(snap, Number(qty.trim()), outputUom);
+      } catch (e) {
+        setBusy(false);
+        if (e instanceof TypedError) {
+          setError(mapError(labels, e.code));
+        } else {
+          setError(labels.errorFallback);
+        }
+        return;
+      }
+      body = {
+        transaction_id: freshTransactionId(),
+        output_type: outputType,
+        product_id: productId,
+        qtyUnits: Number(qty.trim()),
+        unitsUom: outputUom,
+        ...(weightTrimmed ? { actualWeightKg: Number(weightTrimmed) } : {}),
+        ...(batch.trim() ? { batch_number: batch.trim() } : {}),
+      };
+    }
+
+    const result = await run('output', body);
     setBusy(false);
     if (result.ok) {
       setQty('');
+      setActualWeight('');
       setBatch('');
       onClose();
     } else {
       setError(mapError(labels, result.errorCode));
     }
   }
+
+  const productDisplay =
+    uom?.productCode || uom?.productName
+      ? [uom?.productCode, uom?.productName].filter(Boolean).join(' — ')
+      : productId.slice(0, 8);
 
   return (
     <Modal open={open} onOpenChange={(n) => (n ? undefined : onClose())} modalId="wo-output" size="md">
@@ -517,11 +627,34 @@ export function OutputModal({
               </SelectContent>
             </Select>
           </FieldRow>
+          {/* Product — READ-ONLY code + name (id kept in the payload). */}
           <FieldRow id="wo-output-product" label={labels.output.product}>
-            <Input id="wo-output-product" value={productId} disabled={busy} onChange={(e) => setProductId(e.target.value)} data-testid="wo-output-product" />
+            <p
+              id="wo-output-product"
+              data-testid="wo-output-product"
+              className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-700"
+            >
+              {productDisplay}
+            </p>
           </FieldRow>
-          <FieldRow id="wo-output-qty" label={labels.output.qty}>
+          <FieldRow id="wo-output-qty" label={qtyLabel}>
             <Input id="wo-output-qty" inputMode="decimal" value={qty} disabled={busy} onChange={(e) => setQty(e.target.value)} data-testid="wo-output-qty" />
+            {preview ? (
+              <span data-testid="wo-output-conversion" className="mt-1 text-xs text-slate-500">
+                {preview}
+              </span>
+            ) : null}
+          </FieldRow>
+          {/* Optional actual weighed kg — always visible (nominal otherwise). */}
+          <FieldRow id="wo-output-actual-weight" label={labels.output.actualWeight ?? labels.output.qty} hint={labels.output.actualWeightHint}>
+            <Input
+              id="wo-output-actual-weight"
+              inputMode="decimal"
+              value={actualWeight}
+              disabled={busy}
+              onChange={(e) => setActualWeight(e.target.value)}
+              data-testid="wo-output-actual-weight"
+            />
           </FieldRow>
           <FieldRow id="wo-output-batch" label={labels.output.batch} hint={labels.output.batchHint}>
             <Input id="wo-output-batch" value={batch} disabled={busy} onChange={(e) => setBatch(e.target.value)} data-testid="wo-output-batch" />

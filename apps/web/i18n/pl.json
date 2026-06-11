@@ -1350,7 +1350,17 @@
           "shelfLifeDays": "{days} d",
           "costPerKg": "Koszt / bazowa JM",
           "updated": "Updated",
-          "none": "—"
+          "none": "—",
+          "outputUom": "Jednostka wyjściowa",
+          "netQtyPerEach": "Zawartość netto na sztukę",
+          "eachPerBox": "Sztuk w kartonie",
+          "boxesPerPallet": "Kartonów na palecie",
+          "packHierarchy": "Hierarchia opakowań",
+          "outputUomLabels": {
+            "base": "Jednostka bazowa",
+            "each": "Sztuka",
+            "box": "Karton"
+          }
         },
         "dataTabs": {
           "bom": {
@@ -1542,18 +1552,40 @@
           "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance (%)",
           "shelfLifeDays": "Shelf life (days)",
-          "shelfLifeMode": "Shelf-life mode"
+          "shelfLifeMode": "Shelf-life mode",
+          "packaging": "Opakowanie / jednostka wyjściowa",
+          "outputUom": "Jednostka wyjściowa",
+          "netQtyPerEach": "Zawartość netto na sztukę",
+          "eachPerBox": "Sztuk w kartonie",
+          "boxesPerPallet": "Kartonów na palecie"
         },
         "catchHint": "Catch weight requires nominal weight, gross weight max and a variance tolerance.",
         "review": {
-          "ready": "Ready to create. An audit record will be logged."
+          "ready": "Ready to create. An audit record will be logged.",
+          "packaging": "Hierarchia opakowań"
         },
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
-          "uomRequired": "Base UoM is required."
+          "uomRequired": "Base UoM is required.",
+          "netRequired": "Zawartość netto na sztukę jest wymagana (> 0) dla wyjścia Sztuka / Karton.",
+          "eachPerBoxRequired": "Liczba sztuk w kartonie jest wymagana (> 0) dla wyjścia Karton."
         },
-        "intermediateHint": "= WIP (produkcja w toku)"
+        "intermediateHint": "= WIP (produkcja w toku)",
+        "uomLabels": {
+          "kg": "kg",
+          "g": "g",
+          "l": "l",
+          "ml": "ml",
+          "szt": "szt (sztuka)"
+        },
+        "uomNone": "—",
+        "outputUomLabels": {
+          "base": "Jednostka bazowa",
+          "each": "Sztuka",
+          "box": "Karton"
+        },
+        "packagingHelp": "W jakiej jednostce planowanie zleca ZP, a produkcja rejestruje wyrób dla tej pozycji."
       },
       "deactivate": {
         "title": "Deactivate item",
@@ -5251,7 +5283,20 @@
           "productRequired": "Wybierz produkt (wyrób gotowy).",
           "quantityRequired": "Podaj dodatnią ilość (do 3 miejsc po przecinku)."
         },
-        "noBomWarning": "Zlecenie utworzone, ale produkt nie ma aktywnego BOM — nie wygenerowano materiałów."
+        "noBomWarning": "Zlecenie utworzone, ale produkt nie ma aktywnego BOM — nie wygenerowano materiałów.",
+        "quantityUom": {
+          "base": "kg",
+          "each": "szt.",
+          "box": "karton"
+        },
+        "conversionPreview": "{qty} {unit} = {kg} {base}",
+        "noFactorySpecWarning": "Utworzono — ale ten produkt nie ma jeszcze zatwierdzonej specyfikacji fabrycznej. Utwórz ją w module Technicznym przed zwolnieniem do startu.",
+        "factoryReleaseIncomplete": {
+          "title": "Tego zlecenia nie można zwolnić — brakuje: {missing}.",
+          "activeBom": "aktywnego BOM",
+          "factorySpec": "zatwierdzonej specyfikacji fabrycznej",
+          "technicalHint": "Tworzy się je w module Technicznym."
+        }
       },
       "detail": {
         "title": "Zlecenie produkcyjne",
@@ -5331,7 +5376,8 @@
         "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
         "not_found": "Nie znaleziono zlecenia produkcyjnego.",
         "invalid_state": "Zlecenie nie jest w stanie umożliwiającym tę akcję.",
-        "persistence_failed": "Wystąpił błąd podczas zapisu. Spróbuj ponownie za chwilę."
+        "persistence_failed": "Wystąpił błąd podczas zapisu. Spróbuj ponownie za chwilę.",
+        "uom_conversion_unavailable": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym."
       }
     },
     "suppliers": {
@@ -5962,7 +6008,8 @@
           "invalid_reference": "Podano nieprawidłowe odniesienie.",
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
           "network_error": "Błąd sieci — sprawdź połączenie i spróbuj ponownie.",
-          "fallback": "Nie udało się wykonać akcji."
+          "fallback": "Nie udało się wykonać akcji.",
+          "uom_conversion_unavailable": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym."
         },
         "start": {
           "title": "Rozpocznij zlecenie",
@@ -6017,7 +6064,15 @@
           "product": "ID produktu",
           "qty": "Ilość (kg)",
           "batch": "Numer partii",
-          "batchHint": "Opcjonalne — generowane automatycznie, gdy puste."
+          "batchHint": "Opcjonalne — generowane automatycznie, gdy puste.",
+          "qtyUom": {
+            "base": "kg",
+            "each": "szt.",
+            "box": "karton"
+          },
+          "actualWeight": "Waga rzeczywista (kg)",
+          "actualWeightHint": "Pozostaw puste, aby użyć przeliczenia nominalnego.",
+          "conversionPreview": "{qty} {unit} = {kg} {base}"
         },
         "waste": {
           "title": "Zarejestruj odpad",
@@ -6402,5 +6457,23 @@
       "errMinLen": "PIN musi mieć min. 4 cyfry"
     },
     "loading": "Ładowanie…"
-  }
+  },
+  "Planning.purchaseOrders.create.uomPlaceholder": "Jednostka",
+  "Planning.purchaseOrders.create.uomOptions.kg": "kg",
+  "Planning.purchaseOrders.create.uomOptions.g": "g",
+  "Planning.purchaseOrders.create.uomOptions.l": "l",
+  "Planning.purchaseOrders.create.uomOptions.ml": "ml",
+  "Planning.purchaseOrders.create.uomOptions.pcs": "szt",
+  "Planning.purchaseOrders.create.uomOptions.pack": "opak.",
+  "Planning.purchaseOrders.create.uomOptions.box": "karton",
+  "Planning.purchaseOrders.create.uomOptions.pallet": "paleta",
+  "Planning.transferOrders.create.uomPlaceholder": "Jednostka",
+  "Planning.transferOrders.create.uomOptions.kg": "kg",
+  "Planning.transferOrders.create.uomOptions.g": "g",
+  "Planning.transferOrders.create.uomOptions.l": "l",
+  "Planning.transferOrders.create.uomOptions.ml": "ml",
+  "Planning.transferOrders.create.uomOptions.pcs": "szt",
+  "Planning.transferOrders.create.uomOptions.pack": "opak.",
+  "Planning.transferOrders.create.uomOptions.box": "karton",
+  "Planning.transferOrders.create.uomOptions.pallet": "paleta"
 }

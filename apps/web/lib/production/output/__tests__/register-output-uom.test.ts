@@ -1,0 +1,166 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { type OrgContextLike, type QueryClient } from '../../shared';
+import { registerOutput } from '../register-output';
+
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const USER_ID = '22222222-2222-4222-8222-222222222222';
+const WO_ID = '33333333-3333-4333-8333-333333333333';
+const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
+const TX_ID = '55555555-5555-4555-8555-555555555555';
+
+let client: QueryClient;
+let woSnapshot: Record<string, unknown> | null;
+let insertedQtyKg: string | null;
+let insertedQtyUnits: string | null;
+let insertedUnitsUom: string | null;
+let insertedActualWeightKg: string | null;
+
+function makeCtx(): OrgContextLike {
+  return { userId: USER_ID, orgId: ORG_ID, client };
+}
+
+function makeClient(): QueryClient {
+  return {
+    query: async (sql: string, params: readonly unknown[] = []) => {
+      const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+      if (normalized.includes('from public.work_orders')) {
+        return {
+          rows: [
+            {
+              id: WO_ID,
+              wo_number: 'WO-001',
+              uom: 'kg',
+              uom_snapshot: woSnapshot,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('from public.user_roles')) {
+        return { rows: [{ ok: true }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.items')) {
+        return {
+          rows: [
+            {
+              id: PRODUCT_ID,
+              weight_mode: 'fixed',
+              shelf_life_days: null,
+              nominal_weight: null,
+              variance_tolerance_pct: null,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('from public.wo_executions')) {
+        return { rows: [{ status: 'in_progress' }], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.wo_outputs')) {
+        insertedQtyKg = String(params[6]);
+        insertedQtyUnits = params[11] === null ? null : String(params[11]);
+        insertedUnitsUom = params[12] === null ? null : String(params[12]);
+        insertedActualWeightKg = params[13] === null ? null : String(params[13]);
+        return {
+          rows: [
+            {
+              id: '66666666-6666-4666-8666-666666666666',
+              lp_id: null,
+              expiry_date: null,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (normalized.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    },
+  };
+}
+
+describe('registerOutput UOM quantity resolution', () => {
+  beforeEach(() => {
+    woSnapshot = {
+      output_uom: 'box',
+      uom_base: 'kg',
+      net_qty_per_each: '0.1000',
+      each_per_box: 10,
+      boxes_per_pallet: null,
+      weight_mode: 'fixed',
+    };
+    insertedQtyKg = null;
+    insertedQtyUnits = null;
+    insertedUnitsUom = null;
+    insertedActualWeightKg = null;
+    client = makeClient();
+  });
+
+  it('uses actualWeightKg before units conversion before legacy qty_kg', async () => {
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '111.000',
+      qtyUnits: '300.000',
+      unitsUom: 'box',
+      actualWeightKg: '299.500',
+    });
+
+    expect(insertedQtyKg).toBe('299.500');
+    expect(insertedQtyUnits).toBe('300.000');
+    expect(insertedUnitsUom).toBe('box');
+    expect(insertedActualWeightKg).toBe('299.500');
+  });
+
+  it('converts units to kg when actualWeightKg is absent', async () => {
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '111.000',
+      qtyUnits: '300.000',
+      unitsUom: 'box',
+    });
+
+    expect(insertedQtyKg).toBe('300.000');
+  });
+
+  it('falls back to legacy qty_kg when no unit quantity is provided', async () => {
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '111.000',
+    });
+
+    expect(insertedQtyKg).toBe('111.000');
+  });
+
+  it('rejects unavailable pack conversion from the WO snapshot', async () => {
+    woSnapshot = {
+      output_uom: 'each',
+      uom_base: 'kg',
+      net_qty_per_each: '0.1000',
+      each_per_box: null,
+      boxes_per_pallet: null,
+      weight_mode: 'fixed',
+    };
+
+    await expect(
+      registerOutput(makeCtx(), WO_ID, {
+        transaction_id: TX_ID,
+        output_type: 'primary',
+        product_id: PRODUCT_ID,
+        qtyUnits: '300.000',
+        unitsUom: 'box',
+      }),
+    ).rejects.toMatchObject({
+      code: 'uom_conversion_unavailable',
+      status: 422,
+      details: { fields: ['qtyUnits', 'unitsUom'] },
+    });
+  });
+});

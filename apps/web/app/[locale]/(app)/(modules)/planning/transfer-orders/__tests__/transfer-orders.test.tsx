@@ -61,6 +61,10 @@ const listLabels: ToListLabels = {
   empty: enTo.list.empty,
   create: {
     ...enTo.create,
+    // UoM dropdown labels — staged in _meta/i18n-staging/uom-sweep.json and
+    // threaded through the page label object; injected here to mirror that.
+    uomPlaceholder: 'Unit',
+    uomOptions: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
     errors: { ...enTo.create.errors, ...enTo.errors },
   },
 };
@@ -212,6 +216,13 @@ describe('ToListView — create modal (parity: to-screens.jsx:37 + modals.jsx:69
     await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
     fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
     await waitFor(() => expect(screen.getByTestId('create-to-line-product-0')).toHaveTextContent('RM-001'));
+
+    // PARITY: the per-line UoM is the shared constrained dropdown (no free-text
+    // <input>), defaulting to the picked item's base UoM (kg) — changeable.
+    const uomCell = screen.getByTestId('create-to-line-uom-0');
+    expect(within(uomCell).queryByRole('textbox')).toBeNull();
+    expect(within(uomCell).getByRole('combobox')).toHaveTextContent('kg');
+
     fireEvent.change(screen.getByTestId('create-to-line-qty-0'), { target: { value: '500' } });
 
     fireEvent.click(screen.getByTestId('create-to-submit'));
@@ -226,6 +237,37 @@ describe('ToListView — create modal (parity: to-screens.jsx:37 + modals.jsx:69
       ),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('lets the user override the defaulted UoM via the dropdown (no free text)', async () => {
+    const { createTransferOrderAction } = renderList();
+    createTransferOrderAction.mockResolvedValue({ ok: true, data: {} });
+
+    fireEvent.click(screen.getByTestId('to-list-create'));
+    fireEvent.change(screen.getByTestId('create-to-number'), { target: { value: 'TO-NEW-2' } });
+    pickWarehouse(0, 'WH-A — Factory A');
+    pickWarehouse(1, 'WH-B — Dist Central');
+
+    fireEvent.click(screen.getByTestId('create-to-add-line'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-to-line-product-0')).toHaveTextContent('RM-001'));
+
+    const uomCell = screen.getByTestId('create-to-line-uom-0');
+    fireEvent.click(within(uomCell).getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'pallet' }));
+
+    fireEvent.change(screen.getByTestId('create-to-line-qty-0'), { target: { value: '2' } });
+    fireEvent.click(screen.getByTestId('create-to-submit'));
+
+    await waitFor(() =>
+      expect(createTransferOrderAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lines: [expect.objectContaining({ itemId: 'i1', qty: '2', uom: 'pallet', lineNo: 1 })],
+        }),
+      ),
+    );
   });
 
   it('surfaces a forbidden create result inline (RBAC server-enforced, UI-state: permission-denied)', async () => {

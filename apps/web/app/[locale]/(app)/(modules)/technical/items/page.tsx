@@ -22,7 +22,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { listItems } from './_actions/list-items';
 import type { DeactivateLabels } from './_components/deactivate-modal';
-import type { ItemWizardLabels } from './_components/item-create-wizard';
+import { DEFAULT_WIZARD_LABELS, type ItemWizardLabels } from './_components/item-create-wizard';
 import { NewItemButton } from './_components/items-manager.client';
 import { ItemsTableClient } from './_components/items-table.client';
 
@@ -30,7 +30,25 @@ export const dynamic = 'force-dynamic';
 
 type Translator = Awaited<ReturnType<typeof getTranslations>>;
 
-function buildWizardLabels(t: Translator): ItemWizardLabels {
+/**
+ * Resolves the wizard label bundle from the `technical.items` namespace, falling
+ * back to the component's DEFAULT_WIZARD_LABELS for any key not yet present in
+ * the i18n catalog. The UOM pack-hierarchy keys are staged in
+ * `_meta/i18n-staging/item-uom.json` (en+pl) and merged into the live catalog by
+ * the established i18n-staging step; until then `t.has` guards keep the labels
+ * resolving to the English defaults instead of leaking the raw key path.
+ */
+export function buildWizardLabels(t: Translator): ItemWizardLabels {
+  const D = DEFAULT_WIZARD_LABELS;
+  const has = (key: string) => {
+    try {
+      return t.has(key);
+    } catch {
+      return false;
+    }
+  };
+  const get = (key: string, fallback: string) => (has(key) ? t(key) : fallback);
+
   return {
     title: t('create.title'),
     subtitle: t('create.subtitle'),
@@ -63,14 +81,38 @@ function buildWizardLabels(t: Translator): ItemWizardLabels {
       varianceTolerance: t('create.fields.varianceTolerance'),
       shelfLifeDays: t('create.fields.shelfLifeDays'),
       shelfLifeMode: t('create.fields.shelfLifeMode'),
+      packaging: get('create.fields.packaging', D.fields.packaging),
+      outputUom: get('create.fields.outputUom', D.fields.outputUom),
+      netQtyPerEach: get('create.fields.netQtyPerEach', D.fields.netQtyPerEach),
+      eachPerBox: get('create.fields.eachPerBox', D.fields.eachPerBox),
+      boxesPerPallet: get('create.fields.boxesPerPallet', D.fields.boxesPerPallet),
     },
+    uomLabels: {
+      kg: get('create.uomLabels.kg', D.uomLabels.kg),
+      g: get('create.uomLabels.g', D.uomLabels.g),
+      l: get('create.uomLabels.l', D.uomLabels.l),
+      ml: get('create.uomLabels.ml', D.uomLabels.ml),
+      szt: get('create.uomLabels.szt', D.uomLabels.szt),
+    },
+    uomNone: get('create.uomNone', D.uomNone),
+    outputUomLabels: {
+      base: get('create.outputUomLabels.base', D.outputUomLabels.base),
+      each: get('create.outputUomLabels.each', D.outputUomLabels.each),
+      box: get('create.outputUomLabels.box', D.outputUomLabels.box),
+    },
+    packagingHelp: get('create.packagingHelp', D.packagingHelp),
     catchHint: t('create.catchHint'),
     intermediateHint: t('create.intermediateHint'),
-    review: { ready: t('create.review.ready') },
+    review: {
+      ready: t('create.review.ready'),
+      packaging: get('create.review.packaging', D.review.packaging),
+    },
     errors: {
       codeRequired: t('create.errors.codeRequired'),
       nameRequired: t('create.errors.nameRequired'),
       uomRequired: t('create.errors.uomRequired'),
+      netRequired: get('create.errors.netRequired', D.errors.netRequired),
+      eachPerBoxRequired: get('create.errors.eachPerBoxRequired', D.errors.eachPerBoxRequired),
     },
     actionErrors: {
       already_exists: t('errors.already_exists'),

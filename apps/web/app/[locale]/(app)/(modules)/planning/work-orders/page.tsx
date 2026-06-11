@@ -49,6 +49,10 @@ function ListSkeleton() {
 }
 
 function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoListLabels {
+  // P0-UOM — staged keys (_meta/i18n-staging/wo-uom.json) read defensively with
+  // `t.has` so a not-yet-merged bundle never throws at runtime; fall back to the
+  // real en values inline until the bundle-merge lane lands.
+  const opt = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
   return {
     createWo: t('actions.createWo'),
     searchPlaceholder: t('list.searchPlaceholder'),
@@ -98,6 +102,18 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoListLabe
       invalid_input: t('errors.invalid_input'),
       persistence_failed: t('errors.persistence_failed'),
     },
+    factoryReleaseIncomplete: {
+      title: opt(
+        'create.factoryReleaseIncomplete.title',
+        'This work order can’t be released — missing {missing}.',
+      ),
+      activeBom: opt('create.factoryReleaseIncomplete.activeBom', 'an active BOM'),
+      factorySpec: opt('create.factoryReleaseIncomplete.factorySpec', 'an approved factory spec'),
+      technicalHint: opt(
+        'create.factoryReleaseIncomplete.technicalHint',
+        'These are created in Technical.',
+      ),
+    },
     create: {
       title: t('create.title'),
       productLabel: t('create.productLabel'),
@@ -113,6 +129,12 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoListLabe
       },
       quantityLabel: t('create.quantityLabel'),
       quantityPlaceholder: t('create.quantityPlaceholder'),
+      quantityUom: {
+        base: opt('create.quantityUom.base', 'kg'),
+        each: opt('create.quantityUom.each', 'each'),
+        box: opt('create.quantityUom.box', 'box'),
+      },
+      conversionPreview: opt('create.conversionPreview', '{qty} {unit} = {kg} {base}'),
       scheduledStartLabel: t('create.scheduledStartLabel'),
       lineLabel: t('create.lineLabel'),
       machineLabel: t('create.machineLabel'),
@@ -131,8 +153,16 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoListLabe
         not_found: t('errors.not_found'),
         invalid_state: t('errors.invalid_state'),
         persistence_failed: t('errors.persistence_failed'),
+        uom_conversion_unavailable: opt(
+          'errors.uom_conversion_unavailable',
+          'This product is missing the pack data needed to convert units — set it in Technical.',
+        ),
       },
       noBomWarning: t('create.noBomWarning'),
+      noFactorySpecWarning: opt(
+        'create.noFactorySpecWarning',
+        'Created — but this product has no approved factory spec yet. Create it in Technical before release-to-start.',
+      ),
     },
   };
 }

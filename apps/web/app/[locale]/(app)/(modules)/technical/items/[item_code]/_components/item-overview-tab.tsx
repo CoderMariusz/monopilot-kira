@@ -34,6 +34,13 @@ export type ItemOverviewLabels = {
   costPerKg: string;
   updated: string;
   none: string;
+  // Pack hierarchy (migration 267).
+  outputUom: string;
+  netQtyPerEach: string;
+  eachPerBox: string;
+  boxesPerPallet: string;
+  packHierarchy: string;
+  outputUomLabels: { base: string; each: string; box: string };
 };
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
@@ -78,12 +85,35 @@ function fmtDate(value: string, none: string): string {
   return Number.isNaN(d.getTime()) ? none : d.toISOString().slice(0, 10);
 }
 
+function fmtQty(value: string | null): string {
+  if (value === null) return '';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  return Number.isInteger(n) ? String(n) : n.toFixed(3);
+}
+
 export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: ItemOverviewLabels }) {
   const none = labels.none;
   const shelf =
     item.shelfLifeDays === null
       ? none
       : `${item.shelfLifeDays} d${item.shelfLifeMode ? ` (${item.shelfLifeMode})` : ''}`;
+
+  // Pack hierarchy (migration 267). Honest "—" when not set. Defensive defaults
+  // keep partial test fixtures / pre-267 rows rendering (output_uom defaults 'base').
+  const outputUom = item.outputUom ?? 'base';
+  const outputUomLabels = labels.outputUomLabels ?? { base: 'Base unit', each: 'Each (piece)', box: 'Box' };
+  const outputUomLabel = outputUomLabels[outputUom] ?? outputUom;
+  const netNum = item.netQtyPerEach == null ? null : Number(item.netQtyPerEach);
+  const hasNet = netNum !== null && Number.isFinite(netNum) && netNum > 0;
+  // Conversion line: e.g. "1 box = 10 × 0.100 kg = 1.000 kg".
+  let packHierarchy = outputUomLabel;
+  if (outputUom === 'each' && hasNet) {
+    packHierarchy = `${outputUomLabel} · 1 = ${fmtQty(item.netQtyPerEach)} ${item.uomBase}`;
+  } else if (outputUom === 'box' && hasNet && item.eachPerBox && item.eachPerBox > 0) {
+    const total = (netNum as number) * item.eachPerBox;
+    packHierarchy = `${outputUomLabel} · 1 = ${item.eachPerBox} × ${fmtQty(item.netQtyPerEach)} ${item.uomBase} = ${fmtQty(String(total))} ${item.uomBase}`;
+  }
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
@@ -105,6 +135,11 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
         <dl className="mt-2">
           <Row label={labels.uomBase} value={item.uomBase} mono />
           <Row label={labels.uomSecondary} value={item.uomSecondary ?? none} mono />
+          <Row label={labels.outputUom} value={outputUomLabel} />
+          <Row label={labels.packHierarchy} value={outputUom === 'base' ? none : packHierarchy} mono />
+          <Row label={labels.netQtyPerEach} value={hasNet ? `${fmtQty(item.netQtyPerEach)} ${item.uomBase}` : none} mono />
+          <Row label={labels.eachPerBox} value={item.eachPerBox != null ? String(item.eachPerBox) : none} mono />
+          <Row label={labels.boxesPerPallet} value={item.boxesPerPallet != null ? String(item.boxesPerPallet) : none} mono />
           <Row label={labels.costPerKg} value={fmtNum(item.costPerKg, none)} mono />
           <Row label={labels.weightMode} value={item.weightMode} mono />
           <Row label={labels.nominalWeight} value={fmtNum(item.nominalWeight, none)} mono />

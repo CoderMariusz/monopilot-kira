@@ -1,0 +1,43 @@
+{
+  "_note": "UoM dropdown sweep — canonical unit labels for the shared UomSelect. Staged here (NOT in the live i18n bundles) and threaded through each page's existing label object via a new `uomOptions` block + a `uomPlaceholder`. en + pl real values; ro/uk mirror EN per the two-locale memory rule. Keys map 1:1 to UOM_VALUES in apps/web/components/forms/uom-select.tsx.",
+  "en": {
+    "Planning.purchaseOrders.create.uomPlaceholder": "Unit",
+    "Planning.purchaseOrders.create.uomOptions.kg": "kg",
+    "Planning.purchaseOrders.create.uomOptions.g": "g",
+    "Planning.purchaseOrders.create.uomOptions.l": "l",
+    "Planning.purchaseOrders.create.uomOptions.ml": "ml",
+    "Planning.purchaseOrders.create.uomOptions.pcs": "pcs",
+    "Planning.purchaseOrders.create.uomOptions.pack": "pack",
+    "Planning.purchaseOrders.create.uomOptions.box": "box",
+    "Planning.purchaseOrders.create.uomOptions.pallet": "pallet",
+    "Planning.transferOrders.create.uomPlaceholder": "Unit",
+    "Planning.transferOrders.create.uomOptions.kg": "kg",
+    "Planning.transferOrders.create.uomOptions.g": "g",
+    "Planning.transferOrders.create.uomOptions.l": "l",
+    "Planning.transferOrders.create.uomOptions.ml": "ml",
+    "Planning.transferOrders.create.uomOptions.pcs": "pcs",
+    "Planning.transferOrders.create.uomOptions.pack": "pack",
+    "Planning.transferOrders.create.uomOptions.box": "box",
+    "Planning.transferOrders.create.uomOptions.pallet": "pallet"
+  },
+  "pl": {
+    "Planning.purchaseOrders.create.uomPlaceholder": "Jednostka",
+    "Planning.purchaseOrders.create.uomOptions.kg": "kg",
+    "Planning.purchaseOrders.create.uomOptions.g": "g",
+    "Planning.purchaseOrders.create.uomOptions.l": "l",
+    "Planning.purchaseOrders.create.uomOptions.ml": "ml",
+    "Planning.purchaseOrders.create.uomOptions.pcs": "szt",
+    "Planning.purchaseOrders.create.uomOptions.pack": "opak.",
+    "Planning.purchaseOrders.create.uomOptions.box": "karton",
+    "Planning.purchaseOrders.create.uomOptions.pallet": "paleta",
+    "Planning.transferOrders.create.uomPlaceholder": "Jednostka",
+    "Planning.transferOrders.create.uomOptions.kg": "kg",
+    "Planning.transferOrders.create.uomOptions.g": "g",
+    "Planning.transferOrders.create.uomOptions.l": "l",
+    "Planning.transferOrders.create.uomOptions.ml": "ml",
+    "Planning.transferOrders.create.uomOptions.pcs": "szt",
+    "Planning.transferOrders.create.uomOptions.pack": "opak.",
+    "Planning.transferOrders.create.uomOptions.box": "karton",
+    "Planning.transferOrders.create.uomOptions.pallet": "paleta"
+  }
+}

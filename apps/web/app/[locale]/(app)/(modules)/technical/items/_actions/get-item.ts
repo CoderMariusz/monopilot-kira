@@ -19,6 +19,8 @@ import {
   type ItemStatus,
   type ItemType,
   type OrgActionContext,
+  type OutputUom,
+  OUTPUT_UOMS,
   type QueryClient,
   type WeightMode,
 } from './shared';
@@ -41,6 +43,11 @@ export type ItemDetail = {
   varianceTolerancePct: string | null;
   shelfLifeDays: number | null;
   shelfLifeMode: string | null;
+  // Pack hierarchy (migration 267).
+  outputUom: OutputUom;
+  netQtyPerEach: string | null;
+  eachPerBox: number | null;
+  boxesPerPallet: number | null;
   costPerKg: string | null;
   updatedAt: string;
 };
@@ -68,9 +75,15 @@ type ItemDetailRow = {
   variance_tolerance_pct: string | null;
   shelf_life_days: number | null;
   shelf_life_mode: string | null;
+  output_uom: string | null;
+  net_qty_per_each: string | null;
+  each_per_box: number | null;
+  boxes_per_pallet: number | null;
   cost_per_kg: string | null;
   updated_at: string | Date;
 };
+
+const OUTPUT_UOM_SET = new Set<OutputUom>(OUTPUT_UOMS);
 
 const ITEM_TYPE_SET = new Set<ItemType>(['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct', 'packaging']);
 const ITEM_STATUS_SET = new Set<ItemStatus>(['draft', 'active', 'deprecated', 'blocked']);
@@ -97,6 +110,10 @@ function mapDetail(row: ItemDetailRow): ItemDetail | null {
     varianceTolerancePct: row.variance_tolerance_pct,
     shelfLifeDays: row.shelf_life_days,
     shelfLifeMode: row.shelf_life_mode,
+    outputUom: OUTPUT_UOM_SET.has(row.output_uom as OutputUom) ? (row.output_uom as OutputUom) : 'base',
+    netQtyPerEach: row.net_qty_per_each,
+    eachPerBox: row.each_per_box,
+    boxesPerPallet: row.boxes_per_pallet,
     costPerKg: row.cost_per_kg,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
@@ -113,7 +130,9 @@ export async function getItem(itemCode: string): Promise<GetItemResult> {
         (client as QueryClient).query<ItemDetailRow>(
           `select id, item_code, name, item_type, status, description, product_group,
                   uom_base, uom_secondary, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
-                  variance_tolerance_pct, shelf_life_days, shelf_life_mode, cost_per_kg, updated_at
+                  variance_tolerance_pct, shelf_life_days, shelf_life_mode,
+                  output_uom, net_qty_per_each, each_per_box, boxes_per_pallet,
+                  cost_per_kg, updated_at
              from public.items
             where org_id = app.current_org_id()
               and item_code = $1

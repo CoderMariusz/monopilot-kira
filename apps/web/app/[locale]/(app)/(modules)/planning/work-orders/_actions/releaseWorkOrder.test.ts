@@ -11,6 +11,8 @@ const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 let client: QueryClient;
 let allowPermission = true;
 let currentStatus: string | null = 'DRAFT';
+let healedBomId: string | null = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+let healedSpecId: string | null = '99999999-9999-4999-8999-999999999999';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -27,6 +29,12 @@ function makeClient(): QueryClient {
       }
       if (normalized.startsWith('select status from public.work_orders')) {
         return { rows: currentStatus ? [{ status: currentStatus }] : [], rowCount: currentStatus ? 1 : 0 };
+      }
+      if (normalized.startsWith('update public.work_orders') && normalized.includes('returning active_bom_header_id')) {
+        return {
+          rows: [{ active_bom_header_id: healedBomId, active_factory_spec_id: healedSpecId }],
+          rowCount: 1,
+        };
       }
       if (normalized.startsWith('update public.work_orders')) {
         return {
@@ -68,6 +76,8 @@ describe('releaseWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
     currentStatus = 'DRAFT';
+    healedBomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    healedSpecId = '99999999-9999-4999-8999-999999999999';
     client = makeClient();
   });
 
@@ -77,6 +87,37 @@ describe('releaseWorkOrder', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.workOrder).toEqual(expect.objectContaining({ id: WO_ID, status: 'RELEASED' }));
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining('uom_snapshot = coalesce'),
+      [WO_ID, USER_ID],
+    );
+  });
+
+  it('returns factory_release_incomplete with the missing list and does not release', async () => {
+    healedBomId = null;
+    healedSpecId = null;
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'factory_release_incomplete',
+      missing: ['active_bom', 'factory_spec'],
+    });
+    expect(client.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("set status = 'RELEASED'"),
+      expect.anything(),
+    );
+  });
+
+  it('stamps the UOM snapshot during the self-heal preflight', async () => {
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result.ok).toBe(true);
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining("'output_uom', i.output_uom"),
+      [WO_ID, USER_ID],
+    );
   });
 
   it('returns forbidden when the caller lacks planning write permission', async () => {

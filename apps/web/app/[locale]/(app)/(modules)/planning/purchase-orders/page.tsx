@@ -48,7 +48,28 @@ function ListSkeleton() {
   );
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PoListLabels {
+/**
+ * UoM dropdown labels, staged in _meta/i18n-staging/uom-sweep.json and threaded
+ * here without touching the live i18n bundles. en/pl carry real values; other
+ * locales mirror EN (two-locale rule).
+ */
+function uomLabels(locale: string): {
+  placeholder: string;
+  options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
+} {
+  if (locale === 'pl') {
+    return {
+      placeholder: 'Jednostka',
+      options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'szt', pack: 'opak.', box: 'karton', pallet: 'paleta' },
+    };
+  }
+  return {
+    placeholder: 'Unit',
+    options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
+  };
+}
+
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): PoListLabels {
   return {
     createPo: t('actions.createPo'),
     searchPlaceholder: t('list.searchPlaceholder'),
@@ -97,7 +118,12 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PoListLabe
       lineQty: t('create.lineQty'),
       lineUom: t('create.lineUom'),
       lineUnitPrice: t('create.lineUnitPrice'),
-      uomPlaceholder: t('create.uomPlaceholder'),
+      // UoM dropdown labels live in _meta/i18n-staging/uom-sweep.json (NOT the
+      // live bundles) and are threaded in here literally per locale. Unit symbols
+      // are largely locale-neutral; only pcs/pack/box/pallet differ (pl: szt/opak.
+      // /karton/paleta). `uomLabels()` resolves the per-locale subset.
+      uomPlaceholder: uomLabels(locale).placeholder,
+      uomOptions: uomLabels(locale).options,
       qtyPlaceholder: t('create.qtyPlaceholder'),
       unitPricePlaceholder: t('create.unitPricePlaceholder'),
       submit: t('create.submit'),
@@ -160,7 +186,7 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
       }))}
       suppliers={suppliers}
       autoOpenCreate={autoOpenCreate}
-      labels={buildLabels(t)}
+      labels={buildLabels(t, locale)}
       searchPoItemsAction={searchPoItems}
       createPurchaseOrderAction={createPurchaseOrder}
     />

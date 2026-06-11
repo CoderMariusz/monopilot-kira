@@ -1,0 +1,65 @@
+{
+  "_note": "P0 UOM lane — staged i18n keys for the planning Create-WO modal and the production Register-output modal. en+pl are real human values (ro/uk auto-mirror EN via the merge script per the two-locale policy). The bundle-merge lane folds these into Planning.workOrders (create.*) and production.wos.actions (output.*). Until merged, page.tsx reads them with `t.has`/`at.has` guards and falls back to these EN values inline so nothing crashes live.",
+  "Planning.workOrders": {
+    "create": {
+      "quantityUom": {
+        "base": { "en": "kg", "pl": "kg" },
+        "each": { "en": "each", "pl": "szt." },
+        "box": { "en": "box", "pl": "karton" }
+      },
+      "conversionPreview": {
+        "en": "{qty} {unit} = {kg} {base}",
+        "pl": "{qty} {unit} = {kg} {base}"
+      },
+      "noFactorySpecWarning": {
+        "en": "Created — but this product has no approved factory spec yet. Create it in Technical before release-to-start.",
+        "pl": "Utworzono — ale ten produkt nie ma jeszcze zatwierdzonej specyfikacji fabrycznej. Utwórz ją w module Technicznym przed zwolnieniem do startu."
+      },
+      "factoryReleaseIncomplete": {
+        "title": {
+          "en": "This work order can’t be released — missing {missing}.",
+          "pl": "Tego zlecenia nie można zwolnić — brakuje: {missing}."
+        },
+        "activeBom": { "en": "an active BOM", "pl": "aktywnego BOM" },
+        "factorySpec": { "en": "an approved factory spec", "pl": "zatwierdzonej specyfikacji fabrycznej" },
+        "technicalHint": {
+          "en": "These are created in Technical.",
+          "pl": "Tworzy się je w module Technicznym."
+        }
+      }
+    },
+    "errors": {
+      "uom_conversion_unavailable": {
+        "en": "This product is missing the pack data needed to convert units — set it in Technical.",
+        "pl": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym."
+      }
+    }
+  },
+  "production.wos.actions": {
+    "output": {
+      "qtyUom": {
+        "base": { "en": "kg", "pl": "kg" },
+        "each": { "en": "each", "pl": "szt." },
+        "box": { "en": "box", "pl": "karton" }
+      },
+      "actualWeight": {
+        "en": "Actual weight (kg)",
+        "pl": "Waga rzeczywista (kg)"
+      },
+      "actualWeightHint": {
+        "en": "Leave empty to use the nominal conversion.",
+        "pl": "Pozostaw puste, aby użyć przeliczenia nominalnego."
+      },
+      "conversionPreview": {
+        "en": "{qty} {unit} = {kg} {base}",
+        "pl": "{qty} {unit} = {kg} {base}"
+      }
+    },
+    "errors": {
+      "uom_conversion_unavailable": {
+        "en": "This product is missing the pack data needed to convert units — set it in Technical.",
+        "pl": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym."
+      }
+    }
+  }
+}

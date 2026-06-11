@@ -3260,7 +3260,17 @@
           "shelfLifeDays": "{days} d",
           "costPerKg": "Cost / base UoM",
           "updated": "Updated",
-          "none": "—"
+          "none": "—",
+          "outputUom": "Output unit",
+          "netQtyPerEach": "Net content per each",
+          "eachPerBox": "Each per box",
+          "boxesPerPallet": "Boxes per pallet",
+          "packHierarchy": "Pack hierarchy",
+          "outputUomLabels": {
+            "base": "Base unit",
+            "each": "Each (piece)",
+            "box": "Box"
+          }
         },
         "dataTabs": {
           "bom": {
@@ -3452,18 +3462,40 @@
           "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance (%)",
           "shelfLifeDays": "Shelf life (days)",
-          "shelfLifeMode": "Shelf-life mode"
+          "shelfLifeMode": "Shelf-life mode",
+          "packaging": "Packaging / output unit",
+          "outputUom": "Output unit",
+          "netQtyPerEach": "Net content per each",
+          "eachPerBox": "Each per box",
+          "boxesPerPallet": "Boxes per pallet"
         },
         "catchHint": "Catch weight requires nominal weight, gross weight max and a variance tolerance.",
         "review": {
-          "ready": "Ready to create. An audit record will be logged."
+          "ready": "Ready to create. An audit record will be logged.",
+          "packaging": "Pack hierarchy"
         },
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
-          "uomRequired": "Base UoM is required."
+          "uomRequired": "Base UoM is required.",
+          "netRequired": "Net content per each is required (> 0) for Each / Box output.",
+          "eachPerBoxRequired": "Each per box is required (> 0) for Box output."
         },
-        "intermediateHint": "= WIP (work in progress)"
+        "intermediateHint": "= WIP (work in progress)",
+        "uomLabels": {
+          "kg": "kg",
+          "g": "g",
+          "l": "l",
+          "ml": "ml",
+          "szt": "pcs (each)"
+        },
+        "uomNone": "—",
+        "outputUomLabels": {
+          "base": "Base unit",
+          "each": "Each (piece)",
+          "box": "Box"
+        },
+        "packagingHelp": "How Planning orders WOs and production registers output for this item."
       },
       "deactivate": {
         "title": "Deactivate item",
@@ -5356,7 +5388,8 @@
           "invalid_reference": "An invalid reference was supplied.",
           "persistence_failed": "Something went wrong saving the action. Please retry.",
           "network_error": "Network error — please check your connection and retry.",
-          "fallback": "The action could not be completed."
+          "fallback": "The action could not be completed.",
+          "uom_conversion_unavailable": "This product is missing the pack data needed to convert units — set it in Technical."
         },
         "start": {
           "title": "Start work order",
@@ -5411,7 +5444,15 @@
           "product": "Product ID",
           "qty": "Quantity (kg)",
           "batch": "Batch number",
-          "batchHint": "Optional — auto-generated when left blank."
+          "batchHint": "Optional — auto-generated when left blank.",
+          "qtyUom": {
+            "base": "kg",
+            "each": "each",
+            "box": "box"
+          },
+          "actualWeight": "Actual weight (kg)",
+          "actualWeightHint": "Leave empty to use the nominal conversion.",
+          "conversionPreview": "{qty} {unit} = {kg} {base}"
         },
         "waste": {
           "title": "Log waste",
@@ -5824,7 +5865,20 @@
           "productRequired": "Select a finished-good product.",
           "quantityRequired": "Enter a positive quantity (up to 3 decimals)."
         },
-        "noBomWarning": "Work order created, but the product has no active BOM — no materials were generated."
+        "noBomWarning": "Work order created, but the product has no active BOM — no materials were generated.",
+        "quantityUom": {
+          "base": "kg",
+          "each": "each",
+          "box": "box"
+        },
+        "conversionPreview": "{qty} {unit} = {kg} {base}",
+        "noFactorySpecWarning": "Created — but this product has no approved factory spec yet. Create it in Technical before release-to-start.",
+        "factoryReleaseIncomplete": {
+          "title": "This work order can’t be released — missing {missing}.",
+          "activeBom": "an active BOM",
+          "factorySpec": "an approved factory spec",
+          "technicalHint": "These are created in Technical."
+        }
       },
       "detail": {
         "title": "Work order",
@@ -5904,7 +5958,8 @@
         "forbidden": "You do not have permission to perform this action.",
         "not_found": "The work order could not be found.",
         "invalid_state": "The work order is not in a state that allows this action.",
-        "persistence_failed": "Something went wrong saving. Please retry shortly."
+        "persistence_failed": "Something went wrong saving. Please retry shortly.",
+        "uom_conversion_unavailable": "This product is missing the pack data needed to convert units — set it in Technical."
       }
     },
     "suppliers": {
@@ -6508,5 +6563,23 @@
       "errMinLen": "PIN must be at least 4 digits"
     },
     "loading": "Loading…"
-  }
+  },
+  "Planning.purchaseOrders.create.uomPlaceholder": "Unit",
+  "Planning.purchaseOrders.create.uomOptions.kg": "kg",
+  "Planning.purchaseOrders.create.uomOptions.g": "g",
+  "Planning.purchaseOrders.create.uomOptions.l": "l",
+  "Planning.purchaseOrders.create.uomOptions.ml": "ml",
+  "Planning.purchaseOrders.create.uomOptions.pcs": "pcs",
+  "Planning.purchaseOrders.create.uomOptions.pack": "pack",
+  "Planning.purchaseOrders.create.uomOptions.box": "box",
+  "Planning.purchaseOrders.create.uomOptions.pallet": "pallet",
+  "Planning.transferOrders.create.uomPlaceholder": "Unit",
+  "Planning.transferOrders.create.uomOptions.kg": "kg",
+  "Planning.transferOrders.create.uomOptions.g": "g",
+  "Planning.transferOrders.create.uomOptions.l": "l",
+  "Planning.transferOrders.create.uomOptions.ml": "ml",
+  "Planning.transferOrders.create.uomOptions.pcs": "pcs",
+  "Planning.transferOrders.create.uomOptions.pack": "pack",
+  "Planning.transferOrders.create.uomOptions.box": "box",
+  "Planning.transferOrders.create.uomOptions.pallet": "pallet"
 }

@@ -29,6 +29,7 @@ import {
   CloseModal,
   OutputModal,
   WasteModal,
+  type OutputUomContext,
 } from './action-modals';
 import type {
   WoActionKind,
@@ -68,6 +69,12 @@ export type WoActionsProviderProps = {
   defaultLineId: string | null;
   /** WO's FG product id prefilled into the Register-output modal. */
   defaultProductId: string | null;
+  /**
+   * P0-UOM — the WO's output-unit + read-only product identity for the
+   * Register-output modal (threaded from the detail header). Null ⇒ the modal
+   * falls back to base-kg entry.
+   */
+  outputUom?: OutputUomContext | null;
   children: React.ReactNode;
 };
 
@@ -91,6 +98,7 @@ export function WoActionsProvider(props: WoActionsProviderProps) {
         wasteCategories={props.wasteCategories}
         defaultLineId={props.defaultLineId}
         defaultProductId={props.defaultProductId}
+        outputUom={props.outputUom ?? null}
       />
     </Ctx.Provider>
   );
@@ -142,6 +150,7 @@ function WoActionModals({
   wasteCategories,
   defaultLineId,
   defaultProductId,
+  outputUom,
 }: {
   locale: string;
   woId: string;
@@ -150,6 +159,7 @@ function WoActionModals({
   wasteCategories: WoWasteCategory[];
   defaultLineId: string | null;
   defaultProductId: string | null;
+  outputUom: OutputUomContext | null;
 }) {
   const { labels, open, setOpen } = useWoActionsCtx();
   const { run } = useWoAction(locale, woId);
@@ -165,7 +175,7 @@ function WoActionModals({
       <CancelModal open={open === 'cancel'} {...base} />
       <CompleteModal open={open === 'complete'} {...base} />
       <CloseModal open={open === 'close'} {...base} signerUserId={currentUserId} />
-      <OutputModal open={open === 'output'} {...base} defaultProductId={defaultProductId} />
+      <OutputModal open={open === 'output'} {...base} defaultProductId={defaultProductId} uom={outputUom} />
       <WasteModal open={open === 'waste'} {...base} categories={wasteCategories} />
     </>
   );

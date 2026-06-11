@@ -50,7 +50,28 @@ function ListSkeleton() {
   );
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ToListLabels {
+/**
+ * UoM dropdown labels, staged in _meta/i18n-staging/uom-sweep.json and threaded
+ * here without touching the live i18n bundles. en/pl carry real values; other
+ * locales mirror EN (two-locale rule).
+ */
+function uomLabels(locale: string): {
+  placeholder: string;
+  options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
+} {
+  if (locale === 'pl') {
+    return {
+      placeholder: 'Jednostka',
+      options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'szt', pack: 'opak.', box: 'karton', pallet: 'paleta' },
+    };
+  }
+  return {
+    placeholder: 'Unit',
+    options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
+  };
+}
+
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): ToListLabels {
   return {
     createTo: t('actions.createTo'),
     searchPlaceholder: t('list.searchPlaceholder'),
@@ -103,6 +124,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ToListLabe
         uom: t('create.lineColumns.uom'),
         remove: t('create.lineColumns.remove'),
       },
+      uomPlaceholder: uomLabels(locale).placeholder,
+      uomOptions: uomLabels(locale).options,
       picker: {
         trigger: t('create.picker.trigger'),
         searchLabel: t('create.picker.searchLabel'),
@@ -157,7 +180,7 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
       lineCounts={lineCounts}
       warehouses={warehouses}
       autoOpenCreate={autoOpenCreate}
-      labels={buildLabels(t)}
+      labels={buildLabels(t, locale)}
       searchTransferItemsAction={searchTransferItems}
       createTransferOrderAction={createTransferOrder}
     />

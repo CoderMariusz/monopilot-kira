@@ -31,6 +31,10 @@ type BeforeRow = {
   tare_weight: string | null;
   gross_weight_max: string | null;
   gs1_gtin: string | null;
+  output_uom: string | null;
+  net_qty_per_each: string | null;
+  each_per_box: number | null;
+  boxes_per_pallet: number | null;
 };
 
 export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
@@ -45,7 +49,8 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
 
       const before = await (client as QueryClient).query<BeforeRow>(
         `select name, item_type, status, uom_base, weight_mode,
-                nominal_weight, tare_weight, gross_weight_max, gs1_gtin
+                nominal_weight, tare_weight, gross_weight_max, gs1_gtin,
+                output_uom, net_qty_per_each, each_per_box, boxes_per_pallet
            from public.items
           where org_id = app.current_org_id() and id = $1::uuid`,
         [input.id],
@@ -68,7 +73,11 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
                 gross_weight_max = $13::numeric,
                 variance_tolerance_pct = $14::numeric,
                 shelf_life_days = $15::integer,
-                shelf_life_mode = $16
+                shelf_life_mode = $16,
+                output_uom = $17,
+                net_qty_per_each = $18::numeric,
+                each_per_box = $19::integer,
+                boxes_per_pallet = $20::integer
           where org_id = app.current_org_id()
             and id = $1::uuid
         returning id`,
@@ -89,6 +98,10 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           input.varianceTolerancePct ?? null,
           input.shelfLifeDays ?? null,
           input.shelfLifeMode ?? null,
+          input.outputUom,
+          input.netQtyPerEach ?? null,
+          input.eachPerBox ?? null,
+          input.boxesPerPallet ?? null,
         ],
       );
       if ((rowCount ?? rows.length) < 1 || !rows[0]) return { ok: false, error: 'not_found' };
@@ -109,6 +122,10 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           tareWeight: input.tareWeight ?? null,
           grossWeightMax: input.grossWeightMax ?? null,
           gs1Gtin: input.gs1Gtin ?? null,
+          outputUom: input.outputUom,
+          netQtyPerEach: input.netQtyPerEach ?? null,
+          eachPerBox: input.eachPerBox ?? null,
+          boxesPerPallet: input.boxesPerPallet ?? null,
         },
       });
 

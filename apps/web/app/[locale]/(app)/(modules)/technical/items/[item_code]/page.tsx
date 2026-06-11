@@ -45,7 +45,7 @@ import { buildDataTabLabels } from './_components/item-data-tab-labels';
 import { loadBomTab, loadCostTab, loadRoutingTab, loadLabTab, loadD365Tab } from './_actions/tab-data';
 import { listSupplierSpecs } from './_actions/list-supplier-specs';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
-import type { ItemWizardLabels } from '../_components/item-create-wizard';
+import { buildWizardLabels } from '../page';
 
 export const dynamic = 'force-dynamic';
 
@@ -163,6 +163,17 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     deferredBody: t('detail.deferredBody'),
   };
 
+  // UOM pack-hierarchy overview keys are staged in _meta/i18n-staging/item-uom.json
+  // until merged into the live catalog; guard so a missing key falls back to the
+  // English default instead of leaking the raw key path.
+  const ovHas = (key: string) => {
+    try {
+      return t.has(key);
+    } catch {
+      return false;
+    }
+  };
+
   const overviewLabels: ItemOverviewLabels = {
     identification: t('detail.overview.identification'),
     commercial: t('detail.overview.commercial'),
@@ -184,57 +195,19 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     costPerKg: t('detail.overview.costPerKg'),
     updated: t('detail.overview.updated'),
     none: t('detail.overview.none'),
+    outputUom: ovHas('detail.overview.outputUom') ? t('detail.overview.outputUom') : 'Output unit',
+    netQtyPerEach: ovHas('detail.overview.netQtyPerEach') ? t('detail.overview.netQtyPerEach') : 'Net content per each',
+    eachPerBox: ovHas('detail.overview.eachPerBox') ? t('detail.overview.eachPerBox') : 'Each per box',
+    boxesPerPallet: ovHas('detail.overview.boxesPerPallet') ? t('detail.overview.boxesPerPallet') : 'Boxes per pallet',
+    packHierarchy: ovHas('detail.overview.packHierarchy') ? t('detail.overview.packHierarchy') : 'Pack hierarchy',
+    outputUomLabels: {
+      base: ovHas('detail.overview.outputUomLabels.base') ? t('detail.overview.outputUomLabels.base') : 'Base unit',
+      each: ovHas('detail.overview.outputUomLabels.each') ? t('detail.overview.outputUomLabels.each') : 'Each (piece)',
+      box: ovHas('detail.overview.outputUomLabels.box') ? t('detail.overview.outputUomLabels.box') : 'Box',
+    },
   };
 
-  const wizardLabels: ItemWizardLabels = {
-    title: t('create.title'),
-    subtitle: t('create.subtitle'),
-    cancel: t('create.cancel'),
-    back: t('create.back'),
-    next: t('create.next'),
-    create: t('create.create'),
-    creating: t('create.creating'),
-    steps: {
-      basic: t('create.steps.basic'),
-      classification: t('create.steps.classification'),
-      weight: t('create.steps.weight'),
-      review: t('create.steps.review'),
-    },
-    fields: {
-      itemCode: t('create.fields.itemCode'),
-      itemCodeHelp: t('create.fields.itemCodeHelp'),
-      name: t('create.fields.name'),
-      description: t('create.fields.description'),
-      itemType: t('create.fields.itemType'),
-      status: t('create.fields.status'),
-      uomBase: t('create.fields.uomBase'),
-      uomSecondary: t('create.fields.uomSecondary'),
-      productGroup: t('create.fields.productGroup'),
-      weightMode: t('create.fields.weightMode'),
-      nominalWeight: t('create.fields.nominalWeight'),
-      tareWeight: t('create.fields.tareWeight'),
-      grossWeightMax: t('create.fields.grossWeightMax'),
-      gs1Gtin: t('create.fields.gs1Gtin'),
-      varianceTolerance: t('create.fields.varianceTolerance'),
-      shelfLifeDays: t('create.fields.shelfLifeDays'),
-      shelfLifeMode: t('create.fields.shelfLifeMode'),
-    },
-    catchHint: t('create.catchHint'),
-    intermediateHint: t('create.intermediateHint'),
-    review: { ready: t('create.review.ready') },
-    errors: {
-      codeRequired: t('create.errors.codeRequired'),
-      nameRequired: t('create.errors.nameRequired'),
-      uomRequired: t('create.errors.uomRequired'),
-    },
-    actionErrors: {
-      already_exists: t('errors.already_exists'),
-      forbidden: t('errors.forbidden'),
-      invalid_input: t('errors.invalid_input'),
-      not_found: t('errors.not_found'),
-      persistence_failed: t('errors.persistence_failed'),
-    },
-  };
+  const wizardLabels = buildWizardLabels(t);
 
   const deactivateLabels: DeactivateLabels = {
     title: t('deactivate.title'),

@@ -66,6 +66,13 @@ function rowToForm(item: ItemListItem): WizardFormState {
     shelfLifeDays: item.shelfLifeDays === null ? '' : String(item.shelfLifeDays),
     shelfLifeMode:
       item.shelfLifeMode === 'use_by' || item.shelfLifeMode === 'best_before' ? item.shelfLifeMode : '',
+    // Pack hierarchy (migration 267). The list query does not carry these (they're
+    // surfaced on the detail page), so the row-seeded edit form defaults to 'base';
+    // the wizard reseeds from the full row when opened from the detail page.
+    outputUom: item.outputUom ?? 'base',
+    netQtyPerEach: item.netQtyPerEach ?? '',
+    eachPerBox: item.eachPerBox == null ? '' : String(item.eachPerBox),
+    boxesPerPallet: item.boxesPerPallet == null ? '' : String(item.boxesPerPallet),
   };
 }
 

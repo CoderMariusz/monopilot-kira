@@ -259,7 +259,11 @@ describe('SupplierSpecsTab', () => {
       />,
     );
     expect(screen.getByText('SUP-1')).toBeInTheDocument();
-    expect(screen.getByText('approved')).toHaveClass('badge', 'badge-green');
+    // Both supplierStatus and reviewStatus render an "approved" badge — assert
+    // on the set, not a unique match.
+    const approvedBadges = screen.getAllByText('approved');
+    expect(approvedBadges.length).toBeGreaterThanOrEqual(1);
+    expect(approvedBadges[0]).toHaveClass('badge', 'badge-green');
     expect(screen.getByText('2026-Q1')).toBeInTheDocument();
     expect(screen.getByText('Spec')).toHaveAttribute('href', 'https://example.test/spec.pdf');
     expect(screen.getByText('Certificates: 1')).toBeInTheDocument();

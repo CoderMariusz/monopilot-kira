@@ -43,9 +43,12 @@ import {
 
 import { createItem } from '../_actions/create-item';
 import {
+  CANONICAL_UOMS,
   ITEM_STATUSES,
   ITEM_TYPES,
   type ItemsActionError,
+  type OutputUom,
+  OUTPUT_UOMS,
   SHELF_LIFE_MODES,
   WEIGHT_MODES,
 } from '../_actions/shared';
@@ -79,12 +82,32 @@ export type ItemWizardLabels = {
     varianceTolerance: string;
     shelfLifeDays: string;
     shelfLifeMode: string;
+    // Pack hierarchy / output unit.
+    packaging: string;
+    outputUom: string;
+    netQtyPerEach: string;
+    eachPerBox: string;
+    boxesPerPallet: string;
   };
+  /** Localized labels for the canonical base-UoM list (kg/g/l/ml/szt). */
+  uomLabels: Record<(typeof CANONICAL_UOMS)[number], string>;
+  /** Empty-option label for the optional secondary UoM select. */
+  uomNone: string;
+  /** Localized labels for the output-unit select (base/each/box). */
+  outputUomLabels: Record<OutputUom, string>;
+  /** Section sub-help under the packaging block. */
+  packagingHelp: string;
   catchHint: string;
   /** Wizard-only helper shown under the "Intermediate" item type — "= WIP (work in progress)". */
   intermediateHint: string;
-  review: { ready: string };
-  errors: { codeRequired: string; nameRequired: string; uomRequired: string };
+  review: { ready: string; packaging: string };
+  errors: {
+    codeRequired: string;
+    nameRequired: string;
+    uomRequired: string;
+    netRequired: string;
+    eachPerBoxRequired: string;
+  };
   actionErrors: Record<ItemsActionError, string>;
 };
 
@@ -115,14 +138,35 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     varianceTolerance: 'Variance tolerance (%)',
     shelfLifeDays: 'Shelf life (days)',
     shelfLifeMode: 'Shelf-life mode',
+    packaging: 'Packaging / output unit',
+    outputUom: 'Output unit',
+    netQtyPerEach: 'Net content per each',
+    eachPerBox: 'Each per box',
+    boxesPerPallet: 'Boxes per pallet',
   },
+  uomLabels: {
+    kg: 'kg',
+    g: 'g',
+    l: 'l',
+    ml: 'ml',
+    szt: 'pcs (each)',
+  },
+  uomNone: '—',
+  outputUomLabels: {
+    base: 'Base unit',
+    each: 'Each (piece)',
+    box: 'Box',
+  },
+  packagingHelp: 'How Planning orders WOs and production registers output for this item.',
   catchHint: 'Catch weight requires nominal weight, gross weight max and a variance tolerance.',
   intermediateHint: '= WIP (work in progress)',
-  review: { ready: 'Ready to create. An audit record will be logged.' },
+  review: { ready: 'Ready to create. An audit record will be logged.', packaging: 'Pack hierarchy' },
   errors: {
     codeRequired: 'Item code is required (min 1 char).',
     nameRequired: 'Name is required (min 1 char).',
     uomRequired: 'Base UoM is required.',
+    netRequired: 'Net content per each is required (> 0) for Each / Box output.',
+    eachPerBoxRequired: 'Each per box is required (> 0) for Box output.',
   },
   actionErrors: {
     already_exists: 'An item with that code already exists in this organization.',
@@ -182,6 +226,11 @@ export type WizardFormState = {
   varianceTolerancePct: string;
   shelfLifeDays: string;
   shelfLifeMode: '' | (typeof SHELF_LIFE_MODES)[number];
+  // Pack hierarchy (migration 267).
+  outputUom: OutputUom;
+  netQtyPerEach: string;
+  eachPerBox: string;
+  boxesPerPallet: string;
 };
 
 export function emptyWizardForm(): WizardFormState {
@@ -202,6 +251,10 @@ export function emptyWizardForm(): WizardFormState {
     varianceTolerancePct: '',
     shelfLifeDays: '',
     shelfLifeMode: '',
+    outputUom: 'base',
+    netQtyPerEach: '',
+    eachPerBox: '',
+    boxesPerPallet: '',
   };
 }
 
@@ -215,6 +268,16 @@ function numOrUndefined(value: string): number | undefined {
   if (!t.length) return undefined;
   const n = Number(t);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Net/total quantities in the live conversion helper render at a fixed 3 decimals
+ * so the line reads consistently, e.g. "1 box = 10 × 0.100 kg = 1.000 kg" (per the
+ * locked product example). Multipliers (each-per-box) stay integers.
+ */
+function formatQty(n: number): string {
+  if (!Number.isFinite(n)) return '0.000';
+  return n.toFixed(3);
 }
 
 /**
@@ -400,8 +463,55 @@ export function ItemWizard({
   const isEdit = mode.kind === 'edit';
   const codeReadOnly = isEdit;
 
+  // Localized option sets (built from labels so the UoM/output-unit dropdowns are
+  // a CLOSED canonical list — no free text anywhere).
+  const uomOptions: SelectOption[] = React.useMemo(
+    () => CANONICAL_UOMS.map((value) => ({ value, label: labels.uomLabels[value] })),
+    [labels.uomLabels],
+  );
+  const uomSecondaryOptions: SelectOption[] = React.useMemo(
+    () => [{ value: '', label: labels.uomNone }, ...uomOptions],
+    [labels.uomNone, uomOptions],
+  );
+  const outputUomOptions: SelectOption[] = React.useMemo(
+    () => OUTPUT_UOMS.map((value) => ({ value, label: labels.outputUomLabels[value] })),
+    [labels.outputUomLabels],
+  );
+
   const basicValid =
     form.itemCode.trim().length >= 1 && form.name.trim().length >= 1 && form.uomBase.trim().length >= 1;
+
+  // Pack-hierarchy client validation mirrors the DB CHECK (migration 267):
+  //   each ⇒ net > 0 ; box ⇒ net > 0 ∧ each_per_box > 0.
+  const netNum = Number(form.netQtyPerEach);
+  const eachPerBoxNum = Number(form.eachPerBox);
+  const netValid = form.netQtyPerEach.trim().length > 0 && Number.isFinite(netNum) && netNum > 0;
+  const eachPerBoxValid =
+    form.eachPerBox.trim().length > 0 && Number.isFinite(eachPerBoxNum) && eachPerBoxNum > 0;
+  const packagingValid =
+    form.outputUom === 'base'
+      ? true
+      : form.outputUom === 'each'
+        ? netValid
+        : netValid && eachPerBoxValid;
+
+  // Live conversion helper, e.g. "1 box = 10 × 0.100 kg = 1.000 kg".
+  const conversionHint = (() => {
+    if (form.outputUom === 'base' || !netValid) return null;
+    const base = form.uomBase;
+    const net = netNum;
+    const eachLine = `1 ${labels.outputUomLabels.each} = ${formatQty(net)} ${base}`;
+    if (form.outputUom === 'each') return eachLine;
+    if (!eachPerBoxValid) return eachLine;
+    const perBox = eachPerBoxNum;
+    return `1 ${labels.outputUomLabels.box} = ${perBox} × ${formatQty(net)} ${base} = ${formatQty(perBox * net)} ${base}`;
+  })();
+
+  // Review-step summary of the pack hierarchy (output unit + conversion).
+  const packagingReview =
+    form.outputUom === 'base'
+      ? labels.outputUomLabels.base
+      : conversionHint ?? labels.outputUomLabels[form.outputUom];
 
   function update<K extends keyof WizardFormState>(key: K, value: WizardFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -415,6 +525,11 @@ export function ItemWizard({
       else setError(labels.errors.uomRequired);
       return;
     }
+    if (step === 'weight' && !packagingValid) {
+      if (!netValid) setError(labels.errors.netRequired);
+      else setError(labels.errors.eachPerBoxRequired);
+      return;
+    }
     setStepIndex((i) => Math.min(i + 1, STEP_KEYS.length - 1));
   }
   function goBack() {
@@ -424,6 +539,12 @@ export function ItemWizard({
 
   function submit() {
     setError(null);
+    // Final client guard mirrors the DB CHECK before the round-trip.
+    if (!packagingValid) {
+      setStepIndex(STEP_KEYS.indexOf('weight'));
+      setError(!netValid ? labels.errors.netRequired : labels.errors.eachPerBoxRequired);
+      return;
+    }
     const common = {
       name: form.name,
       itemType: form.itemType,
@@ -440,6 +561,12 @@ export function ItemWizard({
       varianceTolerancePct: numOrUndefined(form.varianceTolerancePct),
       shelfLifeDays: numOrUndefined(form.shelfLifeDays),
       shelfLifeMode: form.shelfLifeMode === '' ? undefined : form.shelfLifeMode,
+      // Pack hierarchy (migration 267). For 'base' output the conversion fields are
+      // omitted (sent undefined) so the action stores NULL.
+      outputUom: form.outputUom,
+      netQtyPerEach: form.outputUom === 'base' ? undefined : numOrUndefined(form.netQtyPerEach),
+      eachPerBox: form.outputUom === 'box' ? numOrUndefined(form.eachPerBox) : undefined,
+      boxesPerPallet: form.outputUom === 'base' ? undefined : numOrUndefined(form.boxesPerPallet),
     };
     startTransition(async () => {
       const result = isEdit
@@ -606,22 +733,20 @@ export function ItemWizard({
           </div>
           <div className="ff-inline">
             <Field label={labels.fields.uomBase} required>
-              <Input
-                name="uomBase"
-                required
-                maxLength={32}
-                className="form-input"
+              <LabeledSelect
                 value={form.uomBase}
-                onChange={(e) => update('uomBase', e.currentTarget.value)}
+                onValueChange={(v) => update('uomBase', v)}
+                options={uomOptions}
+                ariaLabel={labels.fields.uomBase}
               />
             </Field>
             <Field label={labels.fields.uomSecondary}>
-              <Input
-                name="uomSecondary"
-                maxLength={32}
-                className="form-input"
+              <LabeledSelect
                 value={form.uomSecondary}
-                onChange={(e) => update('uomSecondary', e.currentTarget.value)}
+                onValueChange={(v) => update('uomSecondary', v)}
+                options={uomSecondaryOptions}
+                placeholder={labels.uomNone}
+                ariaLabel={labels.fields.uomSecondary}
               />
             </Field>
           </div>
@@ -741,6 +866,80 @@ export function ItemWizard({
               />
             </Field>
           </div>
+
+          {/* ── Packaging / output unit (migration 267 pack hierarchy) ───────── */}
+          <fieldset
+            data-section="packaging"
+            style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px', marginTop: 6 }}
+          >
+            <legend style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--muted)', padding: '0 6px' }}>
+              {labels.fields.packaging}
+            </legend>
+            <Field label={labels.fields.outputUom} required help={labels.packagingHelp}>
+              <LabeledSelect
+                value={form.outputUom}
+                onValueChange={(v) => update('outputUom', v as OutputUom)}
+                options={outputUomOptions}
+                ariaLabel={labels.fields.outputUom}
+              />
+            </Field>
+
+            {form.outputUom !== 'base' ? (
+              <div className="ff-inline" data-reveal="packaging">
+                <Field
+                  label={`${labels.fields.netQtyPerEach} (${form.uomBase})`}
+                  required
+                  htmlFor="wiz-net-per-each"
+                >
+                  <Input
+                    id="wiz-net-per-each"
+                    name="netQtyPerEach"
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    aria-label={labels.fields.netQtyPerEach}
+                    className="form-input"
+                    value={form.netQtyPerEach}
+                    onChange={(e) => update('netQtyPerEach', e.currentTarget.value)}
+                  />
+                </Field>
+                {form.outputUom === 'box' ? (
+                  <Field label={labels.fields.eachPerBox} required htmlFor="wiz-each-per-box">
+                    <Input
+                      id="wiz-each-per-box"
+                      name="eachPerBox"
+                      type="number"
+                      min={1}
+                      step="1"
+                      aria-label={labels.fields.eachPerBox}
+                      className="form-input"
+                      value={form.eachPerBox}
+                      onChange={(e) => update('eachPerBox', e.currentTarget.value)}
+                    />
+                  </Field>
+                ) : null}
+                <Field label={labels.fields.boxesPerPallet} htmlFor="wiz-boxes-per-pallet">
+                  <Input
+                    id="wiz-boxes-per-pallet"
+                    name="boxesPerPallet"
+                    type="number"
+                    min={1}
+                    step="1"
+                    aria-label={labels.fields.boxesPerPallet}
+                    className="form-input"
+                    value={form.boxesPerPallet}
+                    onChange={(e) => update('boxesPerPallet', e.currentTarget.value)}
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {conversionHint ? (
+              <div className="ff-help" data-conversion-hint style={{ marginTop: 8, color: 'var(--text)' }}>
+                {conversionHint}
+              </div>
+            ) : null}
+          </fieldset>
         </div>
       ) : null}
 
@@ -763,7 +962,8 @@ export function ItemWizard({
                 [labels.fields.name, form.name, false],
                 [labels.fields.itemType, ITEM_TYPE_LABELS[form.itemType], false],
                 [labels.fields.status, STATUS_LABELS[form.status], false],
-                [labels.fields.uomBase, form.uomBase, true],
+                [labels.fields.uomBase, labels.uomLabels[form.uomBase as keyof typeof labels.uomLabels] ?? form.uomBase, true],
+                [labels.review.packaging, packagingReview, false],
                 [labels.fields.weightMode, WEIGHT_MODE_LABELS[form.weightMode], false],
                 [labels.fields.gs1Gtin, form.gs1Gtin, true],
                 [labels.fields.nominalWeight, form.nominalWeight, true],

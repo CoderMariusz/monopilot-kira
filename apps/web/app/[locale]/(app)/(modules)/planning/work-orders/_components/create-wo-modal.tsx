@@ -34,8 +34,29 @@ import { Select } from '@monopilot/ui/Select';
 
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import {
+  toBaseQty,
+  snapshotFromItemRow,
+  TypedError,
+  type OutputUom,
+  type UomSnapshot,
+} from '../../../../../../../lib/uom/convert';
 import type { CreateWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
+
+/**
+ * P0-UOM — the picked product plus its pack snapshot. The Codex backend lane
+ * extends FgProductOption with output_uom / net_qty_per_each / each_per_box /
+ * weight_mode; until those fields land on the option, snapshotFromItemRow falls
+ * back to a 'base'/'kg' snapshot, so the modal degrades to base-kg entry.
+ */
+type PickedProduct = {
+  id: string;
+  itemCode: string;
+  name: string;
+  uomBase: string;
+  snapshot: UomSnapshot;
+};
 
 export type CreateWoLabels = {
   title: string;
@@ -52,6 +73,14 @@ export type CreateWoLabels = {
   };
   quantityLabel: string;
   quantityPlaceholder: string;
+  /**
+   * P0-UOM — unit suffix used to build the quantity label in the product's
+   * OUTPUT unit ("Quantity (box)") and the live conversion preview template
+   * "{qty} {unit} = {kg} {base}". Optional so the existing label assembly still
+   * type-checks until the staged keys land (_meta/i18n-staging/wo-uom.json).
+   */
+  quantityUom?: { base: string; each: string; box: string };
+  conversionPreview?: string;
   scheduledStartLabel: string;
   lineLabel: string;
   machineLabel: string;
@@ -70,8 +99,12 @@ export type CreateWoLabels = {
     not_found: string;
     invalid_state: string;
     persistence_failed: string;
+    /** P0-UOM — the product lacks pack data needed to convert to base kg. */
+    uom_conversion_unavailable?: string;
   };
   noBomWarning: string;
+  /** P0-UOM — surfaced when createWorkOrder warns the FG has no approved factory spec. */
+  noFactorySpecWarning?: string;
 };
 
 export type CreateWoModalProps = {
@@ -85,6 +118,9 @@ export type CreateWoModalProps = {
     productId: string;
     itemCode: string;
     plannedQuantity: string;
+    /** P0-UOM — quantity in the product's OUTPUT unit + which unit. */
+    quantityEntered?: string;
+    quantityEnteredUom?: 'base' | 'each' | 'box';
     scheduledStartTime?: string;
     productionLineId?: string;
     machineId?: string;
@@ -96,6 +132,10 @@ export type CreateWoModalProps = {
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 
+function fmtKg(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
 export function CreateWoModal({
   open,
   onOpenChange,
@@ -105,7 +145,7 @@ export function CreateWoModal({
   createWorkOrderAction,
   onCreated,
 }: CreateWoModalProps) {
-  const [product, setProduct] = React.useState<FgProductOption | null>(null);
+  const [product, setProduct] = React.useState<PickedProduct | null>(null);
   const [quantity, setQuantity] = React.useState('');
   const [scheduledStart, setScheduledStart] = React.useState('');
   const [lineId, setLineId] = React.useState('');
@@ -131,11 +171,17 @@ export function CreateWoModal({
     }
   }, [open]);
 
+  // The ItemPickerOption contract has no pack fields, so we stash the raw Fg rows
+  // (which DO carry output_uom / net_qty_per_each / each_per_box once Codex lands
+  // them) keyed by id; onPick recovers the pack snapshot from the stashed row.
+  const rowsById = React.useRef<Map<string, FgProductOption>>(new Map());
+
   // Adapt searchFgProducts (Fg shape) to the ItemPicker's ItemSearchFn contract so
   // we reuse the EXACT established combobox component, restricted to fg items.
   const pickerSearch: ItemSearchFn = React.useCallback(
     async (input) => {
       const rows = await searchFgProductsAction({ query: input.query });
+      for (const r of rows) rowsById.current.set(r.id, r);
       return rows.map<ItemPickerOption>((r) => ({
         id: r.id,
         itemCode: r.itemCode,
@@ -150,7 +196,19 @@ export function CreateWoModal({
   );
 
   function onPick(item: ItemPickerOption) {
-    setProduct({ id: item.id, itemCode: item.itemCode, name: item.name, uomBase: item.uomBase });
+    // Recover the original Fg row (with pack fields) to build the UOM snapshot;
+    // fall back to a base/kg snapshot if it's not stashed (defensive).
+    const row = rowsById.current.get(item.id);
+    const snapshot = snapshotFromItemRow(
+      (row as unknown as Record<string, unknown>) ?? { uom_base: item.uomBase },
+    );
+    setProduct({
+      id: item.id,
+      itemCode: item.itemCode,
+      name: item.name,
+      uomBase: item.uomBase,
+      snapshot,
+    });
     setFormError(null);
   }
 
@@ -168,12 +226,36 @@ export function CreateWoModal({
       return;
     }
 
+    // P0-UOM — quantity is entered in the product's OUTPUT unit. Convert to base
+    // kg for plannedQuantity (the reviewed action's base-qty contract) and send
+    // the entered unit alongside. If the pack factors are missing for each/box,
+    // surface uom_conversion_unavailable BEFORE the round-trip.
+    const outputUom: OutputUom = product.snapshot.outputUom;
+    let plannedBase: string;
+    if (outputUom === 'base') {
+      plannedBase = quantity.trim();
+    } else {
+      try {
+        const baseQty = toBaseQty(product.snapshot, Number(quantity.trim()), outputUom);
+        plannedBase = String(baseQty);
+      } catch (err) {
+        setFormError(
+          err instanceof TypedError
+            ? labels.errors.uom_conversion_unavailable ?? labels.errors.invalid_input
+            : labels.errors.invalid_input,
+        );
+        return;
+      }
+    }
+
     setPending(true);
     try {
       const result = await createWorkOrderAction({
         productId: product.id,
         itemCode: product.itemCode,
-        plannedQuantity: quantity.trim(),
+        plannedQuantity: plannedBase,
+        quantityEntered: quantity.trim(),
+        quantityEnteredUom: outputUom,
         scheduledStartTime: scheduledStart ? new Date(scheduledStart).toISOString() : undefined,
         productionLineId: lineId || undefined,
         machineId: machineId || undefined,
@@ -186,15 +268,47 @@ export function CreateWoModal({
         return;
       }
 
-      // Success. Surface the no-active-BOM warning, then hand off to the caller.
+      // Success. Surface the create warnings (no active BOM / no approved factory
+      // spec) so planning knows the WO can't be released-to-start until Technical
+      // creates them, then hand off to the caller.
       if (result.warning === 'no_active_bom') {
         setWarning(labels.noBomWarning);
+      } else if (result.warning === 'no_approved_factory_spec') {
+        setWarning(labels.noFactorySpecWarning ?? labels.noBomWarning);
       }
       onCreated(result);
       onOpenChange(false);
     } catch {
       setFormError(labels.errors.persistence_failed);
       setPending(false);
+    }
+  }
+
+  // P0-UOM — derive the unit-aware quantity label + the live conversion preview.
+  // Until a product is picked, the label stays the plain base copy. For each/box
+  // the label gets the unit suffix ("Quantity (box)") and a preview line shows
+  // the nominal base-kg conversion. Base products keep the legacy label/no preview.
+  const pickedUom: OutputUom = product?.snapshot.outputUom ?? 'base';
+  const unitWord =
+    pickedUom === 'box'
+      ? labels.quantityUom?.box
+      : pickedUom === 'each'
+        ? labels.quantityUom?.each
+        : undefined;
+  const qtyLabel = unitWord ? `${labels.quantityLabel} (${unitWord})` : labels.quantityLabel;
+
+  let conversionPreview: string | null = null;
+  if (product && pickedUom !== 'base' && QTY_PATTERN.test(quantity.trim()) && Number(quantity) > 0) {
+    try {
+      const baseKg = toBaseQty(product.snapshot, Number(quantity.trim()), pickedUom);
+      conversionPreview =
+        labels.conversionPreview
+          ?.replace('{qty}', quantity.trim())
+          .replace('{unit}', unitWord ?? pickedUom)
+          .replace('{kg}', fmtKg(baseKg))
+          .replace('{base}', product.snapshot.uomBase) ?? null;
+    } catch {
+      conversionPreview = labels.errors.uom_conversion_unavailable ?? null;
     }
   }
 
@@ -248,9 +362,9 @@ export function CreateWoModal({
             )}
           </div>
 
-          {/* Planned quantity (decimal string) */}
+          {/* Planned quantity (decimal string) — labelled in the product's OUTPUT unit. */}
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-slate-700">{labels.quantityLabel}</span>
+            <span className="text-sm font-medium text-slate-700">{qtyLabel}</span>
             <Input
               type="text"
               inputMode="decimal"
@@ -259,6 +373,11 @@ export function CreateWoModal({
               placeholder={labels.quantityPlaceholder}
               onChange={(e) => setQuantity(e.target.value)}
             />
+            {conversionPreview ? (
+              <span data-testid="create-wo-conversion" className="text-xs text-slate-500">
+                {conversionPreview}
+              </span>
+            ) : null}
           </label>
 
           {/* Scheduled start (date) */}

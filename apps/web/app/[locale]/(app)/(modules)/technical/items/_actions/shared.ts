@@ -38,6 +38,22 @@ export const WEIGHT_MODES = ['fixed', 'catch'] as const;
 export const SHELF_LIFE_MODES = ['use_by', 'best_before'] as const;
 const GS1_GTIN_RE = /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/;
 
+// ── UOM pack-hierarchy (migration 267) ────────────────────────────────────────
+// LOCKED product decision: every item declares a pack hierarchy on the item
+// master — a base UoM drawn from a CLOSED canonical list (replacing the free-text
+// uom_base field that let "eac" through), an output unit Planning orders WOs in,
+// and the conversion factors that map output → base.
+//
+// CANONICAL_UOMS is the closed list for uom_base / uom_secondary; no free text.
+// 'szt' = Polish "sztuka" (each/piece) — kept as the storage value for parity
+// with the existing Polish-facing data; the EN label surfaces "pcs (each)".
+export const CANONICAL_UOMS = ['kg', 'g', 'l', 'ml', 'szt'] as const;
+export type CanonicalUom = (typeof CANONICAL_UOMS)[number];
+
+// output_uom text 'base'|'each'|'box' default 'base' (migration 267).
+export const OUTPUT_UOMS = ['base', 'each', 'box'] as const;
+export type OutputUom = (typeof OUTPUT_UOMS)[number];
+
 export type ItemType = (typeof ITEM_TYPES)[number];
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 export type WeightMode = (typeof WEIGHT_MODES)[number];
@@ -62,6 +78,62 @@ const OptionalNumeric = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.coerce.number().nonnegative().optional(),
 );
+// Positive numeric ('' / undefined ⇒ undefined). Used for net_qty_per_each — a
+// physical quantity in the base UoM that must be > 0 when supplied.
+const OptionalPositiveNumeric = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.coerce.number().positive().optional(),
+);
+// Positive integer for each_per_box / boxes_per_pallet ('' / undefined ⇒ undefined).
+const OptionalPositiveInt = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.coerce.number().int().positive().optional(),
+);
+
+// ── Pack hierarchy (migration 267) — shared zod shape + cross-field rule ───────
+// Column contract (public.items, migration 267):
+//   output_uom        text 'base'|'each'|'box' default 'base'
+//   net_qty_per_each  numeric (in uom_base; required when output_uom != 'base')
+//   each_per_box      int     (required when output_uom = 'box')
+//   boxes_per_pallet  int     (optional)
+export const PackHierarchyShape = {
+  outputUom: z.enum(OUTPUT_UOMS).optional().default('base'),
+  netQtyPerEach: OptionalPositiveNumeric,
+  eachPerBox: OptionalPositiveInt,
+  boxesPerPallet: OptionalPositiveInt,
+} as const;
+
+/**
+ * Mirrors the DB CHECK constraints (migration 267) client-/server-side so a
+ * payload is rejected before it ever reaches Postgres:
+ *   - each ⇒ net_qty_per_each > 0
+ *   - box  ⇒ net_qty_per_each > 0 AND each_per_box > 0
+ * Applied via `.superRefine` on both Create and Update inputs.
+ */
+export function refinePackHierarchy(
+  value: { outputUom?: OutputUom; netQtyPerEach?: number; eachPerBox?: number },
+  ctx: z.RefinementCtx,
+): void {
+  const output = value.outputUom ?? 'base';
+  if (output === 'each' || output === 'box') {
+    if (value.netQtyPerEach === undefined || !(value.netQtyPerEach > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['netQtyPerEach'],
+        message: 'net_qty_per_each is required (> 0) when output_uom is "each" or "box"',
+      });
+    }
+  }
+  if (output === 'box') {
+    if (value.eachPerBox === undefined || !(value.eachPerBox > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['eachPerBox'],
+        message: 'each_per_box is required (> 0) when output_uom is "box"',
+      });
+    }
+  }
+}
 const OptionalGs1Gtin = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.string().trim().regex(GS1_GTIN_RE, 'gs1_gtin must be 8, 12, 13, or 14 digits').optional(),
@@ -84,6 +156,11 @@ export type ItemListItem = {
   varianceTolerancePct: string | null;
   shelfLifeDays: number | null;
   shelfLifeMode: string | null;
+  // Pack hierarchy (migration 267).
+  outputUom: OutputUom;
+  netQtyPerEach: string | null;
+  eachPerBox: number | null;
+  boxesPerPallet: number | null;
   costPerKg: string | null;
   updatedAt: string;
   /** Declared allergen names from item_allergen_profiles (empty when none). */
@@ -97,32 +174,40 @@ export type ItemListItem = {
 // ── Create input ──────────────────────────────────────────────────────────────
 // item_code unique per (org_id, item_code). The required L3 fields are the
 // NOT-NULL columns without a default: item_code, item_type, name, uom_base.
-export const CreateItemInput = z.object({
-  itemCode: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9._-]+$/, 'item_code must be alphanumeric with . _ - separators'),
-  name: z.string().trim().min(1).max(256),
-  itemType: z.enum(ITEM_TYPES),
-  status: z.enum(ITEM_STATUSES).optional().default('active'),
-  uomBase: z.string().trim().min(1).max(32),
-  weightMode: z.enum(WEIGHT_MODES).optional().default('fixed'),
-  description: z.string().trim().max(2000).optional(),
-  productGroup: z.string().trim().max(128).optional(),
-  uomSecondary: z.string().trim().max(32).optional(),
-  gs1Gtin: OptionalGs1Gtin,
-  nominalWeight: OptionalNumeric,
-  tareWeight: OptionalNumeric,
-  grossWeightMax: OptionalNumeric,
-  // Cost writes must go through item_cost_history; keep decimal strings exact.
-  costPerKg: CostPerKgInput.optional(),
-  // numeric(5,2) in [0,100]
-  varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
-  shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
-  shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),
-});
+export const CreateItemInput = z
+  .object({
+    itemCode: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[A-Za-z0-9._-]+$/, 'item_code must be alphanumeric with . _ - separators'),
+    name: z.string().trim().min(1).max(256),
+    itemType: z.enum(ITEM_TYPES),
+    status: z.enum(ITEM_STATUSES).optional().default('active'),
+    // Closed canonical list (migration 267) — no free text. Rejects the "eac" bug.
+    uomBase: z.enum(CANONICAL_UOMS),
+    weightMode: z.enum(WEIGHT_MODES).optional().default('fixed'),
+    description: z.string().trim().max(2000).optional(),
+    productGroup: z.string().trim().max(128).optional(),
+    // '' (the empty option) ⇒ undefined; otherwise must be canonical.
+    uomSecondary: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z.enum(CANONICAL_UOMS).optional(),
+    ),
+    gs1Gtin: OptionalGs1Gtin,
+    nominalWeight: OptionalNumeric,
+    tareWeight: OptionalNumeric,
+    grossWeightMax: OptionalNumeric,
+    // Cost writes must go through item_cost_history; keep decimal strings exact.
+    costPerKg: CostPerKgInput.optional(),
+    // numeric(5,2) in [0,100]
+    varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
+    shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
+    shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),
+    ...PackHierarchyShape,
+  })
+  .superRefine(refinePackHierarchy);
 export type CreateItemInputType = z.input<typeof CreateItemInput>;
 
 export type CreateItemResult =
@@ -132,26 +217,32 @@ export type CreateItemResult =
 // ── Update input ──────────────────────────────────────────────────────────────
 // item_code is immutable here (it is the org-scoped natural key); update mutates
 // the descriptive + commercial attributes only.
-export const UpdateItemInput = z.object({
-  id: z.string().uuid(),
-  name: z.string().trim().min(1).max(256),
-  itemType: z.enum(ITEM_TYPES),
-  status: z.enum(ITEM_STATUSES),
-  uomBase: z.string().trim().min(1).max(32),
-  weightMode: z.enum(WEIGHT_MODES),
-  description: z.string().trim().max(2000).optional(),
-  productGroup: z.string().trim().max(128).optional(),
-  uomSecondary: z.string().trim().max(32).optional(),
-  gs1Gtin: OptionalGs1Gtin,
-  nominalWeight: OptionalNumeric,
-  tareWeight: OptionalNumeric,
-  grossWeightMax: OptionalNumeric,
-  // Accepted for legacy callers/import payloads, but updateItem never writes cost.
-  costPerKg: CostPerKgInput.optional(),
-  varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
-  shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
-  shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),
-});
+export const UpdateItemInput = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().trim().min(1).max(256),
+    itemType: z.enum(ITEM_TYPES),
+    status: z.enum(ITEM_STATUSES),
+    uomBase: z.enum(CANONICAL_UOMS),
+    weightMode: z.enum(WEIGHT_MODES),
+    description: z.string().trim().max(2000).optional(),
+    productGroup: z.string().trim().max(128).optional(),
+    uomSecondary: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z.enum(CANONICAL_UOMS).optional(),
+    ),
+    gs1Gtin: OptionalGs1Gtin,
+    nominalWeight: OptionalNumeric,
+    tareWeight: OptionalNumeric,
+    grossWeightMax: OptionalNumeric,
+    // Accepted for legacy callers/import payloads, but updateItem never writes cost.
+    costPerKg: CostPerKgInput.optional(),
+    varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
+    shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
+    shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),
+    ...PackHierarchyShape,
+  })
+  .superRefine(refinePackHierarchy);
 export type UpdateItemInputType = z.input<typeof UpdateItemInput>;
 
 export type UpdateItemResult =

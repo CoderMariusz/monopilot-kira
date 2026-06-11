@@ -218,6 +218,29 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
 
   let actions: WoDetailActions | null = null;
   if (actionCtx.ok) {
+    const modalLabels = buildWoModalLabels((k) => at(k));
+
+    // P0-UOM — inject the staged output-unit labels + the conversion-unavailable
+    // error onto the server-resolved labels object (keys live in
+    // _meta/i18n-staging/wo-uom.json until the bundle-merge lane lands; guarded
+    // with `at.has` so a not-yet-merged bundle never throws at runtime).
+    const opt = (key: string): string | undefined => (at.has(key) ? at(key) : undefined);
+    modalLabels.output.qtyUom = {
+      base: opt('output.qtyUom.base') ?? modalLabels.output.qty,
+      each: opt('output.qtyUom.each') ?? 'each',
+      box: opt('output.qtyUom.box') ?? 'box',
+    };
+    modalLabels.output.actualWeight = opt('output.actualWeight') ?? 'Actual weight (kg)';
+    modalLabels.output.actualWeightHint =
+      opt('output.actualWeightHint') ?? 'Leave empty to use the nominal conversion.';
+    modalLabels.output.conversionPreview =
+      opt('output.conversionPreview') ?? '{qty} {unit} = {kg} {base}';
+    if (!modalLabels.errors.uom_conversion_unavailable) {
+      modalLabels.errors.uom_conversion_unavailable =
+        opt('errors.uom_conversion_unavailable') ??
+        'This product is missing the pack data needed to convert units — set it in Technical.';
+    }
+
     actions = {
       locale,
       status: actionCtx.data.executionStatus,
@@ -225,7 +248,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       currentUserId: actionCtx.data.currentUserId,
       downtimeCategories: actionCtx.data.downtimeCategories,
       wasteCategories: actionCtx.data.wasteCategories,
-      modalLabels: buildWoModalLabels((k) => at(k)),
+      modalLabels,
     };
   }
 

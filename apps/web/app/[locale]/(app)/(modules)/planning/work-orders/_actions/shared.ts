@@ -12,7 +12,21 @@ export type QueryClient = {
 
 export type OrgActionContext = { userId: string; orgId: string; client: QueryClient };
 
-export type PlanningWorkOrderError = 'invalid_input' | 'forbidden' | 'not_found' | 'invalid_state' | 'persistence_failed';
+export type PlanningWorkOrderError =
+  | 'invalid_input'
+  | 'forbidden'
+  | 'not_found'
+  | 'invalid_state'
+  | 'uom_conversion_unavailable'
+  | 'persistence_failed';
+
+export type EnteredUom = 'base' | 'each' | 'box';
+
+export type UomConversionResult = {
+  qtyEntered: string;
+  qtyEnteredUom: EnteredUom;
+  baseQty: string;
+};
 
 export type WOHeader = {
   id: string;
@@ -137,12 +151,20 @@ export type GetPlanningWorkOrderResult =
   | { ok: false; error: PlanningWorkOrderError };
 
 export type CreateWorkOrderResult =
-  | { ok: true; workOrder: WOHeader; materials: WOMaterial[]; primarySchedule: ScheduleOutput; warning?: 'no_active_bom' | 'no_approved_factory_spec' }
+  | {
+      ok: true;
+      workOrder: WOHeader;
+      materials: WOMaterial[];
+      primarySchedule: ScheduleOutput;
+      conversion?: UomConversionResult;
+      warning?: 'no_active_bom' | 'no_approved_factory_spec';
+    }
   | { ok: false; error: PlanningWorkOrderError; issues?: z.ZodIssue[] };
 
 export type ReleaseWorkOrderResult =
   | { ok: true; workOrder: WOHeader }
-  | { ok: false; error: PlanningWorkOrderError };
+  | { ok: false; error: PlanningWorkOrderError }
+  | { ok: false; error: 'factory_release_incomplete'; missing: Array<'active_bom' | 'factory_spec'> };
 
 export const CreateWorkOrderInput = z.object({
   productId: z.string().uuid(),
@@ -152,10 +174,20 @@ export const CreateWorkOrderInput = z.object({
     .trim()
     .regex(/^\d+(?:\.\d{1,3})?$/, 'plannedQuantity must be a positive numeric string with up to 3 decimals')
     .refine((value) => Number(value) > 0, 'plannedQuantity must be positive'),
+  quantityEntered: z
+    .string()
+    .trim()
+    .regex(/^\d+(?:\.\d{1,3})?$/, 'quantityEntered must be a positive numeric string with up to 3 decimals')
+    .refine((value) => Number(value) > 0, 'quantityEntered must be positive')
+    .optional(),
+  quantityEnteredUom: z.enum(['base', 'each', 'box']).optional(),
   scheduledStartTime: z.string().datetime({ offset: true }).optional(),
   productionLineId: z.string().uuid().optional(),
   machineId: z.string().uuid().optional(),
   notes: z.string().trim().max(2000).optional(),
+}).refine((value) => !value.quantityEntered || !!value.quantityEnteredUom, {
+  path: ['quantityEnteredUom'],
+  message: 'quantityEnteredUom is required when quantityEntered is present',
 });
 
 export type CreateWorkOrderInputType = z.input<typeof CreateWorkOrderInput>;

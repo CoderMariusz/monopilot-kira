@@ -78,6 +78,19 @@ export type WoListLabels = {
     clear: string;
   };
   releaseError: Record<string, string>;
+  /**
+   * P0-UOM — actionable copy for the new releaseWorkOrder
+   * { ok:false, error:'factory_release_incomplete', missing:[...] } result.
+   *   title — the base sentence; {missing} is replaced with the resolved list
+   *   activeBom / factorySpec — the per-artifact names
+   *   technicalHint — "create them in Technical"
+   */
+  factoryReleaseIncomplete?: {
+    title: string;
+    activeBom: string;
+    factorySpec: string;
+    technicalHint: string;
+  };
   create: CreateWoLabels;
 };
 
@@ -151,6 +164,21 @@ export function WoListView({
     return labels.status[key] ?? status;
   }
 
+  // P0-UOM — turn the new factory_release_incomplete result into actionable copy
+  // naming exactly which artifacts are missing and that they are created in
+  // Technical (live bug: a WO was released with no BOM/spec and Start failed with
+  // a generic message). Defensive on `missing` shape (the action contract is owned
+  // by the Codex backend lane and may not type the field yet).
+  function factoryIncompleteMessage(missing: readonly string[]): string {
+    const fr = labels.factoryReleaseIncomplete;
+    if (!fr) return labels.releaseError.persistence_failed;
+    const names = missing
+      .map((m) => (m === 'active_bom' ? fr.activeBom : m === 'factory_spec' ? fr.factorySpec : m))
+      .filter(Boolean);
+    const list = names.length > 0 ? names.join(', ') : [fr.activeBom, fr.factorySpec].join(', ');
+    return `${fr.title.replace('{missing}', list)} ${fr.technicalHint}`.trim();
+  }
+
   async function onRelease(wo: WoRow) {
     if (releasingId) return;
     // Confirm gate (parity: release is a state transition — guarded).
@@ -160,7 +188,12 @@ export function WoListView({
     try {
       const result = await releaseWorkOrderAction({ id: wo.id });
       if (!result.ok) {
-        setRowError({ id: wo.id, message: labels.releaseError[result.error] ?? labels.releaseError.persistence_failed });
+        const r = result as { error: string; missing?: readonly string[] };
+        const message =
+          r.error === 'factory_release_incomplete'
+            ? factoryIncompleteMessage(r.missing ?? [])
+            : labels.releaseError[r.error] ?? labels.releaseError.persistence_failed;
+        setRowError({ id: wo.id, message });
         setReleasingId(null);
         return;
       }

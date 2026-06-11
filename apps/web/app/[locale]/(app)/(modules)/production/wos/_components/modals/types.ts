@@ -87,6 +87,21 @@ export type WoModalLabels = {
     qty: string;
     batch: string;
     batchHint: string;
+    /**
+     * P0-UOM additions (OPTIONAL so the existing buildWoModalLabels bundle still
+     * type-checks until the staged keys land — see _meta/i18n-staging/wo-uom.json).
+     * When present, the Register-output modal labels the qty field in the WO's
+     * output unit, shows an optional actual-weighed-kg input, and surfaces the
+     * uom_conversion_unavailable error verbatim like the other codes.
+     *
+     *   qtyUom.{base,each,box} — unit suffix for the qty label ("Quantity (box)")
+     *   actualWeight / actualWeightHint — the optional weighed-kg input copy
+     *   conversionPreview — "{qty} {unit} = {kg} {base}" template (filled client-side)
+     */
+    qtyUom?: { base: string; each: string; box: string };
+    actualWeight?: string;
+    actualWeightHint?: string;
+    conversionPreview?: string;
   };
   waste: {
     title: string;

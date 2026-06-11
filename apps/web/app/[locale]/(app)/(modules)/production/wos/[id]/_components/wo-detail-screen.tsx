@@ -619,6 +619,27 @@ export function WoDetailScreen({
   // forbidden) the body renders with no action affordances.
   if (!actions) return body;
 
+  // P0-UOM — thread the WO's output unit + read-only product identity to the
+  // Register-output modal. The pack fields (output_uom / net_qty_per_each /
+  // each_per_box / weight_mode) are surfaced on the header by the Codex backend
+  // lane; read them defensively (the header type may not expose them yet) and
+  // fall back to base-kg entry when absent.
+  const hu = h as typeof h & {
+    outputUom?: 'base' | 'each' | 'box';
+    netQtyPerEach?: number | null;
+    eachPerBox?: number | null;
+    weightMode?: 'fixed' | 'catch';
+  };
+  const outputUom = {
+    productCode: h.itemCode,
+    productName: h.productName,
+    outputUom: hu.outputUom ?? 'base',
+    uomBase: h.uom,
+    netQtyPerEach: hu.netQtyPerEach ?? null,
+    eachPerBox: hu.eachPerBox ?? null,
+    weightMode: hu.weightMode ?? 'fixed',
+  } as const;
+
   return (
     <WoActionsProvider
       locale={actions.locale}
@@ -631,6 +652,7 @@ export function WoDetailScreen({
       wasteCategories={actions.wasteCategories}
       defaultLineId={h.lineId}
       defaultProductId={h.productId}
+      outputUom={outputUom}
     >
       {body}
     </WoActionsProvider>

@@ -1,0 +1,103 @@
+{
+  "_note": "P0 UOM lane — staged i18n keys for the Item Create/Edit wizard pack hierarchy + item-detail overview (migration 267). en + pl are real translations; merge into apps/web/i18n/<locale>.json under technical.items.* via the established i18n-staging step (ro/uk mirror the EN value per the two-locale policy). Do NOT hand-edit apps/web/i18n/** in this lane.",
+  "en": {
+    "technical": {
+      "items": {
+        "create": {
+          "fields": {
+            "packaging": "Packaging / output unit",
+            "outputUom": "Output unit",
+            "netQtyPerEach": "Net content per each",
+            "eachPerBox": "Each per box",
+            "boxesPerPallet": "Boxes per pallet"
+          },
+          "uomLabels": {
+            "kg": "kg",
+            "g": "g",
+            "l": "l",
+            "ml": "ml",
+            "szt": "pcs (each)"
+          },
+          "uomNone": "—",
+          "outputUomLabels": {
+            "base": "Base unit",
+            "each": "Each (piece)",
+            "box": "Box"
+          },
+          "packagingHelp": "How Planning orders WOs and production registers output for this item.",
+          "review": {
+            "packaging": "Pack hierarchy"
+          },
+          "errors": {
+            "netRequired": "Net content per each is required (> 0) for Each / Box output.",
+            "eachPerBoxRequired": "Each per box is required (> 0) for Box output."
+          }
+        },
+        "detail": {
+          "overview": {
+            "outputUom": "Output unit",
+            "netQtyPerEach": "Net content per each",
+            "eachPerBox": "Each per box",
+            "boxesPerPallet": "Boxes per pallet",
+            "packHierarchy": "Pack hierarchy",
+            "outputUomLabels": {
+              "base": "Base unit",
+              "each": "Each (piece)",
+              "box": "Box"
+            }
+          }
+        }
+      }
+    }
+  },
+  "pl": {
+    "technical": {
+      "items": {
+        "create": {
+          "fields": {
+            "packaging": "Opakowanie / jednostka wyjściowa",
+            "outputUom": "Jednostka wyjściowa",
+            "netQtyPerEach": "Zawartość netto na sztukę",
+            "eachPerBox": "Sztuk w kartonie",
+            "boxesPerPallet": "Kartonów na palecie"
+          },
+          "uomLabels": {
+            "kg": "kg",
+            "g": "g",
+            "l": "l",
+            "ml": "ml",
+            "szt": "szt (sztuka)"
+          },
+          "uomNone": "—",
+          "outputUomLabels": {
+            "base": "Jednostka bazowa",
+            "each": "Sztuka",
+            "box": "Karton"
+          },
+          "packagingHelp": "W jakiej jednostce planowanie zleca ZP, a produkcja rejestruje wyrób dla tej pozycji.",
+          "review": {
+            "packaging": "Hierarchia opakowań"
+          },
+          "errors": {
+            "netRequired": "Zawartość netto na sztukę jest wymagana (> 0) dla wyjścia Sztuka / Karton.",
+            "eachPerBoxRequired": "Liczba sztuk w kartonie jest wymagana (> 0) dla wyjścia Karton."
+          }
+        },
+        "detail": {
+          "overview": {
+            "outputUom": "Jednostka wyjściowa",
+            "netQtyPerEach": "Zawartość netto na sztukę",
+            "eachPerBox": "Sztuk w kartonie",
+            "boxesPerPallet": "Kartonów na palecie",
+            "packHierarchy": "Hierarchia opakowań",
+            "outputUomLabels": {
+              "base": "Jednostka bazowa",
+              "each": "Sztuka",
+              "box": "Karton"
+            }
+          }
+        }
+      }
+    }
+  }
+}

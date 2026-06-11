@@ -43,6 +43,7 @@ import { Select } from '@monopilot/ui/Select';
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
+import { UomSelect, type UomValue } from '../../../../../../../components/forms/uom-select';
 
 type CreateTransferOrderResult =
   | { ok: true; data: unknown }
@@ -62,6 +63,10 @@ export type CreateToLabels = {
   addLine: string;
   noLines: string;
   lineColumns: { seq: string; product: string; qty: string; uom: string; remove: string };
+  /** Placeholder for the per-line UoM dropdown when nothing is selected. */
+  uomPlaceholder: string;
+  /** Localized labels for the canonical UoM dropdown options (kg/g/l/ml/pcs/pack/box/pallet). */
+  uomOptions: Partial<Record<UomValue, string>>;
   picker: {
     trigger: string;
     searchLabel: string;
@@ -176,6 +181,9 @@ export function CreateToModal({
   }
   function setLineQty(key: string, qty: string) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, qty } : l)));
+  }
+  function setLineUom(key: string, uom: string) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, uom } : l)));
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -352,7 +360,18 @@ export function CreateToModal({
                           className="w-24 text-right"
                         />
                       </td>
-                      <td className="px-2 py-2 font-mono text-xs text-slate-600">{l.uom || '—'}</td>
+                      <td className="px-2 py-2" data-testid={`create-to-line-uom-${i}`}>
+                        {/* No free-text units: constrained dropdown defaulting to the
+                            picked item's base UoM (set on pickLineItem), kept changeable. */}
+                        <UomSelect
+                          value={l.uom}
+                          onValueChange={(uom) => setLineUom(l.key, uom)}
+                          labels={labels.uomOptions}
+                          placeholder={labels.uomPlaceholder}
+                          aria-label={labels.lineColumns.uom}
+                          className="w-20"
+                        />
+                      </td>
                       <td className="px-2 py-2 text-right">
                         <Button
                           type="button"

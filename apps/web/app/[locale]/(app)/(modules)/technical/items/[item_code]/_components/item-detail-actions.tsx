@@ -45,6 +45,11 @@ function detailToForm(item: ItemDetail): WizardFormState {
     shelfLifeDays: item.shelfLifeDays === null ? '' : String(item.shelfLifeDays),
     shelfLifeMode:
       item.shelfLifeMode === 'use_by' || item.shelfLifeMode === 'best_before' ? item.shelfLifeMode : '',
+    // Pack hierarchy (migration 267) — seed the edit form so it preserves the row.
+    outputUom: item.outputUom ?? 'base',
+    netQtyPerEach: item.netQtyPerEach ?? '',
+    eachPerBox: item.eachPerBox == null ? '' : String(item.eachPerBox),
+    boxesPerPallet: item.boxesPerPallet == null ? '' : String(item.boxesPerPallet),
   };
 }
 

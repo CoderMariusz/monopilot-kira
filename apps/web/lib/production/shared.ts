@@ -287,6 +287,7 @@ export type ProductionErrorCode =
   | 'wo_not_recordable'
   | 'quality_hold_active'
   | 'already_recorded'
+  | 'uom_conversion_unavailable'
   | 'invalid_reference'
   | 'persistence_failed';
 

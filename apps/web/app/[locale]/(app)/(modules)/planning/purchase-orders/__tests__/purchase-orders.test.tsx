@@ -93,7 +93,8 @@ const listLabels: PoListLabels = {
     lineQty: 'Qty',
     lineUom: 'UoM',
     lineUnitPrice: 'Unit price',
-    uomPlaceholder: 'e.g. kg',
+    uomPlaceholder: 'Unit',
+    uomOptions: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
     qtyPlaceholder: '0',
     unitPricePlaceholder: '0.00',
     submit: 'Create PO',
@@ -260,9 +261,10 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     fireEvent.change(screen.getByTestId('create-po-number'), { target: { value: 'PO-NEW-1' } });
 
     // Supplier select (shadcn-family @monopilot/ui Select — no raw <select>),
-    // scoped to the modal form (the list also has a supplier filter Select).
+    // scoped to the modal form. The form now also contains a per-line UoM
+    // dropdown (combobox), so the supplier is the FIRST combobox in the form.
     const form1 = screen.getByTestId('create-po-form');
-    fireEvent.click(within(form1).getByRole('combobox'));
+    fireEvent.click(within(form1).getAllByRole('combobox')[0]);
     fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
 
     // Pick a real item via the ItemPicker combobox seam.
@@ -270,6 +272,13 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
     fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
     await waitFor(() => expect(screen.getByTestId('create-po-line-item')).toHaveTextContent('RM-001'));
+
+    // PARITY: the UoM field is the shared constrained dropdown (no free-text
+    // <input>), and it defaults to the picked item's base UoM (kg) — changeable.
+    const uomCell = screen.getByTestId('create-po-line-uom');
+    expect(within(uomCell).queryByRole('textbox')).toBeNull();
+    const uomTrigger = within(uomCell).getByRole('combobox');
+    expect(uomTrigger).toHaveTextContent('kg');
 
     fireEvent.change(screen.getByTestId('create-po-line-qty'), { target: { value: '500' } });
     fireEvent.change(screen.getByTestId('create-po-line-price'), { target: { value: '2.50' } });
@@ -289,6 +298,39 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
+  it('lets the user override the defaulted UoM via the dropdown (no free text)', async () => {
+    const { createPurchaseOrderAction } = renderList();
+    createPurchaseOrderAction.mockResolvedValue({ ok: true, data: {} });
+
+    fireEvent.click(screen.getByTestId('po-list-create'));
+    fireEvent.change(screen.getByTestId('create-po-number'), { target: { value: 'PO-NEW-2' } });
+
+    const form = screen.getByTestId('create-po-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
+
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-po-line-item')).toHaveTextContent('RM-001'));
+
+    // Change the unit from the defaulted kg to pcs via the dropdown.
+    const uomCell = screen.getByTestId('create-po-line-uom');
+    fireEvent.click(within(uomCell).getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'pcs' }));
+
+    fireEvent.change(screen.getByTestId('create-po-line-qty'), { target: { value: '12' } });
+    fireEvent.click(screen.getByTestId('create-po-submit'));
+
+    await waitFor(() =>
+      expect(createPurchaseOrderAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lines: [expect.objectContaining({ itemId: 'item-1', qty: '12', uom: 'pcs', lineNo: 1 })],
+        }),
+      ),
+    );
+  });
+
   it('blocks submit and shows an error when no supplier is selected', async () => {
     const { createPurchaseOrderAction } = renderList();
     fireEvent.click(screen.getByTestId('po-list-create'));
@@ -305,7 +347,7 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     fireEvent.click(screen.getByTestId('po-list-create'));
     fireEvent.change(screen.getByTestId('create-po-number'), { target: { value: 'PO-X' } });
     const form2 = screen.getByTestId('create-po-form');
-    fireEvent.click(within(form2).getByRole('combobox'));
+    fireEvent.click(within(form2).getAllByRole('combobox')[0]);
     fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
     fireEvent.click(screen.getByTestId('item-picker-trigger'));
     await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));

@@ -274,6 +274,163 @@ describe('WoListView — create modal (parity: wo-list.jsx:94 + modals wo_create
   });
 });
 
+// ── P0-UOM lane — output-unit quantity + conversion + factory-release surface ──
+//
+// Product decision: planning enters WO quantity in the product's OUTPUT unit
+// (box/each/base) with a live conversion to base kg; createWorkOrder receives
+// plannedQuantity in base kg + quantityEntered/quantityEnteredUom; the new
+// releaseWorkOrder 'factory_release_incomplete' result must surface which
+// artifacts are missing and that they are created in Technical.
+describe('WoListView — P0-UOM create-WO output unit + conversion', () => {
+  // UOM-aware labels (staged in _meta/i18n-staging/wo-uom.json; here passed
+  // explicitly since they are not yet merged into the en bundle).
+  const uomLabels: WoListLabels = {
+    ...listLabels,
+    factoryReleaseIncomplete: {
+      title: 'This work order can’t be released — missing {missing}.',
+      activeBom: 'an active BOM',
+      factorySpec: 'an approved factory spec',
+      technicalHint: 'These are created in Technical.',
+    },
+    create: {
+      ...listLabels.create,
+      quantityUom: { base: 'kg', each: 'each', box: 'box' },
+      conversionPreview: '{qty} {unit} = {kg} {base}',
+      errors: {
+        ...listLabels.create.errors,
+        uom_conversion_unavailable: 'Missing pack data — set it in Technical.',
+      },
+      noFactorySpecWarning: 'No approved factory spec yet — create it in Technical.',
+    },
+  };
+
+  // A box product: 1 box = 50 each, 1 each = 6 kg ⇒ 1 box = 300 kg.
+  const BOX_PRODUCT = {
+    id: 'p1',
+    itemCode: 'FG-001',
+    name: 'Demo FG',
+    uomBase: 'kg',
+    output_uom: 'box',
+    net_qty_per_each: 6,
+    each_per_box: 50,
+    weight_mode: 'fixed',
+  };
+
+  function renderUomList(searchRows: unknown[], over: Partial<React.ComponentProps<typeof WoListView>> = {}) {
+    const searchFgProductsAction = vi.fn().mockResolvedValue(searchRows);
+    const createWorkOrderAction = vi.fn<
+      Parameters<React.ComponentProps<typeof WoListView>['createWorkOrderAction']>,
+      Promise<CreateWorkOrderResult>
+    >();
+    const releaseWorkOrderAction = vi.fn<
+      Parameters<React.ComponentProps<typeof WoListView>['releaseWorkOrderAction']>,
+      Promise<ReleaseWorkOrderResult>
+    >();
+    const utils = render(
+      <WoListView
+        locale="en"
+        workOrders={ROWS}
+        resources={resources}
+        labels={uomLabels}
+        searchFgProductsAction={searchFgProductsAction}
+        createWorkOrderAction={createWorkOrderAction}
+        releaseWorkOrderAction={releaseWorkOrderAction}
+        {...over}
+      />,
+    );
+    return { ...utils, searchFgProductsAction, createWorkOrderAction, releaseWorkOrderAction };
+  }
+
+  async function pickBoxProduct() {
+    fireEvent.click(screen.getByTestId('wo-list-create'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-wo-selected-product')).toHaveTextContent('FG-001'));
+  }
+
+  it('labels the quantity field with the product output unit (box) and shows the live conversion', async () => {
+    renderUomList([BOX_PRODUCT]);
+    await pickBoxProduct();
+
+    // Label carries the output-unit suffix.
+    expect(screen.getByText('Planned quantity (box)')).toBeInTheDocument();
+
+    // 300 box → 300 * 50 * 6 = 90000.000 kg conversion preview.
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '300' } });
+    await waitFor(() =>
+      expect(screen.getByTestId('create-wo-conversion')).toHaveTextContent('300 box = 90,000.000 kg'),
+    );
+  });
+
+  it('sends quantityEntered + quantityEnteredUom and the base-kg plannedQuantity to createWorkOrder', async () => {
+    const { createWorkOrderAction } = renderUomList([BOX_PRODUCT]);
+    createWorkOrderAction.mockResolvedValue({
+      ok: true,
+      workOrder: {} as any,
+      materials: [],
+      primarySchedule: {} as any,
+    });
+    await pickBoxProduct();
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '2' } });
+    fireEvent.click(screen.getByTestId('create-wo-submit'));
+
+    await waitFor(() =>
+      expect(createWorkOrderAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          productId: 'p1',
+          itemCode: 'FG-001',
+          quantityEntered: '2',
+          quantityEnteredUom: 'box',
+          plannedQuantity: '600', // 2 box * 50 each * 6 kg
+        }),
+      ),
+    );
+  });
+
+  it('surfaces the no_approved_factory_spec create warning', async () => {
+    const { createWorkOrderAction } = renderUomList([BOX_PRODUCT]);
+    createWorkOrderAction.mockResolvedValue({
+      ok: true,
+      workOrder: {} as any,
+      materials: [],
+      primarySchedule: {} as any,
+      warning: 'no_approved_factory_spec',
+    });
+    await pickBoxProduct();
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '1' } });
+    fireEvent.click(screen.getByTestId('create-wo-submit'));
+    await waitFor(() => expect(createWorkOrderAction).toHaveBeenCalled());
+  });
+
+  it('a base product keeps the legacy label + no conversion preview', async () => {
+    renderUomList([{ id: 'p1', itemCode: 'FG-001', name: 'Demo FG', uomBase: 'kg', output_uom: 'base' }]);
+    await pickBoxProduct();
+    expect(screen.getByText('Planned quantity')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '10' } });
+    expect(screen.queryByTestId('create-wo-conversion')).toBeNull();
+  });
+
+  it('surfaces factory_release_incomplete with the missing artifacts + Technical hint', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { releaseWorkOrderAction } = renderUomList([BOX_PRODUCT]);
+    releaseWorkOrderAction.mockResolvedValue({
+      ok: false,
+      error: 'factory_release_incomplete',
+      missing: ['active_bom', 'factory_spec'],
+    } as any);
+
+    fireEvent.click(screen.getByTestId('wo-release-wo-1'));
+    await waitFor(() => {
+      const banner = screen.getByTestId('wo-row-error-wo-1');
+      expect(banner).toHaveTextContent('an active BOM');
+      expect(banner).toHaveTextContent('an approved factory spec');
+      expect(banner).toHaveTextContent('These are created in Technical.');
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
 describe('WoDetailView — 7 tabs from fixture (parity: wo-detail.jsx:107-585)', () => {
   const fixture: Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'] = {
     ...(makeRow({ id: 'wo-1', woNumber: 'WO-DETAIL' }) as any),

@@ -10,6 +10,11 @@ import {
   type WorkOrderRow,
 } from './shared';
 
+type ReleasePreflightRow = {
+  active_bom_header_id: string | null;
+  active_factory_spec_id: string | null;
+};
+
 export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseWorkOrderResult> {
   if (!params.id || !/^[0-9a-fA-F-]{36}$/.test(params.id)) return { ok: false, error: 'invalid_input' };
 
@@ -29,13 +34,9 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
       if (!status) return { ok: false, error: 'not_found' };
       if (status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
 
-      // Release = factory handoff: self-heal the factory-release snapshot for
-      // WOs created before createWorkOrder stamped it (production start-wo.ts
-      // 409s with factory_release_missing when either id is NULL).
-      const updated = await ctx.client.query<WorkOrderRow>(
+      const healed = await ctx.client.query<ReleasePreflightRow>(
         `update public.work_orders wo
-            set status = 'RELEASED',
-                active_factory_spec_id = coalesce(wo.active_factory_spec_id, (
+            set active_factory_spec_id = coalesce(wo.active_factory_spec_id, (
                   select fs.id
                     from public.factory_specs fs
                    where fs.org_id = app.current_org_id()
@@ -56,6 +57,40 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
                    order by bh.version desc
                    limit 1
                 )),
+                uom_snapshot = coalesce(wo.uom_snapshot, (
+                  select jsonb_build_object(
+                    'output_uom', i.output_uom,
+                    'uom_base', i.uom_base,
+                    'net_qty_per_each', i.net_qty_per_each,
+                    'each_per_box', i.each_per_box,
+                    'boxes_per_pallet', i.boxes_per_pallet,
+                    'weight_mode', i.weight_mode
+                  )
+                    from public.items i
+                   where i.id = wo.product_id
+                     and i.org_id = app.current_org_id()
+                   limit 1
+                )),
+                updated_by = $2::uuid
+          where wo.org_id = app.current_org_id()
+            and wo.id = $1::uuid
+            and wo.status = 'DRAFT'
+          returning active_bom_header_id, active_factory_spec_id`,
+        [params.id, ctx.userId],
+      );
+      const preflight = healed.rows[0];
+      if (!preflight) return { ok: false, error: 'invalid_state' };
+
+      const missing: Array<'active_bom' | 'factory_spec'> = [];
+      if (!preflight.active_bom_header_id) missing.push('active_bom');
+      if (!preflight.active_factory_spec_id) missing.push('factory_spec');
+      if (missing.length > 0) {
+        return { ok: false, error: 'factory_release_incomplete', missing };
+      }
+
+      const updated = await ctx.client.query<WorkOrderRow>(
+        `update public.work_orders wo
+            set status = 'RELEASED',
                 updated_by = $2::uuid
           where wo.org_id = app.current_org_id()
             and wo.id = $1::uuid
