@@ -12,6 +12,7 @@ import LinesScreen, {
   type LineStatus,
   type MachineOption,
   type ProductionLine,
+  type SiteOption,
 } from './lines-screen.client';
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,7 @@ const DEFAULT_LABELS: LinesLabels = {
   dialogAddTitle: 'Add production line',
   fieldCode: 'Code',
   fieldName: 'Name',
+  fieldSite: 'Site',
   fieldStatus: 'Status',
   fieldMachines: 'Machine sequence',
   createLine: 'Create line',
@@ -96,6 +98,13 @@ type MachineOptionRow = {
   name: string;
 };
 
+type SiteOptionRow = {
+  id: string;
+  site_code: string;
+  name: string;
+  is_default: boolean;
+};
+
 type LineActivationRow = {
   id: string;
   code: string;
@@ -114,6 +123,7 @@ type LinesPageProps = {
   params?: Promise<{ locale: string }>;
   lines?: ProductionLine[];
   machines?: MachineOption[];
+  sites?: SiteOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
   createLine?: (input: CreateLineInput) => Promise<UpsertLineResult> | UpsertLineResult;
@@ -192,17 +202,17 @@ function toProductionLines(rows: LineRow[]): ProductionLine[] {
   }));
 }
 
-async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; canUpdateInfra: boolean }> {
+async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; canUpdateInfra: boolean }> {
   try {
-    return await withOrgContext(async (ctx): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; canUpdateInfra: boolean }> => {
+    return await withOrgContext(async (ctx): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; canUpdateInfra: boolean }> => {
       const context = ctx as OrgContextLike;
       const [canRead, canUpdateInfra] = await Promise.all([
         hasPermission(context, READ_PERMISSION),
         hasPermission(context, UPDATE_PERMISSION),
       ]);
-      if (!canRead) return { state: 'permission_denied', lines: [], machines: [], canUpdateInfra: false };
+      if (!canRead) return { state: 'permission_denied', lines: [], machines: [], sites: [], canUpdateInfra: false };
 
-      const [linesResult, machinesResult] = await Promise.all([
+      const [linesResult, machinesResult, sitesResult] = await Promise.all([
         context.client.query<LineRow>(
           `select pl.id as line_id,
                   pl.code as line_code,
@@ -238,18 +248,26 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
             where org_id = app.current_org_id()
             order by lower(name), lower(code)`,
         ),
+        context.client.query<SiteOptionRow>(
+          `select id::text, site_code, name, is_default
+             from public.sites
+            where org_id = app.current_org_id()
+              and is_active = true
+            order by is_default desc, lower(name), lower(site_code)`,
+        ),
       ]);
       const lines = toProductionLines(linesResult.rows);
       return {
         state: lines.length === 0 ? 'empty' : 'ready',
         lines,
         machines: machinesResult.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
+        sites: sitesResult.rows.map((row) => ({ id: row.id, code: row.site_code, name: row.name, isDefault: row.is_default })),
         canUpdateInfra,
       };
     });
   } catch (error) {
     console.error('[settings/infra/lines] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { state: 'error', lines: [], machines: [], canUpdateInfra: false };
+    return { state: 'error', lines: [], machines: [], sites: [], canUpdateInfra: false };
   }
 }
 
@@ -323,6 +341,7 @@ export default async function LinesPage(propsInput: unknown = {}) {
         state: props.state ?? (suppliedLines.length === 0 ? 'empty' : 'ready'),
         lines: suppliedLines,
         machines: props.machines ?? [],
+        sites: props.sites ?? [],
         canUpdateInfra: props.canUpdateInfra ?? false,
       }
     : await loadLines();
@@ -339,6 +358,7 @@ export default async function LinesPage(propsInput: unknown = {}) {
     labels,
     lines: runtime.lines,
     machines: runtime.machines,
+    sites: runtime.sites,
     canUpdateInfra: runtime.canUpdateInfra,
     activateLine: activateLineForClient,
     createLine: props.createLine ?? persistLine,

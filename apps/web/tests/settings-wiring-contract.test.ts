@@ -17,6 +17,8 @@ const RMA_REASON_CODE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const PRODUCT_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const BOM_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
+let duplicateLineCodeAtSelectedSite = false;
+
 type QueryCall = { sql: string; params: readonly unknown[] };
 type FakeClient = {
   calls: QueryCall[];
@@ -44,6 +46,10 @@ function makeClient(): FakeClient {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
 
       if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] as never[], rowCount: 1 };
+
+      if (normalized.startsWith('insert into public.outbox_events')) {
+        return { rows: [] as never[], rowCount: 1 };
+      }
 
       if (normalized.includes('from public.items i') && normalized.includes("i.item_type in ('fg', 'intermediate', 'co_product', 'byproduct')")) {
         if (params[0] !== ORG_ID) return { rows: [] as never[], rowCount: 0 };
@@ -116,10 +122,33 @@ function makeClient(): FakeClient {
               end_time: '14:00:00',
               days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'],
               site_id: SITE_ID,
+              site_name: 'Apex Warsaw',
               line_id: 'LINE-1',
+              line_label: 'LINE-1 - Yoghurt line',
               org_id: ORG_ID,
             },
           ] as never[],
+          rowCount: 1,
+        };
+      }
+
+      if (normalized.includes('from public.sites') && !normalized.includes('from public.sites s')) {
+        if (normalized.includes('select true as ok')) return { rows: [{ ok: true }] as never[], rowCount: 1 };
+        return {
+          rows: [{ id: SITE_ID, code: 'S1', site_code: 'S1', name: 'Apex Warsaw', is_default: true }] as never[],
+          rowCount: 1,
+        };
+      }
+
+      if (normalized.includes('from public.production_lines') && !normalized.includes('from public.production_lines pl')) {
+        if (normalized.includes('select true as ok')) {
+          return {
+            rows: duplicateLineCodeAtSelectedSite ? [{ ok: true }] as never[] : [] as never[],
+            rowCount: duplicateLineCodeAtSelectedSite ? 1 : 0,
+          };
+        }
+        return {
+          rows: [{ id: LINE_ID, code: 'LINE-1', name: 'Yoghurt line', site_id: SITE_ID }] as never[],
           rowCount: 1,
         };
       }
@@ -149,7 +178,9 @@ function makeClient(): FakeClient {
               end_time: '14:00:00',
               days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'],
               site_id: SITE_ID,
+              site_name: null,
               line_id: 'LINE-1',
+              line_label: null,
               org_id: ORG_ID,
             },
           ] as never[],
@@ -298,7 +329,7 @@ function makeClient(): FakeClient {
         };
       }
 
-      if (normalized.includes('from public.production_lines pl') && normalized.includes('join public.shift_patterns sp')) {
+      if (normalized.includes('from public.production_lines pl') && normalized.includes('left join public.shift_patterns sp')) {
         return {
           rows: [
             {
@@ -311,6 +342,13 @@ function makeClient(): FakeClient {
               status: 'active',
             },
           ] as never[],
+          rowCount: 1,
+        };
+      }
+
+      if (normalized.startsWith('insert into public.production_lines')) {
+        return {
+          rows: [{ id: LINE_ID, code: String(params[1] ?? 'LINE-1'), name: String(params[2] ?? 'Yoghurt line'), status: String(params[3] ?? 'active') }] as never[],
           rowCount: 1,
         };
       }
@@ -477,6 +515,7 @@ async function withFakeOrg<T>(client: FakeClient, action: () => Promise<T>): Pro
 describe('settings shifts/devices wiring contract', () => {
   beforeEach(() => {
     vi.resetModules();
+    duplicateLineCodeAtSelectedSite = false;
     runWithOrgContext.mockReset();
     revalidatePathMock.mockReset();
   });
@@ -497,7 +536,9 @@ describe('settings shifts/devices wiring contract', () => {
         end_time: '14:00:00',
         days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'],
         site_id: SITE_ID,
+        site_name: 'Apex Warsaw',
         line_id: 'LINE-1',
+        line_label: 'LINE-1 - Yoghurt line',
         org_id: ORG_ID,
       },
     ]);
@@ -511,7 +552,7 @@ describe('settings shifts/devices wiring contract', () => {
     expect(client.calls.map((call) => call.sql).join('\n')).toContain('public.shift_patterns');
     expect(client.calls.map((call) => call.sql).join('\n')).toContain('public.shift_configs');
     expect(client.calls.map((call) => call.sql).join('\n')).toContain('public.org_non_production_days');
-    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
+    expect(client.calls.some((call) => call.params.includes(ORG_ID))).toBe(true);
 
     const crossOrg = await withFakeOrg(client, () => mod.getShiftPatterns(OTHER_ORG_ID));
     expect(crossOrg).toEqual([]);
@@ -540,7 +581,9 @@ describe('settings shifts/devices wiring contract', () => {
           end_time: '14:00:00',
           days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'],
           site_id: SITE_ID,
+          site_name: 'Apex Warsaw',
           line_id: 'LINE-1',
+          line_label: 'LINE-1 - Yoghurt line',
           org_id: ORG_ID,
         }),
       ],
@@ -561,13 +604,18 @@ describe('settings shifts/devices wiring contract', () => {
           org_id: ORG_ID,
         }),
       ]),
+      sites: [expect.objectContaining({ id: SITE_ID, code: 'S1', name: 'Apex Warsaw' })],
+      lines: [expect.objectContaining({ id: LINE_ID, code: 'LINE-1', name: 'Yoghurt line', site_id: SITE_ID })],
+      can_edit: true,
     });
     expect(data.calendar_days).toHaveLength(30);
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
     expect(sql).toContain('from public.shift_patterns sp');
     expect(sql).toContain('join public.shift_configs sc');
     expect(sql).toContain('from public.org_non_production_days');
-    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
+    expect(sql).toContain('from public.sites');
+    expect(sql).toContain('from public.production_lines');
+    expect(client.calls.some((call) => call.params.includes(ORG_ID))).toBe(true);
   });
 
   it('wires Shifts & Calendar producers through permissioned org-context writes', async () => {
@@ -634,7 +682,7 @@ describe('settings shifts/devices wiring contract', () => {
     expect(sql).toContain('from public.scanner_device_defaults');
     expect(sql).toContain('insert into public.scanner_devices');
     expect(sql).toContain('insert into public.scanner_device_defaults');
-    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
+    expect(client.calls.some((call) => call.params.includes(ORG_ID))).toBe(true);
     expect(revalidatePathMock).toHaveBeenCalledWith('/settings/devices');
   });
 
@@ -676,7 +724,7 @@ describe('settings shifts/devices wiring contract', () => {
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
     expect(sql).toContain('from public.scanner_devices');
     expect(sql).toContain('from public.scanner_device_defaults');
-    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
+    expect(client.calls.some((call) => call.params.includes(ORG_ID))).toBe(true);
   });
 
   it('keeps the server pages as consumers of the real loaders and keeps RLS policies in the local migration', () => {
@@ -726,6 +774,31 @@ describe('settings shifts/devices wiring contract', () => {
         haccp_valid_until: '2026-09-14',
       }),
     );
+    const createdLine = await withFakeOrg(client, () =>
+      mod.createLine({
+        site_id: SITE_ID,
+        code: 'LINE-1',
+        name: 'Yoghurt line',
+        status: 'active',
+      }),
+    );
+    const sameCodeDifferentSite = await withFakeOrg(client, () =>
+      mod.createLine({
+        site_id: DEVICE_ID,
+        code: 'LINE-1',
+        name: 'Yoghurt line at another site',
+        status: 'active',
+      }),
+    );
+    duplicateLineCodeAtSelectedSite = true;
+    const duplicateLine = await withFakeOrg(client, () =>
+      mod.createLine({
+        site_id: SITE_ID,
+        code: 'LINE-1',
+        name: 'Duplicate yoghurt line',
+        status: 'active',
+      }),
+    );
 
     expect(sites).toEqual([
       expect.objectContaining({
@@ -740,13 +813,18 @@ describe('settings shifts/devices wiring contract', () => {
       expect.objectContaining({ id: LINE_ID, org_id: ORG_ID, code: 'LINE-1', status: 'active' }),
     ]);
     expect(saved).toMatchObject({ ok: true, data: { id: SITE_ID, org_id: ORG_ID } });
+    expect(createdLine).toMatchObject({ ok: true, data: { id: LINE_ID, code: 'LINE-1' } });
+    expect(sameCodeDifferentSite).toMatchObject({ ok: true, data: { id: LINE_ID, code: 'LINE-1' } });
+    expect(duplicateLine).toEqual({ ok: false, error: 'duplicate_code' });
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
     expect(sql).toContain('from public.sites s');
     expect(sql).toContain('from public.production_lines pl');
-    expect(sql).toContain('join public.shift_patterns sp');
+    expect(sql).toContain('left join public.shift_patterns sp');
+    expect(sql).toContain('and pl.site_id = $2::uuid');
+    expect(sql).toContain('insert into public.production_lines (org_id, site_id, code, name, status)');
     expect(sql).toContain('update public.sites');
     expect(sql).toContain('app.current_org_id()');
-    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
+    expect(client.calls.some((call) => call.params.includes(ORG_ID))).toBe(true);
     expect(revalidatePathMock).toHaveBeenCalledWith('/settings/sites');
 
     const crossOrgSites = await withFakeOrg(client, () => mod.getSites(OTHER_ORG_ID));

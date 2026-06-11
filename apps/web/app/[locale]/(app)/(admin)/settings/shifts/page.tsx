@@ -1,6 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
-import { readShiftsSettingsData } from './_actions/shifts';
+import { createShiftPattern, readShiftsSettingsData, type CreateShiftPatternInput } from './_actions/shifts';
 import ShiftsScreen, { type ShiftsScreenLabels } from './shifts-screen.client';
 
 export const dynamic = 'force-dynamic';
@@ -12,36 +12,60 @@ type PageProps = {
 
 async function buildLabels(locale: string): Promise<ShiftsScreenLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.shifts' });
+  const en = locale === 'en' ? t : await getTranslations({ locale: 'en', namespace: 'settings.shifts' });
+  const label = (key: string, fallback: string): string => {
+    try {
+      if (t.has(key)) return t(key);
+      if (en.has(key)) return en(key);
+      return fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
   return {
-    title: t('title'),
-    subtitle: t('subtitle'),
-    newShift: t('new_shift'),
-    patternsTitle: t('patterns_title'),
-    patternsSubtitle: t('patterns_subtitle'),
-    emptyPatterns: t('empty_patterns'),
-    calendarTitle: t('calendar_title'),
-    calendarSubtitle: t('calendar_subtitle'),
-    legendWorking: t('legend_working'),
-    legendWeekend: t('legend_weekend'),
-    legendHoliday: t('legend_holiday'),
+    title: label('title', 'Shifts & calendar'),
+    subtitle: label('subtitle', 'Work patterns, non-production days, and shift assignments.'),
+    newShift: label('new_shift', '+ New shift'),
+    patternsTitle: label('patterns_title', 'Shift patterns'),
+    patternsSubtitle: label('patterns_subtitle', 'Recurring work patterns used to schedule production.'),
+    emptyPatterns: label('empty_patterns', 'No shift patterns are configured yet.'),
+    calendarTitle: label('calendar_title', 'Calendar'),
+    calendarSubtitle: label('calendar_subtitle', 'Days on which production is paused.'),
+    legendWorking: label('legend_working', 'Working day'),
+    legendWeekend: label('legend_weekend', 'Weekend'),
+    legendHoliday: label('legend_holiday', 'Public holiday'),
     columns: {
-      name: t('column_name'),
-      time: t('column_time'),
-      days: t('column_days'),
-      site: t('column_site'),
-      line: t('column_line'),
-      status: t('column_status'),
+      name: label('column_name', 'Name'),
+      time: label('column_time', 'Time'),
+      days: label('column_days', 'Days'),
+      site: label('column_site', 'Site'),
+      line: label('column_line', 'Line'),
+      status: label('column_status', 'Status'),
     },
-    statusActive: t('status_active'),
+    statusActive: label('status_active', 'Active'),
     weekdayShort: [
-      t('weekday_mon'),
-      t('weekday_tue'),
-      t('weekday_wed'),
-      t('weekday_thu'),
-      t('weekday_fri'),
-      t('weekday_sat'),
-      t('weekday_sun'),
+      label('weekday_mon', 'Mon'),
+      label('weekday_tue', 'Tue'),
+      label('weekday_wed', 'Wed'),
+      label('weekday_thu', 'Thu'),
+      label('weekday_fri', 'Fri'),
+      label('weekday_sat', 'Sat'),
+      label('weekday_sun', 'Sun'),
     ],
+    dialogTitle: label('dialog_title', 'New shift'),
+    fieldName: label('field_name', 'Name'),
+    fieldStart: label('field_start', 'Start'),
+    fieldEnd: label('field_end', 'End'),
+    fieldDays: label('field_days', 'Days'),
+    fieldSite: label('field_site', 'Site'),
+    fieldLine: label('field_line', 'Line'),
+    allSites: label('all_sites', 'All sites'),
+    noLine: label('no_line', 'No line'),
+    cancel: label('cancel', 'Cancel'),
+    save: label('save', 'Save'),
+    saving: label('saving', 'Saving...'),
+    createFailed: label('create_failed', 'Shift could not be created.'),
   };
 }
 
@@ -68,13 +92,22 @@ export default async function ShiftsSettingsPage({ params, searchParams }: PageP
     readShiftsSettingsData(year, month),
   ]);
 
+  async function createShiftAction(input: CreateShiftPatternInput) {
+    'use server';
+    return createShiftPattern(input);
+  }
+
   return (
     <ShiftsScreen
       shiftPatterns={data.shift_patterns}
       calendarDays={data.calendar_days}
       year={year}
       month={month}
+      canEdit={data.can_edit}
+      sites={data.sites}
+      lines={data.lines}
       labels={labels}
+      createShiftAction={createShiftAction}
     />
   );
 }

@@ -194,8 +194,8 @@ const UpdateLineSchema = z
 /**
  * Postgres unique-violation SQLSTATE. We map it to the friendly
  * `'duplicate_code'` error so the UI can surface a field-level message rather
- * than a generic failure (the unique constraints are
- * `sites_org_code_uq` / `production_lines_org_id_code_key`).
+ * than a generic failure (the unique constraints are `sites_org_code_uq` and
+ * the site-scoped production line unique indexes from migration 268).
  */
 const PG_UNIQUE_VIOLATION = '23505';
 
@@ -301,13 +301,9 @@ async function querySites(context: OrgContextLike, orgId: string): Promise<SiteR
             coalesce(sum(coalesce((pl_stats.worker_count)::int, 0)), 0)::text as worker_count,
             s.is_active
        from public.sites s
-       left join public.shift_patterns sp
-         on sp.org_id = app.current_org_id()
-        and sp.site_id = s.id
-        and sp.is_active = true
        left join public.production_lines pl
          on pl.org_id = app.current_org_id()
-        and (sp.line_id = pl.id::text or sp.line_id = pl.code)
+        and pl.site_id = s.id
        left join lateral (
          select count(distinct sp2.shift_id) as worker_count
            from public.shift_patterns sp2
@@ -341,7 +337,7 @@ async function queryLinesForSite(context: OrgContextLike, orgId: string, siteId:
             count(distinct sp.shift_id)::text as workers,
             pl.status
        from public.production_lines pl
-       join public.shift_patterns sp
+       left join public.shift_patterns sp
          on sp.org_id = app.current_org_id()
         and (sp.line_id = pl.id::text or sp.line_id = pl.code)
         and sp.site_id = $2::uuid
@@ -351,6 +347,7 @@ async function queryLinesForSite(context: OrgContextLike, orgId: string, siteId:
         and l.org_id = app.current_org_id()
       where pl.org_id = app.current_org_id()
         and pl.org_id = $1::uuid
+        and pl.site_id = $2::uuid
       group by pl.id, pl.org_id, pl.code, pl.name, l.location_type, pl.status
       order by lower(pl.name), lower(pl.code)`,
     [parsed.data.orgId, parsed.data.siteId],
@@ -528,46 +525,34 @@ export async function createSite(input: unknown): Promise<CreateSiteResult> {
 }
 
 /**
- * Ensure the line `lineId` is associated to `siteId` for the caller's org.
- *
- * LINE↔SITE ASSOCIATION (the only one the schema supports):
- *   `public.production_lines` has NO `site_id` and `public.locations` has NO
- *   `site_id` either (locations hang off a warehouse). The ONLY column that ties
- *   a line to a site is `public.shift_patterns.site_id` — and indeed
- *   `getLinesForSite` lists a site's lines via `INNER JOIN public.shift_patterns
- *   sp ON (sp.line_id = pl.id::text OR sp.line_id = pl.code) AND sp.site_id = $site
- *   AND sp.is_active`. So a created/edited line only shows up under a site once an
- *   active `shift_patterns` row links them.
- *
- *   `shift_patterns.shift_id` is NOT NULL with a composite FK to
- *   `shift_configs(org_id, shift_id)`, so we first upsert a minimal default
- *   `'general'` shift_config (site-scoped) and then upsert the linking pattern.
- *   This keeps the line visible under the chosen site using the existing read
- *   query, without inventing a new association table.
+ * Ensure the target site belongs to this org, and optionally that no sibling
+ * line at the same site already uses the requested code.
  */
-async function associateLineWithSite(context: OrgContextLike, lineId: string, siteId: string): Promise<void> {
-  const shiftId = 'general';
-  await context.client.query(
-    `insert into public.shift_configs (org_id, site_id, shift_id, shift_label, start_time, end_time, created_by, updated_by)
-     values (app.current_org_id(), $1::uuid, $2, 'General', '00:00', '23:59', $3::uuid, $3::uuid)
-     on conflict (org_id, shift_id) do update
-        set site_id = excluded.site_id,
-            is_active = true,
-            updated_by = excluded.updated_by,
-            updated_at = now()`,
-    [siteId, shiftId, context.userId],
+async function siteExists(context: OrgContextLike, siteId: string): Promise<boolean> {
+  const { rows } = await context.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.sites
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and is_active = true
+      limit 1`,
+    [siteId],
   );
+  return rows.length > 0;
+}
 
-  await context.client.query(
-    `insert into public.shift_patterns (org_id, site_id, line_id, shift_id, is_active, created_by, updated_by)
-     values (app.current_org_id(), $1::uuid, $2, $3, true, $4::uuid, $4::uuid)
-     on conflict (org_id, line_id, shift_id) do update
-        set site_id = excluded.site_id,
-            is_active = true,
-            updated_by = excluded.updated_by,
-            updated_at = now()`,
-    [siteId, lineId, shiftId, context.userId],
+async function lineCodeExistsAtSite(context: OrgContextLike, siteId: string, code: string, exceptLineId?: string): Promise<boolean> {
+  const { rows } = await context.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.production_lines
+      where org_id = app.current_org_id()
+        and site_id = $1::uuid
+        and lower(code) = lower($2)
+        and ($3::uuid is null or id <> $3::uuid)
+      limit 1`,
+    [siteId, code, exceptLineId ?? null],
   );
+  return rows.length > 0;
 }
 
 function emitLineUpserted(context: OrgContextLike, lineId: string, action: 'created' | 'updated'): Promise<unknown> {
@@ -581,10 +566,9 @@ function emitLineUpserted(context: OrgContextLike, lineId: string, action: 'crea
 }
 
 /**
- * Create a production line and associate it to a site. See
- * {@link associateLineWithSite} for the (shift_patterns) association rationale.
- * Org-context wrapped, admin-gated, RLS-scoped, duplicate `code`
- * (`production_lines_org_id_code_key`) → `'duplicate_code'`.
+ * Create a production line at the selected site. Org-context wrapped,
+ * admin-gated, RLS-scoped, duplicate `code` at the same site →
+ * `'duplicate_code'`.
  */
 export async function createLine(input: unknown): Promise<LineMutationResult> {
   const parsed = CreateLineSchema.safeParse(input);
@@ -595,18 +579,19 @@ export async function createLine(input: unknown): Promise<LineMutationResult> {
     return await withOrgContext<LineMutationResult>(async (ctx): Promise<LineMutationResult> => {
       const context = ctx as OrgContextLike;
       if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+      if (!(await siteExists(context, data.site_id))) return { ok: false, error: 'not_found' };
+      if (await lineCodeExistsAtSite(context, data.site_id, data.code)) return { ok: false, error: 'duplicate_code' };
 
       const { rows } = await context.client.query<{ id: string; code: string; name: string; status: string }>(
-        `insert into public.production_lines (org_id, code, name, status)
-         values (app.current_org_id(), $1, $2, coalesce($3, 'active'))
+        `insert into public.production_lines (org_id, site_id, code, name, status)
+         values (app.current_org_id(), $1::uuid, $2, $3, coalesce($4, 'active'))
          returning id::text, code, name, status`,
-        [data.code, data.name, data.status ?? null],
+        [data.site_id, data.code, data.name, data.status ?? null],
       );
 
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
 
-      await associateLineWithSite(context, row.id, data.site_id);
       await emitLineUpserted(context, row.id, 'created');
 
       revalidateSitesRoute();
@@ -620,7 +605,7 @@ export async function createLine(input: unknown): Promise<LineMutationResult> {
 }
 
 /**
- * Update an existing production line (code/name/status) and re-affirm its site
+ * Update an existing production line (site/code/name/status) and re-affirm its site
  * association. Org-context wrapped, admin-gated, RLS-scoped, duplicate `code`
  * → `'duplicate_code'`, missing row → `'not_found'`.
  */
@@ -633,22 +618,24 @@ export async function updateLine(input: unknown): Promise<LineMutationResult> {
     return await withOrgContext<LineMutationResult>(async (ctx): Promise<LineMutationResult> => {
       const context = ctx as OrgContextLike;
       if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+      if (!(await siteExists(context, data.site_id))) return { ok: false, error: 'not_found' };
+      if (await lineCodeExistsAtSite(context, data.site_id, data.code, data.id)) return { ok: false, error: 'duplicate_code' };
 
       const { rows } = await context.client.query<{ id: string; code: string; name: string; status: string }>(
         `update public.production_lines
-            set code = $2,
-                name = $3,
-                status = coalesce($4, status)
+            set site_id = $2::uuid,
+                code = $3,
+                name = $4,
+                status = coalesce($5, status)
           where org_id = app.current_org_id()
             and id = $1::uuid
           returning id::text, code, name, status`,
-        [data.id, data.code, data.name, data.status ?? null],
+        [data.id, data.site_id, data.code, data.name, data.status ?? null],
       );
 
       const row = rows[0];
       if (!row) return { ok: false, error: 'not_found' };
 
-      await associateLineWithSite(context, row.id, data.site_id);
       await emitLineUpserted(context, row.id, 'updated');
 
       revalidateSitesRoute();

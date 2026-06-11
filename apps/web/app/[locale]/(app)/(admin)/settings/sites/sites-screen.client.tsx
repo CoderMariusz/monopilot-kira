@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 
 import Modal from '@monopilot/ui/Modal';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import { PageHead, Section, SRow, Toggle } from '../_components';
 import type {
@@ -117,7 +118,7 @@ export const DEFAULT_SITES_MODAL_LABELS: SitesModalLabels = {
   save: 'Save',
   saving: 'Saving…',
   errorRequired: 'This field is required.',
-  errorDuplicate: 'That code is already in use. Choose a different one.',
+  errorDuplicate: 'That code is already in use at this site. Choose a different one.',
   errorGeneric: 'Something went wrong. Please try again.',
 };
 
@@ -748,18 +749,18 @@ function LineFormModal({
             />
           </Field>
           <Field id="line-status" label={labels.fieldStatus} requiredLabel={labels.required}>
-            <select
-              id="line-status"
-              className="form-input"
-              value={status}
-              onChange={(e) => setStatus(e.currentTarget.value)}
-            >
+            <Select value={status} onValueChange={setStatus} id="line-status" aria-label={labels.fieldStatus}>
+              <SelectTrigger className="form-input" aria-label={labels.fieldStatus}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
               {STATUS_OPTIONS(labels).map((option) => (
-                <option key={option.value} value={option.value}>
+                <SelectItem key={option.value} value={option.value}>
                   {option.label}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectContent>
+            </Select>
           </Field>
           {error ? (
             <div role="alert" className="alert alert-red" data-testid="sites-modal-error">

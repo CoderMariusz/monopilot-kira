@@ -26,7 +26,9 @@ export type ShiftPatternRow = {
   end_time: string;
   days_of_week: string[];
   site_id: string | null;
+  site_name: string | null;
   line_id: string | null;
+  line_label: string | null;
   org_id: string;
 };
 
@@ -47,8 +49,24 @@ type ShiftPatternDbRow = {
   end_time: string;
   days_of_week: string[];
   site_id: string | null;
+  site_name: string | null;
   line_id: string | null;
+  line_label: string | null;
   org_id: string;
+};
+
+export type ShiftSiteOption = {
+  id: string;
+  code: string;
+  name: string;
+  is_default: boolean;
+};
+
+export type ShiftLineOption = {
+  id: string;
+  code: string;
+  name: string;
+  site_id: string | null;
 };
 
 type NonProductionDayRow = {
@@ -66,6 +84,9 @@ export type ShiftsSettingsData = {
   org_id: string;
   shift_patterns: ShiftPatternRow[];
   calendar_days: CalendarDayRow[];
+  sites: ShiftSiteOption[];
+  lines: ShiftLineOption[];
+  can_edit: boolean;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -124,7 +145,9 @@ function toShiftPatternRow(row: ShiftPatternDbRow): ShiftPatternRow {
     end_time: normalizeTime(row.end_time),
     days_of_week: row.days_of_week,
     site_id: row.site_id,
+    site_name: row.site_name,
     line_id: row.line_id,
+    line_label: row.line_label,
     org_id: row.org_id,
   };
 }
@@ -158,12 +181,20 @@ async function queryShiftPatterns(context: OrgContextLike, orgId: string): Promi
             coalesce(sp.end_time, sc.end_time)::text as end_time,
             coalesce(sp.days_active, sc.active_days) as days_of_week,
             sp.site_id::text as site_id,
+            s.name as site_name,
             sp.line_id,
+            concat_ws(' - ', pl.code, pl.name) as line_label,
             sp.org_id::text as org_id
        from public.shift_patterns sp
        join public.shift_configs sc
          on sc.org_id = sp.org_id
         and sc.shift_id = sp.shift_id
+       left join public.sites s
+         on s.id = sp.site_id
+        and s.org_id = sp.org_id
+       left join public.production_lines pl
+         on pl.org_id = sp.org_id
+        and (pl.id::text = sp.line_id or pl.code = sp.line_id)
       where sp.org_id = $1::uuid
         and sp.is_active = true
         and sc.is_active = true
@@ -172,6 +203,27 @@ async function queryShiftPatterns(context: OrgContextLike, orgId: string): Promi
   );
 
   return rows.map(toShiftPatternRow);
+}
+
+async function queryShiftSites(context: OrgContextLike): Promise<ShiftSiteOption[]> {
+  const { rows } = await context.client.query<ShiftSiteOption>(
+    `select id::text, site_code as code, name, is_default
+       from public.sites
+      where org_id = app.current_org_id()
+        and is_active = true
+      order by is_default desc, lower(name), lower(site_code)`,
+  );
+  return rows;
+}
+
+async function queryShiftLines(context: OrgContextLike): Promise<ShiftLineOption[]> {
+  const { rows } = await context.client.query<ShiftLineOption>(
+    `select id::text, code, name, site_id::text as site_id
+       from public.production_lines
+      where org_id = app.current_org_id()
+      order by lower(name), lower(code)`,
+  );
+  return rows;
 }
 
 async function queryCalendarData(context: OrgContextLike, orgId: string, year: number, month: number): Promise<CalendarDayRow[]> {
@@ -232,11 +284,14 @@ export async function getCalendarData(orgId: string, year: number, month: number
 export async function readShiftsSettingsData(year: number, month: number): Promise<ShiftsSettingsData> {
   return withOrgContext<ShiftsSettingsData>(async (ctx): Promise<ShiftsSettingsData> => {
     const context = ctx as OrgContextLike;
-    const [shiftPatterns, calendarDays] = await Promise.all([
+    const [shiftPatterns, calendarDays, sites, lines, canEdit] = await Promise.all([
       queryShiftPatterns(context, context.orgId),
       queryCalendarData(context, context.orgId, year, month),
+      queryShiftSites(context),
+      queryShiftLines(context),
+      hasSettingsUpdatePermission(context),
     ]);
-    return { org_id: context.orgId, shift_patterns: shiftPatterns, calendar_days: calendarDays };
+    return { org_id: context.orgId, shift_patterns: shiftPatterns, calendar_days: calendarDays, sites, lines, can_edit: canEdit };
   });
 }
 
@@ -276,7 +331,9 @@ export async function createShiftPattern(rawInput: unknown): Promise<ShiftPatter
                    end_time::text,
                    days_active as days_of_week,
                    site_id::text as site_id,
+                   null::text as site_name,
                    line_id,
+                   null::text as line_label,
                    org_id::text as org_id`,
         [
           context.orgId,
@@ -361,7 +418,9 @@ export async function updateShiftPattern(rawInput: unknown): Promise<ShiftPatter
                     end_time::text,
                     days_active as days_of_week,
                     site_id::text as site_id,
+                    null::text as site_name,
                     line_id,
+                    null::text as line_label,
                     org_id::text as org_id`,
         [
           parsed.data.id,

@@ -20,6 +20,7 @@ type MachineRow = { id: string; status: string };
 
 type ParsedLineInput = {
   id: string | null;
+  siteId: string | null;
   code: string;
   name: string;
   status: LineStatus;
@@ -35,6 +36,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const UuidInput = z.string().trim().regex(UUID_RE);
 const LineInput = z.object({
   id: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
+  siteId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
   code: z.string().trim().min(1).max(64).transform((value) => value.toUpperCase()).pipe(z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/)),
   name: z.string().trim().min(1).max(128),
   status: z.enum(['draft', 'active']),
@@ -57,14 +59,15 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
 
       const { rows } = await client.query<LineRow>(
         `insert into public.production_lines
-           (id, org_id, code, name, status)
-         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2, $3, $4)
+           (id, org_id, site_id, code, name, status)
+         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3, $4, $5)
          on conflict (id) do update set
+           site_id = excluded.site_id,
            code = excluded.code,
            name = excluded.name,
            status = excluded.status
-         returning id, code, name, status, $5::uuid[] as machine_ids`,
-        [input.id, input.code, input.name, input.status, input.machineIds],
+         returning id, code, name, status, $6::uuid[] as machine_ids`,
+        [input.id, input.siteId, input.code, input.name, input.status, input.machineIds],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
@@ -103,6 +106,7 @@ function parseLineInput(raw: unknown): ParsedLineInput | null {
   if (!parsed.success) return null;
   return {
     id: parsed.data.id ?? null,
+    siteId: parsed.data.siteId ?? null,
     code: parsed.data.code,
     name: parsed.data.name,
     status: parsed.data.status,

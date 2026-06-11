@@ -1,0 +1,34 @@
+{
+  "en": {
+    "settings.sites.error_duplicate_line_code": "That code is already in use at this site. Choose a different one.",
+    "settings.shifts.dialog_title": "New shift",
+    "settings.shifts.field_name": "Name",
+    "settings.shifts.field_start": "Start",
+    "settings.shifts.field_end": "End",
+    "settings.shifts.field_days": "Days",
+    "settings.shifts.field_site": "Site",
+    "settings.shifts.field_line": "Line",
+    "settings.shifts.all_sites": "All sites",
+    "settings.shifts.no_line": "No line",
+    "settings.shifts.cancel": "Cancel",
+    "settings.shifts.save": "Save",
+    "settings.shifts.saving": "Saving...",
+    "settings.shifts.create_failed": "Shift could not be created."
+  },
+  "pl": {
+    "settings.sites.error_duplicate_line_code": "Ten kod jest juz uzywany w tej lokalizacji. Wybierz inny.",
+    "settings.shifts.dialog_title": "Nowa zmiana",
+    "settings.shifts.field_name": "Nazwa",
+    "settings.shifts.field_start": "Start",
+    "settings.shifts.field_end": "Koniec",
+    "settings.shifts.field_days": "Dni",
+    "settings.shifts.field_site": "Lokalizacja",
+    "settings.shifts.field_line": "Linia",
+    "settings.shifts.all_sites": "Wszystkie lokalizacje",
+    "settings.shifts.no_line": "Bez linii",
+    "settings.shifts.cancel": "Anuluj",
+    "settings.shifts.save": "Zapisz",
+    "settings.shifts.saving": "Zapisywanie...",
+    "settings.shifts.create_failed": "Nie udalo sie utworzyc zmiany."
+  }
+}

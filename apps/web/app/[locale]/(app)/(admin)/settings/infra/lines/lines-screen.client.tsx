@@ -24,6 +24,13 @@ export type MachineOption = {
   name: string;
 };
 
+export type SiteOption = {
+  id: string;
+  code: string;
+  name: string;
+  isDefault?: boolean;
+};
+
 export type ProductionLine = {
   id: string;
   code: string;
@@ -37,7 +44,7 @@ export type ProductionLine = {
 };
 
 export type ActivateLineInput = { lineId: string };
-export type CreateLineInput = { code: string; name: string; status: 'draft' | 'active'; machineIds: string[] };
+export type CreateLineInput = { siteId?: string | null; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] };
 export type CreateLineResult =
   | { ok: true; data: { id: string; status: 'draft' | 'active' } }
   | { ok: false; error?: string };
@@ -72,6 +79,7 @@ export type LinesLabels = {
   dialogAddTitle: string;
   fieldCode: string;
   fieldName: string;
+  fieldSite: string;
   fieldStatus: string;
   fieldMachines: string;
   createLine: string;
@@ -116,6 +124,7 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
   dialogAddTitle: 'Add production line',
   fieldCode: 'Code',
   fieldName: 'Name',
+  fieldSite: 'Site',
   fieldStatus: 'Status',
   fieldMachines: 'Machine sequence',
   createLine: 'Create line',
@@ -143,6 +152,7 @@ export type LinesScreenProps = {
   labels?: LinesLabels;
   lines: ProductionLine[];
   machines: MachineOption[];
+  sites?: SiteOption[];
   canUpdateInfra: boolean;
   activateLine: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
   createLine: (input: CreateLineInput) => Promise<CreateLineResult> | CreateLineResult;
@@ -206,7 +216,7 @@ function SelectField({
   );
 }
 
-export default function LinesScreen({ labels: labelsProp, lines, machines, canUpdateInfra, activateLine, createLine, state }: LinesScreenProps) {
+export default function LinesScreen({ labels: labelsProp, lines, machines, sites = [], canUpdateInfra, activateLine, createLine, state }: LinesScreenProps) {
   const labels = labelsProp ?? DEFAULT_LINES_LABELS;
   const [rows, setRows] = React.useState<ProductionLine[]>(() => [...lines]);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -219,13 +229,26 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, canUp
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
   const [createError, setCreateError] = React.useState<string | null>(null);
-  const [newLine, setNewLine] = React.useState<CreateLineInput>({ code: '', name: '', status: 'draft', machineIds: [] });
+  const [newLine, setNewLine] = React.useState<CreateLineInput>(() => ({
+    siteId: sites.find((site) => site.isDefault)?.id ?? sites[0]?.id ?? null,
+    code: '',
+    name: '',
+    status: 'draft',
+    machineIds: [],
+  }));
   const [warehouseFilter, setWarehouseFilter] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('all');
 
   React.useEffect(() => {
     setRows([...lines]);
   }, [lines]);
+
+  React.useEffect(() => {
+    setNewLine((current) => ({
+      ...current,
+      siteId: current.siteId ?? sites.find((site) => site.isDefault)?.id ?? sites[0]?.id ?? null,
+    }));
+  }, [sites]);
 
   React.useEffect(() => {
     setStatusById(Object.fromEntries(rows.map((line) => [line.id, line.status])));
@@ -316,7 +339,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, canUp
         },
         ...current.filter((line) => line.id !== result.data.id),
       ]);
-      setNewLine({ code: '', name: '', status: 'draft', machineIds: [] });
+      setNewLine({ siteId: sites.find((site) => site.isDefault)?.id ?? sites[0]?.id ?? null, code: '', name: '', status: 'draft', machineIds: [] });
       setCreateStatus(labels.createLineSuccess);
       setCreateDialogOpen(false);
     } finally {
@@ -501,6 +524,26 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, canUp
                   disabled={createPending}
                 />
               </label>
+              {sites.length > 0 ? (
+                <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span id="new-line-site-label">{labels.fieldSite}</span>
+                  <Select
+                    value={newLine.siteId ?? ''}
+                    onValueChange={(value) => setNewLine((current) => ({ ...current, siteId: value || null }))}
+                  >
+                    <SelectTrigger aria-label={labels.fieldSite}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.code} - {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
               <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <span id="new-line-status-label">{labels.fieldStatus}</span>
                 <Select value={newLine.status} onValueChange={(value) => setNewLine((current) => ({ ...current, status: value === 'active' ? 'active' : 'draft' }))}>

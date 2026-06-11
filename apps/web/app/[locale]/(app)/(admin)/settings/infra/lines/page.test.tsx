@@ -25,6 +25,7 @@ const labels: Record<string, string> = {
   dialogAddTitle: 'Add production line',
   fieldCode: 'Code',
   fieldName: 'Name',
+  fieldSite: 'Site',
   fieldStatus: 'Status',
   fieldMachines: 'Machine sequence',
   createLine: 'Create line',
@@ -270,6 +271,18 @@ describe('SET-018 line list behavior', () => {
       if (normalized.includes('from public.machines')) {
         return { rows: availableMachines };
       }
+      if (normalized.includes('from public.sites')) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000901',
+              site_code: 'S1',
+              name: 'Krakow',
+              is_default: true,
+            },
+          ],
+        };
+      }
       throw new Error(`Unexpected SQL: ${sql}; params=${JSON.stringify(params)}`);
     });
     orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
@@ -375,7 +388,7 @@ describe('SET-018 line list behavior', () => {
     await user.type(within(dialog).getByLabelText(/^code$/i), 'line-new');
     await user.type(within(dialog).getByLabelText(/^name$/i), 'New packing line');
     await user.click(within(dialog).getByRole('combobox', { name: /^status$/i }));
-    await user.click(within(dialog).getAllByRole('option', { name: /^active$/i }).at(-1) as HTMLElement);
+    await user.click(screen.getAllByRole('option', { name: /^active$/i }).at(-1) as HTMLElement);
     await user.click(within(dialog).getByLabelText(/mixer 01/i));
     await user.click(within(dialog).getByLabelText(/packer 02/i));
     await user.click(within(dialog).getByRole('button', { name: /^create line$/i }));
@@ -383,6 +396,7 @@ describe('SET-018 line list behavior', () => {
     await waitFor(() => expect(createLine).toHaveBeenCalledWith({
       code: 'line-new',
       name: 'New packing line',
+      siteId: null,
       status: 'active',
       machineIds: [availableMachines[0].id, availableMachines[1].id],
     }));
