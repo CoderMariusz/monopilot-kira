@@ -52,7 +52,7 @@ export async function closeWo(
   // Supervisor authority: the full production.* set (incl. close) is the
   // supervisor/admin family in the migration-185 seed. wo.complete is the
   // closest granular supervisor-tier string present in the enum.
-  if (!(await hasPermission(ctx, 'production.wo.complete'))) return fail('forbidden');
+  if (!(await hasPermission(ctx, 'production.wo.close'))) return fail('forbidden');
   if (!input.reason || input.reason.trim().length === 0) {
     return fail('invalid_input', { message: 'e-sign reason is required (CFR-21 Part 11)' });
   }

@@ -197,6 +197,8 @@ export const Permission = {
   PRODUCTION_WO_RESUME: 'production.wo.resume',
   /** Production WO complete permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_WO_COMPLETE: 'production.wo.complete',
+  /** Production WO financial close permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_WO_CLOSE: 'production.wo.close',
   /** Production material consumption write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_CONSUMPTION_WRITE: 'production.consumption.write',
   /** Production over-consumption approval permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
@@ -647,6 +649,7 @@ export const ALL_PRODUCTION_PERMISSIONS = [
   Permission.PRODUCTION_WO_PAUSE,
   Permission.PRODUCTION_WO_RESUME,
   Permission.PRODUCTION_WO_COMPLETE,
+  Permission.PRODUCTION_WO_CLOSE,
   Permission.PRODUCTION_CONSUMPTION_WRITE,
   Permission.PRODUCTION_CONSUMPTION_OVERRIDE_APPROVE,
   Permission.PRODUCTION_OUTPUT_WRITE,

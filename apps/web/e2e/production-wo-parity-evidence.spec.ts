@@ -49,7 +49,7 @@ test.describe('Production WO list + detail parity (wo-list.jsx:4-106 / wo-detail
     await expect(page).toHaveURL(/\/production\/wos\/[0-9a-f-]+$/);
   });
 
-  test('WO detail: 8 tabs render + deferred action bar is disabled', async ({ page }) => {
+  test('WO detail: 8 tabs render + wired action bar is present', async ({ page }) => {
     await page.goto(`${baseURL}${listRoute}`);
     await page.getByTestId(/^wo-link-/).first().click();
 
@@ -58,8 +58,9 @@ test.describe('Production WO list + detail parity (wo-list.jsx:4-106 / wo-detail
       await expect(page.getByTestId(`wo-detail-tab-${k}`)).toBeVisible();
     }
 
-    // Deferred mutation slots are disabled (wired by a follow-up lane).
-    await expect(page.getByTestId('wo-action-complete')).toBeDisabled();
+    // P2-MODALS: the action bar is now wired (the per-state triggers render when
+    // the caller is permitted; the bar container is present for a live WO).
+    await expect(page.getByTestId('wo-action-bar')).toBeVisible();
 
     await page.screenshot({ path: path.join(evidenceDir, 'P-L1-detail-overview.png'), fullPage: true });
 

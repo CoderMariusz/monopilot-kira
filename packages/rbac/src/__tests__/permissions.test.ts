@@ -111,6 +111,7 @@ const expectedProductionPermissions = [
   'production.wo.pause',
   'production.wo.resume',
   'production.wo.complete',
+  'production.wo.close',
   'production.consumption.write',
   'production.consumption.override_approve',
   'production.output.write',
@@ -359,6 +360,7 @@ const expectedCanonicalPermissions = [
   'production.wo.pause',
   'production.wo.resume',
   'production.wo.complete',
+  'production.wo.close',
   'production.consumption.write',
   'production.consumption.override_approve',
   'production.output.write',
@@ -678,8 +680,8 @@ describe('rbac permission source of truth', () => {
 
     // AC1 — all 17 strings present exactly once, in order.
     expect(ALL_PRODUCTION_PERMISSIONS).toEqual(expectedProductionPermissions);
-    // AC3 — typed readonly Permission[] with length === 17.
-    expect(ALL_PRODUCTION_PERMISSIONS).toHaveLength(17);
+    // AC3 — typed readonly Permission[] with length === 18.
+    expect(ALL_PRODUCTION_PERMISSIONS).toHaveLength(18);
     expect(new Set(ALL_PRODUCTION_PERMISSIONS).size).toBe(ALL_PRODUCTION_PERMISSIONS.length);
 
     // AC2 — regex + uniqueness across the whole enum.
