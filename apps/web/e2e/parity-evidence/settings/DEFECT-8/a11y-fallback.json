@@ -1,0 +1,9 @@
+{
+  "task": "DEFECT-8",
+  "note": "Playwright + @axe-core blocked (no running RBAC-authenticated app server in worktree). RTL role/label checks substitute, per UI-PROTOTYPE-PARITY-POLICY.md.",
+  "dialogHasAriaModal": true,
+  "dialogLabelled": true,
+  "allInputsLabelled": true,
+  "noRawSelect": true,
+  "closeButtonHasLabel": true
+}

@@ -444,3 +444,57 @@ export async function updateShiftPattern(rawInput: unknown): Promise<ShiftPatter
     return { ok: false, error: 'persistence_failed' };
   }
 }
+
+const DeleteShiftPatternInput = z.object({ id: UuidInput }).strict();
+export type DeleteShiftPatternInput = z.input<typeof DeleteShiftPatternInput>;
+
+export type ShiftPatternDeleteResult =
+  | { ok: true; id: string }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+
+/**
+ * Soft-delete a shift pattern (and its paired shift_config): the read query
+ * filters `is_active = true`, and create sets `is_active = true`, so retiring a
+ * pattern means flipping `is_active = false` on both rows. Mirrors
+ * createShiftPattern's permission gate + org scoping; never a hard delete.
+ */
+export async function deleteShiftPattern(rawInput: unknown): Promise<ShiftPatternDeleteResult> {
+  const parsed = DeleteShiftPatternInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext<ShiftPatternDeleteResult>(async (ctx): Promise<ShiftPatternDeleteResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await context.client.query<{ id: string; shift_id: string }>(
+        `update public.shift_patterns
+            set is_active = false,
+                updated_by = $3::uuid,
+                updated_at = now()
+          where id = $1::uuid
+            and org_id = $2::uuid
+            and is_active = true
+          returning id, shift_id`,
+        [parsed.data.id, context.orgId, context.userId],
+      );
+      const deleted = rows[0];
+      if (!deleted) return { ok: false, error: 'not_found' };
+
+      await context.client.query(
+        `update public.shift_configs
+            set is_active = false,
+                updated_by = $3::uuid,
+                updated_at = now()
+          where org_id = $1::uuid
+            and shift_id = $2`,
+        [context.orgId, deleted.shift_id, context.userId],
+      );
+
+      revalidateShiftsRoute();
+      return { ok: true, id: deleted.id };
+    });
+  } catch {
+    return { ok: false, error: 'persistence_failed' };
+  }
+}

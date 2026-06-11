@@ -21,9 +21,10 @@ export type WoListItem = {
   status: WoStatus;
   itemCode: string;
   productName: string;
-  plannedQty: number;
-  /** entered/output qty so far, in the WO's entered unit when present */
-  qtyEntered: number | null;
+  /** DECIMAL STRING — planned qty as entered on the WO */
+  plannedQty: string;
+  /** DECIMAL STRING — qty entered on the WO, in the entered unit when present */
+  qtyEntered: string | null;
   /** unit label for qtyEntered, e.g. "box" / "each" */
   qtyEnteredUom: string | null;
   uomSnapshot: UomSnapshot | null;
@@ -35,13 +36,23 @@ export type WoListResponse = { ok: true; wos: WoListItem[] } | ApiError;
 export type WoMaterial = {
   id: string;
   materialName: string;
-  requiredQty: number;
-  consumedQty: number;
+  /** DECIMAL STRING */
+  requiredQty: string;
+  /** DECIMAL STRING */
+  consumedQty: string;
   uom: string;
   sequence: number;
 };
 
-export type WoHeader = WoListItem & { producedKg: number };
+export type WoHeader = WoListItem & {
+  /** DECIMAL STRING — SUM(wo_outputs.qty_kg); '0' when no outputs */
+  producedBaseKg: string;
+  /**
+   * DECIMAL STRING — SUM(wo_outputs.qty_units) for finished-goods outputs;
+   * '0' when no outputs; null when units tracking is n/a for this WO.
+   */
+  producedUnits: string | null;
+};
 
 export type WoDetailResponse =
   | {
@@ -53,6 +64,19 @@ export type WoDetailResponse =
   | ApiError;
 
 export type ApiError = { ok: false; error: string };
+
+/** FEFO LP candidate from GET /api/production/scanner/wos/[id]/lps?materialId=… */
+export type LpCandidate = {
+  lpId: string;
+  lpNumber: string;
+  /** DECIMAL STRING — available qty in the material's uom */
+  qty: string;
+  uom: string;
+  /** ISO date (YYYY-MM-DD) or null */
+  expiry: string | null;
+};
+
+export type WoLpsResponse = { ok: true; lps: LpCandidate[] } | ApiError;
 
 export type ConsumePayload = {
   clientOpId: string;

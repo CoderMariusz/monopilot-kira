@@ -29,7 +29,8 @@ import type { ScannerLabels } from "../../../../_components/scanner-labels";
 import type { ScannerProdLabels } from "../../../../_components/scanner-prod-labels";
 import { StatusChip, statusLabel } from "../../_components/status-chip";
 import { useWoFetch } from "../../_components/use-wo-fetch";
-import type { WoDetailResponse, WoHeader, WoMaterial } from "../../_components/wo-types";
+import type { ApiError, WoDetailResponse, WoHeader, WoMaterial } from "../../_components/wo-types";
+import { toBaseQty, type OutputUom } from "../../../../../../../lib/uom/convert";
 
 type LoadState = "loading" | "ready" | "error" | "notfound";
 
@@ -46,13 +47,15 @@ export function WoExecuteScreen({
 }) {
   const router = useRouter();
   const { session, ready } = useScannerSession();
-  const { woFetch } = useWoFetch();
+  const { woFetch, woPost } = useWoFetch();
   const L = labels.execute;
 
   const [state, setState] = useState<LoadState>("loading");
   const [header, setHeader] = useState<WoHeader | null>(null);
   const [materials, setMaterials] = useState<WoMaterial[]>([]);
   const [allergenGate, setAllergenGate] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startErr, setStartErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (ready && !session) router.replace(`/${locale}/scanner/login`);
@@ -90,6 +93,38 @@ export function WoExecuteScreen({
   }, [ready, load]);
 
   const go = (sub: string) => router.push(`/${locale}/scanner/wos/${woId}/${sub}`);
+
+  // released/planned = no execution yet: Consume/Output/Waste stay locked until
+  // the operator starts the WO (POST …/start wraps lib/production/start-wo).
+  const notStarted = header?.status === "released" || header?.status === "planned";
+
+  const start = async () => {
+    if (starting) return;
+    setStarting(true);
+    setStartErr(null);
+    try {
+      const res = await woPost(`/api/production/scanner/wos/${woId}/start`, {
+        clientOpId: crypto.randomUUID(),
+      });
+      if (!res) return; // 401 → redirect handled in woPost
+      if (res.ok) {
+        await load();
+        return;
+      }
+      let code: string | null = null;
+      try {
+        const data = (await res.json()) as ApiError | { ok: true };
+        code = !data.ok ? data.error : null;
+      } catch {
+        /* non-JSON error body */
+      }
+      setStartErr(code === "wo_not_recordable" ? labels.errors.wo_not_recordable : L.startError);
+    } catch {
+      setStartErr(L.startError);
+    } finally {
+      setStarting(false);
+    }
+  };
 
   return (
     <ScannerScreen>
@@ -164,10 +199,30 @@ export function WoExecuteScreen({
               </Banner>
             )}
 
+            {notStarted && (
+              <div style={{ display: "grid", gap: 6, padding: "4px 16px 8px" }}>
+                <Btn
+                  variant="p"
+                  onClick={() => void start()}
+                  disabled={starting}
+                  style={{ minHeight: 56, fontSize: 16 }}
+                >
+                  {L.startButton}
+                </Btn>
+                <div style={{ fontSize: 12, color: T.mute, textAlign: "center" }}>{L.startHint}</div>
+              </div>
+            )}
+
+            {startErr && (
+              <Banner kind="err" title={startErr}>
+                {" "}
+              </Banner>
+            )}
+
             <div style={{ display: "grid", gap: 8, padding: "4px 16px" }}>
-              <ActionTile icon="📥" title={L.tileConsume} desc={L.tileConsumeDesc} onClick={() => go("consume")} />
-              <ActionTile icon="📤" title={L.tileOutput} desc={L.tileOutputDesc} onClick={() => go("output")} variant="green" />
-              <ActionTile icon="🗑" title={L.tileWaste} desc={L.tileWasteDesc} onClick={() => go("waste")} variant="amber" />
+              <ActionTile icon="📥" title={L.tileConsume} desc={L.tileConsumeDesc} onClick={() => go("consume")} disabled={notStarted} />
+              <ActionTile icon="📤" title={L.tileOutput} desc={L.tileOutputDesc} onClick={() => go("output")} variant="green" disabled={notStarted} />
+              <ActionTile icon="🗑" title={L.tileWaste} desc={L.tileWasteDesc} onClick={() => go("waste")} variant="amber" disabled={notStarted} />
             </div>
 
             <div style={sectionTitleStyle}>{L.materialsTitle}</div>
@@ -175,8 +230,14 @@ export function WoExecuteScreen({
               <div style={{ padding: "8px 16px", color: T.mute, fontSize: 13 }}>{L.materialsEmpty}</div>
             )}
             {materials.map((m) => {
-              const pct = m.requiredQty > 0 ? Math.min(100, (m.consumedQty / m.requiredQty) * 100) : 0;
-              const done = m.consumedQty >= m.requiredQty;
+              // decimal strings on the wire; parse only for display math.
+              const required = parseFloat(m.requiredQty);
+              const consumed = parseFloat(m.consumedQty);
+              const pct =
+                Number.isFinite(required) && required > 0 && Number.isFinite(consumed)
+                  ? Math.min(100, (consumed / required) * 100)
+                  : 0;
+              const done = Number.isFinite(consumed) && Number.isFinite(required) && consumed >= required;
               return (
                 <div key={m.id} style={materialRowStyle}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -228,16 +289,18 @@ function ActionTile({
   desc,
   onClick,
   variant = "blue",
+  disabled = false,
 }: {
   icon: string;
   title: string;
   desc: string;
   onClick: () => void;
   variant?: "blue" | "green" | "amber";
+  disabled?: boolean;
 }) {
   const accent = variant === "green" ? T.green : variant === "amber" ? T.amber : T.blue;
   return (
-    <button type="button" onClick={onClick} style={tileStyle(accent)}>
+    <button type="button" onClick={onClick} disabled={disabled} style={tileStyle(accent, disabled)}>
       <div style={{ ...tileIconStyle, color: accent }} aria-hidden="true">
         {icon}
       </div>
@@ -256,18 +319,51 @@ function enteredUom(h: WoHeader, labels: ScannerProdLabels): string {
   return h.qtyEnteredUom ?? labels.output.unitBase;
 }
 
-// progress produced/planned in the entered unit + base kg.
+// HONEST produced: what wo_outputs actually recorded — units in the entered
+// unit when tracked ("0 box · 0 kg"), else base kg only. Decimal STRINGS are
+// rendered as-is; no display rounding of the wire values.
 function producedText(h: WoHeader, labels: ScannerProdLabels): string {
-  if (h.qtyEntered != null && h.qtyEnteredUom) {
-    return `${h.qtyEntered} ${h.qtyEnteredUom} · ${h.producedKg} ${labels.output.unitBase}`;
+  if (h.qtyEnteredUom && h.producedUnits != null) {
+    return `${h.producedUnits} ${h.qtyEnteredUom} · ${h.producedBaseKg} ${labels.output.unitBase}`;
   }
-  return `${h.producedKg} ${labels.output.unitBase}`;
+  return `${h.producedBaseKg} ${labels.output.unitBase}`;
 }
 
+// HONEST progress = produced/planned (never planned/planned):
+//   1. base-kg produced vs base-kg planned when the uom snapshot can convert
+//      the entered qty to kg;
+//   2. else producedUnits vs qtyEntered (same entered unit);
+//   3. else base-kg produced vs plannedQty (base-unit WOs).
+// 0 when nothing was produced or no positive denominator exists.
 function progressPct(h: WoHeader): number {
-  if (!h.plannedQty || h.plannedQty <= 0) return 0;
-  const num = h.qtyEntered != null ? h.qtyEntered : h.producedKg;
-  return Math.min(100, Math.round((num / h.plannedQty) * 100));
+  const producedKg = parseFloat(h.producedBaseKg);
+
+  if (h.qtyEntered != null && h.qtyEnteredUom && h.qtyEnteredUom !== "base") {
+    const entered = parseFloat(h.qtyEntered);
+    if (h.uomSnapshot && Number.isFinite(entered)) {
+      try {
+        const plannedKg = toBaseQty(h.uomSnapshot, entered, h.qtyEnteredUom as OutputUom);
+        if (Number.isFinite(producedKg) && plannedKg > 0) {
+          return clampPct(producedKg / plannedKg);
+        }
+      } catch {
+        /* conversion unavailable → fall back to units */
+      }
+    }
+    const producedUnits = h.producedUnits != null ? parseFloat(h.producedUnits) : NaN;
+    if (Number.isFinite(producedUnits) && Number.isFinite(entered) && entered > 0) {
+      return clampPct(producedUnits / entered);
+    }
+    return 0;
+  }
+
+  const plannedKg = parseFloat(h.plannedQty);
+  if (!Number.isFinite(producedKg) || !Number.isFinite(plannedKg) || plannedKg <= 0) return 0;
+  return clampPct(producedKg / plannedKg);
+}
+
+function clampPct(ratio: number): number {
+  return Math.min(100, Math.max(0, Math.round(ratio * 100)));
 }
 
 const cardStyle = {
@@ -313,7 +409,7 @@ const materialRowStyle = {
   background: T.surf,
 } as const;
 
-function tileStyle(accent: string) {
+function tileStyle(accent: string, disabled = false) {
   return {
     display: "flex",
     alignItems: "center",
@@ -321,9 +417,10 @@ function tileStyle(accent: string) {
     width: "100%",
     padding: 14,
     borderRadius: 14,
-    border: `1px solid ${accent}`,
+    border: `1px solid ${disabled ? T.elev : accent}`,
     background: T.surf,
-    cursor: "pointer",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.45 : 1,
   } as const;
 }
 

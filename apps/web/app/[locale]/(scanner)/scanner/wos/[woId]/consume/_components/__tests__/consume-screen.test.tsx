@@ -1,11 +1,15 @@
-// RED → GREEN: ConsumeScreen flow parity (material select → keypad → POST).
-// Anchor: prototypes/scanner/flow-consume.jsx:215-422 (qty step) + 425-443 (done).
+// RED → GREEN: ConsumeScreen flow parity (material select → LP pick → keypad → POST).
+// Anchor: prototypes/scanner/flow-consume.jsx:215-422 (LP + qty steps) + 425-443 (done).
 //
 // Asserts:
 //   - parity chrome + material pick list from the detail data
+//   - FEFO LP candidates fetched per material; rendered in route order (top =
+//     suggested) with a "manual / no LP" fallback so the flow never dead-ends
 //   - qty entered via the keypad in the MATERIAL's uom (shown, not free-text)
 //   - the POST body carries materialId + a DECIMAL STRING qty + clientOpId
-//   - done state shows the success/parity copy and the "consume next" loop
+//     (+ lpId when an LP was chosen)
+//   - done state shows the success/parity copy, the LP's remaining qty when an
+//     LP was used, and the "consume next" loop
 //   - i18n: copy comes from the resolved label object (no inline strings)
 //   - RBAC/permission-denied: 401 on detail load redirects to ../login
 
@@ -45,20 +49,33 @@ function detailOk() {
         status: "inprog",
         itemCode: "FG-001",
         productName: "Kabanos",
-        plannedQty: 300,
+        plannedQty: "300",
         qtyEntered: null,
         qtyEnteredUom: null,
         uomSnapshot: null,
         scheduledStart: null,
-        producedKg: 0,
+        producedBaseKg: "0",
+        producedUnits: null,
       },
       materials: [
-        { id: "m-1", materialName: "Pork shoulder", requiredQty: 120, consumedQty: 0, uom: "kg", sequence: 1 },
-        { id: "m-2", materialName: "Salt", requiredQty: 4, consumedQty: 0, uom: "kg", sequence: 2 },
+        { id: "m-1", materialName: "Pork shoulder", requiredQty: "120", consumedQty: "0", uom: "kg", sequence: 1 },
+        { id: "m-2", materialName: "Salt", requiredQty: "4", consumedQty: "0", uom: "kg", sequence: 2 },
       ],
       allergenGate: false,
     }),
   };
+}
+
+// FEFO order is the ROUTE's contract (expiry asc nulls last) — the screen must
+// render candidates in response order with the top one marked as suggested.
+const FEFO_LPS = [
+  { lpId: "lp-1", lpNumber: "LP-0001", qty: "40.000", uom: "kg", expiry: "2026-06-12" },
+  { lpId: "lp-2", lpNumber: "LP-0002", qty: "80.000", uom: "kg", expiry: "2026-06-20" },
+  { lpId: "lp-3", lpNumber: "LP-0003", qty: "25.000", uom: "kg", expiry: null },
+];
+
+function lpsOk(lps: typeof FEFO_LPS | [] = FEFO_LPS) {
+  return { status: 200, ok: true, json: async () => ({ ok: true, lps }) };
 }
 
 function renderConsume() {
@@ -99,13 +116,14 @@ describe("ConsumeScreen", () => {
     expect(screen.getByText("Salt")).toBeInTheDocument();
   });
 
-  it("material select → keypad (material uom) → POST with materialId + decimal-string qty + clientOpId", async () => {
+  it("material select → manual/no-LP → keypad (material uom) → POST with materialId + decimal-string qty + clientOpId", async () => {
     seedSession();
-    // URL/method-aware: GET detail (idempotent, may re-load) vs POST consume.
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+    // URL/method-aware: GET detail vs GET lps (no candidates) vs POST consume.
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       if (init?.method === "POST") {
         return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true }) });
       }
+      if (url.includes("/lps")) return Promise.resolve(lpsOk([]));
       return Promise.resolve(detailOk());
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -115,6 +133,10 @@ describe("ConsumeScreen", () => {
 
     // pick the first material (click the row button, not the inner text node)
     fireEvent.click(screen.getByText("Pork shoulder").closest("button")!);
+
+    // no LP candidates → the manual fallback keeps the flow alive
+    await waitFor(() => expect(screen.getByText(labels.consume.lpEmpty)).toBeInTheDocument());
+    fireEvent.click(screen.getByText(labels.consume.lpManual).closest("button")!);
 
     // qty field shows the material uom (kg), opens the keypad
     const qtyField = await screen.findByLabelText(labels.consume.enterQty);
@@ -146,6 +168,8 @@ describe("ConsumeScreen", () => {
     });
     expect(typeof body.qty).toBe("string");
     expect(Number(body.qty)).toBeGreaterThan(0);
+    // manual / no LP: the POST must NOT carry an lpId
+    expect(body.lpId).toBeUndefined();
 
     // done state + consume-next loop (doneTitle appears in the topbar AND body)
     await waitFor(() =>
@@ -153,6 +177,74 @@ describe("ConsumeScreen", () => {
     );
     expect(screen.getByText(labels.consume.bomUpdated)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: labels.consume.consumeNext })).toBeInTheDocument();
+  });
+
+  it("renders FEFO LP candidates in route order (top = suggested) and sends the chosen lpId in the POST", async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true }) });
+      }
+      if (url.includes("/lps")) return Promise.resolve(lpsOk());
+      return Promise.resolve(detailOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConsume();
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Pork shoulder").closest("button")!);
+
+    // the LP fetch targets the picked material
+    await waitFor(() => expect(screen.getByText("LP-0001")).toBeInTheDocument());
+    const lpsCall = fetchMock.mock.calls.find((c) => String(c[0]).includes("/lps"))!;
+    expect(lpsCall[0]).toBe("/api/production/scanner/wos/wo-1/lps?materialId=m-1");
+
+    // FEFO order asserted: candidates appear in the route's expiry-asc order
+    const lpNumbers = screen.getAllByText(/^LP-\d+$/).map((node) => node.textContent);
+    expect(lpNumbers).toEqual(["LP-0001", "LP-0002", "LP-0003"]);
+    // top candidate carries the suggested (FEFO) chip
+    const firstRow = screen.getByText("LP-0001").closest("button")!;
+    expect(within(firstRow).getByText(labels.consume.lpSuggested)).toBeInTheDocument();
+    // expiry surfaces on the rows that have one
+    expect(within(firstRow).getByText(new RegExp("2026-06-12"))).toBeInTheDocument();
+    // manual fallback is always present
+    expect(screen.getByText(labels.consume.lpManual)).toBeInTheDocument();
+
+    // choose the SECOND LP (operator override of the suggestion)
+    fireEvent.click(screen.getByText("LP-0002").closest("button")!);
+
+    // qty step (prefilled with remaining 120) → confirm
+    await screen.findByLabelText(labels.consume.enterQty);
+    fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (c) => typeof c[1] === "object" && c[1]?.method === "POST",
+      );
+      expect(postCall).toBeTruthy();
+    });
+    const postCall = fetchMock.mock.calls.find(
+      (c) => typeof c[1] === "object" && c[1]?.method === "POST",
+    )!;
+    expect(postCall[0]).toBe("/api/production/scanner/wos/wo-1/consume");
+    const body = JSON.parse((postCall[1] as RequestInit).body as string);
+    expect(body).toMatchObject({
+      clientOpId: "22222222-2222-4222-8222-222222222222",
+      materialId: "m-1",
+      lpId: "lp-2",
+    });
+    expect(typeof body.qty).toBe("string");
+
+    // done state surfaces the LP's remaining qty (80 - 120-prefill clamps ≥ 0 → 0;
+    // here qty was prefilled to remaining=120 > LP qty 80, so remaining shows 0)
+    await waitFor(() =>
+      expect(screen.getAllByText(labels.consume.doneTitle).length).toBeGreaterThan(0),
+    );
+    const remainingText = labels.consume.doneLpRemaining
+      .replace("{qty}", "0")
+      .replace("{uom}", "kg")
+      .replace("{lp}", "LP-0002");
+    expect(screen.getByText(remainingText)).toBeInTheDocument();
   });
 
   it("redirects to ../login when the detail load returns 401 (permission-denied)", async () => {

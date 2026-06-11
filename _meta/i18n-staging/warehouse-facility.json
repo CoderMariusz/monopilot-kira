@@ -1,0 +1,123 @@
+{
+  "_note": "Staged warehouse facility i18n bundle (WH-018 locations hierarchy + WH-014 lot genealogy). Resolved server-side by warehouse/wh-facility-labels.ts via the same t.has-guarded loader (EN fallback, humanized last-segment, never leaks the raw dotted key) the LANE-C/LANE-D loaders established, until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "en": {
+    "locations": {
+      "title": "Locations hierarchy",
+      "subtitle": "Org-scoped storage locations, grouped by warehouse. Backed by the ltree path column.",
+      "breadcrumb": { "warehouse": "Warehouse", "locations": "Locations" },
+      "denied": "You do not have permission to view warehouse locations. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load warehouse locations right now. Refresh to try again.",
+      "empty": "No locations yet. Locations are created in Settings → Infrastructure.",
+      "emptyFiltered": "No locations match your search.",
+      "searchPlaceholder": "Search by code or name…",
+      "searchLabel": "Search locations",
+      "manageLink": "Manage locations →",
+      "manageHint": "Add, edit and deactivate locations in Settings → Infrastructure.",
+      "lpCountLabel": "{count} LP",
+      "lpCountLabelPlural": "{count} LPs",
+      "lpCountCapNote": "LP counts are derived from the most recent {cap} license plates and may undercount on large sites.",
+      "rowsLabel": "{count} locations",
+      "type": {
+        "storage": "Storage",
+        "transit": "Transit",
+        "receiving": "Receiving",
+        "production_line": "Production line",
+        "dispatch": "Dispatch"
+      },
+      "warehouseUnassigned": "Unassigned warehouse",
+      "levelLabel": "L{level}",
+      "deferredNote": "Inline location editing (add / edit / deactivate) lives in Settings → Infrastructure — use the Manage locations link above."
+    },
+    "genealogy": {
+      "title": "Lot genealogy & traceability",
+      "subtitle": "Recursive license-plate trace — ancestors above, the focal LP highlighted, descendants below.",
+      "breadcrumb": { "warehouse": "Warehouse", "genealogy": "Genealogy" },
+      "denied": "You do not have permission to trace genealogy. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not trace this license plate right now. Refresh to try again.",
+      "searchPlaceholder": "Search by LP number, batch or item code…",
+      "searchLabel": "Search license plates",
+      "searchButton": "Search",
+      "noResults": "No license plates match your search.",
+      "prompt": "Search for a license plate and select it to trace its genealogy.",
+      "promptHint": "Ancestors (where it came from) are shown above the focal LP; descendants (what it became) are shown below.",
+      "emptyTrace": "No genealogy yet — links build as LPs are split, merged or consumed.",
+      "ancestorsLabel": "Ancestors",
+      "focalLabel": "Focal LP",
+      "descendantsLabel": "Descendants",
+      "depthLabel": "Depth {depth}",
+      "capNote": "Trace is cycle-safe and capped at 20 levels in each direction.",
+      "nodesFound": "{count} node",
+      "nodesFoundPlural": "{count} nodes",
+      "openLp": "Open LP →",
+      "status": {
+        "available": "Available",
+        "reserved": "Reserved",
+        "allocated": "Allocated",
+        "received": "Received",
+        "quarantine": "Quarantine",
+        "consumed": "Consumed",
+        "blocked": "Blocked"
+      }
+    }
+  },
+  "pl": {
+    "locations": {
+      "title": "Hierarchia lokalizacji",
+      "subtitle": "Lokalizacje magazynowe w obrębie organizacji, pogrupowane wg magazynu. Oparte na kolumnie ścieżki ltree.",
+      "breadcrumb": { "warehouse": "Magazyn", "locations": "Lokalizacje" },
+      "denied": "Nie masz uprawnień do przeglądania lokalizacji magazynowych. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz wczytać lokalizacji magazynowych. Odśwież, aby spróbować ponownie.",
+      "empty": "Brak lokalizacji. Lokalizacje tworzy się w Ustawienia → Infrastruktura.",
+      "emptyFiltered": "Żadna lokalizacja nie pasuje do wyszukiwania.",
+      "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+      "searchLabel": "Szukaj lokalizacji",
+      "manageLink": "Zarządzaj lokalizacjami →",
+      "manageHint": "Dodawaj, edytuj i dezaktywuj lokalizacje w Ustawienia → Infrastruktura.",
+      "lpCountLabel": "{count} LP",
+      "lpCountLabelPlural": "{count} LP",
+      "lpCountCapNote": "Liczby LP wyliczane są z {cap} ostatnich license plate i mogą być zaniżone w dużych magazynach.",
+      "rowsLabel": "{count} lokalizacji",
+      "type": {
+        "storage": "Magazynowanie",
+        "transit": "Tranzyt",
+        "receiving": "Przyjęcie",
+        "production_line": "Linia produkcyjna",
+        "dispatch": "Wysyłka"
+      },
+      "warehouseUnassigned": "Magazyn nieprzypisany",
+      "levelLabel": "P{level}",
+      "deferredNote": "Edycja lokalizacji (dodawanie / edycja / dezaktywacja) znajduje się w Ustawienia → Infrastruktura — użyj linku Zarządzaj lokalizacjami powyżej."
+    },
+    "genealogy": {
+      "title": "Genealogia partii i identyfikowalność",
+      "subtitle": "Rekurencyjne śledzenie license plate — przodkowie powyżej, wyróżniony LP pośrodku, potomkowie poniżej.",
+      "breadcrumb": { "warehouse": "Magazyn", "genealogy": "Genealogia" },
+      "denied": "Nie masz uprawnień do śledzenia genealogii. Poproś administratora o uprawnienie warehouse.inventory.read.",
+      "error": "Nie udało się teraz prześledzić tego license plate. Odśwież, aby spróbować ponownie.",
+      "searchPlaceholder": "Szukaj po numerze LP, partii lub kodzie towaru…",
+      "searchLabel": "Szukaj license plate",
+      "searchButton": "Szukaj",
+      "noResults": "Żadne license plate nie pasuje do wyszukiwania.",
+      "prompt": "Wyszukaj license plate i wybierz go, aby prześledzić jego genealogię.",
+      "promptHint": "Przodkowie (skąd pochodzi) pokazani są nad wyróżnionym LP; potomkowie (czym się stał) poniżej.",
+      "emptyTrace": "Brak genealogii — powiązania powstają, gdy LP są dzielone, łączone lub zużywane.",
+      "ancestorsLabel": "Przodkowie",
+      "focalLabel": "Wyróżniony LP",
+      "descendantsLabel": "Potomkowie",
+      "depthLabel": "Poziom {depth}",
+      "capNote": "Śledzenie jest odporne na cykle i ograniczone do 20 poziomów w każdym kierunku.",
+      "nodesFound": "{count} węzeł",
+      "nodesFoundPlural": "{count} węzłów",
+      "openLp": "Otwórz LP →",
+      "status": {
+        "available": "Dostępny",
+        "reserved": "Zarezerwowany",
+        "allocated": "Przydzielony",
+        "received": "Przyjęty",
+        "quarantine": "Kwarantanna",
+        "consumed": "Zużyty",
+        "blocked": "Zablokowany"
+      }
+    }
+  }
+}

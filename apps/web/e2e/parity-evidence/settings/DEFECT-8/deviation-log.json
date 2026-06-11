@@ -1,0 +1,23 @@
+{
+  "task": "DEFECT-8",
+  "deviations": [
+    {
+      "area": "Permission grid representation",
+      "prototype": "access-screens.jsx:95-129 — read/write/admin cell glyphs (◉ ✎ ◎ –) per module×role",
+      "production": "Per-permission checkbox grid grouped by module (ALL_<MODULE>_PERMISSIONS).",
+      "reason": "Grants must map 1:1 onto the canonical packages/rbac permission strings the dual-store write persists; a 3-level glyph cell cannot express the flat catalog. Aligns with the SET-011 PO decision (no role×module matrix)."
+    },
+    {
+      "area": "description field",
+      "prototype": "n/a",
+      "production": "createRole accepts description? but public.roles has no description column (migrations untouched); the value is validated and ignored (no storage).",
+      "reason": "Hard rule: do not touch migrations. Signature kept for API parity; documented non-persistence."
+    },
+    {
+      "area": "Playwright pixel capture",
+      "prototype": "n/a",
+      "production": "Live spec settings-roles-editor.spec.ts skips without PLAYWRIGHT_BASE_URL; RTL DOM artifacts here are the accepted fallback evidence.",
+      "reason": "No running RBAC-authenticated server / DATABASE_URL_OWNER in this worktree (same convention as T-066)."
+    }
+  ]
+}

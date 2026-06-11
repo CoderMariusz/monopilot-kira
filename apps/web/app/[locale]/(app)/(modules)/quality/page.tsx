@@ -27,7 +27,7 @@ const NAV_CARDS = [
   { key: "holds", href: "/quality/holds", live: true },
   { key: "ncrs", href: null, live: false },
   { key: "inspections", href: null, live: false },
-  { key: "specifications", href: null, live: false },
+  { key: "specifications", href: "/quality/specifications", live: true },
 ] as const;
 
 export default async function QualityRoutePage({ params }: PageProps) {

@@ -1,0 +1,103 @@
+{
+  "_note": "Staged warehouse INBOUND-SCHEDULE i18n bundle (warehouse/inbound — open POs + open TOs that the warehouse PC needs to see arriving today / overdue / upcoming). Resolved server-side by warehouse/inbound/wh-inbound-labels.ts via the same t.has-guarded loader (EN fallback, humanized last-segment, never leaks the raw dotted key) the LANE-C/LANE-D loaders established, until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "en": {
+    "inbound": {
+      "title": "Inbound schedule",
+      "subtitle": "Open purchase orders and transfer orders due to arrive at the warehouse.",
+      "receiveOnScanner": "Receive on scanner",
+      "nav": {
+        "title": "Inbound schedule",
+        "desc": "See open POs / TOs and what arrives today"
+      },
+      "sections": {
+        "today": "Arriving today",
+        "todaySub": "Expected at the dock today",
+        "overdue": "Overdue",
+        "overdueSub": "Past their expected date and still open",
+        "upcoming": "Upcoming",
+        "upcomingSub": "Due later or with no date yet"
+      },
+      "columns": {
+        "doc": "Document",
+        "type": "Type",
+        "party": "Supplier / route",
+        "expected": "Expected",
+        "status": "Status",
+        "lines": "Lines"
+      },
+      "type": {
+        "po": "PO",
+        "to": "TO"
+      },
+      "status": {
+        "sent": "Sent",
+        "confirmed": "Confirmed",
+        "partially_received": "Partially received",
+        "draft": "Draft",
+        "in_transit": "In transit"
+      },
+      "count": "{count}",
+      "noDate": "No date",
+      "overdueBy": "Overdue {days}d",
+      "today_marker": "Today",
+      "empty": {
+        "today": "Nothing scheduled to arrive today.",
+        "overdue": "Nothing overdue — every open document is on time.",
+        "upcoming": "No upcoming arrivals scheduled.",
+        "all": "No open inbound documents. Open purchase or transfer orders will appear here as they are raised."
+      },
+      "error": "Could not load the inbound schedule. Please retry.",
+      "denied": "You do not have permission to view planning documents."
+    }
+  },
+  "pl": {
+    "inbound": {
+      "title": "Harmonogram dostaw",
+      "subtitle": "Otwarte zamówienia zakupu i przesunięcia, które mają dotrzeć do magazynu.",
+      "receiveOnScanner": "Przyjmij na skanerze",
+      "nav": {
+        "title": "Harmonogram dostaw",
+        "desc": "Zobacz otwarte ZZ / przesunięcia i co przyjedzie dziś"
+      },
+      "sections": {
+        "today": "Przyjazd dziś",
+        "todaySub": "Oczekiwane na rampie dzisiaj",
+        "overdue": "Po terminie",
+        "overdueSub": "Po oczekiwanej dacie i nadal otwarte",
+        "upcoming": "Nadchodzące",
+        "upcomingSub": "Z terminem późniejszym lub bez daty"
+      },
+      "columns": {
+        "doc": "Dokument",
+        "type": "Typ",
+        "party": "Dostawca / trasa",
+        "expected": "Oczekiwane",
+        "status": "Status",
+        "lines": "Pozycje"
+      },
+      "type": {
+        "po": "ZZ",
+        "to": "PM"
+      },
+      "status": {
+        "sent": "Wysłane",
+        "confirmed": "Potwierdzone",
+        "partially_received": "Częściowo przyjęte",
+        "draft": "Szkic",
+        "in_transit": "W drodze"
+      },
+      "count": "{count}",
+      "noDate": "Brak daty",
+      "overdueBy": "Po terminie o {days} dni",
+      "today_marker": "Dziś",
+      "empty": {
+        "today": "Nic nie ma dotrzeć dzisiaj.",
+        "overdue": "Nic po terminie — wszystkie otwarte dokumenty są na czas.",
+        "upcoming": "Brak zaplanowanych przyszłych dostaw.",
+        "all": "Brak otwartych dokumentów przychodzących. Otwarte zamówienia zakupu lub przesunięcia pojawią się tutaj po ich utworzeniu."
+      },
+      "error": "Nie udało się załadować harmonogramu dostaw. Spróbuj ponownie.",
+      "denied": "Nie masz uprawnień do przeglądania dokumentów planowania."
+    }
+  }
+}

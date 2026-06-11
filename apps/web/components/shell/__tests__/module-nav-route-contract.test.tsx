@@ -47,7 +47,17 @@ type SidebarRoute = {
 };
 
 const appRouteRoot = path.resolve(process.cwd(), 'app/[locale]/(app)');
+const scannerRouteRoot = path.resolve(process.cwd(), 'app/[locale]/(scanner)');
 const appSidebarPath = path.resolve(process.cwd(), 'components/shell/app-sidebar.tsx');
+
+/**
+ * Modules whose sidebar link navigates OUT of the (app) shell into another
+ * route group (the chrome-less device shell). Their page does NOT live under
+ * (app), so the (app) page-root scan must skip them — its existence is asserted
+ * against the (scanner) route group instead.
+ */
+const CROSS_SHELL_MODULE_IDS = new Set(['scanner']);
+
 const sidebarRoutes: SidebarRoute[] = APP_NAV_GROUPS.flatMap((group) =>
   group.items.map((item) => ({
     key: item.key,
@@ -58,8 +68,29 @@ const sidebarRoutes: SidebarRoute[] = APP_NAV_GROUPS.flatMap((group) =>
   })),
 );
 
-const expectedModuleLandingIds = sidebarRoutes
-  .filter((item) => item.moduleId !== null && item.moduleId !== 'settings')
+const crossShellRoutes = sidebarRoutes.filter(
+  (item) => item.moduleId !== null && CROSS_SHELL_MODULE_IDS.has(item.moduleId),
+);
+const appShellRoutes = sidebarRoutes.filter(
+  (item) => !(item.moduleId !== null && CROSS_SHELL_MODULE_IDS.has(item.moduleId)),
+);
+
+/**
+ * Module roots whose UI-138 landing stub has since been REPLACED by a real
+ * implemented landing (production dashboard T-046, technical dashboard, NPD
+ * pipeline kanban T-059). The stub `module-landing-<id>` testid no longer
+ * appears there by design; the route still resolving to a page is enforced by
+ * the page-root test above, so only the stub-marker requirement is waived.
+ */
+const REBUILT_MODULE_LANDING_IDS = new Set(['production', 'technical', 'npd']);
+
+const expectedModuleLandingIds = appShellRoutes
+  .filter(
+    (item) =>
+      item.moduleId !== null &&
+      item.moduleId !== 'settings' &&
+      !REBUILT_MODULE_LANDING_IDS.has(item.moduleId),
+  )
   .map((item) => item.moduleId as string);
 
 function navI18nKey(i18nKey: string) {
@@ -67,13 +98,13 @@ function navI18nKey(i18nKey: string) {
   return i18nKey.startsWith(prefix) ? i18nKey.slice(prefix.length) : i18nKey;
 }
 
-function toRoutePath(pagePath: string) {
-  const relative = path.relative(appRouteRoot, pagePath);
+function toRoutePath(routeRootDir: string, pagePath: string) {
+  const relative = path.relative(routeRootDir, pagePath);
   const parts = relative.split(path.sep).slice(0, -1).filter((part) => !/^\(.+\)$/.test(part));
   return parts.length === 0 ? '/' : `/${parts.join('/')}`;
 }
 
-function collectLocalizedPageRoots(dir = appRouteRoot): Map<string, string> {
+function collectLocalizedPageRoots(routeRootDir: string, dir = routeRootDir): Map<string, string> {
   const roots = new Map<string, string>();
   if (!existsSync(dir)) return roots;
 
@@ -81,9 +112,9 @@ function collectLocalizedPageRoots(dir = appRouteRoot): Map<string, string> {
   for (const entry of entries) {
     const absolute = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      for (const [route, file] of collectLocalizedPageRoots(absolute)) roots.set(route, file);
+      for (const [route, file] of collectLocalizedPageRoots(routeRootDir, absolute)) roots.set(route, file);
     } else if (entry.isFile() && entry.name === 'page.tsx') {
-      roots.set(toRoutePath(absolute), absolute);
+      roots.set(toRoutePath(routeRootDir, absolute), absolute);
     }
   }
 
@@ -113,22 +144,35 @@ beforeEach(() => {
 });
 
 describe('UI-138 module nav route contract', () => {
-  it('maps every APP_NAV_GROUPS item to a localized route root and keeps scanner out of desktop nav', () => {
-    expect(sidebarRoutes.map((item) => item.key), 'Scanner is device-shell only and must not be exposed by APP_NAV_GROUPS').not.toContain('scanner');
+  it('maps every (app)-shell sidebar item to an (app) page root and every cross-shell link to its device-shell page', () => {
+    // Scanner is now a deliberate cross-shell sidebar link (owner-reported gap:
+    // the device shell was otherwise unreachable). Its page lives in the
+    // (scanner) route group, not (app).
+    expect(crossShellRoutes.map((item) => item.key), 'Scanner must be exposed as a cross-shell sidebar link').toContain('scanner');
 
-    const pageRoots = collectLocalizedPageRoots();
-    const missingRoutes = sidebarRoutes
-      .filter((item) => !pageRoots.has(item.route))
+    const appPageRoots = collectLocalizedPageRoots(appRouteRoot);
+    const missingAppRoutes = appShellRoutes
+      .filter((item) => !appPageRoots.has(item.route))
       .map((item) => `${item.key}:${item.route}`);
 
     expect(
-      missingRoutes,
-      `Every AppSidebar item must have an apps/web/app/[locale]/(app)/.../page.tsx root; found routes: ${JSON.stringify([...pageRoots.keys()].sort())}`,
+      missingAppRoutes,
+      `Every (app)-shell AppSidebar item must have an apps/web/app/[locale]/(app)/.../page.tsx root; found routes: ${JSON.stringify([...appPageRoots.keys()].sort())}`,
+    ).toEqual([]);
+
+    const scannerPageRoots = collectLocalizedPageRoots(scannerRouteRoot);
+    const missingCrossShellRoutes = crossShellRoutes
+      .filter((item) => !scannerPageRoots.has(item.route))
+      .map((item) => `${item.key}:${item.route}`);
+
+    expect(
+      missingCrossShellRoutes,
+      `Every cross-shell sidebar link must have an apps/web/app/[locale]/(scanner)/.../page.tsx root; found routes: ${JSON.stringify([...scannerPageRoots.keys()].sort())}`,
     ).toEqual([]);
   });
 
   it('requires UI-138 landing stubs for sidebar module roots that did not already own a page', () => {
-    const pageRoots = collectLocalizedPageRoots();
+    const pageRoots = collectLocalizedPageRoots(appRouteRoot);
     const missingLandingIds = expectedModuleLandingIds.filter((moduleId) => {
       const item = sidebarRoutes.find((candidate) => candidate.moduleId === moduleId);
       const pagePath = item ? pageRoots.get(item.route) : undefined;

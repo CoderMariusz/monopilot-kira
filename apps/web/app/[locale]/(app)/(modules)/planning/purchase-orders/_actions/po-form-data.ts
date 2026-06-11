@@ -40,10 +40,28 @@ export async function listPoSuppliers(): Promise<PoSupplierOption[]> {
   return result.data.map((s) => ({ id: s.id, code: s.code, name: s.name, currency: s.currency }));
 }
 
-/** Search the org-scoped items master for the PO line picker (real items only). */
+/** Physical goods a purchase order can buy: ALL stockable item types, including
+ *  packaging (a packaging PO line is legitimate). searchItems' default fan-out is
+ *  recipe/component-only and excludes packaging, so the PO picker must widen it
+ *  explicitly — otherwise packaging is unorderable. Explicit caller filters win. */
+const PO_PURCHASABLE_ITEM_TYPES = [
+  'rm',
+  'ingredient',
+  'intermediate',
+  'co_product',
+  'byproduct',
+  'packaging',
+] as const;
+
+/** Search the org-scoped items master for the PO line picker (real items only).
+ *  When the caller passes no `itemTypes`, default to ALL purchasable physical
+ *  goods (purchasing buys everything, packaging included); explicit filters from
+ *  the caller are preserved as-is. */
 export async function searchPoItems(input: SearchItemsInput = {}): Promise<ItemPickerOption[]> {
   try {
-    return await searchItems(input);
+    const itemTypes =
+      input.itemTypes && input.itemTypes.length > 0 ? input.itemTypes : [...PO_PURCHASABLE_ITEM_TYPES];
+    return await searchItems({ ...input, itemTypes });
   } catch {
     return [];
   }

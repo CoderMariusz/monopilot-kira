@@ -997,6 +997,7 @@
         "scheduler": "Планувальник",
         "production": "Виробництво",
         "warehouse": "Склад",
+        "scanner": "Сканер",
         "quality": "Якість",
         "shipping": "Відвантаження",
         "npd": "NPD",
@@ -1080,6 +1081,7 @@
         "scheduler": "Планувальник",
         "production": "Виробництво",
         "warehouse": "Склад",
+        "scanner": "Сканер",
         "quality": "Якість",
         "shipping": "Відвантаження",
         "npd": "NPD",
@@ -3039,6 +3041,16 @@
           "not_found": "Готовий продукт не знайдено.",
           "already_exists": "Версія специфікації для цієї позиції вже існує.",
           "persistence_failed": "Не вдалося зберегти специфікацію."
+        },
+        "picker": {
+          "trigger": "Choose finished good",
+          "change": "Change finished good",
+          "searchLabel": "Search finished goods",
+          "searchPlaceholder": "Search by FG code or name...",
+          "loading": "Searching...",
+          "empty": "No finished goods found",
+          "cancel": "Cancel",
+          "error": "Item search failed"
         }
       }
     },
@@ -3085,7 +3097,22 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
-      }
+      },
+      "flowTitle": "Release flow",
+      "flowHelp": "Pair a matching shared BOM, then submit the draft for Technical review.",
+      "submitForReview": "Submit for review",
+      "submitting": "Submitting...",
+      "submitted": "Factory specification submitted for review.",
+      "linkBomLabel": "Linked BOM",
+      "linkBomPlaceholder": "Select matching BOM",
+      "linkBomHelp": "Only shared BOM headers whose product_id matches this FG item are listed.",
+      "linkBomAction": "Link BOM",
+      "linkingBom": "Linking...",
+      "linkBomImmutable": "Approved and released specifications are immutable. Create a new version to change the BOM.",
+      "bomLinked": "BOM v{version} linked.",
+      "bomOption": "v{version} · {status}",
+      "noBomOptionsHelp": "No BOM exists for this FG item yet. Create a shared BOM first.",
+      "noBomOptionsTitle": "No matching BOM exists. Create a shared BOM for this finished good first."
     },
     "eco": {
       "title": "Контроль змін (ECO)",
@@ -3997,7 +4024,11 @@
       "lockErrorLocked": "Цю версію вже заблоковано.",
       "lockErrorNotSubmitted": "Заблокувати можна лише чернетку або пробну версію.",
       "lockErrorNotFound": "Цю версію не знайдено.",
-      "batchSizeHint": "Розмір партії = вага паковання; інгредієнти мають у сумі дорівнювати їй."
+      "batchSizeHint": "Розмір партії = вага паковання; інгредієнти мають у сумі дорівнювати їй.",
+      "colQtyPerPack": "Qty / pack (kg)",
+      "qtyBalanceWarning": "Ingredient total is {qty} kg vs a {pack} kg pack. Adjust to match the pack weight (±1%) before submitting for trial.",
+      "packWeightUnsetHint": "Set the pack weight on the Brief to validate the recipe against the pack size.",
+      "qtyRangeError": "Quantity must be a non-negative number."
     },
     "costPanel": {
       "title": "Вартість і маржа",
@@ -5832,6 +5863,96 @@
     }
   },
   "production": {
+    "dashboard": {
+      "title": "Production",
+      "subtitle": "Live shift view — work orders, output, OEE and downtime.",
+      "breadcrumb": {
+        "production": "Production",
+        "dashboard": "Dashboard"
+      },
+      "error": "Live production data is currently unavailable. Please retry shortly.",
+      "denied": "You do not have permission to view the production dashboard.",
+      "kpi": {
+        "woInProgress": {
+          "label": "WOs in progress",
+          "sub": "Running / active"
+        },
+        "outputToday": {
+          "label": "Output · today",
+          "sub": "Registered output (kg)"
+        },
+        "oee": {
+          "label": "OEE · current",
+          "sub": "Latest snapshot",
+          "none": "No data"
+        },
+        "downtime": {
+          "label": "Open downtime",
+          "sub": "Events not yet ended"
+        }
+      },
+      "woStatus": {
+        "planned": "Planned",
+        "in_progress": "In progress",
+        "paused": "Paused",
+        "completed": "Completed",
+        "closed": "Closed",
+        "cancelled": "Cancelled"
+      },
+      "woList": {
+        "title": "Work orders ({count})",
+        "empty": "No work orders yet — released work orders from Planning appear here.",
+        "allergenBadge": "Allergen",
+        "planningLink": "Open in Planning",
+        "col": {
+          "wo": "WO",
+          "line": "Line",
+          "status": "Status",
+          "planned": "Planned",
+          "progress": "Progress",
+          "output": "Output"
+        }
+      },
+      "nav": {
+        "label": "Production areas",
+        "workOrders": {
+          "title": "Work orders",
+          "desc": "Browse and execute work orders"
+        },
+        "downtime": {
+          "title": "Downtime",
+          "desc": "Record and analyse downtime events"
+        },
+        "waste": {
+          "title": "Waste",
+          "desc": "Log categorised production waste"
+        },
+        "changeover": {
+          "title": "Changeover",
+          "desc": "Allergen changeover gate & sign-off"
+        },
+        "shifts": {
+          "title": "Shifts",
+          "desc": "Crew, handovers and sign-offs"
+        },
+        "analytics": {
+          "title": "Analytics",
+          "desc": "Yield, output and downtime trends"
+        },
+        "oee": {
+          "title": "OEE",
+          "desc": "Availability · Performance · Quality"
+        },
+        "quality": {
+          "title": "Quality",
+          "desc": "Holds, NCRs and consume gate"
+        },
+        "scanner": {
+          "title": "Scanner",
+          "desc": "Open the mobile scanner — consume, output, waste"
+        }
+      }
+    },
     "wos": {
       "title": "Work orders",
       "subtitle": "Browse and open released work orders for execution.",
@@ -5951,6 +6072,32 @@
             "consumed": "Consumed",
             "remaining": "Remaining",
             "progress": "Progress"
+          },
+          "record": {
+            "trigger": "Record consumption",
+            "rowTrigger": "Record",
+            "title": "Record material consumption",
+            "subtitle": "Decrement on-hand stock for a BOM component. Pick a license plate (FEFO order) or record without one.",
+            "material": "Component",
+            "materialPlaceholder": "Select a component",
+            "qty": "Quantity",
+            "qtyHint": "Amount to consume, in the component's unit of measure.",
+            "lp": "License plate (FEFO)",
+            "lpLoading": "Loading license plates…",
+            "lpEmpty": "No license plates available for this component.",
+            "lpError": "Unable to load license plates.",
+            "lpNone": "— no LP —",
+            "lpSuggested": "suggested",
+            "submit": "Record consumption",
+            "submitting": "Recording…",
+            "cancel": "Cancel",
+            "errors": {
+              "forbidden": "You do not have permission to record consumption.",
+              "lp_unavailable": "That license plate no longer has enough free stock for this quantity.",
+              "invalid_material": "This component is no longer valid for this work order.",
+              "invalid_qty": "Enter a quantity greater than zero.",
+              "generic": "Unable to record consumption."
+            }
           }
         },
         "output": {
@@ -6107,7 +6254,17 @@
           },
           "actualWeight": "Actual weight (kg)",
           "actualWeightHint": "Leave empty to use the nominal conversion.",
-          "conversionPreview": "{qty} {unit} = {kg} {base}"
+          "conversionPreview": "{qty} {unit} = {kg} {base}",
+          "catchWeight": {
+            "sectionTitle": "Per-unit weights (kg)",
+            "sectionHint": "Catch-weight item — enter the actual scale reading for each unit.",
+            "unitLabel": "Unit {n}",
+            "sumLabel": "Σ {total} kg",
+            "tooMany": "Too many units to enter individually (max {max}). Reduce the quantity or register in smaller batches.",
+            "baseTextareaLabel": "Per-unit weights (one per line, kg)",
+            "baseTextareaHint": "Enter one positive weight per line.",
+            "invalidWeights": "Every unit weight must be a positive number."
+          }
         },
         "waste": {
           "title": "Log waste",
@@ -6674,6 +6831,25 @@
         "catOther": "Other"
       },
       "loading": "Loading…"
+    }
+  },
+  "Skeleton": {
+    "liveBadge": "Live · Supabase",
+    "records": "{count, plural, =0 {No records yet} one {# record} other {# records}}",
+    "unavailable": "Live count unavailable",
+    "rlsNote": "Org-scoped through RLS (app.current_org_id())",
+    "stubBadge": "Walking Skeleton",
+    "stubNotice": "This page is part of the Walking Skeleton. Live data appears once this module ships.",
+    "summary": {
+      "title": "Your organization at a glance",
+      "subtitle": "Live counts from Supabase, scoped to your organization via RLS.",
+      "users": "Team members",
+      "workOrders": "Work orders",
+      "lots": "Lots",
+      "qualityEvents": "Quality events",
+      "shipments": "Shipments",
+      "bomItems": "BOM items",
+      "unavailable": "—"
     }
   }
 }

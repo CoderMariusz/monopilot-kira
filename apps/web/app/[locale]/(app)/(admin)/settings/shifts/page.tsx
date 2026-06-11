@@ -1,6 +1,14 @@
 import { getTranslations } from 'next-intl/server';
 
-import { createShiftPattern, readShiftsSettingsData, type CreateShiftPatternInput } from './_actions/shifts';
+import {
+  createShiftPattern,
+  deleteShiftPattern,
+  readShiftsSettingsData,
+  updateShiftPattern,
+  type CreateShiftPatternInput,
+  type DeleteShiftPatternInput,
+  type UpdateShiftPatternInput,
+} from './_actions/shifts';
 import ShiftsScreen, { type ShiftsScreenLabels } from './shifts-screen.client';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +74,16 @@ async function buildLabels(locale: string): Promise<ShiftsScreenLabels> {
     save: label('save', 'Save'),
     saving: label('saving', 'Saving...'),
     createFailed: label('create_failed', 'Shift could not be created.'),
+    actionsColumn: label('column_actions', 'Actions'),
+    editShift: label('edit_shift', 'Edit'),
+    deleteShift: label('delete_shift', 'Delete'),
+    editDialogTitle: label('edit_dialog_title', 'Edit shift'),
+    deleteConfirmTitle: label('delete_confirm_title', 'Delete shift'),
+    deleteConfirmBody: label('delete_confirm_body', 'This shift pattern will be removed from scheduling. Continue?'),
+    deleteConfirm: label('delete_confirm', 'Delete'),
+    deleting: label('deleting', 'Deleting...'),
+    updateFailed: label('update_failed', 'Shift could not be updated.'),
+    deleteFailed: label('delete_failed', 'Shift could not be deleted.'),
   };
 }
 
@@ -97,6 +115,16 @@ export default async function ShiftsSettingsPage({ params, searchParams }: PageP
     return createShiftPattern(input);
   }
 
+  async function updateShiftAction(input: UpdateShiftPatternInput) {
+    'use server';
+    return updateShiftPattern(input);
+  }
+
+  async function deleteShiftAction(input: DeleteShiftPatternInput) {
+    'use server';
+    return deleteShiftPattern(input);
+  }
+
   return (
     <ShiftsScreen
       shiftPatterns={data.shift_patterns}
@@ -108,6 +136,8 @@ export default async function ShiftsSettingsPage({ params, searchParams }: PageP
       lines={data.lines}
       labels={labels}
       createShiftAction={createShiftAction}
+      updateShiftAction={updateShiftAction}
+      deleteShiftAction={deleteShiftAction}
     />
   );
 }

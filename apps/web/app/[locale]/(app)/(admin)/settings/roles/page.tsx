@@ -9,6 +9,8 @@ import {
   type QueryClient,
 } from '../../../../../../actions/authorization/preflight';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { createRole, listRolePermissions, setRolePermissions } from './_actions/role-admin-actions';
+import type { EditableRole } from './_components/role-editor.client';
 import RolesScreen, {
   type AssignableUser,
   type PermissionStatus,
@@ -41,6 +43,13 @@ type RoleRow = {
   permissions: string[] | null;
 };
 
+type EditableRoleRow = {
+  id: string;
+  code: string;
+  name: string | null;
+  is_system: boolean | null;
+};
+
 type UserRow = {
   id: string;
   name: string | null;
@@ -52,7 +61,14 @@ type PermissionCheckRow = { ok: boolean };
 type RoleIdRow = { id: string };
 
 type RolesScreenReadResult =
-  | { state: 'ready'; roles: SystemRole[]; permissionsByRole: Record<RoleCode, RolePermission[]>; assignableUsers: AssignableUser[]; canManageRoles: boolean }
+  | {
+      state: 'ready';
+      roles: SystemRole[];
+      permissionsByRole: Record<RoleCode, RolePermission[]>;
+      assignableUsers: AssignableUser[];
+      canManageRoles: boolean;
+      editableRoles: EditableRole[];
+    }
   | { state: 'loading' | 'empty' | 'error' | 'permission-denied'; canManageRoles: boolean };
 
 const ROLE_CODES = [
@@ -235,6 +251,26 @@ async function readRoleRows(client: QueryClient): Promise<{ roles: SystemRole[];
   return { roles, seededPermissions };
 }
 
+async function readEditableRoles(client: QueryClient): Promise<EditableRole[]> {
+  // DEFECT-8: ALL org-scoped roles (incl. custom ones created via createRole),
+  // carrying the real roles.id + is_system flag the permission editor needs.
+  const { rows } = await client.query<EditableRoleRow>(
+    `select r.id::text as id,
+            r.code,
+            coalesce(r.name, r.code) as name,
+            coalesce(r.is_system, false) as is_system
+       from public.roles r
+      where r.org_id = app.current_org_id()
+      order by r.is_system desc, r.display_order nulls last, r.code`,
+  );
+  return rows.map((row): EditableRole => ({
+    roleId: row.id,
+    code: row.code,
+    name: row.name ?? row.code,
+    isSystem: row.is_system === true,
+  }));
+}
+
 async function readAssignableUsers(client: QueryClient): Promise<AssignableUser[]> {
   const { rows } = await client.query<UserRow>(
     `select u.id::text as id,
@@ -268,9 +304,10 @@ async function readRolesScreenData(): Promise<RolesScreenReadResult> {
       const canManageRoles = await hasAnyPermission(queryClient, userId, orgId, ROLE_MANAGE_PERMISSIONS);
       if (!canViewRoles) return { state: 'permission-denied' as const, canManageRoles: false };
 
-      const [{ roles, seededPermissions }, assignableUsers, npd, technical] = await Promise.all([
+      const [{ roles, seededPermissions }, assignableUsers, editableRoles, npd, technical] = await Promise.all([
         readRoleRows(queryClient),
         readAssignableUsers(queryClient),
+        readEditableRoles(queryClient),
         readAuthorizationPolicy(queryClient, NPD_POST_RELEASE_EDIT_POLICY),
         readAuthorizationPolicy(queryClient, TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY),
       ]);
@@ -283,6 +320,7 @@ async function readRolesScreenData(): Promise<RolesScreenReadResult> {
         permissionsByRole: buildPermissionsByRole(roles, seededPermissions, { npd, technical }),
         assignableUsers,
         canManageRoles,
+        editableRoles,
       };
     });
   } catch {
@@ -374,5 +412,12 @@ export default async function SettingsRolesPage(props: PageProps | RolesPageProp
   const result = await readRolesScreenData();
   if (result.state !== 'ready') return <StateShell state={result.state} />;
 
-  return <RolesScreen {...result} assignRole={assignRoleAction} />;
+  // DEFECT-8: wire the role-management surface (create + per-role permission
+  // editor) only for operators who can manage roles. The server actions re-check
+  // the gate server-side — this is presentation gating only.
+  const roleAdmin = result.canManageRoles
+    ? { editableRoles: result.editableRoles, createRole, listRolePermissions, setRolePermissions }
+    : undefined;
+
+  return <RolesScreen {...result} assignRole={assignRoleAction} roleAdmin={roleAdmin} />;
 }

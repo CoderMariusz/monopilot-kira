@@ -1,0 +1,364 @@
+'use server';
+
+/**
+ * M-5 — Desktop material consumption for production WOs.
+ *
+ * The WO-detail Consumption tab's "Scan LP / Add" button was a permanently
+ * DISABLED DeferredButton — `wo_materials.consumed_qty` (and the matching LP
+ * decrement) could only be written from the handheld scanner consume route
+ * (`apps/web/app/api/production/scanner/wos/[id]/consume/route.ts`). Desktop
+ * operators need the same capability, so this Server Action MIRRORS that route's
+ * stock-mutating SQL EXACTLY:
+ *   - single conditional UPDATE of `wo_materials.consumed_qty` (no-row → invalid_material),
+ *   - optional LP decrement with the reserved-qty-safe WHERE (no-row → lp_unavailable).
+ *
+ * It does NOT touch the scanner routes, and it does NOT write `scanner_audit_log`
+ * (that table is scanner-session-only: session_id/device_id provenance the
+ * desktop has no analogue for).
+ *
+ * IDEMPOTENCY (documented, landed):
+ *   The scanner achieves exactly-once via the `scanner_audit_log (org_id,
+ *   client_op_id)` unique index. The desktop instead reuses the production
+ *   ledger's own idempotency key: `wo_material_consumption.transaction_id` is a
+ *   NOT-NULL UNIQUE column (migration 181, "R14 idempotency key"). We derive a
+ *   DETERMINISTIC transaction_id from `(orgId, clientOpId)` (a namespaced
+ *   UUIDv3 over `${orgId}:desktop-consume:${clientOpId}`), so a retried submit
+ *   of the same `clientOpId` resolves to the SAME transaction_id. Inside the
+ *   txn we (1) take a `pg_advisory_xact_lock` on `${orgId}:desktop-consume:
+ *   ${clientOpId}` to serialize concurrent in-flight replays, then (2) probe the
+ *   ledger for that transaction_id — a hit returns `{ replay: true }` WITHOUT
+ *   re-decrementing stock; a miss performs the UPDATE(s) and inserts the ledger
+ *   row LAST, so the row's UNIQUE constraint is the final exactly-once gate. The
+ *   whole body runs inside `withOrgContext`'s single transaction, so any failure
+ *   (including a unique-violation race) rolls back atomically.
+ *
+ * Permission gate: `production.consumption.write` via the canonical
+ * `hasPermission` — the SAME gate the scanner route re-checks (review HIGH:
+ * a stock-mutating endpoint must not be reachable without it).
+ */
+import { createHash } from 'node:crypto';
+
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import {
+  hasPermission,
+  type ProductionContext,
+  type QueryClient,
+} from '../../../../../../lib/production/shared';
+
+const CONSUMPTION_WRITE_PERMISSION = 'production.consumption.write';
+
+export type RecordDesktopConsumptionInput = {
+  woId: string;
+  materialId: string;
+  /** Decimal string in the material's UoM (never a JS number — precision). */
+  qty: string;
+  /** Optional license plate to decrement; omitted → consume without an LP. */
+  lpId?: string | null;
+  /** Client-generated idempotency token (deterministic replay key). */
+  clientOpId: string;
+};
+
+export type RecordDesktopConsumptionData = {
+  materialId: string;
+  consumedQty: string;
+  uom: string;
+  lpId: string | null;
+  replay: boolean;
+};
+
+export type ConsumableLp = {
+  lpId: string;
+  lpNumber: string;
+  qty: string;
+  uom: string;
+  expiry: string | null;
+};
+
+export type ConsumeActionError =
+  | 'forbidden'
+  | 'invalid_material'
+  | 'invalid_qty'
+  | 'lp_unavailable'
+  | 'invalid_input'
+  | 'error';
+
+export type ConsumeActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; reason: ConsumeActionError; message?: string };
+
+function asTrimmed(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/** Mirrors the scanner route's qty guard: positive decimal string, not zero. */
+function isPositiveDecimalString(value: string): boolean {
+  if (!/^\d+(\.\d+)?$/.test(value)) return false;
+  if (/^0+(\.0+)?$/.test(value)) return false;
+  return true;
+}
+
+/**
+ * Deterministic, namespaced UUIDv3 (RFC-4122-shaped) from a stable string. Used
+ * as the `wo_material_consumption.transaction_id` so the same clientOpId always
+ * maps to the same ledger key (the idempotency anchor). Not cryptographic — its
+ * only job is collision-free determinism within an org's clientOpId space.
+ */
+function deterministicTransactionId(seed: string): string {
+  const hex = createHash('md5').update(seed).digest('hex');
+  // Set version (3) and RFC-4122 variant bits.
+  const v = hex.slice(0, 12) + '3' + hex.slice(13, 16) + ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 32);
+  return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
+}
+
+/**
+ * FEFO-ordered consumable LP candidates for a WO material's product. Reads the
+ * migration-191 `v_inventory_available` view (security_invoker; available =
+ * quantity − reserved_qty, status='available', qa_status='released'), filtered
+ * to the material's product_id + uom — MIRRORING the scanner lps route's query.
+ */
+export async function listConsumableLps(
+  input: { woId: string; materialId: string },
+): Promise<ConsumeActionResult<{ lps: ConsumableLp[] }>> {
+  const woId = asTrimmed(input?.woId);
+  const materialId = asTrimmed(input?.materialId);
+  if (!woId || !isUuid(woId) || !materialId || !isUuid(materialId)) {
+    return { ok: false, reason: 'invalid_input' };
+  }
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ConsumeActionResult<{ lps: ConsumableLp[] }>> => {
+      const ctx: ProductionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPermission(ctx, CONSUMPTION_WRITE_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const materialRes = await ctx.client.query<{ product_id: string; uom: string }>(
+        `select product_id::text as product_id, uom
+           from public.wo_materials
+          where org_id = app.current_org_id()
+            and wo_id = $1::uuid
+            and id = $2::uuid
+          limit 1`,
+        [woId, materialId],
+      );
+      const material = materialRes.rows[0];
+      if (!material) return { ok: false, reason: 'invalid_material' };
+
+      const lpRes = await ctx.client.query<{
+        lp_id: string;
+        lp_number: string;
+        available_qty: string;
+        uom: string;
+        expiry_date: string | null;
+      }>(
+        `select lp_id::text as lp_id,
+                lp_number,
+                available_qty::text as available_qty,
+                uom,
+                to_char(expiry_date, 'YYYY-MM-DD') as expiry_date
+           from public.v_inventory_available
+          where org_id = app.current_org_id()
+            and product_id = $1::uuid
+            and uom = $2
+          order by expiry_date asc nulls last, lp_number asc
+          limit 25`,
+        [material.product_id, material.uom],
+      );
+
+      return {
+        ok: true,
+        data: {
+          lps: lpRes.rows.map((r) => ({
+            lpId: r.lp_id,
+            lpNumber: r.lp_number,
+            qty: r.available_qty,
+            uom: r.uom,
+            expiry: r.expiry_date,
+          })),
+        },
+      };
+    });
+  } catch (error) {
+    console.error('[production] listConsumableLps failed', error);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+/**
+ * Record a desktop material consumption against a WO. See module header for the
+ * idempotency contract. Returns verbatim closed errors the modal maps to copy.
+ */
+export async function recordDesktopConsumption(
+  input: RecordDesktopConsumptionInput,
+): Promise<ConsumeActionResult<RecordDesktopConsumptionData>> {
+  const woId = asTrimmed(input?.woId);
+  const materialId = asTrimmed(input?.materialId);
+  const qty = asTrimmed(input?.qty);
+  const lpId = asTrimmed(input?.lpId);
+  const clientOpId = asTrimmed(input?.clientOpId);
+
+  if (!woId || !isUuid(woId) || !materialId || !isUuid(materialId) || !clientOpId) {
+    return { ok: false, reason: 'invalid_input' };
+  }
+  if (!qty || !isPositiveDecimalString(qty)) {
+    return { ok: false, reason: 'invalid_qty' };
+  }
+  if (lpId && !isUuid(lpId)) {
+    return { ok: false, reason: 'invalid_input' };
+  }
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ConsumeActionResult<RecordDesktopConsumptionData>> => {
+      const ctx: ProductionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPermission(ctx, CONSUMPTION_WRITE_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const txnId = deterministicTransactionId(`${orgId}:desktop-consume:${clientOpId}`);
+
+      // (1) Serialize concurrent in-flight replays of the same clientOpId.
+      await ctx.client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+        `${orgId}:desktop-consume:${clientOpId}`,
+      ]);
+
+      // (2) Idempotent replay probe — a prior commit for this txnId is a no-op.
+      const replay = await ctx.client.query<{
+        material_id: string;
+        consumed_qty: string;
+        uom: string;
+        lp_id: string | null;
+      }>(
+        `select c.component_id::text as material_id,
+                wm.consumed_qty::text as consumed_qty,
+                wm.uom as uom,
+                c.lp_id::text as lp_id
+           from public.wo_material_consumption c
+           join public.wo_materials wm
+             on wm.org_id = c.org_id
+            and wm.wo_id = c.wo_id
+            and wm.product_id = c.component_id
+          where c.org_id = app.current_org_id()
+            and c.transaction_id = $1::uuid
+          limit 1`,
+        [txnId],
+      );
+      if (replay.rows[0]) {
+        const r = replay.rows[0];
+        return {
+          ok: true,
+          data: { materialId, consumedQty: r.consumed_qty, uom: r.uom, lpId: r.lp_id, replay: true },
+        };
+      }
+
+      // (3) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.
+      const materialRes = await ctx.client.query<{
+        id: string;
+        product_id: string;
+        material_name: string;
+        consumed_qty: string;
+        uom: string;
+      }>(
+        `update public.wo_materials
+            set consumed_qty = consumed_qty + $4::numeric
+          where org_id = app.current_org_id()
+            and wo_id = $2::uuid
+            and id = $3::uuid
+            and $4::numeric > 0
+          returning id::text, product_id::text as product_id, material_name,
+                    consumed_qty::text as consumed_qty, uom`,
+        [orgId, woId, materialId, qty],
+      );
+      const material = materialRes.rows[0];
+      if (!material) {
+        return { ok: false, reason: 'invalid_material' };
+      }
+
+      let fefoAdherence = true;
+      if (lpId) {
+        // Optional LP decrement with the reserved-qty-safe WHERE — MIRRORS the
+        // scanner route (no-row → lp_unavailable). The whole txn rolls back so
+        // the consumed_qty bump above never commits without its LP movement.
+        const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
+          `update public.license_plates
+              set quantity = quantity - $3::numeric,
+                  status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
+                  consumed_by_wo_id = $4::uuid,
+                  updated_by = $5::uuid,
+                  updated_at = now()
+            where org_id = app.current_org_id()
+              and id = $2::uuid
+              and product_id = $6::uuid
+              and uom = $7
+              and quantity - $3::numeric >= reserved_qty
+            returning id::text, quantity::text as quantity`,
+          [orgId, lpId, qty, woId, userId, material.product_id, material.uom],
+        );
+        if (!lpRes.rows[0]) {
+          return { ok: false, reason: 'lp_unavailable' };
+        }
+
+        // FEFO adherence: was a strictly-earlier-expiry candidate skipped?
+        const fefo = await ctx.client.query<{ violates: boolean }>(
+          `select exists (
+                    select 1
+                      from public.v_inventory_available cand
+                      join public.license_plates chosen
+                        on chosen.id = $2::uuid
+                       and chosen.org_id = app.current_org_id()
+                     where cand.org_id = app.current_org_id()
+                       and cand.product_id = $1::uuid
+                       and cand.uom = $3
+                       and cand.lp_id <> $2::uuid
+                       and cand.expiry_date is not null
+                       and (chosen.expiry_date is null
+                            or cand.expiry_date < chosen.expiry_date)
+                  ) as violates`,
+          [material.product_id, lpId, material.uom],
+        );
+        fefoAdherence = !(fefo.rows[0]?.violates ?? false);
+      }
+
+      // (4) Ledger row LAST — its UNIQUE(transaction_id) is the final
+      // exactly-once gate (a racing replay that slipped past the probe trips
+      // the constraint and rolls the whole txn back).
+      await ctx.client.query(
+        `insert into public.wo_material_consumption
+           (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,
+            operator_id, fefo_adherence_flag, ext_jsonb)
+         values
+           (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid,
+            coalesce($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid),
+            $5::numeric, $6, $7::uuid, $8, $9::jsonb)`,
+        [
+          txnId,
+          woId,
+          material.product_id,
+          lpId,
+          qty,
+          material.uom,
+          userId,
+          fefoAdherence,
+          JSON.stringify({ source: 'desktop', clientOpId, materialId: material.id, materialName: material.material_name }),
+        ],
+      );
+
+      return {
+        ok: true,
+        data: {
+          materialId: material.id,
+          consumedQty: material.consumed_qty,
+          uom: material.uom,
+          lpId: lpId ?? null,
+          replay: false,
+        },
+      };
+    });
+  } catch (error) {
+    console.error('[production] recordDesktopConsumption failed', error);
+    return { ok: false, reason: 'error' };
+  }
+}

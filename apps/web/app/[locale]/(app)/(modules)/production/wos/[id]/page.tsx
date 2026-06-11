@@ -25,6 +25,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import { getWorkOrderDetail } from '../../_actions/get-work-order-detail';
 import { getWoActionContext } from '../../_actions/get-wo-action-context';
 import { releaseWoOutputQa } from '../../_actions/output-qa-actions';
+import { listConsumableLps, recordDesktopConsumption } from '../../_actions/consume-material-actions';
 import {
   WoDetailScreen,
   type WoDetailActions,
@@ -77,6 +78,14 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   }
 
   const status = (k: string) => t(`status.${k}`);
+
+  // M-5 — staged desktop-consume labels. Keys live in
+  // _meta/i18n-staging/desktop-consume.json under
+  // production.wos.detail.consumption.record.* until the bundle-merge lane folds
+  // them in; guarded with `t.has` so a not-yet-merged bundle never throws (EN
+  // fallbacks keep it honest live). Mirrors the catch-weight / wo-uom injection.
+  const rec = (key: string, fallback: string): string =>
+    t.has(`consumption.record.${key}`) ? t(`consumption.record.${key}`) : fallback;
 
   const labels: WoDetailLabels = {
     status: {
@@ -140,6 +149,38 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         consumed: t('consumption.col.consumed'),
         remaining: t('consumption.col.remaining'),
         progress: t('consumption.col.progress'),
+      },
+      record: {
+        trigger: rec('trigger', 'Record consumption'),
+        rowTrigger: rec('rowTrigger', 'Record'),
+        title: rec('title', 'Record material consumption'),
+        subtitle: rec(
+          'subtitle',
+          "Decrement on-hand stock for a BOM component. Pick a license plate (FEFO order) or record without one.",
+        ),
+        material: rec('material', 'Component'),
+        materialPlaceholder: rec('materialPlaceholder', 'Select a component'),
+        qty: rec('qty', 'Quantity'),
+        qtyHint: rec('qtyHint', "Amount to consume, in the component's unit of measure."),
+        lp: rec('lp', 'License plate (FEFO)'),
+        lpLoading: rec('lpLoading', 'Loading license plates…'),
+        lpEmpty: rec('lpEmpty', 'No license plates available for this component.'),
+        lpError: rec('lpError', 'Unable to load license plates.'),
+        lpNone: rec('lpNone', '— no LP —'),
+        lpSuggested: rec('lpSuggested', 'suggested'),
+        submit: rec('submit', 'Record consumption'),
+        submitting: rec('submitting', 'Recording…'),
+        cancel: rec('cancel', 'Cancel'),
+        errors: {
+          forbidden: rec('errors.forbidden', 'You do not have permission to record consumption.'),
+          lp_unavailable: rec(
+            'errors.lp_unavailable',
+            'That license plate no longer has enough free stock for this quantity.',
+          ),
+          invalid_material: rec('errors.invalid_material', 'This component is no longer valid for this work order.'),
+          invalid_qty: rec('errors.invalid_qty', 'Enter a quantity greater than zero.'),
+          generic: rec('errors.generic', 'Unable to record consumption.'),
+        },
       },
     },
     output: {
@@ -280,7 +321,16 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
     };
   }
 
-  return <WoDetailScreen data={result.data} labels={labels} actions={actions} releaseOutputQaAction={releaseWoOutputQa} />;
+  return (
+    <WoDetailScreen
+      data={result.data}
+      labels={labels}
+      actions={actions}
+      releaseOutputQaAction={releaseWoOutputQa}
+      recordConsumptionAction={recordDesktopConsumption}
+      listConsumableLpsAction={listConsumableLps}
+    />
+  );
 }
 
 export default async function ProductionWoDetailPage({

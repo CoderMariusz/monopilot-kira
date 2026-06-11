@@ -27,18 +27,29 @@
  * D365 push card from the prototype remain omitted (no backing read-model here).
  */
 
-import { useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
+import Modal from '@monopilot/ui/Modal';
+import Input from '@monopilot/ui/Input';
+import { Button } from '@monopilot/ui/Button';
+import { Select } from '@monopilot/ui/Select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@monopilot/ui/Tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import type {
   WorkOrderDetailData,
   WorkOrderDetailStatus,
+  WoDetailComponent,
 } from '../../../_actions/get-work-order-detail';
+import type {
+  ConsumableLp,
+  ConsumeActionResult,
+  RecordDesktopConsumptionData,
+  RecordDesktopConsumptionInput,
+} from '../../../_actions/consume-material-actions';
 import type {
   OutputQaActionResult,
   ReleaseWoOutputQaDecision,
@@ -116,6 +127,32 @@ export type WoDetailLabels = {
     empty: string;
     addAction: string;
     col: { code: string; component: string; planned: string; consumed: string; remaining: string; progress: string };
+    record: {
+      trigger: string;
+      rowTrigger: string;
+      title: string;
+      subtitle: string;
+      material: string;
+      materialPlaceholder: string;
+      qty: string;
+      qtyHint: string;
+      lp: string;
+      lpLoading: string;
+      lpEmpty: string;
+      lpError: string;
+      lpNone: string;
+      lpSuggested: string;
+      submit: string;
+      submitting: string;
+      cancel: string;
+      errors: {
+        forbidden: string;
+        lp_unavailable: string;
+        invalid_material: string;
+        invalid_qty: string;
+        generic: string;
+      };
+    };
   };
   output: {
     title: string;
@@ -224,19 +261,40 @@ export function WoDetailScreen({
   labels,
   actions,
   releaseOutputQaAction,
+  recordConsumptionAction,
+  listConsumableLpsAction,
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
   /** Null when the action-context read failed/forbade — buttons are then hidden. */
   actions: WoDetailActions | null;
   releaseOutputQaAction: (input: ReleaseWoOutputQaInput) => Promise<OutputQaActionResult<ReleaseWoOutputQaResult>>;
+  recordConsumptionAction: (
+    input: RecordDesktopConsumptionInput,
+  ) => Promise<ConsumeActionResult<RecordDesktopConsumptionData>>;
+  listConsumableLpsAction: (
+    input: { woId: string; materialId: string },
+  ) => Promise<ConsumeActionResult<{ lps: ConsumableLp[] }>>;
 }) {
   const [tab, setTab] = useState<TabKey>('overview');
   const [busyOutputId, setBusyOutputId] = useState<string | null>(null);
   const [outputQaError, setOutputQaError] = useState<{ outputId: string; message: string } | null>(null);
+  const [consumeOpen, setConsumeOpen] = useState(false);
+  const [consumePreselectId, setConsumePreselectId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { header: h } = data;
+
+  // Desktop consumption is offered only while the WO is actively running and an
+  // action context resolved (RBAC is still enforced server-side — this only
+  // hides the affordance; the action re-checks production.consumption.write).
+  const canRecordConsumption =
+    actions !== null && (h.status === 'in_progress' || h.status === 'paused');
+
+  function openConsume(materialId: string | null) {
+    setConsumePreselectId(materialId);
+    setConsumeOpen(true);
+  }
 
   const tabOrder: TabKey[] = [
     'overview',
@@ -405,7 +463,18 @@ export function WoDetailScreen({
         <TabsContent value="consumption" className="mt-4">
           <Card data-testid="wo-tab-consumption" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <CardHead title={labels.consumption.title}>
-              <DeferredButton label={labels.consumption.addAction} title={labels.deferredActionTitle} testid="wo-consumption-add" />
+              {canRecordConsumption ? (
+                <button
+                  type="button"
+                  data-testid="wo-consumption-record"
+                  onClick={() => openConsume(null)}
+                  className="rounded-md border border-slate-900 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  {labels.consumption.record.trigger}
+                </button>
+              ) : (
+                <DeferredButton label={labels.consumption.addAction} title={labels.deferredActionTitle} testid="wo-consumption-add" />
+              )}
             </CardHead>
             {data.components.length === 0 ? (
               <Empty testid="wo-consumption-empty" copy={labels.consumption.empty} />
@@ -419,6 +488,11 @@ export function WoDetailScreen({
                     <TableHead scope="col" className="text-right">{labels.consumption.col.consumed}</TableHead>
                     <TableHead scope="col" className="text-right">{labels.consumption.col.remaining}</TableHead>
                     <TableHead scope="col">{labels.consumption.col.progress}</TableHead>
+                    {canRecordConsumption ? (
+                      <TableHead scope="col" className="text-right">
+                        <span className="sr-only">{labels.consumption.record.rowTrigger}</span>
+                      </TableHead>
+                    ) : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -435,6 +509,18 @@ export function WoDetailScreen({
                           <ProgressBar pct={c.progressPct} label={`${c.materialName} ${c.progressPct}%`} />
                         </div>
                       </TableCell>
+                      {canRecordConsumption ? (
+                        <TableCell className="text-right">
+                          <button
+                            type="button"
+                            data-testid={`wo-consumption-record-row-${c.id}`}
+                            onClick={() => openConsume(c.id)}
+                            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                          >
+                            {labels.consumption.record.rowTrigger}
+                          </button>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -693,6 +779,23 @@ export function WoDetailScreen({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {canRecordConsumption ? (
+        <RecordConsumptionModal
+          open={consumeOpen}
+          woId={h.id}
+          components={data.components}
+          preselectId={consumePreselectId}
+          labels={labels.consumption.record}
+          recordConsumptionAction={recordConsumptionAction}
+          listConsumableLpsAction={listConsumableLpsAction}
+          onClose={() => setConsumeOpen(false)}
+          onRecorded={() => {
+            setConsumeOpen(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 
@@ -737,6 +840,241 @@ export function WoDetailScreen({
     >
       {body}
     </WoActionsProvider>
+  );
+}
+
+type RecordLabels = WoDetailLabels['consumption']['record'];
+
+/**
+ * M-5 — Desktop "Record consumption" modal. Mirrors the action-modals.tsx shape
+ * (Modal + Select + Input + Button) but lives HERE (the task forbids touching
+ * action-modals.tsx). All five UI states surface:
+ *   loading  — LP candidate fetch in flight (lpStatus === 'loading')
+ *   empty    — no FEFO candidates for the chosen component
+ *   error    — LP fetch failed / verbatim submit error banner
+ *   denied   — forbidden submit error → permission copy in the banner
+ *   optimistic — submit pending (button disabled + "Recording…")
+ * The optional LP list is FEFO-ordered (server) with the top row pre-suggested;
+ * '— no LP —' is the explicit fallback (consume without decrementing an LP).
+ */
+function RecordConsumptionModal({
+  open,
+  woId,
+  components,
+  preselectId,
+  labels,
+  recordConsumptionAction,
+  listConsumableLpsAction,
+  onClose,
+  onRecorded,
+}: {
+  open: boolean;
+  woId: string;
+  components: WoDetailComponent[];
+  preselectId: string | null;
+  labels: RecordLabels;
+  recordConsumptionAction: (
+    input: RecordDesktopConsumptionInput,
+  ) => Promise<ConsumeActionResult<RecordDesktopConsumptionData>>;
+  listConsumableLpsAction: (
+    input: { woId: string; materialId: string },
+  ) => Promise<ConsumeActionResult<{ lps: ConsumableLp[] }>>;
+  onClose: () => void;
+  onRecorded: () => void;
+}) {
+  const [materialId, setMaterialId] = useState('');
+  const [qty, setQty] = useState('');
+  const [lpId, setLpId] = useState('');
+  const [lps, setLps] = useState<ConsumableLp[]>([]);
+  const [lpStatus, setLpStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const selected = useMemo(
+    () => components.find((c) => c.id === materialId) ?? null,
+    [components, materialId],
+  );
+
+  // (Re)initialise selection whenever the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    setMaterialId(preselectId ?? components[0]?.id ?? '');
+    setQty('');
+    setLpId('');
+    setLps([]);
+    setLpStatus('idle');
+    setError(null);
+    setBusy(false);
+  }, [open, preselectId, components]);
+
+  // FEFO candidate fetch keyed on the chosen component.
+  useEffect(() => {
+    if (!open || !materialId) return;
+    let cancelled = false;
+    setLpStatus('loading');
+    setLps([]);
+    setLpId('');
+    void listConsumableLpsAction({ woId, materialId }).then((res) => {
+      if (cancelled) return;
+      if (res.ok) {
+        setLps(res.data.lps);
+        setLpId(res.data.lps[0]?.lpId ?? '');
+        setLpStatus('ready');
+      } else {
+        setLpStatus('error');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, woId, materialId, listConsumableLpsAction]);
+
+  const mapError = useCallback(
+    (reason: string): string => {
+      switch (reason) {
+        case 'forbidden':
+          return labels.errors.forbidden;
+        case 'lp_unavailable':
+          return labels.errors.lp_unavailable;
+        case 'invalid_material':
+          return labels.errors.invalid_material;
+        case 'invalid_qty':
+          return labels.errors.invalid_qty;
+        default:
+          return labels.errors.generic;
+      }
+    },
+    [labels],
+  );
+
+  const canSubmit = materialId !== '' && qty.trim() !== '' && !busy;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    const clientOpId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${woId}-${materialId}-${Date.now()}`;
+    const result = await recordConsumptionAction({
+      woId,
+      materialId,
+      qty: qty.trim(),
+      lpId: lpId || null,
+      clientOpId,
+    });
+    setBusy(false);
+    if (result.ok) {
+      onRecorded();
+      return;
+    }
+    setError(mapError(result.reason));
+  }
+
+  const materialOptions = components.map((c) => ({
+    value: c.id,
+    label: `${c.materialName} (${c.uom})`,
+  }));
+
+  const lpOptions = [
+    { value: '', label: labels.lpNone },
+    ...lps.map((lp, i) => ({
+      value: lp.lpId,
+      label:
+        i === 0
+          ? `${lp.lpNumber} · ${lp.qty} ${lp.uom}${lp.expiry ? ` · ${lp.expiry}` : ''} (${labels.lpSuggested})`
+          : `${lp.lpNumber} · ${lp.qty} ${lp.uom}${lp.expiry ? ` · ${lp.expiry}` : ''}`,
+    })),
+  ];
+
+  return (
+    <Modal open={open} onOpenChange={(n) => (n ? undefined : onClose())} modalId="wo-consume" size="sm">
+      <Modal.Header title={labels.title} />
+      <Modal.Body>
+        <p className="mb-3 text-sm text-slate-600">{labels.subtitle}</p>
+        {error ? (
+          <div
+            role="alert"
+            data-testid="wo-consume-error"
+            className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        ) : null}
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="wo-consume-material" className="mb-1 block text-sm font-medium text-slate-700">
+              {labels.material}
+            </label>
+            <Select
+              id="wo-consume-material"
+              aria-label={labels.material}
+              value={materialId}
+              onValueChange={setMaterialId}
+              options={materialOptions}
+              placeholder={labels.materialPlaceholder}
+              disabled={busy}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="wo-consume-qty" className="mb-1 block text-sm font-medium text-slate-700">
+              {labels.qty}
+              {selected ? <span className="ml-1 text-xs font-normal text-slate-500">({selected.uom})</span> : null}
+            </label>
+            <Input
+              id="wo-consume-qty"
+              data-testid="wo-consume-qty"
+              inputMode="decimal"
+              value={qty}
+              disabled={busy}
+              onChange={(e) => setQty(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500">{labels.qtyHint}</p>
+          </div>
+
+          <div>
+            <label htmlFor="wo-consume-lp" className="mb-1 block text-sm font-medium text-slate-700">
+              {labels.lp}
+            </label>
+            {lpStatus === 'loading' ? (
+              <p data-testid="wo-consume-lp-loading" className="text-sm text-slate-500">
+                {labels.lpLoading}
+              </p>
+            ) : lpStatus === 'error' ? (
+              <p data-testid="wo-consume-lp-error" className="text-sm text-red-600">
+                {labels.lpError}
+              </p>
+            ) : (
+              <>
+                <Select
+                  id="wo-consume-lp"
+                  aria-label={labels.lp}
+                  value={lpId}
+                  onValueChange={setLpId}
+                  options={lpOptions}
+                  disabled={busy}
+                />
+                {lpStatus === 'ready' && lps.length === 0 ? (
+                  <p data-testid="wo-consume-lp-empty" className="mt-1 text-xs text-slate-500">
+                    {labels.lpEmpty}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button type="button" data-testid="wo-consume-cancel" disabled={busy} onClick={onClose}>
+          {labels.cancel}
+        </Button>
+        <Button type="button" data-testid="wo-consume-submit" disabled={!canSubmit} onClick={handleSubmit}>
+          {busy ? labels.submitting : labels.submit}
+        </Button>
+      </Modal.Footer>
+    </Modal>
   );
 }
 

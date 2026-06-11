@@ -57,6 +57,7 @@ type WarehouseNavCard = { key: string; href: string; disabled: boolean };
  * until its page lands (honest — disabled cards never navigate to a 404).
  */
 const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
+  { key: "inbound", href: "/warehouse/inbound", disabled: false },
   { key: "licensePlates", href: "/warehouse/license-plates", disabled: false },
   { key: "grns", href: "/warehouse/grns", disabled: false },
   { key: "inventory", href: "/warehouse/inventory", disabled: false },
@@ -64,6 +65,9 @@ const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
   { key: "reservations", href: "/warehouse/reservations", disabled: false },
   { key: "locations", href: "/warehouse/locations", disabled: true },
   { key: "expiry", href: "/warehouse/expiry", disabled: false },
+  // Cross-shell: opens the chrome-less device scanner (owner-reported the
+  // scanner was otherwise unreachable from the app).
+  { key: "scanner", href: "/scanner/home", disabled: false },
 ];
 
 /** Active = on-hand statuses (mirror the expiry action's active filter). */

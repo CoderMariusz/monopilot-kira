@@ -1,0 +1,1478 @@
+diff --git a/packages/db/migrations/191-warehouse-license-plates-fefo.sql b/packages/db/migrations/191-warehouse-license-plates-fefo.sql
+new file mode 100644
+index 00000000..c5350ce8
+--- /dev/null
++++ b/packages/db/migrations/191-warehouse-license-plates-fefo.sql
+@@ -0,0 +1,201 @@
++-- Migration 191: 05-Warehouse — license_plates (LP) + FEFO inventory read model.
++-- PRD: docs/prd/05-WAREHOUSE-PRD.md §5.2 (LP entity), §9 (FEFO First-Expiry-First-Out).
++-- Tasks: _meta/atomic-tasks/05-warehouse/tasks/T-002.json (license_plates + RLS + FEFO index),
++--        T-011 (FEFO composite + genealogy/location indexes), T-012 (RLS org isolation).
++--
++-- LP is the universal lot/quantity unit (ADR-001) consumed across consume/ship/scan by
++-- 06-scanner, 08-production, 09-quality, 10-finance, 11-shipping. 08-production already
++-- references lp_id as a SOFT uuid (migs 181/183); THIS migration is the canonical owner of
++-- public.license_plates.
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (foundation function, migration 002-rls-baseline.sql — never redefined, never read as a
++--   raw current_setting GUC).
++-- site_id day-1: site_id uuid is NULLABLE, no FK, no registry — full per-site scoping
++--   (NOT NULL + (org_id, site_id) policy + app.current_site_id()) lands later via the
++--   cross-module multi-site backfill (14-multi-site T-030). Until then the column exists so
++--   operational rows can be tagged without a schema break.
++-- NUMERIC-exact: quantity / reserved_qty / catch_weight_kg are NUMERIC (never float).
++-- FKs: organizations (hard, cascade) + users (hard, set null for lock/audit actors). All
++--   cross-module identities (warehouse_id, product_id, location_id, grn_id, wo_id, parent_lp_id,
++--   reserved_for_wo_id, consumed_by_wo_id, source_so_id) are SOFT uuids — a hard FK would couple
++--   migration ordering across modules (mirrors planning 176/177 + production 181).
++-- Canonical-owner separation: this migration creates ONLY license_plates + its FEFO read model.
++--   It does NOT create wo_outputs (08-production), schedule_outputs (04-planning), or
++--   oee_snapshots (08-production).
++
++-- ===========================================================================
++-- license_plates — atomic inventory unit (T-002, WH §5.2).
++-- ===========================================================================
++create table if not exists public.license_plates (
++  id                       uuid primary key default gen_random_uuid(),
++  org_id                   uuid not null references public.organizations(id) on delete cascade,
++  site_id                  uuid,
++
++  -- Identity / numbering — UNIQUE per (org, warehouse); lp_number_seq is per-warehouse (T-016).
++  warehouse_id             uuid not null,            -- soft FK to 02-Settings warehouses
++  lp_number                text not null,
++  lp_code                  text,                     -- GS1-128 rendered code (T-023)
++
++  -- What it holds — dual-UoM (quantity + uom + catch_weight_kg).
++  product_id               uuid not null,            -- soft FK to 03-Technical items
++  quantity                 numeric(18, 6) not null,
++  reserved_qty             numeric(18, 6) not null default 0,
++  uom                      text not null,
++  catch_weight_kg          numeric(18, 6),
++
++  -- State — status owned by warehouse; qa_status owned by 09-Quality (mirrored here).
++  status                   text not null default 'available',
++  qa_status                text not null default 'pending',
++
++  -- Batch / barcode.
++  batch_number             text,
++  supplier_batch_number    text,
++  gtin                     text,
++
++  -- Expiry — FEFO key. shelf_life_mode/date_code snapshot from 03-Technical at receipt.
++  expiry_date              timestamptz,
++  best_before_date         timestamptz,
++  shelf_life_mode_snapshot text,
++  date_code_rendered       text,
++
++  -- Location — soft FK to 02-Settings locations (ltree zone roll-up).
++  location_id              uuid,
++
++  -- Origin — GRN (receipt) or production (output LP) etc.
++  origin                   text not null default 'grn',
++
++  -- Lineage — genealogy parent + WO/GRN references (soft FKs).
++  parent_lp_id             uuid,
++  grn_id                   uuid,
++  wo_id                    uuid,
++  reserved_for_wo_id       uuid,
++  consumed_by_wo_id        uuid,
++  source_so_id             uuid,                     -- 11-Shipping sales order on ship
++
++  -- Scanner lock protocol (§6.6, T-020) — 5-min auto-release enforced service-side.
++  locked_by                uuid references public.users(id) on delete set null,
++  locked_at                timestamptz,
++
++  -- Extensions (ADR-028).
++  ext_jsonb                jsonb not null default '{}'::jsonb,
++  private_jsonb            jsonb not null default '{}'::jsonb,
++  schema_version           integer not null default 1,
++
++  -- R13 audit.
++  created_by               uuid references public.users(id) on delete set null,
++  updated_by               uuid references public.users(id) on delete set null,
++  created_at               timestamptz not null default pg_catalog.now(),
++  updated_at               timestamptz not null default pg_catalog.now(),
++
++  constraint license_plates_org_warehouse_lp_number_uq unique (org_id, warehouse_id, lp_number),
++  constraint license_plates_quantity_nonneg_check check (quantity >= 0),
++  constraint license_plates_reserved_qty_nonneg_check check (reserved_qty >= 0),
++  constraint license_plates_reserved_qty_le_quantity_check check (reserved_qty <= quantity),
++  constraint license_plates_status_check check (
++    status in ('received', 'available', 'reserved', 'allocated', 'consumed',
++               'blocked', 'merged', 'shipped', 'returned', 'quarantine')
++  ),
++  constraint license_plates_qa_status_check check (
++    qa_status in ('pending', 'released', 'on_hold', 'rejected')
++  ),
++  constraint license_plates_origin_check check (
++    origin in ('grn', 'production', 'transfer', 'adjustment', 'split', 'merge')
++  ),
++  constraint license_plates_schema_version_check check (schema_version >= 1)
++);
++
++-- ---------------------------------------------------------------------------
++-- Indexes (T-011). FEFO composite is MANDATORY — §9.2 <500 ms SLO depends on it.
++-- ---------------------------------------------------------------------------
++-- FEFO composite: expire-earliest first, NULLS LAST (no-expiry LPs picked last).
++create index if not exists license_plates_fefo_idx
++  on public.license_plates (org_id, warehouse_id, product_id, status, expiry_date asc nulls last);
++create index if not exists license_plates_org_idx
++  on public.license_plates (org_id);
++create index if not exists license_plates_org_site_idx
++  on public.license_plates (org_id, site_id);
++create index if not exists license_plates_location_idx
++  on public.license_plates (org_id, location_id);
++create index if not exists license_plates_parent_idx
++  on public.license_plates (parent_lp_id) where parent_lp_id is not null;
++create index if not exists license_plates_grn_idx
++  on public.license_plates (grn_id) where grn_id is not null;
++create index if not exists license_plates_wo_idx
++  on public.license_plates (wo_id) where wo_id is not null;
++
++-- ---------------------------------------------------------------------------
++-- RLS — ENABLE + FORCE; org isolation via app.current_org_id() (T-012).
++-- ---------------------------------------------------------------------------
++alter table public.license_plates enable row level security;
++alter table public.license_plates force row level security;
++
++drop policy if exists license_plates_org_context on public.license_plates;
++create policy license_plates_org_context
++  on public.license_plates
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.license_plates from public;
++revoke all on public.license_plates from app_user;
++grant select, insert, update, delete on public.license_plates to app_user;
++
++-- updated_at trigger (reuse the production helper if present, else define a local one).
++create or replace function public.license_plates_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists license_plates_set_updated_at on public.license_plates;
++create trigger license_plates_set_updated_at
++  before update on public.license_plates
++  for each row execute function public.license_plates_set_updated_at();
++
++-- ===========================================================================
++-- v_inventory_available — FEFO read model (§9.2).
++-- security_invoker so the underlying license_plates RLS applies to the querying app_user.
++-- Pre-ordered by the FEFO key so the §9.2 picker can `LIMIT n` without re-sorting; the
++-- license_plates_fefo_idx backs the WHERE + ORDER BY.
++-- ===========================================================================
++drop view if exists public.v_inventory_available;
++create view public.v_inventory_available
++  with (security_invoker = true)
++  as
++  select
++    lp.id                              as lp_id,
++    lp.org_id,
++    lp.site_id,
++    lp.warehouse_id,
++    lp.product_id,
++    lp.lp_number,
++    lp.status,
++    lp.qa_status,
++    lp.quantity,
++    lp.reserved_qty,
++    (lp.quantity - lp.reserved_qty)    as available_qty,
++    lp.uom,
++    lp.batch_number,
++    lp.expiry_date,
++    lp.best_before_date,
++    lp.location_id
++  from public.license_plates lp
++  where lp.status = 'available'
++    and lp.qa_status = 'released'
++    and (lp.quantity - lp.reserved_qty) > 0
++  order by lp.org_id, lp.warehouse_id, lp.product_id,
++           lp.expiry_date asc nulls last, lp.lp_number asc;
++
++revoke all on public.v_inventory_available from public;
++grant select on public.v_inventory_available to app_user;
++
++comment on view public.v_inventory_available is
++  'FEFO read model (WH §9.2). security_invoker view over license_plates: pickable on-hand '
++  '(status=available, qa_status=released, available_qty>0) pre-ordered by expiry NULLS LAST '
++  'then lp_number. Backed by license_plates_fefo_idx.';
+diff --git a/packages/db/migrations/192-warehouse-outbox-and-rbac-seed.sql b/packages/db/migrations/192-warehouse-outbox-and-rbac-seed.sql
+new file mode 100644
+index 00000000..14c50cf2
+--- /dev/null
++++ b/packages/db/migrations/192-warehouse-outbox-and-rbac-seed.sql
+@@ -0,0 +1,306 @@
++-- Migration 192: 05-Warehouse — (A) admit the warehouse.* LP-lifecycle outbox events to the
++-- outbox_events CHECK constraint (keep the enum<->CHECK drift gate green), and (B) grant the
++-- warehouse.* RBAC permission family to the org-admin role family + warehouse operator/scanner
++-- roles in BOTH the normalized role_permissions table and the legacy roles.permissions jsonb
++-- cache, with an AFTER INSERT trigger + full backfill.
++-- PRD: docs/prd/05-WAREHOUSE-PRD.md §3 (RBAC), §5/§6/§7/§8/§9 (LP lifecycle + FEFO), §11 (events).
++-- Tasks: T-058 (permission enum) + the recurring-live-bug RBAC-seed P0 (class 1).
++-- Canonical permission strings: packages/rbac/src/permissions.enum.ts (ALL_WAREHOUSE_PERMISSIONS).
++-- Canonical event strings: packages/outbox/src/events.enum.ts (ALL_WAREHOUSE_EVENTS / DB_EVENT_TYPES).
++-- Wave0 lock: org_id business scope (NOT tenant_id); RLS via app.current_org_id().
++
++-- ===========================================================================
++-- (A) Outbox event CHECK — drop + recreate with the FULL vocabulary (189's 122 list + the 4 new
++--     05-warehouse events). The enum<->CHECK drift gate (packages/outbox check-drift.test.ts)
++--     asserts THIS (now highest-numbered) migration's CHECK string set === DB_EVENT_TYPES, so the
++--     list below MUST stay byte-aligned with events.enum.ts (EventType ∪ LegacyEventAlias keys).
++--     Strict superset of 189 — no event dropped.
++-- ===========================================================================
++alter table public.outbox_events
++  drop constraint if exists outbox_events_event_type_check;
++
++alter table public.outbox_events
++  add constraint outbox_events_event_type_check check (
++    event_type in (
++      'audit.recorded',
++      'bom.initial_version_created',
++      'bom.version_submitted',
++      'brief.completed_for_project',
++      'brief.converted',
++      'brief.created',
++      'catch_weight.variance_exceeded',
++      'compliance_doc.deleted',
++      'compliance_doc.expired',
++      'compliance_doc.expiring',
++      'compliance_doc.uploaded',
++      'd365.cache.refreshed',
++      'fa.allergens_changed',
++      'fa.built',
++      'fa.built_reset',
++      'fa.cascade',
++      'fa.core_closed',
++      'fa.created',
++      'fa.deleted',
++      'fa.dept_closed',
++      'fa.dept_reopened',
++      'fa.edit',
++      'fa.intermediate_code_changed',
++      'fa.recipe_changed',
++      'fa.template_applied',
++      'fg.allergens_changed',
++      'fg.bom.released',
++      'fg.created',
++      'fg.edit',
++      'fg.intermediate_code_changed',
++      'fg.release_blocked',
++      'fg.released_to_factory',
++      'formulation.locked',
++      'formulation.submitted_for_trial',
++      'lp.received',
++      'manufacturing_operations.created',
++      'manufacturing_operations.deactivated',
++      'manufacturing_operations.reset_to_seed',
++      'manufacturing_operations.updated',
++      'npd.allergens.bulk_rebuild_completed',
++      'npd.builder.released_records_created',
++      'npd.fg_candidate_mapped',
++      'npd.gate.advanced',
++      'npd.gate.approved',
++      'npd.gate.reverted',
++      'npd.project.brief_mapped',
++      'npd.project.created',
++      'npd.project.legacy_stages_closed',
++      'npd.project.release_requested',
++      'onboarding.first_wo_recorded',
++      'onboarding.step.advance',
++      'onboarding.step.back',
++      'onboarding.step.jump',
++      'onboarding.step.restart',
++      'onboarding.step.skip',
++      'org.created',
++      'org.mfa_enrollment.forced',
++      'org.security_policy.updated',
++      'production.allergen_changeover.validated',
++      'production.changeover.signed',
++      'production.consume.blocked',
++      'production.consume.completed',
++      'production.downtime.recorded',
++      'production.oee.snapshot',
++      'production.output.recorded',
++      'production.waste.recorded',
++      'production.wo.closed',
++      'production.wo.completed',
++      'production.wo.started',
++      'quality.atp_swab_failed',
++      'quality.recorded',
++      'reference.allergens_added_by_process.bulk_changed',
++      'reference.allergens_by_rm.bulk_changed',
++      'reference.csv.committed',
++      'reference.row.soft_deleted',
++      'reference.row.upserted',
++      'risk.created',
++      'role.assigned',
++      'rule.deployed',
++      'settings.core_flag.updated',
++      'settings.d365_sync.updated',
++      'settings.dept_override.updated',
++      'settings.ip_allowlist.changed',
++      'settings.line.upserted',
++      'settings.location.deleted',
++      'settings.location.imported',
++      'settings.location.upserted',
++      'settings.machine.upserted',
++      'settings.module.disabled',
++      'settings.module.enabled',
++      'settings.module.toggled',
++      'settings.notification_channel_updated',
++      'settings.notification_digest_updated',
++      'settings.notification_rule_updated',
++      'settings.org.created',
++      'settings.org.updated',
++      'settings.reference.row_updated',
++      'settings.role.assigned',
++      'settings.rule.deployed',
++      'settings.rule_variant.updated',
++      'settings.schema.migration_requested',
++      'settings.scim.token_created',
++      'settings.sso.config_changed',
++      'settings.upgrade.completed',
++      'settings.upgrade.promoted',
++      'settings.upgrade.rolled_back',
++      'settings.upgrade.scheduled',
++      'settings.user.accepted',
++      'settings.user.deactivated',
++      'settings.user.invitation_resent',
++      'settings.user.invited',
++      'settings.warehouse.deactivated',
++      'shipment.created',
++      'technical.factory_spec.approved',
++      'tenant.cohort.advanced',
++      'tenant.migration.run',
++      'tenant.migration.run.failed',
++      'unit_of_measure.conversion_created',
++      'unit_of_measure.created',
++      'unit_of_measure.soft_deleted',
++      'user.invited',
++      'warehouse.lp.received',
++      'warehouse.lp.shipped',
++      'warehouse.lp.transitioned',
++      'warehouse.material.consumed',
++      'wo.ready'
++    )
++  );
++
++comment on constraint outbox_events_event_type_check on public.outbox_events
++  is 'Regenerated from events.enum.ts DB_EVENT_TYPES (126 types incl warehouse.*).';
++
++-- ===========================================================================
++-- (B) warehouse.* RBAC permission seed.
++--   ROOT CAUSE (X-1 unreachable-feature / 403-everywhere class — same as 116/146/148/149/154/185):
++--   adding the warehouse.* strings to the enum (T-058) grants NOBODY access. The deployed
++--   org administrator is on the canonical org-admin role family, which receives NONE of the
++--   warehouse.* strings — so every warehouse page/action 403s at live Gate-5.
++--
++--   This grants:
++--     * the COMPLETE warehouse.* set (13 strings) to the org-admin role family;
++--     * the operator/scanner-facing subset to a warehouse operator/scanner role family;
++--   in BOTH role_permissions (normalized) and roles.permissions (legacy jsonb cache), for every
++--   existing org, with an AFTER INSERT trigger so new orgs inherit it.
++--   Operator/scanner role codes are matched defensively across naming conventions; the grant
++--   is a no-op for any role code not present in an org (idempotent). The admin-family grant is
++--   the load-bearing one for Gate-5 reachability. Models on 149/154/185.
++-- ===========================================================================
++create or replace function public.seed_warehouse_permissions_for_org(p_org_id uuid)
++returns void
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++declare
++  -- Complete warehouse.* family (PRD §3 RBAC matrix). Mirrors ALL_WAREHOUSE_PERMISSIONS.
++  v_all_perms text[] := array[
++    'warehouse.lp.create',
++    'warehouse.lp.split',
++    'warehouse.lp.merge',
++    'warehouse.lp.reserve',
++    'warehouse.lp.consume',
++    'warehouse.lp.block',
++    'warehouse.lp.ship',
++    'warehouse.lp.force_unlock',
++    'warehouse.grn.receive',
++    'warehouse.stock.move',
++    'warehouse.stock.adjust',
++    'warehouse.inventory.read',
++    'warehouse.fefo.override'
++  ];
++  -- Operator/scanner-facing subset: receives, creates/splits/merges LPs, reserves, consumes,
++  -- moves stock, reads inventory, and may ship. NOT the elevated/approval strings
++  -- (force_unlock = WH-101 elevated; stock.adjust = >10% manager gate; fefo.override = deviation
++  -- reason audit). SoD: those stay admin-only.
++  v_operator_perms text[] := array[
++    'warehouse.lp.create',
++    'warehouse.lp.split',
++    'warehouse.lp.merge',
++    'warehouse.lp.reserve',
++    'warehouse.lp.consume',
++    'warehouse.lp.block',
++    'warehouse.lp.ship',
++    'warehouse.grn.receive',
++    'warehouse.stock.move',
++    'warehouse.inventory.read'
++  ];
++  -- org-admin role family across naming conventions used in this codebase.
++  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
++  -- warehouse operator/scanner role family (defensive — codes vary; grant is a no-op if absent).
++  v_operator_roles text[] := array[
++    'operator','warehouse_operator','warehouse_clerk','scanner','scanner_operator',
++    'production_operator','line_operator'
++  ];
++begin
++  -- --- Normalized storage (role_permissions) ---
++  -- admin family: full set.
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_all_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- operator/scanner family: operator subset.
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_operator_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- --- Legacy jsonb cache (roles.permissions) ---
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_all_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
++
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_operator_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles));
++end;
++$$;
++
++revoke all on function public.seed_warehouse_permissions_for_org(uuid) from public;
++revoke all on function public.seed_warehouse_permissions_for_org(uuid) from app_user;
++
++create or replace function public.seed_warehouse_permissions_on_org_insert()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++begin
++  perform public.seed_warehouse_permissions_for_org(new.id);
++  return new;
++end;
++$$;
++
++revoke all on function public.seed_warehouse_permissions_on_org_insert() from public;
++revoke all on function public.seed_warehouse_permissions_on_org_insert() from app_user;
++
++-- Fire after the 080 role-seeding trigger so the admin roles already exist (zzz prefix).
++drop trigger if exists trg_zzz_seed_warehouse_permissions on public.organizations;
++create trigger trg_zzz_seed_warehouse_permissions
++  after insert on public.organizations
++  for each row
++  execute function public.seed_warehouse_permissions_on_org_insert();
++
++-- Backfill every existing org.
++do $$
++declare
++  v_org_id uuid;
++begin
++  for v_org_id in select id from public.organizations loop
++    perform public.seed_warehouse_permissions_for_org(v_org_id);
++  end loop;
++end
++$$;
+diff --git a/packages/db/schema/index.ts b/packages/db/schema/index.ts
+index 47978682..b30adadb 100644
+--- a/packages/db/schema/index.ts
++++ b/packages/db/schema/index.ts
+@@ -1,3 +1,279 @@
+-export { tenants, organizations, users } from './baseline.js';
++export { tenants, organizations, users, outboxEvents, outboxDeadLetter } from './baseline.js';
+ export { tenantMigrations } from './tenant-migrations.js';
+ export { lot, workOrder, qualityEvent, shipment, bomItem } from './r13-business-tables.js';
++export { eSignLog } from './e-sign.js';
++export { gdprErasureRequests } from './gdpr.js';
++export { orgAuthorizationPolicies } from './settings-auth-policies.js';
++export { unitOfMeasure, uomCustomConversions } from './units.js';
++export { integrationSettings } from './integration-settings.js';
++export { d365SyncRuns } from './integrations-d365.js';
++export { d365Constants } from './d365-constants.js';
++export type { D365Constant, NewD365Constant } from './d365-constants.js';
++export { alertThresholds } from './alert-thresholds.js';
++export type { AlertThreshold, NewAlertThreshold } from './alert-thresholds.js';
++export { d365ImportCache, d365ImportCacheMeta } from './d365-import-cache.js';
++export type {
++  D365ImportCache,
++  D365ImportCacheMeta,
++  NewD365ImportCache,
++} from './d365-import-cache.js';
++export { emailDeliveryLog } from './email-log.js';
++export { featureFlagsCore, notificationPreferences } from './flags-prefs.js';
++export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.js';
++export { scimTokens, adminIpAllowlist } from './sso-scim-ip.js';
++export { product } from './product.js';
++export type { NewProduct, Product } from './product.js';
++export { items } from './items.js';
++export type { Item, NewItem } from './items.js';
++export { faBuilderOutputs } from './fa-builder-outputs.js';
++export type { FaBuilderOutput, NewFaBuilderOutput } from './fa-builder-outputs.js';
++export { faStatusOverall } from './fa-status-overall.js';
++export type { FaStatusOverall } from './fa-status-overall.js';
++export { dashboardSummary, launchAlerts, missingRequiredCols } from './dashboard-views.js';
++export type {
++  DashboardSummary,
++  LaunchAlert,
++  MissingRequiredCols,
++} from './dashboard-views.js';
++export { prodDetail } from './prod-detail.js';
++export type { NewProdDetail, ProdDetail } from './prod-detail.js';
++export { referenceDeptColumns } from './reference-dept-columns.js';
++export type {
++  NewReferenceDeptColumn,
++  ReferenceDeptColumn,
++} from './reference-dept-columns.js';
++export { manufacturingOperations, referenceSchema } from './manufacturing-operations.js';
++export type {
++  ManufacturingOperation,
++  NewManufacturingOperation,
++} from './manufacturing-operations.js';
++export {
++  closeConfirm,
++  equipmentSetupByLinePack,
++  linesByPackSize,
++  packSizes,
++  templates,
++} from './reference-lookups.js';
++export type {
++  CloseConfirm,
++  EquipmentSetupByLinePack,
++  LineByPackSize,
++  NewCloseConfirm,
++  NewEquipmentSetupByLinePack,
++  NewLineByPackSize,
++  NewPackSize,
++  NewTemplate,
++  PackSize,
++  Template,
++} from './reference-lookups.js';
++export { brief, briefLines } from './brief.js';
++export type { Brief, BriefLine, NewBrief, NewBriefLine } from './brief.js';
++export { briefToFaAudit } from './brief-to-fa-audit.js';
++export type { BriefToFaAudit, NewBriefToFaAudit } from './brief-to-fa-audit.js';
++export { briefFieldMapping } from './brief-field-mapping.js';
++export type {
++  BriefFieldMapping,
++  NewBriefFieldMapping,
++} from './brief-field-mapping.js';
++export {
++  referenceAllergens,
++  referenceAllergensAddedByProcess,
++  referenceAllergensByRm,
++} from './allergens.js';
++export { faAllergenOverrideAction, faAllergenOverrides } from './fa-allergen-overrides.js';
++export type {
++  FaAllergenOverride,
++  NewFaAllergenOverride,
++} from './fa-allergen-overrides.js';
++export { allergenCascadeRebuildJobs } from './allergen-cascade-rebuild.js';
++export type {
++  AllergenCascadeRebuildJob,
++  NewAllergenCascadeRebuildJob,
++} from './allergen-cascade-rebuild.js';
++export { npdProjects } from './npd-projects.js';
++export type { NewNpdProject, NpdProject } from './npd-projects.js';
++export { gateChecklistItems } from './gate-checklist-items.js';
++export type { GateChecklistItem, NewGateChecklistItem } from './gate-checklist-items.js';
++export { gateChecklistTemplates } from './gate-checklist-templates.js';
++export type {
++  GateChecklistTemplate,
++  NewGateChecklistTemplate,
++} from './gate-checklist-templates.js';
++export { gateApprovals } from './gate-approvals.js';
++export type { GateApproval, NewGateApproval } from './gate-approvals.js';
++export {
++  approvalChainStepSchema,
++  approvalChainStepsSchema,
++  approvalChainTemplates,
++} from './approval-chain-templates.js';
++export type {
++  ApprovalChainStep,
++  ApprovalChainTemplate,
++  NewApprovalChainTemplate,
++} from './approval-chain-templates.js';
++export { costingBreakdowns, costingWaterfallSteps } from './costing.js';
++export type {
++  CostingBreakdown,
++  CostingWaterfallStep,
++  NewCostingBreakdown,
++  NewCostingWaterfallStep,
++} from './costing.js';
++export { risks } from './risks.js';
++export type { NewRisk, Risk } from './risks.js';
++export { complianceDocs } from './compliance-docs.js';
++export type { ComplianceDoc, NewComplianceDoc } from './compliance-docs.js';
++export { bomCoProducts, bomHeaders, bomLines, bomSnapshots } from './shared-bom.js';
++export type {
++  BomCoProduct,
++  BomHeader,
++  BomLine,
++  BomSnapshot,
++  NewBomCoProduct,
++  NewBomHeader,
++  NewBomLine,
++  NewBomSnapshot,
++} from './shared-bom.js';
++export { faBomView } from './fa-bom-view.js';
++export type { FaBomView } from './fa-bom-view.js';
++export { factoryReleaseStatus } from './factory-release-status.js';
++export type {
++  FactoryReleaseStatus,
++  NewFactoryReleaseStatus,
++} from './factory-release-status.js';
++export { npdLegacyCloseout } from './npd-legacy-closeout.js';
++export type {
++  NewNpdLegacyCloseout,
++  NpdLegacyCloseout,
++} from './npd-legacy-closeout.js';
++export {
++  formulationAuditLog,
++  formulationCalcCache,
++  formulationIngredients,
++  formulations,
++  formulationVersions,
++} from './formulations.js';
++export type {
++  Formulation,
++  FormulationAuditLog,
++  FormulationCalcCache,
++  FormulationIngredient,
++  FormulationVersion,
++  NewFormulation,
++  NewFormulationAuditLog,
++  NewFormulationCalcCache,
++  NewFormulationIngredient,
++  NewFormulationVersion,
++} from './formulations.js';
++export {
++  nutriScoreResults,
++  nutritionAllergens,
++  nutritionProfiles,
++  referenceNutrients,
++} from './nutrition.js';
++export type {
++  NewNutriScoreResult,
++  NewNutritionAllergen,
++  NewNutritionProfile,
++  NewReferenceNutrient,
++  NutriScoreResult,
++  NutritionAllergen,
++  NutritionProfile,
++  ReferenceNutrient,
++} from './nutrition.js';
++
++// ── 03-technical Wave-A schema (migrations 159-167) ──────────────────────────
++export { itemCostHistory } from './cost-history.js';
++export type { ItemCostHistory, NewItemCostHistory } from './cost-history.js';
++export {
++  allergenContaminationRisk,
++  itemAllergenProfileOverrides,
++  itemAllergenProfiles,
++  manufacturingOperationAllergenAdditions,
++} from './item-allergens.js';
++export type {
++  AllergenContaminationRisk,
++  ItemAllergenProfile,
++  ItemAllergenProfileOverride,
++  ManufacturingOperationAllergenAddition,
++  NewAllergenContaminationRisk,
++  NewItemAllergenProfile,
++  NewItemAllergenProfileOverride,
++  NewManufacturingOperationAllergenAddition,
++} from './item-allergens.js';
++export { labResults } from './lab.js';
++export type { LabResult, NewLabResult } from './lab.js';
++export { supplierSpecs, supplierSpecReviewProposals } from './supplier-specs.js';
++export type {
++  NewSupplierSpec,
++  SupplierSpec,
++  NewSupplierSpecReviewProposal,
++  SupplierSpecReviewProposal,
++} from './supplier-specs.js';
++export { routingOperations, routings } from './routing.js';
++export type { NewRouting, NewRoutingOperation, Routing, RoutingOperation } from './routing.js';
++export { d365SyncDlq, d365SyncJobs } from './d365-sync.js';
++export type { D365SyncDlqEntry, D365SyncJob, NewD365SyncDlqEntry, NewD365SyncJob } from './d365-sync.js';
++export { factorySpecs } from './factory-specs.js';
++export type { FactorySpec, NewFactorySpec } from './factory-specs.js';
++export { technicalSensoryEvaluations } from './technical-sensory-evaluations.js';
++export type {
++  NewTechnicalSensoryEvaluation,
++  TechnicalSensoryEvaluation,
++} from './technical-sensory-evaluations.js';
++
++// 04-planning-basic — scheduling-core schema (T-004 + T-005).
++export { woMaterials, woOperations, workOrders } from './work-orders.js';
++export type {
++  NewWoMaterial,
++  NewWoOperation,
++  NewWorkOrder,
++  WoMaterial,
++  WoOperation,
++  WorkOrder,
++} from './work-orders.js';
++export { scheduleOutputs, woDependencies, woStatusHistory } from './schedule-outputs.js';
++export type {
++  NewScheduleOutput,
++  NewWoDependency,
++  NewWoStatusHistory,
++  ScheduleOutput,
++  WoDependency,
++  WoStatusHistory,
++} from './schedule-outputs.js';
++// 04-planning-basic — MRP-core (mig 178) + rough-cut capacity (mig 179).
++export {
++  mrpRuns,
++  mrpRequirements,
++  mrpPlannedOrders,
++  reorderThresholds,
++} from './planning-mrp.js';
++export type {
++  MrpRun,
++  NewMrpRun,
++  MrpRequirement,
++  NewMrpRequirement,
++  MrpPlannedOrder,
++  NewMrpPlannedOrder,
++  ReorderThreshold,
++  NewReorderThreshold,
++} from './planning-mrp.js';
++export { capacityPlans, capacityPlanLines } from './planning-capacity.js';
++export type {
++  CapacityPlan,
++  NewCapacityPlan,
++  CapacityPlanLine,
++  NewCapacityPlanLine,
++} from './planning-capacity.js';
++
++// 08-production execution core (migs 181/182): canonical wo_outputs (T-003), consumption (T-002), executions+events (T-022).
++export { woOutputs, woMaterialConsumption, woExecutions, woEvents } from './production-execution.js';
++export type { WoOutput, NewWoOutput, WoMaterialConsumption, NewWoMaterialConsumption, WoExecution, NewWoExecution, WoEvent, NewWoEvent } from './production-execution.js';
++// 08-production waste/downtime/changeover/allergen/OEE (migs 183-185). oee_snapshots producer = 08 (D-OEE-1).
++export { downtimeSourceEnum, woWasteLog, downtimeEvents, changeoverEvents, allergenChangeoverValidations, oeeSnapshots } from './production/index.js';
++export type { WoWasteLog, NewWoWasteLog, DowntimeEvent, NewDowntimeEvent, ChangeoverEvent, NewChangeoverEvent, AllergenChangeoverValidation, NewAllergenChangeoverValidation, OeeSnapshot, NewOeeSnapshot } from './production/index.js';
++
++// 05-warehouse — License Plate (LP) + FEFO inventory read model (migration 191). LP is the
++// universal lot/quantity unit (ADR-001) consumed by 06-scanner / 08-production / 09-quality /
++// 10-finance / 11-shipping. Soft FKs to warehouses/items/locations/work_orders avoid cycles.
++export { licensePlates, vInventoryAvailable } from './warehouse-lp.js';
++export type { LicensePlate, NewLicensePlate, InventoryAvailableRow } from './warehouse-lp.js';
+diff --git a/packages/db/schema/warehouse-lp.ts b/packages/db/schema/warehouse-lp.ts
+new file mode 100644
+index 00000000..2b6831f7
+--- /dev/null
++++ b/packages/db/schema/warehouse-lp.ts
+@@ -0,0 +1,171 @@
++import { sql } from 'drizzle-orm';
++import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
++import {
++  check,
++  index,
++  jsonb,
++  numeric,
++  pgTable,
++  pgView,
++  text,
++  timestamp,
++  uniqueIndex,
++  uuid,
++} from 'drizzle-orm/pg-core';
++
++import { organizations, users } from './baseline.js';
++
++// 05-Warehouse — License Plate (LP) + FEFO inventory schema foundation (migration 191).
++// PRD: docs/prd/05-WAREHOUSE-PRD.md §5.2 (LP), §9 (FEFO). Tasks T-002 (license_plates),
++// T-011 (FEFO composite index). LP is the universal lot/quantity unit (ADR-001) consumed by
++// 06-scanner, 08-production, 09-quality, 10-finance, 11-shipping.
++//
++// Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++//   (migration 191). site_id day-1: nullable uuid, no FK, no registry — full per-site scoping
++//   ((org_id, site_id) index + app.current_site_id() policy) lands later via 14-MS T-030.
++// NUMERIC-exact: quantity / reserved_qty / catch_weight_kg are NUMERIC (never float).
++//
++// Soft cross-module references (warehouse_id, product_id, location_id, grn_id, wo_id,
++//   parent_lp_id, reserved_for_wo_id, consumed_by_wo_id, source_so_id) carry NO Drizzle
++//   .references() so module schema files do not form a circular dependency on
++//   02-Settings (warehouses/locations) / 03-Technical (items) / 04-Planning (work_orders) /
++//   08-Production / 11-Shipping. The hard FKs (organizations / users) live here.
++
++// ---------------------------------------------------------------------------
++// license_plates — atomic inventory unit (T-002, WH §5.2).
++// ---------------------------------------------------------------------------
++export const licensePlates = pgTable(
++  'license_plates',
++  {
++    id: uuid('id').defaultRandom().primaryKey(),
++    orgId: uuid('org_id')
++      .notNull()
++      .references(() => organizations.id, { onDelete: 'cascade' }),
++    siteId: uuid('site_id'), // day-1 nullable; per-site scoping via 14-MS T-030
++
++    // Identity / numbering — UNIQUE per (org, warehouse). lp_number_seq is per-warehouse (T-016).
++    warehouseId: uuid('warehouse_id').notNull(), // soft FK to 02-Settings warehouses
++    lpNumber: text('lp_number').notNull(),
++    lpCode: text('lp_code'), // human/barcode-rendered code (GS1-128 fill, T-023)
++
++    // What it holds — dual-UoM (quantity + uom + catch_weight_kg).
++    productId: uuid('product_id').notNull(), // soft FK to 03-Technical items
++    quantity: numeric('quantity', { precision: 18, scale: 6 }).notNull(),
++    reservedQty: numeric('reserved_qty', { precision: 18, scale: 6 }).notNull().default('0'),
++    uom: text('uom').notNull(),
++    catchWeightKg: numeric('catch_weight_kg', { precision: 18, scale: 6 }),
++
++    // State — status owned by warehouse; qa_status owned by 09-Quality.
++    status: text('status').notNull().default('available'),
++    qaStatus: text('qa_status').notNull().default('pending'),
++
++    // Batch / barcode.
++    batchNumber: text('batch_number'),
++    supplierBatchNumber: text('supplier_batch_number'),
++    gtin: text('gtin'),
++
++    // Expiry — FEFO key. shelf_life_mode/date_code snapshot from 03-Technical at receipt.
++    expiryDate: timestamp('expiry_date', { withTimezone: true, mode: 'string' }),
++    bestBeforeDate: timestamp('best_before_date', { withTimezone: true, mode: 'string' }),
++    shelfLifeModeSnapshot: text('shelf_life_mode_snapshot'),
++    dateCodeRendered: text('date_code_rendered'),
++
++    // Location — soft FK to 02-Settings locations (ltree zone roll-up).
++    locationId: uuid('location_id'),
++
++    // Origin — GRN (receipt) or production (output LP).
++    origin: text('origin').notNull().default('grn'),
++
++    // Lineage — genealogy parent + WO/GRN references (soft FKs).
++    parentLpId: uuid('parent_lp_id'),
++    grnId: uuid('grn_id'),
++    woId: uuid('wo_id'),
++    reservedForWoId: uuid('reserved_for_wo_id'),
++    consumedByWoId: uuid('consumed_by_wo_id'),
++    sourceSoId: uuid('source_so_id'), // 11-Shipping sales order on ship
++
++    // Scanner lock protocol (§6.6, T-020) — 5-min auto-release enforced service-side.
++    lockedBy: uuid('locked_by').references(() => users.id, { onDelete: 'set null' }),
++    lockedAt: timestamp('locked_at', { withTimezone: true }),
++
++    // Extensions (ADR-028).
++    extJsonb: jsonb('ext_jsonb').notNull().default('{}'),
++    privateJsonb: jsonb('private_jsonb').notNull().default('{}'),
++    schemaVersion: numeric('schema_version', { precision: 6, scale: 0 }).notNull().default('1'),
++
++    // R13 audit.
++    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
++    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
++    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
++    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
++  },
++  (t) => ({
++    orgWarehouseLpNumberUq: uniqueIndex('license_plates_org_warehouse_lp_number_uq').on(
++      t.orgId,
++      t.warehouseId,
++      t.lpNumber,
++    ),
++    // FEFO composite (T-011 / §9.2): expire-earliest first, NULLS LAST.
++    fefoIdx: index('license_plates_fefo_idx').on(
++      t.orgId,
++      t.warehouseId,
++      t.productId,
++      t.status,
++      t.expiryDate,
++    ),
++    orgIdx: index('license_plates_org_idx').on(t.orgId),
++    orgSiteIdx: index('license_plates_org_site_idx').on(t.orgId, t.siteId),
++    locationIdx: index('license_plates_location_idx').on(t.orgId, t.locationId),
++    parentIdx: index('license_plates_parent_idx').on(t.parentLpId),
++    grnIdx: index('license_plates_grn_idx').on(t.grnId),
++    woIdx: index('license_plates_wo_idx').on(t.woId),
++    qtyNonNeg: check('license_plates_quantity_nonneg_check', sql`${t.quantity} >= 0`),
++    reservedNonNeg: check('license_plates_reserved_qty_nonneg_check', sql`${t.reservedQty} >= 0`),
++    reservedLeQty: check(
++      'license_plates_reserved_qty_le_quantity_check',
++      sql`${t.reservedQty} <= ${t.quantity}`,
++    ),
++    statusCheck: check(
++      'license_plates_status_check',
++      sql`${t.status} in ('received', 'available', 'reserved', 'allocated', 'consumed', 'blocked', 'merged', 'shipped', 'returned', 'quarantine')`,
++    ),
++    qaStatusCheck: check(
++      'license_plates_qa_status_check',
++      sql`${t.qaStatus} in ('pending', 'released', 'on_hold', 'rejected')`,
++    ),
++    originCheck: check(
++      'license_plates_origin_check',
++      sql`${t.origin} in ('grn', 'production', 'transfer', 'adjustment', 'split', 'merge')`,
++    ),
++  }),
++);
++
++export type LicensePlate = InferSelectModel<typeof licensePlates>;
++export type NewLicensePlate = InferInsertModel<typeof licensePlates>;
++
++// ---------------------------------------------------------------------------
++// v_inventory_available — FEFO read model (defined in migration 191, mapped here).
++// Pickable on-hand inventory: status='available' LPs with their FEFO-relevant columns,
++// pre-ordered by (org, warehouse, product, expiry NULLS LAST, lp_number). Drives the §9.2
++// FEFO suggestion picker. RLS is inherited from license_plates (security_invoker view).
++// ---------------------------------------------------------------------------
++export const vInventoryAvailable = pgView('v_inventory_available', {
++  lpId: uuid('lp_id').notNull(),
++  orgId: uuid('org_id').notNull(),
++  siteId: uuid('site_id'),
++  warehouseId: uuid('warehouse_id').notNull(),
++  productId: uuid('product_id').notNull(),
++  lpNumber: text('lp_number').notNull(),
++  status: text('status').notNull(),
++  qaStatus: text('qa_status').notNull(),
++  quantity: numeric('quantity', { precision: 18, scale: 6 }).notNull(),
++  reservedQty: numeric('reserved_qty', { precision: 18, scale: 6 }).notNull(),
++  availableQty: numeric('available_qty', { precision: 18, scale: 6 }).notNull(),
++  uom: text('uom').notNull(),
++  batchNumber: text('batch_number'),
++  expiryDate: timestamp('expiry_date', { withTimezone: true, mode: 'string' }),
++  bestBeforeDate: timestamp('best_before_date', { withTimezone: true, mode: 'string' }),
++  locationId: uuid('location_id'),
++}).existing();
++
++export type InventoryAvailableRow = typeof vInventoryAvailable.$inferSelect;
+diff --git a/packages/outbox/src/events.enum.ts b/packages/outbox/src/events.enum.ts
+index 6e9c92de..f03f21fa 100644
+--- a/packages/outbox/src/events.enum.ts
++++ b/packages/outbox/src/events.enum.ts
+@@ -1,39 +1,166 @@
++/**
++ * Outbox event type — SINGLE SOURCE OF TRUTH.
++ *
++ * This enum is AUTHORITATIVE (human decision, side-car foundation audit
++ * `_meta/runs/sidecar/reports/foundation-audit.md`). Every event type that the
++ * application emits into `public.outbox_events`, AND every event type stored by
++ * the DB CHECK constraint `outbox_events_event_type_check`, MUST appear here —
++ * either as a canonical `EventType` member or as a `LegacyEventAlias` key that
++ * normalizes to a canonical member.
++ *
++ * Invariants (enforced by the drift gate test, `__tests__/check-drift.test.ts`):
++ *   - The set of DB-permitted strings = (canonical values) ∪ (alias keys) =
++ *     `DB_EVENT_TYPES`.
++ *   - The latest migration's CHECK constraint string set === `DB_EVENT_TYPES`.
++ *     So the enum and the DB CHECK can never silently desync again.
++ *   - `normalizeEventType` NEVER throws for any string the code emits or the DB
++ *     stores — it resolves legacy `fa.*` aliases to their `fg.*` canonical and
++ *     passes through every canonical value unchanged.
++ *
++ * Naming policy:
++ *   - `fg.*` is the canonical finished-good lifecycle prefix going forward.
++ *   - The four legacy `fa.*` strings that have a `fg.*` equivalent are kept ONLY
++ *     as `LegacyEventAlias` entries (the DB historically stored them).
++ *   - The remaining `fa.*` strings (built, cascade, core_closed, deleted, …) have
++ *     NO `fg.*` equivalent and are stored verbatim by shipped code + the DB, so
++ *     they remain canonical members until a dedicated rename migration retires
++ *     them. Dropping them here would make `normalizeEventType` throw on rows the
++ *     DB already holds (the poison-pill class this change fixes).
++ */
+ export enum EventType {
+-  ORG_CREATED = 'org.created',
+-  USER_INVITED = 'user.invited',
+-  ROLE_ASSIGNED = 'role.assigned',
+   AUDIT_RECORDED = 'audit.recorded',
++  BOM_INITIAL_VERSION_CREATED = 'bom.initial_version_created',
++  BOM_VERSION_SUBMITTED = 'bom.version_submitted',
++  BRIEF_COMPLETED_FOR_PROJECT = 'brief.completed_for_project',
++  BRIEF_CONVERTED = 'brief.converted',
+   BRIEF_CREATED = 'brief.created',
+-  FG_CREATED = 'fg.created',
++  CATCH_WEIGHT_VARIANCE_EXCEEDED = 'catch_weight.variance_exceeded',
++  COMPLIANCE_DOC_DELETED = 'compliance_doc.deleted',
++  COMPLIANCE_DOC_EXPIRED = 'compliance_doc.expired',
++  COMPLIANCE_DOC_EXPIRING = 'compliance_doc.expiring',
++  COMPLIANCE_DOC_UPLOADED = 'compliance_doc.uploaded',
++  D365_CACHE_REFRESHED = 'd365.cache.refreshed',
++  FA_BUILT = 'fa.built',
++  FA_BUILT_RESET = 'fa.built_reset',
++  FA_CASCADE = 'fa.cascade',
++  FA_CORE_CLOSED = 'fa.core_closed',
++  FA_DELETED = 'fa.deleted',
++  FA_DEPT_CLOSED = 'fa.dept_closed',
++  FA_DEPT_REOPENED = 'fa.dept_reopened',
++  FA_RECIPE_CHANGED = 'fa.recipe_changed',
++  FA_TEMPLATE_APPLIED = 'fa.template_applied',
+   FG_ALLERGENS_CHANGED = 'fg.allergens_changed',
++  FG_BOM_RELEASED = 'fg.bom.released',
++  FG_CREATED = 'fg.created',
++  FG_EDIT = 'fg.edit',
+   FG_INTERMEDIATE_CODE_CHANGED = 'fg.intermediate_code_changed',
++  FG_RELEASE_BLOCKED = 'fg.release_blocked',
++  FG_RELEASED_TO_FACTORY = 'fg.released_to_factory',
++  FORMULATION_LOCKED = 'formulation.locked',
++  FORMULATION_SUBMITTED_FOR_TRIAL = 'formulation.submitted_for_trial',
+   LP_RECEIVED = 'lp.received',
+-  WO_READY = 'wo.ready',
++  MANUFACTURING_OPERATIONS_CREATED = 'manufacturing_operations.created',
++  MANUFACTURING_OPERATIONS_DEACTIVATED = 'manufacturing_operations.deactivated',
++  MANUFACTURING_OPERATIONS_RESET_TO_SEED = 'manufacturing_operations.reset_to_seed',
++  MANUFACTURING_OPERATIONS_UPDATED = 'manufacturing_operations.updated',
++  NPD_ALLERGENS_BULK_REBUILD_COMPLETED = 'npd.allergens.bulk_rebuild_completed',
++  NPD_BUILDER_RELEASED_RECORDS_CREATED = 'npd.builder.released_records_created',
++  NPD_FG_CANDIDATE_MAPPED = 'npd.fg_candidate_mapped',
++  NPD_GATE_ADVANCED = 'npd.gate.advanced',
++  NPD_GATE_APPROVED = 'npd.gate.approved',
++  NPD_GATE_REVERTED = 'npd.gate.reverted',
++  NPD_PROJECT_BRIEF_MAPPED = 'npd.project.brief_mapped',
++  NPD_PROJECT_CREATED = 'npd.project.created',
++  NPD_PROJECT_LEGACY_STAGES_CLOSED = 'npd.project.legacy_stages_closed',
++  NPD_PROJECT_RELEASE_REQUESTED = 'npd.project.release_requested',
++  ONBOARDING_FIRST_WO_RECORDED = 'onboarding.first_wo_recorded',
++  QUALITY_ATP_SWAB_FAILED = 'quality.atp_swab_failed',
++  ONBOARDING_STEP_ADVANCE = 'onboarding.step.advance',
++  ONBOARDING_STEP_BACK = 'onboarding.step.back',
++  ONBOARDING_STEP_JUMP = 'onboarding.step.jump',
++  ONBOARDING_STEP_RESTART = 'onboarding.step.restart',
++  ONBOARDING_STEP_SKIP = 'onboarding.step.skip',
++  ORG_CREATED = 'org.created',
++  ORG_MFA_ENROLLMENT_FORCED = 'org.mfa_enrollment.forced',
++  ORG_SECURITY_POLICY_UPDATED = 'org.security_policy.updated',
++  // 08-production lifecycle + waste/downtime/changeover/OEE events (PRD 08-PRODUCTION §6/§12/§13;
++  // canonical event table in the MON-domain-production skill). 08 is the sole emitter of these.
++  PRODUCTION_ALLERGEN_CHANGEOVER_VALIDATED = 'production.allergen_changeover.validated',
++  PRODUCTION_CHANGEOVER_SIGNED = 'production.changeover.signed',
++  PRODUCTION_CONSUME_BLOCKED = 'production.consume.blocked',
++  PRODUCTION_CONSUME_COMPLETED = 'production.consume.completed',
++  PRODUCTION_DOWNTIME_RECORDED = 'production.downtime.recorded',
++  PRODUCTION_OEE_SNAPSHOT = 'production.oee.snapshot',
++  PRODUCTION_OUTPUT_RECORDED = 'production.output.recorded',
++  PRODUCTION_WASTE_RECORDED = 'production.waste.recorded',
++  PRODUCTION_WO_CLOSED = 'production.wo.closed',
++  PRODUCTION_WO_COMPLETED = 'production.wo.completed',
++  PRODUCTION_WO_STARTED = 'production.wo.started',
+   QUALITY_RECORDED = 'quality.recorded',
+-  SHIPMENT_CREATED = 'shipment.created',
+-  // T-039 — canary upgrade orchestration
+-  TENANT_MIGRATION_RUN = 'tenant.migration.run',
+-  TENANT_MIGRATION_RUN_FAILED = 'tenant.migration.run.failed',
+-  TENANT_COHORT_ADVANCED = 'tenant.cohort.advanced',
+-
+-  // T-003 — settings outbox events
++  REFERENCE_ALLERGENS_ADDED_BY_PROCESS_BULK_CHANGED = 'reference.allergens_added_by_process.bulk_changed',
++  REFERENCE_ALLERGENS_BY_RM_BULK_CHANGED = 'reference.allergens_by_rm.bulk_changed',
++  REFERENCE_CSV_COMMITTED = 'reference.csv.committed',
++  REFERENCE_ROW_SOFT_DELETED = 'reference.row.soft_deleted',
++  REFERENCE_ROW_UPSERTED = 'reference.row.upserted',
++  RISK_CREATED = 'risk.created',
++  ROLE_ASSIGNED = 'role.assigned',
++  RULE_DEPLOYED = 'rule.deployed',
++  SETTINGS_CORE_FLAG_UPDATED = 'settings.core_flag.updated',
++  SETTINGS_D365_SYNC_UPDATED = 'settings.d365_sync.updated',
++  SETTINGS_DEPT_OVERRIDE_UPDATED = 'settings.dept_override.updated',
++  SETTINGS_IP_ALLOWLIST_CHANGED = 'settings.ip_allowlist.changed',
++  SETTINGS_LINE_UPSERTED = 'settings.line.upserted',
++  SETTINGS_LOCATION_DELETED = 'settings.location.deleted',
++  SETTINGS_LOCATION_IMPORTED = 'settings.location.imported',
++  SETTINGS_LOCATION_UPSERTED = 'settings.location.upserted',
++  SETTINGS_MACHINE_UPSERTED = 'settings.machine.upserted',
++  SETTINGS_MODULE_DISABLED = 'settings.module.disabled',
++  SETTINGS_MODULE_ENABLED = 'settings.module.enabled',
++  SETTINGS_MODULE_TOGGLED = 'settings.module.toggled',
++  SETTINGS_NOTIFICATION_CHANNEL_UPDATED = 'settings.notification_channel_updated',
++  SETTINGS_NOTIFICATION_DIGEST_UPDATED = 'settings.notification_digest_updated',
++  SETTINGS_NOTIFICATION_RULE_UPDATED = 'settings.notification_rule_updated',
+   SETTINGS_ORG_CREATED = 'settings.org.created',
+   SETTINGS_ORG_UPDATED = 'settings.org.updated',
+-  SETTINGS_USER_INVITED = 'settings.user.invited',
+-  SETTINGS_USER_ACCEPTED = 'settings.user.accepted',
+-  SETTINGS_USER_DEACTIVATED = 'settings.user.deactivated',
+-  SETTINGS_ROLE_ASSIGNED = 'settings.role.assigned',
+-  SETTINGS_MODULE_TOGGLED = 'settings.module.toggled',
+   SETTINGS_REFERENCE_ROW_UPDATED = 'settings.reference.row_updated',
+-  SETTINGS_SCHEMA_MIGRATION_REQUESTED = 'settings.schema.migration_requested',
++  SETTINGS_ROLE_ASSIGNED = 'settings.role.assigned',
++  SETTINGS_RULE_VARIANT_UPDATED = 'settings.rule_variant.updated',
+   SETTINGS_RULE_DEPLOYED = 'settings.rule.deployed',
+-  SETTINGS_NOTIFICATION_RULE_UPDATED = 'settings.notification_rule_updated',
+-  SETTINGS_NOTIFICATION_CHANNEL_UPDATED = 'settings.notification_channel_updated',
+-  SETTINGS_NOTIFICATION_DIGEST_UPDATED = 'settings.notification_digest_updated',
+-  SETTINGS_SSO_CONFIG_CHANGED = 'settings.sso.config_changed',
++  SETTINGS_SCHEMA_MIGRATION_REQUESTED = 'settings.schema.migration_requested',
+   SETTINGS_SCIM_TOKEN_CREATED = 'settings.scim.token_created',
++  SETTINGS_SSO_CONFIG_CHANGED = 'settings.sso.config_changed',
++  SETTINGS_UPGRADE_COMPLETED = 'settings.upgrade.completed',
++  SETTINGS_UPGRADE_PROMOTED = 'settings.upgrade.promoted',
++  SETTINGS_UPGRADE_ROLLED_BACK = 'settings.upgrade.rolled_back',
++  SETTINGS_UPGRADE_SCHEDULED = 'settings.upgrade.scheduled',
++  SETTINGS_USER_ACCEPTED = 'settings.user.accepted',
++  SETTINGS_USER_DEACTIVATED = 'settings.user.deactivated',
++  SETTINGS_USER_INVITATION_RESENT = 'settings.user.invitation_resent',
++  SETTINGS_USER_INVITED = 'settings.user.invited',
++  SETTINGS_WAREHOUSE_DEACTIVATED = 'settings.warehouse.deactivated',
++  SHIPMENT_CREATED = 'shipment.created',
++  TECHNICAL_FACTORY_SPEC_APPROVED = 'technical.factory_spec.approved',
++  TENANT_COHORT_ADVANCED = 'tenant.cohort.advanced',
++  TENANT_MIGRATION_RUN = 'tenant.migration.run',
++  TENANT_MIGRATION_RUN_FAILED = 'tenant.migration.run.failed',
++  UNIT_OF_MEASURE_CONVERSION_CREATED = 'unit_of_measure.conversion_created',
++  UNIT_OF_MEASURE_CREATED = 'unit_of_measure.created',
++  UNIT_OF_MEASURE_SOFT_DELETED = 'unit_of_measure.soft_deleted',
++  USER_INVITED = 'user.invited',
++  // 05-warehouse LP lifecycle events (PRD 05-WAREHOUSE §7.6, §11.4; producer prefix warehouse.*).
++  // 05-warehouse is the sole emitter. Consumers: 08-production, 06-scanner, 09-quality,
++  // 10-finance (FIFO/WAC valuation), 11-shipping, 12-reporting, 15-OEE.
++  WAREHOUSE_LP_RECEIVED = 'warehouse.lp.received',
++  WAREHOUSE_LP_TRANSITIONED = 'warehouse.lp.transitioned',
++  WAREHOUSE_MATERIAL_CONSUMED = 'warehouse.material.consumed',
++  WAREHOUSE_LP_SHIPPED = 'warehouse.lp.shipped',
++  WO_READY = 'wo.ready',
+ }
+ 
++/**
++ * Locked settings event group (T-003). Subset of `EventType` — referenced by the
++ * settings module sign-off contract.
++ */
+ export const ALL_SETTINGS_EVENTS = [
+   EventType.SETTINGS_ORG_CREATED,
+   EventType.SETTINGS_ORG_UPDATED,
+@@ -52,16 +179,66 @@ export const ALL_SETTINGS_EVENTS = [
+   EventType.SETTINGS_SCIM_TOKEN_CREATED,
+ ] as const;
+ 
++/**
++ * Locked 08-production event group. Subset of `EventType` — the canonical
++ * production lifecycle + waste/downtime/changeover/OEE vocabulary that
++ * 08-production (and ONLY 08-production) emits. Referenced by the production
++ * module sign-off contract; 15-OEE is a read-only consumer of `production.oee.snapshot`.
++ */
++export const ALL_PRODUCTION_EVENTS = [
++  EventType.PRODUCTION_WO_STARTED,
++  EventType.PRODUCTION_WO_COMPLETED,
++  EventType.PRODUCTION_WO_CLOSED,
++  EventType.PRODUCTION_OUTPUT_RECORDED,
++  EventType.PRODUCTION_WASTE_RECORDED,
++  EventType.PRODUCTION_DOWNTIME_RECORDED,
++  EventType.PRODUCTION_CONSUME_COMPLETED,
++  EventType.PRODUCTION_CONSUME_BLOCKED,
++  EventType.PRODUCTION_CHANGEOVER_SIGNED,
++  EventType.PRODUCTION_ALLERGEN_CHANGEOVER_VALIDATED,
++  EventType.PRODUCTION_OEE_SNAPSHOT,
++] as const;
++
++/**
++ * Locked 05-warehouse event group. Subset of `EventType` — the canonical License Plate (LP)
++ * lifecycle vocabulary that 05-warehouse (and ONLY 05-warehouse) emits. warehouse.material.consumed
++ * is emitted ONLY after the 09-quality T-064 consume gate passes. Referenced by the warehouse
++ * module sign-off contract.
++ */
++export const ALL_WAREHOUSE_EVENTS = [
++  EventType.WAREHOUSE_LP_RECEIVED,
++  EventType.WAREHOUSE_LP_TRANSITIONED,
++  EventType.WAREHOUSE_MATERIAL_CONSUMED,
++  EventType.WAREHOUSE_LP_SHIPPED,
++] as const;
++
++/**
++ * Legacy `fa.*` event strings that the DB historically stored and that shipped
++ * code still emits. Each normalizes to its canonical `fg.*` member. These keys
++ * are part of the DB-permitted set (`DB_EVENT_TYPES`) but are NOT canonical enum
++ * members — `normalizeEventType` rewrites them on the way through the worker.
++ */
+ export const LegacyEventAlias = {
+   'fa.created': EventType.FG_CREATED,
+   'fa.allergens_changed': EventType.FG_ALLERGENS_CHANGED,
+   'fa.intermediate_code_changed': EventType.FG_INTERMEDIATE_CODE_CHANGED,
++  'fa.edit': EventType.FG_EDIT,
+ } as const;
+ 
+ export const ALL_EVENTS = Object.values(EventType) as readonly EventType[];
+ 
+ export const ALL_EVENT_ALIASES = LegacyEventAlias;
+ 
++/**
++ * Every string the DB CHECK constraint must permit: the canonical enum values
++ * PLUS the legacy alias keys (which are stored verbatim by older rows + code).
++ * The drift gate asserts the latest migration's CHECK string set === this set.
++ */
++export const DB_EVENT_TYPES: readonly string[] = [
++  ...ALL_EVENTS,
++  ...(Object.keys(LegacyEventAlias) as readonly string[]),
++];
++
+ const canonicalEvents = new Set<string>(ALL_EVENTS);
+ 
+ export function normalizeEventType(input: string): EventType {
+diff --git a/packages/rbac/src/permissions.enum.ts b/packages/rbac/src/permissions.enum.ts
+index 02fc0584..13a62adf 100644
+--- a/packages/rbac/src/permissions.enum.ts
++++ b/packages/rbac/src/permissions.enum.ts
+@@ -97,6 +97,134 @@ export const Permission = {
+   NPD_RELEASED_PRODUCT_EDIT_REQUEST: 'npd.released_product_edit.request',
+   NPD_RELEASED_PRODUCT_EDIT_AUTHORIZE: 'npd.released_product_edit.authorize',
+   TECHNICAL_PRODUCT_SPEC_APPROVE: 'technical.product_spec.approve',
++
++  // NPD
++  /** NPD brief creation permission; PRD 01-NPD §2.2. */
++  BRIEF_CREATE: 'brief.create',
++  /** NPD project deletion permission; PRD 01-NPD §2.2. */
++  NPD_PROJECT_DELETE: 'npd.project.delete',
++  /** NPD core write permission; PRD 01-NPD §2.2. */
++  NPD_CORE_WRITE: 'npd.core.write',
++  /** NPD dashboard access permission; PRD 01-NPD §2.2. */
++  NPD_DASHBOARD_VIEW: 'npd.dashboard.view',
++  /** NPD D365 Builder execution permission; PRD 01-NPD §2.2, §18, §19. */
++  NPD_D365_BUILDER_EXECUTE: 'npd.d365_builder.execute',
++  /** NPD closed flag unset permission; PRD 01-NPD §2.2, §17.9. */
++  NPD_CLOSED_FLAG_UNSET: 'npd.closed_flag.unset',
++  /** NPD schema edit permission; PRD 01-NPD §2.2, §18. */
++  NPD_SCHEMA_EDIT: 'npd.schema.edit',
++  /** NPD rule edit permission; PRD 01-NPD §2.2, §18. */
++  NPD_RULE_EDIT: 'npd.rule.edit',
++  /** NPD risk write permission; PRD 01-NPD §2.2, §18. */
++  NPD_RISK_WRITE: 'npd.risk.write',
++  /** NPD allergen declaration write permission; PRD 01-NPD §2.2, §13 (allergen cascade). */
++  NPD_ALLERGEN_WRITE: 'npd.allergen.write',
++  /** NPD compliance document write permission; PRD 01-NPD §2.2, §18. */
++  NPD_COMPLIANCE_DOC_WRITE: 'npd.compliance_doc.write',
++  /** NPD formulation draft creation permission; PRD 01-NPD §2.2, §18. */
++  NPD_FORMULATION_CREATE_DRAFT: 'npd.formulation.create_draft',
++  /** NPD formulation lock permission; PRD 01-NPD §2.2, §18. */
++  NPD_FORMULATION_LOCK: 'npd.formulation.lock',
++  /** NPD recipe trial submission permission; PRD 01-NPD §2.2, §18. */
++  NPD_RECIPE_SUBMIT_FOR_TRIAL: 'npd.recipe.submit_for_trial',
++  /** NPD pilot BOM promotion permission; PRD 01-NPD §2.2, §18. */
++  NPD_PILOT_PROMOTE_TO_BOM: 'npd.pilot.promote_to_bom',
++  /** NPD gate advancement permission; PRD 01-NPD §2.2, §17.9. */
++  NPD_GATE_ADVANCE: 'npd.gate.advance',
++  /** NPD gate approval permission; PRD 01-NPD §2.2, §17.9. */
++  NPD_GATE_APPROVE: 'npd.gate.approve',
++  /** NPD BOM export permission; PRD 01-NPD §2.2, §18, §19. */
++  NPD_BOM_EXPORT: 'npd.bom.export',
++
++  // GDPR
++  /** GDPR Art.17 right-to-erasure execution (admin); PRD 01-NPD §15 Compliance + Foundation §15 GDPR. Gates the redact-user Server Action (T-089). */
++  GDPR_ERASURE_EXECUTE: 'gdpr.erasure.execute',
++
++  // Technical (03-technical / factory specification)
++  /** Technical item-master create permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_ITEMS_CREATE: 'technical.items.create',
++  /** Technical item-master edit permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_ITEMS_EDIT: 'technical.items.edit',
++  /** Technical item-master deactivate permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_ITEMS_DEACTIVATE: 'technical.items.deactivate',
++  /** Technical shared-BOM create permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_BOM_CREATE: 'technical.bom.create',
++  /** Technical shared-BOM approval permission (draft→technical_approved); PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_BOM_APPROVE: 'technical.bom.approve',
++  /** Technical shared-BOM version publish permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_BOM_VERSION_PUBLISH: 'technical.bom.version_publish',
++  /** Technical shared-BOM batch generation permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_BOM_GENERATE_BATCH: 'technical.bom.generate_batch',
++  /** Technical allergen profile edit permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_ALLERGENS_EDIT: 'technical.allergens.edit',
++  /** Technical cost-per-kg edit permission (dual-owned with finance); PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_COST_EDIT: 'technical.cost.edit',
++  /** Technical D365 sync trigger permission; PRD 03-TECHNICAL §3 (RBAC). */
++  TECHNICAL_D365_SYNC_TRIGGER: 'technical.d365.sync_trigger',
++
++  // Production (08-production)
++  /** Production WO start permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_WO_START: 'production.wo.start',
++  /** Production WO pause permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_WO_PAUSE: 'production.wo.pause',
++  /** Production WO resume permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_WO_RESUME: 'production.wo.resume',
++  /** Production WO complete permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_WO_COMPLETE: 'production.wo.complete',
++  /** Production material consumption write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_CONSUMPTION_WRITE: 'production.consumption.write',
++  /** Production over-consumption approval permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_CONSUMPTION_OVERRIDE_APPROVE: 'production.consumption.override_approve',
++  /** Production output write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_OUTPUT_WRITE: 'production.output.write',
++  /** Production catch-weight override permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_OUTPUT_CATCH_WEIGHT_OVERRIDE: 'production.output.catch_weight_override',
++  /** Production waste write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_WASTE_WRITE: 'production.waste.write',
++  /** Production over-threshold waste approval permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_WASTE_OVERTHRESHOLD_APPROVE: 'production.waste.overthreshold_approve',
++  /** Production downtime write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_DOWNTIME_WRITE: 'production.downtime.write',
++  /** Production downtime taxonomy edit permission (admin); PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_DOWNTIME_TAXONOMY_EDIT: 'production.downtime.taxonomy_edit',
++  /** Production changeover write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_CHANGEOVER_WRITE: 'production.changeover.write',
++  /** Production allergen-gate first-signer permission (SoD); PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_ALLERGEN_GATE_SIGN_FIRST: 'production.allergen_gate.sign_first',
++  /** Production allergen-gate second-signer permission (SoD); PRD 08-PRODUCTION §3.2 (RBAC). */
++  PRODUCTION_ALLERGEN_GATE_SIGN_SECOND: 'production.allergen_gate.sign_second',
++  /** Production D365 DLQ replay permission; PRD 08-PRODUCTION §12 (RBAC). */
++  PRODUCTION_D365_DLQ_REPLAY: 'production.d365_dlq.replay',
++  /** Production OEE read permission; PRD 08-PRODUCTION §13 (RBAC). */
++  PRODUCTION_OEE_READ: 'production.oee.read',
++
++  // Warehouse (05-warehouse) — License Plate (LP) / GRN / FEFO / stock-move family.
++  /** Warehouse LP create (per-warehouse numbering) permission; PRD 05-WAREHOUSE §5.2, §7. */
++  WAREHOUSE_LP_CREATE: 'warehouse.lp.create',
++  /** Warehouse LP split permission; PRD 05-WAREHOUSE §6.1, §8.2. */
++  WAREHOUSE_LP_SPLIT: 'warehouse.lp.split',
++  /** Warehouse LP merge (catch-weight sum) permission; PRD 05-WAREHOUSE §6.1. */
++  WAREHOUSE_LP_MERGE: 'warehouse.lp.merge',
++  /** Warehouse LP reserve (RM root only) permission; PRD 05-WAREHOUSE §6.1, §10. */
++  WAREHOUSE_LP_RESERVE: 'warehouse.lp.reserve',
++  /** Warehouse LP consume-to-WO permission (gated by 09-quality T-064); PRD 05-WAREHOUSE §6.1. */
++  WAREHOUSE_LP_CONSUME: 'warehouse.lp.consume',
++  /** Warehouse LP block (qa hold) permission; PRD 05-WAREHOUSE §6.1. */
++  WAREHOUSE_LP_BLOCK: 'warehouse.lp.block',
++  /** Warehouse LP ship transition permission; PRD 05-WAREHOUSE §6.1, §13. */
++  WAREHOUSE_LP_SHIP: 'warehouse.lp.ship',
++  /** Warehouse LP force-unlock (WH-101, elevated) permission; PRD 05-WAREHOUSE §6.6. */
++  WAREHOUSE_LP_FORCE_UNLOCK: 'warehouse.lp.force_unlock',
++  /** Warehouse GRN receive (from PO/TO) permission; PRD 05-WAREHOUSE §7. */
++  WAREHOUSE_GRN_RECEIVE: 'warehouse.grn.receive',
++  /** Warehouse stock move permission; PRD 05-WAREHOUSE §8. */
++  WAREHOUSE_STOCK_MOVE: 'warehouse.stock.move',
++  /** Warehouse stock adjustment (>10% manager-approval gate) permission; PRD 05-WAREHOUSE §8.7. */
++  WAREHOUSE_STOCK_ADJUST: 'warehouse.stock.adjust',
++  /** Warehouse inventory browser read permission (server-side value gate); PRD 05-WAREHOUSE §14. */
++  WAREHOUSE_INVENTORY_READ: 'warehouse.inventory.read',
++  /** Warehouse FEFO deviation override (reason_code required) permission; PRD 05-WAREHOUSE §9.3. */
++  WAREHOUSE_FEFO_OVERRIDE: 'warehouse.fefo.override',
+ } as const;
+ 
+ export type Permission = (typeof Permission)[keyof typeof Permission];
+@@ -146,6 +274,97 @@ export const ALL_SETTINGS_EXT_PERMISSIONS = [
+   Permission.TECHNICAL_PRODUCT_SPEC_APPROVE,
+ ] as readonly Permission[];
+ 
++export const ALL_NPD_PERMISSIONS = [
++  Permission.BRIEF_CREATE,
++  Permission.NPD_PROJECT_DELETE,
++  Permission.NPD_CORE_WRITE,
++  Permission.NPD_DASHBOARD_VIEW,
++  Permission.NPD_D365_BUILDER_EXECUTE,
++  Permission.NPD_CLOSED_FLAG_UNSET,
++  Permission.NPD_SCHEMA_EDIT,
++  Permission.NPD_RULE_EDIT,
++  Permission.NPD_RISK_WRITE,
++  Permission.NPD_ALLERGEN_WRITE,
++  Permission.NPD_COMPLIANCE_DOC_WRITE,
++  Permission.NPD_FORMULATION_CREATE_DRAFT,
++  Permission.NPD_FORMULATION_LOCK,
++  Permission.NPD_RECIPE_SUBMIT_FOR_TRIAL,
++  Permission.NPD_PILOT_PROMOTE_TO_BOM,
++  Permission.NPD_GATE_ADVANCE,
++  Permission.NPD_GATE_APPROVE,
++  Permission.NPD_BOM_EXPORT,
++  Permission.GDPR_ERASURE_EXECUTE,
++] as readonly Permission[];
++
++/**
++ * Technical (03-technical) module permission group; PRD 03-TECHNICAL §3 (RBAC).
++ * The `technical.product_spec.approve` workflow-authorization string remains in
++ * ALL_SETTINGS_EXT_PERMISSIONS (Settings/Auth-owned PO decision); this group covers
++ * the 10 page/action permissions added by T-091. Recognised by the ESLint enum-lock
++ * guard via the ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130).
++ */
++export const ALL_TECHNICAL_PERMISSIONS = [
++  Permission.TECHNICAL_ITEMS_CREATE,
++  Permission.TECHNICAL_ITEMS_EDIT,
++  Permission.TECHNICAL_ITEMS_DEACTIVATE,
++  Permission.TECHNICAL_BOM_CREATE,
++  Permission.TECHNICAL_BOM_APPROVE,
++  Permission.TECHNICAL_BOM_VERSION_PUBLISH,
++  Permission.TECHNICAL_BOM_GENERATE_BATCH,
++  Permission.TECHNICAL_ALLERGENS_EDIT,
++  Permission.TECHNICAL_COST_EDIT,
++  Permission.TECHNICAL_D365_SYNC_TRIGGER,
++] as readonly Permission[];
++
++/**
++ * Production (08-production) module permission group; PRD 08-PRODUCTION §3.2 (RBAC) +
++ * §12 (D365 DLQ) + §13 (OEE). 17 page/action permissions. Allergen gate is split into
++ * first/second signer to enforce SoD (dual sign-off cannot share a permission grant).
++ * Recognised by the ESLint enum-lock guard via the ALL_<MODULE>_PERMISSIONS export
++ * convention (02-settings T-130). Seeded to roles by migration 185.
++ */
++export const ALL_PRODUCTION_PERMISSIONS = [
++  Permission.PRODUCTION_WO_START,
++  Permission.PRODUCTION_WO_PAUSE,
++  Permission.PRODUCTION_WO_RESUME,
++  Permission.PRODUCTION_WO_COMPLETE,
++  Permission.PRODUCTION_CONSUMPTION_WRITE,
++  Permission.PRODUCTION_CONSUMPTION_OVERRIDE_APPROVE,
++  Permission.PRODUCTION_OUTPUT_WRITE,
++  Permission.PRODUCTION_OUTPUT_CATCH_WEIGHT_OVERRIDE,
++  Permission.PRODUCTION_WASTE_WRITE,
++  Permission.PRODUCTION_WASTE_OVERTHRESHOLD_APPROVE,
++  Permission.PRODUCTION_DOWNTIME_WRITE,
++  Permission.PRODUCTION_DOWNTIME_TAXONOMY_EDIT,
++  Permission.PRODUCTION_CHANGEOVER_WRITE,
++  Permission.PRODUCTION_ALLERGEN_GATE_SIGN_FIRST,
++  Permission.PRODUCTION_ALLERGEN_GATE_SIGN_SECOND,
++  Permission.PRODUCTION_D365_DLQ_REPLAY,
++  Permission.PRODUCTION_OEE_READ,
++] as readonly Permission[];
++
++/**
++ * Warehouse (05-warehouse) module permission group; PRD 05-WAREHOUSE §5.2/§6/§7/§8/§9/§13/§14.
++ * 13 LP/GRN/FEFO/stock-move page/action permissions (T-058). Recognised by the ESLint enum-lock
++ * guard via the ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130). Seeded to the
++ * org-admin role family + warehouse operator/scanner roles by migration 192.
++ */
++export const ALL_WAREHOUSE_PERMISSIONS = [
++  Permission.WAREHOUSE_LP_CREATE,
++  Permission.WAREHOUSE_LP_SPLIT,
++  Permission.WAREHOUSE_LP_MERGE,
++  Permission.WAREHOUSE_LP_RESERVE,
++  Permission.WAREHOUSE_LP_CONSUME,
++  Permission.WAREHOUSE_LP_BLOCK,
++  Permission.WAREHOUSE_LP_SHIP,
++  Permission.WAREHOUSE_LP_FORCE_UNLOCK,
++  Permission.WAREHOUSE_GRN_RECEIVE,
++  Permission.WAREHOUSE_STOCK_MOVE,
++  Permission.WAREHOUSE_STOCK_ADJUST,
++  Permission.WAREHOUSE_INVENTORY_READ,
++  Permission.WAREHOUSE_FEFO_OVERRIDE,
++] as readonly Permission[];
++
+ export const LegacyPermissionAlias = {
+   'fa.create': Permission.FG_CREATE,
+   'fa.edit': Permission.FG_EDIT,

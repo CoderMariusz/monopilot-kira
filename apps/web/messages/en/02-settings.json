@@ -1,4 +1,16 @@
 {
+  "shifts": {
+    "column_actions": "Actions",
+    "edit_shift": "Edit",
+    "delete_shift": "Delete",
+    "edit_dialog_title": "Edit shift",
+    "delete_confirm_title": "Delete shift",
+    "delete_confirm_body": "This shift pattern will be removed from scheduling. Continue?",
+    "delete_confirm": "Delete",
+    "deleting": "Deleting...",
+    "update_failed": "Shift could not be updated.",
+    "delete_failed": "Shift could not be deleted."
+  },
   "schema_column_wizard": {
     "title": "Column Edit Wizard",
     "subtitle": "Add or edit a schema column for L2/L3 scope.",
@@ -325,7 +337,57 @@
     "state_loading": "Loading roles and permissions…",
     "state_empty": "No system roles are configured yet.",
     "state_error": "Roles and permissions could not be loaded.",
-    "state_permission_denied": "Read-only: settings.roles.assign is required to manage role assignments."
+    "state_permission_denied": "Read-only: settings.roles.assign is required to manage role assignments.",
+    "editor": {
+      "create_button": "+ Create role",
+      "create_title": "Create custom role",
+      "create_submit": "Create role",
+      "creating": "Creating…",
+      "permissions_button": "Permissions",
+      "permissions_title": "Permissions — {role}",
+      "edit_permissions_help": "Edit role permissions",
+      "field_code": "Role code",
+      "field_name": "Role name",
+      "field_description": "Description (optional)",
+      "code_hint": "Lowercase slug, e.g. qa_reviewer. Owner/admin codes are reserved.",
+      "system_locked": "This is a system role. Its permissions are managed by the platform and cannot be edited here.",
+      "select_all": "Select all",
+      "clear_all": "Clear all",
+      "selected_count": "{count} permissions selected",
+      "save": "Save permissions",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "close": "Close",
+      "loading": "Loading permissions…",
+      "load_error": "Permissions could not be loaded.",
+      "groups": {
+        "settings_core": "Settings — core",
+        "settings_ext": "Settings — extended",
+        "npd": "NPD (new product development)",
+        "technical": "Technical / BOM",
+        "production": "Production",
+        "warehouse": "Warehouse",
+        "quality": "Quality",
+        "finance": "Finance",
+        "maintenance": "Maintenance",
+        "oee": "OEE",
+        "shipping": "Shipping",
+        "reporting": "Reporting",
+        "multi_site": "Multi-site",
+        "scheduler": "Planning / scheduler"
+      },
+      "errors": {
+        "invalid_input": "Some fields are invalid. Check the role code and name.",
+        "invalid_code": "Use a lowercase slug: letters, digits and underscores (e.g. qa_reviewer).",
+        "name_required": "Role name is required.",
+        "forbidden": "You do not have permission to manage roles.",
+        "system_role_locked": "System roles cannot be created or edited.",
+        "code_taken": "A role with this code already exists.",
+        "invalid_permission": "One or more selected permissions are not in the permission catalog.",
+        "role_not_found": "This role no longer exists.",
+        "persistence_failed": "The change could not be saved. Try again."
+      }
+    }
   },
   "infra": {
     "screen_title": "Infrastructure",

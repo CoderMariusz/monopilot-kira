@@ -1,0 +1,1500 @@
+diff --git a/packages/db/migrations/197-quality-holds-ncr-specs.sql b/packages/db/migrations/197-quality-holds-ncr-specs.sql
+new file mode 100644
+index 00000000..a0b9b74e
+--- /dev/null
++++ b/packages/db/migrations/197-quality-holds-ncr-specs.sql
+@@ -0,0 +1,464 @@
++-- Migration 197: 09-Quality — schema foundation: quality_holds (+ v_active_holds consume gate),
++--   quality_hold_items, ncr_reports, quality_specifications + quality_spec_parameters.
++-- PRD: docs/prd/09-QUALITY-PRD.md §6.3 (Key table summaries: quality_holds, quality_hold_items,
++--   quality_specifications, quality_spec_parameters, ncr_reports), §9.1 (RLS), §9.2 (v_active_holds),
++--   §11.4 (V-QA-NCR), §13.x (retention).
++-- Tasks: T-004 (quality_holds + quality_hold_items), T-037 (ncr_reports), T-017 (quality_specifications
++--   + quality_spec_parameters), T-064 (v_active_holds VIEW — the canonical consume-gate read model
++--   queried by 08-production / 05-warehouse / 11-shipping via holdsGuard).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (foundation function, migration 002-rls-baseline.sql — never redefined, never read as a raw
++--   current_setting GUC).
++-- site_id day-1: site_id uuid is NULLABLE, no FK, no registry — full per-site scoping
++--   ((org_id, site_id) policy + app.current_site_id()) lands later via 14-multi-site T-030.
++-- NUMERIC-exact: affected_qty_kg / qty_held_kg / yield/claim use NUMERIC (never float).
++-- Audit (R13): embedded created_by/created_at/updated columns + a local set_updated_at trigger —
++--   this repo has no generic app.audit_event() (matches production migs 181-185 + warehouse 191).
++-- Cross-module FKs are SOFT uuids (no .references()) to avoid coupling migration ordering across
++--   modules: reason_code_id (02-Settings reference rows), reference_id (lp/batch/wo/po/grn),
++--   product_id (03-Technical items), fail_reason_code_id, license_plate_id (05-Warehouse).
++-- Canonical-owner separation: this migration creates ONLY 09-quality tables. It does NOT create
++--   wo_outputs / oee_snapshots (08-production), schedule_outputs (04-planning), license_plates
++--   (05-warehouse).
++
++-- ===========================================================================
++-- Sequences (HLD-/NCR- human-readable numbering, START 1000 per PRD §6.3).
++-- ===========================================================================
++create sequence if not exists public.quality_hold_seq start 1000;
++create sequence if not exists public.ncr_seq start 1000;
++
++-- ===========================================================================
++-- quality_holds — central hold registry (T-004, §6.3). released_at IS NOT NULL is the terminal
++--   flag consumed by v_active_holds (T-064).
++-- ===========================================================================
++create table if not exists public.quality_holds (
++  id                          uuid primary key default gen_random_uuid(),
++  org_id                      uuid not null references public.organizations(id) on delete cascade,
++  site_id                     uuid,                          -- day-1 nullable; per-site via 14-MS T-030
++
++  hold_seq                    bigint not null default nextval('public.quality_hold_seq'),
++  hold_number                 text generated always as ('HLD-' || lpad(hold_seq::text, 8, '0')) stored,
++
++  reference_type              text not null,
++  reference_id                uuid not null,
++  reason_code_id              uuid,                          -- soft FK to 02-Settings quality_hold_reasons
++  reason_free_text            text,
++  priority                    text not null,
++  disposition                 text,
++  disposition_notes           text,
++  default_hold_duration_days  integer,                       -- snapshot from reason at create
++  -- estimated_release_at = created_at::date + default_hold_duration_days. A GENERATED STORED column
++  -- here is rejected ("generation expression is not immutable" — timestamptz::date + text-interval
++  -- cast are not immutable), so it is a regular column maintained by the trigger below.
++  estimated_release_at        date,
++  hold_status                 text not null default 'open',
++
++  created_by                  uuid not null references public.users(id) on delete restrict,
++  created_at                  timestamptz not null default pg_catalog.now(),
++  released_by                 uuid references public.users(id) on delete set null,
++  released_at                 timestamptz,
++  release_signature_hash      varchar(64),
++  release_notes               text,
++
++  ext_jsonb                   jsonb not null default '{}'::jsonb,  -- ADR-028 L3 schema-driven
++  updated_at                  timestamptz not null default pg_catalog.now(),
++
++  -- retention_until (BRCGS 7y from release/create). A GENERATED column referencing the mutable
++  -- released_at column is not STORED-safe across UPDATEs, so it is a regular column maintained by
++  -- the quality_holds_set_updated_at_retention trigger (and defaulted on insert) to stay exact.
++  retention_until             date default ((pg_catalog.now()::date) + interval '7 years')::date,
++
++  constraint quality_holds_hold_number_uq unique (hold_number),
++  constraint quality_holds_reference_type_check check (
++    reference_type in ('lp', 'batch', 'wo', 'po', 'grn')
++  ),
++  constraint quality_holds_priority_check check (
++    priority in ('low', 'medium', 'high', 'critical')
++  ),
++  constraint quality_holds_hold_status_check check (
++    hold_status in ('open', 'investigating', 'released', 'quarantined', 'escalated')
++  ),
++  constraint quality_holds_disposition_check check (
++    disposition is null or disposition in
++      ('pending', 'rework', 'scrap', 'release_as_is', 'return_supplier', 'other')
++  )
++);
++
++-- idx_holds_active — the partial index that backs the v_active_holds consume-gate read model (T-064).
++create index if not exists idx_holds_active
++  on public.quality_holds (org_id, hold_status)
++  where hold_status in ('open', 'investigating', 'escalated', 'quarantined');
++create index if not exists idx_holds_ref
++  on public.quality_holds (org_id, reference_type, reference_id);
++create index if not exists quality_holds_org_idx
++  on public.quality_holds (org_id);
++create index if not exists quality_holds_org_site_idx
++  on public.quality_holds (org_id, site_id);
++
++alter table public.quality_holds enable row level security;
++alter table public.quality_holds force row level security;
++drop policy if exists quality_holds_org_context on public.quality_holds;
++create policy quality_holds_org_context
++  on public.quality_holds
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++revoke all on public.quality_holds from public;
++revoke all on public.quality_holds from app_user;
++grant select, insert, update, delete on public.quality_holds to app_user;
++
++-- ===========================================================================
++-- quality_hold_items — multi-LP hold (one hold can cover multiple LPs in same batch) (T-004, §6.3).
++-- ===========================================================================
++create table if not exists public.quality_hold_items (
++  id                uuid primary key default gen_random_uuid(),
++  org_id            uuid not null references public.organizations(id) on delete cascade,
++  hold_id           uuid not null references public.quality_holds(id) on delete cascade,
++  license_plate_id  uuid,                                    -- soft FK to 05-Warehouse license_plates
++  qty_held_kg       numeric(18, 3),
++  qty_released_kg   numeric(18, 3) default 0,
++  item_status       text not null default 'held',
++  notes             text,
++  created_at        timestamptz not null default pg_catalog.now(),
++  updated_at        timestamptz not null default pg_catalog.now(),
++
++  constraint quality_hold_items_hold_lp_uq unique (hold_id, license_plate_id),
++  constraint quality_hold_items_item_status_check check (
++    item_status in ('held', 'released', 'partial_released', 'scrapped')
++  )
++);
++
++create index if not exists quality_hold_items_org_idx
++  on public.quality_hold_items (org_id);
++create index if not exists quality_hold_items_hold_idx
++  on public.quality_hold_items (hold_id);
++create index if not exists quality_hold_items_lp_idx
++  on public.quality_hold_items (license_plate_id) where license_plate_id is not null;
++
++alter table public.quality_hold_items enable row level security;
++alter table public.quality_hold_items force row level security;
++drop policy if exists quality_hold_items_org_context on public.quality_hold_items;
++create policy quality_hold_items_org_context
++  on public.quality_hold_items
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++revoke all on public.quality_hold_items from public;
++revoke all on public.quality_hold_items from app_user;
++grant select, insert, update, delete on public.quality_hold_items to app_user;
++
++-- ===========================================================================
++-- ncr_reports — Non-Conformance Reports (T-037, §6.3). severity-driven response_due_at (GENERATED),
++--   10y retention (GENERATED on immutable created_at — STORED-safe).
++-- ===========================================================================
++create table if not exists public.ncr_reports (
++  id                      uuid primary key default gen_random_uuid(),
++  org_id                  uuid not null references public.organizations(id) on delete cascade,
++  site_id                 uuid,                              -- day-1 nullable
++
++  ncr_seq                 bigint not null default nextval('public.ncr_seq'),
++  ncr_number              text generated always as ('NCR-' || lpad(ncr_seq::text, 8, '0')) stored,
++
++  ncr_type                text not null default 'quality',
++  severity                text not null,
++  status                  text not null default 'draft',
++  title                   text not null,
++  description             text not null,
++  reference_type          text,
++  reference_id            uuid,
++  product_id              uuid,                              -- soft FK to 03-Technical items
++  detected_by             uuid references public.users(id) on delete set null,
++  detected_at             timestamptz not null default pg_catalog.now(),
++  detected_location       text,
++  fail_reason_code_id     uuid,                              -- soft FK to 02-Settings qa_failure_reasons
++
++  affected_qty_kg         numeric(18, 3),
++
++  -- Phase-2 workflow columns (present in P1 schema, written by later Server Actions).
++  assigned_to             uuid references public.users(id) on delete set null,
++  investigator_id         uuid references public.users(id) on delete set null,
++  root_cause              text,
++  root_cause_category     text,
++  immediate_action        text,
++  capa_record_id          uuid,                              -- soft FK to capa_records (P2)
++
++  -- Yield-issue specific (§6.2).
++  target_yield_pct        numeric(5, 2),
++  actual_yield_pct        numeric(5, 2),
++  claim_pct               numeric(5, 2),
++  claim_value_eur         numeric(18, 2),
++
++  -- Closure (dual-sign for critical enforced by T-038 Server Action + a later immutability trigger).
++  closed_by               uuid references public.users(id) on delete set null,
++  closed_at               timestamptz,
++  closure_signature_hash  varchar(64),
++
++  -- response_due_at = detected_at + severity SLA (critical 24h / major 48h / minor 7d). A GENERATED
++  -- STORED column is rejected (timestamptz + interval is STABLE, not IMMUTABLE), so it is
++  -- trigger-maintained (and defaulted to detected_at on insert before the trigger overwrites it).
++  response_due_at         timestamptz,
++
++  linked_hold_id          uuid references public.quality_holds(id) on delete set null,
++  ext_jsonb               jsonb not null default '{}'::jsonb,
++  created_at              timestamptz not null default pg_catalog.now(),
++  updated_at             timestamptz not null default pg_catalog.now(),
++  -- retention_until = created_at + 10y. A GENERATED STORED column on created_at::date is rejected
++  -- (timestamptz::date is not immutable), so it is trigger-maintained (defaulted on insert too).
++  retention_until         date default ((pg_catalog.now()::date) + interval '10 years')::date,
++
++  constraint ncr_reports_ncr_number_uq unique (ncr_number),
++  constraint ncr_reports_ncr_type_check check (
++    ncr_type in ('quality', 'yield_issue', 'allergen_deviation', 'supplier', 'process', 'complaint_related')
++  ),
++  constraint ncr_reports_severity_check check (
++    severity in ('critical', 'major', 'minor')
++  ),
++  constraint ncr_reports_status_check check (
++    status in ('draft', 'open', 'investigating', 'awaiting_capa', 'closed', 'reopened', 'cancelled')
++  ),
++  constraint ncr_reports_reference_type_check check (
++    reference_type is null or reference_type in
++      ('lp', 'batch', 'wo', 'po', 'grn', 'inspection', 'ccp_deviation', 'complaint', 'supplier')
++  )
++);
++
++create index if not exists idx_ncr_open
++  on public.ncr_reports (org_id, status, severity, response_due_at)
++  where status not in ('closed', 'cancelled');
++create index if not exists idx_ncr_ref
++  on public.ncr_reports (org_id, reference_type, reference_id);
++create index if not exists ncr_reports_org_idx
++  on public.ncr_reports (org_id);
++create index if not exists ncr_reports_org_site_idx
++  on public.ncr_reports (org_id, site_id);
++create index if not exists ncr_reports_linked_hold_idx
++  on public.ncr_reports (linked_hold_id) where linked_hold_id is not null;
++
++alter table public.ncr_reports enable row level security;
++alter table public.ncr_reports force row level security;
++drop policy if exists ncr_reports_org_context on public.ncr_reports;
++create policy ncr_reports_org_context
++  on public.ncr_reports
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++revoke all on public.ncr_reports from public;
++revoke all on public.ncr_reports from app_user;
++grant select, insert, update, delete on public.ncr_reports to app_user;
++
++-- ===========================================================================
++-- quality_specifications + quality_spec_parameters — versioned product specs (T-017, §6.3).
++-- ===========================================================================
++create table if not exists public.quality_specifications (
++  id                       uuid primary key default gen_random_uuid(),
++  org_id                   uuid not null references public.organizations(id) on delete cascade,
++  product_id               uuid not null,                   -- soft FK to 03-Technical items
++  spec_code                text not null,
++  version                  integer not null default 1,
++  status                   text not null default 'draft',
++  effective_from           date,
++  effective_until          date,
++  applies_to               text not null,
++  reference_documents      jsonb not null default '[]'::jsonb,
++  allergen_profile         jsonb,                           -- snapshot from 03-TECH at approval (T-020)
++  approved_by              uuid references public.users(id) on delete set null,
++  approved_at              timestamptz,
++  approval_signature_hash  varchar(64),
++  superseded_by            uuid references public.quality_specifications(id) on delete set null,
++  created_by               uuid not null references public.users(id) on delete restrict,
++  created_at               timestamptz not null default pg_catalog.now(),
++  updated_at               timestamptz not null default pg_catalog.now(),
++  ext_jsonb                jsonb not null default '{}'::jsonb,
++
++  constraint quality_specifications_product_code_version_uq
++    unique (org_id, product_id, spec_code, version),
++  constraint quality_specifications_status_check check (
++    status in ('draft', 'under_review', 'active', 'expired', 'superseded')
++  ),
++  constraint quality_specifications_applies_to_check check (
++    applies_to in ('incoming', 'in_process', 'final', 'all')
++  )
++);
++
++create index if not exists quality_specifications_org_idx
++  on public.quality_specifications (org_id);
++create index if not exists quality_specifications_org_product_idx
++  on public.quality_specifications (org_id, product_id);
++create index if not exists quality_specifications_superseded_idx
++  on public.quality_specifications (superseded_by) where superseded_by is not null;
++
++alter table public.quality_specifications enable row level security;
++alter table public.quality_specifications force row level security;
++drop policy if exists quality_specifications_org_context on public.quality_specifications;
++create policy quality_specifications_org_context
++  on public.quality_specifications
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++revoke all on public.quality_specifications from public;
++revoke all on public.quality_specifications from app_user;
++grant select, insert, update, delete on public.quality_specifications to app_user;
++
++create table if not exists public.quality_spec_parameters (
++  id                 uuid primary key default gen_random_uuid(),
++  org_id             uuid not null references public.organizations(id) on delete cascade,
++  specification_id   uuid not null references public.quality_specifications(id) on delete cascade,
++  parameter_name     text not null,
++  parameter_type     text not null,
++  target_value       numeric,
++  min_value          numeric,
++  max_value          numeric,
++  unit               text,
++  test_method        text,
++  equipment_required text,
++  is_critical        boolean not null default false,        -- critical = fail blocks batch release
++  sort_order         integer not null default 0,
++  ext_jsonb          jsonb not null default '{}'::jsonb,
++  created_at         timestamptz not null default pg_catalog.now(),
++  updated_at         timestamptz not null default pg_catalog.now(),
++
++  constraint quality_spec_parameters_parameter_type_check check (
++    parameter_type in ('visual', 'measurement', 'attribute', 'microbiological', 'chemical', 'sensory', 'equipment')
++  ),
++  constraint quality_spec_parameters_min_le_max_check check (
++    min_value is null or max_value is null or min_value <= max_value
++  )
++);
++
++create index if not exists quality_spec_parameters_org_idx
++  on public.quality_spec_parameters (org_id);
++create index if not exists quality_spec_parameters_spec_idx
++  on public.quality_spec_parameters (specification_id);
++
++alter table public.quality_spec_parameters enable row level security;
++alter table public.quality_spec_parameters force row level security;
++drop policy if exists quality_spec_parameters_org_context on public.quality_spec_parameters;
++create policy quality_spec_parameters_org_context
++  on public.quality_spec_parameters
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++revoke all on public.quality_spec_parameters from public;
++revoke all on public.quality_spec_parameters from app_user;
++grant select, insert, update, delete on public.quality_spec_parameters to app_user;
++
++-- ===========================================================================
++-- set_updated_at + retention_until maintenance trigger (R13 embedded-audit pattern).
++-- Reused across the four 09-quality tables. For quality_holds it ALSO keeps retention_until exact
++-- (COALESCE(released_at, created_at + 7y)::date + 7y) per §6.3, since a GENERATED column on the
++-- mutable released_at column is not STORED-safe.
++-- ===========================================================================
++create or replace function public.quality_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++create or replace function public.quality_holds_set_updated_at_retention()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  -- retention_until (BRCGS 7y from release/create) — §6.3 COALESCE(released_at, created_at+7y)+7y.
++  new.retention_until :=
++    (coalesce(new.released_at, new.created_at + interval '7 years')::date + interval '7 years')::date;
++  -- estimated_release_at = created_at::date + default_hold_duration_days.
++  new.estimated_release_at :=
++    (new.created_at::date + (coalesce(new.default_hold_duration_days, 0) || ' days')::interval)::date;
++  return new;
++end;
++$$;
++
++-- ncr_reports retention_until (10y from created_at) + response_due_at (severity SLA) —
++-- trigger-maintained (see column comments). timestamptz + interval is STABLE not IMMUTABLE, so
++-- these cannot be GENERATED STORED columns.
++create or replace function public.ncr_reports_set_updated_at_retention()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  new.retention_until := (new.created_at::date + interval '10 years')::date;
++  new.response_due_at := new.detected_at + case new.severity
++    when 'critical' then interval '24 hours'
++    when 'major'    then interval '48 hours'
++    when 'minor'    then interval '7 days'
++  end;
++  return new;
++end;
++$$;
++
++-- quality_holds: maintain updated_at + retention_until on insert AND update.
++drop trigger if exists quality_holds_set_updated_at on public.quality_holds;
++create trigger quality_holds_set_updated_at
++  before insert or update on public.quality_holds
++  for each row execute function public.quality_holds_set_updated_at_retention();
++
++drop trigger if exists quality_hold_items_set_updated_at on public.quality_hold_items;
++create trigger quality_hold_items_set_updated_at
++  before update on public.quality_hold_items
++  for each row execute function public.quality_set_updated_at();
++
++-- ncr_reports: maintain updated_at + retention_until on insert AND update.
++drop trigger if exists ncr_reports_set_updated_at on public.ncr_reports;
++create trigger ncr_reports_set_updated_at
++  before insert or update on public.ncr_reports
++  for each row execute function public.ncr_reports_set_updated_at_retention();
++
++drop trigger if exists quality_specifications_set_updated_at on public.quality_specifications;
++create trigger quality_specifications_set_updated_at
++  before update on public.quality_specifications
++  for each row execute function public.quality_set_updated_at();
++
++drop trigger if exists quality_spec_parameters_set_updated_at on public.quality_spec_parameters;
++create trigger quality_spec_parameters_set_updated_at
++  before update on public.quality_spec_parameters
++  for each row execute function public.quality_set_updated_at();
++
++-- ===========================================================================
++-- v_active_holds — canonical consume-gate read model (T-064, §9.2).
++-- security_invoker so the underlying quality_holds RLS applies to the querying app_user
++-- (NEVER security_definer — that would bypass RLS and leak cross-org holds). 08-production WO
++-- consume, 05-warehouse LP consume, and 11-shipping LP qa_status gating ALL query this view via
++-- packages/server/src/quality/holdsGuard.ts (single source of truth — never re-read quality_holds
++-- directly from a consume path). Active = open/investigating/escalated/quarantined AND released_at
++-- IS NULL. The WHERE clause + (org_id, hold_status) predicate are backed by idx_holds_active.
++-- ===========================================================================
++drop view if exists public.v_active_holds;
++create view public.v_active_holds
++  with (security_invoker = true)
++  as
++  select
++    h.id                    as hold_id,
++    h.hold_number,
++    h.org_id,
++    h.reference_type,
++    h.reference_id,
++    h.priority,
++    h.hold_status,
++    h.created_at,
++    h.estimated_release_at,
++    h.default_hold_duration_days
++  from public.quality_holds h
++  where h.hold_status in ('open', 'investigating', 'escalated', 'quarantined')
++    and h.released_at is null;
++
++revoke all on public.v_active_holds from public;
++grant select on public.v_active_holds to app_user;
++
++comment on view public.v_active_holds is
++  'Canonical consume-gate read model (09-Quality §9.2, T-064). security_invoker view over '
++  'quality_holds: active holds only (hold_status in open/investigating/escalated/quarantined AND '
++  'released_at IS NULL). Queried by 08-production / 05-warehouse / 11-shipping via holdsGuard '
++  '(single source of truth). NEVER security_definer — RLS must flow from quality_holds.';
+diff --git a/packages/db/migrations/198-quality-outbox-and-rbac-seed.sql b/packages/db/migrations/198-quality-outbox-and-rbac-seed.sql
+new file mode 100644
+index 00000000..c0026812
+--- /dev/null
++++ b/packages/db/migrations/198-quality-outbox-and-rbac-seed.sql
+@@ -0,0 +1,334 @@
++-- Migration 198: 09-Quality — (A) admit the quality.hold.* / quality.ncr.* outbox events to the
++--   outbox_events CHECK constraint (keep the enum<->CHECK drift gate green), and (B) grant the
++--   quality.* RBAC permission family to the org-admin role family + QA/lab operator roles in BOTH
++--   the normalized role_permissions table and the legacy roles.permissions jsonb cache, with an
++--   AFTER INSERT trigger + full backfill.
++-- PRD: docs/prd/09-QUALITY-PRD.md §2.3 (RBAC matrix), §6.3 (NCR/HACCP), §12.1 (events).
++-- Tasks: T-065 (permission enum) + T-066 (RBAC-seed P0, recurring-live-bug class 1).
++-- Canonical permission strings: packages/rbac/src/permissions.enum.ts (ALL_QUALITY_PERMISSIONS).
++-- Canonical event strings: packages/outbox/src/events.enum.ts (ALL_QUALITY_EVENTS / DB_EVENT_TYPES).
++-- Wave0 lock: org_id business scope (NOT tenant_id); RLS via app.current_org_id().
++
++-- ===========================================================================
++-- (A) Outbox event CHECK — drop + recreate with the FULL vocabulary (192's list + the 8 new
++--     09-quality events). The enum<->CHECK drift gate (packages/outbox check-drift.test.ts)
++--     asserts THIS (now highest-numbered) migration's CHECK string set === DB_EVENT_TYPES, so the
++--     list below MUST stay byte-aligned with events.enum.ts (EventType ∪ LegacyEventAlias keys).
++--     Strict superset of 192 — no event dropped.
++-- ===========================================================================
++alter table public.outbox_events
++  drop constraint if exists outbox_events_event_type_check;
++
++alter table public.outbox_events
++  add constraint outbox_events_event_type_check check (
++    event_type in (
++      'audit.recorded',
++      'bom.initial_version_created',
++      'bom.version_submitted',
++      'brief.completed_for_project',
++      'brief.converted',
++      'brief.created',
++      'catch_weight.variance_exceeded',
++      'compliance_doc.deleted',
++      'compliance_doc.expired',
++      'compliance_doc.expiring',
++      'compliance_doc.uploaded',
++      'd365.cache.refreshed',
++      'fa.allergens_changed',
++      'fa.built',
++      'fa.built_reset',
++      'fa.cascade',
++      'fa.core_closed',
++      'fa.created',
++      'fa.deleted',
++      'fa.dept_closed',
++      'fa.dept_reopened',
++      'fa.edit',
++      'fa.intermediate_code_changed',
++      'fa.recipe_changed',
++      'fa.template_applied',
++      'fg.allergens_changed',
++      'fg.bom.released',
++      'fg.created',
++      'fg.edit',
++      'fg.intermediate_code_changed',
++      'fg.release_blocked',
++      'fg.released_to_factory',
++      'formulation.locked',
++      'formulation.submitted_for_trial',
++      'lp.received',
++      'manufacturing_operations.created',
++      'manufacturing_operations.deactivated',
++      'manufacturing_operations.reset_to_seed',
++      'manufacturing_operations.updated',
++      'npd.allergens.bulk_rebuild_completed',
++      'npd.builder.released_records_created',
++      'npd.fg_candidate_mapped',
++      'npd.gate.advanced',
++      'npd.gate.approved',
++      'npd.gate.reverted',
++      'npd.project.brief_mapped',
++      'npd.project.created',
++      'npd.project.legacy_stages_closed',
++      'npd.project.release_requested',
++      'onboarding.first_wo_recorded',
++      'onboarding.step.advance',
++      'onboarding.step.back',
++      'onboarding.step.jump',
++      'onboarding.step.restart',
++      'onboarding.step.skip',
++      'org.created',
++      'org.mfa_enrollment.forced',
++      'org.security_policy.updated',
++      'production.allergen_changeover.validated',
++      'production.changeover.signed',
++      'production.consume.blocked',
++      'production.consume.completed',
++      'production.downtime.recorded',
++      'production.oee.snapshot',
++      'production.output.recorded',
++      'production.waste.recorded',
++      'production.wo.closed',
++      'production.wo.completed',
++      'production.wo.started',
++      'quality.atp_swab_failed',
++      'quality.hold.created',
++      'quality.hold.released',
++      'quality.ncr.assigned',
++      'quality.ncr.closed',
++      'quality.ncr.critical_dual_signed',
++      'quality.ncr.opened',
++      'quality.ncr.submitted',
++      'quality.ncr.updated',
++      'quality.recorded',
++      'reference.allergens_added_by_process.bulk_changed',
++      'reference.allergens_by_rm.bulk_changed',
++      'reference.csv.committed',
++      'reference.row.soft_deleted',
++      'reference.row.upserted',
++      'risk.created',
++      'role.assigned',
++      'rule.deployed',
++      'settings.core_flag.updated',
++      'settings.d365_sync.updated',
++      'settings.dept_override.updated',
++      'settings.ip_allowlist.changed',
++      'settings.line.upserted',
++      'settings.location.deleted',
++      'settings.location.imported',
++      'settings.location.upserted',
++      'settings.machine.upserted',
++      'settings.module.disabled',
++      'settings.module.enabled',
++      'settings.module.toggled',
++      'settings.notification_channel_updated',
++      'settings.notification_digest_updated',
++      'settings.notification_rule_updated',
++      'settings.org.created',
++      'settings.org.updated',
++      'settings.reference.row_updated',
++      'settings.role.assigned',
++      'settings.rule.deployed',
++      'settings.rule_variant.updated',
++      'settings.schema.migration_requested',
++      'settings.scim.token_created',
++      'settings.sso.config_changed',
++      'settings.upgrade.completed',
++      'settings.upgrade.promoted',
++      'settings.upgrade.rolled_back',
++      'settings.upgrade.scheduled',
++      'settings.user.accepted',
++      'settings.user.deactivated',
++      'settings.user.invitation_resent',
++      'settings.user.invited',
++      'settings.warehouse.deactivated',
++      'shipment.created',
++      'technical.factory_spec.approved',
++      'tenant.cohort.advanced',
++      'tenant.migration.run',
++      'tenant.migration.run.failed',
++      'unit_of_measure.conversion_created',
++      'unit_of_measure.created',
++      'unit_of_measure.soft_deleted',
++      'user.invited',
++      'warehouse.lp.received',
++      'warehouse.lp.shipped',
++      'warehouse.lp.transitioned',
++      'warehouse.material.consumed',
++      'wo.ready'
++    )
++  );
++
++comment on constraint outbox_events_event_type_check on public.outbox_events
++  is 'Regenerated from events.enum.ts DB_EVENT_TYPES (134 types incl quality.hold.* / quality.ncr.*).';
++
++-- ===========================================================================
++-- (B) quality.* RBAC permission seed.
++--   ROOT CAUSE (X-1 unreachable-feature / 403-everywhere class — same as 116/146/148/149/154/185/192):
++--   adding the quality.* strings to the enum (T-065) grants NOBODY access. The deployed
++--   org administrator is on the canonical org-admin role family, which receives NONE of the
++--   quality.* strings — so every quality page/action 403s at live Gate-5.
++--
++--   This grants:
++--     * the COMPLETE quality.* set (13 strings) to the org-admin role family;
++--     * the QA-operator-facing subset to a QA inspector / lab role family;
++--     * the QA-lead/approver subset (= full set) to a quality lead / hygiene lead role family;
++--   in BOTH role_permissions (normalized) and roles.permissions (legacy jsonb cache), for every
++--   existing org, with an AFTER INSERT trigger so new orgs inherit it.
++--   QA role codes are matched defensively across naming conventions; the grant is a no-op for any
++--   role code not present in an org (idempotent). The admin-family grant is the load-bearing one
++--   for Gate-5 reachability. Models on 149/154/185/192.
++-- ===========================================================================
++create or replace function public.seed_quality_permissions_for_org(p_org_id uuid)
++returns void
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++declare
++  -- Complete quality.* family (PRD §2.3 RBAC matrix). Mirrors ALL_QUALITY_PERMISSIONS.
++  v_all_perms text[] := array[
++    'quality.hold.create',
++    'quality.hold.release',
++    'quality.spec.approve',
++    'quality.inspection.execute',
++    'quality.inspection.assign',
++    'quality.ncr.create',
++    'quality.ncr.close_critical',
++    'quality.ccp.deviation_override',
++    'quality.haccp.plan_edit',
++    'quality.batch.release',
++    'quality.dashboard.view',
++    'quality.settings.edit',
++    'quality.audit.export'
++  ];
++  -- QA inspector / lab operator subset: creates holds, executes inspections, raises NCRs, views the
++  -- dashboard. NOT the elevated/approval strings (hold.release, spec.approve, ncr.close_critical,
++  -- ccp.deviation_override, haccp.plan_edit, batch.release, settings.edit, audit.export — SoD).
++  v_inspector_perms text[] := array[
++    'quality.hold.create',
++    'quality.inspection.execute',
++    'quality.ncr.create',
++    'quality.dashboard.view'
++  ];
++  -- QA lead / hygiene lead subset: the approver. Full set (release/approve/close-critical/override/
++  -- haccp-edit/batch-release/settings/audit-export are quality-lead grants).
++  v_lead_perms text[] := v_all_perms;
++  -- org-admin role family across naming conventions used in this codebase.
++  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
++  -- QA inspector / lab role family (defensive — codes vary; grant is a no-op if absent).
++  v_inspector_roles text[] := array['qa_inspector','quality_inspector','inspector','lab_technician','lab_analyst'];
++  -- QA lead / hygiene lead role family (defensive).
++  v_lead_roles text[] := array['quality_lead','qa_lead','quality_manager','hygiene_lead','qa_manager'];
++begin
++  -- --- Normalized storage (role_permissions) ---
++  -- admin family: full set.
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_all_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- inspector family: inspector subset.
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_inspector_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_inspector_roles) or r.slug = any(v_inspector_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- lead family: lead subset (= full set).
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_lead_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_lead_roles) or r.slug = any(v_lead_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- --- Legacy jsonb cache (roles.permissions) ---
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_all_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
++
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_inspector_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_inspector_roles) or r.slug = any(v_inspector_roles));
++
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_lead_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_lead_roles) or r.slug = any(v_lead_roles));
++end;
++$$;
++
++revoke all on function public.seed_quality_permissions_for_org(uuid) from public;
++revoke all on function public.seed_quality_permissions_for_org(uuid) from app_user;
++
++create or replace function public.seed_quality_permissions_on_org_insert()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++begin
++  perform public.seed_quality_permissions_for_org(new.id);
++  return new;
++end;
++$$;
++
++revoke all on function public.seed_quality_permissions_on_org_insert() from public;
++revoke all on function public.seed_quality_permissions_on_org_insert() from app_user;
++
++-- Fire after the 080 role-seeding trigger so the admin roles already exist (zzz prefix sorts last).
++drop trigger if exists trg_zzz_seed_quality_permissions on public.organizations;
++create trigger trg_zzz_seed_quality_permissions
++  after insert on public.organizations
++  for each row
++  execute function public.seed_quality_permissions_on_org_insert();
++
++-- Backfill every existing org.
++do $$
++declare
++  v_org_id uuid;
++begin
++  for v_org_id in select id from public.organizations loop
++    perform public.seed_quality_permissions_for_org(v_org_id);
++  end loop;
++end
++$$;
+diff --git a/packages/db/schema/quality.ts b/packages/db/schema/quality.ts
+new file mode 100644
+index 00000000..69d12db1
+--- /dev/null
++++ b/packages/db/schema/quality.ts
+@@ -0,0 +1,348 @@
++import { sql } from 'drizzle-orm';
++import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
++import {
++  bigint,
++  boolean,
++  check,
++  date,
++  index,
++  integer,
++  jsonb,
++  numeric,
++  pgTable,
++  pgView,
++  text,
++  timestamp,
++  uniqueIndex,
++  uuid,
++  varchar,
++} from 'drizzle-orm/pg-core';
++
++import { organizations, users } from './baseline.js';
++
++// 09-Quality — schema foundation (migration 197): quality_holds (+ v_active_holds consume gate),
++// quality_hold_items, ncr_reports, quality_specifications + quality_spec_parameters.
++// PRD: docs/prd/09-QUALITY-PRD.md §6.3 (Key table summaries), §9.1 (RLS), §9.2 (v_active_holds),
++// §11.4 (V-QA-NCR), §13.x (retention). Tasks T-004 (holds), T-037 (ncr), T-017 (specs),
++// T-064 (v_active_holds VIEW — canonical consume-gate read model).
++//
++// Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++//   (migration 197). site_id day-1: nullable uuid, no FK, no registry — full per-site scoping
++//   lands later via 14-MS T-030.
++// NUMERIC-exact: qty_held_kg / affected_qty_kg / yield / claim columns are NUMERIC (never float).
++//
++// Soft cross-module references (reason_code_id, reference_id, product_id, fail_reason_code_id,
++//   license_plate_id, capa_record_id) carry NO Drizzle .references() so module schema files do not
++//   form a circular dependency on 02-Settings / 03-Technical / 05-Warehouse. Hard FKs
++//   (organizations / users / self-references) live here.
++
++// ---------------------------------------------------------------------------
++// quality_holds — central hold registry (T-004, §6.3).
++// ---------------------------------------------------------------------------
++export const qualityHolds = pgTable(
++  'quality_holds',
++  {
++    id: uuid('id').defaultRandom().primaryKey(),
++    orgId: uuid('org_id')
++      .notNull()
++      .references(() => organizations.id, { onDelete: 'cascade' }),
++    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
++
++    holdSeq: bigint('hold_seq', { mode: 'bigint' }).notNull(),
++    // hold_number is GENERATED ALWAYS in the migration ('HLD-' || lpad(hold_seq,8,'0')).
++    holdNumber: text('hold_number').notNull(),
++
++    referenceType: text('reference_type').notNull(),
++    referenceId: uuid('reference_id').notNull(),
++    reasonCodeId: uuid('reason_code_id'), // soft FK to 02-Settings quality_hold_reasons
++    reasonFreeText: text('reason_free_text'),
++    priority: text('priority').notNull(),
++    disposition: text('disposition'),
++    dispositionNotes: text('disposition_notes'),
++    defaultHoldDurationDays: integer('default_hold_duration_days'),
++    // estimated_release_at is GENERATED ALWAYS in the migration.
++    estimatedReleaseAt: date('estimated_release_at'),
++    holdStatus: text('hold_status').notNull().default('open'),
++
++    createdBy: uuid('created_by')
++      .notNull()
++      .references(() => users.id, { onDelete: 'restrict' }),
++    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
++    releasedBy: uuid('released_by').references(() => users.id, { onDelete: 'set null' }),
++    releasedAt: timestamp('released_at', { withTimezone: true }),
++    releaseSignatureHash: varchar('release_signature_hash', { length: 64 }),
++    releaseNotes: text('release_notes'),
++
++    extJsonb: jsonb('ext_jsonb').notNull().default('{}'),
++    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
++    // retention_until maintained by the quality_holds_set_updated_at_retention trigger (BRCGS 7y).
++    retentionUntil: date('retention_until'),
++  },
++  (t) => ({
++    holdNumberUq: uniqueIndex('quality_holds_hold_number_uq').on(t.holdNumber),
++    // idx_holds_active partial index backs v_active_holds (T-064) — declared in the migration with a
++    // WHERE predicate Drizzle cannot fully express; mirrored here without the predicate for typing.
++    activeIdx: index('idx_holds_active').on(t.orgId, t.holdStatus),
++    refIdx: index('idx_holds_ref').on(t.orgId, t.referenceType, t.referenceId),
++    orgIdx: index('quality_holds_org_idx').on(t.orgId),
++    orgSiteIdx: index('quality_holds_org_site_idx').on(t.orgId, t.siteId),
++    referenceTypeCheck: check(
++      'quality_holds_reference_type_check',
++      sql`${t.referenceType} in ('lp', 'batch', 'wo', 'po', 'grn')`,
++    ),
++    priorityCheck: check(
++      'quality_holds_priority_check',
++      sql`${t.priority} in ('low', 'medium', 'high', 'critical')`,
++    ),
++    holdStatusCheck: check(
++      'quality_holds_hold_status_check',
++      sql`${t.holdStatus} in ('open', 'investigating', 'released', 'quarantined', 'escalated')`,
++    ),
++    dispositionCheck: check(
++      'quality_holds_disposition_check',
++      sql`${t.disposition} is null or ${t.disposition} in ('pending', 'rework', 'scrap', 'release_as_is', 'return_supplier', 'other')`,
++    ),
++  }),
++);
++
++export type QualityHold = InferSelectModel<typeof qualityHolds>;
++export type NewQualityHold = InferInsertModel<typeof qualityHolds>;
++
++// ---------------------------------------------------------------------------
++// quality_hold_items — multi-LP hold (T-004, §6.3).
++// ---------------------------------------------------------------------------
++export const qualityHoldItems = pgTable(
++  'quality_hold_items',
++  {
++    id: uuid('id').defaultRandom().primaryKey(),
++    orgId: uuid('org_id')
++      .notNull()
++      .references(() => organizations.id, { onDelete: 'cascade' }),
++    holdId: uuid('hold_id')
++      .notNull()
++      .references(() => qualityHolds.id, { onDelete: 'cascade' }),
++    licensePlateId: uuid('license_plate_id'), // soft FK to 05-Warehouse license_plates
++    qtyHeldKg: numeric('qty_held_kg', { precision: 18, scale: 3 }),
++    qtyReleasedKg: numeric('qty_released_kg', { precision: 18, scale: 3 }).default('0'),
++    itemStatus: text('item_status').notNull().default('held'),
++    notes: text('notes'),
++    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
++    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
++  },
++  (t) => ({
++    holdLpUq: uniqueIndex('quality_hold_items_hold_lp_uq').on(t.holdId, t.licensePlateId),
++    orgIdx: index('quality_hold_items_org_idx').on(t.orgId),
++    holdIdx: index('quality_hold_items_hold_idx').on(t.holdId),
++    lpIdx: index('quality_hold_items_lp_idx').on(t.licensePlateId),
++    itemStatusCheck: check(
++      'quality_hold_items_item_status_check',
++      sql`${t.itemStatus} in ('held', 'released', 'partial_released', 'scrapped')`,
++    ),
++  }),
++);
++
++export type QualityHoldItem = InferSelectModel<typeof qualityHoldItems>;
++export type NewQualityHoldItem = InferInsertModel<typeof qualityHoldItems>;
++
++// ---------------------------------------------------------------------------
++// ncr_reports — Non-Conformance Reports (T-037, §6.3).
++// ---------------------------------------------------------------------------
++export const ncrReports = pgTable(
++  'ncr_reports',
++  {
++    id: uuid('id').defaultRandom().primaryKey(),
++    orgId: uuid('org_id')
++      .notNull()
++      .references(() => organizations.id, { onDelete: 'cascade' }),
++    siteId: uuid('site_id'), // day-1 nullable
++
++    ncrSeq: bigint('ncr_seq', { mode: 'bigint' }).notNull(),
++    ncrNumber: text('ncr_number').notNull(), // GENERATED ALWAYS in migration
++
++    ncrType: text('ncr_type').notNull().default('quality'),
++    severity: text('severity').notNull(),
++    status: text('status').notNull().default('draft'),
++    title: text('title').notNull(),
++    description: text('description').notNull(),
++    referenceType: text('reference_type'),
++    referenceId: uuid('reference_id'),
++    productId: uuid('product_id'), // soft FK to 03-Technical items
++    detectedBy: uuid('detected_by').references(() => users.id, { onDelete: 'set null' }),
++    detectedAt: timestamp('detected_at', { withTimezone: true }).notNull().defaultNow(),
++    detectedLocation: text('detected_location'),
++    failReasonCodeId: uuid('fail_reason_code_id'), // soft FK to 02-Settings qa_failure_reasons
++
++    affectedQtyKg: numeric('affected_qty_kg', { precision: 18, scale: 3 }),
++
++    assignedTo: uuid('assigned_to').references(() => users.id, { onDelete: 'set null' }),
++    investigatorId: uuid('investigator_id').references(() => users.id, { onDelete: 'set null' }),
++    rootCause: text('root_cause'),
++    rootCauseCategory: text('root_cause_category'),
++    immediateAction: text('immediate_action'),
++    capaRecordId: uuid('capa_record_id'), // soft FK to capa_records (P2)
++
++    targetYieldPct: numeric('target_yield_pct', { precision: 5, scale: 2 }),
++    actualYieldPct: numeric('actual_yield_pct', { precision: 5, scale: 2 }),
++    claimPct: numeric('claim_pct', { precision: 5, scale: 2 }),
++    claimValueEur: numeric('claim_value_eur', { precision: 18, scale: 2 }),
++
++    closedBy: uuid('closed_by').references(() => users.id, { onDelete: 'set null' }),
++    closedAt: timestamp('closed_at', { withTimezone: true }),
++    closureSignatureHash: varchar('closure_signature_hash', { length: 64 }),
++    // response_due_at GENERATED ALWAYS (severity-driven SLA) in the migration.
++    responseDueAt: timestamp('response_due_at', { withTimezone: true }),
++
++    linkedHoldId: uuid('linked_hold_id').references(() => qualityHolds.id, { onDelete: 'set null' }),
++    extJsonb: jsonb('ext_jsonb').notNull().default('{}'),
++    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
++    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
++    // retention_until GENERATED ALWAYS (created_at + 10y) in the migration.
++    retentionUntil: date('retention_until'),
++  },
++  (t) => ({
++    ncrNumberUq: uniqueIndex('ncr_reports_ncr_number_uq').on(t.ncrNumber),
++    openIdx: index('idx_ncr_open').on(t.orgId, t.status, t.severity, t.responseDueAt),
++    refIdx: index('idx_ncr_ref').on(t.orgId, t.referenceType, t.referenceId),
++    orgIdx: index('ncr_reports_org_idx').on(t.orgId),
++    orgSiteIdx: index('ncr_reports_org_site_idx').on(t.orgId, t.siteId),
++    linkedHoldIdx: index('ncr_reports_linked_hold_idx').on(t.linkedHoldId),
++    ncrTypeCheck: check(
++      'ncr_reports_ncr_type_check',
++      sql`${t.ncrType} in ('quality', 'yield_issue', 'allergen_deviation', 'supplier', 'process', 'complaint_related')`,
++    ),
++    severityCheck: check(
++      'ncr_reports_severity_check',
++      sql`${t.severity} in ('critical', 'major', 'minor')`,
++    ),
++    statusCheck: check(
++      'ncr_reports_status_check',
++      sql`${t.status} in ('draft', 'open', 'investigating', 'awaiting_capa', 'closed', 'reopened', 'cancelled')`,
++    ),
++    referenceTypeCheck: check(
++      'ncr_reports_reference_type_check',
++      sql`${t.referenceType} is null or ${t.referenceType} in ('lp', 'batch', 'wo', 'po', 'grn', 'inspection', 'ccp_deviation', 'complaint', 'supplier')`,
++    ),
++  }),
++);
++
++export type NcrReport = InferSelectModel<typeof ncrReports>;
++export type NewNcrReport = InferInsertModel<typeof ncrReports>;
++
++// ---------------------------------------------------------------------------
++// quality_specifications — versioned product specs (T-017, §6.3).
++// ---------------------------------------------------------------------------
++export const qualitySpecifications = pgTable(
++  'quality_specifications',
++  {
++    id: uuid('id').defaultRandom().primaryKey(),
++    orgId: uuid('org_id')
++      .notNull()
++      .references(() => organizations.id, { onDelete: 'cascade' }),
++    productId: uuid('product_id').notNull(), // soft FK to 03-Technical items
++    specCode: text('spec_code').notNull(),
++    version: integer('version').notNull().default(1),
++    status: text('status').notNull().default('draft'),
++    effectiveFrom: date('effective_from'),
++    effectiveUntil: date('effective_until'),
++    appliesTo: text('applies_to').notNull(),
++    referenceDocuments: jsonb('reference_documents').notNull().default('[]'),
++    allergenProfile: jsonb('allergen_profile'), // snapshot from 03-TECH at approval (T-020)
++    approvedBy: uuid('approved_by').references(() => users.id, { onDelete: 'set null' }),
++    approvedAt: timestamp('approved_at', { withTimezone: true }),
++    approvalSignatureHash: varchar('approval_signature_hash', { length: 64 }),
++    supersededBy: uuid('superseded_by'),
++    createdBy: uuid('created_by')
++      .notNull()
++      .references(() => users.id, { onDelete: 'restrict' }),
++    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
++    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
++    extJsonb: jsonb('ext_jsonb').notNull().default('{}'),
++  },
++  (t) => ({
++    productCodeVersionUq: uniqueIndex('quality_specifications_product_code_version_uq').on(
++      t.orgId,
++      t.productId,
++      t.specCode,
++      t.version,
++    ),
++    orgIdx: index('quality_specifications_org_idx').on(t.orgId),
++    orgProductIdx: index('quality_specifications_org_product_idx').on(t.orgId, t.productId),
++    supersededIdx: index('quality_specifications_superseded_idx').on(t.supersededBy),
++    statusCheck: check(
++      'quality_specifications_status_check',
++      sql`${t.status} in ('draft', 'under_review', 'active', 'expired', 'superseded')`,
++    ),
++    appliesToCheck: check(
++      'quality_specifications_applies_to_check',
++      sql`${t.appliesTo} in ('incoming', 'in_process', 'final', 'all')`,
++    ),
++  }),
++);
++
++export type QualitySpecification = InferSelectModel<typeof qualitySpecifications>;
++export type NewQualitySpecification = InferInsertModel<typeof qualitySpecifications>;
++
++// ---------------------------------------------------------------------------
++// quality_spec_parameters — per-spec test parameters (T-017, §6.3).
++// ---------------------------------------------------------------------------
++export const qualitySpecParameters = pgTable(
++  'quality_spec_parameters',
++  {
++    id: uuid('id').defaultRandom().primaryKey(),
++    orgId: uuid('org_id')
++      .notNull()
++      .references(() => organizations.id, { onDelete: 'cascade' }),
++    specificationId: uuid('specification_id')
++      .notNull()
++      .references(() => qualitySpecifications.id, { onDelete: 'cascade' }),
++    parameterName: text('parameter_name').notNull(),
++    parameterType: text('parameter_type').notNull(),
++    targetValue: numeric('target_value'),
++    minValue: numeric('min_value'),
++    maxValue: numeric('max_value'),
++    unit: text('unit'),
++    testMethod: text('test_method'),
++    equipmentRequired: text('equipment_required'),
++    isCritical: boolean('is_critical').notNull().default(false),
++    sortOrder: integer('sort_order').notNull().default(0),
++    extJsonb: jsonb('ext_jsonb').notNull().default('{}'),
++    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
++    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
++  },
++  (t) => ({
++    orgIdx: index('quality_spec_parameters_org_idx').on(t.orgId),
++    specIdx: index('quality_spec_parameters_spec_idx').on(t.specificationId),
++    parameterTypeCheck: check(
++      'quality_spec_parameters_parameter_type_check',
++      sql`${t.parameterType} in ('visual', 'measurement', 'attribute', 'microbiological', 'chemical', 'sensory', 'equipment')`,
++    ),
++    minLeMaxCheck: check(
++      'quality_spec_parameters_min_le_max_check',
++      sql`${t.minValue} is null or ${t.maxValue} is null or ${t.minValue} <= ${t.maxValue}`,
++    ),
++  }),
++);
++
++export type QualitySpecParameter = InferSelectModel<typeof qualitySpecParameters>;
++export type NewQualitySpecParameter = InferInsertModel<typeof qualitySpecParameters>;
++
++// ---------------------------------------------------------------------------
++// v_active_holds — canonical consume-gate read model (defined in migration 197, mapped here).
++// SECURITY INVOKER view over quality_holds: active holds only (hold_status in
++// open/investigating/escalated/quarantined AND released_at IS NULL). Queried by 08-production /
++// 05-warehouse / 11-shipping via packages/server/src/quality/holdsGuard.ts (single source of truth).
++// ---------------------------------------------------------------------------
++export const vActiveHolds = pgView('v_active_holds', {
++  holdId: uuid('hold_id').notNull(),
++  holdNumber: text('hold_number').notNull(),
++  orgId: uuid('org_id').notNull(),
++  referenceType: text('reference_type').notNull(),
++  referenceId: uuid('reference_id').notNull(),
++  priority: text('priority').notNull(),
++  holdStatus: text('hold_status').notNull(),
++  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
++  estimatedReleaseAt: date('estimated_release_at'),
++  defaultHoldDurationDays: integer('default_hold_duration_days'),
++}).existing();
++
++export type ActiveHoldRow = typeof vActiveHolds.$inferSelect;
+diff --git a/packages/server/src/quality/__tests__/holdsGuard.test.ts b/packages/server/src/quality/__tests__/holdsGuard.test.ts
+new file mode 100644
+index 00000000..7386fed6
+--- /dev/null
++++ b/packages/server/src/quality/__tests__/holdsGuard.test.ts
+@@ -0,0 +1,180 @@
++import { randomUUID } from 'node:crypto';
++import pg from 'pg';
++import { afterAll, beforeAll, describe, expect, it } from 'vitest';
++import {
++  QA_HOLD_ACTIVE,
++  QaHoldActiveError,
++  assertNoActiveHoldForLp,
++  assertNoActiveHoldForWo,
++} from '../holdsGuard.js';
++
++// 09-Quality T-064 — holdsGuard consume-gate contract.
++// Unit: QaHoldActiveError envelope shape (the pinned cross-module contract).
++// Integration (DATABASE_URL): assertNoActiveHoldForWo/Lp over the v_active_holds SECURITY INVOKER
++// view — returns void when no active hold, throws QaHoldActiveError(409) when one exists, and is
++// RLS-isolated (tenant B's holds are invisible to tenant A).
++
++describe('QaHoldActiveError envelope (unit)', () => {
++  it('carries the pinned {code, hold_number, priority, reason_code} envelope + 409 status', () => {
++    const err = new QaHoldActiveError('HLD-00001234', 'critical', null);
++    expect(err).toBeInstanceOf(QaHoldActiveError);
++    expect(err).toBeInstanceOf(Error);
++    expect(err.status).toBe(409);
++    expect(err.code).toBe(QA_HOLD_ACTIVE);
++    expect(err.toEnvelope()).toEqual({
++      code: 'QA_HOLD_ACTIVE',
++      hold_number: 'HLD-00001234',
++      priority: 'critical',
++      reason_code: null,
++    });
++  });
++});
++
++const databaseUrl = process.env.DATABASE_URL;
++const runIntegration = databaseUrl ? describe : describe.skip;
++
++const tenantId = '09020000-0000-4000-8000-000000000001';
++const orgAId = '09020000-0000-4000-8000-0000000000a0';
++const orgBId = '09020000-0000-4000-8000-0000000000b0';
++
++runIntegration('holdsGuard over v_active_holds (integration)', () => {
++  let ownerPool: pg.Pool;
++  let appPool: pg.Pool;
++  let userA: string;
++  let userB: string;
++
++  async function seedOrg(id: string, slug: string): Promise<void> {
++    await ownerPool.query(
++      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
++       values ($1, $2, 'Guard Org', $3, 'fmcg') on conflict (id) do nothing`,
++      [id, tenantId, slug],
++    );
++  }
++
++  async function makeUser(orgId: string): Promise<string> {
++    const { rows } = await ownerPool.query<{ id: string }>(
++      `select id from public.roles where org_id = $1 limit 1`,
++      [orgId],
++    );
++    const roleId = rows[0]?.id ?? randomUUID();
++    if (!rows[0]) {
++      await ownerPool.query(
++        `insert into public.roles (id, org_id, slug, code, name, permissions, is_system, display_order)
++         values ($1, $2, 'g', 'g', 'G', '[]'::jsonb, false, 999)`,
++        [roleId, orgId],
++      );
++    }
++    const id = randomUUID();
++    await ownerPool.query(
++      `insert into public.users (id, org_id, email, name, role_id) values ($1, $2, $3, 'G', $4)`,
++      [id, orgId, `g-${id.slice(0, 8)}@example.test`, roleId],
++    );
++    return id;
++  }
++
++  async function insertHold(
++    orgId: string,
++    createdBy: string,
++    referenceType: string,
++    referenceId: string,
++    holdStatus: string,
++    releasedAt: string | null,
++  ): Promise<void> {
++    await ownerPool.query(
++      `insert into public.quality_holds
++         (org_id, reference_type, reference_id, priority, hold_status, created_by, released_at)
++       values ($1, $2, $3, 'high', $4, $5, $6)`,
++      [orgId, referenceType, referenceId, holdStatus, createdBy, releasedAt],
++    );
++  }
++
++  async function runUnderOrg<T>(orgId: string, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
++    const sessionToken = randomUUID();
++    await ownerPool.query(
++      `insert into app.session_org_contexts (session_token, org_id) values ($1, $2)
++       on conflict (session_token) do update set org_id = excluded.org_id`,
++      [sessionToken, orgId],
++    );
++    const client = await appPool.connect();
++    try {
++      await client.query('begin');
++      await client.query('select app.set_org_context($1::uuid, $2::uuid)', [sessionToken, orgId]);
++      const result = await fn(client);
++      await client.query('commit');
++      return result;
++    } catch (e) {
++      await client.query('rollback').catch(() => undefined);
++      throw e;
++    } finally {
++      client.release();
++    }
++  }
++
++  beforeAll(async () => {
++    ownerPool = new pg.Pool({ connectionString: databaseUrl });
++    appPool = new pg.Pool({ connectionString: databaseUrl });
++    await ownerPool.query(
++      `insert into public.tenants (id, name, region_cluster, data_plane_url)
++       values ($1, 'guard tenant', 'eu', 'https://guard.example') on conflict (id) do nothing`,
++      [tenantId],
++    );
++    await seedOrg(orgAId, 'guard-a');
++    await seedOrg(orgBId, 'guard-b');
++    userA = await makeUser(orgAId);
++    userB = await makeUser(orgBId);
++  });
++
++  afterAll(async () => {
++    for (const orgId of [orgAId, orgBId]) {
++      await ownerPool.query(`delete from public.quality_holds where org_id = $1`, [orgId]).catch(() => undefined);
++      await ownerPool.query(`delete from public.users where org_id = $1`, [orgId]).catch(() => undefined);
++      await ownerPool
++        .query(`delete from public.role_permissions rp using public.roles r where rp.role_id = r.id and r.org_id = $1`, [orgId])
++        .catch(() => undefined);
++      await ownerPool.query(`delete from public.roles where org_id = $1`, [orgId]).catch(() => undefined);
++      await ownerPool.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
++    }
++    await ownerPool.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
++    await appPool?.end();
++    await ownerPool?.end();
++  });
++
++  it('returns void when no active hold covers the WO', async () => {
++    const woId = randomUUID();
++    await runUnderOrg(orgAId, async (c) => {
++      await expect(assertNoActiveHoldForWo(woId, orgAId, c)).resolves.toBeUndefined();
++    });
++  });
++
++  it('throws QaHoldActiveError(409) when an active hold covers the WO', async () => {
++    const woId = randomUUID();
++    await insertHold(orgAId, userA, 'wo', woId, 'open', null);
++    await runUnderOrg(orgAId, async (c) => {
++      await expect(assertNoActiveHoldForWo(woId, orgAId, c)).rejects.toMatchObject({
++        status: 409,
++        code: 'QA_HOLD_ACTIVE',
++      });
++    });
++  });
++
++  it('returns void when the only hold on the LP is released (excluded by v_active_holds)', async () => {
++    const lpId = randomUUID();
++    await insertHold(orgAId, userA, 'lp', lpId, 'released', '2026-01-01T00:00:00Z');
++    await runUnderOrg(orgAId, async (c) => {
++      await expect(assertNoActiveHoldForLp(lpId, orgAId, c)).resolves.toBeUndefined();
++    });
++  });
++
++  it('is RLS-isolated: tenant B does not see tenant A active holds (SECURITY INVOKER)', async () => {
++    const sharedRef = randomUUID();
++    await insertHold(orgAId, userA, 'wo', sharedRef, 'open', null);
++    // Under org B context the same reference has no visible hold → guard passes.
++    await runUnderOrg(orgBId, async (c) => {
++      await expect(assertNoActiveHoldForWo(sharedRef, orgBId, c)).resolves.toBeUndefined();
++    });
++    // Under org A context the hold IS visible → guard throws.
++    await runUnderOrg(orgAId, async (c) => {
++      await expect(assertNoActiveHoldForWo(sharedRef, orgAId, c)).rejects.toBeInstanceOf(QaHoldActiveError);
++    });
++  });
++});
+diff --git a/packages/server/src/quality/holdsGuard.ts b/packages/server/src/quality/holdsGuard.ts
+new file mode 100644
+index 00000000..5281ed23
+--- /dev/null
++++ b/packages/server/src/quality/holdsGuard.ts
+@@ -0,0 +1,144 @@
++import pg from 'pg';
++
++/**
++ * 09-Quality T-064 — canonical consume-gate guard (single source of truth).
++ *
++ * 08-production's WO-consume Server Action, 05-warehouse's LP-consume Server Action, and
++ * 11-shipping's LP qa_status gate MUST call these helpers before recording a consumption /
++ * allocation. Direct reads of `quality_holds` from a consume path are a contract violation —
++ * import `assertNoActiveHoldForWo` / `assertNoActiveHoldForLp` from THIS module so the active-hold
++ * predicate lives in exactly one place (see MON-domain-quality §"CRITICAL: T-064 consume gate").
++ *
++ * The guards read the `v_active_holds` SECURITY INVOKER view (migration 197), so RLS on
++ * `quality_holds` flows from the caller's `app.current_org_id()`. They never bypass RLS and never
++ * re-implement the active-hold WHERE clause.
++ *
++ * NOTE: this is a plain library module (NOT a Next.js `'use server'` file). It deliberately exports
++ * the `QaHoldActiveError` class + the `QA_HOLD_ACTIVE` constant alongside the async guards — a
++ * `'use server'` module may only export async functions, so consumers that need the error type in a
++ * `'use server'` boundary import it from here (the non-`'use server'` source), per the class-2
++ * recurring-live-bug rule.
++ */
++
++/** Stable cross-module error code carried in the QaHoldActiveError envelope. */
++export const QA_HOLD_ACTIVE = 'QA_HOLD_ACTIVE' as const;
++
++/** Hold priority levels (mirrors quality_holds_priority_check). */
++export type HoldPriority = 'low' | 'medium' | 'high' | 'critical';
++
++/**
++ * Cross-module error envelope thrown when an active hold blocks a consume / allocate operation.
++ * The shape `{ code, hold_number, priority, reason_code }` is the pinned cross-module contract —
++ * do NOT change it without a coordinated revision in 05-warehouse / 08-production / 11-shipping.
++ */
++export interface QaHoldActiveEnvelope {
++  code: typeof QA_HOLD_ACTIVE;
++  hold_number: string;
++  priority: HoldPriority;
++  reason_code: string | null;
++}
++
++/** HTTP-409 error thrown by the consume gate when an active hold covers the reference. */
++export class QaHoldActiveError extends Error {
++  readonly status = 409 as const;
++  readonly code = QA_HOLD_ACTIVE;
++  readonly holdNumber: string;
++  readonly priority: HoldPriority;
++  readonly reasonCode: string | null;
++
++  constructor(holdNumber: string, priority: HoldPriority, reasonCode: string | null) {
++    super(`Active quality hold ${holdNumber} (priority=${priority}) blocks this operation`);
++    this.name = 'QaHoldActiveError';
++    this.holdNumber = holdNumber;
++    this.priority = priority;
++    this.reasonCode = reasonCode;
++    // Restore prototype chain for instanceof across transpilation targets.
++    Object.setPrototypeOf(this, QaHoldActiveError.prototype);
++  }
++
++  /** Serialise to the pinned cross-module JSON envelope. */
++  toEnvelope(): QaHoldActiveEnvelope {
++    return {
++      code: this.code,
++      hold_number: this.holdNumber,
++      priority: this.priority,
++      reason_code: this.reasonCode,
++    };
++  }
++}
++
++type ActiveHoldRow = {
++  hold_number: string;
++  priority: HoldPriority;
++  reference_id: string;
++};
++
++/** Minimal query surface satisfied by pg.Pool / pg.PoolClient. */
++export interface HoldQueryClient {
++  query<R extends pg.QueryResultRow = ActiveHoldRow>(
++    queryText: string,
++    values?: unknown[],
++  ): Promise<pg.QueryResult<R>>;
++}
++
++/**
++ * Core gate: throw QaHoldActiveError if `v_active_holds` contains an active hold whose
++ * (reference_type, reference_id) covers the given reference. RLS via SECURITY INVOKER means only
++ * the caller's own org's holds are visible — the explicit `org_id` argument is used solely to keep
++ * the predicate self-documenting (and to fail closed if a caller forgets to bind org context).
++ */
++async function assertNoActiveHoldForReference(
++  referenceType: 'wo' | 'lp' | 'batch' | 'po' | 'grn',
++  referenceId: string,
++  orgId: string,
++  db: HoldQueryClient,
++): Promise<void> {
++  const { rows } = await db.query<ActiveHoldRow>(
++    `select hold_number, priority, reference_id
++       from public.v_active_holds
++      where org_id = $1
++        and reference_type = $2
++        and reference_id = $3
++      order by case priority
++                 when 'critical' then 0
++                 when 'high' then 1
++                 when 'medium' then 2
++                 when 'low' then 3
++                 else 4
++               end
++      limit 1`,
++    [orgId, referenceType, referenceId],
++  );
++
++  if (rows.length > 0) {
++    const hit = rows[0];
++    // reason_code is not projected by v_active_holds (intentionally minimal read model); the
++    // envelope carries null until a richer reason projection is added. Consumers surface the
++    // hold_number + priority for the operator.
++    throw new QaHoldActiveError(hit.hold_number, hit.priority, null);
++  }
++}
++
++/**
++ * Assert no active quality hold covers the given Work Order. Call from 08-production's WO-consume
++ * Server Action before recording consumption.
++ */
++export async function assertNoActiveHoldForWo(
++  woId: string,
++  orgId: string,
++  db: HoldQueryClient,
++): Promise<void> {
++  await assertNoActiveHoldForReference('wo', woId, orgId, db);
++}
++
++/**
++ * Assert no active quality hold covers the given License Plate. Call from 05-warehouse's LP-consume
++ * Server Action (and 11-shipping's LP qa_status gate) before recording consumption / allocation.
++ */
++export async function assertNoActiveHoldForLp(
++  lpId: string,
++  orgId: string,
++  db: HoldQueryClient,
++): Promise<void> {
++  await assertNoActiveHoldForReference('lp', lpId, orgId, db);
++}

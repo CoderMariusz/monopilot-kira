@@ -46,6 +46,9 @@ interface ScannerProdLabelsShape {
     error: string;
     retry: string;
     notFound: string;
+    startButton: string;
+    startHint: string;
+    startError: string;
     progress: string;
     target: string;
     produced: string;
@@ -66,6 +69,15 @@ interface ScannerProdLabelsShape {
     title: string;
     pickTitle: string;
     pickEmpty: string;
+    lpTitle: string;
+    lpLoading: string;
+    lpEmpty: string;
+    lpError: string;
+    lpSuggested: string;
+    lpExpiry: string;
+    lpManual: string;
+    lpManualDesc: string;
+    doneLpRemaining: string;
     needed: string;
     qtyLabel: string;
     qtyHint: string;
@@ -138,6 +150,10 @@ interface ScannerProdLabelsShape {
     catContamination: string;
     catOther: string;
   };
+  /** Honest copy for API error codes, keyed by the wire code. */
+  errors: {
+    wo_not_recordable: string;
+  };
   loading: string;
 }
 
@@ -168,6 +184,9 @@ const en: ScannerProdLabelsShape = {
     error: "Could not load work order. Try again.",
     retry: "Try again",
     notFound: "Work order not found.",
+    startButton: "Start work order",
+    startHint: "Consume, output and waste unlock after you start the work order.",
+    startError: "Could not start the work order. Try again.",
     progress: "WO progress",
     target: "Target",
     produced: "Produced",
@@ -188,6 +207,15 @@ const en: ScannerProdLabelsShape = {
     title: "Consume",
     pickTitle: "Pick a material",
     pickEmpty: "No materials to consume.",
+    lpTitle: "Pick a license plate",
+    lpLoading: "Loading license plates…",
+    lpEmpty: "No license plates available for this material.",
+    lpError: "Could not load license plates.",
+    lpSuggested: "Suggested (FEFO)",
+    lpExpiry: "exp.",
+    lpManual: "Manual / no LP",
+    lpManualDesc: "Consume without selecting a license plate.",
+    doneLpRemaining: "{qty} {uom} remaining on {lp}",
     needed: "still needed",
     qtyLabel: "Quantity to consume",
     qtyHint: "In the material unit",
@@ -260,6 +288,10 @@ const en: ScannerProdLabelsShape = {
     catContamination: "Contamination",
     catOther: "Other",
   },
+  errors: {
+    wo_not_recordable:
+      "Start the work order first — outputs can only be recorded while it is running",
+  },
   loading: "Loading…",
 } as const;
 
@@ -290,6 +322,9 @@ const pl: ScannerProdLabelsShape = {
     error: "Nie udało się załadować WO. Spróbuj ponownie.",
     retry: "Spróbuj ponownie",
     notFound: "Nie znaleziono work order.",
+    startButton: "Uruchom work order",
+    startHint: "Konsumpcja, wyrób i odpad odblokują się po uruchomieniu WO.",
+    startError: "Nie udało się uruchomić WO. Spróbuj ponownie.",
     progress: "Postęp WO",
     target: "Cel",
     produced: "Wyprod.",
@@ -310,6 +345,15 @@ const pl: ScannerProdLabelsShape = {
     title: "Konsumpcja",
     pickTitle: "Wybierz materiał",
     pickEmpty: "Brak materiałów do konsumpcji.",
+    lpTitle: "Wybierz nośnik (LP)",
+    lpLoading: "Ładowanie nośników…",
+    lpEmpty: "Brak dostępnych nośników dla tego materiału.",
+    lpError: "Nie udało się załadować nośników.",
+    lpSuggested: "Sugerowany (FEFO)",
+    lpExpiry: "ważn.",
+    lpManual: "Ręcznie / bez LP",
+    lpManualDesc: "Konsumpcja bez wskazania nośnika.",
+    doneLpRemaining: "{qty} {uom} pozostało na {lp}",
     needed: "jeszcze potrzeba",
     qtyLabel: "Ilość do konsumpcji",
     qtyHint: "W jednostce materiału",
@@ -381,6 +425,10 @@ const pl: ScannerProdLabelsShape = {
     catExpired: "Przeterminowane",
     catContamination: "Zanieczyszczenie",
     catOther: "Inne",
+  },
+  errors: {
+    wo_not_recordable:
+      "Najpierw uruchom work order — wyroby można rejestrować tylko, gdy jest w toku",
   },
   loading: "Ładowanie…",
 };

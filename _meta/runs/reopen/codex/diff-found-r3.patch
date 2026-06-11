@@ -1,0 +1,1523 @@
+diff --git a/packages/db/migrations/211-shipping-schema-foundation.sql b/packages/db/migrations/211-shipping-schema-foundation.sql
+new file mode 100644
+index 00000000..405b2061
+--- /dev/null
++++ b/packages/db/migrations/211-shipping-schema-foundation.sql
+@@ -0,0 +1,773 @@
++-- Migration 211: 11-Shipping — SCHEMA foundation.
++--   Customer domain (customers + customer_contacts + customer_addresses +
++--   customer_allergen_restrictions), sales orders (sales_orders + sales_order_lines), inventory
++--   allocations (inventory_allocations), picking (waves + pick_lists + pick_list_lines), shipments
++--   (shipments + shipment_boxes + shipment_box_contents + per-org sscc_counters + SSCC functions),
++--   and bill_of_lading.
++-- PRD: docs/prd/11-SHIPPING-PRD.md §9.1 (tables), §6 D-SHP-7 RLS, §6 D-SHP-8 SO status machine,
++--   §6 D-SHP-13 hold gate, §13.1 SSCC-18, §14.4 BRCGS BOL retention. Tasks T-001/T-006/T-011/
++--   T-015/T-018 (+ BOL slice of T-023). SCHEMA-ONLY — status-machine enforcement + Server Actions
++--   live in T-002/T-007/T-012/T-016/T-020/T-023.
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (foundation function, 002-rls-baseline.sql — never redefined, never read as a raw
++--   current_setting GUC).
++-- site_id day-1: site_id uuid is NULLABLE on every operational table, no FK, no registry — full
++--   per-site scoping ((org_id, site_id) policy + app.current_site_id()) lands later via 14-MS T-030.
++-- NUMERIC-exact: every money/qty/weight column is NUMERIC (never float).
++-- Audit (R13): embedded created_by/created_at/updated_at/updated_by/deleted_at columns + a local
++--   shipping_set_updated_at trigger (matches production migs 181-185 / warehouse 191 / quality 197).
++-- Cross-module FKs are SOFT uuids (no .references()) to avoid coupling migration ordering across
++--   modules: product_id (01-NPD/03-Technical product FG SSOT — NO parallel fa_id), license_plate_id
++--   (05-Warehouse license_plates — READ-ONLY here; consumed for ship via warehouse.lp.ship),
++--   allergen_id (02-Settings reference rows), location_id / warehouse_id.
++-- Canonical-owner separation: this migration creates ONLY 11-shipping tables. It does NOT create
++--   wo_outputs / oee_snapshots / downtime_events (08-production), schedule_outputs (04-planning),
++--   license_plates (05-warehouse), item_cost_history (03-technical), quality_holds / ncr_reports /
++--   v_active_holds (09-quality). The LP qa-status gate READS v_active_holds via holdsGuard.
++
++-- ===========================================================================
++-- Per-org human-readable numbering sequences (SO-/PL-/WV-/SH-/BOL-, START 1).
++-- Drizzle .references() would create a global counter; per-org numbering is enforced by the
++-- generated-number-column UNIQUE (org_id, *_number) below. These global sequences feed the *_seq
++-- bigint; the *_number is derived per-row.
++-- ===========================================================================
++create sequence if not exists public.sales_order_seq start 1;
++create sequence if not exists public.pick_list_seq start 1;
++create sequence if not exists public.wave_seq start 1;
++create sequence if not exists public.shipment_seq start 1;
++create sequence if not exists public.bol_seq start 1;
++
++-- ===========================================================================
++-- shipping_set_updated_at — R13 embedded-audit trigger (sets updated_at on UPDATE).
++-- ===========================================================================
++create or replace function public.shipping_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++-- Human-readable number assignment (<PREFIX>-YYYY-NNNNN) — one trigger function per prefix/column,
++-- populated at INSERT time (now() is not IMMUTABLE so the number cannot be a GENERATED column).
++-- The (org_id, <number>) UNIQUE index + the global *_seq bigint keep numbers unique. The year is a
++-- presentation prefix; cross-year uniqueness still holds because the seq is monotonic.
++create or replace function public.shipping_set_sales_order_number()
++returns trigger language plpgsql as $$
++begin
++  if new.order_number is null then
++    new.order_number := 'SO-' || to_char(new.created_at, 'YYYY') || '-' || lpad(new.order_seq::text, 5, '0');
++  end if;
++  return new;
++end;
++$$;
++
++create or replace function public.shipping_set_wave_number()
++returns trigger language plpgsql as $$
++begin
++  if new.wave_number is null then
++    new.wave_number := 'WV-' || to_char(new.created_at, 'YYYY') || '-' || lpad(new.wave_seq::text, 5, '0');
++  end if;
++  return new;
++end;
++$$;
++
++create or replace function public.shipping_set_pick_list_number()
++returns trigger language plpgsql as $$
++begin
++  if new.pick_list_number is null then
++    new.pick_list_number := 'PL-' || to_char(new.created_at, 'YYYY') || '-' || lpad(new.pick_list_seq::text, 5, '0');
++  end if;
++  return new;
++end;
++$$;
++
++create or replace function public.shipping_set_shipment_number()
++returns trigger language plpgsql as $$
++begin
++  if new.shipment_number is null then
++    new.shipment_number := 'SH-' || to_char(new.created_at, 'YYYY') || '-' || lpad(new.shipment_seq::text, 5, '0');
++  end if;
++  return new;
++end;
++$$;
++
++create or replace function public.shipping_set_bol_number()
++returns trigger language plpgsql as $$
++begin
++  if new.bol_number is null then
++    new.bol_number := 'BOL-' || to_char(new.created_at, 'YYYY') || '-' || lpad(new.bol_seq::text, 5, '0');
++  end if;
++  return new;
++end;
++$$;
++
++-- ===========================================================================
++-- customers (T-001).
++-- ===========================================================================
++create table if not exists public.customers (
++  id                    uuid primary key default gen_random_uuid(),
++  org_id                uuid not null references public.organizations(id) on delete cascade,
++  site_id               uuid,
++  customer_code         text not null,
++  name                  text not null,
++  email                 text,
++  phone                 text,
++  tax_id                text,
++  category              text not null default 'retail',
++  allergen_restrictions jsonb not null default '[]'::jsonb,
++  credit_limit_gbp      numeric(14, 2),
++  is_active             boolean not null default true,
++  ext_data              jsonb not null default '{}'::jsonb,
++  created_at            timestamptz not null default pg_catalog.now(),
++  created_by            uuid,
++  updated_at            timestamptz not null default pg_catalog.now(),
++  updated_by            uuid,
++  deleted_at            timestamptz,
++  constraint customers_category_check check (category in ('retail', 'wholesale', 'distributor'))
++);
++create unique index if not exists customers_org_code_uq on public.customers (org_id, customer_code);
++create index if not exists customers_org_idx on public.customers (org_id);
++create index if not exists customers_org_site_idx on public.customers (org_id, site_id);
++
++-- ===========================================================================
++-- customer_contacts (T-001).
++-- ===========================================================================
++create table if not exists public.customer_contacts (
++  id          uuid primary key default gen_random_uuid(),
++  org_id      uuid not null references public.organizations(id) on delete cascade,
++  site_id     uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
++  customer_id uuid not null references public.customers(id) on delete cascade,
++  name        text not null,
++  title       text,
++  email       text,
++  phone       text,
++  is_primary  boolean not null default false,
++  created_at  timestamptz not null default pg_catalog.now(),
++  created_by  uuid,
++  updated_at  timestamptz not null default pg_catalog.now(),
++  updated_by  uuid,
++  deleted_at  timestamptz
++);
++create index if not exists customer_contacts_org_idx on public.customer_contacts (org_id);
++create index if not exists customer_contacts_org_site_idx on public.customer_contacts (org_id, site_id);
++create index if not exists customer_contacts_customer_idx on public.customer_contacts (customer_id);
++
++-- ===========================================================================
++-- customer_addresses (T-001).
++-- ===========================================================================
++create table if not exists public.customer_addresses (
++  id            uuid primary key default gen_random_uuid(),
++  org_id        uuid not null references public.organizations(id) on delete cascade,
++  site_id       uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
++  customer_id   uuid not null references public.customers(id) on delete cascade,
++  address_type  text not null,
++  is_default    boolean not null default false,
++  address_line1 text not null,
++  address_line2 text,
++  city          text not null,
++  state         text,
++  postal_code   text not null,
++  country_iso2  char(2) not null,
++  dock_hours    jsonb,
++  notes         text,
++  created_at    timestamptz not null default pg_catalog.now(),
++  created_by    uuid,
++  updated_at    timestamptz not null default pg_catalog.now(),
++  updated_by    uuid,
++  deleted_at    timestamptz,
++  constraint customer_addresses_address_type_check check (address_type in ('billing', 'shipping'))
++);
++create index if not exists customer_addresses_org_idx on public.customer_addresses (org_id);
++create index if not exists customer_addresses_org_site_idx on public.customer_addresses (org_id, site_id);
++create index if not exists customer_addresses_customer_type_idx
++  on public.customer_addresses (org_id, customer_id, address_type);
++
++-- ===========================================================================
++-- customer_allergen_restrictions (T-001). allergen_id soft FK to 02-Settings allergen_families.
++-- ===========================================================================
++create table if not exists public.customer_allergen_restrictions (
++  id               uuid primary key default gen_random_uuid(),
++  org_id           uuid not null references public.organizations(id) on delete cascade,
++  site_id          uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
++  customer_id      uuid not null references public.customers(id) on delete cascade,
++  allergen_id      uuid not null,
++  restriction_type text not null,
++  notes            text,
++  created_at       timestamptz not null default pg_catalog.now(),
++  created_by       uuid,
++  updated_at       timestamptz not null default pg_catalog.now(),
++  updated_by       uuid,
++  deleted_at       timestamptz,
++  constraint customer_allergen_restrictions_type_check
++    check (restriction_type in ('refuses', 'requires_decl'))
++);
++create unique index if not exists customer_allergen_restrictions_uq
++  on public.customer_allergen_restrictions (org_id, customer_id, allergen_id);
++create index if not exists customer_allergen_restrictions_org_idx
++  on public.customer_allergen_restrictions (org_id);
++create index if not exists customer_allergen_restrictions_org_site_idx
++  on public.customer_allergen_restrictions (org_id, site_id);
++
++-- ===========================================================================
++-- sales_orders (T-006). order_number GENERATED 'SO-YYYY-NNNNN' from order_seq. status machine
++-- ENFORCEMENT is T-007; the CHECK here only restricts the vocabulary (D-SHP-8 12 states).
++-- ===========================================================================
++create table if not exists public.sales_orders (
++  id                     uuid primary key default gen_random_uuid(),
++  org_id                 uuid not null references public.organizations(id) on delete cascade,
++  site_id                uuid,
++  order_seq              bigint not null default nextval('public.sales_order_seq'),
++  -- order_number ('SO-YYYY-NNNNN') is populated by the sales_orders_set_number BEFORE INSERT
++  -- trigger (now() is not IMMUTABLE so it cannot be a GENERATED column).
++  order_number           text,
++  customer_id            uuid not null references public.customers(id) on delete restrict,
++  customer_po            text,
++  shipping_address_id    uuid references public.customer_addresses(id) on delete set null,
++  order_date             date not null,
++  promised_ship_date     date,
++  required_delivery_date date,
++  status                 text not null default 'draft',
++  total_amount_gbp       numeric(14, 2),
++  allergen_validated     boolean not null default false,
++  confirmed_at           timestamptz,
++  confirmed_by           uuid,
++  shipped_at             timestamptz,
++  ext_data               jsonb not null default '{}'::jsonb,
++  created_at             timestamptz not null default pg_catalog.now(),
++  created_by             uuid,
++  updated_at             timestamptz not null default pg_catalog.now(),
++  updated_by             uuid,
++  deleted_at             timestamptz,
++  constraint sales_orders_status_check check (
++    status in ('draft', 'confirmed', 'allocated', 'partially_picked', 'picked',
++               'partially_packed', 'packed', 'manifested', 'shipped',
++               'partially_delivered', 'delivered', 'cancelled')
++  ),
++  constraint sales_orders_ship_date_check check (
++    promised_ship_date is null or promised_ship_date >= order_date
++  )
++);
++create unique index if not exists sales_orders_org_number_uq on public.sales_orders (org_id, order_number);
++create index if not exists sales_orders_org_idx on public.sales_orders (org_id);
++create index if not exists sales_orders_org_site_idx on public.sales_orders (org_id, site_id);
++create index if not exists sales_orders_customer_idx on public.sales_orders (customer_id);
++create index if not exists sales_orders_status_idx on public.sales_orders (org_id, status);
++
++-- ===========================================================================
++-- sales_order_lines (T-006). product_id soft FK to product FG SSOT (NO parallel fa_id).
++-- ===========================================================================
++create table if not exists public.sales_order_lines (
++  id                 uuid primary key default gen_random_uuid(),
++  org_id             uuid not null references public.organizations(id) on delete cascade,
++  site_id            uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
++  sales_order_id     uuid not null references public.sales_orders(id) on delete cascade,
++  line_number        integer not null,
++  product_id         uuid not null,
++  quantity_ordered   numeric(14, 3) not null,
++  quantity_allocated numeric(14, 3) not null default 0,
++  quantity_picked    numeric(14, 3) not null default 0,
++  quantity_packed    numeric(14, 3) not null default 0,
++  quantity_shipped   numeric(14, 3) not null default 0,
++  unit_price_gbp     numeric(14, 4) not null,
++  line_total_gbp     numeric(14, 4),
++  requested_lot      text,
++  notes              text,
++  ext_data           jsonb not null default '{}'::jsonb,
++  created_at         timestamptz not null default pg_catalog.now(),
++  created_by         uuid,
++  updated_at         timestamptz not null default pg_catalog.now(),
++  updated_by         uuid,
++  deleted_at         timestamptz,
++  constraint sales_order_lines_so_line_uq unique (sales_order_id, line_number),
++  constraint sales_order_lines_qty_check check (quantity_ordered > 0),
++  constraint sales_order_lines_price_check check (unit_price_gbp > 0)
++);
++create index if not exists sales_order_lines_org_idx on public.sales_order_lines (org_id);
++create index if not exists sales_order_lines_org_site_idx on public.sales_order_lines (org_id, site_id);
++create index if not exists sales_order_lines_so_idx on public.sales_order_lines (sales_order_id);
++create index if not exists sales_order_lines_product_idx on public.sales_order_lines (org_id, product_id);
++
++-- ===========================================================================
++-- inventory_allocations (T-011). license_plate_id soft FK to 05-Warehouse license_plates.
++-- NOT cascade-deleted from sales_orders (release flow handles orphans).
++-- ===========================================================================
++create table if not exists public.inventory_allocations (
++  id                   uuid primary key default gen_random_uuid(),
++  org_id               uuid not null references public.organizations(id) on delete cascade,
++  site_id              uuid,
++  sales_order_line_id  uuid not null references public.sales_order_lines(id) on delete cascade,
++  license_plate_id     uuid not null,
++  quantity_allocated   numeric(14, 3) not null,
++  status               text not null default 'allocated',
++  override_reason_code text,
++  override_by          uuid,
++  allocated_at         timestamptz not null default pg_catalog.now(),
++  released_at          timestamptz,
++  ext_data             jsonb not null default '{}'::jsonb,
++  created_at           timestamptz not null default pg_catalog.now(),
++  created_by           uuid,
++  updated_at           timestamptz not null default pg_catalog.now(),
++  updated_by           uuid,
++  deleted_at           timestamptz,
++  constraint inventory_allocations_qty_check check (quantity_allocated > 0),
++  constraint inventory_allocations_status_check
++    check (status in ('allocated', 'picked', 'released', 'cancelled'))
++);
++create index if not exists inventory_allocations_org_idx on public.inventory_allocations (org_id);
++create index if not exists inventory_allocations_so_line_idx
++  on public.inventory_allocations (sales_order_line_id);
++create index if not exists inventory_allocations_lp_idx
++  on public.inventory_allocations (org_id, license_plate_id);
++
++-- ===========================================================================
++-- waves (T-015). wave_number GENERATED 'WV-YYYY-NNNNN'.
++-- ===========================================================================
++create table if not exists public.waves (
++  id            uuid primary key default gen_random_uuid(),
++  org_id        uuid not null references public.organizations(id) on delete cascade,
++  site_id       uuid,
++  wave_seq      bigint not null default nextval('public.wave_seq'),
++  wave_number   text, -- 'WV-YYYY-NNNNN' populated by waves_set_number BEFORE INSERT trigger.
++  status        text not null default 'unreleased',
++  planned_start timestamptz,
++  released_at   timestamptz,
++  completed_at  timestamptz,
++  ext_data      jsonb not null default '{}'::jsonb,
++  created_at    timestamptz not null default pg_catalog.now(),
++  created_by    uuid,
++  updated_at    timestamptz not null default pg_catalog.now(),
++  updated_by    uuid,
++  deleted_at    timestamptz,
++  constraint waves_status_check check (status in ('unreleased', 'released', 'in_pick', 'completed'))
++);
++create unique index if not exists waves_org_number_uq on public.waves (org_id, wave_number);
++create index if not exists waves_org_idx on public.waves (org_id);
++
++-- ===========================================================================
++-- pick_lists (T-015). pick_list_number GENERATED 'PL-YYYY-NNNNN'. NOT cascade from sales_orders.
++-- ===========================================================================
++create table if not exists public.pick_lists (
++  id               uuid primary key default gen_random_uuid(),
++  org_id           uuid not null references public.organizations(id) on delete cascade,
++  site_id          uuid,
++  pick_list_seq    bigint not null default nextval('public.pick_list_seq'),
++  pick_list_number text, -- 'PL-YYYY-NNNNN' populated by pick_lists_set_number BEFORE INSERT trigger.
++  pick_type        text not null default 'single_order',
++  status           text not null default 'pending',
++  priority         integer not null default 3,
++  assigned_to      uuid references public.users(id) on delete set null,
++  wave_id          uuid references public.waves(id) on delete set null,
++  sales_order_id   uuid references public.sales_orders(id) on delete set null,
++  started_at       timestamptz,
++  completed_at     timestamptz,
++  ext_data         jsonb not null default '{}'::jsonb,
++  created_at       timestamptz not null default pg_catalog.now(),
++  created_by       uuid,
++  updated_at       timestamptz not null default pg_catalog.now(),
++  updated_by       uuid,
++  deleted_at       timestamptz,
++  constraint pick_lists_pick_type_check check (pick_type in ('single_order', 'wave')),
++  constraint pick_lists_status_check
++    check (status in ('pending', 'assigned', 'in_progress', 'completed', 'cancelled')),
++  constraint pick_lists_priority_check check (priority between 1 and 5)
++);
++create unique index if not exists pick_lists_org_number_uq on public.pick_lists (org_id, pick_list_number);
++create index if not exists pick_lists_org_idx on public.pick_lists (org_id);
++create index if not exists pick_lists_org_site_idx on public.pick_lists (org_id, site_id);
++create index if not exists pick_lists_assigned_idx on public.pick_lists (org_id, assigned_to);
++create index if not exists pick_lists_wave_idx on public.pick_lists (wave_id);
++create index if not exists pick_lists_so_idx on public.pick_lists (sales_order_id);
++
++-- ===========================================================================
++-- pick_list_lines (T-015). license_plate_id / picked_license_plate_id soft FK to 05.
++-- ===========================================================================
++create table if not exists public.pick_list_lines (
++  id                      uuid primary key default gen_random_uuid(),
++  org_id                  uuid not null references public.organizations(id) on delete cascade,
++  site_id                 uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
++  pick_list_id            uuid not null references public.pick_lists(id) on delete cascade,
++  sales_order_line_id     uuid references public.sales_order_lines(id) on delete set null,
++  license_plate_id        uuid,
++  picked_license_plate_id uuid,
++  location_id             uuid,
++  product_id              uuid,
++  lot_number              text,
++  quantity_to_pick        numeric(14, 3) not null,
++  quantity_picked         numeric(14, 3) not null default 0,
++  pick_sequence           integer,
++  status                  text not null default 'pending',
++  picked_at               timestamptz,
++  picked_by               uuid,
++  ext_data                jsonb not null default '{}'::jsonb,
++  created_at              timestamptz not null default pg_catalog.now(),
++  created_by              uuid,
++  updated_at              timestamptz not null default pg_catalog.now(),
++  updated_by              uuid,
++  deleted_at              timestamptz,
++  constraint pick_list_lines_qty_check check (quantity_to_pick > 0),
++  constraint pick_list_lines_status_check check (status in ('pending', 'picked', 'short'))
++);
++create index if not exists pick_list_lines_org_idx on public.pick_list_lines (org_id);
++create index if not exists pick_list_lines_org_site_idx on public.pick_list_lines (org_id, site_id);
++create index if not exists pick_list_lines_pick_list_idx on public.pick_list_lines (pick_list_id);
++create index if not exists pick_list_lines_so_line_idx on public.pick_list_lines (sales_order_line_id);
++
++-- ===========================================================================
++-- shipments (T-018). shipment_number GENERATED 'SH-YYYY-NNNNN'. NOT cascade from sales_orders.
++-- ===========================================================================
++create table if not exists public.shipments (
++  id                  uuid primary key default gen_random_uuid(),
++  org_id              uuid not null references public.organizations(id) on delete cascade,
++  site_id             uuid,
++  shipment_seq        bigint not null default nextval('public.shipment_seq'),
++  shipment_number     text, -- 'SH-YYYY-NNNNN' populated by shipments_set_number BEFORE INSERT trigger.
++  sales_order_id      uuid references public.sales_orders(id) on delete restrict,
++  customer_id         uuid references public.customers(id) on delete restrict,
++  shipping_address_id uuid references public.customer_addresses(id) on delete set null,
++  status              text not null default 'pending',
++  carrier             text,
++  service_level       text,
++  tracking_number     text,
++  total_weight_kg     numeric(12, 3),
++  total_boxes         integer,
++  dock_door_id        uuid,
++  staged_location_id  uuid,
++  packed_at           timestamptz,
++  packed_by           uuid,
++  shipped_at          timestamptz,
++  shipped_by          uuid,
++  delivered_at        timestamptz,
++  bol_pdf_url         text,
++  bol_signed_pdf_url  text,
++  ext_data            jsonb not null default '{}'::jsonb,
++  created_at          timestamptz not null default pg_catalog.now(),
++  created_by          uuid,
++  updated_at          timestamptz not null default pg_catalog.now(),
++  updated_by          uuid,
++  deleted_at          timestamptz,
++  constraint shipments_status_check check (
++    status in ('pending', 'packing', 'packed', 'manifested', 'shipped', 'delivered', 'exception')
++  )
++);
++create unique index if not exists shipments_org_number_uq on public.shipments (org_id, shipment_number);
++create index if not exists shipments_org_idx on public.shipments (org_id);
++create index if not exists shipments_org_site_idx on public.shipments (org_id, site_id);
++create index if not exists shipments_so_idx on public.shipments (sales_order_id);
++create index if not exists shipments_customer_idx on public.shipments (customer_id);
++
++-- ===========================================================================
++-- shipment_boxes (T-018). sscc varchar(18), 18-digit CHECK, UNIQUE per org.
++-- ===========================================================================
++create table if not exists public.shipment_boxes (
++  id               uuid primary key default gen_random_uuid(),
++  org_id           uuid not null references public.organizations(id) on delete cascade,
++  site_id          uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
++  shipment_id      uuid not null references public.shipments(id) on delete cascade,
++  box_number       integer not null,
++  sscc             varchar(18),
++  weight_kg        numeric(10, 3),
++  actual_weight_kg numeric(10, 3),
++  length_cm        numeric(8, 2),
++  width_cm         numeric(8, 2),
++  height_cm        numeric(8, 2),
++  tracking_number  text,
++  ext_data         jsonb not null default '{}'::jsonb,
++  created_at       timestamptz not null default pg_catalog.now(),
++  created_by       uuid,
++  updated_at       timestamptz not null default pg_catalog.now(),
++  updated_by       uuid,
++  deleted_at       timestamptz,
++  constraint shipment_boxes_sscc_check check (sscc is null or sscc ~ '^[0-9]{18}$')
++);
++create unique index if not exists shipment_boxes_org_sscc_uq on public.shipment_boxes (org_id, sscc);
++create index if not exists shipment_boxes_org_idx on public.shipment_boxes (org_id);
++create index if not exists shipment_boxes_org_site_idx on public.shipment_boxes (org_id, site_id);
++create index if not exists shipment_boxes_shipment_idx on public.shipment_boxes (shipment_id);
++
++-- ===========================================================================
++-- shipment_box_contents (T-018). license_plate_id soft FK to 05 (consumed via warehouse.lp.ship).
++-- ===========================================================================
++create table if not exists public.shipment_box_contents (
++  id                  uuid primary key default gen_random_uuid(),
++  org_id              uuid not null references public.organizations(id) on delete cascade,
++  site_id             uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
++  shipment_box_id     uuid not null references public.shipment_boxes(id) on delete cascade,
++  sales_order_line_id uuid references public.sales_order_lines(id) on delete set null,
++  product_id          uuid,
++  license_plate_id    uuid,
++  lot_number          text,
++  quantity            numeric(14, 3),
++  actual_weight_kg    numeric(10, 3),
++  ext_data            jsonb not null default '{}'::jsonb,
++  created_at          timestamptz not null default pg_catalog.now(),
++  created_by          uuid,
++  updated_at          timestamptz not null default pg_catalog.now(),
++  updated_by          uuid,
++  deleted_at          timestamptz
++);
++create index if not exists shipment_box_contents_org_idx on public.shipment_box_contents (org_id);
++create index if not exists shipment_box_contents_org_site_idx on public.shipment_box_contents (org_id, site_id);
++create index if not exists shipment_box_contents_box_idx on public.shipment_box_contents (shipment_box_id);
++create index if not exists shipment_box_contents_lp_idx
++  on public.shipment_box_contents (org_id, license_plate_id);
++
++-- ===========================================================================
++-- bill_of_lading (BOL slice of T-023). BRCGS §14.4: SHA-256 hash + 7y retention.
++-- retention_until = COALESCE(signed_at, created_at) + 7y, trigger-maintained.
++-- ===========================================================================
++create table if not exists public.bill_of_lading (
++  id                uuid primary key default gen_random_uuid(),
++  org_id            uuid not null references public.organizations(id) on delete cascade,
++  site_id           uuid,
++  bol_seq           bigint not null default nextval('public.bol_seq'),
++  bol_number        text, -- 'BOL-YYYY-NNNNN' populated by bill_of_lading_set_number BEFORE INSERT trigger.
++  shipment_id       uuid not null references public.shipments(id) on delete restrict,
++  status            text not null default 'draft',
++  carrier           text,
++  pro_number        text,
++  pdf_url           text,
++  pdf_sha256        char(64),
++  signed_pdf_url    text,
++  signed_pdf_sha256 char(64),
++  signed_at         timestamptz,
++  signed_by         uuid,
++  issued_at         timestamptz,
++  retention_until   date default ((pg_catalog.now()::date) + interval '7 years')::date,
++  ext_data          jsonb not null default '{}'::jsonb,
++  created_at        timestamptz not null default pg_catalog.now(),
++  created_by        uuid,
++  updated_at        timestamptz not null default pg_catalog.now(),
++  updated_by        uuid,
++  deleted_at        timestamptz,
++  constraint bill_of_lading_status_check check (status in ('draft', 'issued', 'signed', 'cancelled'))
++);
++create unique index if not exists bill_of_lading_org_number_uq on public.bill_of_lading (org_id, bol_number);
++create index if not exists bill_of_lading_org_idx on public.bill_of_lading (org_id);
++create index if not exists bill_of_lading_shipment_idx on public.bill_of_lading (shipment_id);
++
++-- bill_of_lading retention_until (BRCGS 7y from COALESCE(signed_at, created_at)) — trigger-maintained
++-- (timestamptz::date + interval is not immutable, so not a GENERATED STORED column).
++create or replace function public.bill_of_lading_set_updated_at_retention()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  new.retention_until := (coalesce(new.signed_at, new.created_at)::date + interval '7 years')::date;
++  return new;
++end;
++$$;
++
++-- ===========================================================================
++-- sscc_counters + SSCC functions (T-018, §13.1).
++--   next_sscc_serial(org)  — atomic per-org serial (row-locked UPDATE ... RETURNING; no gaps).
++--   sscc_mod10(sscc17)     — GS1 mod-10 check digit (server-side only; V-SHIP-LBL-03).
++--   generate_sscc(org,ext) — 18-digit SSCC: ext(1) + gs1_prefix(7) + serial(9) + mod10.
++-- ===========================================================================
++create table if not exists public.sscc_counters (
++  org_id      uuid primary key references public.organizations(id) on delete cascade,
++  last_serial bigint not null default 0,
++  updated_at  timestamptz not null default pg_catalog.now()
++);
++
++create or replace function public.next_sscc_serial(p_org_id uuid)
++returns bigint
++language plpgsql
++security definer
++set search_path = pg_catalog, public
++as $$
++declare
++  v_serial bigint;
++begin
++  -- Tenant-isolation: SECURITY DEFINER bypasses RLS, so the caller-supplied p_org_id MUST match
++  -- the session org or an app_user could mutate another org's SSCC counter / read its GS1 prefix.
++  if p_org_id is null or p_org_id <> app.current_org_id() then
++    raise exception 'next_sscc_serial: cross-org access denied' using errcode = '42501';
++  end if;
++  -- Insert-on-first-call then atomic increment via UPDATE ... RETURNING (row lock = no gaps,
++  -- no duplicates under concurrency). NEVER nextval() — that is a global sequence, not per-org.
++  insert into public.sscc_counters (org_id) values (p_org_id)
++    on conflict (org_id) do nothing;
++  update public.sscc_counters
++     set last_serial = last_serial + 1,
++         updated_at  = pg_catalog.now()
++   where org_id = p_org_id
++   returning last_serial into v_serial;
++  return v_serial;
++end;
++$$;
++
++create or replace function public.sscc_mod10(p_sscc17 text)
++returns integer
++language plpgsql
++immutable
++set search_path = pg_catalog
++as $$
++declare
++  v_sum    integer := 0;
++  v_digit  integer;
++  v_weight integer;
++  i        integer;
++begin
++  if p_sscc17 is null or p_sscc17 !~ '^[0-9]{17}$' then
++    raise exception 'sscc_mod10: input must be exactly 17 digits';
++  end if;
++  -- GS1 SSCC-18 check digit: weight the 17 digits 3,1,3,1,... from the LEFT, sum, then the
++  -- check digit is (10 - (sum mod 10)) mod 10.
++  for i in 1..17 loop
++    v_digit  := substr(p_sscc17, i, 1)::integer;
++    v_weight := case when (i % 2) = 1 then 3 else 1 end;
++    v_sum    := v_sum + v_digit * v_weight;
++  end loop;
++  return (10 - (v_sum % 10)) % 10;
++end;
++$$;
++
++-- GS1 SSCC-18 integrity: app_user has insert/update on shipment_boxes, so an SSCC stored outside
++-- generate_sscc() must still carry a valid mod-10 check digit (added after sscc_mod10 is defined).
++alter table public.shipment_boxes drop constraint if exists shipment_boxes_sscc_mod10_check;
++alter table public.shipment_boxes add constraint shipment_boxes_sscc_mod10_check
++  check (sscc is null or public.sscc_mod10(left(sscc, 17)) = substr(sscc, 18, 1)::integer);
++
++create or replace function public.generate_sscc(p_org_id uuid, p_extension integer default 0)
++returns varchar(18)
++language plpgsql
++security definer
++set search_path = pg_catalog, public
++as $$
++declare
++  v_prefix  text;
++  v_serial  bigint;
++  v_body    text;
++  v_check   integer;
++begin
++  -- Tenant-isolation guard (SECURITY DEFINER bypasses RLS); next_sscc_serial re-checks too.
++  if p_org_id is null or p_org_id <> app.current_org_id() then
++    raise exception 'generate_sscc: cross-org access denied' using errcode = '42501';
++  end if;
++  if p_extension is null or p_extension < 0 or p_extension > 9 then
++    raise exception 'generate_sscc: extension digit must be 0-9';
++  end if;
++  -- gs1_prefix sourced from organizations (02-SETTINGS §12.1) — NEVER env config.
++  select gs1_prefix into v_prefix from public.organizations where id = p_org_id;
++  if v_prefix is null or v_prefix = '' then
++    raise exception 'V-SHIP-PACK-03 missing GS1 company prefix for org %', p_org_id;
++  end if;
++  -- P1 enforces exactly 7-digit GS1 company prefix (V-SHIP-PACK-03 7-10; P2 widens).
++  if v_prefix !~ '^[0-9]{7}$' then
++    raise exception 'V-SHIP-PACK-03 GS1 company prefix must be exactly 7 digits (got %)', v_prefix;
++  end if;
++  v_serial := public.next_sscc_serial(p_org_id);
++  -- body = ext(1) + prefix(7) + serial(9) = 17 digits.
++  v_body  := p_extension::text || v_prefix || lpad(v_serial::text, 9, '0');
++  v_check := public.sscc_mod10(v_body);
++  return (v_body || v_check::text)::varchar(18);
++end;
++$$;
++
++revoke all on function public.next_sscc_serial(uuid) from public;
++revoke all on function public.generate_sscc(uuid, integer) from public;
++grant execute on function public.next_sscc_serial(uuid) to app_user;
++grant execute on function public.sscc_mod10(text) to app_user;
++grant execute on function public.generate_sscc(uuid, integer) to app_user;
++
++-- ===========================================================================
++-- RLS + FORCE RLS + grants + updated_at triggers for every operational table.
++-- Policies <table>_org_context USING/WITH CHECK (org_id = app.current_org_id()) — no GUC reads.
++-- ===========================================================================
++do $$
++declare
++  t text;
++  shipping_tables text[] := array[
++    'customers', 'customer_contacts', 'customer_addresses', 'customer_allergen_restrictions',
++    'sales_orders', 'sales_order_lines', 'inventory_allocations',
++    'waves', 'pick_lists', 'pick_list_lines',
++    'shipments', 'shipment_boxes', 'shipment_box_contents', 'bill_of_lading'
++  ];
++begin
++  foreach t in array shipping_tables loop
++    execute format('alter table public.%I enable row level security', t);
++    execute format('alter table public.%I force row level security', t);
++    execute format('drop policy if exists %I on public.%I', t || '_org_context', t);
++    execute format(
++      'create policy %I on public.%I for all to app_user using (org_id = app.current_org_id()) with check (org_id = app.current_org_id())',
++      t || '_org_context', t
++    );
++    execute format('revoke all on public.%I from public', t);
++    execute format('revoke all on public.%I from app_user', t);
++    execute format('grant select, insert, update, delete on public.%I to app_user', t);
++  end loop;
++end
++$$;
++
++-- bill_of_lading uses the retention-maintaining trigger (insert + update); the rest use the plain
++-- updated_at trigger (update only).
++drop trigger if exists bill_of_lading_set_updated_at on public.bill_of_lading;
++create trigger bill_of_lading_set_updated_at
++  before insert or update on public.bill_of_lading
++  for each row execute function public.bill_of_lading_set_updated_at_retention();
++
++do $$
++declare
++  t text;
++  plain_tables text[] := array[
++    'customers', 'customer_contacts', 'customer_addresses', 'customer_allergen_restrictions',
++    'sales_orders', 'sales_order_lines', 'inventory_allocations',
++    'waves', 'pick_lists', 'pick_list_lines',
++    'shipments', 'shipment_boxes', 'shipment_box_contents'
++  ];
++begin
++  foreach t in array plain_tables loop
++    execute format('drop trigger if exists %I on public.%I', t || '_set_updated_at', t);
++    execute format(
++      'create trigger %I before update on public.%I for each row execute function public.shipping_set_updated_at()',
++      t || '_set_updated_at', t
++    );
++  end loop;
++end
++$$;
++
++-- Human-readable number triggers (BEFORE INSERT, fire before the updated_at/retention triggers).
++drop trigger if exists sales_orders_set_number on public.sales_orders;
++create trigger sales_orders_set_number
++  before insert on public.sales_orders
++  for each row execute function public.shipping_set_sales_order_number();
++
++drop trigger if exists waves_set_number on public.waves;
++create trigger waves_set_number
++  before insert on public.waves
++  for each row execute function public.shipping_set_wave_number();
++
++drop trigger if exists pick_lists_set_number on public.pick_lists;
++create trigger pick_lists_set_number
++  before insert on public.pick_lists
++  for each row execute function public.shipping_set_pick_list_number();
++
++drop trigger if exists shipments_set_number on public.shipments;
++create trigger shipments_set_number
++  before insert on public.shipments
++  for each row execute function public.shipping_set_shipment_number();
++
++drop trigger if exists bill_of_lading_set_number on public.bill_of_lading;
++create trigger bill_of_lading_set_number
++  before insert on public.bill_of_lading
++  for each row execute function public.shipping_set_bol_number();
++
++-- sscc_counters: org-scoped mutable per-org state. RLS ENABLED + FORCED with the app.current_org_id()
++-- function-form policy (Wave0 lock; no GUC reads). Writes flow through the SECURITY DEFINER counter
++-- functions (next_sscc_serial / generate_sscc) which run as the migration owner (postgres, implicit
++-- BYPASSRLS) so they are unaffected by FORCE RLS and keep operating gap-free. app_user retains SELECT
++-- (for inspection) but it is now RLS-scoped to the caller's org.
++alter table public.sscc_counters enable row level security;
++alter table public.sscc_counters force row level security;
++drop policy if exists sscc_counters_org_context on public.sscc_counters;
++create policy sscc_counters_org_context on public.sscc_counters
++  for all to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++revoke all on public.sscc_counters from public;
++grant select on public.sscc_counters to app_user;
+diff --git a/packages/db/migrations/215-multi-site-sites-registry-context.sql b/packages/db/migrations/215-multi-site-sites-registry-context.sql
+new file mode 100644
+index 00000000..2e14aa78
+--- /dev/null
++++ b/packages/db/migrations/215-multi-site-sites-registry-context.sql
+@@ -0,0 +1,534 @@
++-- Migration 215: 14-multi-site — SCHEMA FOUNDATION.
++--   (A) app.session_site_contexts + app.active_site_contexts trust store + app.set_site_context()
++--       setter + app.current_site_id() reader (the site-scoping primitive every operational table's
++--       day-1 site_id column awaits; T-001).
++--   (B) public.sites — the canonical physical-site registry (org master data, org-scoped — NOT
++--       site-scoped per §6.4 REC-L1). site_id columns across all modules are nullable-no-FK day-1;
++--       THIS migration owns the FK target so future modules can reference public.sites (T-002).
++--   (C) public.operational_tables — the cross-module site-scoping registry + app.is_site_scoped_table()
++--       helper. Records which operational tables carry a day-1 site_id column awaiting the T-030
++--       backfill (NOT NULL + (org_id, site_id) policy + app.current_site_id()). This migration ONLY
++--       ships the registry + seeds the known §9.8 tables; it does NOT ALTER/backfill any other
++--       module's table (that is T-030, out of scope).
++--   (D) public.inter_site_transfer_orders — the inter-site transfer (IST/TO) shell, the one
++--       OPERATIONAL site-scoped table this foundation owns (from_site/to_site reference public.sites).
++--       Org+site RLS via app.current_org_id() AND app.current_site_id(). (T-008 shell.)
++--   (E) Outbox CHECK regenerated to equal DB_EVENT_TYPES incl the 5 new transfer_order.* /
++--       transport_lane.* events (drift gate green).
++--
++-- PRD: docs/prd/14-MULTI-SITE-PRD.md §9.1 (sites), §9.6 (IST), §9.8 (operational table list),
++--      §9.9 (composite indexes), §11.1 V-MS-01/04, §15.1 (current_site_id), §12.3/§10A.4 (events).
++-- Tasks: T-001 (site context), T-002 (sites), T-008 (IST shell), T-017 (events), T-030 (registry contract).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (migration 002-rls-baseline.sql — never redefined). The new app.current_site_id() mirrors that
++--   trust-store contract (no raw current_setting GUC read leaks past the SECURITY DEFINER body).
++-- site_id day-1: nullable uuid (no retro-FK) on every operational table; sites lands now so the FK
++--   TARGET exists for future modules, but NO retro-FK is added to existing nullable site_id columns
++--   (that is the T-030 backfill, out of scope here).
++-- NUMERIC-exact: transfer_cost is NUMERIC(18,2) (money — never float).
++-- Canonical-owner separation: this migration creates ONLY sites + operational_tables +
++--   inter_site_transfer_orders + the site-context functions. It does NOT create/alter wo_outputs
++--   (08), oee_snapshots (08), downtime_events (08), schedule_outputs (04), license_plates (05),
++--   item_cost_history (03), quality_holds / ncr_reports / v_active_holds (09).
++
++-- ===========================================================================
++-- (A) Site-context primitive — app.session_site_contexts trust store + setter/reader (T-001).
++--     Mirrors app.session_org_contexts / app.set_org_context / app.current_org_id() in 002.
++--     site_id NULL on a trust row = explicit super_admin ALL-sites mode (V-MS-07).
++-- ===========================================================================
++create table if not exists app.session_site_contexts (
++  session_token uuid primary key,
++  user_id       uuid not null,
++  org_id        uuid not null references public.organizations(id) on delete cascade,
++  site_id       uuid,  -- NULL = ALL-sites (super_admin) per V-MS-07
++  created_at    timestamptz not null default pg_catalog.now()
++);
++
++create table if not exists app.active_site_contexts (
++  backend_pid    integer primary key,
++  transaction_id bigint not null,
++  session_token  uuid not null references app.session_site_contexts(session_token) on delete cascade,
++  site_id        uuid,  -- NULL = ALL-sites mode (super_admin)
++  set_at         timestamptz not null default pg_catalog.now()
++);
++
++revoke all on app.session_site_contexts from public;
++revoke all on app.session_site_contexts from app_user;
++revoke all on app.active_site_contexts from public;
++revoke all on app.active_site_contexts from app_user;
++
++-- Setter: verifies the session row exists; if its site_id is NOT NULL it MUST equal the requested
++-- site (else PG 28000); if its site_id IS NULL the caller may declare ALL-sites (site arg NULL) OR a
++-- specific in-scope site is delegated to site_user_access at the app layer (not enforced here — the
++-- trust-store row is the gate). Distinguishes 'no row' (reject) from 'row with site_id NULL' (allow).
++create or replace function app.set_site_context(session_token uuid, site uuid)
++returns void
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++declare
++  v_trusted_site uuid;
++  v_found        boolean;
++begin
++  select trusted_context.site_id,
++         true
++    into v_trusted_site, v_found
++  from app.session_site_contexts trusted_context
++  where trusted_context.session_token = set_site_context.session_token
++  limit 1;
++
++  if not coalesce(v_found, false) then
++    raise exception 'invalid site context'
++      using errcode = '28000';
++  end if;
++
++  -- A site-bound trust row may only set its own site (mismatch = spoof attempt).
++  if v_trusted_site is not null and (set_site_context.site is null or set_site_context.site <> v_trusted_site) then
++    raise exception 'invalid site context'
++      using errcode = '28000';
++  end if;
++
++  insert into app.active_site_contexts (backend_pid, transaction_id, session_token, site_id, set_at)
++  values (pg_catalog.pg_backend_pid(), pg_catalog.txid_current(), set_site_context.session_token, set_site_context.site, pg_catalog.now())
++  on conflict (backend_pid) do update
++    set transaction_id = excluded.transaction_id,
++        session_token  = excluded.session_token,
++        site_id        = excluded.site_id,
++        set_at         = excluded.set_at;
++end;
++$$;
++
++-- Reader: returns the bound site for the current backend+tx, NULL = super_admin / ALL-sites mode.
++-- SECURITY DEFINER STABLE LEAKPROOF; the only legal read of the GUC trust store lives here.
++create or replace function app.current_site_id()
++returns uuid
++language sql
++security definer
++stable
++leakproof
++set search_path = pg_catalog
++as $$
++  select active_context.site_id
++  from app.active_site_contexts active_context
++  join app.session_site_contexts trusted_context
++    on trusted_context.session_token = active_context.session_token
++  where active_context.backend_pid = pg_catalog.pg_backend_pid()
++    and active_context.transaction_id = pg_catalog.txid_current_if_assigned()
++  limit 1
++$$;
++
++revoke all on function app.set_site_context(uuid, uuid) from public;
++revoke all on function app.current_site_id() from public;
++grant execute on function app.set_site_context(uuid, uuid) to app_user;
++grant execute on function app.current_site_id() to app_user;
++
++-- ===========================================================================
++-- (B) public.sites — physical-site registry (org master data, org-scoped; §9.1, T-002).
++--     V-MS-01 exactly-one-default-site-per-org via unique partial index. site_code unique per org.
++--     parent_site_id self-ref (archive-only, no CASCADE per D-MS-3). NO site_id column on sites
++--     itself (master data per §6.4 REC-L1; a site_id here would be circular).
++-- ===========================================================================
++create table if not exists public.sites (
++  id                    uuid primary key default gen_random_uuid(),
++  org_id                uuid not null references public.organizations(id) on delete cascade,
++
++  site_code             text not null,
++  name                  text not null,
++  is_default            boolean not null default false,
++
++  legal_entity          text,
++  timezone              text not null default 'UTC',  -- IANA TZ validated at app layer (V-MS-04, zod)
++  country               text,
++  data_residency_region text,
++
++  hierarchy_config_id   uuid,                          -- soft FK to sites_hierarchy_config (T-005)
++  parent_site_id        uuid references public.sites(id) on delete restrict,  -- archive-only (D-MS-3)
++  address               jsonb not null default '{}'::jsonb,
++  l3_ext_cols           jsonb not null default '{}'::jsonb,
++
++  is_active             boolean not null default true,
++  activated_at          timestamptz,
++
++  created_by            uuid references public.users(id) on delete set null,
++  updated_by            uuid references public.users(id) on delete set null,
++  created_at            timestamptz not null default pg_catalog.now(),
++  updated_at            timestamptz not null default pg_catalog.now(),
++
++  constraint sites_org_code_uq unique (org_id, site_code)
++);
++
++-- V-MS-01: at most one default site per org.
++create unique index if not exists idx_sites_default
++  on public.sites (org_id) where is_default = true;
++-- org-scoped active read.
++create index if not exists idx_sites_org
++  on public.sites (org_id) where is_active;
++create index if not exists sites_org_idx
++  on public.sites (org_id);
++create index if not exists sites_parent_idx
++  on public.sites (parent_site_id) where parent_site_id is not null;
++
++alter table public.sites enable row level security;
++alter table public.sites force row level security;
++
++drop policy if exists sites_org_context on public.sites;
++create policy sites_org_context
++  on public.sites
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.sites from public;
++revoke all on public.sites from app_user;
++grant select, insert, update, delete on public.sites to app_user;
++
++create or replace function public.sites_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists sites_set_updated_at on public.sites;
++create trigger sites_set_updated_at
++  before update on public.sites
++  for each row execute function public.sites_set_updated_at();
++
++-- ===========================================================================
++-- (C) public.operational_tables — the cross-module site-scoping REGISTRY (§9.8 contract, T-030).
++--     Declares which operational tables carry a day-1 site_id column that the later activation
++--     migration (T-030) will make NOT NULL + add an (org_id, site_id) policy via app.current_site_id().
++--     This is the checked-in mechanism for the day-1 rule (decision D-1 option A). This migration
++--     ONLY ships the registry + helper + seeds the §9.8 table names; it ALTERs nothing else.
++-- ===========================================================================
++create table if not exists public.operational_tables (
++  table_name       text primary key,
++  owning_module    text not null,         -- e.g. '05-warehouse', '08-production'
++  -- 'pending'  = site_id column exists day-1, NOT yet activated (nullable, no policy);
++  -- 'activated'= T-030 backfill complete (NOT NULL + (org_id, site_id) site-scoped policy).
++  scoping_status   text not null default 'pending',
++  -- whether the day-1 nullable site_id column has actually shipped on the table yet.
++  site_id_present  boolean not null default false,
++  notes            text,
++  registered_at    timestamptz not null default pg_catalog.now(),
++  activated_at     timestamptz,
++  constraint operational_tables_scoping_status_check
++    check (scoping_status in ('pending', 'activating', 'activated'))
++);
++
++-- Registry is a global catalog (no org_id) — read-only to app_user, written only by migrations.
++revoke all on public.operational_tables from public;
++revoke all on public.operational_tables from app_user;
++grant select on public.operational_tables to app_user;
++
++-- Helper: is this table registered as site-scoped (i.e. should T-030 backfill it)?
++create or replace function app.is_site_scoped_table(p_table_name text)
++returns boolean
++language sql
++security definer
++stable
++set search_path = pg_catalog
++as $$
++  select exists (
++    select 1 from public.operational_tables ot
++    where ot.table_name = p_table_name
++  )
++$$;
++
++revoke all on function app.is_site_scoped_table(text) from public;
++grant execute on function app.is_site_scoped_table(text) to app_user;
++
++-- Seed the §9.8 operational tables that carry a day-1 nullable site_id column awaiting T-030.
++-- site_id_present is true only for tables that already shipped the day-1 site_id column in earlier
++-- migrations (license_plates @191, quality_holds/ncr_reports @197); the rest are declared 'pending'
++-- with site_id_present=false so T-030 knows to ADD the column. owning_module records canon ownership;
++-- THIS migration does not touch those tables.
++insert into public.operational_tables (table_name, owning_module, scoping_status, site_id_present, notes)
++values
++  ('warehouses',              '05-warehouse',  'pending', false, '§9.8'),
++  ('license_plates',          '05-warehouse',  'pending', true,  '§9.8; day-1 site_id @191'),
++  ('grn_items',               '05-warehouse',  'pending', false, '§9.8'),
++  ('stock_movements',         '05-warehouse',  'pending', false, '§9.8'),
++  ('work_orders',             '08-production', 'pending', false, '§9.8'),
++  ('wo_outputs',              '08-production', 'pending', false, '§9.8; canon owner 08'),
++  ('wo_consumptions',         '08-production', 'pending', false, '§9.8'),
++  ('wo_dependencies',         '08-production', 'pending', false, '§9.8'),
++  ('downtime_events',         '08-production', 'pending', false, '§9.8; canon owner 08'),
++  ('quality_holds',           '09-quality',   'pending', true,  '§9.8; day-1 site_id @197'),
++  ('quality_inspections',     '09-quality',   'pending', false, '§9.8'),
++  ('ncr_reports',             '09-quality',   'pending', true,  '§9.8; day-1 site_id @197'),
++  ('haccp_plans',             '09-quality',   'pending', false, '§9.8'),
++  ('shipments',               '11-shipping',  'pending', true,  '§9.8; day-1 site_id @211'),
++  ('sales_orders',            '11-shipping',  'pending', true,  '§9.8; day-1 site_id @211'),
++  ('inventory_cost_layers',   '10-finance',   'pending', true,  '§9.8; day-1 site_id @199'),
++  ('wip_balances',            '10-finance',   'pending', false, '§9.8'),
++  ('oee_snapshots',           '08-production', 'pending', false, '§9.8; canon owner 08 (15-oee read-only)'),
++  ('maintenance_work_orders', '13-maintenance','pending', false, '§9.8'),
++  ('spare_parts_stock',       '13-maintenance','pending', false, '§9.8'),
++  ('calibration_instruments', '13-maintenance','pending', false, '§9.8'),
++  ('inter_site_transfer_orders','14-multi-site','pending', true,  '§9.6 IST shell owned by 14-multi-site')
++on conflict (table_name) do nothing;
++
++-- ===========================================================================
++-- (D) public.inter_site_transfer_orders — IST shell (§9.6, T-008). The one OPERATIONAL site-scoped
++--     table this foundation owns. from_site_id/to_site_id are hard FKs to public.sites (the FK target
++--     this module ships). site_id is the day-1 nullable scoping column (its own composite (org_id,
++--     site_id) index per §9.9). cost_allocation_method CHECK + DEFAULT 'receiver' (D-MS-11).
++--     RLS org+site via app.current_org_id() AND app.current_site_id() (REC-L1: ALL-sites when
++--     app.current_site_id() IS NULL).
++-- ===========================================================================
++create table if not exists public.inter_site_transfer_orders (
++  id                          uuid primary key default gen_random_uuid(),
++  org_id                      uuid not null references public.organizations(id) on delete cascade,
++  site_id                     uuid,  -- day-1 nullable scoping column (originating site); T-030 backfill
++
++  to_number                   text not null,
++  status                      text not null default 'draft',
++
++  from_site_id                uuid references public.sites(id) on delete restrict,
++  to_site_id                  uuid references public.sites(id) on delete restrict,
++
++  transfer_cost               numeric(18, 2),  -- money: NUMERIC-exact (never float)
++  cost_allocation_method      text not null default 'receiver',
++
++  expected_arrival_at         timestamptz,
++  shipped_at                  timestamptz,
++  actual_arrival_at           timestamptz,
++
++  -- dual cross-site manager-approval refs (audit_events.id soft refs; D-MS-11). NULL = not approved.
++  from_site_manager_approval_id uuid,
++  to_site_manager_approval_id   uuid,
++
++  notes                       text,
++  ext_jsonb                   jsonb not null default '{}'::jsonb,
++
++  created_by                  uuid references public.users(id) on delete set null,
++  updated_by                  uuid references public.users(id) on delete set null,
++  created_at                  timestamptz not null default pg_catalog.now(),
++  updated_at                  timestamptz not null default pg_catalog.now(),
++
++  constraint inter_site_transfer_orders_org_to_number_uq unique (org_id, to_number),
++  constraint inter_site_transfer_orders_status_check check (
++    status in ('draft', 'approved', 'shipped', 'in_transit', 'received', 'cancelled')
++  ),
++  constraint inter_site_transfer_orders_cost_alloc_check check (
++    cost_allocation_method in ('sender', 'receiver', 'split', 'none')
++  ),
++  constraint inter_site_transfer_orders_transfer_cost_nonneg_check check (
++    transfer_cost is null or transfer_cost >= 0
++  )
++);
++
++-- §9.9 mandatory composite for site-scoped reads (planner must hit (org_id, site_id)).
++create index if not exists idx_ist_org_site
++  on public.inter_site_transfer_orders (org_id, site_id);
++create index if not exists inter_site_transfer_orders_org_idx
++  on public.inter_site_transfer_orders (org_id);
++create index if not exists inter_site_transfer_orders_from_site_idx
++  on public.inter_site_transfer_orders (from_site_id) where from_site_id is not null;
++create index if not exists inter_site_transfer_orders_to_site_idx
++  on public.inter_site_transfer_orders (to_site_id) where to_site_id is not null;
++create index if not exists inter_site_transfer_orders_status_idx
++  on public.inter_site_transfer_orders (org_id, status);
++
++alter table public.inter_site_transfer_orders enable row level security;
++alter table public.inter_site_transfer_orders force row level security;
++
++-- Org + site scope. app.current_site_id() IS NULL = super_admin ALL-sites mode (V-MS-07); otherwise
++-- a row is visible when its site_id matches the bound site OR is still NULL (day-1 pre-backfill).
++drop policy if exists inter_site_transfer_orders_site_scope on public.inter_site_transfer_orders;
++create policy inter_site_transfer_orders_site_scope
++  on public.inter_site_transfer_orders
++  for all
++  to app_user
++  using (
++    org_id = app.current_org_id()
++    and (app.current_site_id() is null or site_id is null or site_id = app.current_site_id())
++  )
++  with check (
++    org_id = app.current_org_id()
++    and (app.current_site_id() is null or site_id is null or site_id = app.current_site_id())
++  );
++
++revoke all on public.inter_site_transfer_orders from public;
++revoke all on public.inter_site_transfer_orders from app_user;
++grant select, insert, update, delete on public.inter_site_transfer_orders to app_user;
++
++create or replace function public.inter_site_transfer_orders_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists inter_site_transfer_orders_set_updated_at on public.inter_site_transfer_orders;
++create trigger inter_site_transfer_orders_set_updated_at
++  before update on public.inter_site_transfer_orders
++  for each row execute function public.inter_site_transfer_orders_set_updated_at();
++
++-- ===========================================================================
++-- (E) Outbox event CHECK — drop + recreate with the FULL vocabulary (198's list + the 5 new
++--     14-multi-site events). The enum<->CHECK drift gate (packages/outbox check-drift.test.ts) asserts
++--     THIS (now highest-numbered) migration's CHECK string set === DB_EVENT_TYPES, so the list below
++--     MUST stay byte-aligned with events.enum.ts (EventType ∪ LegacyEventAlias keys). Strict superset
++--     of 198 — no event dropped.
++-- ===========================================================================
++alter table public.outbox_events
++  drop constraint if exists outbox_events_event_type_check;
++
++alter table public.outbox_events
++  add constraint outbox_events_event_type_check check (
++    event_type in (
++      'audit.recorded',
++      'bom.initial_version_created',
++      'bom.version_submitted',
++      'brief.completed_for_project',
++      'brief.converted',
++      'brief.created',
++      'catch_weight.variance_exceeded',
++      'compliance_doc.deleted',
++      'compliance_doc.expired',
++      'compliance_doc.expiring',
++      'compliance_doc.uploaded',
++      'd365.cache.refreshed',
++      'fa.allergens_changed',
++      'fa.built',
++      'fa.built_reset',
++      'fa.cascade',
++      'fa.core_closed',
++      'fa.created',
++      'fa.deleted',
++      'fa.dept_closed',
++      'fa.dept_reopened',
++      'fa.edit',
++      'fa.intermediate_code_changed',
++      'fa.recipe_changed',
++      'fa.template_applied',
++      'fg.allergens_changed',
++      'fg.bom.released',
++      'fg.created',
++      'fg.edit',
++      'fg.intermediate_code_changed',
++      'fg.release_blocked',
++      'fg.released_to_factory',
++      'formulation.locked',
++      'formulation.submitted_for_trial',
++      'lp.received',
++      'manufacturing_operations.created',
++      'manufacturing_operations.deactivated',
++      'manufacturing_operations.reset_to_seed',
++      'manufacturing_operations.updated',
++      'npd.allergens.bulk_rebuild_completed',
++      'npd.builder.released_records_created',
++      'npd.fg_candidate_mapped',
++      'npd.gate.advanced',
++      'npd.gate.approved',
++      'npd.gate.reverted',
++      'npd.project.brief_mapped',
++      'npd.project.created',
++      'npd.project.legacy_stages_closed',
++      'npd.project.release_requested',
++      'onboarding.first_wo_recorded',
++      'onboarding.step.advance',
++      'onboarding.step.back',
++      'onboarding.step.jump',
++      'onboarding.step.restart',
++      'onboarding.step.skip',
++      'org.created',
++      'org.mfa_enrollment.forced',
++      'org.security_policy.updated',
++      'production.allergen_changeover.validated',
++      'production.changeover.signed',
++      'production.consume.blocked',
++      'production.consume.completed',
++      'production.downtime.recorded',
++      'production.oee.snapshot',
++      'production.output.recorded',
++      'production.waste.recorded',
++      'production.wo.closed',
++      'production.wo.completed',
++      'production.wo.started',
++      'quality.atp_swab_failed',
++      'quality.hold.created',
++      'quality.hold.released',
++      'quality.ncr.assigned',
++      'quality.ncr.closed',
++      'quality.ncr.critical_dual_signed',
++      'quality.ncr.opened',
++      'quality.ncr.submitted',
++      'quality.ncr.updated',
++      'quality.recorded',
++      'reference.allergens_added_by_process.bulk_changed',
++      'reference.allergens_by_rm.bulk_changed',
++      'reference.csv.committed',
++      'reference.row.soft_deleted',
++      'reference.row.upserted',
++      'risk.created',
++      'role.assigned',
++      'rule.deployed',
++      'settings.core_flag.updated',
++      'settings.d365_sync.updated',
++      'settings.dept_override.updated',
++      'settings.ip_allowlist.changed',
++      'settings.line.upserted',
++      'settings.location.deleted',
++      'settings.location.imported',
++      'settings.location.upserted',
++      'settings.machine.upserted',
++      'settings.module.disabled',
++      'settings.module.enabled',
++      'settings.module.toggled',
++      'settings.notification_channel_updated',
++      'settings.notification_digest_updated',
++      'settings.notification_rule_updated',
++      'settings.org.created',
++      'settings.org.updated',
++      'settings.reference.row_updated',
++      'settings.role.assigned',
++      'settings.rule.deployed',
++      'settings.rule_variant.updated',
++      'settings.schema.migration_requested',
++      'settings.scim.token_created',
++      'settings.sso.config_changed',
++      'settings.upgrade.completed',
++      'settings.upgrade.promoted',
++      'settings.upgrade.rolled_back',
++      'settings.upgrade.scheduled',
++      'settings.user.accepted',
++      'settings.user.deactivated',
++      'settings.user.invitation_resent',
++      'settings.user.invited',
++      'settings.warehouse.deactivated',
++      'shipment.created',
++      'technical.factory_spec.approved',
++      'tenant.cohort.advanced',
++      'tenant.migration.run',
++      'tenant.migration.run.failed',
++      'transfer_order.in_transit',
++      'transfer_order.received',
++      'transfer_order.shipped',
++      'transport_lane.created',
++      'transport_lane_rate_card.activated',
++      'unit_of_measure.conversion_created',
++      'unit_of_measure.created',
++      'unit_of_measure.soft_deleted',
++      'user.invited',
++      'warehouse.lp.received',
++      'warehouse.lp.shipped',
++      'warehouse.lp.transitioned',
++      'warehouse.material.consumed',
++      'wo.ready'
++    )
++  );
++
++comment on constraint outbox_events_event_type_check on public.outbox_events
++  is 'Regenerated from events.enum.ts DB_EVENT_TYPES (139 types incl 14-multi-site transfer_order.* / transport_lane.*).';
+diff --git a/packages/db/migrations/217-outbox-check-full-foundation-union.sql b/packages/db/migrations/217-outbox-check-full-foundation-union.sql
+new file mode 100644
+index 00000000..8c07b48a
+--- /dev/null
++++ b/packages/db/migrations/217-outbox-check-full-foundation-union.sql
+@@ -0,0 +1,198 @@
++-- Migration: 217-outbox-check-full-foundation-union.sql
++-- Regenerate outbox_events_event_type_check to the COMPLETE events.enum.ts DB_EVENT_TYPES union.
++-- Collection of the wave-B foundation modules (05-warehouse waveB, 10-finance, 13-maintenance,
++-- 15-oee, 07-planning-ext, 11-shipping, 12-reporting, 14-multi-site) added 39 new
++-- canonical event types. The previous latest definition (mig 215) only knew 139, so inserting any
++-- of the new module events into public.outbox_events would violate the CHECK. This recreates the
++-- constraint with all 178 permitted types so the drift gate (check-drift.test.ts) passes
++-- and every foundation can emit through the shared outbox.
++
++alter table public.outbox_events
++  drop constraint if exists outbox_events_event_type_check;
++
++alter table public.outbox_events
++  add constraint outbox_events_event_type_check check (
++    event_type in (
++      'audit.recorded',
++      'bom.initial_version_created',
++      'bom.version_submitted',
++      'brief.completed_for_project',
++      'brief.converted',
++      'brief.created',
++      'catch_weight.variance_exceeded',
++      'compliance_doc.deleted',
++      'compliance_doc.expired',
++      'compliance_doc.expiring',
++      'compliance_doc.uploaded',
++      'd365.cache.refreshed',
++      'fa.allergens_changed',
++      'fa.built',
++      'fa.built_reset',
++      'fa.cascade',
++      'fa.core_closed',
++      'fa.created',
++      'fa.deleted',
++      'fa.dept_closed',
++      'fa.dept_reopened',
++      'fa.edit',
++      'fa.intermediate_code_changed',
++      'fa.recipe_changed',
++      'fa.template_applied',
++      'fg.allergens_changed',
++      'fg.bom.released',
++      'fg.created',
++      'fg.edit',
++      'fg.intermediate_code_changed',
++      'fg.release_blocked',
++      'fg.released_to_factory',
++      'finance.consumption.valued',
++      'finance.cost_per_kg.changed',
++      'finance.standard_cost.approved',
++      'finance.valuation.closed_monthly',
++      'finance.variance.computed',
++      'formulation.locked',
++      'formulation.submitted_for_trial',
++      'lp.received',
++      'maintenance.calibration.completed',
++      'maintenance.calibration.failed',
++      'maintenance.loto.applied',
++      'maintenance.loto.released',
++      'maintenance.mwo.completed',
++      'maintenance.mwo.created',
++      'maintenance.pm.due',
++      'maintenance.sanitation.allergen_change.completed',
++      'manufacturing_operations.created',
++      'manufacturing_operations.deactivated',
++      'manufacturing_operations.reset_to_seed',
++      'manufacturing_operations.updated',
++      'matrix.version.published',
++      'npd.allergens.bulk_rebuild_completed',
++      'npd.builder.released_records_created',
++      'npd.fg_candidate_mapped',
++      'npd.gate.advanced',
++      'npd.gate.approved',
++      'npd.gate.reverted',
++      'npd.project.brief_mapped',
++      'npd.project.created',
++      'npd.project.legacy_stages_closed',
++      'npd.project.release_requested',
++      'oee.alert.threshold_breached',
++      'oee.anomaly.detected',
++      'oee.dsl_rule.updated',
++      'oee.shift.aggregated',
++      'oee.snapshot.refreshed',
++      'onboarding.first_wo_recorded',
++      'onboarding.step.advance',
++      'onboarding.step.back',
++      'onboarding.step.jump',
++      'onboarding.step.restart',
++      'onboarding.step.skip',
++      'org.created',
++      'org.mfa_enrollment.forced',
++      'org.security_policy.updated',
++      'planning.schedule.published',
++      'production.allergen_changeover.validated',
++      'production.changeover.signed',
++      'production.consume.blocked',
++      'production.consume.completed',
++      'production.downtime.recorded',
++      'production.oee.snapshot',
++      'production.output.recorded',
++      'production.waste.recorded',
++      'production.wo.closed',
++      'production.wo.completed',
++      'production.wo.started',
++      'quality.atp_swab_failed',
++      'quality.hold.created',
++      'quality.hold.released',
++      'quality.ncr.assigned',
++      'quality.ncr.closed',
++      'quality.ncr.critical_dual_signed',
++      'quality.ncr.opened',
++      'quality.ncr.submitted',
++      'quality.ncr.updated',
++      'quality.recorded',
++      'reference.allergens_added_by_process.bulk_changed',
++      'reference.allergens_by_rm.bulk_changed',
++      'reference.csv.committed',
++      'reference.row.soft_deleted',
++      'reference.row.upserted',
++      'reporting.export.completed',
++      'reporting.export.failed',
++      'reporting.mv.refresh_completed',
++      'reporting.schedule.run_completed',
++      'risk.created',
++      'role.assigned',
++      'rule.deployed',
++      'scheduler.assignment.approved',
++      'scheduler.assignment.bulk_approved',
++      'scheduler.assignment.overridden',
++      'scheduler.assignment.rejected',
++      'scheduler.run.completed',
++      'settings.core_flag.updated',
++      'settings.d365_sync.updated',
++      'settings.dept_override.updated',
++      'settings.ip_allowlist.changed',
++      'settings.line.upserted',
++      'settings.location.deleted',
++      'settings.location.imported',
++      'settings.location.upserted',
++      'settings.machine.upserted',
++      'settings.module.disabled',
++      'settings.module.enabled',
++      'settings.module.toggled',
++      'settings.notification_channel_updated',
++      'settings.notification_digest_updated',
++      'settings.notification_rule_updated',
++      'settings.org.created',
++      'settings.org.updated',
++      'settings.reference.row_updated',
++      'settings.role.assigned',
++      'settings.rule.deployed',
++      'settings.rule_variant.updated',
++      'settings.schema.migration_requested',
++      'settings.scim.token_created',
++      'settings.sso.config_changed',
++      'settings.upgrade.completed',
++      'settings.upgrade.promoted',
++      'settings.upgrade.rolled_back',
++      'settings.upgrade.scheduled',
++      'settings.user.accepted',
++      'settings.user.deactivated',
++      'settings.user.invitation_resent',
++      'settings.user.invited',
++      'settings.warehouse.deactivated',
++      'shipment.created',
++      'shipping.bol.issued',
++      'shipping.pick.completed',
++      'shipping.pick.released',
++      'shipping.shipment.confirmed',
++      'shipping.shipment.packed',
++      'shipping.so.cancelled',
++      'shipping.so.confirmed',
++      'shipping.so.released',
++      'spare.reorder_threshold_breached',
++      'technical.factory_spec.approved',
++      'tenant.cohort.advanced',
++      'tenant.migration.run',
++      'tenant.migration.run.failed',
++      'transfer_order.in_transit',
++      'transfer_order.received',
++      'transfer_order.shipped',
++      'transport_lane.created',
++      'transport_lane_rate_card.activated',
++      'unit_of_measure.conversion_created',
++      'unit_of_measure.created',
++      'unit_of_measure.soft_deleted',
++      'user.invited',
++      'warehouse.grn.received',
++      'warehouse.lp.received',
++      'warehouse.lp.shipped',
++      'warehouse.lp.transitioned',
++      'warehouse.material.consumed',
++      'wo.ready'
++    )
++  );
++
++comment on constraint outbox_events_event_type_check on public.outbox_events
++  is 'Regenerated from events.enum.ts DB_EVENT_TYPES (178 types; wave-B foundation union).';

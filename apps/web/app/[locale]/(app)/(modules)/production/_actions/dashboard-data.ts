@@ -43,6 +43,12 @@ export type WoListRow = {
   /** Execution lifecycle status (folded from wo_events); falls back to the planning status. */
   status: WoExecStatus;
   lineId: string | null;
+  /** Names sweep: production_lines.code / items code+name; null when joins miss
+   *  (mig-259 orphan demo WOs) — callers fall back to UUID fragments. */
+  lineCode: string | null;
+  productId: string | null;
+  itemCode: string | null;
+  productName: string | null;
   plannedKg: number;
   producedKg: number | null;
   /** 0..100 progress = produced/planned, clamped. Null when planned is 0. */
@@ -227,6 +233,10 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
         wo_number: string | null;
         status: string;
         production_line_id: string | null;
+        line_code: string | null;
+        product_id: string | null;
+        item_code: string | null;
+        product_name: string | null;
         planned_quantity: string | number | null;
         produced_quantity: string | number | null;
         progress_pct: string | number | null;
@@ -247,6 +257,10 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
                   end
                 ) as status,
                 w.production_line_id::text as production_line_id,
+                pl.code as line_code,
+                w.product_id::text as product_id,
+                i.item_code,
+                i.name as product_name,
                 w.planned_quantity,
                 produced.qty_kg as produced_quantity,
                 case
@@ -258,6 +272,10 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
            from public.work_orders w
            left join public.wo_executions e
              on e.wo_id = w.id and e.org_id = w.org_id
+           left join public.items i
+             on i.org_id = w.org_id and i.id = w.product_id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
            left join lateral (
              select coalesce(sum(o.qty_kg), 0) as qty_kg
                from public.wo_outputs o
@@ -284,6 +302,10 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
           woNumber: r.wo_number ?? r.id.slice(0, 8),
           status,
           lineId: r.production_line_id,
+          lineCode: r.line_code,
+          productId: r.product_id,
+          itemCode: r.item_code,
+          productName: r.product_name,
           plannedKg,
           producedKg,
           progressPct,

@@ -23,6 +23,19 @@ const GROUP_LABELS: Record<NavGroupId, { label: string; i18n_key: string }> = {
   "analytics-network": { label: "Analytics & Network", i18n_key: "Navigation.app.groups.analyticsNetwork" },
 };
 
+/**
+ * Modules whose sidebar link navigates OUT of the (app) shell into another
+ * route group (e.g. the chrome-less device shell). Their page does NOT live
+ * under app/[locale]/(app)/.../page.tsx, so the (app) route-contract test
+ * treats them as a cross-shell exception. The link itself is a plain href, so
+ * navigation just works.
+ */
+const CROSS_SHELL_SIDEBAR_MODULES: ReadonlySet<AppModuleId> = new Set(["scanner"]);
+
+export function isCrossShellSidebarModule(moduleId: AppModuleId): boolean {
+  return CROSS_SHELL_SIDEBAR_MODULES.has(moduleId);
+}
+
 function sidebarItem(moduleId: AppModuleId): AppSidebarNavItem {
   const module = getAppModule(moduleId);
 
@@ -59,6 +72,7 @@ export const APP_NAV_GROUPS = [
     sidebarItem("planning-ext"),
     sidebarItem("production"),
     sidebarItem("warehouse"),
+    sidebarItem("scanner"),
   ]),
   group("qa-shipping", [sidebarItem("quality"), sidebarItem("shipping")]),
   group("premium", [

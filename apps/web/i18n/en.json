@@ -1016,6 +1016,7 @@
         "scheduler": "Scheduler",
         "production": "Production",
         "warehouse": "Warehouse",
+        "scanner": "Scanner",
         "quality": "Quality",
         "shipping": "Shipping",
         "npd": "NPD",
@@ -1099,6 +1100,7 @@
         "scheduler": "Scheduler",
         "production": "Production",
         "warehouse": "Warehouse",
+        "scanner": "Scanner",
         "quality": "Quality",
         "shipping": "Shipping",
         "npd": "NPD",
@@ -5223,6 +5225,10 @@
         "quality": {
           "title": "Quality",
           "desc": "Holds, NCRs and consume gate"
+        },
+        "scanner": {
+          "title": "Scanner",
+          "desc": "Open the mobile scanner — consume, output, waste"
         }
       }
     },
@@ -5345,6 +5351,32 @@
             "consumed": "Consumed",
             "remaining": "Remaining",
             "progress": "Progress"
+          },
+          "record": {
+            "trigger": "Record consumption",
+            "rowTrigger": "Record",
+            "title": "Record material consumption",
+            "subtitle": "Decrement on-hand stock for a BOM component. Pick a license plate (FEFO order) or record without one.",
+            "material": "Component",
+            "materialPlaceholder": "Select a component",
+            "qty": "Quantity",
+            "qtyHint": "Amount to consume, in the component's unit of measure.",
+            "lp": "License plate (FEFO)",
+            "lpLoading": "Loading license plates…",
+            "lpEmpty": "No license plates available for this component.",
+            "lpError": "Unable to load license plates.",
+            "lpNone": "— no LP —",
+            "lpSuggested": "suggested",
+            "submit": "Record consumption",
+            "submitting": "Recording…",
+            "cancel": "Cancel",
+            "errors": {
+              "forbidden": "You do not have permission to record consumption.",
+              "lp_unavailable": "That license plate no longer has enough free stock for this quantity.",
+              "invalid_material": "This component is no longer valid for this work order.",
+              "invalid_qty": "Enter a quantity greater than zero.",
+              "generic": "Unable to record consumption."
+            }
           }
         },
         "output": {
@@ -5501,7 +5533,17 @@
           },
           "actualWeight": "Actual weight (kg)",
           "actualWeightHint": "Leave empty to use the nominal conversion.",
-          "conversionPreview": "{qty} {unit} = {kg} {base}"
+          "conversionPreview": "{qty} {unit} = {kg} {base}",
+          "catchWeight": {
+            "sectionTitle": "Per-unit weights (kg)",
+            "sectionHint": "Catch-weight item — enter the actual scale reading for each unit.",
+            "unitLabel": "Unit {n}",
+            "sumLabel": "Σ {total} kg",
+            "tooMany": "Too many units to enter individually (max {max}). Reduce the quantity or register in smaller batches.",
+            "baseTextareaLabel": "Per-unit weights (one per line, kg)",
+            "baseTextareaHint": "Enter one positive weight per line.",
+            "invalidWeights": "Every unit weight must be a positive number."
+          }
         },
         "waste": {
           "title": "Log waste",

@@ -15,6 +15,7 @@ type HeaderRow = {
   uom_snapshot: Record<string, unknown> | null;
   scheduled_start: Date | string | null;
   produced_base_kg: string;
+  produced_units: string | null;
   allergen_flag: boolean;
 };
 
@@ -67,6 +68,26 @@ export async function GET(request: NextRequest, context: RouteContext) {
                      and out.wo_id = wo.id
                      and out.qty_kg > 0
                 ), '0') as produced_base_kg,
+                case
+                  -- units tracking n/a: the WO has no entered pack unit.
+                  when wo.qty_entered_uom is null then null
+                  -- honest zero: no finished-goods outputs registered yet.
+                  when not exists (
+                    select 1
+                      from public.wo_outputs fg
+                     where fg.org_id = wo.org_id
+                       and fg.wo_id = wo.id
+                       and fg.output_type = 'primary'
+                  ) then '0'
+                  -- sum is null when outputs exist but none carry qty_units.
+                  else (
+                    select sum(fg.qty_units)::text
+                      from public.wo_outputs fg
+                     where fg.org_id = wo.org_id
+                       and fg.wo_id = wo.id
+                       and fg.output_type = 'primary'
+                  )
+                end as produced_units,
                 (wo.allergen_profile_snapshot is not null and wo.allergen_profile_snapshot <> '{}'::jsonb) as allergen_flag
            from public.work_orders wo
            left join public.wo_executions exec
@@ -135,6 +156,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           uomSnapshot: header.uom_snapshot,
           scheduledStart: iso(header.scheduled_start),
           producedBaseKg: header.produced_base_kg,
+          producedUnits: header.produced_units,
           allergenFlag: header.allergen_flag,
         },
         materials: materialsRes.rows.map((row) => ({

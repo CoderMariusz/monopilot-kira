@@ -2,6 +2,13 @@
 
 import React, { useId, useMemo, useState } from 'react';
 
+import RoleEditor, {
+  type CreateRoleFn,
+  type EditableRole,
+  type ListRolePermissionsFn,
+  type SetRolePermissionsFn,
+} from './_components/role-editor.client';
+
 export type RoleCode =
   | 'owner'
   | 'admin'
@@ -40,6 +47,20 @@ export type AssignableUser = {
 
 export type AssignRole = (input: { userId: string; roleCode: RoleCode; reason: string }) => Promise<unknown> | unknown;
 
+/**
+ * DEFECT-8 — optional role-management wiring. When `roleAdmin` is provided AND
+ * the operator can manage roles, the screen surfaces the "+ Create role" action
+ * and the per-role module-grouped permission editor. `editableRoles` carries the
+ * real roles.id + is_system flag (system roles render the grid read-only).
+ */
+export type RoleAdminWiring = {
+  editableRoles: EditableRole[];
+  createRole: CreateRoleFn;
+  listRolePermissions: ListRolePermissionsFn;
+  setRolePermissions: SetRolePermissionsFn;
+  onChanged?: () => void;
+};
+
 export type RolesScreenProps = {
   /**
    * Real system-role rows resolved from public.roles via withOrgContext.
@@ -51,6 +72,7 @@ export type RolesScreenProps = {
   assignableUsers?: AssignableUser[];
   canManageRoles?: boolean;
   assignRole?: AssignRole;
+  roleAdmin?: RoleAdminWiring;
 };
 
 const permissionGroups: RolePermission['group'][] = ['Settings', 'NPD workflow authorization', 'Technical approval'];
@@ -318,6 +340,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
   const assignableUsers = props.assignableUsers ?? [];
   const canManageRoles = props.canManageRoles ?? false;
   const assignRole = props.assignRole ?? (() => ({ ok: false, error: 'not_wired' }));
+  const roleAdmin = props.roleAdmin;
   const [permissionRole, setPermissionRole] = useState<SystemRole | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const totalUsers = useMemo(() => roles.reduce((total, role) => total + role.usersAssigned, 0), [roles]);
@@ -348,9 +371,20 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
           </p>
         </div>
         {canManageRoles ? (
-          <button type="button" className="btn btn-primary" onClick={() => setAssignOpen(true)}>
-            Assign Role to User
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button type="button" className="btn btn-primary" onClick={() => setAssignOpen(true)}>
+              Assign Role to User
+            </button>
+            {roleAdmin ? (
+              <RoleEditor
+                roles={roleAdmin.editableRoles}
+                createRole={roleAdmin.createRole}
+                listRolePermissions={roleAdmin.listRolePermissions}
+                setRolePermissions={roleAdmin.setRolePermissions}
+                onChanged={roleAdmin.onChanged}
+              />
+            ) : null}
+          </div>
         ) : (
           <div className="alert alert-amber max-w-sm">
             Role assignment controls are hidden for this Read-only operator. Required permission: settings.roles.assign or settings.roles.manage.

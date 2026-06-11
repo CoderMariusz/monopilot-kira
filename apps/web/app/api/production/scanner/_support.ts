@@ -71,7 +71,7 @@ export function uuidFromSeed(seed: string): string {
     .padStart(2, '0')}${h.slice(18, 20)}-${h.slice(20, 32)}`;
 }
 
-export function scannerTransactionId(kind: 'output' | 'waste', clientOpId: string): string {
+export function scannerTransactionId(kind: 'output' | 'waste' | 'start', clientOpId: string): string {
   return uuidFromSeed(`scanner.production.${kind}:${clientOpId}`);
 }
 

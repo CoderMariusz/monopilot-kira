@@ -244,7 +244,7 @@ async function deleteAction(call: { id: string; projectId: string }): Promise<Mu
 // subsets, so nothing leaks across stages).
 async function searchPackagingItemsAction(input: {
   query?: string;
-  itemTypes?: Array<'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'packaging'>;
+  itemTypes?: Array<'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'byproduct' | 'packaging'>;
   limit?: number;
 }): Promise<ItemPickerOption[]> {
   'use server';

@@ -75,7 +75,7 @@ function expectDeferredRbac(item: NavItem, label: string) {
 }
 
 describe('T-135 navigation manifest integrity contracts', () => {
-  it('keeps APP_MODULES as the 16-module matrix and APP_NAV_GROUPS as 15 locale-relative sidebar items', () => {
+  it('keeps APP_MODULES as the 16-module matrix and APP_NAV_GROUPS as 16 locale-relative sidebar items', () => {
     // brief §3 Luka C/F: desktop sidebar routes must come from one manifest and exclude scanner/platform routes.
     const expectedModuleIds = [
       'foundation',
@@ -100,15 +100,19 @@ describe('T-135 navigation manifest integrity contracts', () => {
     expect(APP_MODULES.map((module) => module.id)).toEqual(expectedModuleIds);
     expect(APP_MODULES).toHaveLength(16);
     expect(APP_NAV_GROUPS).toHaveLength(5);
-    expect(appItems).toHaveLength(15);
+    // 15 desktop module items + the cross-shell Scanner link = 16.
+    expect(appItems).toHaveLength(16);
     expectUnique(APP_MODULES.map((module) => module.id), 'APP_MODULES ids');
     expectUnique(APP_NAV_GROUPS.map((group) => group.id), 'APP_NAV_GROUPS ids');
     expectUnique(appItems.map((item) => item.key), 'APP_NAV_GROUPS item keys');
     expectUnique(appItems.map((item) => item.route), 'APP_NAV_GROUPS item routes');
 
+    // Scanner keeps shell_kind:'scanner' (its page renders in the chrome-less
+    // device shell) but is now exposed as a sidebar link to /scanner/home so the
+    // device shell is reachable from the desktop app (owner-reported gap).
     const scannerModule = APP_MODULES.find((module) => module.id === 'scanner');
-    expect(scannerModule).toMatchObject({ shell_kind: 'scanner', nav_exposure: 'excluded', route: null });
-    expect(appItems.some((item) => item.key === 'scanner' || item.module_id === 'scanner')).toBe(false);
+    expect(scannerModule).toMatchObject({ shell_kind: 'scanner', nav_exposure: 'sidebar', route: '/scanner/home' });
+    expect(appItems.some((item) => item.key === 'scanner' || item.module_id === 'scanner')).toBe(true);
 
     for (const group of APP_NAV_GROUPS) {
       expectI18nResolves(group.i18n_key);

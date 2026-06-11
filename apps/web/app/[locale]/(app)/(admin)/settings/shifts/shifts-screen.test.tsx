@@ -57,6 +57,16 @@ const labels: ShiftsScreenLabels = {
   save: 'Save',
   saving: 'Saving...',
   createFailed: 'Shift could not be created.',
+  actionsColumn: 'Actions',
+  editShift: 'Edit',
+  deleteShift: 'Delete',
+  editDialogTitle: 'Edit shift',
+  deleteConfirmTitle: 'Delete shift',
+  deleteConfirmBody: 'This shift pattern will be removed from scheduling. Continue?',
+  deleteConfirm: 'Delete',
+  deleting: 'Deleting...',
+  updateFailed: 'Shift could not be updated.',
+  deleteFailed: 'Shift could not be deleted.',
 };
 
 // Real loader-shaped rows (the shape getShiftPatterns/getCalendarData return).
@@ -250,5 +260,64 @@ describe('ShiftsScreen', () => {
     }));
     expect(refreshMock).toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByTestId('shifts-new-shift-form')).not.toBeInTheDocument());
+  });
+
+  it('disables per-row Edit/Delete without edit permission', () => {
+    renderScreen({ canEdit: false });
+    const morningId = shiftPatterns[0].id;
+    expect(screen.getByTestId(`shift-edit-${morningId}`)).toBeDisabled();
+    expect(screen.getByTestId(`shift-delete-${morningId}`)).toBeDisabled();
+  });
+
+  it('opens a prefilled Edit modal and calls updateShiftAction', async () => {
+    const user = userEvent.setup();
+    const updateShiftAction = vi.fn(async () => ({ ok: true as const, data: shiftPatterns[0] }));
+    renderScreen({ canEdit: true, updateShiftAction });
+
+    await user.click(screen.getByTestId(`shift-edit-${shiftPatterns[0].id}`));
+    const form = await screen.findByTestId('shifts-new-shift-form');
+    expect(screen.getByText('Edit shift')).toBeInTheDocument();
+    // Name field is prefilled from the existing row.
+    expect(within(form).getByLabelText('Name')).toHaveValue('Morning');
+
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(updateShiftAction).toHaveBeenCalledTimes(1));
+    expect(updateShiftAction).toHaveBeenCalledWith(expect.objectContaining({
+      id: shiftPatterns[0].id,
+      name: 'Morning',
+      start_time: '06:00',
+      end_time: '14:00',
+    }));
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('confirms a row Delete and calls deleteShiftAction', async () => {
+    const user = userEvent.setup();
+    const deleteShiftAction = vi.fn(async () => ({ ok: true as const, id: shiftPatterns[1].id }));
+    renderScreen({ canEdit: true, deleteShiftAction });
+
+    await user.click(screen.getByTestId(`shift-delete-${shiftPatterns[1].id}`));
+    const dialog = await screen.findByTestId('shifts-delete-dialog');
+    expect(within(dialog).getByText('Night')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('shifts-delete-confirm'));
+
+    await waitFor(() => expect(deleteShiftAction).toHaveBeenCalledWith({ id: shiftPatterns[1].id }));
+    expect(refreshMock).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByTestId('shifts-delete-dialog')).not.toBeInTheDocument());
+  });
+
+  it('surfaces a delete error and keeps the confirm dialog open', async () => {
+    const user = userEvent.setup();
+    const deleteShiftAction = vi.fn(async () => ({ ok: false as const, error: 'persistence_failed' as const }));
+    renderScreen({ canEdit: true, deleteShiftAction });
+
+    await user.click(screen.getByTestId(`shift-delete-${shiftPatterns[0].id}`));
+    await user.click(screen.getByTestId('shifts-delete-confirm'));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Shift could not be deleted.'));
+    expect(screen.getByTestId('shifts-delete-dialog')).toBeInTheDocument();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 });

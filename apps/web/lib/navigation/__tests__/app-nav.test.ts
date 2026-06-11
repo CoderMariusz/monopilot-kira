@@ -61,6 +61,9 @@ const EXPECTED_NAV_GROUPS = [
       { label: "Scheduler", module_id: "planning-ext", route: "/scheduler" },
       { label: "Production", module_id: "production", route: "/production" },
       { label: "Warehouse", module_id: "warehouse", route: "/warehouse" },
+      // Cross-shell link: Scanner navigates out of the (app) shell into the
+      // chrome-less (scanner) route group at /scanner/home.
+      { label: "Scanner", module_id: "scanner", route: "/scanner/home" },
     ],
   },
   {
@@ -172,7 +175,8 @@ describe("UI-128 APP_MODULES", () => {
     expect(byId.foundation).toMatchObject({ module_kind: "platform", shell_kind: "none", nav_exposure: "excluded", route: null });
     expect(byId.settings).toMatchObject({ module_kind: "desktop", shell_kind: "app", nav_exposure: "sidebar", route: "/settings" });
     expect(byId.technical).toMatchObject({ nav_group: "premium" });
-    expect(byId.scanner).toMatchObject({ module_kind: "scanner", shell_kind: "scanner", nav_exposure: "excluded", route: null });
+    // Scanner is now a cross-shell sidebar link to the device shell landing.
+    expect(byId.scanner).toMatchObject({ module_kind: "scanner", shell_kind: "scanner", nav_exposure: "sidebar", route: "/scanner/home" });
   });
 
   it("keeps counts unset and exposes the UI-lane module permission keys", async () => {
@@ -202,7 +206,7 @@ describe("UI-128 APP_MODULES", () => {
 });
 
 describe("UI-128 APP_NAV_GROUPS", () => {
-  it("derives five ordered desktop sidebar groups with 15 items and explicit module coverage", async () => {
+  it("derives five ordered desktop sidebar groups with 16 items and explicit module coverage", async () => {
     const { APP_NAV_GROUPS } = await loadNavigationModule<{ APP_NAV_GROUPS?: Record<string, unknown>[] }>("app-nav.ts");
 
     expect(APP_NAV_GROUPS, "APP_NAV_GROUPS must be an array").toBeInstanceOf(Array);
@@ -210,12 +214,16 @@ describe("UI-128 APP_NAV_GROUPS", () => {
     expect(APP_NAV_GROUPS?.map(labelOf)).toEqual(EXPECTED_NAV_GROUPS.map((group) => group.label));
 
     const actualItems = (APP_NAV_GROUPS ?? []).flatMap(itemsOf);
-    expect(actualItems).toHaveLength(15);
+    // 15 desktop modules + the cross-shell Scanner link = 16 sidebar items.
+    expect(actualItems).toHaveLength(16);
     expect(actualItems.map(labelOf)).toEqual(EXPECTED_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.label)));
     expect(actualItems.map(moduleIdOf)).toEqual(EXPECTED_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.module_id)));
     expect(actualItems.map(routeOf)).toEqual(EXPECTED_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.route)));
     expect(actualItems.map(moduleIdOf)).not.toContain("foundation");
-    expect(actualItems.map(moduleIdOf)).not.toContain("scanner");
+    // Scanner is now a deliberate cross-shell sidebar link (owner reported the
+    // scanner was otherwise unreachable). It targets /scanner/home in the
+    // (scanner) route group rather than an (app) page.
+    expect(actualItems.map(moduleIdOf)).toContain("scanner");
   });
 
   it("uses unique locale-relative routes and i18n keys resolvable in all locales", async () => {

@@ -1,0 +1,71 @@
+{
+  "task": "DEFECT-8",
+  "screen": "settings/roles",
+  "prototype_anchor": "prototypes/settings/access-screens.jsx:95-129",
+  "permission_gate": "settings.roles.assign",
+  "dual_store_write": "role_permissions (delete+insert ON CONFLICT) AND roles.permissions jsonb rebuilt to the same set, one txn",
+  "generated_at": "2026-06-11T11:25:02.546Z",
+  "states": {
+    "create_modal": {
+      "hasDialog": true,
+      "groupHeaders": [],
+      "checkboxes": 0,
+      "lockNote": false,
+      "rawSelects": 0,
+      "radixOutsideUi": 0
+    },
+    "create_modal_field_errors": {
+      "alerts": 2,
+      "createCalled": 0
+    },
+    "permissions_grid": {
+      "hasDialog": true,
+      "groupHeaders": [
+        "settings.roles.editor.groups.settings_core",
+        "settings.roles.editor.groups.settings_ext",
+        "settings.roles.editor.groups.npd",
+        "settings.roles.editor.groups.technical",
+        "settings.roles.editor.groups.production",
+        "settings.roles.editor.groups.warehouse",
+        "settings.roles.editor.groups.quality",
+        "settings.roles.editor.groups.finance",
+        "settings.roles.editor.groups.maintenance",
+        "settings.roles.editor.groups.oee",
+        "settings.roles.editor.groups.shipping",
+        "settings.roles.editor.groups.reporting",
+        "settings.roles.editor.groups.multi_site",
+        "settings.roles.editor.groups.scheduler"
+      ],
+      "checkboxes": 241,
+      "lockNote": false,
+      "rawSelects": 0,
+      "radixOutsideUi": 0,
+      "catalogGroups": 14,
+      "listCalled": "role-1"
+    },
+    "system_role_lock": {
+      "hasDialog": true,
+      "groupHeaders": [
+        "settings.roles.editor.groups.settings_core",
+        "settings.roles.editor.groups.settings_ext",
+        "settings.roles.editor.groups.npd",
+        "settings.roles.editor.groups.technical",
+        "settings.roles.editor.groups.production",
+        "settings.roles.editor.groups.warehouse",
+        "settings.roles.editor.groups.quality",
+        "settings.roles.editor.groups.finance",
+        "settings.roles.editor.groups.maintenance",
+        "settings.roles.editor.groups.oee",
+        "settings.roles.editor.groups.shipping",
+        "settings.roles.editor.groups.reporting",
+        "settings.roles.editor.groups.multi_site",
+        "settings.roles.editor.groups.scheduler"
+      ],
+      "checkboxes": 241,
+      "lockNote": true,
+      "rawSelects": 0,
+      "radixOutsideUi": 0,
+      "saveButtonAbsent": true
+    }
+  }
+}

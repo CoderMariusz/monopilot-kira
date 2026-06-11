@@ -26,9 +26,25 @@ const fakeClient = {
 
 const registerOutputMock = vi.fn();
 const recordWasteMock = vi.fn();
-const withScannerOrgMock = vi.fn(async (_session: ScannerSessionRow, fn: (ctx: unknown) => Promise<unknown>) =>
-  fn({ userId: session.user_id, orgId: session.org_id, client: fakeClient }),
-);
+const startWoMock = vi.fn();
+// withScannerOrg has two overloads: (session, fn) for service calls (start/
+// output/waste) and (client, session, fn) for scoped queries (lps). Dispatch
+// on arity, mirroring the real signature.
+const withScannerOrgMock = vi.fn(async (...args: unknown[]) => {
+  if (typeof args[2] === 'function') {
+    return (args[2] as (ctx: unknown) => Promise<unknown>)({
+      client: fakeClient,
+      session,
+      orgId: session.org_id,
+      userId: session.user_id,
+    });
+  }
+  return (args[1] as (ctx: unknown) => Promise<unknown>)({
+    userId: session.user_id,
+    orgId: session.org_id,
+    client: fakeClient,
+  });
+});
 
 vi.mock('../../../../../../../lib/scanner/guard', () => ({
   requireScannerSession: vi.fn(async (_request, _body, _operation, fn) =>
@@ -48,11 +64,22 @@ vi.mock('../../../../../../../lib/production/waste/record-waste', () => ({
   recordWaste: (...args: unknown[]) => recordWasteMock(...args),
 }));
 
+vi.mock('../../../../../../../lib/production/start-wo', () => ({
+  startWo: (...args: unknown[]) => startWoMock(...args),
+}));
+
 function request(body: Record<string, unknown>): Request {
   return new Request('https://web.test/api/production/scanner/wos/wo-id/action', {
     method: 'POST',
     headers: { authorization: 'Bearer token', 'content-type': 'application/json' },
     body: JSON.stringify(body),
+  });
+}
+
+function getRequest(query = ''): Request {
+  return new Request(`https://web.test/api/production/scanner/wos/wo-id/action${query}`, {
+    method: 'GET',
+    headers: { authorization: 'Bearer token' },
   });
 }
 
@@ -255,6 +282,134 @@ describe('production scanner WO routes', () => {
       expect.objectContaining({ transaction_id: expectedTxn, product_id: '80000000-0000-0000-0000-000000000001' }),
     );
     await expect(response.json()).resolves.toMatchObject({ ok: true, transactionId: expectedTxn });
+  });
+
+  it('detail returns producedBaseKg + producedUnits as decimal strings ("0" honest zero before any output)', async () => {
+    const { GET } = await import('../route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.work_orders wo')) {
+        return {
+          rows: [{
+            id: context.params.id,
+            wo_number: 'WO-2026-0108',
+            status: 'released',
+            item_code: 'FG-001',
+            product_name: 'Kabanos',
+            planned_qty: '20',
+            qty_entered: '20',
+            qty_entered_uom: 'box',
+            uom_snapshot: null,
+            scheduled_start: null,
+            produced_base_kg: '0',
+            produced_units: '0',
+            allergen_flag: false,
+          }],
+        };
+      }
+      if (sql.includes('from public.wo_materials')) return { rows: [] };
+      if (sql.includes('from public.wo_outputs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const response = await GET(getRequest() as never, context);
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.ok).toBe(true);
+    expect(json.header).toMatchObject({ producedBaseKg: '0', producedUnits: '0' });
+    expect(typeof json.header.producedBaseKg).toBe('string');
+    expect(typeof json.header.producedUnits).toBe('string');
+  });
+
+  it('start derives deterministic transaction_id from clientOpId and calls startWo under the scanner org', async () => {
+    const { POST } = await import('../start/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      return { rows: [] };
+    });
+    startWoMock.mockResolvedValue({
+      ok: true,
+      data: {
+        woId: context.params.id,
+        status: 'in_progress',
+        startedAt: null,
+        bomSnapshotId: 'snap-1',
+        outputsMaterialized: 1,
+        allergenGateRequired: false,
+      },
+    });
+
+    const response = await POST(request({ clientOpId: 'op-start-1' }) as never, context);
+
+    expect(response.status).toBe(200);
+    const expectedTxn = scannerTransactionId('start', 'op-start-1');
+    expect(startWoMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ woId: context.params.id, transactionId: expectedTxn }),
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      transactionId: expectedTxn,
+      replay: false,
+    });
+  });
+
+  it('start returns 403 forbidden (audited) when the session user lacks production.wo.start', async () => {
+    const { POST } = await import('../start/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const response = await POST(request({ clientOpId: 'op-start-forbidden' }) as never, context);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+    expect(startWoMock).not.toHaveBeenCalled();
+  });
+
+  it('lps returns FEFO candidates for the material in route order with decimal-string qty + ISO expiry', async () => {
+    const { GET } = await import('../lps/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.wo_materials')) {
+        return { rows: [{ product_id: '80000000-0000-0000-0000-000000000001', uom: 'kg' }] };
+      }
+      if (sql.includes('from public.v_inventory_available')) {
+        // FEFO order is the SQL's contract (expiry asc nulls last); the route
+        // must preserve it 1:1 in the response.
+        return {
+          rows: [
+            { lp_id: 'lp-1', lp_number: 'LP-0001', available_qty: '40.000', uom: 'kg', expiry_date: '2026-06-12' },
+            { lp_id: 'lp-2', lp_number: 'LP-0002', available_qty: '80.000', uom: 'kg', expiry_date: '2026-06-20' },
+            { lp_id: 'lp-3', lp_number: 'LP-0003', available_qty: '25.000', uom: 'kg', expiry_date: null },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await GET(
+      getRequest('?materialId=70000000-0000-0000-0000-000000000001') as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.ok).toBe(true);
+    expect(json.lps).toEqual([
+      { lpId: 'lp-1', lpNumber: 'LP-0001', qty: '40.000', uom: 'kg', expiry: '2026-06-12' },
+      { lpId: 'lp-2', lpNumber: 'LP-0002', qty: '80.000', uom: 'kg', expiry: '2026-06-20' },
+      { lpId: 'lp-3', lpNumber: 'LP-0003', qty: '25.000', uom: 'kg', expiry: null },
+    ]);
+  });
+
+  it('lps rejects a missing materialId with 400 missing_fields', async () => {
+    const { GET } = await import('../lps/route');
+
+    const response = await GET(getRequest() as never, context);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'missing_fields' });
   });
 
   it('waste rejects non-string regulated qty before calling service', async () => {

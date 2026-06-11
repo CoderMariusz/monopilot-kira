@@ -163,7 +163,7 @@ export function IngredientRow({
           <ItemPicker
             labels={labels.picker}
             searchItemsAction={searchItemsAction}
-            itemTypes={['rm', 'ingredient', 'intermediate', 'co_product']}
+            itemTypes={['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct']}
             disabled={disabled}
             triggerClassName="btn-ghost btn-sm"
             onSelect={(item) => onSelectItem(index, item)}

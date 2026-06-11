@@ -40,7 +40,7 @@ export type ItemPickerLabels = {
   error: string;
 };
 
-export type SearchableItemType = 'fg' | 'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'packaging';
+export type SearchableItemType = 'fg' | 'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'byproduct' | 'packaging';
 export type ComponentItemType = Exclude<SearchableItemType, 'fg'>;
 
 export type ItemSearchFn<TItemType extends SearchableItemType = ComponentItemType> = (input: {

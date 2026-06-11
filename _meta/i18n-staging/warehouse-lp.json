@@ -31,6 +31,14 @@
       "expiry": {
         "title": "Expiry",
         "desc": "FEFO red / amber expiry dashboard."
+      },
+      "inbound": {
+        "title": "Inbound schedule",
+        "desc": "Open POs / TOs and what arrives today."
+      },
+      "scanner": {
+        "title": "Scanner",
+        "desc": "Open the mobile scanner — receive, consume, output."
       }
     },
     "list": {
@@ -249,6 +257,14 @@
       "expiry": {
         "title": "Terminy",
         "desc": "Panel terminów FEFO (czerwone / bursztynowe)."
+      },
+      "inbound": {
+        "title": "Harmonogram dostaw",
+        "desc": "Otwarte ZZ / przesunięcia i co przyjedzie dziś."
+      },
+      "scanner": {
+        "title": "Skaner",
+        "desc": "Otwórz skaner mobilny — przyjęcie, zużycie, produkcja."
       }
     },
     "list": {

@@ -1,4 +1,16 @@
 {
+  "shifts": {
+    "column_actions": "Akcje",
+    "edit_shift": "Edytuj",
+    "delete_shift": "Usuń",
+    "edit_dialog_title": "Edytuj zmianę",
+    "delete_confirm_title": "Usuń zmianę",
+    "delete_confirm_body": "Ten wzorzec zmiany zostanie usunięty z harmonogramu. Kontynuować?",
+    "delete_confirm": "Usuń",
+    "deleting": "Usuwanie...",
+    "update_failed": "Nie udało się zaktualizować zmiany.",
+    "delete_failed": "Nie udało się usunąć zmiany."
+  },
   "schema_column_wizard": {
     "title": "Kreator edycji kolumny",
     "subtitle": "Dodaj lub edytuj kolumnę schematu dla zakresu L2/L3.",
@@ -325,7 +337,57 @@
     "state_loading": "Ładowanie ról i uprawnień…",
     "state_empty": "Nie skonfigurowano jeszcze żadnych ról systemowych.",
     "state_error": "Nie można załadować ról i uprawnień.",
-    "state_permission_denied": "Tylko do odczytu: do zarządzania przypisaniami ról wymagane jest uprawnienie settings.roles.assign."
+    "state_permission_denied": "Tylko do odczytu: do zarządzania przypisaniami ról wymagane jest uprawnienie settings.roles.assign.",
+    "editor": {
+      "create_button": "+ Utwórz rolę",
+      "create_title": "Utwórz rolę niestandardową",
+      "create_submit": "Utwórz rolę",
+      "creating": "Tworzenie…",
+      "permissions_button": "Uprawnienia",
+      "permissions_title": "Uprawnienia — {role}",
+      "edit_permissions_help": "Edytuj uprawnienia ról",
+      "field_code": "Kod roli",
+      "field_name": "Nazwa roli",
+      "field_description": "Opis (opcjonalnie)",
+      "code_hint": "Identyfikator małymi literami, np. qa_reviewer. Kody owner/admin są zarezerwowane.",
+      "system_locked": "To jest rola systemowa. Jej uprawnieniami zarządza platforma i nie można ich tutaj edytować.",
+      "select_all": "Zaznacz wszystkie",
+      "clear_all": "Wyczyść wszystkie",
+      "selected_count": "Wybrano uprawnień: {count}",
+      "save": "Zapisz uprawnienia",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj",
+      "close": "Zamknij",
+      "loading": "Wczytywanie uprawnień…",
+      "load_error": "Nie udało się wczytać uprawnień.",
+      "groups": {
+        "settings_core": "Ustawienia — podstawowe",
+        "settings_ext": "Ustawienia — rozszerzone",
+        "npd": "NPD (rozwój nowych produktów)",
+        "technical": "Technologia / BOM",
+        "production": "Produkcja",
+        "warehouse": "Magazyn",
+        "quality": "Jakość",
+        "finance": "Finanse",
+        "maintenance": "Utrzymanie ruchu",
+        "oee": "OEE",
+        "shipping": "Wysyłka",
+        "reporting": "Raportowanie",
+        "multi_site": "Wiele zakładów",
+        "scheduler": "Planowanie / harmonogram"
+      },
+      "errors": {
+        "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź kod i nazwę roli.",
+        "invalid_code": "Użyj identyfikatora małymi literami: litery, cyfry i podkreślenia (np. qa_reviewer).",
+        "name_required": "Nazwa roli jest wymagana.",
+        "forbidden": "Nie masz uprawnień do zarządzania rolami.",
+        "system_role_locked": "Ról systemowych nie można tworzyć ani edytować.",
+        "code_taken": "Rola o tym kodzie już istnieje.",
+        "invalid_permission": "Co najmniej jedno z wybranych uprawnień nie znajduje się w katalogu uprawnień.",
+        "role_not_found": "Ta rola już nie istnieje.",
+        "persistence_failed": "Nie udało się zapisać zmiany. Spróbuj ponownie."
+      }
+    }
   },
   "infra": {
     "screen_title": "Infrastruktura",

@@ -58,6 +58,9 @@ const NAV_CARDS: NavCard[] = [
   { key: 'analytics', href: '/production/analytics' },
   { key: 'oee', href: '/oee' },
   { key: 'quality', href: '/quality' },
+  // Cross-shell: opens the chrome-less device scanner (owner-reported the
+  // scanner was otherwise unreachable from the app).
+  { key: 'scanner', href: '/scanner/home' },
 ];
 
 /** Deep-link target for not-yet-startable (planned) WOs — Planning owns release. */
@@ -167,7 +170,11 @@ async function DashboardContent() {
     woNumber: r.woNumber,
     status: r.status,
     statusLabel: statusLabel(r.status),
-    lineLabel: r.lineId ? r.lineId.slice(0, 8) : '—',
+    // Names sweep: human line code + product name with honest UUID-fragment
+    // fallback for mig-259 orphan demo WOs.
+    lineLabel: r.lineCode ?? (r.lineId ? r.lineId.slice(0, 8) : '—'),
+    productName: r.productName ?? null,
+    itemLabel: r.itemCode ?? (r.productName ? '' : r.productId ? r.productId.slice(0, 8) : '—'),
     plannedLabel: `${KG_FMT.format(Math.round(r.plannedKg))} kg`,
     producedLabel: r.producedKg === null ? '—' : `${KG_FMT.format(Math.round(r.producedKg))} kg`,
     progressPct: r.progressPct,

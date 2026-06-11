@@ -34,7 +34,20 @@ const LABELS: WoDetailLabels = {
     allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output',
     allergenYes: 'Allergen profile present', allergenNo: 'None', elapsedMin: 'min',
   },
-  consumption: { title: 'Component consumption', empty: 'No components recorded for this work order.', addAction: 'Scan LP', col: { code: 'Code', component: 'Component', planned: 'Planned', consumed: 'Consumed', remaining: 'Remaining', progress: 'Progress' } },
+  consumption: {
+    title: 'Component consumption',
+    empty: 'No components recorded for this work order.',
+    addAction: 'Scan LP',
+    col: { code: 'Code', component: 'Component', planned: 'Planned', consumed: 'Consumed', remaining: 'Remaining', progress: 'Progress' },
+    record: {
+      trigger: 'Record consumption', rowTrigger: 'Record', title: 'Record material consumption', subtitle: 'Decrement on-hand stock.',
+      material: 'Component', materialPlaceholder: 'Select a component', qty: 'Quantity', qtyHint: "Amount in the component's UoM.",
+      lp: 'License plate (FEFO)', lpLoading: 'Loading license plates…', lpEmpty: 'No license plates available for this component.',
+      lpError: 'Unable to load license plates.', lpNone: '— no LP —', lpSuggested: 'suggested', submit: 'Record consumption',
+      submitting: 'Recording…', cancel: 'Cancel',
+      errors: { forbidden: 'No permission to record consumption.', lp_unavailable: 'Not enough free stock on that LP.', invalid_material: 'Component no longer valid.', invalid_qty: 'Enter a quantity greater than zero.', generic: 'Unable to record consumption.' },
+    },
+  },
   output: {
     title: 'Registered output',
     empty: 'No output registered yet.',
@@ -101,6 +114,11 @@ const releaseOutputQaActionStub: any = async () => ({
   ok: true,
   data: { outputId: 'o1', qaStatus: 'PASSED', lpId: null, lpQaStatus: null },
 });
+const recordConsumptionActionStub: any = async () => ({
+  ok: true,
+  data: { materialId: 'c1', consumedQty: '400', uom: 'kg', lpId: null, replay: false },
+});
+const listConsumableLpsActionStub: any = async () => ({ ok: true, data: { lps: [] } });
 
 function renderScreen(data = DATA) {
   // actions=null exercises the read-only path (no live action context): the
@@ -112,6 +130,8 @@ function renderScreen(data = DATA) {
       labels: LABELS,
       actions: null,
       releaseOutputQaAction: releaseOutputQaActionStub,
+      recordConsumptionAction: recordConsumptionActionStub,
+      listConsumableLpsAction: listConsumableLpsActionStub,
     }),
   );
 }

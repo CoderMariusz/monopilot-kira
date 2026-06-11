@@ -134,7 +134,7 @@ beforeEach(() => {
 });
 
 describe('UI-129 AppSidebar manifest rendering', () => {
-  it('renders five group headers and fifteen manifest items in UI-128 order, with Scanner excluded', async () => {
+  it('renders five group headers and sixteen manifest items in UI-128 order, with the cross-shell Scanner link included', async () => {
     await renderSidebar('/en/dashboard');
 
     const root = screen.getByTestId('app-sidebar');
@@ -146,7 +146,7 @@ describe('UI-129 AppSidebar manifest rendering', () => {
     expect(groupHeaders.map((node) => node.textContent?.trim())).toEqual(expectedGroups.map((group) => group.translatedLabel));
 
     const links = within(root).getAllByRole('link');
-    expect(links, 'AppSidebar must render exactly the 15 desktop sidebar items from APP_NAV_GROUPS').toHaveLength(15);
+    expect(links, 'AppSidebar must render exactly the 16 sidebar items from APP_NAV_GROUPS').toHaveLength(16);
     expect(links.map((link) => link.textContent?.trim())).toEqual(expectedItems.map((item) => item.translatedLabel));
 
     for (const item of expectedItems) {
@@ -155,7 +155,11 @@ describe('UI-129 AppSidebar manifest rendering', () => {
       expect(node, `${item.key} must be rendered by the next/link mock as an anchor`).toHaveAttribute('data-next-link', 'true');
       expect(node.querySelector('[data-slot="count"]'), `${item.key} must expose the count slot placeholder`).toBeInTheDocument();
     }
-    expect(screen.queryByTestId('app-sidebar-item-scanner'), 'Scanner belongs to the device shell and must not render here').not.toBeInTheDocument();
+    // Scanner is now a deliberate cross-shell sidebar link to /scanner/home so
+    // the device shell is reachable from the desktop app.
+    const scannerLink = screen.getByTestId('app-sidebar-item-scanner');
+    expect(scannerLink, 'Scanner sidebar link must render').toBeInTheDocument();
+    expect(scannerLink, 'Scanner link must target the device shell landing').toHaveAttribute('href', '/en/scanner/home');
   });
 
   it('resolves every item link to the active locale-prefixed route', async () => {

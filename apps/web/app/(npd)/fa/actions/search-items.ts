@@ -25,15 +25,19 @@ type QueryClient = {
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
 /** Item types the search action will ACCEPT in its `itemTypes` filter.
- *  'ingredient' behaves like a raw material for production usage; 'packaging' is
+ *  'ingredient' behaves like a raw material for production usage; 'byproduct' is
+ *  a legal items.item_type (mig 248 CHECK) and a valid recipe input (e.g. trims
+ *  reused as a component) so it must be reachable in the picker; 'packaging' is
  *  accepted ONLY so the NPD packaging stage can request a packaging-restricted
  *  picker — it is deliberately excluded from DEFAULT_COMPONENT_ITEM_TYPES so a
  *  caller that omits `itemTypes` (the recipe picker) never receives packaging. */
-const SEARCHABLE_ITEM_TYPES = ['fg', 'rm', 'ingredient', 'intermediate', 'co_product', 'packaging'] as const;
+const SEARCHABLE_ITEM_TYPES = ['fg', 'rm', 'ingredient', 'intermediate', 'co_product', 'byproduct', 'packaging'] as const;
 
 /** The default fan-out when a caller passes no `itemTypes` — recipe/component
- *  types only, NEVER packaging (packaging must be requested explicitly). */
-const DEFAULT_COMPONENT_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product'] as const;
+ *  types only. Includes 'byproduct' because a by-product (e.g. trims) can be
+ *  reused as a recipe input; NEVER packaging (packaging must be requested
+ *  explicitly). */
+const DEFAULT_COMPONENT_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct'] as const;
 
 export type ItemPickerOption = {
   id: string;

@@ -116,14 +116,18 @@ export const APP_MODULES = [
   {
     id: "scanner",
     label: "Scanner",
-    i18n_key: "Navigation.app.modules.scanner",
-    route: null,
+    i18n_key: "Navigation.app.items.scanner",
+    // Cross-shell link: the Scanner landing lives in the chrome-less (scanner)
+    // route group at /scanner/home. Owner reported there was no way to reach the
+    // scanner from the app — this sidebar item navigates OUT of the (app) shell
+    // into the device shell. nav_exposure stays 'sidebar' so app-nav surfaces it.
+    route: "/scanner/home",
     icon_token: "📱",
     module_kind: "scanner",
     shell_kind: "scanner",
-    nav_exposure: "excluded",
+    nav_exposure: "sidebar",
     merged_into: null,
-    nav_group: null,
+    nav_group: "operations",
     count_slot: null,
     permission_key: MODULE_PERMISSION_KEYS.scanner,
     rbac_todo: RBAC_TODO,

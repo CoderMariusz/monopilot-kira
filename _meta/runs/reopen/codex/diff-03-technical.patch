@@ -1,0 +1,2911 @@
+diff --git a/packages/db/migrations/153-items-master.sql b/packages/db/migrations/153-items-master.sql
+new file mode 100644
+index 00000000..dd2daa87
+--- /dev/null
++++ b/packages/db/migrations/153-items-master.sql
+@@ -0,0 +1,118 @@
++-- Migration 153: 03-Technical — items universal master table.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §5.1, §6.1, §6.4.
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
++-- D365 fields are soft integration mirrors only; no D365 FK is introduced.
++
++create table if not exists public.items (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  item_code text not null,
++  item_type text not null,
++  name text not null,
++  description text,
++  status text not null default 'active',
++
++  product_group text,
++  uom_base text not null,
++  uom_secondary text,
++  gs1_gtin text,
++
++  weight_mode text not null default 'fixed',
++  nominal_weight numeric(10, 4),
++  tare_weight numeric(10, 4),
++  gross_weight_max numeric(10, 4),
++  variance_tolerance_pct numeric(5, 2) default 5.00,
++
++  shelf_life_days integer,
++  shelf_life_mode text default 'use_by',
++  date_code_format text,
++
++  cost_per_kg numeric(18, 6),
++
++  d365_item_id text,
++  d365_last_sync_at timestamptz,
++  d365_sync_status text default 'unsynced',
++
++  ext_jsonb jsonb not null default '{}'::jsonb,
++  private_jsonb jsonb not null default '{}'::jsonb,
++
++  schema_version integer not null default 1,
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint items_org_item_code_unique unique (org_id, item_code),
++  constraint items_item_type_check check (
++    item_type in ('rm', 'intermediate', 'fg', 'co_product', 'byproduct')
++  ),
++  constraint items_status_check check (
++    status in ('draft', 'active', 'deprecated', 'blocked')
++  ),
++  constraint items_weight_mode_check check (
++    weight_mode in ('fixed', 'catch')
++  ),
++  constraint items_shelf_life_mode_check check (
++    shelf_life_mode is null or shelf_life_mode in ('use_by', 'best_before')
++  ),
++  constraint items_d365_sync_status_check check (
++    d365_sync_status is null or d365_sync_status in ('unsynced', 'synced', 'drift', 'error')
++  ),
++  constraint items_cost_per_kg_nonnegative_check check (
++    cost_per_kg is null or cost_per_kg >= 0
++  ),
++  constraint items_weights_nonnegative_check check (
++    (nominal_weight is null or nominal_weight >= 0)
++    and (tare_weight is null or tare_weight >= 0)
++    and (gross_weight_max is null or gross_weight_max >= 0)
++  ),
++  constraint items_variance_tolerance_pct_check check (
++    variance_tolerance_pct is null
++    or (variance_tolerance_pct >= 0 and variance_tolerance_pct <= 100)
++  ),
++  constraint items_shelf_life_days_check check (
++    shelf_life_days is null or shelf_life_days >= 0
++  ),
++  constraint items_schema_version_check check (schema_version >= 1),
++  constraint items_ext_jsonb_object_check check (jsonb_typeof(ext_jsonb) = 'object'),
++  constraint items_private_jsonb_object_check check (jsonb_typeof(private_jsonb) = 'object')
++);
++
++create index if not exists idx_items_org_type
++  on public.items (org_id, item_type, status);
++
++create index if not exists idx_items_d365
++  on public.items (org_id, d365_item_id)
++  where d365_item_id is not null;
++
++create index if not exists idx_items_ext_jsonb
++  on public.items using gin (ext_jsonb);
++
++alter table public.items enable row level security;
++alter table public.items force row level security;
++
++drop policy if exists items_org_isolation on public.items;
++create policy items_org_isolation
++  on public.items
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.items from public;
++revoke all on public.items from app_user;
++grant select, insert, update, delete on public.items to app_user;
++
++create or replace function public.items_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists items_set_updated_at on public.items;
++create trigger items_set_updated_at
++  before update on public.items
++  for each row execute function public.items_set_updated_at();
+diff --git a/packages/db/migrations/154-technical-permission-seed.sql b/packages/db/migrations/154-technical-permission-seed.sql
+new file mode 100644
+index 00000000..7a4215aa
+--- /dev/null
++++ b/packages/db/migrations/154-technical-permission-seed.sql
+@@ -0,0 +1,109 @@
++-- Migration 154: 03-technical Gate-5 reachability fix — grant the full technical.* permission
++-- family to the org-admin role family so the org administrator can actually reach the Technical
++-- (factory specification) module.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §3 (RBAC).
++-- Canonical permission strings: packages/rbac/src/permissions.enum.ts (ALL_TECHNICAL_PERMISSIONS
++-- added by T-091 + the pre-existing TECHNICAL_PRODUCT_SPEC_APPROVE workflow string).
++-- Wave0 lock: org_id business scope (NOT tenant_id); RLS via app.current_org_id().
++--
++-- ROOT CAUSE (X-1 unreachable-feature class — same as 116/146/148/149): adding the
++-- technical.* strings to the enum (T-091) does NOT grant anyone access. Migration 080's
++-- seed grants permissions to functional role CODES (npd_manager/core_user/admin/etc.), but the
++-- deployed org administrator is on the canonical org-admin role family
++-- ('org.access.admin' / 'org.platform.admin' / 'owner' / 'admin' / 'org_admin'), which receives
++-- NONE of the technical.* strings — so every technical page returns "You do not have
++-- permission…" for the org admin at live Gate-5. This grants the COMPLETE technical.* set to
++-- the org-admin role family, in BOTH the normalized role_permissions table and the legacy
++-- roles.permissions jsonb cache, for every existing org, with an AFTER INSERT trigger so new
++-- orgs inherit it. Idempotent: ON CONFLICT DO NOTHING on the table; jsonb merge is
++-- set-deduplicated and sorted. Models exactly on 149-npd-permissions-org-admin-seed.sql.
++
++create or replace function public.seed_technical_permissions_for_org(p_org_id uuid)
++returns void
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++declare
++  -- The complete technical.* family the 03-technical pages/actions check: the 10 strings
++  -- added by T-091 (ALL_TECHNICAL_PERMISSIONS) plus the pre-existing
++  -- technical.product_spec.approve workflow-authorization string, so the org admin can also
++  -- approve product specs.
++  v_perms text[] := array[
++    'technical.allergens.edit',
++    'technical.bom.approve',
++    'technical.bom.create',
++    'technical.bom.generate_batch',
++    'technical.bom.version_publish',
++    'technical.cost.edit',
++    'technical.d365.sync_trigger',
++    'technical.items.create',
++    'technical.items.deactivate',
++    'technical.items.edit',
++    'technical.product_spec.approve'
++  ];
++  -- org-admin role family across naming conventions used in this codebase.
++  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
++begin
++  -- Normalized storage.
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- Legacy jsonb cache: union the perms into each admin role's permissions array.
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
++end;
++$$;
++
++revoke all on function public.seed_technical_permissions_for_org(uuid) from public;
++revoke all on function public.seed_technical_permissions_for_org(uuid) from app_user;
++
++create or replace function public.seed_technical_permissions_on_org_insert()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++begin
++  perform public.seed_technical_permissions_for_org(new.id);
++  return new;
++end;
++$$;
++
++revoke all on function public.seed_technical_permissions_on_org_insert() from public;
++revoke all on function public.seed_technical_permissions_on_org_insert() from app_user;
++
++-- Fire after the 080 role-seeding trigger so the admin roles already exist (zzz prefix).
++drop trigger if exists trg_zzz_seed_technical_permissions on public.organizations;
++create trigger trg_zzz_seed_technical_permissions
++  after insert on public.organizations
++  for each row
++  execute function public.seed_technical_permissions_on_org_insert();
++
++-- Backfill every existing org.
++do $$
++declare
++  v_org_id uuid;
++begin
++  for v_org_id in select id from public.organizations loop
++    perform public.seed_technical_permissions_for_org(v_org_id);
++  end loop;
++end
++$$;
+diff --git a/packages/db/migrations/159-bom-items-fk-coproducts-snapshots.sql b/packages/db/migrations/159-bom-items-fk-coproducts-snapshots.sql
+new file mode 100644
+index 00000000..0af8260c
+--- /dev/null
++++ b/packages/db/migrations/159-bom-items-fk-coproducts-snapshots.sql
+@@ -0,0 +1,204 @@
++-- Migration 159: T-002 — shared BOM SSOT extension.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §0 (final decisions), §5.2, §7.1, §7.2.
++-- Wave0 lock: org_id is the business scope; RLS via app.current_org_id() (never a raw GUC).
++-- Day-1 multi-site rule: every NEW operational table carries site_id uuid NULL (no FK, no RLS
++--   predicate change) so 14-multi-site/T-030 only backfills + ALTERs; reference tables exempt.
++-- BOM is the ONE shared SSOT (bom_headers/bom_lines from migration 090). This migration ADDS:
++--   1. bom_lines.item_id uuid FK -> public.items(id) for the canonical item master link
++--      (component_code TEXT stays for display / back-compat).
++--   2. bom_co_products: positive-value co-products + zero-value byproducts per BOM version.
++--   3. bom_snapshots: immutable BOM snapshot captured at WO creation (ADR-002).
++-- The bom_headers version state machine (draft -> in_review -> technical_approved -> active ->
++--   superseded/archived) + approval columns already ship in migration 090; T-073 adds the
++--   transition ENFORCEMENT. This migration only adds the related child tables + items FK.
++-- D365 is integration only, never source of truth. No work_order FK here (lives in 08-PRODUCTION).
++
++-- ---------------------------------------------------------------------------
++-- 1. bom_lines.item_id — canonical item master FK (component_code kept for display)
++-- ---------------------------------------------------------------------------
++alter table public.bom_lines
++  add column if not exists item_id uuid;
++
++do $$
++begin
++  if not exists (
++    select 1 from pg_constraint where conname = 'bom_lines_item_id_fkey'
++  ) then
++    alter table public.bom_lines
++      add constraint bom_lines_item_id_fkey
++      foreign key (item_id) references public.items(id) on delete restrict;
++  end if;
++end
++$$;
++
++create index if not exists bom_lines_org_item_idx
++  on public.bom_lines (org_id, item_id)
++  where item_id is not null;
++
++comment on column public.bom_lines.item_id
++  is 'T-002: canonical item master FK (public.items). component_code TEXT is retained for display / back-compat; item_id is the authoritative component reference for the shared BOM SSOT.';
++
++-- ---------------------------------------------------------------------------
++-- 2. bom_co_products — co-products (positive value) + byproducts (zero value)
++-- ---------------------------------------------------------------------------
++create table if not exists public.bom_co_products (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  bom_header_id uuid not null,
++  co_product_item_id uuid not null references public.items(id) on delete restrict,
++  quantity numeric(14, 6) not null,
++  uom text not null,
++  allocation_pct numeric(6, 3) not null,
++  is_byproduct boolean not null default false,
++  -- Day-1 multi-site: site_id NULL now; 14-multi-site/T-030 backfills + tightens to NOT NULL.
++  site_id uuid,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++  schema_version integer not null default 1,
++  constraint bom_co_products_header_org_fk
++    foreign key (bom_header_id, org_id)
++    references public.bom_headers(id, org_id)
++    on delete cascade,
++  constraint bom_co_products_header_item_unique
++    unique (bom_header_id, co_product_item_id),
++  constraint bom_co_products_quantity_positive_check
++    check (quantity > 0),
++  constraint bom_co_products_allocation_pct_check
++    check (allocation_pct >= 0 and allocation_pct <= 100.000),
++  constraint bom_co_products_byproduct_allocation_check
++    check (is_byproduct is false or allocation_pct = 0)
++);
++
++create index if not exists bom_co_products_org_header_idx
++  on public.bom_co_products (org_id, bom_header_id);
++
++create index if not exists bom_co_products_org_item_idx
++  on public.bom_co_products (org_id, co_product_item_id);
++
++create index if not exists bom_co_products_org_site_idx
++  on public.bom_co_products (org_id, site_id);
++
++create or replace function public.bom_co_products_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists bom_co_products_set_updated_at on public.bom_co_products;
++create trigger bom_co_products_set_updated_at
++  before update on public.bom_co_products
++  for each row execute function public.bom_co_products_set_updated_at();
++
++alter table public.bom_co_products enable row level security;
++alter table public.bom_co_products force row level security;
++
++drop policy if exists bom_co_products_org_context on public.bom_co_products;
++create policy bom_co_products_org_context
++  on public.bom_co_products
++  for all
++  to app_user
++  using (
++    org_id = app.current_org_id()
++    and exists (
++      select 1
++      from public.bom_headers header
++      where header.id = bom_header_id
++        and header.org_id = app.current_org_id()
++    )
++  )
++  with check (
++    org_id = app.current_org_id()
++    and exists (
++      select 1
++      from public.bom_headers header
++      where header.id = bom_header_id
++        and header.org_id = app.current_org_id()
++    )
++  );
++
++revoke all on public.bom_co_products from public;
++revoke all on public.bom_co_products from app_user;
++grant select, insert, update, delete on public.bom_co_products to app_user;
++
++-- ---------------------------------------------------------------------------
++-- 3. bom_snapshots — immutable BOM snapshot at WO creation (ADR-002)
++-- ---------------------------------------------------------------------------
++-- work_order_id stays UUID nullable; FK is added by 08-PRODUCTION once work_orders exists.
++create table if not exists public.bom_snapshots (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  work_order_id uuid,
++  bom_header_id uuid not null,
++  snapshot_json jsonb not null,
++  -- Day-1 multi-site: site_id NULL now; 14-multi-site/T-030 backfills + tightens to NOT NULL.
++  site_id uuid,
++  snapshot_at timestamptz not null default pg_catalog.now(),
++  constraint bom_snapshots_header_org_fk
++    foreign key (bom_header_id, org_id)
++    references public.bom_headers(id, org_id)
++    on delete restrict,
++  constraint bom_snapshots_snapshot_json_object_check
++    check (jsonb_typeof(snapshot_json) = 'object')
++);
++
++create index if not exists idx_bom_snapshots_wo
++  on public.bom_snapshots (org_id, work_order_id);
++
++create index if not exists bom_snapshots_org_header_idx
++  on public.bom_snapshots (org_id, bom_header_id);
++
++create index if not exists bom_snapshots_org_site_idx
++  on public.bom_snapshots (org_id, site_id);
++
++-- Snapshots are immutable: block UPDATE/DELETE so a captured WO BOM never drifts.
++create or replace function public.bom_snapshots_reject_mutation()
++returns trigger
++language plpgsql
++as $$
++begin
++  raise exception 'bom_snapshots rows are immutable; insert a new snapshot instead of updating or deleting';
++end;
++$$;
++
++drop trigger if exists bom_snapshots_reject_mutation on public.bom_snapshots;
++create trigger bom_snapshots_reject_mutation
++  before update or delete on public.bom_snapshots
++  for each row execute function public.bom_snapshots_reject_mutation();
++
++alter table public.bom_snapshots enable row level security;
++alter table public.bom_snapshots force row level security;
++
++drop policy if exists bom_snapshots_org_context on public.bom_snapshots;
++create policy bom_snapshots_org_context
++  on public.bom_snapshots
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.bom_snapshots from public;
++revoke all on public.bom_snapshots from app_user;
++-- No update/delete grant: immutability is enforced both by trigger and by withheld privileges.
++grant select, insert on public.bom_snapshots to app_user;
++
++-- ---------------------------------------------------------------------------
++-- Comments
++-- ---------------------------------------------------------------------------
++comment on table public.bom_co_products
++  is 'T-002: co-products (positive market value) + byproducts (is_byproduct=true, allocation_pct=0) per shared BOM version. Cost allocation_pct of parent + non-byproduct co-products sums to 100. Part of the shared BOM SSOT; D365 is integration only.';
++
++comment on table public.bom_snapshots
++  is 'T-002: immutable flattened BOM snapshot (header + lines + co-products) captured at WO creation (ADR-002). WO execution reads only its snapshot, never live bom_headers. work_order_id FK is added by 08-PRODUCTION. site_id is the Day-1 multi-site column. Shared BOM SSOT; D365 is integration only.';
++
++comment on column public.bom_co_products.site_id
++  is 'Day-1 multi-site column (uuid NULL). 14-multi-site/T-030 backfills + tightens to NOT NULL + composite (org_id, site_id) RLS. No FK / RLS predicate here.';
++
++comment on column public.bom_snapshots.site_id
++  is 'Day-1 multi-site column (uuid NULL). 14-multi-site/T-030 backfills + tightens to NOT NULL + composite (org_id, site_id) RLS. No FK / RLS predicate here.';
++
++comment on column public.bom_snapshots.work_order_id
++  is 'T-002: soft UUID reference to 08-PRODUCTION work_orders; FK is intentionally deferred to 08-PRODUCTION (table does not exist yet).';
+diff --git a/packages/db/migrations/160-item-cost-history.sql b/packages/db/migrations/160-item-cost-history.sql
+new file mode 100644
+index 00000000..d88cdcc3
+--- /dev/null
++++ b/packages/db/migrations/160-item-cost-history.sql
+@@ -0,0 +1,74 @@
++-- Migration 160: 03-Technical — item_cost_history (cost rolls per item).
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §5.3, §11.1, §11.2 (T-003).
++--
++-- DUAL-OWNED with 10-finance: Technical owns the master cost edit + this history
++-- table; Finance owns standard-cost/valuation/variance (NOT created here).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
++-- NUMERIC precision is MANDATORY for every cost column — never an inexact binary type.
++-- currency stays CHAR(3) — ISO 4217 validated at the API layer (V-TEC-52).
++-- source CHECK enforces the four allowed enum values.
++-- site_id is day-1 nullable (no FK / registry) — the sites registry + backfill land
++-- in 14-multi-site (T-030); the org-scoped RLS predicate stays org-only for now.
++-- Do NOT back-fill items.cost_per_kg here — that runs in T-021 (cost API).
++
++create table if not exists public.item_cost_history (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  site_id uuid,
++  item_id uuid not null references public.items(id) on delete cascade,
++
++  cost_per_kg numeric(10, 4) not null,
++  currency char(3) not null default 'PLN',
++  effective_from date not null default current_date,
++  effective_to date,
++  source text,
++
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint item_cost_history_source_check check (
++    source is null or source in ('manual', 'd365_sync', 'supplier_update', 'variance_roll')
++  ),
++  constraint item_cost_history_cost_per_kg_nonnegative_check check (
++    cost_per_kg >= 0
++  ),
++  constraint item_cost_history_effective_range_check check (
++    effective_to is null or effective_to >= effective_from
++  )
++);
++
++-- AC2: active-cost lookup ordered effective_from DESC; also covers the item_id FK.
++create index if not exists idx_item_cost_active
++  on public.item_cost_history (org_id, item_id, effective_from desc);
++
++alter table public.item_cost_history enable row level security;
++alter table public.item_cost_history force row level security;
++
++drop policy if exists item_cost_history_org_isolation on public.item_cost_history;
++create policy item_cost_history_org_isolation
++  on public.item_cost_history
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.item_cost_history from public;
++revoke all on public.item_cost_history from app_user;
++grant select, insert, update, delete on public.item_cost_history to app_user;
++
++create or replace function public.item_cost_history_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists item_cost_history_set_updated_at on public.item_cost_history;
++create trigger item_cost_history_set_updated_at
++  before update on public.item_cost_history
++  for each row execute function public.item_cost_history_set_updated_at();
+diff --git a/packages/db/migrations/161-allergen-tables.sql b/packages/db/migrations/161-allergen-tables.sql
+new file mode 100644
+index 00000000..f672e20f
+--- /dev/null
++++ b/packages/db/migrations/161-allergen-tables.sql
+@@ -0,0 +1,289 @@
++-- Migration 161: 03-Technical — allergen domain tables (T-004).
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §5.4, §10.1, §10.4, §10.5.
++--
++-- Three allergen-domain tables + an append-only override-history table:
++--   1. public.item_allergen_profiles                       — per-item allergen profile (current state)
++--   2. public.item_allergen_profile_overrides              — per-(item x allergen x actor x ts) override history
++--   3. public.manufacturing_operation_allergen_additions   — process-added allergens
++--   4. public.allergen_contamination_risk                  — cross-contamination risk matrix (line/machine)
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
++-- site_id (day-1): operational tables carry site_id uuid NULL — no FK, no registry.
++-- ADR-028 / V-TEC-40: allergen_code is TEXT with NO hard FK — soft reference to
++--   Reference."Allergens" / reference_tables.allergens_reference (EU-14 + org custom).
++-- EU FIC 1169/2011 framing; auto-cascaded badges are read-only; manual overrides are
++--   additive with required reason + audit (override-history captures actor + ts per change).
++-- Technical CONSUMES 01-NPD's materialized product.allergens / may_contain — this migration
++--   only provides the TABLES. Cascade deployment (T-024) + CRUD (T-017/18/19) + UI are later waves.
++
++-- ---------------------------------------------------------------------------
++-- 1. item_allergen_profiles — per-item allergen profile (current state)
++-- ---------------------------------------------------------------------------
++create table if not exists public.item_allergen_profiles (
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  item_id uuid not null references public.items(id) on delete cascade,
++  -- soft reference to Reference."Allergens".allergen_code (EU-14 + org custom). No hard FK (ADR-028).
++  allergen_code text not null,
++  source text not null,
++  intensity text not null default 'contains',
++  confidence text not null default 'declared',
++  -- site_id day-1: present, NULL, no FK / no registry.
++  site_id uuid,
++  declared_by uuid references public.users(id) on delete restrict,
++  declared_at timestamptz not null default pg_catalog.now(),
++  manual_override_reason text,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint item_allergen_profiles_pk primary key (org_id, item_id, allergen_code),
++  constraint item_allergen_profiles_allergen_code_nonblank_check
++    check (length(btrim(allergen_code)) > 0),
++  constraint item_allergen_profiles_source_check
++    check (source in ('brief_declared', 'supplier_spec', 'lab_result', 'cascaded', 'manual_override')),
++  constraint item_allergen_profiles_intensity_check
++    check (intensity in ('contains', 'may_contain', 'trace')),
++  constraint item_allergen_profiles_confidence_check
++    check (confidence in ('declared', 'tested', 'assumed')),
++  -- V-TEC-42: a manual override must carry a non-empty reason.
++  constraint item_allergen_profiles_override_reason_check
++    check (
++      source <> 'manual_override'
++      or (manual_override_reason is not null and length(btrim(manual_override_reason)) > 0)
++    )
++);
++
++-- FK indexes (org scope + item lookup + allergen lookup for cascade aggregation).
++create index if not exists idx_item_allergen_profiles_org
++  on public.item_allergen_profiles (org_id);
++create index if not exists idx_item_allergen_profiles_item
++  on public.item_allergen_profiles (org_id, item_id);
++create index if not exists idx_item_allergen_profiles_allergen
++  on public.item_allergen_profiles (org_id, allergen_code);
++create index if not exists idx_item_allergen_profiles_declared_by
++  on public.item_allergen_profiles (declared_by)
++  where declared_by is not null;
++
++alter table public.item_allergen_profiles enable row level security;
++alter table public.item_allergen_profiles force row level security;
++
++drop policy if exists item_allergen_profiles_org_isolation on public.item_allergen_profiles;
++create policy item_allergen_profiles_org_isolation
++  on public.item_allergen_profiles
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.item_allergen_profiles from public;
++revoke all on public.item_allergen_profiles from app_user;
++grant select, insert, update, delete on public.item_allergen_profiles to app_user;
++
++create or replace function public.item_allergen_profiles_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists item_allergen_profiles_set_updated_at on public.item_allergen_profiles;
++create trigger item_allergen_profiles_set_updated_at
++  before update on public.item_allergen_profiles
++  for each row execute function public.item_allergen_profiles_set_updated_at();
++
++-- ---------------------------------------------------------------------------
++-- 2. item_allergen_profile_overrides — append-only override history
++--    One immutable row per (item x allergen x actor x ts) override action so the
++--    full manual-override trail is auditable (CFR 21 Part 11 framing). Current
++--    state lives in item_allergen_profiles; this table is the additive ledger.
++-- ---------------------------------------------------------------------------
++create table if not exists public.item_allergen_profile_overrides (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  item_id uuid not null references public.items(id) on delete cascade,
++  allergen_code text not null,
++  -- The override action: how the badge moved (set/clear/adjust intensity, etc.).
++  action text not null,
++  -- The values applied by this override action.
++  intensity text,
++  confidence text,
++  -- Required justification for the manual override (V-TEC-42).
++  reason text not null,
++  -- Actor + timestamp = the (actor x ts) half of the history grain.
++  overridden_by uuid references public.users(id) on delete restrict,
++  overridden_at timestamptz not null default pg_catalog.now(),
++  site_id uuid,
++  created_at timestamptz not null default pg_catalog.now(),
++
++  constraint item_allergen_profile_overrides_allergen_code_nonblank_check
++    check (length(btrim(allergen_code)) > 0),
++  constraint item_allergen_profile_overrides_action_check
++    check (action in ('set', 'clear', 'adjust_intensity', 'adjust_confidence')),
++  constraint item_allergen_profile_overrides_intensity_check
++    check (intensity is null or intensity in ('contains', 'may_contain', 'trace')),
++  constraint item_allergen_profile_overrides_confidence_check
++    check (confidence is null or confidence in ('declared', 'tested', 'assumed')),
++  constraint item_allergen_profile_overrides_reason_nonblank_check
++    check (length(btrim(reason)) > 0)
++);
++
++-- FK indexes + the per-(item x allergen) chronological override trail.
++create index if not exists idx_item_allergen_profile_overrides_org
++  on public.item_allergen_profile_overrides (org_id);
++create index if not exists idx_item_allergen_profile_overrides_history
++  on public.item_allergen_profile_overrides (org_id, item_id, allergen_code, overridden_at desc);
++create index if not exists idx_item_allergen_profile_overrides_actor
++  on public.item_allergen_profile_overrides (overridden_by)
++  where overridden_by is not null;
++
++alter table public.item_allergen_profile_overrides enable row level security;
++alter table public.item_allergen_profile_overrides force row level security;
++
++drop policy if exists item_allergen_profile_overrides_org_isolation on public.item_allergen_profile_overrides;
++create policy item_allergen_profile_overrides_org_isolation
++  on public.item_allergen_profile_overrides
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.item_allergen_profile_overrides from public;
++revoke all on public.item_allergen_profile_overrides from app_user;
++-- Append-only ledger: no update/delete grant (history is immutable).
++grant select, insert on public.item_allergen_profile_overrides to app_user;
++
++-- ---------------------------------------------------------------------------
++-- 3. manufacturing_operation_allergen_additions — process-added allergens
++--    manufacturing_operation_name aligns with Reference."ManufacturingOperations".row_key
++--    (00-FOUNDATION §9.1) — soft reference, no hard FK.
++-- ---------------------------------------------------------------------------
++create table if not exists public.manufacturing_operation_allergen_additions (
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  manufacturing_operation_name text not null,
++  allergen_code text not null,
++  reason text,
++  site_id uuid,
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint manufacturing_operation_allergen_additions_pk
++    primary key (org_id, manufacturing_operation_name, allergen_code),
++  constraint manufacturing_operation_allergen_additions_op_nonblank_check
++    check (length(btrim(manufacturing_operation_name)) > 0),
++  constraint manufacturing_operation_allergen_additions_allergen_code_nonblank_check
++    check (length(btrim(allergen_code)) > 0)
++);
++
++create index if not exists idx_manufacturing_operation_allergen_additions_org
++  on public.manufacturing_operation_allergen_additions (org_id);
++create index if not exists idx_manufacturing_operation_allergen_additions_op
++  on public.manufacturing_operation_allergen_additions (org_id, manufacturing_operation_name);
++create index if not exists idx_manufacturing_operation_allergen_additions_allergen
++  on public.manufacturing_operation_allergen_additions (org_id, allergen_code);
++
++alter table public.manufacturing_operation_allergen_additions enable row level security;
++alter table public.manufacturing_operation_allergen_additions force row level security;
++
++drop policy if exists manufacturing_operation_allergen_additions_org_isolation
++  on public.manufacturing_operation_allergen_additions;
++create policy manufacturing_operation_allergen_additions_org_isolation
++  on public.manufacturing_operation_allergen_additions
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.manufacturing_operation_allergen_additions from public;
++revoke all on public.manufacturing_operation_allergen_additions from app_user;
++grant select, insert, update, delete on public.manufacturing_operation_allergen_additions to app_user;
++
++create or replace function public.mfg_op_allergen_additions_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists mfg_op_allergen_additions_set_updated_at
++  on public.manufacturing_operation_allergen_additions;
++create trigger mfg_op_allergen_additions_set_updated_at
++  before update on public.manufacturing_operation_allergen_additions
++  for each row execute function public.mfg_op_allergen_additions_set_updated_at();
++
++-- ---------------------------------------------------------------------------
++-- 4. allergen_contamination_risk — cross-contamination risk matrix
++--    line_id / machine_id reference 02-SETTINGS public.production_lines / machines
++--    (hard FK — both tables exist as of migration 042). allergen_code stays soft.
++-- ---------------------------------------------------------------------------
++create table if not exists public.allergen_contamination_risk (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  line_id uuid references public.production_lines(id) on delete cascade,
++  machine_id uuid references public.machines(id) on delete cascade,
++  allergen_code text not null,
++  risk_level text not null,
++  mitigation text,
++  site_id uuid,
++  last_assessed_at timestamptz,
++  assessed_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint allergen_contamination_risk_allergen_code_nonblank_check
++    check (length(btrim(allergen_code)) > 0),
++  constraint allergen_contamination_risk_risk_level_check
++    check (risk_level in ('high', 'medium', 'low', 'segregated')),
++  -- A risk row must target a line and/or a machine.
++  constraint allergen_contamination_risk_target_check
++    check (line_id is not null or machine_id is not null)
++);
++
++create index if not exists idx_allergen_contamination_risk_org
++  on public.allergen_contamination_risk (org_id);
++create index if not exists idx_allergen_contamination_risk_line
++  on public.allergen_contamination_risk (line_id)
++  where line_id is not null;
++create index if not exists idx_allergen_contamination_risk_machine
++  on public.allergen_contamination_risk (machine_id)
++  where machine_id is not null;
++create index if not exists idx_allergen_contamination_risk_allergen
++  on public.allergen_contamination_risk (org_id, allergen_code);
++create index if not exists idx_allergen_contamination_risk_assessed_by
++  on public.allergen_contamination_risk (assessed_by)
++  where assessed_by is not null;
++
++alter table public.allergen_contamination_risk enable row level security;
++alter table public.allergen_contamination_risk force row level security;
++
++drop policy if exists allergen_contamination_risk_org_isolation on public.allergen_contamination_risk;
++create policy allergen_contamination_risk_org_isolation
++  on public.allergen_contamination_risk
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.allergen_contamination_risk from public;
++revoke all on public.allergen_contamination_risk from app_user;
++grant select, insert, update, delete on public.allergen_contamination_risk to app_user;
++
++create or replace function public.allergen_contamination_risk_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists allergen_contamination_risk_set_updated_at on public.allergen_contamination_risk;
++create trigger allergen_contamination_risk_set_updated_at
++  before update on public.allergen_contamination_risk
++  for each row execute function public.allergen_contamination_risk_set_updated_at();
+diff --git a/packages/db/migrations/162-lab-supplier.sql b/packages/db/migrations/162-lab-supplier.sql
+new file mode 100644
+index 00000000..65c20ff8
+--- /dev/null
++++ b/packages/db/migrations/162-lab-supplier.sql
+@@ -0,0 +1,207 @@
++-- Migration 162: 03-Technical — lab_results (Quality-OWNED read model) + supplier_specs (Phase 1).
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §5.5, §10.6 ; task _meta/atomic-tasks/03-technical/tasks/T-005.json
++-- Wave0 lock: org_id is the business scope (the org, not a license/billing tier);
++--             RLS via app.current_org_id().
++--
++-- CANONICAL-OWNER NOTE (do NOT cross): lab_results is QUALITY-OWNED. Technical READS it
++-- READ-ONLY — there is no Technical write/approve path. app_user keeps SELECT + INSERT here
++-- only so the Quality-side service/bridge can author rows; UPDATE/DELETE are revoked from
++-- app_user (Quality canonical writes/lifecycle live in 09-QUALITY, not Technical). The schema
++-- lives in this Technical migration per T-005 scope, but ownership stays with Quality.
++--
++-- site_id day-1: nullable uuid, NO FK / NO registry (registry is added later by 14-multi-site).
++-- declared_allergens stored as TEXT[]; supplier-declared codes are resolved against the
++-- allergens reference at the API layer (not an FK here).
++-- ATP swab threshold default 10 RLU is captured as a column default; the V-TEC-44 auto-fail
++-- trigger is OUT OF SCOPE here (it lives in T-026).
++-- d365 is never the system of record; no D365 hard FK is introduced.
++
++-- ============================================================================
++-- 1. lab_results — Quality-owned read model (Technical reads only)
++-- ============================================================================
++create table if not exists public.lab_results (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  site_id uuid,                                          -- day-1 nullable, no FK / no registry
++  item_id uuid references public.items(id) on delete restrict,
++  work_order_id uuid,                                    -- soft uuid; FK lives in 08-PRODUCTION
++  quality_result_id uuid,                                -- soft pointer to Quality canonical row/event
++  test_type text not null,                              -- 'atp_swab'|'allergen_elisa'|'micro_apc'|'nutrition'|'sensory'
++  test_code text,
++  result_value numeric(14, 4),
++  result_unit text,
++  result_status text not null,                          -- 'pass'|'fail'|'inconclusive'|'pending'|'hold'
++  threshold_rlu numeric(10, 2) default 10.00,           -- ATP default 10 RLU; auto-fail trigger is T-026
++  tested_at timestamptz,
++  lab_provider text,
++  notes text,
++  created_by uuid references public.users(id) on delete restrict, -- Quality-side / bridge actor
++  created_at timestamptz not null default pg_catalog.now(),
++
++  constraint lab_results_test_type_check check (
++    test_type in ('atp_swab', 'allergen_elisa', 'micro_apc', 'nutrition', 'sensory')
++  ),
++  constraint lab_results_result_status_check check (
++    result_status in ('pass', 'fail', 'inconclusive', 'pending', 'hold')
++  ),
++  constraint lab_results_threshold_rlu_nonnegative_check check (
++    threshold_rlu is null or threshold_rlu >= 0
++  )
++);
++
++-- FK / lookup indexes (org_id first; FK columns get their own composite indexes)
++create index if not exists idx_lab_results_org_item
++  on public.lab_results (org_id, item_id);
++create index if not exists idx_lab_results_org_test_type
++  on public.lab_results (org_id, test_type, result_status);
++create index if not exists idx_lab_results_org_work_order
++  on public.lab_results (org_id, work_order_id)
++  where work_order_id is not null;
++create index if not exists idx_lab_results_org_site
++  on public.lab_results (org_id, site_id);
++
++alter table public.lab_results enable row level security;
++alter table public.lab_results force row level security;
++
++drop policy if exists lab_results_org_context_select on public.lab_results;
++create policy lab_results_org_context_select
++  on public.lab_results
++  for select
++  to app_user
++  using (org_id = app.current_org_id());
++
++-- INSERT is permitted (Quality-side bridge authors rows); Technical does not UPDATE/DELETE here.
++drop policy if exists lab_results_org_context_insert on public.lab_results;
++create policy lab_results_org_context_insert
++  on public.lab_results
++  for insert
++  to app_user
++  with check (org_id = app.current_org_id());
++
++-- Grants: Quality-owned read model — app_user gets SELECT + INSERT only.
++revoke all on public.lab_results from public;
++revoke all on public.lab_results from app_user;
++grant select, insert on public.lab_results to app_user;
++revoke update, delete on public.lab_results from app_user;
++
++-- ============================================================================
++-- 2. supplier_specs — Technical-owned supplier spec Phase 1 governance
++-- ============================================================================
++create table if not exists public.supplier_specs (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  site_id uuid,                                          -- day-1 nullable, no FK / no registry
++  item_id uuid not null references public.items(id) on delete restrict,
++  supplier_code text not null,
++  supplier_status text not null default 'pending',      -- 'pending'|'approved'|'blocked'
++  spec_document_url text,                                -- S3 / Blob storage link
++  document_sha256 text,
++  document_mime_type text,
++  spec_version text not null,
++  issued_date date,
++  effective_from date not null default current_date,
++  expiry_date date,
++  lifecycle_status text not null default 'draft',        -- 'draft'|'active'|'expired'|'superseded'|'blocked'
++  review_status text not null default 'pending',         -- 'pending'|'approved'|'rejected'|'blocked'
++  review_notes text,
++  cost_review_blocked boolean not null default false,
++  spec_review_blocked boolean not null default false,
++  approved_by uuid references public.users(id) on delete restrict,
++  approved_at timestamptz,
++  rejected_by uuid references public.users(id) on delete restrict,
++  rejected_at timestamptz,
++  rejection_reason text,
++  declared_allergens text[],                             -- supplier-declared allergen codes (resolved at API layer)
++  declared_attrs jsonb not null default '{}'::jsonb,     -- nutrition, origin, certifications
++  certificate_refs jsonb not null default '[]'::jsonb,   -- COA/BRCGS/organic/etc metadata
++  uploaded_at timestamptz not null default pg_catalog.now(),
++  uploaded_by uuid references public.users(id) on delete restrict,
++  -- R13 audit cols (mirrors items master)
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint supplier_specs_supplier_status_check check (
++    supplier_status in ('pending', 'approved', 'blocked')
++  ),
++  constraint supplier_specs_lifecycle_status_check check (
++    lifecycle_status in ('draft', 'active', 'expired', 'superseded', 'blocked')
++  ),
++  constraint supplier_specs_review_status_check check (
++    review_status in ('pending', 'approved', 'rejected', 'blocked')
++  ),
++  constraint supplier_specs_declared_attrs_object_check check (
++    jsonb_typeof(declared_attrs) = 'object'
++  ),
++  constraint supplier_specs_certificate_refs_array_check check (
++    jsonb_typeof(certificate_refs) = 'array'
++  ),
++  constraint supplier_specs_expiry_after_effective_check check (
++    expiry_date is null or effective_from is null or expiry_date >= effective_from
++  )
++);
++
++-- FK / lookup indexes
++create index if not exists idx_supplier_specs_org_item
++  on public.supplier_specs (org_id, item_id);
++create index if not exists idx_supplier_specs_org_supplier
++  on public.supplier_specs (org_id, supplier_code, item_id);
++create index if not exists idx_supplier_specs_org_site
++  on public.supplier_specs (org_id, site_id);
++
++-- At most one active+approved spec per org/item/supplier (PRD §5.5).
++create unique index if not exists supplier_specs_one_active_approved
++  on public.supplier_specs (org_id, item_id, supplier_code)
++  where lifecycle_status = 'active' and review_status = 'approved';
++
++alter table public.supplier_specs enable row level security;
++alter table public.supplier_specs force row level security;
++
++drop policy if exists supplier_specs_org_context_select on public.supplier_specs;
++create policy supplier_specs_org_context_select
++  on public.supplier_specs
++  for select
++  to app_user
++  using (org_id = app.current_org_id());
++
++drop policy if exists supplier_specs_org_context_insert on public.supplier_specs;
++create policy supplier_specs_org_context_insert
++  on public.supplier_specs
++  for insert
++  to app_user
++  with check (org_id = app.current_org_id());
++
++drop policy if exists supplier_specs_org_context_update on public.supplier_specs;
++create policy supplier_specs_org_context_update
++  on public.supplier_specs
++  for update
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++drop policy if exists supplier_specs_org_context_delete on public.supplier_specs;
++create policy supplier_specs_org_context_delete
++  on public.supplier_specs
++  for delete
++  to app_user
++  using (org_id = app.current_org_id());
++
++-- Grants: Technical-owned — app_user gets full DML.
++revoke all on public.supplier_specs from public;
++revoke all on public.supplier_specs from app_user;
++grant select, insert, update, delete on public.supplier_specs to app_user;
++
++-- updated_at trigger (mirrors items master pattern)
++create or replace function public.supplier_specs_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists supplier_specs_set_updated_at on public.supplier_specs;
++create trigger supplier_specs_set_updated_at
++  before update on public.supplier_specs
++  for each row execute function public.supplier_specs_set_updated_at();
+diff --git a/packages/db/migrations/163-routings.sql b/packages/db/migrations/163-routings.sql
+new file mode 100644
+index 00000000..a96cfd39
+--- /dev/null
++++ b/packages/db/migrations/163-routings.sql
+@@ -0,0 +1,165 @@
++-- Migration 163: 03-Technical — routings + routing_operations.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §5.6, §12.1, §12.2.
++-- Task: _meta/atomic-tasks/03-technical/tasks/T-006.json.
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
++-- site_id day-1: site_id uuid is nullable, no FK and no registry — the full per-site
++--   scoping (NOT NULL + (org_id, site_id) index + app.current_site_id() policy) lands
++--   later via the cross-module multi-site backfill (14-multi-site T-030). Until then the
++--   column exists so operational rows can be tagged without a schema break.
++-- Cost columns are NUMERIC-exact (no float): run_time_per_unit_sec NUMERIC(10,2),
++--   cost_per_hour NUMERIC(10,4) per ADR-009 (routing-level cost).
++-- manufacturing_operation_name is the canonical naming (pairs with
++--   bom_lines.manufacturing_operation_name for cross-link queries); the legacy
++--   process-stage / process-code identifiers are NOT introduced here.
++-- Resource FKs (line_id -> production_lines, machine_id -> machines) are HARD FKs —
++--   both tables exist (migration 042).
++
++-- ---------------------------------------------------------------------------
++-- routings — per item/FG; zero-or-one active routing, versioned with effective dates.
++-- ---------------------------------------------------------------------------
++create table if not exists public.routings (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  site_id uuid,
++  item_id uuid not null references public.items(id) on delete cascade,
++  version integer not null default 1,
++  status text not null default 'draft',
++  effective_from date not null default current_date,
++  effective_to date,
++  approved_by uuid references public.users(id) on delete restrict,
++  approved_at timestamptz,
++
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint routings_org_item_version_unique unique (org_id, item_id, version),
++  constraint routings_status_check check (
++    status in ('draft', 'approved', 'active', 'superseded')
++  ),
++  constraint routings_version_check check (version >= 1),
++  constraint routings_effective_range_check check (
++    effective_to is null or effective_to >= effective_from
++  )
++);
++
++create index if not exists idx_routings_org_item
++  on public.routings (org_id, item_id, status);
++
++create index if not exists idx_routings_item
++  on public.routings (item_id);
++
++create index if not exists idx_routings_approved_by
++  on public.routings (approved_by)
++  where approved_by is not null;
++
++create index if not exists idx_routings_created_by
++  on public.routings (created_by)
++  where created_by is not null;
++
++alter table public.routings enable row level security;
++alter table public.routings force row level security;
++
++drop policy if exists routings_org_isolation on public.routings;
++create policy routings_org_isolation
++  on public.routings
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.routings from public;
++revoke all on public.routings from app_user;
++grant select, insert, update, delete on public.routings to app_user;
++
++create or replace function public.routings_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists routings_set_updated_at on public.routings;
++create trigger routings_set_updated_at
++  before update on public.routings
++  for each row execute function public.routings_set_updated_at();
++
++-- ---------------------------------------------------------------------------
++-- routing_operations — ordered ops with resource binding + setup/run times + cost.
++-- ON DELETE CASCADE from routings: deleting a routing removes its operations.
++-- ---------------------------------------------------------------------------
++create table if not exists public.routing_operations (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  site_id uuid,
++  routing_id uuid not null references public.routings(id) on delete cascade,
++  op_no integer not null,
++  op_code text not null,
++  op_name text not null,
++  line_id uuid references public.production_lines(id) on delete set null,
++  machine_id uuid references public.machines(id) on delete set null,
++  setup_time_min integer not null default 0,
++  run_time_per_unit_sec numeric(10, 2),
++  cost_per_hour numeric(10, 4),
++  manufacturing_operation_name text,
++
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint routing_operations_routing_op_no_unique unique (routing_id, op_no),
++  constraint routing_operations_op_no_check check (op_no >= 1),
++  constraint routing_operations_setup_time_nonnegative_check check (setup_time_min >= 0),
++  constraint routing_operations_run_time_nonnegative_check check (
++    run_time_per_unit_sec is null or run_time_per_unit_sec >= 0
++  ),
++  constraint routing_operations_cost_per_hour_nonnegative_check check (
++    cost_per_hour is null or cost_per_hour >= 0
++  )
++);
++
++create index if not exists idx_routing_operations_routing
++  on public.routing_operations (routing_id, op_no);
++
++create index if not exists idx_routing_operations_org
++  on public.routing_operations (org_id);
++
++create index if not exists idx_routing_operations_line
++  on public.routing_operations (line_id)
++  where line_id is not null;
++
++create index if not exists idx_routing_operations_machine
++  on public.routing_operations (machine_id)
++  where machine_id is not null;
++
++create index if not exists idx_routing_operations_created_by
++  on public.routing_operations (created_by)
++  where created_by is not null;
++
++create index if not exists idx_routing_operations_mfg_op_name
++  on public.routing_operations (org_id, manufacturing_operation_name)
++  where manufacturing_operation_name is not null;
++
++alter table public.routing_operations enable row level security;
++alter table public.routing_operations force row level security;
++
++drop policy if exists routing_operations_org_isolation on public.routing_operations;
++create policy routing_operations_org_isolation
++  on public.routing_operations
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.routing_operations from public;
++revoke all on public.routing_operations from app_user;
++grant select, insert, update, delete on public.routing_operations to app_user;
++
++drop trigger if exists routing_operations_set_updated_at on public.routing_operations;
++create trigger routing_operations_set_updated_at
++  before update on public.routing_operations
++  for each row execute function public.routings_set_updated_at();
+diff --git a/packages/db/migrations/164-d365-sync-jobs-and-dlq.sql b/packages/db/migrations/164-d365-sync-jobs-and-dlq.sql
+new file mode 100644
+index 00000000..55a367ab
+--- /dev/null
++++ b/packages/db/migrations/164-d365-sync-jobs-and-dlq.sql
+@@ -0,0 +1,209 @@
++-- Migration 164: 03-Technical T-007 — D365 sync jobs queue + dead-letter queue.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §5.7, §13.1, §13.3-13.7, §13.10 (V-TEC-71/72).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (NOT raw current_setting). site_id day-1: nullable uuid, no FK / no registry.
++--
++-- DISTINCT from 02-Settings' d365_sync_runs (migration 065) — that is the read-only
++--   audit-viewer table. These two are the worker-facing job queue + poison-message DLQ.
++--   Do NOT merge or rename either set.
++--
++-- D365 is OPTIONAL, export/import only (R15 anti-corruption). d365_item_id / record_key
++--   are TEXT soft references — NEVER hard FKs to D365.
++--
++-- Idempotency [R14 / V-TEC-72]: idempotency_key is UNIQUE per org (duplicate detection
++--   becomes a 409 at the API layer). DLQ.error_message NOT NULL enforces V-TEC-71.
++-- Retry policy (3× exponential backoff 1s / 5s / 25s, PRD §13.2/§13.7) is represented
++--   as columns only here (retry_count + next_retry_at) — the worker (T-028/T-029) owns
++--   the backoff timing semantics. 7-year retention is policy (ADR-008), not schema.
++
++-- ============================================================================
++-- d365_sync_jobs — the worker-facing job queue.
++-- ============================================================================
++create table if not exists public.d365_sync_jobs (
++  id                uuid        primary key default gen_random_uuid(),
++  org_id            uuid        not null references public.organizations(id) on delete cascade,
++  site_id           uuid,
++
++  direction         text        not null,
++  job_type          text        not null,
++  target_entity     text        not null,
++  status            text        not null default 'pending',
++
++  idempotency_key   text        not null,
++  record_key        text,
++  d365_item_id      text,
++  payload_version   integer     not null default 1,
++
++  retry_count       integer     not null default 0,
++  max_retries       integer     not null default 3,
++  next_retry_at     timestamptz,
++
++  records_processed integer     not null default 0,
++  records_failed    integer     not null default 0,
++
++  error_message     text,
++  payload           jsonb       not null default '{}'::jsonb,
++
++  scheduled_at      timestamptz not null default pg_catalog.now(),
++  started_at        timestamptz,
++  finished_at       timestamptz,
++
++  created_by        uuid        references public.users(id) on delete set null,
++  created_at        timestamptz not null default pg_catalog.now(),
++  updated_at        timestamptz not null default pg_catalog.now(),
++
++  constraint d365_sync_jobs_org_idempotency_key_unique unique (org_id, idempotency_key),
++  constraint d365_sync_jobs_direction_check check (direction in ('pull', 'push')),
++  constraint d365_sync_jobs_job_type_check check (
++    job_type in ('items', 'bom', 'formula', 'wo_confirmation', 'journal')
++  ),
++  constraint d365_sync_jobs_status_check check (
++    status in ('pending', 'running', 'completed', 'failed', 'dead_lettered')
++  ),
++  constraint d365_sync_jobs_idempotency_key_not_blank_check check (length(trim(idempotency_key)) > 0),
++  constraint d365_sync_jobs_retry_count_check check (retry_count >= 0),
++  constraint d365_sync_jobs_max_retries_check check (max_retries >= 0),
++  constraint d365_sync_jobs_payload_version_check check (payload_version >= 1),
++  constraint d365_sync_jobs_records_nonnegative_check check (
++    records_processed >= 0 and records_failed >= 0
++  ),
++  constraint d365_sync_jobs_payload_object_check check (jsonb_typeof(payload) = 'object')
++);
++
++-- Unique idempotency_key per org (V-TEC-72). UNIQUE constraint above already backs this;
++-- the explicit named index keeps lookups fast and documents intent.
++create unique index if not exists idx_d365_sync_jobs_org_idempotency
++  on public.d365_sync_jobs (org_id, idempotency_key);
++
++-- Worker poll: pending / due-for-retry jobs in scheduled order.
++create index if not exists idx_d365_sync_jobs_org_status_scheduled
++  on public.d365_sync_jobs (org_id, status, scheduled_at);
++
++create index if not exists idx_d365_sync_jobs_org_next_retry
++  on public.d365_sync_jobs (org_id, next_retry_at)
++  where next_retry_at is not null;
++
++-- Soft reference back to the D365 item (never an FK).
++create index if not exists idx_d365_sync_jobs_d365_item
++  on public.d365_sync_jobs (org_id, d365_item_id)
++  where d365_item_id is not null;
++
++alter table public.d365_sync_jobs enable row level security;
++alter table public.d365_sync_jobs force row level security;
++
++drop policy if exists d365_sync_jobs_org_isolation on public.d365_sync_jobs;
++create policy d365_sync_jobs_org_isolation
++  on public.d365_sync_jobs
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.d365_sync_jobs from public;
++revoke all on public.d365_sync_jobs from app_user;
++grant select, insert, update, delete on public.d365_sync_jobs to app_user;
++
++create or replace function public.d365_sync_jobs_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists d365_sync_jobs_set_updated_at on public.d365_sync_jobs;
++create trigger d365_sync_jobs_set_updated_at
++  before update on public.d365_sync_jobs
++  for each row execute function public.d365_sync_jobs_set_updated_at();
++
++comment on table public.d365_sync_jobs
++  is 'T-007: D365 sync job queue (pull/push). Worker-facing — DISTINCT from d365_sync_runs (mig 065, Settings audit viewer). idempotency_key UNIQUE per org (V-TEC-72/R14). 7-year retention per ADR-008.';
++
++-- ============================================================================
++-- d365_sync_dlq — dead-letter queue for poison messages.
++-- ============================================================================
++create table if not exists public.d365_sync_dlq (
++  id              uuid        primary key default gen_random_uuid(),
++  org_id          uuid        not null references public.organizations(id) on delete cascade,
++  site_id         uuid,
++
++  job_id          uuid        references public.d365_sync_jobs(id) on delete set null,
++
++  direction       text        not null,
++  job_type        text        not null,
++  target_entity   text        not null,
++  idempotency_key text,
++  record_key      text,
++  d365_item_id    text,
++
++  -- V-TEC-71: a DLQ entry MUST carry a non-empty error message.
++  error_message   text        not null,
++  error_detail    jsonb       not null default '{}'::jsonb,
++  failed_payload  jsonb       not null default '{}'::jsonb,
++  retry_count     integer     not null default 0,
++
++  status          text        not null default 'unresolved',
++  resolved_at     timestamptz,
++  resolved_by     uuid        references public.users(id) on delete set null,
++  resolution_note text,
++
++  failed_at       timestamptz not null default pg_catalog.now(),
++  created_at      timestamptz not null default pg_catalog.now(),
++  updated_at      timestamptz not null default pg_catalog.now(),
++
++  constraint d365_sync_dlq_direction_check check (direction in ('pull', 'push')),
++  constraint d365_sync_dlq_job_type_check check (
++    job_type in ('items', 'bom', 'formula', 'wo_confirmation', 'journal')
++  ),
++  constraint d365_sync_dlq_status_check check (
++    status in ('unresolved', 'retried', 'resolved', 'skipped')
++  ),
++  constraint d365_sync_dlq_error_message_not_blank_check check (length(trim(error_message)) > 0),
++  constraint d365_sync_dlq_retry_count_check check (retry_count >= 0),
++  constraint d365_sync_dlq_error_detail_object_check check (jsonb_typeof(error_detail) = 'object'),
++  constraint d365_sync_dlq_failed_payload_object_check check (jsonb_typeof(failed_payload) = 'object')
++);
++
++-- DLQ-depth monitoring (PRD §13.7 — alert when depth > 50).
++create index if not exists idx_d365_sync_dlq_org_status_failed
++  on public.d365_sync_dlq (org_id, status, failed_at);
++
++create index if not exists idx_d365_sync_dlq_job
++  on public.d365_sync_dlq (job_id)
++  where job_id is not null;
++
++alter table public.d365_sync_dlq enable row level security;
++alter table public.d365_sync_dlq force row level security;
++
++drop policy if exists d365_sync_dlq_org_isolation on public.d365_sync_dlq;
++create policy d365_sync_dlq_org_isolation
++  on public.d365_sync_dlq
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.d365_sync_dlq from public;
++revoke all on public.d365_sync_dlq from app_user;
++grant select, insert, update, delete on public.d365_sync_dlq to app_user;
++
++create or replace function public.d365_sync_dlq_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists d365_sync_dlq_set_updated_at on public.d365_sync_dlq;
++create trigger d365_sync_dlq_set_updated_at
++  before update on public.d365_sync_dlq
++  for each row execute function public.d365_sync_dlq_set_updated_at();
++
++comment on table public.d365_sync_dlq
++  is 'T-007: D365 sync dead-letter queue (poison messages). error_message NOT NULL (V-TEC-71). job_id soft link (ON DELETE SET NULL). 7-year retention per ADR-008.';
+diff --git a/packages/db/migrations/165-factory-specs.sql b/packages/db/migrations/165-factory-specs.sql
+new file mode 100644
+index 00000000..ffde16df
+--- /dev/null
++++ b/packages/db/migrations/165-factory-specs.sql
+@@ -0,0 +1,278 @@
++-- Migration 165: 03-Technical — factory_specs Technical-owned versioned production spec.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.4. Task T-079.
++--
++-- factory_specs is the Technical-owned canonical production specification
++-- (factory_spec / internal_product_spec) for a Finished Good (FG), VERSIONED.
++-- NPD Builder may seed the initial draft (source='npd_builder') but cannot approve
++-- for factory use — Technical approval is a separate workflow (T-080/T-081).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
++-- site_id day-1: nullable uuid, NO FK / NO registry (REC-L1-style soft column).
++-- Clone-on-write: an approved/released version is immutable — edits create a NEW version
++--   (new row, status='draft'); the DB trigger here rejects in-place mutation of business
++--   fields on approved/released rows. Lifecycle terminalization (-> superseded/archived)
++--   and recording the release transition are the only permitted updates.
++-- FG canonical: fg_item_id -> public.items(id) (migration 153). No FA-* identifiers.
++-- BOM reference is SOFT: bom_header_id is a nullable composite FK to bom_headers
++--   (which exists from migration 090); bom_version is an integer soft ref. We do NOT
++--   hard-depend on the parallel snapshot migration (159 / T-002).
++-- D365 is integration-only: d365_item_id is a TEXT soft reference, never an FK.
++-- Approval emits the outbox event 'technical.factory_spec.approved' (already registered
++--   in the outbox event-type SoT); the event wiring itself is T-080/T-081 — not this task.
++-- 01-npd factory_release_status.active_factory_spec_id is a SOFT uuid consumer of this
++--   table's id (see migration 125); we deliberately do NOT add a hard FK from NPD here.
++
++create table if not exists public.factory_specs (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  -- site_id day-1: nullable, no FK, no registry.
++  site_id uuid,
++
++  -- FG canonical owner of this spec. FK to items master (migration 153).
++  fg_item_id uuid not null references public.items(id) on delete restrict,
++
++  spec_code text not null,
++  version integer not null default 1,
++
++  -- Versioned status lifecycle. approved_for_factory / released_to_factory are the
++  -- factory-usable (immutable) states; draft / in_review are mutable working states.
++  status text not null default 'draft',
++
++  -- Provenance of the version. npd_builder = seeded by NPD Builder (draft only, no approval).
++  source text not null default 'technical',
++
++  -- Soft BOM bundle reference (T-080 wires the approval bundle). Nullable composite FK
++  -- to bom_headers(id, org_id) — table exists from migration 090.
++  bom_header_id uuid,
++  bom_version integer,
++
++  -- Clone-on-write lineage: the version this row supersedes (same fg_item_id).
++  supersedes_factory_spec_id uuid,
++
++  -- Approval / release audit columns (the workflow that sets these is T-080/T-081).
++  approved_by uuid references public.users(id) on delete restrict,
++  approved_at timestamptz,
++  released_by uuid references public.users(id) on delete restrict,
++  released_at timestamptz,
++
++  notes text,
++
++  -- D365 soft integration mirror only; never an FK.
++  d365_item_id text,
++
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++  schema_version integer not null default 1,
++
++  constraint factory_specs_org_fg_version_unique unique (org_id, fg_item_id, version),
++
++  constraint factory_specs_status_check check (
++    status in ('draft', 'in_review', 'approved_for_factory', 'released_to_factory', 'superseded', 'archived')
++  ),
++  constraint factory_specs_source_check check (
++    source in ('technical', 'npd_builder', 'd365_import')
++  ),
++  constraint factory_specs_version_positive_check check (version > 0),
++  constraint factory_specs_bom_version_check check (bom_version is null or bom_version > 0),
++  constraint factory_specs_schema_version_check check (schema_version >= 1),
++
++  -- npd_builder seeds DRAFT versions with no approval fields (AC3). Technical owns approval.
++  constraint factory_specs_npd_builder_draft_check check (
++    source <> 'npd_builder'
++    or (status = 'draft' and approved_by is null and approved_at is null
++        and released_by is null and released_at is null)
++  ),
++  -- d365_import may only create draft / in_review records (D365 is never authoritative).
++  constraint factory_specs_d365_import_status_check check (
++    source <> 'd365_import' or status in ('draft', 'in_review')
++  ),
++  -- Approved/released versions must carry their approval evidence.
++  constraint factory_specs_approved_requires_evidence_check check (
++    status not in ('approved_for_factory', 'released_to_factory')
++    or (approved_by is not null and approved_at is not null)
++  ),
++  -- Released versions must additionally carry release evidence.
++  constraint factory_specs_released_requires_evidence_check check (
++    status <> 'released_to_factory'
++    or (released_by is not null and released_at is not null)
++  )
++);
++
++-- Soft (nullable) composite FK to the shared BOM SSOT header. bom_headers exists from
++-- migration 090 with a (id, org_id) identity unique. We attach it conditionally so the
++-- migration is robust even if bom_headers' identity-unique name changes; the FK is the
++-- only place that couples to BOM, and it is nullable so it never blocks a spec without a
++-- bundle yet (the bundle approval is T-080).
++do $$
++begin
++  if not exists (
++    select 1 from pg_constraint where conname = 'factory_specs_bom_header_fk'
++  ) then
++    if exists (
++      select 1 from pg_constraint
++      where conrelid = 'public.bom_headers'::regclass
++        and contype in ('p', 'u')
++        and conkey = (
++          select array_agg(attnum order by attnum)
++          from pg_attribute
++          where attrelid = 'public.bom_headers'::regclass
++            and attname in ('id', 'org_id')
++        )
++    ) then
++      alter table public.factory_specs
++        add constraint factory_specs_bom_header_fk
++        foreign key (bom_header_id, org_id)
++        references public.bom_headers (id, org_id)
++        on delete restrict;
++    end if;
++  end if;
++end
++$$;
++
++-- Self-lineage soft FK: superseded version must belong to the same org.
++do $$
++begin
++  if not exists (
++    select 1 from pg_constraint where conname = 'factory_specs_supersedes_fk'
++  ) then
++    alter table public.factory_specs
++      add constraint factory_specs_supersedes_fk
++      foreign key (supersedes_factory_spec_id) references public.factory_specs (id)
++      on delete restrict;
++  end if;
++end
++$$;
++
++-- Indexes: org_id always first; FK indexes for fg_item_id and bom_header_id.
++create index if not exists idx_factory_specs_org_fg
++  on public.factory_specs (org_id, fg_item_id, version desc);
++
++create index if not exists idx_factory_specs_org_status
++  on public.factory_specs (org_id, status, fg_item_id);
++
++create index if not exists idx_factory_specs_bom_header
++  on public.factory_specs (org_id, bom_header_id)
++  where bom_header_id is not null;
++
++create index if not exists idx_factory_specs_d365
++  on public.factory_specs (org_id, d365_item_id)
++  where d365_item_id is not null;
++
++-- At most ONE factory-usable (approved_for_factory) version per (org, fg).
++create unique index if not exists factory_specs_one_active_approved_per_fg
++  on public.factory_specs (org_id, fg_item_id)
++  where status = 'approved_for_factory';
++
++-- At most ONE released version per (org, fg).
++create unique index if not exists factory_specs_one_released_per_fg
++  on public.factory_specs (org_id, fg_item_id)
++  where status = 'released_to_factory';
++
++alter table public.factory_specs enable row level security;
++alter table public.factory_specs force row level security;
++
++drop policy if exists factory_specs_org_isolation on public.factory_specs;
++create policy factory_specs_org_isolation
++  on public.factory_specs
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.factory_specs from public;
++revoke all on public.factory_specs from app_user;
++grant select, insert, update, delete on public.factory_specs to app_user;
++
++-- updated_at maintenance.
++create or replace function public.factory_specs_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists factory_specs_set_updated_at on public.factory_specs;
++create trigger factory_specs_set_updated_at
++  before update on public.factory_specs
++  for each row execute function public.factory_specs_set_updated_at();
++
++-- Clone-on-write immutability guard.
++-- A version in a factory-usable state (approved_for_factory / released_to_factory) is
++-- IMMUTABLE: business fields cannot change in place. Edits must create a NEW version
++-- (a new row with status='draft') — this is enforced at the service layer (T-080) and
++-- protected here at the DB layer. The only permitted updates on a factory-usable row are:
++--   - lifecycle terminalization: status -> 'superseded' or 'archived'
++--   - the approved_for_factory -> released_to_factory transition (recording release_*),
++--     leaving the business payload unchanged.
++-- updated_at is managed by the trigger above and is ignored by this guard.
++create or replace function public.factory_specs_enforce_clone_on_write()
++returns trigger
++language plpgsql
++as $$
++declare
++  business_changed boolean;
++begin
++  if tg_op <> 'UPDATE' then
++    return new;
++  end if;
++
++  -- Only guard rows that are already in a factory-usable (immutable) state.
++  if old.status not in ('approved_for_factory', 'released_to_factory') then
++    return new;
++  end if;
++
++  -- Did any immutable business field change?
++  business_changed := (
++    new.org_id is distinct from old.org_id
++    or new.fg_item_id is distinct from old.fg_item_id
++    or new.spec_code is distinct from old.spec_code
++    or new.version is distinct from old.version
++    or new.source is distinct from old.source
++    or new.bom_header_id is distinct from old.bom_header_id
++    or new.bom_version is distinct from old.bom_version
++    or new.supersedes_factory_spec_id is distinct from old.supersedes_factory_spec_id
++    or new.approved_by is distinct from old.approved_by
++    or new.approved_at is distinct from old.approved_at
++    or new.notes is distinct from old.notes
++    or new.site_id is distinct from old.site_id
++    or new.d365_item_id is distinct from old.d365_item_id
++    or new.schema_version is distinct from old.schema_version
++  );
++
++  if business_changed then
++    raise exception
++      'factory_specs version % (status %) is immutable; edits must create a new version (clone-on-write)',
++      old.version, old.status
++      using errcode = '23514';
++  end if;
++
++  -- Status may only move forward to a terminal/release state — never back to a draft/working state.
++  if new.status is distinct from old.status
++     and new.status not in ('released_to_factory', 'superseded', 'archived') then
++    raise exception
++      'factory_specs approved version cannot transition from % to % in place (clone-on-write)',
++      old.status, new.status
++      using errcode = '23514';
++  end if;
++
++  return new;
++end;
++$$;
++
++drop trigger if exists factory_specs_enforce_clone_on_write on public.factory_specs;
++create trigger factory_specs_enforce_clone_on_write
++  before update on public.factory_specs
++  for each row execute function public.factory_specs_enforce_clone_on_write();
++
++comment on table public.factory_specs is
++  'Technical-owned, versioned canonical production spec (factory_spec / internal_product_spec) per FG. Clone-on-write: approved/released versions are immutable. Approval emits technical.factory_spec.approved (wired in T-080/T-081).';
++comment on column public.factory_specs.site_id is
++  'site_id day-1 soft column: nullable uuid, no FK / no registry (REC-L1 style).';
++comment on column public.factory_specs.bom_header_id is
++  'Soft (nullable) composite FK to the shared BOM SSOT header (bom_headers). The bundle approval is T-080.';
++comment on column public.factory_specs.d365_item_id is
++  'D365 soft TEXT reference only; D365 is never authoritative for approved specs (no FK).';
+diff --git a/packages/db/migrations/166-technical-sensory-evaluations.sql b/packages/db/migrations/166-technical-sensory-evaluations.sql
+new file mode 100644
+index 00000000..a0cd9019
+--- /dev/null
++++ b/packages/db/migrations/166-technical-sensory-evaluations.sql
+@@ -0,0 +1,119 @@
++-- Migration 166: 03-Technical — sensory evaluation read model / contract.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §0, §5, §17 (T-084).
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
++--
++-- Technical owns the sensory evaluation READ MODEL. NPD approval treats sensory as
++-- N/A (not_required) unless org policy requires it; downstream release guards read
++-- this table to surface a SENSORIAL_BLOCKED reason for fail/hold. This migration is
++-- the schema/contract ONLY — the sensory UI is T-092 (later, consumes this).
++--
++-- Red lines honoured:
++--   * Does NOT move NPD gate ownership into Technical (read model + contract only).
++--   * No external lab/sensory vendor integration.
++--   * FG is canonical — no legacy FA aliases introduced.
++--   * d365_* are soft TEXT references only; never hard FKs (none introduced here).
++--   * subject_item_id is a soft FK to public.items(id) (mig 153) — the canonical FG/item.
++--
++-- site_id day-1: site_id uuid NULL on the operational table (no FK, no registry) per
++-- the multi-site forward-compatibility rule.
++
++create table if not exists public.technical_sensory_evaluations (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  -- site_id day-1: nullable, no FK/registry (operational table forward-compat).
++  site_id uuid,
++
++  -- Subject of the evaluation. The read model is product/project/work-order scoped;
++  -- subject_type names which one this row evaluates and subject_ref is the soft
++  -- identifier (uuid/code) of that subject. subject_item_id is the canonical FG/item
++  -- soft FK to public.items(id) (mig 153) when the subject is an item/FG.
++  subject_type text not null,
++  subject_ref text not null,
++  subject_item_id uuid references public.items(id) on delete restrict,
++
++  -- The contract status set. `not_required` is first-class: when org policy does not
++  -- require sensory, the read model returns not_required and NPD proceeds without
++  -- fabricated Technical evidence. required/pending/pass/fail/hold cover the lifecycle.
++  status text not null default 'not_required',
++
++  -- Why the subject is in this status. For fail/hold this becomes the downstream
++  -- SENSORIAL_BLOCKED reason surfaced by release guards.
++  status_reason text,
++
++  -- Whether org policy requires sensory for this subject. Decoupled from `status`
++  -- so a required-but-unevaluated subject is required/pending (not not_required).
++  policy_required boolean not null default false,
++
++  evaluated_at timestamptz,
++  evaluated_by uuid references public.users(id) on delete restrict,
++
++  schema_version integer not null default 1,
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++
++  constraint technical_sensory_evaluations_status_check check (
++    status in ('required', 'pending', 'pass', 'fail', 'hold', 'not_required')
++  ),
++  constraint technical_sensory_evaluations_subject_type_check check (
++    subject_type in ('product', 'project', 'work_order', 'item')
++  ),
++  -- not_required must not be marked policy_required (would be a contradiction the
++  -- read model cannot resolve into a coherent NPD answer).
++  constraint technical_sensory_evaluations_not_required_policy_check check (
++    status <> 'not_required' or policy_required = false
++  ),
++  constraint technical_sensory_evaluations_schema_version_check check (schema_version >= 1),
++  -- One canonical read-model row per (org, subject) — the latest evaluation state.
++  constraint technical_sensory_evaluations_org_subject_unique
++    unique (org_id, subject_type, subject_ref)
++);
++
++-- Indexes — org_id always first; hot read path is by subject + by blocked status.
++create index if not exists idx_technical_sensory_evaluations_org_subject
++  on public.technical_sensory_evaluations (org_id, subject_type, subject_ref);
++
++create index if not exists idx_technical_sensory_evaluations_org_site
++  on public.technical_sensory_evaluations (org_id, site_id);
++
++create index if not exists idx_technical_sensory_evaluations_org_status
++  on public.technical_sensory_evaluations (org_id, status);
++
++create index if not exists idx_technical_sensory_evaluations_item
++  on public.technical_sensory_evaluations (org_id, subject_item_id)
++  where subject_item_id is not null;
++
++-- RLS — enable + FORCE (owner also subject to policy).
++alter table public.technical_sensory_evaluations enable row level security;
++alter table public.technical_sensory_evaluations force row level security;
++
++drop policy if exists technical_sensory_evaluations_org_isolation
++  on public.technical_sensory_evaluations;
++create policy technical_sensory_evaluations_org_isolation
++  on public.technical_sensory_evaluations
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++-- Grants — fail-closed default, DML to app_user only.
++revoke all on public.technical_sensory_evaluations from public;
++revoke all on public.technical_sensory_evaluations from app_user;
++grant select, insert, update, delete on public.technical_sensory_evaluations to app_user;
++
++-- updated_at trigger (per-table, mirrors the items-master pattern, mig 153).
++create or replace function public.technical_sensory_evaluations_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists technical_sensory_evaluations_set_updated_at
++  on public.technical_sensory_evaluations;
++create trigger technical_sensory_evaluations_set_updated_at
++  before update on public.technical_sensory_evaluations
++  for each row execute function public.technical_sensory_evaluations_set_updated_at();
+diff --git a/packages/db/migrations/167-technical-baseline-seed.sql b/packages/db/migrations/167-technical-baseline-seed.sql
+new file mode 100644
+index 00000000..9d9bd793
+--- /dev/null
++++ b/packages/db/migrations/167-technical-baseline-seed.sql
+@@ -0,0 +1,168 @@
++-- Migration 167: T-070 — 03-TECHNICAL baseline seed.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §8.5/§8.6 (catch-weight variance default 5.0%),
++--      §10.6 (ATP swab threshold ≤10 RLU), §11.3/§11.6 V-TEC-52 (Currency ∈ ISO 4217).
++--
++-- Delivers the two T-070 portions that were ABSENT from the repo:
++--   1. The 03-TECHNICAL alert_thresholds defaults missing from migration 096:
++--        • atp_swab_rlu_max          = 10  (PRD §10.6 — ATP swab ≤10 RLU)
++--        • catch_weight_variance_pct = 5   (PRD §8.5/§8.6 — default 5.0%)
++--      These extend the EXISTING per-org seed function + trigger (096) so they
++--      reach every existing org (backfill) and every future org (trigger).
++--   2. A GLOBAL ISO-4217 currency reference table (public.iso4217). Global /
++--      un-scoped (no org_id, no RLS) following the public.role_categories
++--      reference-table convention (migration 048): revoke from public, grant
++--      SELECT to app_user. Backs V-TEC-52 ("Currency ∈ ISO 4217 supported list").
++--
++-- The manufacturing_operations seed already ships (seeds/manufacturing-operations.sql
++-- + migration 078) and is intentionally per-org/per-industry gated — it is NOT
++-- touched here.
++--
++-- Wave0 lock: business scope is org_id; RLS via app.current_org_id() on the
++-- org-scoped table (AlertThresholds, created by 084). iso4217 is a GLOBAL
++-- reference table and is intentionally un-scoped.
++--
++-- Everything is idempotent: ON CONFLICT DO NOTHING + CREATE OR REPLACE +
++-- CREATE TABLE IF NOT EXISTS. The seed function is SECURITY DEFINER (RLS-bypassing,
++-- because app.current_org_id() is unset during a system-level org INSERT) with a
++-- pinned search_path; it is the same distinctly-named function introduced by 096.
++
++-- ============================================================
++-- 1. Pre-flight: Reference.AlertThresholds must already exist (migration 084)
++--    and the 096 per-org seed function must exist (we extend it).
++-- ============================================================
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM information_schema.tables
++     WHERE table_schema = 'Reference' AND table_name = 'AlertThresholds'
++  ) THEN
++    RAISE EXCEPTION 'Reference.AlertThresholds not found — run migration 084 first';
++  END IF;
++END
++$$;
++
++-- ============================================================
++-- 2. Extend the EXISTING per-org alert-threshold seed function (from 096)
++--    with the two 03-TECHNICAL defaults. CREATE OR REPLACE keeps the same
++--    function signature/name so the 096 trigger (trg_seed_alert_thresholds)
++--    automatically seeds these for every future org too.
++--
++--    SECURITY DEFINER + pinned search_path: bypasses RLS during the org-INSERT
++--    trigger, where app.current_org_id() is unset.
++-- ============================================================
++CREATE OR REPLACE FUNCTION public.seed_alert_thresholds_for_org(p_org_id uuid)
++RETURNS void
++LANGUAGE plpgsql
++SECURITY DEFINER
++SET search_path = pg_catalog, public
++AS $$
++BEGIN
++  INSERT INTO "Reference"."AlertThresholds" (org_id, threshold_key, value_int, value_text)
++  VALUES
++    -- PRD §11.3 — launch alert thresholds (days before scheduled launch date)
++    (p_org_id, 'launch_alert_red_days',      10, NULL),
++    (p_org_id, 'launch_alert_yellow_days',   21, NULL),
++    -- PRD §17.11.3 — costing margin warning threshold (percent, ≤15% triggers warn)
++    (p_org_id, 'costing_margin_warn_pct',    15, NULL),
++    -- PRD §10.6 — ATP swab cleaning-validation threshold (RLU, ≤10 passes)
++    (p_org_id, 'atp_swab_rlu_max',           10, NULL),
++    -- PRD §8.5/§8.6 — catch-weight variance default tolerance (percent)
++    (p_org_id, 'catch_weight_variance_pct',   5, NULL)
++  ON CONFLICT (org_id, threshold_key) DO NOTHING;
++END;
++$$;
++
++COMMENT ON FUNCTION public.seed_alert_thresholds_for_org(uuid)
++  IS 'T-050/T-070: Seeds the canonical default AlertThreshold rows for the given org '
++     '(launch alert + costing margin + ATP swab RLU + catch-weight variance). '
++     'Idempotent (ON CONFLICT DO NOTHING). Called by trg_seed_alert_thresholds and the backfill below.';
++
++-- Defense in depth: keep SECURITY DEFINER seed fns off public / app_user EXECUTE.
++REVOKE ALL ON FUNCTION public.seed_alert_thresholds_for_org(uuid) FROM PUBLIC;
++DO $$
++BEGIN
++  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
++    EXECUTE 'REVOKE ALL ON FUNCTION public.seed_alert_thresholds_for_org(uuid) FROM app_user';
++  END IF;
++END
++$$;
++
++-- ============================================================
++-- 3. Backfill — seed the new keys into ALL existing orgs (Apex + others).
++--    ON CONFLICT DO NOTHING in the function makes this re-runnable.
++-- ============================================================
++DO $$
++DECLARE
++  v_org record;
++BEGIN
++  FOR v_org IN SELECT id FROM public.organizations LOOP
++    PERFORM public.seed_alert_thresholds_for_org(v_org.id);
++  END LOOP;
++END
++$$;
++
++-- ============================================================
++-- 4. GLOBAL ISO-4217 currency reference table.
++--    Un-scoped (no org_id, no RLS) — a shared lookup, like public.role_categories
++--    (migration 048). code = 3-letter alpha PK; num = numeric code; minor_unit =
++--    number of decimal places. Read-only for app_user.
++-- ============================================================
++CREATE TABLE IF NOT EXISTS public.iso4217 (
++  code          char(3) PRIMARY KEY
++    CONSTRAINT iso4217_code_format_check CHECK (code ~ '^[A-Z]{3}$'),
++  currency_name text    NOT NULL,
++  num           char(3) NOT NULL
++    CONSTRAINT iso4217_num_format_check CHECK (num ~ '^[0-9]{3}$'),
++  minor_unit    integer NOT NULL DEFAULT 2
++    CONSTRAINT iso4217_minor_unit_check CHECK (minor_unit BETWEEN 0 AND 4)
++);
++
++COMMENT ON TABLE public.iso4217
++  IS 'T-070: Global ISO-4217 currency reference (code / name / numeric / minor unit). '
++     'Un-scoped shared lookup (no org_id, no RLS). Backs V-TEC-52 currency validation.';
++
++REVOKE ALL ON public.iso4217 FROM PUBLIC;
++DO $$
++BEGIN
++  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
++    EXECUTE 'GRANT SELECT ON public.iso4217 TO app_user';
++  END IF;
++END
++$$;
++
++-- Seed the supported ISO-4217 list. Idempotent (ON CONFLICT DO NOTHING).
++-- minor_unit follows ISO-4217 (e.g. JPY/KRW = 0, BHD/KWD/TND = 3, most = 2).
++INSERT INTO public.iso4217 (code, currency_name, num, minor_unit)
++VALUES
++  ('PLN', 'Zloty',                 '985', 2),
++  ('EUR', 'Euro',                  '978', 2),
++  ('USD', 'US Dollar',             '840', 2),
++  ('GBP', 'Pound Sterling',        '826', 2),
++  ('CHF', 'Swiss Franc',           '756', 2),
++  ('CZK', 'Czech Koruna',          '203', 2),
++  ('SEK', 'Swedish Krona',         '752', 2),
++  ('NOK', 'Norwegian Krone',       '578', 2),
++  ('DKK', 'Danish Krone',          '208', 2),
++  ('HUF', 'Forint',                '348', 2),
++  ('RON', 'Romanian Leu',          '946', 2),
++  ('BGN', 'Bulgarian Lev',         '975', 2),
++  ('UAH', 'Hryvnia',               '980', 2),
++  ('CAD', 'Canadian Dollar',       '124', 2),
++  ('AUD', 'Australian Dollar',     '036', 2),
++  ('NZD', 'New Zealand Dollar',    '554', 2),
++  ('JPY', 'Yen',                   '392', 0),
++  ('CNY', 'Yuan Renminbi',         '156', 2),
++  ('HKD', 'Hong Kong Dollar',      '344', 2),
++  ('SGD', 'Singapore Dollar',      '702', 2),
++  ('INR', 'Indian Rupee',          '356', 2),
++  ('KRW', 'Won',                   '410', 0),
++  ('ZAR', 'Rand',                  '710', 2),
++  ('BRL', 'Brazilian Real',        '986', 2),
++  ('MXN', 'Mexican Peso',          '484', 2),
++  ('TRY', 'Turkish Lira',          '949', 2),
++  ('AED', 'UAE Dirham',            '784', 2),
++  ('SAR', 'Saudi Riyal',           '682', 2),
++  ('BHD', 'Bahraini Dinar',        '048', 3),
++  ('KWD', 'Kuwaiti Dinar',         '414', 3),
++  ('TND', 'Tunisian Dinar',        '788', 3)
++ON CONFLICT (code) DO NOTHING;
+diff --git a/packages/db/migrations/168-bom-version-state-machine-clone-on-write.sql b/packages/db/migrations/168-bom-version-state-machine-clone-on-write.sql
+new file mode 100644
+index 00000000..695387c1
+--- /dev/null
++++ b/packages/db/migrations/168-bom-version-state-machine-clone-on-write.sql
+@@ -0,0 +1,329 @@
++-- Migration 168: 03-Technical T-073 — shared BOM SSOT version state machine +
++-- clone-on-write enforcement (DB layer).
++--
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.1, §7.4, §7.6. Task T-073.
++--
++-- The shared BOM SSOT (bom_headers/bom_lines/bom_co_products) ships from migrations
++-- 090 / 159. Migration 090 already:
++--   * defines the status vocabulary (draft, in_review, technical_approved, active,
++--     superseded, archived) via bom_headers_status_check, AND
++--   * rejects in-place CONTENT mutation of technical_approved/active rows
++--     (bom_headers_reject_approved_content_update + bom_lines_reject_approved_header_update).
++-- Migration 099 ships request_npd_released_bom_edit() — a clone-on-write helper scoped
++-- to NPD-origin, product-keyed ACTIVE BOMs.
++--
++-- This migration (T-073) adds the missing TECHNICAL-OWNED, generic enforcement that the
++-- 159 header comment reserves for T-073:
++--   1. bom_headers version STATE-MACHINE guard: only valid forward transitions are allowed
++--      (draft -> in_review -> technical_approved -> active -> superseded/archived, plus the
++--      symmetric review-rejection draft<->in_review and terminal archival). Illegal jumps
++--      (e.g. draft -> active) and backward moves (e.g. active -> draft) are rejected. This
++--      complements (does NOT replace) the 090 content-immutability trigger.
++--   2. bom_request_version_edit(): a GENERIC clone-on-write helper that, for ANY immutable
++--      (technical_approved/active) BOM version, creates a NEW draft version (same product/
++--      npd/fa identity, bumped version, supersedes set) routed back to Technical approval —
++--      copying lines + co-products — and returns a TYPED decision row. Mirrors the
++--      factory_specs clone-on-write contract (migration 165) and the NPD helper (099) but
++--      is origin-agnostic and Technical-owned. NEVER mutates the approved/active row.
++--   3. bom_factory_release_bundle_decision(): a bundle-aware, ATOMIC FactorySpec+BOM release
++--      decision (AC5). A BOM cannot be released for factory use unless the paired factory_spec
++--      is approved_for_factory/released_to_factory; the function returns a single typed
++--      decision (approve | reject) so a partial release is impossible unless a Technical
++--      approver explicitly splits the bundle (split_allowed input).
++--
++-- Wave0 lock: org_id is the business scope; all helpers resolve org via app.current_org_id().
++-- D365 is integration only — no D365 hard FK, no new outbox event types are introduced here
++-- (the outbox event_type vocabulary is the events.enum.ts SoT, migration 151; this migration
++-- reuses only the already-registered 'bom.version_submitted'). FG canonical; no FA-* ids.
++-- Idempotent: create-or-replace functions + drop-if-exists triggers.
++
++-- ===========================================================================
++-- 1. bom_headers version state-machine guard
++-- ===========================================================================
++-- Valid transition graph (status BEFORE -> status AFTER), evaluated only when status changes:
++--   draft              -> in_review | archived
++--   draft              -> in_review | technical_approved | active | archived
++--   in_review          -> draft (rejected back to author) | technical_approved | active | archived
++--   technical_approved -> in_review (re-review) | active | superseded | archived
++--   active             -> superseded | archived
++--   superseded         -> archived
++--   archived           -> (terminal; no transition out)
++-- The PRD lifecycle is draft -> in_review -> technical_approved -> active, but a DIRECT
++-- forward activation (draft/in_review -> active or -> technical_approved) is permitted for
++-- atomic administrative/seed activation: any active/technical_approved row must already carry
++-- approval evidence (approved_by/approved_at), enforced independently by the 090 CHECK
++-- bom_headers_approved_status_requires_approval_check. What this guard PROHIBITS is any
++-- BACKWARD move out of an immutable (technical_approved/active) state into a working state
++-- (e.g. active -> draft/in_review) and any move out of a terminal state. That is the
++-- clone-on-write invariant: once immutable, a version may only terminalize, never re-open.
++-- The 090 trigger independently blocks CONTENT changes on technical_approved/active rows, so
++-- the only legal UPDATE on those rows is the lifecycle transition itself (plus updated_at).
++create or replace function public.bom_headers_enforce_status_transition()
++returns trigger
++language plpgsql
++as $$
++declare
++  v_ok boolean;
++begin
++  if tg_op <> 'UPDATE' then
++    return new;
++  end if;
++
++  if new.status is not distinct from old.status then
++    return new;
++  end if;
++
++  v_ok := case old.status
++    when 'draft'              then new.status in ('in_review', 'technical_approved', 'active', 'archived')
++    when 'in_review'          then new.status in ('draft', 'technical_approved', 'active', 'archived')
++    when 'technical_approved' then new.status in ('in_review', 'active', 'superseded', 'archived')
++    when 'active'             then new.status in ('superseded', 'archived')
++    when 'superseded'         then new.status in ('archived')
++    when 'archived'           then false
++    else false
++  end;
++
++  if not v_ok then
++    raise exception
++      'invalid BOM version status transition % -> % (clone-on-write: an immutable version may only terminalize, never re-open; create a new draft version instead)',
++      old.status, new.status
++      using errcode = '23514';
++  end if;
++
++  return new;
++end;
++$$;
++
++-- This guard must run BEFORE the 090 content-immutability trigger fires on the SAME row so
++-- that an illegal transition is reported as a transition error. Triggers fire in name order;
++-- 'bom_headers_aa_enforce_status_transition' sorts before
++-- 'bom_headers_reject_approved_content_update'.
++drop trigger if exists bom_headers_aa_enforce_status_transition on public.bom_headers;
++create trigger bom_headers_aa_enforce_status_transition
++  before update on public.bom_headers
++  for each row
++  execute function public.bom_headers_enforce_status_transition();
++
++-- ===========================================================================
++-- 2. Generic clone-on-write: bom_request_version_edit()
++-- ===========================================================================
++-- Given an immutable (technical_approved or active) BOM version, create a NEW draft version
++-- (status='in_review', routed to Technical approval) that supersedes it, copying lines and
++-- co-products. The approved/active source row is NEVER mutated. Idempotent per (org, source):
++-- if a non-terminal superseding version already exists it is returned instead of a duplicate.
++-- Returns a TYPED decision: decision = 'cloned' | 'existing'.
++create or replace function public.bom_request_version_edit(
++  p_source_bom_header_id uuid,
++  p_requested_by uuid,
++  p_notes text default null
++)
++returns table (
++  decision text,
++  bom_header_id uuid,
++  status text,
++  version integer,
++  supersedes_bom_header_id uuid
++)
++language plpgsql
++as $$
++declare
++  v_org_id uuid := app.current_org_id();
++  v_src public.bom_headers%rowtype;
++  v_new_id uuid;
++  v_decision text;
++begin
++  select *
++    into v_src
++  from public.bom_headers header
++  where header.id = p_source_bom_header_id
++    and header.org_id = v_org_id;
++
++  if v_src.id is null then
++    raise exception 'BOM version not found in current org: %', p_source_bom_header_id
++      using errcode = 'P0002';
++  end if;
++
++  if v_src.status not in ('technical_approved', 'active') then
++    raise exception
++      'BOM version % is in status % and is directly editable; clone-on-write only applies to technical_approved/active versions',
++      p_source_bom_header_id, v_src.status
++      using errcode = '23514';
++  end if;
++
++  -- Idempotency: reuse an existing in-flight superseding draft/in_review version if present.
++  select header.id
++    into v_new_id
++  from public.bom_headers header
++  where header.org_id = v_org_id
++    and header.supersedes_bom_header_id = v_src.id
++    and header.status in ('draft', 'in_review')
++  order by header.created_at
++  limit 1;
++
++  if v_new_id is not null then
++    v_decision := 'existing';
++  else
++    v_decision := 'cloned';
++
++    insert into public.bom_headers (
++      org_id, product_id, npd_project_id, fa_code, origin_module, status, version,
++      supersedes_bom_header_id, yield_pct, effective_from,
++      technical_review_requested_by, technical_review_requested_at, notes, created_by_user
++    )
++    values (
++      v_org_id, v_src.product_id, v_src.npd_project_id, v_src.fa_code, 'technical', 'in_review',
++      v_src.version + 1, v_src.id, v_src.yield_pct, current_date,
++      p_requested_by, pg_catalog.now(),
++      coalesce(p_notes, 'Technical post-release edit; new version pending Technical approval (clone-on-write).'),
++      p_requested_by
++    )
++    returning id into v_new_id;
++
++    insert into public.bom_lines (
++      org_id, bom_header_id, line_no, component_code, component_type, item_id, quantity, uom,
++      scrap_pct, manufacturing_operation_name, sequence, is_phantom, source, notes
++    )
++    select
++      line.org_id, v_new_id, line.line_no, line.component_code, line.component_type, line.item_id,
++      line.quantity, line.uom, line.scrap_pct, line.manufacturing_operation_name, line.sequence,
++      line.is_phantom, 'superseded_copy', 'Copied from prior immutable BOM version (clone-on-write).'
++    from public.bom_lines line
++    where line.org_id = v_org_id
++      and line.bom_header_id = v_src.id
++    order by line.line_no;
++
++    insert into public.bom_co_products (
++      org_id, bom_header_id, co_product_item_id, quantity, uom, allocation_pct, is_byproduct, site_id
++    )
++    select
++      cp.org_id, v_new_id, cp.co_product_item_id, cp.quantity, cp.uom, cp.allocation_pct,
++      cp.is_byproduct, cp.site_id
++    from public.bom_co_products cp
++    where cp.org_id = v_org_id
++      and cp.bom_header_id = v_src.id;
++
++    -- Reuse the already-registered outbox event (migration 151 SoT). No new event type.
++    insert into public.outbox_events (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
++    select
++      v_org_id, 'bom.version_submitted', 'bom', v_new_id,
++      jsonb_build_object(
++        'previous_bom_header_id', v_src.id,
++        'bom_header_id', v_new_id,
++        'status', 'in_review',
++        'origin', 'technical_clone_on_write',
++        'requires_technical_approval', true
++      ),
++      'db-168'
++    where not exists (
++      select 1 from public.outbox_events event
++      where event.org_id = v_org_id
++        and event.event_type = 'bom.version_submitted'
++        and event.aggregate_id = v_new_id::text
++    );
++  end if;
++
++  return query
++  select v_decision, header.id, header.status, header.version, header.supersedes_bom_header_id
++  from public.bom_headers header
++  where header.id = v_new_id
++    and header.org_id = v_org_id;
++end;
++$$;
++
++revoke all on function public.bom_request_version_edit(uuid, uuid, text) from public;
++grant execute on function public.bom_request_version_edit(uuid, uuid, text) to app_user;
++
++-- ===========================================================================
++-- 3. Bundle-aware FactorySpec+BOM atomic release decision
++-- ===========================================================================
++-- Evaluate a combined FactorySpec + BOM release in ONE decision. A BOM may be released for
++-- factory use only when the paired factory_spec is factory-usable
++-- (approved_for_factory / released_to_factory). Partial release is rejected unless a Technical
++-- approver explicitly splits the bundle (p_split_allowed = true). Returns a single typed row:
++--   decision  = 'approve' | 'reject'
++--   reason    = NULL on approve; a stable machine code on reject:
++--               'BOM_NOT_APPROVED' | 'FACTORY_SPEC_NOT_APPROVED' | 'PARTIAL_RELEASE_NOT_ALLOWED'
++-- The function is READ-ONLY (it makes no state change); the caller (T-080/T-081 service) applies
++-- the transition atomically based on the decision.
++create or replace function public.bom_factory_release_bundle_decision(
++  p_bom_header_id uuid,
++  p_factory_spec_id uuid,
++  p_split_allowed boolean default false
++)
++returns table (
++  decision text,
++  reason text,
++  bom_ready boolean,
++  factory_spec_ready boolean
++)
++language plpgsql
++stable
++as $$
++declare
++  v_org_id uuid := app.current_org_id();
++  v_bom_status text;
++  v_spec_status text;
++  v_bom_ready boolean;
++  v_spec_ready boolean;
++begin
++  select header.status into v_bom_status
++  from public.bom_headers header
++  where header.id = p_bom_header_id and header.org_id = v_org_id;
++
++  if v_bom_status is null then
++    raise exception 'BOM version not found in current org: %', p_bom_header_id
++      using errcode = 'P0002';
++  end if;
++
++  select spec.status into v_spec_status
++  from public.factory_specs spec
++  where spec.id = p_factory_spec_id and spec.org_id = v_org_id;
++
++  if v_spec_status is null then
++    raise exception 'factory_spec version not found in current org: %', p_factory_spec_id
++      using errcode = 'P0002';
++  end if;
++
++  -- A BOM is release-ready when Technical has approved/activated it.
++  v_bom_ready  := v_bom_status in ('technical_approved', 'active');
++  -- A factory_spec is release-ready when it is factory-usable.
++  v_spec_ready := v_spec_status in ('approved_for_factory', 'released_to_factory');
++
++  if v_bom_ready and v_spec_ready then
++    return query select 'approve'::text, null::text, v_bom_ready, v_spec_ready;
++    return;
++  end if;
++
++  -- One side ready, the other not => partial. Only an explicit split unblocks the ready side.
++  if (v_bom_ready or v_spec_ready) and p_split_allowed then
++    return query select 'approve'::text, 'SPLIT_APPROVED'::text, v_bom_ready, v_spec_ready;
++    return;
++  end if;
++
++  if (v_bom_ready or v_spec_ready) and not p_split_allowed then
++    return query select 'reject'::text, 'PARTIAL_RELEASE_NOT_ALLOWED'::text, v_bom_ready, v_spec_ready;
++    return;
++  end if;
++
++  -- Neither ready: surface the BOM reason first (deterministic), else the spec reason.
++  if not v_bom_ready then
++    return query select 'reject'::text, 'BOM_NOT_APPROVED'::text, v_bom_ready, v_spec_ready;
++    return;
++  end if;
++
++  return query select 'reject'::text, 'FACTORY_SPEC_NOT_APPROVED'::text, v_bom_ready, v_spec_ready;
++end;
++$$;
++
++revoke all on function public.bom_factory_release_bundle_decision(uuid, uuid, boolean) from public;
++grant execute on function public.bom_factory_release_bundle_decision(uuid, uuid, boolean) to app_user;
++
++-- ===========================================================================
++-- Comments
++-- ===========================================================================
++comment on function public.bom_headers_enforce_status_transition() is
++  'T-073: BOM version state-machine guard. Allows only valid forward lifecycle transitions; rejects illegal jumps/backward moves. Complements the 090 content-immutability trigger.';
++comment on function public.bom_request_version_edit(uuid, uuid, text) is
++  'T-073: generic clone-on-write for the shared BOM SSOT. Clones an immutable (technical_approved/active) version into a new in_review draft routed to Technical approval; never mutates the source. Returns a typed decision (cloned|existing).';
++comment on function public.bom_factory_release_bundle_decision(uuid, uuid, boolean) is
++  'T-073: atomic FactorySpec+BOM release decision. Rejects partial release unless a Technical approver explicitly splits the bundle. Read-only; caller applies the transition.';
+diff --git a/packages/db/migrations/169-bom-generator-jobs.sql b/packages/db/migrations/169-bom-generator-jobs.sql
+new file mode 100644
+index 00000000..c344729c
+--- /dev/null
++++ b/packages/db/migrations/169-bom-generator-jobs.sql
+@@ -0,0 +1,100 @@
++-- Migration 169: 03-Technical T-016 — BOM Generator async job queue.
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §7.3, §7.6 (BOM Generator batch, V-TEC-15).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (NOT raw current_setting). Day-1 multi-site: site_id nullable uuid, no FK / no RLS
++--   predicate change (14-multi-site/T-030 backfills + tightens later).
++--
++-- The BOM Generator endpoint (POST /api/technical/bom-generator) MUST enqueue the XLSX
++--   build asynchronously — it never generates the workbook inside the request (red-line).
++--   This table is the worker-facing queue: the Server Action inserts ONE job row (status
++--   'queued') carrying the resolved FG scope + output mode; the worker (generator-worker.ts)
++--   polls 'queued' rows, builds the XLSX artifact(s), and stamps result_urls + 'completed'.
++--
++-- V-TEC-15: only FGs whose product.status_overall = 'Complete' are eligible. The Server
++--   Action resolves that filter at enqueue time and persists expected_count + the FG list
++--   in payload so the request can return expected_count synchronously without doing work.
++--
++-- D365 is OPTIONAL integration only — this queue is internal BOM explode/compose, distinct
++--   from NPD's D365 Builder. No D365 hard FKs here.
++
++create table if not exists public.bom_generator_jobs (
++  id              uuid        primary key default gen_random_uuid(),
++  org_id          uuid        not null references public.organizations(id) on delete cascade,
++  -- Day-1 multi-site: site_id NULL now; 14-multi-site/T-030 backfills + tightens to NOT NULL.
++  site_id         uuid,
++
++  scope           text        not null,
++  output_mode     text        not null,
++  status          text        not null default 'queued',
++
++  expected_count  integer     not null default 0,
++  -- Resolved FG product_codes (V-TEC-15 'Complete' filter applied) + per-FG metadata.
++  payload         jsonb       not null default '{}'::jsonb,
++  -- Worker-produced artifact URLs (one per FG for per_fg, one for single_batch).
++  result_urls     jsonb       not null default '[]'::jsonb,
++
++  error_message   text,
++
++  created_by      uuid        references public.users(id) on delete set null,
++  created_at      timestamptz not null default pg_catalog.now(),
++  started_at      timestamptz,
++  finished_at     timestamptz,
++  updated_at      timestamptz not null default pg_catalog.now(),
++  schema_version  integer     not null default 1,
++
++  constraint bom_generator_jobs_scope_check
++    check (scope in ('all_complete', 'selected')),
++  constraint bom_generator_jobs_output_mode_check
++    check (output_mode in ('per_fg', 'single_batch')),
++  constraint bom_generator_jobs_status_check
++    check (status in ('queued', 'running', 'completed', 'failed')),
++  constraint bom_generator_jobs_expected_count_check
++    check (expected_count >= 0),
++  constraint bom_generator_jobs_payload_object_check
++    check (jsonb_typeof(payload) = 'object'),
++  constraint bom_generator_jobs_result_urls_array_check
++    check (jsonb_typeof(result_urls) = 'array')
++);
++
++create index if not exists bom_generator_jobs_org_status_idx
++  on public.bom_generator_jobs (org_id, status, created_at);
++
++create index if not exists bom_generator_jobs_org_site_idx
++  on public.bom_generator_jobs (org_id, site_id);
++
++create or replace function public.bom_generator_jobs_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists bom_generator_jobs_set_updated_at on public.bom_generator_jobs;
++create trigger bom_generator_jobs_set_updated_at
++  before update on public.bom_generator_jobs
++  for each row execute function public.bom_generator_jobs_set_updated_at();
++
++alter table public.bom_generator_jobs enable row level security;
++alter table public.bom_generator_jobs force row level security;
++
++drop policy if exists bom_generator_jobs_org_context on public.bom_generator_jobs;
++create policy bom_generator_jobs_org_context
++  on public.bom_generator_jobs
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.bom_generator_jobs from public;
++revoke all on public.bom_generator_jobs from app_user;
++grant select, insert, update on public.bom_generator_jobs to app_user;
++
++comment on table public.bom_generator_jobs
++  is 'T-016: async BOM Generator job queue. The POST /api/technical/bom-generator Server Action enqueues ONE row (status queued) carrying the V-TEC-15-filtered FG scope + output mode; the worker builds the XLSX artifact(s) and stamps result_urls. XLSX is NEVER built inside the request. Internal BOM explode/compose — distinct from NPD D365 Builder. Shared BOM SSOT; D365 integration only.';
++
++comment on column public.bom_generator_jobs.site_id
++  is 'Day-1 multi-site column (uuid NULL). 14-multi-site/T-030 backfills + tightens to NOT NULL + composite (org_id, site_id) RLS. No FK / RLS predicate here.';
+diff --git a/packages/db/migrations/170-allergen-cascade-rule.sql b/packages/db/migrations/170-allergen-cascade-rule.sql
+new file mode 100644
+index 00000000..60cbc250
+--- /dev/null
++++ b/packages/db/migrations/170-allergen-cascade-rule.sql
+@@ -0,0 +1,83 @@
++-- Migration 170: 03-Technical — allergen cascade rule deployment (T-024).
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §10.2, §10.3, §10.8.
++--
++-- Deploys the Technical allergen cascade RULE DEFINITION into public.rule_definitions
++-- (the L1 rule registry created by 02-SETTINGS migration 039) for every existing org,
++-- plus an AFTER-INSERT trigger so new orgs receive it automatically. The rule's
++-- definition_json describes the cascade contract the handler (lib/technical/allergens/cascade.ts)
++-- executes; the handler is the runtime, this row is the deployed, versioned policy.
++--
++-- CASCADE CONTRACT (what the handler does — encoded here for audit/registry):
++--   trigger : a raw-material / intermediate item's allergen profile changes
++--             (item_allergen_profiles; item_type lives on items, joined via item_id)
++--   compute : for every ACTIVE BOM whose product (FG/intermediate) transitively
++--             contains the changed component, aggregate:
++--               * component allergens (item_allergen_profiles of bom_lines.item_id),
++--               * manufacturing-operation additions
++--                 (manufacturing_operation_allergen_additions joined on
++--                  bom_lines.manufacturing_operation_name),
++--             then UPSERT source='cascaded' rows onto the parent's profile.
++--   protect : NEVER overwrite source='manual_override' rows (V-TEC-42). A cascaded
++--             write to an allergen_code that already carries a manual_override is skipped.
++--   KPI     : propagation completes <= 5s (RM -> intermediate -> FG).
++--
++-- Wave0 lock: org_id business scope (NOT tenant_id); RLS via app.current_org_id().
++-- Technical CONSUMES 01-NPD's materialized product.allergens (read-only) and does NOT
++-- recompute the NPD aggregate — this rule operates on the Technical item/BOM/profile layer.
++
++-- The canonical rule_code + the definition_json the handler reads.
++do $$
++declare
++  v_rule_code text := 'technical.allergen_cascade';
++  v_definition jsonb := jsonb_build_object(
++    'rule_code', 'technical.allergen_cascade',
++    'description', 'Technical allergen full cascade: RM/intermediate profile change -> active BOM parents -> cascaded FG profile rows; manufacturing-op additions UNIONed; manual_override rows never overwritten.',
++    'trigger_event', 'technical.item_allergen_profile.changed',
++    'sources', jsonb_build_array('item_allergen_profiles', 'manufacturing_operation_allergen_additions', 'bom_headers', 'bom_lines'),
++    'target', 'item_allergen_profiles',
++    'cascaded_source_label', 'cascaded',
++    'override_protected_source', 'manual_override',
++    'kpi_max_ms', 5000,
++    'handler', 'apps/web/lib/technical/allergens/cascade.ts'
++  );
++begin
++  -- Backfill: one active rule row per existing org (idempotent on the unique
++  -- (org_id, rule_code, version) key).
++  insert into public.rule_definitions (org_id, rule_code, rule_type, tier, definition_json, version)
++  select o.id, v_rule_code, 'cascading', 'L1', v_definition, 1
++    from public.organizations o
++  on conflict (org_id, rule_code, version) do nothing;
++end
++$$;
++
++-- AFTER-INSERT trigger: new orgs auto-receive the deployed cascade rule.
++create or replace function public.seed_allergen_cascade_rule_for_org()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog, public
++as $$
++declare
++  v_definition jsonb := jsonb_build_object(
++    'rule_code', 'technical.allergen_cascade',
++    'description', 'Technical allergen full cascade: RM/intermediate profile change -> active BOM parents -> cascaded FG profile rows; manufacturing-op additions UNIONed; manual_override rows never overwritten.',
++    'trigger_event', 'technical.item_allergen_profile.changed',
++    'sources', jsonb_build_array('item_allergen_profiles', 'manufacturing_operation_allergen_additions', 'bom_headers', 'bom_lines'),
++    'target', 'item_allergen_profiles',
++    'cascaded_source_label', 'cascaded',
++    'override_protected_source', 'manual_override',
++    'kpi_max_ms', 5000,
++    'handler', 'apps/web/lib/technical/allergens/cascade.ts'
++  );
++begin
++  insert into public.rule_definitions (org_id, rule_code, rule_type, tier, definition_json, version)
++  values (new.id, 'technical.allergen_cascade', 'cascading', 'L1', v_definition, 1)
++  on conflict (org_id, rule_code, version) do nothing;
++  return new;
++end
++$$;
++
++drop trigger if exists seed_allergen_cascade_rule_after_org_insert on public.organizations;
++create trigger seed_allergen_cascade_rule_after_org_insert
++  after insert on public.organizations
++  for each row execute function public.seed_allergen_cascade_rule_for_org();
+diff --git a/packages/db/migrations/174-supplier-specs-phase1-governance.sql b/packages/db/migrations/174-supplier-specs-phase1-governance.sql
+new file mode 100644
+index 00000000..2f505183
+--- /dev/null
++++ b/packages/db/migrations/174-supplier-specs-phase1-governance.sql
+@@ -0,0 +1,369 @@
++-- Migration 174: 03-Technical T-075 — supplier_specs Phase 1 governance.
++--
++-- PRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §5.5. Task T-075.
++--
++-- supplier_specs ships from migration 162 (Technical-owned master data) with the
++-- supplier_status / lifecycle_status / review_status vocabularies, approval+rejection audit
++-- columns, the expiry>=effective CHECK, and the partial unique index
++-- supplier_specs_one_active_approved (one active+approved spec per org/item/supplier).
++--
++-- This migration adds the Phase-1 GOVERNANCE layer the task reserves for T-075:
++--   1. supplier_spec_review_proposals: PO actuals (or any reviewer) may PROPOSE a supplier-spec
++--      change WITHOUT mutating supplier_specs. The proposal carries observed/non-conformance
++--      data and a review state; supplier_specs only changes via the explicit Technical approval
++--      path (approve_supplier_spec_review). This is the DB enforcement of red line
++--      "Do not automatically overwrite supplier_specs from PO actuals".
++--   2. supplier_spec_resolved_lifecycle(): a STABLE helper that resolves the EFFECTIVE
++--      lifecycle status of a spec — an active spec whose expiry_date is in the past resolves
++--      to 'expired' (AC2) regardless of the stored column, so RM usability cannot pass on a
++--      lapsed spec even if a background expiry sweep has not yet run.
++--   3. supplier_spec_rm_usability(): a STABLE typed-decision helper returning
++--      usable (boolean) + reason (stable machine code) for RM usability gating:
++--        'OK' | 'SUPPLIER_NOT_APPROVED' | 'EXPIRED' | 'NOT_REVIEW_APPROVED' |
++--        'SPEC_BLOCKED' | 'NOT_FOUND'. (AC4/AC6/AC7).
++--   4. approve_supplier_spec_review() / reject_supplier_spec_review(): the ONLY governed
++--      mutation path for a proposal -> spec transition. approve sets review/lifecycle to the
++--      approved/active state (preserving the single-active uniqueness by superseding the prior
++--      active+approved spec); reject/block leaves the prior active+approved spec UNTOUCHED
++--      (AC3/AC7).
++--
++-- Wave0 lock: org_id business scope; RLS via app.current_org_id(). site_id day-1 nullable, no
++-- FK / no registry on the new operational table. declared_allergens compatibility is preserved
++-- (untouched). D365 is integration only — no D365 hard FK. No new outbox event types here.
++-- Idempotent: create-if-not-exists table, create-or-replace functions, drop-if-exists triggers.
++
++-- ===========================================================================
++-- 1. supplier_spec_review_proposals — non-mutating PO/review proposal channel
++-- ===========================================================================
++create table if not exists public.supplier_spec_review_proposals (
++  id uuid primary key default gen_random_uuid(),
++  org_id uuid not null references public.organizations(id) on delete cascade,
++  -- Day-1 multi-site: nullable, no FK, no registry. 14-multi-site/T-030 backfills + tightens.
++  site_id uuid,
++  -- The supplier_spec this proposal targets (the record that MAY be superseded on approval).
++  supplier_spec_id uuid not null,
++  -- Provenance of the proposal. 'po_actual' = observed at goods-in / PO review (cannot mutate
++  -- supplier_specs directly); 'technical' = a Technical-authored revision proposal.
++  source text not null default 'po_actual',
++  -- Where this proposal sits in its own review lifecycle.
++  proposal_status text not null default 'pending',
++  -- Observed / proposed payload (e.g. measured nutrition, allergen deltas, certificate refs).
++  proposed_attrs jsonb not null default '{}'::jsonb,
++  observed_notes text,
++  is_non_conformance boolean not null default false,
++  reviewed_by uuid references public.users(id) on delete restrict,
++  reviewed_at timestamptz,
++  review_notes text,
++  -- On approval, the NEW supplier_spec row created from this proposal (clone-on-write lineage).
++  resulting_supplier_spec_id uuid,
++  created_by uuid references public.users(id) on delete restrict,
++  created_at timestamptz not null default pg_catalog.now(),
++  updated_at timestamptz not null default pg_catalog.now(),
++  schema_version integer not null default 1,
++
++  constraint supplier_spec_review_proposals_spec_org_fk
++    foreign key (supplier_spec_id) references public.supplier_specs(id) on delete cascade,
++  constraint supplier_spec_review_proposals_resulting_spec_fk
++    foreign key (resulting_supplier_spec_id) references public.supplier_specs(id) on delete set null,
++  constraint supplier_spec_review_proposals_source_check
++    check (source in ('po_actual', 'technical', 'import')),
++  constraint supplier_spec_review_proposals_status_check
++    check (proposal_status in ('pending', 'approved', 'rejected', 'blocked')),
++  constraint supplier_spec_review_proposals_proposed_attrs_object_check
++    check (jsonb_typeof(proposed_attrs) = 'object'),
++  -- An approved proposal must record the resulting spec; a non-approved one must not.
++  constraint supplier_spec_review_proposals_resulting_spec_consistency_check
++    check (
++      (proposal_status = 'approved' and resulting_supplier_spec_id is not null)
++      or (proposal_status <> 'approved' and resulting_supplier_spec_id is null)
++    )
++);
++
++create index if not exists idx_supplier_spec_review_proposals_org_spec
++  on public.supplier_spec_review_proposals (org_id, supplier_spec_id);
++create index if not exists idx_supplier_spec_review_proposals_org_status
++  on public.supplier_spec_review_proposals (org_id, proposal_status);
++create index if not exists idx_supplier_spec_review_proposals_org_site
++  on public.supplier_spec_review_proposals (org_id, site_id);
++
++alter table public.supplier_spec_review_proposals enable row level security;
++alter table public.supplier_spec_review_proposals force row level security;
++
++drop policy if exists supplier_spec_review_proposals_org_context on public.supplier_spec_review_proposals;
++create policy supplier_spec_review_proposals_org_context
++  on public.supplier_spec_review_proposals
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.supplier_spec_review_proposals from public;
++revoke all on public.supplier_spec_review_proposals from app_user;
++grant select, insert, update, delete on public.supplier_spec_review_proposals to app_user;
++
++create or replace function public.supplier_spec_review_proposals_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++drop trigger if exists supplier_spec_review_proposals_set_updated_at on public.supplier_spec_review_proposals;
++create trigger supplier_spec_review_proposals_set_updated_at
++  before update on public.supplier_spec_review_proposals
++  for each row execute function public.supplier_spec_review_proposals_set_updated_at();
++
++-- ===========================================================================
++-- 2. Effective-lifecycle resolver (expiry-aware)
++-- ===========================================================================
++-- Resolve the EFFECTIVE lifecycle status: an 'active' spec whose expiry_date is in the past is
++-- reported as 'expired' (AC2). Stored terminal/blocked states are passed through unchanged.
++create or replace function public.supplier_spec_resolved_lifecycle(
++  p_lifecycle_status text,
++  p_expiry_date date
++)
++returns text
++language sql
++immutable
++as $$
++  select case
++    when p_expiry_date is not null and p_expiry_date < current_date
++         and p_lifecycle_status in ('draft', 'active')
++      then 'expired'
++    else p_lifecycle_status
++  end;
++$$;
++
++-- ===========================================================================
++-- 3. RM usability typed-decision helper
++-- ===========================================================================
++-- Returns whether a supplier_spec may be used for RM usability + a stable reason code.
++-- Gating order (most blocking first): not found -> spec/supplier blocked -> supplier not
++-- approved -> not review-approved -> expired -> OK.
++create or replace function public.supplier_spec_rm_usability(
++  p_supplier_spec_id uuid
++)
++returns table (usable boolean, reason text)
++language plpgsql
++stable
++as $$
++declare
++  v_org_id uuid := app.current_org_id();
++  v_spec public.supplier_specs%rowtype;
++  v_effective_lifecycle text;
++begin
++  select *
++    into v_spec
++  from public.supplier_specs spec
++  where spec.id = p_supplier_spec_id
++    and spec.org_id = v_org_id;
++
++  if v_spec.id is null then
++    return query select false, 'NOT_FOUND'::text;
++    return;
++  end if;
++
++  if v_spec.lifecycle_status = 'blocked'
++     or v_spec.review_status = 'blocked'
++     or v_spec.spec_review_blocked then
++    return query select false, 'SPEC_BLOCKED'::text;
++    return;
++  end if;
++
++  if v_spec.supplier_status <> 'approved' then
++    return query select false, 'SUPPLIER_NOT_APPROVED'::text;
++    return;
++  end if;
++
++  if v_spec.review_status <> 'approved' then
++    return query select false, 'NOT_REVIEW_APPROVED'::text;
++    return;
++  end if;
++
++  v_effective_lifecycle :=
++    public.supplier_spec_resolved_lifecycle(v_spec.lifecycle_status, v_spec.expiry_date);
++
++  if v_effective_lifecycle <> 'active' then
++    -- Surface EXPIRED specifically; any other non-active resolves to the generic lifecycle code.
++    if v_effective_lifecycle = 'expired' then
++      return query select false, 'EXPIRED'::text;
++    else
++      return query select false, ('LIFECYCLE_' || upper(v_effective_lifecycle))::text;
++    end if;
++    return;
++  end if;
++
++  return query select true, 'OK'::text;
++end;
++$$;
++
++revoke all on function public.supplier_spec_rm_usability(uuid) from public;
++grant execute on function public.supplier_spec_rm_usability(uuid) to app_user;
++
++-- ===========================================================================
++-- 4. Governed proposal -> spec transitions (the ONLY mutation path)
++-- ===========================================================================
++-- approve_supplier_spec_review(): Technical approves a pending proposal. Creates a NEW
++-- active+approved supplier_spec (clone-on-write from the targeted spec, overlaying the
++-- proposed_attrs) and supersedes the prior active+approved spec for the same
++-- (org,item,supplier) so the single-active uniqueness index is preserved. The proposal is
++-- marked approved with resulting_supplier_spec_id set. NEVER overwrites the prior spec row's
++-- identity columns in place.
++create or replace function public.approve_supplier_spec_review(
++  p_proposal_id uuid,
++  p_approved_by uuid,
++  p_new_spec_version text default null,
++  p_new_expiry_date date default null,
++  p_review_notes text default null
++)
++returns uuid
++language plpgsql
++as $$
++declare
++  v_org_id uuid := app.current_org_id();
++  v_proposal public.supplier_spec_review_proposals%rowtype;
++  v_base public.supplier_specs%rowtype;
++  v_new_spec_id uuid;
++begin
++  select *
++    into v_proposal
++  from public.supplier_spec_review_proposals proposal
++  where proposal.id = p_proposal_id
++    and proposal.org_id = v_org_id
++  for update;
++
++  if v_proposal.id is null then
++    raise exception 'supplier spec review proposal not found in current org: %', p_proposal_id
++      using errcode = 'P0002';
++  end if;
++
++  if v_proposal.proposal_status <> 'pending' then
++    raise exception 'supplier spec review proposal % is not pending (status %)',
++      p_proposal_id, v_proposal.proposal_status
++      using errcode = '23514';
++  end if;
++
++  select *
++    into v_base
++  from public.supplier_specs spec
++  where spec.id = v_proposal.supplier_spec_id
++    and spec.org_id = v_org_id
++  for update;
++
++  if v_base.id is null then
++    raise exception 'targeted supplier_spec not found in current org: %', v_proposal.supplier_spec_id
++      using errcode = 'P0002';
++  end if;
++
++  -- Supersede the prior active+approved spec for the same (org,item,supplier) so the new
++  -- active+approved row does not violate supplier_specs_one_active_approved.
++  update public.supplier_specs spec
++     set lifecycle_status = 'superseded'
++   where spec.org_id = v_org_id
++     and spec.item_id = v_base.item_id
++     and spec.supplier_code = v_base.supplier_code
++     and spec.lifecycle_status = 'active'
++     and spec.review_status = 'approved';
++
++  -- Clone-on-write: a NEW supplier_spec row carrying the approved revision.
++  insert into public.supplier_specs (
++    org_id, site_id, item_id, supplier_code, supplier_status,
++    spec_document_url, document_sha256, document_mime_type,
++    spec_version, issued_date, effective_from, expiry_date,
++    lifecycle_status, review_status, review_notes,
++    approved_by, approved_at,
++    declared_allergens, declared_attrs, certificate_refs,
++    uploaded_by
++  )
++  values (
++    v_org_id, v_base.site_id, v_base.item_id, v_base.supplier_code, 'approved',
++    v_base.spec_document_url, v_base.document_sha256, v_base.document_mime_type,
++    coalesce(p_new_spec_version, v_base.spec_version || '-rev'),
++    v_base.issued_date, current_date, coalesce(p_new_expiry_date, v_base.expiry_date),
++    'active', 'approved', coalesce(p_review_notes, 'Approved from supplier spec review proposal.'),
++    p_approved_by, pg_catalog.now(),
++    v_base.declared_allergens,
++    v_base.declared_attrs || v_proposal.proposed_attrs,
++    v_base.certificate_refs,
++    p_approved_by
++  )
++  returning id into v_new_spec_id;
++
++  update public.supplier_spec_review_proposals proposal
++     set proposal_status = 'approved',
++         reviewed_by = p_approved_by,
++         reviewed_at = pg_catalog.now(),
++         review_notes = coalesce(p_review_notes, proposal.review_notes),
++         resulting_supplier_spec_id = v_new_spec_id
++   where proposal.id = p_proposal_id
++     and proposal.org_id = v_org_id;
++
++  return v_new_spec_id;
++end;
++$$;
++
++revoke all on function public.approve_supplier_spec_review(uuid, uuid, text, date, text) from public;
++grant execute on function public.approve_supplier_spec_review(uuid, uuid, text, date, text) to app_user;
++
++-- reject_supplier_spec_review(): mark a proposal rejected/blocked. The prior active+approved
++-- spec is left UNTOUCHED (AC7). p_block=true records a blocking review (e.g. non-conformance).
++create or replace function public.reject_supplier_spec_review(
++  p_proposal_id uuid,
++  p_reviewed_by uuid,
++  p_review_notes text default null,
++  p_block boolean default false
++)
++returns void
++language plpgsql
++as $$
++declare
++  v_org_id uuid := app.current_org_id();
++  v_proposal public.supplier_spec_review_proposals%rowtype;
++begin
++  select *
++    into v_proposal
++  from public.supplier_spec_review_proposals proposal
++  where proposal.id = p_proposal_id
++    and proposal.org_id = v_org_id
++  for update;
++
++  if v_proposal.id is null then
++    raise exception 'supplier spec review proposal not found in current org: %', p_proposal_id
++      using errcode = 'P0002';
++  end if;
++
++  if v_proposal.proposal_status <> 'pending' then
++    raise exception 'supplier spec review proposal % is not pending (status %)',
++      p_proposal_id, v_proposal.proposal_status
++      using errcode = '23514';
++  end if;
++
++  update public.supplier_spec_review_proposals proposal
++     set proposal_status = case when p_block then 'blocked' else 'rejected' end,
++         reviewed_by = p_reviewed_by,
++         reviewed_at = pg_catalog.now(),
++         review_notes = p_review_notes
++   where proposal.id = p_proposal_id
++     and proposal.org_id = v_org_id;
++end;
++$$;
++
++revoke all on function public.reject_supplier_spec_review(uuid, uuid, text, boolean) from public;
++grant execute on function public.reject_supplier_spec_review(uuid, uuid, text, boolean) to app_user;
++
++-- ===========================================================================
++-- Comments
++-- ===========================================================================
++comment on table public.supplier_spec_review_proposals is
++  'T-075: non-mutating PO/Technical review proposal channel for supplier_specs. PO actuals create proposals (review/non-conformance) but never overwrite supplier_specs; the only governed mutation path is approve_supplier_spec_review (Technical).';
++comment on function public.supplier_spec_resolved_lifecycle(text, date) is
++  'T-075: resolves effective lifecycle — an active/draft spec past its expiry_date resolves to expired (AC2).';
++comment on function public.supplier_spec_rm_usability(uuid) is
++  'T-075: typed RM-usability decision (usable, reason). reason in OK|SUPPLIER_NOT_APPROVED|EXPIRED|NOT_REVIEW_APPROVED|SPEC_BLOCKED|NOT_FOUND.';
++comment on function public.approve_supplier_spec_review(uuid, uuid, text, date, text) is
++  'T-075: Technical-only governed approval. Clones a new active+approved supplier_spec from a proposal and supersedes the prior active+approved spec (preserving single-active uniqueness).';
++comment on function public.reject_supplier_spec_review(uuid, uuid, text, boolean) is
++  'T-075: reject/block a supplier spec review proposal; the prior active+approved spec is left untouched (AC7).';

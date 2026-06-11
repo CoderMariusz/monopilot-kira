@@ -1,0 +1,13 @@
+{
+  "task": "DEFECT-8",
+  "anchor": "prototypes/settings/access-screens.jsx:95-129",
+  "regions": {
+    "Role permissions (module-grouped)": "RoleEditor PermissionsEditorDialog — per-module checkbox grid",
+    "Create role (Invite-style modal)": "RoleEditor CreateRoleDialog",
+    "System Roles table": "roles-screen.client RolesScreen (unchanged)"
+  },
+  "data_sources": [
+    "createRole / listRolePermissions / setRolePermissions (settings/roles/_actions/role-admin-actions.ts)",
+    "readEditableRoles (settings/roles/page.tsx — public.roles via withOrgContext)"
+  ]
+}

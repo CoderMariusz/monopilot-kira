@@ -1,0 +1,2373 @@
+diff --git a/packages/db/migrations/193-warehouse-lp-transitions-grn-stock-spare-parts.sql b/packages/db/migrations/193-warehouse-lp-transitions-grn-stock-spare-parts.sql
+new file mode 100644
+index 00000000..c37ee84e
+--- /dev/null
++++ b/packages/db/migrations/193-warehouse-lp-transitions-grn-stock-spare-parts.sql
+@@ -0,0 +1,442 @@
++-- Migration 193: 05-Warehouse wave-B — LP-transition ledger + GRN/stock-movement + spare-parts.
++-- PRD: docs/prd/05-WAREHOUSE-PRD.md §5.5 (grns + grn_items), §5.6 (stock_moves), §6.1 (LP state
++--   machine + lp_state_history), §7 (GRN workflow), §8 (stock movements).
++-- Tasks: _meta/atomic-tasks/05-warehouse/tasks/T-019.json (lp_state_history — the transition
++--   ledger written by transitionLpState), T-005.json (grns + grn_items, multi-LP-per-line),
++--   T-006.json (stock_moves + 8 move types). Builds on migration 191 (license_plates + FEFO).
++--
++-- BUILDS ON 191/192 — does NOT recreate public.license_plates, the warehouse RBAC permission
++--   family, or the existing warehouse.lp.* outbox events. The DSL rule (lp_state_machine_v1),
++--   outbox CHECK regen, and the wave-B RBAC seed live in migration 194.
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS ENABLE + FORCE via
++--   app.current_org_id() (foundation function, migration 002 — never a raw current_setting GUC).
++-- site_id day-1: site_id uuid is NULLABLE, no FK, no registry on every operational table — full
++--   per-site scoping ((org_id, site_id) policy + app.current_site_id()) lands later via the
++--   cross-module multi-site backfill (14-multi-site T-030).
++-- NUMERIC-exact: all qty / catch-weight columns are NUMERIC (never float).
++-- FKs: organizations (hard, cascade) + users (hard, set null for audit actors). The LP subject
++--   (lp_id) is a HARD FK to public.license_plates (migration 191, applied). All other
++--   cross-module identities (warehouse_id, product_id, location_id, po_id, to_id, supplier_id,
++--   wo_id, part_item_id) are SOFT uuids — a hard FK would couple migration ordering across
++--   02-Settings / 03-Technical / 04-Planning / 13-Maintenance (mirrors 191).
++-- Canonical-owner separation: this migration creates ONLY warehouse-owned tables. It does NOT
++--   create wo_outputs / oee_snapshots / downtime_events (08-production), schedule_outputs
++--   (04-planning), item_cost_history (03-technical), or quality_holds/ncr_reports (09-quality).
++-- Audit (R13): created/updated actor + timestamp columns + ext_jsonb/private_jsonb +
++--   schema_version, plus a BEFORE UPDATE updated_at trigger (mirrors 191).
++
++-- ===========================================================================
++-- lp_state_history — the LP transition ledger (T-019, WH §6.1).
++--   One immutable row per license_plates status move
++--   (received → available → reserved/allocated → consumed → shipped, plus block/merge/return).
++--   The transitionLpState service validates from→to against lp_state_machine_v1 (migration 194),
++--   inserts a row here in the SAME txn as the license_plates UPDATE, and emits the outbox event.
++--   APPEND-ONLY by contract (Forbidden #3): app_user gets SELECT + INSERT only, no UPDATE/DELETE.
++-- ===========================================================================
++create table if not exists public.lp_state_history (
++  id                 uuid primary key default gen_random_uuid(),
++  org_id             uuid not null references public.organizations(id) on delete cascade,
++  site_id            uuid,
++
++  lp_id              uuid not null references public.license_plates(id) on delete cascade,
++
++  -- State move. from_state NULL only for the genesis (create) transition.
++  from_state         text,
++  to_state           text not null,
++
++  -- Why — reason_code required for destructive transitions (block/destroy/merged), enforced by
++  -- the service against lp_state_machine_v1 allowed_reasons (V-WH-LP-010).
++  reason_code        text,
++  reason_text        text,
++
++  -- Optional context refs (soft uuids) — which WO/GRN/SO/move drove the transition.
++  wo_id              uuid,
++  grn_id             uuid,
++  stock_move_id      uuid,
++  source_so_id       uuid,
++
++  -- Idempotency (R14): a retried transition request never double-writes the ledger row.
++  transaction_id     uuid not null default gen_random_uuid(),
++
++  ext_jsonb          jsonb not null default '{}'::jsonb,
++  private_jsonb      jsonb not null default '{}'::jsonb,
++  schema_version     integer not null default 1,
++
++  -- R13 audit. transitioned_at is the business event time; created_at is the row write time.
++  transitioned_at    timestamptz not null default pg_catalog.now(),
++  created_by         uuid references public.users(id) on delete set null,
++  created_at         timestamptz not null default pg_catalog.now(),
++
++  constraint lp_state_history_transaction_id_uq unique (org_id, transaction_id),
++  constraint lp_state_history_from_state_check check (
++    from_state is null or from_state in (
++      'received', 'available', 'reserved', 'allocated', 'consumed',
++      'blocked', 'merged', 'shipped', 'returned', 'quarantine'
++    )
++  ),
++  constraint lp_state_history_to_state_check check (
++    to_state in (
++      'received', 'available', 'reserved', 'allocated', 'consumed',
++      'blocked', 'merged', 'shipped', 'returned', 'quarantine'
++    )
++  ),
++  constraint lp_state_history_schema_version_check check (schema_version >= 1)
++);
++
++create index if not exists lp_state_history_lp_idx
++  on public.lp_state_history (org_id, lp_id, transitioned_at);
++create index if not exists lp_state_history_org_idx
++  on public.lp_state_history (org_id);
++create index if not exists lp_state_history_org_site_idx
++  on public.lp_state_history (org_id, site_id);
++create index if not exists lp_state_history_wo_idx
++  on public.lp_state_history (wo_id) where wo_id is not null;
++create index if not exists lp_state_history_grn_idx
++  on public.lp_state_history (grn_id) where grn_id is not null;
++
++alter table public.lp_state_history enable row level security;
++alter table public.lp_state_history force row level security;
++
++drop policy if exists lp_state_history_org_context on public.lp_state_history;
++create policy lp_state_history_org_context
++  on public.lp_state_history
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.lp_state_history from public;
++revoke all on public.lp_state_history from app_user;
++-- APPEND-ONLY (Forbidden #3): no UPDATE / no DELETE for the application role.
++grant select, insert on public.lp_state_history to app_user;
++
++-- ===========================================================================
++-- grns — goods-receipt note header (T-005, WH §5.5).
++--   status is ALWAYS manually completed (Q1/V-WH-GRN-001): a completed GRN's items are frozen.
++-- ===========================================================================
++create table if not exists public.grns (
++  id                   uuid primary key default gen_random_uuid(),
++  org_id               uuid not null references public.organizations(id) on delete cascade,
++  site_id              uuid,
++
++  grn_number           text not null,                  -- auto GRN-YYYY-NNNNN (service-assigned)
++  source_type          text not null default 'po',     -- po / to / return / adjustment_in
++  po_id                uuid,                            -- soft FK to 04-Planning purchase orders
++  to_id                uuid,                            -- soft FK to 14-MS transfer orders
++  asn_id               uuid,                            -- P2
++  supplier_id          uuid,                            -- soft FK to 03-Technical suppliers
++  warehouse_id         uuid not null,                   -- soft FK to 02-Settings warehouses
++  default_location_id  uuid,                            -- soft FK to 02-Settings locations
++  receipt_date         timestamptz not null default pg_catalog.now(),
++  status               text not null default 'draft',   -- draft / completed / cancelled
++  received_by          uuid references public.users(id) on delete set null,
++  completed_at         timestamptz,
++  notes                text,
++
++  ext_jsonb            jsonb not null default '{}'::jsonb,
++  private_jsonb        jsonb not null default '{}'::jsonb,
++  schema_version       integer not null default 1,
++
++  created_by           uuid references public.users(id) on delete set null,
++  updated_by           uuid references public.users(id) on delete set null,
++  created_at           timestamptz not null default pg_catalog.now(),
++  updated_at           timestamptz not null default pg_catalog.now(),
++
++  constraint grns_org_grn_number_uq unique (org_id, grn_number),
++  constraint grns_source_type_check check (
++    source_type in ('po', 'to', 'return', 'adjustment_in')
++  ),
++  constraint grns_status_check check (status in ('draft', 'completed', 'cancelled')),
++  constraint grns_schema_version_check check (schema_version >= 1)
++);
++
++create index if not exists grns_org_idx on public.grns (org_id);
++create index if not exists grns_org_site_idx on public.grns (org_id, site_id);
++create index if not exists grns_warehouse_idx on public.grns (org_id, warehouse_id);
++create index if not exists grns_po_idx on public.grns (po_id) where po_id is not null;
++create index if not exists grns_to_idx on public.grns (to_id) where to_id is not null;
++create index if not exists grns_status_idx on public.grns (org_id, status);
++
++alter table public.grns enable row level security;
++alter table public.grns force row level security;
++
++drop policy if exists grns_org_context on public.grns;
++create policy grns_org_context
++  on public.grns
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.grns from public;
++revoke all on public.grns from app_user;
++grant select, insert, update, delete on public.grns to app_user;
++
++-- ===========================================================================
++-- grn_items — multi-LP-per-line receipt rows (T-005, WH §5.5).
++--   One PO line -> N grn_items rows, each = 1 LP with its own batch/expiry/pallet/location.
++--   The system NEVER auto-splits/merges (Forbidden #8): per-row qty is operator-entered.
++-- ===========================================================================
++create table if not exists public.grn_items (
++  id                     uuid primary key default gen_random_uuid(),
++  org_id                 uuid not null references public.organizations(id) on delete cascade,
++  site_id                uuid,
++
++  grn_id                 uuid not null references public.grns(id) on delete cascade,
++  line_number            integer not null,             -- sequence within GRN (multi-row per PO line)
++  product_id             uuid not null,                -- soft FK to 03-Technical items
++  po_line_id             uuid,                         -- source linkage (04-Planning)
++  to_line_id             uuid,
++  ordered_qty            numeric(18, 6),               -- denorm from PO line (validation)
++  received_qty           numeric(18, 6) not null,      -- qty on THIS LP row
++  uom                    text not null,
++  batch_number           text,
++  supplier_batch_number  text,
++  gtin                   text,
++  catch_weight_kg        numeric(18, 6),
++  manufacture_date       timestamptz,
++  expiry_date            timestamptz,
++  best_before_date       timestamptz,
++  pallet_id              uuid,
++  location_id            uuid,                         -- target put-away location
++  qa_status_initial      text not null default 'pending',
++  lp_id                  uuid references public.license_plates(id) on delete set null,  -- populated on complete
++
++  ext_jsonb              jsonb not null default '{}'::jsonb,
++  private_jsonb          jsonb not null default '{}'::jsonb,
++  schema_version         integer not null default 1,
++
++  created_by             uuid references public.users(id) on delete set null,
++  updated_by             uuid references public.users(id) on delete set null,
++  created_at             timestamptz not null default pg_catalog.now(),
++  updated_at             timestamptz not null default pg_catalog.now(),
++
++  constraint grn_items_grn_line_uq unique (grn_id, line_number),
++  constraint grn_items_received_qty_nonneg_check check (received_qty >= 0),
++  constraint grn_items_qa_status_initial_check check (
++    qa_status_initial in ('pending', 'released', 'on_hold', 'rejected')
++  ),
++  constraint grn_items_schema_version_check check (schema_version >= 1)
++);
++
++create index if not exists grn_items_grn_idx on public.grn_items (org_id, grn_id);
++create index if not exists grn_items_org_idx on public.grn_items (org_id);
++create index if not exists grn_items_org_site_idx on public.grn_items (org_id, site_id);
++create index if not exists grn_items_po_line_idx on public.grn_items (po_line_id) where po_line_id is not null;
++create index if not exists grn_items_product_idx on public.grn_items (org_id, product_id);
++create index if not exists grn_items_lp_idx on public.grn_items (lp_id) where lp_id is not null;
++
++alter table public.grn_items enable row level security;
++alter table public.grn_items force row level security;
++
++drop policy if exists grn_items_org_context on public.grn_items;
++create policy grn_items_org_context
++  on public.grn_items
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.grn_items from public;
++revoke all on public.grn_items from app_user;
++grant select, insert, update, delete on public.grn_items to app_user;
++
++-- GRN status-immutability guard (V-WH-GRN-001): a completed/cancelled GRN's items are frozen.
++create or replace function public.grn_items_block_completed_grn()
++returns trigger
++language plpgsql
++set search_path = pg_catalog, public
++as $$
++declare
++  v_status text;
++begin
++  select g.status into v_status
++    from public.grns g
++   where g.id = coalesce(new.grn_id, old.grn_id);
++  if v_status in ('completed', 'cancelled') then
++    raise exception 'V-WH-GRN-001: grn_items are frozen once the GRN is % (grn_id=%)',
++      v_status, coalesce(new.grn_id, old.grn_id);
++  end if;
++  return coalesce(new, old);
++end;
++$$;
++
++drop trigger if exists grn_items_block_completed_grn on public.grn_items;
++create trigger grn_items_block_completed_grn
++  before insert or update or delete on public.grn_items
++  for each row execute function public.grn_items_block_completed_grn();
++
++-- ===========================================================================
++-- stock_moves — movement / adjustment audit log (T-006, WH §5.6, §8).
++--   8 move types; adjustments may be NEGATIVE (§8.5 decrease). The move log is the SoT for
++--   §11 genealogy + §14 movement dashboards. Status is completed/cancelled.
++-- ===========================================================================
++create table if not exists public.stock_moves (
++  id                 uuid primary key default gen_random_uuid(),
++  org_id             uuid not null references public.organizations(id) on delete cascade,
++  site_id            uuid,
++
++  move_number        text not null,                    -- auto SM-YYYY-NNNNN (service-assigned)
++  lp_id              uuid not null references public.license_plates(id) on delete cascade,
++  move_type          text not null,                    -- 8 types (see CHECK)
++  from_location_id   uuid,                             -- null for putaway from virtual receiving zone
++  to_location_id     uuid,
++  quantity           numeric(18, 6) not null,          -- may be negative for adjustment (§8.5)
++  catch_weight_kg    numeric(18, 6),
++  uom                text,
++  move_date          timestamptz not null default pg_catalog.now(),
++  status             text not null default 'completed',
++
++  -- Adjustment governance (§8.7): >10% adjustments need manager approval; reason_code required.
++  reason_code        text,
++  reason_text        text,
++  approved_by        uuid references public.users(id) on delete set null,
++
++  -- Context refs (soft uuids).
++  wo_id              uuid,                              -- consume_to_wo linkage
++  grn_id             uuid,                              -- receipt linkage
++  wo_material_id     uuid,
++
++  -- Idempotency (R14).
++  transaction_id     uuid not null default gen_random_uuid(),
++
++  ext_jsonb          jsonb not null default '{}'::jsonb,
++  private_jsonb      jsonb not null default '{}'::jsonb,
++  schema_version     integer not null default 1,
++
++  created_by         uuid references public.users(id) on delete set null,
++  updated_by         uuid references public.users(id) on delete set null,
++  created_at         timestamptz not null default pg_catalog.now(),
++  updated_at         timestamptz not null default pg_catalog.now(),
++
++  constraint stock_moves_org_move_number_uq unique (org_id, move_number),
++  constraint stock_moves_transaction_id_uq unique (org_id, transaction_id),
++  constraint stock_moves_move_type_check check (
++    move_type in (
++      'transfer', 'putaway', 'issue', 'receipt',
++      'adjustment', 'return', 'quarantine', 'consume_to_wo'
++    )
++  ),
++  constraint stock_moves_status_check check (status in ('completed', 'cancelled')),
++  -- Only adjustment moves may carry a negative qty (§8.5 decrease); all other types are positive.
++  constraint stock_moves_quantity_sign_check check (
++    move_type = 'adjustment' or quantity >= 0
++  ),
++  constraint stock_moves_schema_version_check check (schema_version >= 1)
++);
++
++create index if not exists stock_moves_lp_idx on public.stock_moves (org_id, lp_id, move_date);
++create index if not exists stock_moves_org_idx on public.stock_moves (org_id);
++create index if not exists stock_moves_org_site_idx on public.stock_moves (org_id, site_id);
++create index if not exists stock_moves_move_type_idx on public.stock_moves (org_id, move_type, move_date);
++create index if not exists stock_moves_wo_idx on public.stock_moves (wo_id) where wo_id is not null;
++create index if not exists stock_moves_grn_idx on public.stock_moves (grn_id) where grn_id is not null;
++
++alter table public.stock_moves enable row level security;
++alter table public.stock_moves force row level security;
++
++drop policy if exists stock_moves_org_context on public.stock_moves;
++create policy stock_moves_org_context
++  on public.stock_moves
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.stock_moves from public;
++revoke all on public.stock_moves from app_user;
++grant select, insert, update, delete on public.stock_moves to app_user;
++
++-- ===========================================================================
++-- spare_parts_stock — spare-parts inventory (wave-B; SOFT cross-link to 13-maintenance).
++--   The part SKU (part_item_id) is a soft uuid into 03-Technical items / a maintenance parts
++--   catalog; 13-maintenance MWO reads this via the cross-module contract. on_hand_qty is the
++--   authoritative on-hand; reserved_qty is held against open MWOs. reorder_point/reorder_qty
++--   drive the low-stock signal.
++-- ===========================================================================
++create table if not exists public.spare_parts_stock (
++  id                 uuid primary key default gen_random_uuid(),
++  org_id             uuid not null references public.organizations(id) on delete cascade,
++  site_id            uuid,
++
++  part_item_id       uuid not null,                    -- soft FK to part SKU (03-Technical / 13-MNT)
++  part_number        text not null,                    -- human-readable part code
++  part_name          text,
++  warehouse_id       uuid,                             -- soft FK to 02-Settings warehouses
++  location_id        uuid,                             -- soft FK to 02-Settings locations
++
++  on_hand_qty        numeric(18, 6) not null default 0,
++  reserved_qty       numeric(18, 6) not null default 0,
++  reorder_point      numeric(18, 6),
++  reorder_qty        numeric(18, 6),
++  uom                text not null default 'each',
++  unit_cost          numeric(18, 6),                   -- NUMERIC-exact money
++
++  -- Soft cross-link to 13-maintenance (last MWO that drew/returned the part).
++  last_mwo_id        uuid,
++
++  ext_jsonb          jsonb not null default '{}'::jsonb,
++  private_jsonb      jsonb not null default '{}'::jsonb,
++  schema_version     integer not null default 1,
++
++  created_by         uuid references public.users(id) on delete set null,
++  updated_by         uuid references public.users(id) on delete set null,
++  created_at         timestamptz not null default pg_catalog.now(),
++  updated_at         timestamptz not null default pg_catalog.now(),
++
++  -- One stock row per part per (warehouse) within an org.
++  constraint spare_parts_stock_org_part_wh_uq unique (org_id, part_item_id, warehouse_id),
++  constraint spare_parts_stock_on_hand_nonneg_check check (on_hand_qty >= 0),
++  constraint spare_parts_stock_reserved_nonneg_check check (reserved_qty >= 0),
++  constraint spare_parts_stock_reserved_le_on_hand_check check (reserved_qty <= on_hand_qty),
++  constraint spare_parts_stock_schema_version_check check (schema_version >= 1)
++);
++
++create index if not exists spare_parts_stock_org_idx on public.spare_parts_stock (org_id);
++create index if not exists spare_parts_stock_org_site_idx on public.spare_parts_stock (org_id, site_id);
++create index if not exists spare_parts_stock_part_idx on public.spare_parts_stock (org_id, part_item_id);
++create index if not exists spare_parts_stock_warehouse_idx on public.spare_parts_stock (org_id, warehouse_id);
++-- Low-stock signal: on_hand at/under reorder point.
++create index if not exists spare_parts_stock_reorder_idx
++  on public.spare_parts_stock (org_id, part_item_id)
++  where reorder_point is not null;
++
++alter table public.spare_parts_stock enable row level security;
++alter table public.spare_parts_stock force row level security;
++
++drop policy if exists spare_parts_stock_org_context on public.spare_parts_stock;
++create policy spare_parts_stock_org_context
++  on public.spare_parts_stock
++  for all
++  to app_user
++  using (org_id = app.current_org_id())
++  with check (org_id = app.current_org_id());
++
++revoke all on public.spare_parts_stock from public;
++revoke all on public.spare_parts_stock from app_user;
++grant select, insert, update, delete on public.spare_parts_stock to app_user;
++
++-- ===========================================================================
++-- Shared updated_at trigger for the wave-B mutable tables (reuse the 191 helper).
++-- lp_state_history is append-only (no updated_at), so it is excluded.
++-- ===========================================================================
++drop trigger if exists grns_set_updated_at on public.grns;
++create trigger grns_set_updated_at
++  before update on public.grns
++  for each row execute function public.license_plates_set_updated_at();
++
++drop trigger if exists grn_items_set_updated_at on public.grn_items;
++create trigger grn_items_set_updated_at
++  before update on public.grn_items
++  for each row execute function public.license_plates_set_updated_at();
++
++drop trigger if exists stock_moves_set_updated_at on public.stock_moves;
++create trigger stock_moves_set_updated_at
++  before update on public.stock_moves
++  for each row execute function public.license_plates_set_updated_at();
++
++drop trigger if exists spare_parts_stock_set_updated_at on public.spare_parts_stock;
++create trigger spare_parts_stock_set_updated_at
++  before update on public.spare_parts_stock
++  for each row execute function public.license_plates_set_updated_at();
+diff --git a/packages/db/migrations/194-warehouse-waveb-outbox-rbac-dsl-seed.sql b/packages/db/migrations/194-warehouse-waveb-outbox-rbac-dsl-seed.sql
+new file mode 100644
+index 00000000..e2e34b34
+--- /dev/null
++++ b/packages/db/migrations/194-warehouse-waveb-outbox-rbac-dsl-seed.sql
+@@ -0,0 +1,385 @@
++-- Migration 194: 05-Warehouse wave-B — (A) admit the new warehouse.grn.received outbox event to
++--   the outbox_events CHECK (keep the enum<->CHECK drift gate green), (B) grant the wave-B
++--   warehouse.spare_parts.* RBAC permissions to the org-admin role family + warehouse/maintenance
++--   operator roles in BOTH stores with an org-insert trigger + backfill, and (C) deploy the
++--   lp_state_machine_v1 DSL rule into the 02-Settings rule_definitions registry (T-013, §6.1).
++-- PRD: docs/prd/05-WAREHOUSE-PRD.md §3 (RBAC), §6.1 (LP state machine, ADR-029), §11 (events).
++-- Tasks: T-013 (lp_state_machine_v1 seed), wave-B RBAC seed P0 (recurring live-bug class 1).
++-- Canonical permission strings: packages/rbac/src/permissions.enum.ts (ALL_WAREHOUSE_PERMISSIONS).
++-- Canonical event strings: packages/outbox/src/events.enum.ts (DB_EVENT_TYPES).
++-- Wave0 lock: org_id business scope (NOT tenant_id); RLS via app.current_org_id().
++
++-- ===========================================================================
++-- (A) Outbox event CHECK — drop + recreate with the FULL vocabulary (192's list + the new
++--     warehouse.grn.received). The enum<->CHECK drift gate (packages/outbox check-drift.test.ts)
++--     asserts THIS (now highest-numbered) migration's CHECK string set === DB_EVENT_TYPES, so the
++--     list below MUST stay byte-aligned with events.enum.ts. Strict superset of 192.
++-- ===========================================================================
++alter table public.outbox_events
++  drop constraint if exists outbox_events_event_type_check;
++
++alter table public.outbox_events
++  add constraint outbox_events_event_type_check check (
++    event_type in (
++      'audit.recorded',
++      'bom.initial_version_created',
++      'bom.version_submitted',
++      'brief.completed_for_project',
++      'brief.converted',
++      'brief.created',
++      'catch_weight.variance_exceeded',
++      'compliance_doc.deleted',
++      'compliance_doc.expired',
++      'compliance_doc.expiring',
++      'compliance_doc.uploaded',
++      'd365.cache.refreshed',
++      'fa.allergens_changed',
++      'fa.built',
++      'fa.built_reset',
++      'fa.cascade',
++      'fa.core_closed',
++      'fa.created',
++      'fa.deleted',
++      'fa.dept_closed',
++      'fa.dept_reopened',
++      'fa.edit',
++      'fa.intermediate_code_changed',
++      'fa.recipe_changed',
++      'fa.template_applied',
++      'fg.allergens_changed',
++      'fg.bom.released',
++      'fg.created',
++      'fg.edit',
++      'fg.intermediate_code_changed',
++      'fg.release_blocked',
++      'fg.released_to_factory',
++      'formulation.locked',
++      'formulation.submitted_for_trial',
++      'lp.received',
++      'manufacturing_operations.created',
++      'manufacturing_operations.deactivated',
++      'manufacturing_operations.reset_to_seed',
++      'manufacturing_operations.updated',
++      'npd.allergens.bulk_rebuild_completed',
++      'npd.builder.released_records_created',
++      'npd.fg_candidate_mapped',
++      'npd.gate.advanced',
++      'npd.gate.approved',
++      'npd.gate.reverted',
++      'npd.project.brief_mapped',
++      'npd.project.created',
++      'npd.project.legacy_stages_closed',
++      'npd.project.release_requested',
++      'onboarding.first_wo_recorded',
++      'onboarding.step.advance',
++      'onboarding.step.back',
++      'onboarding.step.jump',
++      'onboarding.step.restart',
++      'onboarding.step.skip',
++      'org.created',
++      'org.mfa_enrollment.forced',
++      'org.security_policy.updated',
++      'production.allergen_changeover.validated',
++      'production.changeover.signed',
++      'production.consume.blocked',
++      'production.consume.completed',
++      'production.downtime.recorded',
++      'production.oee.snapshot',
++      'production.output.recorded',
++      'production.waste.recorded',
++      'production.wo.closed',
++      'production.wo.completed',
++      'production.wo.started',
++      'quality.atp_swab_failed',
++      'quality.recorded',
++      'reference.allergens_added_by_process.bulk_changed',
++      'reference.allergens_by_rm.bulk_changed',
++      'reference.csv.committed',
++      'reference.row.soft_deleted',
++      'reference.row.upserted',
++      'risk.created',
++      'role.assigned',
++      'rule.deployed',
++      'settings.core_flag.updated',
++      'settings.d365_sync.updated',
++      'settings.dept_override.updated',
++      'settings.ip_allowlist.changed',
++      'settings.line.upserted',
++      'settings.location.deleted',
++      'settings.location.imported',
++      'settings.location.upserted',
++      'settings.machine.upserted',
++      'settings.module.disabled',
++      'settings.module.enabled',
++      'settings.module.toggled',
++      'settings.notification_channel_updated',
++      'settings.notification_digest_updated',
++      'settings.notification_rule_updated',
++      'settings.org.created',
++      'settings.org.updated',
++      'settings.reference.row_updated',
++      'settings.role.assigned',
++      'settings.rule.deployed',
++      'settings.rule_variant.updated',
++      'settings.schema.migration_requested',
++      'settings.scim.token_created',
++      'settings.sso.config_changed',
++      'settings.upgrade.completed',
++      'settings.upgrade.promoted',
++      'settings.upgrade.rolled_back',
++      'settings.upgrade.scheduled',
++      'settings.user.accepted',
++      'settings.user.deactivated',
++      'settings.user.invitation_resent',
++      'settings.user.invited',
++      'settings.warehouse.deactivated',
++      'shipment.created',
++      'technical.factory_spec.approved',
++      'tenant.cohort.advanced',
++      'tenant.migration.run',
++      'tenant.migration.run.failed',
++      'unit_of_measure.conversion_created',
++      'unit_of_measure.created',
++      'unit_of_measure.soft_deleted',
++      'user.invited',
++      'warehouse.grn.received',
++      'warehouse.lp.received',
++      'warehouse.lp.shipped',
++      'warehouse.lp.transitioned',
++      'warehouse.material.consumed',
++      'wo.ready'
++    )
++  );
++
++comment on constraint outbox_events_event_type_check on public.outbox_events
++  is 'Regenerated from events.enum.ts DB_EVENT_TYPES (127 types incl warehouse.grn.received).';
++
++-- ===========================================================================
++-- (B) warehouse.spare_parts.* RBAC seed (wave-B).
++--   ROOT CAUSE (403-everywhere / unreachable-feature class — same as 149/154/185/192): adding
++--   the warehouse.spare_parts.* strings to the enum grants NOBODY access. This grants:
++--     * BOTH spare_parts strings to the org-admin role family;
++--     * the read string to warehouse/maintenance operator roles; the adjust string to a
++--       narrower maintenance/stock-controller subset (SoD: read is broad, write is gated);
++--   in BOTH role_permissions (normalized) and roles.permissions (legacy jsonb), for every org,
++--   with an AFTER INSERT trigger so new orgs inherit it. Idempotent (on conflict do nothing /
++--   distinct jsonb). Models on 149/154/185/192.
++-- ===========================================================================
++create or replace function public.seed_warehouse_waveb_permissions_for_org(p_org_id uuid)
++returns void
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++declare
++  v_all_perms text[] := array[
++    'warehouse.spare_parts.read',
++    'warehouse.spare_parts.adjust'
++  ];
++  v_reader_perms text[] := array['warehouse.spare_parts.read'];
++  v_writer_perms text[] := array['warehouse.spare_parts.read', 'warehouse.spare_parts.adjust'];
++  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
++  -- broad reader family (operators + maintenance can SEE parts stock).
++  v_reader_roles text[] := array[
++    'operator','warehouse_operator','warehouse_clerk','scanner','scanner_operator',
++    'production_operator','line_operator','maintenance_operator','maintenance_tech','technician'
++  ];
++  -- narrower writer family (maintenance / stock controllers issue/return parts).
++  v_writer_roles text[] := array[
++    'warehouse_operator','warehouse_clerk','maintenance_operator','maintenance_tech',
++    'stock_controller','inventory_manager'
++  ];
++begin
++  -- --- Normalized storage (role_permissions) ---
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_all_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
++  on conflict (role_id, permission) do nothing;
++
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_reader_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_reader_roles) or r.slug = any(v_reader_roles))
++  on conflict (role_id, permission) do nothing;
++
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_writer_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_writer_roles) or r.slug = any(v_writer_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- --- Legacy jsonb cache (roles.permissions) ---
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_all_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
++
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_reader_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_reader_roles) or r.slug = any(v_reader_roles))
++     and not (r.code = any(v_writer_roles) or r.slug = any(v_writer_roles));
++
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_writer_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_writer_roles) or r.slug = any(v_writer_roles));
++end;
++$$;
++
++revoke all on function public.seed_warehouse_waveb_permissions_for_org(uuid) from public;
++revoke all on function public.seed_warehouse_waveb_permissions_for_org(uuid) from app_user;
++
++create or replace function public.seed_warehouse_waveb_permissions_on_org_insert()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++begin
++  perform public.seed_warehouse_waveb_permissions_for_org(new.id);
++  return new;
++end;
++$$;
++
++revoke all on function public.seed_warehouse_waveb_permissions_on_org_insert() from public;
++revoke all on function public.seed_warehouse_waveb_permissions_on_org_insert() from app_user;
++
++-- zzz2 prefix so it fires after the 080 role-seed trigger and the 192 wave-A warehouse trigger.
++drop trigger if exists trg_zzz2_seed_warehouse_waveb_permissions on public.organizations;
++create trigger trg_zzz2_seed_warehouse_waveb_permissions
++  after insert on public.organizations
++  for each row
++  execute function public.seed_warehouse_waveb_permissions_on_org_insert();
++
++-- Backfill every existing org.
++do $$
++declare
++  v_org_id uuid;
++begin
++  for v_org_id in select id from public.organizations loop
++    perform public.seed_warehouse_waveb_permissions_for_org(v_org_id);
++  end loop;
++end
++$$;
++
++-- ===========================================================================
++-- (C) lp_state_machine_v1 DSL rule (T-013, §6.1, ADR-029).
++--   Deploys the LP state-machine DSL into public.rule_definitions (the L1 rule registry created
++--   by 02-Settings migration 039) for every existing org, plus an AFTER INSERT trigger so new
++--   orgs receive it. The transitionLpState service (T-019) reads this row via getAllowedTransitions
++--   — transitions are NEVER hardcoded in the service (Forbidden #4). Admin read-only (ADR-029):
++--   changes go through PR/deploy, never an admin edit endpoint.
++--
++--   definition_json encodes every §6.1 transition with its allowed_reasons + the
++--   destructive flag (reason_code mandatory, V-WH-LP-010).
++-- ===========================================================================
++do $$
++declare
++  v_rule_code text := 'lp_state_machine_v1';
++  v_definition jsonb := jsonb_build_object(
++    'rule_code', 'lp_state_machine_v1',
++    'version', 1,
++    'description', 'License Plate (LP) state machine (WH §6.1): allowed status transitions + per-transition guards + allowed reason_codes. Destructive transitions (block/merged) require reason_code (V-WH-LP-010). Admin read-only (ADR-029).',
++    'handler', 'apps/web/lib/services/warehouse/lp-state-transition.ts',
++    'states', jsonb_build_array(
++      'received','available','reserved','allocated','consumed','blocked','merged','shipped','returned','quarantine'
++    ),
++    'transitions', jsonb_build_array(
++      jsonb_build_object('from', null, 'to', 'available', 'guard', 'grn.completed OR wo.output_recorded OR split.applied', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'available', 'to', 'reserved', 'guard', '04-PLAN wo.release AND hard-lock available; RM-root only (V-WH-FEFO-005)', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'reserved', 'to', 'available', 'guard', 'wo.cancelled OR reservation.released OR wo_paused timeout', 'destructive', false, 'allowed_reasons', jsonb_build_array('wo_cancelled','reservation_released','timeout')),
++      jsonb_build_object('from', 'reserved', 'to', 'consumed', 'guard', '08-PROD consume_to_wo scan; 09-quality T-064 consume gate pass', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'available', 'to', 'consumed', 'guard', 'merge op (input LPs -> primary)', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'available', 'to', 'blocked', 'guard', 'qa.status=FAILED OR manual block + role IN (QA,Manager,Admin)', 'destructive', true, 'allowed_reasons', jsonb_build_array('quality_issue','damage','recall','expiry','other')),
++      jsonb_build_object('from', 'blocked', 'to', 'available', 'guard', 'QA release OR manager unblock + audit reason; signed by 09-quality', 'destructive', false, 'allowed_reasons', jsonb_build_array('qa_released','manager_override','other')),
++      jsonb_build_object('from', 'available', 'to', 'merged', 'guard', 'merge as secondary input -> consumed via genealogy; same product+batch+expiry; catch-weight sum (D14)', 'destructive', true, 'allowed_reasons', jsonb_build_array('merge','other')),
++      jsonb_build_object('from', 'available', 'to', 'shipped', 'guard', '11-SHIPPING ship_event; SO line allocated', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'reserved', 'to', 'shipped', 'guard', '11-SHIPPING ship_event; SO line allocated', 'destructive', false, 'allowed_reasons', jsonb_build_array())
++    )
++  );
++begin
++  insert into public.rule_definitions (org_id, rule_code, rule_type, tier, definition_json, version)
++  select o.id, v_rule_code, 'workflow', 'L1', v_definition, 1
++    from public.organizations o
++  on conflict (org_id, rule_code, version) do nothing;
++end
++$$;
++
++create or replace function public.seed_lp_state_machine_rule_for_org()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog, public
++as $$
++declare
++  v_definition jsonb := jsonb_build_object(
++    'rule_code', 'lp_state_machine_v1',
++    'version', 1,
++    'description', 'License Plate (LP) state machine (WH §6.1): allowed status transitions + per-transition guards + allowed reason_codes. Destructive transitions (block/merged) require reason_code (V-WH-LP-010). Admin read-only (ADR-029).',
++    'handler', 'apps/web/lib/services/warehouse/lp-state-transition.ts',
++    'states', jsonb_build_array(
++      'received','available','reserved','allocated','consumed','blocked','merged','shipped','returned','quarantine'
++    ),
++    'transitions', jsonb_build_array(
++      jsonb_build_object('from', null, 'to', 'available', 'guard', 'grn.completed OR wo.output_recorded OR split.applied', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'available', 'to', 'reserved', 'guard', '04-PLAN wo.release AND hard-lock available; RM-root only (V-WH-FEFO-005)', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'reserved', 'to', 'available', 'guard', 'wo.cancelled OR reservation.released OR wo_paused timeout', 'destructive', false, 'allowed_reasons', jsonb_build_array('wo_cancelled','reservation_released','timeout')),
++      jsonb_build_object('from', 'reserved', 'to', 'consumed', 'guard', '08-PROD consume_to_wo scan; 09-quality T-064 consume gate pass', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'available', 'to', 'consumed', 'guard', 'merge op (input LPs -> primary)', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'available', 'to', 'blocked', 'guard', 'qa.status=FAILED OR manual block + role IN (QA,Manager,Admin)', 'destructive', true, 'allowed_reasons', jsonb_build_array('quality_issue','damage','recall','expiry','other')),
++      jsonb_build_object('from', 'blocked', 'to', 'available', 'guard', 'QA release OR manager unblock + audit reason; signed by 09-quality', 'destructive', false, 'allowed_reasons', jsonb_build_array('qa_released','manager_override','other')),
++      jsonb_build_object('from', 'available', 'to', 'merged', 'guard', 'merge as secondary input -> consumed via genealogy; same product+batch+expiry; catch-weight sum (D14)', 'destructive', true, 'allowed_reasons', jsonb_build_array('merge','other')),
++      jsonb_build_object('from', 'available', 'to', 'shipped', 'guard', '11-SHIPPING ship_event; SO line allocated', 'destructive', false, 'allowed_reasons', jsonb_build_array()),
++      jsonb_build_object('from', 'reserved', 'to', 'shipped', 'guard', '11-SHIPPING ship_event; SO line allocated', 'destructive', false, 'allowed_reasons', jsonb_build_array())
++    )
++  );
++begin
++  insert into public.rule_definitions (org_id, rule_code, rule_type, tier, definition_json, version)
++  values (new.id, 'lp_state_machine_v1', 'workflow', 'L1', v_definition, 1)
++  on conflict (org_id, rule_code, version) do nothing;
++  return new;
++end
++$$;
++
++drop trigger if exists seed_lp_state_machine_rule_after_org_insert on public.organizations;
++create trigger seed_lp_state_machine_rule_after_org_insert
++  after insert on public.organizations
++  for each row execute function public.seed_lp_state_machine_rule_for_org();
+diff --git a/packages/db/migrations/199-finance-schema-and-rbac-seed.sql b/packages/db/migrations/199-finance-schema-and-rbac-seed.sql
+new file mode 100644
+index 00000000..c5ef8d1b
+--- /dev/null
++++ b/packages/db/migrations/199-finance-schema-and-rbac-seed.sql
+@@ -0,0 +1,665 @@
++-- Migration 199: 10-Finance — SCHEMA foundation + outbox CHECK regen + RBAC seed.
++--
++-- (A) Finance core schema: standard_costs (T-009), wo_actual_costing (T-015, READ-only soft ref
++--     to canonical 08-production wo_outputs — NEVER writes wo_outputs), inventory_cost_layers /
++--     item_wac_state / cost_variances (T-021 FIFO/WAC valuation + variance), finance_outbox_events
++--     / d365_finance_dlq (T-027 D365 stage-5 export-only, R15). All org-scoped, RLS enabled+FORCED
++--     via app.current_org_id(), audit triggers, FK indexes, NUMERIC-exact money/qty.
++-- (B) Outbox event CHECK regen — admit the 5 finance.* events into the highest-numbered migration's
++--     outbox_events_event_type_check so the enum<->CHECK drift gate stays green (strict superset of
++--     189/192 + 5 finance + the planning-ext scheduler set if present is NOT added here — 199 only
++--     adds finance; see note below).
++-- (C) finance.* RBAC permission family seed to the org-admin role family + a finance operator role
++--     family, in BOTH role_permissions (normalized) and roles.permissions (legacy jsonb) + AFTER
++--     INSERT trigger + full backfill (model migs 149/154/185/192 — the #1 403-everywhere fix).
++--
++-- PRD: docs/prd/10-FINANCE-PRD.md §3 (RBAC), §5 (standard cost), §6 (D365 stage-5 R15), §7
++--      (WO actual costing + FIFO/WAC + variance), §12 (events).
++-- Tasks: T-001 (fin.* permission enum) + T-009 + T-015 + T-021 + T-027 + the recurring-live-bug
++--        RBAC-seed P0 (class 1).
++-- Canonical permission strings: packages/rbac/src/permissions.enum.ts (ALL_FINANCE_PERMISSIONS).
++-- Canonical event strings: packages/outbox/src/events.enum.ts (ALL_FINANCE_EVENTS / DB_EVENT_TYPES).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (foundation function, migration 002-rls-baseline.sql — never redefined, never read as a raw
++--   current_setting GUC).
++-- site_id day-1: site_id uuid is NULLABLE, no FK, no registry — full per-site scoping
++--   ((org_id, site_id) NOT NULL + app.current_site_id() policy) lands later via 14-MS T-030.
++-- NUMERIC-exact: money NUMERIC(18,4), unit cost NUMERIC(18,6), quantity/kg NUMERIC(14,3),
++--   percent NUMERIC(8,2). NEVER float.
++-- Canonical-owner separation: this migration creates ONLY finance-owned tables. It does NOT create
++--   or write wo_outputs / oee_snapshots / downtime_events (08-production), schedule_outputs
++--   (04-planning), license_plates (05-warehouse), item_cost_history (03-technical, dual-owned),
++--   or quality_holds / ncr_reports (09-quality). All cross-module identities are SOFT uuids.
++
++-- ===========================================================================
++-- (A1) standard_costs — versioned target cost per item (T-009, FIN §5).
++-- ===========================================================================
++create table if not exists public.standard_costs (
++  id                        uuid primary key default gen_random_uuid(),
++  org_id                    uuid not null references public.organizations(id) on delete cascade,
++  site_id                   uuid,
++
++  item_id                   uuid not null,            -- soft FK to 03-Technical items
++  currency_id               uuid not null,            -- soft FK to 10-Finance currencies
++
++  version                   integer not null default 1,
++
++  material_cost             numeric(18, 4) not null default 0,
++  labour_cost               numeric(18, 4) not null default 0,
++  overhead_cost             numeric(18, 4) not null default 0,
++  total_cost                numeric(18, 4) not null default 0,
++
++  effective_from            timestamptz not null default pg_catalog.now(),
++  effective_to              timestamptz,
++
++  status                    text not null default 'draft',
++
++  approved_by               uuid references public.users(id) on delete set null,
++  approved_at               timestamptz,
++  approval_signature_sha256 text,
++
++  ext_jsonb                 jsonb not null default '{}'::jsonb,
++
++  created_by                uuid references public.users(id) on delete set null,
++  updated_by                uuid references public.users(id) on delete set null,
++  created_at                timestamptz not null default pg_catalog.now(),
++  updated_at                timestamptz not null default pg_catalog.now(),
++
++  constraint standard_costs_org_item_currency_version_uq
++    unique (org_id, item_id, currency_id, version),
++  constraint standard_costs_status_check
++    check (status in ('draft', 'approved', 'superseded', 'archived')),
++  constraint standard_costs_version_positive_check check (version >= 1),
++  constraint standard_costs_total_nonneg_check check (total_cost >= 0)
++);
++
++create index if not exists standard_costs_org_idx       on public.standard_costs (org_id);
++create index if not exists standard_costs_org_site_idx  on public.standard_costs (org_id, site_id);
++create index if not exists standard_costs_org_item_idx  on public.standard_costs (org_id, item_id);
++
++-- ===========================================================================
++-- (A2) wo_actual_costing — realized cost per WO (T-015, FIN §7). READS canonical 08-production
++--      wo_outputs via SOFT wo_output_id uuid; NEVER writes wo_outputs.
++-- ===========================================================================
++create table if not exists public.wo_actual_costing (
++  id                  uuid primary key default gen_random_uuid(),
++  org_id              uuid not null references public.organizations(id) on delete cascade,
++  site_id             uuid,
++
++  wo_id               uuid not null,                  -- soft FK to 08-Production work_orders
++  wo_output_id        uuid,                           -- soft READ-only ref to 08-Production wo_outputs
++  item_id             uuid,                           -- soft FK to 03-Technical items
++  currency_id         uuid not null,                  -- soft FK to currencies
++
++  output_qty_kg       numeric(14, 3) not null default 0,
++
++  material_cost       numeric(18, 4) not null default 0,
++  labour_cost         numeric(18, 4) not null default 0,
++  overhead_cost       numeric(18, 4) not null default 0,
++  total_actual_cost   numeric(18, 4) not null default 0,
++
++  status              text not null default 'open',
++  closed_at           timestamptz,
++
++  ext_jsonb           jsonb not null default '{}'::jsonb,
++
++  created_by          uuid references public.users(id) on delete set null,
++  updated_by          uuid references public.users(id) on delete set null,
++  created_at          timestamptz not null default pg_catalog.now(),
++  updated_at          timestamptz not null default pg_catalog.now(),
++
++  constraint wo_actual_costing_org_wo_currency_uq unique (org_id, wo_id, currency_id),
++  constraint wo_actual_costing_status_check check (status in ('open', 'closed', 'reversed')),
++  constraint wo_actual_costing_total_nonneg_check check (total_actual_cost >= 0)
++);
++
++create index if not exists wo_actual_costing_org_idx        on public.wo_actual_costing (org_id);
++create index if not exists wo_actual_costing_org_site_idx   on public.wo_actual_costing (org_id, site_id);
++create index if not exists wo_actual_costing_org_wo_idx     on public.wo_actual_costing (org_id, wo_id);
++create index if not exists wo_actual_costing_wo_output_idx  on public.wo_actual_costing (wo_output_id)
++  where wo_output_id is not null;
++
++-- ===========================================================================
++-- (A3) inventory_cost_layers — FIFO per-LP lot tracking (T-021, FIN §7). Soft READ-only ref to
++--      05-warehouse license_plates. Partial index where NOT exhausted is query-plan-load-bearing.
++-- ===========================================================================
++create table if not exists public.inventory_cost_layers (
++  id                uuid primary key default gen_random_uuid(),
++  org_id            uuid not null references public.organizations(id) on delete cascade,
++  site_id           uuid,
++
++  item_id           uuid not null,                    -- soft FK to 03-Technical items
++  license_plate_id  uuid,                             -- soft READ-only ref to 05-warehouse license_plates
++  currency_id       uuid not null,                    -- soft FK to currencies
++
++  source_type       text not null default 'po_receipt',
++  receipt_date      timestamptz not null default pg_catalog.now(),
++
++  qty_received_kg   numeric(14, 3) not null,
++  qty_remaining_kg  numeric(14, 3) not null,
++  unit_cost         numeric(18, 6) not null,
++  total_value       numeric(18, 4) not null default 0,
++
++  is_exhausted      boolean not null default false,
++
++  ext_jsonb         jsonb not null default '{}'::jsonb,
++
++  created_by        uuid references public.users(id) on delete set null,
++  updated_by        uuid references public.users(id) on delete set null,
++  created_at        timestamptz not null default pg_catalog.now(),
++  updated_at        timestamptz not null default pg_catalog.now(),
++
++  constraint inventory_cost_layers_source_type_check
++    check (source_type in ('po_receipt', 'wo_output', 'adjustment', 'd365_import')),
++  constraint inventory_cost_layers_qty_received_positive_check check (qty_received_kg > 0),
++  -- No negative inventory (V-FIN-INV-04).
++  constraint inventory_cost_layers_qty_remaining_nonneg_check check (qty_remaining_kg >= 0),
++  constraint inventory_cost_layers_qty_remaining_le_received_check
++    check (qty_remaining_kg <= qty_received_kg),
++  constraint inventory_cost_layers_unit_cost_nonneg_check check (unit_cost >= 0)
++);
++
++create index if not exists inventory_cost_layers_org_idx       on public.inventory_cost_layers (org_id);
++create index if not exists inventory_cost_layers_org_site_idx  on public.inventory_cost_layers (org_id, site_id);
++create index if not exists inventory_cost_layers_org_item_idx  on public.inventory_cost_layers (org_id, item_id);
++create index if not exists inventory_cost_layers_lp_idx        on public.inventory_cost_layers (license_plate_id)
++  where license_plate_id is not null;
++-- FIFO consume partial index (receipt_date ASC, only active layers) — §7 FIFO SLO depends on it.
++create index if not exists inventory_cost_layers_fifo_consume_idx
++  on public.inventory_cost_layers (org_id, item_id, currency_id, receipt_date asc)
++  where is_exhausted = false;
++
++-- ===========================================================================
++-- (A4) item_wac_state — Weighted-Average Cost running state (T-021, FIN §7). avg_cost is GENERATED
++--      ALWAYS AS (total_value / NULLIF(total_qty_kg, 0)) STORED. No negative inventory (V-FIN-INV-04).
++-- ===========================================================================
++create table if not exists public.item_wac_state (
++  id            uuid primary key default gen_random_uuid(),
++  org_id        uuid not null references public.organizations(id) on delete cascade,
++  site_id       uuid,
++
++  item_id       uuid not null,                        -- soft FK to 03-Technical items
++  currency_id   uuid not null,                        -- soft FK to currencies
++
++  total_qty_kg  numeric(14, 3) not null default 0,
++  total_value   numeric(18, 4) not null default 0,
++  avg_cost      numeric(18, 6)
++    generated always as (
++      case when total_qty_kg = 0 then 0
++           else round(total_value / total_qty_kg, 6)
++      end
++    ) stored,
++
++  ext_jsonb     jsonb not null default '{}'::jsonb,
++
++  updated_by    uuid references public.users(id) on delete set null,
++  created_at    timestamptz not null default pg_catalog.now(),
++  updated_at    timestamptz not null default pg_catalog.now(),
++
++  constraint item_wac_state_org_item_currency_uq unique (org_id, item_id, currency_id),
++  constraint item_wac_state_qty_nonneg_check check (total_qty_kg >= 0),
++  constraint item_wac_state_value_nonneg_check check (total_value >= 0)
++);
++
++create index if not exists item_wac_state_org_idx       on public.item_wac_state (org_id);
++create index if not exists item_wac_state_org_site_idx  on public.item_wac_state (org_id, site_id);
++
++-- ===========================================================================
++-- (A5) cost_variances — standard vs actual variance per (wo, category) (T-021, FIN §7).
++--      variance_amount = actual - standard (GENERATED). Finalized variance is immutable (P1).
++-- ===========================================================================
++create table if not exists public.cost_variances (
++  id                uuid primary key default gen_random_uuid(),
++  org_id            uuid not null references public.organizations(id) on delete cascade,
++  site_id           uuid,
++
++  wo_id             uuid not null,                    -- soft FK to 08-Production work_orders
++  item_id           uuid,                             -- soft FK to 03-Technical items
++  currency_id       uuid not null,                    -- soft FK to currencies
++
++  category          text not null,
++
++  standard_amount   numeric(18, 4) not null default 0,
++  actual_amount     numeric(18, 4) not null default 0,
++  variance_amount   numeric(18, 4) generated always as (actual_amount - standard_amount) stored,
++  variance_pct      numeric(8, 2),
++
++  severity          text not null default 'info',
++  status            text not null default 'open',
++  finalized_at      timestamptz,
++
++  ext_jsonb         jsonb not null default '{}'::jsonb,
++
++  created_by        uuid references public.users(id) on delete set null,
++  updated_by        uuid references public.users(id) on delete set null,
++  created_at        timestamptz not null default pg_catalog.now(),
++  updated_at        timestamptz not null default pg_catalog.now(),
++
++  constraint cost_variances_org_wo_category_currency_uq
++    unique (org_id, wo_id, category, currency_id),
++  constraint cost_variances_category_check
++    check (category in ('material', 'labour', 'overhead', 'yield', 'waste')),
++  constraint cost_variances_severity_check check (severity in ('info', 'warn', 'critical')),
++  constraint cost_variances_status_check check (status in ('open', 'finalized'))
++);
++
++create index if not exists cost_variances_org_idx       on public.cost_variances (org_id);
++create index if not exists cost_variances_org_site_idx  on public.cost_variances (org_id, site_id);
++create index if not exists cost_variances_org_wo_idx    on public.cost_variances (org_id, wo_id);
++
++-- ===========================================================================
++-- (A6) finance_outbox_events — D365 stage-5 EXPORT-ONLY parallel outbox namespace (T-027, FIN §6.4).
++--      R15 anti-corruption: D365 is strictly export-only; these rows are NEVER an inbound source of
++--      truth for any canonical Monopilot state. D365 IDs live only as optional d365_external_ids
++--      metadata, never as a primary/RLS key. Idempotency key = UUID v7 (Foundation R14).
++-- ===========================================================================
++create table if not exists public.finance_outbox_events (
++  id                uuid primary key default gen_random_uuid(),
++  org_id            uuid not null references public.organizations(id) on delete cascade,
++  site_id           uuid,
++
++  event_type        text not null,
++  idempotency_key   uuid not null,
++
++  payload           jsonb not null default '{}'::jsonb,
++  d365_external_ids jsonb not null default '{}'::jsonb,
++
++  posting_date      timestamptz,
++  gl_account        text,
++
++  status            text not null default 'pending',
++  attempts          integer not null default 0,
++  last_error        text,
++  processed_at      timestamptz,
++
++  created_at        timestamptz not null default pg_catalog.now(),
++  updated_at        timestamptz not null default pg_catalog.now(),
++
++  constraint finance_outbox_events_org_idempotency_uq unique (org_id, idempotency_key),
++  constraint finance_outbox_events_status_check
++    check (status in ('pending', 'processing', 'sent', 'failed', 'dead_lettered'))
++);
++
++create index if not exists finance_outbox_events_org_idx         on public.finance_outbox_events (org_id);
++create index if not exists finance_outbox_events_org_status_idx  on public.finance_outbox_events (org_id, status);
++create index if not exists finance_outbox_events_consolidator_idx
++  on public.finance_outbox_events (org_id, posting_date, gl_account);
++
++-- ===========================================================================
++-- (A7) d365_finance_dlq — dead-letter queue for permanent D365 export failures (T-027, FIN §6.4).
++--      Permanent-error replay is admin-only (V-FIN-INT-05). Export-only (R15).
++-- ===========================================================================
++create table if not exists public.d365_finance_dlq (
++  id              uuid primary key default gen_random_uuid(),
++  org_id          uuid not null references public.organizations(id) on delete cascade,
++  site_id         uuid,
++
++  source_event_id uuid,                               -- soft ref to finance_outbox_events.id
++  event_type      text not null,
++  idempotency_key uuid not null,
++
++  payload         jsonb not null default '{}'::jsonb,
++  failure_reason  text,
++  attempts        integer not null default 0,
++
++  status          text not null default 'dead_lettered',
++  resolved_by     uuid references public.users(id) on delete set null,
++  resolved_at     timestamptz,
++
++  created_at      timestamptz not null default pg_catalog.now(),
++  updated_at      timestamptz not null default pg_catalog.now(),
++
++  constraint d365_finance_dlq_org_idempotency_uq unique (org_id, idempotency_key),
++  constraint d365_finance_dlq_status_check
++    check (status in ('dead_lettered', 'replaying', 'resolved'))
++);
++
++create index if not exists d365_finance_dlq_org_idx          on public.d365_finance_dlq (org_id);
++create index if not exists d365_finance_dlq_org_status_idx   on public.d365_finance_dlq (org_id, status);
++create index if not exists d365_finance_dlq_source_event_idx on public.d365_finance_dlq (source_event_id)
++  where source_event_id is not null;
++
++-- ===========================================================================
++-- RLS — ENABLE + FORCE; org isolation via app.current_org_id(); updated_at trigger.
++-- R13 audit = audit COLUMNS (created_by/updated_by/created_at/updated_at) + updated_at trigger.
++-- This repo has NO generic public.audit_event() / app.audit_event() row trigger (per planning
++-- 176/177 + production 181 precedent — they note the same); mutating-action audit_events rows are
++-- emitted by the Server-Action layer (Foundation T-040/R13), not a DB row trigger. A shared
++-- updated_at helper (define once, reuse for all 7 finance tables).
++-- ===========================================================================
++create or replace function public.finance_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++do $$
++declare
++  v_table text;
++  v_tables text[] := array[
++    'standard_costs', 'wo_actual_costing', 'inventory_cost_layers',
++    'item_wac_state', 'cost_variances', 'finance_outbox_events', 'd365_finance_dlq'
++  ];
++begin
++  foreach v_table in array v_tables loop
++    execute format('alter table public.%I enable row level security', v_table);
++    execute format('alter table public.%I force row level security', v_table);
++
++    execute format('drop policy if exists %I on public.%I', v_table || '_org_context', v_table);
++    execute format(
++      'create policy %I on public.%I for all to app_user '
++      'using (org_id = app.current_org_id()) with check (org_id = app.current_org_id())',
++      v_table || '_org_context', v_table
++    );
++
++    execute format('revoke all on public.%I from public', v_table);
++    execute format('revoke all on public.%I from app_user', v_table);
++    execute format('grant select, insert, update, delete on public.%I to app_user', v_table);
++
++    -- updated_at trigger
++    execute format('drop trigger if exists %I on public.%I', v_table || '_set_updated_at', v_table);
++    execute format(
++      'create trigger %I before update on public.%I '
++      'for each row execute function public.finance_set_updated_at()',
++      v_table || '_set_updated_at', v_table
++    );
++  end loop;
++end
++$$;
++
++-- ===========================================================================
++-- (B) Outbox event CHECK regen — strict superset of the 192 list + the 5 finance.* events.
++--     The drift gate (packages/outbox check-drift.test.ts) asserts THIS migration's CHECK string
++--     set === DB_EVENT_TYPES. Migration 199 is the highest finance migration; if a later module
++--     migration (e.g., planning-ext) regenerates the CHECK again it must include these finance.*
++--     strings too. List below = 192's set + finance.* (alphabetically merged).
++-- ===========================================================================
++alter table public.outbox_events
++  drop constraint if exists outbox_events_event_type_check;
++
++alter table public.outbox_events
++  add constraint outbox_events_event_type_check check (
++    event_type in (
++      'audit.recorded',
++      'bom.initial_version_created',
++      'bom.version_submitted',
++      'brief.completed_for_project',
++      'brief.converted',
++      'brief.created',
++      'catch_weight.variance_exceeded',
++      'compliance_doc.deleted',
++      'compliance_doc.expired',
++      'compliance_doc.expiring',
++      'compliance_doc.uploaded',
++      'd365.cache.refreshed',
++      'fa.allergens_changed',
++      'fa.built',
++      'fa.built_reset',
++      'fa.cascade',
++      'fa.core_closed',
++      'fa.created',
++      'fa.deleted',
++      'fa.dept_closed',
++      'fa.dept_reopened',
++      'fa.edit',
++      'fa.intermediate_code_changed',
++      'fa.recipe_changed',
++      'fa.template_applied',
++      'fg.allergens_changed',
++      'fg.bom.released',
++      'fg.created',
++      'fg.edit',
++      'fg.intermediate_code_changed',
++      'fg.release_blocked',
++      'fg.released_to_factory',
++      'finance.consumption.valued',
++      'finance.cost_per_kg.changed',
++      'finance.standard_cost.approved',
++      'finance.valuation.closed_monthly',
++      'finance.variance.computed',
++      'formulation.locked',
++      'formulation.submitted_for_trial',
++      'lp.received',
++      'manufacturing_operations.created',
++      'manufacturing_operations.deactivated',
++      'manufacturing_operations.reset_to_seed',
++      'manufacturing_operations.updated',
++      'npd.allergens.bulk_rebuild_completed',
++      'npd.builder.released_records_created',
++      'npd.fg_candidate_mapped',
++      'npd.gate.advanced',
++      'npd.gate.approved',
++      'npd.gate.reverted',
++      'npd.project.brief_mapped',
++      'npd.project.created',
++      'npd.project.legacy_stages_closed',
++      'npd.project.release_requested',
++      'onboarding.first_wo_recorded',
++      'onboarding.step.advance',
++      'onboarding.step.back',
++      'onboarding.step.jump',
++      'onboarding.step.restart',
++      'onboarding.step.skip',
++      'org.created',
++      'org.mfa_enrollment.forced',
++      'org.security_policy.updated',
++      'production.allergen_changeover.validated',
++      'production.changeover.signed',
++      'production.consume.blocked',
++      'production.consume.completed',
++      'production.downtime.recorded',
++      'production.oee.snapshot',
++      'production.output.recorded',
++      'production.waste.recorded',
++      'production.wo.closed',
++      'production.wo.completed',
++      'production.wo.started',
++      'quality.atp_swab_failed',
++      'quality.recorded',
++      'reference.allergens_added_by_process.bulk_changed',
++      'reference.allergens_by_rm.bulk_changed',
++      'reference.csv.committed',
++      'reference.row.soft_deleted',
++      'reference.row.upserted',
++      'risk.created',
++      'role.assigned',
++      'rule.deployed',
++      'settings.core_flag.updated',
++      'settings.d365_sync.updated',
++      'settings.dept_override.updated',
++      'settings.ip_allowlist.changed',
++      'settings.line.upserted',
++      'settings.location.deleted',
++      'settings.location.imported',
++      'settings.location.upserted',
++      'settings.machine.upserted',
++      'settings.module.disabled',
++      'settings.module.enabled',
++      'settings.module.toggled',
++      'settings.notification_channel_updated',
++      'settings.notification_digest_updated',
++      'settings.notification_rule_updated',
++      'settings.org.created',
++      'settings.org.updated',
++      'settings.reference.row_updated',
++      'settings.role.assigned',
++      'settings.rule.deployed',
++      'settings.rule_variant.updated',
++      'settings.schema.migration_requested',
++      'settings.scim.token_created',
++      'settings.sso.config_changed',
++      'settings.upgrade.completed',
++      'settings.upgrade.promoted',
++      'settings.upgrade.rolled_back',
++      'settings.upgrade.scheduled',
++      'settings.user.accepted',
++      'settings.user.deactivated',
++      'settings.user.invitation_resent',
++      'settings.user.invited',
++      'settings.warehouse.deactivated',
++      'shipment.created',
++      'technical.factory_spec.approved',
++      'tenant.cohort.advanced',
++      'tenant.migration.run',
++      'tenant.migration.run.failed',
++      'unit_of_measure.conversion_created',
++      'unit_of_measure.created',
++      'unit_of_measure.soft_deleted',
++      'user.invited',
++      'warehouse.lp.received',
++      'warehouse.lp.shipped',
++      'warehouse.lp.transitioned',
++      'warehouse.material.consumed',
++      'wo.ready'
++    )
++  );
++
++comment on constraint outbox_events_event_type_check on public.outbox_events
++  is 'Regenerated from events.enum.ts DB_EVENT_TYPES (131 types incl finance.*).';
++
++-- ===========================================================================
++-- (C) finance.* RBAC permission seed.
++--   ROOT CAUSE (403-everywhere class — same as 116/146/148/149/154/185/192): adding the fin.*
++--   strings to the enum (T-001) grants NOBODY access. The deployed org administrator is on the
++--   canonical org-admin role family, which receives NONE of the fin.* strings — so every finance
++--   page/action 403s at live Gate-5.
++--
++--   This grants the COMPLETE fin.* set (14 strings) to the org-admin role family, and a
++--   read/operate subset to a finance operator/analyst role family, in BOTH role_permissions
++--   (normalized) AND roles.permissions (legacy jsonb cache), for every existing org, with an
++--   AFTER INSERT trigger so new orgs inherit it. Operator role codes are matched defensively
++--   across naming conventions; the grant is a no-op for any role code not present in an org.
++-- ===========================================================================
++create or replace function public.seed_finance_permissions_for_org(p_org_id uuid)
++returns void
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++declare
++  -- Complete fin.* family (PRD §3). Mirrors ALL_FINANCE_PERMISSIONS.
++  v_all_perms text[] := array[
++    'fin.settings.view',
++    'fin.settings.edit',
++    'fin.standard_cost.view',
++    'fin.standard_cost.edit',
++    'fin.standard_cost.approve',
++    'fin.actual_cost.view',
++    'fin.valuation.view',
++    'fin.valuation.close',
++    'fin.variance.view',
++    'fin.variance.finalize',
++    'fin.dashboard.view',
++    'fin.reports.view',
++    'fin.d365.view',
++    'fin.d365_dlq.replay'
++  ];
++  -- Finance operator/analyst subset: reads everything + drafts standard costs + reads D365 export.
++  -- NOT the elevated/SoD strings (standard_cost.approve, valuation.close, variance.finalize,
++  -- d365_dlq.replay, settings.edit) — those stay admin-only.
++  v_operator_perms text[] := array[
++    'fin.settings.view',
++    'fin.standard_cost.view',
++    'fin.standard_cost.edit',
++    'fin.actual_cost.view',
++    'fin.valuation.view',
++    'fin.variance.view',
++    'fin.dashboard.view',
++    'fin.reports.view',
++    'fin.d365.view'
++  ];
++  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
++  v_operator_roles text[] := array[
++    'finance_operator','finance_analyst','finance_clerk','finance','controller','cost_accountant'
++  ];
++begin
++  -- --- Normalized storage (role_permissions) ---
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_all_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
++  on conflict (role_id, permission) do nothing;
++
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_operator_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- --- Legacy jsonb cache (roles.permissions) ---
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_all_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
++
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_operator_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles));
++end;
++$$;
++
++revoke all on function public.seed_finance_permissions_for_org(uuid) from public;
++revoke all on function public.seed_finance_permissions_for_org(uuid) from app_user;
++
++create or replace function public.seed_finance_permissions_on_org_insert()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++begin
++  perform public.seed_finance_permissions_for_org(new.id);
++  return new;
++end;
++$$;
++
++revoke all on function public.seed_finance_permissions_on_org_insert() from public;
++revoke all on function public.seed_finance_permissions_on_org_insert() from app_user;
++
++-- Fire after the 080 role-seeding trigger so the admin roles already exist (zzz prefix).
++drop trigger if exists trg_zzz_seed_finance_permissions on public.organizations;
++create trigger trg_zzz_seed_finance_permissions
++  after insert on public.organizations
++  for each row
++  execute function public.seed_finance_permissions_on_org_insert();
++
++-- Backfill every existing org.
++do $$
++declare
++  v_org_id uuid;
++begin
++  for v_org_id in select id from public.organizations loop
++    perform public.seed_finance_permissions_for_org(v_org_id);
++  end loop;
++end
++$$;
+diff --git a/packages/db/migrations/200-finance-reserved.sql b/packages/db/migrations/200-finance-reserved.sql
+new file mode 100644
+index 00000000..a1325daf
+--- /dev/null
++++ b/packages/db/migrations/200-finance-reserved.sql
+@@ -0,0 +1,9 @@
++-- Migration 200: 10-Finance — RESERVED.
++-- Reserved slot for the 10-finance schema foundation wave (paired with 199). Intentionally a
++-- no-op so the migration runner records it and the slot is consumed (prevents a later module
++-- from claiming 200 and colliding with the finance wave numbering). Future finance schema
++-- follow-ups (e.g., GIST EXCLUDE no-overlap on approved standard_costs, immutability trigger,
++-- monthly-close freeze table) land in NEW forward migrations >= 201 — NEVER by editing 199/200.
++--
++-- Wave0 lock: org_id (NOT tenant_id); RLS via app.current_org_id(). NUMERIC-exact money/qty.
++select 1 where false;
+diff --git a/packages/db/migrations/201-maintenance-schema-foundation.sql b/packages/db/migrations/201-maintenance-schema-foundation.sql
+new file mode 100644
+index 00000000..49e4bcec
+--- /dev/null
++++ b/packages/db/migrations/201-maintenance-schema-foundation.sql
+@@ -0,0 +1,513 @@
++-- Migration 201: 13-Maintenance — CMMS schema foundation (15 tables).
++-- PRD: docs/prd/13-MAINTENANCE-PRD.md §9.1-9.15, §14.1 (7y BRCGS retention), §14.2 (RLS).
++-- Tasks: _meta/atomic-tasks/13-maintenance/tasks/T-002 (settings/technicians/equipment),
++--   T-003 (schedules), T-004 (MWO core + checklists + LOTO), T-005 (spares ×4),
++--   T-006 (calibration + sanitation + history).
++--
++-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id()
++--   (foundation function, migration 002-rls-baseline.sql — never redefined, never read as a raw
++--   current_setting GUC). site_id is REC-L1 day-1: NULLABLE uuid, no FK, no registry — full
++--   per-site scoping (NOT NULL + (org_id, site_id) policy + app.current_site_id()) lands later via
++--   14-multi-site T-030. Until then the column exists so operational rows can be tagged.
++-- NUMERIC-exact: money/qty/rate/temp columns are NUMERIC (never float).
++-- R13 audit: created_at/updated_at on every table; created_by/updated_by where an actor applies.
++-- BRCGS 7y retention: calibration_records / sanitation_checklists / maintenance_history carry a
++--   retention_until DATE GENERATED ALWAYS AS (... + INTERVAL '7 years') STORED column — never writable.
++-- Canonical-owner separation: this migration creates ONLY maintenance.* tables. It does NOT create
++--   wo_outputs / oee_snapshots / downtime_events (08-production), schedule_outputs (04-planning),
++--   license_plates (05-warehouse), item_cost_history (03-technical), quality_holds / ncr_reports
++--   (09-quality). All cross-module identities (parent_line_id, assigned_operation_id,
++--   downtime_event_id, warehouse_id, supplier_id, line_id) are SOFT uuids — a hard FK would couple
++--   migration ordering across modules (mirrors warehouse 191 + production 181 patterns).
++
++-- ===========================================================================
++-- Shared updated_at trigger function (maintenance namespace, idempotent).
++-- ===========================================================================
++create or replace function public.maintenance_set_updated_at()
++returns trigger
++language plpgsql
++as $$
++begin
++  new.updated_at := pg_catalog.now();
++  return new;
++end;
++$$;
++
++-- ===========================================================================
++-- 9.1 maintenance_settings — per (org, site) tunables.
++-- ===========================================================================
++create table if not exists public.maintenance_settings (
++  id                                uuid primary key default gen_random_uuid(),
++  org_id                            uuid not null references public.organizations(id) on delete cascade,
++  site_id                           uuid,
++  pm_interval_default_days          integer not null default 30,
++  calibration_warning_days          integer not null default 30,
++  calibration_urgent_days           integer not null default 7,
++  mtbf_target_hours                 integer,
++  availability_breach_threshold_pct numeric(5, 2) default 80.00,
++  requires_loto_default             boolean not null default false,
++  created_by                        uuid references public.users(id) on delete set null,
++  updated_by                        uuid references public.users(id) on delete set null,
++  created_at                        timestamptz not null default pg_catalog.now(),
++  updated_at                        timestamptz not null default pg_catalog.now(),
++  constraint maintenance_settings_org_site_uq unique (org_id, site_id)
++);
++create index if not exists idx_maintenance_settings_org_site
++  on public.maintenance_settings (org_id, site_id);
++
++-- ===========================================================================
++-- 9.2 technician_profiles — maintenance staff (PII: auth.users link).
++-- ===========================================================================
++create table if not exists public.technician_profiles (
++  id             uuid primary key default gen_random_uuid(),
++  org_id         uuid not null references public.organizations(id) on delete cascade,
++  site_id        uuid,
++  user_id        uuid not null,            -- -> auth.users(id), service-layer validated
++  skill_level    text not null,
++  certifications jsonb not null default '[]'::jsonb,
++  hourly_rate    numeric(10, 2),
++  active         boolean not null default true,
++  created_by     uuid references public.users(id) on delete set null,
++  updated_by     uuid references public.users(id) on delete set null,
++  created_at     timestamptz not null default pg_catalog.now(),
++  updated_at     timestamptz not null default pg_catalog.now(),
++  constraint technician_profiles_org_user_uq unique (org_id, user_id),
++  constraint technician_profiles_skill_level_check
++    check (skill_level in ('basic', 'advanced', 'specialist'))
++);
++create index if not exists idx_technician_profiles_org_site
++  on public.technician_profiles (org_id, site_id);
++
++-- ===========================================================================
++-- 9.3 equipment — asset registry (5-level hierarchy via parent_line_id soft FK).
++-- ===========================================================================
++create table if not exists public.equipment (
++  id                        uuid primary key default gen_random_uuid(),
++  org_id                    uuid not null references public.organizations(id) on delete cascade,
++  site_id                   uuid,
++  equipment_code            text not null,
++  name                      text not null,
++  equipment_type            text not null,
++  parent_line_id            uuid,             -- soft FK -> 08-PROD production_lines
++  assigned_operation_id     uuid,             -- soft FK -> 02-SETTINGS manufacturing_operations
++  requires_loto             boolean not null default false,
++  requires_calibration      boolean not null default false,
++  calibration_interval_days integer,
++  l3_ext_cols               jsonb not null default '{}'::jsonb,
++  active                    boolean not null default true,
++  created_by                uuid references public.users(id) on delete set null,
++  updated_by                uuid references public.users(id) on delete set null,
++  created_at                timestamptz not null default pg_catalog.now(),
++  updated_at                timestamptz not null default pg_catalog.now(),
++  constraint equipment_org_code_uq unique (org_id, equipment_code)
++);
++create index if not exists idx_equipment_org_site  on public.equipment (org_id, site_id);
++create index if not exists idx_equipment_line       on public.equipment (parent_line_id);
++create index if not exists idx_equipment_operation  on public.equipment (assigned_operation_id);
++
++-- ===========================================================================
++-- 9.4 maintenance_schedules — PM/calibration/sanitation/inspection schedules.
++-- ===========================================================================
++create table if not exists public.maintenance_schedules (
++  id                     uuid primary key default gen_random_uuid(),
++  org_id                 uuid not null references public.organizations(id) on delete cascade,
++  site_id                uuid,
++  equipment_id           uuid not null references public.equipment(id) on delete restrict,
++  operation_context      jsonb,
++  schedule_type          text not null,
++  interval_basis         text not null,
++  interval_value         integer not null,
++  warning_days           integer default 7,
++  next_due_date          date,
++  last_completed_at      timestamptz,
++  assigned_technician_id uuid references public.technician_profiles(id) on delete set null,
++  checklist_template_id  uuid,             -- optional ref -> mwo_checklist_templates (T-003 follow-on)
++  active                 boolean not null default true,
++  created_by             uuid references public.users(id) on delete set null,
++  updated_by             uuid references public.users(id) on delete set null,
++  created_at             timestamptz not null default pg_catalog.now(),
++  updated_at             timestamptz not null default pg_catalog.now(),
++  constraint maintenance_schedules_schedule_type_check
++    check (schedule_type in ('preventive', 'calibration', 'sanitation', 'inspection')),
++  constraint maintenance_schedules_interval_basis_check
++    check (interval_basis in ('calendar_days', 'usage_hours', 'usage_cycles'))
++);
++create index if not exists idx_schedules_org_site  on public.maintenance_schedules (org_id, site_id);
++create index if not exists idx_schedules_equipment on public.maintenance_schedules (equipment_id);
++-- PM-engine hot path: next-due scan, only active rows.
++create index if not exists idx_schedules_next_due
++  on public.maintenance_schedules (next_due_date) where active;
++-- V-MNT-23 operation-scoped maintenance query speed.
++create index if not exists idx_schedules_operation
++  on public.maintenance_schedules using gin (operation_context) where operation_context is not null;
++
++-- ===========================================================================
++-- 9.5 maintenance_work_orders — MWO core, 6-state (D-MNT-9). State transitions enforced in
++--   T-010 Server Action (workflow-as-data), NOT DB triggers. downtime_event_id soft FK to
++--   08-PROD downtime_events; reactive MWOs consume production.downtime.recorded (T-017).
++-- ===========================================================================
++create table if not exists public.maintenance_work_orders (
++  id                  uuid primary key default gen_random_uuid(),
++  org_id              uuid not null references public.organizations(id) on delete cascade,
++  site_id             uuid,
++  mwo_number          text not null,        -- MWO-YYYY-NNNNN
++  state               text not null,
++  source              text not null,
++  type                text not null,
++  priority            text not null,
++  equipment_id        uuid references public.equipment(id) on delete restrict,
++  schedule_id         uuid references public.maintenance_schedules(id) on delete set null,
++  downtime_event_id   uuid,                 -- soft FK -> 08-PROD downtime_events (canonical owner)
++  requester_user_id   uuid,
++  requester_reason    text,
++  approver_user_id    uuid,
++  assigned_to_user_id uuid references public.technician_profiles(id) on delete set null,
++  started_at          timestamptz,
++  completed_at        timestamptz,
++  actual_duration_min integer,
++  completion_notes    text,
++  cancellation_reason text,
++  estimated_cost      numeric(10, 2),
++  actual_cost         numeric(10, 2),       -- materialized from parts + labor
++  l3_ext_cols         jsonb not null default '{}'::jsonb,
++  created_by          uuid references public.users(id) on delete set null,
++  updated_by          uuid references public.users(id) on delete set null,
++  created_at          timestamptz not null default pg_catalog.now(),
++  updated_at          timestamptz not null default pg_catalog.now(),
++  constraint maintenance_work_orders_org_mwo_number_uq unique (org_id, mwo_number),
++  constraint maintenance_work_orders_state_check
++    check (state in ('requested', 'approved', 'open', 'in_progress', 'completed', 'cancelled')),
++  constraint maintenance_work_orders_source_check
++    check (source in ('manual_request', 'auto_downtime', 'pm_schedule', 'oee_trigger', 'calibration_alert')),
++  constraint maintenance_work_orders_type_check
++    check (type in ('reactive', 'preventive', 'calibration', 'sanitation', 'inspection')),
++  constraint maintenance_work_orders_priority_check
++    check (priority in ('low', 'medium', 'high', 'critical'))
++);
++create index if not exists idx_mwo_state     on public.maintenance_work_orders (state);
++create index if not exists idx_mwo_equipment on public.maintenance_work_orders (equipment_id);
++create index if not exists idx_mwo_assigned  on public.maintenance_work_orders (assigned_to_user_id);
++create index if not exists idx_mwo_source    on public.maintenance_work_orders (source);
++create index if not exists idx_mwo_org_site  on public.maintenance_work_orders (org_id, site_id);
++
++-- ===========================================================================
++-- 9.6 mwo_checklists — per-step execution checklist.
++-- ===========================================================================
++create table if not exists public.mwo_checklists (
++  id               uuid primary key default gen_random_uuid(),
++  org_id           uuid not null references public.organizations(id) on delete cascade,
++  site_id          uuid,
++  mwo_id           uuid not null references public.maintenance_work_orders(id) on delete cascade,
++  step_no          integer not null,
++  step_description text not null,
++  step_type        text,
++  expected_value   text,
++  actual_value     text,
++  passed           boolean,
++  completed_by     uuid,
++  completed_at     timestamptz,
++  created_at       timestamptz not null default pg_catalog.now(),
++  updated_at       timestamptz not null default pg_catalog.now(),
++  constraint mwo_checklists_mwo_step_uq unique (mwo_id, step_no),
++  constraint mwo_checklists_step_type_check
++    check (step_type is null or step_type in ('check', 'measure', 'photo', 'signoff'))
++);
++create index if not exists idx_mwo_checklists_org on public.mwo_checklists (org_id);
++
++-- ===========================================================================
++-- 9.7 mwo_loto_checklists — LOTO pre-execution (D-MNT-15). Dual e-sign applied in T-014:
++--   zero_energy_verified_by (lockout verify) + released_by (release verify) — two distinct actors
++--   per OSHA 29 CFR 1910.147; e-sign attestation written via @monopilot/e-sign (T-124).
++-- ===========================================================================
++create table if not exists public.mwo_loto_checklists (
++  id                       uuid primary key default gen_random_uuid(),
++  org_id                   uuid not null references public.organizations(id) on delete cascade,
++  site_id                  uuid,
++  mwo_id                   uuid not null references public.maintenance_work_orders(id) on delete cascade,
++  energy_sources_isolated  jsonb not null default '[]'::jsonb,  -- [{source, method, verified_by}]
++  tags_applied             jsonb not null default '[]'::jsonb,
++  zero_energy_verified_by  uuid,             -- e-sign actor 1 (lockout zero-energy verify)
++  verified_at              timestamptz,
++  released_at              timestamptz,
++  released_by              uuid,             -- e-sign actor 2 (release verify)
++  created_at               timestamptz not null default pg_catalog.now(),
++  updated_at               timestamptz not null default pg_catalog.now()
++);
++create index if not exists idx_mwo_loto_mwo on public.mwo_loto_checklists (mwo_id);
++create index if not exists idx_mwo_loto_org on public.mwo_loto_checklists (org_id);
++
++-- ===========================================================================
++-- 9.8 spare_parts — maintenance catalog, SEPARATE from 03-TECH items (D-MNT-6).
++-- ===========================================================================
++create table if not exists public.spare_parts (
++  id              uuid primary key default gen_random_uuid(),
++  org_id          uuid not null references public.organizations(id) on delete cascade,
++  site_id         uuid,
++  part_code       text not null,
++  name            text not null,
++  category        text,
++  supplier_id     uuid,                     -- soft FK -> 03-TECH suppliers (shared master)
++  unit_cost       numeric(10, 2),
++  unit_of_measure text default 'ea',
++  shelf_life_days integer,
++  critical_part   boolean not null default false,
++  l3_ext_cols     jsonb not null default '{}'::jsonb,
++  active          boolean not null default true,
++  created_by      uuid references public.users(id) on delete set null,
++  updated_by      uuid references public.users(id) on delete set null,
++  created_at      timestamptz not null default pg_catalog.now(),
++  updated_at      timestamptz not null default pg_catalog.now(),
++  constraint spare_parts_org_part_code_uq unique (org_id, part_code)
++);
++create index if not exists idx_spare_parts_org_site on public.spare_parts (org_id, site_id);
++
++-- ===========================================================================
++-- 9.9 maintenance_spare_parts_stock — per (org, site, part, warehouse) on-hand. warehouse_id soft FK to
++--   05-WH warehouses (no FEFO per D-MNT-6). The §9.9 UNIQUE(org,site,part,warehouse) treats NULLs
++--   as distinct in Postgres; a COALESCE-expression unique index enforces one stock row per logical key.
++-- ===========================================================================
++create table if not exists public.maintenance_spare_parts_stock (
++  id              uuid primary key default gen_random_uuid(),
++  org_id          uuid not null references public.organizations(id) on delete cascade,
++  site_id         uuid,
++  part_id         uuid not null references public.spare_parts(id) on delete restrict,
++  warehouse_id    uuid,                     -- soft FK -> 05-WH warehouses
++  location_code   text,
++  qty_on_hand     numeric(12, 3) not null default 0,
++  reorder_point   numeric(12, 3) default 0,
++  reorder_qty     numeric(12, 3) default 0,
++  last_counted_at timestamptz,
++  created_at      timestamptz not null default pg_catalog.now(),
++  updated_at      timestamptz not null default pg_catalog.now(),
++  constraint maintenance_spare_parts_stock_qty_on_hand_nonneg_check check (qty_on_hand >= 0)
++);
++-- One stock row per (org, site, part, warehouse) logical key (NULL-safe).
++create unique index if not exists maintenance_spare_parts_stock_org_site_part_wh_uq
++  on public.maintenance_spare_parts_stock (
++    org_id,
++    coalesce(site_id, '00000000-0000-0000-0000-000000000000'::uuid),
++    part_id,
++    coalesce(warehouse_id, '00000000-0000-0000-0000-000000000000'::uuid)
++  );
++create index if not exists idx_maintenance_spare_parts_stock_org_site on public.maintenance_spare_parts_stock (org_id, site_id);
++-- Reorder scan: only below-threshold rows (PM cron T-009).
++create index if not exists idx_sp_stock_reorder
++  on public.maintenance_spare_parts_stock (org_id, site_id) where qty_on_hand <= reorder_point;
++
++-- ===========================================================================
++-- 9.10 spare_parts_transactions — every receipt/consume/adjust/transfer/return.
++-- ===========================================================================
++create table if not exists public.spare_parts_transactions (
++  id           uuid primary key default gen_random_uuid(),  -- UUID v7 idempotency target (R14)
++  org_id       uuid not null references public.organizations(id) on delete cascade,
++  site_id      uuid,
++  part_id      uuid not null references public.spare_parts(id) on delete restrict,
++  txn_type     text not null,
++  qty          numeric(12, 3) not null,
++  mwo_id       uuid references public.maintenance_work_orders(id) on delete set null,
++  performed_by uuid,
++  performed_at timestamptz not null default pg_catalog.now(),
++  notes        text,
++  created_at   timestamptz not null default pg_catalog.now(),
++  constraint spare_parts_transactions_txn_type_check
++    check (txn_type in ('receipt', 'consume', 'adjust', 'transfer_out', 'transfer_in', 'return'))
++);
++create index if not exists idx_spare_parts_transactions_org on public.spare_parts_transactions (org_id);
++create index if not exists idx_sp_txn_mwo
++  on public.spare_parts_transactions (mwo_id) where mwo_id is not null;
++create index if not exists idx_sp_txn_part_date
++  on public.spare_parts_transactions (part_id, performed_at);
++
++-- ===========================================================================
++-- 9.11 mwo_spare_parts — MWO <-> part planned/actual join.
++-- ===========================================================================
++create table if not exists public.mwo_spare_parts (
++  id                 uuid primary key default gen_random_uuid(),
++  org_id             uuid not null references public.organizations(id) on delete cascade,
++  site_id            uuid,
++  mwo_id             uuid not null references public.maintenance_work_orders(id) on delete cascade,
++  part_id            uuid not null references public.spare_parts(id) on delete restrict,
++  qty_planned        numeric(12, 3),
++  qty_actual         numeric(12, 3),
++  unit_cost_snapshot numeric(10, 2),
++  created_at         timestamptz not null default pg_catalog.now(),
++  updated_at         timestamptz not null default pg_catalog.now(),
++  constraint mwo_spare_parts_mwo_part_uq unique (mwo_id, part_id)
++);
++create index if not exists idx_mwo_spare_parts_org on public.mwo_spare_parts (org_id);
++
++-- ===========================================================================
++-- 9.12 calibration_instruments — instrument registry (D-MNT-5 + D-MNT-10).
++-- 09-QA v3.1 FK target: lab_results.equipment_id = calibration_instruments.id
++--   (D-MNT-10 documented, NOT enforced here — added later by a 09-quality migration).
++-- ===========================================================================
++create table if not exists public.calibration_instruments (
++  id                        uuid primary key default gen_random_uuid(),
++  org_id                    uuid not null references public.organizations(id) on delete cascade,
++  site_id                   uuid,
++  equipment_id              uuid references public.equipment(id) on delete set null,
++  instrument_code           text not null,
++  instrument_type           text not null,
++  standard                  text not null,
++  range_min                 numeric(12, 4),
++  range_max                 numeric(12, 4),
++  unit_of_measure           text,
++  calibration_interval_days integer not null,
++  l3_ext_cols               jsonb not null default '{}'::jsonb,
++  active                    boolean not null default true,
++  created_by                uuid references public.users(id) on delete set null,
++  updated_by                uuid references public.users(id) on delete set null,
++  created_at                timestamptz not null default pg_catalog.now(),
++  updated_at                timestamptz not null default pg_catalog.now(),
++  constraint calibration_instruments_org_code_uq unique (org_id, instrument_code),
++  constraint calibration_instruments_instrument_type_check
++    check (instrument_type in ('scale', 'thermometer', 'ph_meter', 'other')),
++  constraint calibration_instruments_standard_check
++    check (standard in ('ISO_9001', 'NIST', 'internal', 'other'))
++);
++create index if not exists idx_cal_instr_org_site on public.calibration_instruments (org_id, site_id);
++
++-- ===========================================================================
++-- 9.13 calibration_records — immutable cert + 7y retention (BRCGS Issue 10 + FSMA 204).
++--   retention_until is GENERATED ALWAYS AS STORED — never writable. result='FAIL' triggers a
++--   09-quality auto-hold candidate (V-MNT-10) via the outbox event (T-012/T-015). certificate_sha256
++--   = 21 CFR Part 11 e-sign chain; immutability of finalized certs enforced in T-015 Server Action.
++--   Dual e-sign (T-015): calibrated_by = signer 1, reviewer_signed_by = signer 2.
++-- ===========================================================================
++create table if not exists public.calibration_records (
++  id                   uuid primary key default gen_random_uuid(),
++  org_id               uuid not null references public.organizations(id) on delete cascade,
++  site_id              uuid,
++  instrument_id        uuid not null references public.calibration_instruments(id) on delete restrict,
++  mwo_id               uuid references public.maintenance_work_orders(id) on delete set null,
++  calibrated_at        timestamptz not null,
++  calibrated_by        uuid,
++  standard_applied     text not null,
++  test_points          jsonb not null default '[]'::jsonb,  -- [{reference, measured, tolerance_pct}]
++  result               text not null,
++  certificate_file_url text,
++  certificate_sha256   text,             -- 21 CFR Part 11; immutable once set (T-015)
++  next_due_date        date not null,
++  retention_until      date generated always as ((next_due_date + interval '7 years')::date) stored,
++  reviewer_signed_by   uuid,             -- dual e-sign reviewer (T-015)
++  notes                text,
++  created_by           uuid references public.users(id) on delete set null,
++  created_at           timestamptz not null default pg_catalog.now(),
++  updated_at           timestamptz not null default pg_catalog.now(),
++  constraint calibration_records_result_check
++    check (result in ('PASS', 'FAIL', 'OUT_OF_SPEC'))
++);
++create index if not exists idx_cal_rec_instrument_date
++  on public.calibration_records (instrument_id, calibrated_at);
++create index if not exists idx_cal_rec_next_due on public.calibration_records (next_due_date);
++create index if not exists idx_cal_rec_org      on public.calibration_records (org_id);
++
++-- ===========================================================================
++-- 9.14 sanitation_checklists — CIP + allergen-change dual sign + 7y retention (D-MNT-7/14).
++--   allergen_change_flag=true -> T-016 emits maintenance.sanitation.allergen_change.completed,
++--   consumed by 08-PROD allergen_changeover_gate_v1. Dual e-sign (T-016): first_signed_by
++--   (hygiene lead) + second_signed_by (QA). retention_until GENERATED ALWAYS AS STORED.
++-- ===========================================================================
++create table if not exists public.sanitation_checklists (
++  id                  uuid primary key default gen_random_uuid(),
++  org_id              uuid not null references public.organizations(id) on delete cascade,
++  site_id             uuid,
++  mwo_id              uuid not null references public.maintenance_work_orders(id) on delete cascade,
++  line_id             uuid,                 -- soft FK -> 08-PROD production_lines
++  cip_program         text,                 -- pre_rinse|caustic_wash|acid_wash|sanitize|final_rinse
++  temp_c              numeric(5, 2),
++  concentration_pct   numeric(5, 2),
++  duration_min        integer,
++  flow_rate_l_per_min numeric(8, 2),
++  allergen_change_flag boolean not null default false,
++  allergens_removed   jsonb not null default '[]'::jsonb,
++  atp_test_result_rlu integer,             -- Relative Light Units (09-QA Q2 consumer)
++  first_signed_by     uuid,                 -- dual e-sign actor 1 (hygiene lead)
++  second_signed_by    uuid,                 -- dual e-sign actor 2 (QA, allergen_change)
++  completed_at        timestamptz,
++  -- timestamptz -> date cast is anchored to UTC so the generation expression is IMMUTABLE
++  --   (a bare ::date depends on session timezone and Postgres rejects it for STORED generated cols).
++  retention_until     date generated always as ((((completed_at at time zone 'UTC')::date) + interval '7 years')::date) stored,
++  created_by          uuid references public.users(id) on delete set null,
++  created_at          timestamptz not null default pg_catalog.now(),
++  updated_at          timestamptz not null default pg_catalog.now()
++);
++create index if not exists idx_sanitation_mwo      on public.sanitation_checklists (mwo_id);
++create index if not exists idx_sanitation_org_site on public.sanitation_checklists (org_id, site_id);
++
++-- ===========================================================================
++-- 9.15 maintenance_history — denormalized audit trail + 7y retention.
++-- ===========================================================================
++create table if not exists public.maintenance_history (
++  id              uuid primary key default gen_random_uuid(),
++  org_id          uuid not null references public.organizations(id) on delete cascade,
++  site_id         uuid,
++  equipment_id    uuid not null references public.equipment(id) on delete restrict,
++  mwo_id          uuid references public.maintenance_work_orders(id) on delete set null,
++  event_type      text not null,            -- completion|cancellation|calibration|sanitation|breakdown
++  event_date      timestamptz not null,
++  summary         text not null,
++  cost            numeric(10, 2),
++  technician_id   uuid,
++  duration_min    integer,
++  retention_until date generated always as ((((event_date at time zone 'UTC')::date) + interval '7 years')::date) stored,
++  created_at      timestamptz not null default pg_catalog.now(),
++  constraint maintenance_history_event_date_not_null check (event_date is not null)
++);
++create index if not exists idx_hist_equipment_date on public.maintenance_history (equipment_id, event_date);
++create index if not exists idx_hist_org_site       on public.maintenance_history (org_id, site_id);
++
++-- ===========================================================================
++-- RLS + grants + updated_at triggers for all 15 tables.
++-- ENABLE + FORCE RLS; org-isolation policy via app.current_org_id() (NOT raw current_setting).
++-- site_id REC-L1 day-1: policy is org-only for now; per-site app.current_site_id() scoping is
++--   added by 14-multi-site T-030 (atomic policy swap) when the site context lands.
++-- maintenance_history is append-only (no updated_at column / trigger; insert+select grants only).
++-- ===========================================================================
++do $$
++declare
++  v_tbl text;
++  -- tables that carry an updated_at column (everything except maintenance_history).
++  v_mutable_tables text[] := array[
++    'maintenance_settings', 'technician_profiles', 'equipment', 'maintenance_schedules',
++    'maintenance_work_orders', 'mwo_checklists', 'mwo_loto_checklists', 'spare_parts',
++    'maintenance_spare_parts_stock', 'spare_parts_transactions', 'mwo_spare_parts',
++    'calibration_instruments', 'calibration_records', 'sanitation_checklists'
++  ];
++  v_all_tables text[];
++begin
++  v_all_tables := v_mutable_tables || array['maintenance_history'];
++
++  foreach v_tbl in array v_all_tables loop
++    -- Enable + FORCE RLS.
++    execute format('alter table public.%I enable row level security', v_tbl);
++    execute format('alter table public.%I force row level security', v_tbl);
++
++    -- Single org-context policy (FOR ALL), org_id = app.current_org_id().
++    execute format('drop policy if exists %I on public.%I', v_tbl || '_org_context', v_tbl);
++    execute format(
++      'create policy %I on public.%I for all to app_user '
++      || 'using (org_id = app.current_org_id()) with check (org_id = app.current_org_id())',
++      v_tbl || '_org_context', v_tbl
++    );
++
++    -- Grants: fail-closed default, DML to app_user only.
++    execute format('revoke all on public.%I from public', v_tbl);
++    execute format('revoke all on public.%I from app_user', v_tbl);
++    execute format('grant select, insert, update, delete on public.%I to app_user', v_tbl);
++  end loop;
++
++  -- updated_at triggers (mutable tables only).
++  foreach v_tbl in array v_mutable_tables loop
++    execute format('drop trigger if exists %I on public.%I', v_tbl || '_set_updated_at', v_tbl);
++    execute format(
++      'create trigger %I before update on public.%I '
++      || 'for each row execute function public.maintenance_set_updated_at()',
++      v_tbl || '_set_updated_at', v_tbl
++    );
++  end loop;
++
++  -- maintenance_history is append-only: SELECT + INSERT only (no UPDATE/DELETE to app_user).
++  revoke update, delete on public.maintenance_history from app_user;
++end
++$$;
+diff --git a/packages/db/migrations/202-maintenance-outbox-and-rbac-seed.sql b/packages/db/migrations/202-maintenance-outbox-and-rbac-seed.sql
+new file mode 100644
+index 00000000..3b83a299
+--- /dev/null
++++ b/packages/db/migrations/202-maintenance-outbox-and-rbac-seed.sql
+@@ -0,0 +1,323 @@
++-- Migration 202: 13-Maintenance — (A) admit the maintenance.* CMMS lifecycle outbox events +
++-- spare.reorder_threshold_breached to the outbox_events CHECK constraint (keep the enum<->CHECK
++-- drift gate green), and (B) grant the mnt.* RBAC permission family to the org-admin role family +
++-- maintenance operator/technician roles in BOTH the normalized role_permissions table and the
++-- legacy roles.permissions jsonb cache, with an AFTER INSERT trigger + full backfill.
++-- PRD: docs/prd/13-MAINTENANCE-PRD.md §4 (RBAC), §7.2 (D-MNT-12/14 events), §12.3 (outbox).
++-- Tasks: T-001 (permission enum) + T-031 (RBAC grant-seed, the recurring-live-bug X-1 P0).
++-- Canonical permission strings: packages/rbac/src/permissions.enum.ts (ALL_MAINTENANCE_PERMISSIONS).
++-- Canonical event strings: packages/outbox/src/events.enum.ts (ALL_MAINTENANCE_EVENTS / DB_EVENT_TYPES).
++-- Wave0 lock: org_id business scope (NOT tenant_id); RLS via app.current_org_id().
++
++-- ===========================================================================
++-- (A) Outbox event CHECK — drop + recreate with the FULL vocabulary (192's 126 list + the 9 new
++--     13-maintenance events). The enum<->CHECK drift gate (packages/outbox check-drift.test.ts)
++--     asserts THIS (now highest-numbered) migration's CHECK string set === DB_EVENT_TYPES, so the
++--     list below MUST stay byte-aligned with events.enum.ts (EventType ∪ LegacyEventAlias keys).
++--     Strict superset of 192 — no event dropped. 13-maintenance is the sole emitter of maintenance.*
++--     and spare.reorder_threshold_breached; it does NOT emit production.downtime.recorded (08-prod owns).
++-- ===========================================================================
++alter table public.outbox_events
++  drop constraint if exists outbox_events_event_type_check;
++
++alter table public.outbox_events
++  add constraint outbox_events_event_type_check check (
++    event_type in (
++      'audit.recorded',
++      'bom.initial_version_created',
++      'bom.version_submitted',
++      'brief.completed_for_project',
++      'brief.converted',
++      'brief.created',
++      'catch_weight.variance_exceeded',
++      'compliance_doc.deleted',
++      'compliance_doc.expired',
++      'compliance_doc.expiring',
++      'compliance_doc.uploaded',
++      'd365.cache.refreshed',
++      'fa.allergens_changed',
++      'fa.built',
++      'fa.built_reset',
++      'fa.cascade',
++      'fa.core_closed',
++      'fa.created',
++      'fa.deleted',
++      'fa.dept_closed',
++      'fa.dept_reopened',
++      'fa.edit',
++      'fa.intermediate_code_changed',
++      'fa.recipe_changed',
++      'fa.template_applied',
++      'fg.allergens_changed',
++      'fg.bom.released',
++      'fg.created',
++      'fg.edit',
++      'fg.intermediate_code_changed',
++      'fg.release_blocked',
++      'fg.released_to_factory',
++      'formulation.locked',
++      'formulation.submitted_for_trial',
++      'lp.received',
++      'maintenance.calibration.completed',
++      'maintenance.calibration.failed',
++      'maintenance.loto.applied',
++      'maintenance.loto.released',
++      'maintenance.mwo.completed',
++      'maintenance.mwo.created',
++      'maintenance.pm.due',
++      'maintenance.sanitation.allergen_change.completed',
++      'manufacturing_operations.created',
++      'manufacturing_operations.deactivated',
++      'manufacturing_operations.reset_to_seed',
++      'manufacturing_operations.updated',
++      'npd.allergens.bulk_rebuild_completed',
++      'npd.builder.released_records_created',
++      'npd.fg_candidate_mapped',
++      'npd.gate.advanced',
++      'npd.gate.approved',
++      'npd.gate.reverted',
++      'npd.project.brief_mapped',
++      'npd.project.created',
++      'npd.project.legacy_stages_closed',
++      'npd.project.release_requested',
++      'onboarding.first_wo_recorded',
++      'onboarding.step.advance',
++      'onboarding.step.back',
++      'onboarding.step.jump',
++      'onboarding.step.restart',
++      'onboarding.step.skip',
++      'org.created',
++      'org.mfa_enrollment.forced',
++      'org.security_policy.updated',
++      'production.allergen_changeover.validated',
++      'production.changeover.signed',
++      'production.consume.blocked',
++      'production.consume.completed',
++      'production.downtime.recorded',
++      'production.oee.snapshot',
++      'production.output.recorded',
++      'production.waste.recorded',
++      'production.wo.closed',
++      'production.wo.completed',
++      'production.wo.started',
++      'quality.atp_swab_failed',
++      'quality.recorded',
++      'reference.allergens_added_by_process.bulk_changed',
++      'reference.allergens_by_rm.bulk_changed',
++      'reference.csv.committed',
++      'reference.row.soft_deleted',
++      'reference.row.upserted',
++      'risk.created',
++      'role.assigned',
++      'rule.deployed',
++      'settings.core_flag.updated',
++      'settings.d365_sync.updated',
++      'settings.dept_override.updated',
++      'settings.ip_allowlist.changed',
++      'settings.line.upserted',
++      'settings.location.deleted',
++      'settings.location.imported',
++      'settings.location.upserted',
++      'settings.machine.upserted',
++      'settings.module.disabled',
++      'settings.module.enabled',
++      'settings.module.toggled',
++      'settings.notification_channel_updated',
++      'settings.notification_digest_updated',
++      'settings.notification_rule_updated',
++      'settings.org.created',
++      'settings.org.updated',
++      'settings.reference.row_updated',
++      'settings.role.assigned',
++      'settings.rule.deployed',
++      'settings.rule_variant.updated',
++      'settings.schema.migration_requested',
++      'settings.scim.token_created',
++      'settings.sso.config_changed',
++      'settings.upgrade.completed',
++      'settings.upgrade.promoted',
++      'settings.upgrade.rolled_back',
++      'settings.upgrade.scheduled',
++      'settings.user.accepted',
++      'settings.user.deactivated',
++      'settings.user.invitation_resent',
++      'settings.user.invited',
++      'settings.warehouse.deactivated',
++      'shipment.created',
++      'spare.reorder_threshold_breached',
++      'technical.factory_spec.approved',
++      'tenant.cohort.advanced',
++      'tenant.migration.run',
++      'tenant.migration.run.failed',
++      'unit_of_measure.conversion_created',
++      'unit_of_measure.created',
++      'unit_of_measure.soft_deleted',
++      'user.invited',
++      'warehouse.lp.received',
++      'warehouse.lp.shipped',
++      'warehouse.lp.transitioned',
++      'warehouse.material.consumed',
++      'wo.ready'
++    )
++  );
++
++comment on constraint outbox_events_event_type_check on public.outbox_events
++  is 'Regenerated from events.enum.ts DB_EVENT_TYPES (135 types incl maintenance.*).';
++
++-- ===========================================================================
++-- (B) mnt.* RBAC permission seed.
++--   ROOT CAUSE (X-1 unreachable-feature / 403-everywhere class — same as 116/146/148/149/154/185/192):
++--   adding the mnt.* strings to the enum (T-001) grants NOBODY access. The deployed org administrator
++--   is on the canonical org-admin role family, which receives NONE of the mnt.* strings — so every
++--   maintenance page/action 403s at live Gate-5.
++--
++--   This grants:
++--     * the COMPLETE mnt.* set (17 strings) to the org-admin role family;
++--     * a technician/operator-facing subset to a maintenance operator role family;
++--   in BOTH role_permissions (normalized) and roles.permissions (legacy jsonb cache), for every
++--   existing org, with an AFTER INSERT trigger so new orgs inherit it. Operator/technician role
++--   codes are matched defensively across naming conventions; the grant is a no-op for any role code
++--   not present in an org (idempotent). The admin-family grant is the load-bearing one for Gate-5
++--   reachability. Models on 149/154/185/192.
++--
++--   PRD §4 least-privilege: technicians get read/execute + spare consume + LOTO apply/clear +
++--   calibration record; they do NOT get approve/assign/cancel, PM create/skip, asset edit/deactivate,
++--   cert upload, or spare adjust/reorder — those stay admin/manager-only (SoD).
++-- ===========================================================================
++create or replace function public.seed_maintenance_permissions_for_org(p_org_id uuid)
++returns void
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++declare
++  -- Complete mnt.* family (PRD §4 RBAC matrix). Mirrors ALL_MAINTENANCE_PERMISSIONS.
++  v_all_perms text[] := array[
++    'mnt.asset.read',
++    'mnt.asset.edit',
++    'mnt.asset.deactivate',
++    'mnt.mwo.request',
++    'mnt.mwo.approve',
++    'mnt.mwo.assign',
++    'mnt.mwo.execute',
++    'mnt.mwo.sign',
++    'mnt.mwo.cancel',
++    'mnt.pm.create',
++    'mnt.pm.skip',
++    'mnt.calib.record',
++    'mnt.calib.upload_cert',
++    'mnt.spare.consume',
++    'mnt.spare.adjust',
++    'mnt.spare.reorder',
++    'mnt.loto.apply',
++    'mnt.loto.clear'
++  ];
++  -- Technician/operator-facing subset: read assets, request + execute + sign MWOs, record
++  -- calibration, consume spares, apply/clear LOTO. NOT the elevated/approval strings
++  -- (approve/assign/cancel, pm.create/skip, asset.edit/deactivate, calib.upload_cert,
++  -- spare.adjust/reorder) — those stay admin/manager-only (SoD).
++  v_operator_perms text[] := array[
++    'mnt.asset.read',
++    'mnt.mwo.request',
++    'mnt.mwo.execute',
++    'mnt.mwo.sign',
++    'mnt.calib.record',
++    'mnt.spare.consume',
++    'mnt.loto.apply',
++    'mnt.loto.clear'
++  ];
++  -- org-admin role family across naming conventions used in this codebase.
++  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
++  -- maintenance technician/operator role family (defensive — codes vary; no-op if absent).
++  v_operator_roles text[] := array[
++    'maintenance_technician','maintenance_operator','technician','maintenance',
++    'mnt_technician','mnt_operator','operator','line_operator','production_operator'
++  ];
++begin
++  -- --- Normalized storage (role_permissions) ---
++  -- admin family: full set.
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_all_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- technician/operator family: operator subset.
++  insert into public.role_permissions (role_id, permission)
++  select r.id, p.permission
++  from public.roles r
++  cross join unnest(v_operator_perms) as p(permission)
++  where r.org_id = p_org_id
++    and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles))
++  on conflict (role_id, permission) do nothing;
++
++  -- --- Legacy jsonb cache (roles.permissions) ---
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_all_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
++
++  update public.roles r
++     set permissions = coalesce(
++       (
++         select jsonb_agg(distinct merged.permission order by merged.permission)
++         from (
++           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
++           union all
++           select unnest(v_operator_perms)
++         ) merged
++       ),
++       '[]'::jsonb
++     )
++   where r.org_id = p_org_id
++     and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles));
++end;
++$$;
++
++revoke all on function public.seed_maintenance_permissions_for_org(uuid) from public;
++revoke all on function public.seed_maintenance_permissions_for_org(uuid) from app_user;
++
++create or replace function public.seed_maintenance_permissions_on_org_insert()
++returns trigger
++language plpgsql
++security definer
++set search_path = pg_catalog
++as $$
++begin
++  perform public.seed_maintenance_permissions_for_org(new.id);
++  return new;
++end;
++$$;
++
++revoke all on function public.seed_maintenance_permissions_on_org_insert() from public;
++revoke all on function public.seed_maintenance_permissions_on_org_insert() from app_user;
++
++-- Fire after the 080 role-seeding trigger so the admin roles already exist (zzz prefix).
++drop trigger if exists trg_zzz_seed_maintenance_permissions on public.organizations;
++create trigger trg_zzz_seed_maintenance_permissions
++  after insert on public.organizations
++  for each row
++  execute function public.seed_maintenance_permissions_on_org_insert();
++
++-- Backfill every existing org.
++do $$
++declare
++  v_org_id uuid;
++begin
++  for v_org_id in select id from public.organizations loop
++    perform public.seed_maintenance_permissions_for_org(v_org_id);
++  end loop;
++end
++$$;

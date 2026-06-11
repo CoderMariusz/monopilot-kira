@@ -8,10 +8,13 @@ import { PageHead, Section } from '../_components';
 import type {
   CalendarDayRow,
   CreateShiftPatternInput,
+  DeleteShiftPatternInput,
   ShiftLineOption,
+  ShiftPatternDeleteResult,
   ShiftPatternMutationResult,
   ShiftPatternRow,
   ShiftSiteOption,
+  UpdateShiftPatternInput,
 } from './_actions/shifts';
 
 /**
@@ -63,6 +66,16 @@ export type ShiftsScreenLabels = {
   save: string;
   saving: string;
   createFailed: string;
+  actionsColumn: string;
+  editShift: string;
+  deleteShift: string;
+  editDialogTitle: string;
+  deleteConfirmTitle: string;
+  deleteConfirmBody: string;
+  deleteConfirm: string;
+  deleting: string;
+  updateFailed: string;
+  deleteFailed: string;
 };
 
 export type ShiftsScreenProps = {
@@ -75,6 +88,8 @@ export type ShiftsScreenProps = {
   lines?: ShiftLineOption[];
   labels: ShiftsScreenLabels;
   createShiftAction?: (input: CreateShiftPatternInput) => Promise<ShiftPatternMutationResult>;
+  updateShiftAction?: (input: UpdateShiftPatternInput) => Promise<ShiftPatternMutationResult>;
+  deleteShiftAction?: (input: DeleteShiftPatternInput) => Promise<ShiftPatternDeleteResult>;
 };
 
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/org-screens.jsx:255-306';
@@ -164,21 +179,32 @@ export default function ShiftsScreen({
   lines = [],
   labels,
   createShiftAction,
+  updateShiftAction,
+  deleteShiftAction,
 }: ShiftsScreenProps) {
   const router = useRouter();
   const leadingBlanks = leadingBlankCount(year, month);
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  // null = create mode; an id = editing that existing pattern.
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<ShiftPatternRow | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const defaultSiteId = sites.find((site) => site.is_default)?.id ?? sites[0]?.id ?? '';
-  const [draft, setDraft] = React.useState({
-    name: '',
-    start_time: '06:00',
-    end_time: '14:00',
-    days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'] as Weekday[],
-    site_id: defaultSiteId,
-    line_id: '',
-  });
+  const emptyDraft = React.useCallback(
+    () => ({
+      name: '',
+      start_time: '06:00',
+      end_time: '14:00',
+      days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'] as Weekday[],
+      site_id: defaultSiteId,
+      line_id: '',
+    }),
+    [defaultSiteId],
+  );
+  const [draft, setDraft] = React.useState(emptyDraft);
+  const canDelete = canEdit && Boolean(deleteShiftAction);
 
   React.useEffect(() => {
     setDraft((current) => ({
@@ -201,36 +227,76 @@ export default function ShiftsScreen({
     });
   };
 
+  const openCreate = () => {
+    if (!canEdit || !createShiftAction) return;
+    setEditingId(null);
+    setError(null);
+    setDraft(emptyDraft());
+    setDialogOpen(true);
+  };
+
+  const openEdit = (pattern: ShiftPatternRow) => {
+    if (!canEdit || !updateShiftAction) return;
+    setEditingId(pattern.id);
+    setError(null);
+    setDraft({
+      name: pattern.name,
+      start_time: pattern.start_time.slice(0, 5),
+      end_time: pattern.end_time.slice(0, 5),
+      days_of_week: pattern.days_of_week.map((day) => day.toLowerCase()) as Weekday[],
+      site_id: pattern.site_id ?? '',
+      line_id: pattern.line_id ?? '',
+    });
+    setDialogOpen(true);
+  };
+
   const submitShift = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canEdit || pending || !createShiftAction) return;
+    if (!canEdit || pending) return;
 
-    setPending(true);
-    setError(null);
-    const result = await createShiftAction({
+    const payload = {
       name: draft.name,
       start_time: draft.start_time,
       end_time: draft.end_time,
       days_of_week: draft.days_of_week,
       site_id: draft.site_id || null,
       line_id: draft.line_id || null,
-    });
+    };
+
+    setPending(true);
+    setError(null);
+    const result =
+      editingId && updateShiftAction
+        ? await updateShiftAction({ ...payload, id: editingId })
+        : createShiftAction
+          ? await createShiftAction(payload)
+          : null;
     setPending(false);
 
+    if (!result) return;
     if (!result.ok) {
-      setError(labels.createFailed);
+      setError(editingId ? labels.updateFailed : labels.createFailed);
       return;
     }
 
     setDialogOpen(false);
-    setDraft({
-      name: '',
-      start_time: '06:00',
-      end_time: '14:00',
-      days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'],
-      site_id: defaultSiteId,
-      line_id: '',
-    });
+    setEditingId(null);
+    setDraft(emptyDraft());
+    router.refresh();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || !canDelete || !deleteShiftAction || deleting) return;
+    setDeleting(true);
+    setError(null);
+    const result = await deleteShiftAction({ id: deleteTarget.id });
+    setDeleting(false);
+
+    if (!result.ok) {
+      setError(labels.deleteFailed);
+      return;
+    }
+    setDeleteTarget(null);
     router.refresh();
   };
 
@@ -248,7 +314,7 @@ export default function ShiftsScreen({
             className="btn btn-primary"
             type="button"
             disabled={!canEdit || !createShiftAction}
-            onClick={() => setDialogOpen(true)}
+            onClick={openCreate}
           >
             {labels.newShift}
           </button>
@@ -270,6 +336,7 @@ export default function ShiftsScreen({
                 <th>{labels.columns.site}</th>
                 <th>{labels.columns.line}</th>
                 <th>{labels.columns.status}</th>
+                <th>{labels.actionsColumn}</th>
               </tr>
             </thead>
             <tbody>
@@ -282,6 +349,32 @@ export default function ShiftsScreen({
                   <td>{lineDisplay(pattern)}</td>
                   <td>
                     <span className="badge badge-green">● {labels.statusActive}</span>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }} data-testid={`shift-row-actions-${pattern.id}`}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        data-testid={`shift-edit-${pattern.id}`}
+                        disabled={!canEdit || !updateShiftAction}
+                        onClick={() => openEdit(pattern)}
+                      >
+                        {labels.editShift}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        data-testid={`shift-delete-${pattern.id}`}
+                        disabled={!canDelete}
+                        onClick={() => {
+                          if (!canDelete) return;
+                          setError(null);
+                          setDeleteTarget(pattern);
+                        }}
+                      >
+                        {labels.deleteShift}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -350,7 +443,7 @@ export default function ShiftsScreen({
         <div role="dialog" aria-modal="true" aria-labelledby="new-shift-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
           <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
             <div className="flex items-start justify-between gap-3">
-              <h2 id="new-shift-title" className="text-lg font-semibold text-slate-950">{labels.dialogTitle}</h2>
+              <h2 id="new-shift-title" className="text-lg font-semibold text-slate-950">{editingId ? labels.editDialogTitle : labels.dialogTitle}</h2>
               <button type="button" className="btn btn-secondary" onClick={() => setDialogOpen(false)} disabled={pending}>
                 {labels.cancel}
               </button>
@@ -461,6 +554,41 @@ export default function ShiftsScreen({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-shift-title"
+          data-testid="shifts-delete-dialog"
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <h2 id="delete-shift-title" className="text-lg font-semibold text-slate-950">{labels.deleteConfirmTitle}</h2>
+            <p className="mt-2 text-sm text-slate-700">
+              {labels.deleteConfirmBody}
+            </p>
+            <p className="mt-1 text-sm font-medium text-slate-900">{deleteTarget.name}</p>
+            {error ? (
+              <div role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>
+            ) : null}
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                {labels.cancel}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                data-testid="shifts-delete-confirm"
+                onClick={() => void confirmDelete()}
+                disabled={deleting}
+              >
+                {deleting ? labels.deleting : labels.deleteConfirm}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -1,0 +1,371 @@
+{
+  "_note": "QA-003 Specifications list + QA-003b Spec detail + MODAL-SPEC-SIGN. Staged bundle (en + pl real values) resolved server-side by getQaSpecsTranslator (FIXED warehouse loader pattern: requested locale -> EN fallback -> humanized last segment; raw dotted key NEVER leaked). Merged into next-intl later; ro/uk auto-mirror EN per the two-locale memory rule.",
+  "en": {
+    "landing": {
+      "specifications": {
+        "title": "Specifications",
+        "desc": "Versioned product quality specifications — parameters, approvals and e-sign."
+      }
+    },
+    "list": {
+      "title": "Specifications",
+      "subtitle": "Versioned product specifications with measurement parameters and 21 CFR Part 11 approval.",
+      "breadcrumb": { "quality": "Quality", "specs": "Specifications" },
+      "createSpec": "Create specification",
+      "searchPlaceholder": "Search product, spec code…",
+      "searchLabel": "Search specifications",
+      "rowsLabel": "{count} rows",
+      "countSummary": "{total} specs · {active} active · {review} under review",
+      "statusFilterLabel": "Filter by status",
+      "appliesToFilterLabel": "Filter by applies-to",
+      "clear": "Clear",
+      "emptyAll": "No specifications yet. Create the first one to define product quality parameters.",
+      "emptyFiltered": "No specifications match the current filters.",
+      "denied": "You do not have permission to view specifications.",
+      "error": "Could not load specifications. Please try again.",
+      "noApprover": "—",
+      "noProduct": "—",
+      "statusAll": "All",
+      "status": {
+        "draft": "Draft",
+        "under_review": "Under review",
+        "active": "Active",
+        "expired": "Expired",
+        "superseded": "Superseded"
+      },
+      "appliesToAll": "All",
+      "appliesTo": {
+        "incoming": "Incoming",
+        "in_process": "In-process",
+        "final": "Final",
+        "all": "All stages"
+      },
+      "columns": {
+        "product": "Product",
+        "specCode": "Spec code",
+        "version": "Version",
+        "status": "Status",
+        "parameters": "Parameters",
+        "approvedBy": "Approved by"
+      },
+      "parametersCount": "{count} ({critical} critical)"
+    },
+    "createModal": {
+      "title": "Create specification",
+      "subtitle": "Define a versioned product specification. Add at least one parameter before saving.",
+      "product": "Product",
+      "productHelp": "Select the finished good or intermediate this specification applies to.",
+      "productPlaceholder": "No product selected",
+      "pickProduct": "+ Select product",
+      "specCode": "Spec code",
+      "specCodeHelp": "Unique per product + applies-to. Max 50 characters.",
+      "specCodePlaceholder": "e.g. SPEC-R1001-I",
+      "appliesTo": "Applies to",
+      "appliesToHelp": "Inspection stage this specification governs.",
+      "parameters": "Parameters",
+      "parametersHelp": "Add the measurement, attribute and microbiological parameters this spec checks.",
+      "addParameter": "+ Add parameter",
+      "removeParameter": "Remove parameter",
+      "noParameters": "No parameters added yet. Add at least one to save the specification.",
+      "param": {
+        "name": "Name",
+        "namePlaceholder": "e.g. Moisture content",
+        "type": "Type",
+        "target": "Target",
+        "min": "Min",
+        "max": "Max",
+        "unit": "Unit",
+        "unitPlaceholder": "°C / pH / %",
+        "critical": "Critical",
+        "criticalShort": "Critical"
+      },
+      "type": {
+        "visual": "Visual",
+        "measurement": "Measurement",
+        "attribute": "Attribute",
+        "microbiological": "Microbiological",
+        "chemical": "Chemical",
+        "sensory": "Sensory",
+        "equipment": "Equipment"
+      },
+      "cancel": "Cancel",
+      "submit": "Create specification",
+      "submitting": "Creating…",
+      "validation": {
+        "productRequired": "Select a product.",
+        "specCodeRequired": "Spec code is required.",
+        "parametersRequired": "Add at least one parameter.",
+        "paramNameRequired": "Every parameter needs a name.",
+        "minLeMax": "Min must be ≤ Max.",
+        "fixErrors": "Please fix the highlighted parameter errors."
+      },
+      "error": "Could not create the specification: {message}",
+      "success": "Specification created."
+    },
+    "detail": {
+      "breadcrumb": { "quality": "Quality", "specs": "Specifications" },
+      "backToSpecs": "← Specifications",
+      "denied": "You do not have permission to view this specification.",
+      "error": "Could not load the specification. Please try again.",
+      "banner": {
+        "draft": "Draft — editable. Submit for review when the parameters are complete.",
+        "under_review": "Under review — locked. A quality lead must approve with an electronic signature.",
+        "active": "Approved by {approver} on {approvedAt}. Immutable — 21 CFR Part 11: a signed record cannot be modified.",
+        "superseded": "Superseded — this version is read-only and has been replaced by a newer version.",
+        "expired": "Expired — this specification is no longer effective."
+      },
+      "header": {
+        "title": "Header",
+        "product": "Product",
+        "specCode": "Spec code",
+        "version": "Version",
+        "status": "Status",
+        "appliesTo": "Applies to",
+        "approvedBy": "Approved by",
+        "approvedAt": "Approved at",
+        "notApproved": "Not yet approved"
+      },
+      "parameters": {
+        "title": "Parameters ({count})",
+        "name": "Name",
+        "type": "Type",
+        "target": "Target",
+        "min": "Min",
+        "max": "Max",
+        "unit": "Unit",
+        "critical": "Critical",
+        "criticalBadge": "● Critical",
+        "empty": "No parameters defined."
+      },
+      "actions": {
+        "title": "Actions",
+        "submitForReview": "Submit for review",
+        "submitting": "Submitting…",
+        "approve": "🔒 Approve specification",
+        "supersede": "Supersede",
+        "supersedeNoTarget": "No newer version of this product + spec code is available to supersede with.",
+        "supersedePick": "Supersede with version",
+        "supersedePlaceholder": "Select newer version",
+        "superseding": "Superseding…",
+        "submitError": "Could not submit for review: {message}",
+        "supersedeError": "Could not supersede: {message}"
+      },
+      "supersededImmutable": "This specification is superseded and immutable — no actions are available."
+    },
+    "signModal": {
+      "title": "Approve specification — {specCode} v{version}",
+      "summary": {
+        "product": "Product",
+        "specCode": "Spec code",
+        "version": "Version",
+        "parameters": "Parameters",
+        "appliesTo": "Applies to"
+      },
+      "parametersValue": "{count} total ({critical} critical)",
+      "checklistTitle": "Pre-approval checklist",
+      "checklist": {
+        "testMethod": "All parameters have a test method defined (V-QA-SPEC-002)",
+        "minLeMax": "Min ≤ target ≤ max for all measurement parameters (V-QA-SPEC-003)",
+        "role": "Approver role is quality lead (V-QA-SPEC-005)"
+      },
+      "infoBox": "Approving this specification snapshots the current allergen profile and creates an immutable record. This action cannot be undone.",
+      "esign": {
+        "title": "Electronic signature (21 CFR Part 11)",
+        "meaning": "Meaning: approved. Your account password verifies your identity.",
+        "password": "Account password",
+        "passwordHelp": "Your password is verified server-side and is never stored.",
+        "passwordPlaceholder": "Your account password"
+      },
+      "cancel": "Cancel",
+      "submit": "🔒 Approve specification",
+      "submitting": "Approving…",
+      "validation": { "passwordRequired": "Your account password is required to sign." },
+      "error": "Approval failed: {message}",
+      "success": "Specification approved."
+    }
+  },
+  "pl": {
+    "landing": {
+      "specifications": {
+        "title": "Specyfikacje",
+        "desc": "Wersjonowane specyfikacje jakości produktów — parametry, zatwierdzenia i e-podpis."
+      }
+    },
+    "list": {
+      "title": "Specyfikacje",
+      "subtitle": "Wersjonowane specyfikacje produktów z parametrami pomiarowymi i zatwierdzeniem 21 CFR Part 11.",
+      "breadcrumb": { "quality": "Jakość", "specs": "Specyfikacje" },
+      "createSpec": "Utwórz specyfikację",
+      "searchPlaceholder": "Szukaj produktu, kodu specyfikacji…",
+      "searchLabel": "Szukaj specyfikacji",
+      "rowsLabel": "Wierszy: {count}",
+      "countSummary": "{total} specyfikacji · {active} aktywnych · {review} w przeglądzie",
+      "statusFilterLabel": "Filtruj wg statusu",
+      "appliesToFilterLabel": "Filtruj wg zakresu",
+      "clear": "Wyczyść",
+      "emptyAll": "Brak specyfikacji. Utwórz pierwszą, aby zdefiniować parametry jakości produktu.",
+      "emptyFiltered": "Żadna specyfikacja nie pasuje do bieżących filtrów.",
+      "denied": "Nie masz uprawnień do przeglądania specyfikacji.",
+      "error": "Nie udało się wczytać specyfikacji. Spróbuj ponownie.",
+      "noApprover": "—",
+      "noProduct": "—",
+      "statusAll": "Wszystkie",
+      "status": {
+        "draft": "Szkic",
+        "under_review": "W przeglądzie",
+        "active": "Aktywna",
+        "expired": "Wygasła",
+        "superseded": "Zastąpiona"
+      },
+      "appliesToAll": "Wszystkie",
+      "appliesTo": {
+        "incoming": "Przyjęcie",
+        "in_process": "W procesie",
+        "final": "Wyrób gotowy",
+        "all": "Wszystkie etapy"
+      },
+      "columns": {
+        "product": "Produkt",
+        "specCode": "Kod specyfikacji",
+        "version": "Wersja",
+        "status": "Status",
+        "parameters": "Parametry",
+        "approvedBy": "Zatwierdził(a)"
+      },
+      "parametersCount": "{count} ({critical} krytycznych)"
+    },
+    "createModal": {
+      "title": "Utwórz specyfikację",
+      "subtitle": "Zdefiniuj wersjonowaną specyfikację produktu. Dodaj co najmniej jeden parametr przed zapisem.",
+      "product": "Produkt",
+      "productHelp": "Wybierz wyrób gotowy lub półprodukt, którego dotyczy specyfikacja.",
+      "productPlaceholder": "Nie wybrano produktu",
+      "pickProduct": "+ Wybierz produkt",
+      "specCode": "Kod specyfikacji",
+      "specCodeHelp": "Unikalny dla produktu + zakresu. Maks. 50 znaków.",
+      "specCodePlaceholder": "np. SPEC-R1001-I",
+      "appliesTo": "Zakres",
+      "appliesToHelp": "Etap kontroli, którego dotyczy specyfikacja.",
+      "parameters": "Parametry",
+      "parametersHelp": "Dodaj parametry pomiarowe, atrybutowe i mikrobiologiczne sprawdzane przez specyfikację.",
+      "addParameter": "+ Dodaj parametr",
+      "removeParameter": "Usuń parametr",
+      "noParameters": "Nie dodano parametrów. Dodaj co najmniej jeden, aby zapisać specyfikację.",
+      "param": {
+        "name": "Nazwa",
+        "namePlaceholder": "np. Zawartość wilgoci",
+        "type": "Typ",
+        "target": "Cel",
+        "min": "Min",
+        "max": "Maks",
+        "unit": "Jednostka",
+        "unitPlaceholder": "°C / pH / %",
+        "critical": "Krytyczny",
+        "criticalShort": "Krytyczny"
+      },
+      "type": {
+        "visual": "Wizualny",
+        "measurement": "Pomiarowy",
+        "attribute": "Atrybutowy",
+        "microbiological": "Mikrobiologiczny",
+        "chemical": "Chemiczny",
+        "sensory": "Sensoryczny",
+        "equipment": "Sprzętowy"
+      },
+      "cancel": "Anuluj",
+      "submit": "Utwórz specyfikację",
+      "submitting": "Tworzenie…",
+      "validation": {
+        "productRequired": "Wybierz produkt.",
+        "specCodeRequired": "Kod specyfikacji jest wymagany.",
+        "parametersRequired": "Dodaj co najmniej jeden parametr.",
+        "paramNameRequired": "Każdy parametr musi mieć nazwę.",
+        "minLeMax": "Min musi być ≤ Maks.",
+        "fixErrors": "Popraw zaznaczone błędy parametrów."
+      },
+      "error": "Nie udało się utworzyć specyfikacji: {message}",
+      "success": "Specyfikacja utworzona."
+    },
+    "detail": {
+      "breadcrumb": { "quality": "Jakość", "specs": "Specyfikacje" },
+      "backToSpecs": "← Specyfikacje",
+      "denied": "Nie masz uprawnień do przeglądania tej specyfikacji.",
+      "error": "Nie udało się wczytać specyfikacji. Spróbuj ponownie.",
+      "banner": {
+        "draft": "Szkic — edytowalny. Prześlij do przeglądu, gdy parametry będą kompletne.",
+        "under_review": "W przeglądzie — zablokowana. Lider jakości musi zatwierdzić podpisem elektronicznym.",
+        "active": "Zatwierdzono przez {approver} dnia {approvedAt}. Niezmienna — 21 CFR Part 11: podpisanego rekordu nie można modyfikować.",
+        "superseded": "Zastąpiona — ta wersja jest tylko do odczytu i została zastąpiona nowszą wersją.",
+        "expired": "Wygasła — ta specyfikacja nie jest już obowiązująca."
+      },
+      "header": {
+        "title": "Nagłówek",
+        "product": "Produkt",
+        "specCode": "Kod specyfikacji",
+        "version": "Wersja",
+        "status": "Status",
+        "appliesTo": "Zakres",
+        "approvedBy": "Zatwierdził(a)",
+        "approvedAt": "Data zatwierdzenia",
+        "notApproved": "Jeszcze niezatwierdzona"
+      },
+      "parameters": {
+        "title": "Parametry ({count})",
+        "name": "Nazwa",
+        "type": "Typ",
+        "target": "Cel",
+        "min": "Min",
+        "max": "Maks",
+        "unit": "Jednostka",
+        "critical": "Krytyczny",
+        "criticalBadge": "● Krytyczny",
+        "empty": "Brak zdefiniowanych parametrów."
+      },
+      "actions": {
+        "title": "Akcje",
+        "submitForReview": "Prześlij do przeglądu",
+        "submitting": "Przesyłanie…",
+        "approve": "🔒 Zatwierdź specyfikację",
+        "supersede": "Zastąp",
+        "supersedeNoTarget": "Brak nowszej wersji tego produktu + kodu specyfikacji do zastąpienia.",
+        "supersedePick": "Zastąp wersją",
+        "supersedePlaceholder": "Wybierz nowszą wersję",
+        "superseding": "Zastępowanie…",
+        "submitError": "Nie udało się przesłać do przeglądu: {message}",
+        "supersedeError": "Nie udało się zastąpić: {message}"
+      },
+      "supersededImmutable": "Ta specyfikacja jest zastąpiona i niezmienna — brak dostępnych akcji."
+    },
+    "signModal": {
+      "title": "Zatwierdź specyfikację — {specCode} v{version}",
+      "summary": {
+        "product": "Produkt",
+        "specCode": "Kod specyfikacji",
+        "version": "Wersja",
+        "parameters": "Parametry",
+        "appliesTo": "Zakres"
+      },
+      "parametersValue": "{count} łącznie ({critical} krytycznych)",
+      "checklistTitle": "Lista kontrolna przed zatwierdzeniem",
+      "checklist": {
+        "testMethod": "Wszystkie parametry mają zdefiniowaną metodę badawczą (V-QA-SPEC-002)",
+        "minLeMax": "Min ≤ cel ≤ maks dla wszystkich parametrów pomiarowych (V-QA-SPEC-003)",
+        "role": "Rola zatwierdzającego to lider jakości (V-QA-SPEC-005)"
+      },
+      "infoBox": "Zatwierdzenie tej specyfikacji utworzy migawkę profilu alergenów i niezmienny rekord. Tej operacji nie można cofnąć.",
+      "esign": {
+        "title": "Podpis elektroniczny (21 CFR Part 11)",
+        "meaning": "Znaczenie: zatwierdzono. Hasło konta potwierdza Twoją tożsamość.",
+        "password": "Hasło konta",
+        "passwordHelp": "Hasło jest weryfikowane po stronie serwera i nigdy nie jest przechowywane.",
+        "passwordPlaceholder": "Twoje hasło konta"
+      },
+      "cancel": "Anuluj",
+      "submit": "🔒 Zatwierdź specyfikację",
+      "submitting": "Zatwierdzanie…",
+      "validation": { "passwordRequired": "Hasło konta jest wymagane do podpisu." },
+      "error": "Zatwierdzenie nie powiodło się: {message}",
+      "success": "Specyfikacja zatwierdzona."
+    }
+  }
+}
