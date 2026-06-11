@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
+import { createManufacturingOperation } from '../../../../../../../actions/reference/manufacturing-ops/create';
 import { listManufacturingOperations } from '../../../../../../../actions/reference/manufacturing-ops/list';
 import { reorderManufacturingOperations } from '../../../../../../../actions/reference/manufacturing-ops/reorder';
 import { resetManufacturingOperationsToSeed } from '../../../../../../../actions/reference/manufacturing-ops/reset-to-seed';
@@ -50,6 +51,17 @@ const LABEL_KEYS = [
   'empty',
   'reset_dialog_title',
   'reset_dialog_body',
+  'add_dialog_title',
+  'field_operation_name',
+  'field_process_suffix',
+  'field_description',
+  'field_sequence',
+  'field_active',
+  'create',
+  'creating',
+  'duplicate_operation_name',
+  'duplicate_process_suffix',
+  'create_failed',
   'cancel',
   'reset',
 ] as const;
@@ -92,14 +104,76 @@ const LABEL_MAP: Record<LabelKey, LabelCamelKey> = {
   empty: 'empty',
   reset_dialog_title: 'resetDialogTitle',
   reset_dialog_body: 'resetDialogBody',
+  add_dialog_title: 'addDialogTitle',
+  field_operation_name: 'fieldOperationName',
+  field_process_suffix: 'fieldProcessSuffix',
+  field_description: 'fieldDescription',
+  field_sequence: 'fieldSequence',
+  field_active: 'fieldActive',
+  create: 'create',
+  creating: 'creating',
+  duplicate_operation_name: 'duplicateOperationName',
+  duplicate_process_suffix: 'duplicateProcessSuffix',
+  create_failed: 'createFailed',
   cancel: 'cancel',
   reset: 'reset',
 };
 
+const EN_LABEL_FALLBACKS: Record<LabelKey, string> = {
+  breadcrumb_settings: 'Settings',
+  breadcrumb_reference_tables: 'Reference Tables',
+  breadcrumb_manufacturing_operations: 'Manufacturing Operations',
+  set_reference: 'SET-055 / PRD §8.9.4',
+  title: 'Manufacturing Operations',
+  subtitle: 'Configure tenant-specific operation names, process suffixes, industry seed sets, active state, and recipe sequence order.',
+  notice: 'Operations are referenced by routings, line assignments, and WIP code generators. The process suffix is immutable after creation.',
+  loading: 'Loading manufacturing operations...',
+  error: 'Unable to load manufacturing operations.',
+  permission_denied: 'You do not have permission to manage manufacturing operations.',
+  add_new_operation: 'Add New Operation',
+  reset_to_seed_data: 'Reset to seed data',
+  delete_inactive_rows: 'Delete inactive rows',
+  industry_label: 'Industry',
+  show_inactive: 'Show inactive',
+  industry_all: 'All industries',
+  industry_bakery: 'Bakery',
+  industry_pharma: 'Pharma',
+  industry_fmcg: 'FMCG',
+  industry_generic: 'Generic',
+  industry_custom: 'Custom',
+  column_operation_name: 'Operation Name',
+  column_process_suffix: 'Process Suffix',
+  column_sequence: 'Sequence',
+  column_industry_code: 'Industry Code',
+  column_status: 'Status',
+  column_actions: 'Actions',
+  status_active: 'Active',
+  status_inactive: 'Inactive',
+  edit_operation: 'Edit {operation}',
+  delete_operation: 'Delete {operation}',
+  empty: 'No manufacturing operations match the current filters.',
+  reset_dialog_title: 'Reset to industry seed data',
+  reset_dialog_body: 'This will replace all current operations with the selected industry seed data. Existing operation order, suffixes, and inactive rows will be reset.',
+  add_dialog_title: 'Add manufacturing operation',
+  field_operation_name: 'Operation name',
+  field_process_suffix: 'Process suffix',
+  field_description: 'Description',
+  field_sequence: 'Sequence',
+  field_active: 'Active',
+  create: 'Create',
+  creating: 'Creating...',
+  duplicate_operation_name: 'An operation with this name already exists.',
+  duplicate_process_suffix: 'An operation with this suffix already exists for this industry.',
+  create_failed: 'Unable to create manufacturing operation.',
+  cancel: 'Cancel',
+  reset: 'Reset',
+};
+
 async function buildLabels(locale: string): Promise<ManufacturingOperationsScreenLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.manufacturing_operations' });
+  const has = typeof t.has === 'function' ? t.has.bind(t) : null;
   return LABEL_KEYS.reduce((acc, key) => {
-    acc[LABEL_MAP[key]] = t(key);
+    acc[LABEL_MAP[key]] = has?.(key) ? t(key) : EN_LABEL_FALLBACKS[key];
     return acc;
   }, {} as ManufacturingOperationsScreenLabels);
 }
@@ -130,6 +204,19 @@ async function resetToSeed(industryCode: IndustryCode) {
   return resetManufacturingOperationsToSeed({ industryCode, confirmReset: true });
 }
 
+async function addOperation(input: {
+  operationName: string;
+  processSuffix: string;
+  description: string | null;
+  operationSeq: number;
+  industryCode: IndustryCode;
+  isActive: boolean;
+}) {
+  'use server';
+
+  return createManufacturingOperation(input);
+}
+
 export default async function ManufacturingOperationsPage({ params }: PageProps) {
   const { locale } = await params;
   const labels = await buildLabels(locale);
@@ -142,6 +229,7 @@ export default async function ManufacturingOperationsPage({ params }: PageProps)
         operations={[]}
         error={result.error === 'forbidden' ? null : labels.error}
         canManage={result.error === 'forbidden' ? false : true}
+        createOperation={addOperation}
         reorderOperations={reorderOperations}
         resetToSeed={resetToSeed}
       />
@@ -152,6 +240,7 @@ export default async function ManufacturingOperationsPage({ params }: PageProps)
     <ManufacturingOperationsScreen
       labels={labels}
       operations={normalizeOperations(result.data)}
+      createOperation={addOperation}
       reorderOperations={reorderOperations}
       resetToSeed={resetToSeed}
     />

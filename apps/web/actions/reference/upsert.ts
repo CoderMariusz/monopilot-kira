@@ -226,9 +226,9 @@ function isValidGeneratedColumnValue(value: unknown, column: ReferenceSchemaColu
     case 'text':
     case 'formula':
     case 'relation':
-      return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+      return isValidTextValue(value, column);
     case 'number':
-      return typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)));
+      return isValidNumberValue(value, column);
     case 'date':
       return typeof value === 'string' && !Number.isNaN(Date.parse(value));
     case 'enum': {
@@ -238,6 +238,32 @@ function isValidGeneratedColumnValue(value: unknown, column: ReferenceSchemaColu
     default:
       return false;
   }
+}
+
+function isValidTextValue(value: unknown, column: ReferenceSchemaColumn): boolean {
+  if (!(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) return false;
+  if (isPlainObject(column.validation_json) && typeof column.validation_json.pattern === 'string') {
+    return new RegExp(column.validation_json.pattern).test(String(value));
+  }
+  return true;
+}
+
+function isValidNumberValue(value: unknown, column: ReferenceSchemaColumn): boolean {
+  if (!(typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))))) {
+    return false;
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n)) return false;
+  if (isPlainObject(column.validation_json)) {
+    const min = column.validation_json.min;
+    if (typeof min === 'number' && n < min) return false;
+    const scale = column.validation_json.scale;
+    if (typeof scale === 'number') {
+      const [, decimals = ''] = String(value).split('.');
+      if (decimals.length > scale) return false;
+    }
+  }
+  return true;
 }
 
 function enumValues(column: ReferenceSchemaColumn): string[] {

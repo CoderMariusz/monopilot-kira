@@ -157,6 +157,15 @@ function makeClient(options: {
       }
 
       if (normalized.startsWith('select')) {
+        if (normalized.includes('operation_name = $1') && normalized.includes('process_suffix = $3')) {
+          const operationName = String(params[0] ?? '');
+          const industry = String(params[1] ?? '');
+          const suffix = String(params[2] ?? '');
+          const duplicate = Array.from(client.rows.values()).find(
+            (row) => row.operation_name === operationName || (row.industry_code === industry && row.process_suffix === suffix),
+          );
+          return { rows: (duplicate ? [duplicate] : []) as never[], rowCount: duplicate ? 1 : 0 };
+        }
         const industry = params.map(String).find((param) => ['bakery', 'pharma', 'fmcg', 'generic', 'custom'].includes(param));
         const idFilter = params.map(String).find((p) => client.rows.has(p));
         const onlyActive = normalized.includes('is_active = true') || normalized.includes('is_active=true');
@@ -284,6 +293,27 @@ describe('Reference.ManufacturingOperations Server Actions (T-038)', () => {
     expect(currentClient.calls.some((call) => call.sql.includes('ORG-CONFIG') || stringParam(call.params, 'ORG-CONFIG'))).toBe(true);
     expect(currentClient.auditEntries.some((entry) => entry.action === 'manufacturing_operations.create')).toBe(true);
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'manufacturing_operations.created')).toBe(true);
+  });
+
+  it('returns a clear duplicate-name error before insert when operation_name already exists', async () => {
+    const createManufacturingOperation = await loadAction<
+      (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: ManufacturingOperation }>
+    >('manufacturing-ops/create.ts', 'createManufacturingOperation', () => import(`${__dirname}/manufacturing-ops/create.ts`) as Promise<Record<string, unknown>>);
+
+    const result = await createManufacturingOperation({
+      operationName: 'Mix',
+      processSuffix: 'M2',
+      description: 'Duplicate name',
+      operationSeq: 5,
+      industryCode: 'bakery',
+      isActive: true,
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'duplicate_operation_name' });
+    expect(
+      currentClient.calls.filter((call) => normalizeSql(call.sql).startsWith('insert')).length,
+      'duplicate name must fail before insert and avoid relying on a constraint exception',
+    ).toBe(0);
   });
 
   it('lists seeded APEX-CONFIG and manually-authored ORG-CONFIG rows for the current org', async () => {

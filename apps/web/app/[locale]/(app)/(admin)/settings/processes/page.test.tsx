@@ -79,17 +79,26 @@ const liveSchema: FakeRow[] = [
     presentation_json: { label: 'Category' },
     validation_json: { required: false, enum_values: ['preparation', 'processing', 'packaging', 'quality', 'logistics'] },
   },
+  {
+    table_code: 'reference.processes',
+    column_code: 'cost_mode',
+    data_type: 'enum',
+    presentation_json: { label: 'Cost mode' },
+    validation_json: { required: true, enum_values: ['per_hour', 'per_run'] },
+  },
+  { table_code: 'reference.processes', column_code: 'cost_rate', data_type: 'number', presentation_json: { label: 'Rate' }, validation_json: { required: false, min: 0, scale: 2 } },
+  { table_code: 'reference.processes', column_code: 'currency', data_type: 'text', presentation_json: { label: 'Currency' }, validation_json: { required: true, pattern: '^[A-Z]{3}$' } },
 ];
 
 const liveRows: FakeRow[] = [
-  { table_code: 'processes', row_key: 'MIXING', row_data: { process_code: 'MIXING', name: 'Ingredient mixing', category: 'preparation' }, version: 1, is_active: true, updated_at: '2026-06-01T00:00:00.000Z' },
-  { table_code: 'processes', row_key: 'COOKING', row_data: { process_code: 'COOKING', name: 'Thermal processing / cooking', category: 'processing' }, version: 1, is_active: true, updated_at: '2026-06-01T00:00:00.000Z' },
+  { table_code: 'processes', row_key: 'MIXING', row_data: { process_code: 'MIXING', name: 'Ingredient mixing', category: 'preparation', cost_mode: 'per_hour', cost_rate: '12.00', currency: 'EUR' }, version: 1, is_active: true, updated_at: '2026-06-01T00:00:00.000Z' },
+  { table_code: 'processes', row_key: 'COOKING', row_data: { process_code: 'COOKING', name: 'Thermal processing / cooking', category: 'processing', cost_mode: 'per_run', cost_rate: '30.00', currency: 'EUR' }, version: 1, is_active: true, updated_at: '2026-06-01T00:00:00.000Z' },
 ];
 
 async function renderPage() {
   const mod = (await import(/* @vite-ignore */ './page')) as { default: (p: { params: Promise<{ locale: string }> }) => Promise<React.ReactNode> };
   const node = await mod.default({ params: Promise.resolve({ locale: 'en' }) });
-  return render(<>{node}</>);
+  return render(React.createElement(React.Fragment, null, node));
 }
 
 afterEach(() => cleanup());
@@ -110,7 +119,9 @@ describe('/settings/processes schema-driven reference screen', () => {
     const table = screen.getByRole('table');
     expect(within(table).getByText('MIXING')).toBeInTheDocument();
     expect(within(table).getByText('Ingredient mixing')).toBeInTheDocument();
+    expect(within(table).getByText('12.00 EUR / h')).toBeInTheDocument();
     expect(within(table).getByText('COOKING')).toBeInTheDocument();
+    expect(within(table).getByText('30.00 EUR / run')).toBeInTheDocument();
   });
 
   it('falls back to the empty state (no stub, no fabricated rows) when org context is unavailable', async () => {
@@ -148,7 +159,15 @@ describe('/settings/processes schema-driven reference screen', () => {
     expect(within(categoryField).queryByRole('textbox'), 'Category must not be a free-text input').toBeNull();
     const categoryCombobox = within(categoryField).getByRole('combobox');
     expect(categoryCombobox).toBeInTheDocument();
-    await user.click(within(categoryField).getByRole('option', { name: /preparation/i }));
+    await user.click(categoryCombobox);
+    await user.click(await screen.findByRole('option', { name: /preparation/i }));
+
+    const costModeField = within(dialog).getByTestId('ref-row-field-cost_mode');
+    expect(within(costModeField).queryByRole('textbox'), 'Cost mode must be a Select, not free text').toBeNull();
+    await user.click(within(costModeField).getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: /per hour/i }));
+    await user.type(within(dialog).getByLabelText('Rate'), '12.50');
+    await user.type(within(dialog).getByLabelText('Currency'), 'EUR');
 
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
@@ -159,6 +178,9 @@ describe('/settings/processes schema-driven reference screen', () => {
         process_code: 'BLENDING',
         name: 'Ingredient blending',
         category: 'preparation',
+        cost_mode: 'per_hour',
+        cost_rate: 12.5,
+        currency: 'EUR',
       },
     });
   });
@@ -176,6 +198,15 @@ describe('/settings/processes schema-driven reference screen', () => {
           presentation_json: { label: 'Category' },
           validation_json: { required: false, enum_values: ['preparation', 'processing', 'packaging', 'quality', 'logistics'] },
         },
+        {
+          table_code: 'reference.processes',
+          column_code: 'cost_mode',
+          data_type: 'enum',
+          presentation_json: { label: 'Cost mode' },
+          validation_json: { required: true, enum_values: ['per_hour', 'per_run'] },
+        },
+        { table_code: 'reference.processes', column_code: 'cost_rate', data_type: 'number', presentation_json: { label: 'Rate' }, validation_json: { required: false } },
+        { table_code: 'reference.processes', column_code: 'currency', data_type: 'text', presentation_json: { label: 'Currency' }, validation_json: { required: true } },
       ],
       rows: [],
       canEdit: true,
@@ -187,10 +218,13 @@ describe('/settings/processes schema-driven reference screen', () => {
     const categoryField = within(dialog).getByTestId('ref-row-field-category');
 
     // Exactly the five seeded/zod-validated categories — no more, no less.
-    const options = within(categoryField).getAllByRole('option');
+    await user.click(within(categoryField).getByRole('combobox'));
+    const options = await screen.findAllByRole('option');
     const optionValues = options.map((o) => o.getAttribute('data-value'));
     expect(optionValues).toEqual(['preparation', 'processing', 'packaging', 'quality', 'logistics']);
     expect(within(categoryField).queryByRole('textbox')).toBeNull();
+    expect(within(dialog).getByTestId('ref-row-field-cost_mode')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Rate')).toHaveAttribute('type', 'number');
   });
 
   it('defines every settings.processes key used by the shared reference CRUD modal in all runtime locales', () => {
@@ -240,6 +274,8 @@ describe('/settings/processes schema-driven reference screen', () => {
       'modal.delete.precheckError',
       'modal.delete.submitFailed',
       'modal.delete.success',
+      'cost_mode.options.per_hour',
+      'cost_mode.options.per_run',
     ];
 
     for (const locale of ['en', 'pl', 'ro', 'uk']) {

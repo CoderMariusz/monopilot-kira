@@ -55,6 +55,17 @@ export type ManufacturingOperationsScreenLabels = {
   empty: string;
   resetDialogTitle: string;
   resetDialogBody: string;
+  addDialogTitle: string;
+  fieldOperationName: string;
+  fieldProcessSuffix: string;
+  fieldDescription: string;
+  fieldSequence: string;
+  fieldActive: string;
+  create: string;
+  creating: string;
+  duplicateOperationName: string;
+  duplicateProcessSuffix: string;
+  createFailed: string;
   cancel: string;
   reset: string;
 };
@@ -66,6 +77,14 @@ export type ManufacturingOperationsScreenProps = {
   showInactive?: boolean;
   reorderOperations?: (rows: Array<{ id: string; operation_seq: number }>) => Promise<unknown> | unknown;
   resetToSeed?: (industryCode: IndustryCode) => Promise<unknown> | unknown;
+  createOperation?: (input: {
+    operationName: string;
+    processSuffix: string;
+    description: string | null;
+    operationSeq: number;
+    industryCode: IndustryCode;
+    isActive: boolean;
+  }) => Promise<{ ok: true; data: ManufacturingOperation } | { ok: false; error?: string }> | { ok: true; data: ManufacturingOperation } | { ok: false; error?: string };
   onAddOperation?: () => void;
   onEditOperation?: (operation: ManufacturingOperation) => void;
   onDeactivateOperation?: (operation: ManufacturingOperation) => void;
@@ -120,6 +139,7 @@ export default function ManufacturingOperationsScreen({
   showInactive = false,
   reorderOperations,
   resetToSeed,
+  createOperation,
   onAddOperation,
   onEditOperation,
   onDeactivateOperation,
@@ -132,6 +152,9 @@ export default function ManufacturingOperationsScreen({
   const [orderedOperations, setOrderedOperations] = React.useState(() => sortBySequence(operations));
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
+  const [addDialogOpen, setAddDialogOpen] = React.useState(false);
+  const [createError, setCreateError] = React.useState<string | null>(null);
+  const [creating, setCreating] = React.useState(false);
   const previousOperations = React.useRef(operations);
 
   React.useEffect(() => {
@@ -146,7 +169,7 @@ export default function ManufacturingOperationsScreen({
     const activeMatches = includeInactive || operation.is_active;
     return industryMatches && activeMatches;
   });
-  const canAddOperation = canManage && Boolean(onAddOperation);
+  const canAddOperation = canManage && Boolean(createOperation || onAddOperation);
   const canEditOperation = canManage && Boolean(onEditOperation);
   const canDeactivateOperation = canManage && Boolean(onDeactivateOperation);
 
@@ -188,6 +211,35 @@ export default function ManufacturingOperationsScreen({
     void resetToSeed?.(industryCode);
   };
 
+  async function handleCreateOperation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!createOperation) {
+      onAddOperation?.();
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      operationName: String(form.get('operationName') ?? ''),
+      processSuffix: String(form.get('processSuffix') ?? '').trim().toUpperCase(),
+      description: String(form.get('description') ?? '').trim() || null,
+      operationSeq: Number(form.get('operationSeq') ?? visibleOperations.length + 1),
+      industryCode: (selectedIndustry === 'all' ? 'custom' : selectedIndustry) as IndustryCode,
+      isActive: form.get('isActive') === 'on',
+    };
+    setCreating(true);
+    setCreateError(null);
+    const result = await createOperation(payload);
+    setCreating(false);
+    if (result.ok) {
+      setOrderedOperations((current) => sortBySequence([...current, result.data]));
+      setAddDialogOpen(false);
+      return;
+    }
+    if (result.error === 'duplicate_operation_name') setCreateError(labels.duplicateOperationName);
+    else if (result.error === 'duplicate_process_suffix') setCreateError(labels.duplicateProcessSuffix);
+    else setCreateError(labels.createFailed);
+  }
+
   return (
     <main aria-labelledby="manufacturing-operations-heading" className="settings-reference-page" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <nav aria-label={labels.breadcrumbSettings} className="muted" style={{ fontSize: 11, display: 'flex', gap: 6 }}>
@@ -227,7 +279,12 @@ export default function ManufacturingOperationsScreen({
       ) : null}
 
       <section aria-label={labels.columnActions} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-        <Button type="button" className="btn-primary btn-sm" onClick={() => onAddOperation?.()} disabled={!canAddOperation}>
+        <Button
+          type="button"
+          className="btn-primary btn-sm"
+          onClick={() => (createOperation ? setAddDialogOpen(true) : onAddOperation?.())}
+          disabled={!canAddOperation}
+        >
           {labels.addNewOperation}
         </Button>
         <Button type="button" className="btn-secondary btn-sm" onClick={() => setResetDialogOpen(true)} disabled={!canManage || !resetToSeed}>
@@ -353,6 +410,43 @@ export default function ManufacturingOperationsScreen({
             {labels.reset}
           </Button>
         </Modal.Footer>
+      </Modal>
+
+      <Modal open={addDialogOpen} onOpenChange={setAddDialogOpen} size="md" modalId="SET-055-add-operation">
+        <Modal.Header title={labels.addDialogTitle} />
+        <form onSubmit={handleCreateOperation}>
+          <Modal.Body>
+            {createError ? <div role="alert" className="alert alert-red">{createError}</div> : null}
+            <div className="ff">
+              <label htmlFor="mfg-op-name">{labels.fieldOperationName}</label>
+              <input id="mfg-op-name" className="form-input" name="operationName" required maxLength={50} />
+            </div>
+            <div className="ff">
+              <label htmlFor="mfg-op-suffix">{labels.fieldProcessSuffix}</label>
+              <input id="mfg-op-suffix" className="form-input mono" name="processSuffix" required minLength={2} maxLength={4} pattern="[A-Z0-9]{2,4}" />
+            </div>
+            <div className="ff">
+              <label htmlFor="mfg-op-description">{labels.fieldDescription}</label>
+              <input id="mfg-op-description" className="form-input" name="description" maxLength={200} />
+            </div>
+            <div className="ff">
+              <label htmlFor="mfg-op-sequence">{labels.fieldSequence}</label>
+              <input id="mfg-op-sequence" className="form-input" name="operationSeq" type="number" min={1} max={99} defaultValue={visibleOperations.length + 1} required />
+            </div>
+            <label htmlFor="mfg-op-active" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+              <input id="mfg-op-active" name="isActive" type="checkbox" defaultChecked />
+              {labels.fieldActive}
+            </label>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button type="button" className="btn-secondary btn-sm" onClick={() => setAddDialogOpen(false)}>
+              {labels.cancel}
+            </Button>
+            <Button type="submit" className="btn-primary btn-sm" disabled={creating}>
+              {creating ? labels.creating : labels.create}
+            </Button>
+          </Modal.Footer>
+        </form>
       </Modal>
     </main>
   );

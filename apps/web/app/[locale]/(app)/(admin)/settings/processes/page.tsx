@@ -34,6 +34,16 @@ const PROCESSES_CONFIG: SingleReferenceScreenConfig = {
       type: 'badge',
       enumOptions: ['preparation', 'processing', 'packaging', 'quality', 'logistics'],
     },
+    {
+      key: 'cost_mode',
+      label: 'Cost mode',
+      type: 'badge',
+      enumOptions: ['per_hour', 'per_run'],
+      formOnly: true,
+    },
+    { key: 'cost_rate', label: 'Rate', type: 'number', formOnly: true },
+    { key: 'currency', label: 'Currency', type: 'text', formOnly: true },
+    { key: 'process_cost', label: 'Cost', type: 'text', tableOnly: true },
   ],
 };
 

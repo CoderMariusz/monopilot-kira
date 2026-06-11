@@ -13,7 +13,7 @@ import { RefRowEditModal } from '../../../../../../components/settings/modals/re
 export type ReferenceColumn = {
   key: string;
   label: string;
-  type: 'text' | 'boolean' | 'badge';
+  type: 'text' | 'number' | 'boolean' | 'badge';
   /**
    * Allowed values when this column is a schema enum (reference_schemas.data_type
    * = 'enum', validation_json.enum_values). Drives a dropdown in the CRUD modal so
@@ -21,6 +21,8 @@ export type ReferenceColumn = {
    * invalid_input from the reference upsert Server Action).
    */
   enumOptions?: string[];
+  formOnly?: boolean;
+  tableOnly?: boolean;
 };
 
 export type ReferenceTable = {
@@ -166,7 +168,7 @@ function modalColumns(labels: ReferenceDataLabels, table?: ReferenceTable): Moda
     help: labels.rowKeyHelp,
   };
 
-  const dataColumns = (table?.columns ?? []).map((column) => {
+  const dataColumns = (table?.columns ?? []).filter((column) => !column.tableOnly).map((column) => {
     if (column.enumOptions && column.enumOptions.length > 0) {
       return {
         columnCode: column.key,
@@ -182,7 +184,7 @@ function modalColumns(labels: ReferenceDataLabels, table?: ReferenceTable): Moda
     return {
       columnCode: column.key,
       label: column.label,
-      type: column.type === 'boolean' ? 'boolean' : 'text',
+      type: column.type === 'boolean' ? 'boolean' : column.type === 'number' ? 'number' : 'text',
       required: /name|display|code/i.test(column.key),
     } satisfies ModalColumn;
   });
@@ -372,7 +374,7 @@ export function ReferenceDataScreen({
             <Table aria-label={selectedTable.name}>
               <TableHeader>
                 <TableRow>
-                  {selectedTable.columns.map((column) => (
+                  {selectedTable.columns.filter((column) => !column.formOnly).map((column) => (
                     <TableHead scope="col" key={column.key}>{column.label}</TableHead>
                   ))}
                   <TableHead scope="col">{labels.actions}</TableHead>
@@ -381,7 +383,7 @@ export function ReferenceDataScreen({
               <TableBody>
                 {selectedRows.map((row) => (
                   <TableRow key={row.rowId}>
-                    {selectedTable.columns.map((column, columnIndex) => (
+                    {selectedTable.columns.filter((column) => !column.formOnly).map((column, columnIndex) => (
                       <TableCell
                         key={column.key}
                         className={columnIndex === 0 && column.type === 'text' ? 'mono' : undefined}

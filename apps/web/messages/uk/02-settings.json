@@ -143,6 +143,12 @@
     "no": "No",
     "rowKey": "Row key",
     "rowKeyHelp": "Uppercase, min 2 chars. Unique in processes.",
+    "cost_mode": {
+      "options": {
+        "per_hour": "Per hour",
+        "per_run": "Per run"
+      }
+    },
     "modal": {
       "edit": {
         "title": "Add process",

@@ -103,6 +103,17 @@ const labels: ManufacturingOperationsScreenLabels = {
   empty: 'No manufacturing operations match the current filters.',
   resetDialogTitle: 'Reset to industry seed data',
   resetDialogBody: 'This will replace all current operations with the selected industry seed data. Existing operation order, suffixes, and inactive rows will be reset.',
+  addDialogTitle: 'Add manufacturing operation',
+  fieldOperationName: 'Operation name',
+  fieldProcessSuffix: 'Process suffix',
+  fieldDescription: 'Description',
+  fieldSequence: 'Sequence',
+  fieldActive: 'Active',
+  create: 'Create',
+  creating: 'Creating...',
+  duplicateOperationName: 'An operation with this name already exists.',
+  duplicateProcessSuffix: 'An operation with this suffix already exists for this industry.',
+  createFailed: 'Unable to create manufacturing operation.',
   cancel: 'Cancel',
   reset: 'Reset',
 };
@@ -222,11 +233,63 @@ describe('SET-055 Manufacturing Operations list view', () => {
     expect(within(mixRow).getByText(/active/i)).toHaveAccessibleName(/active/i);
   });
 
+  it('opens the add-operation modal and submits a dedicated create action', async () => {
+    const user = userEvent.setup();
+    const createOperation = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        id: 'op-blend',
+        operation_name: 'Blend',
+        process_suffix: 'BL',
+        operation_seq: 4,
+        industry_code: 'bakery',
+        is_active: true,
+        description: 'Wet blend',
+      },
+    });
+    await renderManufacturingOperations({ createOperation });
+
+    await user.click(screen.getByRole('button', { name: /add new operation/i }));
+    const dialog = screen.getByRole('dialog', { name: /add manufacturing operation/i });
+    await user.type(within(dialog).getByLabelText(/operation name/i), 'Blend');
+    await user.type(within(dialog).getByLabelText(/process suffix/i), 'BL');
+    await user.type(within(dialog).getByLabelText(/description/i), 'Wet blend');
+    await user.clear(within(dialog).getByLabelText(/sequence/i));
+    await user.type(within(dialog).getByLabelText(/sequence/i), '4');
+    await user.click(within(dialog).getByRole('button', { name: /^create$/i }));
+
+    await waitFor(() => expect(createOperation).toHaveBeenCalledWith({
+      operationName: 'Blend',
+      processSuffix: 'BL',
+      description: 'Wet blend',
+      operationSeq: 4,
+      industryCode: 'custom',
+      isActive: true,
+    }));
+    expect(await screen.findByText('Blend')).toBeInTheDocument();
+  });
+
+  it('surfaces duplicate operation-name errors from the create action', async () => {
+    const user = userEvent.setup();
+    await renderManufacturingOperations({
+      createOperation: vi.fn().mockResolvedValue({ ok: false, error: 'duplicate_operation_name' }),
+    });
+
+    await user.click(screen.getByRole('button', { name: /add new operation/i }));
+    const dialog = screen.getByRole('dialog', { name: /add manufacturing operation/i });
+    await user.type(within(dialog).getByLabelText(/operation name/i), 'Mix');
+    await user.type(within(dialog).getByLabelText(/process suffix/i), 'M2');
+    await user.click(within(dialog).getByRole('button', { name: /^create$/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('An operation with this name already exists.');
+  });
+
   it("applies industry='bakery' filtering and hides non-bakery rows", async () => {
     const user = userEvent.setup();
     await renderManufacturingOperations({ industryFilter: 'all', showInactive: true });
 
-    await user.click(screen.getByRole('option', { name: /bakery/i }));
+    await user.click(screen.getByRole('combobox', { name: /industry/i }));
+    await user.click(await screen.findByRole('option', { name: /bakery/i }));
 
     const grid = screen.getByRole('table', { name: /manufacturing operations/i });
     expect(within(grid).getByRole('row', { name: /mix mx 1 bakery active/i })).toBeInTheDocument();

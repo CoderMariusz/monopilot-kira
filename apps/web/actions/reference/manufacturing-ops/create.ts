@@ -26,7 +26,7 @@ type Input = { operationName: string; processSuffix: string; description: string
 
 export type CreateManufacturingOperationResult =
   | { ok: true; data: ManufacturingOperation }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'already_exists' | 'persistence_failed'; message?: string };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'duplicate_operation_name' | 'duplicate_process_suffix' | 'already_exists' | 'persistence_failed'; message?: string };
 
 export async function createManufacturingOperation(rawInput: unknown): Promise<CreateManufacturingOperationResult> {
   const input = parseInput(rawInput);
@@ -35,16 +35,14 @@ export async function createManufacturingOperation(rawInput: unknown): Promise<C
   try {
     return await runWithOrgContext(async (ctx) => {
       if (!(await hasPermission(ctx, 'manufacturing_operations.create'))) return { ok: false, error: 'forbidden' };
+      const duplicate = await findDuplicate(ctx.client, input);
+      if (duplicate === 'name') return { ok: false, error: 'duplicate_operation_name' };
+      if (duplicate === 'suffix') return { ok: false, error: 'duplicate_process_suffix' };
+
       const { rows } = await ctx.client.query<ManufacturingOperation>(
         `insert into "Reference"."ManufacturingOperations"
            (org_id, operation_name, process_suffix, description, operation_seq, industry_code, is_active, marker)
-         select $1::uuid, $2, $3, $4, $5::integer, $6, $7::boolean, 'ORG-CONFIG'
-          where not exists (
-            select 1 from "Reference"."ManufacturingOperations" as manufacturing_operations
-             where org_id = app.current_org_id()
-               and marker in ('ORG-CONFIG', 'APEX-CONFIG')
-               and (process_suffix = $3 or operation_name = $2)
-          )
+         values ($1::uuid, $2, $3, $4, $5::integer, $6, $7::boolean, 'ORG-CONFIG')
          returning id, org_id, operation_name, process_suffix, description, operation_seq, industry_code, is_active, marker, created_at`,
         [ctx.orgId, input.operationName, input.processSuffix, input.description, input.operationSeq, input.industryCode, input.isActive],
       );
@@ -77,6 +75,25 @@ export async function createManufacturingOperation(rawInput: unknown): Promise<C
   } catch {
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+async function findDuplicate(client: QueryClient, input: Input): Promise<'name' | 'suffix' | null> {
+  const { rows } = await client.query<{ operation_name: string; process_suffix: string; industry_code: string }>(
+    `select operation_name, process_suffix, industry_code
+       from "Reference"."ManufacturingOperations" as manufacturing_operations
+      where org_id = app.current_org_id()
+        and marker in ('ORG-CONFIG', 'APEX-CONFIG')
+        and (
+          operation_name = $1
+          or (industry_code = $2 and process_suffix = $3)
+        )
+      limit 1`,
+    [input.operationName, input.industryCode, input.processSuffix],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  if (row.operation_name === input.operationName) return 'name';
+  return 'suffix';
 }
 
 function parseInput(raw: unknown): Input | null {

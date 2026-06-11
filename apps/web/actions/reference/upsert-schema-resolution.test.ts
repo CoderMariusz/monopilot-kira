@@ -36,6 +36,9 @@ const UNIVERSAL_PROCESSES_SCHEMA: SchemaSeed[] = [
   { org_id: null, table_code: 'reference.processes', column_code: 'process_code', data_type: 'text', required_for_done: true, validation_json: { required: true, unique: true } },
   { org_id: null, table_code: 'reference.processes', column_code: 'name', data_type: 'text', required_for_done: true, validation_json: { required: true } },
   { org_id: null, table_code: 'reference.processes', column_code: 'category', data_type: 'enum', required_for_done: false, validation_json: { required: false, enum_values: ['preparation', 'processing', 'packaging', 'quality', 'logistics'] } },
+  { org_id: null, table_code: 'reference.processes', column_code: 'cost_mode', data_type: 'enum', required_for_done: true, validation_json: { required: true, enum_values: ['per_hour', 'per_run'] } },
+  { org_id: null, table_code: 'reference.processes', column_code: 'cost_rate', data_type: 'number', required_for_done: false, validation_json: { required: false, min: 0, scale: 2 } },
+  { org_id: null, table_code: 'reference.processes', column_code: 'currency', data_type: 'text', required_for_done: true, validation_json: { required: true, pattern: '^[A-Z]{3}$' } },
 ];
 
 type ReferenceRow = {
@@ -172,7 +175,7 @@ describe('upsertReferenceRow schema resolution (W5 P2 fix)', () => {
     const missingCode = await upsertReferenceRow({
       tableCode: 'processes',
       rowKey: 'BLENDING',
-      rowData: { name: 'Ingredient blending', category: 'preparation' },
+      rowData: { name: 'Ingredient blending', category: 'preparation', cost_mode: 'per_hour', currency: 'EUR' },
     });
     expect(missingCode).toMatchObject({ ok: false, error: 'invalid_input' });
     expect(missingCode.message).toBe('process_code is required');
@@ -194,7 +197,7 @@ describe('upsertReferenceRow schema resolution (W5 P2 fix)', () => {
     const ok = await upsertReferenceRow({
       tableCode: 'processes',
       rowKey: 'BLENDING',
-      rowData: { process_code: 'BLENDING', name: 'Ingredient blending', category: 'preparation' },
+      rowData: { process_code: 'BLENDING', name: 'Ingredient blending', category: 'preparation', cost_mode: 'per_hour', cost_rate: '12.50', currency: 'EUR' },
     });
     expect(ok).toMatchObject({ ok: true });
     expect(currentClient.refreshes).toEqual([{ orgId: ORG_ID, tableCode: 'processes' }]);
@@ -210,11 +213,33 @@ describe('upsertReferenceRow schema resolution (W5 P2 fix)', () => {
     const missingCode = await upsertReferenceRow({
       tableCode: 'processes',
       rowKey: 'COOLING',
-      rowData: { name: 'Cooling' },
+      rowData: { name: 'Cooling', cost_mode: 'per_hour', currency: 'EUR' },
     });
     // Schema found (universal) → validation fires on the missing required col,
     // NOT the 'not configured' fallback.
     expect(missingCode).toMatchObject({ ok: false, error: 'invalid_input' });
     expect(missingCode.message).toBe('process_code is required');
+  });
+
+  it('validates process costing mode, exact two-decimal rate, and ISO-style currency before insert', async () => {
+    const upsertReferenceRow = await loadUpsert();
+
+    await expect(upsertReferenceRow({
+      tableCode: 'processes',
+      rowKey: 'BADMODE',
+      rowData: { process_code: 'BADMODE', name: 'Bad mode', category: 'preparation', cost_mode: 'hourly', cost_rate: '1.00', currency: 'EUR' },
+    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'cost_mode has invalid enum value' });
+
+    await expect(upsertReferenceRow({
+      tableCode: 'processes',
+      rowKey: 'BADRATE',
+      rowData: { process_code: 'BADRATE', name: 'Bad rate', category: 'preparation', cost_mode: 'per_hour', cost_rate: '1.999', currency: 'EUR' },
+    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'cost_rate has invalid number value' });
+
+    await expect(upsertReferenceRow({
+      tableCode: 'processes',
+      rowKey: 'BADCURRENCY',
+      rowData: { process_code: 'BADCURRENCY', name: 'Bad currency', category: 'preparation', cost_mode: 'per_run', cost_rate: '30.00', currency: 'EURO' },
+    })).resolves.toMatchObject({ ok: false, error: 'invalid_input', message: 'currency has invalid text value' });
   });
 });

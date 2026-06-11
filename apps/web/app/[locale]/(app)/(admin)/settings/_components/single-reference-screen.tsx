@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import React from 'react';
 
 import { softDeleteReferenceRow } from '../../../../../../actions/reference/soft-delete';
 import { upsertReferenceRow } from '../../../../../../actions/reference/upsert';
@@ -72,6 +73,7 @@ function humanizeColumn(columnCode: string) {
 }
 
 function columnType(row: SchemaColumnRow): ReferenceColumn['type'] {
+  if (row.data_type === 'number') return 'number';
   if (row.data_type === 'enum' || /code|status|level|type/i.test(row.column_code)) return 'badge';
   if (row.data_type === 'boolean' || /^is_|_active$|enabled/i.test(row.column_code)) return 'boolean';
   return 'text';
@@ -125,13 +127,44 @@ function mapColumns(rows: SchemaColumnRow[]): ReferenceColumn[] {
   });
 }
 
-function mapRows(rows: ReferenceDataRow[]): ReferenceRow[] {
+function processCostText(rowData: Record<string, unknown>): string {
+  const rawRate = rowData.cost_rate;
+  if (rawRate === null || rawRate === undefined || rawRate === '') return '—';
+  const rate = Number(rawRate);
+  if (!Number.isFinite(rate)) return '—';
+  const mode = rowData.cost_mode === 'per_run' ? 'run' : 'h';
+  const currency = typeof rowData.currency === 'string' && /^[A-Z]{3}$/.test(rowData.currency) ? rowData.currency : 'EUR';
+  return `${rate.toFixed(2)} ${currency} / ${mode}`;
+}
+
+function mapRows(rows: ReferenceDataRow[], tableCode?: string): ReferenceRow[] {
   return rows.map((row) => ({
     rowId: `${normalizeTableCode(row.table_code)}:${row.row_key}`,
     rowKey: row.row_key,
     version: row.version,
-    values: Object.fromEntries(Object.entries(row.row_data ?? {}).map(([key, value]) => [key, normalizeValue(value)])),
+    values: {
+      ...Object.fromEntries(Object.entries(row.row_data ?? {}).map(([key, value]) => [key, normalizeValue(value)])),
+      ...(tableCode === 'processes' ? { process_cost: processCostText(row.row_data ?? {}) } : {}),
+    },
   }));
+}
+
+function columnsForTable(tableCode: string, schemaColumns: ReferenceColumn[], fallbackColumns: ReferenceColumn[]): ReferenceColumn[] {
+  const columns = schemaColumns.length ? schemaColumns : fallbackColumns;
+  if (tableCode !== 'processes') return columns;
+  const withFormVisibility = columns.map((column) =>
+    ['cost_mode', 'cost_rate', 'currency'].includes(column.key) ? { ...column, formOnly: true } : column,
+  );
+  if (withFormVisibility.some((column) => column.key === 'process_cost')) return withFormVisibility;
+  return [
+    ...withFormVisibility,
+    {
+      key: 'process_cost',
+      label: 'Cost',
+      type: 'text',
+      tableOnly: true,
+    },
+  ];
 }
 
 async function buildLabels(
@@ -323,9 +356,9 @@ async function readReferenceData(config: SingleReferenceScreenConfig): Promise<R
         ),
       ]);
 
-      const columns = mapColumns(schemaResult.rows);
+      const columns = columnsForTable(tableCode, mapColumns(schemaResult.rows), fallbackColumns);
       const count = countResult.rows[0];
-      const rows = mapRows(rowResult.rows);
+      const rows = mapRows(rowResult.rows, tableCode);
       const table: ReferenceTable = {
         ...definition,
         rows: Number(count?.row_count ?? rows.length),
@@ -350,16 +383,14 @@ export async function SingleReferenceScreen({ locale, config }: { locale: string
   const enumColumnKeys = data.table.columns.filter((column) => column.enumOptions?.length).map((column) => column.key);
   const labels = await buildLabels(locale, config.labelNamespace, enumColumnKeys);
 
-  return (
-    <ReferenceDataScreen
-      labels={labels}
-      tables={[data.table]}
-      rowsByTable={{ [config.tableCode]: data.rows }}
-      selectedTableCode={config.tableCode}
-      state={data.state}
-      canEditReferenceData={data.canEditReferenceData}
-      upsertReferenceRow={upsertReferenceRow}
-      softDeleteReferenceRow={softDeleteReferenceRow}
-    />
-  );
+  return React.createElement(ReferenceDataScreen, {
+    labels,
+    tables: [data.table],
+    rowsByTable: { [config.tableCode]: data.rows },
+    selectedTableCode: config.tableCode,
+    state: data.state,
+    canEditReferenceData: data.canEditReferenceData,
+    upsertReferenceRow,
+    softDeleteReferenceRow,
+  });
 }
