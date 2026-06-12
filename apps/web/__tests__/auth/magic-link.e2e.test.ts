@@ -410,19 +410,11 @@ describe('AC3: server action context → current_setting(app.current_org_id) == 
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    // Ensure app_user role exists (idempotent)
-    const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
-    await ownerPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$
-    `);
+    // Ensure app_user role exists (idempotent, advisory-locked against concurrent suites)
+    const { ensureAppUser: ensureAppUserWithAdvisoryLock } = await import(
+      '../../tests/helpers/owner-org-context.js'
+    );
+    await ensureAppUserWithAdvisoryLock(ownerPool);
 
     // Seed the required tenant, org, and session_org_context rows for AC3.
     // Uses INSERT ... ON CONFLICT DO NOTHING for idempotency.

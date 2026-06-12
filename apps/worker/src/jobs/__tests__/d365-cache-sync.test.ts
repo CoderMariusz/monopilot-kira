@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { registerD365CacheSync } from '../d365-cache-sync.js';
 import { createWorkerRuntime, getRegistry } from '../../index.js';
 import { JobRegistry, type Logger } from '../../registry.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../__tests__/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -46,17 +47,7 @@ describe('T-090 D365 cache sync registration', () => {
 });
 
 async function ensureAppUser(owner: pg.Pool): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedOrg(owner: pg.Pool, orgId: string, name: string): Promise<void> {

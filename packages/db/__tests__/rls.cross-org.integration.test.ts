@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -40,17 +41,7 @@ async function assertRequiredColumns(adminPool: pg.Pool) {
 }
 
 async function seedBaselineData(adminPool: pg.Pool) {
-  await adminPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
   await adminPool.query('truncate table public.users, public.organizations, public.tenants cascade');
   await adminPool.query('insert into public.tenants (id, name, region_cluster, data_plane_url) values ($1, $2, $3, $4)', [

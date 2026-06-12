@@ -92,6 +92,8 @@ type AuditRow = {
   action: string;
 };
 
+const BUNDLE_APPROVABLE_BOM_STATUSES = new Set(['draft', 'in_review', 'technical_approved', 'active']);
+
 function iso(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
@@ -190,12 +192,12 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
             message: transition.message ?? `factory_spec is ${spec.status}; expected in_review`,
           });
         }
-        if (bom && !['draft', 'in_review'].includes(bom.status)) {
+        if (bom && !BUNDLE_APPROVABLE_BOM_STATUSES.has(bom.status)) {
           blockers.push({
             kind: 'release',
             severity: 'block',
             code: 'BOM_NOT_APPROVABLE',
-            message: `BOM v${bom.version} is ${bom.status}; the bundle requires a draft/in_review BOM`,
+            message: `BOM v${bom.version} is ${bom.status}; the bundle requires a draft/in_review/technical_approved/active BOM`,
           });
         }
         if (!bom) {

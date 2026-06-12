@@ -10,6 +10,7 @@ import {
   type ApprovalChainStep,
 } from '../schema/approval-chain-templates.js';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -20,17 +21,7 @@ const orgA = '07700000-0000-4000-8000-0000000000aa';
 const orgB = '07700000-0000-4000-8000-0000000000bb';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedOrg(pool: pg.Pool, orgId: string, name: string) {

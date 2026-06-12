@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { NextRequest } from 'next/server';
 
 import { assertLpConsumableForProduction } from '../../../../../../../lib/production/lp-safety-guard';
@@ -51,6 +53,12 @@ function numericJson(value: string | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function deterministicTransactionId(seed: string): string {
+  const hex = createHash('md5').update(seed).digest('hex');
+  const v = hex.slice(0, 12) + '3' + hex.slice(13, 16) + ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 32);
+  return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
+}
+
 export async function POST(request: NextRequest, context: RouteContext) {
   const woId = await getWoId(context);
   const operation = 'production.scanner.wos.consume';
@@ -88,6 +96,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       await client.query('begin');
       try {
         txnOrgContextToken = await registerTxnOrgContext(client, session.org_id);
+        const txnId = deterministicTransactionId(`${session.org_id}:scanner-consume:${clientOpId}`);
         await client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
           `${session.org_id}:scanner:${clientOpId}`,
         ]);
@@ -334,6 +343,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         return scannerError('invalid_material', 422);
       }
 
+      let fefoAdherence = true;
       if (lpId) {
         const lpRes = await client.query<{ id: string; quantity: string }>(
           `update public.license_plates
@@ -359,7 +369,55 @@ export async function POST(request: NextRequest, context: RouteContext) {
           });
           return scannerError('lp_unavailable', 409);
         }
+
+        const fefo = await client.query<{ violates: boolean }>(
+          `select exists (
+                    select 1
+                      from public.v_inventory_available cand
+                      join public.license_plates chosen
+                        on chosen.id = $2::uuid
+                       and chosen.org_id = $1::uuid
+                     where cand.org_id = $1::uuid
+                       and cand.product_id = $3::uuid
+                       and cand.uom = $4
+                       and cand.lp_id <> $2::uuid
+                       and cand.expiry_date is not null
+                       and (chosen.expiry_date is null
+                            or cand.expiry_date < chosen.expiry_date)
+                  ) as violates`,
+          [session.org_id, lpId, material.product_id, material.uom],
+        );
+        fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }
+
+      await client.query(
+        `insert into public.wo_material_consumption
+           (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,
+            operator_id, fefo_adherence_flag, ext_jsonb)
+         values
+           ($10::uuid, $1::uuid, $2::uuid, $3::uuid,
+            coalesce($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid),
+            $5::numeric, $6, $7::uuid, $8, $9::jsonb)`,
+        [
+          txnId,
+          woId,
+          material.product_id,
+          lpId,
+          qty,
+          material.uom,
+          session.user_id,
+          fefoAdherence,
+          JSON.stringify({
+            source: 'scanner',
+            clientOpId,
+            ...(reasonCode ? { reasonCode } : {}),
+            materialId: material.id,
+            materialName: material.material_name,
+            ...(warnBand ? { warned: true, overPct: numericJson(gate.over_pct) } : {}),
+          }),
+          session.org_id,
+        ],
+      );
 
       await client.query(
         `insert into public.scanner_audit_log (

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext } from './owner-org-context.js';
 
 // Migration 157 — prod_detail.item_id / formulation_ingredients.item_id FKs +
 // public.sync_prod_detail_rows(product_code, app_version) recipe→prod_detail sync.
@@ -81,10 +82,10 @@ runIntegrationTest('157 prod_detail/formulation item_id + sync_prod_detail_rows'
     adminPool = getOwnerConnection();
     appPool = getAppConnection();
     await seedBaseOrgData(adminPool);
-    await adminPool.query('delete from public.prod_detail where product_code = $1', [productCode]);
+    await ownerQueryWithInferredOrgContext(adminPool,'delete from public.prod_detail where product_code = $1', [productCode]);
     await adminPool.query('delete from public.product where product_code = $1', [productCode]);
     await adminPool.query(`delete from public.items where org_id = $1 and item_code like 'PR99%'`, [orgA]);
-    await adminPool.query(
+    await ownerQueryWithInferredOrgContext(adminPool,
       `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
          values ($1, $2, 'Item FK Product', 1, $3)`,
       [productCode, orgA, orgAUser],

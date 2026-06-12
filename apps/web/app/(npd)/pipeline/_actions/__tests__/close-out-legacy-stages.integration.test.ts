@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
 
 import {
   databaseUrl,
@@ -114,7 +115,7 @@ async function seedLaunchReadyProject(input: {
         trial_allergens_cascade_recomputed_at: now,
       };
 
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product
        (product_code, org_id, product_name, shelf_life, box, web, top_label, mrp_box,
         mrp_labels, mrp_films, mrp_sleeves, mrp_cartons, closed_mrp, done_mrp,

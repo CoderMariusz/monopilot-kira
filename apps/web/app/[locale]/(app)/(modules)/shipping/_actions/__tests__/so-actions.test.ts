@@ -29,7 +29,7 @@ let status = 'draft';
 let soNumber = 'SO-202606-00001';
 let insertedSo: Record<string, unknown> | null = null;
 let insertedLines: Array<Record<string, unknown>> = [];
-let allocationRows: Array<{ lp_id: string; qty: string }> = [];
+let allocationRows: Array<{ sales_order_line_id: string; lp_id: string; qty: string; status: string }> = [];
 let lpReserved: Record<string, string> = {};
 let lineAllocatedQty = '0';
 let candidateRows: Array<{ lp_id: string; available_qty: string }> = [];
@@ -127,26 +127,33 @@ function makeClient(): QueryClient {
         status = params[1] as string;
         return { rows: [], rowCount: 1 };
       }
-      if (q.startsWith('select sola.lp_id::text')) {
-        return { rows: allocationRows, rowCount: allocationRows.length };
+      if (q.startsWith('select ia.license_plate_id::text')) {
+        const active = allocationRows.filter((row) => row.status === 'allocated');
+        return { rows: active, rowCount: active.length };
       }
-      if (q.startsWith('delete from public.sales_order_line_allocations')) {
-        allocationRows = [];
+      if (q.startsWith('update public.inventory_allocations')) {
+        allocationRows = allocationRows.map((row) =>
+          row.sales_order_line_id === LINE_ID && row.status === 'allocated' ? { ...row, status: 'released' } : row,
+        );
         return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('update public.sales_order_lines') && q.includes('set quantity_allocated = 0')) {
         lineAllocatedQty = '0';
         return { rows: [], rowCount: 1 };
       }
-      if (q.startsWith('select id::text, product_id::text')) {
-        return { rows: [{ id: LINE_ID, product_id: ITEM_ID, quantity_ordered: '10' }], rowCount: 1 };
+      if (q.startsWith('select id::text, site_id::text')) {
+        return { rows: [{ id: LINE_ID, site_id: null, product_id: ITEM_ID, quantity_ordered: '10' }], rowCount: 1 };
       }
       if (q.startsWith('select lp.id::text as lp_id')) {
         return { rows: candidateRows, rowCount: candidateRows.length };
       }
-      if (q.startsWith('insert into public.sales_order_line_allocations')) {
-        allocationRows = allocationRows.filter((row) => row.lp_id !== params[2]);
-        allocationRows.push({ lp_id: params[2] as string, qty: params[3] as string });
+      if (q.startsWith('insert into public.inventory_allocations')) {
+        allocationRows.push({
+          sales_order_line_id: params[2] as string,
+          lp_id: params[3] as string,
+          qty: params[4] as string,
+          status: 'allocated',
+        });
         return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('update public.license_plates') && q.includes('reserved_qty = reserved_qty +')) {
@@ -228,8 +235,8 @@ describe('allocateSalesOrder', () => {
 
     expect(result).toMatchObject({ id: SO_ID, status: 'allocated' });
     expect(allocationRows).toEqual([
-      { lp_id: LP_1, qty: '6' },
-      { lp_id: LP_2, qty: '4' },
+      { sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '6', status: 'allocated' },
+      { sales_order_line_id: LINE_ID, lp_id: LP_2, qty: '4', status: 'allocated' },
     ]);
     expect(lpReserved).toEqual({ [LP_1]: '6', [LP_2]: '4' });
     expect(lineAllocatedQty).toBe('10');
@@ -244,14 +251,20 @@ describe('allocateSalesOrder', () => {
     expect(result).toEqual({ error: 'INSUFFICIENT_STOCK', item_id: ITEM_ID, needed: '10', available: '3.5' });
     expect(allocationRows).toEqual([]);
     expect(lineAllocatedQty).toBe('0');
+    expect(
+      queryLog.some((entry) => {
+        const sql = normalize(entry.sql);
+        return sql.startsWith('insert into public.inventory_allocations') || sql.startsWith('update public.license_plates');
+      }),
+    ).toBe(false);
   });
 });
 
 describe('deallocateSalesOrder', () => {
   it('decrements LP reserved qty, resets allocated qty, and deletes allocations', async () => {
     allocationRows = [
-      { lp_id: LP_1, qty: '6' },
-      { lp_id: LP_2, qty: '4' },
+      { sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '6', status: 'allocated' },
+      { sales_order_line_id: LINE_ID, lp_id: LP_2, qty: '4', status: 'allocated' },
     ];
     lpReserved = { [LP_1]: '6', [LP_2]: '4' };
     lineAllocatedQty = '10';
@@ -261,7 +274,10 @@ describe('deallocateSalesOrder', () => {
     expect(result).toEqual({ ok: true });
     expect(lpReserved).toEqual({ [LP_1]: '0', [LP_2]: '0' });
     expect(lineAllocatedQty).toBe('0');
-    expect(allocationRows).toEqual([]);
-    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('delete from public.sales_order_line_allocations'))).toBe(true);
+    expect(allocationRows).toEqual([
+      { sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '6', status: 'released' },
+      { sales_order_line_id: LINE_ID, lp_id: LP_2, qty: '4', status: 'released' },
+    ]);
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('update public.inventory_allocations'))).toBe(true);
   });
 });

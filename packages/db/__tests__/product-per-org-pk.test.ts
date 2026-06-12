@@ -17,6 +17,7 @@
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -34,17 +35,7 @@ const orgBRole = '88888888-b222-4888-8222-888888888888';
 const DUP_CODE = 'FA-DUP-001';
 
 async function ensureAppUser(adminPool: pg.Pool) {
-  await adminPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(adminPool);
 }
 
 async function seedBaseOrgData(adminPool: pg.Pool) {
@@ -100,12 +91,12 @@ async function seedBaseOrgData(adminPool: pg.Pool) {
 }
 
 async function cleanupRows(adminPool: pg.Pool) {
-  await adminPool.query(`delete from public.prod_detail where product_code = $1`, [DUP_CODE]);
+  await ownerQueryWithInferredOrgContext(adminPool,`delete from public.prod_detail where product_code = $1`, [DUP_CODE]);
   await adminPool.query(`delete from public.product where product_code = $1`, [DUP_CODE]);
 }
 
 async function insertProduct(adminPool: pg.Pool, orgId: string, userId: string) {
-  return adminPool.query(
+  return ownerQueryWithInferredOrgContext(adminPool,
     `
       insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
       values ($1, $2, 'Dup Code Product', 1, $3)
@@ -154,7 +145,7 @@ runIntegrationTest('142 product per-org primary key', () => {
 
   it('binds a composite child FK (prod_detail) to the correct per-org product row', async () => {
     // Both org rows already exist from the previous test.
-    await adminPool.query(
+    await ownerQueryWithInferredOrgContext(adminPool,
       `
         insert into public.prod_detail
           (product_code, org_id, intermediate_code, component_index)
@@ -173,11 +164,11 @@ runIntegrationTest('142 product per-org primary key', () => {
   it('rejects a cross-org child FK insert (org without a matching product row)', async () => {
     // orgB has the product row, but we delete it first so the (orgB, code) target
     // is absent, then attempt a prod_detail insert pointing at (orgB, code).
-    await adminPool.query(`delete from public.prod_detail where product_code = $1 and org_id = $2`, [DUP_CODE, orgB]);
+    await ownerQueryWithInferredOrgContext(adminPool,`delete from public.prod_detail where product_code = $1 and org_id = $2`, [DUP_CODE, orgB]);
     await adminPool.query(`delete from public.product where product_code = $1 and org_id = $2`, [DUP_CODE, orgB]);
 
     await expect(
-      adminPool.query(
+      ownerQueryWithInferredOrgContext(adminPool,
         `
           insert into public.prod_detail
             (product_code, org_id, intermediate_code, component_index)

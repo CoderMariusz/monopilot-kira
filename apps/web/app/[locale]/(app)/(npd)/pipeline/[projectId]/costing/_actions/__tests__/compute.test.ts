@@ -14,6 +14,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '@monopilot/db/clients.js';
+import { ownerQueryWithInferredOrgContext } from '../../../../../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegration = databaseUrl ? describe : describe.skip;
@@ -75,7 +76,7 @@ async function seed(pool: pg.Pool) {
     [orgAUser, orgA, orgARole],
   );
   await pool.query('delete from public.product where product_code = $1', [productA]);
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'T073 Product A', 1, $3)`,
     [productA, orgA, orgAUser],

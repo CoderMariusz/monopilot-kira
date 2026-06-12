@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -27,17 +28,7 @@ const productA = 'FA-T037-A';
 const productB = 'FA-T037-B';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBaseRows(pool: pg.Pool) {
@@ -91,13 +82,21 @@ async function seedBaseRows(pool: pg.Pool) {
     [orgAUser, orgA, orgARole, orgBUser, orgB, orgBRole],
   );
   await pool.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
-  await pool.query(
+  // One wrapped insert per org: the org-context trigger validates each row
+  // against app.current_org_id(), so a single statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, created_by_user)
-      values ($1, $2, 'T-037 Product A', $3),
-             ($4, $5, 'T-037 Product B', $6)
+      values ($1, $2, 'T-037 Product A', $3)
     `,
-    [productA, orgA, orgAUser, productB, orgB, orgBUser],
+    [productA, orgA, orgAUser],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, created_by_user)
+      values ($1, $2, 'T-037 Product B', $3)
+    `,
+    [productB, orgB, orgBUser],
   );
 }
 
@@ -204,7 +203,7 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
 
   it('rejects reasons shorter than 10 characters', async () => {
     await expect(
-      ownerPool.query(
+      ownerQueryWithInferredOrgContext(ownerPool,
         `
           insert into public.fa_allergen_overrides
             (org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -219,7 +218,7 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
     const overrideId = randomUUID();
 
     await ownerPool.query('delete from public.audit_events where resource_id = $1', [overrideId]);
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `
         insert into public.fa_allergen_overrides
           (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -269,7 +268,7 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
     const firstId = randomUUID();
     const secondId = randomUUID();
 
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `
         insert into public.fa_allergen_overrides
           (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -277,7 +276,7 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
       `,
       [firstId, orgA, productA, orgAUser],
     );
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `
         insert into public.fa_allergen_overrides
           (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -310,7 +309,7 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
     const overrideId = randomUUID();
     const sessionToken = randomUUID();
 
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `
         insert into public.fa_allergen_overrides
           (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -351,7 +350,7 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
     const overrideId = randomUUID();
     const sessionToken = randomUUID();
 
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `
         insert into public.fa_allergen_overrides
           (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -386,7 +385,7 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
     const secondId = randomUUID();
     const sessionToken = randomUUID();
 
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `
         insert into public.fa_allergen_overrides
           (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -441,14 +440,23 @@ runIntegrationTest('094 fa_allergen_overrides behavior', () => {
     const orgBOverride = randomUUID();
     const sessionToken = randomUUID();
 
-    await ownerPool.query(
+    // One wrapped insert per org: the override trigger validates each row
+    // against app.current_org_id(), so a single statement cannot span orgs.
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `
         insert into public.fa_allergen_overrides
           (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
-        values ($1, $2, $3, 'eggs', 'add', 'Org A current override', $4, 'technical'),
-               ($5, $6, $7, 'eggs', 'add', 'Org B current override', $8, 'technical')
+        values ($1, $2, $3, 'eggs', 'add', 'Org A current override', $4, 'technical')
       `,
-      [orgAOverride, orgA, productA, orgAUser, orgBOverride, orgB, productB, orgBUser],
+      [orgAOverride, orgA, productA, orgAUser],
+    );
+    await ownerQueryWithInferredOrgContext(ownerPool,
+      `
+        insert into public.fa_allergen_overrides
+          (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
+        values ($1, $2, $3, 'eggs', 'add', 'Org B current override', $4, 'technical')
+      `,
+      [orgBOverride, orgB, productB, orgBUser],
     );
     await trustOrgContext(ownerPool, sessionToken, orgA);
 

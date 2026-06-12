@@ -150,7 +150,9 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof BomDetailLabels>;
 function translateLabel(t: (key: string) => string, key: keyof BomDetailLabels): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    // next-intl returns the FULL path (`technical.bomDetail.<key>`) for a missing
+    // message — not the relative key — so match both shapes before falling back.
+    return value === key || value.endsWith(`.${key}`) ? DEFAULT_LABELS[key] : value;
   } catch {
     return DEFAULT_LABELS[key];
   }

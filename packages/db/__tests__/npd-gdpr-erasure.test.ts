@@ -18,6 +18,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -43,18 +44,7 @@ const otherUser = '89000000-0000-4000-8000-0000000000ab'; // another org-A user,
 const orgBUser = '89000000-0000-4000-8000-0000000000bb'; // org B user referencing same subject? no — cross-org isolation guard
 
 async function ensureAppUser(pool: pg.Pool): Promise<void> {
-  // Only CREATE when absent — never ALTER an existing role: two parallel
-  // integration files ALTERing the same pg_authid tuple raise
-  // "tuple concurrently updated". The migrated clone already provisions app_user.
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function applyMigration(pool: pg.Pool): Promise<void> {
@@ -134,14 +124,14 @@ async function seed(pool: pg.Pool): Promise<void> {
 
   // ---- org A: 3 product rows created_by subject (AC1: fa) ----
   for (let i = 1; i <= 3; i++) {
-    await pool.query(
+    await ownerQueryWithInferredOrgContext(pool,
       `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, $3, 1, $4)`,
       [`FA-T089-A${i}`, orgA, `GDPR Product A${i}`, subjectUser],
     );
   }
   // one product created by the OTHER user — must be left untouched
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, $3, 1, $4)`,
     ['FA-T089-AOTHER', orgA, 'GDPR Product Other', otherUser],
@@ -192,7 +182,7 @@ async function seed(pool: pg.Pool): Promise<void> {
   // ---- org B: product created by the SAME subject UUID value (cross-org isolation guard) ----
   // org B references orgBUser, but we also create a product in org B whose created_by_user is the
   // subject's UUID to prove the function only redacts within the active org context.
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, $3, 1, $4)`,
     ['FA-T089-BX', orgB, 'GDPR Product B cross', subjectUser],

@@ -26,6 +26,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL ?? process.env.DATABASE_URL_OWNER;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
@@ -114,17 +115,7 @@ runIntegrationSuite('T-070 technical-baseline-seed — integration (database)', 
     adminPool = getOwnerConnection();
 
     const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
-    await adminPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
     await adminPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)

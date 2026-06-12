@@ -124,6 +124,10 @@ function consumableLp(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+function ledgerInsertCall() {
+  return fakeClient.query.mock.calls.find((call) => String(call[0]).includes('insert into public.wo_material_consumption'));
+}
+
 describe('production scanner WO routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -191,6 +195,64 @@ describe('production scanner WO routes', () => {
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('client_op_id'))).toBe(true);
   });
 
+  it('consume with lpId inserts the canonical material consumption ledger row', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+      if (sql.includes('from public.v_active_holds')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
+      if (sql.includes('update public.wo_materials')) {
+        return {
+          rows: [{
+            id: '70000000-0000-0000-0000-000000000001',
+            product_id: '80000000-0000-0000-0000-000000000001',
+            material_name: 'Sugar',
+            consumed_qty: '7.500',
+            uom: 'kg',
+          }],
+        };
+      }
+      if (sql.includes('update public.license_plates')) return { rows: [{ id: 'lp-1', quantity: '2.500' }] };
+      if (sql.includes('from public.v_inventory_available cand')) return { rows: [{ violates: false }] };
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-ledger-lp',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '2.500',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, replay: false, consumedQty: '7.500' });
+    const ledgerCall = ledgerInsertCall();
+    expect(ledgerCall).toBeDefined();
+    expect(String(ledgerCall?.[0])).toContain(
+      '(org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,\n            operator_id, fefo_adherence_flag, ext_jsonb)',
+    );
+    const params = ledgerCall?.[1] as unknown[];
+    expect(params[1]).toBe(context.params.id);
+    expect(params[2]).toBe('80000000-0000-0000-0000-000000000001');
+    expect(params[3]).toBe('90000000-0000-0000-0000-000000000001');
+    expect(params[4]).toBe('2.500');
+    expect(params[5]).toBe('kg');
+    expect(params[6]).toBe(session.user_id);
+    expect(params[7]).toBe(true);
+    expect(params[9]).toBe(session.org_id);
+    expect(JSON.parse(params[8] as string)).toMatchObject({
+      source: 'scanner',
+      clientOpId: 'op-ledger-lp',
+      materialId: '70000000-0000-0000-0000-000000000001',
+      materialName: 'Sugar',
+    });
+  });
+
   it('consume replay returns ok without reapplying material update and reconstructs the original response from the stored ext', async () => {
     const { POST } = await import('../consume/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
@@ -237,6 +299,43 @@ describe('production scanner WO routes', () => {
       approverUserId: null,
       warning: { overconsumed: true, overPct: 10, warnPct: 5 },
     });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+  });
+
+  it('consume replay with duplicate clientOpId does not insert a duplicate material consumption ledger row', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) {
+        return {
+          rows: [{
+            ext: {
+              materialId: '70000000-0000-0000-0000-000000000001',
+              materialName: 'Sugar',
+              qty: '1.000',
+              consumedQty: '6.000',
+              uom: 'kg',
+              approverUserId: null,
+            },
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-ledger-replay',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        reasonCode: 'manual-replay',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, replay: true, consumedQty: '6.000' });
+    expect(ledgerInsertCall()).toBeUndefined();
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
   });
 
@@ -551,6 +650,51 @@ describe('production scanner WO routes', () => {
     ) as string | undefined;
     expect(extParam).toBeDefined();
     expect(JSON.parse(extParam ?? '{}')).toMatchObject({ reasonCode: 'silo-draw' });
+  });
+
+  it('consume no-LP manual path writes reasonCode in material consumption ledger ext_jsonb', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
+      if (sql.includes('update public.wo_materials')) {
+        return {
+          rows: [{
+            id: '70000000-0000-0000-0000-000000000001',
+            product_id: '80000000-0000-0000-0000-000000000001',
+            material_name: 'Sugar',
+            consumed_qty: '6.000',
+            uom: 'kg',
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-ledger-manual',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        reasonCode: 'silo-draw',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    const ledgerCall = ledgerInsertCall();
+    expect(ledgerCall).toBeDefined();
+    const params = ledgerCall?.[1] as unknown[];
+    expect(params[1]).toBe(context.params.id);
+    expect(params[2]).toBe('80000000-0000-0000-0000-000000000001');
+    expect(params[3]).toBeNull();
+    expect(params[4]).toBe('1.000');
+    expect(JSON.parse(params[8] as string)).toMatchObject({
+      source: 'scanner',
+      clientOpId: 'op-ledger-manual',
+      reasonCode: 'silo-draw',
+    });
   });
 
   it('consume blocks over-consumption at 0 threshold without an approver', async () => {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -19,17 +20,7 @@ const projectCodeA = 'NPD-T054-A';
 const projectCodeB = 'NPD-T054-B';
 
 async function ensureAppUser(adminPool: pg.Pool) {
-  await adminPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(adminPool);
 }
 
 async function seedBaseOrgData(adminPool: pg.Pool) {
@@ -83,7 +74,7 @@ async function seedBaseOrgData(adminPool: pg.Pool) {
     `,
     [orgAUser, orgA, orgARole, orgBUser, orgB, orgBRole],
   );
-  await adminPool.query(
+  await ownerQueryWithInferredOrgContext(adminPool,
     `
       insert into public.product (
         product_code, org_id, product_name, schema_version, created_by_user

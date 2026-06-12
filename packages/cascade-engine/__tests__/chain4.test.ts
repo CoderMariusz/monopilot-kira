@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '@monopilot/db/clients.js';
 import { handleTemplateChange, TemplateNotFoundError } from '../src/chain4-template.js';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const run = process.env.DATABASE_URL ? describe : describe.skip;
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
@@ -33,19 +34,7 @@ type DetailState = {
 };
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(
-    `
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `,
-  );
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedContext(pool: pg.Pool, sessionToken: string, orgId: string) {
@@ -95,7 +84,7 @@ async function seedBase(ownerPool: pg.Pool) {
            role_id = excluded.role_id`,
     [userA, orgA, roleA, userB, orgB, roleB],
   );
-  await ownerPool.query(
+  await ownerQueryWithInferredOrgContext(ownerPool,
     `insert into public.product (product_code, org_id, product_name, created_by_user, recipe_components)
      values ($1, $2, 'T013 product A', $3, 'WIP-MX-KN-PR-BK'),
             ($4, $2, 'T013 unrelated FA', $3, 'WIP-MX-KN-PR-BK')
@@ -136,11 +125,13 @@ async function seedBase(ownerPool: pg.Pool) {
 
 async function resetDetails(ownerPool: pg.Pool) {
   await ownerPool.query(`delete from public.outbox_events where org_id in ($1, $2)`, [orgA, orgB]);
-  await ownerPool.query(`delete from public.prod_detail where product_code in ($1, $2)`, [
+  // Explicit org context: params carry no org uuid to infer from, and both
+  // products belong to org A.
+  await ownerQueryWithOrgContext(ownerPool, orgA, `delete from public.prod_detail where product_code in ($1, $2)`, [
     productA,
     productUnrelated,
   ]);
-  await ownerPool.query(
+  await ownerQueryWithInferredOrgContext(ownerPool,
     `insert into public.prod_detail
        (org_id, product_code, intermediate_code, component_index,
         manufacturing_operation_1, manufacturing_operation_2, manufacturing_operation_3, manufacturing_operation_4,

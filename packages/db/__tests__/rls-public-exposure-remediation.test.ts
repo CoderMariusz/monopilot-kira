@@ -97,6 +97,7 @@ async function createSupabaseRoles(pool: pg.Pool) {
   await pool.query(`
     do $$
     begin
+      perform pg_advisory_xact_lock(hashtext('test:ensure-app-user'));
       if not exists (select 1 from pg_roles where rolname = 'anon') then
         create role anon nologin;
       end if;

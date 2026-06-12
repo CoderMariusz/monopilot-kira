@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -29,17 +30,7 @@ function appConnectionString(): string {
 }
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seed(): Promise<void> {
@@ -114,19 +105,35 @@ async function seed(): Promise<void> {
     [orgARole],
   );
   await owner.query('delete from public.outbox_events where aggregate_id in ($1, $2)', [productA, productB]);
-  await owner.query('delete from public.fa_allergen_overrides where product_code in ($1, $2)', [productA, productB]);
+  // Explicit org contexts: the params carry no org uuid to infer from, and
+  // productA/productB live in different orgs.
+  await ownerQueryWithOrgContext(owner, orgA, 'delete from public.fa_allergen_overrides where product_code = $1', [productA]);
+  await ownerQueryWithOrgContext(owner, orgB, 'delete from public.fa_allergen_overrides where product_code = $1', [productB]);
   await owner.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
-  await owner.query(
-    `insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
-     values ($1, $2, 'T-039 Product A', '', $3),
-            ($4, $5, 'T-039 Product B', '', $6)`,
-    [productA, orgA, orgAUser, productB, orgB, orgBUser],
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(owner,
+    `
+      insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
+      values ($1, $2, 'T-039 Product A', '', $3)
+    `,
+    [productA, orgA, orgAUser],
+  );
+  await ownerQueryWithInferredOrgContext(owner,
+    `
+      insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
+      values ($1, $2, 'T-039 Product B', '', $3)
+    `,
+    [productB, orgB, orgBUser],
   );
 }
 
 async function cleanup(): Promise<void> {
   await owner.query('delete from public.outbox_events where aggregate_id in ($1, $2)', [productA, productB]);
-  await owner.query('delete from public.fa_allergen_overrides where product_code in ($1, $2)', [productA, productB]);
+  // Explicit org contexts: the params carry no org uuid to infer from, and
+  // productA/productB live in different orgs.
+  await ownerQueryWithOrgContext(owner, orgA, 'delete from public.fa_allergen_overrides where product_code = $1', [productA]);
+  await ownerQueryWithOrgContext(owner, orgB, 'delete from public.fa_allergen_overrides where product_code = $1', [productB]);
   await owner.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
   await owner.query('delete from public.user_roles where user_id in ($1, $2)', [orgAUser, orgBUser]);
   await owner.query('delete from public.role_permissions where role_id in ($1, $2)', [orgARole, orgBRole]);
@@ -166,7 +173,7 @@ run('setAllergenOverride Server Action — REAL DB integration', () => {
 
   it('chains a current remove override to a new add override and refreshes the cascade', async () => {
     const existingId = randomUUID();
-    await owner.query(
+    await ownerQueryWithInferredOrgContext(owner,
       `insert into public.fa_allergen_overrides
          (id, org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
        values ($1, $2, $3, 'gluten', 'remove', 'Initial supplier evidence', $4, 'technical.write')`,
@@ -223,7 +230,7 @@ run('setAllergenOverride Server Action — REAL DB integration', () => {
   });
 
   it('proves RLS is non-vacuous: other-org rows are invisible and WITH CHECK rejects cross-org insert', async () => {
-    await owner.query(
+    await ownerQueryWithInferredOrgContext(owner,
       `insert into public.fa_allergen_overrides
          (org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
        values ($1, $2, 'milk', 'add', 'Other org supplier reason', $3, 'quality.write')`,

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
 
 type D365RefreshRow = {
   code: string;
@@ -29,17 +30,7 @@ const otherRoleId = randomUUID();
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedOrg(targetOrgId: string, targetUserId: string, targetRoleId: string, roleCode: string, permissions: string[]): Promise<void> {
@@ -99,16 +90,17 @@ async function seedProducts(): Promise<void> {
            display_order = excluded.display_order`,
     [orgId, otherOrgId],
   );
-  await owner.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (
        product_code, product_name, org_id, launch_date, built, status_overall,
        done_mrp, done_commercial, mrp_box, article_number, created_by_user
      )
      values
-       ('T051-ACTIVE-MRP', 'MRP visible active', $1, current_date + 7, false, 'InProgress', false, true, null, 'A-1', $3),
-       ('T051-DONE-MRP', 'MRP done active', $1, current_date + 30, false, 'Pending', true, false, 'BOX-1', null, $3),
-       ('T051-BUILT', 'Built should hide by default', $1, current_date + 2, true, 'InProgress', false, true, null, 'A-2', $3),
-       ('T051-OTHER', 'Other org invisible', $2, current_date + 1, false, 'InProgress', false, true, null, 'B-1', $4)
+       ('T051-ACTIVE-MRP', 'MRP visible active', $1, current_date + 7, false, 'InProgress', false, true, null, 'A-1', $2),
+       ('T051-DONE-MRP', 'MRP done active', $1, current_date + 30, false, 'Pending', true, false, 'BOX-1', null, $2),
+       ('T051-BUILT', 'Built should hide by default', $1, current_date + 2, true, 'InProgress', false, true, null, 'A-2', $2)
      on conflict (org_id, product_code) do update
        set product_name = excluded.product_name,
            org_id = excluded.org_id,
@@ -119,7 +111,26 @@ async function seedProducts(): Promise<void> {
            done_commercial = excluded.done_commercial,
            mrp_box = excluded.mrp_box,
            article_number = excluded.article_number`,
-    [orgId, otherOrgId, managerUserId, otherUserId],
+    [orgId, managerUserId],
+  );
+  await ownerQueryWithInferredOrgContext(owner,
+    `insert into public.product (
+       product_code, product_name, org_id, launch_date, built, status_overall,
+       done_mrp, done_commercial, mrp_box, article_number, created_by_user
+     )
+     values
+       ('T051-OTHER', 'Other org invisible', $1, current_date + 1, false, 'InProgress', false, true, null, 'B-1', $2)
+     on conflict (org_id, product_code) do update
+       set product_name = excluded.product_name,
+           org_id = excluded.org_id,
+           launch_date = excluded.launch_date,
+           built = excluded.built,
+           status_overall = excluded.status_overall,
+           done_mrp = excluded.done_mrp,
+           done_commercial = excluded.done_commercial,
+           mrp_box = excluded.mrp_box,
+           article_number = excluded.article_number`,
+    [otherOrgId, otherUserId],
   );
 }
 

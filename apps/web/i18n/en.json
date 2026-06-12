@@ -3435,8 +3435,21 @@
           },
           "supplier": {
             "title": "Supplier specifications",
-            "pending": "Supplier specs API pending",
-            "pendingBody": "The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands."
+            "supplier": "Supplier",
+            "supplierStatus": "Supplier status",
+            "lifecycleStatus": "Lifecycle",
+            "reviewStatus": "Review",
+            "specVersion": "Spec version",
+            "effectiveFrom": "Effective from",
+            "expiryDate": "Expiry",
+            "documents": "Documents",
+            "none": "—",
+            "document": "Spec",
+            "certificates": "Certificates",
+            "loading": "Loading supplier specs…",
+            "empty": "No supplier specs yet",
+            "emptyBody": "No supplier specification rows are linked to this item.",
+            "error": "Unable to load supplier specs. Please try again."
           }
         },
         "allergens": "Allergens",
@@ -4110,7 +4123,8 @@
       "error": "Unable to load this BOM. Please try again.",
       "notFound": "BOM not found.",
       "forbidden": "You do not have permission to view this BOM.",
-      "originNpdProject": "Origin: NPD project →"
+      "originNpdProject": "Origin: NPD project →",
+      "colActions": "Actions"
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -5043,7 +5057,7 @@
       "clonedFrom": "Cloned from",
       "blockersTitle": "Blockers & preflight",
       "noBlockers": "No blockers — bundle is ready for Technical approval.",
-      "approveDisabled": "Approve disabled — resolve {count} blocker(s) above (supplier_spec, RBAC, release guard).",
+      "approveDisabled": "Approve disabled — resolve {count} preflight blocker(s) above.",
       "flowTitle": "Release flow",
       "flowHelp": "Pair a matching shared BOM, then submit the draft for Technical review.",
       "submitForReview": "Submit for review",
@@ -7298,6 +7312,39 @@
         "invalid_credentials": "Authorization failed — wrong password or PIN.",
         "pin_locked": "The PIN is temporarily locked after too many failed attempts. Try again later or authorize with your account password.",
         "persistence_failed": "Saving the PIN failed. Try again."
+      }
+    }
+  },
+  "Finance": {
+    "woCosts": {
+      "title": "WO actual costs",
+      "subtitle": "Completed work orders costed from consumed materials, process runtime, setup, waste, and output kg.",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing...",
+      "permissionDenied": "You do not have permission to view finance costs.",
+      "empty": "No completed work orders with costing inputs were found in this window.",
+      "error": "Finance costs could not be loaded.",
+      "loading": "Loading WO costs...",
+      "notAvailable": "n/a",
+      "columns": {
+        "wo": "WO",
+        "product": "Product",
+        "outputKg": "Output kg",
+        "materials": "Materials",
+        "labor": "Labor",
+        "total": "Total",
+        "costPerKg": "Cost / kg"
+      },
+      "breakdown": {
+        "title": "Material breakdown",
+        "item": "Item",
+        "qtyKg": "Qty kg",
+        "costPerKg": "Cost / kg",
+        "cost": "Cost",
+        "noLabor": "No process cost",
+        "setup": "Setup",
+        "machine": "Machine",
+        "waste": "Waste"
       }
     }
   }

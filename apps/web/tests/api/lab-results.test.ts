@@ -43,6 +43,7 @@ import {
   type QualityLabBridge,
 } from '../../lib/technical/lab/quality-bridge-client';
 import { GET, POST } from '../../app/api/technical/lab-results/route';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../helpers/owner-org-context.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. PURE unit tests (no DB)
@@ -188,18 +189,7 @@ const seed = {
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('t020-lab:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedFixtures(): Promise<void> {

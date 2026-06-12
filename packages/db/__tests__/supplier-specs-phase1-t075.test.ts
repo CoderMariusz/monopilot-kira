@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -22,30 +23,7 @@ const rmItemA = '17400000-0000-4000-8000-0000000fffaa';
 const supplierCode = 'SUP-T075-A';
 
 async function ensureAppUser(pool: pg.Pool) {
-  // Serialize the role mutation across parallel test files (transaction-scoped advisory lock)
-  // so concurrent CREATE/ALTER ROLE never hit "tuple concurrently updated" on pg_authid.
-  const client = await pool.connect();
-  try {
-    await client.query('begin');
-    await client.query('select pg_advisory_xact_lock(73730168)');
-    await client.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
-    await client.query('commit');
-  } catch (err) {
-    await client.query('rollback').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBase(pool: pg.Pool) {

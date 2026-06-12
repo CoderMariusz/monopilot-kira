@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
@@ -28,17 +29,7 @@ function appUserConnectionString(): string {
 }
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedIdentities(): Promise<void> {
@@ -123,7 +114,7 @@ async function withAppOrg<T>(orgId: string, action: (client: pg.PoolClient) => P
 }
 
 async function seedProduct(orgId: string, userId: string, productCode: string, closedCore: string | null): Promise<void> {
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product
        (org_id, product_code, product_name, pack_size, number_of_cases, recipe_components, closed_core, created_by_user, app_version)
      values ($1::uuid, $2, $3, 'Case', 12, 'Flour;Water', $4, $5::uuid, 't018-query-test')`,

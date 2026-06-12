@@ -28,6 +28,7 @@ import {
 } from '../../../../../../(npd)/brief/actions/__tests__/brief-integration-helpers';
 import { listCostHistory } from '../_actions/list-cost-history';
 import { postCost } from '../_actions/post-cost';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 const run = databaseUrl ? describe : describe.skip;
 
@@ -50,18 +51,7 @@ const seed = {
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('technical-cost:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedFixtures(): Promise<void> {

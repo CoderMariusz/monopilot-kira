@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../../tests/helpers/owner-org-context.js';
 
 import {
   appUserPassword,
@@ -79,18 +80,7 @@ const productCode = `FA${Math.floor(Math.random() * 1_000_000_000)}`;
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('finishwip:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedAll(): Promise<void> {
@@ -138,7 +128,7 @@ async function seedAll(): Promise<void> {
      on conflict (user_id, role_id) do nothing`,
     [seed.writerUserId, seed.writerRoleId, seed.orgAId, seed.viewerUserId, seed.viewerRoleId],
   );
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, 'FinishWip Product', 1, $3) on conflict do nothing`,
     [productCode, seed.orgAId, seed.writerUserId],
@@ -146,7 +136,7 @@ async function seedAll(): Promise<void> {
 }
 
 async function cleanup(): Promise<void> {
-  await owner.query(`delete from public.prod_detail where org_id = $1`, [seed.orgAId]);
+  await ownerQueryWithInferredOrgContext(owner,`delete from public.prod_detail where org_id = $1`, [seed.orgAId]);
   await owner.query(`delete from public.outbox_events where org_id = $1`, [seed.orgAId]);
   await owner.query(`delete from public.product where org_id = $1`, [seed.orgAId]);
   await owner.query(`delete from public.user_roles where org_id = $1`, [seed.orgAId]);

@@ -10,8 +10,20 @@ type QueryClient = {
 };
 
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
-type SalesOrderStatus = 'draft' | 'confirmed' | 'allocated' | 'shipped' | 'cancelled';
-type TransitionTarget = 'confirmed' | 'allocated' | 'shipped' | 'cancelled';
+type SalesOrderStatus =
+  | 'draft'
+  | 'confirmed'
+  | 'allocated'
+  | 'partially_picked'
+  | 'picked'
+  | 'partially_packed'
+  | 'packed'
+  | 'manifested'
+  | 'shipped'
+  | 'partially_delivered'
+  | 'delivered'
+  | 'cancelled';
+type TransitionTarget = SalesOrderStatus;
 
 export type SalesOrderLine = {
   id: string;
@@ -37,7 +49,7 @@ export type SalesOrder = {
 
 export type IllegalTransitionError = {
   error: 'ILLEGAL_TRANSITION';
-  from: SalesOrderStatus;
+  from: string;
   to: TransitionTarget;
 };
 
@@ -56,15 +68,36 @@ type CreateSalesOrderInput = {
 };
 
 const SHIP_SO_READ = 'ship.dashboard.view';
-const SHIP_SO_WRITE = 'ship.so.create';
+const SHIP_SO_CREATE = 'ship.so.create';
+const SHIP_SO_CONFIRM = 'ship.so.confirm';
+const SHIP_SO_CANCEL = 'ship.so.cancel';
+// Migration 212 seeds no granular ship.so.allocate/deallocate permission; keep create for those ops.
+const SHIP_SO_ALLOCATE = 'ship.so.create';
 
 const LEGAL_TRANSITIONS: Record<SalesOrderStatus, readonly TransitionTarget[]> = {
   draft: ['confirmed', 'cancelled'],
   confirmed: ['allocated', 'cancelled'],
-  allocated: ['shipped', 'cancelled'],
-  shipped: [],
+  allocated: ['partially_picked', 'picked', 'cancelled'],
+  partially_picked: ['picked', 'cancelled'],
+  picked: ['partially_packed', 'packed', 'cancelled'],
+  partially_packed: ['packed', 'cancelled'],
+  packed: ['manifested', 'cancelled'],
+  manifested: ['shipped', 'cancelled'],
+  shipped: ['partially_delivered', 'delivered'],
+  partially_delivered: ['delivered'],
+  delivered: [],
   cancelled: [],
 };
+
+function isSalesOrderStatus(status: string): status is SalesOrderStatus {
+  return Object.prototype.hasOwnProperty.call(LEGAL_TRANSITIONS, status);
+}
+
+function permissionForTransition(newStatus: TransitionTarget): string {
+  if (newStatus === 'confirmed') return SHIP_SO_CONFIRM;
+  if (newStatus === 'cancelled') return SHIP_SO_CANCEL;
+  return SHIP_SO_CREATE;
+}
 
 async function hasPermission(ctx: ShippingContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
@@ -220,12 +253,13 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
 
 async function deallocateSalesOrderInContext(ctx: ShippingContext, soId: string): Promise<void> {
   const { rows: allocations } = await ctx.client.query<{ lp_id: string; qty: string }>(
-    `select sola.lp_id::text, sola.qty::text
-       from public.sales_order_line_allocations sola
-       join public.sales_order_lines sol on sol.id = sola.so_line_id
-      where sola.org_id = app.current_org_id()
+    `select ia.license_plate_id::text as lp_id, ia.quantity_allocated::text as qty
+       from public.inventory_allocations ia
+       join public.sales_order_lines sol on sol.id = ia.sales_order_line_id
+      where ia.org_id = app.current_org_id()
         and sol.org_id = app.current_org_id()
-        and sol.sales_order_id = $1::uuid`,
+        and sol.sales_order_id = $1::uuid
+        and ia.status = 'allocated'`,
     [soId],
   );
 
@@ -241,13 +275,17 @@ async function deallocateSalesOrderInContext(ctx: ShippingContext, soId: string)
   }
 
   await ctx.client.query(
-    `delete from public.sales_order_line_allocations sola
-      using public.sales_order_lines sol
-      where sol.id = sola.so_line_id
-        and sola.org_id = app.current_org_id()
+    `update public.inventory_allocations ia
+        set status = 'released',
+            released_at = now(),
+            updated_by = $2::uuid
+       from public.sales_order_lines sol
+      where sol.id = ia.sales_order_line_id
+        and ia.org_id = app.current_org_id()
         and sol.org_id = app.current_org_id()
-        and sol.sales_order_id = $1::uuid`,
-    [soId],
+        and sol.sales_order_id = $1::uuid
+        and ia.status = 'allocated'`,
+    [soId, ctx.userId],
   );
 
   await ctx.client.query(
@@ -265,7 +303,7 @@ async function transitionSalesOrderStatusInContext(
   id: string,
   newStatus: TransitionTarget,
 ): Promise<SalesOrder | IllegalTransitionError | null> {
-  const { rows } = await ctx.client.query<{ status: SalesOrderStatus }>(
+  const { rows } = await ctx.client.query<{ status: string }>(
     `select status
        from public.sales_orders
       where org_id = app.current_org_id()
@@ -276,7 +314,7 @@ async function transitionSalesOrderStatusInContext(
   );
   const current = rows[0]?.status;
   if (!current) return null;
-  if (!LEGAL_TRANSITIONS[current].includes(newStatus)) {
+  if (!isSalesOrderStatus(current) || !LEGAL_TRANSITIONS[current].includes(newStatus)) {
     return { error: 'ILLEGAL_TRANSITION', from: current, to: newStatus };
   }
 
@@ -350,7 +388,7 @@ export async function getSalesOrder(id: string): Promise<SalesOrder | null> {
 export async function createSalesOrder(input: CreateSalesOrderInput): Promise<SalesOrder | null> {
   return withOrgContext(async ({ userId, orgId, client }) => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_WRITE);
+    await requirePermission(ctx, SHIP_SO_CREATE);
     if (input.lines.length === 0) throw new Error('Sales order requires at least one line');
 
     const { rows: numberRows } = await ctx.client.query<{ so_number: string }>(
@@ -389,7 +427,7 @@ export async function transitionSalesOrderStatus(
 ): Promise<SalesOrder | IllegalTransitionError | null> {
   return withOrgContext(async ({ userId, orgId, client }) => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_WRITE);
+    await requirePermission(ctx, permissionForTransition(newStatus));
     return transitionSalesOrderStatusInContext(ctx, id, newStatus);
   });
 }
@@ -397,15 +435,30 @@ export async function transitionSalesOrderStatus(
 export async function allocateSalesOrder(id: string): Promise<SalesOrder | InsufficientStockError | IllegalTransitionError | null> {
   return withOrgContext(async ({ userId, orgId, client }) => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_WRITE);
-    await deallocateSalesOrderInContext(ctx, id);
+    await requirePermission(ctx, SHIP_SO_ALLOCATE);
+
+    const { rows: statusRows } = await ctx.client.query<{ status: string }>(
+      `select status
+         from public.sales_orders
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and deleted_at is null
+        limit 1`,
+      [id],
+    );
+    const current = statusRows[0]?.status;
+    if (!current) return null;
+    if (!isSalesOrderStatus(current) || !LEGAL_TRANSITIONS[current].includes('allocated')) {
+      return { error: 'ILLEGAL_TRANSITION', from: current, to: 'allocated' };
+    }
 
     const { rows: lines } = await ctx.client.query<{
       id: string;
+      site_id: string | null;
       product_id: string;
       quantity_ordered: string;
     }>(
-      `select id::text, product_id::text, quantity_ordered::text
+      `select id::text, site_id::text, product_id::text, quantity_ordered::text
          from public.sales_order_lines
         where org_id = app.current_org_id()
           and sales_order_id = $1::uuid
@@ -413,6 +466,13 @@ export async function allocateSalesOrder(id: string): Promise<SalesOrder | Insuf
         order by line_number`,
       [id],
     );
+
+    const planned: Array<{
+      lineId: string;
+      siteId: string | null;
+      allocated: string;
+      allocations: Array<{ lpId: string; qty: string }>;
+    }> = [];
 
     for (const line of lines) {
       let needed = decimalToUnits(line.quantity_ordered);
@@ -458,11 +518,17 @@ export async function allocateSalesOrder(id: string): Promise<SalesOrder | Insuf
       let allocated = 0n;
       for (const allocation of allocations) {
         allocated += decimalToUnits(allocation.qty);
+      }
+      planned.push({ lineId: line.id, siteId: line.site_id, allocated: unitsToDecimal(allocated), allocations });
+    }
+
+    for (const line of planned) {
+      for (const allocation of line.allocations) {
         await ctx.client.query(
-          `insert into public.sales_order_line_allocations (org_id, so_line_id, lp_id, qty)
-           values ($1::uuid, $2::uuid, $3::uuid, $4::numeric)
-           on conflict (so_line_id, lp_id) do update set qty = excluded.qty`,
-          [orgId, line.id, allocation.lpId, allocation.qty],
+          `insert into public.inventory_allocations
+             (org_id, site_id, sales_order_line_id, license_plate_id, quantity_allocated, status, created_by, updated_by)
+           values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::numeric, 'allocated', $6::uuid, $6::uuid)`,
+          [orgId, line.siteId, line.lineId, allocation.lpId, allocation.qty, userId],
         );
         await ctx.client.query(
           `update public.license_plates
@@ -480,7 +546,7 @@ export async function allocateSalesOrder(id: string): Promise<SalesOrder | Insuf
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid`,
-        [line.id, unitsToDecimal(allocated), userId],
+        [line.lineId, line.allocated, userId],
       );
     }
 
@@ -491,7 +557,7 @@ export async function allocateSalesOrder(id: string): Promise<SalesOrder | Insuf
 export async function deallocateSalesOrder(soId: string): Promise<{ ok: true }> {
   return withOrgContext(async ({ userId, orgId, client }) => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_WRITE);
+    await requirePermission(ctx, SHIP_SO_ALLOCATE);
     await deallocateSalesOrderInContext(ctx, soId);
     return { ok: true };
   });

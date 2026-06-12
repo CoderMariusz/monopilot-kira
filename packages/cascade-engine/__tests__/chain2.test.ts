@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { handleOperationChange } from '../src/chain2-operations.js';
 import { getAppConnection, getOwnerConnection } from '@monopilot/db/clients.js';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const run = process.env.DATABASE_URL ? describe : describe.skip;
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
@@ -19,19 +20,7 @@ const productA = 'T011-FG-A';
 const productB = 'T011-FG-B';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(
-    `
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `,
-  );
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedContext(pool: pg.Pool, sessionToken: string, orgId: string) {
@@ -91,15 +80,25 @@ run('T-011 chain2 manufacturing operation cascade', () => {
              role_id = excluded.role_id`,
       [userA, orgA, roleA, userB, orgB, roleB],
     );
-    await ownerPool.query(
+    // One wrapped statement per org: the org-context trigger validates each
+    // row against app.current_org_id(), so a statement cannot span orgs.
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `insert into public.product (product_code, org_id, product_name, created_by_user, recipe_components)
-       values ($1, $2, 'T011 product A', $3, 'Component A'),
-              ($4, $5, 'T011 product B', $6, 'Component B')
+       values ($1, $2, 'T011 product A', $3, 'Component A')
        on conflict (org_id, product_code) do update
          set org_id = excluded.org_id,
              created_by_user = excluded.created_by_user,
              recipe_components = excluded.recipe_components`,
-      [productA, orgA, userA, productB, orgB, userB],
+      [productA, orgA, userA],
+    );
+    await ownerQueryWithInferredOrgContext(ownerPool,
+      `insert into public.product (product_code, org_id, product_name, created_by_user, recipe_components)
+       values ($1, $2, 'T011 product B', $3, 'Component B')
+       on conflict (org_id, product_code) do update
+         set org_id = excluded.org_id,
+             created_by_user = excluded.created_by_user,
+             recipe_components = excluded.recipe_components`,
+      [productB, orgB, userB],
     );
     await ownerPool.query(
       `insert into "Reference"."ManufacturingOperations"
@@ -118,7 +117,7 @@ run('T-011 chain2 manufacturing operation cascade', () => {
     );
     await seedContext(ownerPool, sessionToken, orgA);
 
-    const detail = await ownerPool.query<{ id: string }>(
+    const detail = await ownerQueryWithInferredOrgContext<{ id: string }>(ownerPool,
       `insert into public.prod_detail
          (org_id, product_code, intermediate_code, component_index, manufacturing_operation_1)
        values ($1, $2, 'BASE', 1, 'Mix')
@@ -129,7 +128,8 @@ run('T-011 chain2 manufacturing operation cascade', () => {
   });
 
   afterAll(async () => {
-    await ownerPool?.query(`delete from public.prod_detail where org_id in ($1, $2)`, [orgA, orgB]).catch(() => undefined);
+    await ownerQueryWithOrgContext(ownerPool, orgA, `delete from public.prod_detail where org_id = $1`, [orgA]).catch(() => undefined);
+    await ownerQueryWithOrgContext(ownerPool, orgB, `delete from public.prod_detail where org_id = $1`, [orgB]).catch(() => undefined);
     await ownerPool?.query(`delete from "Reference"."ManufacturingOperations" where org_id in ($1, $2)`, [orgA, orgB]).catch(() => undefined);
     await ownerPool?.query(`delete from public.product where product_code in ($1, $2)`, [productA, productB]).catch(() => undefined);
     await ownerPool?.query(`delete from public.users where id in ($1, $2)`, [userA, userB]).catch(() => undefined);
@@ -155,7 +155,9 @@ run('T-011 chain2 manufacturing operation cascade', () => {
   });
 
   it('recomputes intermediate_code_final from p1 through p4 in Phase D style', async () => {
-    await ownerPool.query(
+    // Explicit org context: the only uuid param is the prod_detail id, which
+    // the inference helper would mistake for an org id.
+    await ownerQueryWithOrgContext(ownerPool, orgA,
       `update public.prod_detail
           set intermediate_code_p1 = 'WIP-MX-0000001',
               intermediate_code_p2 = 'WIP-KN-0000002',

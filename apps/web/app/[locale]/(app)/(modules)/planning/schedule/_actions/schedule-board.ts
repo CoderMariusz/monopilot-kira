@@ -242,6 +242,7 @@ export async function rescheduleWorkOrder(params: {
                 updated_at = now()
           where wo.org_id = app.current_org_id()
             and wo.id = $1::uuid
+            and wo.status = $7
             and wo.status = any($6::text[])
       returning wo.id, wo.wo_number, wo.status, wo.priority, wo.production_line_id,
                 wo.scheduled_start_time, wo.scheduled_end_time,
@@ -254,6 +255,7 @@ export async function rescheduleWorkOrder(params: {
           input.lineId ?? null,
           ctx.userId,
           [...RESCHEDULE_LEGAL_STATUSES],
+          current.status,
         ],
       );
       const workOrder = updated.rows[0];

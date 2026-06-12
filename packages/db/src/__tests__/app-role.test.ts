@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../__tests__/owner-org-context.js';
 
 const { Pool } = pg;
 
@@ -45,17 +46,7 @@ describe('T-045 app-role connection split', () => {
 
       // Set up test data if needed
       try {
-        await adminPool.query(`
-          do $$
-          begin
-            if not exists (select 1 from pg_roles where rolname = 'app_user') then
-              create role app_user login password '${appUserPassword}';
-            else
-              alter role app_user login password '${appUserPassword}';
-            end if;
-          end
-          $$;
-        `);
+        await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
       } catch {
         // Role might already exist from prior tests
       }

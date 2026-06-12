@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '@monopilot/db/clients.js';
+import { ownerQueryWithInferredOrgContext } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegration = databaseUrl ? describe : describe.skip;
@@ -64,7 +65,7 @@ async function seed(pool: pg.Pool) {
      on conflict (id) do update set org_id = excluded.org_id, email = excluded.email`,
     [userA, orgA, roleA],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'T072 Compute Product', 1, $3)
      on conflict (org_id, product_code) do update

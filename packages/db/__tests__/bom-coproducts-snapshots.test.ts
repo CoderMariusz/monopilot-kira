@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 /**
  * T-002 — bom_lines.item_id FK + bom_co_products + bom_snapshots (migration 159).
@@ -32,17 +33,7 @@ const productA = 'FG-T002-A';
 const productB = 'FG-T002-B';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBaseRows(pool: pg.Pool) {
@@ -76,12 +67,21 @@ async function seedBaseRows(pool: pg.Pool) {
   );
   // Idempotent product seed. We never delete bom_headers here — bom_snapshots is immutable
   // (DELETE blocked by trigger), so destructive header cleanup would fail on a re-seed.
-  await pool.query(
-    `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-     values ($1, $2, 'T-002 FG A', 1, $3),
-            ($4, $5, 'T-002 FG B', 1, $6)
-     on conflict (org_id, product_code) do nothing`,
-    [productA, orgA, orgAUser, productB, orgB, orgBUser],
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'T-002 FG A', 1, $3) on conflict (org_id, product_code) do nothing
+    `,
+    [productA, orgA, orgAUser],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'T-002 FG B', 1, $3) on conflict (org_id, product_code) do nothing
+    `,
+    [productB, orgB, orgBUser],
   );
 }
 

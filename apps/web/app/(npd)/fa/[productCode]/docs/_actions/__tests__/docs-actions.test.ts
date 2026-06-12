@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
@@ -53,17 +54,7 @@ const productB = `T084-B-${randomUUID().slice(0, 8)}`;
 let owner: pg.Pool;
 
 async function ensureAppUser() {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seed() {
@@ -107,12 +98,21 @@ async function seed() {
      on conflict (user_id, role_id) do nothing`,
     [userAId, roleAId, orgAId, userBId, roleBId, orgBId],
   );
-  await owner.query(
-    `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-     values ($1, $2, 'T-084 Product A', 1, $3),
-            ($4, $5, 'T-084 Product B', 1, $6)
-     on conflict (org_id, product_code) do nothing`,
-    [productA, orgAId, userAId, productB, orgBId, userBId],
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(owner,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'T-084 Product A', 1, $3) on conflict (org_id, product_code) do nothing
+    `,
+    [productA, orgAId, userAId],
+  );
+  await ownerQueryWithInferredOrgContext(owner,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'T-084 Product B', 1, $3) on conflict (org_id, product_code) do nothing
+    `,
+    [productB, orgBId, userBId],
   );
 }
 

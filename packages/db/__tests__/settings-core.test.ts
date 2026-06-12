@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 type QueryResult<T> = { rows: T[]; rowCount: number | null };
 type Queryable = { query: <T = Record<string, unknown>>(queryText: string, values?: unknown[]) => Promise<QueryResult<T>> };
 type PgClient = Queryable & { release: () => void };
@@ -334,17 +335,7 @@ runIntegrationSuite('settings core migration behavior as app_user', () => {
     adminPool = getOwnerConnection();
     appPool = getAppConnection();
     adminClient = await adminPool.connect();
-    await adminClient.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminClient, appUserPassword);
     await applySqlFile(adminClient, resolve(migrationsDir, '001-baseline.sql'));
     await applySqlFile(adminClient, resolve(migrationsDir, '002-rls-baseline.sql'));
     for (const migrationPath of settingsMigrations) {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../../db/test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext } from './owner-org-context.js';
 
 import {
   deriveIngredientCodes,
@@ -254,21 +255,35 @@ async function seedBaseRows(pool: pg.Pool) {
 }
 
 async function seedProducts(pool: pg.Pool, productA: string, productB: string) {
-  await pool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, recipe_components, ingredient_codes, schema_version, created_by_user, app_version)
-      values ($1, $2::uuid, 'T012 Chain3 Product A', 'PR123H', 'RM123', 1, $3::uuid, 't012-test'),
-             ($4, $5::uuid, 'T012 Chain3 Product B', 'PR999B', 'RM999', 1, $6::uuid, 't012-test')
+      values ($1, $2::uuid, 'T012 Chain3 Product A', 'PR123H', 'RM123', 1, $3::uuid, 't012-test')
     `,
-    [productA, orgA, orgAUser, productB, orgB, orgBUser],
+    [productA, orgA, orgAUser],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, recipe_components, ingredient_codes, schema_version, created_by_user, app_version)
+      values ($1, $2::uuid, 'T012 Chain3 Product B', 'PR999B', 'RM999', 1, $3::uuid, 't012-test')
+    `,
+    [productB, orgB, orgBUser],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.prod_detail (product_code, org_id, intermediate_code, component_index)
-      values ($1, $2::uuid, 'PR123H', 1),
-             ($3, $4::uuid, 'PR999B', 1)
+      values ($1, $2::uuid, 'PR123H', 1)
     `,
-    [productA, orgA, productB, orgB],
+    [productA, orgA],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.prod_detail (product_code, org_id, intermediate_code, component_index)
+      values ($1, $2::uuid, 'PR999B', 1)
+    `,
+    [productB, orgB],
   );
 }
 

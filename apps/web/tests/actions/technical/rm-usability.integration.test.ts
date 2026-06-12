@@ -22,6 +22,7 @@ import {
   withActionActor,
 } from '../../../app/(npd)/brief/actions/__tests__/brief-integration-helpers';
 import { validateBomComponent } from '../../../actions/technical/boms/validate-component';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../helpers/owner-org-context.js';
 
 const run = databaseUrl ? describe : describe.skip;
 
@@ -43,18 +44,7 @@ const seed = {
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('t074-rm:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedItem(orgId: string, id: string, code: string, status: string): Promise<void> {

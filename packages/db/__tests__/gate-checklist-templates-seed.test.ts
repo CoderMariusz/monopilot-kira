@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env['DATABASE_URL'];
 const runIntegration = databaseUrl ? describe : describe.skip;
@@ -26,17 +27,7 @@ const TEMPLATE_ID = 'APEX_DEFAULT';
 const appUserPassword = process.env['APP_USER_PASSWORD'] ?? 'app-user-test-password';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedOrg(pool: pg.Pool, orgId: string, name: string) {

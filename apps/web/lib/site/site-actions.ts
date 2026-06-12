@@ -14,14 +14,14 @@
 
 import { cookies } from 'next/headers';
 
+import { withOrgContext } from '../auth/with-org-context';
 import { SITE_COOKIE_NAME, asSiteId } from './site-context';
 
 const ONE_YEAR_S = 60 * 60 * 24 * 365;
 
 export async function setActiveSite(siteId: string | null): Promise<{ ok: boolean }> {
-  const store = await cookies();
-
   if (siteId == null || siteId === '') {
+    const store = await cookies();
     store.delete(SITE_COOKIE_NAME);
     return { ok: true };
   }
@@ -29,6 +29,21 @@ export async function setActiveSite(siteId: string | null): Promise<{ ok: boolea
   const valid = asSiteId(siteId);
   if (!valid) return { ok: false };
 
+  const exists = await withOrgContext(async ({ client }) => {
+    const { rows } = await client.query<{ ok: boolean }>(
+      `select true as ok
+         from public.sites
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and is_active
+        limit 1`,
+      [valid],
+    );
+    return rows.length > 0;
+  });
+  if (!exists) return { ok: false };
+
+  const store = await cookies();
   store.set(SITE_COOKIE_NAME, valid, {
     path: '/',
     sameSite: 'lax',

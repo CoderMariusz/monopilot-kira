@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 function migration(name: string): string {
@@ -97,17 +98,7 @@ runLive('migrations 063–068 — live cross-org isolation (app_user)', () => {
     appPool = getAppConnection();
 
     // Ensure app_user can authenticate with the test password used by getAppConnection().
-    await adminPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
     // Seed two isolated orgs with the columns the live schema requires (NO truncate of shared tables).
     await adminPool.query(

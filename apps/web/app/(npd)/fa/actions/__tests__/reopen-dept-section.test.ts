@@ -15,6 +15,7 @@ import {
   withActionActor,
   withAppOrg,
 } from '../../../brief/actions/__tests__/brief-integration-helpers';
+import { ownerQueryWithOrgContext } from '../../../../../tests/helpers/owner-org-context.js';
 
 const run = databaseUrl ? describe : describe.skip;
 
@@ -122,7 +123,9 @@ async function seedIdentities(): Promise<void> {
 }
 
 async function seedProduct(orgId: string, userId: string, productCode: string): Promise<void> {
-  await owner.query(
+  await ownerQueryWithOrgContext(
+    owner,
+    orgId,
     `insert into public.product
        (org_id, product_code, product_name, pack_size, number_of_cases, recipe_components, closed_core, created_by_user, app_version)
      values ($1::uuid, $2, $3, 'Case', 12, 'Flour;Water', 'Yes', $4::uuid, 't018-reopen-test')`,

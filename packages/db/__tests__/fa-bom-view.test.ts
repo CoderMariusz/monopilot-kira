@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -21,17 +22,7 @@ const orgAUser = '04500000-0000-4000-8000-0000000000aa';
 const orgBUser = '04500000-0000-4000-8000-0000000000bb';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBaseRows(pool: pg.Pool) {
@@ -142,7 +133,7 @@ async function seedBom(
   const headerId = randomUUID();
   await pool.query('delete from public.bom_headers where product_id = $1', [input.productCode]);
   await pool.query('delete from public.product where product_code = $1', [input.productCode]);
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, built, created_by_user)
       values ($1, $2, $3, false, $4)

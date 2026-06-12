@@ -8,6 +8,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import {
+  ensureAppUser as ensureAppUserWithAdvisoryLock,
+  ownerQueryWithInferredOrgContext,
+} from '../../../../../tests/helpers/owner-org-context.js';
 
 import {
   appUserPassword,
@@ -35,18 +39,7 @@ let owner: pg.Pool;
 let app: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('t029:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedIdentities(): Promise<void> {
@@ -153,7 +146,7 @@ async function cleanup(): Promise<void> {
 }
 
 async function insertProduct(productCode: string, orgId = seed.orgAId, userId = seed.managerUserId): Promise<void> {
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product
        (org_id, product_code, product_name, department_number, created_by_user, app_version)
      values ($1::uuid, $2, $3, 'NPD', $4::uuid, 'delete-fa-test')

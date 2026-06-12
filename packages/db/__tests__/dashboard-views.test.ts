@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -38,17 +39,7 @@ type LaunchAlertRow = {
 };
 
 async function ensureAppUser(ownerPool: pg.Pool) {
-  await ownerPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(ownerPool);
 }
 
 async function seedBaseOrgData(ownerPool: pg.Pool) {
@@ -167,7 +158,7 @@ async function seedProducts(ownerPool: pg.Pool) {
       where product_code like 'FA-T048-%'
     `,
   );
-  await ownerPool.query(
+  await ownerQueryWithInferredOrgContext(ownerPool,
     `
       insert into public.product (
         product_code, org_id, product_name, pack_size, number_of_cases,
@@ -227,17 +218,35 @@ async function seedProducts(ownerPool: pg.Pool) {
           '45 days', 'BX1', 'Top', 'MRP-BX1', 'LBL1', 'FILM1', 1.25,
           'Plan A', '10x20x30', 12.34, 7, 'Supplier A', 60,
           true, 1, $2::uuid
-        ),
+        )
+    `,
+    [orgA, orgAUser],
+  );
+  // Separate wrapped statement for org B: the org-context trigger validates
+  // each row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(ownerPool,
+    `
+      insert into public.product (
+        product_code, org_id, product_name, pack_size, number_of_cases,
+        recipe_components, primary_ingredient_pct, runs_per_week,
+        date_code_per_week, status_overall, launch_date, department_number,
+        article_number, bar_codes, cases_per_week_w1, cases_per_week_w2,
+        cases_per_week_w3, line, yield_line, rate, shelf_life, box, top_label,
+        mrp_box, mrp_labels, mrp_films, tara_weight, pallet_stacking_plan,
+        box_dimensions, price, lead_time, supplier, proc_shelf_life,
+        built, schema_version, created_by_user
+      )
+      values
         (
-          'FA-T048-ORGB', $3::uuid, 'Other Org', '200g', 24,
+          'FA-T048-ORGB', $1::uuid, 'Other Org', '200g', 24,
           'Filled core', 55, 2, 'W1', 'Pending', current_date + 3, 'D10',
           'A100', '1234567890123', 10, 11, 12, 'Line 1', 98, 120,
           '45 days', 'BX1', 'Top', 'MRP-BX1', 'LBL1', 'FILM1', 1.25,
           'Plan A', '10x20x30', 12.34, 7, 'Supplier A', 60,
-          false, 1, $4::uuid
+          false, 1, $2::uuid
         )
     `,
-    [orgA, orgAUser, orgB, orgBUser],
+    [orgB, orgBUser],
   );
 }
 

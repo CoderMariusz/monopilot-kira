@@ -109,6 +109,28 @@ async function hasPermission(ctx: QualityContext, permission: string): Promise<b
   return rows.length > 0;
 }
 
+async function writeNcrOpenedOutbox(
+  ctx: QualityContext,
+  params: { ncrId: string; ccpId: string; logId: string; measuredValue: string },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), 'quality.ncr.opened', 'ncr_report', $1::uuid, $2::jsonb, 'quality-haccp-v1')`,
+    [
+      params.ncrId,
+      JSON.stringify({
+        org_id: ctx.orgId,
+        actor_user_id: ctx.userId,
+        ncrId: params.ncrId,
+        ccpId: params.ccpId,
+        monitoringLogId: params.logId,
+        measuredValue: params.measuredValue,
+      }),
+    ],
+  );
+}
+
 function toIso(value: Date | string | null | undefined): string | null {
   if (!value) return null;
   return value instanceof Date ? value.toISOString() : value;
@@ -472,9 +494,14 @@ export async function recordMonitoring(data: {
         [logId, ncrId],
       );
 
-      // Migration 247 does not admit non_conformance.requested in outbox_events_event_type_check,
-      // so this slice intentionally skips that event instead of inserting a CHECK-violating row.
-      return { ok: true, data: { withinLimits, ncrId, outboxEmitted: false } };
+      await writeNcrOpenedOutbox(ctx, {
+        ncrId,
+        ccpId: parsed.ccpId,
+        logId,
+        measuredValue: parsed.measuredValue,
+      });
+
+      return { ok: true, data: { withinLimits, ncrId, outboxEmitted: true } };
     });
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };

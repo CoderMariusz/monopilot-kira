@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
@@ -56,17 +57,7 @@ runIntegrationSuite('T-049 alert thresholds and d365 import cache - database con
     adminPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    await adminPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
     await adminPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)

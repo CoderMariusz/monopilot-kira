@@ -154,7 +154,10 @@ function translate<T extends Record<string, unknown>>(
     } else {
       try {
         const resolved = t(dotted);
-        out[key] = (resolved === dotted ? value : resolved) as T[keyof T];
+        // next-intl returns the FULL path (`technical.items.detail.dataTabs.<dotted>`)
+        // for a missing message — not the relative key — so match both shapes.
+        const isMissing = resolved === dotted || resolved.endsWith(`.${dotted}`);
+        out[key] = (isMissing ? value : resolved) as T[keyof T];
       } catch {
         out[key] = value;
       }

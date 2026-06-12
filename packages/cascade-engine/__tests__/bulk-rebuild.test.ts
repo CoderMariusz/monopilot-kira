@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../../db/test-utils/test-pool.js';
 
 import { queueAllergenCascadeRebuild } from '../src/bulk-rebuild.js';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const run = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -18,18 +19,7 @@ const roleA = '09900000-0000-4000-8000-0000000001aa';
 const roleB = '09900000-0000-4000-8000-0000000001bb';
 
 async function ensureAppUser(pool: pg.Pool) {
-  const password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${password}';
-      else
-        alter role app_user login password '${password}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function trustOrg(pool: pg.Pool, sessionToken: string, orgId: string) {
@@ -74,30 +64,50 @@ async function seedBase(pool: pg.Pool) {
     `delete from public.allergen_cascade_rebuild_jobs where org_id in ($1, $2)`,
     [orgA, orgB],
   ).catch(() => undefined);
-  await pool.query(`delete from public.prod_detail where product_code like 'FA-T099-%'`);
+  // Explicit org contexts: the like-pattern matches rows in BOTH orgs, and a
+  // single org context cannot span them (the delete trigger refreshes per row).
+  await ownerQueryWithOrgContext(pool, orgA, `delete from public.prod_detail where product_code like 'FA-T099-%' and org_id = $1`, [orgA]);
+  await ownerQueryWithOrgContext(pool, orgB, `delete from public.prod_detail where product_code like 'FA-T099-%' and org_id = $1`, [orgB]);
   await pool.query(`delete from public.product where product_code like 'FA-T099-%'`);
-  await pool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
      values
        ('FA-T099-RM-A1', $1, 'RM A1', 'RM1939, RM2000', $2),
        ('FA-T099-RM-A2', $1, 'RM A2', 'RM1939', $2),
        ('FA-T099-PROC-A', $1, 'Proc A', 'RM0001', $2),
-       ('FA-T099-UNTOUCHED-A', $1, 'Untouched A', 'RM404', $2),
-       ('FA-T099-RM-B', $3, 'RM B', 'RM1939', $4)
+       ('FA-T099-UNTOUCHED-A', $1, 'Untouched A', 'RM404', $2)
      on conflict (org_id, product_code) do update
        set org_id = excluded.org_id,
            product_name = excluded.product_name,
            ingredient_codes = excluded.ingredient_codes,
            created_by_user = excluded.created_by_user`,
-    [orgA, userA, orgB, userB],
+    [orgA, userA],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
+    `insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
+     values
+       ('FA-T099-RM-B', $1, 'RM B', 'RM1939', $2)
+     on conflict (org_id, product_code) do update
+       set org_id = excluded.org_id,
+           product_name = excluded.product_name,
+           ingredient_codes = excluded.ingredient_codes,
+           created_by_user = excluded.created_by_user`,
+    [orgB, userB],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.prod_detail (product_code, org_id, intermediate_code, component_index, manufacturing_operation_1)
      values
        ('FA-T099-PROC-A', $1, 'I-PROC-A', 1, 'Roast'),
-       ('FA-T099-UNTOUCHED-A', $1, 'I-OTHER-A', 1, 'Pack'),
-       ('FA-T099-RM-B', $2, 'I-RM-B', 1, 'Roast')`,
-    [orgA, orgB],
+       ('FA-T099-UNTOUCHED-A', $1, 'I-OTHER-A', 1, 'Pack')`,
+    [orgA],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `insert into public.prod_detail (product_code, org_id, intermediate_code, component_index, manufacturing_operation_1)
+     values
+       ('FA-T099-RM-B', $1, 'I-RM-B', 1, 'Roast')`,
+    [orgB],
   );
 }
 

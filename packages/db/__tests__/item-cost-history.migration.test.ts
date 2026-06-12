@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 // T-003 — Migration 160: item_cost_history (03-Technical cost rolls).
 // DUAL-OWNED with 10-finance: Technical owns the cost master edit + history table.
@@ -41,17 +42,7 @@ function appUserConnectionString() {
 }
 
 async function ensureAppUser(adminPool: pg.Pool) {
-  await adminPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(adminPool);
 }
 
 async function seedOrgData(adminPool: pg.Pool) {

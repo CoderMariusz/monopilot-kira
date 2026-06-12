@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
@@ -221,17 +222,7 @@ runIntegrationSuite('014 r13-placeholder-tables integration — Postgres', () =>
     await dbClient.query(r13Tables);
 
     // Ensure app_user role exists with known password (idempotent)
-    await dbClient.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(dbClient, appUserPassword);
 
     // Grant app_user SELECT/INSERT/UPDATE/DELETE on the 5 placeholder tables
     // (RLS policies further filter what rows are visible — this is the expected setup)

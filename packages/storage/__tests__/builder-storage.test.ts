@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../db/test-utils/test-pool.js';
 import { persistDownloadable, type S3CompatibleStorageConfig } from '../src/builder-storage.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -77,17 +78,7 @@ function createFakeS3() {
 }
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function trustOrgContext(pool: pg.Pool, sessionToken: string, orgId: string) {
@@ -153,13 +144,21 @@ async function seedBaseRows(pool: pg.Pool) {
   );
   await pool.query('delete from public.fa_builder_outputs where product_code in ($1, $2)', [productA, productB]);
   await pool.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
-  await pool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, built, schema_version, created_by_user)
-      values ($1, $2, 'Builder Storage Product A', true, 1, $3),
-             ($4, $5, 'Builder Storage Product B', true, 1, $6)
+      values ($1, $2, 'Builder Storage Product A', true, 1, $3)
     `,
-    [productA, orgA, orgAUser, productB, orgB, orgBUser],
+    [productA, orgA, orgAUser],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, built, schema_version, created_by_user)
+      values ($1, $2, 'Builder Storage Product B', true, 1, $3)
+    `,
+    [productB, orgB, orgBUser],
   );
 }
 

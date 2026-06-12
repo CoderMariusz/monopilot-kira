@@ -7,6 +7,7 @@ import { getOwnerConnection } from '../../../../../packages/db/test-utils/test-p
 
 import { registerAllergenCascadeRebuild } from '../allergen-cascade-rebuild.js';
 import { JobRegistry, type Logger } from '../../registry.js';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../__tests__/owner-org-context.js';
 
 const run = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -31,22 +32,11 @@ function logger(): Logger {
 }
 
 async function ensureAppUser(pool: pg.Pool) {
-  const password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${password}';
-      else
-        alter role app_user login password '${password}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedReferenceRows(pool: pg.Pool, orgId: string) {
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into "Reference"."Allergens_by_RM"
        (org_id, ingredient_codes, allergen_code, confidence, source, last_verified)
      values ($1, 'RM1939', 'soybeans', 'confirmed', 'supplier_spec', current_date)
@@ -56,7 +46,7 @@ async function seedReferenceRows(pool: pg.Pool, orgId: string) {
            last_verified = excluded.last_verified`,
     [orgId],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into "Reference"."Allergens_added_by_Process"
        (org_id, process_name, allergen_code, confidence, recipe_condition)
      values ($1, 'Roast', 'milk', 'confirmed', null)
@@ -102,16 +92,21 @@ async function resetScenario(pool: pg.Pool) {
   await pool.query(`delete from public.audit_events where resource_type = 'allergen_cascade_rebuild'`);
   await pool.query(`delete from public.outbox_events where org_id::text like '099%'`);
   await pool.query(`delete from public.allergen_cascade_rebuild_jobs where org_id::text like '099%'`).catch(() => undefined);
-  await pool.query(`delete from public.fa_allergen_overrides where product_code like 'FA-T099W-%'`);
-  await pool.query(`delete from public.prod_detail where product_code like 'FA-T099W-%'`);
+  // Explicit org contexts: the like-pattern matches rows in BOTH orgs, and a
+  // single org context cannot span them (the delete triggers refresh per row).
+  await ownerQueryWithOrgContext(pool, orgA, `delete from public.fa_allergen_overrides where product_code like 'FA-T099W-%' and org_id = $1`, [orgA]);
+  await ownerQueryWithOrgContext(pool, orgB, `delete from public.fa_allergen_overrides where product_code like 'FA-T099W-%' and org_id = $1`, [orgB]);
+  await ownerQueryWithOrgContext(pool, orgA, `delete from public.prod_detail where product_code like 'FA-T099W-%' and org_id = $1`, [orgA]);
+  await ownerQueryWithOrgContext(pool, orgB, `delete from public.prod_detail where product_code like 'FA-T099W-%' and org_id = $1`, [orgB]);
   await pool.query(`delete from public.product where product_code like 'FA-T099W-%'`);
-  await pool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
      values
        ('FA-T099W-A-001', $1, 'Worker A 001', 'RM1939', $2),
        ('FA-T099W-A-002', $1, 'Worker A 002', 'RM1939', $2),
-       ('FA-T099W-A-OVR', $1, 'Worker A override', 'RM1939', $2),
-       ('FA-T099W-B-001', $3, 'Worker B 001', 'RM1939', $4)
+       ('FA-T099W-A-OVR', $1, 'Worker A override', 'RM1939', $2)
      on conflict (org_id, product_code) do update
        set org_id = excluded.org_id,
            product_name = excluded.product_name,
@@ -119,16 +114,38 @@ async function resetScenario(pool: pg.Pool) {
            created_by_user = excluded.created_by_user,
            allergens = '{}'::text[],
            may_contain = '{}'::text[]`,
-    [orgA, userA, orgB, userB],
+    [orgA, userA],
   );
-  await pool.query(
-    `insert into public.prod_detail (product_code, org_id, intermediate_code, component_index, manufacturing_operation_1)
+  await ownerQueryWithInferredOrgContext(pool,
+    `insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
      values
-       ('FA-T099W-A-002', $1, 'I-A-002', 1, 'Roast'),
-       ('FA-T099W-B-001', $2, 'I-B-001', 1, 'Roast')`,
-    [orgA, orgB],
+       ('FA-T099W-B-001', $1, 'Worker B 001', 'RM1939', $2)
+     on conflict (org_id, product_code) do update
+       set org_id = excluded.org_id,
+           product_name = excluded.product_name,
+           ingredient_codes = excluded.ingredient_codes,
+           created_by_user = excluded.created_by_user,
+           allergens = '{}'::text[],
+           may_contain = '{}'::text[]`,
+    [orgB, userB],
   );
-  await pool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.prod_detail (product_code, org_id, intermediate_code, component_index, manufacturing_operation_1)
+      values ('FA-T099W-A-002', $1, 'I-A-002', 1, 'Roast')
+    `,
+    [orgA],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.prod_detail (product_code, org_id, intermediate_code, component_index, manufacturing_operation_1)
+      values ('FA-T099W-B-001', $1, 'I-B-001', 1, 'Roast')
+    `,
+    [orgB],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.fa_allergen_overrides
        (org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
      values ($1, 'FA-T099W-A-OVR', 'soybeans', 'remove', 'Confirmed label exception for test', $2, 'technical')`,

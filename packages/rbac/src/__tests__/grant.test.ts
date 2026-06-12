@@ -35,6 +35,7 @@ import { getOwnerConnection, getAppConnection } from '../../../db/test-utils/tes
 
 // ─── import the module under test (does not exist yet → RED) ────────────────
 import { grantRole, generateApprovalToken } from '../grant.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 // ─── env guard: skip integration tests when no DATABASE_URL ─────────────────
 const databaseUrl = process.env.DATABASE_URL;
@@ -52,17 +53,7 @@ const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password
 
 async function seedBaselineAndMigrations(owner: pg.Pool): Promise<void> {
   // Ensure app_user exists with the test password
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner, appUserPassword);
 
   // Run each migration in order if not already applied
   const { readFileSync, existsSync } = await import('node:fs');

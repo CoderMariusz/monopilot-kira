@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -14,17 +15,7 @@ const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedBaseRows(): Promise<void> {
@@ -107,7 +98,7 @@ async function seedBom(productCode: string): Promise<void> {
   const headerId = randomUUID();
   await owner.query('delete from public.bom_headers where product_id = $1', [productCode]);
   await owner.query('delete from public.product where product_code = $1', [productCode]);
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `
       insert into public.product (product_code, org_id, product_name, built, created_by_user)
       values ($1, $2, $3, false, $4)

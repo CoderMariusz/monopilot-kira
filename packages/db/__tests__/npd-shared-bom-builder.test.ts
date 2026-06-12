@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -23,17 +24,7 @@ const orgARole = '09300000-0000-4000-8000-0000000001aa';
 const orgBRole = '09300000-0000-4000-8000-0000000001bb';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBaseRows(pool: pg.Pool) {
@@ -109,7 +100,7 @@ async function seedProductWithDetails(
   await pool.query('delete from public.product where product_code = $1', [input.productCode]);
   await pool.query('delete from public.npd_projects where code = $1', [input.projectCode]);
 
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product
         (product_code, org_id, product_name, status_overall, built, schema_version, created_by_user)
@@ -127,7 +118,7 @@ async function seedProductWithDetails(
   );
 
   for (const [index, componentCode] of input.componentCodes.entries()) {
-    await pool.query(
+    await ownerQueryWithInferredOrgContext(pool,
       `
         insert into public.prod_detail
           (product_code, org_id, component_index, intermediate_code, component_weight, manufacturing_operation_1)

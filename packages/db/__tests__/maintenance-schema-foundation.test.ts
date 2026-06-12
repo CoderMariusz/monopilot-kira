@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 // Inlined to match the existing seed-test convention (no cross-package dep added to @monopilot/db).
 // Mirror of ALL_MAINTENANCE_PERMISSIONS (packages/rbac/src/permissions.enum.ts, T-001).
@@ -86,17 +87,7 @@ runSuite('13-maintenance schema foundation (migs 201/202)', () => {
     adminPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    await adminPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
     await adminPool.query(
       'insert into public.tenants (id, name, region_cluster, data_plane_url) values ($1, $2, $3, $4) on conflict (id) do nothing',

@@ -26,6 +26,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -44,28 +45,7 @@ const orgBUser = '18700000-0000-4000-8000-00000000bbbb';
 const itemA = '18700000-0000-4000-8000-0000000011aa';
 
 async function ensureAppUser(adminPool: pg.Pool) {
-  // Parallel DB-gated test FILES share the cluster role; concurrent CREATE/ALTER
-  // ROLE can hit `tuple concurrently updated`. Retry that transient error.
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await adminPool.query(`
-        do $$
-        begin
-          if not exists (select 1 from pg_roles where rolname = 'app_user') then
-            create role app_user login password '${appUserPassword}';
-          else
-            alter role app_user login password '${appUserPassword}';
-          end if;
-        end
-        $$;
-      `);
-      return;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (attempt >= 5 || !/tuple concurrently updated|concurrent/i.test(msg)) throw err;
-      await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
-    }
-  }
+  await ensureAppUserWithAdvisoryLock(adminPool);
 }
 
 async function trustOrgContext(pool: pg.Pool, sessionToken: string, orgId: string) {

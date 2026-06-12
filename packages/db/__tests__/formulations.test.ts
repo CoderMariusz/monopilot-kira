@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -27,17 +28,7 @@ const projectA = '06300000-1000-4000-8000-00000000000a';
 const projectB = '06300000-1000-4000-8000-00000000000b';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBaseRows(pool: pg.Pool) {
@@ -92,13 +83,21 @@ async function seedBaseRows(pool: pg.Pool) {
   );
   await pool.query('delete from public.npd_projects where id in ($1, $2)', [projectA, projectB]);
   await pool.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
-  await pool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-      values ($1, $2, 'Formulation Product A', 1, $3),
-             ($4, $5, 'Formulation Product B', 1, $6)
+      values ($1, $2, 'Formulation Product A', 1, $3)
     `,
-    [productA, orgA, orgAUser, productB, orgB, orgBUser],
+    [productA, orgA, orgAUser],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'Formulation Product B', 1, $3)
+    `,
+    [productB, orgB, orgBUser],
   );
   await pool.query(
     `

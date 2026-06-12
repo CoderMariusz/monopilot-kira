@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -117,7 +118,7 @@ async function seedProducts(ownerPool: pg.Pool) {
       where product_code like 'FA-T015-%'
     `,
   );
-  await ownerPool.query(
+  await ownerQueryWithInferredOrgContext(ownerPool,
     `
       insert into public.product (
         product_code, org_id, product_name, pack_size, number_of_cases,
@@ -163,9 +164,28 @@ async function seedProducts(ownerPool: pg.Pool) {
           'MRP-BX1', 'LBL1', 'FILM1', 1.25, 'Plan A',
           '10x20x30', 'Yes', 12.34, 7, 'Supplier A',
           60, 'Yes', false, 1, $2::uuid
-        ),
+        )
+    `,
+    [orgA, orgAUser],
+  );
+  // Separate wrapped statement for org B: the org-context trigger validates
+  // each row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(ownerPool,
+    `
+      insert into public.product (
+        product_code, org_id, product_name, pack_size, number_of_cases,
+        recipe_components, closed_core, primary_ingredient_pct, runs_per_week,
+        date_code_per_week, closed_planning, launch_date, department_number,
+        article_number, bar_codes, cases_per_week_w1, cases_per_week_w2,
+        cases_per_week_w3, closed_commercial, line, yield_line, rate,
+        closed_production, shelf_life, closed_technical, box, top_label,
+        mrp_box, mrp_labels, mrp_films, tara_weight, pallet_stacking_plan,
+        box_dimensions, closed_mrp, price, lead_time, supplier,
+        proc_shelf_life, closed_procurement, built, schema_version, created_by_user
+      )
+      values
         (
-          'FA-T015-ORGB', $3::uuid, 'Other Org', '150g', 12,
+          'FA-T015-ORGB', $1::uuid, 'Other Org', '150g', 12,
           'PR300A', 'Yes', null, null,
           null, null, current_date + 30, null,
           null, null, null, null,
@@ -173,10 +193,10 @@ async function seedProducts(ownerPool: pg.Pool) {
           null, null, null, null, null,
           null, null, null, null, null,
           null, null, null, null, null,
-          null, null, false, 1, $4::uuid
+          null, null, false, 1, $2::uuid
         )
     `,
-    [orgA, orgAUser, orgB, orgBUser],
+    [orgB, orgBUser],
   );
 }
 

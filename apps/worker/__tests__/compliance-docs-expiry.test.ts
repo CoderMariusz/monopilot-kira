@@ -11,6 +11,7 @@ import {
 } from '../src/jobs/compliance-docs-expiry.js';
 import { createWorkerRuntime, getRegistry } from '../src/index.js';
 import { JobRegistry, type Logger } from '../src/registry.js';
+import { ownerQueryWithInferredOrgContext } from '../src/__tests__/owner-org-context.js';
 
 const run = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -90,12 +91,21 @@ async function seedBase(pool: pg.Pool): Promise<void> {
     productA,
     productB,
   ]);
-  await pool.query(
-    `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-     values
-       ($1, $2, 'T-085 Product A', 1, $3),
-       ($4, $5, 'T-085 Product B', 1, $6)`,
-    [productA, orgA, ownerA, productB, orgB, ownerB],
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'T-085 Product A', 1, $3)
+    `,
+    [productA, orgA, ownerA],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'T-085 Product B', 1, $3)
+    `,
+    [productB, orgB, ownerB],
   );
 }
 

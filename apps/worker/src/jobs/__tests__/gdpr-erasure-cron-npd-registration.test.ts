@@ -25,6 +25,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { JobRegistry, type Logger } from '../../registry.js';
 import { registerGdprErasureCron } from '../gdpr-erasure-cron.js';
+import { ownerQueryWithInferredOrgContext } from '../../__tests__/owner-org-context.js';
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 const runWithDb = hasDatabaseUrl ? describe : describe.skip;
@@ -102,7 +103,7 @@ async function seed(pool: pg.Pool): Promise<void> {
     [subjectUser, orgId, roleId],
   );
   for (let i = 1; i <= 3; i++) {
-    await pool.query(
+    await ownerQueryWithInferredOrgContext(pool,
       `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, $3, 1, $4)`,
       [`FA-T089C-${i}`, orgId, `GDPR Cron Product ${i}`, subjectUser],

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { lockVersion } from '../lock-version';
 import { saveDraft } from '../save-draft';
 import { submitForTrial } from '../submit-for-trial';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 const { Pool } = pg;
 const databaseUrl = process.env.DATABASE_URL;
@@ -32,17 +33,7 @@ function getOwnerConnection(): pg.Pool {
 }
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBaseRows(pool: pg.Pool) {
@@ -121,7 +112,7 @@ async function seedDraftVersion(pool: pg.Pool, suffix = randomUUID().slice(0, 8)
   const versionId = randomUUID();
   const productCode = `FG-T064-${suffix}`;
 
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
       values ($1, $2, $3, 1, $4)

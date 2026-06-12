@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -27,17 +28,7 @@ const nonG4ProductCode = `FG-T096-${randomUUID().slice(0, 8)}`;
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seed(): Promise<void> {
@@ -74,7 +65,7 @@ async function seed(): Promise<void> {
      on conflict do nothing`,
     [orgId, userId, roleId],
   );
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (product_code, org_id, product_name, built, schema_version, created_by_user)
      values ($1, $2, 'T-096 Product', false, 1, $3),
             ($4, $2, 'T-096 Non-G4 Product', false, 1, $3)`,

@@ -6,6 +6,8 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext } from './owner-org-context.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -25,17 +27,7 @@ const productA = 'FA-T072-A';
 const productB = 'FA-T072-B';
 
 async function seedBaseRows(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool, appUserPassword);
   await pool.query(
     `
       insert into public.tenants (id, name, region_cluster, data_plane_url)
@@ -82,13 +74,21 @@ async function seedBaseRows(pool: pg.Pool) {
     [userA, orgA, roleA, userB, orgB, roleB],
   );
   await pool.query('delete from public.product where product_code in ($1, $2)', [productA, productB]);
-  await pool.query(
+  // One wrapped insert per org: the org-context trigger validates each row
+  // against app.current_org_id(), so a single statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-      values ($1, $2, 'T072 Product A', 1, $3),
-             ($4, $5, 'T072 Product B', 1, $6)
+      values ($1, $2, 'T072 Product A', 1, $3)
     `,
-    [productA, orgA, userA, productB, orgB, userB],
+    [productA, orgA, userA],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'T072 Product B', 1, $3)
+    `,
+    [productB, orgB, userB],
   );
 }
 

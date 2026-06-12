@@ -26,6 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import type { OrgActionContext, QueryClient } from '../../lib/technical/allergens/shared';
 import { cascadeAllergensForChangedItem } from '../../lib/technical/allergens/cascade';
+import { ownerQueryWithInferredOrgContext } from '../helpers/owner-org-context.js';
 import {
   cleanup,
   createItem,
@@ -63,7 +64,7 @@ async function seedGraph(): Promise<{ fgItem: string; wipItem: string; rmItem: s
   // handoff the FG/intermediate exist BOTH as a product (NPD aggregate) and an
   // items row sharing the same code. Seed the matching product rows so the
   // shared-BOM FK resolves (Technical consumes, does not author, the aggregate).
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (org_id, product_code, product_name, created_by_user)
      values ($1, $2, $2, $4), ($1, $3, $3, $4)
      on conflict (org_id, product_code) do nothing`,

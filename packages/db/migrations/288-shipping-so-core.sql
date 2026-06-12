@@ -163,16 +163,6 @@ create table if not exists public.sales_order_lines (
   unique (so_id, line_no)
 );
 
-create table if not exists public.sales_order_line_allocations (
-  id uuid primary key default gen_random_uuid(),
-  org_id uuid not null,
-  so_line_id uuid not null references public.sales_order_lines(id) on delete cascade,
-  lp_id uuid not null references public.license_plates(id),
-  qty numeric(18, 6) not null check (qty > 0),
-  created_at timestamptz not null default now(),
-  unique (so_line_id, lp_id)
-);
-
 create or replace function public.shipping_so_core_set_updated_at()
 returns trigger
 language plpgsql
@@ -189,8 +179,7 @@ declare
   managed_tables text[] := array[
     'customers',
     'sales_orders',
-    'sales_order_lines',
-    'sales_order_line_allocations'
+    'sales_order_lines'
   ];
 begin
   foreach t in array managed_tables loop
@@ -206,6 +195,18 @@ begin
     execute format('revoke all on public.%I from app_user', t);
     execute format('grant select, insert, update, delete on public.%I to app_user', t);
   end loop;
+end
+$$;
+
+-- Migration 211's sales_orders.order_seq default draws from public.sales_order_seq,
+-- but no migration ever granted the sequence to app_user — so the INSERT grant
+-- above was unusable (permission denied for sequence sales_order_seq).
+-- Guarded: the sequence only exists where 211 created the broader foundation.
+do $$
+begin
+  if to_regclass('public.sales_order_seq') is not null then
+    grant usage, select on sequence public.sales_order_seq to app_user;
+  end if;
 end
 $$;
 

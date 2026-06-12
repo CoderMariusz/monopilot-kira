@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -26,30 +27,7 @@ const rmItemA = '16800000-0000-4000-8000-0000000fffcc';
 const productA = 'FG-T073-A';
 
 async function ensureAppUser(pool: pg.Pool) {
-  // Serialize the role mutation across parallel test files (transaction-scoped advisory lock)
-  // so concurrent CREATE/ALTER ROLE never hit "tuple concurrently updated" on pg_authid.
-  const client = await pool.connect();
-  try {
-    await client.query('begin');
-    await client.query('select pg_advisory_xact_lock(73730168)');
-    await client.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
-    await client.query('commit');
-  } catch (err) {
-    await client.query('rollback').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBase(pool: pg.Pool) {
@@ -87,7 +65,7 @@ async function seedBase(pool: pg.Pool) {
   );
   await pool.query('delete from public.bom_headers where org_id = $1 and product_id like $2', [orgA, productA + '%']);
   await pool.query('delete from public.product where product_code = $1', [productA]);
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, 'T073 FG A', 1, $3)`,
     [productA, orgA, orgAUser],
@@ -109,7 +87,7 @@ async function trustOrgContext(pool: pg.Pool, sessionToken: string, orgId: strin
 async function insertActiveBom(pool: pg.Pool): Promise<string> {
   const id = randomUUID();
   const productCode = `${productA}-${id.slice(0, 8)}`;
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, 'T073 FG', 1, $3)`,
     [productCode, orgA, orgAUser],

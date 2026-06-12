@@ -49,6 +49,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 import {
   getAppConnection,
   getOwnerConnection,
@@ -75,17 +76,7 @@ const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 async function applyMigrations(owner: pg.Pool): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner, appUserPassword);
 
   const { readFileSync, existsSync } = await import('node:fs');
   const { resolve, dirname } = await import('node:path');

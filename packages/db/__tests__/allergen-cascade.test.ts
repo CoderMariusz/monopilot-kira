@@ -32,6 +32,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -61,17 +62,7 @@ const pIsoA = 'FA-T038-ISO-A';
 const pIsoB = 'FA-T038-ISO-B';
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function trustOrgContext(pool: pg.Pool, sessionToken: string, orgId: string) {
@@ -270,11 +261,11 @@ async function seedBaseRows(pool: pg.Pool) {
   await pool.query('select public.seed_allergens_eu14_for_org($1)', [orgB]);
 
   // ---- Reference.Allergens_by_RM (RM-level) ----
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `delete from "Reference"."Allergens_by_RM" where org_id in ($1, $2)`,
     [orgA, orgB],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into "Reference"."Allergens_by_RM"
         (org_id, ingredient_codes, allergen_code, confidence, source)
@@ -298,11 +289,11 @@ async function seedBaseRows(pool: pg.Pool) {
   );
 
   // ---- Reference.Allergens_added_by_Process (process-level) ----
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `delete from "Reference"."Allergens_added_by_Process" where org_id in ($1, $2)`,
     [orgA, orgB],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into "Reference"."Allergens_added_by_Process"
         (org_id, process_name, allergen_code, confidence, recipe_condition)
@@ -317,11 +308,20 @@ async function seedBaseRows(pool: pg.Pool) {
   );
 
   // ---- product rows ----
+  // Delete prod_detail children first: a product delete would cascade into
+  // prod_detail, whose org-context trigger raises on a bare owner connection.
+  // All prod_detail rows seeded by this suite belong to org A.
+  await ownerQueryWithOrgContext(pool, orgA,
+    `delete from public.prod_detail where product_code = any($1::text[])`,
+    [[pGluten, pProcess, pOverride, pMulti, pAddOverride, pConditional, pIsoA, pIsoB]],
+  );
   await pool.query(
     `delete from public.product where product_code = any($1::text[])`,
     [[pGluten, pProcess, pOverride, pMulti, pAddOverride, pConditional, pIsoA, pIsoB]],
   );
-  await pool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
       values
@@ -331,18 +331,27 @@ async function seedBaseRows(pool: pg.Pool) {
         ($6,  $2, 'Multi-RM product',      'RM2000, RM3000', $3),
         ($7,  $2, 'Add-override product',  null,             $3),
         ($8,  $2, 'Conditional product',   null,             $3),
-        ($9,  $2, 'Isolation product A',   'RM1939',         $3),
-        ($10, $11,'Isolation product B',   'RM1939',         $12)
+        ($9,  $2, 'Isolation product A',   'RM1939',         $3)
     `,
-    [pGluten, orgA, orgAUser, pProcess, pOverride, pMulti, pAddOverride, pConditional, pIsoA, pIsoB, orgB, orgBUser],
+    [pGluten, orgA, orgAUser, pProcess, pOverride, pMulti, pAddOverride, pConditional, pIsoA],
+  );
+  await ownerQueryWithInferredOrgContext(pool,
+    `
+      insert into public.product (product_code, org_id, product_name, ingredient_codes, created_by_user)
+      values
+        ($1, $2, 'Isolation product B', 'RM1939', $3)
+    `,
+    [pIsoB, orgB, orgBUser],
   );
 
   // ---- prod_detail process steps ----
-  await pool.query(
+  // Explicit org context: the params carry no org uuid to infer from, and
+  // these process products all belong to org A.
+  await ownerQueryWithOrgContext(pool, orgA,
     `delete from public.prod_detail where product_code = any($1::text[])`,
     [[pProcess, pOverride, pConditional]],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.prod_detail
         (product_code, org_id, intermediate_code, component_index, manufacturing_operation_1)
@@ -357,11 +366,11 @@ async function seedBaseRows(pool: pg.Pool) {
   // ---- current overrides ----
   // AC3: remove soybeans from pOverride (derived via process 'Coat').
   // pAddOverride: add 'mustard' (not derived anywhere).
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `delete from public.fa_allergen_overrides where org_id = $1 and product_code = any($2::text[])`,
     [orgA, [pOverride, pAddOverride]],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `
       insert into public.fa_allergen_overrides
         (org_id, product_code, allergen_code, action, reason, actor_user_id, actor_role)
@@ -584,7 +593,7 @@ runIntegrationTest('114 fa_allergen_cascade engine + view behavior', () => {
     // pGluten currently persists ['gluten'] with 1 event. Add a confirmed milk RM (RM1939→milk),
     // re-run → set changes → exactly one more event; re-run again → no further event.
     const before = await countEvents(ownerPool, orgA, pGluten);
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `insert into "Reference"."Allergens_by_RM" (org_id, ingredient_codes, allergen_code, confidence, source)
        values ($1, 'RM1939', 'milk', 'confirmed', 'lab_test')
        on conflict (org_id, ingredient_codes, allergen_code) do update set confidence = excluded.confidence`,
@@ -601,7 +610,7 @@ runIntegrationTest('114 fa_allergen_cascade engine + view behavior', () => {
       expect(await countEvents(ownerPool, orgA, pGluten)).toBe(before + 1);
     } finally {
       // restore RM1939 to gluten-only so the suite is order-tolerant on re-run.
-      await ownerPool.query(
+      await ownerQueryWithInferredOrgContext(ownerPool,
         `delete from "Reference"."Allergens_by_RM" where org_id = $1 and ingredient_codes = 'RM1939' and allergen_code = 'milk'`,
         [orgA],
       );

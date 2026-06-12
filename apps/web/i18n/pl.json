@@ -1497,9 +1497,22 @@
             }
           },
           "supplier": {
-            "title": "Supplier specifications",
-            "pending": "Supplier specs API pending",
-            "pendingBody": "The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands."
+            "title": "Specyfikacje dostawców",
+            "supplier": "Dostawca",
+            "supplierStatus": "Status dostawcy",
+            "lifecycleStatus": "Cykl życia",
+            "reviewStatus": "Przegląd",
+            "specVersion": "Wersja specyfikacji",
+            "effectiveFrom": "Obowiązuje od",
+            "expiryDate": "Wygasa",
+            "documents": "Dokumenty",
+            "none": "—",
+            "document": "Specyfikacja",
+            "certificates": "Certyfikaty",
+            "loading": "Ładowanie specyfikacji dostawców…",
+            "empty": "Brak specyfikacji dostawców",
+            "emptyBody": "Z tą pozycją nie są powiązane żadne specyfikacje dostawców.",
+            "error": "Nie udało się wczytać specyfikacji dostawców. Spróbuj ponownie."
           }
         },
         "allergens": "Allergens",
@@ -2173,7 +2186,8 @@
       "error": "Unable to load this BOM. Please try again.",
       "notFound": "BOM not found.",
       "forbidden": "You do not have permission to view this BOM.",
-      "originNpdProject": "Pochodzenie: projekt NPD →"
+      "originNpdProject": "Pochodzenie: projekt NPD →",
+      "colActions": "Akcje"
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -3106,7 +3120,7 @@
       "clonedFrom": "Cloned from",
       "blockersTitle": "Blockers & preflight",
       "noBlockers": "No blockers — bundle is ready for Technical approval.",
-      "approveDisabled": "Approve disabled — resolve {count} blocker(s) above (supplier_spec, RBAC, release guard).",
+      "approveDisabled": "Zatwierdzanie wyłączone — rozwiąż {count} blokad preflight powyżej.",
       "flowTitle": "Release flow",
       "flowHelp": "Pair a matching shared BOM, then submit the draft for Technical review.",
       "submitForReview": "Submit for review",
@@ -7301,6 +7315,39 @@
         "invalid_credentials": "Autoryzacja nieudana — błędne hasło lub PIN.",
         "pin_locked": "PIN jest tymczasowo zablokowany po zbyt wielu nieudanych próbach. Spróbuj później lub autoryzuj się hasłem konta.",
         "persistence_failed": "Zapis PIN-u nie powiódł się. Spróbuj ponownie."
+      }
+    }
+  },
+  "Finance": {
+    "woCosts": {
+      "title": "Rzeczywiste koszty WO",
+      "subtitle": "Zakończone zlecenia kosztowane z zużytych materiałów, czasu procesu, przezbrojenia, odpadu i kg wyjścia.",
+      "refresh": "Odśwież",
+      "refreshing": "Odświeżanie...",
+      "permissionDenied": "Nie masz uprawnień do podglądu kosztów finansowych.",
+      "empty": "W tym oknie nie znaleziono zakończonych zleceń z danymi kosztowymi.",
+      "error": "Nie udało się wczytać kosztów finansowych.",
+      "loading": "Ładowanie kosztów WO...",
+      "notAvailable": "b/d",
+      "columns": {
+        "wo": "WO",
+        "product": "Produkt",
+        "outputKg": "Wyjście kg",
+        "materials": "Materiały",
+        "labor": "Robocizna",
+        "total": "Razem",
+        "costPerKg": "Koszt / kg"
+      },
+      "breakdown": {
+        "title": "Rozbicie materiałów",
+        "item": "Pozycja",
+        "qtyKg": "Ilość kg",
+        "costPerKg": "Koszt / kg",
+        "cost": "Koszt",
+        "noLabor": "Brak kosztu procesu",
+        "setup": "Przezbrojenie",
+        "machine": "Maszyna",
+        "waste": "Odpad"
       }
     }
   }

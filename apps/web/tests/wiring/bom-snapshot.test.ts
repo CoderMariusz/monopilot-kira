@@ -26,6 +26,7 @@ import {
   withAppOrg,
 } from '../../app/(npd)/brief/actions/__tests__/brief-integration-helpers';
 import { createBomSnapshot, getBomSnapshot, BomSnapshotError } from '../../lib/technical/bom/snapshot';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../helpers/owner-org-context.js';
 
 const run = databaseUrl ? describe : describe.skip;
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
@@ -44,18 +45,7 @@ let owner: pg.Pool;
 let app: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('t025:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedIdentities(): Promise<void> {
@@ -115,7 +105,7 @@ async function seedItem(orgId: string, itemType: string): Promise<string> {
 /** Seed a product (FG) for the org; returns its product_code. */
 async function seedProduct(orgId: string, userId: string): Promise<string> {
   const productCode = `FG-T025-${randomUUID().slice(0, 6)}`;
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (product_code, org_id, created_by_user, status_overall)
      values ($1, $2, $3, 'Complete')`,
     [productCode, orgId, userId],

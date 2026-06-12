@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -27,17 +28,7 @@ let owner: pg.Pool;
 let appPool: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedOrg(orgId: string, roleId: string, userId: string, projectId: string, productCode: string): Promise<void> {
@@ -59,7 +50,7 @@ async function seedOrg(orgId: string, roleId: string, userId: string, projectId:
      on conflict (id) do update set org_id = excluded.org_id, role_id = excluded.role_id`,
     [userId, orgId, `t078-${userId}@example.test`, roleId],
   );
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user, allergens, may_contain)
      values ($1, $2, $3, 1, $4, array['gluten']::text[], '{}'::text[])
      on conflict (org_id, product_code) do update

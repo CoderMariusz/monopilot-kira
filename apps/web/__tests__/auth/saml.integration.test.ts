@@ -561,19 +561,11 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    // Ensure app_user role exists (idempotent)
-    const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
-    await ownerPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$
-    `);
+    // Ensure app_user role exists (idempotent, advisory-locked against concurrent suites)
+    const { ensureAppUser: ensureAppUserWithAdvisoryLock } = await import(
+      '../../tests/helpers/owner-org-context.js'
+    );
+    await ensureAppUserWithAdvisoryLock(ownerPool);
 
     // Seed test tenant
     await ownerPool.query(`

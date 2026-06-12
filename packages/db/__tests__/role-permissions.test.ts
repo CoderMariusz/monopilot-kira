@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
@@ -62,17 +63,7 @@ runIntegrationSuite('080 NPD role permissions seed', () => {
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
 
-    await ownerPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(ownerPool, appUserPassword);
 
     await ownerPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)

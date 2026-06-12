@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 // // SKIP: requires DATABASE_URL
@@ -153,17 +154,7 @@ runIntegrationSuite('011 departments RLS — cross-org isolation (AC2/AC3/AC4)',
     await adminPool.query(readFileSync(departmentsMigrationPath, 'utf8'));
 
     // Ensure app_user role login + password is set for this test run
-    await adminPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
     // Grant Reference schema access to app_user
     await adminPool.query(`grant usage on schema "Reference" to app_user`);

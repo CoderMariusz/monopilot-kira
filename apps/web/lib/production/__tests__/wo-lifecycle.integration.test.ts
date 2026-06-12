@@ -26,6 +26,7 @@ import { completeWo, cancelWo } from '../complete-cancel-wo';
 import { closeWo } from '../close-wo';
 import { applyTransition } from '../wo-state-machine';
 import { WoConcurrentModificationError, type ProductionContext } from '../shared';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -45,17 +46,7 @@ const SUPERVISOR_PIN = '824193';
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 /**
@@ -134,7 +125,7 @@ async function baseSeed(): Promise<void> {
   // a real NPD product aggregate row first (product_id IS the product_code).
   const bomProductCode = `FG-E1-${bomHeaderId.slice(0, 8)}`;
   await withSeedOrgContext((c) =>
-    c.query(
+    ownerQueryWithInferredOrgContext(c,
       `insert into public.product (org_id, product_code, created_by_user)
        values ($1, $2, $3) on conflict do nothing`,
       [orgId, bomProductCode, userId],

@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 // // SKIP: requires DATABASE_URL
@@ -100,17 +101,7 @@ runIntegrationSuite('072 integration_settings — RLS isolation (AC1–AC5)', ()
     await adminPool.query(readFileSync(integrationSettingsMigrationPath, 'utf8'));
 
     // Ensure app_user role login + password is set for this test run
-    await adminPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
     // Seed tenant + two orgs
     await adminPool.query(

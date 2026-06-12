@@ -21,6 +21,7 @@ const END = '2026-06-12T16:00:00.000Z';
 let client: QueryClient;
 let allowPermission = true;
 let currentStatus: string | null = 'DRAFT';
+let updateVisibleStatus: string | null = null;
 let lineExists = true;
 let dependencyEdges: Array<{ parent_wo_id: string; child_wo_id: string }> = [];
 
@@ -46,7 +47,7 @@ const WO_ROW = {
 
 function makeClient(): QueryClient {
   return {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
@@ -71,7 +72,9 @@ function makeClient(): QueryClient {
         return { rows: dependencyEdges, rowCount: dependencyEdges.length };
       }
       if (normalized.startsWith('update public.work_orders')) {
-        return { rows: [WO_ROW], rowCount: 1 };
+        const expectedStatus = params[6];
+        const visibleStatus = updateVisibleStatus ?? currentStatus;
+        return visibleStatus === expectedStatus ? { rows: [WO_ROW], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (normalized.startsWith('insert into public.wo_status_history')) {
         return { rows: [], rowCount: 1 };
@@ -89,6 +92,7 @@ describe('rescheduleWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
     currentStatus = 'DRAFT';
+    updateVisibleStatus = null;
     lineExists = true;
     dependencyEdges = [];
     client = makeClient();
@@ -104,7 +108,7 @@ describe('rescheduleWorkOrder', () => {
     );
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining('update public.work_orders'),
-      [WO_ID, START, END, LINE_ID, USER_ID, ['DRAFT', 'RELEASED']],
+      [WO_ID, START, END, LINE_ID, USER_ID, ['DRAFT', 'RELEASED'], 'DRAFT'],
     );
     // Audit row like the neighbours: action 'reschedule', status unchanged.
     expect(client.query).toHaveBeenCalledWith(
@@ -119,7 +123,7 @@ describe('rescheduleWorkOrder', () => {
     expect(result.ok).toBe(true);
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining('coalesce($4::uuid, wo.production_line_id)'),
-      [WO_ID, START, END, null, USER_ID, ['DRAFT', 'RELEASED']],
+      [WO_ID, START, END, null, USER_ID, ['DRAFT', 'RELEASED'], 'DRAFT'],
     );
     // No line-existence check is run when no line is supplied.
     expect(client.query).not.toHaveBeenCalledWith(
@@ -179,6 +183,19 @@ describe('rescheduleWorkOrder', () => {
 
     const result = await rescheduleWorkOrder({ woId: WO_ID, scheduledStart: START, scheduledEnd: END });
     expect(result.ok).toBe(true);
+  });
+
+  it('returns invalid_state when status changes between read and update', async () => {
+    currentStatus = 'DRAFT';
+    updateVisibleStatus = 'IN_PROGRESS';
+
+    const result = await rescheduleWorkOrder({ woId: WO_ID, scheduledStart: START, scheduledEnd: END });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining('and wo.status = $7'),
+      [WO_ID, START, END, null, USER_ID, ['DRAFT', 'RELEASED'], 'DRAFT'],
+    );
   });
 
   it('rejects a line that is not an active line of the org', async () => {

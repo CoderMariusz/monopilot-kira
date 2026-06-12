@@ -90,6 +90,10 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       return { rows: [], rowCount: 0 };
     }),
   };
@@ -159,11 +163,14 @@ describe('quality HACCP server actions', () => {
 
     const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
 
-    expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: false } });
+    expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
     const ncrInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ncr_reports'));
     expect(ncrInsert?.[1]?.[0]).toBe('CCP Breach: CCP-COOK');
     const breachLink = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.haccp_monitoring_log'));
     expect(breachLink?.[1]).toEqual([LOG_ID, NCR_ID]);
+    const outbox = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
+    expect(normalize(String(outbox?.[0]))).toContain("'quality.ncr.opened'");
+    expect(outbox?.[1]?.[0]).toBe(NCR_ID);
   });
 
   it('recordMonitoring bilateral breach returns within_limits=false and creates NCR', async () => {
@@ -171,7 +178,7 @@ describe('quality HACCP server actions', () => {
 
     const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '75.0001' });
 
-    expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: false } });
+    expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
     const ncrInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ncr_reports'));
     expect(ncrInsert).toBeTruthy();
     const logInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>

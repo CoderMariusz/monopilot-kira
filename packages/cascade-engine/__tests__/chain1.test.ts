@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../../db/test-utils/test-pool.js';
 import { handleLineChange, handlePackSizeChange } from '../src/chain1-pack-size.js';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const runIntegrationTest = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -23,17 +24,7 @@ type ProductDetailRow = {
 };
 
 async function ensureAppUser(owner: pg.Pool) {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedBase(owner: pg.Pool) {
@@ -111,8 +102,13 @@ async function seedProductWithDetail(
     equipmentSetup: string | null;
   },
 ) {
+  // Delete prod_detail children first: a product delete would cascade into
+  // prod_detail, whose org-context trigger raises on a bare owner connection.
+  await ownerQueryWithOrgContext(owner, input.orgId, 'delete from public.prod_detail where product_code = $1', [
+    input.productCode,
+  ]);
   await owner.query('delete from public.product where product_code = $1', [input.productCode]);
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `
       insert into public.product (
         product_code, org_id, product_name, pack_size, line, schema_version, created_by_user
@@ -128,7 +124,7 @@ async function seedProductWithDetail(
       input.userId,
     ],
   );
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `
       insert into public.prod_detail (
         product_code, org_id, intermediate_code, component_index, line, equipment_setup

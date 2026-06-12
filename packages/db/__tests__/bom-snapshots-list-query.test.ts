@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 import {
   LIST_SNAPSHOTS_SQL,
   mapSnapshotRow,
@@ -45,17 +46,7 @@ const productName = `TEC-025 Snapshot FG ${runTag}`;
 const headerVersion = 1 + (parseInt(runTag, 16) % 100000);
 
 async function ensureAppUser(pool: pg.Pool) {
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function seedBaseRows(pool: pg.Pool) {
@@ -87,7 +78,7 @@ async function seedBaseRows(pool: pg.Pool) {
      on conflict (id) do nothing`,
     [userList, orgList, roleList, userEmpty, orgEmpty, roleEmpty],
   );
-  await pool.query(
+  await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, $3, 1, $4)
      on conflict (org_id, product_code) do nothing`,

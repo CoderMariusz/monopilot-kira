@@ -11,39 +11,6 @@
     "update_failed": "Nie udało się zaktualizować zmiany.",
     "delete_failed": "Nie udało się usunąć zmiany."
   },
-  "Finance": {
-    "woCosts": {
-      "title": "Rzeczywiste koszty WO",
-      "subtitle": "Zakończone zlecenia kosztowane z zużytych materiałów, czasu procesu, przezbrojenia, odpadu i kg wyjścia.",
-      "refresh": "Odśwież",
-      "refreshing": "Odświeżanie...",
-      "permissionDenied": "Nie masz uprawnień do podglądu kosztów finansowych.",
-      "empty": "W tym oknie nie znaleziono zakończonych zleceń z danymi kosztowymi.",
-      "error": "Nie udało się wczytać kosztów finansowych.",
-      "loading": "Ładowanie kosztów WO...",
-      "notAvailable": "b/d",
-      "columns": {
-        "wo": "WO",
-        "product": "Produkt",
-        "outputKg": "Wyjście kg",
-        "materials": "Materiały",
-        "labor": "Robocizna",
-        "total": "Razem",
-        "costPerKg": "Koszt / kg"
-      },
-      "breakdown": {
-        "title": "Rozbicie materiałów",
-        "item": "Pozycja",
-        "qtyKg": "Ilość kg",
-        "costPerKg": "Koszt / kg",
-        "cost": "Koszt",
-        "noLabor": "Brak kosztu procesu",
-        "setup": "Przezbrojenie",
-        "machine": "Maszyna",
-        "waste": "Odpad"
-      }
-    }
-  },
   "schema_column_wizard": {
     "title": "Kreator edycji kolumny",
     "subtitle": "Dodaj lub edytuj kolumnę schematu dla zakresu L2/L3.",

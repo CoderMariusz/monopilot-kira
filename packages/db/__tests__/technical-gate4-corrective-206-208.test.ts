@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext } from './owner-org-context.js';
 
 // 03-technical Gate-4 corrective migrations 206 / 207 / 208. Proves:
 //   206 — supplier_spec_resolved_lifecycle(text,date) is now STABLE (pg_proc.provolatile = 's').
@@ -86,7 +87,7 @@ runIntegrationSuite('03-technical Gate-4 corrective migrations 206/207/208', () 
               ($3, $2, 'CFIX-RM', 'rm', 'CFix RM', 'kg') on conflict (id) do nothing`,
       [fgItemId, orgId, rmItemId],
     );
-    await ownerPool.query(
+    await ownerQueryWithInferredOrgContext(ownerPool,
       `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'CFix FG', 1, $3) on conflict (org_id, product_code) do nothing`,
       [productCode, orgId, userId],

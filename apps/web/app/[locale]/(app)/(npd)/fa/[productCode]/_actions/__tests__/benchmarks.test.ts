@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../../tests/helpers/owner-org-context.js';
 
 import {
   appUserPassword,
@@ -38,18 +39,7 @@ const crossOrgProductCode = `FB${Math.floor(Math.random() * 1_000_000_000)}`;
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('benchmarks:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedAll(): Promise<void> {
@@ -103,12 +93,12 @@ async function seedAll(): Promise<void> {
      on conflict (user_id, role_id) do nothing`,
     [seed.writerUserId, seed.writerRoleId, seed.orgAId, seed.viewerUserId, seed.viewerRoleId, seed.otherUserId, seed.otherRoleId, seed.orgBId],
   );
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, 'Benchmarks Product', 1, $3) on conflict do nothing`,
     [productCode, seed.orgAId, seed.writerUserId],
   );
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, 'Benchmarks Org B Product', 1, $3) on conflict do nothing`,
     [crossOrgProductCode, seed.orgBId, seed.otherUserId],

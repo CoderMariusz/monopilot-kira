@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection } from '@monopilot/db/clients.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -25,17 +26,7 @@ const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seed(): Promise<void> {
@@ -101,7 +92,7 @@ async function seed(): Promise<void> {
            dropdown_source = null`,
     [orgId],
   );
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product
        (product_code, org_id, product_name, pack_size, box, line, built, schema_version, created_by_user)
      values ($1, $2, 'Original FG', '100g', 'BOX-1', 'LINE-1', true, 1, $3)`,
@@ -112,7 +103,7 @@ async function seed(): Promise<void> {
 async function cleanup(): Promise<void> {
   await owner.query(`delete from public.outbox_events where org_id = $1`, [orgId]);
   await owner.query(`delete from "Reference"."DeptColumns" where org_id = $1`, [orgId]);
-  await owner.query(`delete from public.prod_detail where org_id = $1`, [orgId]);
+  await ownerQueryWithInferredOrgContext(owner,`delete from public.prod_detail where org_id = $1`, [orgId]);
   await owner.query(`delete from public.product where org_id = $1`, [orgId]);
   await owner.query(`delete from public.user_roles where org_id = $1`, [orgId]);
   await owner.query(`delete from public.users where org_id = $1`, [orgId]);
@@ -212,14 +203,14 @@ run('updateFaCell Server Action — REAL DB integration', () => {
 
   it('auto-resets built when a prod_detail row is edited', async () => {
     await owner.query(`update public.product set built = true where product_code = $1`, [productCode]);
-    await owner.query(
+    await ownerQueryWithInferredOrgContext(owner,
       `insert into public.prod_detail
         (org_id, product_code, intermediate_code, component_index, line)
        values ($1, $2, 'PR-T009', 1, 'LINE-1')`,
       [orgId, productCode],
     );
 
-    await owner.query(
+    await ownerQueryWithInferredOrgContext(owner,
       `update public.prod_detail
           set line = 'LINE-2'
         where org_id = $1 and product_code = $2 and component_index = 1`,
@@ -253,14 +244,14 @@ run('updateFaCell Server Action — REAL DB integration', () => {
       owner.query(`update public.product set built = false where product_code = $1`, [productCode]),
     ).rejects.toThrow(/V18_BUILT_DOWNGRADE_REQUIRES_AUDIT/);
 
-    await owner.query(
+    await ownerQueryWithOrgContext(owner, orgId,
       `select public.fa_reset_product_built_for_edit($1::uuid, $2, $3::uuid, 'test', '{}'::jsonb)`,
       [orgId, productCode, adminUserId],
     );
   });
 
   it('still blocks built=false to true while an open High V18 risk exists', async () => {
-    await owner.query(
+    await ownerQueryWithOrgContext(owner, orgId,
       `select public.fa_reset_product_built_for_edit($1::uuid, $2, $3::uuid, 'test', '{}'::jsonb)`,
       [orgId, productCode, adminUserId],
     );

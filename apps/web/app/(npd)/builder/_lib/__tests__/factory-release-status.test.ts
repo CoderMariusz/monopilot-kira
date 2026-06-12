@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -25,17 +26,7 @@ const otherProductCode = `FG-T097-${randomUUID().slice(0, 8)}`;
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seed(): Promise<void> {
@@ -71,13 +62,21 @@ async function seed(): Promise<void> {
     `,
     [userId, orgId, roleId, otherUserId, otherOrgId, otherRoleId],
   );
-  await owner.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(owner,
     `
       insert into public.product (product_code, org_id, product_name, built, schema_version, created_by_user)
-      values ($1, $2, 'T-097 Product', false, 1, $3),
-             ($4, $5, 'T-097 Other Product', false, 1, $6)
+      values ($1, $2, 'T-097 Product', false, 1, $3)
     `,
-    [productCode, orgId, userId, otherProductCode, otherOrgId, otherUserId],
+    [productCode, orgId, userId],
+  );
+  await ownerQueryWithInferredOrgContext(owner,
+    `
+      insert into public.product (product_code, org_id, product_name, built, schema_version, created_by_user)
+      values ($1, $2, 'T-097 Other Product', false, 1, $3)
+    `,
+    [otherProductCode, otherOrgId, otherUserId],
   );
   await owner.query(
     `

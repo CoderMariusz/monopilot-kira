@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { nextSeq7 } from '../src/next-seq-7.js';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 const runIntegrationTest = hasDatabaseUrl ? describe : describe.skip;
@@ -20,17 +21,7 @@ const orgB = '10400000-0000-4000-8000-00000000000b';
 
 async function seedAppUser(ownerPool: pg.Pool) {
   const password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
-  await ownerPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${password}';
-      else
-        alter role app_user login password '${password}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(ownerPool, password);
 }
 
 async function seedOrganizations(ownerPool: pg.Pool) {

@@ -30,6 +30,7 @@ import { approveRouting, publishRouting } from '../_actions/approve-routing';
 import { createRouting } from '../_actions/create-routing';
 import { listRoutings } from '../_actions/list-routings';
 import { updateRouting } from '../_actions/update-routing';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 const run = databaseUrl ? describe : describe.skip;
 
@@ -59,18 +60,7 @@ const OP_PACK = 'Packing';
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('technical-routings:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedFixtures(): Promise<void> {

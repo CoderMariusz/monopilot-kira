@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 // 04-Planning-Basic — Migrations 178 (MRP-core) + 179 (rough-cut capacity).
 // Proven here: table + column shape, FK item_id -> items + run/requirement cascade FKs,
@@ -43,17 +44,7 @@ function appUserConnectionString() {
 }
 
 async function ensureAppUser(adminPool: pg.Pool) {
-  await adminPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(adminPool);
 }
 
 async function seedOrgData(adminPool: pg.Pool) {

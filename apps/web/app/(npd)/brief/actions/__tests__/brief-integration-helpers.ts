@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
 
 export const databaseUrl = process.env.DATABASE_URL;
 export const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
@@ -35,18 +36,7 @@ export function makeAppUserConnectionString(): string {
 }
 
 export async function ensureAppUser(owner: pg.Pool): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('t031:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 export async function seedIdentities(owner: pg.Pool, seed: IdentitySeed): Promise<void> {

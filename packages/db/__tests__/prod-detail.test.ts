@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ownerQueryWithOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -16,17 +17,7 @@ const orgARole = '77777777-0211-4777-8211-777777777777';
 const orgBRole = '77777777-0222-4777-8222-777777777777';
 
 async function ensureAppUser(adminPool: pg.Pool) {
-  await adminPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(adminPool);
 }
 
 async function seedBaseOrgData(adminPool: pg.Pool) {
@@ -89,14 +80,37 @@ async function seedTrustedOrgContext(adminPool: pg.Pool, sessionToken: string, o
 }
 
 async function seedProducts(adminPool: pg.Pool, productCodes: string[]) {
-  await adminPool.query('delete from public.product where product_code = any($1::text[])', [productCodes]);
-  await adminPool.query(
+  // Migration 222: deleting a product that still has prod_detail children
+  // raises (the cascade-fired refresh cannot find the deleted product), so
+  // delete the children first, then the products — each under its own org
+  // context (productCodes[0] belongs to orgA, [1] to orgB).
+  await ownerQueryWithOrgContext(adminPool, orgA, 'delete from public.prod_detail where product_code = $1', [
+    productCodes[0],
+  ]);
+  await ownerQueryWithOrgContext(adminPool, orgB, 'delete from public.prod_detail where product_code = $1', [
+    productCodes[1],
+  ]);
+  await ownerQueryWithOrgContext(adminPool, orgA, 'delete from public.product where product_code = $1', [
+    productCodes[0],
+  ]);
+  await ownerQueryWithOrgContext(adminPool, orgB, 'delete from public.product where product_code = $1', [
+    productCodes[1],
+  ]);
+  // One wrapped insert per org: the org-context trigger validates each row
+  // against app.current_org_id(), so a single statement cannot span orgs.
+  await ownerQueryWithOrgContext(adminPool, orgA,
     `
       insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-      values ($1, $2, 'Prod Detail Org A Product', 1, $3),
-             ($4, $5, 'Prod Detail Org B Product', 1, $6)
+      values ($1, $2, 'Prod Detail Org A Product', 1, $3)
     `,
-    [productCodes[0], orgA, orgAUser, productCodes[1], orgB, orgBUser],
+    [productCodes[0], orgA, orgAUser],
+  );
+  await ownerQueryWithOrgContext(adminPool, orgB,
+    `
+      insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+      values ($1, $2, 'Prod Detail Org B Product', 1, $3)
+    `,
+    [productCodes[1], orgB, orgBUser],
   );
 }
 
@@ -229,17 +243,25 @@ runIntegrationTest('076 prod_detail table', () => {
   it('deletes prod_detail rows through ON DELETE CASCADE when the product is deleted', async () => {
     const productCodes = ['PD-T002-CASCADE-A', 'PD-T002-CASCADE-B'];
     await seedProducts(adminPool, productCodes);
-    await adminPool.query(
+    await ownerQueryWithOrgContext(adminPool, orgA,
       `
         insert into public.prod_detail (product_code, org_id, component_index, intermediate_code)
         values ($1, $2, 1, 'INT-A1'),
-               ($1, $2, 2, 'INT-A2'),
-               ($3, $4, 1, 'INT-B1')
+               ($1, $2, 2, 'INT-A2')
       `,
-      [productCodes[0], orgA, productCodes[1], orgB],
+      [productCodes[0], orgA],
+    );
+    await ownerQueryWithOrgContext(adminPool, orgB,
+      `
+        insert into public.prod_detail (product_code, org_id, component_index, intermediate_code)
+        values ($1, $2, 1, 'INT-B1')
+      `,
+      [productCodes[1], orgB],
     );
 
-    await adminPool.query('delete from public.product where product_code = $1', [productCodes[0]]);
+    await ownerQueryWithOrgContext(adminPool, orgA, 'delete from public.product where product_code = $1', [
+      productCodes[0],
+    ]);
 
     const remaining = await adminPool.query<{ product_code: string; count: string }>(
       `
@@ -257,13 +279,19 @@ runIntegrationTest('076 prod_detail table', () => {
   it('isolates prod_detail rows by org under app_user RLS', async () => {
     const productCodes = ['PD-T002-RLS-A', 'PD-T002-RLS-B'];
     await seedProducts(adminPool, productCodes);
-    await adminPool.query(
+    await ownerQueryWithOrgContext(adminPool, orgA,
       `
         insert into public.prod_detail (product_code, org_id, component_index, intermediate_code)
-        values ($1, $2, 1, 'INT-A1'),
-               ($3, $4, 1, 'INT-B1')
+        values ($1, $2, 1, 'INT-A1')
       `,
-      [productCodes[0], orgA, productCodes[1], orgB],
+      [productCodes[0], orgA],
+    );
+    await ownerQueryWithOrgContext(adminPool, orgB,
+      `
+        insert into public.prod_detail (product_code, org_id, component_index, intermediate_code)
+        values ($1, $2, 1, 'INT-B1')
+      `,
+      [productCodes[1], orgB],
     );
 
     await expect(selectProdDetailForOrg(appPool, adminPool, orgA, productCodes)).resolves.toEqual([

@@ -343,6 +343,41 @@ describe('T-090 ReleaseBundlePanelButton', () => {
     expect(await screen.findByText(/Bundle approved/i)).toBeInTheDocument();
   });
 
+  it('keeps approval enabled for an active paired BOM when server preflight has no blocking blockers', async () => {
+    loadBundleMock.mockResolvedValue({
+      ok: true,
+      data: bundleData({
+        bom: { id: 'bom-1', version: 8, status: 'active', clonedFrom: 'v7' },
+        bomOptions: [{ id: 'bom-1', version: 8, status: 'active', label: 'v8 · active' }],
+      }),
+    });
+    approveMock.mockResolvedValue({ ok: true, data: { factorySpecId: 'spec-1' } });
+
+    render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
+
+    await screen.findByText('active');
+    expect(screen.queryByText(/requires a draft\/in_review BOM/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Approval reason'), {
+      target: { value: 'Active BOM reviewed and approved.' },
+    });
+    fireEvent.change(screen.getByLabelText('E-sign PIN or account password'), { target: { value: '1234' } });
+
+    const approveBtn = screen.getByRole('button', { name: 'Approve bundle' });
+    expect(approveBtn).toBeEnabled();
+    fireEvent.click(approveBtn);
+
+    await waitFor(() =>
+      expect(approveMock).toHaveBeenCalledWith({
+        factorySpecId: 'spec-1',
+        bomHeaderId: 'bom-1',
+        pin: '1234',
+        reason: 'Active BOM reviewed and approved.',
+      }),
+    );
+  });
+
   it('rejects the bundle with a reason via the T-080 reject action', async () => {
     loadBundleMock.mockResolvedValue({ ok: true, data: bundleData() });
     rejectMock.mockResolvedValue({ ok: true, data: { factorySpecId: 'spec-1' } });

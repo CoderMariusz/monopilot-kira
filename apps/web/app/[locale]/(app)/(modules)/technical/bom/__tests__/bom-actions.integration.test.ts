@@ -26,6 +26,7 @@ import { diffBomVersions } from '../_actions/diff-action';
 import { generateBomBatch } from '../_actions/generate-batch';
 import { getBomDetail, listBoms } from '../_actions/queries';
 import { approveBom, publishBom } from '../_actions/workflow';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 const run = databaseUrl ? describe : describe.skip;
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
@@ -52,18 +53,7 @@ const seed = {
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
-  await owner.query(`
-    do $$
-    begin
-      perform pg_advisory_xact_lock(hashtext('technical-bom:ensure-app-user'));
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(owner);
 }
 
 async function seedFixtures(): Promise<void> {
@@ -152,7 +142,7 @@ async function seedSupplierSpec(
 /** Seed a product (FG) + N RM items for Org A, returns the product_code. */
 async function seedProductWithItems(orgId: string, userId: string, prefix: string, rmCount: number): Promise<{ productCode: string; itemIds: string[]; itemCodes: string[] }> {
   const productCode = `FG-${prefix}-${randomUUID().slice(0, 6)}`;
-  await owner.query(
+  await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product (product_code, org_id, created_by_user, status_overall)
      values ($1, $2, $3, 'Complete')`,
     [productCode, orgId, userId],
@@ -502,7 +492,7 @@ run('03-technical BOM API (RLS + RBAC + state machine, real DB)', () => {
     const c1 = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'gen1', 0);
     const c2 = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'gen2', 0);
     const incomplete = `FG-GENX-${randomUUID().slice(0, 6)}`;
-    await owner.query(
+    await ownerQueryWithInferredOrgContext(owner,
       `insert into public.product (product_code, org_id, created_by_user, status_overall) values ($1, $2, $3, 'In Progress')`,
       [incomplete, seed.orgAId, seed.adminAUserId],
     );

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -88,17 +89,7 @@ const businessColumns = [
 ] as const;
 
 async function ensureAppUser(adminPool: pg.Pool) {
-  await adminPool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      else
-        alter role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(adminPool);
 }
 
 async function seedBaseOrgData(adminPool: pg.Pool) {
@@ -167,18 +158,29 @@ async function seedProductRows(adminPool: pg.Pool) {
       where product_code in ('FA-T001-A', 'FA-T001-B')
     `,
   );
-  await adminPool.query(
+  // One wrapped statement per org: the org-context trigger validates each
+  // row against app.current_org_id(), so a statement cannot span orgs.
+  await ownerQueryWithInferredOrgContext(adminPool,
     `
       insert into public.product (
         product_code, org_id, product_name, pack_size, number_of_cases,
         recipe_components, ingredient_codes, status_overall, launch_date,
         days_to_launch, built, schema_version, created_by_user
       )
-      values
-        ('FA-T001-A', $1, 'Org A Product', '200g', 24, 'PR1939H', 'RM1939', 'Pending', current_date + 14, 14, false, 1, $2),
-        ('FA-T001-B', $3, 'Org B Product', '150g', 12, 'PR2045A', 'RM2045', 'Complete', current_date + 30, 30, false, 1, $4)
+      values ('FA-T001-A', $1, 'Org A Product', '200g', 24, 'PR1939H', 'RM1939', 'Pending', current_date + 14, 14, false, 1, $2)
     `,
-    [orgA, orgAUser, orgB, orgBUser],
+    [orgA, orgAUser],
+  );
+  await ownerQueryWithInferredOrgContext(adminPool,
+    `
+      insert into public.product (
+        product_code, org_id, product_name, pack_size, number_of_cases,
+        recipe_components, ingredient_codes, status_overall, launch_date,
+        days_to_launch, built, schema_version, created_by_user
+      )
+      values ('FA-T001-B', $1, 'Org B Product', '150g', 12, 'PR2045A', 'RM2045', 'Complete', current_date + 30, 30, false, 1, $2)
+    `,
+    [orgB, orgBUser],
   );
 }
 

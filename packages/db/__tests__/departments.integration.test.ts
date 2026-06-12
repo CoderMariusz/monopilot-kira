@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
@@ -256,17 +257,7 @@ runIntegrationSuite('011 departments RLS — cross-org isolation', () => {
     await adminPool.query(readFileSync(departmentsMigrationPath, 'utf8'));
 
     // Ensure app_user role exists with the test password
-    await adminPool.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'app_user') then
-          create role app_user login password '${appUserPassword}';
-        else
-          alter role app_user login password '${appUserPassword}';
-        end if;
-      end
-      $$;
-    `);
+    await ensureAppUserWithAdvisoryLock(adminPool, appUserPassword);
 
     // Grant Reference schema access (HOTFIX policy grants to PUBLIC; also need schema usage)
     await adminPool.query(`grant usage on schema "Reference" to app_user`);

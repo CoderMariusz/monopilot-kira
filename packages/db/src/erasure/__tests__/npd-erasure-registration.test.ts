@@ -18,6 +18,7 @@ import { getRegisteredHandlers, runErasure } from '@monopilot/gdpr';
 
 import { NPD_ERASURE_DOMAIN, registerNpdErasure, runNpdErasure } from '../npd.js';
 import { getAppConnection, getOwnerConnection } from '../../../test-utils/test-pool.js';
+import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from './owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
@@ -34,18 +35,7 @@ const roleA = '89100000-0000-4000-8000-0000000001aa';
 const subjectUser = '89100000-0000-4000-8000-0000000000aa';
 
 async function ensureAppUser(pool: pg.Pool): Promise<void> {
-  // Only CREATE when absent — never ALTER an existing role: two parallel
-  // integration files ALTERing the same pg_authid tuple raise
-  // "tuple concurrently updated". The migrated clone already provisions app_user.
-  await pool.query(`
-    do $$
-    begin
-      if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password '${appUserPassword}';
-      end if;
-    end
-    $$;
-  `);
+  await ensureAppUserWithAdvisoryLock(pool);
 }
 
 async function cleanup(pool: pg.Pool): Promise<void> {
@@ -84,7 +74,7 @@ async function seed(pool: pg.Pool): Promise<void> {
     [subjectUser, orgA, roleA],
   );
   for (let i = 1; i <= 3; i++) {
-    await pool.query(
+    await ownerQueryWithInferredOrgContext(pool,
       `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, $3, 1, $4)`,
       [`FA-T089R-${i}`, orgA, `GDPR Reg Product ${i}`, subjectUser],
