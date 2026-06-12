@@ -1,0 +1,11 @@
+{
+  "tool": "RTL role/accessible-name assertions",
+  "blocker": "jest-axe/vitest-axe not wired into apps/web vitest; adding it is out of STRICT SCOPE (no package.json edits). Same documented substitute as catch-weight + allergen-panel evidence.",
+  "checks": {
+    "dialogRole": true,
+    "reasonSelectHasAccessibleName": true,
+    "passwordIsTypePassword": true,
+    "errorBannerUsesAlertRole": true
+  },
+  "violations": []
+}

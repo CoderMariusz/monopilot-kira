@@ -75,6 +75,7 @@ function buildLabels(locale: string): LpDetailLabels {
       consumed: t('status.consumed'),
       shipped: t('status.shipped'),
       merged: t('status.merged'),
+      destroyed: t('status.destroyed'),
     },
     identity: {
       title: t('detail.identity.title'),

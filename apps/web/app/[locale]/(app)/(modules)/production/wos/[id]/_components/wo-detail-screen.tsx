@@ -61,6 +61,14 @@ import {
   WoActionsProvider,
   WoActionTrigger,
 } from '../../_components/modals/wo-actions';
+import {
+  VoidCorrectionModal,
+  type VoidModalLabels,
+  type VoidWasteEntryInput,
+  type VoidWasteEntryResult,
+  type VoidWoOutputInput,
+  type VoidWoOutputResult,
+} from './void-correction-modal';
 import type {
   WoActionPermissions,
   WoModalLabels,
@@ -181,6 +189,8 @@ export type WoDetailLabels = {
     qaDenied: string;
     qaInvalidState: string;
     qaError: string;
+    /** C-R2 — row-level "Void output…" affordance. */
+    voidAction: string;
   };
   waste: {
     title: string;
@@ -188,6 +198,15 @@ export type WoDetailLabels = {
     addAction: string;
     totalLabel: string;
     col: { time: string; category: string; qty: string; reason: string };
+    /** C-R2 — row-level "Void entry…" affordance. */
+    voidAction: string;
+  };
+  /** C-R2 — shared void/correction modal + corrected-row display copy. */
+  voidCorrection: VoidModalLabels & {
+    /** Struck-through original-row badge. */
+    voidedBadge: string;
+    /** Counter-row label, `{ref}` = the original's short id. */
+    correctionOfLabel: string;
   };
   downtime: {
     title: string;
@@ -281,6 +300,8 @@ export function WoDetailScreen({
   releaseOutputQaAction,
   recordConsumptionAction,
   listConsumableLpsAction,
+  voidWoOutputAction,
+  voidWasteEntryAction,
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
@@ -299,15 +320,56 @@ export function WoDetailScreen({
   listConsumableLpsAction: (
     input: { woId: string; materialId: string },
   ) => Promise<ConsumeActionResult<{ lps: ConsumableLp[] }>>;
+  /**
+   * C-R2 — reversibility actions, OWNED by the corrections backend lane
+   * (production/_actions/corrections-actions.ts) and threaded in by the page;
+   * this component never imports them directly. RBAC + state legality are
+   * re-checked server-side — the affordances here only hide already-corrected
+   * rows + offer the void modal.
+   */
+  voidWoOutputAction: (input: VoidWoOutputInput) => Promise<VoidWoOutputResult>;
+  voidWasteEntryAction: (input: VoidWasteEntryInput) => Promise<VoidWasteEntryResult>;
 }) {
   const [tab, setTab] = useState<TabKey>('overview');
   const [busyOutputId, setBusyOutputId] = useState<string | null>(null);
   const [outputQaError, setOutputQaError] = useState<{ outputId: string; message: string } | null>(null);
   const [consumeOpen, setConsumeOpen] = useState(false);
   const [consumePreselectId, setConsumePreselectId] = useState<string | null>(null);
+  const [voidTarget, setVoidTarget] = useState<
+    | { kind: 'output'; id: string; batchLabel: string }
+    | { kind: 'waste'; id: string; categoryLabel: string }
+    | null
+  >(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { header: h } = data;
+
+  // C-R2 — void/correction is offered only when an action context resolved
+  // (RBAC still re-checked server-side; this only hides the affordance). The
+  // header `closed` status drives the supervisor-authorization warning copy.
+  const canVoid = actions !== null;
+  const woClosed = h.status === 'closed';
+
+  // Defensive correctionOf indexing — the WO-detail read MAY not expose
+  // `correctionOfId` yet (the corrections backend lane extends its slice). When
+  // absent every row renders normally; when present we (a) mark the original row
+  // voided/struck-through, (b) label the counter row "Correction of #…", and (c)
+  // hide the void affordance on an already-corrected original.
+  type WithCorrection = { id: string; correctionOfId?: string | null };
+  function buildCorrectionIndex(rows: ReadonlyArray<WithCorrection>) {
+    const correctedOriginalIds = new Set<string>();
+    const correctionOf = new Map<string, string>();
+    for (const r of rows) {
+      const ref = r.correctionOfId ?? null;
+      if (ref) {
+        correctedOriginalIds.add(ref);
+        correctionOf.set(r.id, ref);
+      }
+    }
+    return { correctedOriginalIds, correctionOf };
+  }
+  const outputCorr = buildCorrectionIndex(data.outputs as ReadonlyArray<WithCorrection>);
+  const wasteCorr = buildCorrectionIndex(data.waste as ReadonlyArray<WithCorrection>);
 
   // Desktop consumption is offered only while the WO is actively running and an
   // action context resolved (RBAC is still enforced server-side — this only
@@ -615,9 +677,31 @@ export function WoDetailScreen({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.outputs.map((o) => (
-                    <TableRow key={o.id} data-testid="wo-output-row">
-                      <TableCell><Badge variant="muted" className="text-[10px]">{o.outputType}</Badge></TableCell>
+                  {data.outputs.map((o) => {
+                    const isCorrected = outputCorr.correctedOriginalIds.has(o.id);
+                    const correctionRef = outputCorr.correctionOf.get(o.id);
+                    return (
+                    <TableRow
+                      key={o.id}
+                      data-testid="wo-output-row"
+                      data-corrected={isCorrected ? 'true' : undefined}
+                      className={isCorrected ? 'text-slate-400' : undefined}
+                    >
+                      <TableCell>
+                        <span className="flex flex-wrap items-center gap-1">
+                          <Badge variant="muted" className="text-[10px]">{o.outputType}</Badge>
+                          {isCorrected ? (
+                            <Badge variant="danger" className="text-[10px]" data-testid={`wo-output-voided-${o.id}`}>
+                              {labels.voidCorrection.voidedBadge}
+                            </Badge>
+                          ) : null}
+                          {correctionRef ? (
+                            <Badge variant="info" className="text-[10px]" data-testid={`wo-output-correction-${o.id}`}>
+                              {labels.voidCorrection.correctionOfLabel.replace('{ref}', correctionRef.slice(0, 8))}
+                            </Badge>
+                          ) : null}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-xs text-slate-600">
                         {/* product code + name come from the wo_outputs ⨝ items join —
                             never render the uuid; missing item row → muted em-dash. */}
@@ -629,13 +713,25 @@ export function WoDetailScreen({
                           <span className="text-slate-400" title={o.productId}>—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-sm tabular-nums">{fmtQty(o.qtyKg)} {o.uom}</TableCell>
+                      <TableCell className={`text-right font-mono text-sm tabular-nums${isCorrected ? ' line-through' : ''}`}>{fmtQty(o.qtyKg)} {o.uom}</TableCell>
                       <TableCell className="font-mono text-xs text-slate-600">{o.batchNumber}</TableCell>
                       <TableCell className="font-mono text-xs text-slate-500">{fmtDate(o.expiryDate)}</TableCell>
                       <TableCell><Badge variant="muted" className="text-[10px]">{o.qaStatus}</Badge></TableCell>
                       <TableCell className="font-mono text-xs text-slate-500">{o.lpId ? o.lpId.slice(0, 8) : '—'}</TableCell>
                       <TableCell className="text-right">
-                        {o.qaStatus === 'PENDING' ? (
+                        {canVoid && !isCorrected && !correctionRef ? (
+                          <button
+                            type="button"
+                            data-testid={`wo-output-void-${o.id}`}
+                            onClick={() =>
+                              setVoidTarget({ kind: 'output', id: o.id, batchLabel: o.batchNumber })
+                            }
+                            className="mb-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                          >
+                            {labels.output.voidAction}
+                          </button>
+                        ) : null}
+                        {o.qaStatus === 'PENDING' && !isCorrected ? (
                           <div className="flex flex-col items-end gap-1">
                             <div className="flex flex-wrap justify-end gap-1">
                               <button
@@ -668,7 +764,8 @@ export function WoDetailScreen({
                         )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -694,17 +791,61 @@ export function WoDetailScreen({
                       <TableHead scope="col">{labels.waste.col.category}</TableHead>
                       <TableHead scope="col" className="text-right">{labels.waste.col.qty}</TableHead>
                       <TableHead scope="col">{labels.waste.col.reason}</TableHead>
+                      {canVoid ? (
+                        <TableHead scope="col" className="text-right">
+                          <span className="sr-only">{labels.waste.voidAction}</span>
+                        </TableHead>
+                      ) : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.waste.map((w) => (
-                      <TableRow key={w.id} data-testid="wo-waste-row">
+                    {data.waste.map((w) => {
+                      const isCorrected = wasteCorr.correctedOriginalIds.has(w.id);
+                      const correctionRef = wasteCorr.correctionOf.get(w.id);
+                      return (
+                      <TableRow
+                        key={w.id}
+                        data-testid="wo-waste-row"
+                        data-corrected={isCorrected ? 'true' : undefined}
+                        className={isCorrected ? 'text-slate-400' : undefined}
+                      >
                         <TableCell className="font-mono text-xs text-slate-500">{fmtDate(w.recordedAt)}</TableCell>
-                        <TableCell><Badge variant="warning" className="text-[10px]">{w.categoryName ?? '—'}</Badge></TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{fmtQty(w.qtyKg)} kg</TableCell>
+                        <TableCell>
+                          <span className="flex flex-wrap items-center gap-1">
+                            <Badge variant="warning" className="text-[10px]">{w.categoryName ?? '—'}</Badge>
+                            {isCorrected ? (
+                              <Badge variant="danger" className="text-[10px]" data-testid={`wo-waste-voided-${w.id}`}>
+                                {labels.voidCorrection.voidedBadge}
+                              </Badge>
+                            ) : null}
+                            {correctionRef ? (
+                              <Badge variant="info" className="text-[10px]" data-testid={`wo-waste-correction-${w.id}`}>
+                                {labels.voidCorrection.correctionOfLabel.replace('{ref}', correctionRef.slice(0, 8))}
+                              </Badge>
+                            ) : null}
+                          </span>
+                        </TableCell>
+                        <TableCell className={`text-right font-mono text-sm tabular-nums${isCorrected ? ' line-through' : ''}`}>{fmtQty(w.qtyKg)} kg</TableCell>
                         <TableCell className="text-sm text-slate-600">{w.reasonNotes ?? '—'}</TableCell>
+                        {canVoid ? (
+                          <TableCell className="text-right">
+                            {!isCorrected && !correctionRef ? (
+                              <button
+                                type="button"
+                                data-testid={`wo-waste-void-${w.id}`}
+                                onClick={() =>
+                                  setVoidTarget({ kind: 'waste', id: w.id, categoryLabel: w.categoryName ?? '—' })
+                                }
+                                className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                              >
+                                {labels.waste.voidAction}
+                              </button>
+                            ) : null}
+                          </TableCell>
+                        ) : null}
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
                 <p className="px-4 py-2 text-xs text-slate-500" data-testid="wo-waste-total">
@@ -855,6 +996,24 @@ export function WoDetailScreen({
           onClose={() => setConsumeOpen(false)}
           onRecorded={() => {
             setConsumeOpen(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {/* C-R2 — void/correction modal (output e-sign, waste none). Mounted only
+          while a row is selected so it never reads labels with no target. */}
+      {canVoid && voidTarget !== null ? (
+        <VoidCorrectionModal
+          open
+          target={voidTarget}
+          woClosed={woClosed}
+          labels={labels.voidCorrection}
+          voidWoOutputAction={voidWoOutputAction}
+          voidWasteEntryAction={voidWasteEntryAction}
+          onClose={() => setVoidTarget(null)}
+          onVoided={() => {
+            setVoidTarget(null);
             router.refresh();
           }}
         />

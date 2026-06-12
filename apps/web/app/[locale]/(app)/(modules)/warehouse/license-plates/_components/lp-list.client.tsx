@@ -52,6 +52,8 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
   consumed: 'muted',
   shipped: 'secondary',
   merged: 'muted',
+  // mig 294 — terminal state for pallets voided by an output correction (Wave R2).
+  destroyed: 'danger',
 };
 
 function qaVariant(qa: string): BadgeVariant {

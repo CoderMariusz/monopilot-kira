@@ -19,11 +19,23 @@ export type WasteTableLabels = {
     operator: string;
     reason: string;
   };
+  /** C-R2 — corrected-original badge (same copy family as wo-detail). */
+  voidedBadge: string;
   qtyFmt: (kg: number) => string;
   dateFmt: (iso: string) => string;
+  /** C-R2 — "Correction of #…" counter-row badge (ref = original id prefix). */
+  correctionOfFmt: (ref: string) => string;
 };
 
 export function WasteTable({ rows, labels }: { rows: WasteEventRow[]; labels: WasteTableLabels }) {
+  // C-R2 correction index (same pattern as wo-detail-screen): counter rows carry
+  // correctionOfId; their originals render struck-through with a "Voided" badge,
+  // the counter rows themselves get a "Correction of #…" badge.
+  const correctedOriginalIds = new Set<string>();
+  for (const r of rows) {
+    if (r.correctionOfId) correctedOriginalIds.add(r.correctionOfId);
+  }
+
   if (rows.length === 0) {
     return (
       <div
@@ -50,23 +62,47 @@ export function WasteTable({ rows, labels }: { rows: WasteEventRow[]; labels: Wa
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} data-testid={`production-waste-row-${r.id}`} className="border-b border-slate-100 last:border-0">
-              <td className="px-3 py-2 font-mono text-xs text-slate-600">{labels.dateFmt(r.recordedAt)}</td>
-              <td className="px-3 py-2 font-mono text-slate-700">{r.lineId ?? '—'}</td>
-              <td className="px-3 py-2 font-mono text-xs text-slate-600">{r.woNumber ?? '—'}</td>
-              <td className="px-3 py-2">
-                {r.categoryName ? (
-                  <Badge variant="warning">{r.categoryName}</Badge>
-                ) : (
-                  <span className="text-slate-400">{labels.uncategorized}</span>
-                )}
-              </td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-900">{labels.qtyFmt(r.qtyKg)}</td>
-              <td className="px-3 py-2 text-slate-700">{r.operatorName ?? '—'}</td>
-              <td className="max-w-[260px] px-3 py-2 text-slate-700">{r.reason ?? '—'}</td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const isVoided = correctedOriginalIds.has(r.id);
+            const correctionRef = r.correctionOfId;
+            return (
+              <tr
+                key={r.id}
+                data-testid={`production-waste-row-${r.id}`}
+                className={`border-b border-slate-100 last:border-0${isVoided ? ' opacity-60' : ''}`}
+              >
+                <td className="px-3 py-2 font-mono text-xs text-slate-600">{labels.dateFmt(r.recordedAt)}</td>
+                <td className="px-3 py-2 font-mono text-slate-700">{r.lineId ?? '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs text-slate-600">{r.woNumber ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <span className="inline-flex flex-wrap items-center gap-1">
+                    {r.categoryName ? (
+                      <Badge variant="warning">{r.categoryName}</Badge>
+                    ) : (
+                      <span className="text-slate-400">{labels.uncategorized}</span>
+                    )}
+                    {isVoided ? (
+                      <Badge variant="muted" className="text-[10px]" data-testid={`production-waste-voided-${r.id}`}>
+                        {labels.voidedBadge}
+                      </Badge>
+                    ) : null}
+                    {correctionRef ? (
+                      <Badge variant="info" className="text-[10px]" data-testid={`production-waste-correction-${r.id}`}>
+                        {labels.correctionOfFmt(correctionRef.slice(0, 8))}
+                      </Badge>
+                    ) : null}
+                  </span>
+                </td>
+                <td
+                  className={`px-3 py-2 text-right font-mono tabular-nums ${isVoided ? 'text-slate-400 line-through' : 'text-slate-900'}`}
+                >
+                  {labels.qtyFmt(r.qtyKg)}
+                </td>
+                <td className="px-3 py-2 text-slate-700">{r.operatorName ?? '—'}</td>
+                <td className="max-w-[260px] px-3 py-2 text-slate-700">{r.reason ?? '—'}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

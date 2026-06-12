@@ -105,6 +105,8 @@ export type WoDetailOutput = {
   qaStatus: string;
   lpId: string | null;
   expiryDate: string | null;
+  correctionOfId: string | null;
+  isCorrected: boolean;
 };
 
 /** Waste tab: a wo_waste_log row. */
@@ -114,6 +116,8 @@ export type WoDetailWaste = {
   categoryName: string | null;
   qtyKg: number;
   reasonNotes: string | null;
+  correctionOfId: string | null;
+  isCorrected: boolean;
 };
 
 /** Downtime tab: a downtime_events row linked to this WO. */
@@ -316,10 +320,19 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           qa_status: string;
           lp_id: string | null;
           expiry_date: string | Date | null;
+          correction_of_id: string | null;
+          is_corrected: boolean;
         }>(
           `select o.id::text as id, o.output_type, o.product_id::text as product_id,
                   i.item_code as product_code, i.name as product_name,
-                  o.batch_number, o.qty_kg, o.uom, o.qa_status, o.lp_id::text as lp_id, o.expiry_date
+                  o.batch_number, o.qty_kg, o.uom, o.qa_status, o.lp_id::text as lp_id, o.expiry_date,
+                  o.correction_of_id::text as correction_of_id,
+                  exists (
+                    select 1
+                      from public.wo_outputs oc
+                     where oc.org_id = app.current_org_id()
+                       and oc.correction_of_id = o.id
+                  ) as is_corrected
              from public.wo_outputs o
              left join public.items i
                on i.org_id = o.org_id and i.id = o.product_id
@@ -333,9 +346,18 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           category_name: string | null;
           qty_kg: string | number;
           reason_notes: string | null;
+          correction_of_id: string | null;
+          is_corrected: boolean;
         }>(
           `select wl.id::text as id, wl.recorded_at, wc.name as category_name,
-                  wl.qty_kg, wl.reason_notes
+                  wl.qty_kg, wl.reason_notes,
+                  wl.correction_of_id::text as correction_of_id,
+                  exists (
+                    select 1
+                      from public.wo_waste_log wcorr
+                     where wcorr.org_id = app.current_org_id()
+                       and wcorr.correction_of_id = wl.id
+                  ) as is_corrected
              from public.wo_waste_log wl
              left join public.waste_categories wc
                on wc.id = wl.category_id and wc.org_id = wl.org_id
@@ -436,6 +458,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         qaStatus: r.qa_status,
         lpId: r.lp_id,
         expiryDate: toIso(r.expiry_date),
+        correctionOfId: r.correction_of_id,
+        isCorrected: Boolean(r.is_corrected),
       }));
 
       const waste: WoDetailWaste[] = wasteRes.rows.map((r) => ({
@@ -444,6 +468,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         categoryName: r.category_name,
         qtyKg: Number(r.qty_kg),
         reasonNotes: r.reason_notes,
+        correctionOfId: r.correction_of_id,
+        isCorrected: Boolean(r.is_corrected),
       }));
 
       const downtime: WoDetailDowntime[] = downtimeRes.rows.map((r) => ({

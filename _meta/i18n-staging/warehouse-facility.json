@@ -56,7 +56,8 @@
         "received": "Received",
         "quarantine": "Quarantine",
         "consumed": "Consumed",
-        "blocked": "Blocked"
+        "blocked": "Blocked",
+        "destroyed": "Destroyed"
       }
     }
   },
@@ -116,7 +117,8 @@
         "received": "Przyjęty",
         "quarantine": "Kwarantanna",
         "consumed": "Zużyty",
-        "blocked": "Zablokowany"
+        "blocked": "Zablokowany",
+        "destroyed": "Zniszczona"
       }
     }
   }

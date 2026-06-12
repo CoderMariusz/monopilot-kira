@@ -6457,7 +6457,8 @@
             "expiry": "Expiry",
             "qa": "QA",
             "lp": "LP"
-          }
+          },
+          "voidAction": "Void output…"
         },
         "waste": {
           "title": "Waste events",
@@ -6469,7 +6470,49 @@
             "category": "Category",
             "qty": "Qty",
             "reason": "Reason"
-          }
+          },
+          "voidAction": "Void entry…"
+        },
+        "voidCorrection": {
+          "outputTitle": "Void output {batch}",
+          "wasteTitle": "Void {category} waste entry",
+          "intro": "Voiding records a reversing correction entry — the original row stays in the ledger, struck through, with the counter entry linked to it. Totals are recomputed on the server.",
+          "reasonCode": "Reason",
+          "reasonPlaceholder": "Select a reason",
+          "reasonOptions": {
+            "entry_error": "Entry error",
+            "wrong_quantity": "Wrong quantity",
+            "wrong_batch": "Wrong batch / lot",
+            "wrong_product": "Wrong product",
+            "other": "Other"
+          },
+          "note": "Note",
+          "noteOptional": "optional",
+          "notePlaceholder": "Add context for the correction",
+          "closedWarning": "Voiding on a closed order requires supervisor authorization.",
+          "esign": {
+            "title": "Electronic signature",
+            "meaning": "Re-enter your account password to sign this void. Your identity and the server time are recorded.",
+            "password": "Password",
+            "passwordPlaceholder": "Account password",
+            "passwordHelp": "This is your account password — not a separate PIN."
+          },
+          "cancel": "Cancel",
+          "submit": "Void",
+          "submitting": "Voiding…",
+          "errors": {
+            "forbidden": "You do not have permission to void this record.",
+            "not_found": "This record no longer exists — refresh and retry.",
+            "invalid_state": "This output can no longer be voided in its current state.",
+            "invalid_input": "Check the fields and try again.",
+            "lp_not_voidable": "This output's pallet has already been released or allocated — it can no longer be voided directly.",
+            "already_corrected": "This record has already been voided.",
+            "esign_failed": "Signature failed — check your password and retry.",
+            "persistence_failed": "Unable to void this record.",
+            "generic": "Unable to void this record."
+          },
+          "voidedBadge": "Voided",
+          "correctionOfLabel": "Correction of #{ref}"
         },
         "downtime": {
           "title": "Downtime events",
@@ -6707,6 +6750,8 @@
       "table": {
         "empty": "No waste events have been recorded yet.",
         "uncategorized": "Uncategorized",
+        "voidedBadge": "Voided",
+        "correctionOf": "Correction of #{ref}",
         "col": {
           "time": "Time",
           "line": "Line",

@@ -47,6 +47,8 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
   quarantine: 'warning',
   consumed: 'secondary',
   blocked: 'danger',
+  // mig 294 — terminal state for pallets voided by an output correction (Wave R2).
+  destroyed: 'danger',
 };
 
 export type GenealogyLabels = {

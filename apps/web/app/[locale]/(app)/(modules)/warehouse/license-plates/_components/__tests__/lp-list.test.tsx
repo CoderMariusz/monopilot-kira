@@ -44,6 +44,7 @@ function buildLabels(locale: string): LpListLabels {
       consumed: t('status.consumed'),
       shipped: t('status.shipped'),
       merged: t('status.merged'),
+      destroyed: t('status.destroyed'),
     },
     col: {
       lp: t('list.columns.lp'),

@@ -6449,6 +6449,7 @@
           "title": "Zarejestrowane wyjście",
           "empty": "Nie zarejestrowano jeszcze wyjścia.",
           "addAction": "Zarejestruj wyjście",
+          "voidAction": "Anuluj wyjście…",
           "col": {
             "type": "Typ",
             "product": "Produkt",
@@ -6463,6 +6464,7 @@
           "title": "Zdarzenia odpadów",
           "empty": "Brak odpadów dla tego zlecenia produkcyjnego.",
           "addAction": "Zarejestruj odpad",
+          "voidAction": "Anuluj wpis…",
           "totalLabel": "Razem: {kg} kg",
           "col": {
             "time": "Czas",
@@ -6470,6 +6472,47 @@
             "qty": "Ilość",
             "reason": "Powód"
           }
+        },
+        "voidCorrection": {
+          "outputTitle": "Anuluj wyjście {batch}",
+          "wasteTitle": "Anuluj wpis odpadu: {category}",
+          "intro": "Anulowanie tworzy odwracający wpis korygujący — oryginalny wiersz pozostaje w rejestrze, przekreślony, a powiązany wpis przeciwny jest do niego dowiązany. Sumy są przeliczane po stronie serwera.",
+          "reasonCode": "Powód",
+          "reasonPlaceholder": "Wybierz powód",
+          "reasonOptions": {
+            "entry_error": "Błąd wpisu",
+            "wrong_quantity": "Błędna ilość",
+            "wrong_batch": "Błędna partia / lot",
+            "wrong_product": "Błędny produkt",
+            "other": "Inny"
+          },
+          "note": "Notatka",
+          "noteOptional": "opcjonalnie",
+          "notePlaceholder": "Dodaj kontekst korekty",
+          "closedWarning": "Anulowanie na zamkniętym zleceniu wymaga autoryzacji przełożonego.",
+          "esign": {
+            "title": "Podpis elektroniczny",
+            "meaning": "Wpisz ponownie hasło konta, aby podpisać to anulowanie. Twoja tożsamość i czas serwera zostaną zapisane.",
+            "password": "Hasło",
+            "passwordPlaceholder": "Hasło konta",
+            "passwordHelp": "To jest hasło Twojego konta — nie osobny PIN."
+          },
+          "cancel": "Anuluj",
+          "submit": "Anuluj wpis",
+          "submitting": "Anulowanie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do anulowania tego wpisu.",
+            "not_found": "Ten wpis już nie istnieje — odśwież i spróbuj ponownie.",
+            "invalid_state": "Tego wyjścia nie można już anulować w bieżącym stanie.",
+            "invalid_input": "Sprawdź pola i spróbuj ponownie.",
+            "lp_not_voidable": "Nośnik tego wyjścia został już zwolniony lub przydzielony — nie można go już bezpośrednio anulować.",
+            "already_corrected": "Ten wpis został już anulowany.",
+            "esign_failed": "Podpis nie powiódł się — sprawdź hasło i spróbuj ponownie.",
+            "persistence_failed": "Nie udało się anulować tego wpisu.",
+            "generic": "Nie udało się anulować tego wpisu."
+          },
+          "voidedBadge": "Anulowano",
+          "correctionOfLabel": "Korekta #{ref}"
         },
         "downtime": {
           "title": "Zdarzenia przestoju",
@@ -6707,6 +6750,8 @@
       "table": {
         "empty": "Nie zarejestrowano jeszcze żadnych zdarzeń odpadów.",
         "uncategorized": "Bez kategorii",
+        "voidedBadge": "Anulowano",
+        "correctionOf": "Korekta #{ref}",
         "col": {
           "time": "Czas",
           "line": "Linia",

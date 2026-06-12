@@ -48,6 +48,7 @@ function buildLabels(locale: string): LpDetailLabels {
       consumed: t('status.consumed'),
       shipped: t('status.shipped'),
       merged: t('status.merged'),
+      destroyed: t('status.destroyed'),
     },
     identity: {
       title: t('detail.identity.title'),
@@ -336,6 +337,13 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-detail-status')).toHaveTextContent(EN.statusLabel.available);
     expect(screen.getByTestId('lp-detail-qa')).toHaveTextContent('PASSED');
     expect(screen.getByTestId('lp-detail-subline')).toHaveTextContent('120 kg');
+  });
+
+  it("renders the 'destroyed' status (mig 294 — output-void terminal state) and blocks Move", () => {
+    renderDetail({ status: 'destroyed' });
+    expect(screen.getByTestId('lp-detail-status')).toHaveTextContent(EN.statusLabel.destroyed);
+    expect(screen.getByTestId('lp-detail-status')).not.toHaveTextContent('status.destroyed');
+    expect(screen.getByTestId('lp-action-move')).toBeDisabled();
   });
 
   it('resolves every staged detail i18n key in en and pl (no leaked dotted keys)', () => {

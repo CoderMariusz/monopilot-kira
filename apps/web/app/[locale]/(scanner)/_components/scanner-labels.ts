@@ -763,6 +763,7 @@ const en: ScannerLabelsShape = {
       shipped: "Shipped",
       on_hold: "On hold",
       quarantine: "Quarantine",
+      destroyed: "Destroyed",
     },
     qaValues: {
       passed: "Passed",
@@ -1189,6 +1190,7 @@ const pl: ScannerLabelsShape = {
       shipped: "Wysłany",
       on_hold: "Wstrzymany",
       quarantine: "Kwarantanna",
+      destroyed: "Zniszczona",
     },
     qaValues: {
       passed: "Zaakceptowany",

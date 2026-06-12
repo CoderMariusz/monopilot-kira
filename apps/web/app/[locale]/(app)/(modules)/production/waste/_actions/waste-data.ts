@@ -31,6 +31,8 @@ export type WasteEventRow = {
   qtyKg: number;
   operatorName: string | null;
   reason: string | null;
+  /** Wave R2 — set on signed counter-entries (mig 293); the journal renders them distinctly. */
+  correctionOfId: string | null;
 };
 
 export type WasteParetoRow = {
@@ -96,10 +98,12 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
         return { ok: false, reason: 'forbidden' };
       }
 
-      // KPI totals.
+      // KPI totals. Wave R2 storno semantics: SUMS stay signed/net (negative
+      // counter-entries cancel voided waste); event COUNTS exclude correction
+      // rows so a void doesn't inflate the journal volume.
       const kpiRes = await c.query<{ total_kg: string | number | null; event_count: number; line_count: number }>(
         `select coalesce(sum(wl.qty_kg), 0) as total_kg,
-                count(*)::int as event_count,
+                count(*) filter (where wl.correction_of_id is null)::int as event_count,
                 count(distinct w.production_line_id)::int as line_count
            from public.wo_waste_log wl
            left join public.work_orders w
@@ -114,7 +118,7 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
       const paretoRes = await c.query<{ category_name: string | null; qty_kg: string | number | null; events: number }>(
         `select wc.name as category_name,
                 coalesce(sum(wl.qty_kg), 0) as qty_kg,
-                count(*)::int as events
+                count(*) filter (where wl.correction_of_id is null)::int as events
            from public.wo_waste_log wl
            left join public.waste_categories wc
              on wc.id = wl.category_id and wc.org_id = wl.org_id
@@ -138,7 +142,7 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
       const byLineRes = await c.query<{ line_id: string | null; qty_kg: string | number | null; events: number }>(
         `select w.production_line_id::text as line_id,
                 coalesce(sum(wl.qty_kg), 0) as qty_kg,
-                count(*)::int as events
+                count(*) filter (where wl.correction_of_id is null)::int as events
            from public.wo_waste_log wl
            left join public.work_orders w
              on w.id = wl.wo_id and w.org_id = wl.org_id
@@ -165,8 +169,10 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
         operator_name: string | null;
         reason_notes: string | null;
         reason_code: string | null;
+        correction_of_id: string | null;
       }>(
         `select wl.id::text as id,
+                wl.correction_of_id::text as correction_of_id,
                 wl.recorded_at,
                 w.production_line_id::text as line_id,
                 w.wo_number,
@@ -195,6 +201,7 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
         qtyKg: Number(r.qty_kg ?? 0),
         operatorName: r.operator_name,
         reason: r.reason_notes ?? r.reason_code ?? null,
+        correctionOfId: r.correction_of_id,
       }));
 
       return {

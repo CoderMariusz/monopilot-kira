@@ -133,6 +133,20 @@ describe("LpInfoScreen", () => {
     expect(screen.getByText(/LP-00301/)).toBeInTheDocument(); // child
   });
 
+  it("renders the localized 'destroyed' status badge (mig 294 — output-void terminal state)", async () => {
+    seedSession();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(lpOk({ ...LP, status: "destroyed" })));
+
+    renderLp();
+    scan("LP-00234");
+
+    await waitFor(() => expect(screen.getByText("LP-00234")).toBeInTheDocument());
+    expect(screen.getByText(L.statusValues.destroyed)).toBeInTheDocument();
+    // localized — never the raw enum value
+    expect(L.statusValues.destroyed).toBe("Destroyed");
+    expect(screen.queryByText("destroyed")).not.toBeInTheDocument();
+  });
+
   it("shows the inline not-found error on a 404", async () => {
     seedSession();
     vi.stubGlobal(

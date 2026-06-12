@@ -97,8 +97,10 @@ async function WasteContent() {
       operator: t('table.col.operator'),
       reason: t('table.col.reason'),
     },
+    voidedBadge: t('table.voidedBadge'),
     qtyFmt: (kg) => kgFmt.format(kg),
     dateFmt: (iso) => dtf.format(new Date(iso)),
+    correctionOfFmt: (ref) => t('table.correctionOf', { ref }),
   };
 
   return (

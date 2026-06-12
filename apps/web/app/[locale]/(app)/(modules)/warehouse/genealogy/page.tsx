@@ -71,6 +71,7 @@ function buildLabels(t: ReturnType<typeof getWhFacilityTranslator>): GenealogyLa
       quarantine: t('genealogy.status.quarantine'),
       consumed: t('genealogy.status.consumed'),
       blocked: t('genealogy.status.blocked'),
+      destroyed: t('genealogy.status.destroyed'),
     },
   };
 }

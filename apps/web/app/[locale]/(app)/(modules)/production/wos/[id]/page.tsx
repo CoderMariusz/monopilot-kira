@@ -26,11 +26,13 @@ import { getWorkOrderDetail } from '../../_actions/get-work-order-detail';
 import { getWoActionContext } from '../../_actions/get-wo-action-context';
 import { releaseWoOutputQa } from '../../_actions/output-qa-actions';
 import { listConsumableLps, recordDesktopConsumption } from '../../_actions/consume-material-actions';
+import { voidWasteEntryAction, voidWoOutputAction } from './void-actions-adapter';
 import {
   WoDetailScreen,
   type WoDetailActions,
   type WoDetailLabels,
 } from './_components/wo-detail-screen';
+import type { VoidReasonCode } from './_components/void-correction-modal';
 import { buildWoModalLabels } from '../../_actions/wo-modal-labels';
 
 export const dynamic = 'force-dynamic';
@@ -86,6 +88,11 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   // fallbacks keep it honest live). Mirrors the catch-weight / wo-uom injection.
   const rec = (key: string, fallback: string): string =>
     t.has(`consumption.record.${key}`) ? t(`consumption.record.${key}`) : fallback;
+
+  // C-R2 — void/correction labels. Real en+pl land in the bundle; guarded with
+  // `t.has` + EN fallback so a not-yet-merged key never throws live (mirrors the
+  // desktop-consume / catch-weight staging precedent).
+  const vc = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
 
   const labels: WoDetailLabels = {
     status: {
@@ -215,6 +222,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       qaDenied: t.has('output.qaDenied') ? t('output.qaDenied') : 'You do not have permission to release output QA.',
       qaInvalidState: t.has('output.qaInvalidState') ? t('output.qaInvalidState') : 'This output is no longer pending QA.',
       qaError: t.has('output.qaError') ? t('output.qaError') : 'Unable to update output QA.',
+      voidAction: vc('output.voidAction', 'Void output…'),
     },
     waste: {
       title: t('waste.title'),
@@ -227,6 +235,69 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         qty: t('waste.col.qty'),
         reason: t('waste.col.reason'),
       },
+      voidAction: vc('waste.voidAction', 'Void entry…'),
+    },
+    voidCorrection: {
+      outputTitle: vc('voidCorrection.outputTitle', 'Void output {batch}'),
+      wasteTitle: vc('voidCorrection.wasteTitle', 'Void {category} waste entry'),
+      intro: vc(
+        'voidCorrection.intro',
+        'Voiding records a reversing correction entry — the original row stays in the ledger, struck through, with the counter entry linked to it. Totals are recomputed on the server.',
+      ),
+      reasonCode: vc('voidCorrection.reasonCode', 'Reason'),
+      reasonPlaceholder: vc('voidCorrection.reasonPlaceholder', 'Select a reason'),
+      reasonOptions: {
+        entry_error: vc('voidCorrection.reasonOptions.entry_error', 'Entry error'),
+        wrong_quantity: vc('voidCorrection.reasonOptions.wrong_quantity', 'Wrong quantity'),
+        wrong_batch: vc('voidCorrection.reasonOptions.wrong_batch', 'Wrong batch / lot'),
+        wrong_product: vc('voidCorrection.reasonOptions.wrong_product', 'Wrong product'),
+        other: vc('voidCorrection.reasonOptions.other', 'Other'),
+      } satisfies Record<VoidReasonCode, string>,
+      note: vc('voidCorrection.note', 'Note'),
+      noteOptional: vc('voidCorrection.noteOptional', 'optional'),
+      notePlaceholder: vc('voidCorrection.notePlaceholder', 'Add context for the correction'),
+      closedWarning: vc(
+        'voidCorrection.closedWarning',
+        'Voiding on a closed order requires supervisor authorization.',
+      ),
+      esign: {
+        title: vc('voidCorrection.esign.title', 'Electronic signature'),
+        meaning: vc(
+          'voidCorrection.esign.meaning',
+          'Re-enter your account password to sign this void. Your identity and the server time are recorded.',
+        ),
+        password: vc('voidCorrection.esign.password', 'Password'),
+        passwordPlaceholder: vc('voidCorrection.esign.passwordPlaceholder', 'Account password'),
+        passwordHelp: vc(
+          'voidCorrection.esign.passwordHelp',
+          'This is your account password — not a separate PIN.',
+        ),
+      },
+      cancel: vc('voidCorrection.cancel', 'Cancel'),
+      submit: vc('voidCorrection.submit', 'Void'),
+      submitting: vc('voidCorrection.submitting', 'Voiding…'),
+      errors: {
+        forbidden: vc('voidCorrection.errors.forbidden', 'You do not have permission to void this record.'),
+        not_found: vc('voidCorrection.errors.not_found', 'This record no longer exists — refresh and retry.'),
+        invalid_state: vc(
+          'voidCorrection.errors.invalid_state',
+          'This output can no longer be voided in its current state.',
+        ),
+        invalid_input: vc('voidCorrection.errors.invalid_input', 'Check the fields and try again.'),
+        lp_not_voidable: vc(
+          'voidCorrection.errors.lp_not_voidable',
+          "This output's pallet has already been released or allocated — it can no longer be voided directly.",
+        ),
+        already_corrected: vc(
+          'voidCorrection.errors.already_corrected',
+          'This record has already been voided.',
+        ),
+        esign_failed: vc('voidCorrection.errors.esign_failed', 'Signature failed — check your password and retry.'),
+        persistence_failed: vc('voidCorrection.errors.persistence_failed', 'Unable to void this record.'),
+        generic: vc('voidCorrection.errors.generic', 'Unable to void this record.'),
+      },
+      voidedBadge: vc('voidCorrection.voidedBadge', 'Voided'),
+      correctionOfLabel: vc('voidCorrection.correctionOfLabel', 'Correction of #{ref}'),
     },
     downtime: {
       title: t('downtime.title'),
@@ -346,6 +417,8 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       releaseOutputQaAction={releaseWoOutputQa}
       recordConsumptionAction={recordDesktopConsumption}
       listConsumableLpsAction={listConsumableLps}
+      voidWoOutputAction={voidWoOutputAction}
+      voidWasteEntryAction={voidWasteEntryAction}
     />
   );
 }

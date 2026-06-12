@@ -61,12 +61,30 @@ const LABELS: WoDetailLabels = {
     qaDenied: 'No QA permission',
     qaInvalidState: 'Output is no longer pending',
     qaError: 'Unable to update QA',
+    voidAction: 'Void output…',
   },
-  waste: { title: 'Waste events', empty: 'No waste recorded for this work order.', addAction: 'Log waste', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
+  waste: { title: 'Waste events', empty: 'No waste recorded for this work order.', addAction: 'Log waste', voidAction: 'Void entry…', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
   downtime: { title: 'Downtime events', empty: 'No downtime recorded for this work order.', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
   qa: { title: 'QA results', empty: 'No inspections linked to this work order yet.', total: 'Total', pass: 'Pass', hold: 'Hold', fail: 'Fail' },
   genealogy: { title: 'WO genealogy', empty: 'No consumption links yet — genealogy builds as LPs are scanned.', inputsLabel: 'Consumed inputs', fefoOk: 'FEFO', fefoDeviation: 'Deviation' },
   history: { title: 'Event log', empty: 'No events recorded for this work order yet.', sourceStatus: 'Status', sourceExecution: 'Execution', col: { time: 'Time', source: 'Source', action: 'Action', transition: 'Transition', reason: 'Reason' } },
+  voidCorrection: {
+    outputTitle: 'Void output {batch}', wasteTitle: 'Void {category} waste entry',
+    intro: 'Voiding records a reversing correction entry.',
+    reasonCode: 'Reason', reasonPlaceholder: 'Select a reason',
+    reasonOptions: { entry_error: 'Entry error', wrong_quantity: 'Wrong quantity', wrong_batch: 'Wrong batch / lot', wrong_product: 'Wrong product', other: 'Other' },
+    note: 'Note', noteOptional: 'optional', notePlaceholder: 'Add context for the correction',
+    closedWarning: 'Voiding on a closed order requires supervisor authorization.',
+    esign: { title: 'Electronic signature', meaning: 'Re-enter your password.', password: 'Password', passwordPlaceholder: 'Account password', passwordHelp: 'Account password, not a PIN.' },
+    cancel: 'Cancel', submit: 'Void', submitting: 'Voiding…',
+    errors: {
+      forbidden: 'No permission to void.', not_found: 'Record gone — refresh.', invalid_state: 'No longer voidable.', invalid_input: 'Check the fields.',
+      lp_not_voidable: "This output's pallet has already been released or allocated — it can no longer be voided directly.",
+      already_corrected: 'This record has already been voided.', esign_failed: 'Signature failed — check your password.',
+      persistence_failed: 'Unable to void.', generic: 'Unable to void.',
+    },
+    voidedBadge: 'Voided', correctionOfLabel: 'Correction of #{ref}',
+  },
 };
 
 const DATA: WorkOrderDetailData = {
@@ -123,6 +141,8 @@ const recordConsumptionActionStub: any = async () => ({
   data: { materialId: 'c1', consumedQty: '400', uom: 'kg', lpId: null, replay: false },
 });
 const listConsumableLpsActionStub: any = async () => ({ ok: true, data: { lps: [] } });
+const voidWoOutputActionStub: any = async () => ({ ok: true });
+const voidWasteEntryActionStub: any = async () => ({ ok: true });
 
 function renderScreen(data = DATA) {
   // actions=null exercises the read-only path (no live action context): the
@@ -136,6 +156,8 @@ function renderScreen(data = DATA) {
       releaseOutputQaAction: releaseOutputQaActionStub,
       recordConsumptionAction: recordConsumptionActionStub,
       listConsumableLpsAction: listConsumableLpsActionStub,
+      voidWoOutputAction: voidWoOutputActionStub,
+      voidWasteEntryAction: voidWasteEntryActionStub,
     }),
   );
 }
@@ -265,6 +287,8 @@ describe('WoDetailScreen — B-2 allergen changeover sign-off callout', () => {
         releaseOutputQaAction: releaseOutputQaActionStub,
         recordConsumptionAction: recordConsumptionActionStub,
         listConsumableLpsAction: listConsumableLpsActionStub,
+        voidWoOutputAction: voidWoOutputActionStub,
+        voidWasteEntryAction: voidWasteEntryActionStub,
       }),
     );
   }

@@ -85,7 +85,8 @@
       "blocked": "Blocked",
       "consumed": "Consumed",
       "shipped": "Shipped",
-      "merged": "Merged"
+      "merged": "Merged",
+      "destroyed": "Destroyed"
     },
     "detail": {
       "breadcrumb": {
@@ -311,7 +312,8 @@
       "blocked": "Zablokowany",
       "consumed": "Zużyty",
       "shipped": "Wysłany",
-      "merged": "Scalony"
+      "merged": "Scalony",
+      "destroyed": "Zniszczona"
     },
     "detail": {
       "breadcrumb": {
