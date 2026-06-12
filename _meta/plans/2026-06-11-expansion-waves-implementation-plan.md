@@ -527,6 +527,129 @@ sumy alokacji)]. Schema bom_co_products ISTNIEJE (mig 159) z allocation_pct.
 
 ---
 
+## FALA E-IO — Bulk import/eksport Excel (WO/PO/TO + silnik przekrojowy)
+
+**Cel**: masowe tworzenie dokumentów z Excela (planista dostaje plan tygodnia w xlsx i
+wrzuca go jednym ruchem) + eksport każdej listy do Excela. Budujemy JEDEN silnik i
+adaptery per encja — nie N osobnych importerów (anty-zakres!).
+**Zależności**: brak twardych dla importu jako DRAFT (PO/TO/WO create działa); release
+zaimportowanych WO podlega bramce B9 jak każde WO [WYMAGA: F-C01 dla startu produkcji].
+Istniejące zasoby do reużycia: tabela `import_export_jobs` + hub `/settings/import-export`
+(panel "Settings entities" czeka właśnie na workera!), wzorzec kreatora 4-krokowego z
+`/technical/items/import` (upload→walidacja→diff→commit), exceljs (planowany dla D365
+Buildera), worker `apps/worker`.
+
+### Backend — silnik wspólny
+- Tabele: `import_export_jobs` (ISTNIEJE — rozszerzyć o: entity_type enum, direction
+  import|export, file_id wejściowy, result_file_id (raport błędów / plik eksportu),
+  stats_jsonb {rows_total, ok, failed, skipped}, status queued|processing|done|failed,
+  idempotency_key). NOWE nic więcej — żadnych tabel per encja.
+- Architektura: **rejestr adapterów importu** — adapter per encja deklaruje: (a) szablon
+  (kolumny: nazwa, typ, wymagana, dozwolone wartości, przykładowy wiersz), (b) walidator
+  wiersza (zwraca błędy z numerem wiersza i kolumną), (c) komit wiersza/grupy (która
+  ISTNIEJĄCA Server Action tworzy byt — adapter NIE pisze do DB bezpośrednio; lekcja
+  single-writer). Eksport analogicznie: adapter deklaruje kolumny + źródłowe query
+  (to samo, którego używa lista ekranowa — z jej filtrami).
+- Server Actions: downloadImportTemplate(entityType) → xlsx z nagłówkami + wierszem
+  przykładowym + arkuszem "Instrukcja" (dozwolone wartości, formaty dat); createImportJob
+  (upload, parsowanie, walidacja WSZYSTKICH wierszy przed jakimkolwiek zapisem, zwrot
+  podglądu); commitImportJob (zapis przez akcje kanoniczne; tryb all-or-nothing LUB
+  "pomiń błędne" — wybór usera w kroku 3); downloadErrorReport (wejściowy plik + kolumna
+  "Błąd" przy każdym odrzuconym wierszu); createExportJob(entityType, filters) → xlsx.
+- Wykonanie: pliki ≤500 wierszy synchronicznie; większe → worker (job w import_export_jobs;
+  limit twardy np. 5 000 wierszy/plik — komunikat, nie ścięcie po cichu).
+- Idempotencja: kolumna szablonu "Ref zewn." (external_ref) — ponowny import tego samego
+  pliku nie dubluje dokumentów (unikalność org+entity+external_ref; wiersz duplikat →
+  skipped w raporcie).
+- Eventy: `io.import.completed` / `io.export.completed` (payload: entity, stats) — emiter
+  commit/export, konsument: powiadomienie + audit; dokumenty utworzone importem emitują
+  SWOJE zwykłe eventy (po/to/wo created — skoordynować z F-D01, gdzie po/to eventy są
+  do zadeklarowania).
+- RBAC: import używa uprawnienia CREATE danej encji (np. planning.po.create) + NOWE
+  `io.export.run` dla eksportów (eksport = wyciek danych — osobne uprawnienie, seed do
+  ról admin/manager).
+
+### Adaptery importu — transza 1 (ta fala)
+| Encja | Kolumny szablonu (minimum) | Komit przez | Walidacje kluczowe |
+|---|---|---|---|
+| **PO bulk** | external_ref, dostawca (kod), item (kod), qty, uom, cena, waluta, data dostawy, magazyn docelowy, notatka | createPurchaseOrder (grupowanie wierszy po dostawcy+external_ref → 1 PO z N liniami) | dostawca istnieje w planning master; item aktywny; uom zgodny z itemem (lib/uom); data ≥ dziś; waluta ISO |
+| **TO bulk** | external_ref, magazyn z, magazyn do, item, qty, uom, data | createTransferOrder (grupowanie jw.) | magazyny różne i istnieją; item aktywny |
+| **WO bulk** | external_ref, produkt FG (kod), qty, uom, data plan., linia (kod), priorytet | createWorkOrder per wiersz | FG ma AKTYWNY BOM (inaczej wiersz failed z powodem "brak aktywnego BOM" — NIE tworzyć WO-zombie bez materiałów, lekcja F-B03); linia istnieje; konwersja uom JAWNA w podglądzie (lekcja F-D08a: pokazać "100 szt → 50 kg" w kroku diff!) |
+
+Dokumenty powstają jako **DRAFT** z numeracją z org_document_settings (0.8); external_ref
+zapisany na dokumencie (kolumna nowa, indeks unikalny org+typ+external_ref NULL-owalny).
+
+### Eksporty — transza 1
+Przycisk [Eksport do Excela] na listach: PO, TO, WO (z filtrami i tabami statusów jak na
+ekranie), items, BOM-y (nagłówki + arkusz linii), stany magazynowe (v_inventory_available),
+LP lista, GRN-y. Plik = kolumny widoczne + klucze techniczne (kody, nie UUID), arkusz
+"Parametry" (kto, kiedy, filtry).
+
+### Ekrany i przyciski
+1. **/planning/import** (NOWY) — hub importu planowania, 3 kafle: PO / TO / WO.
+   Każdy kafel: [Pobierz szablon] → downloadImportTemplate · [Importuj plik] → kreator
+   4-krokowy (wzór items/import): (1) upload xlsx → (2) walidacja: tabela wierszy ze
+   statusem ok/błąd per wiersz, licznik "47 ok / 3 błędy", [Pobierz raport błędów] →
+   (3) podgląd skutków: ile dokumentów powstanie, grupowanie linii, JAWNE konwersje uom,
+   przełącznik [Wszystko albo nic | Pomiń błędne] → (4) [Zatwierdź import] → ekran wyniku
+   z linkami do utworzonych dokumentów.
+2. **Listy PO/TO/WO** — przycisk [Importuj] (→ hub z pre-wyborem encji) obok istniejącego
+   [+ Nowy]; przycisk [Eksport xlsx] na pasku filtrów (eksportuje TO CO WIDAĆ z filtrami).
+3. **/settings/import-export** (ISTNIEJE) — ożywić: tabela WSZYSTKICH jobów (import i
+   eksport, każdej encji) ze statusem, statystyką, [Pobierz raport/plik] · panel "Settings
+   entities" przestaje być disabled (worker z tej fali go zasila).
+4. **Pozostałe listy z eksportem** — sam przycisk [Eksport xlsx] (bez importu): inventory,
+   license-plates, grns, cost history, allergen matrix, compliance, revisions.
+
+### Punkty styku
+- S-IO-1: komit WYŁĄCZNIE przez kanoniczne akcje create (nie INSERT-y adaptera) — dzięki
+  temu walidacje, numeracja, eventy i RBAC działają identycznie jak przy ręcznym tworzeniu.
+  Test: PO z importu nieodróżnialne od ręcznego (te same pola, event, numer wg formatu).
+- S-IO-2: external_ref unikalny — ponowny upload tego samego pliku → 0 nowych dokumentów,
+  wszystkie wiersze "skipped (duplikat)".
+- S-IO-3: konwersje uom w podglądzie kroku 3 — liczba pokazana użytkownikowi MUSI równać
+  się liczbie zapisanej (wiring-test na lib/uom; lekcja cichej konwersji 100 szt→50 kg).
+- S-IO-4: dostawca/item/linia resolwowane po KODACH (nie UUID) — kody są stabilne w
+  Excelu; błąd wiersza wskazuje kolumnę i wartość ("dostawca 'SUP-XX' nie istnieje").
+- S-IO-5: eksport używa query listy ekranowej (jeden reader) — liczba wierszy w pliku ==
+  liczba na ekranie przy tych samych filtrach (test).
+- S-IO-6: worker path: job >500 wierszy przetwarza się w tle, status na hubie się
+  odświeża, powiadomienie po zakończeniu; awaria workera → job failed z komunikatem,
+  ŻADNYCH częściowych zapisów bez raportu.
+- S-IO-7: RBAC — user bez planning.po.create nie zaimportuje PO (403 w kroku commit, a
+  kafel disabled z tooltipem); io.export.run wymagany dla eksportu.
+- S-IO-8: import WO nie omija bramki B9 — tworzy DRAFT; release nadal przez standardową
+  ścieżkę z walidacjami.
+
+### Plan sprawdzenia E-IO
+1. Pobierz szablon PO → wypełnij 5 wierszy (2 dostawców, w tym 1 błędny kod itemu) →
+   upload → walidacja: 4 ok / 1 błąd ze wskazaniem kolumny → raport błędów otwiera się w
+   Excelu z kolumną "Błąd". 2. Tryb "pomiń błędne" → commit → powstają 2 PO (grupowanie po
+   dostawcy), linie się zgadzają, numery wg formatu z Settings, status Draft. 3. Ponowny
+   upload tego samego pliku → 0 nowych (duplikaty po external_ref). 4. Tryb "wszystko albo
+   nic" z 1 błędem → 0 dokumentów. 5. WO bulk: wiersz z FG bez aktywnego BOM → failed z
+   powodem; wiersz z "100 szt" → podgląd pokazuje "100 szt → 50 kg" PRZED commitem.
+6. Plik 600 wierszy → job w tle → status processing → done → dokumenty są. 7. Eksport WO
+   z filtrem "In progress" → plik ma dokładnie tyle wierszy co lista. 8. Cross-org: job
+   orga A niewidoczny dla orga B. 9. RBAC: viewer bez create → kafel disabled; bez
+   io.export.run → brak przycisku eksportu. 10. Wiring: io.import.completed emitowany,
+   po/to/wo created emitowane per dokument.
+
+### Adaptery — transze kolejne (dopisywać do rejestru, bez zmian silnika)
+- **Transza 2 (z falą E6)**: prognozy popytu (item × tydzień), progi min/max (reorder).
+- **Transza 3 (z E4B/E5/E8)**: stawki robocizny, macierz changeover, awizacje dostaw
+  (dostawca przysyła xlsx), kalendarz zmian.
+- **Transza 4 (master data, rozbudowa istniejących CSV→xlsx)**: items (jest CSV — ujednolicić
+  na silnik), BOM-y wielopoziomowe (arkusz nagłówków + arkusz linii), dostawcy, klienci,
+  cenniki zakupowe (gdy powstaną w E9), wartości odżywcze per RM (nutrition_per_100g —
+  duża wartość: technolog ma je w Excelu!), profile alergenowe RM (przez kanoniczny
+  upsertProfile — SSOT!), lokalizacje (jest CSV), zakresy temperatur (E2B).
+- **Eksporty kolejne**: wyniki MRP (E6), yield report (E7), plan produkcji/Gantt (E8),
+  odczyty CCP + odchylenia (E3 — audytor prosi o to w Excelu), rejestr wizyt yard (E5),
+  scorecard dostawców (E9), trace report jako xlsx obok PDF (E2).
+
+---
+
 # HORYZONT 3 — ekosystem (skróty planistyczne — rozpisać analogicznie przy starcie)
 
 ## FALA E8 — Scheduler z sekwencjonowaniem alergenowym (#18)
@@ -601,10 +724,13 @@ trace; każda odpowiedź z linkiem źródłowym; zero writerów.
 | E5 yard | od razu (moduł brzegowy) | L |
 | E6 MRP | F-A01, F-B01 zamknięte | M/L |
 | E7 rozbiór | F-B01, F-B08 zamknięte + E1 zalecana | L |
+| E-IO bulk import/eksport | od razu (PO/TO/WO create działa; dokumenty powstają jako DRAFT) | M |
 | E8-E12 | po H1+H2; E12 wymaga osobnego specu auth | — |
 
 Sugerowane pary równoległe (różne moduły, brak wspólnych plików): E3+E5 · E1+E4A ·
-E2+E4B · E6+E7 sekwencyjnie po naprawach BOM.
+E2+E4B · E-IO+E3 (silnik IO nie dotyka quality) · E6+E7 sekwencyjnie po naprawach BOM.
+E-IO warto wciągnąć WCZEŚNIE: transza 2 (prognozy) jest wejściem dla E6, a transza 4
+(nutrition/alergeny RM z Excela) przyspiesza zasilenie danymi każdej kolejnej fali.
 
 ## CZEGO NIE ROBIĆ (anty-zakres)
 
