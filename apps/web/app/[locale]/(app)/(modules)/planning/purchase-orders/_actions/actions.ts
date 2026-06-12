@@ -1,14 +1,21 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
   PurchaseOrderCreateInput,
   PurchaseOrderStatusSchema,
+  dateSchema,
   hasPlanningWritePermission,
   isPgError,
+  numeric3Schema,
+  numeric4Schema,
   pgErrorToResult,
   toIso,
+  uuidSchema,
   writeProcurementAudit,
   type OrgActionContext,
   type ProcurementError,
@@ -71,10 +78,40 @@ type PurchaseOrder = {
 };
 
 type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
-type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: ProcurementError; message?: string };
+type PurchaseOrderError = ProcurementError | 'last_line';
+type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
   | { ok: true; data: PurchaseOrder[]; archivedCount: number }
   | { ok: false; error: ProcurementError; message?: string };
+
+const UpdatePurchaseOrderInput = z.object({
+  id: uuidSchema,
+  supplierId: uuidSchema.optional(),
+  expectedDelivery: dateSchema.optional(),
+  currency: z.string().trim().length(3).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+const AddPurchaseOrderLineInput = z.object({
+  poId: uuidSchema,
+  itemId: uuidSchema,
+  qty: numeric3Schema,
+  uom: z.string().trim().min(1).max(32),
+  unitPrice: numeric4Schema,
+});
+
+const UpdatePurchaseOrderLineInput = z.object({
+  poId: uuidSchema,
+  lineId: uuidSchema,
+  qty: numeric3Schema.optional(),
+  uom: z.string().trim().min(1).max(32).optional(),
+  unitPrice: numeric4Schema.optional(),
+});
+
+const DeletePurchaseOrderLineInput = z.object({
+  poId: uuidSchema,
+  lineId: uuidSchema,
+});
 
 function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
   return {
@@ -135,6 +172,51 @@ async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOr
     [poId],
   );
   return rows.map(mapLine);
+}
+
+async function fetchDraftPurchaseOrderForUpdate(client: QueryClient, poId: string): Promise<PurchaseOrderRow | null> {
+  const { rows } = await client.query<PurchaseOrderRow>(
+    `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
+            po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
+            po.created_at, po.updated_at
+       from public.purchase_orders po
+       left join public.suppliers s on s.org_id = app.current_org_id() and s.id = po.supplier_id
+      where po.org_id = app.current_org_id()
+        and po.id = $1::uuid
+      limit 1
+      for update of po`,
+    [poId],
+  );
+  return rows[0] ?? null;
+}
+
+async function ensureSupplierInOrg(client: QueryClient, supplierId: string): Promise<boolean> {
+  const { rows } = await client.query<{ id: string }>(
+    `select id
+       from public.suppliers
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [supplierId],
+  );
+  return rows.length > 0;
+}
+
+async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boolean> {
+  const { rows } = await client.query<{ id: string }>(
+    `select id
+       from public.items
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [itemId],
+  );
+  return rows.length > 0;
+}
+
+function revalidatePurchaseOrderPaths(poId: string): void {
+  revalidatePath('/planning/purchase-orders');
+  revalidatePath(`/planning/purchase-orders/${poId}`);
 }
 
 export async function listPurchaseOrders(params: unknown = {}): Promise<PurchaseOrderListResult> {
@@ -284,6 +366,308 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
     const error = pgErrorToResult(err);
     if (error !== 'persistence_failed') return { ok: false, error };
     console.error('[planning/purchase-orders] createPurchaseOrder failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+  const parsed = UpdatePurchaseOrderInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.id);
+      if (!before) return { ok: false, error: 'not_found' };
+      if (before.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      if (input.supplierId && !(await ensureSupplierInOrg(ctx.client, input.supplierId))) {
+        return { ok: false, error: 'not_found' };
+      }
+
+      const { rows } = await ctx.client.query<PurchaseOrderRow>(
+        `update public.purchase_orders
+            set supplier_id = coalesce($2::uuid, supplier_id),
+                expected_delivery = coalesce($3::date, expected_delivery),
+                currency = coalesce($4, currency),
+                notes = coalesce($5, notes),
+                updated_by = $6::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'draft'
+        returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+        [
+          input.id,
+          input.supplierId ?? null,
+          input.expectedDelivery ?? null,
+          input.currency ?? null,
+          input.notes ?? null,
+          userId,
+        ],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.purchase_order.updated',
+        resourceType: 'purchase_order',
+        resourceId: row.id,
+        beforeState: {
+          supplierId: before.supplier_id,
+          expectedDelivery: before.expected_delivery,
+          currency: before.currency,
+          notes: before.notes,
+        },
+        afterState: {
+          supplierId: row.supplier_id,
+          expectedDelivery: row.expected_delivery,
+          currency: row.currency,
+          notes: row.notes,
+        },
+      });
+      revalidatePurchaseOrderPaths(row.id);
+      return { ok: true, data: { ...mapPurchaseOrder(row), lines: await fetchLines(ctx.client, row.id) } };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/purchase-orders] updatePurchaseOrder failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+  const parsed = AddPurchaseOrderLineInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const header = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.poId);
+      if (!header) return { ok: false, error: 'not_found' };
+      if (header.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+      if (!(await ensureItemInOrg(ctx.client, input.itemId))) return { ok: false, error: 'not_found' };
+
+      const insertLineOnce = async (): Promise<{ id: string; line_no: number } | null> => {
+        await ctx.client.query('savepoint po_line_append');
+        try {
+          const { rows } = await ctx.client.query<{ id: string; line_no: number }>(
+            `insert into public.purchase_order_lines
+               (org_id, po_id, item_id, qty, uom, unit_price, line_no, created_by, updated_by)
+             select app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric,
+                    coalesce((select max(line_no)
+                                from public.purchase_order_lines
+                               where org_id = app.current_org_id()
+                                 and po_id = $1::uuid), 0) + 1,
+                    $6::uuid, $6::uuid
+              where exists (
+                    select 1
+                      from public.purchase_orders
+                     where org_id = app.current_org_id()
+                       and id = $1::uuid
+                       and status = 'draft'
+                  )
+            returning id, line_no`,
+            [input.poId, input.itemId, input.qty, input.uom, input.unitPrice, userId],
+          );
+          await ctx.client.query('release savepoint po_line_append');
+          return rows[0] ?? null;
+        } catch (err) {
+          if (isPgError(err) && err.code === '23505') {
+            await ctx.client.query('rollback to savepoint po_line_append');
+            return null;
+          }
+          throw err;
+        }
+      };
+
+      let inserted = await insertLineOnce();
+      if (!inserted) inserted = await insertLineOnce();
+      if (!inserted) return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.purchase_order.line_added',
+        resourceType: 'purchase_order',
+        resourceId: header.id,
+        afterState: {
+          lineId: inserted.id,
+          lineNo: Number(inserted.line_no),
+          itemId: input.itemId,
+          qty: input.qty,
+          uom: input.uom,
+          unitPrice: input.unitPrice,
+        },
+      });
+      revalidatePurchaseOrderPaths(header.id);
+      return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/purchase-orders] addPurchaseOrderLine failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function updatePurchaseOrderLine(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+  const parsed = UpdatePurchaseOrderLineInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const header = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.poId);
+      if (!header) return { ok: false, error: 'not_found' };
+      if (header.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      const { rows: beforeRows } = await ctx.client.query<PurchaseOrderLineRow>(
+        `select l.id, l.po_id, l.item_id, null::text as item_code, null::text as item_name,
+                l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+                null::text as received_qty
+           from public.purchase_order_lines l
+          where l.org_id = app.current_org_id()
+            and l.po_id = $1::uuid
+            and l.id = $2::uuid
+          limit 1`,
+        [input.poId, input.lineId],
+      );
+      const before = beforeRows[0];
+      if (!before) return { ok: false, error: 'not_found' };
+
+      const { rowCount } = await ctx.client.query(
+        `update public.purchase_order_lines l
+            set qty = coalesce($3::numeric, qty),
+                uom = coalesce($4, uom),
+                unit_price = coalesce($5::numeric, unit_price),
+                updated_by = $6::uuid
+           from public.purchase_orders po
+          where l.org_id = app.current_org_id()
+            and po.org_id = app.current_org_id()
+            and po.id = l.po_id
+            and po.id = $1::uuid
+            and po.status = 'draft'
+            and l.id = $2::uuid`,
+        [input.poId, input.lineId, input.qty ?? null, input.uom ?? null, input.unitPrice ?? null, userId],
+      );
+      if (rowCount !== 1) return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.purchase_order.line_updated',
+        resourceType: 'purchase_order',
+        resourceId: header.id,
+        beforeState: { lineId: before.id, qty: before.qty, uom: before.uom, unitPrice: before.unit_price },
+        afterState: {
+          lineId: before.id,
+          qty: input.qty ?? before.qty,
+          uom: input.uom ?? before.uom,
+          unitPrice: input.unitPrice ?? before.unit_price,
+        },
+      });
+      revalidatePurchaseOrderPaths(header.id);
+      return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/purchase-orders] updatePurchaseOrderLine failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function deletePurchaseOrderLine(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+  const parsed = DeletePurchaseOrderLineInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const header = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.poId);
+      if (!header) return { ok: false, error: 'not_found' };
+      if (header.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      const { rows: beforeRows } = await ctx.client.query<PurchaseOrderLineRow>(
+        `select l.id, l.po_id, l.item_id, null::text as item_code, null::text as item_name,
+                l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+                null::text as received_qty
+           from public.purchase_order_lines l
+          where l.org_id = app.current_org_id()
+            and l.po_id = $1::uuid
+            and l.id = $2::uuid
+          limit 1`,
+        [input.poId, input.lineId],
+      );
+      const before = beforeRows[0];
+      if (!before) return { ok: false, error: 'not_found' };
+
+      const { rows: countRows } = await ctx.client.query<{ line_count: string | number }>(
+        `select count(*) as line_count
+           from public.purchase_order_lines
+          where org_id = app.current_org_id()
+            and po_id = $1::uuid`,
+        [input.poId],
+      );
+      if (Number(countRows[0]?.line_count ?? 0) <= 1) {
+        return { ok: false, error: 'last_line', code: 'last_line', message: 'Cannot delete the last purchase order line' };
+      }
+
+      const { rowCount } = await ctx.client.query(
+        `delete from public.purchase_order_lines l
+          using public.purchase_orders po
+          where l.org_id = app.current_org_id()
+            and po.org_id = app.current_org_id()
+            and po.id = l.po_id
+            and po.id = $1::uuid
+            and po.status = 'draft'
+            and l.id = $2::uuid`,
+        [input.poId, input.lineId],
+      );
+      if (rowCount !== 1) return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      await ctx.client.query(
+        `with ranked as (
+           select id, row_number() over (order by line_no asc, id asc) as rn
+             from public.purchase_order_lines
+            where org_id = app.current_org_id()
+              and po_id = $1::uuid
+         )
+         update public.purchase_order_lines pol
+            set line_no = ranked.rn,
+                updated_by = $2::uuid
+           from ranked
+          where pol.id = ranked.id
+            and pol.org_id = app.current_org_id()
+            and pol.po_id = $1::uuid
+            and pol.line_no <> ranked.rn`,
+        [input.poId, userId],
+      );
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.purchase_order.line_deleted',
+        resourceType: 'purchase_order',
+        resourceId: header.id,
+        beforeState: { lineId: before.id, lineNo: Number(before.line_no), itemId: before.item_id, qty: before.qty, uom: before.uom },
+        afterState: null,
+      });
+      revalidatePurchaseOrderPaths(header.id);
+      return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/purchase-orders] deletePurchaseOrderLine failed', err);
     return { ok: false, error };
   }
 }

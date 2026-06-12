@@ -6254,6 +6254,17 @@
           "reservations": "Material reservations are not live yet — they are created on the RELEASED transition once the reservations module ships.",
           "sequencing": "Allergen sequencing is not live yet — line sequencing data is not available.",
           "d365": "This work order is not linked to a D365 sales order — no sync information to display."
+        },
+        "edit": {
+          "editButton": "Edit",
+          "modal": {
+            "title": "Edit work order",
+            "resnapshotNote": "Changing the product or quantity rebuilds this work order's components and operations from the current BOM and routing.",
+            "changeProduct": "Change product",
+            "submit": "Save changes",
+            "submitting": "Saving…",
+            "invalidStateMsg": "This work order is no longer a draft, so it can't be edited."
+          }
         }
       },
       "errors": {
@@ -6539,6 +6550,27 @@
       },
       "notes": {
         "title": "Notes"
+      },
+      "edit": {
+        "editOrder": "Edit order",
+        "addLine": "+ Add line",
+        "editLine": "Edit",
+        "deleteLine": "Delete",
+        "deleteLinePrompt": "Delete line {line}? This can't be undone.",
+        "lastLineRefused": "A purchase order must keep at least one line.",
+        "invalidStateMsg": "This purchase order is no longer a draft, so it can't be edited.",
+        "modal": {
+          "title": "Edit purchase order",
+          "submit": "Save changes",
+          "submitting": "Saving…"
+        },
+        "lineModal": {
+          "addTitle": "Add PO line",
+          "editTitle": "Edit PO line",
+          "submitAdd": "Add line",
+          "submitEdit": "Save line",
+          "qtyRequired": "Enter a quantity greater than zero and pick a unit."
+        }
       }
     },
     "transferOrders": {
@@ -6673,6 +6705,27 @@
           "confirm": "Change status of {to} to \"{status}\"?",
           "pending": "Updating…",
           "none": "No further status actions available."
+        }
+      },
+      "edit": {
+        "editOrder": "Edit order",
+        "addLine": "+ Add line",
+        "editLine": "Edit",
+        "deleteLine": "Delete",
+        "deleteLinePrompt": "Delete line {line}? This can't be undone.",
+        "lastLineRefused": "A transfer order must keep at least one line.",
+        "invalidStateMsg": "This transfer order is no longer a draft, so it can't be edited.",
+        "modal": {
+          "title": "Edit transfer order",
+          "submit": "Save changes",
+          "submitting": "Saving…"
+        },
+        "lineModal": {
+          "addTitle": "Add TO line",
+          "editTitle": "Edit TO line",
+          "submitAdd": "Add line",
+          "submitEdit": "Save line",
+          "qtyRequired": "Enter a quantity greater than zero and pick a unit."
         }
       }
     },

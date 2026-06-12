@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  addTransferOrderLine,
   createTransferOrder,
+  deleteTransferOrderLine,
   getTransferOrder,
   listTransferOrders,
   transitionTransferOrderStatus,
+  updateTransferOrder,
+  updateTransferOrderLine,
 } from './actions';
 import type { QueryClient } from '../../_actions/procurement-shared';
 
@@ -21,6 +25,14 @@ let orderExists = true;
 let generatedSeq = 7;
 let failNextAutoInsert = false;
 let currentStatus = 'draft';
+let warehouseInOrg = true;
+let itemInOrg = true;
+let lineExists = true;
+let lineCount = 2;
+let raceHeaderUpdate = false;
+let raceLineUpdate = false;
+let raceLineDelete = false;
+let failNextLineInsert = false;
 /** F3: junction rows already received (dest_lp_id NOT NULL) — blocks cancel. */
 let receivedJunctionCount = 0;
 
@@ -59,6 +71,7 @@ function line() {
     item_name: 'Beef trim 50VL',
     qty: '12.000',
     uom: 'kg',
+    notes: null,
     line_no: 1,
   };
 }
@@ -78,6 +91,35 @@ function makeClient(): QueryClient {
       }
       if (normalized.startsWith('select count(*) as archived_count')) {
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.warehouses')) {
+        return { rows: warehouseInOrg ? [{ id: String(params[0]) }] : [], rowCount: warehouseInOrg ? 1 : 0 };
+      }
+      if (normalized.includes('from public.items') && normalized.includes('id = $1::uuid')) {
+        return { rows: itemInOrg ? [{ id: String(params[0]) }] : [], rowCount: itemInOrg ? 1 : 0 };
+      }
+      if (normalized.startsWith('with numbered as')) {
+        return { rows: [], rowCount: lineCount };
+      }
+      if (normalized.startsWith('select coalesce(max(line_no), 0) + 1 as line_no')) {
+        return { rows: [{ line_no: lineCount + 1 }], rowCount: 1 };
+      }
+      if (normalized.startsWith('select id, qty::text as qty')) {
+        return { rows: lineExists ? [line()] : [], rowCount: lineExists ? 1 : 0 };
+      }
+      if (normalized.startsWith('select id from public.transfer_order_lines')) {
+        return {
+          rows: Array.from({ length: lineCount }, (_, index) => ({
+            id: index === 0 ? '66666666-6666-4666-8666-666666666666' : `66666666-6666-4666-8666-66666666666${index}`,
+          })),
+          rowCount: lineCount,
+        };
+      }
+      if (normalized.startsWith('update public.transfer_order_lines')) {
+        return { rows: [], rowCount: raceLineUpdate ? 0 : 1 };
+      }
+      if (normalized.startsWith('delete from public.transfer_order_lines')) {
+        return { rows: [], rowCount: raceLineDelete ? 0 : 1 };
       }
       if (normalized.includes('from public.transfer_order_lines')) {
         return { rows: [line()], rowCount: 1 };
@@ -140,12 +182,34 @@ function makeClient(): QueryClient {
         return { rows: [header({ to_number: String(params[0]) })], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.transfer_order_lines')) {
+        if (failNextLineInsert) {
+          failNextLineInsert = false;
+          const error = new Error('duplicate line') as Error & { code: string };
+          error.code = '23505';
+          throw error;
+        }
         return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith('select status from public.transfer_orders')) {
         return { rows: orderExists ? [{ status: currentStatus }] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('update public.transfer_orders')) {
+        if (raceHeaderUpdate) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from_warehouse_id = $2::uuid')) {
+          return {
+            rows: [
+              header({
+                from_warehouse_id: params[1],
+                to_warehouse_id: params[2],
+                scheduled_date: params[3],
+                notes: params[4],
+              }),
+            ],
+            rowCount: 1,
+          };
+        }
         return { rows: orderExists ? [header({ status: String(params[1]) })] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.audit_events')) {
@@ -163,6 +227,14 @@ describe('planning transfer order actions', () => {
     generatedSeq = 7;
     failNextAutoInsert = false;
     currentStatus = 'draft';
+    warehouseInOrg = true;
+    itemInOrg = true;
+    lineExists = true;
+    lineCount = 2;
+    raceHeaderUpdate = false;
+    raceLineUpdate = false;
+    raceLineDelete = false;
+    failNextLineInsert = false;
     receivedJunctionCount = 0;
     client = makeClient();
   });
@@ -243,6 +315,117 @@ describe('planning transfer order actions', () => {
         lines: [{ itemId: ITEM_ID, qty: '12.000', uom: 'kg', lineNo: 1 }],
       }),
     ).resolves.toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('updates a draft transfer order after warehouse org validation', async () => {
+    const result = await updateTransferOrder({
+      id: TO_ID,
+      fromWarehouseId: FROM_WAREHOUSE_ID,
+      toWarehouseId: TO_WAREHOUSE_ID,
+      expectedDate: '2026-06-20',
+      notes: 'replanned',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.scheduledDate).toBe('2026-06-20');
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("and status = 'draft'"), expect.any(Array));
+  });
+
+  it('returns invalid_state when updating a non-draft transfer order', async () => {
+    currentStatus = 'in_transit';
+
+    await expect(updateTransferOrder({ id: TO_ID, notes: 'late edit' })).resolves.toEqual({ ok: false, error: 'invalid_state' });
+  });
+
+  it('returns forbidden when updateTransferOrder references a warehouse outside the org', async () => {
+    warehouseInOrg = false;
+
+    await expect(updateTransferOrder({ id: TO_ID, fromWarehouseId: FROM_WAREHOUSE_ID })).resolves.toEqual({
+      ok: false,
+      error: 'forbidden',
+    });
+  });
+
+  it('re-checks draft status in the updateTransferOrder UPDATE for races', async () => {
+    raceHeaderUpdate = true;
+
+    await expect(updateTransferOrder({ id: TO_ID, notes: 'raced' })).resolves.toEqual({ ok: false, error: 'invalid_state' });
+  });
+
+  it('adds a line to a draft transfer order with max+1 line numbering', async () => {
+    const result = await addTransferOrderLine(TO_ID, { itemId: ITEM_ID, quantity: '3.000', uom: 'kg', notes: 'extra' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.lines).toEqual([expect.objectContaining({ lineNo: 1 })]);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('select coalesce(max(line_no), 0) + 1 as line_no'), [TO_ID]);
+  });
+
+  it('retries addTransferOrderLine once on line_no conflict after dense renumbering', async () => {
+    failNextLineInsert = true;
+
+    const result = await addTransferOrderLine(TO_ID, { itemId: ITEM_ID, quantity: '3.000', uom: 'kg' });
+
+    expect(result.ok).toBe(true);
+    const renumberCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase().startsWith('with numbered as'));
+    expect(renumberCalls).toHaveLength(2);
+  });
+
+  it('returns forbidden when addTransferOrderLine references an item outside the org', async () => {
+    itemInOrg = false;
+
+    await expect(addTransferOrderLine(TO_ID, { itemId: ITEM_ID, quantity: '3.000', uom: 'kg' })).resolves.toEqual({
+      ok: false,
+      error: 'forbidden',
+    });
+  });
+
+  it('updates a draft transfer order line', async () => {
+    const result = await updateTransferOrderLine(TO_ID, '66666666-6666-4666-8666-666666666666', {
+      quantity: '6.000',
+      uom: 'kg',
+      notes: 'adjusted',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("and t.status = 'draft'"), expect.any(Array));
+  });
+
+  it('re-checks draft status in updateTransferOrderLine for races', async () => {
+    raceLineUpdate = true;
+
+    await expect(updateTransferOrderLine(TO_ID, '66666666-6666-4666-8666-666666666666', { quantity: '6.000' })).resolves.toEqual({
+      ok: false,
+      error: 'invalid_state',
+    });
+  });
+
+  it('deletes a draft transfer order line and densely renumbers the remaining lines', async () => {
+    const result = await deleteTransferOrderLine(TO_ID, '66666666-6666-4666-8666-666666666666');
+
+    expect(result.ok).toBe(true);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('delete from public.transfer_order_lines'), [TO_ID, '66666666-6666-4666-8666-666666666666']);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('with numbered as'), [TO_ID]);
+  });
+
+  it('refuses to delete the last transfer order line', async () => {
+    lineCount = 1;
+
+    await expect(deleteTransferOrderLine(TO_ID, '66666666-6666-4666-8666-666666666666')).resolves.toEqual({
+      ok: false,
+      error: 'last_line',
+      code: 'last_line',
+    });
+  });
+
+  it('re-checks draft status in deleteTransferOrderLine for races', async () => {
+    raceLineDelete = true;
+
+    await expect(deleteTransferOrderLine(TO_ID, '66666666-6666-4666-8666-666666666666')).resolves.toEqual({
+      ok: false,
+      error: 'invalid_state',
+    });
   });
 
   it('transitions transfer order status on a legal move (draft -> in_transit)', async () => {

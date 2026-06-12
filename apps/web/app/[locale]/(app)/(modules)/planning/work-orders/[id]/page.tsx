@@ -21,7 +21,24 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getPlanningWorkOrder } from '../_actions/getPlanningWorkOrder';
+import { updateWorkOrder } from '../_actions/update-work-order';
+import { searchFgProducts, listProductionResources } from '../_actions/wo-form-data';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
+
+/** Client-facing adapter around the reviewed updateWorkOrder (re-snapshots
+ *  materials + operations server-side when product/qty change). */
+async function updateWorkOrderAction(params: {
+  id: string;
+  productId?: string;
+  plannedQuantity?: string;
+  scheduledStartTime?: string;
+  productionLineId?: string;
+  machineId?: string;
+  notes?: string;
+}) {
+  'use server';
+  return updateWorkOrder(params);
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +58,50 @@ function DetailSkeleton() {
 
 function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoDetailLabels {
   return {
+    edit: {
+      editButton: t('detail.edit.editButton'),
+      modal: {
+        title: t('detail.edit.modal.title'),
+        resnapshotNote: t('detail.edit.modal.resnapshotNote'),
+        productLabel: t('create.productLabel'),
+        changeProduct: t('detail.edit.modal.changeProduct'),
+        picker: {
+          trigger: t('create.picker.trigger'),
+          searchLabel: t('create.picker.searchLabel'),
+          searchPlaceholder: t('create.picker.searchPlaceholder'),
+          loading: t('create.picker.loading'),
+          empty: t('create.picker.empty'),
+          cancel: t('create.picker.cancel'),
+          error: t('create.picker.error'),
+        },
+        quantityLabel: t('create.quantityLabel'),
+        quantityPlaceholder: t('create.quantityPlaceholder'),
+        quantityUom: {
+          base: t('create.quantityUom.base'),
+          each: t('create.quantityUom.each'),
+          box: t('create.quantityUom.box'),
+        },
+        conversionPreview: t('create.conversionPreview'),
+        scheduledStartLabel: t('create.scheduledStartLabel'),
+        lineLabel: t('create.lineLabel'),
+        machineLabel: t('create.machineLabel'),
+        noneOption: t('create.noneOption'),
+        notesLabel: t('create.notesLabel'),
+        notesPlaceholder: t('create.notesPlaceholder'),
+        submit: t('detail.edit.modal.submit'),
+        submitting: t('detail.edit.modal.submitting'),
+        cancel: t('create.cancel'),
+        errors: {
+          quantityRequired: t('create.errors.quantityRequired'),
+          invalid_input: t('errors.invalid_input'),
+          forbidden: t('errors.forbidden'),
+          not_found: t('errors.not_found'),
+          invalid_state: t('detail.edit.modal.invalidStateMsg'),
+          uom_conversion_unavailable: t('errors.uom_conversion_unavailable'),
+          persistence_failed: t('errors.persistence_failed'),
+        },
+      },
+    },
     status: {
       draft: t('woStatus.draft'),
       released: t('woStatus.released'),
@@ -122,7 +183,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoDetailLa
 
 async function DetailContent({ locale, id }: { locale: string; id: string }) {
   const t = await getTranslations('Planning.workOrders');
-  const result = await getPlanningWorkOrder({ id });
+  const [result, resources] = await Promise.all([getPlanningWorkOrder({ id }), listProductionResources()]);
 
   if (!result.ok) {
     if (result.error === 'not_found' || result.error === 'invalid_input') {
@@ -142,7 +203,16 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
     );
   }
 
-  return <WoDetailView workOrder={result.workOrder} labels={buildLabels(t)} locale={locale} />;
+  return (
+    <WoDetailView
+      workOrder={result.workOrder}
+      labels={buildLabels(t)}
+      locale={locale}
+      resources={resources}
+      searchFgProductsAction={searchFgProducts}
+      updateWorkOrderAction={updateWorkOrderAction}
+    />
+  );
 }
 
 export default async function WorkOrderDetailPage({ params }: PageProps) {

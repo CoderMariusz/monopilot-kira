@@ -28,12 +28,16 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
+import { Button } from '@monopilot/ui/Button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@monopilot/ui/Tabs';
 
 import { WoStatusBadge } from './wo-status-badge';
+import { EditWoModal, type EditWoLabels, type EditWoResult } from './edit-wo-modal';
 import type { GetPlanningWorkOrderResult } from '../_actions/shared';
+import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
 type Wo = Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'];
 
@@ -68,6 +72,11 @@ export type WoDetailLabels = {
     d365: string;
   };
   minutes: string;
+  /** Wave R1 reversibility — DRAFT-only Edit affordance. */
+  edit?: {
+    editButton: string;
+    modal: EditWoLabels;
+  };
 };
 
 function fmtTs(iso: string | null, locale: string): string {
@@ -97,9 +106,41 @@ function NotLivePanel({ message, testId }: { message: string; testId: string }) 
   );
 }
 
-export function WoDetailView({ workOrder, labels, locale }: { workOrder: Wo; labels: WoDetailLabels; locale: string }) {
+export function WoDetailView({
+  workOrder,
+  labels,
+  locale,
+  resources,
+  searchFgProductsAction,
+  updateWorkOrderAction,
+}: {
+  workOrder: Wo;
+  labels: WoDetailLabels;
+  locale: string;
+  /** Wave R1 edit seams — only used when status === 'DRAFT'. Optional so legacy
+   *  callers keep type-checking. */
+  resources?: ProductionResources;
+  searchFgProductsAction?: (input: SearchFgProductsInput) => Promise<FgProductOption[]>;
+  updateWorkOrderAction?: (params: {
+    id: string;
+    productId?: string;
+    plannedQuantity?: string;
+    scheduledStartTime?: string;
+    productionLineId?: string;
+    machineId?: string;
+    notes?: string;
+  }) => Promise<EditWoResult>;
+}) {
+  const router = useRouter();
   const wo = workOrder;
   const statusLabel = (s: string) => labels.status[s.toLowerCase()] ?? s;
+
+  // Wave R1 — DRAFT edit affordance. Gated on status===DRAFT AND the seams wired.
+  // Keep the wiring checks INLINE on the render guard below so TS narrows the
+  // optional seams; `canEdit` only carries the status + label presence.
+  const isDraft = wo.status.toUpperCase() === 'DRAFT';
+  const canEdit = isDraft && !!labels.edit;
+  const [editOpen, setEditOpen] = React.useState(false);
 
   return (
     <div className="flex flex-col gap-4" data-testid="wo-detail-view" data-prototype-label="plan_wo_detail">
@@ -108,7 +149,36 @@ export function WoDetailView({ workOrder, labels, locale }: { workOrder: Wo; lab
         <span className="font-mono text-lg font-semibold text-slate-900">{wo.woNumber}</span>
         <WoStatusBadge status={wo.status} label={statusLabel(wo.status)} />
         <Badge variant="outline">{wo.priority}</Badge>
+        {canEdit && updateWorkOrderAction && searchFgProductsAction && resources && labels.edit ? (
+          <Button type="button" className="btn--secondary btn-sm ml-auto" data-testid="wo-edit-order" onClick={() => setEditOpen(true)}>
+            {labels.edit.editButton}
+          </Button>
+        ) : null}
       </div>
+
+      {canEdit && updateWorkOrderAction && searchFgProductsAction && resources && labels.edit ? (
+        <EditWoModal
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          labels={labels.edit.modal}
+          resources={resources}
+          initial={{
+            id: wo.id,
+            productId: wo.productId,
+            itemCode: wo.itemCode,
+            productName: null,
+            uomBase: wo.uom,
+            plannedQuantity: wo.plannedQuantity,
+            scheduledStartTime: wo.scheduledStartTime,
+            productionLineId: wo.productionLineId,
+            machineId: wo.machineId,
+            notes: wo.notes,
+          }}
+          searchFgProductsAction={searchFgProductsAction}
+          updateWorkOrderAction={updateWorkOrderAction}
+          onSaved={() => router.refresh()}
+        />
+      ) : null}
 
       {/* Summary bar */}
       <dl className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm sm:grid-cols-4 lg:grid-cols-7" data-testid="wo-detail-summary">

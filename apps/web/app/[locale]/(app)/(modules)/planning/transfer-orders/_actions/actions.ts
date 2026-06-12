@@ -2,6 +2,8 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { z } from 'zod';
+
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
@@ -12,10 +14,13 @@ import {
 import {
   TransferOrderCreateInput,
   TransferOrderStatusSchema,
+  dateSchema,
   hasPlanningWritePermission,
   isPgError,
+  numeric3Schema,
   pgErrorToResult,
   toIso,
+  uuidSchema,
   writeProcurementAudit,
   type OrgActionContext,
   type ProcurementError,
@@ -69,10 +74,40 @@ type TransferOrder = {
 };
 
 type TransferOrderDetail = TransferOrder & { lines: TransferOrderLine[] };
-type TransferOrderResult<T> = { ok: true; data: T } | { ok: false; error: ProcurementError; message?: string };
+type TransferOrderError = ProcurementError | 'last_line';
+type TransferOrderResult<T> = { ok: true; data: T } | { ok: false; error: TransferOrderError; code?: TransferOrderError; message?: string };
 type TransferOrderListResult =
   | { ok: true; data: TransferOrder[]; archivedCount: number }
   | { ok: false; error: ProcurementError; message?: string };
+
+const UpdateTransferOrderInput = z.object({
+  id: uuidSchema,
+  fromWarehouseId: uuidSchema.optional(),
+  toWarehouseId: uuidSchema.optional(),
+  expectedDate: dateSchema.optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+const AddTransferOrderLineInput = z.object({
+  toId: uuidSchema,
+  itemId: uuidSchema,
+  quantity: numeric3Schema,
+  uom: z.string().trim().min(1).max(32),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+const UpdateTransferOrderLineInput = z.object({
+  toId: uuidSchema,
+  lineId: uuidSchema,
+  quantity: numeric3Schema.optional(),
+  uom: z.string().trim().min(1).max(32).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+const DeleteTransferOrderLineInput = z.object({
+  toId: uuidSchema,
+  lineId: uuidSchema,
+});
 
 function mapTransferOrder(row: TransferOrderRow): TransferOrder {
   return {
@@ -113,6 +148,62 @@ async function fetchLines(client: QueryClient, toId: string): Promise<TransferOr
     [toId],
   );
   return rows.map(mapLine);
+}
+
+async function fetchDraftTransferOrderForUpdate(client: QueryClient, toId: string): Promise<TransferOrderRow | null> {
+  const { rows } = await client.query<TransferOrderRow>(
+    `select id, to_number, from_warehouse_id, to_warehouse_id, status,
+            scheduled_date::text as scheduled_date, notes, created_at, updated_at
+       from public.transfer_orders
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1
+      for update`,
+    [toId],
+  );
+  return rows[0] ?? null;
+}
+
+async function ensureWarehouseInOrg(client: QueryClient, warehouseId: string): Promise<boolean> {
+  const { rows } = await client.query<{ id: string }>(
+    `select id
+       from public.warehouses
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [warehouseId],
+  );
+  return rows.length > 0;
+}
+
+async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boolean> {
+  const { rows } = await client.query<{ id: string }>(
+    `select id
+       from public.items
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [itemId],
+  );
+  return rows.length > 0;
+}
+
+async function denseRenumberTransferOrderLines(client: QueryClient, toId: string): Promise<void> {
+  await client.query(
+    `with numbered as (
+       select id, row_number() over (order by line_no asc, created_at asc, id asc)::integer as next_line_no
+         from public.transfer_order_lines
+        where org_id = app.current_org_id()
+          and to_id = $1::uuid
+     )
+     update public.transfer_order_lines l
+        set line_no = numbered.next_line_no
+       from numbered
+      where l.org_id = app.current_org_id()
+        and l.id = numbered.id
+        and l.line_no is distinct from numbered.next_line_no`,
+    [toId],
+  );
 }
 
 export async function listTransferOrders(params: unknown = {}): Promise<TransferOrderListResult> {
@@ -259,6 +350,266 @@ export async function createTransferOrder(rawInput: unknown): Promise<TransferOr
     const error = pgErrorToResult(err);
     if (error !== 'persistence_failed') return { ok: false, error };
     console.error('[planning/transfer-orders] createTransferOrder failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function updateTransferOrder(rawInput: unknown): Promise<TransferOrderResult<TransferOrder>> {
+  const parsed = UpdateTransferOrderInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrder>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const previous = await fetchDraftTransferOrderForUpdate(ctx.client, input.id);
+      if (!previous) return { ok: false, error: 'not_found' };
+      if (previous.status !== 'draft') return { ok: false, error: 'invalid_state' };
+
+      const nextFromWarehouseId = input.fromWarehouseId ?? previous.from_warehouse_id;
+      const nextToWarehouseId = input.toWarehouseId ?? previous.to_warehouse_id;
+      if (input.fromWarehouseId && !(await ensureWarehouseInOrg(ctx.client, input.fromWarehouseId))) {
+        return { ok: false, error: 'forbidden' };
+      }
+      if (input.toWarehouseId && !(await ensureWarehouseInOrg(ctx.client, input.toWarehouseId))) {
+        return { ok: false, error: 'forbidden' };
+      }
+      if (nextFromWarehouseId && nextToWarehouseId && nextFromWarehouseId === nextToWarehouseId) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      const updated = await ctx.client.query<TransferOrderRow>(
+        `update public.transfer_orders
+            set from_warehouse_id = $2::uuid,
+                to_warehouse_id = $3::uuid,
+                scheduled_date = $4::date,
+                notes = $5,
+                updated_by = $6::uuid,
+                updated_at = now()
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'draft'
+        returning id, to_number, from_warehouse_id, to_warehouse_id, status,
+                  scheduled_date::text as scheduled_date, notes, created_at, updated_at`,
+        [
+          input.id,
+          nextFromWarehouseId,
+          nextToWarehouseId,
+          input.expectedDate ?? previous.scheduled_date,
+          input.notes ?? previous.notes,
+          userId,
+        ],
+      );
+      const row = updated.rows[0];
+      if (!row) return { ok: false, error: 'invalid_state' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.transfer_order.updated',
+        resourceType: 'transfer_order',
+        resourceId: row.id,
+        beforeState: {
+          fromWarehouseId: previous.from_warehouse_id,
+          toWarehouseId: previous.to_warehouse_id,
+          scheduledDate: previous.scheduled_date,
+          notes: previous.notes,
+        },
+        afterState: {
+          fromWarehouseId: row.from_warehouse_id,
+          toWarehouseId: row.to_warehouse_id,
+          scheduledDate: row.scheduled_date,
+          notes: row.notes,
+        },
+      });
+      return { ok: true, data: mapTransferOrder(row) };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/transfer-orders] updateTransferOrder failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function addTransferOrderLine(id: string, rawInput: unknown): Promise<TransferOrderResult<TransferOrderDetail>> {
+  const parsed = AddTransferOrderLineInput.safeParse({ ...(rawInput as Record<string, unknown>), toId: id });
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const header = await fetchDraftTransferOrderForUpdate(ctx.client, input.toId);
+      if (!header) return { ok: false, error: 'not_found' };
+      if (header.status !== 'draft') return { ok: false, error: 'invalid_state' };
+      if (!(await ensureItemInOrg(ctx.client, input.itemId))) return { ok: false, error: 'forbidden' };
+
+      await denseRenumberTransferOrderLines(ctx.client, input.toId);
+      async function insertLine() {
+        const next = await ctx.client.query<{ line_no: number }>(
+          `select coalesce(max(line_no), 0) + 1 as line_no
+             from public.transfer_order_lines
+            where org_id = app.current_org_id()
+              and to_id = $1::uuid`,
+          [input.toId],
+        );
+        return ctx.client.query(
+          `insert into public.transfer_order_lines
+             (org_id, to_id, item_id, qty, uom, line_no, created_by, updated_by)
+           values
+             (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::integer, $6::uuid, $6::uuid)`,
+          [input.toId, input.itemId, input.quantity, input.uom, next.rows[0]?.line_no ?? 1, userId],
+        );
+      }
+      try {
+        await insertLine();
+      } catch (error) {
+        if (!isPgError(error) || error.code !== '23505') throw error;
+        await denseRenumberTransferOrderLines(ctx.client, input.toId);
+        await insertLine();
+      }
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.transfer_order.line_added',
+        resourceType: 'transfer_order',
+        resourceId: input.toId,
+        afterState: { itemId: input.itemId, quantity: input.quantity, uom: input.uom, notes: input.notes ?? null },
+      });
+      return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, input.toId) } };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/transfer-orders] addTransferOrderLine failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function updateTransferOrderLine(
+  id: string,
+  lineId: string,
+  rawInput: unknown,
+): Promise<TransferOrderResult<TransferOrderDetail>> {
+  const parsed = UpdateTransferOrderLineInput.safeParse({ ...(rawInput as Record<string, unknown>), toId: id, lineId });
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const header = await fetchDraftTransferOrderForUpdate(ctx.client, input.toId);
+      if (!header) return { ok: false, error: 'not_found' };
+      if (header.status !== 'draft') return { ok: false, error: 'invalid_state' };
+
+      const current = await ctx.client.query<{ id: string; qty: string; uom: string }>(
+        `select id, qty::text as qty, uom
+           from public.transfer_order_lines
+          where org_id = app.current_org_id()
+            and to_id = $1::uuid
+            and id = $2::uuid
+          limit 1
+          for update`,
+        [input.toId, input.lineId],
+      );
+      const previous = current.rows[0];
+      if (!previous) return { ok: false, error: 'not_found' };
+
+      const updated = await ctx.client.query(
+        `update public.transfer_order_lines l
+            set qty = $3::numeric,
+                uom = $4,
+                updated_by = $5::uuid,
+                updated_at = now()
+           from public.transfer_orders t
+          where l.org_id = app.current_org_id()
+            and t.org_id = app.current_org_id()
+            and t.id = l.to_id
+            and t.id = $1::uuid
+            and t.status = 'draft'
+            and l.id = $2::uuid`,
+        [input.toId, input.lineId, input.quantity ?? previous.qty, input.uom ?? previous.uom, userId],
+      );
+      if ((updated.rowCount ?? 0) === 0) return { ok: false, error: 'invalid_state' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.transfer_order.line_updated',
+        resourceType: 'transfer_order',
+        resourceId: input.toId,
+        beforeState: { lineId: input.lineId, quantity: previous.qty, uom: previous.uom },
+        afterState: {
+          lineId: input.lineId,
+          quantity: input.quantity ?? previous.qty,
+          uom: input.uom ?? previous.uom,
+          notes: input.notes ?? null,
+        },
+      });
+      return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, input.toId) } };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/transfer-orders] updateTransferOrderLine failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function deleteTransferOrderLine(id: string, lineId: string): Promise<TransferOrderResult<TransferOrderDetail>> {
+  const parsed = DeleteTransferOrderLineInput.safeParse({ toId: id, lineId });
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const header = await fetchDraftTransferOrderForUpdate(ctx.client, input.toId);
+      if (!header) return { ok: false, error: 'not_found' };
+      if (header.status !== 'draft') return { ok: false, error: 'invalid_state' };
+
+      const lines = await ctx.client.query<{ id: string }>(
+        `select id
+           from public.transfer_order_lines
+          where org_id = app.current_org_id()
+            and to_id = $1::uuid
+          order by line_no asc, id asc
+          for update`,
+        [input.toId],
+      );
+      if (!lines.rows.some((line) => line.id === input.lineId)) return { ok: false, error: 'not_found' };
+      if (lines.rows.length <= 1) return { ok: false, error: 'last_line', code: 'last_line' };
+
+      const deleted = await ctx.client.query(
+        `delete from public.transfer_order_lines l
+          using public.transfer_orders t
+          where l.org_id = app.current_org_id()
+            and t.org_id = app.current_org_id()
+            and t.id = l.to_id
+            and t.id = $1::uuid
+            and t.status = 'draft'
+            and l.id = $2::uuid`,
+        [input.toId, input.lineId],
+      );
+      if ((deleted.rowCount ?? 0) === 0) return { ok: false, error: 'invalid_state' };
+      await denseRenumberTransferOrderLines(ctx.client, input.toId);
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.transfer_order.line_deleted',
+        resourceType: 'transfer_order',
+        resourceId: input.toId,
+        beforeState: { lineId: input.lineId },
+      });
+      return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, input.toId) } };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/transfer-orders] deleteTransferOrderLine failed', err);
     return { ok: false, error };
   }
 }

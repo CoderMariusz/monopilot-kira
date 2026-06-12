@@ -29,7 +29,10 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@monopilot/ui/Button';
 
 import { ToStatusBadge } from './to-status-badge';
-import type { WarehouseOption } from '../_actions/to-form-data';
+import { EditToModal, type EditToLabels, type EditToResult } from './edit-to-modal';
+import { ToLineModal, type ToLineModalLabels, type ToLineMutationResult, type ToEditLineSeed } from './to-line-modal';
+import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 
 export type TransferOrderLine = {
   id: string;
@@ -82,6 +85,17 @@ export type ToDetailLabels = {
     none: string;
   };
   errors: Record<string, string>;
+  /** Wave R1 reversibility — DRAFT-only edit affordances. */
+  edit: {
+    editOrder: string;
+    addLine: string;
+    editLine: string;
+    deleteLine: string;
+    deleteLinePrompt: string;
+    lastLineRefused: string;
+    modal: EditToLabels;
+    lineModal: ToLineModalLabels;
+  };
 };
 
 export type ToDetailViewProps = {
@@ -90,6 +104,19 @@ export type ToDetailViewProps = {
   warehouses: WarehouseOption[];
   labels: ToDetailLabels;
   transitionTransferOrderStatusAction: (id: string, status: string) => Promise<TransitionResult>;
+  /** Wave R1 edit seams — only used when status === 'draft'. Optional so legacy
+   *  callers keep type-checking. */
+  searchTransferItemsAction?: (input: SearchTransferItemsInput) => Promise<ItemPickerOption[]>;
+  updateTransferOrderAction?: (input: {
+    id: string;
+    fromWarehouseId?: string;
+    toWarehouseId?: string;
+    expectedDate?: string;
+    notes?: string;
+  }) => Promise<EditToResult>;
+  addTransferOrderLineAction?: (toId: string, input: { itemId: string; quantity: string; uom: string }) => Promise<ToLineMutationResult>;
+  updateTransferOrderLineAction?: (toId: string, lineId: string, input: { quantity?: string; uom?: string }) => Promise<ToLineMutationResult>;
+  deleteTransferOrderLineAction?: (toId: string, lineId: string) => Promise<ToLineMutationResult>;
 };
 
 /** Real enum transitions (mig 263): draft → in_transit | cancelled;
@@ -119,10 +146,56 @@ export function ToDetailView({
   warehouses,
   labels,
   transitionTransferOrderStatusAction,
+  searchTransferItemsAction,
+  updateTransferOrderAction,
+  addTransferOrderLineAction,
+  updateTransferOrderLineAction,
+  deleteTransferOrderLineAction,
 }: ToDetailViewProps) {
   const router = useRouter();
   const [pendingTo, setPendingTo] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Wave R1 — DRAFT edit affordances. Gated on status===draft AND the seams wired.
+  const isDraft = transferOrder.status.toLowerCase() === 'draft';
+  const canEdit = isDraft && !!updateTransferOrderAction;
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [lineModalOpen, setLineModalOpen] = React.useState(false);
+  const [editLine, setEditLine] = React.useState<ToEditLineSeed | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  async function onDeleteLine(line: TransferOrderLine) {
+    if (!deleteTransferOrderLineAction || deletingId) return;
+    if (transferOrder.lines.length <= 1) {
+      setError(labels.edit.lastLineRefused);
+      return;
+    }
+    if (!window.confirm(labels.edit.deleteLinePrompt.replace('{line}', String(line.lineNo)))) return;
+    setDeletingId(line.id);
+    setError(null);
+    try {
+      const result = await deleteTransferOrderLineAction(transferOrder.id, line.id);
+      if (!result.ok) {
+        setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        setDeletingId(null);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError(labels.errors.persistence_failed);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function openAddLine() {
+    setEditLine(null);
+    setLineModalOpen(true);
+  }
+  function openEditLine(line: TransferOrderLine) {
+    setEditLine({ lineId: line.id, itemCode: line.itemCode, itemName: line.itemName, qty: line.qty, uom: line.uom });
+    setLineModalOpen(true);
+  }
 
   const warehouseNames = React.useMemo(() => {
     const map: Record<string, string> = {};
@@ -182,6 +255,16 @@ export function ToDetailView({
           </p>
         </div>
         <div className="flex flex-col items-end gap-1" data-testid="to-detail-actions">
+          {canEdit ? (
+            <Button
+              type="button"
+              className="btn--secondary btn-sm"
+              data-testid="to-edit-order"
+              onClick={() => setEditOpen(true)}
+            >
+              {labels.edit.editOrder}
+            </Button>
+          ) : null}
           {actions.length === 0 ? (
             <span data-testid="to-detail-no-actions" className="text-xs text-slate-400">
               {labels.transitions.none}
@@ -214,8 +297,20 @@ export function ToDetailView({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
         {/* TO lines (parity: to-screens.jsx:153-196) */}
         <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-            {labels.lines.title} · {transferOrder.lines.length}
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
+            <span>
+              {labels.lines.title} · {transferOrder.lines.length}
+            </span>
+            {canEdit ? (
+              <button
+                type="button"
+                data-testid="to-add-line"
+                className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                onClick={openAddLine}
+              >
+                {labels.edit.addLine}
+              </button>
+            ) : null}
           </div>
           {transferOrder.lines.length === 0 ? (
             <p data-testid="to-detail-lines-empty" className="px-4 py-8 text-center text-sm text-slate-500">
@@ -229,6 +324,7 @@ export function ToDetailView({
                   <th className="px-3 py-2">{labels.lines.product}</th>
                   <th className="px-3 py-2 text-right">{labels.lines.qty}</th>
                   <th className="px-3 py-2">{labels.lines.uom}</th>
+                  {canEdit ? <th className="px-3 py-2 text-right" /> : null}
                 </tr>
               </thead>
               <tbody>
@@ -241,6 +337,28 @@ export function ToDetailView({
                     </td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums">{l.qty}</td>
                     <td className="px-3 py-2 font-mono text-xs">{l.uom}</td>
+                    {canEdit ? (
+                      <td className="px-3 py-2 text-right whitespace-nowrap" data-testid={`to-line-actions-${l.id}`}>
+                        <button
+                          type="button"
+                          data-testid={`to-line-edit-${l.id}`}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                          onClick={() => openEditLine(l)}
+                        >
+                          {labels.edit.editLine}
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`to-line-delete-${l.id}`}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          disabled={deletingId === l.id}
+                          aria-busy={deletingId === l.id}
+                          onClick={() => onDeleteLine(l)}
+                        >
+                          {labels.edit.deleteLine}
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -263,6 +381,38 @@ export function ToDetailView({
           </dl>
         </div>
       </div>
+
+      {canEdit && updateTransferOrderAction ? (
+        <EditToModal
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          labels={labels.edit.modal}
+          warehouses={warehouses}
+          initial={{
+            id: transferOrder.id,
+            fromWarehouseId: transferOrder.fromWarehouseId,
+            toWarehouseId: transferOrder.toWarehouseId,
+            expectedDate: transferOrder.scheduledDate,
+            notes: transferOrder.notes,
+          }}
+          updateTransferOrderAction={updateTransferOrderAction}
+          onSaved={() => router.refresh()}
+        />
+      ) : null}
+
+      {canEdit && searchTransferItemsAction && addTransferOrderLineAction && updateTransferOrderLineAction ? (
+        <ToLineModal
+          open={lineModalOpen}
+          onOpenChange={setLineModalOpen}
+          labels={labels.edit.lineModal}
+          toId={transferOrder.id}
+          editLine={editLine}
+          searchTransferItemsAction={searchTransferItemsAction}
+          addTransferOrderLineAction={addTransferOrderLineAction}
+          updateTransferOrderLineAction={updateTransferOrderLineAction}
+          onSaved={() => router.refresh()}
+        />
+      ) : null}
     </div>
   );
 }

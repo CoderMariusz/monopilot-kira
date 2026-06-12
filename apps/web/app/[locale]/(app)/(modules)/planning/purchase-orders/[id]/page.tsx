@@ -24,8 +24,41 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
-import { getPurchaseOrder, transitionPurchaseOrderStatus } from '../_actions/actions';
+import {
+  getPurchaseOrder,
+  transitionPurchaseOrderStatus,
+  updatePurchaseOrder,
+  addPurchaseOrderLine,
+  updatePurchaseOrderLine,
+  deletePurchaseOrderLine,
+} from '../_actions/actions';
+import { listPoSuppliers, searchPoItems } from '../_actions/po-form-data';
 import { PoDetailView, type PoDetailLabels } from '../_components/po-detail-view';
+
+/** Thin client-facing adapters around the reviewed actions so the client view's
+ *  narrow `{ ok; error: string }` seam type lines up with the server result union. */
+async function updatePurchaseOrderAction(input: {
+  id: string;
+  supplierId?: string;
+  expectedDelivery?: string;
+  currency?: string;
+  notes?: string;
+}) {
+  'use server';
+  return updatePurchaseOrder(input);
+}
+async function addPurchaseOrderLineAction(input: { poId: string; itemId: string; qty: string; uom: string; unitPrice: string }) {
+  'use server';
+  return addPurchaseOrderLine(input);
+}
+async function updatePurchaseOrderLineAction(input: { poId: string; lineId: string; qty?: string; uom?: string; unitPrice?: string }) {
+  'use server';
+  return updatePurchaseOrderLine(input);
+}
+async function deletePurchaseOrderLineAction(input: { poId: string; lineId: string }) {
+  'use server';
+  return deletePurchaseOrderLine(input);
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +76,26 @@ function DetailSkeleton() {
   );
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PoDetailLabels {
+/** Per-locale UoM dropdown copy (mirrors the list page's local helper; the canonical
+ *  UoM set has no i18n keys — labels are resolved here, not from the bundle). */
+function uomLabels(locale: string): {
+  placeholder: string;
+  options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
+} {
+  if (locale === 'pl') {
+    return {
+      placeholder: 'Jednostka',
+      options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'szt', pack: 'opak.', box: 'karton', pallet: 'paleta' },
+    };
+  }
+  return {
+    placeholder: 'Unit',
+    options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
+  };
+}
+
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): PoDetailLabels {
+  const uoms = uomLabels(locale);
   return {
     status: {
       draft: t('poStatus.draft'),
@@ -96,14 +148,79 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PoDetailLa
       not_found: t('errors.not_found'),
       already_exists: t('errors.already_exists'),
       invalid_state: t('errors.invalid_state'),
+      // Contract: deletePurchaseOrderLine returns error 'last_line' when refusing
+      // to remove the final line. Map it to the dedicated copy.
+      last_line: t('edit.lastLineRefused'),
       persistence_failed: t('errors.persistence_failed'),
+    },
+    edit: {
+      editOrder: t('edit.editOrder'),
+      addLine: t('edit.addLine'),
+      editLine: t('edit.editLine'),
+      deleteLine: t('edit.deleteLine'),
+      deleteLinePrompt: t('edit.deleteLinePrompt'),
+      lastLineRefused: t('edit.lastLineRefused'),
+      modal: {
+        title: t('edit.modal.title'),
+        supplierLabel: t('create.supplierLabel'),
+        supplierPlaceholder: t('create.supplierPlaceholder'),
+        expectedLabel: t('create.expectedLabel'),
+        currencyLabel: t('create.currencyLabel'),
+        notesLabel: t('create.notesLabel'),
+        notesPlaceholder: t('create.notesPlaceholder'),
+        submit: t('edit.modal.submit'),
+        submitting: t('edit.modal.submitting'),
+        cancel: t('create.cancel'),
+        errors: {
+          supplierRequired: t('create.errors.supplierRequired'),
+          invalid_input: t('errors.invalid_input'),
+          forbidden: t('errors.forbidden'),
+          not_found: t('errors.not_found'),
+          invalid_state: t('edit.invalidStateMsg'),
+          persistence_failed: t('errors.persistence_failed'),
+        },
+      },
+      lineModal: {
+        addTitle: t('edit.lineModal.addTitle'),
+        editTitle: t('edit.lineModal.editTitle'),
+        lineItem: t('create.lineItem'),
+        lineQty: t('create.lineQty'),
+        lineUom: t('create.lineUom'),
+        lineUnitPrice: t('create.lineUnitPrice'),
+        uomPlaceholder: uoms.placeholder,
+        uomOptions: uoms.options,
+        qtyPlaceholder: t('create.qtyPlaceholder'),
+        unitPricePlaceholder: t('create.unitPricePlaceholder'),
+        submitAdd: t('edit.lineModal.submitAdd'),
+        submitEdit: t('edit.lineModal.submitEdit'),
+        submitting: t('edit.modal.submitting'),
+        cancel: t('create.cancel'),
+        errors: {
+          itemRequired: t('create.errors.linesRequired'),
+          qtyRequired: t('edit.lineModal.qtyRequired'),
+          invalid_input: t('errors.invalid_input'),
+          forbidden: t('errors.forbidden'),
+          not_found: t('errors.not_found'),
+          invalid_state: t('edit.invalidStateMsg'),
+          persistence_failed: t('errors.persistence_failed'),
+        },
+        picker: {
+          trigger: t('create.picker.trigger'),
+          searchLabel: t('create.picker.searchLabel'),
+          searchPlaceholder: t('create.picker.searchPlaceholder'),
+          loading: t('create.picker.loading'),
+          empty: t('create.picker.empty'),
+          cancel: t('create.picker.cancel'),
+          error: t('create.picker.error'),
+        },
+      },
     },
   };
 }
 
 async function DetailContent({ locale, id }: { locale: string; id: string }) {
   const t = await getTranslations('Planning.purchaseOrders');
-  const result = await getPurchaseOrder(id);
+  const [result, suppliers] = await Promise.all([getPurchaseOrder(id), listPoSuppliers()]);
 
   if (!result.ok) {
     if (result.error === 'not_found' || result.error === 'invalid_input') {
@@ -130,6 +247,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       po={{
         id: po.id,
         poNumber: po.poNumber,
+        supplierId: po.supplierId,
         supplierCode: po.supplierCode,
         supplierName: po.supplierName,
         status: po.status,
@@ -148,8 +266,14 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
           receivedQty: l.receivedQty,
         })),
       }}
-      labels={buildLabels(t)}
+      labels={buildLabels(t, locale)}
       transitionPurchaseOrderStatusAction={transitionPurchaseOrderStatus}
+      suppliers={suppliers}
+      searchPoItemsAction={searchPoItems}
+      updatePurchaseOrderAction={updatePurchaseOrderAction}
+      addPurchaseOrderLineAction={addPurchaseOrderLineAction}
+      updatePurchaseOrderLineAction={updatePurchaseOrderLineAction}
+      deletePurchaseOrderLineAction={deletePurchaseOrderLineAction}
     />
   );
 }

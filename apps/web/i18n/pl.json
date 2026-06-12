@@ -5512,6 +5512,17 @@
           "reservations": "Rezerwacje materiałów nie są jeszcze dostępne — tworzone są przy przejściu do stanu WYDANE, gdy moduł rezerwacji zostanie uruchomiony.",
           "sequencing": "Sekwencjonowanie alergenów nie jest jeszcze dostępne — brak danych sekwencjonowania linii.",
           "d365": "To zlecenie nie jest powiązane z zamówieniem sprzedaży D365 — brak informacji o synchronizacji."
+        },
+        "edit": {
+          "editButton": "Edytuj",
+          "modal": {
+            "title": "Edytuj zlecenie produkcyjne",
+            "resnapshotNote": "Zmiana produktu lub ilości przebuduje składniki i operacje tego zlecenia na podstawie aktualnego BOM i marszruty.",
+            "changeProduct": "Zmień produkt",
+            "submit": "Zapisz zmiany",
+            "submitting": "Zapisywanie…",
+            "invalidStateMsg": "To zlecenie nie jest już wersją roboczą, więc nie można go edytować."
+          }
         }
       },
       "errors": {
@@ -5797,6 +5808,27 @@
       },
       "notes": {
         "title": "Notatki"
+      },
+      "edit": {
+        "editOrder": "Edytuj zamówienie",
+        "addLine": "+ Dodaj pozycję",
+        "editLine": "Edytuj",
+        "deleteLine": "Usuń",
+        "deleteLinePrompt": "Usunąć pozycję {line}? Tej operacji nie można cofnąć.",
+        "lastLineRefused": "Zamówienie zakupu musi mieć co najmniej jedną pozycję.",
+        "invalidStateMsg": "To zamówienie nie jest już wersją roboczą, więc nie można go edytować.",
+        "modal": {
+          "title": "Edytuj zamówienie zakupu",
+          "submit": "Zapisz zmiany",
+          "submitting": "Zapisywanie…"
+        },
+        "lineModal": {
+          "addTitle": "Dodaj pozycję ZZ",
+          "editTitle": "Edytuj pozycję ZZ",
+          "submitAdd": "Dodaj pozycję",
+          "submitEdit": "Zapisz pozycję",
+          "qtyRequired": "Podaj ilość większą od zera i wybierz jednostkę."
+        }
       }
     },
     "transferOrders": {
@@ -5931,6 +5963,27 @@
           "confirm": "Zmienić status {to} na \"{status}\"?",
           "pending": "Aktualizowanie…",
           "none": "Brak dostępnych dalszych akcji statusu."
+        }
+      },
+      "edit": {
+        "editOrder": "Edytuj zlecenie",
+        "addLine": "+ Dodaj pozycję",
+        "editLine": "Edytuj",
+        "deleteLine": "Usuń",
+        "deleteLinePrompt": "Usunąć pozycję {line}? Tej operacji nie można cofnąć.",
+        "lastLineRefused": "Zlecenie przesunięcia musi mieć co najmniej jedną pozycję.",
+        "invalidStateMsg": "To zlecenie nie jest już wersją roboczą, więc nie można go edytować.",
+        "modal": {
+          "title": "Edytuj zlecenie przesunięcia",
+          "submit": "Zapisz zmiany",
+          "submitting": "Zapisywanie…"
+        },
+        "lineModal": {
+          "addTitle": "Dodaj pozycję ZP",
+          "editTitle": "Edytuj pozycję ZP",
+          "submitAdd": "Dodaj pozycję",
+          "submitEdit": "Zapisz pozycję",
+          "qtyRequired": "Podaj ilość większą od zera i wybierz jednostkę."
         }
       }
     },

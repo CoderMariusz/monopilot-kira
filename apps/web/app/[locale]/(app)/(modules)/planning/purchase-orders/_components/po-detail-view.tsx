@@ -38,6 +38,10 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 
 import { PoStatusBadge } from './po-status-badge';
+import { EditPoModal, type EditPoLabels, type EditPoResult } from './edit-po-modal';
+import { PoLineModal, type PoLineModalLabels, type PoLineMutationResult, type EditLineSeed } from './po-line-modal';
+import type { PoSupplierOption } from '../_actions/po-form-data';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 
 export type PoDetailLine = {
   id: string;
@@ -54,6 +58,7 @@ export type PoDetailLine = {
 export type PoDetail = {
   id: string;
   poNumber: string;
+  supplierId: string | null;
   supplierCode: string | null;
   supplierName: string | null;
   status: string;
@@ -105,6 +110,19 @@ export type PoDetailLabels = {
   };
   notesTitle: string;
   errors: Record<string, string>;
+  /** Wave R1 reversibility — DRAFT-only edit affordances. */
+  edit: {
+    /** "Edit order" header button + per-line row actions. */
+    editOrder: string;
+    addLine: string;
+    editLine: string;
+    deleteLine: string;
+    deleteLinePrompt: string;
+    /** Refused when it would remove the last line (contract: deleting last line refused). */
+    lastLineRefused: string;
+    modal: EditPoLabels;
+    lineModal: PoLineModalLabels;
+  };
 };
 
 export type PoTransitionResult =
@@ -147,18 +165,101 @@ export function PoDetailView({
   labels,
   locale,
   transitionPurchaseOrderStatusAction,
+  suppliers = [],
+  searchPoItemsAction,
+  updatePurchaseOrderAction,
+  addPurchaseOrderLineAction,
+  updatePurchaseOrderLineAction,
+  deletePurchaseOrderLineAction,
 }: {
   po: PoDetail;
   labels: PoDetailLabels;
   locale: string;
   transitionPurchaseOrderStatusAction: (id: string, status: string) => Promise<PoTransitionResult>;
+  /** Wave R1 edit seams — only used when status === 'draft'. Optional so legacy
+   *  callers (non-edit usages / older tests) keep type-checking. */
+  suppliers?: PoSupplierOption[];
+  searchPoItemsAction?: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
+  updatePurchaseOrderAction?: (input: {
+    id: string;
+    supplierId?: string;
+    expectedDelivery?: string;
+    currency?: string;
+    notes?: string;
+  }) => Promise<EditPoResult>;
+  addPurchaseOrderLineAction?: (input: {
+    poId: string;
+    itemId: string;
+    qty: string;
+    uom: string;
+    unitPrice: string;
+  }) => Promise<PoLineMutationResult>;
+  updatePurchaseOrderLineAction?: (input: {
+    poId: string;
+    lineId: string;
+    qty?: string;
+    uom?: string;
+    unitPrice?: string;
+  }) => Promise<PoLineMutationResult>;
+  deletePurchaseOrderLineAction?: (input: { poId: string; lineId: string }) => Promise<PoLineMutationResult>;
 }) {
   const router = useRouter();
   const [pending, setPending] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Wave R1 — DRAFT edit affordances. Gated on status===draft AND the seams being
+  // wired (the page only passes them when editable). Never client-trusts permission;
+  // the actions enforce RBAC + the draft-only state server-side.
+  const isDraft = po.status.toLowerCase() === 'draft';
+  const canEdit = isDraft && !!updatePurchaseOrderAction;
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [lineModalOpen, setLineModalOpen] = React.useState(false);
+  const [editLine, setEditLine] = React.useState<EditLineSeed | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
   const statusLabel = (s: string) => labels.status[s.toLowerCase()] ?? s;
   const actions = TRANSITIONS[po.status.toLowerCase()] ?? [];
+
+  async function onDeleteLine(line: PoDetailLine) {
+    if (!deletePurchaseOrderLineAction || deletingId) return;
+    // Client hint mirroring the contract: deleting the last line is refused server-side.
+    if (po.lines.length <= 1) {
+      setError(labels.edit.lastLineRefused);
+      return;
+    }
+    if (!window.confirm(labels.edit.deleteLinePrompt.replace('{line}', String(line.lineNo)))) return;
+    setDeletingId(line.id);
+    setError(null);
+    try {
+      const result = await deletePurchaseOrderLineAction({ poId: po.id, lineId: line.id });
+      if (!result.ok) {
+        setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        setDeletingId(null);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError(labels.errors.persistence_failed);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function openAddLine() {
+    setEditLine(null);
+    setLineModalOpen(true);
+  }
+  function openEditLine(line: PoDetailLine) {
+    setEditLine({
+      lineId: line.id,
+      itemCode: line.itemCode,
+      itemName: line.itemName,
+      qty: line.qty,
+      uom: line.uom,
+      unitPrice: line.unitPrice,
+    });
+    setLineModalOpen(true);
+  }
 
   const orderTotal = po.lines.reduce((sum, l) => sum + Number(l.qty) * Number(l.unitPrice), 0);
 
@@ -202,6 +303,16 @@ export function PoDetailView({
         <span className="font-mono text-lg font-semibold text-slate-900">{po.poNumber}</span>
         <span className="text-slate-700">{po.supplierName ?? '—'}</span>
         <PoStatusBadge status={po.status} label={statusLabel(po.status)} />
+        {canEdit ? (
+          <button
+            type="button"
+            data-testid="po-edit-order"
+            className="ml-auto rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setEditOpen(true)}
+          >
+            {labels.edit.editOrder}
+          </button>
+        ) : null}
       </div>
 
       {error ? (
@@ -214,8 +325,20 @@ export function PoDetailView({
         {/* Left: lines + notes */}
         <div className="flex flex-col gap-4">
           <div className="overflow-hidden rounded-xl border border-slate-200">
-            <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
-              {labels.lines.title} · {po.lines.length}
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+              <span>
+                {labels.lines.title} · {po.lines.length}
+              </span>
+              {canEdit ? (
+                <button
+                  type="button"
+                  data-testid="po-add-line"
+                  className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={openAddLine}
+                >
+                  {labels.edit.addLine}
+                </button>
+              ) : null}
             </div>
             {po.lines.length === 0 ? (
               <div data-testid="po-lines-empty" className="px-4 py-8 text-center text-sm text-slate-500">
@@ -232,6 +355,7 @@ export function PoDetailView({
                     <th className="px-3 py-2 text-right">{labels.lines.unitPrice}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.lineTotal}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.received}</th>
+                    {canEdit ? <th className="px-3 py-2 text-right" /> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -264,6 +388,28 @@ export function PoDetailView({
                           ) : null}
                         </div>
                       </td>
+                      {canEdit ? (
+                        <td className="px-3 py-2 text-right whitespace-nowrap" data-testid={`po-line-actions-${l.id}`}>
+                          <button
+                            type="button"
+                            data-testid={`po-line-edit-${l.id}`}
+                            className="rounded-md px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                            onClick={() => openEditLine(l)}
+                          >
+                            {labels.edit.editLine}
+                          </button>
+                          <button
+                            type="button"
+                            data-testid={`po-line-delete-${l.id}`}
+                            className="rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            disabled={deletingId === l.id}
+                            aria-busy={deletingId === l.id}
+                            onClick={() => onDeleteLine(l)}
+                          >
+                            {labels.edit.deleteLine}
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
@@ -359,6 +505,38 @@ export function PoDetailView({
           ) : null}
         </div>
       </div>
+
+      {canEdit && updatePurchaseOrderAction ? (
+        <EditPoModal
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          labels={labels.edit.modal}
+          suppliers={suppliers}
+          initial={{
+            id: po.id,
+            supplierId: po.supplierId,
+            expectedDelivery: po.expectedDelivery,
+            currency: po.currency,
+            notes: po.notes,
+          }}
+          updatePurchaseOrderAction={updatePurchaseOrderAction}
+          onSaved={() => router.refresh()}
+        />
+      ) : null}
+
+      {canEdit && searchPoItemsAction && addPurchaseOrderLineAction && updatePurchaseOrderLineAction ? (
+        <PoLineModal
+          open={lineModalOpen}
+          onOpenChange={setLineModalOpen}
+          labels={labels.edit.lineModal}
+          poId={po.id}
+          editLine={editLine}
+          searchPoItemsAction={searchPoItemsAction}
+          addPurchaseOrderLineAction={addPurchaseOrderLineAction}
+          updatePurchaseOrderLineAction={updatePurchaseOrderLineAction}
+          onSaved={() => router.refresh()}
+        />
+      ) : null}
     </div>
   );
 }
