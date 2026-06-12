@@ -32,6 +32,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { ReleaseLpQaInput, ReleaseLpQaResult } from '../../../_actions/lp-qa-actions';
 import type { GrnDetail } from '../../../_actions/shared';
 import type { WarehouseResult } from '../../../_actions/shared';
+import {
+  GrnLineCancelModal,
+  type GrnLineCancelLabels,
+  type CancelGrnLineInput,
+  type CancelGrnLineResult,
+} from './grn-line-cancel-modal.client';
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   draft: 'warning',
@@ -75,6 +81,13 @@ export type GrnDetailLabels = {
     invalidState: string;
     error: string;
   };
+  /** C-R3 — cancel-receipt-line modal + cancelled-line display copy. */
+  cancelLine: GrnLineCancelLabels & {
+    /** Row affordance label ("Cancel receipt…"). */
+    rowAction: string;
+    /** Struck-through cancelled-line badge (defensive `cancelled` flag). */
+    cancelledBadge: string;
+  };
 };
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -91,16 +104,29 @@ export function GrnDetailClient({
   labels,
   locale,
   releaseQaAction,
+  cancelGrnLineAction,
+  canCancelLines = false,
 }: {
   grn: GrnDetail;
   labels: GrnDetailLabels;
   locale: string;
   releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
+  /**
+   * C-R3 — cancel a single receipt line. OWNED by the warehouse corrections lane
+   * (warehouse/_actions/receipt-corrections-actions.ts) and threaded in by the
+   * page via an import-only adapter seam; never imported here directly. RBAC +
+   * LP-cancellability are re-checked server-side — the affordance here only hides
+   * already-cancelled lines + opens the reason/note modal.
+   */
+  cancelGrnLineAction: (input: CancelGrnLineInput) => Promise<CancelGrnLineResult>;
+  /** Server-resolved: when false the cancel affordances are hidden entirely. */
+  canCancelLines?: boolean;
 }) {
   const dash = labels.facts.none;
   const router = useRouter();
   const [busyLpId, setBusyLpId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ lpId: string; message: string } | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ grnItemId: string; lineLabel: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function releaseRow(lpId: string) {
@@ -187,17 +213,37 @@ export function GrnDetailClient({
                 <TableHead scope="col">{labels.col.lp}</TableHead>
                 <TableHead scope="col">{labels.col.qa}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.col.action}</TableHead>
+                {canCancelLines ? (
+                  <TableHead scope="col" className="text-right">
+                    <span className="sr-only">{labels.cancelLine.rowAction}</span>
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {grn.items.map((it) => (
-                <TableRow key={it.id} data-testid={`grn-item-${it.id}`}>
+              {grn.items.map((it) => {
+                // R3 F6 — getGrnDetail now exposes the typed per-line `cancelled`
+                // flag (mig-298 cancelled_at). Cancelled lines are struck/badged
+                // and BOTH the Release-QC and Cancel affordances are hidden.
+                const isCancelled = it.cancelled === true;
+                return (
+                <TableRow
+                  key={it.id}
+                  data-testid={`grn-item-${it.id}`}
+                  data-cancelled={isCancelled ? 'true' : undefined}
+                  className={isCancelled ? 'text-slate-400' : undefined}
+                >
                   <TableCell className="font-mono text-xs text-slate-600">{it.lineNumber}</TableCell>
                   <TableCell className="text-xs">
                     <div className="flex flex-col">
-                      <span className="text-sm text-slate-900">{it.itemName ?? dash}</span>
+                      <span className={`text-sm text-slate-900${isCancelled ? ' line-through' : ''}`}>{it.itemName ?? dash}</span>
                       {it.itemCode ? (
                         <span className="font-mono text-[11px] text-slate-500">{it.itemCode}</span>
+                      ) : null}
+                      {isCancelled ? (
+                        <Badge variant="danger" className="mt-0.5 w-fit text-[10px]" data-testid={`grn-item-cancelled-${it.id}`}>
+                          {labels.cancelLine.cancelledBadge}
+                        </Badge>
                       ) : null}
                     </div>
                   </TableCell>
@@ -238,7 +284,7 @@ export function GrnDetailClient({
                     ) : null}
                   </TableCell>
                   <TableCell className="text-right">
-                    {it.lpId && it.lpQaStatus === 'pending' ? (
+                    {it.lpId && it.lpQaStatus === 'pending' && !isCancelled ? (
                       <button
                         type="button"
                         data-testid={`grn-release-qc-${it.id}`}
@@ -252,12 +298,47 @@ export function GrnDetailClient({
                       <span className="text-slate-400">{dash}</span>
                     )}
                   </TableCell>
+                  {canCancelLines ? (
+                    <TableCell className="text-right">
+                      {!isCancelled ? (
+                        <button
+                          type="button"
+                          data-testid={`grn-cancel-line-${it.id}`}
+                          onClick={() =>
+                            setCancelTarget({ grnItemId: it.id, lineLabel: String(it.lineNumber) })
+                          }
+                          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                        >
+                          {labels.cancelLine.rowAction}
+                        </button>
+                      ) : (
+                        <span className="text-slate-400">{dash}</span>
+                      )}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
       </Card>
+
+      {/* C-R3 — cancel-receipt-line modal (reason + note, no e-sign). Mounted only
+          while a line is selected. */}
+      {canCancelLines && cancelTarget !== null ? (
+        <GrnLineCancelModal
+          open
+          target={cancelTarget}
+          labels={labels.cancelLine}
+          cancelGrnLineAction={cancelGrnLineAction}
+          onClose={() => setCancelTarget(null)}
+          onCancelled={() => {
+            setCancelTarget(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

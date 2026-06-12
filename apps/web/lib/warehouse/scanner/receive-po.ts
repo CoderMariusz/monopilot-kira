@@ -137,6 +137,7 @@ export async function listScannerPurchaseOrders(
            from public.grn_items
           where org_id = $1::uuid
             and po_line_id is not null
+            and cancelled_at is null
           group by po_line_id
        ) rec on rec.po_line_id = pol.id
       where po.org_id = $1::uuid
@@ -194,6 +195,7 @@ export async function getScannerPurchaseOrder(
            from public.grn_items
           where org_id = $1::uuid
             and po_line_id is not null
+            and cancelled_at is null
           group by po_line_id
        ) rec on rec.po_line_id = pol.id
       where po.org_id = $1::uuid
@@ -454,6 +456,7 @@ async function loadLineForUpdate(
                 from public.grn_items gi
                where gi.po_line_id = pol.id
                  and gi.org_id = pol.org_id
+                 and gi.cancelled_at is null
             ) as received_qty,
             i.shelf_life_days,
             i.shelf_life_mode
@@ -745,6 +748,7 @@ async function rollupPurchaseOrderStatus(
            from public.grn_items
           where org_id = $1::uuid
             and po_line_id is not null
+            and cancelled_at is null
           group by po_line_id
        ) rec on rec.po_line_id = pol.id
       where pol.org_id = $1::uuid

@@ -164,6 +164,7 @@ async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOr
             and g.status <> 'cancelled'
           where gi.org_id = app.current_org_id()
             and gi.po_line_id is not null
+            and gi.cancelled_at is null
           group by gi.po_line_id
        ) rec on rec.po_line_id = l.id
       where l.org_id = app.current_org_id()

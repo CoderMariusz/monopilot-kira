@@ -21,6 +21,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { WoDetailScreen, type WoDetailLabels } from '../wo-detail-screen';
+import { REVERSE_LABELS } from './reverse-labels.fixture';
 import type { WorkOrderDetailData } from '../../../../_actions/get-work-order-detail';
 
 const LABELS: WoDetailLabels = {
@@ -66,7 +67,7 @@ const LABELS: WoDetailLabels = {
   waste: { title: 'Waste events', empty: 'No waste recorded for this work order.', addAction: 'Log waste', voidAction: 'Void entry…', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
   downtime: { title: 'Downtime events', empty: 'No downtime recorded for this work order.', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
   qa: { title: 'QA results', empty: 'No inspections linked to this work order yet.', total: 'Total', pass: 'Pass', hold: 'Hold', fail: 'Fail' },
-  genealogy: { title: 'WO genealogy', empty: 'No consumption links yet — genealogy builds as LPs are scanned.', inputsLabel: 'Consumed inputs', fefoOk: 'FEFO', fefoDeviation: 'Deviation' },
+  genealogy: { title: 'WO genealogy', empty: 'No consumption links yet — genealogy builds as LPs are scanned.', inputsLabel: 'Consumed inputs', fefoOk: 'FEFO', fefoDeviation: 'Deviation', reverseAction: 'Reverse…', reversedBadge: 'Reversed', correctionOfLabel: 'Correction of #{ref}' },
   history: { title: 'Event log', empty: 'No events recorded for this work order yet.', sourceStatus: 'Status', sourceExecution: 'Execution', col: { time: 'Time', source: 'Source', action: 'Action', transition: 'Transition', reason: 'Reason' } },
   voidCorrection: {
     outputTitle: 'Void output {batch}', wasteTitle: 'Void {category} waste entry',
@@ -85,6 +86,7 @@ const LABELS: WoDetailLabels = {
     },
     voidedBadge: 'Voided', correctionOfLabel: 'Correction of #{ref}',
   },
+  reverseConsumption: REVERSE_LABELS,
 };
 
 const DATA: WorkOrderDetailData = {
@@ -158,6 +160,7 @@ function renderScreen(data = DATA) {
       listConsumableLpsAction: listConsumableLpsActionStub,
       voidWoOutputAction: voidWoOutputActionStub,
       voidWasteEntryAction: voidWasteEntryActionStub,
+      reverseConsumptionAction: (async () => ({ ok: true })) as never,
     }),
   );
 }
@@ -289,6 +292,7 @@ describe('WoDetailScreen — B-2 allergen changeover sign-off callout', () => {
         listConsumableLpsAction: listConsumableLpsActionStub,
         voidWoOutputAction: voidWoOutputActionStub,
         voidWasteEntryAction: voidWasteEntryActionStub,
+        reverseConsumptionAction: (async () => ({ ok: true })) as never,
       }),
     );
   }

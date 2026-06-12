@@ -383,6 +383,16 @@ export async function procurementSummary(
               and g.po_id = po.id
             where po.org_id = app.current_org_id()
               and po.created_at >= pg_catalog.now() - ($1::int * interval '1 day')
+              -- R3 A3 — a GRN whose every line was cancelled (mig-298
+              -- cancelled_at) is no longer a received GRN: it must not anchor
+              -- the created→first-GRN cycle.
+              and exists (
+                select 1
+                  from public.grn_items gi
+                 where gi.org_id = app.current_org_id()
+                   and gi.grn_id = g.id
+                   and gi.cancelled_at is null
+              )
             group by po.id, po.created_at`,
           [days],
         );

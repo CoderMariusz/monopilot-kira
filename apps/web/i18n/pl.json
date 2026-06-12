@@ -6540,7 +6540,10 @@
           "empty": "Brak powiązań zużycia — genealogia buduje się wraz ze skanowaniem LP.",
           "inputsLabel": "Zużyte wejścia",
           "fefoOk": "FEFO",
-          "fefoDeviation": "Odchylenie"
+          "fefoDeviation": "Odchylenie",
+          "reverseAction": "Cofnij…",
+          "reversedBadge": "Cofnięto",
+          "correctionOfLabel": "Korekta #{ref}"
         },
         "history": {
           "title": "Dziennik zdarzeń",
@@ -6559,6 +6562,44 @@
           "title": "Wymagany podpis przezbrojenia alergenowego",
           "body": "Ta linia wymaga podwójnego podpisu przezbrojenia alergenowego przed startem tego work order.",
           "link": "Otwórz przezbrojenia"
+        },
+        "reverseConsumption": {
+          "title": "Cofnij zużycie {lp}",
+          "intro": "Cofnięcie tworzy przeciwny wpis zużycia, który przywraca zużytą paletę — oryginalny wiersz pozostaje w rejestrze, przekreślony, a wpis korygujący jest do niego dowiązany. Stany magazynowe i sumy są przeliczane po stronie serwera.",
+          "reasonCode": "Powód",
+          "reasonPlaceholder": "Wybierz powód",
+          "reasonOptions": {
+            "entry_error": "Błąd wpisu",
+            "wrong_quantity": "Błędna ilość",
+            "wrong_batch": "Błędna partia / lot",
+            "wrong_product": "Błędny produkt",
+            "other": "Inny"
+          },
+          "note": "Notatka",
+          "noteOptional": "opcjonalnie",
+          "notePlaceholder": "Dodaj kontekst cofnięcia",
+          "closedWarning": "Cofnięcie zużycia na zamkniętym zleceniu wymaga autoryzacji przełożonego.",
+          "esign": {
+            "title": "Podpis elektroniczny",
+            "meaning": "Wpisz ponownie hasło konta, aby podpisać to cofnięcie. Twoja tożsamość i czas serwera zostaną zapisane.",
+            "password": "Hasło",
+            "passwordPlaceholder": "Hasło konta",
+            "passwordHelp": "To jest hasło Twojego konta — nie osobny PIN."
+          },
+          "cancel": "Anuluj",
+          "submit": "Cofnij",
+          "submitting": "Cofanie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do cofnięcia tego zużycia.",
+            "not_found": "Ten wpis zużycia już nie istnieje — odśwież i spróbuj ponownie.",
+            "already_corrected": "To zużycie zostało już cofnięte.",
+            "lp_not_restorable": "Zużyta paleta została już wysłana lub zniszczona — tego wpisu nie można już cofnąć.",
+            "inconsistent_ledger": "Rejestr stanów tej palety jest niespójny — cofnięcie zostało zablokowane, aby chronić zapasy. Poproś przełożonego o weryfikację przed ponowną próbą.",
+            "invalid_input": "Sprawdź pola i spróbuj ponownie.",
+            "esign_failed": "Podpis nie powiódł się — sprawdź hasło i spróbuj ponownie.",
+            "persistence_failed": "Nie udało się cofnąć tego zużycia.",
+            "generic": "Nie udało się cofnąć tego zużycia."
+          }
         }
       },
       "actions": {

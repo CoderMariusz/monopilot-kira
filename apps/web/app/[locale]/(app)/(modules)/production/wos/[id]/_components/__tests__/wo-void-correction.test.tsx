@@ -37,6 +37,7 @@ import {
   type VoidModalLabels,
 } from '../void-correction-modal';
 import { WoDetailScreen, type WoDetailActions, type WoDetailLabels } from '../wo-detail-screen';
+import { REVERSE_LABELS } from './reverse-labels.fixture';
 import type { WorkOrderDetailData } from '../../../../_actions/get-work-order-detail';
 import type { WoActionPermissions, WoModalLabels } from '../../../_components/modals/types';
 
@@ -265,7 +266,8 @@ const SCREEN_LABELS: WoDetailLabels = {
   voidCorrection: VC_LABELS,
   downtime: { title: 'Downtime', empty: 'none', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
   qa: { title: 'QA', empty: 'none', total: 'Total', pass: 'Pass', hold: 'Hold', fail: 'Fail' },
-  genealogy: { title: 'Genealogy', empty: 'none', inputsLabel: 'Inputs', fefoOk: 'FEFO', fefoDeviation: 'Dev' },
+  genealogy: { title: 'Genealogy', empty: 'none', inputsLabel: 'Inputs', fefoOk: 'FEFO', fefoDeviation: 'Dev', reverseAction: 'Reverse…', reversedBadge: 'Reversed', correctionOfLabel: 'Correction of #{ref}' },
+  reverseConsumption: REVERSE_LABELS,
   history: { title: 'Event log', empty: 'none', sourceStatus: 'Status', sourceExecution: 'Execution', col: { time: 'Time', source: 'Source', action: 'Action', transition: 'Transition', reason: 'Reason' } },
 };
 
@@ -329,6 +331,7 @@ function renderScreenWithActions(data: WorkOrderDetailData, actions: WoDetailAct
       listConsumableLpsAction: (async () => ({ ok: true, data: { lps: [] } })) as never,
       voidWoOutputAction: (async () => ({ ok: true })) as never,
       voidWasteEntryAction: (async () => ({ ok: true })) as never,
+      reverseConsumptionAction: (async () => ({ ok: true })) as never,
     }),
   );
 }

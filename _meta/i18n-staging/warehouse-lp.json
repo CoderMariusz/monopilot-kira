@@ -224,6 +224,39 @@
         "errorInvalidState": "This LP cannot be moved in its current state.",
         "errorNotFound": "LP or destination location no longer exists.",
         "success": "LP moved."
+      },
+      "metadata": {
+        "action": "Edit metadata…",
+        "title": "Edit license-plate metadata",
+        "intro": "Correct the expiry date and/or batch number for this pallet. The change is recorded with a reason; quantity and location are not affected.",
+        "expiry": "Expiry date",
+        "expiryHelp": "Leave unchanged to keep the current expiry.",
+        "batch": "Batch / lot number",
+        "batchHelp": "The manufacturer or receiving batch reference.",
+        "reasonCode": "Reason",
+        "reasonPlaceholder": "Select a reason",
+        "reasonOptions": {
+          "entry_error": "Entry error",
+          "wrong_quantity": "Wrong quantity",
+          "wrong_batch": "Wrong batch / lot",
+          "wrong_product": "Wrong product",
+          "other": "Other"
+        },
+        "note": "Note",
+        "noteOptional": "optional",
+        "notePlaceholder": "Add context for the correction",
+        "noChange": "Change the expiry or batch to enable saving.",
+        "cancel": "Cancel",
+        "submit": "Save changes",
+        "submitting": "Saving…",
+        "errors": {
+          "forbidden": "You do not have permission to edit this license plate.",
+          "not_found": "This license plate no longer exists — refresh and retry.",
+          "lp_not_editable": "This pallet can no longer be edited — it has been consumed, shipped, merged or destroyed.",
+          "invalid_input": "Check the expiry date and batch and try again.",
+          "persistence_failed": "We could not save the changes. Try again.",
+          "generic": "We could not save the changes. Try again."
+        }
       }
     }
   },
@@ -451,6 +484,39 @@
         "errorInvalidState": "Tego LP nie można przenieść w obecnym stanie.",
         "errorNotFound": "LP lub lokalizacja docelowa już nie istnieje.",
         "success": "LP przeniesiony."
+      },
+      "metadata": {
+        "action": "Edytuj metadane…",
+        "title": "Edytuj metadane nośnika LP",
+        "intro": "Popraw datę ważności i/lub numer partii dla tej palety. Zmiana jest zapisywana z powodem; ilość i lokalizacja pozostają bez zmian.",
+        "expiry": "Data ważności",
+        "expiryHelp": "Pozostaw bez zmian, aby zachować bieżącą datę ważności.",
+        "batch": "Numer partii / lot",
+        "batchHelp": "Numer partii producenta lub przyjęcia.",
+        "reasonCode": "Powód",
+        "reasonPlaceholder": "Wybierz powód",
+        "reasonOptions": {
+          "entry_error": "Błąd wprowadzenia",
+          "wrong_quantity": "Błędna ilość",
+          "wrong_batch": "Błędna partia / lot",
+          "wrong_product": "Błędny produkt",
+          "other": "Inny"
+        },
+        "note": "Notatka",
+        "noteOptional": "opcjonalnie",
+        "notePlaceholder": "Dodaj kontekst korekty",
+        "noChange": "Zmień datę ważności lub partię, aby zapisać.",
+        "cancel": "Anuluj",
+        "submit": "Zapisz zmiany",
+        "submitting": "Zapisywanie…",
+        "errors": {
+          "forbidden": "Nie masz uprawnień do edycji tego nośnika LP.",
+          "not_found": "Ten nośnik LP już nie istnieje — odśwież i spróbuj ponownie.",
+          "lp_not_editable": "Tej palety nie można już edytować — została zużyta, wysłana, scalona lub zniszczona.",
+          "invalid_input": "Sprawdź datę ważności i partię, a następnie spróbuj ponownie.",
+          "persistence_failed": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+          "generic": "Nie udało się zapisać zmian. Spróbuj ponownie."
+        }
       }
     }
   }

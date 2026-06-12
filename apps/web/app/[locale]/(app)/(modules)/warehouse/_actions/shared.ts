@@ -164,6 +164,9 @@ export type GrnDetail = GrnListItem & {
     lpId: string | null;
     lpNumber: string | null;
     lpQaStatus: string | null;
+    /** R3 F6 — mig-298 receipt-line cancellation flag (cancelled_at IS NOT NULL). */
+    cancelled: boolean;
+    cancellationReasonCode: string | null;
   }>;
   licensePlates: Array<{ id: string; lpNumber: string; status: string; quantity: string; uom: string }>;
 };

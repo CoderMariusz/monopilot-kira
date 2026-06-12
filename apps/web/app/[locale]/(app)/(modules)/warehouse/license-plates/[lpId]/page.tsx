@@ -30,6 +30,7 @@ import { getLpDetail } from '../../_actions/lp-actions';
 import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { listLocations } from '../../_actions/location-read-actions';
 import { createStockMove } from '../../_actions/stock-move-actions';
+import { updateLpMetadataAction } from './lp-metadata-adapter';
 import { getLpTranslator } from '../lp-labels';
 // RSC boundary: runtime VALUES must come from the server-safe constants module —
 // importing them from the 'use client' module yields client-reference proxies and
@@ -137,6 +138,39 @@ function buildLabels(locale: string): LpDetailLabels {
       errorNotFound: t('detail.move.errorNotFound'),
       success: t('detail.move.success'),
     },
+    metadata: {
+      action: t('detail.metadata.action'),
+      title: t('detail.metadata.title'),
+      intro: t('detail.metadata.intro'),
+      expiry: t('detail.metadata.expiry'),
+      expiryHelp: t('detail.metadata.expiryHelp'),
+      batch: t('detail.metadata.batch'),
+      batchHelp: t('detail.metadata.batchHelp'),
+      reasonCode: t('detail.metadata.reasonCode'),
+      reasonPlaceholder: t('detail.metadata.reasonPlaceholder'),
+      reasonOptions: {
+        entry_error: t('detail.metadata.reasonOptions.entry_error'),
+        wrong_quantity: t('detail.metadata.reasonOptions.wrong_quantity'),
+        wrong_batch: t('detail.metadata.reasonOptions.wrong_batch'),
+        wrong_product: t('detail.metadata.reasonOptions.wrong_product'),
+        other: t('detail.metadata.reasonOptions.other'),
+      },
+      note: t('detail.metadata.note'),
+      noteOptional: t('detail.metadata.noteOptional'),
+      notePlaceholder: t('detail.metadata.notePlaceholder'),
+      noChange: t('detail.metadata.noChange'),
+      cancel: t('detail.metadata.cancel'),
+      submit: t('detail.metadata.submit'),
+      submitting: t('detail.metadata.submitting'),
+      errors: {
+        forbidden: t('detail.metadata.errors.forbidden'),
+        not_found: t('detail.metadata.errors.not_found'),
+        lp_not_editable: t('detail.metadata.errors.lp_not_editable'),
+        invalid_input: t('detail.metadata.errors.invalid_input'),
+        persistence_failed: t('detail.metadata.errors.persistence_failed'),
+        generic: t('detail.metadata.errors.generic'),
+      },
+    },
     ruleNote: t('detail.ruleNote'),
     tab: {
       overview: t('detail.tabs.overview'),
@@ -242,6 +276,7 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
       releaseQaAction={releaseLpQa}
       listLocationsAction={listLocations}
       createStockMoveAction={createStockMove}
+      updateLpMetadataAction={updateLpMetadataAction}
     />
   );
 }

@@ -58,6 +58,12 @@ import type { WarehouseResult } from '../../../_actions/shared';
 import type { createStockMove } from '../../../_actions/stock-move-actions';
 import type { listLocations } from '../../../_actions/location-read-actions';
 import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
+import {
+  LpMetadataEditModal,
+  type LpMetadataEditLabels,
+  type UpdateLpMetadataInput,
+  type UpdateLpMetadataResult,
+} from './lp-metadata-edit-modal.client';
 import { LP_DEFERRED_ACTIONS, type LpDeferredAction } from './lp-detail-constants';
 
 // Client-side consumers (tests) may keep importing these from here; SERVER code
@@ -66,6 +72,14 @@ export { LP_DEFERRED_ACTIONS, type LpDeferredAction };
 
 /** LP statuses for which the "move" action is NOT allowed (terminal lifecycle). */
 const IMMOVABLE_STATUSES = new Set(['consumed', 'merged', 'shipped', 'returned', 'destroyed']);
+
+/**
+ * C-R3 — LP statuses for which metadata (expiry / batch) can NO LONGER be edited:
+ * terminal lifecycle states where the LP is gone or sealed. Mirrors the pinned
+ * brief (consumed / shipped / merged / destroyed); the server `updateLpMetadata`
+ * re-enforces this and returns `lp_not_editable` regardless of the client gate.
+ */
+const METADATA_LOCKED_STATUSES = new Set(['consumed', 'shipped', 'merged', 'destroyed']);
 
 export type LpDetailTab =
   | 'overview'
@@ -147,6 +161,8 @@ export type LpDetailLabels = {
     };
   };
   move: LpMoveLabels;
+  /** C-R3 — edit-metadata (expiry / batch) modal copy. */
+  metadata: LpMetadataEditLabels;
   ruleNote: string;
   tab: Record<LpDetailTab, string>;
   overview: { title: string };
@@ -212,6 +228,7 @@ export function LpDetailClient({
   releaseQaAction,
   listLocationsAction,
   createStockMoveAction,
+  updateLpMetadataAction,
 }: {
   detail: LicensePlateDetail;
   labels: LpDetailLabels;
@@ -219,6 +236,13 @@ export function LpDetailClient({
   releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
   listLocationsAction: typeof listLocations;
   createStockMoveAction: typeof createStockMove;
+  /**
+   * C-R3 — edit LP expiry / batch. OWNED by the warehouse corrections lane
+   * (warehouse/_actions/lp-metadata-actions.ts) and threaded in by the page via an
+   * import-only adapter seam; never imported here directly. RBAC + editability are
+   * re-checked server-side — the affordance here is only hidden for terminal LPs.
+   */
+  updateLpMetadataAction: (input: UpdateLpMetadataInput) => Promise<UpdateLpMetadataResult>;
 }) {
   const [tab, setTab] = useState<LpDetailTab>('overview');
   const [qaModalOpen, setQaModalOpen] = useState(false);
@@ -226,6 +250,7 @@ export function LpDetailClient({
   const [qaNote, setQaNote] = useState('');
   const [qaError, setQaError] = useState<string | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [metadataModalOpen, setMetadataModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -234,6 +259,8 @@ export function LpDetailClient({
   const canReleaseQa = detail.qaStatus.toLowerCase() === 'pending';
   // AUDIT #5: "move" is live unless the LP is in a terminal lifecycle state.
   const canMove = !IMMOVABLE_STATUSES.has(detail.status.toLowerCase());
+  // C-R3: metadata edit is hidden for terminal LPs (consumed/shipped/merged/destroyed).
+  const canEditMetadata = !METADATA_LOCKED_STATUSES.has(detail.status.toLowerCase());
 
   function closeQaModal() {
     if (isPending) return;
@@ -421,6 +448,18 @@ export function LpDetailClient({
                 </button>
               ),
             )}
+            {/* C-R3 — Edit metadata (expiry / batch). Sits next to Move/QA; hidden
+                for terminal LPs (consumed/shipped/merged/destroyed). */}
+            {canEditMetadata ? (
+              <button
+                type="button"
+                data-testid="lp-action-metadata"
+                onClick={() => setMetadataModalOpen(true)}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+              >
+                {labels.metadata.action}
+              </button>
+            ) : null}
           </div>
           <p className="mt-2 text-[11px] text-slate-400">{labels.ruleNote}</p>
         </Card>
@@ -725,6 +764,22 @@ export function LpDetailClient({
         createStockMoveAction={createStockMoveAction}
         onMoved={() => router.refresh()}
       />
+
+      {/* C-R3 — Edit-metadata modal (expiry / batch, reason + note, no e-sign).
+          Mounted only when the LP is editable + the modal is open. */}
+      {canEditMetadata ? (
+        <LpMetadataEditModal
+          open={metadataModalOpen}
+          lp={{ id: detail.id, expiryDate: detail.expiryDate, batchNumber: detail.batchNumber }}
+          labels={labels.metadata}
+          updateLpMetadataAction={updateLpMetadataAction}
+          onClose={() => setMetadataModalOpen(false)}
+          onSaved={() => {
+            setMetadataModalOpen(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

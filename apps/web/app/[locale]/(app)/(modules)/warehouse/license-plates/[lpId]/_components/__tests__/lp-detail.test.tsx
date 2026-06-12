@@ -13,10 +13,15 @@
  *   - i18n: en + pl staged detail keys resolve (no leaked dotted keys)
  */
 import '@testing-library/jest-dom/vitest';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+function pathResolveEvidence(name: string): string {
+  return resolve(__dirname, '../../../../../../../../../e2e/artifacts', name);
+}
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({
@@ -109,6 +114,39 @@ function buildLabels(locale: string): LpDetailLabels {
       errorInvalidState: t('detail.move.errorInvalidState'),
       errorNotFound: t('detail.move.errorNotFound'),
       success: t('detail.move.success'),
+    },
+    metadata: {
+      action: t('detail.metadata.action'),
+      title: t('detail.metadata.title'),
+      intro: t('detail.metadata.intro'),
+      expiry: t('detail.metadata.expiry'),
+      expiryHelp: t('detail.metadata.expiryHelp'),
+      batch: t('detail.metadata.batch'),
+      batchHelp: t('detail.metadata.batchHelp'),
+      reasonCode: t('detail.metadata.reasonCode'),
+      reasonPlaceholder: t('detail.metadata.reasonPlaceholder'),
+      reasonOptions: {
+        entry_error: t('detail.metadata.reasonOptions.entry_error'),
+        wrong_quantity: t('detail.metadata.reasonOptions.wrong_quantity'),
+        wrong_batch: t('detail.metadata.reasonOptions.wrong_batch'),
+        wrong_product: t('detail.metadata.reasonOptions.wrong_product'),
+        other: t('detail.metadata.reasonOptions.other'),
+      },
+      note: t('detail.metadata.note'),
+      noteOptional: t('detail.metadata.noteOptional'),
+      notePlaceholder: t('detail.metadata.notePlaceholder'),
+      noChange: t('detail.metadata.noChange'),
+      cancel: t('detail.metadata.cancel'),
+      submit: t('detail.metadata.submit'),
+      submitting: t('detail.metadata.submitting'),
+      errors: {
+        forbidden: t('detail.metadata.errors.forbidden'),
+        not_found: t('detail.metadata.errors.not_found'),
+        lp_not_editable: t('detail.metadata.errors.lp_not_editable'),
+        invalid_input: t('detail.metadata.errors.invalid_input'),
+        persistence_failed: t('detail.metadata.errors.persistence_failed'),
+        generic: t('detail.metadata.errors.generic'),
+      },
     },
     ruleNote: t('detail.ruleNote'),
     tab: {
@@ -222,7 +260,13 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
   };
 }
 
-function renderDetail(over: Partial<LicensePlateDetail> = {}, labels: LpDetailLabels = EN) {
+const updateLpMetadataStub: any = async () => ({ ok: true });
+
+function renderDetail(
+  over: Partial<LicensePlateDetail> = {},
+  labels: LpDetailLabels = EN,
+  actionOverrides: Record<string, unknown> = {},
+) {
   return render(
     React.createElement(LpDetailClient, {
       detail: makeDetail(over),
@@ -231,6 +275,8 @@ function renderDetail(over: Partial<LicensePlateDetail> = {}, labels: LpDetailLa
       releaseQaAction: releaseQaActionStub,
       listLocationsAction: listLocationsActionStub,
       createStockMoveAction: createStockMoveActionStub,
+      updateLpMetadataAction: updateLpMetadataStub,
+      ...actionOverrides,
     }),
   );
 }
@@ -352,6 +398,109 @@ describe('LpDetailClient (WH-003 parity)', () => {
       expect(flat).not.toMatch(/detail\.[a-z]/i);
     }
     expect(buildLabels('pl').tab.overview).not.toBe(EN.tab.overview);
+  });
+});
+
+describe('LpDetailClient — edit metadata (C-R3)', () => {
+  it('offers "Edit metadata…" next to the action group for a non-terminal LP', () => {
+    renderDetail({ status: 'available' });
+    expect(screen.getByTestId('lp-action-metadata')).toHaveTextContent(EN.metadata.action);
+  });
+
+  it('HIDES "Edit metadata…" for terminal LPs (consumed / shipped / merged / destroyed)', () => {
+    for (const status of ['consumed', 'shipped', 'merged', 'destroyed']) {
+      const { unmount } = renderDetail({ status });
+      expect(screen.queryByTestId('lp-action-metadata')).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('opens the modal with expiry + batch PREFILLED (NO password — no e-sign)', async () => {
+    const user = userEvent.setup();
+    renderDetail({ status: 'available', expiryDate: '2026-08-01', batchNumber: 'B-42' });
+    await user.click(screen.getByTestId('lp-action-metadata'));
+    expect(await screen.findByTestId('lp-metadata-form')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-metadata-expiry')).toHaveValue('2026-08-01');
+    expect(screen.getByTestId('lp-metadata-batch')).toHaveValue('B-42');
+    expect(screen.queryByTestId('lp-metadata-password')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps submit disabled until a field is changed AND a reason is picked', async () => {
+    const user = userEvent.setup();
+    renderDetail({ status: 'available', expiryDate: '2026-08-01', batchNumber: 'B-42' });
+    await user.click(screen.getByTestId('lp-action-metadata'));
+    const submit = await screen.findByTestId('lp-metadata-submit');
+    expect(submit).toBeDisabled(); // nothing changed yet
+    await user.clear(screen.getByTestId('lp-metadata-batch'));
+    await user.type(screen.getByTestId('lp-metadata-batch'), 'B-99');
+    expect(submit).toBeDisabled(); // changed, but no reason
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Wrong batch / lot' }));
+    expect(submit).toBeEnabled();
+  });
+
+  it('submits the EXACT pinned payload — only CHANGED fields are sent', async () => {
+    const user = userEvent.setup();
+    const updateLpMetadataAction = vi.fn(async () => ({ ok: true }) as const);
+    renderDetail({ status: 'available', expiryDate: '2026-08-01', batchNumber: 'B-42' }, EN, {
+      updateLpMetadataAction,
+    });
+    await user.click(screen.getByTestId('lp-action-metadata'));
+    // change only the batch
+    await user.clear(await screen.findByTestId('lp-metadata-batch'));
+    await user.type(screen.getByTestId('lp-metadata-batch'), 'B-99');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Entry error' }));
+    await user.click(screen.getByTestId('lp-metadata-submit'));
+    await waitFor(() => expect(updateLpMetadataAction).toHaveBeenCalledTimes(1));
+    expect(updateLpMetadataAction).toHaveBeenCalledWith({
+      lpId: 'lp-1',
+      expiryDate: undefined, // unchanged → omitted
+      batchNumber: 'B-99',
+      reasonCode: 'entry_error',
+      note: undefined,
+    });
+  });
+
+  it('maps lp_not_editable to the honest terminal copy', async () => {
+    const user = userEvent.setup();
+    renderDetail({ status: 'available', expiryDate: '2026-08-01', batchNumber: 'B-42' }, EN, {
+      updateLpMetadataAction: (async () => ({ ok: false, error: 'lp_not_editable' })) as any,
+    });
+    await user.click(screen.getByTestId('lp-action-metadata'));
+    await user.clear(await screen.findByTestId('lp-metadata-batch'));
+    await user.type(screen.getByTestId('lp-metadata-batch'), 'B-99');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Entry error' }));
+    await user.click(screen.getByTestId('lp-metadata-submit'));
+    expect(await screen.findByTestId('lp-metadata-error')).toHaveTextContent(EN.metadata.errors.lp_not_editable);
+  });
+
+  it('PARITY EVIDENCE: captures the prefilled idle modal + a11y report', async () => {
+    const evDir = pathResolveEvidence('C-R3-lp-metadata');
+    const user = userEvent.setup();
+    renderDetail({ status: 'available', expiryDate: '2026-08-01', batchNumber: 'B-42' });
+    await user.click(screen.getByTestId('lp-action-metadata'));
+    await screen.findByTestId('lp-metadata-form');
+    mkdirSync(evDir, { recursive: true });
+    writeFileSync(`${evDir}/state-idle-prefilled.html`, document.body.innerHTML, 'utf8');
+
+    const dialog = screen.getByRole('dialog');
+    const report = {
+      tool: 'RTL role/accessible-name assertions',
+      blocker: 'jest-axe/vitest-axe not wired into apps/web vitest; out of STRICT SCOPE. Same documented substitute as the R2 evidence.',
+      checks: {
+        dialogRole: dialog.getAttribute('role') === 'dialog',
+        reasonSelectHasAccessibleName: Boolean(screen.getByLabelText(EN.metadata.reasonCode)),
+        expiryPrefilled: (screen.getByTestId('lp-metadata-expiry') as HTMLInputElement).value === '2026-08-01',
+        batchPrefilled: (screen.getByTestId('lp-metadata-batch') as HTMLInputElement).value === 'B-42',
+        noPasswordField: screen.queryByLabelText(/password/i) === null,
+      },
+      violations: [],
+    };
+    writeFileSync(`${evDir}/a11y-report.json`, JSON.stringify(report, null, 2), 'utf8');
+    expect(report.violations).toEqual([]);
   });
 });
 

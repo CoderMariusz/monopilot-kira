@@ -26,7 +26,7 @@ import { getWorkOrderDetail } from '../../_actions/get-work-order-detail';
 import { getWoActionContext } from '../../_actions/get-wo-action-context';
 import { releaseWoOutputQa } from '../../_actions/output-qa-actions';
 import { listConsumableLps, recordDesktopConsumption } from '../../_actions/consume-material-actions';
-import { voidWasteEntryAction, voidWoOutputAction } from './void-actions-adapter';
+import { reverseConsumptionAction, voidWasteEntryAction, voidWoOutputAction } from './void-actions-adapter';
 import {
   WoDetailScreen,
   type WoDetailActions,
@@ -326,6 +326,65 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       inputsLabel: t('genealogy.inputsLabel'),
       fefoOk: t('genealogy.fefoOk'),
       fefoDeviation: t('genealogy.fefoDeviation'),
+      reverseAction: vc('genealogy.reverseAction', 'Reverse…'),
+      reversedBadge: vc('genealogy.reversedBadge', 'Reversed'),
+      correctionOfLabel: vc('genealogy.correctionOfLabel', 'Correction of #{ref}'),
+    },
+    reverseConsumption: {
+      title: vc('reverseConsumption.title', 'Reverse consumption of {lp}'),
+      intro: vc(
+        'reverseConsumption.intro',
+        'Reversing records a counter consumption entry that restores the consumed pallet — the original row stays in the ledger, struck through, with the counter entry linked to it. Stock and totals are recomputed on the server.',
+      ),
+      reasonCode: vc('reverseConsumption.reasonCode', 'Reason'),
+      reasonPlaceholder: vc('reverseConsumption.reasonPlaceholder', 'Select a reason'),
+      reasonOptions: {
+        entry_error: vc('reverseConsumption.reasonOptions.entry_error', 'Entry error'),
+        wrong_quantity: vc('reverseConsumption.reasonOptions.wrong_quantity', 'Wrong quantity'),
+        wrong_batch: vc('reverseConsumption.reasonOptions.wrong_batch', 'Wrong batch / lot'),
+        wrong_product: vc('reverseConsumption.reasonOptions.wrong_product', 'Wrong product'),
+        other: vc('reverseConsumption.reasonOptions.other', 'Other'),
+      } satisfies Record<VoidReasonCode, string>,
+      note: vc('reverseConsumption.note', 'Note'),
+      noteOptional: vc('reverseConsumption.noteOptional', 'optional'),
+      notePlaceholder: vc('reverseConsumption.notePlaceholder', 'Add context for the reversal'),
+      closedWarning: vc(
+        'reverseConsumption.closedWarning',
+        'Reversing consumption on a closed order requires supervisor authorization.',
+      ),
+      esign: {
+        title: vc('reverseConsumption.esign.title', 'Electronic signature'),
+        meaning: vc(
+          'reverseConsumption.esign.meaning',
+          'Re-enter your account password to sign this reversal. Your identity and the server time are recorded.',
+        ),
+        password: vc('reverseConsumption.esign.password', 'Password'),
+        passwordPlaceholder: vc('reverseConsumption.esign.passwordPlaceholder', 'Account password'),
+        passwordHelp: vc(
+          'reverseConsumption.esign.passwordHelp',
+          'This is your account password — not a separate PIN.',
+        ),
+      },
+      cancel: vc('reverseConsumption.cancel', 'Cancel'),
+      submit: vc('reverseConsumption.submit', 'Reverse'),
+      submitting: vc('reverseConsumption.submitting', 'Reversing…'),
+      errors: {
+        forbidden: vc('reverseConsumption.errors.forbidden', 'You do not have permission to reverse this consumption.'),
+        not_found: vc('reverseConsumption.errors.not_found', 'This consumption entry no longer exists — refresh and retry.'),
+        already_corrected: vc('reverseConsumption.errors.already_corrected', 'This consumption has already been reversed.'),
+        lp_not_restorable: vc(
+          'reverseConsumption.errors.lp_not_restorable',
+          'The consumed pallet has already been shipped or destroyed — this entry can no longer be reversed.',
+        ),
+        inconsistent_ledger: vc(
+          'reverseConsumption.errors.inconsistent_ledger',
+          'The stock ledger for this pallet is inconsistent — reversing was blocked to protect inventory. Ask a supervisor to review before retrying.',
+        ),
+        invalid_input: vc('reverseConsumption.errors.invalid_input', 'Check the fields and try again.'),
+        esign_failed: vc('reverseConsumption.errors.esign_failed', 'Signature failed — check your password and retry.'),
+        persistence_failed: vc('reverseConsumption.errors.persistence_failed', 'Unable to reverse this consumption.'),
+        generic: vc('reverseConsumption.errors.generic', 'Unable to reverse this consumption.'),
+      },
     },
     history: {
       title: t('history.title'),
@@ -419,6 +478,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       listConsumableLpsAction={listConsumableLps}
       voidWoOutputAction={voidWoOutputAction}
       voidWasteEntryAction={voidWasteEntryAction}
+      reverseConsumptionAction={reverseConsumptionAction}
     />
   );
 }

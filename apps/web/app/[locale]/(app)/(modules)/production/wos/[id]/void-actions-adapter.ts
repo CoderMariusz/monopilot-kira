@@ -11,13 +11,17 @@
  * stays as the page-local 'use server' seam (route convention).
  */
 
-import { voidWasteEntry, voidWoOutput } from '../../_actions/corrections-actions';
+import { reverseConsumption, voidWasteEntry, voidWoOutput } from '../../_actions/corrections-actions';
 import type {
   VoidWasteEntryInput,
   VoidWasteEntryResult,
   VoidWoOutputInput,
   VoidWoOutputResult,
 } from './_components/void-correction-modal';
+import type {
+  ReverseConsumptionInput,
+  ReverseConsumptionResult,
+} from './_components/reverse-consumption-modal';
 
 export async function voidWasteEntryAction(input: VoidWasteEntryInput): Promise<VoidWasteEntryResult> {
   return voidWasteEntry(input);
@@ -25,4 +29,17 @@ export async function voidWasteEntryAction(input: VoidWasteEntryInput): Promise<
 
 export async function voidWoOutputAction(input: VoidWoOutputInput): Promise<VoidWoOutputResult> {
   return voidWoOutput(input);
+}
+
+/**
+ * C-R3 — reverse-consumption adapter seam. `reverseConsumption` (e-sign) has
+ * SHIPPED in corrections-actions.ts, so this is a direct import-only delegation —
+ * the action is NEVER authored here. A real import/module error must surface as a
+ * build/runtime failure, never be masked as a typed `persistence_failed` (same
+ * convention as voidWoOutput / voidWasteEntry above).
+ */
+export async function reverseConsumptionAction(
+  input: ReverseConsumptionInput,
+): Promise<ReverseConsumptionResult> {
+  return reverseConsumption(input) as Promise<ReverseConsumptionResult>;
 }

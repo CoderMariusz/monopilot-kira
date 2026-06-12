@@ -1,7 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+
+const EVIDENCE_DIR = path.resolve(__dirname, '../../../../../../../../../e2e/artifacts/C-R3-grn-line-cancel');
 
 import { GrnDetailClient, type GrnDetailLabels } from '../grn-detail.client';
 import type { GrnDetail } from '../../../../_actions/shared';
@@ -44,6 +50,37 @@ const LABELS: GrnDetailLabels = {
     denied: 'Denied',
     invalidState: 'Invalid state',
     error: 'Error',
+  },
+  cancelLine: {
+    rowAction: 'Cancel receipt…',
+    cancelledBadge: 'Cancelled',
+    title: 'Cancel receipt line {line}',
+    intro: 'Cancelling voids the license plate and reverses the receipt.',
+    reasonCode: 'Reason',
+    reasonPlaceholder: 'Select a reason',
+    reasonOptions: {
+      entry_error: 'Entry error',
+      wrong_quantity: 'Wrong quantity',
+      wrong_batch: 'Wrong batch / lot',
+      wrong_product: 'Wrong product',
+      other: 'Other',
+    },
+    note: 'Note',
+    noteOptional: 'optional',
+    notePlaceholder: 'Add context for the cancellation',
+    cancel: 'Close',
+    submit: 'Cancel receipt',
+    submitting: 'Cancelling…',
+    errors: {
+      forbidden: 'You do not have permission to cancel this receipt line.',
+      not_found: 'This receipt line no longer exists — refresh and retry.',
+      lp_not_cancellable:
+        'This pallet has already been moved, reserved or consumed — cancel is not possible; correct via stock adjustment instead.',
+      already_cancelled: 'This receipt line has already been cancelled.',
+      invalid_input: 'Check the fields and try again.',
+      persistence_failed: 'We could not cancel this receipt line. Try again.',
+      generic: 'We could not cancel this receipt line. Try again.',
+    },
   },
 };
 
@@ -99,19 +136,157 @@ const releaseQaActionStub: any = async () => ({
   ok: true,
   data: { lpId: 'lp-1', lpNumber: 'LP-001', status: 'available', qaStatus: 'released' },
 });
+const cancelOkStub: any = async () => ({ ok: true });
+
+function renderGrn(overrides: any = {}) {
+  return render(
+    React.createElement(GrnDetailClient, {
+      grn: GRN,
+      labels: LABELS,
+      locale: 'en',
+      releaseQaAction: releaseQaActionStub,
+      cancelGrnLineAction: cancelOkStub,
+      canCancelLines: true,
+      ...overrides,
+    }),
+  );
+}
 
 describe('GrnDetailClient QA release affordance', () => {
   it('renders Release QC only for pending LP rows', () => {
-    render(
-      React.createElement(GrnDetailClient, {
-        grn: GRN,
-        labels: LABELS,
-        locale: 'en',
-        releaseQaAction: releaseQaActionStub,
-      }),
-    );
-
+    renderGrn();
     expect(screen.getByTestId('grn-release-qc-line-1')).toBeInTheDocument();
     expect(screen.queryByTestId('grn-release-qc-line-2')).not.toBeInTheDocument();
+  });
+});
+
+describe('GrnDetailClient — cancel receipt line (C-R3)', () => {
+  it('offers "Cancel receipt…" on every non-cancelled line when canCancelLines', () => {
+    renderGrn();
+    expect(screen.getByTestId('grn-cancel-line-line-1')).toHaveTextContent('Cancel receipt…');
+    expect(screen.getByTestId('grn-cancel-line-line-2')).toBeInTheDocument();
+  });
+
+  it('hides the cancel affordances entirely when canCancelLines is false', () => {
+    renderGrn({ canCancelLines: false });
+    expect(screen.queryByTestId('grn-cancel-line-line-1')).not.toBeInTheDocument();
+  });
+
+  it('opens the reason/note modal (NO password field — receipt corrections have no e-sign)', async () => {
+    const user = userEvent.setup();
+    renderGrn();
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    expect(await screen.findByText('Cancel receipt line 1')).toBeInTheDocument();
+    expect(screen.getByTestId('grn-cancel-reason')).toBeInTheDocument();
+    expect(screen.queryByTestId('grn-cancel-password')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+  });
+
+  it('submits the EXACT pinned payload (grnItemId + reasonCode + trimmed note, no signature)', async () => {
+    const user = userEvent.setup();
+    const cancelGrnLineAction = vi.fn(async () => ({ ok: true }) as const);
+    renderGrn({ cancelGrnLineAction });
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    await user.click(await screen.findByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Wrong product' }));
+    await user.type(screen.getByTestId('grn-cancel-note'), '  wrong SKU  ');
+    await user.click(screen.getByTestId('grn-cancel-submit'));
+    await waitFor(() => expect(cancelGrnLineAction).toHaveBeenCalledTimes(1));
+    expect(cancelGrnLineAction).toHaveBeenCalledWith({
+      grnItemId: 'line-1',
+      reasonCode: 'wrong_product',
+      note: 'wrong SKU',
+    });
+  });
+
+  it('keeps submit disabled until a reason is chosen', async () => {
+    const user = userEvent.setup();
+    renderGrn();
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    const submit = await screen.findByTestId('grn-cancel-submit');
+    expect(submit).toBeDisabled();
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Entry error' }));
+    expect(submit).toBeEnabled();
+  });
+
+  it('maps lp_not_cancellable to the honest stock-adjustment copy', async () => {
+    const user = userEvent.setup();
+    renderGrn({ cancelGrnLineAction: (async () => ({ ok: false, error: 'lp_not_cancellable' })) as any });
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    await user.click(await screen.findByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Entry error' }));
+    await user.click(screen.getByTestId('grn-cancel-submit'));
+    expect(await screen.findByTestId('grn-cancel-error')).toHaveTextContent(
+      'This pallet has already been moved, reserved or consumed — cancel is not possible; correct via stock adjustment instead.',
+    );
+  });
+
+  it('maps already_cancelled verbatim', async () => {
+    const user = userEvent.setup();
+    renderGrn({ cancelGrnLineAction: (async () => ({ ok: false, error: 'already_cancelled' })) as any });
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    await user.click(await screen.findByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Entry error' }));
+    await user.click(screen.getByTestId('grn-cancel-submit'));
+    expect(await screen.findByTestId('grn-cancel-error')).toHaveTextContent(
+      'This receipt line has already been cancelled.',
+    );
+  });
+
+  it('DEFENSIVE: a line with cancelled=true is struck + badged + offers no cancel affordance', () => {
+    const grn = {
+      ...GRN,
+      items: [{ ...GRN.items[0], cancelled: true } as any, GRN.items[1]],
+    } as GrnDetail;
+    renderGrn({ grn });
+    expect(screen.getByTestId('grn-item-cancelled-line-1')).toHaveTextContent('Cancelled');
+    expect(screen.queryByTestId('grn-cancel-line-line-1')).not.toBeInTheDocument();
+    // sibling non-cancelled line still offers cancel
+    expect(screen.getByTestId('grn-cancel-line-line-2')).toBeInTheDocument();
+  });
+
+  it('DEFENSIVE: with the cancelled field ABSENT all lines render normally + offer cancel', () => {
+    renderGrn();
+    expect(screen.queryByTestId('grn-item-cancelled-line-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('grn-cancel-line-line-1')).toBeInTheDocument();
+  });
+
+  it('PARITY EVIDENCE: captures idle + lp_not_cancellable error states + a11y report', async () => {
+    const user = userEvent.setup();
+    const write = (name: string) => {
+      fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+      fs.writeFileSync(path.join(EVIDENCE_DIR, `${name}.html`), document.body.innerHTML, 'utf8');
+    };
+
+    const { unmount } = renderGrn();
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    await screen.findByTestId('grn-cancel-form');
+    write('state-idle');
+    unmount();
+
+    renderGrn({ cancelGrnLineAction: (async () => ({ ok: false, error: 'lp_not_cancellable' })) as any });
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    await user.click(await screen.findByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Entry error' }));
+    await user.click(screen.getByTestId('grn-cancel-submit'));
+    const err = await screen.findByTestId('grn-cancel-error');
+    expect(err).toHaveAttribute('role', 'alert');
+    write('state-error-lp-not-cancellable');
+
+    const report = {
+      tool: 'RTL role/accessible-name assertions',
+      blocker: 'jest-axe/vitest-axe not wired into apps/web vitest; out of STRICT SCOPE (no package.json edits). Same documented substitute as the R2 void-correction evidence.',
+      checks: {
+        dialogRole: screen.getByRole('dialog').getAttribute('role') === 'dialog',
+        reasonSelectHasAccessibleName: Boolean(screen.getByLabelText('Reason')),
+        noPasswordField: screen.queryByLabelText(/password/i) === null,
+        errorBannerUsesAlertRole: err.getAttribute('role') === 'alert',
+      },
+      violations: [],
+    };
+    fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+    fs.writeFileSync(path.join(EVIDENCE_DIR, 'a11y-report.json'), JSON.stringify(report, null, 2), 'utf8');
+    expect(report.violations).toEqual([]);
   });
 });

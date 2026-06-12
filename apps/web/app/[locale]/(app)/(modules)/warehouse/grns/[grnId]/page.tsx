@@ -23,6 +23,7 @@ import { getGrnDetail } from '../../_actions/grn-actions';
 import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { getWhcTranslator } from '../../wh-c-labels';
 import { GrnDetailClient, type GrnDetailLabels } from './_components/grn-detail.client';
+import { cancelGrnLineAction } from './receipt-corrections-adapter';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,36 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
       denied: t('grnDetail.qaRelease.denied'),
       invalidState: t('grnDetail.qaRelease.invalidState'),
       error: t('grnDetail.qaRelease.error'),
+    },
+    cancelLine: {
+      rowAction: t('grnDetail.cancelLine.rowAction'),
+      cancelledBadge: t('grnDetail.cancelLine.cancelledBadge'),
+      title: t('grnDetail.cancelLine.title'),
+      intro: t('grnDetail.cancelLine.intro'),
+      reasonCode: t('grnDetail.cancelLine.reasonCode'),
+      reasonPlaceholder: t('grnDetail.cancelLine.reasonPlaceholder'),
+      reasonOptions: {
+        entry_error: t('grnDetail.cancelLine.reasonOptions.entry_error'),
+        wrong_quantity: t('grnDetail.cancelLine.reasonOptions.wrong_quantity'),
+        wrong_batch: t('grnDetail.cancelLine.reasonOptions.wrong_batch'),
+        wrong_product: t('grnDetail.cancelLine.reasonOptions.wrong_product'),
+        other: t('grnDetail.cancelLine.reasonOptions.other'),
+      },
+      note: t('grnDetail.cancelLine.note'),
+      noteOptional: t('grnDetail.cancelLine.noteOptional'),
+      notePlaceholder: t('grnDetail.cancelLine.notePlaceholder'),
+      cancel: t('grnDetail.cancelLine.cancel'),
+      submit: t('grnDetail.cancelLine.submit'),
+      submitting: t('grnDetail.cancelLine.submitting'),
+      errors: {
+        forbidden: t('grnDetail.cancelLine.errors.forbidden'),
+        not_found: t('grnDetail.cancelLine.errors.not_found'),
+        lp_not_cancellable: t('grnDetail.cancelLine.errors.lp_not_cancellable'),
+        already_cancelled: t('grnDetail.cancelLine.errors.already_cancelled'),
+        invalid_input: t('grnDetail.cancelLine.errors.invalid_input'),
+        persistence_failed: t('grnDetail.cancelLine.errors.persistence_failed'),
+        generic: t('grnDetail.cancelLine.errors.generic'),
+      },
     },
   };
 }
@@ -152,7 +183,14 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
   return (
     <div className="flex flex-col gap-4">
       {backLink}
-      <GrnDetailClient grn={result.data} labels={buildLabels(t)} locale={locale} releaseQaAction={releaseLpQa} />
+      <GrnDetailClient
+        grn={result.data}
+        labels={buildLabels(t)}
+        locale={locale}
+        releaseQaAction={releaseLpQa}
+        cancelGrnLineAction={cancelGrnLineAction}
+        canCancelLines={result.data.status !== 'cancelled'}
+      />
     </div>
   );
 }

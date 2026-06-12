@@ -69,6 +69,12 @@ import {
   type VoidWoOutputInput,
   type VoidWoOutputResult,
 } from './void-correction-modal';
+import {
+  ReverseConsumptionModal,
+  type ReverseModalLabels,
+  type ReverseConsumptionInput,
+  type ReverseConsumptionResult,
+} from './reverse-consumption-modal';
 import type {
   WoActionPermissions,
   WoModalLabels,
@@ -222,7 +228,15 @@ export type WoDetailLabels = {
     inputsLabel: string;
     fefoOk: string;
     fefoDeviation: string;
+    /** C-R3 — per-row "Reverse…" affordance on a consumed-input row. */
+    reverseAction: string;
+    /** C-R3 — struck-through reversed-row badge (defensive correctionOfId). */
+    reversedBadge: string;
+    /** C-R3 — counter-row label, `{ref}` = the original's short id. */
+    correctionOfLabel: string;
   };
+  /** C-R3 — reverse-consumption (e-sign) modal copy. */
+  reverseConsumption: ReverseModalLabels;
   history: {
     title: string;
     empty: string;
@@ -302,6 +316,7 @@ export function WoDetailScreen({
   listConsumableLpsAction,
   voidWoOutputAction,
   voidWasteEntryAction,
+  reverseConsumptionAction,
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
@@ -329,6 +344,14 @@ export function WoDetailScreen({
    */
   voidWoOutputAction: (input: VoidWoOutputInput) => Promise<VoidWoOutputResult>;
   voidWasteEntryAction: (input: VoidWasteEntryInput) => Promise<VoidWasteEntryResult>;
+  /**
+   * C-R3 — reverse a recorded material-consumption entry (e-sign). OWNED by the
+   * corrections backend lane (production/_actions/corrections-actions.ts) and
+   * threaded in by the page via an import-only adapter seam; this component never
+   * imports it directly. RBAC + LP-restorability are re-checked server-side — the
+   * affordance here only hides already-reversed rows + opens the e-sign modal.
+   */
+  reverseConsumptionAction: (input: ReverseConsumptionInput) => Promise<ReverseConsumptionResult>;
 }) {
   const [tab, setTab] = useState<TabKey>('overview');
   const [busyOutputId, setBusyOutputId] = useState<string | null>(null);
@@ -339,6 +362,9 @@ export function WoDetailScreen({
     | { kind: 'output'; id: string; batchLabel: string }
     | { kind: 'waste'; id: string; categoryLabel: string }
     | null
+  >(null);
+  const [reverseTarget, setReverseTarget] = useState<
+    { consumptionId: string; lpLabel: string } | null
   >(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -370,6 +396,12 @@ export function WoDetailScreen({
   }
   const outputCorr = buildCorrectionIndex(data.outputs as ReadonlyArray<WithCorrection>);
   const wasteCorr = buildCorrectionIndex(data.waste as ReadonlyArray<WithCorrection>);
+  // C-R3 — defensive: the genealogy read MAY not expose `correctionOfId` yet (the
+  // corrections backend lane extends its slice). When absent every input row
+  // renders normally; when present we mark the original reversed/struck-through,
+  // label the counter row, and hide the reverse affordance on an already-reversed
+  // original. Same defensive contract as the R2 output/waste rows.
+  const genealogyCorr = buildCorrectionIndex(data.genealogyInputs as ReadonlyArray<WithCorrection>);
 
   // Desktop consumption is offered only while the WO is actively running and an
   // action context resolved (RBAC is still enforced server-side — this only
@@ -925,21 +957,51 @@ export function WoDetailScreen({
                   {labels.genealogy.inputsLabel} ({data.genealogyInputs.length})
                 </p>
                 <ul className="flex flex-col gap-2">
-                  {data.genealogyInputs.map((g) => (
+                  {data.genealogyInputs.map((g) => {
+                    const isReversed = genealogyCorr.correctedOriginalIds.has(g.id);
+                    const correctionRef = genealogyCorr.correctionOf.get(g.id);
+                    return (
                     <li
                       key={g.id}
                       data-testid="wo-genealogy-input"
-                      className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      data-corrected={isReversed ? 'true' : undefined}
+                      className={[
+                        'flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm',
+                        isReversed ? 'text-slate-400' : '',
+                      ].filter(Boolean).join(' ')}
                     >
-                      <span className="font-mono text-slate-700">{g.lpId.slice(0, 8)}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-slate-700">{g.lpId.slice(0, 8)}</span>
+                        {isReversed ? (
+                          <Badge variant="danger" className="text-[10px]" data-testid={`wo-genealogy-reversed-${g.id}`}>
+                            {labels.genealogy.reversedBadge}
+                          </Badge>
+                        ) : null}
+                        {correctionRef ? (
+                          <Badge variant="info" className="text-[10px]" data-testid={`wo-genealogy-correction-${g.id}`}>
+                            {labels.genealogy.correctionOfLabel.replace('{ref}', correctionRef.slice(0, 8))}
+                          </Badge>
+                        ) : null}
+                      </span>
                       <span className="flex items-center gap-2">
-                        <span className="font-mono tabular-nums text-slate-600">{fmtQty(g.qtyKg)} kg</span>
+                        <span className={`font-mono tabular-nums text-slate-600${isReversed ? ' line-through' : ''}`}>{fmtQty(g.qtyKg)} kg</span>
                         <Badge variant={g.fefoAdherence ? 'success' : 'warning'} className="text-[10px]">
                           {g.fefoAdherence ? labels.genealogy.fefoOk : labels.genealogy.fefoDeviation}
                         </Badge>
+                        {canVoid && !isReversed && !correctionRef ? (
+                          <button
+                            type="button"
+                            data-testid={`wo-genealogy-reverse-${g.id}`}
+                            onClick={() => setReverseTarget({ consumptionId: g.id, lpLabel: g.lpId.slice(0, 8) })}
+                            className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                          >
+                            {labels.genealogy.reverseAction}
+                          </button>
+                        ) : null}
                       </span>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -1014,6 +1076,23 @@ export function WoDetailScreen({
           onClose={() => setVoidTarget(null)}
           onVoided={() => {
             setVoidTarget(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {/* C-R3 — reverse-consumption modal (e-sign always required). Mounted only
+          while a genealogy row is selected. */}
+      {canVoid && reverseTarget !== null ? (
+        <ReverseConsumptionModal
+          open
+          target={reverseTarget}
+          woClosed={woClosed}
+          labels={labels.reverseConsumption}
+          reverseConsumptionAction={reverseConsumptionAction}
+          onClose={() => setReverseTarget(null)}
+          onReversed={() => {
+            setReverseTarget(null);
             router.refresh();
           }}
         />

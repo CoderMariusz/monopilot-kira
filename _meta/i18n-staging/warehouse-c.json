@@ -83,6 +83,36 @@
         "invalidState": "This LP is no longer pending QC.",
         "error": "We could not release QC. Try again."
       },
+      "cancelLine": {
+        "rowAction": "Cancel receipt…",
+        "cancelledBadge": "Cancelled",
+        "title": "Cancel receipt line {line}",
+        "intro": "Cancelling voids the license plate created for this line and reverses the receipt. The line stays in the ledger, struck through, with the reason recorded.",
+        "reasonCode": "Reason",
+        "reasonPlaceholder": "Select a reason",
+        "reasonOptions": {
+          "entry_error": "Entry error",
+          "wrong_quantity": "Wrong quantity",
+          "wrong_batch": "Wrong batch / lot",
+          "wrong_product": "Wrong product",
+          "other": "Other"
+        },
+        "note": "Note",
+        "noteOptional": "optional",
+        "notePlaceholder": "Add context for the cancellation",
+        "cancel": "Close",
+        "submit": "Cancel receipt",
+        "submitting": "Cancelling…",
+        "errors": {
+          "forbidden": "You do not have permission to cancel this receipt line.",
+          "not_found": "This receipt line no longer exists — refresh and retry.",
+          "lp_not_cancellable": "This pallet has already been moved, reserved or consumed — cancel is not possible; correct via stock adjustment instead.",
+          "already_cancelled": "This receipt line has already been cancelled.",
+          "invalid_input": "Check the fields and try again.",
+          "persistence_failed": "We could not cancel this receipt line. Try again.",
+          "generic": "We could not cancel this receipt line. Try again."
+        }
+      },
       "emptyItems": "No receipt lines recorded for this GRN."
     },
     "inventory": {
@@ -308,6 +338,36 @@
         "denied": "Nie masz uprawnień do zwalniania QC przyjęć.",
         "invalidState": "Ten LP nie oczekuje już na QC.",
         "error": "Nie udało się zwolnić QC. Spróbuj ponownie."
+      },
+      "cancelLine": {
+        "rowAction": "Anuluj przyjęcie…",
+        "cancelledBadge": "Anulowano",
+        "title": "Anuluj pozycję przyjęcia {line}",
+        "intro": "Anulowanie unieważnia paletę (LP) utworzoną dla tej pozycji i cofa przyjęcie. Pozycja pozostaje w rejestrze, przekreślona, z zapisanym powodem.",
+        "reasonCode": "Powód",
+        "reasonPlaceholder": "Wybierz powód",
+        "reasonOptions": {
+          "entry_error": "Błąd wprowadzenia",
+          "wrong_quantity": "Błędna ilość",
+          "wrong_batch": "Błędna partia / lot",
+          "wrong_product": "Błędny produkt",
+          "other": "Inny"
+        },
+        "note": "Notatka",
+        "noteOptional": "opcjonalnie",
+        "notePlaceholder": "Dodaj kontekst anulowania",
+        "cancel": "Zamknij",
+        "submit": "Anuluj przyjęcie",
+        "submitting": "Anulowanie…",
+        "errors": {
+          "forbidden": "Nie masz uprawnień do anulowania tej pozycji przyjęcia.",
+          "not_found": "Ta pozycja przyjęcia już nie istnieje — odśwież i spróbuj ponownie.",
+          "lp_not_cancellable": "Ta paleta została już przesunięta, zarezerwowana lub zużyta — anulowanie nie jest możliwe; popraw za pomocą korekty stanu magazynowego.",
+          "already_cancelled": "Ta pozycja przyjęcia została już anulowana.",
+          "invalid_input": "Sprawdź pola i spróbuj ponownie.",
+          "persistence_failed": "Nie udało się anulować tej pozycji przyjęcia. Spróbuj ponownie.",
+          "generic": "Nie udało się anulować tej pozycji przyjęcia. Spróbuj ponownie."
+        }
       },
       "emptyItems": "Brak pozycji przyjęcia dla tego GRN."
     },

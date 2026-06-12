@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { signEvent } from '@monopilot/e-sign';
 
 import type { QueryClient } from '../../../../../../lib/production/shared';
-import { voidWasteEntry, voidWoOutput } from './corrections-actions';
+import { reverseConsumption, voidWasteEntry, voidWoOutput } from './corrections-actions';
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
@@ -36,17 +36,24 @@ const CATEGORY_ID = '55555555-5555-4555-8555-555555555555';
 const CORRECTION_ID = '66666666-6666-4666-8666-666666666666';
 const OUTPUT_ID = '77777777-7777-4777-8777-777777777777';
 const LP_ID = '88888888-8888-4888-8888-888888888888';
+const CONSUMPTION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const COMPONENT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const NO_LP_ID = '00000000-0000-0000-0000-000000000000';
 
 type State = {
   wasteExists: boolean;
   alreadyCorrected: boolean;
   outputExists: boolean;
   outputAlreadyCorrected: boolean;
+  consumptionExists: boolean;
+  consumptionAlreadyCorrected: boolean;
+  consumptionNoLp: boolean;
   lpExists: boolean;
   lpStatus: string;
   lpQaStatus: string;
   lpReservedQty: string;
   lpConsumedOrChild: boolean;
+  materialDecrementOk: boolean;
   woStatus: string;
   granted: Set<string>;
   /** Simulates losing a concurrent-void race: the pre-check sees no correction
@@ -54,6 +61,7 @@ type State = {
    *  hits the mig-296 unique partial index → SQLSTATE 23505. */
   wasteInsertConflict: boolean;
   outputInsertConflict: boolean;
+  consumptionInsertConflict: boolean;
 };
 
 let state: State;
@@ -128,11 +136,44 @@ function makeClient(): QueryClient {
         return state.outputAlreadyCorrected ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
 
+      if (n.includes('from public.wo_material_consumption c') && n.includes('for update of c')) {
+        return state.consumptionExists
+          ? {
+              rows: [{
+                id: CONSUMPTION_ID,
+                transaction_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+                site_id: null,
+                wo_id: WO_ID,
+                component_id: COMPONENT_ID,
+                lp_id: state.consumptionNoLp ? NO_LP_ID : LP_ID,
+                qty_consumed: '4.250',
+                uom: 'kg',
+                operator_id: USER_ID,
+                fefo_adherence_flag: true,
+                fefo_deviation_reason: null,
+                over_consumption_flag: false,
+                over_consumption_approved_by: null,
+                over_consumption_approved_at: null,
+                over_consumption_reason_code: null,
+                ext_jsonb: { source: 'desktop' },
+                consumed_at: '2026-06-12T08:00:00.000Z',
+                wo_status: state.woStatus,
+              }],
+              rowCount: 1,
+            }
+          : { rows: [], rowCount: 0 };
+      }
+
+      if (n.includes('from public.wo_material_consumption') && n.includes('correction_of_id = $1::uuid')) {
+        return state.consumptionAlreadyCorrected ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+
       if (n.includes('from public.license_plates') && n.includes('for update')) {
         return state.lpExists
           ? {
               rows: [{
                 id: LP_ID,
+                site_id: null,
                 status: state.lpStatus,
                 qa_status: state.lpQaStatus,
                 quantity: '12.345',
@@ -171,6 +212,28 @@ function makeClient(): QueryClient {
         return { rows: [{ id: CORRECTION_ID }], rowCount: 1 };
       }
 
+      if (n.startsWith('insert into public.wo_material_consumption')) {
+        if (state.consumptionInsertConflict) {
+          throw Object.assign(
+            new Error('duplicate key value violates unique constraint "uq_wo_material_consumption_one_correction"'),
+            { code: '23505' },
+          );
+        }
+        return { rows: [{ id: CORRECTION_ID }], rowCount: 1 };
+      }
+
+      // F1/F3 — pre-write FOR UPDATE lock + SQL-side decrement validation.
+      if (n.includes('from public.wo_materials') && n.includes('for update')) {
+        return {
+          rows: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', can_decrement: state.materialDecrementOk }],
+          rowCount: 1,
+        };
+      }
+
+      if (n.startsWith('update public.wo_materials')) {
+        return state.materialDecrementOk ? { rows: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+
       if (n.startsWith('update public.license_plates')) {
         return { rows: [], rowCount: 1 };
       }
@@ -194,15 +257,20 @@ beforeEach(() => {
     alreadyCorrected: false,
     outputExists: true,
     outputAlreadyCorrected: false,
+    consumptionExists: true,
+    consumptionAlreadyCorrected: false,
+    consumptionNoLp: false,
     lpExists: true,
     lpStatus: 'received',
     lpQaStatus: 'pending',
     lpReservedQty: '0.000000',
     lpConsumedOrChild: false,
+    materialDecrementOk: true,
     woStatus: 'completed',
-    granted: new Set(['production.waste.correct', 'production.output.correct']),
+    granted: new Set(['production.waste.correct', 'production.output.correct', 'production.consumption.correct']),
     wasteInsertConflict: false,
     outputInsertConflict: false,
+    consumptionInsertConflict: false,
   };
   queries = [];
   client = makeClient();
@@ -215,6 +283,227 @@ beforeEach(() => {
     signedAt: '2026-06-12T00:00:00.000Z',
     auditEventId: 123,
     nonce: 'nonce',
+  });
+});
+
+describe('reverseConsumption', () => {
+  it('inserts a negative consumption counter-entry, decrements material consumption, restores a QA-released consumed LP to available, and writes history/audit', async () => {
+    state.lpStatus = 'consumed';
+    state.lpQaStatus = 'released';
+    vi.mocked(signEvent).mockResolvedValueOnce({
+      signatureId: '99999999-9999-4999-8999-999999999999',
+      signerUserId: USER_ID,
+      intent: 'production.consumption.reverse',
+      subjectHash: 'hash',
+      signedAt: '2026-06-12T00:00:00.000Z',
+      auditEventId: 123,
+      nonce: 'nonce',
+    });
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      note: 'wrong LP',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(insert).toBeDefined();
+    expect(insert?.sql).toContain('app.current_org_id()');
+    expect(insert?.params).toContain(CONSUMPTION_ID);
+    expect(insert?.params).toContain('-4.250');
+    expect(insert?.params).toContain(COMPONENT_ID);
+    expect(insert?.params).toContain(LP_ID);
+
+    // F3 — the wo_materials row is locked + validated BEFORE the counter insert.
+    const materialLock = queries.find(
+      (q) => normalize(q.sql).includes('from public.wo_materials') && normalize(q.sql).includes('for update'),
+    );
+    expect(materialLock).toBeDefined();
+    expect(materialLock?.params).toEqual([WO_ID, COMPONENT_ID, '4.250']);
+    expect(queries.indexOf(materialLock!)).toBeLessThan(queries.indexOf(insert!));
+
+    const materialUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
+    expect(materialUpdate?.params).toEqual([WO_ID, COMPONENT_ID, '4.250']);
+    expect(normalize(materialUpdate!.sql)).toContain('consumed_qty - $3::numeric >= 0');
+
+    const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    expect(normalize(lpUpdate!.sql)).toContain("quantity = quantity + $2::numeric");
+    expect(normalize(lpUpdate!.sql)).toContain('status = $4');
+    expect(lpUpdate?.params).toEqual([LP_ID, '4.250', USER_ID, 'available']);
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(history).toBeDefined();
+    expect(history?.params).toContain('consumed');
+    expect(history?.params).toContain('available');
+    expect(history?.params).toContain('wrong LP');
+
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.audit_events'))).toBe(true);
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerUserId: USER_ID,
+        pin: '123456',
+        intent: 'production.consumption.reverse',
+        reason: 'entry_error',
+        subject: expect.objectContaining({
+          correction_permission: 'production.consumption.correct',
+          consumption_id: CONSUMPTION_ID,
+          component_id: COMPONENT_ID,
+          lp_id: LP_ID,
+          qty_consumed: '4.250',
+        }),
+      }),
+      expect.objectContaining({ client }),
+    );
+  });
+
+  it('restores a consumed LP whose QA is NOT released to received (non-pickable), preserving qa_status, with history reflecting the actual to_state', async () => {
+    state.lpStatus = 'consumed';
+    state.lpQaStatus = 'pending';
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      note: 'QA hold pallet',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    expect(lpUpdate?.params).toEqual([LP_ID, '4.250', USER_ID, 'received']);
+    // qa_status is preserved as-is — the restore never touches it.
+    expect(normalize(lpUpdate!.sql)).not.toContain('qa_status');
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(history?.params).toContain('consumed');
+    expect(history?.params).toContain('received');
+    expect(history?.params).not.toContain('available');
+  });
+
+  it('supports no-LP consumption reversal as ledger-only after material decrement', async () => {
+    state.consumptionNoLp = true;
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_quantity',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).includes('from public.license_plates') && normalize(q.sql).includes('for update'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('refuses shipped, merged, or destroyed LPs as not restorable', async () => {
+    state.lpStatus = 'shipped';
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_batch',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'lp_not_restorable' });
+    // F1 — the restorability gate fires BEFORE any write: no counter insert, no
+    // material decrement, no LP update, no audit (withOrgContext commits on return).
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.audit_events'))).toBe(false);
+    expect(signEvent).not.toHaveBeenCalled();
+  });
+
+  it('refuses a double consumption correction and maps a 23505 race to already_corrected', async () => {
+    state.consumptionAlreadyCorrected = true;
+
+    const precheck = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_product',
+      signature: { password: '123456' },
+    });
+
+    expect(precheck).toEqual({ ok: false, error: 'already_corrected' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+
+    state.consumptionAlreadyCorrected = false;
+    state.consumptionInsertConflict = true;
+
+    const race = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_product',
+      signature: { password: '123456' },
+    });
+
+    expect(race).toEqual({ ok: false, error: 'already_corrected' });
+    expect(queries.filter((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toHaveLength(1);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+  });
+
+  it('refuses instead of clamping when material consumed_qty would go negative', async () => {
+    state.materialDecrementOk = false;
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'other',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'inconsistent_ledger' });
+    // F1 — the ledger gate fires BEFORE any write: the counter insert and the
+    // decrement itself must never have run when ok:false is returned.
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.audit_events'))).toBe(false);
+    expect(signEvent).not.toHaveBeenCalled();
+  });
+
+  it('forbids closed-WO consumption reversal without the closed-WO tier permission', async () => {
+    state.woStatus = 'closed';
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+  });
+
+  it('allows closed-WO consumption reversal with the closed-WO tier permission', async () => {
+    state.woStatus = 'closed';
+    state.granted.add('production.corrections.closed_wo');
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
+  });
+
+  it('returns esign_failed for a wrong password and leaves state untouched', async () => {
+    vi.mocked(signEvent).mockRejectedValueOnce(new Error('bad pin'));
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      signature: { password: 'wrong' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'esign_failed' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
   });
 });
 

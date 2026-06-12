@@ -17,6 +17,9 @@ import type { ProductionContext, QueryClient } from '../../../../../../lib/produ
 const WASTE_CORRECT_PERMISSION = 'production.waste.correct';
 const OUTPUT_CORRECT_PERMISSION = 'production.output.correct';
 const OUTPUT_VOID_INTENT = 'production.output.void';
+const CONSUMPTION_CORRECT_PERMISSION = 'production.consumption.correct';
+const CONSUMPTION_REVERSE_INTENT = 'production.consumption.reverse';
+const NO_LP_ID = '00000000-0000-0000-0000-000000000000';
 // 'destroyed' became legal in migration 294 (the mig-191 CHECK lacked it even
 // though app code already excluded it from active-LP sets). Distinct from
 // 'consumed' so voided pallets never pollute consumption semantics.
@@ -58,6 +61,29 @@ export type VoidWoOutputResult =
       message?: string;
     };
 
+export type ReverseConsumptionInput = {
+  consumptionId: string;
+  reasonCode: CorrectionReasonCode;
+  note?: string | null;
+  signature: { password: string };
+};
+
+export type ReverseConsumptionResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error:
+        | 'forbidden'
+        | 'not_found'
+        | 'already_corrected'
+        | 'lp_not_restorable'
+        | 'inconsistent_ledger'
+        | 'invalid_input'
+        | 'esign_failed'
+        | 'persistence_failed';
+      message?: string;
+    };
+
 type WasteRow = {
   id: string;
   transaction_id: string;
@@ -92,8 +118,30 @@ type OutputRow = {
   wo_status: string | null;
 };
 
+type ConsumptionRow = {
+  id: string;
+  transaction_id: string;
+  site_id: string | null;
+  wo_id: string;
+  component_id: string;
+  lp_id: string;
+  qty_consumed: string;
+  uom: string;
+  operator_id: string | null;
+  fefo_adherence_flag: boolean;
+  fefo_deviation_reason: string | null;
+  over_consumption_flag: boolean;
+  over_consumption_approved_by: string | null;
+  over_consumption_approved_at: string | null;
+  over_consumption_reason_code: string | null;
+  ext_jsonb: unknown;
+  consumed_at: string;
+  wo_status: string | null;
+};
+
 type LicensePlateRow = {
   id: string;
+  site_id: string | null;
   status: string;
   qa_status: string;
   quantity: string;
@@ -193,9 +241,43 @@ async function loadOutputForUpdate(ctx: ProductionContext, outputId: string): Pr
   return rows[0] ?? null;
 }
 
+async function loadConsumptionForUpdate(ctx: ProductionContext, consumptionId: string): Promise<ConsumptionRow | null> {
+  const { rows } = await ctx.client.query<ConsumptionRow>(
+    `select c.id::text as id,
+            c.transaction_id::text as transaction_id,
+            c.site_id::text as site_id,
+            c.wo_id::text as wo_id,
+            c.component_id::text as component_id,
+            c.lp_id::text as lp_id,
+            c.qty_consumed::text as qty_consumed,
+            c.uom,
+            c.operator_id::text as operator_id,
+            c.fefo_adherence_flag,
+            c.fefo_deviation_reason,
+            c.over_consumption_flag,
+            c.over_consumption_approved_by::text as over_consumption_approved_by,
+            c.over_consumption_approved_at::text as over_consumption_approved_at,
+            c.over_consumption_reason_code,
+            c.ext_jsonb,
+            c.consumed_at::text as consumed_at,
+            coalesce(we.status, wo.status)::text as wo_status
+       from public.wo_material_consumption c
+       join public.work_orders wo on wo.id = c.wo_id and wo.org_id = c.org_id
+       left join public.wo_executions we on we.wo_id = c.wo_id and we.org_id = c.org_id
+      where c.org_id = app.current_org_id()
+        and c.id = $1::uuid
+        and c.correction_of_id is null
+      limit 1
+      for update of c`,
+    [consumptionId],
+  );
+  return rows[0] ?? null;
+}
+
 async function loadLicensePlateForUpdate(ctx: ProductionContext, lpId: string): Promise<LicensePlateRow | null> {
   const { rows } = await ctx.client.query<LicensePlateRow>(
     `select id::text as id,
+            site_id::text as site_id,
             status,
             qa_status,
             quantity::text as quantity,
@@ -222,6 +304,18 @@ async function hasOutputCorrection(ctx: ProductionContext, outputId: string): Pr
   return rows.length > 0;
 }
 
+async function hasConsumptionCorrection(ctx: ProductionContext, consumptionId: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.wo_material_consumption
+      where org_id = app.current_org_id()
+        and correction_of_id = $1::uuid
+      limit 1`,
+    [consumptionId],
+  );
+  return rows.length > 0;
+}
+
 async function hasLpConsumptionOrChildren(ctx: ProductionContext, lpId: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select (
@@ -241,6 +335,41 @@ async function hasLpConsumptionOrChildren(ctx: ProductionContext, lpId: string):
     [lpId],
   );
   return rows[0]?.ok === true;
+}
+
+// F1/F3 (R3 review) — lock the matching wo_materials row(s) BEFORE any write and
+// prove SQL-side (NUMERIC-exact, no JS floats) that the decrement stays
+// non-negative. withOrgContext COMMITS on return, so every ok:false gate must
+// fire before the first mutation; this select is that gate for the ledger.
+async function lockWoMaterialsAndValidateDecrement(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ id: string; can_decrement: boolean }>(
+    `select id::text as id,
+            (consumed_qty - $3::numeric >= 0) as can_decrement
+       from public.wo_materials
+      where org_id = app.current_org_id()
+        and wo_id = $1::uuid
+        and product_id = $2::uuid
+      for update`,
+    [original.wo_id, original.component_id, original.qty_consumed],
+  );
+  // Mirrors decrementConsumedQty's WHERE: at least one row must absorb the full
+  // reversal without going negative.
+  return rows.some((row) => row.can_decrement);
+}
+
+async function decrementConsumedQty(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `update public.wo_materials
+        set consumed_qty = consumed_qty - $3::numeric,
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and wo_id = $1::uuid
+        and product_id = $2::uuid
+        and consumed_qty - $3::numeric >= 0
+      returning id::text as id`,
+    [original.wo_id, original.component_id, original.qty_consumed],
+  );
+  return rows.length > 0;
 }
 
 async function writeWasteVoidAudit(
@@ -356,6 +485,65 @@ async function writeOutputVoidAudit(
   );
 }
 
+async function writeConsumptionReverseAudit(
+  ctx: ProductionContext,
+  params: {
+    original: ConsumptionRow;
+    lp: LicensePlateRow | null;
+    correctionId: string;
+    reasonCode: CorrectionReasonCode;
+    note: string | null;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.audit_events (
+       org_id,
+       actor_user_id,
+       actor_type,
+       action,
+       resource_type,
+       resource_id,
+       before_state,
+       after_state,
+       request_id,
+       retention_class
+     )
+     values (
+       app.current_org_id(),
+       $1::uuid,
+       'user',
+       'production.consumption.corrected',
+       'wo_material_consumption',
+       $2,
+       $3::jsonb,
+       $4::jsonb,
+       $5::uuid,
+       'operational'
+     )`,
+    [
+      ctx.userId,
+      params.original.id,
+      JSON.stringify({
+        consumption_id: params.original.id,
+        wo_id: params.original.wo_id,
+        component_id: params.original.component_id,
+        lp_id: params.original.lp_id,
+        qty_consumed: params.original.qty_consumed,
+        lp_status: params.lp?.status ?? null,
+        lp_quantity: params.lp?.quantity ?? null,
+      }),
+      JSON.stringify({
+        correction_id: params.correctionId,
+        correction_of_id: params.original.id,
+        reason_code: params.reasonCode,
+        note: params.note,
+        reversed_qty: params.original.qty_consumed,
+      }),
+      randomUUID(),
+    ],
+  );
+}
+
 async function writeLpVoidHistory(
   ctx: ProductionContext,
   params: {
@@ -420,6 +608,90 @@ async function markLpVoided(ctx: ProductionContext, lpId: string): Promise<void>
       where org_id = app.current_org_id()
         and id = $1::uuid`,
     [lpId, VOIDED_LP_STATUS, ctx.userId],
+  );
+}
+
+// F4 (R3 review) — QA-aware restore target. A consumed LP goes back to
+// 'available' (pickable) ONLY when its QA release still stands; anything else
+// ('pending', 'on_hold', 'rejected', …) restores to 'received' so the pallet
+// stays non-pickable until QA re-releases it. qa_status itself is preserved
+// as-is. Partially-consumed LPs ('available'/'received') keep their status.
+function lpRestoreTargetState(lp: LicensePlateRow): string {
+  if (lp.status !== 'consumed') return lp.status;
+  return lp.qa_status === 'released' ? 'available' : 'received';
+}
+
+async function restoreLicensePlate(
+  ctx: ProductionContext,
+  params: { original: ConsumptionRow; lp: LicensePlateRow; toState: string },
+): Promise<void> {
+  await ctx.client.query(
+    `update public.license_plates
+        set quantity = quantity + $2::numeric,
+            status = $4,
+            consumed_by_wo_id = case when status = 'consumed' then null else consumed_by_wo_id end,
+            updated_by = $3::uuid,
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid`,
+    [params.lp.id, params.original.qty_consumed, ctx.userId, params.toState],
+  );
+}
+
+async function writeLpRestoredHistory(
+  ctx: ProductionContext,
+  params: {
+    original: ConsumptionRow;
+    lp: LicensePlateRow;
+    toState: string;
+    reasonCode: CorrectionReasonCode;
+    note: string | null;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.lp_state_history (
+       org_id,
+       site_id,
+       lp_id,
+       from_state,
+       to_state,
+       reason_code,
+       reason_text,
+       wo_id,
+       transaction_id,
+       ext_jsonb,
+       created_by
+     )
+     values (
+       app.current_org_id(),
+       $1::uuid,
+       $2::uuid,
+       $3,
+       $4,
+       'consumption_reversed',
+       $5,
+       $6::uuid,
+       $7::uuid,
+       $8::jsonb,
+       $9::uuid
+     )`,
+    [
+      params.lp.site_id ?? params.original.site_id,
+      params.lp.id,
+      params.lp.status,
+      // F4 — the history row reflects the ACTUAL restore target (QA-aware), not
+      // a hardcoded 'available'.
+      params.toState,
+      params.note,
+      params.original.wo_id,
+      randomUUID(),
+      JSON.stringify({
+        consumption_id: params.original.id,
+        correction_reason_code: params.reasonCode,
+        reversed_qty: params.original.qty_consumed,
+      }),
+      ctx.userId,
+    ],
   );
 }
 
@@ -611,6 +883,136 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
     if (code === '23505') return { ok: false, error: 'already_corrected' };
     if (code === '23514' || code === '23503' || code === '22P02') return { ok: false, error: 'invalid_input' };
     console.error('[production] voidWoOutput failed', error);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function reverseConsumption(input: ReverseConsumptionInput): Promise<ReverseConsumptionResult> {
+  const consumptionId = typeof input?.consumptionId === 'string' ? input.consumptionId.trim() : '';
+  const reasonCode = typeof input?.reasonCode === 'string' ? input.reasonCode.trim() : '';
+  const note = typeof input?.note === 'string' && input.note.trim().length > 0 ? input.note.trim() : null;
+  const password = typeof input?.signature?.password === 'string' ? input.signature.password : '';
+
+  if (!isUuid(consumptionId) || !isReasonCode(reasonCode) || password.length === 0) {
+    return { ok: false, error: 'invalid_input' };
+  }
+
+  try {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<ReverseConsumptionResult & { woId?: string }> => {
+      const ctx: ProductionContext = { userId, orgId, client: client as QueryClient };
+      const original = await loadConsumptionForUpdate(ctx, consumptionId);
+      if (!original) return { ok: false, error: 'not_found' };
+
+      if (await hasConsumptionCorrection(ctx, consumptionId)) {
+        return { ok: false, error: 'already_corrected' };
+      }
+
+      // F1 (R3 review) — ALL ok:false gates fire BEFORE the first mutation.
+      // withOrgContext COMMITS on plain return (only throws roll back), so an
+      // error-return after a write would silently persist a half-applied
+      // reversal. Order: lock LP + restorability gate → lock wo_materials +
+      // ledger gate → e-sign → only then write.
+      let lp: LicensePlateRow | null = null;
+      if (original.lp_id !== NO_LP_ID) {
+        lp = await loadLicensePlateForUpdate(ctx, original.lp_id);
+        if (!lp || !['consumed', 'available', 'received'].includes(lp.status)) {
+          return { ok: false, error: 'lp_not_restorable' };
+        }
+      }
+
+      if (!(await lockWoMaterialsAndValidateDecrement(ctx, original))) {
+        return { ok: false, error: 'inconsistent_ledger' };
+      }
+
+      try {
+        await assertCorrectionAllowed(ctx, {
+          permission: CONSUMPTION_CORRECT_PERMISSION,
+          woStatus: original.wo_status,
+          requireEsign: true,
+          signature: {
+            pin: password,
+            intent: CONSUMPTION_REVERSE_INTENT,
+            reason: reasonCode,
+            subject: {
+              consumption_id: original.id,
+              wo_id: original.wo_id,
+              component_id: original.component_id,
+              lp_id: original.lp_id,
+              qty_consumed: original.qty_consumed,
+            },
+          },
+        });
+      } catch (error) {
+        if (error instanceof CorrectionForbiddenError) return { ok: false, error: 'forbidden' };
+        if (error instanceof CorrectionInvalidInputError) return { ok: false, error: 'invalid_input' };
+        return { ok: false, error: 'esign_failed' };
+      }
+
+      const correction = await insertCounterEntry<{ id: string }>(ctx, {
+        table: 'wo_material_consumption',
+        originalId: original.id,
+        reasonCode,
+        transactionIdColumn: 'transaction_id',
+        values: {
+          site_id: original.site_id,
+          wo_id: original.wo_id,
+          component_id: original.component_id,
+          lp_id: original.lp_id,
+          qty_consumed: negateDecimalString(original.qty_consumed),
+          uom: original.uom,
+          operator_id: userId,
+          fefo_adherence_flag: original.fefo_adherence_flag,
+          fefo_deviation_reason: original.fefo_deviation_reason,
+          over_consumption_flag: false,
+          over_consumption_approved_by: null,
+          over_consumption_approved_at: null,
+          over_consumption_reason_code: null,
+          ext_jsonb: JSON.stringify({
+            correction_reason_code: reasonCode,
+            correction_note: note,
+            corrected_consumption_id: original.id,
+            source: 'reverseConsumption',
+            original_ext_jsonb: original.ext_jsonb ?? {},
+          }),
+        },
+      });
+
+      if (!(await decrementConsumedQty(ctx, original))) {
+        // Unreachable in practice: the wo_materials rows are locked and the
+        // decrement was validated pre-write. If it ever fires, THROW so the
+        // whole transaction (incl. the counter insert above) rolls back —
+        // returning ok:false here would commit a half-applied reversal.
+        throw new Error('reverseConsumption: wo_materials decrement failed despite pre-validated row lock');
+      }
+
+      if (lp) {
+        const toState = lpRestoreTargetState(lp);
+        await restoreLicensePlate(ctx, { original, lp, toState });
+        await writeLpRestoredHistory(ctx, { original, lp, toState, reasonCode, note });
+      }
+
+      await writeConsumptionReverseAudit(ctx, {
+        original,
+        lp,
+        correctionId: correction.id,
+        reasonCode,
+        note,
+      });
+
+      return { ok: true, woId: original.wo_id };
+    });
+
+    if (result.ok && result.woId) {
+      revalidatePath('/production');
+      revalidatePath(`/production/work-orders/${result.woId}`);
+    }
+
+    return result.ok ? { ok: true } : result;
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === '23505') return { ok: false, error: 'already_corrected' };
+    if (code === '23514' || code === '23503' || code === '22P02') return { ok: false, error: 'invalid_input' };
+    console.error('[production] reverseConsumption failed', error);
     return { ok: false, error: 'persistence_failed' };
   }
 }

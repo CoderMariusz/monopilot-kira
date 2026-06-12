@@ -1,0 +1,12 @@
+{
+  "tool": "RTL role/accessible-name assertions",
+  "blocker": "jest-axe/vitest-axe not wired into apps/web vitest; out of STRICT SCOPE. Same documented substitute as the R2 evidence.",
+  "checks": {
+    "dialogRole": true,
+    "reasonSelectHasAccessibleName": true,
+    "expiryPrefilled": true,
+    "batchPrefilled": true,
+    "noPasswordField": true
+  },
+  "violations": []
+}
