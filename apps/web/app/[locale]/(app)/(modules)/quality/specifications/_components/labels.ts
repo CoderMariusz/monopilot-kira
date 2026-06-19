@@ -94,6 +94,7 @@ export function buildSpecCreateLabels(t: QaSpecsTranslator): SpecCreateLabels {
     cancel: t('createModal.cancel'),
     submit: t('createModal.submit'),
     submitting: t('createModal.submitting'),
+    formIncomplete: 'Complete all required fields to continue.',
     validation: {
       productRequired: t('createModal.validation.productRequired'),
       specCodeRequired: t('createModal.validation.specCodeRequired'),
@@ -193,6 +194,7 @@ export function buildSpecDetailLabels(t: QaSpecsTranslator): SpecDetailLabels {
       supersedePick: t('detail.actions.supersedePick'),
       supersedePlaceholder: t('detail.actions.supersedePlaceholder'),
       superseding: t('detail.actions.superseding'),
+      formIncomplete: 'Complete all required fields to continue.',
       submitError: t('detail.actions.submitError'),
       supersedeError: t('detail.actions.supersedeError'),
     },

@@ -38,6 +38,26 @@ type NcrListRow = {
   createdAt: string;
 };
 
+/**
+ * Context for an NCR auto-created from a CCP critical-limit breach
+ * (haccp-actions.ts::recordMonitoring writes reference_type='ccp_deviation',
+ * reference_id=<ccpId> and links the triggering monitoring-log row via
+ * haccp_monitoring_log.breach_ncr_id = ncr.id, migration 289). Surfaced so the
+ * NCR detail screen can show WHICH CCP / what measured value breached which limit,
+ * instead of an opaque ccp_deviation reference. Null for any other reference type.
+ */
+type NcrCcpBreach = {
+  ccpId: string;
+  ccpCode: string;
+  ccpName: string;
+  criticalLimitMin: string | null;
+  criticalLimitMax: string | null;
+  unit: string | null;
+  measuredValue: string | null;
+  measuredAt: string | null;
+  recordedBy: string | null;
+};
+
 type NcrDetail = NcrListRow & {
   description: string;
   referenceType: NcrReferenceType | null;
@@ -53,6 +73,7 @@ type NcrDetail = NcrListRow & {
   closedAt: string | null;
   closureSignatureHash: string | null;
   inspection: null;
+  ccpBreach: NcrCcpBreach | null;
 };
 
 type CreatedNcr = { id: string; ncrNumber: string; status: 'open' };
@@ -235,6 +256,69 @@ export async function listNcrs(input: {
   }
 }
 
+/**
+ * Resolves the CCP-breach context for an NCR whose reference_type='ccp_deviation'.
+ * reference_id is the haccp_ccps id (see haccp-actions.ts::recordMonitoring); the
+ * triggering reading is the haccp_monitoring_log row that links back via
+ * breach_ncr_id = <this NCR> (migration 289). Returns the CCP code/name + critical
+ * limits + uom, plus the measured value / timestamp / reader (resolved to a display
+ * name — never a raw UUID). The monitoring-log half is a LEFT join so a missing
+ * breach row still surfaces the CCP code/limits via reference_id (graceful degrade).
+ */
+async function fetchCcpBreachContext(
+  ctx: QualityContext,
+  ncrId: string,
+  ccpId: string,
+): Promise<NcrCcpBreach | null> {
+  const { rows } = await ctx.client.query<{
+    ccp_id: string;
+    ccp_code: string;
+    ccp_name: string;
+    critical_limit_min: string | null;
+    critical_limit_max: string | null;
+    unit: string | null;
+    measured_value: string | null;
+    measured_at: Date | string | null;
+    recorded_by_name: string | null;
+  }>(
+    `select
+       c.id::text as ccp_id,
+       c.ccp_code,
+       c.name as ccp_name,
+       c.critical_limit_min::text,
+       c.critical_limit_max::text,
+       nullif(c.unit, '') as unit,
+       l.measured_value::text,
+       l.measured_at,
+       coalesce(u.display_name, u.email::text) as recorded_by_name
+     from public.haccp_ccps c
+     left join public.haccp_monitoring_log l
+       on l.org_id = c.org_id
+      and l.ccp_id = c.id
+      and l.breach_ncr_id = $2::uuid
+     left join public.users u
+       on u.id = l.recorded_by and u.org_id = c.org_id
+    where c.org_id = app.current_org_id()
+      and c.id = $1::uuid
+    order by l.measured_at desc nulls last
+    limit 1`,
+    [ccpId, ncrId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ccpId: row.ccp_id,
+    ccpCode: row.ccp_code,
+    ccpName: row.ccp_name,
+    criticalLimitMin: row.critical_limit_min,
+    criticalLimitMax: row.critical_limit_max,
+    unit: row.unit,
+    measuredValue: row.measured_value,
+    measuredAt: toIso(row.measured_at),
+    recordedBy: row.recorded_by_name,
+  };
+}
+
 export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetail | null>> {
   try {
     const parsedNcrId = uuidSchema.parse(ncrId);
@@ -296,6 +380,11 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
       const row = rows[0];
       if (!row) return { ok: true, data: null };
 
+      const ccpBreach =
+        row.reference_type === 'ccp_deviation' && row.reference_id
+          ? await fetchCcpBreachContext(ctx, parsedNcrId, row.reference_id)
+          : null;
+
       return {
         ok: true,
         data: {
@@ -314,6 +403,7 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
           closedAt: toIso(row.closed_at),
           closureSignatureHash: row.closure_signature_hash,
           inspection: null,
+          ccpBreach,
         },
       };
     });

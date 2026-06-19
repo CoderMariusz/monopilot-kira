@@ -121,6 +121,24 @@ export type NcrServerListRow = {
 /** UI list row = server row + a list-page-DERIVED overdue flag (responseDueAt<now). */
 export type NcrListRow = NcrServerListRow & { overdue?: boolean };
 
+/**
+ * CCP-breach context (mirrors ncr-actions.ts NcrCcpBreach). Populated only when the
+ * NCR was auto-created from a CCP critical-limit breach (referenceType
+ * 'ccp_deviation'); null otherwise. Drives the NCR-detail "CCP breach context"
+ * card — no raw UUIDs surfaced.
+ */
+export type NcrCcpBreach = {
+  ccpId: string;
+  ccpCode: string;
+  ccpName: string;
+  criticalLimitMin: string | null;
+  criticalLimitMax: string | null;
+  unit: string | null;
+  measuredValue: string | null;
+  measuredAt: string | null;
+  recordedBy: string | null;
+};
+
 /** Detail shape for QA-009a (mirrors ncr-actions.ts NcrDetail). */
 export type NcrDetail = NcrServerListRow & {
   description: string;
@@ -137,6 +155,7 @@ export type NcrDetail = NcrServerListRow & {
   closedAt: string | null;
   closureSignatureHash: string | null;
   inspection: null;
+  ccpBreach: NcrCcpBreach | null;
   /** Detail-page-DERIVED overdue flag (responseDueAt < now AND not terminal). */
   overdue?: boolean;
 };

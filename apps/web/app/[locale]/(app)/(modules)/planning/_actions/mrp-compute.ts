@@ -9,8 +9,10 @@
  *   reserved   = Σ v_inventory_available.reserved_qty    (same view; see caveat below)
  *   openSupply = Σ open-PO line remainder (qty − received via grn_items, non-cancelled GRNs)
  *              + Σ schedule_outputs.expected_qty of open WOs (disposition='to_stock')
- *   demand     = Σ greatest(wo_materials.required_qty − consumed_qty, 0)
+ *   demand     = Σ greatest(wo_materials.required_qty − consumed_qty, 0)   (DEPENDENT)
  *                across WOs in DRAFT / RELEASED / IN_PROGRESS
+ *              + Σ demand_forecasts.qty (mig 302, base UoM) for the run horizon  (INDEPENDENT)
+ *                — independent/forecast demand entered on /planning/forecasts
  *
  * Caveats (documented, read-first slice — nothing is persisted):
  *   - v_inventory_available filters available_qty > 0, so a fully-reserved LP is
@@ -123,6 +125,12 @@ export type MrpRow = {
   reserved: string;
   openSupply: string;
   demand: string;
+  /**
+   * Portion of `demand` coming from demand_forecasts (independent demand, mig 302).
+   * 3-dp base-UoM string; '0.000' when no forecast contributed. When > 0 the
+   * persisted requirement row is tagged source_type='independent' (mig 178).
+   */
+  forecastDemand: string;
   net: string;
   severity: MrpSeverity;
   /** null when nothing to do (covered / at_risk with no threshold breach). */
@@ -152,6 +160,8 @@ type Acc = {
   reserved: bigint;
   openSupply: bigint;
   demand: bigint;
+  /** Sub-total of `demand` that came from demand_forecasts (independent demand). */
+  forecastDemand: bigint;
   excludedUoms: Set<string>;
   touched: boolean;
 };
@@ -216,6 +226,8 @@ export function computeMrp(input: {
   items: MrpItemRow[];
   onHand: MrpOnHandBucket[];
   demand: MrpQtyBucket[];
+  /** Independent demand from demand_forecasts (mig 302), already summed per item in base UoM. */
+  forecastDemand?: MrpQtyBucket[];
   poSupply: MrpQtyBucket[];
   productionSupply: MrpQtyBucket[];
   /** reorder_thresholds (mig 178) joined with supplier lead times; optional. */
@@ -236,7 +248,7 @@ export function computeMrp(input: {
   const accFor = (itemId: string): Acc => {
     let acc = accById.get(itemId);
     if (!acc) {
-      acc = { onHand: 0n, reserved: 0n, openSupply: 0n, demand: 0n, excludedUoms: new Set(), touched: false };
+      acc = { onHand: 0n, reserved: 0n, openSupply: 0n, demand: 0n, forecastDemand: 0n, excludedUoms: new Set(), touched: false };
       accById.set(itemId, acc);
     }
     return acc;
@@ -285,6 +297,12 @@ export function computeMrp(input: {
 
   apply(input.demand, (acc, q) => {
     acc.demand += q;
+  });
+  // Independent (forecast) demand — same base-UoM netting as dependent WO demand,
+  // but also tracked separately so the persisted requirement can be attributed.
+  apply(input.forecastDemand ?? [], (acc, q) => {
+    acc.demand += q;
+    acc.forecastDemand += q;
   });
   apply(input.poSupply, (acc, q) => {
     acc.openSupply += q;
@@ -364,6 +382,7 @@ export function computeMrp(input: {
       reserved: microToFixed(acc.reserved, 3),
       openSupply: microToFixed(acc.openSupply, 3),
       demand: microToFixed(acc.demand, 3),
+      forecastDemand: microToFixed(acc.forecastDemand, 3),
       net: microToFixed(net, 3),
       severity,
       suggestedAction,

@@ -39,6 +39,7 @@ export const MOVEMENT_TABS: MovementTab[] = ['all', 'receipts', 'consume', 'tran
 /** Move-type → badge tone (parity MoveType chip). */
 const TYPE_VARIANT: Record<string, BadgeVariant> = {
   receipt: 'success',
+  production: 'success',
   putaway: 'info',
   transfer: 'info',
   consume_to_wo: 'info',
@@ -56,6 +57,8 @@ export type MovementListLabels = {
   none: string;
   tab: Record<MovementTab, string>;
   moveType: Record<string, string>;
+  /** Origin-ledger indicator (unified ledger — stock_move vs lp_state). */
+  source: Record<StockMoveListItem['source'], string>;
   col: {
     move: string;
     lp: string;
@@ -73,13 +76,14 @@ function matchesTab(row: StockMoveListItem, tab: MovementTab): boolean {
     case 'all':
       return true;
     case 'receipts':
-      return row.moveType === 'receipt';
+      // PO receipts AND production outputs are both inbound LP-genesis events.
+      return row.moveType === 'receipt' || row.moveType === 'production';
     case 'consume':
       return row.moveType === 'consume_to_wo';
     case 'transfers':
       return row.moveType === 'transfer' || row.moveType === 'putaway';
     case 'adjustments':
-      return row.moveType === 'adjustment';
+      return row.moveType === 'adjustment' || row.moveType === 'quarantine' || row.moveType === 'return';
   }
 }
 
@@ -189,22 +193,32 @@ export function MovementListClient({
                     {r.moveNumber}
                   </TableCell>
                   <TableCell className="font-mono text-sm font-semibold text-sky-700">
-                    {r.lpId ? (
+                    {r.lpId && r.lpNumber ? (
                       <Link
                         href={`/${locale}/warehouse/license-plates/${r.lpId}`}
                         data-testid={`movement-lp-link-${r.id}`}
                         className="hover:underline"
                       >
-                        {r.lpNumber ?? r.lpId}
+                        {r.lpNumber}
                       </Link>
                     ) : (
+                      // Never leak a raw LP UUID into the table (review rule).
                       <span className="text-slate-400">{dash}</span>
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={TYPE_VARIANT[r.moveType] ?? 'muted'} data-testid={`movement-type-${r.id}`} className="text-[10px]">
-                      {labels.moveType[r.moveType] ?? r.moveType}
-                    </Badge>
+                    <span className="flex flex-wrap items-center gap-1">
+                      <Badge variant={TYPE_VARIANT[r.moveType] ?? 'muted'} data-testid={`movement-type-${r.id}`} className="text-[10px]">
+                        {labels.moveType[r.moveType] ?? r.moveType}
+                      </Badge>
+                      <span
+                        data-testid={`movement-source-${r.id}`}
+                        title={labels.source[r.source]}
+                        className="rounded-sm bg-slate-100 px-1 text-[9px] font-medium uppercase tracking-wide text-slate-500"
+                      >
+                        {labels.source[r.source]}
+                      </span>
+                    </span>
                   </TableCell>
                   <TableCell className="font-mono text-[11px] text-slate-600">{r.fromLocationCode ?? dash}</TableCell>
                   <TableCell className="font-mono text-[11px] text-slate-600">{r.toLocationCode ?? dash}</TableCell>

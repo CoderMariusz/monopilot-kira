@@ -648,7 +648,10 @@
       "upsertError": "Location save failed.",
       "deleteSuccess": "Location deleted.",
       "deleteError": "Location delete failed.",
-      "deleteHasChildren": "Delete child locations first."
+      "deleteHasChildren": "Delete child locations first.",
+      "inactive": "Nieaktywna",
+      "barcodeLabel": "Kod kreskowy",
+      "noBarcode": "Brak kodu kreskowego"
     }
   },
   "schema": {
@@ -951,7 +954,7 @@
       "require_grn_qc_inspection": {
         "title": "Wymagaj kontroli jakości GRN",
         "description": "Przychodzące GRN muszą przejść kontrolę jakości przed zwolnieniem zapasu.",
-        "coming_banner": "Egzekwowanie w module Jakość jest w przygotowaniu; ta flaga tylko zapisuje ustawienie.",
+        "coming_banner": "Gdy włączone, towary przyjęte na podstawie PO trafiają na blokadę jakości (QA hold) do czasu zarejestrowania inspekcji jakości.",
         "on_label": "Kontrola wymagana",
         "off_label": "Kontrola niewymagana",
         "read_only": "Do zmiany tej flagi potrzebujesz settings.flags.edit.",
@@ -1410,6 +1413,10 @@
     "pair_name_placeholder": "np. Skaner linii 1",
     "pair_model_label": "Model",
     "pair_model_placeholder": "np. Zebra TC52",
+    "pair_site_label": "Zakład",
+    "pair_site_placeholder": "Nieprzypisany",
+    "pair_line_label": "Linia produkcyjna",
+    "pair_line_placeholder": "Nieprzypisana",
     "pair_submit": "Sparuj urządzenie"
   },
   "integrations": {
@@ -1853,6 +1860,13 @@
       "kind_import": "Import",
       "kind_export": "Eksport",
       "none": "Brak zadań importu."
+    },
+    "exports": {
+      "title": "Ostatnie eksporty",
+      "subtitle": "Pliki wyeksportowane z dowolnego modułu — linki do pobrania pozostają dostępne.",
+      "rows_unit": "wierszy",
+      "download": "Pobierz",
+      "none": "Brak eksportów."
     },
     "drawer": {
       "import_kicker": "Import CSV",

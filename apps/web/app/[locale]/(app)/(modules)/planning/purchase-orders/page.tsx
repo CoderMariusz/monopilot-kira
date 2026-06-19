@@ -28,7 +28,9 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listPurchaseOrders, createPurchaseOrder } from './_actions/actions';
-import { listPoSuppliers, listPurchaseOrderLineCounts, searchPoItems } from './_actions/po-form-data';
+import { createExportJob } from './_actions/create-export-job';
+import { listPoSuppliers, listPoUnits, listPurchaseOrderLineCounts, searchPoItems } from './_actions/po-form-data';
+import { buildUomDropdown, type UomDropdown } from '../_actions/uom-dropdown';
 import { PoListView, type PoListLabels } from './_components/po-list-view';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
@@ -72,11 +74,13 @@ function ListSkeleton() {
 }
 
 /**
- * UoM dropdown labels, staged in _meta/i18n-staging/uom-sweep.json and threaded
- * here without touching the live i18n bundles. en/pl carry real values; other
- * locales mirror EN (two-locale rule).
+ * Canonical UoM fallback labels, staged in _meta/i18n-staging/uom-sweep.json and
+ * threaded here without touching the live i18n bundles. en/pl carry real values;
+ * other locales mirror EN (two-locale rule). Used ONLY as the fallback when the org
+ * has no readable units — the real options now come from public.unit_of_measure
+ * (listPoUnits → buildUomDropdown), so admin-added units appear in the picker.
  */
-function uomLabels(locale: string): {
+function uomFallbackLabels(locale: string): {
   placeholder: string;
   options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
 } {
@@ -92,9 +96,12 @@ function uomLabels(locale: string): {
   };
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): PoListLabels {
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string, uom: UomDropdown): PoListLabels {
   return {
     createPo: t('actions.createPo'),
+    exportLabel: t('actions.export'),
+    exporting: t('actions.exporting'),
+    exportError: t('actions.exportError'),
     searchPlaceholder: t('list.searchPlaceholder'),
     rowsCount: t('list.rowsCount'),
     supplierFilterLabel: t('list.supplierFilterLabel'),
@@ -147,12 +154,14 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       lineQty: t('create.lineQty'),
       lineUom: t('create.lineUom'),
       lineUnitPrice: t('create.lineUnitPrice'),
-      // UoM dropdown labels live in _meta/i18n-staging/uom-sweep.json (NOT the
-      // live bundles) and are threaded in here literally per locale. Unit symbols
-      // are largely locale-neutral; only pcs/pack/box/pallet differ (pl: szt/opak.
-      // /karton/paleta). `uomLabels()` resolves the per-locale subset.
-      uomPlaceholder: uomLabels(locale).placeholder,
-      uomOptions: uomLabels(locale).options,
+      // UoM dropdown now reads from the REAL org units (public.unit_of_measure via
+      // listPoUnits → buildUomDropdown), so admin-added units appear. `uom.units`
+      // is the ordered code list; `uom.options` the code→"code — name" labels. When
+      // the org has no readable units, buildUomDropdown returns the canonical
+      // per-locale fallback labels and an empty `units` (dropdown keeps its default).
+      uomPlaceholder: uom.placeholder,
+      uomOptions: uom.options,
+      uomUnits: uom.units,
       qtyPlaceholder: t('create.qtyPlaceholder'),
       unitPricePlaceholder: t('create.unitPricePlaceholder'),
       submit: t('create.submit'),
@@ -192,11 +201,13 @@ async function ListContent({
   archived: boolean;
 }) {
   const t = await getTranslations('Planning.purchaseOrders');
-  const [listResult, suppliers, lineCounts] = await Promise.all([
+  const [listResult, suppliers, lineCounts, orgUnits] = await Promise.all([
     listPurchaseOrders({ limit: 200, archived }),
     listPoSuppliers(),
     listPurchaseOrderLineCounts(),
+    listPoUnits(),
   ]);
+  const uom = buildUomDropdown(orgUnits, uomFallbackLabels(locale));
 
   if (!listResult.ok) {
     return (
@@ -225,9 +236,10 @@ async function ListContent({
       archived={archived}
       archivedCount={listResult.archivedCount}
       autoOpenCreate={autoOpenCreate}
-      labels={buildLabels(t, locale)}
+      labels={buildLabels(t, locale, uom)}
       searchPoItemsAction={searchPoItems}
       createPurchaseOrderAction={createPurchaseOrder}
+      createExportJobAction={createExportJob}
     />
   );
 }

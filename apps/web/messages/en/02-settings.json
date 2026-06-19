@@ -648,7 +648,10 @@
       "upsertError": "Location save failed.",
       "deleteSuccess": "Location deleted.",
       "deleteError": "Location delete failed.",
-      "deleteHasChildren": "Delete child locations first."
+      "deleteHasChildren": "Delete child locations first.",
+      "inactive": "Inactive",
+      "barcodeLabel": "Barcode",
+      "noBarcode": "No barcode"
     }
   },
   "schema": {
@@ -951,7 +954,7 @@
       "require_grn_qc_inspection": {
         "title": "Require GRN QC inspection",
         "description": "Inbound GRNs must pass Quality inspection before stock is released.",
-        "coming_banner": "Quality module enforcement is coming soon; this flag only records the setting.",
+        "coming_banner": "When enabled, goods received against a PO are placed on a QA hold until a quality inspection is recorded.",
         "on_label": "Inspection required",
         "off_label": "Inspection not required",
         "read_only": "You need settings.flags.edit to change this flag.",
@@ -1410,6 +1413,10 @@
     "pair_name_placeholder": "e.g. Line 1 scanner",
     "pair_model_label": "Model",
     "pair_model_placeholder": "e.g. Zebra TC52",
+    "pair_site_label": "Site",
+    "pair_site_placeholder": "Unassigned",
+    "pair_line_label": "Production line",
+    "pair_line_placeholder": "Unassigned",
     "pair_submit": "Pair device"
   },
   "integrations": {
@@ -1853,6 +1860,13 @@
       "kind_import": "Import",
       "kind_export": "Export",
       "none": "No import jobs yet."
+    },
+    "exports": {
+      "title": "Recent exports",
+      "subtitle": "Files exported from any module — download links stay available.",
+      "rows_unit": "rows",
+      "download": "Download",
+      "none": "No exports yet."
     },
     "drawer": {
       "import_kicker": "Import CSV",

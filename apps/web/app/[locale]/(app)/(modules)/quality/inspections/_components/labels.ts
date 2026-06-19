@@ -83,6 +83,7 @@ export function buildInspectionCreateLabels(t: QaInspectionsTranslator): Inspect
     cancel: t('createModal.cancel'),
     submit: t('createModal.submit'),
     submitting: t('createModal.submitting'),
+    formIncomplete: 'Complete all required fields to continue.',
     validation: { referenceRequired: t('createModal.validation.referenceRequired') },
     error: t('createModal.error'),
     success: t('createModal.success'),
@@ -144,6 +145,7 @@ export function buildInspectionDetailLabels(t: QaInspectionsTranslator): Inspect
       saveError: t('detail.params.saveError'),
       notes: t('detail.params.notes'),
       notesPlaceholder: t('detail.params.notesPlaceholder'),
+      formIncomplete: 'Complete all required fields to continue.',
     },
     overall: {
       label: t('detail.overall.label'),
@@ -175,6 +177,7 @@ export function buildInspectionDetailLabels(t: QaInspectionsTranslator): Inspect
       cancel: t('detail.esign.cancel'),
       submit: t('detail.esign.submit'),
       submitting: t('detail.esign.submitting'),
+      formIncomplete: 'Complete all required fields to continue.',
       validation: { passwordRequired: t('detail.esign.validation.passwordRequired') },
       error: t('detail.esign.error'),
       success: t('detail.esign.success'),

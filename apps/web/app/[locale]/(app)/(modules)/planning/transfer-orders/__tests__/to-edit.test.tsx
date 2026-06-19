@@ -103,6 +103,41 @@ const editLabels: ToDetailLabels['edit'] = {
   },
 };
 
+const reverseReceiptLabels: ToDetailLabels['reverseReceipt'] = {
+  received: 'Received',
+  destLp: 'Destination pallet',
+  action: 'Reverse receipt…',
+  permissionTooltip: 'You need the warehouse transfer correction permission to reverse a received line.',
+  notReceivableTooltip: 'Only received lines with a destination pallet can be reversed.',
+  modal: {
+    title: 'Reverse receipt · line {line}',
+    intro: 'Reversing returns the destination pallet to the source and reopens this line.',
+    summary: { toNumber: 'Transfer order', product: 'Product', destLp: 'Destination pallet', quantity: 'Quantity to reverse' },
+    reasonCode: 'Reason',
+    reasonPlaceholder: 'Select a reason',
+    reasonOptions: { entry_error: 'Entry error', wrong_quantity: 'Wrong quantity', wrong_batch: 'Wrong batch / lot', wrong_product: 'Wrong product', other: 'Other' },
+    note: 'Note',
+    noteOptional: 'optional',
+    notePlaceholder: 'Add context for the reversal',
+    esign: { title: 'Electronic signature', meaning: 'Re-enter your account password or supervisor PIN.', password: 'Password or PIN', passwordPlaceholder: 'Account password or supervisor PIN', passwordHelp: 'Use your account password, or a supervisor PIN.' },
+    cancel: 'Cancel',
+    submit: 'Reverse receipt',
+    submitting: 'Reversing…',
+    formIncomplete: 'Pick a reason and enter your password or PIN.',
+    errors: {
+      forbidden: 'You do not have permission to reverse this receipt.',
+      not_found: 'This received line no longer exists.',
+      invalid_input: 'Check the fields and try again.',
+      invalid_state: 'This transfer order is no longer in a state that allows reversing a receipt.',
+      invalid_quantity: 'The reverse quantity must equal the received destination pallet quantity.',
+      lp_active: "This pallet is reserved, allocated, consumed or shipped and can't be reversed.",
+      esign_failed: 'Signature failed — check your password or PIN and retry.',
+      persistence_failed: 'Unable to reverse this receipt.',
+      generic: 'Unable to reverse this receipt.',
+    },
+  },
+};
+
 const labels: ToDetailLabels = {
   status: { draft: 'Draft', in_transit: 'In transit', received: 'Received', cancelled: 'Cancelled' },
   summary: { title: 'TO summary', toNumber: 'TO number', from: 'From', to: 'To', status: 'Status', scheduled: 'Scheduled', created: 'Created', updated: 'Updated', notes: 'Notes', none: '—' },
@@ -110,6 +145,7 @@ const labels: ToDetailLabels = {
   transitions: { title: 'Status', ship: 'Ship', receive: 'Receive', cancel: 'Cancel', confirm: 'Change {to} to {status}?', pending: 'Updating…', none: 'No actions' },
   errors,
   edit: editLabels,
+  reverseReceipt: reverseReceiptLabels,
 };
 
 function makeTo(over: Partial<TransferOrderDetail> = {}): TransferOrderDetail {
@@ -124,8 +160,8 @@ function makeTo(over: Partial<TransferOrderDetail> = {}): TransferOrderDetail {
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-02T00:00:00.000Z',
     lines: [
-      { id: 'line-1', toId: 'to-1', itemId: 'item-1', itemCode: 'RM-001', itemName: 'Pork', qty: '50', uom: 'kg', lineNo: 1 },
-      { id: 'line-2', toId: 'to-1', itemId: 'item-2', itemCode: 'RM-002', itemName: 'Casing', qty: '10', uom: 'm', lineNo: 2 },
+      { id: 'line-1', toId: 'to-1', itemId: 'item-1', itemCode: 'RM-001', itemName: 'Pork', qty: '50', uom: 'kg', lineNo: 1, receivedDestLpId: null, receivedDestLpNumber: null, receivedQty: null },
+      { id: 'line-2', toId: 'to-1', itemId: 'item-2', itemCode: 'RM-002', itemName: 'Casing', qty: '10', uom: 'm', lineNo: 2, receivedDestLpId: null, receivedDestLpNumber: null, receivedQty: null },
     ],
     ...over,
   };

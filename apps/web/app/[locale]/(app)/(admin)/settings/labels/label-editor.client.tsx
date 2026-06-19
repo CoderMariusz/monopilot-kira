@@ -250,7 +250,8 @@ export default function LabelEditor({
         <div>
           <div className="sg-title">{template.name}</div>
           <div className="sg-sub">
-            <span className="mono">{template.id}</span>
+            {/* Rule 0.11: show the human size, not the raw template UUID. */}
+            <span className="mono">{template.size}</span>
             {` · ${labels.lastSaved} ${template.updated_at.slice(0, 10)}`}
             {template.used_on ? ` · ${template.used_on}` : ''}
           </div>

@@ -187,6 +187,8 @@ export const Permission = {
   TECHNICAL_ECO_APPROVE: 'technical.eco.approve',
   /** Technical sensory read permission (Technical owns sensory; consumed read-only by NPD); PRD 03-TECHNICAL §5, §17 (T-084/T-092). */
   TECHNICAL_SENSORY_READ: 'technical.sensory.read',
+  /** Technical factory-spec recall correction permission; Wave R4 reversibility. */
+  TECHNICAL_FACTORY_SPEC_RECALL: 'technical.factory_spec.recall',
 
   // Production (08-production)
   /** Production WO start permission; PRD 08-PRODUCTION §3.2 (RBAC). */
@@ -245,6 +247,8 @@ export const Permission = {
   WAREHOUSE_LP_FORCE_UNLOCK: 'warehouse.lp.force_unlock',
   /** Warehouse GRN receive (from PO/TO) permission; PRD 05-WAREHOUSE §7. */
   WAREHOUSE_GRN_RECEIVE: 'warehouse.grn.receive',
+  /** Warehouse transfer receive reversal correction permission; Wave R4 reversibility. */
+  WAREHOUSE_TRANSFER_CORRECT: 'warehouse.transfer.correct',
   /** Warehouse stock move permission; PRD 05-WAREHOUSE §8. */
   WAREHOUSE_STOCK_MOVE: 'warehouse.stock.move',
   /** Warehouse stock adjustment (>10% manager-approval gate) permission; PRD 05-WAREHOUSE §8.7. */
@@ -534,6 +538,12 @@ export const Permission = {
   SCHEDULER_FORECAST_READ: 'scheduler.forecast.read',
   /** Demand-forecast write (manual CSV upload) permission; PRD 07-PLANNING-EXT §4.1 (PLE forecast). */
   SCHEDULER_FORECAST_WRITE: 'scheduler.forecast.write',
+  /** Run the basic MRP netting loop and persist MRP suggestions. */
+  PLANNING_MRP_RUN: 'planning.mrp.run',
+  /** Convert MRP planned orders to canonical PO/WO drafts. */
+  PLANNING_MRP_CONVERT: 'planning.mrp.convert',
+  /** Manage planning forecasts used as MRP/MPS demand inputs. */
+  PLANNING_FORECAST_MANAGE: 'planning.forecast.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -635,6 +645,7 @@ export const ALL_TECHNICAL_PERMISSIONS = [
   Permission.TECHNICAL_ECO_WRITE,
   Permission.TECHNICAL_ECO_APPROVE,
   Permission.TECHNICAL_SENSORY_READ,
+  Permission.TECHNICAL_FACTORY_SPEC_RECALL,
 ] as readonly Permission[];
 
 /**
@@ -681,6 +692,7 @@ export const ALL_WAREHOUSE_PERMISSIONS = [
   Permission.WAREHOUSE_LP_SHIP,
   Permission.WAREHOUSE_LP_FORCE_UNLOCK,
   Permission.WAREHOUSE_GRN_RECEIVE,
+  Permission.WAREHOUSE_TRANSFER_CORRECT,
   Permission.WAREHOUSE_STOCK_MOVE,
   Permission.WAREHOUSE_STOCK_ADJUST,
   Permission.WAREHOUSE_INVENTORY_READ,
@@ -901,6 +913,9 @@ export const ALL_SCHEDULER_PERMISSIONS = [
   Permission.SCHEDULER_CONFIG_EDIT,
   Permission.SCHEDULER_FORECAST_READ,
   Permission.SCHEDULER_FORECAST_WRITE,
+  Permission.PLANNING_MRP_RUN,
+  Permission.PLANNING_MRP_CONVERT,
+  Permission.PLANNING_FORECAST_MANAGE,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {

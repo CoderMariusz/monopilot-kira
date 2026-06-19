@@ -50,7 +50,7 @@ type ToggleComponent = React.ComponentType<RequireGrnQcToggleProps>;
 const labels: RequireGrnQcToggleProps['labels'] = {
   title: 'Require GRN QC inspection',
   description: 'Inbound GRNs must pass Quality inspection before stock is released.',
-  comingBanner: 'Quality module enforcement is coming soon; this flag only records the setting.',
+  comingBanner: 'When enabled, goods received against a PO are placed on a QA hold until a quality inspection is recorded.',
   onLabel: 'Inspection required',
   offLabel: 'Inspection not required',
   readOnly: 'You need settings.flags.edit to change this flag.',
@@ -120,11 +120,11 @@ describe('RequireGrnQcToggle RED behavior', () => {
     vi.clearAllMocks();
   });
 
-  it('renders flag=false as OFF with the Quality-coming banner and design-system switch semantics', async () => {
+  it('renders flag=false as OFF with the QA-hold behaviour banner and design-system switch semantics', async () => {
     await renderToggle({ initialEnabled: false });
 
     expect(screen.getByRole('heading', { name: /require grn qc inspection/i })).toBeInTheDocument();
-    expect(screen.getByText(/quality module enforcement is coming soon/i)).toBeInTheDocument();
+    expect(screen.getByText(/placed on a QA hold until a quality inspection is recorded/i)).toBeInTheDocument();
     const toggle = screen.getByRole('switch', { name: /require grn qc inspection/i });
     expect(toggle).toHaveAttribute('aria-checked', 'false');
     expect(toggle).toHaveAttribute('data-slot', 'switch');

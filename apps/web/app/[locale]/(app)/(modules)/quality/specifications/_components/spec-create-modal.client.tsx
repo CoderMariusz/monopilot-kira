@@ -87,6 +87,7 @@ export type SpecCreateLabels = {
   cancel: string;
   submit: string;
   submitting: string;
+  formIncomplete: string;
   validation: {
     productRequired: string;
     specCodeRequired: string;
@@ -485,6 +486,7 @@ export function SpecCreateModal({
           data-testid="spec-create-submit"
           disabled={!valid || pending}
           onClick={submit}
+          title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-slate-800 disabled:opacity-50"
         >
           {pending ? labels.submitting : labels.submit}

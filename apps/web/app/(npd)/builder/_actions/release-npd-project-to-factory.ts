@@ -81,6 +81,12 @@ export async function releaseNpdProjectToFactory(rawInput: unknown): Promise<Rel
 
       safeRevalidatePath(`/npd/pipeline/${ready.projectId}`);
       safeRevalidatePath(`/npd/fa/${ready.productCode}`);
+      // materializeNpdBom wrote fresh rows to public.items, public.bom_headers/
+      // bom_lines and public.factory_specs — refresh the Technical lists so the
+      // newly-minted FG / BOM / spec appear without a manual reload.
+      safeRevalidatePath('/technical/items');
+      safeRevalidatePath('/technical/bom');
+      safeRevalidatePath('/technical/factory-specs');
 
       return {
         ok: true,

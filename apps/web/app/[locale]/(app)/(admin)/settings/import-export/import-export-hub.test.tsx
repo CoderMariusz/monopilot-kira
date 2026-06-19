@@ -18,7 +18,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it } from 'vitest';
 
 import ImportExportHub, { type MasterDataHubLabels } from './import-export-hub.client';
-import type { ImportableEntityRow, ImportJobRow } from './_actions/master-data';
+import type { ExportJobRow, ImportableEntityRow, ImportJobRow } from './_actions/master-data';
 
 const labels: MasterDataHubLabels = {
   title: 'Import / Export',
@@ -34,6 +34,10 @@ const labels: MasterDataHubLabels = {
     title: 'Recent jobs', viewAll: 'View all in audit log', rowsUnit: 'rows',
     statusCompleted: 'Completed', statusRunning: 'Running', statusQueued: 'Queued', statusFailed: 'Failed',
     kindImport: 'Import', kindExport: 'Export', none: 'No import jobs yet.',
+  },
+  exports: {
+    title: 'Recent exports', subtitle: 'Files exported from any module.', rowsUnit: 'rows',
+    download: 'Download', none: 'No exports yet.',
   },
   drawer: {
     importKicker: 'Import CSV', recordsLabel: 'records', close: 'Close',
@@ -71,9 +75,26 @@ const recentJobs: ImportJobRow[] = [
   },
 ];
 
+const recentExports: ExportJobRow[] = [
+  {
+    id: 'EXP-PO-0042', target: 'purchase_orders', status: 'completed', rows_processed: 17,
+    download_url: '/api/settings/import-export/jobs/EXP-PO-0042', created_at: '2026-05-14T09:00:00.000Z',
+  },
+  {
+    id: 'EXP-USR-0019', target: 'users', status: 'failed', rows_processed: 0,
+    download_url: null, created_at: '2026-05-14T08:00:00.000Z',
+  },
+];
+
 function renderHub(overrides: Partial<React.ComponentProps<typeof ImportExportHub>> = {}) {
   return render(
-    <ImportExportHub entities={entities} recentJobs={recentJobs} labels={labels} {...overrides} />,
+    <ImportExportHub
+      entities={entities}
+      recentJobs={recentJobs}
+      recentExports={recentExports}
+      labels={labels}
+      {...overrides}
+    />,
   );
 }
 
@@ -121,6 +142,27 @@ describe('master-data Import/Export hub', () => {
     expect(jobs).toHaveTextContent('finished-goods.csv');
     expect(jobs).toHaveTextContent('✓ Completed');
     expect(jobs).toHaveTextContent('✕ Failed');
+  });
+
+  it('renders the recent-exports section with cross-module export rows and a download link', () => {
+    renderHub();
+    const exportsList = within(hub()).getByTestId('master-data-hub-exports');
+    // A cross-module export (Purchase Orders → target='purchase_orders') is visible.
+    expect(exportsList).toHaveTextContent('EXP-PO-0042');
+    expect(exportsList).toHaveTextContent('purchase_orders');
+    expect(exportsList).toHaveTextContent('17 rows');
+    expect(exportsList).toHaveTextContent('✓ Completed');
+    // download_url present → a real download link.
+    const link = within(exportsList).getByRole('link', { name: /Download/ });
+    expect(link).toHaveAttribute('href', '/api/settings/import-export/jobs/EXP-PO-0042');
+    // Failed export without a download_url shows an em-dash placeholder, not a link.
+    expect(exportsList).toHaveTextContent('EXP-USR-0019');
+    expect(within(exportsList).getAllByRole('link').length).toBe(1);
+  });
+
+  it('renders the recent-exports empty state when no exports exist', () => {
+    renderHub({ recentExports: [] });
+    expect(within(hub()).getByTestId('master-data-hub-exports-empty')).toHaveTextContent('No exports yet.');
   });
 
   it('renders the empty state when no entities exist', () => {

@@ -19,6 +19,23 @@ type OrgContextLike = { orgId: string; client: QueryClient };
 export type ImportableEntityKey = 'finished_goods' | 'components' | 'boms' | 'suppliers';
 export type ImportJobStatus = 'queued' | 'running' | 'completed' | 'failed';
 
+/**
+ * Recent EXPORT jobs surfaced in the hub. Unlike imports these are NOT limited
+ * to the master-data entity set — any module that writes an
+ * `import_export_jobs` row with kind='export' (e.g. the Purchase Orders
+ * export-to-file action → target=purchase_orders) must be visible here, so the
+ * export ledger is honest. The `target` is shown verbatim (it is a free-text
+ * slug, not constrained to ImportableEntityKey).
+ */
+export type ExportJobRow = {
+  id: string;
+  target: string;
+  status: ImportJobStatus;
+  rows_processed: number;
+  download_url: string | null;
+  created_at: string;
+};
+
 export type ImportableEntityRow = {
   key: ImportableEntityKey;
   label: string;
@@ -42,6 +59,7 @@ export type ImportableEntitiesData = {
   org_id: string;
   entities: ImportableEntityRow[];
   recent_jobs: ImportJobRow[];
+  recent_exports: ExportJobRow[];
 };
 
 type CountRow = {
@@ -66,6 +84,15 @@ type ImportJobDbRow = {
   metadata: Record<string, unknown> | null;
   created_at: string | Date;
   completed_at: string | Date | null;
+};
+
+type ExportJobDbRow = {
+  id: string;
+  target: string;
+  status: ImportJobStatus;
+  progress_processed: number | string | null;
+  download_url: string | null;
+  created_at: string | Date;
 };
 
 const ENTITY_LABELS: Record<ImportableEntityKey, string> = {
@@ -107,10 +134,23 @@ function readFileName(metadata: Record<string, unknown> | null): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
-async function queryImportableEntities(context: OrgContextLike, orgId: string): Promise<ImportableEntitiesData> {
-  if (context.orgId !== orgId) return { org_id: context.orgId, entities: [], recent_jobs: [] };
+function mapExportJob(row: ExportJobDbRow): ExportJobRow {
+  return {
+    id: row.id,
+    target: row.target,
+    status: row.status,
+    rows_processed: toNumber(row.progress_processed),
+    download_url:
+      typeof row.download_url === 'string' && row.download_url.trim().length > 0 ? row.download_url.trim() : null,
+    created_at: toIsoString(row.created_at) ?? '',
+  };
+}
 
-  const [{ rows: countRows }, { rows: lastImportRows }, { rows: recentJobRows }] = await Promise.all([
+async function queryImportableEntities(context: OrgContextLike, orgId: string): Promise<ImportableEntitiesData> {
+  if (context.orgId !== orgId) return { org_id: context.orgId, entities: [], recent_jobs: [], recent_exports: [] };
+
+  const [{ rows: countRows }, { rows: lastImportRows }, { rows: recentJobRows }, { rows: recentExportRows }] =
+    await Promise.all([
     context.client.query<CountRow>(
       `select
           (select count(*)::int
@@ -163,6 +203,25 @@ async function queryImportableEntities(context: OrgContextLike, orgId: string): 
         limit 12`,
       [orgId, ENTITY_KEYS],
     ),
+    // Recent EXPORT jobs — NOT restricted to the master-data entity set. Any
+    // module that writes kind='export' (e.g. planning/purchase-orders
+    // "Export to file" → target='purchase_orders') surfaces here so the export
+    // ledger is honest and downloadable.
+    context.client.query<ExportJobDbRow>(
+      `select id::text,
+              target::text as target,
+              status,
+              progress_processed,
+              download_url,
+              created_at
+         from public.import_export_jobs
+        where org_id = app.current_org_id()
+          and org_id = $1::uuid
+          and kind = 'export'
+        order by created_at desc
+        limit 12`,
+      [orgId],
+    ),
   ]);
 
   const counts = countRows[0] ?? {
@@ -202,6 +261,7 @@ async function queryImportableEntities(context: OrgContextLike, orgId: string): 
       },
     ],
     recent_jobs: recentJobRows.map(mapImportJob),
+    recent_exports: recentExportRows.map(mapExportJob),
   };
 }
 

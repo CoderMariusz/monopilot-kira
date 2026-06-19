@@ -29,6 +29,13 @@ import { Select, type SelectOption } from '@monopilot/ui/Select';
 export const UOM_VALUES = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet'] as const;
 export type UomValue = (typeof UOM_VALUES)[number];
 
+/**
+ * Display labels for the UoM dropdown, keyed by unit code. Covers the canonical
+ * units (kg/g/l/…) plus any org-defined unit code read from the real
+ * unit_of_measure master, so admin-added units render with a real label.
+ */
+export type UomOptionLabels = Partial<Record<UomValue, string>> & Record<string, string | undefined>;
+
 /** Full ordered list used by purchasing / transfer line editors. */
 export const PURCHASING_UOMS: UomValue[] = [...UOM_VALUES];
 
@@ -37,14 +44,19 @@ export type UomSelectProps = {
   value: string;
   onValueChange: (value: string) => void;
   /**
-   * Localized display labels keyed by canonical value (kg/g/l/ml/pcs/pack/box/
-   * pallet). Threaded from the host page's label object — never hardcoded here.
+   * Localized display labels keyed by unit code (canonical kg/g/l/… plus any
+   * org-defined code). Threaded from the host page's label object — never
+   * hardcoded here.
    */
-  labels: Partial<Record<UomValue, string>> & Record<string, string | undefined>;
+  labels: UomOptionLabels;
   /** Placeholder when nothing is selected (localized). */
   placeholder?: string;
-  /** Subset of canonical units to offer; defaults to the full list. */
-  units?: readonly UomValue[];
+  /**
+   * Units to offer. Defaults to the canonical list, but accepts any org-defined
+   * code so admin-added units from Settings → Units flow through unchanged. The
+   * matching display labels come via `labels` (keyed by the same code).
+   */
+  units?: readonly string[];
   disabled?: boolean;
   className?: string;
   'aria-label'?: string;
@@ -66,7 +78,7 @@ export function UomSelect({
     const base = units.map((u) => ({ value: u, label: labels[u] ?? u }));
     // Preserve a stored value that is not part of the offered set (legacy
     // free-text unit on an existing item) so the dropdown still shows it.
-    if (value && !units.includes(value as UomValue)) {
+    if (value && !units.includes(value)) {
       return [{ value, label: labels[value] ?? value }, ...base];
     }
     return base;

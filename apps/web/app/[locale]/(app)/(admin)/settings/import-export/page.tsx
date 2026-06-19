@@ -201,6 +201,13 @@ async function buildMasterDataHubLabels(locale: string): Promise<MasterDataHubLa
       kindExport: t('jobs.kind_export'),
       none: t('jobs.none'),
     },
+    exports: {
+      title: t('exports.title'),
+      subtitle: t('exports.subtitle'),
+      rowsUnit: t('exports.rows_unit'),
+      download: t('exports.download'),
+      none: t('exports.none'),
+    },
     drawer: {
       importKicker: t('drawer.import_kicker'),
       recordsLabel: t('drawer.records_label'),
@@ -300,6 +307,7 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
     <ImportExportHub
       entities={hubLoaded.ok ? hubLoaded.data.entities : []}
       recentJobs={hubLoaded.ok ? hubLoaded.data.recent_jobs : []}
+      recentExports={hubLoaded.ok ? hubLoaded.data.recent_exports : []}
       ok={hubLoaded.ok}
       labels={hubLabels}
     />

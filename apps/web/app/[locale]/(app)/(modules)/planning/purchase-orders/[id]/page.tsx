@@ -32,7 +32,8 @@ import {
   updatePurchaseOrderLine,
   deletePurchaseOrderLine,
 } from '../_actions/actions';
-import { listPoSuppliers, searchPoItems } from '../_actions/po-form-data';
+import { listPoSuppliers, listPoUnits, searchPoItems } from '../_actions/po-form-data';
+import { buildUomDropdown, type UomDropdown } from '../../_actions/uom-dropdown';
 import { PoDetailView, type PoDetailLabels } from '../_components/po-detail-view';
 
 /** Thin client-facing adapters around the reviewed actions so the client view's
@@ -76,9 +77,10 @@ function DetailSkeleton() {
   );
 }
 
-/** Per-locale UoM dropdown copy (mirrors the list page's local helper; the canonical
- *  UoM set has no i18n keys — labels are resolved here, not from the bundle). */
-function uomLabels(locale: string): {
+/** Per-locale UoM fallback copy (mirrors the list page's local helper). Used ONLY
+ *  when the org has no readable units — the real options come from
+ *  public.unit_of_measure (listPoUnits → buildUomDropdown). */
+function uomFallbackLabels(locale: string): {
   placeholder: string;
   options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
 } {
@@ -94,8 +96,7 @@ function uomLabels(locale: string): {
   };
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): PoDetailLabels {
-  const uoms = uomLabels(locale);
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string, uoms: UomDropdown): PoDetailLabels {
   return {
     status: {
       draft: t('poStatus.draft'),
@@ -189,6 +190,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         lineUnitPrice: t('create.lineUnitPrice'),
         uomPlaceholder: uoms.placeholder,
         uomOptions: uoms.options,
+        uomUnits: uoms.units,
         qtyPlaceholder: t('create.qtyPlaceholder'),
         unitPricePlaceholder: t('create.unitPricePlaceholder'),
         submitAdd: t('edit.lineModal.submitAdd'),
@@ -220,7 +222,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
 
 async function DetailContent({ locale, id }: { locale: string; id: string }) {
   const t = await getTranslations('Planning.purchaseOrders');
-  const [result, suppliers] = await Promise.all([getPurchaseOrder(id), listPoSuppliers()]);
+  const [result, suppliers, orgUnits] = await Promise.all([getPurchaseOrder(id), listPoSuppliers(), listPoUnits()]);
+  const uom = buildUomDropdown(orgUnits, uomFallbackLabels(locale));
 
   if (!result.ok) {
     if (result.error === 'not_found' || result.error === 'invalid_input') {
@@ -266,7 +269,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
           receivedQty: l.receivedQty,
         })),
       }}
-      labels={buildLabels(t, locale)}
+      labels={buildLabels(t, locale, uom)}
       transitionPurchaseOrderStatusAction={transitionPurchaseOrderStatus}
       suppliers={suppliers}
       searchPoItemsAction={searchPoItems}

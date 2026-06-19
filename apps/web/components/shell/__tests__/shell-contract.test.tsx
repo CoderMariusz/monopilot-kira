@@ -52,6 +52,7 @@ vi.mock('next/headers', () => ({
 vi.mock('next/navigation', () => ({
   redirect: mocks.redirect,
   usePathname: () => currentPathname,
+  useParams: () => ({ locale: 'en' }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));

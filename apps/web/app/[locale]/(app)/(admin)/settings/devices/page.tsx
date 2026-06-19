@@ -10,7 +10,9 @@ import {
   readDevicesSettingsData,
   updateDeviceDefaults,
   type DeviceDefaultsRow,
+  type DeviceLineOption,
   type DeviceRow,
+  type DeviceSiteOption,
 } from './_actions/devices';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +25,14 @@ type PageProps = {
 };
 
 type LoadResult =
-  | { state: 'ready'; devices: DeviceRow[]; defaults: DeviceDefaultsRow; canEdit: boolean }
+  | {
+      state: 'ready';
+      devices: DeviceRow[];
+      defaults: DeviceDefaultsRow;
+      sites: DeviceSiteOption[];
+      lines: DeviceLineOption[];
+      canEdit: boolean;
+    }
   | { state: 'error' };
 
 type QueryResult<T> = { rows: T[] };
@@ -65,7 +74,14 @@ async function loadDevicesSettings(): Promise<LoadResult> {
       readDevicesSettingsData(),
       withOrgContext<boolean>((ctx) => readCanEdit(ctx as OrgContextLike)),
     ]);
-    return { state: 'ready', devices: data.devices, defaults: data.defaults, canEdit };
+    return {
+      state: 'ready',
+      devices: data.devices,
+      defaults: data.defaults,
+      sites: data.sites,
+      lines: data.lines,
+      canEdit,
+    };
   } catch (error) {
     console.error(
       '[settings/devices] load_failed',
@@ -157,6 +173,10 @@ async function buildLabels(locale: string): Promise<DevicesScreenLabels> {
         namePlaceholder: pick('pair_name_placeholder', DEFAULT_DEVICES_LABELS.pairModal.namePlaceholder),
         modelLabel: pick('pair_model_label', DEFAULT_DEVICES_LABELS.pairModal.modelLabel),
         modelPlaceholder: pick('pair_model_placeholder', DEFAULT_DEVICES_LABELS.pairModal.modelPlaceholder),
+        siteLabel: pick('pair_site_label', DEFAULT_DEVICES_LABELS.pairModal.siteLabel),
+        sitePlaceholder: pick('pair_site_placeholder', DEFAULT_DEVICES_LABELS.pairModal.sitePlaceholder),
+        lineLabel: pick('pair_line_label', DEFAULT_DEVICES_LABELS.pairModal.lineLabel),
+        linePlaceholder: pick('pair_line_placeholder', DEFAULT_DEVICES_LABELS.pairModal.linePlaceholder),
         submit: pick('pair_submit', DEFAULT_DEVICES_LABELS.pairModal.submit),
       },
     };
@@ -175,6 +195,8 @@ export default async function DevicesSettingsPage({ params }: PageProps = {}) {
         state="ready"
         devices={result.devices}
         defaults={result.defaults}
+        sites={result.sites}
+        lines={result.lines}
         canEdit={result.canEdit}
         labels={labels}
         pairDevice={pairDevice}

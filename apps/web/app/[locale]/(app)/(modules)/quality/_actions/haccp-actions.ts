@@ -109,6 +109,24 @@ async function hasPermission(ctx: QualityContext, permission: string): Promise<b
   return rows.length > 0;
 }
 
+/**
+ * READ-gate predicate for the CCP-monitoring BOARD (listCcps + listMonitoringLog).
+ *
+ * Relaxed (P1): the board is viewable by anyone who can either EDIT the HACCP
+ * plan (`quality.haccp.plan_edit`) OR RECORD a reading
+ * (`quality.ccp.deviation_override`). Previously both reads were gated ONLY on
+ * `plan_edit`, so an operator who could record readings but not edit the plan
+ * got a forbidden board. CREATION (upsertCcp) stays plan_edit-only and is NOT
+ * affected by this predicate.
+ */
+async function canReadCcpBoard(ctx: QualityContext): Promise<boolean> {
+  const [planEdit, deviationOverride] = await Promise.all([
+    hasPermission(ctx, 'quality.haccp.plan_edit'),
+    hasPermission(ctx, 'quality.ccp.deviation_override'),
+  ]);
+  return planEdit || deviationOverride;
+}
+
 async function writeNcrOpenedOutbox(
   ctx: QualityContext,
   params: { ncrId: string; ccpId: string; logId: string; measuredValue: string },
@@ -224,7 +242,8 @@ export async function listCcps(input: { activeOnly?: boolean } = {}): Promise<Ac
   try {
     const parsed = listCcpsSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<CcpRow[]>> => {
-      if (!(await hasPermission(ctx, 'quality.haccp.plan_edit'))) return { ok: false, reason: 'forbidden' };
+      // READ gate (relaxed P1): plan_edit OR ccp.deviation_override — see canReadCcpBoard.
+      if (!(await canReadCcpBoard(ctx))) return { ok: false, reason: 'forbidden' };
 
       const { rows } = await ctx.client.query<Parameters<typeof mapCcpRow>[0]>(
         `select
@@ -364,7 +383,8 @@ export async function listMonitoringLog(input: { ccpId?: string; days?: number }
   try {
     const parsed = listMonitoringLogSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<MonitoringLogRow[]>> => {
-      if (!(await hasPermission(ctx, 'quality.haccp.plan_edit'))) return { ok: false, reason: 'forbidden' };
+      // READ gate (relaxed P1): plan_edit OR ccp.deviation_override — see canReadCcpBoard.
+      if (!(await canReadCcpBoard(ctx))) return { ok: false, reason: 'forbidden' };
 
       const { rows } = await ctx.client.query<Parameters<typeof mapMonitoringRow>[0]>(
         `select

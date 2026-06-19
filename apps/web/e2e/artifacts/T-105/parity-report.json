@@ -9,6 +9,7 @@
     "technical",
     "mrp",
     "procurement",
+    "bom",
     "history"
   ],
   "lockModel": {
@@ -36,7 +37,8 @@
     "technical": "FaTechnicalTab (T-026)",
     "procurement": "FaProcurementTab (T-102, fa-screens.jsx:806-838)",
     "history": "FaHistoryTab (T-027, kept working)",
-    "mrp": "deferred-empty placeholder (no merged MRP component in scope)"
+    "mrp": "deferred-empty placeholder (no merged MRP component in scope)",
+    "bom": "FaBomTab (read-only SCR-03h, fa-screens.jsx:840-886, Lane 12)"
   },
   "realData": "page.tsx reads Reference.DeptColumns + product (to_jsonb) + prod_detail via withOrgContext (RLS app.current_org_id()); columns are schema-driven, not hardcoded.",
   "playwrightBlocker": "Live RBAC-authenticated Supabase server not bootable in worktree; e2e/npd-fa-detail-tabs.spec.ts skips without PLAYWRIGHT_BASE_URL. RTL DOM artifacts are the accepted fallback per UI-PROTOTYPE-PARITY-POLICY.md."

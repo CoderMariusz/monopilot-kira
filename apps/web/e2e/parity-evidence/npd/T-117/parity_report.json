@@ -12,7 +12,7 @@
     "recomputeCalc (T-065) — client useMemo live roll-up",
     "recomputeAndCache (T-065) — persisted on save"
   ],
-  "generated_at": "2026-06-11T17:19:53.895Z",
+  "generated_at": "2026-06-18T17:50:45.594Z",
   "states": {
     "loading": {
       "editorRoot": true,

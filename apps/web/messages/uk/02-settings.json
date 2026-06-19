@@ -648,7 +648,10 @@
       "upsertError": "Не вдалося зберегти локацію.",
       "deleteSuccess": "Локацію видалено.",
       "deleteError": "Не вдалося видалити локацію.",
-      "deleteHasChildren": "Спочатку видаліть дочірні локації."
+      "deleteHasChildren": "Спочатку видаліть дочірні локації.",
+      "inactive": "Inactive",
+      "barcodeLabel": "Barcode",
+      "noBarcode": "No barcode"
     }
   },
   "schema": {
@@ -951,7 +954,7 @@
       "require_grn_qc_inspection": {
         "title": "Вимагати QC-інспекцію GRN",
         "description": "Вхідні GRN мають пройти інспекцію якості перед випуском запасів.",
-        "coming_banner": "Примусове застосування модуля якості з’явиться незабаром; цей прапорець лише записує налаштування.",
+        "coming_banner": "When enabled, goods received against a PO are placed on a QA hold until a quality inspection is recorded.",
         "on_label": "Інспекція обов’язкова",
         "off_label": "Інспекція необов’язкова",
         "read_only": "Для зміни цього прапорця вам потрібен settings.flags.edit.",
@@ -1399,6 +1402,10 @@
     "pair_name_placeholder": "напр. Сканер лінії 1",
     "pair_model_label": "Модель",
     "pair_model_placeholder": "напр. Zebra TC52",
+    "pair_site_label": "Site",
+    "pair_site_placeholder": "Unassigned",
+    "pair_line_label": "Production line",
+    "pair_line_placeholder": "Unassigned",
     "pair_submit": "Підключити пристрій"
   },
   "integrations": {
@@ -1842,6 +1849,13 @@
       "kind_import": "Імпорт",
       "kind_export": "Експорт",
       "none": "Поки що немає завдань імпорту."
+    },
+    "exports": {
+      "title": "Recent exports",
+      "subtitle": "Files exported from any module — download links stay available.",
+      "rows_unit": "rows",
+      "download": "Download",
+      "none": "No exports yet."
     },
     "drawer": {
       "import_kicker": "Імпорт CSV",

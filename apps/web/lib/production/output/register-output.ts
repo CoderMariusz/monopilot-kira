@@ -256,10 +256,17 @@ async function nextBatchNumber(
  */
 async function loadConsumedLpIds(ctx: OrgContextLike, woId: string): Promise<string[]> {
   const { rows } = await ctx.client.query<{ lp_id: string }>(
+    // Exclude the sentinel nil UUID that no-LP consumes write
+    // (consume-material-actions.ts: lp_id coalesces to
+    // '00000000-0000-0000-0000-000000000000'). Without this filter a WO whose
+    // only consumes were LP-less would give the output a phantom parent_lp_id
+    // pointing at a license_plates row that does not exist — corrupting
+    // genealogy. Filtering here keeps parent_lp_id null instead.
     `select lp_id::text as lp_id
        from public.wo_material_consumption
       where org_id = app.current_org_id()
         and wo_id = $1::uuid
+        and lp_id <> '00000000-0000-0000-0000-000000000000'::uuid
       group by lp_id
       order by min(consumed_at) asc, lp_id asc`,
     [woId],

@@ -147,7 +147,11 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('insert into public.quality_holds')) {
-        return { rows: [{ id: HOLD_ID }], rowCount: 1 };
+        return { rows: [{ id: HOLD_ID, hold_number: 'HLD-00000001' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('select id::text, quantity::text')) {
@@ -265,5 +269,23 @@ describe('quality inspection server actions', () => {
     expect(lpUpdate?.[1]).toEqual([LP_ID, 'on_hold', USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
     expect(vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'))).toBe(true);
     expect(vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_hold_items'))).toBe(true);
+
+    // The inline inspection-hold MUST emit the canonical quality.hold.created event
+    // (same shape as hold-actions.ts::createHold) so consumers/audit see it.
+    const outbox = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.outbox_events'),
+    );
+    expect(outbox).toBeTruthy();
+    expect(normalize(String(outbox?.[0]))).toContain("'quality.hold.created'");
+    expect(outbox?.[1]?.[0]).toBe(HOLD_ID);
+    const payload = JSON.parse(String(outbox?.[1]?.[1] ?? '{}'));
+    expect(payload).toMatchObject({
+      holdId: HOLD_ID,
+      holdNumber: 'HLD-00000001',
+      referenceType: 'lp',
+      referenceId: LP_ID,
+      lpIds: [LP_ID],
+      source: 'inspection_decision',
+    });
   });
 });

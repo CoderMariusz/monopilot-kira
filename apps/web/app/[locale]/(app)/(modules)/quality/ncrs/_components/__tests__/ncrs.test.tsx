@@ -264,6 +264,7 @@ describe('NcrDetailClient (QA-009a parity)', () => {
       closedAt: null,
       closureSignatureHash: null,
       inspection: null,
+      ccpBreach: null,
       overdue: false,
       ...over,
     };
@@ -301,6 +302,47 @@ describe('NcrDetailClient (QA-009a parity)', () => {
     );
     fireEvent.click(screen.getByTestId('ncr-detail-close-open'));
     expect(screen.getByTestId('ncr-close-form')).toBeInTheDocument();
+  });
+
+  it('does NOT render the CCP breach card for a non-ccp_deviation NCR', () => {
+    render(
+      <NcrDetailClient ncr={makeDetail()} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={vi.fn() as never} closeNcrAction={vi.fn() as never} />,
+    );
+    expect(screen.queryByTestId('ncr-detail-ccp-breach')).not.toBeInTheDocument();
+  });
+
+  it('renders the CCP breach context (code, measured value, limit, reader) for a ccp_deviation NCR', () => {
+    render(
+      <NcrDetailClient
+        ncr={makeDetail({
+          referenceType: 'ccp_deviation',
+          referenceId: 'ccp-uuid-9',
+          ccpBreach: {
+            ccpId: 'ccp-uuid-9',
+            ccpCode: 'CCP-COOK',
+            ccpName: 'Cook temperature',
+            criticalLimitMin: '70.0000',
+            criticalLimitMax: '75.0000',
+            unit: 'C',
+            measuredValue: '69.5000',
+            measuredAt: '2026-04-21T14:35:00.000Z',
+            recordedBy: 'QA Inspector',
+          },
+        })}
+        labels={DETAIL_LABELS}
+        locale="en"
+        updateInvestigationAction={vi.fn() as never}
+        closeNcrAction={vi.fn() as never}
+      />,
+    );
+    const card = screen.getByTestId('ncr-detail-ccp-breach');
+    expect(card).toHaveTextContent('CCP-COOK');
+    expect(card).toHaveTextContent('Cook temperature');
+    expect(screen.getByTestId('ncr-detail-ccp-measured')).toHaveTextContent('69.5000 C');
+    expect(screen.getByTestId('ncr-detail-ccp-limit')).toHaveTextContent('70.0000 C – 75.0000 C');
+    expect(card).toHaveTextContent('QA Inspector');
+    // No raw UUID leaks into the card.
+    expect(card).not.toHaveTextContent('ccp-uuid-9');
   });
 
   it('CLOSED NCR is immutable: shows the signed banner, read-only investigation, and NO actions', () => {

@@ -40,6 +40,8 @@ const PLANNING_NAV_CARDS = [
   { key: "mrp", href: "/planning/mrp" },
   // CL2 — reorder thresholds config (mig 178, T-045 Material Demand).
   { key: "reorderThresholds", href: "/planning/reorder-thresholds" },
+  // Wave E6 — independent demand forecasts feeding MRP (mig 302).
+  { key: "forecasts", href: "/planning/forecasts" },
   // W8 — line schedule board (gantt.jsx SCREEN-08); replaces the sequencing stub.
   { key: "schedule", href: "/planning/schedule" },
 ] as const;

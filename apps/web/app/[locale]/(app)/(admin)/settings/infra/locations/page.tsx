@@ -9,7 +9,7 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
 type Warehouse = { id: string; code: string; name: string };
-type LocationRow = { id: string; warehouseId: string; parentId: string | null; name: string; level: number; path: string; locationType?: string | null };
+type LocationRow = { id: string; warehouseId: string; parentId: string | null; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
 type CreateLocationInput = { csvRowNumber: number; warehouseId: string; parentPath: string | null; name: string; level: number; path: string };
 type CreateLocationResult =
   | { ok: true; data?: unknown }
@@ -117,6 +117,9 @@ type LocationTreeLabels = {
   deleteSuccess: string;
   deleteError: string;
   deleteHasChildren: string;
+  inactive: string;
+  barcodeLabel: string;
+  noBarcode: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -192,6 +195,9 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   deleteSuccess: 'Location deleted.',
   deleteError: 'Location delete failed.',
   deleteHasChildren: 'Delete child locations first.',
+  inactive: 'Inactive',
+  barcodeLabel: 'Barcode',
+  noBarcode: 'No barcode',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;
@@ -271,7 +277,9 @@ async function readLocationData(): Promise<{
                   name,
                   level,
                   path,
-                  location_type as "locationType"
+                  location_type as "locationType",
+                  barcode,
+                  is_active as "isActive"
              from public.locations
             where org_id = app.current_org_id()
             order by path asc`,

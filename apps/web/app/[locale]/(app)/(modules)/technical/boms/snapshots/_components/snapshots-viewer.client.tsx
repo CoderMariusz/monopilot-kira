@@ -78,6 +78,21 @@ function formatTaken(snapshotAt: string): string {
   return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(0, 16).replace('T', ' ');
 }
 
+/**
+ * Human, non-UUID label for a snapshot (Rule 0.11). A snapshot is a frozen BOM
+ * version, so we identify it by its BOM code + version (e.g. `FG5101 · v7`),
+ * falling back to the capture date when the canonical header/code is gone
+ * (orphaned). The raw `s.id` UUID is kept only as a React key / CTA testid.
+ */
+function snapshotLabel(s: SnapshotRow): string {
+  const code = s.productId ?? null;
+  const ver = s.bomVersion === null ? null : `v${s.bomVersion}`;
+  if (code && ver) return `${code} · ${ver}`;
+  if (code) return code;
+  if (ver) return ver;
+  return formatTaken(s.snapshotAt);
+}
+
 export function SnapshotsViewer({
   snapshots,
   diffAction,
@@ -107,7 +122,7 @@ export function SnapshotsViewer({
     const wo = woFilter.trim().toLowerCase();
     return snapshots.filter((s) => {
       if (filter !== 'all' && s.status !== filter) return false;
-      if (wo && !(s.workOrderId ?? '').toLowerCase().includes(wo)) return false;
+      if (wo && !(s.workOrderNumber ?? '').toLowerCase().includes(wo)) return false;
       return true;
     });
   }, [snapshots, filter, woFilter]);
@@ -197,11 +212,11 @@ export function SnapshotsViewer({
               {rows.length ? (
                 rows.map((s) => (
                   <TableRow key={s.id} data-testid="snapshot-row" data-status={s.status}>
-                    <TableCell className="font-mono text-xs">{s.id}</TableCell>
+                    <TableCell className="text-sm font-medium">{snapshotLabel(s)}</TableCell>
                     <TableCell>
                       <Badge variant="info">{s.bomVersion === null ? '—' : `v${s.bomVersion}`}</Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{s.workOrderId ?? labels.noWo}</TableCell>
+                    <TableCell className="font-mono text-sm">{s.workOrderNumber ?? labels.noWo}</TableCell>
                     <TableCell className="text-sm">
                       {s.productId ? (
                         <span>
@@ -246,7 +261,7 @@ export function SnapshotsViewer({
       </div>
 
       <Modal open={Boolean(openSnapshot)} onOpenChange={(o) => (o ? null : setOpenSnapshot(null))} size="xl" modalId="bom_snapshot_diff_modal">
-        <Modal.Header title={`${labels.modalTitle} · ${openSnapshot?.id ?? ''}`} />
+        <Modal.Header title={openSnapshot ? `${labels.modalTitle} · ${snapshotLabel(openSnapshot)}` : labels.modalTitle} />
         <Modal.Body>
           <div data-prototype-label="bom_snapshot_diff_modal" data-testid="snapshot-diff-modal">
             <div role="alert" className="alert alert-red mb-3">

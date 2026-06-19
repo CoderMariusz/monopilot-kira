@@ -76,15 +76,20 @@ export type SoftDeleteUnitResult =
   | { ok: false; error: UnitsActionError; message?: string };
 
 async function hasManagePermission(ctx: OrgActionContext): Promise<boolean> {
+  // Canonical dual-store RBAC check (matches actions/infra/machine.ts, line.ts,
+  // warehouse.ts): LEFT JOIN the normalized role_permissions AND fall back to the
+  // legacy roles.permissions jsonb store + the admin role code/slug allowlist, so a
+  // grant that lives only in jsonb (or an admin role) is never wrongly denied.
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
        from public.user_roles ur
        join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
       where ur.user_id = $1::uuid
         and ur.org_id = $2::uuid
+        and (rp.permission is not null or r.permissions ? $3 or r.code = any($4::text[]) or r.slug = any($4::text[]))
       limit 1`,
-    [ctx.userId, ctx.orgId, MANAGE_PERMISSION],
+    [ctx.userId, ctx.orgId, MANAGE_PERMISSION, ['owner', 'admin', 'module_admin']],
   );
   return rows.length > 0;
 }

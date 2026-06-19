@@ -18,6 +18,35 @@ import {
   type WarehouseResult,
 } from './shared';
 
+/**
+ * WH-006 fix — UNIFIED movement ledger.
+ *
+ * The movements screen historically read ONLY public.stock_moves, but the
+ * receive / consume / output write paths record their LP transitions in
+ * public.lp_state_history (an append-only state ledger) and never write a
+ * stock_moves row. Live consequence: stock_moves=0, lp_state_history=N, so the
+ * Receipts / Consume tabs were permanently empty.
+ *
+ * This action is the SAFE read-side fix: it returns a UNION of the two ledgers
+ * normalized to one StockMoveListItem shape (no write-path changes, no
+ * migration). Both tables are RLS org-scoped via app.current_org_id().
+ *
+ *   stock_moves      → kept as-is (putaway / transfer / issue / adjustment),
+ *                      source='stock_move'.
+ *   lp_state_history → each transition mapped to a movement type:
+ *                        • from=null, to=received, reason scanner_receive_po → 'receipt'
+ *                        • from=null, to=received, reason production_output  → 'production'
+ *                        • to=consumed                                       → 'consume_to_wo'
+ *                        • →available (qa/putaway promotion)                 → 'putaway'
+ *                        • to=blocked/quarantine/returned                    → matching type
+ *                        • fallback                                          → from→to text
+ *                      source='lp_state'. lp_state_history has no qty/location
+ *                      columns, so qty/uom/to-location come from the LP itself
+ *                      (the from-location is unknown → null); the synthetic
+ *                      move # is derived from the history row id.
+ *
+ * Ordered by timestamp desc across both ledgers, then limited.
+ */
 export async function listStockMoves(input: StockMoveListInput = {}): Promise<WarehouseResult<StockMoveListItem[]>> {
   const moveType = asTrimmed(input.moveType);
   const limit = asLimit(input.limit);
@@ -35,29 +64,69 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
         move_type: string;
         from_location_code: string | null;
         to_location_code: string | null;
-        quantity: string;
+        quantity: string | null;
         uom: string | null;
         move_date: string | Date;
         reason_text: string | null;
+        source: 'stock_move' | 'lp_state';
       }>(
-        `select sm.id::text,
-                sm.move_number,
-                sm.lp_id::text,
-                lp.lp_number,
-                sm.move_type,
-                fl.code as from_location_code,
-                tl.code as to_location_code,
-                sm.quantity::text,
-                sm.uom,
-                sm.move_date,
-                sm.reason_text
-           from public.stock_moves sm
-           left join public.license_plates lp on lp.org_id = app.current_org_id() and lp.id = sm.lp_id
-           left join public.locations fl on fl.org_id = app.current_org_id() and fl.id = sm.from_location_id
-           left join public.locations tl on tl.org_id = app.current_org_id() and tl.id = sm.to_location_id
-          where sm.org_id = app.current_org_id()
-            and ($1::text is null or sm.move_type = $1)
-          order by sm.move_date desc, sm.created_at desc
+        `with unified as (
+           -- (a) the explicit stock-move ledger — putaway / transfer / issue / adjustment.
+           select sm.id::text                       as id,
+                  sm.move_number                     as move_number,
+                  sm.lp_id::text                     as lp_id,
+                  lp.lp_number                        as lp_number,
+                  sm.move_type                        as move_type,
+                  fl.code                             as from_location_code,
+                  tl.code                             as to_location_code,
+                  sm.quantity::text                   as quantity,
+                  sm.uom                              as uom,
+                  sm.move_date                        as move_date,
+                  sm.reason_text                      as reason_text,
+                  'stock_move'                        as source
+             from public.stock_moves sm
+             left join public.license_plates lp on lp.org_id = app.current_org_id() and lp.id = sm.lp_id
+             left join public.locations fl on fl.org_id = app.current_org_id() and fl.id = sm.from_location_id
+             left join public.locations tl on tl.org_id = app.current_org_id() and tl.id = sm.to_location_id
+            where sm.org_id = app.current_org_id()
+
+           union all
+
+           -- (b) the LP state-transition ledger — receive / production output / consume / promotion.
+           select h.id::text                          as id,
+                  'LPH-' || upper(left(replace(h.id::text, '-', ''), 12)) as move_number,
+                  h.lp_id::text                        as lp_id,
+                  lp2.lp_number                         as lp_number,
+                  case
+                    when h.to_state = 'received' and h.reason_code = 'production_output' then 'production'
+                    when h.to_state = 'received' then 'receipt'
+                    when h.to_state = 'consumed' then 'consume_to_wo'
+                    when h.to_state = 'available' then 'putaway'
+                    when h.to_state = 'quarantine' then 'quarantine'
+                    when h.to_state = 'returned' then 'return'
+                    when h.to_state = 'blocked' then 'adjustment'
+                    else coalesce(h.from_state, '∅') || '→' || h.to_state
+                  end                                   as move_type,
+                  -- lp_state_history has no location columns; the 'to' is the LP's
+                  -- current location, the 'from' is unknown.
+                  null                                  as from_location_code,
+                  tl2.code                              as to_location_code,
+                  lp2.quantity::text                    as quantity,
+                  lp2.uom                               as uom,
+                  h.transitioned_at                     as move_date,
+                  coalesce(h.reason_text, h.reason_code) as reason_text,
+                  'lp_state'                            as source
+             from public.lp_state_history h
+             left join public.license_plates lp2 on lp2.org_id = app.current_org_id() and lp2.id = h.lp_id
+             left join public.locations tl2 on tl2.org_id = app.current_org_id() and tl2.id = lp2.location_id
+            where h.org_id = app.current_org_id()
+         )
+         select id, move_number, lp_id, lp_number, move_type,
+                from_location_code, to_location_code, quantity, uom,
+                move_date, reason_text, source
+           from unified
+          where ($1::text is null or move_type = $1)
+          order by move_date desc, id desc
           limit $2::integer`,
         [moveType, limit],
       );
@@ -72,10 +141,11 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
           moveType: row.move_type,
           fromLocationCode: row.from_location_code,
           toLocationCode: row.to_location_code,
-          quantity: String(row.quantity),
+          quantity: row.quantity == null ? '' : String(row.quantity),
           uom: row.uom,
           moveDate: toIso(row.move_date) ?? '',
           reasonText: row.reason_text,
+          source: row.source,
         })),
       };
     });
@@ -218,6 +288,7 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
           uom: row.uom,
           moveDate: toIso(row.move_date) ?? '',
           reasonText: row.reason_text,
+          source: 'stock_move',
         },
       };
     });

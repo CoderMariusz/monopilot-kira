@@ -321,6 +321,35 @@ run('W9-K-II output → LP + genealogy (integration)', () => {
     expect(rows[0]!.ext_jsonb.consumed_lp_ids).toEqual([]);
   });
 
+  it('LP-less consumes (nil-UUID sentinel) → output LP parent_lp_id stays null (no phantom parent)', async () => {
+    // A WO whose only consumption rows are no-LP consumes, which the consume
+    // action records as lp_id = '00000000-0000-0000-0000-000000000000'. The
+    // sentinel must NOT become the output's parent_lp_id (that LP row does not
+    // exist — it would corrupt genealogy). loadConsumedLpIds filters it out.
+    const { woId } = await makeWo({ consume: false });
+    await owner.query(
+      `insert into public.wo_material_consumption
+         (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,
+          fefo_adherence_flag, consumed_at)
+       values
+         ($1, $2, $3, $4, '00000000-0000-0000-0000-000000000000', 30, 'kg', true, now() - interval '8 minutes'),
+         ($1, $5, $3, $4, '00000000-0000-0000-0000-000000000000', 20, 'kg', true, now() - interval '4 minutes')`,
+      [seed.orgId, randomUUID(), woId, seed.rmProductId, randomUUID()],
+    );
+    const result = await withAppOrg(owner, app, seed.orgId, (client) =>
+      registerOutput(ctxFor(client, seed.adminUserId), woId, {
+        transaction_id: randomUUID(),
+        output_type: 'primary',
+        product_id: seed.fgProductId,
+        qty_kg: '50',
+      }),
+    );
+    const { rows } = await owner.query<{ parent_lp_id: string | null; ext_jsonb: { consumed_lp_ids: string[] } }>(
+      `select parent_lp_id, ext_jsonb from public.license_plates where id = $1`, [result.lp_id]);
+    expect(rows[0]!.parent_lp_id).toBeNull();
+    expect(rows[0]!.ext_jsonb.consumed_lp_ids).toEqual([]);
+  });
+
   it('replay (same transaction_id) → already_recorded and NO duplicate LP', async () => {
     const { woId } = await makeWo({ consume: true });
     const txId = randomUUID();

@@ -27,6 +27,8 @@ export type SnapshotStatus = 'in_use' | 'closed' | 'orphaned';
 export type SnapshotRow = {
   id: string;
   workOrderId: string | null;
+  /** Human work-order number (work_orders.wo_number). Null when the WO is gone/unset. */
+  workOrderNumber: string | null;
   bomHeaderId: string;
   bomVersion: number | null;
   productId: string | null;
@@ -43,6 +45,7 @@ export type SnapshotRow = {
 export type SnapshotQueryRow = {
   id: string;
   work_order_id: string | null;
+  wo_number: string | null;
   bom_header_id: string;
   bom_version: number | null;
   product_id: string | null;
@@ -66,6 +69,7 @@ export type SnapshotQueryRow = {
 export const LIST_SNAPSHOTS_SQL = `select
            s.id,
            s.work_order_id,
+           wo.wo_number as wo_number,
            s.bom_header_id,
            h.version as bom_version,
            h.product_id,
@@ -81,6 +85,8 @@ export const LIST_SNAPSHOTS_SQL = `select
            on h.id = s.bom_header_id and h.org_id = app.current_org_id()
          left join public.product p
            on p.product_code = h.product_id and p.org_id = app.current_org_id()
+         left join public.work_orders wo
+           on wo.id = s.work_order_id and wo.org_id = app.current_org_id()
          where s.org_id = app.current_org_id()
          order by s.snapshot_at desc, s.id desc`;
 
@@ -93,6 +99,7 @@ export function mapSnapshotRow(r: SnapshotQueryRow): SnapshotRow {
   return {
     id: String(r.id),
     workOrderId: r.work_order_id ? String(r.work_order_id) : null,
+    workOrderNumber: r.wo_number ? String(r.wo_number) : null,
     bomHeaderId: String(r.bom_header_id),
     bomVersion: r.bom_version === null ? null : Number(r.bom_version),
     productId: r.product_id,

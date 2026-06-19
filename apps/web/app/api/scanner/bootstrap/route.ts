@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       [session.org_id],
     );
     const linesResult = await client.query<{ id: string; name: string; site_id: string | null }>(
-      `select id, name, null::uuid as site_id
+      `select id, name, site_id
          from public.production_lines
         where org_id = $1::uuid
           and status = 'active'

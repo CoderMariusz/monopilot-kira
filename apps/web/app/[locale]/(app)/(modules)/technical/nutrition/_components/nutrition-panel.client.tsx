@@ -112,7 +112,7 @@ function PanelView({ panel, copy }: { panel: NutritionPanel; copy: NutritionCopy
                       {m.per100g} {m.unit}
                     </td>
                     <td className="num mono" style={{ textAlign: 'right', color: 'var(--muted)' }}>
-                      {m.perPortion} {m.unit}
+                      {m.perPortion ? `${m.perPortion} ${m.unit}` : '—'}
                     </td>
                     <td>
                       <span className="badge badge-gray">{m.regulation}</span>

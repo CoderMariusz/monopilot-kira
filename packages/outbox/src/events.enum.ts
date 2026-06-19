@@ -109,6 +109,7 @@ export enum EventType {
   // assignment.approved/overridden/bulk_approved become WO commits), 12-reporting (audit/KPI),
   // 06-scanner (planned WO list), planning dashboard (run.completed), solver cache
   // (matrix.version.published invalidate). See MON-domain-planning §"Outbox events".
+  PLANNING_MRP_COMPLETED = 'planning.mrp.completed',
   PLANNING_SCHEDULE_PUBLISHED = 'planning.schedule.published',
   SCHEDULER_RUN_COMPLETED = 'scheduler.run.completed',
   SCHEDULER_ASSIGNMENT_APPROVED = 'scheduler.assignment.approved',
@@ -324,6 +325,7 @@ export const ALL_FINANCE_EVENTS = [
  * changeover cache. Referenced by the planning-ext module sign-off contract.
  */
 export const ALL_SCHEDULER_EVENTS = [
+  EventType.PLANNING_MRP_COMPLETED,
   EventType.PLANNING_SCHEDULE_PUBLISHED,
   EventType.SCHEDULER_RUN_COMPLETED,
   EventType.SCHEDULER_ASSIGNMENT_APPROVED,

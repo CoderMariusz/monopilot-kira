@@ -23,6 +23,8 @@ type LocationRow = {
   location_type?: string;
   level: number;
   path: string;
+  barcode?: string | null;
+  is_active?: boolean;
 };
 
 type ParsedLocationInput = {
@@ -95,8 +97,8 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
       const path = parent ? `${parent.path}.${input.code}` : input.code;
       const { rows } = await client.query<LocationRow>(
         `insert into public.locations
-           (id, org_id, warehouse_id, parent_id, code, name, location_type, level, path)
-         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3::uuid, $4, $5, $6, $7::integer, $8)
+           (id, org_id, warehouse_id, parent_id, code, name, location_type, level, path, barcode, is_active)
+         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3::uuid, $4, $5, $6, $7::integer, $8, $9, $10::boolean)
          on conflict (id) do update set
            warehouse_id = excluded.warehouse_id,
            parent_id = excluded.parent_id,
@@ -104,9 +106,11 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
            name = excluded.name,
            location_type = excluded.location_type,
            level = excluded.level,
-           path = excluded.path
-         returning id, warehouse_id, parent_id, code, name, location_type, level, path`,
-        [input.id, input.warehouseId, input.parentId, input.code, input.name, input.locationType, input.level, path],
+           path = excluded.path,
+           barcode = excluded.barcode,
+           is_active = excluded.is_active
+         returning id, warehouse_id, parent_id, code, name, location_type, level, path, barcode, is_active`,
+        [input.id, input.warehouseId, input.parentId, input.code, input.name, input.locationType, input.level, path, input.barcode, input.active],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
@@ -119,11 +123,7 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
         payload: { location_id: row.id, warehouse_id: input.warehouseId, path: row.path, level: row.level, active: input.active, barcode: input.barcode, actor_user_id: userId },
       });
 
-      try {
-        revalidatePath('/en/settings/infra/locations');
-      } catch (error) {
-        console.warn('[settings/infra/locations] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
-      }
+      revalidateLocationsPath();
 
       return { ok: true, data: { id: row.id, path: row.path, level: row.level } };
     });
@@ -171,16 +171,24 @@ export async function deleteLocation(rawInput: unknown): Promise<DeleteLocationR
         payload: { location_id: deleted.id, warehouse_id: deleted.warehouse_id, path: deleted.path, actor_user_id: userId },
       });
 
-      try {
-        revalidatePath('/en/settings/infra/locations');
-      } catch (error) {
-        console.warn('[settings/infra/locations] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
-      }
+      revalidateLocationsPath();
 
       return { ok: true, data: { locationId: deleted.id, warehouseId: deleted.warehouse_id } };
     });
   } catch {
     return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+// Locale-aware revalidation. The page lives at app/[locale]/.../settings/infra/locations
+// — route groups (app)/(admin) are not URL segments. The server action has no locale
+// in scope, so we revalidate the dynamic [locale] segment with the 'page' type, which
+// covers every locale variant (en/pl/ro/uk) instead of the old hardcoded /en/ path.
+function revalidateLocationsPath(): void {
+  try {
+    revalidatePath('/[locale]/settings/infra/locations', 'page');
+  } catch (error) {
+    console.warn('[settings/infra/locations] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
   }
 }
 

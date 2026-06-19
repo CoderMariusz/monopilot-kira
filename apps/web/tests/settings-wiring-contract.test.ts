@@ -9,6 +9,7 @@ const SITE_ID = '44444444-4444-4444-8444-444444444444';
 const SHIFT_PATTERN_ID = '55555555-5555-4555-8555-555555555555';
 const DEVICE_ID = '66666666-6666-4666-8666-666666666666';
 const IMPORT_JOB_ID = '77777777-7777-4777-8777-777777777777';
+const EXPORT_JOB_ID = '99999999-9999-4999-8999-999999999999';
 const LABEL_TEMPLATE_ID = '88888888-8888-4888-8888-888888888888';
 const LINE_ID = '99999999-9999-4999-8999-999999999999';
 const OVERRIDE_TYPE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -188,7 +189,9 @@ function makeClient(): FakeClient {
         };
       }
 
-      if (normalized.includes('from public.scanner_devices')) {
+      // SELECT list query (queryDevices) joins sites + production_lines to resolve
+      // human site_name / line_name (Rule 0.11: no raw UUID in the UI).
+      if (normalized.includes('from public.scanner_devices d')) {
         return {
           rows: [
             {
@@ -196,9 +199,37 @@ function makeClient(): FakeClient {
               name: 'Handheld 01',
               model: 'Zebra TC22',
               site_id: SITE_ID,
+              site_name: 'Apex Warsaw',
               line_id: 'LINE-1',
+              line_name: 'Yoghurt line',
               battery_level: 87,
               last_seen_at: '2026-06-06T09:00:00.000Z',
+              status: 'online',
+              org_id: ORG_ID,
+            },
+          ] as never[],
+          rowCount: 1,
+        };
+      }
+
+      // pairDevice wraps the INSERT in a CTE then re-selects with the same joins
+      // (`with inserted as (insert into public.scanner_devices …) select … from inserted d`).
+      if (
+        normalized.includes('into public.scanner_devices') &&
+        normalized.includes('from inserted d')
+      ) {
+        return {
+          rows: [
+            {
+              id: DEVICE_ID,
+              name: String(params[1]),
+              model: String(params[2]),
+              site_id: params[3] as string | null,
+              site_name: params[3] ? 'Apex Warsaw' : null,
+              line_id: params[4] as string | null,
+              line_name: params[4] ? 'Yoghurt line' : null,
+              battery_level: 100,
+              last_seen_at: '2026-06-06T10:00:00.000Z',
               status: 'online',
               org_id: ORG_ID,
             },
@@ -257,6 +288,24 @@ function makeClient(): FakeClient {
         };
       }
 
+      // Export ledger (kind='export'): cross-module exports such as the Purchase
+      // Orders "Export to file" action (target='purchase_orders') must surface here.
+      if (normalized.includes('from public.import_export_jobs') && normalized.includes("and kind = 'export'")) {
+        return {
+          rows: [
+            {
+              id: EXPORT_JOB_ID,
+              target: 'purchase_orders',
+              status: 'completed',
+              progress_processed: 17,
+              download_url: '/api/settings/import-export/jobs/' + EXPORT_JOB_ID,
+              created_at: '2026-06-06T09:00:00.000Z',
+            },
+          ] as never[],
+          rowCount: 1,
+        };
+      }
+
       if (normalized.includes('from public.label_templates') && !normalized.startsWith('insert into public.label_templates')) {
         return {
           rows: [
@@ -270,25 +319,6 @@ function makeClient(): FakeClient {
               status: 'active',
               created_at: '2026-06-01T10:00:00.000Z',
               updated_at: '2026-06-06T10:00:00.000Z',
-            },
-          ] as never[],
-          rowCount: 1,
-        };
-      }
-
-      if (normalized.startsWith('insert into public.scanner_devices')) {
-        return {
-          rows: [
-            {
-              id: DEVICE_ID,
-              name: String(params[1]),
-              model: String(params[2]),
-              site_id: params[3] as string | null,
-              line_id: params[4] as string | null,
-              battery_level: 100,
-              last_seen_at: '2026-06-06T10:00:00.000Z',
-              status: 'online',
-              org_id: ORG_ID,
             },
           ] as never[],
           rowCount: 1,
@@ -707,7 +737,9 @@ describe('settings shifts/devices wiring contract', () => {
           name: 'Handheld 01',
           model: 'Zebra TC22',
           site_id: SITE_ID,
+          site_name: 'Apex Warsaw',
           line_id: 'LINE-1',
+          line_name: 'Yoghurt line',
           battery_level: 87,
           last_seen_at: '2026-06-06T09:00:00.000Z',
           status: 'online',
@@ -1104,6 +1136,19 @@ describe('settings shifts/devices wiring contract', () => {
           completed_at: '2026-06-05T12:01:00.000Z',
         },
       ],
+      // Recent EXPORT jobs (kind='export') — cross-module exports (e.g. the
+      // Purchase Orders export-to-file action, target='purchase_orders') surface
+      // verbatim so the export ledger is honest and downloadable.
+      recent_exports: [
+        {
+          id: EXPORT_JOB_ID,
+          target: 'purchase_orders',
+          status: 'completed',
+          rows_processed: 17,
+          download_url: '/api/settings/import-export/jobs/' + EXPORT_JOB_ID,
+          created_at: '2026-06-06T09:00:00.000Z',
+        },
+      ],
     });
 
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
@@ -1112,10 +1157,14 @@ describe('settings shifts/devices wiring contract', () => {
     expect(sql).toContain('from public.supplier_specs s');
     expect(sql).toContain('from public.import_export_jobs');
     expect(sql).toContain('app.current_org_id()');
+    // The hub must read BOTH the import jobs (entity-scoped) and the export ledger
+    // (kind='export', cross-module) so PO/etc. exports are not invisible.
+    expect(sql).toContain("kind = 'import'");
+    expect(sql).toContain("kind = 'export'");
     expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
 
     const crossOrg = await withFakeOrg(client, () => mod.getImportableEntities(OTHER_ORG_ID));
-    expect(crossOrg).toEqual({ org_id: ORG_ID, entities: [], recent_jobs: [] });
+    expect(crossOrg).toEqual({ org_id: ORG_ID, entities: [], recent_jobs: [], recent_exports: [] });
   });
 
   it('wires Label Templates list and producers through org-scoped label_templates rows', async () => {

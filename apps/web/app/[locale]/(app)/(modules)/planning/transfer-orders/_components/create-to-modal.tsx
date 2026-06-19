@@ -43,7 +43,7 @@ import { Select } from '@monopilot/ui/Select';
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
-import { UomSelect, type UomValue } from '../../../../../../../components/forms/uom-select';
+import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 
 type CreateTransferOrderResult =
   | { ok: true; data: unknown }
@@ -67,8 +67,18 @@ export type CreateToLabels = {
   lineColumns: { seq: string; product: string; qty: string; uom: string; remove: string };
   /** Placeholder for the per-line UoM dropdown when nothing is selected. */
   uomPlaceholder: string;
-  /** Localized labels for the canonical UoM dropdown options (kg/g/l/ml/pcs/pack/box/pallet). */
-  uomOptions: Partial<Record<UomValue, string>>;
+  /**
+   * Display labels for the UoM dropdown options, keyed by unit code. Covers the
+   * canonical units (kg/g/l/…) and any org-defined unit read from the real
+   * unit_of_measure master.
+   */
+  uomOptions: UomOptionLabels;
+  /**
+   * Ordered unit codes to offer in the UoM dropdown. Sourced from the org's
+   * unit_of_measure master so admin-added units appear; when empty the dropdown
+   * keeps its canonical default set.
+   */
+  uomUnits?: readonly string[];
   picker: {
     trigger: string;
     searchLabel: string;
@@ -370,6 +380,7 @@ export function CreateToModal({
                           value={l.uom}
                           onValueChange={(uom) => setLineUom(l.key, uom)}
                           labels={labels.uomOptions}
+                          {...(labels.uomUnits && labels.uomUnits.length > 0 ? { units: labels.uomUnits } : {})}
                           placeholder={labels.uomPlaceholder}
                           aria-label={labels.lineColumns.uom}
                           className="w-20"

@@ -61,6 +61,23 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
 
 const TERMINAL = new Set(['closed', 'cancelled']);
 
+/** Formats a CCP critical limit (min / max / range / none) into a human string. */
+function formatCriticalLimit(
+  min: string | null,
+  max: string | null,
+  unit: string | null,
+  labels: NcrDetailLabels['ccpBreach'],
+): string {
+  const u = unit ? ` ${unit}` : '';
+  const withUnit = (value: string) => `${value}${u}`;
+  if (min !== null && max !== null) {
+    return labels.limitRange.replace('{min}', withUnit(min)).replace('{max}', withUnit(max));
+  }
+  if (min !== null) return labels.limitMin.replace('{value}', withUnit(min));
+  if (max !== null) return labels.limitMax.replace('{value}', withUnit(max));
+  return labels.limitNone;
+}
+
 export type NcrDetailLabels = {
   backToNcrs: string;
   overdueBanner: string;
@@ -96,6 +113,20 @@ export type NcrDetailLabels = {
   rootCauseCategories: Record<string, string>;
   capa: { title: string; badge: string; body: string };
   linked: { title: string; hold: string; reference: string; none: string };
+  ccpBreach: {
+    title: string;
+    ccp: string;
+    measuredValue: string;
+    criticalLimit: string;
+    limitMin: string;
+    limitMax: string;
+    limitRange: string;
+    limitNone: string;
+    measuredAt: string;
+    recordedBy: string;
+    noReading: string;
+    none: string;
+  };
   dualSign: string;
   severityValues: Record<string, string>;
   statusValues: Record<string, string>;
@@ -387,6 +418,59 @@ export function NcrDetailClient({
               </dd>
             </dl>
           </Card>
+
+          {/* CCP breach context — only for NCRs auto-created from a CCP critical-
+              limit breach (referenceType 'ccp_deviation'). Surfaces WHICH CCP / what
+              measured value breached which limit, with the reading timestamp + reader
+              (no raw UUIDs), so the NCR detail is no longer context-blind. */}
+          {ncr.ccpBreach && (
+            <Card
+              data-testid="ncr-detail-ccp-breach"
+              className="rounded-xl border border-amber-200 bg-amber-50/70 p-4"
+            >
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-900">
+                <span aria-hidden>⚠</span>
+                {labels.ccpBreach.title}
+              </h2>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
+                <dt className="text-amber-800/70">{labels.ccpBreach.ccp}</dt>
+                <dd className="text-amber-900">
+                  <span className="font-mono font-semibold">{ncr.ccpBreach.ccpCode}</span>
+                  {ncr.ccpBreach.ccpName ? <span className="text-amber-800"> · {ncr.ccpBreach.ccpName}</span> : null}
+                </dd>
+
+                <dt className="text-amber-800/70">{labels.ccpBreach.measuredValue}</dt>
+                <dd className="font-mono font-semibold text-red-700" data-testid="ncr-detail-ccp-measured">
+                  {ncr.ccpBreach.measuredValue
+                    ? `${ncr.ccpBreach.measuredValue}${ncr.ccpBreach.unit ? ` ${ncr.ccpBreach.unit}` : ''}`
+                    : labels.ccpBreach.none}
+                </dd>
+
+                <dt className="text-amber-800/70">{labels.ccpBreach.criticalLimit}</dt>
+                <dd className="font-mono text-amber-900" data-testid="ncr-detail-ccp-limit">
+                  {formatCriticalLimit(
+                    ncr.ccpBreach.criticalLimitMin,
+                    ncr.ccpBreach.criticalLimitMax,
+                    ncr.ccpBreach.unit,
+                    labels.ccpBreach,
+                  )}
+                </dd>
+
+                <dt className="text-amber-800/70">{labels.ccpBreach.measuredAt}</dt>
+                <dd className="font-mono text-amber-900">
+                  {ncr.ccpBreach.measuredAt
+                    ? ncr.ccpBreach.measuredAt.slice(0, 16).replace('T', ' ')
+                    : labels.ccpBreach.none}
+                </dd>
+
+                <dt className="text-amber-800/70">{labels.ccpBreach.recordedBy}</dt>
+                <dd className="text-amber-900">{ncr.ccpBreach.recordedBy ?? labels.ccpBreach.none}</dd>
+              </dl>
+              {!ncr.ccpBreach.measuredValue && (
+                <p className="mt-3 text-[11px] leading-relaxed text-amber-800/80">{labels.ccpBreach.noReading}</p>
+              )}
+            </Card>
+          )}
 
           {/* Critical dual-sign reg note (parity ncr-screens.jsx:341-345). */}
           {isCritical && (

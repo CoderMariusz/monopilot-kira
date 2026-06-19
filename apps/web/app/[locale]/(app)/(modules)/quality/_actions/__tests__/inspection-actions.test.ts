@@ -115,9 +115,12 @@ function makeClient(): QueryClient {
       if (q.startsWith('update public.license_plates')) {
         return { rows: [{ id: LP_ID }], rowCount: 1 };
       }
-      // createLpHold: hold insert (returning id), LP qty select, hold-items insert.
+      // createLpHold: hold insert (returning id + hold_number), LP qty select, hold-items insert.
       if (q.startsWith('insert into public.quality_holds')) {
-        return { rows: [{ id: HOLD_ID }], rowCount: 1 };
+        return { rows: [{ id: HOLD_ID, hold_number: 'HLD-00000001' }], rowCount: 1 };
+      }
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('select id::text, quantity::text')) {
         return { rows: [{ id: LP_ID, quantity: '12.500' }], rowCount: 1 };
@@ -288,6 +291,11 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     expect(itemInsert).toBeTruthy();
     // decimal qty stays a string end-to-end
     expect(itemInsert?.[1]).toEqual([HOLD_ID, LP_ID, '12.500', 'checked']);
+    // and emits the canonical quality.hold.created outbox event for the inline hold.
+    const outbox = findCall('insert into public.outbox_events');
+    expect(outbox).toBeTruthy();
+    expect(normalize(String(outbox?.[0]))).toContain("'quality.hold.created'");
+    expect(outbox?.[1]?.[0]).toBe(HOLD_ID);
   });
 
   it('(d) re-submitting an already-final inspection is rejected without signing or mutating', async () => {

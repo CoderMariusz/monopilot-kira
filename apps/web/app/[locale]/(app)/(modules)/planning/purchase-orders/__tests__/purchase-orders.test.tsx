@@ -30,6 +30,7 @@ import { PoDetailView, type PoDetailLabels, type PoDetail } from '../_components
 import type { CreatePoResult } from '../_components/create-po-modal';
 import type { PoTransitionResult } from '../_components/po-detail-view';
 import type { PoSupplierOption } from '../_actions/po-form-data';
+import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/create-export-job';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 
 const refresh = vi.fn();
@@ -58,6 +59,9 @@ const errors = {
 
 const listLabels: PoListLabels = {
   createPo: 'Create PO',
+  exportLabel: 'Export',
+  exporting: 'Exporting…',
+  exportError: 'Export failed. Please retry.',
   searchPlaceholder: 'Search PO number or supplier…',
   rowsCount: '{n} rows',
   supplierFilterLabel: 'Supplier',
@@ -196,6 +200,9 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
     { id: 'item-1', itemCode: 'RM-001', name: 'Pork Belly', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
   ]);
   const createPurchaseOrderAction = vi.fn<[unknown], Promise<CreatePoResult>>();
+  const createExportJobAction = vi
+    .fn<[CreateExportJobInput], Promise<CreateExportJobResult>>()
+    .mockResolvedValue({ ok: true, data: { jobId: 'job-1', filename: 'purchase-orders-2026-06-18.csv', csv: 'po_number\r\nPO-DRAFT', rows: 1 } });
   const utils = render(
     <PoListView
       locale="en"
@@ -205,10 +212,11 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
       archivedCount={2}
       searchPoItemsAction={searchPoItemsAction}
       createPurchaseOrderAction={createPurchaseOrderAction}
+      createExportJobAction={createExportJobAction}
       {...props}
     />,
   );
-  return { ...utils, searchPoItemsAction, createPurchaseOrderAction };
+  return { ...utils, searchPoItemsAction, createPurchaseOrderAction, createExportJobAction };
 }
 
 beforeEach(() => {
@@ -282,6 +290,49 @@ describe('PoListView — archive tab (server re-fetch via ?archived=1)', () => {
     expect(screen.getByTestId('po-list-back-active')).toHaveAttribute('href', '/en/planning/purchase-orders');
     // status tabs become links back to the active list (not client-filter buttons)
     expect(screen.getByTestId('po-list-tab-all')).toHaveAttribute('href', '/en/planning/purchase-orders');
+  });
+});
+
+describe('PoListView — Export to file (Wave E-IO)', () => {
+  it('renders an Export button beside the create action', () => {
+    renderList();
+    const exportBtn = screen.getByTestId('po-list-export');
+    expect(exportBtn).toHaveTextContent('Export');
+    expect(screen.getByTestId('po-list-create')).toBeInTheDocument();
+  });
+
+  it('calls createExportJob with the CURRENT filters and triggers a CSV download', async () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:po-export');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { createExportJobAction } = renderList();
+    // narrow the on-screen filter so we can assert it is forwarded verbatim
+    fireEvent.click(screen.getByTestId('po-list-tab-sent'));
+    fireEvent.change(screen.getByTestId('po-list-search'), { target: { value: 'PO-SENT' } });
+
+    fireEvent.click(screen.getByTestId('po-list-export'));
+
+    await waitFor(() => expect(createExportJobAction).toHaveBeenCalledTimes(1));
+    expect(createExportJobAction).toHaveBeenCalledWith({
+      status: 'sent',
+      q: 'PO-SENT',
+      supplierId: undefined,
+      archived: false,
+    });
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces an inline error when the export action fails', async () => {
+    const createExportJobAction = vi
+      .fn<[CreateExportJobInput], Promise<CreateExportJobResult>>()
+      .mockResolvedValue({ ok: false, error: 'persistence_failed' });
+    renderList({ createExportJobAction });
+    fireEvent.click(screen.getByTestId('po-list-export'));
+    await waitFor(() => expect(screen.getByTestId('po-list-export-error')).toBeInTheDocument());
+    expect(screen.getByTestId('po-list-export-error')).toHaveTextContent('Export failed. Please retry.');
   });
 });
 

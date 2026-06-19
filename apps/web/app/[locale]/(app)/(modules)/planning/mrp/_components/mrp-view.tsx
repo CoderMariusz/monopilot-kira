@@ -23,6 +23,8 @@
 import React, { useEffect, useState, useTransition } from 'react';
 
 import type {
+  MrpConvertResult,
+  MrpPlannedOrder,
   MrpRunData,
   MrpRunInput,
   MrpRunRequirement,
@@ -31,6 +33,7 @@ import type {
   MrpRunsListResult,
   MrpRunSummary,
 } from '../../_actions/mrp';
+import { convertPlannedToPo, convertPlannedToWo } from '../../_actions/mrp';
 import type { MrpRow, MrpSeverity } from '../../_actions/mrp-compute';
 
 export type MrpLabels = {
@@ -207,6 +210,71 @@ function ResultsTable({ rows, labels }: { rows: MrpRow[]; labels: MrpLabels }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function PlannedOrdersTable({
+  rows,
+  selectedIds,
+  onToggle,
+}: {
+  rows: MrpPlannedOrder[];
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="card" data-testid="mrp-planned-orders">
+      <div className="card-head">
+        <div className="card-title">Planned orders</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" data-testid="mrp-planned-orders-table">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+              <th className="px-3 py-2">Select</th>
+              <th className="px-3 py-2">Item</th>
+              <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2 text-right">Qty</th>
+              <th className="px-3 py-2">Need by</th>
+              <th className="px-3 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <tr key={row.id} data-testid={`mrp-planned-order-${row.id}`}>
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(row.id)}
+                    onChange={() => onToggle(row.id)}
+                    aria-label={`Select ${row.itemCode ?? row.id}`}
+                    data-testid={`mrp-planned-select-${row.id}`}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <div className="font-mono text-xs font-semibold text-slate-800">{row.itemCode ?? row.itemId}</div>
+                  <div className="text-slate-600">{row.itemName ?? ''}</div>
+                </td>
+                <td className="px-3 py-2">
+                  <span className={row.type === 'make' ? 'badge badge-blue' : row.type === 'buy' ? 'badge badge-amber' : 'badge badge-gray'}>
+                    {row.type}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right font-mono">
+                  {row.qty} {row.uom}
+                </td>
+                <td className="px-3 py-2">{row.needBy}</td>
+                <td className="px-3 py-2">
+                  <span className="badge badge-gray">{row.status}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -410,13 +478,46 @@ export function MrpView({
   const [result, setResult] = useState<MrpRunResult | null>(null);
   const [persist, setPersist] = useState(false);
   const [runsRefreshKey, setRunsRefreshKey] = useState(0);
+  const [selectedPlannedIds, setSelectedPlannedIds] = useState<Set<string>>(new Set());
+  const [convertFeedback, setConvertFeedback] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [convertPending, startConvertTransition] = useTransition();
 
   const onRun = () => {
     startTransition(async () => {
       const next = await runAction({ persist });
       setResult(next);
+      setSelectedPlannedIds(new Set());
+      setConvertFeedback(null);
       if (next.ok && next.data.runId) setRunsRefreshKey((k) => k + 1);
+    });
+  };
+
+  const togglePlanned = (id: string) => {
+    setSelectedPlannedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const summarizeConversion = (result: MrpConvertResult, noun: 'PO' | 'WO') => {
+    if (!result.ok) return `Create ${noun} failed: ${result.error}`;
+    const skipped = result.skipped.length > 0 ? `, skipped ${result.skipped.length}: ${result.skipped.map((s) => s.reason).join(', ')}` : '';
+    return `Created ${result.created} ${noun}${result.created === 1 ? '' : 's'}${skipped}`;
+  };
+
+  const convertSelected = (kind: 'po' | 'wo') => {
+    const ids = [...selectedPlannedIds];
+    if (ids.length === 0 || convertPending) return;
+    startConvertTransition(async () => {
+      const next = kind === 'po' ? await convertPlannedToPo(ids) : await convertPlannedToWo(ids);
+      setConvertFeedback(summarizeConversion(next, kind === 'po' ? 'PO' : 'WO'));
+      if (next.ok) {
+        setSelectedPlannedIds(new Set());
+        setRunsRefreshKey((k) => k + 1);
+      }
     });
   };
 
@@ -501,6 +602,38 @@ export function MrpView({
       {result?.ok ? (
         <>
           <KpiTiles data={result.data} labels={labels} />
+          {result.data.plannedOrders.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm text-slate-500" data-testid="mrp-planned-selection-count">
+                {selectedPlannedIds.size} selected
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={selectedPlannedIds.size === 0 || convertPending}
+                  onClick={() => convertSelected('po')}
+                  data-testid="mrp-create-po-button"
+                >
+                  Create PO
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={selectedPlannedIds.size === 0 || convertPending}
+                  onClick={() => convertSelected('wo')}
+                  data-testid="mrp-create-wo-button"
+                >
+                  Create WO
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {convertFeedback ? (
+            <div role="status" className="rounded-xl border border-slate-200 bg-slate-50 px-6 py-4 text-sm text-slate-700" data-testid="mrp-convert-feedback">
+              {convertFeedback}
+            </div>
+          ) : null}
           <div className="card">
             {result.data.rows.length === 0 ? (
               <div className="empty-state" data-testid="mrp-empty-rows">
@@ -513,6 +646,7 @@ export function MrpView({
               <ResultsTable rows={result.data.rows} labels={labels} />
             )}
           </div>
+          <PlannedOrdersTable rows={result.data.plannedOrders} selectedIds={selectedPlannedIds} onToggle={togglePlanned} />
         </>
       ) : null}
 

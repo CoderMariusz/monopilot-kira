@@ -104,6 +104,7 @@ export type SpecDetailLabels = {
     supersedePick: string;
     supersedePlaceholder: string;
     superseding: string;
+    formIncomplete: string;
     submitError: string;
     supersedeError: string;
   };
@@ -359,6 +360,7 @@ export function SpecDetailClient({
                         data-testid="spec-supersede-submit"
                         disabled={supersedeBy === '' || pending}
                         onClick={supersede}
+                        title={supersedeBy === '' ? labels.actions.formIncomplete : undefined}
                         className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-slate-800 disabled:opacity-50"
                       >
                         {pending ? labels.actions.superseding : labels.actions.supersede}

@@ -99,6 +99,43 @@ export const TransferOrderCreateInput = z.object({
   lines: z.array(TransferOrderLineInput).min(1).max(200),
 });
 
+/** A unit-of-measure row offered in the PO/TO line UoM pickers (code + name). */
+export type OrgUnitOption = {
+  /** Stable code stored on the line (e.g. 'kg', 'L', or an admin-added code). */
+  code: string;
+  /** Human-readable name (e.g. 'Kilogram'); never a raw UUID. */
+  name: string;
+  /** mass | volume | count — used only for grouping/ordering. */
+  category: string;
+};
+
+/**
+ * Active units of measure for the current org, read from the REAL
+ * public.unit_of_measure master (the same table Settings → Units writes to via
+ * createUnit). This is what makes admin-added units appear in the PO/TO line UoM
+ * pickers — the screens must NOT hardcode a static {kg,g,l,…} list.
+ *
+ * Runs inside the caller's withOrgContext (org_id = app.current_org_id() via RLS),
+ * active rows only (deleted_at is null), ordered base-first then by code so the
+ * dropdown ordering is stable and sensible. Never surfaces UUIDs.
+ */
+export async function listOrgUnits(client: QueryClient): Promise<OrgUnitOption[]> {
+  const { rows } = await client.query<{ code: string | null; name: string | null; category: string | null }>(
+    `select code, name, category
+       from public.unit_of_measure
+      where org_id = app.current_org_id()
+        and deleted_at is null
+      order by category asc, is_base desc, code asc`,
+  );
+  return rows
+    .map((r) => ({
+      code: typeof r.code === 'string' ? r.code.trim() : '',
+      name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : typeof r.code === 'string' ? r.code.trim() : '',
+      category: typeof r.category === 'string' ? r.category : '',
+    }))
+    .filter((u) => u.code.length > 0);
+}
+
 export async function hasPlanningWritePermission(ctx: OrgActionContext): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok

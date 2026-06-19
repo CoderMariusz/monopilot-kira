@@ -25,6 +25,7 @@
 import { listSuppliers } from '../../suppliers/_actions/actions';
 import { searchItems, type ItemPickerOption, type SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { listOrgUnits, type OrgUnitOption, type QueryClient } from '../../_actions/procurement-shared';
 
 export type PoSupplierOption = {
   id: string;
@@ -62,6 +63,23 @@ export async function searchPoItems(input: SearchItemsInput = {}): Promise<ItemP
     const itemTypes =
       input.itemTypes && input.itemTypes.length > 0 ? input.itemTypes : [...PO_PURCHASABLE_ITEM_TYPES];
     return await searchItems({ ...input, itemTypes });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Active units of measure for the PO line UoM picker, read from the REAL
+ * public.unit_of_measure master (org-scoped). Replaces the page's old hardcoded
+ * {kg,g,l,…} list, so units an admin adds in Settings → Units appear here. Falls
+ * back to an empty list (the caller then keeps the canonical defaults) on read
+ * failure rather than throwing.
+ */
+export async function listPoUnits(): Promise<OrgUnitOption[]> {
+  try {
+    return await withOrgContext<OrgUnitOption[]>(async (ctx) =>
+      listOrgUnits(ctx.client as unknown as QueryClient),
+    );
   } catch {
     return [];
   }

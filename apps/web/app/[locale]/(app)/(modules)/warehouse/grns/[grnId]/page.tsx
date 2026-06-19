@@ -93,6 +93,7 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
       cancel: t('grnDetail.cancelLine.cancel'),
       submit: t('grnDetail.cancelLine.submit'),
       submitting: t('grnDetail.cancelLine.submitting'),
+      formIncomplete: 'Complete all required fields to continue.',
       errors: {
         forbidden: t('grnDetail.cancelLine.errors.forbidden'),
         not_found: t('grnDetail.cancelLine.errors.not_found'),

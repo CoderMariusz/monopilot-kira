@@ -47,12 +47,17 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): MovementListLabels
     },
     moveType: {
       receipt: t('movements.moveType.receipt'),
+      production: t('movements.moveType.production'),
       putaway: t('movements.moveType.putaway'),
       transfer: t('movements.moveType.transfer'),
       consume_to_wo: t('movements.moveType.consume_to_wo'),
       adjustment: t('movements.moveType.adjustment'),
       quarantine: t('movements.moveType.quarantine'),
       return: t('movements.moveType.return'),
+    },
+    source: {
+      stock_move: t('movements.source.stock_move'),
+      lp_state: t('movements.source.lp_state'),
     },
     col: {
       move: t('movements.columns.move'),

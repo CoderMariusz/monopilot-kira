@@ -15,6 +15,7 @@
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   canApproveFactorySpec,
+  canRecallFactorySpec,
   type FactorySpecListItem,
   isFactorySpecStatus,
   type OrgActionContext,
@@ -26,6 +27,8 @@ export type ListFactorySpecsState = 'ready' | 'empty' | 'error';
 export type ListFactorySpecsResult = {
   specs: FactorySpecListItem[];
   canApprove: boolean;
+  /** R4-CL2 — caller holds technical.factory_spec.recall (gates "Recall to draft"). */
+  canRecall: boolean;
   state: ListFactorySpecsState;
 };
 
@@ -72,7 +75,7 @@ export async function listFactorySpecs(): Promise<ListFactorySpecsResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<ListFactorySpecsResult> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      const [specsResult, canApprove] = await Promise.all([
+      const [specsResult, canApprove, canRecall] = await Promise.all([
         (client as QueryClient).query<SpecRow>(
           `select fs.id,
                   fs.spec_code,
@@ -96,18 +99,19 @@ export async function listFactorySpecs(): Promise<ListFactorySpecsResult> {
             order by i.item_code asc, fs.version desc`,
         ),
         canApproveFactorySpec(ctx),
+        canRecallFactorySpec(ctx),
       ]);
 
       const specs = specsResult.rows
         .map(mapRow)
         .filter((row): row is FactorySpecListItem => row !== null);
 
-      return { specs, canApprove, state: specs.length ? 'ready' : 'empty' };
+      return { specs, canApprove, canRecall, state: specs.length ? 'ready' : 'empty' };
     });
   } catch (error) {
     console.error('[technical/factory-specs] listFactorySpecs load_failed', {
       err: error instanceof Error ? error.message : String(error),
     });
-    return { specs: [], canApprove: false, state: 'error' };
+    return { specs: [], canApprove: false, canRecall: false, state: 'error' };
   }
 }

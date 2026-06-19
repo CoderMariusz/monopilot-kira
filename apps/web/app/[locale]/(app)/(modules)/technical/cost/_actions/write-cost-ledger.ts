@@ -25,7 +25,7 @@ export type WriteItemCostLedgerInput = {
 };
 
 export type WriteItemCostLedgerResult =
-  | { ok: true; data: { id: string; itemId: string; costPerKg: string; effectiveFrom: string } }
+  | { ok: true; data: { id: string; itemId: string; itemCode: string; costPerKg: string; effectiveFrom: string } }
   | { ok: false; error: 'not_found' | 'approver_required' | 'persistence_failed'; message?: string };
 
 export async function writeItemCostLedger(
@@ -38,8 +38,9 @@ export async function writeItemCostLedger(
 ): Promise<WriteItemCostLedgerResult> {
   const { orgId, userId, input } = params;
 
-  const { rows: itemRows } = await qc.query<{ id: string; current_cost: string | null }>(
+  const { rows: itemRows } = await qc.query<{ id: string; item_code: string; current_cost: string | null }>(
     `select i.id,
+            i.item_code,
             (select ch.cost_per_kg::text
                from public.item_cost_history ch
               where ch.org_id = app.current_org_id()
@@ -123,6 +124,6 @@ export async function writeItemCostLedger(
 
   return {
     ok: true,
-    data: { id: row.id, itemId: input.itemId, costPerKg: input.costPerKg, effectiveFrom: row.effective_from },
+    data: { id: row.id, itemId: input.itemId, itemCode: item.item_code, costPerKg: input.costPerKg, effectiveFrom: row.effective_from },
   };
 }

@@ -104,6 +104,7 @@ const expectedTechnicalPermissions = [
   'technical.eco.write',
   'technical.eco.approve',
   'technical.sensory.read',
+  'technical.factory_spec.recall',
 ] as const;
 
 const expectedProductionPermissions = [
@@ -137,6 +138,7 @@ const expectedWarehousePermissions = [
   'warehouse.lp.ship',
   'warehouse.lp.force_unlock',
   'warehouse.grn.receive',
+  'warehouse.transfer.correct',
   'warehouse.stock.move',
   'warehouse.stock.adjust',
   'warehouse.inventory.read',
@@ -356,6 +358,7 @@ const expectedCanonicalPermissions = [
   'technical.eco.write',
   'technical.eco.approve',
   'technical.sensory.read',
+  'technical.factory_spec.recall',
   'production.wo.start',
   'production.wo.pause',
   'production.wo.resume',
@@ -383,6 +386,7 @@ const expectedCanonicalPermissions = [
   'warehouse.lp.ship',
   'warehouse.lp.force_unlock',
   'warehouse.grn.receive',
+  'warehouse.transfer.correct',
   'warehouse.stock.move',
   'warehouse.stock.adjust',
   'warehouse.inventory.read',
@@ -517,6 +521,9 @@ const expectedCanonicalPermissions = [
   'scheduler.config.edit',
   'scheduler.forecast.read',
   'scheduler.forecast.write',
+  'planning.mrp.run',
+  'planning.mrp.convert',
+  'planning.forecast.manage',
 ] as const;
 
 type PermissionsModule = {
@@ -648,7 +655,7 @@ describe('rbac permission source of truth', () => {
     // AC1 — all technical strings present exactly once.
     expect(ALL_TECHNICAL_PERMISSIONS).toEqual(expectedTechnicalPermissions);
     // AC3 — typed readonly Permission[] with the expected length.
-    expect(ALL_TECHNICAL_PERMISSIONS).toHaveLength(13);
+    expect(ALL_TECHNICAL_PERMISSIONS).toHaveLength(14);
     expect(new Set(ALL_TECHNICAL_PERMISSIONS).size).toBe(ALL_TECHNICAL_PERMISSIONS.length);
 
     // AC2 — regex + uniqueness across the whole enum.
@@ -716,7 +723,7 @@ describe('rbac permission source of truth', () => {
     const { ALL_PERMISSIONS, ALL_WAREHOUSE_PERMISSIONS, Permission } = await loadPermissionsModule();
 
     expect(ALL_WAREHOUSE_PERMISSIONS).toEqual(expectedWarehousePermissions);
-    expect(ALL_WAREHOUSE_PERMISSIONS).toHaveLength(15);
+    expect(ALL_WAREHOUSE_PERMISSIONS).toHaveLength(16);
     expect(new Set(ALL_WAREHOUSE_PERMISSIONS).size).toBe(ALL_WAREHOUSE_PERMISSIONS.length);
     expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
 

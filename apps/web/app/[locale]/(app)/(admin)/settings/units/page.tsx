@@ -242,16 +242,21 @@ async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversi
             order by label asc`,
         ),
         // Real RBAC: canEdit derives from the seeded `settings.units.manage`
-        // permission (owner/admin/org_admin), never a hardcoded flag.
+        // permission, never a hardcoded flag. Canonical dual-store check (matches
+        // actions/infra/machine.ts / line.ts / warehouse.ts AND the manage-units
+        // action): LEFT JOIN normalized role_permissions + fall back to the legacy
+        // roles.permissions jsonb store and the admin role code/slug allowlist, so a
+        // jsonb-only grant keeps the UI and the action in agreement.
         queryClient.query<{ ok: boolean }>(
           `select true as ok
              from public.user_roles ur
              join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-             join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+             left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
             where ur.user_id = $1::uuid
               and ur.org_id = $2::uuid
+              and (rp.permission is not null or r.permissions ? $3 or r.code = any($4::text[]) or r.slug = any($4::text[]))
             limit 1`,
-          [userId, orgId, MANAGE_PERMISSION],
+          [userId, orgId, MANAGE_PERMISSION, ['owner', 'admin', 'module_admin']],
         ),
       ]);
       const units = unitResult.rows.map(mapUnitRow).filter((row): row is UnitOfMeasure => row !== null);

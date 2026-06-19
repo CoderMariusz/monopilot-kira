@@ -72,6 +72,7 @@ export function buildHoldCreateLabels(t: QaHoldsTranslator): HoldCreateLabels {
     cancel: t('createModal.cancel'),
     submit: t('createModal.submit'),
     submitting: t('createModal.submitting'),
+    formIncomplete: 'Complete all required fields to continue.',
     validation: {
       referenceRequired: t('createModal.validation.referenceRequired'),
       reasonRequired: t('createModal.validation.reasonRequired'),
@@ -138,6 +139,7 @@ export function buildHoldReleaseLabels(t: QaHoldsTranslator): HoldReleaseLabels 
     cancel: t('releaseModal.cancel'),
     submit: t('releaseModal.submit'),
     submitting: t('releaseModal.submitting'),
+    formIncomplete: 'Complete all required fields to continue.',
     validation: {
       dispositionRequired: t('releaseModal.validation.dispositionRequired'),
       reasonRequired: t('releaseModal.validation.reasonRequired'),

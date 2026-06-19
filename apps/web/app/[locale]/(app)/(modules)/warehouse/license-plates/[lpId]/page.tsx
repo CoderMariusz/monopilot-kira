@@ -130,6 +130,7 @@ function buildLabels(locale: string): LpDetailLabels {
       cancel: t('detail.move.cancel'),
       submit: t('detail.move.submit'),
       submitting: t('detail.move.submitting'),
+      formIncomplete: 'Complete all required fields to continue.',
       validation: { destinationRequired: t('detail.move.validation.destinationRequired') },
       error: t('detail.move.error'),
       errorForbidden: t('detail.move.errorForbidden'),

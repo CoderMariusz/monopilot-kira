@@ -89,6 +89,7 @@ export type ReverseModalLabels = {
   cancel: string;
   submit: string;
   submitting: string;
+  formIncomplete: string;
   /** Typed-error copy. lp_not_restorable + inconsistent_ledger are bespoke. */
   errors: {
     forbidden: string;
@@ -287,6 +288,7 @@ export function ReverseConsumptionModal({
           data-testid="wo-reverse-submit"
           disabled={!valid}
           onClick={submit}
+          title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-red-700 disabled:opacity-50"
         >
           {pending ? labels.submitting : labels.submit}

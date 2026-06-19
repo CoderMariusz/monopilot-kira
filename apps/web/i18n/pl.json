@@ -53,6 +53,7 @@
   "common": {
     "cancel": "Anuluj",
     "save": "Zapisz",
+    "formIncomplete": "Uzupełnij wszystkie wymagane pola, aby kontynuować.",
     "error": {
       "generic": "Wystąpił błąd. Spróbuj ponownie."
     }
@@ -3070,6 +3071,23 @@
         "markReviewed": "Mark reviewed",
         "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
       },
+      "recall": {
+        "action": "Cofnij do roboczej",
+        "permissionTooltip": "Potrzebujesz uprawnienia do wycofywania specyfikacji fabrycznej, aby cofnąć tę specyfikację.",
+        "title": "Cofnij specyfikację do roboczej",
+        "body": "Cofnięcie {spec} przywraca ją do stanu roboczego oraz usuwa zatwierdzenie i zwolnienie. Nowe zlecenia produkcyjne nie będą mogły się do niej odwoływać, dopóki nie zostanie ponownie zatwierdzona i zwolniona.",
+        "reasonLabel": "Powód",
+        "reasonOptional": "opcjonalnie",
+        "reasonPlaceholder": "Dlaczego ta specyfikacja jest wycofywana?",
+        "confirm": "Cofnij do roboczej",
+        "submitting": "Cofanie…",
+        "cancel": "Anuluj",
+        "success": "Specyfikacja cofnięta do roboczej.",
+        "errors": {
+          "forbidden": "Nie masz uprawnień, aby cofnąć tę specyfikację.",
+          "generic": "Nie udało się cofnąć tej specyfikacji. Spróbuj ponownie."
+        }
+      },
       "create": {
         "open": "+ Nowa specyfikacja",
         "title": "Nowa specyfikacja",
@@ -5673,7 +5691,10 @@
         "purchaseOrders": "Zamówienia zakupu"
       },
       "actions": {
-        "createPo": "Utwórz zamówienie"
+        "createPo": "Utwórz zamówienie",
+        "export": "Eksportuj",
+        "exporting": "Eksportowanie…",
+        "exportError": "Eksport nie powiódł się. Spróbuj ponownie."
       },
       "poStatus": {
         "draft": "Wersja robocza",
@@ -5985,6 +6006,55 @@
           "submitEdit": "Zapisz pozycję",
           "qtyRequired": "Podaj ilość większą od zera i wybierz jednostkę."
         }
+      },
+      "reverseReceipt": {
+        "received": "Przyjęto",
+        "destLp": "Paleta docelowa",
+        "action": "Cofnij przyjęcie…",
+        "permissionTooltip": "Potrzebujesz uprawnienia do korekt przesunięć magazynowych, aby cofnąć przyjętą pozycję.",
+        "notReceivableTooltip": "Cofnąć można tylko przyjęte pozycje z paletą docelową.",
+        "title": "Cofnij przyjęcie · pozycja {line}",
+        "intro": "Cofnięcie zwraca paletę docelową do źródła i ponownie otwiera tę pozycję. Cofana jest pełna przyjęta ilość — częściowe cofnięcia nie są obsługiwane. Stan magazynowy i status zlecenia przesunięcia są przeliczane na serwerze.",
+        "summary": {
+          "toNumber": "Zlecenie przesunięcia",
+          "product": "Produkt",
+          "destLp": "Paleta docelowa",
+          "quantity": "Ilość do cofnięcia"
+        },
+        "reasonCode": "Powód",
+        "reasonPlaceholder": "Wybierz powód",
+        "reasonOptions": {
+          "entry_error": "Błąd wprowadzenia",
+          "wrong_quantity": "Błędna ilość",
+          "wrong_batch": "Błędna partia / lot",
+          "wrong_product": "Błędny produkt",
+          "other": "Inny"
+        },
+        "note": "Notatka",
+        "noteOptional": "opcjonalnie",
+        "notePlaceholder": "Dodaj kontekst cofnięcia",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Wpisz ponownie hasło do konta (lub PIN przełożonego), aby podpisać to cofnięcie. Twoja tożsamość i czas serwera są rejestrowane.",
+          "password": "Hasło lub PIN",
+          "passwordPlaceholder": "Hasło do konta lub PIN przełożonego",
+          "passwordHelp": "Użyj hasła do konta lub PIN-u przełożonego, jeśli został ustawiony."
+        },
+        "cancel": "Anuluj",
+        "submit": "Cofnij przyjęcie",
+        "submitting": "Cofanie…",
+        "formIncomplete": "Wybierz powód i wpisz hasło lub PIN.",
+        "errors": {
+          "forbidden": "Nie masz uprawnień, aby cofnąć to przyjęcie.",
+          "not_found": "Ta przyjęta pozycja już nie istnieje — odśwież i spróbuj ponownie.",
+          "invalid_input": "Sprawdź pola i spróbuj ponownie.",
+          "invalid_state": "To zlecenie przesunięcia nie jest już w stanie, który pozwala cofnąć przyjęcie.",
+          "invalid_quantity": "Cofana ilość musi być równa przyjętej ilości na palecie docelowej.",
+          "lp_active": "Ta paleta jest zarezerwowana, przydzielona, zużyta lub wysłana i nie można jej cofnąć.",
+          "esign_failed": "Podpis nie powiódł się — sprawdź hasło lub PIN i spróbuj ponownie.",
+          "persistence_failed": "Nie udało się cofnąć tego przyjęcia. Spróbuj ponownie.",
+          "generic": "Nie udało się cofnąć tego przyjęcia. Spróbuj ponownie."
+        }
       }
     },
     "nav": {
@@ -6016,6 +6086,10 @@
       "reorderThresholds": {
         "title": "Progi uzupełniania",
         "desc": "Minimalne stany i partie uzupełnień dla MRP"
+      },
+      "forecasts": {
+        "title": "Prognozy",
+        "desc": "Popyt niezależny per pozycja i tydzień ISO dla MRP"
       }
     },
     "mrp": {
@@ -6193,6 +6267,55 @@
           "cancel": "Anuluj",
           "error": "Wyszukiwanie pozycji nie powiodło się"
         }
+      }
+    },
+    "forecasts": {
+      "title": "Prognozy popytu",
+      "subtitle": "Popyt niezależny per pozycja na tydzień ISO (jedn. bazowa) zasilający zapotrzebowanie netto MRP",
+      "breadcrumb": "Prognozy",
+      "add": "+ Dodaj produkt",
+      "copyWeek": "Kopiuj poprzedni tydzień",
+      "copying": "Kopiowanie…",
+      "importCsv": "Importuj CSV",
+      "empty": "Brak prognoz popytu",
+      "emptyHint": "Dodaj produkt, aby rozpocząć prognozowanie popytu tygodniowego, lub zaimportuj CSV.",
+      "loading": "Ładowanie…",
+      "denied": "Nie masz uprawnień do podglądu prognoz popytu.",
+      "error": "Nie udało się wczytać prognoz popytu.",
+      "itemColumn": "Produkt",
+      "saving": "Zapisywanie…",
+      "cellError": "Zapis nie powiódł się",
+      "copyResult": "Skopiowano {count} komórek prognozy do następnego tygodnia.",
+      "picker": {
+        "trigger": "+ Dodaj produkt",
+        "searchLabel": "Szukaj produktów",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+        "loading": "Wyszukiwanie…",
+        "empty": "Brak pasujących produktów",
+        "cancel": "Anuluj",
+        "error": "Wyszukiwanie produktów nie powiodło się"
+      },
+      "importModal": {
+        "title": "Importuj prognozy popytu",
+        "step1": "1. Wklej CSV",
+        "step2": "2. Przetwórz",
+        "step3": "3. Podgląd",
+        "step4": "4. Importuj",
+        "pasteLabel": "Wklej wiersze CSV",
+        "pastePlaceholder": "kodPozycji,tydzienISO,ilosc",
+        "parse": "Przetwórz wiersze",
+        "parsedRows": "Przetworzono {count} wierszy",
+        "noRows": "Brak prawidłowych wierszy do importu.",
+        "submit": "Importuj",
+        "submitting": "Importowanie…",
+        "cancel": "Anuluj",
+        "close": "Gotowe",
+        "resultImported": "Zaimportowano {count} komórek prognozy.",
+        "resultErrors": "Pominięto {count} wierszy (nieznana pozycja lub błędna wartość).",
+        "formatHint": "Kolumny: kod pozycji, tydzień ISO (np. 2026-W25), ilość w jednostce wyjściowej pozycji.",
+        "colItem": "Kod pozycji",
+        "colWeek": "Tydzień ISO",
+        "colQty": "Ilość"
       }
     }
   },
@@ -7487,6 +7610,148 @@
         "setup": "Przezbrojenie",
         "machine": "Maszyna",
         "waste": "Odpad"
+      }
+    }
+  },
+  "quality": {
+    "ccpMonitoring": {
+      "title": "Monitorowanie CCP",
+      "subtitle": "Odczyty krytycznych punktów kontroli w aktywnych planach HACCP.",
+      "breadcrumb": {
+        "quality": "Jakość",
+        "ccpMonitoring": "Monitorowanie CCP"
+      },
+      "recordReading": "Zarejestruj odczyt",
+      "addCcp": "Dodaj CCP",
+      "addCcpDisabled": "Aby dodać CCP, potrzebujesz uprawnienia do edycji planu HACCP.",
+      "summary": {
+        "activeCcps": "Aktywne CCP",
+        "activeCcpsSub": "Z ustawionymi limitami krytycznymi",
+        "inLimit": "CCP w limicie",
+        "inLimitSub": "Ostatni odczyt w limicie",
+        "outOfLimit": "CCP poza limitem",
+        "outOfLimitSub": "Ostatni odczyt przekroczył limit"
+      },
+      "board": {
+        "ariaLabel": "Krytyczne punkty kontroli",
+        "hazard": "Zagrożenie",
+        "criticalLimit": "Limit krytyczny",
+        "frequency": "Częstotliwość monitorowania",
+        "lastReading": "Ostatni odczyt",
+        "noReading": "Brak odczytu",
+        "recordedAt": "Zarejestrowano {at}",
+        "noLimit": "—",
+        "limitRange": "{min} – {max} {unit}",
+        "limitMinOnly": "≥ {min} {unit}",
+        "limitMaxOnly": "≤ {max} {unit}",
+        "limitNone": "Brak limitu"
+      },
+      "status": {
+        "inLimit": "W limicie",
+        "outOfLimit": "Poza limitem",
+        "noData": "Brak danych"
+      },
+      "hazardType": {
+        "biological": "Biologiczne",
+        "chemical": "Chemiczne",
+        "physical": "Fizyczne",
+        "allergen": "Alergenne"
+      },
+      "loading": "Ładowanie monitorowania CCP…",
+      "empty": {
+        "title": "Nie zdefiniowano jeszcze CCP",
+        "body": "Zdefiniuj krytyczne punkty kontroli w planie HACCP, zanim zaczniesz rejestrować odczyty.",
+        "cta": "Dodaj pierwszy CCP",
+        "ctaDisabled": "Aby dodać CCP, potrzebujesz uprawnienia do edycji planu HACCP."
+      },
+      "error": {
+        "title": "Nie udało się załadować monitorowania CCP",
+        "body": "Odczyt na żywo nie powiódł się. Odśwież, aby spróbować ponownie."
+      },
+      "denied": {
+        "title": "Brak dostępu",
+        "body": "Nie masz uprawnień do przeglądania monitorowania CCP."
+      },
+      "record": {
+        "title": "Zarejestruj odczyt CCP",
+        "subtitle": "Wybierz CCP i wprowadź zmierzoną wartość. Odczyt poza limitem automatycznie otwiera NCR.",
+        "ccp": "Krytyczny punkt kontroli",
+        "ccpPlaceholder": "Wybierz CCP",
+        "ccpOption": "{code} — {name}",
+        "value": "Zmierzona wartość",
+        "valuePlaceholder": "np. 4,2",
+        "valueHelp": "Odczyt liczbowy w jednostce CCP.",
+        "unit": "Jednostka",
+        "limitHint": "Limit krytyczny: {limit}",
+        "wo": "Zlecenie produkcyjne (opcjonalnie)",
+        "woPlaceholder": "Szukaj numeru zlecenia…",
+        "woHelp": "Opcjonalnie powiąż ten odczyt ze zleceniem produkcyjnym.",
+        "woSearching": "Szukanie…",
+        "woNoMatches": "Brak zleceń pasujących do „{query}”.",
+        "woPickedChip": "{woNumber}",
+        "woClear": "Wyczyść",
+        "note": "Notatka (opcjonalnie)",
+        "notePlaceholder": "Dodaj kontekst tego odczytu…",
+        "cancel": "Anuluj",
+        "submit": "Zarejestruj odczyt",
+        "submitting": "Rejestrowanie…",
+        "validation": {
+          "ccpRequired": "Wybierz CCP.",
+          "valueRequired": "Wprowadź liczbową zmierzoną wartość.",
+          "valueNumeric": "Zmierzona wartość musi być liczbą."
+        },
+        "error": "Nie udało się zarejestrować odczytu: {message}",
+        "breach": {
+          "title": "Poza limitem — otwarto NCR",
+          "body": "Wartość {value} przekroczyła limit krytyczny dla {ccp}. Raport niezgodności został utworzony automatycznie.",
+          "viewNcr": "Zobacz NCR"
+        },
+        "success": "Odczyt zarejestrowany — w limicie."
+      },
+      "create": {
+        "titleCreate": "Dodaj krytyczny punkt kontroli",
+        "titleEdit": "Edytuj krytyczny punkt kontroli",
+        "subtitle": "Zdefiniuj CCP, jego zagrożenie i limity krytyczne, w których muszą mieścić się odczyty.",
+        "ccpCode": "Kod CCP",
+        "ccpCodePlaceholder": "np. CCP-01",
+        "ccpCodeHelp": "Krótki unikalny kod tego punktu kontroli.",
+        "name": "Nazwa",
+        "namePlaceholder": "np. Temperatura gotowania",
+        "processStep": "Etap procesu",
+        "processStepPlaceholder": "np. Gotowanie",
+        "hazardType": "Typ zagrożenia",
+        "hazardTypePlaceholder": "Wybierz typ zagrożenia",
+        "criticalLimitMin": "Limit krytyczny — minimum",
+        "criticalLimitMinPlaceholder": "np. 72",
+        "criticalLimitMax": "Limit krytyczny — maksimum",
+        "criticalLimitMaxPlaceholder": "np. 100",
+        "limitHelp": "Pozostaw pustą granicę dla limitu jednostronnego. Zalecana jest co najmniej jedna granica.",
+        "unit": "Jednostka",
+        "unitPlaceholder": "np. °C",
+        "frequency": "Częstotliwość monitorowania",
+        "frequencyPlaceholder": "np. Każda partia",
+        "correctiveAction": "Działanie korygujące",
+        "correctiveActionPlaceholder": "Co zrobić, gdy odczyt jest poza limitem…",
+        "isActive": "Aktywny",
+        "isActiveHelp": "Nieaktywne CCP są ukryte na tablicy monitorowania.",
+        "cancel": "Anuluj",
+        "submitCreate": "Dodaj CCP",
+        "submitEdit": "Zapisz CCP",
+        "submitting": "Zapisywanie…",
+        "validation": {
+          "ccpCodeRequired": "Wprowadź kod CCP.",
+          "nameRequired": "Wprowadź nazwę.",
+          "processStepRequired": "Wprowadź etap procesu.",
+          "hazardTypeRequired": "Wybierz typ zagrożenia.",
+          "limitNumeric": "Limity krytyczne muszą być liczbami.",
+          "limitOrder": "Minimum musi być mniejsze lub równe maksimum."
+        },
+        "error": "Nie udało się zapisać CCP: {message}",
+        "success": "CCP zapisany."
+      },
+      "nav": {
+        "title": "Monitorowanie CCP",
+        "desc": "Rejestruj odczyty krytycznych punktów kontroli; poza limitem automatycznie otwiera NCR."
       }
     }
   }

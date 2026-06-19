@@ -62,6 +62,9 @@ export async function postCost(rawInput: unknown): Promise<PostCostResult> {
       const result = await writeItemCostLedger(qc, { orgId, userId, input });
       if (!result.ok) return result;
       safeRevalidatePath('/technical/items');
+      // Also refresh the item's detail page so its Cost tab reflects the new roll
+      // without a manual reload. The detail route is keyed by item_code, not the uuid.
+      safeRevalidatePath(`/technical/items/${result.data.itemCode}`);
       return result;
     });
   } catch (err) {

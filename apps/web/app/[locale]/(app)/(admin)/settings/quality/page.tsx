@@ -31,7 +31,7 @@ const REQUIRED_PERMISSION = 'settings.flags.edit' as const;
 const DEFAULT_LABELS: RequireGrnQcToggleLabels = {
   title: 'Require GRN QC inspection',
   description: 'Inbound GRNs must pass Quality inspection before stock is released.',
-  comingBanner: 'Quality module enforcement is coming soon; this flag only records the setting.',
+  comingBanner: 'When enabled, goods received against a PO are placed on a QA hold until a quality inspection is recorded.',
   onLabel: 'Inspection required',
   offLabel: 'Inspection not required',
   readOnly: 'You need settings.flags.edit to change this flag.',

@@ -112,7 +112,7 @@ export const PostCostInput = z.object({
 export type PostCostInputType = z.input<typeof PostCostInput>;
 
 export type PostCostResult =
-  | { ok: true; data: { id: string; itemId: string; costPerKg: string; effectiveFrom: string } }
+  | { ok: true; data: { id: string; itemId: string; itemCode: string; costPerKg: string; effectiveFrom: string } }
   | { ok: false; error: CostActionError; message?: string };
 
 // ── GET history input ─────────────────────────────────────────────────────────

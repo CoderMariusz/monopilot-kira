@@ -29,7 +29,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
-import type { QueryClient } from '../../_actions/procurement-shared';
+import { listOrgUnits, type OrgUnitOption, type QueryClient } from '../../_actions/procurement-shared';
 
 export type WarehouseOption = {
   id: string;
@@ -68,6 +68,23 @@ export async function listTransferOrderLineCounts(): Promise<Record<string, numb
     for (const r of rows) map[r.to_id] = Number(r.n);
     return map;
   });
+}
+
+/**
+ * Active units of measure for the TO line UoM picker, read from the REAL
+ * public.unit_of_measure master (org-scoped). Replaces the page's old hardcoded
+ * {kg,g,l,…} list, so units an admin adds in Settings → Units appear here. Falls
+ * back to an empty list (the caller then keeps the canonical defaults) on read
+ * failure rather than throwing.
+ */
+export async function listTransferUnits(): Promise<OrgUnitOption[]> {
+  try {
+    return await withOrgContext<OrgUnitOption[]>(async (ctx) =>
+      listOrgUnits(ctx.client as unknown as QueryClient),
+    );
+  } catch {
+    return [];
+  }
 }
 
 const searchInput = z.object({

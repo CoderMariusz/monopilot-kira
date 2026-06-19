@@ -44,13 +44,15 @@ export async function GET(request: NextRequest) {
             and (
               loc.code = $1
               or lower(loc.code) = lower($1)
+              or loc.barcode = $1
               or ($2::uuid is not null and loc.id = $2::uuid)
             )
           order by case
             when loc.code = $1 then 1
             when lower(loc.code) = lower($1) then 2
-            when $2::uuid is not null and loc.id = $2::uuid then 3
-            else 4
+            when loc.barcode = $1 then 3
+            when $2::uuid is not null and loc.id = $2::uuid then 4
+            else 5
           end,
           loc.code asc
           limit 1`,

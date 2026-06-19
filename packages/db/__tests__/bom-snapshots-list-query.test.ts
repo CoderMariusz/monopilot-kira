@@ -169,6 +169,11 @@ runIntegrationTest('TEC-025 listBomSnapshots query (live regression: product_nam
     expect(row!.header_exists).toBe(true);
     expect(row!.is_latest).toBe(true);
     expect(String(row!.work_order_id)).toBe(workOrderId);
+    // Rule 0.11: the list query left-joins public.work_orders to surface the human
+    // wo_number. No work_orders row is seeded for this random WO id, so the join
+    // yields null (the viewer then falls back to the noWo placeholder) — never the
+    // raw work_order_id UUID.
+    expect(row!.wo_number ?? null).toBeNull();
 
     const mapped = mapSnapshotRow(row!);
     expect(mapped).toMatchObject({

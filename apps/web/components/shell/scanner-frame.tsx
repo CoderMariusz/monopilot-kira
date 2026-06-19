@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 type ScannerFrameProps = {
   children?: ReactNode;
@@ -8,6 +8,12 @@ type ScannerFrameProps = {
   bottomActions?: ReactNode;
 };
 
+// On a real phone the device draws the real OS status bar (clock, signal,
+// battery) just above the browser viewport, so the app must NOT fake its own.
+// Desktop keeps a phone-sized preview frame (the `.scanner-shell` class adds the
+// bezel + shadow); the `max-width:640px` block in globals.css drops the bezel,
+// hides `.scanner-device-chrome`, and stretches the frame to 100vw x 100dvh so
+// the application gets the full field.
 const frameStyle: CSSProperties = {
   width: "var(--shell-scanner-w)",
   height: "var(--shell-scanner-h)",
@@ -15,9 +21,7 @@ const frameStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
-  borderRadius: "44px",
   background: "#0f172a",
-  boxShadow: "0 0 0 10px #1e293b, 0 0 0 12px #0b1220, 0 30px 80px rgba(0, 0, 0, 0.75)",
   color: "#f1f5f9",
   fontFamily: "-apple-system, Inter, Segoe UI, system-ui, sans-serif",
   fontSize: "14px",
@@ -69,12 +73,49 @@ const bottomActionsStyle: CSSProperties = {
   background: "#0f172a",
 };
 
-function DefaultStatusBar() {
+// Real, useful info only — the desktop preview strip shows the app name, a live
+// clock and a genuine connectivity dot (navigator.onLine). No faked signal or
+// battery glyphs; on a real phone this whole strip is hidden by CSS.
+function DeviceStatusBar() {
+  const [now, setNow] = useState("");
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    const tick = () =>
+      setNow(
+        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      );
+    tick();
+    const id = setInterval(tick, 15_000);
+    const sync = () => setOnline(navigator.onLine);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
+
   return (
     <>
-      <span>09:41</span>
+      <span>{now}</span>
       <span style={{ color: "#93a4b8", fontSize: 11, fontWeight: 500 }}>MonoPilot MES</span>
-      <span aria-hidden="true">📶 🔋</span>
+      <span
+        style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+        title={online ? "Online" : "Offline"}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: online ? "#22c55e" : "#ef4444",
+          }}
+        />
+      </span>
     </>
   );
 }
@@ -85,19 +126,30 @@ export function ScannerFrame({ children, statusBar, bottomActions }: ScannerFram
       data-testid="scanner-frame"
       role="application"
       aria-label="MonoPilot Scanner"
-      className="w-scanner h-scanner"
+      className="w-scanner h-scanner scanner-shell"
       style={frameStyle}
     >
-      <div data-testid="scanner-notch" aria-hidden="true" style={notchStyle} />
-      <div data-testid="scanner-status-bar" style={statusBarStyle}>
-        {statusBar ?? <DefaultStatusBar />}
+      <div
+        data-testid="scanner-notch"
+        aria-hidden="true"
+        className="scanner-device-chrome"
+        style={notchStyle}
+      />
+      <div
+        data-testid="scanner-status-bar"
+        className="scanner-device-chrome"
+        style={statusBarStyle}
+      >
+        {statusBar ?? <DeviceStatusBar />}
       </div>
-      <div data-testid="scanner-content" style={contentStyle}>
+      <div data-testid="scanner-content" className="scanner-content" style={contentStyle}>
         {children}
       </div>
-      <div data-testid="scanner-bottom-actions" style={bottomActionsStyle}>
-        {bottomActions}
-      </div>
+      {bottomActions ? (
+        <div data-testid="scanner-bottom-actions" style={bottomActionsStyle}>
+          {bottomActions}
+        </div>
+      ) : null}
     </section>
   );
 }

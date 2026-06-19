@@ -23,6 +23,7 @@
 import React from 'react';
 
 import type {
+  ExportJobRow,
   ImportableEntityKey,
   ImportableEntityRow,
   ImportJobRow,
@@ -59,6 +60,13 @@ export type MasterDataHubLabels = {
     statusFailed: string;
     kindImport: string;
     kindExport: string;
+    none: string;
+  };
+  exports: {
+    title: string;
+    subtitle: string;
+    rowsUnit: string;
+    download: string;
     none: string;
   };
   drawer: {
@@ -111,6 +119,12 @@ export type MasterDataHubProps = {
   entities: ImportableEntityRow[];
   /** Recent import jobs from public.import_export_jobs (real rows). */
   recentJobs: ImportJobRow[];
+  /**
+   * Recent export jobs from public.import_export_jobs (kind='export', real rows).
+   * Includes cross-module exports such as the Purchase Orders export-to-file
+   * action (target=purchase_orders). Defaults to [] for legacy callers/tests.
+   */
+  recentExports?: ExportJobRow[];
   /** When false the loader returned an error envelope → render error banner. */
   ok?: boolean;
   labels: MasterDataHubLabels;
@@ -159,6 +173,7 @@ function jobStatusLabel(status: ImportJobStatus, labels: MasterDataHubLabels): s
 
 export default function ImportExportHub(props: MasterDataHubProps) {
   const { entities, recentJobs, labels } = props;
+  const recentExports = props.recentExports ?? [];
   const ok = props.ok ?? true;
   const [filter, setFilter] = React.useState<FilterKey>('all');
   const [drawerEntity, setDrawerEntity] = React.useState<ImportableEntityRow | null>(null);
@@ -292,6 +307,54 @@ export default function ImportExportHub(props: MasterDataHubProps) {
                   <div className="impex-job-when muted">
                     {formatTimestamp(job.created_at, '—')}
                   </div>
+                  <div className={'impex-job-status status-' + job.status}>
+                    {jobStatusLabel(job.status, labels)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent exports — kind='export' ledger (cross-module, downloadable) */}
+      <div className="sg-section" data-testid="master-data-hub-exports-section">
+        <div className="sg-section-head">
+          <div className="sg-title" style={{ fontSize: 15 }}>
+            {labels.exports.title}
+          </div>
+          <span className="sg-sub">{labels.exports.subtitle}</span>
+        </div>
+        <div className="sg-section-body">
+          {recentExports.length === 0 ? (
+            <div className="impex-meta" data-testid="master-data-hub-exports-empty">
+              {labels.exports.none}
+            </div>
+          ) : (
+            <div className="impex-jobs" data-testid="master-data-hub-exports">
+              {recentExports.map((job) => (
+                <div
+                  key={job.id}
+                  className={'impex-job ' + jobStatusClass(job.status)}
+                  data-export-id={job.id}
+                  data-export-target={job.target}
+                >
+                  <div className="impex-job-id mono">{job.id}</div>
+                  <div className="impex-job-kind kind-export">↓ {labels.jobs.kindExport}</div>
+                  <div className="impex-job-entity">{job.target}</div>
+                  <div className="impex-job-rows mono">
+                    {formatCount(job.rows_processed)} {labels.exports.rowsUnit}
+                  </div>
+                  <div className="impex-job-who muted">
+                    {job.download_url ? (
+                      <a href={job.download_url} className="link">
+                        ↓ {labels.exports.download}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </div>
+                  <div className="impex-job-when muted">{formatTimestamp(job.created_at, '—')}</div>
                   <div className={'impex-job-status status-' + job.status}>
                     {jobStatusLabel(job.status, labels)}
                   </div>

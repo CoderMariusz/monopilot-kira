@@ -31,6 +31,13 @@ import { Button } from '@monopilot/ui/Button';
 import { ToStatusBadge } from './to-status-badge';
 import { EditToModal, type EditToLabels, type EditToResult } from './edit-to-modal';
 import { ToLineModal, type ToLineModalLabels, type ToLineMutationResult, type ToEditLineSeed } from './to-line-modal';
+import {
+  ReverseReceiptModal,
+  type ReverseReceiptModalLabels,
+  type ReverseReceiptTarget,
+  type ReverseToReceiveLineInput,
+  type ReverseToReceiveLineResult,
+} from './reverse-receipt-modal';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 
@@ -43,6 +50,10 @@ export type TransferOrderLine = {
   qty: string;
   uom: string;
   lineNo: number;
+  /** R4-CL1 — the received destination LP (null until the line is received). */
+  receivedDestLpId: string | null;
+  receivedDestLpNumber: string | null;
+  receivedQty: string | null;
 };
 
 export type TransferOrderDetail = {
@@ -96,6 +107,15 @@ export type ToDetailLabels = {
     modal: EditToLabels;
     lineModal: ToLineModalLabels;
   };
+  /** R4-CL1 reversibility — RECEIVED-line "reverse receipt" affordance + modal. */
+  reverseReceipt: {
+    received: string;
+    destLp: string;
+    action: string;
+    permissionTooltip: string;
+    notReceivableTooltip: string;
+    modal: ReverseReceiptModalLabels;
+  };
 };
 
 export type ToDetailViewProps = {
@@ -117,6 +137,10 @@ export type ToDetailViewProps = {
   addTransferOrderLineAction?: (toId: string, input: { itemId: string; quantity: string; uom: string }) => Promise<ToLineMutationResult>;
   updateTransferOrderLineAction?: (toId: string, lineId: string, input: { quantity?: string; uom?: string }) => Promise<ToLineMutationResult>;
   deleteTransferOrderLineAction?: (toId: string, lineId: string) => Promise<ToLineMutationResult>;
+  /** R4-CL1 — true when the caller holds warehouse.transfer.correct (server-resolved). */
+  canReverseReceipt?: boolean;
+  /** R4-CL1 — reverse-received-line action (imported, never authored here). */
+  reverseToReceiveLineAction?: (input: ReverseToReceiveLineInput) => Promise<ReverseToReceiveLineResult>;
 };
 
 /** Real enum transitions (mig 263): draft → in_transit | cancelled;
@@ -151,6 +175,8 @@ export function ToDetailView({
   addTransferOrderLineAction,
   updateTransferOrderLineAction,
   deleteTransferOrderLineAction,
+  canReverseReceipt = false,
+  reverseToReceiveLineAction,
 }: ToDetailViewProps) {
   const router = useRouter();
   const [pendingTo, setPendingTo] = React.useState<string | null>(null);
@@ -163,6 +189,27 @@ export function ToDetailView({
   const [lineModalOpen, setLineModalOpen] = React.useState(false);
   const [editLine, setEditLine] = React.useState<ToEditLineSeed | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  // R4-CL1 — reverse-receipt affordance. The action seam must be wired AND the
+  // line must carry a received destination LP; the BUTTON is gated on
+  // canReverseReceipt (disabled + tooltip if absent) — server re-checks too.
+  const reverseSeamWired = !!reverseToReceiveLineAction;
+  const [reverseTarget, setReverseTarget] = React.useState<ReverseReceiptTarget | null>(null);
+
+  function openReverse(line: TransferOrderLine) {
+    if (!line.receivedDestLpId || line.receivedQty == null || line.receivedDestLpNumber == null) return;
+    setReverseTarget({
+      toId: transferOrder.id,
+      toNumber: transferOrder.toNumber,
+      lineId: line.id,
+      lineNo: line.lineNo,
+      itemLabel: line.itemName ?? line.itemCode ?? `#${line.lineNo}`,
+      destLpId: line.receivedDestLpId,
+      destLpNumber: line.receivedDestLpNumber,
+      quantity: line.receivedQty,
+      uom: line.uom,
+    });
+  }
 
   async function onDeleteLine(line: TransferOrderLine) {
     if (!deleteTransferOrderLineAction || deletingId) return;
@@ -212,6 +259,13 @@ export function ToDetailView({
   }
 
   const actions = TRANSITIONS[transferOrder.status.toLowerCase()] ?? [];
+
+  // R4-CL1 — a line is reverseable when it carries a received destination LP and
+  // the action seam is wired. The actions column renders if draft-edit OR any line
+  // is reverseable. The BUTTON is enabled only when canReverseReceipt is true.
+  const hasReverseableLines =
+    reverseSeamWired && transferOrder.lines.some((l) => !!l.receivedDestLpId && l.receivedQty != null);
+  const showActionsColumn = canEdit || hasReverseableLines;
 
   async function onTransition(target: string) {
     if (pendingTo) return;
@@ -324,43 +378,72 @@ export function ToDetailView({
                   <th className="px-3 py-2">{labels.lines.product}</th>
                   <th className="px-3 py-2 text-right">{labels.lines.qty}</th>
                   <th className="px-3 py-2">{labels.lines.uom}</th>
-                  {canEdit ? <th className="px-3 py-2 text-right" /> : null}
+                  {showActionsColumn ? <th className="px-3 py-2 text-right" /> : null}
                 </tr>
               </thead>
               <tbody>
-                {transferOrder.lines.map((l) => (
+                {transferOrder.lines.map((l) => {
+                  const isReceivedLine = !!l.receivedDestLpId && l.receivedQty != null;
+                  return (
                   <tr key={l.id} data-testid={`to-detail-line-${l.lineNo}`} className="border-b border-slate-100 last:border-0">
                     <td className="px-3 py-2 font-mono text-xs text-slate-500">{l.lineNo}</td>
                     <td className="px-3 py-2">
                       <div className="font-medium text-slate-800">{l.itemName ?? l.itemId.slice(0, 8)}</div>
                       <div className="font-mono text-xs text-slate-500">{l.itemCode ?? '—'}</div>
+                      {isReceivedLine ? (
+                        <div
+                          data-testid={`to-line-received-${l.id}`}
+                          className="mt-1 text-[11px] text-slate-500"
+                        >
+                          {labels.reverseReceipt.received} · {labels.reverseReceipt.destLp}{' '}
+                          <span className="font-mono text-slate-600">{l.receivedDestLpNumber}</span>
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums">{l.qty}</td>
                     <td className="px-3 py-2 font-mono text-xs">{l.uom}</td>
-                    {canEdit ? (
+                    {showActionsColumn ? (
                       <td className="px-3 py-2 text-right whitespace-nowrap" data-testid={`to-line-actions-${l.id}`}>
-                        <button
-                          type="button"
-                          data-testid={`to-line-edit-${l.id}`}
-                          className="rounded-md px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                          onClick={() => openEditLine(l)}
-                        >
-                          {labels.edit.editLine}
-                        </button>
-                        <button
-                          type="button"
-                          data-testid={`to-line-delete-${l.id}`}
-                          className="rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                          disabled={deletingId === l.id}
-                          aria-busy={deletingId === l.id}
-                          onClick={() => onDeleteLine(l)}
-                        >
-                          {labels.edit.deleteLine}
-                        </button>
+                        {canEdit ? (
+                          <>
+                            <button
+                              type="button"
+                              data-testid={`to-line-edit-${l.id}`}
+                              className="rounded-md px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                              onClick={() => openEditLine(l)}
+                            >
+                              {labels.edit.editLine}
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`to-line-delete-${l.id}`}
+                              className="rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              disabled={deletingId === l.id}
+                              aria-busy={deletingId === l.id}
+                              onClick={() => onDeleteLine(l)}
+                            >
+                              {labels.edit.deleteLine}
+                            </button>
+                          </>
+                        ) : null}
+                        {isReceivedLine && reverseSeamWired ? (
+                          <button
+                            type="button"
+                            data-testid={`to-line-reverse-${l.id}`}
+                            className="rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!canReverseReceipt}
+                            title={canReverseReceipt ? undefined : labels.reverseReceipt.permissionTooltip}
+                            aria-disabled={!canReverseReceipt}
+                            onClick={() => openReverse(l)}
+                          >
+                            {labels.reverseReceipt.action}
+                          </button>
+                        ) : null}
                       </td>
                     ) : null}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -411,6 +494,20 @@ export function ToDetailView({
           addTransferOrderLineAction={addTransferOrderLineAction}
           updateTransferOrderLineAction={updateTransferOrderLineAction}
           onSaved={() => router.refresh()}
+        />
+      ) : null}
+
+      {reverseToReceiveLineAction ? (
+        <ReverseReceiptModal
+          open={reverseTarget !== null}
+          target={reverseTarget}
+          labels={labels.reverseReceipt.modal}
+          reverseToReceiveLineAction={reverseToReceiveLineAction}
+          onClose={() => setReverseTarget(null)}
+          onReversed={() => {
+            setReverseTarget(null);
+            router.refresh();
+          }}
         />
       ) : null}
     </div>

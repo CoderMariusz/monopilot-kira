@@ -172,6 +172,16 @@ export type GrnDetail = GrnListItem & {
 };
 
 export type StockMoveListInput = { moveType?: string; limit?: number };
+
+/**
+ * Which ledger a unified movement row came from. `stock_move` = the explicit
+ * public.stock_moves ledger (putaway/transfer/issue/adjustment). `lp_state` =
+ * a public.lp_state_history transition (receive / production output / consume /
+ * promotion) surfaced as a movement so receipts/consumes/outputs are no longer
+ * invisible on the movements screen.
+ */
+export type StockMoveSource = 'stock_move' | 'lp_state';
+
 export type StockMoveListItem = {
   id: string;
   moveNumber: string;
@@ -184,6 +194,8 @@ export type StockMoveListItem = {
   uom: string | null;
   moveDate: string;
   reasonText: string | null;
+  /** Origin ledger of this row (unified movement ledger — WH-006 fix). */
+  source: StockMoveSource;
 };
 export type CreateStockMoveInput = { lpId: string; toLocationId: string; reason?: string; clientOpId: string };
 

@@ -78,6 +78,7 @@ export type NcrCreateLabels = {
   cancel: string;
   submit: string;
   submitting: string;
+  formIncomplete: string;
   validation: { titleRequired: string; descriptionRequired: string };
   error: string;
   success: string;
@@ -296,6 +297,7 @@ export function NcrCreateModal({
           data-testid="ncr-create-submit"
           disabled={!valid || pending}
           onClick={submit}
+          title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-slate-800 disabled:opacity-50"
         >
           {pending ? labels.submitting : labels.submit}

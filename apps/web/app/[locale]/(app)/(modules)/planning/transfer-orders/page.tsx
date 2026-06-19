@@ -29,8 +29,10 @@ import { listTransferOrders, createTransferOrder } from './_actions/actions';
 import {
   listTransferWarehouses,
   listTransferOrderLineCounts,
+  listTransferUnits,
   searchTransferItems,
 } from './_actions/to-form-data';
+import { buildUomDropdown, type UomDropdown } from '../_actions/uom-dropdown';
 import { ToListView, type ToListLabels } from './_components/to-list-view';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
@@ -72,11 +74,13 @@ function ListSkeleton() {
 }
 
 /**
- * UoM dropdown labels, staged in _meta/i18n-staging/uom-sweep.json and threaded
- * here without touching the live i18n bundles. en/pl carry real values; other
- * locales mirror EN (two-locale rule).
+ * Canonical UoM fallback labels, staged in _meta/i18n-staging/uom-sweep.json and
+ * threaded here without touching the live i18n bundles. en/pl carry real values;
+ * other locales mirror EN (two-locale rule). Used ONLY as the fallback when the org
+ * has no readable units — the real options now come from public.unit_of_measure
+ * (listTransferUnits → buildUomDropdown), so admin-added units appear in the picker.
  */
-function uomLabels(locale: string): {
+function uomFallbackLabels(locale: string): {
   placeholder: string;
   options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
 } {
@@ -92,7 +96,7 @@ function uomLabels(locale: string): {
   };
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): ToListLabels {
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string, uom: UomDropdown): ToListLabels {
   return {
     createTo: t('actions.createTo'),
     searchPlaceholder: t('list.searchPlaceholder'),
@@ -150,8 +154,13 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         uom: t('create.lineColumns.uom'),
         remove: t('create.lineColumns.remove'),
       },
-      uomPlaceholder: uomLabels(locale).placeholder,
-      uomOptions: uomLabels(locale).options,
+      // UoM dropdown now reads from the REAL org units (public.unit_of_measure via
+      // listTransferUnits → buildUomDropdown), so admin-added units appear. When the
+      // org has no readable units, buildUomDropdown returns the canonical per-locale
+      // fallback labels and an empty `units` (dropdown keeps its default set).
+      uomPlaceholder: uom.placeholder,
+      uomOptions: uom.options,
+      uomUnits: uom.units,
       picker: {
         trigger: t('create.picker.trigger'),
         searchLabel: t('create.picker.searchLabel'),
@@ -193,11 +202,13 @@ async function ListContent({
   archived: boolean;
 }) {
   const t = await getTranslations('Planning.transferOrders');
-  const [listResult, warehouses, lineCounts] = await Promise.all([
+  const [listResult, warehouses, lineCounts, orgUnits] = await Promise.all([
     listTransferOrders({ limit: 200, archived }),
     listTransferWarehouses(),
     listTransferOrderLineCounts(),
+    listTransferUnits(),
   ]);
+  const uom = buildUomDropdown(orgUnits, uomFallbackLabels(locale));
 
   if (!listResult.ok) {
     return (
@@ -216,7 +227,7 @@ async function ListContent({
       archived={archived}
       archivedCount={listResult.archivedCount}
       autoOpenCreate={autoOpenCreate}
-      labels={buildLabels(t, locale)}
+      labels={buildLabels(t, locale, uom)}
       searchTransferItemsAction={searchTransferItems}
       createTransferOrderAction={createTransferOrder}
     />

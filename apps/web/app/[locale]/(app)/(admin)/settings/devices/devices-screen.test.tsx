@@ -27,37 +27,48 @@ import DevicesScreen, {
   DEFAULT_DEVICES_LABELS,
   type DevicesScreenProps,
 } from './devices-screen.client';
-import type { DeviceDefaultsRow, DeviceRow } from './_actions/devices';
+import type {
+  DeviceDefaultsRow,
+  DeviceLineOption,
+  DeviceRow,
+  DeviceSiteOption,
+} from './_actions/devices';
 
 const sampleDevices: DeviceRow[] = [
   {
-    id: 'dev-online',
+    id: '11111111-1111-4111-8111-111111111111',
     name: 'Line 1 scanner',
     model: 'Zebra TC52',
-    site_id: 'Site A',
-    line_id: 'Line 1',
+    site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    site_name: 'Apex Foods — Plant A',
+    line_id: 'L1',
+    line_name: 'Sausage line 1',
     battery_level: 82,
     last_seen_at: '2026-06-06T08:30:00.000Z',
     status: 'online',
     org_id: 'org-apex',
   },
   {
-    id: 'dev-low',
+    id: '22222222-2222-4222-8222-222222222222',
     name: 'Packing tablet',
     model: 'Samsung Tab Active',
-    site_id: 'Site A',
+    site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    site_name: 'Apex Foods — Plant A',
     line_id: null,
+    line_name: null,
     battery_level: 14,
     last_seen_at: '2026-06-06T07:15:00.000Z',
     status: 'low_battery',
     org_id: 'org-apex',
   },
   {
-    id: 'dev-off',
+    id: '33333333-3333-4333-8333-333333333333',
     name: 'Dock scanner',
     model: 'Honeywell CT40',
     site_id: null,
+    site_name: null,
     line_id: null,
+    line_name: null,
     battery_level: 0,
     last_seen_at: null,
     status: 'offline',
@@ -72,11 +83,24 @@ const sampleDefaults: DeviceDefaultsRow = {
   org_id: 'org-apex',
 };
 
+const sampleSites: DeviceSiteOption[] = [
+  { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Apex Foods — Plant A' },
+  { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name: 'Apex Foods — Plant B' },
+];
+
+const sampleLines: DeviceLineOption[] = [
+  { code: 'L1', name: 'Sausage line 1', site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+  { code: 'L9', name: 'Plant B packing', site_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+  { code: 'LX', name: 'Shared maintenance', site_id: null },
+];
+
 function renderScreen(overrides: Partial<DevicesScreenProps> = {}) {
   const props: DevicesScreenProps = {
     state: 'ready',
     devices: sampleDevices,
     defaults: sampleDefaults,
+    sites: sampleSites,
+    lines: sampleLines,
     canEdit: true,
     labels: DEFAULT_DEVICES_LABELS,
     pairDevice: vi.fn().mockResolvedValue({ ok: true, data: sampleDevices[0] }),
@@ -133,38 +157,35 @@ describe('settings devices screen prototype parity', () => {
     expect((kpis as HTMLElement).querySelector('.kpi.red')).not.toBeNull();
   });
 
-  it('renders the paired-devices table with id, name, model, site/line, battery, last-seen, status badge', () => {
+  it('renders the paired-devices table with name, model, site/line names, battery, last-seen, status badge (no raw UUID)', () => {
     const { container } = renderScreen();
 
     const table = container.querySelector('table');
     expect(table).not.toBeNull();
 
+    // Rule 0.11: the raw device-UUID column is gone; name leads the table.
     const headers = Array.from(table!.querySelectorAll('thead th')).map((th) => th.textContent);
-    expect(headers).toEqual([
-      'Device ID',
-      'Name',
-      'Model',
-      'Site / Line',
-      'Battery',
-      'Last seen',
-      'Status',
-    ]);
+    expect(headers).toEqual(['Name', 'Model', 'Site / Line', 'Battery', 'Last seen', 'Status']);
 
     const rows = table!.querySelectorAll('tbody tr');
     expect(rows).toHaveLength(3);
 
-    // Monospaced device id + battery percentage rendered.
-    expect(within(rows[0] as HTMLElement).getByText('dev-online')).toHaveClass('mono');
+    // No raw device UUID leaks into the rendered table (Rule 0.11).
+    expect(table!.textContent).not.toContain('11111111-1111-4111-8111-111111111111');
+    expect(table!.textContent).not.toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    // Site + line NAMES render (not their ids/codes).
     expect((rows[0] as HTMLElement).textContent).toContain('82%');
-    expect((rows[0] as HTMLElement).textContent).toContain('Site A');
-    expect((rows[0] as HTMLElement).textContent).toContain('Line 1');
+    expect((rows[0] as HTMLElement).textContent).toContain('Apex Foods — Plant A');
+    expect((rows[0] as HTMLElement).textContent).toContain('Sausage line 1');
+    expect((rows[0] as HTMLElement).textContent).not.toContain('L1');
 
     // Status badges use the .badge-* tones (online/low_battery/offline).
     expect(within(rows[0] as HTMLElement).getByText('Online')).toHaveClass('badge', 'badge-green');
     expect(within(rows[1] as HTMLElement).getByText('Low battery')).toHaveClass('badge', 'badge-amber');
     expect(within(rows[2] as HTMLElement).getByText('Offline')).toHaveClass('badge', 'badge-red');
 
-    // Unassigned site + never-seen fallbacks.
+    // Unassigned site (NULL site_name) + never-seen fallbacks.
     expect(within(rows[2] as HTMLElement).getByText('Unassigned')).toBeInTheDocument();
     expect(within(rows[2] as HTMLElement).getByText('Never')).toBeInTheDocument();
   });
@@ -230,7 +251,55 @@ describe('settings devices screen prototype parity', () => {
     await user.type(within(dialog).getByLabelText(/^model$/i), 'Zebra TC52');
     await user.click(within(dialog).getByRole('button', { name: /^pair device$/i }));
 
-    expect(pairDevice).toHaveBeenCalledWith({ name: 'New scanner', model: 'Zebra TC52' });
+    // Site/line are optional — left unselected they pair as null (unassigned).
+    expect(pairDevice).toHaveBeenCalledWith({
+      name: 'New scanner',
+      model: 'Zebra TC52',
+      site_id: null,
+      line_id: null,
+    });
+    expect(routerRefresh).toHaveBeenCalled();
+  });
+
+  it('offers Site + Line dropdowns (names, never raw UUIDs) and passes the chosen site_id + line code to the pair action', async () => {
+    const user = userEvent.setup();
+    const pairDevice = vi.fn().mockResolvedValue({ ok: true, data: sampleDevices[0] });
+    renderScreen({ pairDevice });
+
+    await user.click(screen.getByRole('button', { name: /\+ pair device/i }));
+    const dialog = await screen.findByRole('dialog');
+
+    await user.type(within(dialog).getByLabelText(/device name/i), 'Plant A scanner');
+    await user.type(within(dialog).getByLabelText(/^model$/i), 'Zebra TC52');
+
+    // The Site selector is the shared shadcn combobox (no native <select>).
+    const siteTrigger = within(dialog).getByRole('combobox', { name: /^site$/i });
+    expect(dialog.querySelectorAll('select')).toHaveLength(0);
+    await user.click(siteTrigger);
+    // Dropdown shows the site NAME, not its UUID.
+    const siteOption = await screen.findByRole('option', { name: 'Apex Foods — Plant A' });
+    expect(siteOption).not.toHaveTextContent('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    await user.click(siteOption);
+
+    // The Line selector is filtered to the chosen site (+ site-less lines).
+    const lineTrigger = within(dialog).getByRole('combobox', { name: /production line/i });
+    await user.click(lineTrigger);
+    // Plant A line + the shared (null-site) line are offered…
+    expect(await screen.findByRole('option', { name: 'Sausage line 1' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Shared maintenance' })).toBeInTheDocument();
+    // …but the Plant B line is filtered out.
+    expect(screen.queryByRole('option', { name: 'Plant B packing' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Sausage line 1' }));
+
+    await user.click(within(dialog).getByRole('button', { name: /^pair device$/i }));
+
+    // site_id flows as the UUID; line_id flows as the line CODE (not its UUID/name).
+    expect(pairDevice).toHaveBeenCalledWith({
+      name: 'Plant A scanner',
+      model: 'Zebra TC52',
+      site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      line_id: 'L1',
+    });
     expect(routerRefresh).toHaveBeenCalled();
   });
 

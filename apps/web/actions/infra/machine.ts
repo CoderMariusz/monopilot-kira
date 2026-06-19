@@ -17,11 +17,14 @@ type OrgActionContext = {
 type LocationRow = { id: string; warehouse_id: string; level: number; path: string };
 type MachineRow = { id: string; code: string; name: string; machine_type: string; status: string; location_id: string | null };
 
+type MachineStatus = 'active' | 'inactive' | 'maintenance' | 'retired';
+
 type ParsedMachineInput = {
   id: string | null;
   code: string;
   name: string;
   machineType: string;
+  status: MachineStatus;
   locationId: string | null;
 };
 
@@ -38,6 +41,11 @@ const MachineInput = z.object({
   code: MachineCodeInput,
   name: z.string().trim().min(1).max(128),
   machineType: MachineCodeInput,
+  // Optional status — the infra / line-wizard create dialog has no status field,
+  // so this defaults to 'active' (preserving the previous hardcoded behaviour),
+  // but it now accepts the same status enum as the settings/machines path so the
+  // two create paths agree when a caller does supply an explicit status.
+  status: z.enum(['active', 'inactive', 'maintenance', 'retired']).optional().default('active'),
   // Optional: a fresh org has zero locations, so a machine can be created
   // unplaced (machines.location_id is nullable). V-SET-61 bin-level check
   // still applies when a location IS provided.
@@ -63,14 +71,14 @@ export async function upsertMachine(rawInput: unknown): Promise<UpsertMachineRes
       const { rows } = await client.query<MachineRow>(
         `insert into public.machines
            (id, org_id, code, name, machine_type, status, location_id)
-         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2, $3, $4, 'active', $5::uuid)
+         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2, $3, $4, $6, $5::uuid)
          on conflict (id) do update set
            code = excluded.code,
            name = excluded.name,
            machine_type = excluded.machine_type,
            location_id = excluded.location_id
          returning id, code, name, machine_type, status, location_id`,
-        [input.id, input.code, input.name, input.machineType, input.locationId],
+        [input.id, input.code, input.name, input.machineType, input.locationId, input.status],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
@@ -98,6 +106,7 @@ function parseMachineInput(raw: unknown): ParsedMachineInput | null {
     code: parsed.data.code,
     name: parsed.data.name,
     machineType: parsed.data.machineType,
+    status: parsed.data.status,
     locationId: parsed.data.locationId ?? null,
   };
 }

@@ -35,12 +35,17 @@ function buildLabels(locale: string): MovementListLabels {
     },
     moveType: {
       receipt: t('movements.moveType.receipt'),
+      production: t('movements.moveType.production'),
       putaway: t('movements.moveType.putaway'),
       transfer: t('movements.moveType.transfer'),
       consume_to_wo: t('movements.moveType.consume_to_wo'),
       adjustment: t('movements.moveType.adjustment'),
       quarantine: t('movements.moveType.quarantine'),
       return: t('movements.moveType.return'),
+    },
+    source: {
+      stock_move: t('movements.source.stock_move'),
+      lp_state: t('movements.source.lp_state'),
     },
     col: {
       move: t('movements.columns.move'),
@@ -62,7 +67,7 @@ function makeRow(over: Partial<StockMoveListItem>): StockMoveListItem {
     id: over.id ?? 'sm-1',
     moveNumber: over.moveNumber ?? 'SM-0001',
     lpId: over.lpId ?? 'lp-1',
-    lpNumber: over.lpNumber ?? 'LP-0001',
+    lpNumber: 'lpNumber' in over ? (over.lpNumber ?? null) : 'LP-0001',
     moveType: over.moveType ?? 'receipt',
     fromLocationCode: over.fromLocationCode ?? null,
     toLocationCode: over.toLocationCode ?? 'COLD-B1',
@@ -70,6 +75,7 @@ function makeRow(over: Partial<StockMoveListItem>): StockMoveListItem {
     uom: over.uom ?? 'kg',
     moveDate: over.moveDate ?? '2026-04-21T00:00:00.000Z',
     reasonText: over.reasonText ?? null,
+    source: over.source ?? 'stock_move',
   };
 }
 
@@ -136,6 +142,46 @@ describe('MovementListClient (WH-006 parity)', () => {
     renderList([makeRow({ id: 'a', moveNumber: 'SM-AAA' })]);
     fireEvent.change(screen.getByTestId('movement-search'), { target: { value: 'zzz-nope' } });
     expect(screen.getByTestId('movement-empty-filtered')).toHaveTextContent(EN.emptyFiltered);
+  });
+
+  it('groups production-output rows under the Receipts tab (unified ledger)', () => {
+    renderList([
+      makeRow({ id: 'r', moveType: 'receipt', source: 'lp_state' }),
+      makeRow({ id: 'p', moveType: 'production', source: 'lp_state' }),
+      makeRow({ id: 'c', moveType: 'consume_to_wo', source: 'lp_state' }),
+    ]);
+    // receipts tab counts receipt + production (both inbound LP-genesis events).
+    expect(within(screen.getByTestId('movement-tab-receipts')).getByText('2')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('movement-tab-receipts'));
+    expect(screen.getByTestId('movement-row-r')).toBeInTheDocument();
+    expect(screen.getByTestId('movement-row-p')).toBeInTheDocument();
+    expect(screen.queryByTestId('movement-row-c')).not.toBeInTheDocument();
+  });
+
+  it('groups consume_to_wo (lp_state ledger) under the Consume tab', () => {
+    renderList([
+      makeRow({ id: 'k', moveType: 'consume_to_wo', source: 'lp_state' }),
+      makeRow({ id: 'r', moveType: 'receipt', source: 'lp_state' }),
+    ]);
+    expect(within(screen.getByTestId('movement-tab-consume')).getByText('1')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('movement-tab-consume'));
+    expect(screen.getByTestId('movement-row-k')).toBeInTheDocument();
+    expect(screen.queryByTestId('movement-row-r')).not.toBeInTheDocument();
+  });
+
+  it('renders a source indicator distinguishing stock_move from lp_state rows', () => {
+    renderList([
+      makeRow({ id: 'sm', source: 'stock_move' }),
+      makeRow({ id: 'lp', source: 'lp_state' }),
+    ]);
+    expect(screen.getByTestId('movement-source-sm')).toHaveTextContent(EN.source.stock_move);
+    expect(screen.getByTestId('movement-source-lp')).toHaveTextContent(EN.source.lp_state);
+  });
+
+  it('never leaks a raw LP UUID when the LP number is missing', () => {
+    renderList([makeRow({ id: 'z', lpId: 'lp-uuid-zzz', lpNumber: null })]);
+    expect(screen.queryByTestId('movement-lp-link-z')).not.toBeInTheDocument();
+    expect(screen.queryByText('lp-uuid-zzz')).not.toBeInTheDocument();
   });
 
   it('resolves every staged i18n key in en and pl (no leaked dotted keys)', () => {

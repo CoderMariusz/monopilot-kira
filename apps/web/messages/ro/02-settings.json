@@ -648,7 +648,10 @@
       "upsertError": "Salvarea locației a eșuat.",
       "deleteSuccess": "Locație ștearsă.",
       "deleteError": "Ștergerea locației a eșuat.",
-      "deleteHasChildren": "Ștergeți mai întâi locațiile copil."
+      "deleteHasChildren": "Ștergeți mai întâi locațiile copil.",
+      "inactive": "Inactive",
+      "barcodeLabel": "Barcode",
+      "noBarcode": "No barcode"
     }
   },
   "schema": {
@@ -951,7 +954,7 @@
       "require_grn_qc_inspection": {
         "title": "Solicitați inspecția QC la GRN",
         "description": "GRN-urile de intrare trebuie să treacă inspecția de calitate înainte ca stocul să fie eliberat.",
-        "coming_banner": "Aplicarea modulului de calitate va fi disponibilă în curând; acest indicator doar înregistrează setarea.",
+        "coming_banner": "When enabled, goods received against a PO are placed on a QA hold until a quality inspection is recorded.",
         "on_label": "Inspecție obligatorie",
         "off_label": "Inspecție neobligatorie",
         "read_only": "Aveți nevoie de settings.flags.edit pentru a modifica acest indicator.",
@@ -1399,6 +1402,10 @@
     "pair_name_placeholder": "ex. Scaner linia 1",
     "pair_model_label": "Model",
     "pair_model_placeholder": "ex. Zebra TC52",
+    "pair_site_label": "Site",
+    "pair_site_placeholder": "Unassigned",
+    "pair_line_label": "Production line",
+    "pair_line_placeholder": "Unassigned",
     "pair_submit": "Asociază dispozitiv"
   },
   "integrations": {
@@ -1842,6 +1849,13 @@
       "kind_import": "Import",
       "kind_export": "Export",
       "none": "Nicio sarcină de import încă."
+    },
+    "exports": {
+      "title": "Recent exports",
+      "subtitle": "Files exported from any module — download links stay available.",
+      "rows_unit": "rows",
+      "download": "Download",
+      "none": "No exports yet."
     },
     "drawer": {
       "import_kicker": "Import CSV",

@@ -11,7 +11,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
+import { convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -19,6 +19,10 @@ const FLOUR_ID = '33333333-3333-4333-8333-333333333333';
 const DOUGH_ID = '44444444-4444-4444-8444-444444444444';
 const RUN_ID = '77777777-7777-4777-8777-777777777777';
 const SUPPLIER_ID = '88888888-8888-4888-8888-888888888888';
+const PO_PLANNED_ID = '99999999-9999-4999-8999-999999999999';
+const WO_PLANNED_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const PO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -45,10 +49,19 @@ let thresholdRows: Array<{
  * demand — the schedule_outputs anti-join has to exclude it.
  */
 let reworkSelfSupply = false;
+/** demand_forecasts rows the independent-demand read returns (default none). */
+let forecastRows: Array<{ product_id: string; uom: string; qty: string }> = [];
 let executed: string[] = [];
 /** Captured DDL-shaped INSERT params. */
 let runInserts: Array<readonly unknown[]> = [];
 let reqInserts: Array<readonly unknown[]> = [];
+let plannedInserts: Array<readonly unknown[]> = [];
+let outboxInserts: Array<readonly unknown[]> = [];
+let releasedUpdates: Array<readonly unknown[]> = [];
+let conversionRows: Array<Record<string, unknown>> = [];
+let hasActiveBom = true;
+const createPurchaseOrderMock = vi.fn();
+const createWorkOrderMock = vi.fn();
 
 const WO_OTHER = '55555555-5555-4555-8555-555555555555';
 const WO_REWORK = '66666666-6666-4666-8666-666666666666';
@@ -58,6 +71,14 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
       action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../purchase-orders/_actions/actions', () => ({
+  createPurchaseOrder: (input: unknown) => createPurchaseOrderMock(input),
+}));
+
+vi.mock('../work-orders/_actions/createWorkOrder', () => ({
+  createWorkOrder: (input: unknown) => createWorkOrderMock(input),
 }));
 
 function makeClient(): QueryClient {
@@ -73,7 +94,7 @@ function makeClient(): QueryClient {
         if (permission === 'scheduler.run.read') {
           return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
         }
-        if (permission === 'npd.planning.write') {
+        if (permission === 'npd.planning.write' || permission === 'planning.mrp.convert') {
           return {
             rows: allowWritePermission ? [{ ok: true }] : [],
             rowCount: allowWritePermission ? 1 : 0,
@@ -87,7 +108,45 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('insert into public.mrp_requirements')) {
         reqInserts.push(params);
+        return { rows: [{ id: `req-${reqInserts.length}` }], rowCount: 1 };
+      }
+      if (normalized.startsWith('delete from public.mrp_planned_orders')) {
         return { rows: [], rowCount: 1 };
+      }
+      if (normalized.includes('insert into public.mrp_planned_orders')) {
+        plannedInserts.push(params);
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.includes('insert into public.outbox_events')) {
+        outboxInserts.push(params);
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('update public.mrp_planned_orders')) {
+        releasedUpdates.push(params);
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.includes('from public.mrp_planned_orders')) {
+        if (!Array.isArray(params[0])) {
+          return {
+            rows: plannedInserts.map((p, index) => ({
+              id: index === 0 ? PO_PLANNED_ID : WO_PLANNED_ID,
+              item_id: p[2],
+              item_code: index === 0 ? 'RM-FLOUR' : 'INT-DOUGH',
+              item_name: index === 0 ? 'Wheat flour' : 'Bread dough',
+              order_type: p[3],
+              quantity: p[4],
+              uom: p[5],
+              due_date: p[6],
+              supplier_id: p[7],
+              release_status: 'suggested',
+            })),
+            rowCount: plannedInserts.length,
+          };
+        }
+        return { rows: conversionRows as never[], rowCount: conversionRows.length };
+      }
+      if (normalized.includes('from public.bom_headers')) {
+        return { rows: hasActiveBom ? [{ id: 'bom-id' }] : [], rowCount: hasActiveBom ? 1 : 0 };
       }
       if (normalized.includes('from public.mrp_runs')) {
         return {
@@ -129,7 +188,7 @@ function makeClient(): QueryClient {
         return { rows: thresholdRows, rowCount: thresholdRows.length };
       }
       if (normalized.includes('from public.items')) {
-        expect(params[0]).toEqual(['rm', 'ingredient', 'intermediate', 'packaging']);
+        expect(params[0]).toEqual(['rm', 'ingredient', 'intermediate', 'packaging', 'fg']);
         return {
           rows: [
             {
@@ -200,6 +259,12 @@ function makeClient(): QueryClient {
           rowCount: 2,
         };
       }
+      if (normalized.includes('from public.demand_forecasts')) {
+        // Horizon floor binds the current ISO week ('YYYY-Www'); already-summed
+        // per (item, uom) in the item's base UoM (mig 302).
+        expect(String(params[0])).toMatch(/^\d{4}-W\d{2}$/);
+        return { rows: forecastRows, rowCount: forecastRows.length };
+      }
       if (normalized.includes('from public.purchase_order_lines')) {
         expect(params[0]).toEqual(['sent', 'confirmed', 'partially_received']);
         // Remainder already netted in SQL (ordered − received via grn_items).
@@ -216,10 +281,20 @@ beforeEach(() => {
   allowWritePermission = true;
   failInventoryRead = false;
   reworkSelfSupply = false;
+  forecastRows = [];
   thresholdRows = [];
   executed = [];
   runInserts = [];
   reqInserts = [];
+  plannedInserts = [];
+  outboxInserts = [];
+  releasedUpdates = [];
+  conversionRows = [];
+  hasActiveBom = true;
+  createPurchaseOrderMock.mockReset();
+  createPurchaseOrderMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
+  createWorkOrderMock.mockReset();
+  createWorkOrderMock.mockResolvedValue({ ok: true, workOrder: { id: WO_ID } });
 });
 
 describe('runMrp', () => {
@@ -257,9 +332,9 @@ describe('runMrp', () => {
     expect(result.data.kpis.coveragePct).toBe(67);
   });
 
-  it('runs all six org-scoped source reads (RLS predicates present)', async () => {
+  it('runs all org-scoped source reads incl. demand_forecasts (RLS predicates present)', async () => {
     await runMrp();
-    const sources = ['public.items', 'public.v_inventory_available', 'public.wo_materials', 'public.purchase_order_lines', 'public.schedule_outputs', 'public.reorder_thresholds'];
+    const sources = ['public.items', 'public.v_inventory_available', 'public.wo_materials', 'public.demand_forecasts', 'public.purchase_order_lines', 'public.schedule_outputs', 'public.reorder_thresholds'];
     for (const source of sources) {
       const q = executed.find((sql) => sql.includes(`from ${source}`));
       expect(q, `${source} read missing`).toBeTruthy();
@@ -338,6 +413,57 @@ describe('runMrp', () => {
     expect(dough.suggestedAction).toEqual({ type: 'make', qty: '20', dueDate: due, supplierId: SUPPLIER_ID });
   });
 
+  it('nets demand_forecasts as INDEPENDENT demand — forecast qty raises the item net requirement (E6)', async () => {
+    // Baseline flour: 40 − 10 + 25 − 80 = −25 (buy 25). Add a 30 kg forecast →
+    // demand 80 + 30 = 110, net 40 − 10 + 25 − 110 = −55 → buy 55.
+    forecastRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '30.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.demand).toBe('110.000'); // 80 dependent + 30 forecast
+    expect(flour.forecastDemand).toBe('30.000');
+    expect(flour.net).toBe('-55.000'); // 25 worse than the −25 baseline (== forecast qty)
+    expect(flour.severity).toBe('shortage');
+    // Shortage grew by exactly the forecast qty → a larger BUY shortfall order.
+    expect(flour.suggestedAction).toEqual({ type: 'buy', qty: '55', dueDate: null, supplierId: null });
+
+    // Dough has no forecast → still pure dependent demand, untouched.
+    const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
+    expect(dough.demand).toBe('20.000');
+    expect(dough.forecastDemand).toBe('0.000');
+  });
+
+  it('tags the persisted run/requirement as forecast-driven when a forecast feeds an item (E6)', async () => {
+    forecastRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '30.000' }];
+    const result = await runMrp({ persist: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Run header demand_source flips to 'forecast' (mrp_runs_demand_source_check).
+    // params: [run_number, horizon, paramsJson, reqCount, exceptionCount, startedAt, createdBy, plannedCount, demandSource]
+    expect(runInserts).toHaveLength(1);
+    expect(runInserts[0][8]).toBe('forecast');
+
+    // mrp_requirements: source_type='independent' for the forecasted flour row,
+    // 'dependent' for dough. params: [run, item, bucket, gross, receipts, projected, net_req, uom, exception, source_type]
+    const flourReq = reqInserts.find((p) => p[1] === FLOUR_ID)!;
+    const doughReq = reqInserts.find((p) => p[1] === DOUGH_ID)!;
+    expect(flourReq[3]).toBe('110.000'); // gross now includes the 30 kg forecast
+    expect(flourReq[9]).toBe('independent');
+    expect(doughReq[9]).toBe('dependent');
+  });
+
+  it('keeps demand_source=manual + source_type=dependent with no forecasts (default)', async () => {
+    const result = await runMrp({ persist: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(runInserts[0][8]).toBe('manual');
+    for (const req of reqInserts) expect(req[9]).toBe('dependent');
+  });
+
   it('persists the run header + per-item requirements per the mig-178 DDL ({ persist: true })', async () => {
     const result = await runMrp({ persist: true });
     expect(result.ok).toBe(true);
@@ -359,7 +485,7 @@ describe('runMrp', () => {
       expect(runSql, `mrp_runs insert missing ${col}`).toContain(col);
     }
     const today = result.data.ranAt.slice(0, 10);
-    const [runNumber, horizon, paramsJson, reqCount, exceptionCount, startedAt, createdBy] = runInserts[0];
+    const [runNumber, horizon, paramsJson, reqCount, exceptionCount, startedAt, createdBy, plannedCount] = runInserts[0];
     expect(runNumber).toBe(result.data.runNumber);
     expect(horizon).toBe(today);
     expect(JSON.parse(paramsJson as string)).toMatchObject({ slice: 'cl2-persist', suggested_actions: 2 });
@@ -367,6 +493,7 @@ describe('runMrp', () => {
     expect(exceptionCount).toBe(2); // both short
     expect(startedAt).toBe(result.data.ranAt);
     expect(createdBy).toBe(USER_ID);
+    expect(plannedCount).toBe(2);
 
     // mrp_requirements: one DDL-shaped row per netted item, idempotent upsert.
     expect(reqInserts).toHaveLength(2);
@@ -376,12 +503,36 @@ describe('runMrp', () => {
     expect(reqSql).toContain('do update set');
 
     // Shortage-sorted rows: flour first (net −25), dough second (net −8).
-    // Params: [run_id, item_id, bucket_date, gross, receipts, projected, net_req, uom, exception].
+    // Params: [run_id, item_id, bucket_date, gross, receipts, projected, net_req, uom, exception, source_type].
+    // No forecasts here → both rows stay 'dependent'.
     expect(reqInserts[0]).toEqual([
-      RUN_ID, FLOUR_ID, today, '80.000', '25.000', '-25.000', '25.000', 'kg', 'shortage',
+      RUN_ID, FLOUR_ID, today, '80.000', '25.000', '-25.000', '25.000', 'kg', 'shortage', 'dependent',
     ]);
     expect(reqInserts[1]).toEqual([
-      RUN_ID, DOUGH_ID, today, '20.000', '12.000', '-8.000', '8.000', 'kg', 'shortage',
+      RUN_ID, DOUGH_ID, today, '20.000', '12.000', '-8.000', '8.000', 'kg', 'shortage', 'dependent',
+    ]);
+
+    expect(plannedInserts).toHaveLength(2);
+    expect(plannedInserts[0]).toEqual([
+      RUN_ID, 'req-1', FLOUR_ID, 'po', '25.000', 'kg', today, null, 'MRP buy suggestion for RM-FLOUR',
+    ]);
+    expect(plannedInserts[1]).toEqual([
+      RUN_ID, 'req-2', DOUGH_ID, 'wo', '8.000', 'kg', today, null, 'MRP make suggestion for INT-DOUGH',
+    ]);
+    expect(result.data.plannedOrders).toHaveLength(2);
+
+    const outboxSql = executed.find((sql) => sql.includes('insert into public.outbox_events'))!;
+    expect(outboxSql).toContain('planning-mrp-v1');
+    expect(outboxInserts).toEqual([
+      [
+        'planning.mrp.completed',
+        RUN_ID,
+        JSON.stringify({
+          run_id: RUN_ID,
+          actor_user_id: USER_ID,
+          counts: { requirements: 2, planned_orders: 2 },
+        }),
+      ],
     ]);
   });
 
@@ -429,6 +580,114 @@ describe('listMrpRuns', () => {
   it('returns forbidden without the read permission', async () => {
     allowPermission = false;
     expect(await listMrpRuns()).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
+describe('convertPlannedToPo', () => {
+  it('groups buy planned orders by supplier and calls canonical createPurchaseOrder', async () => {
+    conversionRows = [
+      {
+        id: PO_PLANNED_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        item_name: 'Wheat flour',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: SUPPLIER_ID,
+        release_status: 'suggested',
+      },
+    ];
+
+    const result = await convertPlannedToPo([PO_PLANNED_ID]);
+
+    expect(result).toEqual({ ok: true, created: 1, poIds: [PO_ID], skipped: [] });
+    expect(createPurchaseOrderMock).toHaveBeenCalledWith({
+      supplierId: SUPPLIER_ID,
+      status: 'draft',
+      expectedDelivery: '2026-06-18',
+      currency: 'EUR',
+      notes: 'Created from MRP planned orders',
+      lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', lineNo: 1 }],
+    });
+    expect(releasedUpdates).toEqual([[[PO_PLANNED_ID], PO_ID]]);
+  });
+
+  it('skips buy planned orders without a supplier', async () => {
+    conversionRows = [
+      {
+        id: PO_PLANNED_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        item_name: 'Wheat flour',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: null,
+        release_status: 'suggested',
+      },
+    ];
+
+    const result = await convertPlannedToPo([PO_PLANNED_ID]);
+
+    expect(result).toEqual({ ok: true, created: 0, poIds: [], skipped: [{ id: PO_PLANNED_ID, reason: 'missing supplier' }] });
+    expect(createPurchaseOrderMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('convertPlannedToWo', () => {
+  it('calls canonical createWorkOrder for make planned orders with an active BOM', async () => {
+    conversionRows = [
+      {
+        id: WO_PLANNED_ID,
+        item_id: DOUGH_ID,
+        item_code: 'INT-DOUGH',
+        item_name: 'Bread dough',
+        order_type: 'wo',
+        quantity: '8.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: null,
+        release_status: 'suggested',
+      },
+    ];
+
+    const result = await convertPlannedToWo([WO_PLANNED_ID]);
+
+    expect(result).toEqual({ ok: true, created: 1, woIds: [WO_ID], skipped: [] });
+    expect(createWorkOrderMock).toHaveBeenCalledWith({
+      productId: DOUGH_ID,
+      itemCode: 'INT-DOUGH',
+      plannedQuantity: '8.000',
+      notes: 'Created from MRP planned order',
+    });
+    expect(releasedUpdates).toEqual([[[WO_PLANNED_ID], WO_ID]]);
+  });
+
+  it('skips make planned orders with no active BOM before calling createWorkOrder', async () => {
+    hasActiveBom = false;
+    conversionRows = [
+      {
+        id: WO_PLANNED_ID,
+        item_id: DOUGH_ID,
+        item_code: 'INT-DOUGH',
+        item_name: 'Bread dough',
+        order_type: 'wo',
+        quantity: '8.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: null,
+        release_status: 'suggested',
+      },
+    ];
+
+    const result = await convertPlannedToWo([WO_PLANNED_ID]);
+
+    expect(result).toEqual({ ok: true, created: 0, woIds: [], skipped: [{ id: WO_PLANNED_ID, reason: 'no active BOM' }] });
+    expect(createWorkOrderMock).not.toHaveBeenCalled();
+    expect(releasedUpdates).toHaveLength(0);
   });
 });
 

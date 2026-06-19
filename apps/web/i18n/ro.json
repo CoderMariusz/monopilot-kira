@@ -53,6 +53,7 @@
   "common": {
     "cancel": "Anulare",
     "save": "Salvare",
+    "formIncomplete": "Complete all required fields to continue.",
     "error": {
       "generic": "A apărut o eroare. Vă rugăm să încercați din nou."
     }
@@ -3070,6 +3071,23 @@
         "markReviewed": "Mark reviewed",
         "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
       },
+      "recall": {
+        "action": "Recall to draft",
+        "permissionTooltip": "You need the factory spec recall permission to recall this specification.",
+        "title": "Recall specification to draft",
+        "body": "Recalling {spec} returns it to draft and clears its approval and release. New work orders can no longer reference it until it is re-approved and released.",
+        "reasonLabel": "Reason",
+        "reasonOptional": "optional",
+        "reasonPlaceholder": "Why is this specification being recalled?",
+        "confirm": "Recall to draft",
+        "submitting": "Recalling…",
+        "cancel": "Cancel",
+        "success": "Specification recalled to draft.",
+        "errors": {
+          "forbidden": "You do not have permission to recall this specification.",
+          "generic": "Unable to recall this specification. Please retry."
+        }
+      },
       "create": {
         "open": "+ Specificație nouă",
         "title": "Specificație nouă",
@@ -5673,7 +5691,10 @@
         "purchaseOrders": "Purchase orders"
       },
       "actions": {
-        "createPo": "Create PO"
+        "createPo": "Create PO",
+        "export": "Export",
+        "exporting": "Exporting…",
+        "exportError": "Export failed. Please retry."
       },
       "poStatus": {
         "draft": "Draft",
@@ -5985,6 +6006,55 @@
           "submitEdit": "Save line",
           "qtyRequired": "Enter a quantity greater than zero and pick a unit."
         }
+      },
+      "reverseReceipt": {
+        "received": "Received",
+        "destLp": "Destination pallet",
+        "action": "Reverse receipt…",
+        "permissionTooltip": "You need the warehouse transfer correction permission to reverse a received line.",
+        "notReceivableTooltip": "Only received lines with a destination pallet can be reversed.",
+        "title": "Reverse receipt · line {line}",
+        "intro": "Reversing returns the destination pallet to the source and reopens this line. The full received quantity is reversed — partial reversals are not supported. Stock and the transfer order status are recomputed on the server.",
+        "summary": {
+          "toNumber": "Transfer order",
+          "product": "Product",
+          "destLp": "Destination pallet",
+          "quantity": "Quantity to reverse"
+        },
+        "reasonCode": "Reason",
+        "reasonPlaceholder": "Select a reason",
+        "reasonOptions": {
+          "entry_error": "Entry error",
+          "wrong_quantity": "Wrong quantity",
+          "wrong_batch": "Wrong batch / lot",
+          "wrong_product": "Wrong product",
+          "other": "Other"
+        },
+        "note": "Note",
+        "noteOptional": "optional",
+        "notePlaceholder": "Add context for the reversal",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "Re-enter your account password (or supervisor PIN) to sign this reversal. Your identity and the server time are recorded.",
+          "password": "Password or PIN",
+          "passwordPlaceholder": "Account password or supervisor PIN",
+          "passwordHelp": "Use your account password, or a supervisor PIN if one is enrolled."
+        },
+        "cancel": "Cancel",
+        "submit": "Reverse receipt",
+        "submitting": "Reversing…",
+        "formIncomplete": "Pick a reason and enter your password or PIN.",
+        "errors": {
+          "forbidden": "You do not have permission to reverse this receipt.",
+          "not_found": "This received line no longer exists — refresh and retry.",
+          "invalid_input": "Check the fields and try again.",
+          "invalid_state": "This transfer order is no longer in a state that allows reversing a receipt.",
+          "invalid_quantity": "The reverse quantity must equal the received destination pallet quantity.",
+          "lp_active": "This pallet is reserved, allocated, consumed or shipped and can't be reversed.",
+          "esign_failed": "Signature failed — check your password or PIN and retry.",
+          "persistence_failed": "Unable to reverse this receipt. Please retry.",
+          "generic": "Unable to reverse this receipt. Please retry."
+        }
       }
     },
     "nav": {
@@ -6016,6 +6086,10 @@
       "reorderThresholds": {
         "title": "Reorder thresholds",
         "desc": "Min stock floors & reorder lots for MRP"
+      },
+      "forecasts": {
+        "title": "Forecasts",
+        "desc": "Independent demand per item & ISO-week for MRP"
       }
     },
     "mrp": {
@@ -6193,6 +6267,55 @@
           "cancel": "Cancel",
           "error": "Item search failed"
         }
+      }
+    },
+    "forecasts": {
+      "title": "Demand forecasts",
+      "subtitle": "Independent demand per item per ISO-week (base UoM) feeding MRP net requirements",
+      "breadcrumb": "Forecasts",
+      "add": "+ Add product",
+      "copyWeek": "Copy previous week",
+      "copying": "Copying…",
+      "importCsv": "Import CSV",
+      "empty": "No demand forecasts yet",
+      "emptyHint": "Add a product to start forecasting weekly demand, or import a CSV.",
+      "loading": "Loading…",
+      "denied": "You don't have permission to view demand forecasts.",
+      "error": "Failed to load demand forecasts.",
+      "itemColumn": "Product",
+      "saving": "Saving…",
+      "cellError": "Save failed",
+      "copyResult": "Copied {count} forecast cells into the next week.",
+      "picker": {
+        "trigger": "+ Add product",
+        "searchLabel": "Search products",
+        "searchPlaceholder": "Search by code or name…",
+        "loading": "Searching…",
+        "empty": "No matching products",
+        "cancel": "Cancel",
+        "error": "Product search failed"
+      },
+      "importModal": {
+        "title": "Import demand forecasts",
+        "step1": "1. Paste CSV",
+        "step2": "2. Parse",
+        "step3": "3. Preview",
+        "step4": "4. Import",
+        "pasteLabel": "Paste CSV rows",
+        "pastePlaceholder": "itemCode,isoWeek,qty",
+        "parse": "Parse rows",
+        "parsedRows": "{count} rows parsed",
+        "noRows": "No valid rows to import.",
+        "submit": "Import",
+        "submitting": "Importing…",
+        "cancel": "Cancel",
+        "close": "Done",
+        "resultImported": "{count} forecast cells imported.",
+        "resultErrors": "{count} rows skipped (unknown item or invalid value).",
+        "formatHint": "Columns: item code, ISO-week (e.g. 2026-W25), quantity in the item's output unit.",
+        "colItem": "Item code",
+        "colWeek": "ISO-week",
+        "colQty": "Qty"
       }
     }
   },
@@ -7487,6 +7610,148 @@
         "setup": "Setup",
         "machine": "Machine",
         "waste": "Waste"
+      }
+    }
+  },
+  "quality": {
+    "ccpMonitoring": {
+      "title": "CCP Monitoring",
+      "subtitle": "Critical control point readings across active HACCP plans.",
+      "breadcrumb": {
+        "quality": "Quality",
+        "ccpMonitoring": "CCP Monitoring"
+      },
+      "recordReading": "Record reading",
+      "summary": {
+        "activeCcps": "Active CCPs",
+        "activeCcpsSub": "With critical limits configured",
+        "inLimit": "In-limit CCPs",
+        "inLimitSub": "Latest reading within limits",
+        "outOfLimit": "Out-of-limit CCPs",
+        "outOfLimitSub": "Latest reading breached limits"
+      },
+      "board": {
+        "ariaLabel": "Critical control points",
+        "hazard": "Hazard",
+        "criticalLimit": "Critical limit",
+        "frequency": "Monitoring frequency",
+        "lastReading": "Last reading",
+        "noReading": "No reading yet",
+        "recordedAt": "Recorded {at}",
+        "noLimit": "—",
+        "limitRange": "{min} – {max} {unit}",
+        "limitMinOnly": "≥ {min} {unit}",
+        "limitMaxOnly": "≤ {max} {unit}",
+        "limitNone": "No limit set"
+      },
+      "status": {
+        "inLimit": "In limit",
+        "outOfLimit": "Out of limit",
+        "noData": "No data"
+      },
+      "hazardType": {
+        "biological": "Biological",
+        "chemical": "Chemical",
+        "physical": "Physical",
+        "allergen": "Allergen"
+      },
+      "loading": "Loading CCP monitoring…",
+      "empty": {
+        "title": "No CCPs defined yet",
+        "body": "Define critical control points in the HACCP plan before you can record monitoring readings.",
+        "cta": "Add the first CCP",
+        "ctaDisabled": "You need the HACCP plan-edit permission to add a CCP."
+      },
+      "error": {
+        "title": "Could not load CCP monitoring",
+        "body": "The live read failed. Refresh to try again."
+      },
+      "denied": {
+        "title": "Access denied",
+        "body": "You do not have permission to view CCP monitoring."
+      },
+      "record": {
+        "title": "Record CCP reading",
+        "subtitle": "Pick a CCP and enter the measured value. An out-of-limit reading auto-opens an NCR.",
+        "ccp": "Critical control point",
+        "ccpPlaceholder": "Select a CCP",
+        "ccpOption": "{code} — {name}",
+        "value": "Measured value",
+        "valuePlaceholder": "e.g. 4.2",
+        "valueHelp": "Numeric reading in the CCP unit.",
+        "unit": "Unit",
+        "limitHint": "Critical limit: {limit}",
+        "wo": "Work order (optional)",
+        "woPlaceholder": "Search work order number…",
+        "woHelp": "Optionally link this reading to a work order.",
+        "woSearching": "Searching…",
+        "woNoMatches": "No work orders match “{query}”.",
+        "woPickedChip": "{woNumber}",
+        "woClear": "Clear",
+        "note": "Note (optional)",
+        "notePlaceholder": "Add context for this reading…",
+        "cancel": "Cancel",
+        "submit": "Record reading",
+        "submitting": "Recording…",
+        "validation": {
+          "ccpRequired": "Select a CCP.",
+          "valueRequired": "Enter a numeric measured value.",
+          "valueNumeric": "The measured value must be a number."
+        },
+        "error": "Could not record the reading: {message}",
+        "breach": {
+          "title": "Out of limit — NCR opened",
+          "body": "The value {value} breached the critical limit for {ccp}. A non-conformance report was created automatically.",
+          "viewNcr": "View NCR"
+        },
+        "success": "Reading recorded — within limits."
+      },
+      "nav": {
+        "title": "CCP Monitoring",
+        "desc": "Record critical control point readings; out-of-limit auto-opens an NCR."
+      },
+      "addCcp": "Add CCP",
+      "addCcpDisabled": "You need the HACCP plan-edit permission to add a CCP.",
+      "create": {
+        "titleCreate": "Add critical control point",
+        "titleEdit": "Edit critical control point",
+        "subtitle": "Define the CCP, its hazard and the critical limits monitoring must keep readings within.",
+        "ccpCode": "CCP code",
+        "ccpCodePlaceholder": "e.g. CCP-01",
+        "ccpCodeHelp": "Short unique code for this control point.",
+        "name": "Name",
+        "namePlaceholder": "e.g. Cooking temperature",
+        "processStep": "Process step",
+        "processStepPlaceholder": "e.g. Cooking",
+        "hazardType": "Hazard type",
+        "hazardTypePlaceholder": "Select a hazard type",
+        "criticalLimitMin": "Critical limit — minimum",
+        "criticalLimitMinPlaceholder": "e.g. 72",
+        "criticalLimitMax": "Critical limit — maximum",
+        "criticalLimitMaxPlaceholder": "e.g. 100",
+        "limitHelp": "Leave a bound empty for a one-sided limit. At least one bound is recommended.",
+        "unit": "Unit",
+        "unitPlaceholder": "e.g. °C",
+        "frequency": "Monitoring frequency",
+        "frequencyPlaceholder": "e.g. Each batch",
+        "correctiveAction": "Corrective action",
+        "correctiveActionPlaceholder": "What to do when a reading is out of limit…",
+        "isActive": "Active",
+        "isActiveHelp": "Inactive CCPs are hidden from the monitoring board.",
+        "cancel": "Cancel",
+        "submitCreate": "Add CCP",
+        "submitEdit": "Save CCP",
+        "submitting": "Saving…",
+        "validation": {
+          "ccpCodeRequired": "Enter a CCP code.",
+          "nameRequired": "Enter a name.",
+          "processStepRequired": "Enter a process step.",
+          "hazardTypeRequired": "Select a hazard type.",
+          "limitNumeric": "Critical limits must be numbers.",
+          "limitOrder": "The minimum must be less than or equal to the maximum."
+        },
+        "error": "Could not save the CCP: {message}",
+        "success": "CCP saved."
       }
     }
   }

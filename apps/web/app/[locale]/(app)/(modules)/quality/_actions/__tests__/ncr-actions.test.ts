@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { closeNcr, createNcr, listNcrs, updateNcrInvestigation } from '../ncr-actions';
+import { closeNcr, createNcr, getNcrDetail, listNcrs, updateNcrInvestigation } from '../ncr-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -15,10 +15,14 @@ const NCR_ID = '33333333-3333-4333-8333-333333333333';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 const HOLD_ID = '55555555-5555-4555-8555-555555555555';
 
+const CCP_ID = '66666666-6666-4666-8666-666666666666';
+
 let client: QueryClient;
 let permissions: Set<string>;
 let currentSeverity: 'critical' | 'major' | 'minor' = 'critical';
 let currentStatus: 'open' | 'closed' | 'cancelled' = 'open';
+// reference of the row returned by the getNcrDetail header select.
+let detailReference: { type: string | null; id: string | null } = { type: 'lp', id: 'ref-uuid' };
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -63,13 +67,45 @@ function makeClient(): QueryClient {
               severity: 'major',
               status: 'open',
               title: 'Seal failure',
+              description: 'Top seal failed inspection',
+              reference_type: detailReference.type,
+              reference_id: detailReference.id,
               product_id: PRODUCT_ID,
               product_code: 'FG-PIE',
               product_name: 'Steak Pie',
+              affected_qty_kg: '12.500',
+              detected_by: USER_ID,
+              detected_at: '2026-06-11T10:00:00.000Z',
+              root_cause: null,
+              root_cause_category: null,
+              immediate_action: null,
+              capa_record_id: null,
+              closed_by: null,
+              closed_at: null,
+              closure_signature_hash: null,
               linked_hold_id: HOLD_ID,
               linked_hold_number: 'HLD-00001000',
               response_due_at: '2026-06-13T10:00:00.000Z',
               created_at: '2026-06-11T10:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (q.includes('from public.haccp_ccps c')) {
+        return {
+          rows: [
+            {
+              ccp_id: CCP_ID,
+              ccp_code: 'CCP-COOK',
+              ccp_name: 'Cook temperature',
+              critical_limit_min: '70.0000',
+              critical_limit_max: '75.0000',
+              unit: 'C',
+              measured_value: '69.5000',
+              measured_at: '2026-06-11T11:00:00.000Z',
+              recorded_by_name: 'QA Inspector',
             },
           ],
           rowCount: 1,
@@ -140,6 +176,7 @@ describe('quality NCR server actions', () => {
     permissions = new Set(['quality.dashboard.view', 'quality.ncr.create', 'quality.ncr.close_critical']);
     currentSeverity = 'critical';
     currentStatus = 'open';
+    detailReference = { type: 'lp', id: 'ref-uuid' };
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -185,6 +222,45 @@ describe('quality NCR server actions', () => {
     expect(update?.[1]?.[7]).toBe('Recalibrate jaw');
     const outbox = vi.mocked(client.query).mock.calls.find(([, params]) => params?.[0] === 'quality.ncr.updated');
     expect(outbox).toBeTruthy();
+  });
+
+  it('getNcrDetail surfaces CCP-breach context for a ccp_deviation NCR (code/limits/measured value/reader)', async () => {
+    detailReference = { type: 'ccp_deviation', id: CCP_ID };
+
+    const result = await getNcrDetail(NCR_ID);
+    expect(result.ok).toBe(true);
+    if (!result.ok || !result.data) throw new Error('expected detail');
+    expect(result.data.ccpBreach).toEqual({
+      ccpId: CCP_ID,
+      ccpCode: 'CCP-COOK',
+      ccpName: 'Cook temperature',
+      criticalLimitMin: '70.0000',
+      criticalLimitMax: '75.0000',
+      unit: 'C',
+      measuredValue: '69.5000',
+      measuredAt: '2026-06-11T11:00:00.000Z',
+      recordedBy: 'QA Inspector',
+    });
+    // The CCP fetch links the breach via the monitoring-log breach_ncr_id = this NCR.
+    const ccpFetch = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('from public.haccp_ccps c'),
+    );
+    expect(ccpFetch).toBeTruthy();
+    expect(normalize(String(ccpFetch?.[0]))).toContain('l.breach_ncr_id = $2::uuid');
+    expect(ccpFetch?.[1]).toEqual([CCP_ID, NCR_ID]);
+  });
+
+  it('getNcrDetail does NOT fetch CCP context for a non-ccp_deviation NCR', async () => {
+    detailReference = { type: 'lp', id: 'ref-uuid' };
+
+    const result = await getNcrDetail(NCR_ID);
+    expect(result.ok).toBe(true);
+    if (!result.ok || !result.data) throw new Error('expected detail');
+    expect(result.data.ccpBreach).toBeNull();
+    const ccpFetch = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('from public.haccp_ccps c'),
+    );
+    expect(ccpFetch).toBeUndefined();
   });
 
   it('requires e-signature for critical close and uses create permission for non-critical close', async () => {

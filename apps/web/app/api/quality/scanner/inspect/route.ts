@@ -28,9 +28,10 @@ async function createHoldForLp(params: {
   client: ProductionContext['client'];
   lpId: string;
   userId: string;
+  orgId: string;
   note: string | null;
 }): Promise<void> {
-  const hold = await params.client.query<{ id: string }>(
+  const hold = await params.client.query<{ id: string; hold_number: string }>(
     `insert into public.quality_holds (
        org_id,
        reference_type,
@@ -49,11 +50,11 @@ async function createHoldForLp(params: {
        'open',
        $3::uuid
      )
-     returning id::text`,
+     returning id::text, hold_number`,
     [params.lpId, params.note ?? 'scanner inspection hold', params.userId],
   );
-  const holdId = hold.rows[0]?.id;
-  if (!holdId) throw new Error('quality hold insert did not return a row');
+  const createdHold = hold.rows[0];
+  if (!createdHold?.id) throw new Error('quality hold insert did not return a row');
 
   const lp = await params.client.query<{ id: string; quantity: string }>(
     `select id::text, quantity::text
@@ -76,7 +77,30 @@ async function createHoldForLp(params: {
      )
      values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held', $4)
      on conflict (hold_id, license_plate_id) do nothing`,
-    [holdId, current.id, current.quantity, params.note],
+    [createdHold.id, current.id, current.quantity, params.note],
+  );
+
+  // Emit the canonical `quality.hold.created` outbox event (same event_type +
+  // aggregate_type + app_version + payload shape as hold-actions.ts::createHold).
+  // The scanner fast-path hold MUST be visible to outbox consumers / audit like
+  // any manually-created hold; stays inside the same transaction as the insert.
+  await params.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), 'quality.hold.created', 'quality_hold', $1::uuid, $2::jsonb, 'quality-holds-v1')`,
+    [
+      createdHold.id,
+      JSON.stringify({
+        org_id: params.orgId,
+        actor_user_id: params.userId,
+        holdId: createdHold.id,
+        holdNumber: createdHold.hold_number,
+        referenceType: 'lp',
+        referenceId: params.lpId,
+        lpIds: [params.lpId],
+        source: 'scanner_inspection',
+      }),
+    ],
   );
 }
 
@@ -84,6 +108,7 @@ async function applyLpDecision(params: {
   client: ProductionContext['client'];
   lpId: string;
   userId: string;
+  orgId: string;
   decision: Decision;
   note: string | null;
 }): Promise<QaStatus | null> {
@@ -104,6 +129,7 @@ async function applyLpDecision(params: {
       client: params.client,
       lpId: params.lpId,
       userId: params.userId,
+      orgId: params.orgId,
       note: params.note,
     });
   }
@@ -226,6 +252,7 @@ export async function POST(request: NextRequest) {
           client: scopedClient,
           lpId,
           userId: session.user_id,
+          orgId: session.org_id,
           decision,
           note: note ?? null,
         });

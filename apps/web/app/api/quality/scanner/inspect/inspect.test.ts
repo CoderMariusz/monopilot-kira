@@ -78,7 +78,10 @@ describe('quality scanner inspect route', () => {
         return { rows: [{ id: LP_ID }], rowCount: 1 };
       }
       if (q.startsWith('insert into public.quality_holds')) {
-        return { rows: [{ id: HOLD_ID }], rowCount: 1 };
+        return { rows: [{ id: HOLD_ID, hold_number: 'HLD-00000001' }], rowCount: 1 };
+      }
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('select id::text, quantity::text')) {
         return { rows: [{ id: LP_ID, quantity: '12.000000' }], rowCount: 1 };
@@ -115,6 +118,22 @@ describe('quality scanner inspect route', () => {
     );
     expect(lpUpdate?.[1]).toEqual([LP_ID, 'on_hold', session.user_id, ['consumed', 'merged', 'shipped', 'returned']]);
     expect(fakeClient.query.mock.calls.some((call) => normalize(String(call[0])).startsWith('insert into public.quality_holds'))).toBe(true);
+    // The scanner fast-path hold MUST emit the canonical quality.hold.created event.
+    const outboxInsert = fakeClient.query.mock.calls.find((call) =>
+      normalize(String(call[0])).startsWith('insert into public.outbox_events'),
+    );
+    expect(outboxInsert).toBeTruthy();
+    expect(normalize(String(outboxInsert?.[0]))).toContain("'quality.hold.created'");
+    expect(outboxInsert?.[1]?.[0]).toBe(HOLD_ID);
+    const outboxPayload = JSON.parse(String(outboxInsert?.[1]?.[1] ?? '{}'));
+    expect(outboxPayload).toMatchObject({
+      holdId: HOLD_ID,
+      holdNumber: 'HLD-00000001',
+      referenceType: 'lp',
+      referenceId: LP_ID,
+      lpIds: [LP_ID],
+      source: 'scanner_inspection',
+    });
     const auditInsert = fakeClient.query.mock.calls.find((call) =>
       normalize(String(call[0])).startsWith('insert into public.scanner_audit_log') &&
       JSON.stringify(call[1] ?? []).includes('inspect-op-1'),

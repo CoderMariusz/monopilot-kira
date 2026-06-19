@@ -97,7 +97,7 @@ export async function searchFgProducts(input: SearchFgProductsInput = {}): Promi
           -- output of a production run and must be able to anchor its own work order
           -- (the create modal labels these generically as 'product').
           and i.item_type in ('fg', 'co_product')
-          and i.status <> 'blocked'
+          and i.status = 'active'
           and (
             $1::text is null
             or i.item_code ilike $1 escape '\\'

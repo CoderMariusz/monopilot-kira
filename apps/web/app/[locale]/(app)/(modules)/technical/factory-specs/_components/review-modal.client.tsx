@@ -28,6 +28,7 @@ import { useTranslations } from 'next-intl';
 import { specBadge } from '../../../../../../../lib/technical/release-state-adapters';
 import type { FactorySpecListItem } from '../_actions/shared';
 import { ReleaseBundlePanelButton } from './release-bundle-panel.client';
+import { RecallSpecButton } from './recall-spec.client';
 
 function Dialog({
   open,
@@ -115,10 +116,13 @@ const BADGE_TONE: Record<string, string> = {
 export function FactorySpecRowActions({
   spec,
   canApprove,
+  canRecall = false,
   reviewLabel,
 }: {
   spec: FactorySpecListItem;
   canApprove: boolean;
+  /** R4-CL2 — caller holds technical.factory_spec.recall (gates "Recall to draft"). */
+  canRecall?: boolean;
   reviewLabel: string;
 }) {
   const t = useTranslations('Technical.factorySpecs');
@@ -127,6 +131,8 @@ export function FactorySpecRowActions({
   const badge = specBadge(spec.status);
   const isImmutable = spec.status === 'approved_for_factory' || spec.status === 'released_to_factory';
   const bomPending = spec.bomStatus != null && ['draft', 'in_review'].includes(spec.bomStatus);
+  // R4-CL2 — the recall affordance only applies to a released spec.
+  const isReleased = spec.status === 'released_to_factory';
 
   return (
     <span className="flex items-center justify-end gap-3">
@@ -138,6 +144,10 @@ export function FactorySpecRowActions({
       >
         {reviewLabel}
       </button>
+
+      {isReleased ? (
+        <RecallSpecButton specId={spec.id} specCode={spec.specCode} canRecall={canRecall} />
+      ) : null}
 
       <Dialog
         open={open}

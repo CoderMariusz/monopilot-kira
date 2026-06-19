@@ -53,10 +53,15 @@ const LABELS: SnapshotsViewerLabels = {
   noWo: '—',
 };
 
+const SNAP_1_ID = '11111111-1111-4111-8111-111111111111';
+const SNAP_2_ID = '22222222-2222-4222-8222-222222222222';
+const WO_1_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
 const SNAPSHOTS: SnapshotRow[] = [
   {
-    id: 'SNAP-1',
-    workOrderId: 'WO-12044',
+    id: SNAP_1_ID,
+    workOrderId: WO_1_ID,
+    workOrderNumber: 'WO-12044',
     bomHeaderId: 'h1',
     bomVersion: 7,
     productId: 'FG5101',
@@ -66,8 +71,9 @@ const SNAPSHOTS: SnapshotRow[] = [
     status: 'in_use',
   },
   {
-    id: 'SNAP-2',
-    workOrderId: 'WO-12012',
+    id: SNAP_2_ID,
+    workOrderId: null,
+    workOrderNumber: null,
     bomHeaderId: 'h2',
     bomVersion: 6,
     productId: 'FG5101',
@@ -91,6 +97,14 @@ describe('TEC-025 Snapshots viewer (spec: spec-driven-screens.jsx:223-303)', () 
       expect(within(table).getByText(c)).toBeInTheDocument(),
     );
     expect(screen.getAllByTestId('snapshot-row')).toHaveLength(2);
+
+    // Rule 0.11: neither the snapshot UUID nor the WO UUID leak into the table —
+    // the snapshot column shows a readable BOM code + version, the WO column the
+    // human wo_number.
+    expect(table.textContent).not.toContain(SNAP_1_ID);
+    expect(table.textContent).not.toContain(WO_1_ID);
+    expect(within(table).getByText('FG5101 · v7')).toBeInTheDocument();
+    expect(within(table).getByText('WO-12044')).toBeInTheDocument();
   });
 
   it('flags orphaned snapshots and exposes NO edit/save/apply action (immutable)', () => {
@@ -127,8 +141,8 @@ describe('TEC-025 Snapshots viewer (spec: spec-driven-screens.jsx:223-303)', () 
       },
     });
     render(<SnapshotsViewer snapshots={SNAPSHOTS} diffAction={diffAction} labels={LABELS} />);
-    fireEvent.click(screen.getByTestId('snapshot-diff-cta-SNAP-1'));
-    await waitFor(() => expect(diffAction).toHaveBeenCalledWith('SNAP-1'));
+    fireEvent.click(screen.getByTestId(`snapshot-diff-cta-${SNAP_1_ID}`));
+    await waitFor(() => expect(diffAction).toHaveBeenCalledWith(SNAP_1_ID));
     await waitFor(() => expect(screen.getByTestId('snapshot-diff-modal')).toBeInTheDocument());
     expect(screen.getByText('Read-only. Snapshot is immutable.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByTestId('snapshot-diff-row')).toHaveLength(2));

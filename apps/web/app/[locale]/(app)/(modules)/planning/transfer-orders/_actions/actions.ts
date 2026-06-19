@@ -48,6 +48,12 @@ type TransferOrderLineRow = {
   qty: string;
   uom: string;
   line_no: number;
+  // R4-CL1 reversibility: the received destination LP (if this line has been
+  // received). Sourced from the transfer_order_line_lps join — the same link table
+  // reverseToReceiveLine operates on. Null until the line is received.
+  received_dest_lp_id: string | null;
+  received_dest_lp_number: string | null;
+  received_qty: string | null;
 };
 
 type TransferOrderLine = {
@@ -59,6 +65,12 @@ type TransferOrderLine = {
   qty: string;
   uom: string;
   lineNo: number;
+  /** R4-CL1: the received destination LP id (null until received). */
+  receivedDestLpId: string | null;
+  /** R4-CL1: the received destination LP human-readable code (LP number). */
+  receivedDestLpNumber: string | null;
+  /** R4-CL1: the received destination LP quantity, as a decimal string. */
+  receivedQty: string | null;
 };
 
 type TransferOrder = {
@@ -133,15 +145,34 @@ function mapLine(row: TransferOrderLineRow): TransferOrderLine {
     qty: String(row.qty),
     uom: row.uom,
     lineNo: Number(row.line_no),
+    receivedDestLpId: row.received_dest_lp_id ?? null,
+    receivedDestLpNumber: row.received_dest_lp_number ?? null,
+    receivedQty: row.received_qty == null ? null : String(row.received_qty),
   };
 }
 
 async function fetchLines(client: QueryClient, toId: string): Promise<TransferOrderLine[]> {
+  // The transfer_order_line_lps link carries the received destination LP per line
+  // (one received LP per line in the current receive flow — the same row
+  // reverseToReceiveLine loads). LEFT JOIN keeps not-yet-received lines visible
+  // with null LP fields. dst.quantity is the received qty the reversal action
+  // validates against (it must equal the link qty).
   const { rows } = await client.query<TransferOrderLineRow>(
     `select l.id, l.to_id, l.item_id, i.item_code, i.name as item_name,
-            l.qty::text as qty, l.uom, l.line_no
+            l.qty::text as qty, l.uom, l.line_no,
+            tll.dest_lp_id::text as received_dest_lp_id,
+            dst.lp_number as received_dest_lp_number,
+            dst.quantity::text as received_qty
        from public.transfer_order_lines l
        left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
+       left join public.transfer_order_line_lps tll
+         on tll.org_id = app.current_org_id()
+        and tll.to_id = l.to_id
+        and tll.to_line_id = l.id
+        and tll.dest_lp_id is not null
+       left join public.license_plates dst
+         on dst.org_id = app.current_org_id()
+        and dst.id = tll.dest_lp_id
       where l.org_id = app.current_org_id()
         and l.to_id = $1::uuid
       order by l.line_no asc`,
@@ -620,6 +651,7 @@ export async function deleteTransferOrderLine(id: string, lineId: string): Promi
 const TO_TRANSITIONS: Record<string, readonly string[]> = {
   draft: ['in_transit', 'cancelled'],
   in_transit: ['received', 'cancelled'],
+  partially_received: ['received', 'cancelled'],
   received: [],
   cancelled: [],
 };
@@ -920,38 +952,15 @@ async function receiveTransferOrder(
 }
 
 /**
- * CANCEL while in transit — reverse the ship so no stock is stranded: restore
- * each source LP's quantity (un-deplete 'shipped' → 'available') and drop the
- * un-received linkage rows.
- *
- * F3 (W9 cross-review HIGH): a PARTIALLY RECEIVED TO (any junction row with
- * dest_lp_id NOT NULL) is NOT cancellable — the old behaviour restored only the
- * un-received rows and left the already-created destination LPs stranded
- * (double stock: source restored + dest live). Reversing received destination
- * LPs (deplete/void the dest LP + counter stock_moves) is a bigger product
- * decision — noted as a FOLLOW-UP; until then cancel is refused with
- * 'partially_received' and NOTHING is mutated.
+ * CANCEL while in transit — reverse the ship for rows that have not been
+ * received yet: restore each source LP's quantity (un-deplete 'shipped' →
+ * 'available') and drop the un-received linkage rows. Received destination LPs
+ * must be handled by reverseToReceiveLine before the final cancel path is used.
  */
 async function cancelInTransitTransferOrder(
   ctx: OrgActionContext,
   to: ToHeaderForUpdate,
-): Promise<{ ok: true } | { ok: false; error: 'partially_received'; message: string }> {
-  const received = await ctx.client.query<{ received_count: string }>(
-    `select count(*)::text as received_count
-       from public.transfer_order_line_lps
-      where org_id = app.current_org_id()
-        and to_id = $1::uuid
-        and dest_lp_id is not null`,
-    [to.id],
-  );
-  if (Number(received.rows[0]?.received_count ?? 0) > 0) {
-    return {
-      ok: false,
-      error: 'partially_received',
-      message:
-        'Transfer order has already-received destination stock; cancel is not allowed. Receive the remainder or reverse the received LPs first.',
-    };
-  }
+): Promise<{ ok: true }> {
   const pending = await ctx.client.query<{ id: string; source_lp_id: string; qty: string; lp_quantity: string; lp_status: string }>(
     `select tll.id, tll.source_lp_id, tll.qty::text as qty,
             lp.quantity::text as lp_quantity, lp.status as lp_status
@@ -1038,11 +1047,34 @@ export async function transitionTransferOrderStatus(id: string, status: string):
         const received = await receiveTransferOrder(ctx, previous);
         if (!received.ok) return received;
         stockEffect = { destLps: received.lpCount };
-      } else if (previous.status === 'in_transit' && parsed.data === 'cancelled') {
-        // F3: a partially received TO refuses cancel (nothing mutated).
-        const cancelled = await cancelInTransitTransferOrder(ctx, previous);
-        if (!cancelled.ok) return cancelled;
+      } else if (['in_transit', 'partially_received'].includes(previous.status) && parsed.data === 'cancelled') {
+        // F3 / Wave R4: a TO with already-received destination LPs must NOT be cancelled
+        // directly — the received stock has to be reversed first via reverseToReceiveLine
+        // (the "Reverse receipt" action on TO detail). Cancelling directly would orphan
+        // already-received goods from a cancelled document. Only un-received lines may be
+        // unwound here (source stock restored).
+        const receivedCheck = await ctx.client.query<{ received_count: string }>(
+          `select count(*)::text as received_count
+             from public.transfer_order_line_lps
+            where org_id = app.current_org_id()
+              and to_id = $1::uuid
+              and dest_lp_id is not null`,
+          [previous.id],
+        );
+        if (Number(receivedCheck.rows[0]?.received_count ?? '0') > 0) {
+          return {
+            ok: false,
+            error: 'partially_received',
+            message:
+              'Transfer order has already-received destination stock; cancel is not allowed. Receive the remainder or reverse the received LPs first.',
+          };
+        }
+        await cancelInTransitTransferOrder(ctx, previous);
         stockEffect = { restored: true };
+      } else if (previous.status === 'partially_received' && parsed.data === 'received') {
+        const received = await receiveTransferOrder(ctx, previous);
+        if (!received.ok) return received;
+        stockEffect = { destLps: received.lpCount };
       }
 
       const { rows } = await ctx.client.query<TransferOrderRow>(

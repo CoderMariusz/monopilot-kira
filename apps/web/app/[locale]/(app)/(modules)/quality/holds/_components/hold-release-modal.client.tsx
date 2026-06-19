@@ -57,6 +57,7 @@ export type HoldReleaseLabels = {
   cancel: string;
   submit: string;
   submitting: string;
+  formIncomplete: string;
   validation: { dispositionRequired: string; reasonRequired: string; passwordRequired: string };
   error: string;
   success: string;
@@ -229,6 +230,7 @@ export function HoldReleaseModal({
           data-testid="hold-release-submit"
           disabled={!valid || pending}
           onClick={submit}
+          title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-emerald-700 disabled:opacity-50"
         >
           🔒 {pending ? labels.submitting : labels.submit}

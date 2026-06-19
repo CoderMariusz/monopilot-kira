@@ -26,7 +26,15 @@ export type DeviceRow = {
   name: string;
   model: string;
   site_id: string | null;
+  /** Resolved site display name (joined from public.sites). Null when unassigned. */
+  site_name: string | null;
   line_id: string | null;
+  /**
+   * Resolved production-line display name. `line_id` is a free-text line code; we
+   * left-join public.production_lines on (org_id, code) to surface the human name.
+   * Falls back to the raw `line_id` text when no matching line exists.
+   */
+  line_name: string | null;
   battery_level: number;
   last_seen_at: string | null;
   status: DeviceStatus;
@@ -38,6 +46,28 @@ export type DeviceDefaultsRow = {
   login_per_shift: boolean;
   offline_mode: boolean;
   org_id: string;
+};
+
+/**
+ * Site option for the Pair-device modal selector. `id` is the site UUID (the
+ * value written to `scanner_devices.site_id`); `name` is the human label.
+ */
+export type DeviceSiteOption = {
+  id: string;
+  name: string;
+};
+
+/**
+ * Production-line option for the Pair-device modal selector. NOTE the value is
+ * the line `code` (free text), NOT the line UUID — `scanner_devices.line_id`
+ * stores the code, and the devices list resolves the display name via
+ * `production_lines.code = scanner_devices.line_id`. `site_id` lets the modal
+ * filter lines to the chosen site.
+ */
+export type DeviceLineOption = {
+  code: string;
+  name: string;
+  site_id: string | null;
 };
 
 type DeviceDbRow = DeviceRow;
@@ -55,6 +85,8 @@ export type DevicesSettingsData = {
   org_id: string;
   devices: DeviceRow[];
   defaults: DeviceDefaultsRow;
+  sites: DeviceSiteOption[];
+  lines: DeviceLineOption[];
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -124,18 +156,24 @@ async function queryDevices(context: OrgContextLike, orgId: string): Promise<Dev
   if (context.orgId !== orgId) return [];
 
   const { rows } = await context.client.query<DeviceDbRow>(
-    `select id::text,
-            name,
-            model,
-            site_id::text as site_id,
-            line_id,
-            battery_level,
-            last_seen_at::text as last_seen_at,
-            status,
-            org_id::text as org_id
-       from public.scanner_devices
-      where org_id = $1::uuid
-      order by status, name`,
+    `select d.id::text,
+            d.name,
+            d.model,
+            d.site_id::text as site_id,
+            s.name as site_name,
+            d.line_id,
+            coalesce(pl.name, d.line_id) as line_name,
+            d.battery_level,
+            d.last_seen_at::text as last_seen_at,
+            d.status,
+            d.org_id::text as org_id
+       from public.scanner_devices d
+       left join public.sites s
+         on s.id = d.site_id and s.org_id = d.org_id
+       left join public.production_lines pl
+         on pl.code = d.line_id and pl.org_id = d.org_id
+      where d.org_id = $1::uuid
+      order by d.status, d.name`,
     [orgId],
   );
 
@@ -162,6 +200,39 @@ async function queryDeviceDefaults(context: OrgContextLike, orgId: string): Prom
   return rows[0] ?? { auto_lock_minutes: 5, login_per_shift: true, offline_mode: true, org_id: parsed.data };
 }
 
+/**
+ * Active org sites for the Pair-device modal Site selector. Mirrors the
+ * sites read used by the shifts settings screen (org-scoped RLS via
+ * app.current_org_id()), so the pair modal can persist a real site_id.
+ */
+async function queryDeviceSites(context: OrgContextLike): Promise<DeviceSiteOption[]> {
+  const { rows } = await context.client.query<DeviceSiteOption>(
+    `select id::text, name
+       from public.sites
+      where org_id = app.current_org_id()
+        and is_active = true
+      order by is_default desc, lower(name), lower(site_code)`,
+  );
+  return rows;
+}
+
+/**
+ * Active org production lines for the Pair-device modal Line selector. Selects
+ * the line `code` (what `scanner_devices.line_id` stores) plus its `site_id`
+ * so the modal can filter lines to the chosen site. Only status='active' lines
+ * are offered for pairing.
+ */
+async function queryDeviceLines(context: OrgContextLike): Promise<DeviceLineOption[]> {
+  const { rows } = await context.client.query<DeviceLineOption>(
+    `select code, name, site_id::text as site_id
+       from public.production_lines
+      where org_id = app.current_org_id()
+        and status = 'active'
+      order by lower(name), lower(code)`,
+  );
+  return rows;
+}
+
 export async function getDevices(orgId: string): Promise<DeviceRow[]> {
   return withOrgContext<DeviceRow[]>(async (ctx): Promise<DeviceRow[]> => queryDevices(ctx as OrgContextLike, orgId));
 }
@@ -175,11 +246,13 @@ export async function getDeviceDefaults(orgId: string): Promise<DeviceDefaultsRo
 export async function readDevicesSettingsData(): Promise<DevicesSettingsData> {
   return withOrgContext<DevicesSettingsData>(async (ctx): Promise<DevicesSettingsData> => {
     const context = ctx as OrgContextLike;
-    const [devices, defaults] = await Promise.all([
+    const [devices, defaults, sites, lines] = await Promise.all([
       queryDevices(context, context.orgId),
       queryDeviceDefaults(context, context.orgId),
+      queryDeviceSites(context),
+      queryDeviceLines(context),
     ]);
-    return { org_id: context.orgId, devices, defaults };
+    return { org_id: context.orgId, devices, defaults, sites, lines };
   });
 }
 
@@ -193,18 +266,28 @@ export async function pairDevice(rawInput: unknown): Promise<PairDeviceResult> {
       if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
 
       const { rows } = await context.client.query<DeviceDbRow>(
-        `insert into public.scanner_devices
-           (org_id, name, model, site_id, line_id, battery_level, last_seen_at, status, created_by, updated_by)
-         values ($1::uuid, $2, $3, $4::uuid, $5, 100, now(), 'online', $6::uuid, $6::uuid)
-         returning id::text,
-                   name,
-                   model,
-                   site_id::text as site_id,
-                   line_id,
-                   battery_level,
-                   last_seen_at::text as last_seen_at,
-                   status,
-                   org_id::text as org_id`,
+        `with inserted as (
+           insert into public.scanner_devices
+             (org_id, name, model, site_id, line_id, battery_level, last_seen_at, status, created_by, updated_by)
+           values ($1::uuid, $2, $3, $4::uuid, $5, 100, now(), 'online', $6::uuid, $6::uuid)
+           returning id, org_id, name, model, site_id, line_id, battery_level, last_seen_at, status
+         )
+         select d.id::text,
+                d.name,
+                d.model,
+                d.site_id::text as site_id,
+                s.name as site_name,
+                d.line_id,
+                coalesce(pl.name, d.line_id) as line_name,
+                d.battery_level,
+                d.last_seen_at::text as last_seen_at,
+                d.status,
+                d.org_id::text as org_id
+           from inserted d
+           left join public.sites s
+             on s.id = d.site_id and s.org_id = d.org_id
+           left join public.production_lines pl
+             on pl.code = d.line_id and pl.org_id = d.org_id`,
         [
           context.orgId,
           parsed.data.name,

@@ -132,6 +132,20 @@
         "reference": "Source reference",
         "none": "—"
       },
+      "ccpBreach": {
+        "title": "CCP breach context",
+        "ccp": "CCP",
+        "measuredValue": "Measured value",
+        "criticalLimit": "Critical limit",
+        "limitMin": "min {value}",
+        "limitMax": "max {value}",
+        "limitRange": "{min} – {max}",
+        "limitNone": "Not configured",
+        "measuredAt": "Recorded at",
+        "recordedBy": "Recorded by",
+        "noReading": "The triggering monitoring reading could not be located; showing the CCP definition only.",
+        "none": "—"
+      },
       "dualSign": "V-QA-NCR-006 — critical NCRs require dual sign (Quality Lead + Production Manager) at close."
     },
     "closeModal": {
@@ -334,6 +348,20 @@
         "title": "Powiązane rekordy",
         "hold": "Wstrzymanie",
         "reference": "Źródło / referencja",
+        "none": "—"
+      },
+      "ccpBreach": {
+        "title": "Kontekst przekroczenia CCP",
+        "ccp": "CCP",
+        "measuredValue": "Zmierzona wartość",
+        "criticalLimit": "Limit krytyczny",
+        "limitMin": "min {value}",
+        "limitMax": "maks {value}",
+        "limitRange": "{min} – {max}",
+        "limitNone": "Nie skonfigurowano",
+        "measuredAt": "Zarejestrowano",
+        "recordedBy": "Zarejestrował",
+        "noReading": "Nie udało się odnaleźć powiązanego odczytu monitorowania; pokazano wyłącznie definicję CCP.",
         "none": "—"
       },
       "dualSign": "V-QA-NCR-006 — krytyczne NCR wymagają podwójnego podpisu (Kierownik Jakości + Kierownik Produkcji) przy zamknięciu."

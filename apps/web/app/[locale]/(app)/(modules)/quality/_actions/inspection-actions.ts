@@ -236,11 +236,43 @@ function mapDetailRow(row: Parameters<typeof mapListRow>[0] & {
   };
 }
 
+/**
+ * Emits the canonical `quality.hold.created` outbox event (same event_type +
+ * aggregate_type + app_version + payload shape as hold-actions.ts::createHold's
+ * writeOutbox). The inline hold created on an inspection `hold` decision MUST be
+ * visible to outbox consumers / audit just like a manually-created hold; the only
+ * difference is provenance, captured here in the payload. Stays inside the same
+ * withOrgContext transaction as the hold insert (atomic with the decision).
+ */
+async function writeHoldCreatedOutbox(
+  ctx: QualityContext,
+  params: { holdId: string; holdNumber: string; lpId: string },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), 'quality.hold.created', 'quality_hold', $1::uuid, $2::jsonb, 'quality-holds-v1')`,
+    [
+      params.holdId,
+      JSON.stringify({
+        org_id: ctx.orgId,
+        actor_user_id: ctx.userId,
+        holdId: params.holdId,
+        holdNumber: params.holdNumber,
+        referenceType: 'lp',
+        referenceId: params.lpId,
+        lpIds: [params.lpId],
+        source: 'inspection_decision',
+      }),
+    ],
+  );
+}
+
 async function createLpHold(
   ctx: QualityContext,
   params: { lpId: string; note: string | null },
 ): Promise<void> {
-  const hold = await ctx.client.query<{ id: string }>(
+  const hold = await ctx.client.query<{ id: string; hold_number: string }>(
     `insert into public.quality_holds (
        org_id,
        reference_type,
@@ -259,11 +291,11 @@ async function createLpHold(
        'open',
        $3::uuid
      )
-     returning id::text`,
+     returning id::text, hold_number`,
     [params.lpId, params.note ?? 'inspection hold', ctx.userId],
   );
-  const holdId = hold.rows[0]?.id;
-  if (!holdId) throw new Error('quality hold insert did not return a row');
+  const createdHold = hold.rows[0];
+  if (!createdHold?.id) throw new Error('quality hold insert did not return a row');
 
   const lp = await ctx.client.query<{ id: string; quantity: string }>(
     `select id::text, quantity::text
@@ -286,8 +318,14 @@ async function createLpHold(
      )
      values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held', $4)
      on conflict (hold_id, license_plate_id) do nothing`,
-    [holdId, current.id, current.quantity, params.note],
+    [createdHold.id, current.id, current.quantity, params.note],
   );
+
+  await writeHoldCreatedOutbox(ctx, {
+    holdId: createdHold.id,
+    holdNumber: createdHold.hold_number,
+    lpId: params.lpId,
+  });
 }
 
 async function applyLpDecisionSideEffects(

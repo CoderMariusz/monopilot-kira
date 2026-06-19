@@ -57,7 +57,7 @@ function safeLabel(t: Awaited<ReturnType<typeof getTranslations>>, key: string, 
 
 export default async function FactorySpecsPage() {
   const t = await getTranslations('Technical.factorySpecs');
-  const { specs, canApprove, state } = await listFactorySpecs();
+  const { specs, canApprove, canRecall, state } = await listFactorySpecs();
 
   const statusLabel = (status: FactorySpecStatus): string => t(`status.${status}`);
 
@@ -91,6 +91,7 @@ export default async function FactorySpecsPage() {
         <FactorySpecsTable
           specs={specs}
           canApprove={canApprove}
+          canRecall={canRecall}
           statusLabel={statusLabel}
           shelfLifeLabel={formatShelfLife}
           reviewLabel={t('review')}
@@ -118,6 +119,7 @@ export default async function FactorySpecsPage() {
 function FactorySpecsTable({
   specs,
   canApprove,
+  canRecall,
   statusLabel,
   shelfLifeLabel,
   reviewLabel,
@@ -125,6 +127,7 @@ function FactorySpecsTable({
 }: {
   specs: FactorySpecListItem[];
   canApprove: boolean;
+  canRecall: boolean;
   statusLabel: (status: FactorySpecStatus) => string;
   shelfLifeLabel: (days: number | null) => string;
   reviewLabel: string;
@@ -169,7 +172,7 @@ function FactorySpecsTable({
                 <span className={`badge ${STATUS_TONE[spec.status]}`}>{statusLabel(spec.status)}</span>
               </td>
               <td style={{ textAlign: 'right' }}>
-                <FactorySpecRowActions spec={spec} canApprove={canApprove} reviewLabel={reviewLabel} />
+                <FactorySpecRowActions spec={spec} canApprove={canApprove} canRecall={canRecall} reviewLabel={reviewLabel} />
               </td>
             </tr>
           ))}

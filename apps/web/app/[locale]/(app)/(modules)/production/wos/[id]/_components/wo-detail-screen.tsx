@@ -168,6 +168,7 @@ export type WoDetailLabels = {
       submit: string;
       submitting: string;
       cancel: string;
+      formIncomplete: string;
       /** Warn-tier over-consumption: amber non-blocking line after a flagged success. */
       warningOver: string;
       warningClose: string;
@@ -1431,7 +1432,7 @@ function RecordConsumptionModal({
             <Button type="button" data-testid="wo-consume-cancel" disabled={busy} onClick={onClose}>
               {labels.cancel}
             </Button>
-            <Button type="button" data-testid="wo-consume-submit" disabled={!canSubmit} onClick={handleSubmit}>
+            <Button type="button" data-testid="wo-consume-submit" disabled={!canSubmit} onClick={handleSubmit} title={!canSubmit ? labels.formIncomplete : undefined}>
               {busy ? labels.submitting : labels.submit}
             </Button>
           </>

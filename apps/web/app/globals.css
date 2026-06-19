@@ -217,6 +217,33 @@
     height: var(--shell-scanner-h);
   }
 
+  /* Scanner device frame. Desktop = phone-sized preview with a bezel; a real
+     phone goes full-bleed (no faked OS clock/signal/battery — the device draws
+     those itself) so the application owns the whole field. */
+  .scanner-shell {
+    border-radius: 44px;
+    box-shadow:
+      0 0 0 10px #1e293b,
+      0 0 0 12px #0b1220,
+      0 30px 80px rgba(0, 0, 0, 0.75);
+  }
+
+  @media (max-width: 640px) {
+    [data-testid="scanner-frame"].scanner-shell {
+      --shell-scanner-w: 100vw;
+      --shell-scanner-h: 100dvh;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .scanner-device-chrome {
+      display: none !important;
+    }
+    /* Clear the real OS status bar / notch with the device safe-area inset. */
+    [data-testid="scanner-content"].scanner-content {
+      padding-top: calc(22px + env(safe-area-inset-top, 0px)) !important;
+    }
+  }
+
   .bg-shell-bg {
     background-color: var(--shell-bg);
   }

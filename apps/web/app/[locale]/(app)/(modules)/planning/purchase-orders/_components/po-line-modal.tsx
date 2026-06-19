@@ -27,7 +27,7 @@ import Input from '@monopilot/ui/Input';
 
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
-import { UomSelect, type UomValue } from '../../../../../../../components/forms/uom-select';
+import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
@@ -40,7 +40,13 @@ export type PoLineModalLabels = {
   lineUom: string;
   lineUnitPrice: string;
   uomPlaceholder: string;
-  uomOptions: Partial<Record<UomValue, string>>;
+  uomOptions: UomOptionLabels;
+  /**
+   * Ordered unit codes to offer in the UoM dropdown. Sourced from the org's
+   * unit_of_measure master so admin-added units appear; when empty the dropdown
+   * keeps its canonical default set.
+   */
+  uomUnits?: readonly string[];
   qtyPlaceholder: string;
   unitPricePlaceholder: string;
   submitAdd: string;
@@ -248,6 +254,7 @@ export function PoLineModal({
                 value={uom}
                 onValueChange={setUom}
                 labels={labels.uomOptions}
+                {...(labels.uomUnits && labels.uomUnits.length > 0 ? { units: labels.uomUnits } : {})}
                 placeholder={labels.uomPlaceholder}
                 aria-label={labels.lineUom}
               />

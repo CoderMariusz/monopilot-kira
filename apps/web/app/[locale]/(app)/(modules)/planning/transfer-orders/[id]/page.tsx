@@ -30,8 +30,14 @@ import {
   updateTransferOrderLine,
   deleteTransferOrderLine,
 } from '../_actions/actions';
-import { listTransferWarehouses, searchTransferItems } from '../_actions/to-form-data';
+import { listTransferUnits, listTransferWarehouses, searchTransferItems } from '../_actions/to-form-data';
+import { buildUomDropdown, type UomDropdown } from '../../_actions/uom-dropdown';
+import { canReverseTransferReceipt, reverseToReceiveLine } from '../_actions/reverse-receive';
 import { ToDetailView, type ToDetailLabels } from '../_components/to-detail-view';
+import type {
+  ReverseToReceiveLineInput,
+  ReverseToReceiveLineResult,
+} from '../_components/reverse-receipt-modal';
 
 /** Client-facing adapters around the reviewed actions (some take positional args). */
 async function updateTransferOrderAction(input: {
@@ -56,6 +62,12 @@ async function deleteTransferOrderLineAction(toId: string, lineId: string) {
   'use server';
   return deleteTransferOrderLine(toId, lineId);
 }
+/** R4-CL1 — client-facing adapter around reverseToReceiveLine (RBAC + e-sign are
+ *  enforced inside the action; the page never trusts a client-only check). */
+async function reverseToReceiveLineAction(input: ReverseToReceiveLineInput): Promise<ReverseToReceiveLineResult> {
+  'use server';
+  return reverseToReceiveLine(input) as Promise<ReverseToReceiveLineResult>;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -72,9 +84,10 @@ function DetailSkeleton() {
   );
 }
 
-/** Per-locale UoM dropdown copy (mirrors the list page helper; canonical UoM set has
- *  no i18n keys). */
-function uomLabels(locale: string): {
+/** Per-locale UoM fallback copy (mirrors the list page helper). Used ONLY when the
+ *  org has no readable units — the real options come from public.unit_of_measure
+ *  (listTransferUnits → buildUomDropdown). */
+function uomFallbackLabels(locale: string): {
   placeholder: string;
   options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
 } {
@@ -90,8 +103,7 @@ function uomLabels(locale: string): {
   };
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): ToDetailLabels {
-  const uoms = uomLabels(locale);
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string, uoms: UomDropdown): ToDetailLabels {
   return {
     status: {
       draft: t('toStatus.draft'),
@@ -174,6 +186,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         lineUom: t('create.lineColumns.uom'),
         uomPlaceholder: uoms.placeholder,
         uomOptions: uoms.options,
+        uomUnits: uoms.units,
         qtyPlaceholder: t('create.qtyPlaceholder'),
         submitAdd: t('edit.lineModal.submitAdd'),
         submitEdit: t('edit.lineModal.submitEdit'),
@@ -199,12 +212,69 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         },
       },
     },
+    reverseReceipt: {
+      received: t('reverseReceipt.received'),
+      destLp: t('reverseReceipt.destLp'),
+      action: t('reverseReceipt.action'),
+      permissionTooltip: t('reverseReceipt.permissionTooltip'),
+      notReceivableTooltip: t('reverseReceipt.notReceivableTooltip'),
+      modal: {
+        title: t('reverseReceipt.title'),
+        intro: t('reverseReceipt.intro'),
+        summary: {
+          toNumber: t('reverseReceipt.summary.toNumber'),
+          product: t('reverseReceipt.summary.product'),
+          destLp: t('reverseReceipt.summary.destLp'),
+          quantity: t('reverseReceipt.summary.quantity'),
+        },
+        reasonCode: t('reverseReceipt.reasonCode'),
+        reasonPlaceholder: t('reverseReceipt.reasonPlaceholder'),
+        reasonOptions: {
+          entry_error: t('reverseReceipt.reasonOptions.entry_error'),
+          wrong_quantity: t('reverseReceipt.reasonOptions.wrong_quantity'),
+          wrong_batch: t('reverseReceipt.reasonOptions.wrong_batch'),
+          wrong_product: t('reverseReceipt.reasonOptions.wrong_product'),
+          other: t('reverseReceipt.reasonOptions.other'),
+        },
+        note: t('reverseReceipt.note'),
+        noteOptional: t('reverseReceipt.noteOptional'),
+        notePlaceholder: t('reverseReceipt.notePlaceholder'),
+        esign: {
+          title: t('reverseReceipt.esign.title'),
+          meaning: t('reverseReceipt.esign.meaning'),
+          password: t('reverseReceipt.esign.password'),
+          passwordPlaceholder: t('reverseReceipt.esign.passwordPlaceholder'),
+          passwordHelp: t('reverseReceipt.esign.passwordHelp'),
+        },
+        cancel: t('reverseReceipt.cancel'),
+        submit: t('reverseReceipt.submit'),
+        submitting: t('reverseReceipt.submitting'),
+        formIncomplete: t('reverseReceipt.formIncomplete'),
+        errors: {
+          forbidden: t('reverseReceipt.errors.forbidden'),
+          not_found: t('reverseReceipt.errors.not_found'),
+          invalid_input: t('reverseReceipt.errors.invalid_input'),
+          invalid_state: t('reverseReceipt.errors.invalid_state'),
+          invalid_quantity: t('reverseReceipt.errors.invalid_quantity'),
+          lp_active: t('reverseReceipt.errors.lp_active'),
+          esign_failed: t('reverseReceipt.errors.esign_failed'),
+          persistence_failed: t('reverseReceipt.errors.persistence_failed'),
+          generic: t('reverseReceipt.errors.generic'),
+        },
+      },
+    },
   };
 }
 
 async function DetailContent({ locale, id }: { locale: string; id: string }) {
   const t = await getTranslations('Planning.transferOrders');
-  const [result, warehouses] = await Promise.all([getTransferOrder(id), listTransferWarehouses()]);
+  const [result, warehouses, canReverseReceipt, orgUnits] = await Promise.all([
+    getTransferOrder(id),
+    listTransferWarehouses(),
+    canReverseTransferReceipt(),
+    listTransferUnits(),
+  ]);
+  const uom = buildUomDropdown(orgUnits, uomFallbackLabels(locale));
 
   if (!result.ok) {
     if (result.error === 'not_found' || result.error === 'invalid_input') {
@@ -229,13 +299,15 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       locale={locale}
       transferOrder={result.data}
       warehouses={warehouses}
-      labels={buildLabels(t, locale)}
+      labels={buildLabels(t, locale, uom)}
       transitionTransferOrderStatusAction={transitionTransferOrderStatus}
       searchTransferItemsAction={searchTransferItems}
       updateTransferOrderAction={updateTransferOrderAction}
       addTransferOrderLineAction={addTransferOrderLineAction}
       updateTransferOrderLineAction={updateTransferOrderLineAction}
       deleteTransferOrderLineAction={deleteTransferOrderLineAction}
+      canReverseReceipt={canReverseReceipt}
+      reverseToReceiveLineAction={reverseToReceiveLineAction}
     />
   );
 }

@@ -30,6 +30,9 @@ import {
 // release-bundle-service.ts). The page CHECK string MUST byte-match that GRANT.
 export const FACTORY_SPEC_APPROVE_PERMISSION = 'technical.product_spec.approve';
 export const FACTORY_SPEC_APPROVE_PERMISSION_ALT = 'technical.factory_spec.approve';
+// R4-CL2 — gating string for the "Recall to draft" affordance (byte-matches the
+// permission recallFactorySpec() checks server-side in _actions/recall-spec.ts).
+export const FACTORY_SPEC_RECALL_PERMISSION = 'technical.factory_spec.recall';
 
 export type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -91,6 +94,11 @@ export async function canApproveFactorySpec(ctx: OrgActionContext): Promise<bool
     hasPermission(ctx, FACTORY_SPEC_APPROVE_PERMISSION_ALT),
   ]);
   return primary || alt;
+}
+
+/** R4-CL2 — True when the caller may recall a released factory_spec back to draft. */
+export async function canRecallFactorySpec(ctx: OrgActionContext): Promise<boolean> {
+  return hasPermission(ctx, FACTORY_SPEC_RECALL_PERMISSION);
 }
 
 const STATUS_SET = new Set<FactorySpecStatus>(FACTORY_SPEC_STATUSES);

@@ -99,7 +99,7 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
          from public.items i
         where i.org_id = app.current_org_id()
           and i.item_type = any($1::text[])
-          and i.status <> 'blocked'
+          and i.status = 'active'
           and (
             $2::text is null
             or i.item_code ilike $2 escape '\\'

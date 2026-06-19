@@ -9,13 +9,17 @@ import Modal from '@monopilot/ui/Modal';
 import { PageHead, Section, SelectField, SRow, Toggle } from '../_components';
 import type {
   DeviceDefaultsRow,
+  DeviceLineOption,
   DeviceRow,
+  DeviceSiteOption,
   DeviceStatus,
   PairDeviceInput,
   PairDeviceResult,
   UpdateDeviceDefaultsInput,
   UpdateDeviceDefaultsResult,
 } from './_actions/devices';
+
+const UNASSIGNED_OPTION_VALUE = '__unassigned__';
 
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/ops-screens.jsx:4-95';
 
@@ -81,6 +85,10 @@ export type DevicesScreenLabels = {
     namePlaceholder: string;
     modelLabel: string;
     modelPlaceholder: string;
+    siteLabel: string;
+    sitePlaceholder: string;
+    lineLabel: string;
+    linePlaceholder: string;
     submit: string;
   };
 };
@@ -147,6 +155,10 @@ export const DEFAULT_DEVICES_LABELS: DevicesScreenLabels = {
     namePlaceholder: 'e.g. Line 1 scanner',
     modelLabel: 'Model',
     modelPlaceholder: 'e.g. Zebra TC52',
+    siteLabel: 'Site',
+    sitePlaceholder: 'Unassigned',
+    lineLabel: 'Production line',
+    linePlaceholder: 'Unassigned',
     submit: 'Pair device',
   },
 };
@@ -164,6 +176,8 @@ export type DevicesScreenProps = {
   state?: 'ready' | 'error';
   devices?: DeviceRow[];
   defaults?: DeviceDefaultsRow;
+  sites?: DeviceSiteOption[];
+  lines?: DeviceLineOption[];
   canEdit?: boolean;
   labels?: DevicesScreenLabels;
   pairDevice?: (input: PairDeviceInput) => Promise<PairDeviceResult> | PairDeviceResult;
@@ -229,6 +243,8 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
   const labels = rawProps.labels ?? DEFAULT_DEVICES_LABELS;
   const state = rawProps.state ?? 'ready';
   const devices = rawProps.devices ?? [];
+  const sites = rawProps.sites ?? [];
+  const lines = rawProps.lines ?? [];
   const canEdit = rawProps.canEdit ?? false;
   const incomingDefaults = rawProps.defaults ?? FALLBACK_DEFAULTS;
   const pairDeviceAction = rawProps.pairDevice;
@@ -243,6 +259,8 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
   const [showPair, setShowPair] = React.useState(false);
   const [pairName, setPairName] = React.useState('');
   const [pairModel, setPairModel] = React.useState('');
+  const [pairSiteId, setPairSiteId] = React.useState('');
+  const [pairLineCode, setPairLineCode] = React.useState('');
   const [isPairing, setIsPairing] = React.useState(false);
   const [pairError, setPairError] = React.useState<string | null>(null);
 
@@ -284,6 +302,24 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
     label: autoLockLabel(value, labels),
   }));
 
+  // Site selector: "Unassigned" sentinel first, then site NAMES (value = id).
+  const siteOptions = [
+    { value: UNASSIGNED_OPTION_VALUE, label: labels.pairModal.sitePlaceholder },
+    ...sites.map((site) => ({ value: site.id, label: site.name })),
+  ];
+
+  // Line selector: filtered to the chosen site (org-wide lines + lines belonging
+  // to that site) so an operator can't pair a line to the wrong plant. The
+  // dropdown value is the line CODE (what scanner_devices.line_id stores), the
+  // label is the line NAME — never a raw id/code in the visible label.
+  const visibleLines = pairSiteId
+    ? lines.filter((line) => line.site_id === null || line.site_id === pairSiteId)
+    : lines;
+  const lineOptions = [
+    { value: UNASSIGNED_OPTION_VALUE, label: labels.pairModal.linePlaceholder },
+    ...visibleLines.map((line) => ({ value: line.code, label: line.name })),
+  ];
+
   function updateDefault<K extends keyof DeviceDefaultsRow>(key: K, value: DeviceDefaultsRow[K]) {
     setDraftDefaults((current) => ({ ...current, [key]: value }));
     setMessage(null);
@@ -320,8 +356,30 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
     setShowPair(false);
     setPairName('');
     setPairModel('');
+    setPairSiteId('');
+    setPairLineCode('');
     setPairError(null);
     setIsPairing(false);
+  }
+
+  function handlePairSiteChange(value: string) {
+    const nextSiteId = value === UNASSIGNED_OPTION_VALUE ? '' : value;
+    setPairSiteId(nextSiteId);
+    // Drop a line that no longer belongs to the newly-chosen site.
+    setPairLineCode((currentCode) => {
+      if (currentCode === '') return '';
+      const line = lines.find((candidate) => candidate.code === currentCode);
+      if (!line) return '';
+      if (line.site_id === null) return currentCode;
+      if (nextSiteId === '') return currentCode;
+      return line.site_id === nextSiteId ? currentCode : '';
+    });
+    setPairError(null);
+  }
+
+  function handlePairLineChange(value: string) {
+    setPairLineCode(value === UNASSIGNED_OPTION_VALUE ? '' : value);
+    setPairError(null);
   }
 
   async function handlePairSubmit(event: React.FormEvent) {
@@ -334,7 +392,12 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
     setIsPairing(true);
     setPairError(null);
     try {
-      const result = await pairDeviceAction?.({ name: pairName.trim(), model: pairModel.trim() });
+      const result = await pairDeviceAction?.({
+        name: pairName.trim(),
+        model: pairModel.trim(),
+        site_id: pairSiteId === '' ? null : pairSiteId,
+        line_id: pairLineCode === '' ? null : pairLineCode,
+      });
       if (result?.ok) {
         setMessage(labels.pairSuccess);
         setError(null);
@@ -419,7 +482,6 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
           <table>
             <thead>
               <tr>
-                <th>{labels.table.deviceId}</th>
                 <th>{labels.table.name}</th>
                 <th>{labels.table.model}</th>
                 <th>{labels.table.siteLine}</th>
@@ -431,15 +493,14 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
             <tbody>
               {devices.map((device) => (
                 <tr key={device.id}>
-                  <td className="mono">{device.id}</td>
                   <td style={{ fontWeight: 500 }}>{device.name}</td>
                   <td className="muted">{device.model}</td>
                   <td>
-                    {device.site_id ?? labels.table.noSite}
-                    {device.line_id ? (
+                    {device.site_name ?? labels.table.noSite}
+                    {device.line_name ? (
                       <>
                         {' · '}
-                        <span className="muted">{device.line_id}</span>
+                        <span className="muted">{device.line_name}</span>
                       </>
                     ) : null}
                   </td>
@@ -573,6 +634,22 @@ export default function DevicesScreen(rawProps: DevicesScreenProps = {}) {
                   onChange={(event) => setPairModel(event.currentTarget.value)}
                 />
               </div>
+              <SelectField
+                id="pair-device-site"
+                label={labels.pairModal.siteLabel}
+                options={siteOptions}
+                value={pairSiteId === '' ? UNASSIGNED_OPTION_VALUE : pairSiteId}
+                disabled={isPairing}
+                onChange={handlePairSiteChange}
+              />
+              <SelectField
+                id="pair-device-line"
+                label={labels.pairModal.lineLabel}
+                options={lineOptions}
+                value={pairLineCode === '' ? UNASSIGNED_OPTION_VALUE : pairLineCode}
+                disabled={isPairing}
+                onChange={handlePairLineChange}
+              />
             </div>
           </Modal.Body>
           <Modal.Footer>

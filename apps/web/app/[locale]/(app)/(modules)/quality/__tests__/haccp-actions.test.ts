@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { recordMonitoring, upsertCcp } from '../_actions/haccp-actions';
+import { listCcps, listMonitoringLog, recordMonitoring, upsertCcp } from '../_actions/haccp-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -72,6 +72,53 @@ function makeClient(): QueryClient {
               ccp_code: 'CCP-COOK',
               critical_limit_min: ccpLimits.min,
               critical_limit_max: ccpLimits.max,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      // listCcps board read (a SELECT over haccp_ccps that is NOT the
+      // recordMonitoring single-row fetch handled above).
+      if (q.includes('from public.haccp_ccps') && q.startsWith('select')) {
+        return {
+          rows: [
+            {
+              id: CCP_ID,
+              ccp_code: 'CCP-COOK',
+              name: 'Cook temperature',
+              process_step: 'Cook',
+              hazard_type: 'biological',
+              critical_limit_min: '70.0000',
+              critical_limit_max: '75.0000',
+              unit: 'C',
+              monitoring_frequency: 'Every batch',
+              corrective_action: 'Hold batch',
+              line_id: null,
+              is_active: true,
+              created_at: '2026-06-11T10:00:00.000Z',
+              updated_at: '2026-06-11T10:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      // listMonitoringLog board read.
+      if (q.includes('from public.haccp_monitoring_log l')) {
+        return {
+          rows: [
+            {
+              id: LOG_ID,
+              ccp_id: CCP_ID,
+              ccp_code: 'CCP-COOK',
+              measured_value: '72.5000',
+              measured_at: '2026-06-11T11:00:00.000Z',
+              wo_id: null,
+              within_limits: true,
+              recorded_by: USER_ID,
+              note: null,
+              breach_ncr_id: null,
             },
           ],
           rowCount: 1,
@@ -185,5 +232,48 @@ describe('quality HACCP server actions', () => {
       normalize(String(sql)).startsWith('insert into public.haccp_monitoring_log'),
     );
     expect(logInsert?.[1]?.[3]).toBe(false);
+  });
+
+  // ── FIX 2: relaxed board READ gate (plan_edit OR ccp.deviation_override) ──────
+
+  it('listCcps is allowed for a user with ONLY ccp.deviation_override (relaxed read gate)', async () => {
+    permissions = new Set(['quality.ccp.deviation_override']);
+    const result = await listCcps({ activeOnly: true });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data[0]?.ccpCode).toBe('CCP-COOK');
+  });
+
+  it('listCcps is allowed for a user with ONLY quality.haccp.plan_edit', async () => {
+    permissions = new Set(['quality.haccp.plan_edit']);
+    const result = await listCcps({ activeOnly: true });
+    expect(result.ok).toBe(true);
+  });
+
+  it('listMonitoringLog is allowed for a user with ONLY ccp.deviation_override (relaxed read gate)', async () => {
+    permissions = new Set(['quality.ccp.deviation_override']);
+    const result = await listMonitoringLog({ days: 366 });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data[0]?.ccpCode).toBe('CCP-COOK');
+  });
+
+  it('listCcps + listMonitoringLog stay FORBIDDEN for a user with NEITHER permission', async () => {
+    permissions = new Set(['quality.dashboard.view']);
+    await expect(listCcps({})).resolves.toMatchObject({ ok: false, reason: 'forbidden' });
+    await expect(listMonitoringLog({})).resolves.toMatchObject({ ok: false, reason: 'forbidden' });
+  });
+
+  it('upsertCcp stays plan_edit-ONLY: forbidden for a user with only ccp.deviation_override', async () => {
+    permissions = new Set(['quality.ccp.deviation_override']);
+    const result = await upsertCcp({
+      ccp_code: 'CCP-NEW',
+      name: 'New CCP',
+      process_step: 'Step',
+      hazard_type: 'biological',
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'forbidden' });
+    const insert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.haccp_ccps'),
+    );
+    expect(insert).toBeUndefined();
   });
 });

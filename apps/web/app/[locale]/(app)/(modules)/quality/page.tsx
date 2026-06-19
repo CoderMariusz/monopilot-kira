@@ -33,6 +33,10 @@ const NAV_CARDS = [
 export default async function QualityRoutePage({ params }: PageProps) {
   const { locale } = await params;
   const tq = getQaHoldsTranslator(locale);
+  // CCP Monitoring nav copy comes from the LIVE next-intl catalog
+  // (quality.ccpMonitoring.nav — added in this slice), not the staged holds
+  // bundle the other cards still use (lesson F-D08a).
+  const tCcp = await getTranslations("quality.ccpMonitoring");
   const s = await getTranslations("Skeleton");
   const result = await getModuleCount("quality_event");
 
@@ -89,6 +93,19 @@ export default async function QualityRoutePage({ params }: PageProps) {
               </li>
             );
           })}
+
+          {/* CCP Monitoring (Wave E3) — live → /quality/ccp-monitoring. */}
+          <li key="ccp-monitoring">
+            <Link
+              href={`/${locale}/quality/ccp-monitoring`}
+              prefetch={false}
+              data-testid="quality-nav-ccp-monitoring"
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <span className="text-base font-semibold text-slate-950">{tCcp("nav.title")}</span>
+              <span className="mt-1 text-sm text-slate-600">{tCcp("nav.desc")}</span>
+            </Link>
+          </li>
         </ul>
       </nav>
 

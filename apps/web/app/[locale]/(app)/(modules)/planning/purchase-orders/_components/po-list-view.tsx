@@ -46,10 +46,13 @@ import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
+import { downloadCsv } from '../../../../../../../lib/shared/download';
+
 import { PoStatusBadge } from './po-status-badge';
 import { CreatePoModal, type CreatePoLabels, type CreatePoResult } from './create-po-modal';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import type { PoSupplierOption } from '../_actions/po-form-data';
+import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/create-export-job';
 
 export type PoRow = {
   id: string;
@@ -69,6 +72,10 @@ type TabKey = (typeof TAB_ORDER)[number];
 
 export type PoListLabels = {
   createPo: string;
+  /** Wave E-IO — "Export to file" CSV button + its busy/error states. */
+  exportLabel: string;
+  exporting: string;
+  exportError: string;
   searchPlaceholder: string;
   rowsCount: string;
   supplierFilterLabel: string;
@@ -125,6 +132,12 @@ export type PoListViewProps = {
     notes?: string;
     lines: Array<{ itemId: string; qty: string; uom: string; unitPrice: string; lineNo: number }>;
   }) => Promise<CreatePoResult>;
+  /**
+   * Wave E-IO — CSV export of the CURRENT filtered list. The server action re-runs
+   * the same readers as this screen (status / search / supplier / archived passed
+   * through) and logs an import_export_jobs row; the client triggers the download.
+   */
+  createExportJobAction: (input: CreateExportJobInput) => Promise<CreateExportJobResult>;
 };
 
 function fmtDate(iso: string | null, locale: string): string {
@@ -144,6 +157,7 @@ export function PoListView({
   autoOpenCreate = false,
   searchPoItemsAction,
   createPurchaseOrderAction,
+  createExportJobAction,
 }: PoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/purchase-orders`;
@@ -151,6 +165,38 @@ export function PoListView({
   const [search, setSearch] = React.useState('');
   const [supplierFilter, setSupplierFilter] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
+  const [exporting, setExporting] = React.useState(false);
+  const [exportError, setExportError] = React.useState(false);
+
+  async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
+    setExportError(false);
+    try {
+      // Pass the CURRENT filter state so the export mirrors exactly what is on screen.
+      const result = await createExportJobAction({
+        status: tab,
+        q: search.trim() || undefined,
+        supplierId: supplierFilter || undefined,
+        archived,
+      });
+      if (!result.ok) {
+        setExportError(true);
+        return;
+      }
+      downloadCsv(result.data.csv, result.data.filename);
+      // The new kind='export' row (target='purchase_orders') is written to the same
+      // public.import_export_jobs table and surfaces in /settings/import-export →
+      // "Master data" tab → "Recent exports" (the master-data loader reads
+      // kind='export' org-scoped). Refresh so any server-rendered PO list state here
+      // doesn't go stale.
+      router.refresh();
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const counts = React.useMemo(() => {
     const c: Record<TabKey, number> = {
@@ -202,10 +248,27 @@ export function PoListView({
           onChange={(e) => setSearch(e.target.value)}
           className="w-72"
         />
-        <Button type="button" className="btn--primary" data-testid="po-list-create" onClick={() => setCreateOpen(true)}>
-          + {labels.createPo}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            className="btn--secondary"
+            data-testid="po-list-export"
+            onClick={handleExport}
+            disabled={exporting}
+            aria-busy={exporting}
+          >
+            {exporting ? labels.exporting : labels.exportLabel}
+          </Button>
+          <Button type="button" className="btn--primary" data-testid="po-list-create" onClick={() => setCreateOpen(true)}>
+            + {labels.createPo}
+          </Button>
+        </div>
       </div>
+      {exportError ? (
+        <div role="alert" data-testid="po-list-export-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {labels.exportError}
+        </div>
+      ) : null}
 
       {/* Status tabs + Archive tab.
           The status tabs are client-side filters over the active (non-archived)

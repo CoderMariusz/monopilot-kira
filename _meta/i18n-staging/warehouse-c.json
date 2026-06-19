@@ -187,12 +187,17 @@
       },
       "moveType": {
         "receipt": "Receipt",
+        "production": "Production output",
         "putaway": "Putaway",
         "transfer": "Transfer",
         "consume_to_wo": "Consume to WO",
         "adjustment": "Adjustment",
         "quarantine": "Quarantine",
         "return": "Return"
+      },
+      "source": {
+        "stock_move": "Move",
+        "lp_state": "LP"
       },
       "emptyAll": "No stock movements yet — movements appear here when LPs are received, moved, consumed or adjusted.",
       "emptyFiltered": "No stock movements match this filter. Try clearing the search or pick a different tab.",
@@ -443,12 +448,17 @@
       },
       "moveType": {
         "receipt": "Przyjęcie",
+        "production": "Wyrób z produkcji",
         "putaway": "Odłożenie",
         "transfer": "Przesunięcie",
         "consume_to_wo": "Zużycie do WO",
         "adjustment": "Korekta",
         "quarantine": "Kwarantanna",
         "return": "Zwrot"
+      },
+      "source": {
+        "stock_move": "Ruch",
+        "lp_state": "LP"
       },
       "emptyAll": "Brak ruchów magazynowych — ruchy pojawiają się tu, gdy LP są przyjmowane, przesuwane, zużywane lub korygowane.",
       "emptyFiltered": "Żaden ruch nie pasuje do filtra. Wyczyść wyszukiwanie lub wybierz inną zakładkę.",

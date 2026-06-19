@@ -84,6 +84,7 @@ export type InspectionDetailLabels = {
     saveError: string;
     notes: string;
     notesPlaceholder: string;
+    formIncomplete: string;
   };
   overall: {
     label: string;
@@ -115,6 +116,7 @@ export type InspectionDetailLabels = {
     cancel: string;
     submit: string;
     submitting: string;
+    formIncomplete: string;
     validation: { passwordRequired: string };
     error: string;
     success: string;
@@ -356,6 +358,7 @@ export function InspectionDetailClient({
                     data-testid="inspection-result-save"
                     disabled={saving || params.length === 0}
                     onClick={saveResults}
+                    title={params.length === 0 ? labels.params.formIncomplete : undefined}
                     className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition enabled:hover:bg-slate-50 disabled:opacity-50"
                   >
                     {saving ? labels.params.saving : labels.params.save}
@@ -649,6 +652,7 @@ function InspectionEsignModal({
           data-testid="inspection-esign-submit"
           disabled={!valid || pending}
           onClick={submit}
+          title={!valid ? labels.formIncomplete : undefined}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition enabled:hover:bg-slate-800 disabled:opacity-50"
         >
           🔒 {pending ? labels.submitting : labels.submit}
