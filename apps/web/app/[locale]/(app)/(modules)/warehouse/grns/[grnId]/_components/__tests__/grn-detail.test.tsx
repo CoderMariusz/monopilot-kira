@@ -92,6 +92,19 @@ const LABELS: GrnDetailLabels = {
       generic: 'We could not cancel this receipt line. Try again.',
     },
   },
+  tempCheck: {
+    action: 'Record temp',
+    recording: 'Recording…',
+    inputLabel: 'Delivery temperature in degrees Celsius',
+    inputPlaceholder: '°C',
+    inRange: 'In range',
+    outOfRange: 'Out of range — quality hold {holdNumber} created.',
+    outOfRangeNoHold: 'Out of range — a quality hold was created.',
+    forbidden: 'Insufficient permissions: quality.coldchain.record is required.',
+    invalidInput: 'Enter a valid temperature in °C.',
+    noRange: 'No temperature range is configured for this product.',
+    error: 'The temperature could not be recorded. Try again.',
+  },
 };
 
 const GRN: GrnDetail = {
@@ -148,6 +161,7 @@ const releaseQaActionStub: any = async () => ({
 });
 const cancelOkStub: any = async () => ({ ok: true });
 const printOkStub: any = async () => ({ status: 'sent', result_url: 'data:text/plain,label' });
+const tempCheckStub: any = async () => ({ ok: true, inRange: true });
 
 function renderGrn(overrides: any = {}) {
   return render(
@@ -160,6 +174,8 @@ function renderGrn(overrides: any = {}) {
       canCancelLines: true,
       printLabelAction: printOkStub,
       canPrint: true,
+      submitConditionCheck: tempCheckStub,
+      canRecordTemp: true,
       ...overrides,
     }),
   );

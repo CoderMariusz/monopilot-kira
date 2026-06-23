@@ -48,6 +48,10 @@ export const SETTINGS_NAV_GROUPS = [
     item("manufacturing-ops", "Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
     item("partners", "Suppliers & customers", "↔"),
     item("units", "Units & conversions", "⚖"),
+    // E2B — cold-chain product temperature ranges (mig 315). Master config that
+    // drives the GRN delivery-condition check, so it sits with the other Data
+    // master screens (not a URL-only dead-end — the lines/machines lesson).
+    item("temp-ranges", "Temperature ranges", "❄", false, "/settings/quality/temp-ranges"),
     item("import-export", "Import / Export", "⇅", true),
   ]),
   group("access", "Access", true, [

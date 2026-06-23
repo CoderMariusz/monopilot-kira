@@ -33,6 +33,7 @@ import {
   type GrnPrintLabelResult,
 } from './_components/grn-detail.client';
 import { cancelGrnLineAction } from './receipt-corrections-adapter';
+import { submitConditionCheckAction } from './cold-chain-adapter';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,6 +124,19 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
         generic: t('grnDetail.cancelLine.errors.generic'),
       },
     },
+    tempCheck: {
+      action: t('grnDetail.tempCheck.action'),
+      recording: t('grnDetail.tempCheck.recording'),
+      inputLabel: t('grnDetail.tempCheck.inputLabel'),
+      inputPlaceholder: t('grnDetail.tempCheck.inputPlaceholder'),
+      inRange: t('grnDetail.tempCheck.inRange'),
+      outOfRange: t('grnDetail.tempCheck.outOfRange'),
+      outOfRangeNoHold: t('grnDetail.tempCheck.outOfRangeNoHold'),
+      forbidden: t('grnDetail.tempCheck.forbidden'),
+      invalidInput: t('grnDetail.tempCheck.invalidInput'),
+      noRange: t('grnDetail.tempCheck.noRange'),
+      error: t('grnDetail.tempCheck.error'),
+    },
   };
 }
 
@@ -138,6 +152,8 @@ function DetailSkeleton() {
 // E1 — the SAME permission the printers actions enforce (settings.org.update).
 const PRINT_PERMISSION = 'settings.org.update';
 const CANCEL_RECEIPT_PERMISSION = 'warehouse.receipt.correct';
+// E2B — cold-chain delivery-condition recording (re-enforced by the action).
+const RECORD_TEMP_PERMISSION = 'quality.coldchain.record';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -146,11 +162,11 @@ type QueryClient = {
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
 /**
- * E1 — resolve settings.org.update server-side so the per-line Print button is
- * rendered enabled/disabled honestly (never render-then-disable leak; the action
+ * Resolve a single permission server-side so per-line affordances render
+ * enabled/disabled honestly (never render-then-disable leak; the owning action
  * re-checks regardless). Failures degrade to "no permission", never a 500.
  */
-async function resolveCanPrint(): Promise<boolean> {
+async function resolvePermission(permission: string): Promise<boolean> {
   try {
     return await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as OrgContextLike;
@@ -167,7 +183,7 @@ async function resolveCanPrint(): Promise<boolean> {
               or coalesce(r.permissions, '[]'::jsonb) ? $3
             )
           limit 1`,
-        [ctx.userId, ctx.orgId, PRINT_PERMISSION],
+        [ctx.userId, ctx.orgId, permission],
       );
       return rows.length > 0;
     });
@@ -176,31 +192,12 @@ async function resolveCanPrint(): Promise<boolean> {
   }
 }
 
-async function resolveCanCancel(): Promise<boolean> {
-  try {
-    return await withOrgContext(async (rawCtx) => {
-      const ctx = rawCtx as OrgContextLike;
-      const { rows } = await ctx.client.query<{ ok: boolean }>(
-        `select true as ok
-           from public.user_roles ur
-           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-          where ur.user_id = $1::uuid
-            and ur.org_id = $2::uuid
-            and (
-              rp.permission is not null
-              or r.code = $3
-              or coalesce(r.permissions, '[]'::jsonb) ? $3
-            )
-          limit 1`,
-        [ctx.userId, ctx.orgId, CANCEL_RECEIPT_PERMISSION],
-      );
-      return rows.length > 0;
-    });
-  } catch {
-    return false;
-  }
-}
+// E1 — per-line Print labels (settings.org.update).
+const resolveCanPrint = () => resolvePermission(PRINT_PERMISSION);
+// C-R3 — per-line cancel receipt (warehouse.receipt.correct).
+const resolveCanCancel = () => resolvePermission(CANCEL_RECEIPT_PERMISSION);
+// E2B — per-line delivery-condition temperature (quality.coldchain.record).
+const resolveCanRecordTemp = () => resolvePermission(RECORD_TEMP_PERMISSION);
 
 /**
  * E1 — Server Action adapter: maps the printers `printLabel` PrintJobRow down to
@@ -282,7 +279,11 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
     );
   }
 
-  const [canPrint, canCancel] = await Promise.all([resolveCanPrint(), resolveCanCancel()]);
+  const [canPrint, canCancel, canRecordTemp] = await Promise.all([
+    resolveCanPrint(),
+    resolveCanCancel(),
+    resolveCanRecordTemp(),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -296,6 +297,8 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
         canCancelLines={result.data.status !== 'cancelled' && canCancel}
         printLabelAction={printGrnLineLabel}
         canPrint={canPrint}
+        submitConditionCheck={submitConditionCheckAction}
+        canRecordTemp={result.data.status !== 'cancelled' && canRecordTemp}
       />
     </div>
   );

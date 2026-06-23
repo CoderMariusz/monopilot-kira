@@ -131,6 +131,7 @@
         "reserve": "Reserve",
         "move": "Move",
         "block": "Block",
+        "unblock": "Unblock",
         "destroy": "Destroy / scrap",
         "qaRelease": {
           "title": "Release LP QC",
@@ -189,6 +190,24 @@
             "invalidInput": "Enter a reason before blocking the license plate.",
             "notFound": "The license plate was not found.",
             "generic": "We could not block this license plate. Try again."
+          }
+        },
+        "unblockModal": {
+          "title": "Unblock {lp}",
+          "intro": "Release the active quality hold and return this license plate to available for picking.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being unblocked?",
+          "cancel": "Cancel",
+          "confirm": "Unblock LP",
+          "submitting": "Unblocking…",
+          "success": "License plate unblocked — it is available again.",
+          "errors": {
+            "forbidden": "You do not have permission to unblock license plates.",
+            "invalidState": "This license plate cannot be unblocked in its current state.",
+            "noOpenHold": "There is no active hold to release on this license plate.",
+            "invalidInput": "Enter a reason before unblocking the license plate.",
+            "notFound": "The license plate was not found.",
+            "generic": "We could not unblock this license plate. Try again."
           }
         }
       },
@@ -447,6 +466,7 @@
         "reserve": "Zarezerwuj",
         "move": "Przesuń",
         "block": "Zablokuj",
+        "unblock": "Odblokuj",
         "destroy": "Zniszcz / złomuj",
         "qaRelease": {
           "title": "Zwolnij QC LP",
@@ -505,6 +525,24 @@
             "invalidInput": "Podaj powód przed zablokowaniem LP.",
             "notFound": "Nie znaleziono LP.",
             "generic": "Nie udało się zablokować tego LP. Spróbuj ponownie."
+          }
+        },
+        "unblockModal": {
+          "title": "Odblokuj {lp}",
+          "intro": "Zwolnij aktywny hold jakościowy i przywróć ten LP do dostępnych do pobrania.",
+          "reason": "Powód",
+          "reasonPlaceholder": "Dlaczego ten LP jest odblokowywany?",
+          "cancel": "Anuluj",
+          "confirm": "Odblokuj LP",
+          "submitting": "Odblokowywanie…",
+          "success": "LP odblokowany — jest ponownie dostępny.",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do odblokowywania LP.",
+            "invalidState": "Tego LP nie można odblokować w obecnym stanie.",
+            "noOpenHold": "Brak aktywnego holdu do zwolnienia na tym LP.",
+            "invalidInput": "Podaj powód przed odblokowaniem LP.",
+            "notFound": "Nie znaleziono LP.",
+            "generic": "Nie udało się odblokować tego LP. Spróbuj ponownie."
           }
         }
       },

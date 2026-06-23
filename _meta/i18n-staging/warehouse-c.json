@@ -12,7 +12,10 @@
     "grnList": {
       "title": "Goods receipts (GRN)",
       "subtitle": "Receipts from purchase orders, transfer orders and returns.",
-      "breadcrumb": { "warehouse": "Warehouse", "grns": "Goods receipts" },
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "grns": "Goods receipts"
+      },
       "searchPlaceholder": "Search GRN#, supplier…",
       "searchLabel": "Search goods receipts",
       "rowsLabel": "{count} rows",
@@ -45,7 +48,10 @@
       "error": "We could not load goods receipts right now. Refresh to try again."
     },
     "grnDetail": {
-      "breadcrumb": { "warehouse": "Warehouse", "grns": "Goods receipts" },
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "grns": "Goods receipts"
+      },
       "back": "Back to goods receipts",
       "notFound": "Goods receipt not found.",
       "denied": "You do not have permission to view this goods receipt.",
@@ -123,12 +129,28 @@
           "generic": "We could not cancel this receipt line. Try again."
         }
       },
-      "emptyItems": "No receipt lines recorded for this GRN."
+      "emptyItems": "No receipt lines recorded for this GRN.",
+      "tempCheck": {
+        "action": "Record temp",
+        "recording": "Recording…",
+        "inputLabel": "Delivery temperature in degrees Celsius",
+        "inputPlaceholder": "°C",
+        "inRange": "In range",
+        "outOfRange": "Out of range — quality hold {holdNumber} created.",
+        "outOfRangeNoHold": "Out of range — a quality hold was created.",
+        "forbidden": "Insufficient permissions: quality.coldchain.record is required to record delivery temperatures.",
+        "invalidInput": "Enter a valid temperature in °C.",
+        "noRange": "No temperature range is configured for this product. Set one in Settings → Temperature ranges.",
+        "error": "The temperature could not be recorded. Try again."
+      }
     },
     "inventory": {
       "title": "Inventory browser",
       "subtitle": "Aggregated on-hand stock across all active license plates.",
-      "breadcrumb": { "warehouse": "Warehouse", "inventory": "Inventory" },
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "inventory": "Inventory"
+      },
       "searchPlaceholder": "Search item, location, batch…",
       "searchLabel": "Search inventory",
       "rowsLabel": "{count} rows",
@@ -175,7 +197,10 @@
     "movements": {
       "title": "Stock movements",
       "subtitle": "License-plate moves — receipts, consumption, transfers and adjustments.",
-      "breadcrumb": { "warehouse": "Warehouse", "movements": "Stock movements" },
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "movements": "Stock movements"
+      },
       "searchPlaceholder": "Search SM#, LP#…",
       "searchLabel": "Search stock movements",
       "rowsLabel": "{count} rows",
@@ -219,7 +244,10 @@
     "reservations": {
       "title": "Reservations (LP hard-locks)",
       "subtitle": "Hard-locks created on work-order release · cross-module view of reserved license plates.",
-      "breadcrumb": { "warehouse": "Warehouse", "reservations": "Reservations" },
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "reservations": "Reservations"
+      },
       "rowsLabel": "{count} rows",
       "infoNote": "Hard-locks are auto-created at WO release. Release reason is audit-logged.",
       "columns": {
@@ -284,7 +312,10 @@
     "grnList": {
       "title": "Przyjęcia towaru (GRN)",
       "subtitle": "Przyjęcia z zamówień zakupu, zleceń przesunięcia i zwrotów.",
-      "breadcrumb": { "warehouse": "Magazyn", "grns": "Przyjęcia towaru" },
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "grns": "Przyjęcia towaru"
+      },
       "searchPlaceholder": "Szukaj GRN#, dostawca…",
       "searchLabel": "Szukaj przyjęć towaru",
       "rowsLabel": "{count} wierszy",
@@ -317,7 +348,10 @@
       "error": "Nie udało się teraz wczytać przyjęć towaru. Odśwież, aby spróbować ponownie."
     },
     "grnDetail": {
-      "breadcrumb": { "warehouse": "Magazyn", "grns": "Przyjęcia towaru" },
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "grns": "Przyjęcia towaru"
+      },
       "back": "Powrót do przyjęć towaru",
       "notFound": "Nie znaleziono przyjęcia towaru.",
       "denied": "Nie masz uprawnień do podglądu tego przyjęcia towaru.",
@@ -395,12 +429,28 @@
           "generic": "Nie udało się anulować tej pozycji przyjęcia. Spróbuj ponownie."
         }
       },
-      "emptyItems": "Brak pozycji przyjęcia dla tego GRN."
+      "emptyItems": "Brak pozycji przyjęcia dla tego GRN.",
+      "tempCheck": {
+        "action": "Zapisz temp.",
+        "recording": "Zapisywanie…",
+        "inputLabel": "Temperatura dostawy w stopniach Celsjusza",
+        "inputPlaceholder": "°C",
+        "inRange": "W zakresie",
+        "outOfRange": "Poza zakresem — utworzono wstrzymanie jakości {holdNumber}.",
+        "outOfRangeNoHold": "Poza zakresem — utworzono wstrzymanie jakości.",
+        "forbidden": "Brak uprawnień: do zapisu temperatury dostawy wymagane jest quality.coldchain.record.",
+        "invalidInput": "Podaj prawidłową temperaturę w °C.",
+        "noRange": "Dla tego produktu nie skonfigurowano zakresu temperatur. Ustaw go w Ustawienia → Zakresy temperatur.",
+        "error": "Nie udało się zapisać temperatury. Spróbuj ponownie."
+      }
     },
     "inventory": {
       "title": "Przegląd stanu magazynowego",
       "subtitle": "Zagregowany stan na ręku ze wszystkich aktywnych numerów LP.",
-      "breadcrumb": { "warehouse": "Magazyn", "inventory": "Stan magazynowy" },
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "inventory": "Stan magazynowy"
+      },
       "searchPlaceholder": "Szukaj towar, lokalizacja, partia…",
       "searchLabel": "Szukaj stanu magazynowego",
       "rowsLabel": "{count} wierszy",
@@ -447,7 +497,10 @@
     "movements": {
       "title": "Ruchy magazynowe",
       "subtitle": "Ruchy numerów LP — przyjęcia, zużycia, przesunięcia i korekty.",
-      "breadcrumb": { "warehouse": "Magazyn", "movements": "Ruchy magazynowe" },
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "movements": "Ruchy magazynowe"
+      },
       "searchPlaceholder": "Szukaj SM#, LP#…",
       "searchLabel": "Szukaj ruchów magazynowych",
       "rowsLabel": "{count} wierszy",
@@ -491,7 +544,10 @@
     "reservations": {
       "title": "Rezerwacje (twarde blokady LP)",
       "subtitle": "Twarde blokady tworzone przy wydaniu zlecenia produkcyjnego · widok zarezerwowanych numerów LP między modułami.",
-      "breadcrumb": { "warehouse": "Magazyn", "reservations": "Rezerwacje" },
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "reservations": "Rezerwacje"
+      },
       "rowsLabel": "{count} wierszy",
       "infoNote": "Twarde blokady są tworzone automatycznie przy wydaniu WO. Powód zwolnienia jest rejestrowany w audycie.",
       "columns": {

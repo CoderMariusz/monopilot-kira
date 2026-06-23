@@ -20,6 +20,8 @@ const EXPECTED_SETTINGS_NAV = [
       // E1 — label printers (printers + print_jobs, mig 304).
       { key: "printers", label: "Printers", icon: "🖨" },
       { key: "shifts", label: "Shifts & calendar", icon: "⧗" },
+      // E4B — hourly labor rates by role/group (feeds WO labor cost).
+      { key: "labor-rates", label: "Labor rates", icon: "💰" },
     ],
   },
   {
@@ -34,6 +36,8 @@ const EXPECTED_SETTINGS_NAV = [
       { key: "manufacturing-ops", label: "Manufacturing operations", icon: "⚒", highlight: true },
       { key: "partners", label: "Suppliers & customers", icon: "↔" },
       { key: "units", label: "Units & conversions", icon: "⚖" },
+      // E2B — cold-chain product temperature ranges (mig 315).
+      { key: "temp-ranges", label: "Temperature ranges", icon: "❄" },
       { key: "import-export", label: "Import / Export", icon: "⇅", highlight: true },
     ],
   },

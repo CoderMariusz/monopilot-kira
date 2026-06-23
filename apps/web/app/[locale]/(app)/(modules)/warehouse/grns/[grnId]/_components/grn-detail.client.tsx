@@ -47,6 +47,12 @@ import {
   type CancelGrnLineInput,
   type CancelGrnLineResult,
 } from './grn-line-cancel-modal.client';
+import {
+  GrnTempCheck,
+  type GrnTempCheckLabels,
+  type SubmitTempCheckInput,
+  type SubmitTempCheckResult,
+} from './grn-temp-check.client';
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   draft: 'warning',
@@ -108,6 +114,8 @@ export type GrnDetailLabels = {
     /** Struck-through cancelled-line badge (defensive `cancelled` flag). */
     cancelledBadge: string;
   };
+  /** E2B — per-line delivery-condition (cold-chain) temperature control copy. */
+  tempCheck: GrnTempCheckLabels;
 };
 
 /**
@@ -141,6 +149,8 @@ export function GrnDetailClient({
   canCancelLines = false,
   printLabelAction,
   canPrint = false,
+  submitConditionCheck,
+  canRecordTemp = false,
 }: {
   grn: GrnDetail;
   labels: GrnDetailLabels;
@@ -166,6 +176,16 @@ export function GrnDetailClient({
   printLabelAction: (input: GrnPrintLabelInput) => Promise<GrnPrintLabelResult>;
   /** Server-resolved settings.org.update; false ⇒ print buttons disabled + tooltip. */
   canPrint?: boolean;
+  /**
+   * E2B — record a delivery-condition temperature for a received line/LP. OWNED by
+   * the cold-chain backend lane (quality/_actions/cold-chain-actions.ts →
+   * submitConditionCheck) and threaded in by the page via an import-only adapter
+   * seam; never imported here directly. RBAC (quality.coldchain.record) is
+   * re-enforced server-side — `canRecordTemp` only governs the disabled affordance.
+   */
+  submitConditionCheck: (input: SubmitTempCheckInput) => Promise<SubmitTempCheckResult>;
+  /** Server-resolved quality.coldchain.record; false ⇒ temp control disabled + tooltip. */
+  canRecordTemp?: boolean;
 }) {
   const dash = labels.facts.none;
   const router = useRouter();
@@ -428,7 +448,21 @@ export function GrnDetailClient({
                           ) : null}
                         </>
                       ) : null}
-                      {!showRelease && !showPrint ? (
+                      {/* E2B — delivery-condition (cold-chain) temperature.
+                          Available on every non-cancelled received line; gated on
+                          quality.coldchain.record (re-checked server-side). */}
+                      {!isCancelled ? (
+                        <GrnTempCheck
+                          itemId={it.productId}
+                          grnItemId={it.id}
+                          lpId={it.lpId}
+                          labels={labels.tempCheck}
+                          canRecord={canRecordTemp}
+                          submitConditionCheck={submitConditionCheck}
+                          onRecorded={() => router.refresh()}
+                        />
+                      ) : null}
+                      {!showRelease && !showPrint && isCancelled ? (
                         <span className="text-slate-400">{dash}</span>
                       ) : null}
                     </div>
