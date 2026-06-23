@@ -37,7 +37,7 @@ import {
   type VoidModalLabels,
 } from '../void-correction-modal';
 import { WoDetailScreen, type WoDetailActions, type WoDetailLabels } from '../wo-detail-screen';
-import { REVERSE_LABELS } from './reverse-labels.fixture';
+import { REVERSE_LABELS, LABOR_TAB_LABELS } from './reverse-labels.fixture';
 import type { WorkOrderDetailData } from '../../../../_actions/get-work-order-detail';
 import type { WoActionPermissions, WoModalLabels } from '../../../_components/modals/types';
 
@@ -258,7 +258,7 @@ const SCREEN_LABELS: WoDetailLabels = {
   deferredActionTitle: 'Wired next',
   changeoverGate: { title: 't', body: 'b', link: 'l' },
   headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
-  tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', history: 'Event log' },
+  tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
   overview: { summaryTitle: 'Summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine', planned: 'Planned', output: 'Output', plannedWindow: 'Window', actualStart: 'Start', elapsed: 'Elapsed', allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output', allergenYes: 'Yes', allergenNo: 'No', elapsedMin: 'min' },
   consumption: { title: 'Consumption', empty: 'none', addAction: 'Scan LP', col: { code: 'Code', component: 'Component', planned: 'Planned', consumed: 'Consumed', remaining: 'Remaining', progress: 'Progress' }, record: { trigger: 'Record', rowTrigger: 'Record', title: 't', subtitle: 's', material: 'm', materialPlaceholder: 'p', qty: 'q', qtyHint: 'h', lp: 'lp', lpLoading: 'l', lpEmpty: 'e', lpError: 'err', lpNone: 'none', lpSuggested: 'sug', reasonCode: 'r', reasonPlaceholder: 'rp', submit: 'sub', submitting: 'subbing', cancel: 'c', warningOver: 'w', warningClose: 'wc', errors: { forbidden: 'f', lp_unavailable: 'a', lp_not_released: 'nr', lp_expired: 'ex', lp_locked: 'lo', quality_hold_active: 'qh', reason_required: 'rr', invalid_material: 'im', invalid_qty: 'iq', generic: 'g' } } },
   output: { title: 'Registered output', empty: 'No output registered yet.', addAction: 'Register output', col: { type: 'Type', product: 'Product', qty: 'Qty', batch: 'Batch / lot', expiry: 'Expiry', qa: 'QA', lp: 'LP' }, qaPass: 'QA pass', qaFail: 'QA fail', qaDenied: 'denied', qaInvalidState: 'inv', qaError: 'err', voidAction: 'Void output…', noConsumptionBadge: 'No consumption', noConsumptionTooltip: 'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.', noConsumptionContinue: 'Continue anyway' },
@@ -266,6 +266,7 @@ const SCREEN_LABELS: WoDetailLabels = {
   voidCorrection: VC_LABELS,
   downtime: { title: 'Downtime', empty: 'none', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
   qa: { title: 'QA', empty: 'none', total: 'Total', pass: 'Pass', hold: 'Hold', fail: 'Fail' },
+  labor: LABOR_TAB_LABELS,
   genealogy: { title: 'Genealogy', empty: 'none', inputsLabel: 'Inputs', fefoOk: 'FEFO', fefoDeviation: 'Dev', reverseAction: 'Reverse…', reversedBadge: 'Reversed', correctionOfLabel: 'Correction of #{ref}' },
   reverseConsumption: REVERSE_LABELS,
   history: { title: 'Event log', empty: 'none', sourceStatus: 'Status', sourceExecution: 'Execution', col: { time: 'Time', source: 'Source', action: 'Action', transition: 'Transition', reason: 'Reason' } },

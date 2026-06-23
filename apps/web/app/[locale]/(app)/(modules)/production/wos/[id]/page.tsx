@@ -26,11 +26,24 @@ import { getWorkOrderDetail } from '../../_actions/get-work-order-detail';
 import { getWoActionContext } from '../../_actions/get-wo-action-context';
 import { releaseWoOutputQa } from '../../_actions/output-qa-actions';
 import { listConsumableLps, recordDesktopConsumption } from '../../_actions/consume-material-actions';
+// E4B — desktop WO Labor tab. The clock-in/out + summary actions are OWNED by the
+// labor backend lane (production/_actions/labor-actions.ts) — imported, never
+// re-authored. RBAC (production.consumption.write / production.oee.read) is
+// enforced inside each action; the page only resolves the affordance permission.
+import {
+  clockInToWo,
+  clockOutFromWo,
+  getWoLaborSummary,
+  type ClockInToWoResult,
+  type ClockOutFromWoResult,
+} from '../../_actions/labor-actions';
 import { reverseConsumptionAction, voidWasteEntryAction, voidWoOutputAction } from './void-actions-adapter';
 import {
   WoDetailScreen,
   type WoDetailActions,
   type WoDetailLabels,
+  type WoLaborState,
+  type WoLaborSummaryView,
 } from './_components/wo-detail-screen';
 import type { VoidReasonCode } from './_components/void-correction-modal';
 import { buildWoModalLabels } from '../../_actions/wo-modal-labels';
@@ -105,6 +118,51 @@ async function printFgLabel(input: OutputPrintLabelInput): Promise<OutputPrintLa
   'use server';
   const job = await printLabel({ entityType: input.entityType, entityId: input.entityId });
   return { status: job.status, result_url: job.result_url };
+}
+
+// E4B — the permission the labor clock-in/out actions enforce
+// (production.consumption.write). Resolved server-side so the controls render
+// honestly enabled/disabled (never render-then-hide); the action re-checks it.
+const LABOR_WRITE_PERMISSION = 'production.consumption.write';
+
+async function resolveCanManageLabor(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as PrintOrgContextLike;
+      const { rows } = await ctx.client.query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or r.code = $3
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, LABOR_WRITE_PERMISSION],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * E4B — thin Server Action adapters for the desktop Labor tab. `source` is pinned
+ * to 'desktop' (the scanner uses a separate Bearer /api/scanner/labor slice). The
+ * labor-actions re-validate RBAC server-side; these only narrow the input shape.
+ */
+async function clockInDesktop(input: { woId: string; source: 'desktop' }): Promise<ClockInToWoResult> {
+  'use server';
+  return clockInToWo({ woId: input.woId, source: 'desktop' });
+}
+async function clockOutDesktop(input: { woId: string }): Promise<ClockOutFromWoResult> {
+  'use server';
+  return clockOutFromWo({ woId: input.woId });
 }
 
 async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
@@ -187,6 +245,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       downtime: t('tabs.downtime'),
       qa: t('tabs.qa'),
       genealogy: t('tabs.genealogy'),
+      labor: t('tabs.labor'),
       history: t('tabs.history'),
     },
     overview: {
@@ -388,6 +447,30 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       hold: t('qa.hold'),
       fail: t('qa.fail'),
     },
+    labor: {
+      title: t('labor.title'),
+      empty: t('labor.empty'),
+      loading: t('labor.loading'),
+      error: t('labor.error'),
+      forbidden: t('labor.forbidden'),
+      clockIn: t('labor.clockIn'),
+      clockOut: t('labor.clockOut'),
+      clockingIn: t('labor.clockingIn'),
+      clockingOut: t('labor.clockingOut'),
+      clockInDenied: t('labor.clockInDenied'),
+      clockOutDenied: t('labor.clockOutDenied'),
+      totalHours: t('labor.totalHours'),
+      totalCost: t('labor.totalCost'),
+      noRate: t('labor.noRate'),
+      noRateTooltip: t('labor.noRateTooltip'),
+      disabledTooltip: t('labor.disabledTooltip'),
+      col: {
+        operator: t('labor.col.operator'),
+        hours: t('labor.col.hours'),
+        rate: t('labor.col.rate'),
+        cost: t('labor.col.cost'),
+      },
+    },
     genealogy: {
       title: t('genealogy.title'),
       empty: t('genealogy.empty'),
@@ -559,6 +642,25 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   // (no point querying for a read-only/forbidden viewer).
   const canPrintFgLabel = actions ? await resolveCanPrintFg() : false;
 
+  // E4B — labor summary (getWoLaborSummary re-checks production.oee.read) + the
+  // clock-in/out affordance permission. The summary read maps the typed error
+  // union to the screen's state enum so the tab surfaces forbidden/error honestly
+  // without leaking a raw UUID. canManageLabor is only resolved when the read-only
+  // action context is absent-safe (we still query independently of the action bar).
+  const [laborResult, canManageLabor] = await Promise.all([
+    getWoLaborSummary(id),
+    resolveCanManageLabor(),
+  ]);
+  let laborSummary: WoLaborSummaryView | null = null;
+  let laborState: WoLaborState = 'ready';
+  if (laborResult.ok) {
+    laborSummary = laborResult.data;
+  } else if (laborResult.error === 'forbidden') {
+    laborState = 'forbidden';
+  } else {
+    laborState = 'error';
+  }
+
   return (
     <WoDetailScreen
       data={result.data}
@@ -575,6 +677,11 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       reverseConsumptionAction={reverseConsumptionAction}
       printFgLabelAction={printFgLabel}
       canPrintFgLabel={canPrintFgLabel}
+      laborSummary={laborSummary}
+      laborState={laborState}
+      canManageLabor={canManageLabor}
+      clockInAction={clockInDesktop}
+      clockOutAction={clockOutDesktop}
     />
   );
 }

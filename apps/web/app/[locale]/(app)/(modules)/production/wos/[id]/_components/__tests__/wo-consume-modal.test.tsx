@@ -25,7 +25,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { WoDetailScreen, type WoDetailLabels, type WoDetailActions } from '../wo-detail-screen';
-import { REVERSE_LABELS } from './reverse-labels.fixture';
+import { REVERSE_LABELS, LABOR_TAB_LABELS } from './reverse-labels.fixture';
 import type { WorkOrderDetailData } from '../../../../_actions/get-work-order-detail';
 import { buildWoModalLabels } from '../../../../_actions/wo-modal-labels';
 
@@ -33,7 +33,7 @@ const LABELS = {
   status: { planned: 'Planned', in_progress: 'In progress', paused: 'Paused', completed: 'Completed', closed: 'Closed', cancelled: 'Cancelled' },
   deferredActionTitle: 'Wired later',
   headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
-  tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', history: 'Event log' },
+  tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
   overview: {
     summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine',
     planned: 'Planned qty', output: 'Output', plannedWindow: 'Planned window', actualStart: 'Actual start', elapsed: 'Elapsed',
@@ -88,6 +88,7 @@ const LABELS = {
   },
   downtime: { title: 'Downtime events', empty: 'No downtime.', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
   qa: { title: 'QA results', empty: 'No inspections.', total: 'Total', pass: 'Pass', hold: 'Hold', fail: 'Fail' },
+  labor: LABOR_TAB_LABELS,
   genealogy: { title: 'WO genealogy', empty: 'No links.', inputsLabel: 'Consumed inputs', fefoOk: 'FEFO', fefoDeviation: 'Deviation', reverseAction: 'Reverse…', reversedBadge: 'Reversed', correctionOfLabel: 'Correction of #{ref}' },
   reverseConsumption: REVERSE_LABELS,
   history: { title: 'Event log', empty: 'No events.', sourceStatus: 'Status', sourceExecution: 'Execution', col: { time: 'Time', source: 'Source', action: 'Action', transition: 'Transition', reason: 'Reason' } },

@@ -990,6 +990,43 @@
       "empty_override_types": "Типи перевизначення ще не налаштовано.",
       "empty_reason_codes": "Немає кодів причин для цього типу перевизначення.",
       "empty_rma_codes": "Коди причин RMA ще не налаштовано."
+    },
+    "laborRates": {
+      "eyebrow": "Labor",
+      "title": "Labor rates",
+      "subtitle": "Hourly labor rates by role or group. Rates feed work-order labor cost. A new effective date adds a new rate — historical rates are preserved.",
+      "sectionTitle": "Configured rates",
+      "provenance": "Rates are stored per organization and applied by effective date when computing work-order labor cost.",
+      "addRate": "New rate",
+      "emptyCta": "Add the first rate",
+      "columnRole": "Role / group",
+      "columnRate": "Rate / h",
+      "columnCurrency": "Currency",
+      "columnEffectiveFrom": "Effective from",
+      "columnStatus": "Status",
+      "statusCurrent": "Current",
+      "statusFuture": "Scheduled",
+      "statusSuperseded": "Superseded",
+      "historyNote": "Each effective date is a separate row — older rates stay for historical cost accuracy and are never edited in place.",
+      "dialogAddTitle": "New labor rate",
+      "fieldRole": "Role / group",
+      "fieldRoleHelp": "Matches a role slug, code or name (e.g. operator, packer).",
+      "fieldRate": "Rate per hour",
+      "fieldRateHelp": "Hourly cost in the chosen currency.",
+      "fieldCurrency": "Currency",
+      "fieldEffectiveFrom": "Effective from",
+      "fieldEffectiveFromHelp": "A new effective date creates a new rate row; the previous rate is kept.",
+      "save": "Add rate",
+      "savePending": "Adding…",
+      "cancel": "Cancel",
+      "createSuccess": "Labor rate added.",
+      "saveFailed": "The rate could not be saved. Check the fields and try again.",
+      "invalidInput": "Enter a role, a non-negative rate, a valid currency and date.",
+      "insufficientPermission": "settings.org.update permission is required to manage labor rates.",
+      "loading": "Loading labor rates…",
+      "empty": "No labor rates configured yet.",
+      "error": "Labor rates could not be loaded. Please retry shortly.",
+      "forbidden": "You do not have permission to view labor rates."
     }
   },
   "navigation": {
@@ -1165,7 +1202,8 @@
         "signoff": "Sign-off policies",
         "lines": "Production lines",
         "locations": "Locations",
-        "my_pin": "E-sign & scanner PIN"
+        "my_pin": "E-sign & scanner PIN",
+        "labor_rates": "Labor rates"
       }
     },
     "npd": {
@@ -6708,7 +6746,8 @@
           "downtime": "Downtime",
           "qa": "QA results",
           "genealogy": "Genealogy",
-          "history": "Event log"
+          "history": "Event log",
+          "labor": "Labor"
         },
         "status": {
           "planned": "Planned",
@@ -6942,6 +6981,30 @@
             "esign_failed": "Signature failed — check your password and retry.",
             "persistence_failed": "Unable to reverse this consumption.",
             "generic": "Unable to reverse this consumption."
+          }
+        },
+        "labor": {
+          "title": "Labor",
+          "empty": "No labor recorded for this work order yet.",
+          "loading": "Loading labor…",
+          "error": "Labor could not be loaded. Please retry shortly.",
+          "forbidden": "You do not have permission to view labor for this work order.",
+          "clockIn": "Clock in operator",
+          "clockOut": "Clock out",
+          "clockingIn": "Clocking in…",
+          "clockingOut": "Clocking out…",
+          "clockInDenied": "You do not have permission to clock in to this work order.",
+          "clockOutDenied": "You do not have permission to clock out of this work order.",
+          "totalHours": "Total hours",
+          "totalCost": "Total labor cost",
+          "noRate": "No rate",
+          "noRateTooltip": "No labor rate is configured for this operators role — cost cannot be computed. Add a rate in Settings → Labor rates.",
+          "disabledTooltip": "You do not have permission to record labor (production.consumption.write).",
+          "col": {
+            "operator": "Operator",
+            "hours": "Hours",
+            "rate": "Rate / h",
+            "cost": "Cost"
           }
         }
       },

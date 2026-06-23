@@ -101,7 +101,53 @@ type TabKey =
   | 'downtime'
   | 'qa'
   | 'genealogy'
+  | 'labor'
   | 'history';
+
+/**
+ * E4B — WO Labor tab view-model. Mirrors the `getWoLaborSummary(woId)` result
+ * shape (production/_actions/labor-actions.ts → WoLaborSummary). Entries are
+ * already aggregated per operator with the OPERATOR NAME resolved server-side
+ * (never a raw user UUID). `state` lets the page surface loading / error /
+ * permission-denied without coupling the screen to the action result union.
+ */
+export type WoLaborEntry = {
+  userName: string;
+  hours: number;
+  ratePerHour: number;
+  cost: number;
+  noRate?: boolean;
+};
+
+export type WoLaborSummaryView = {
+  totalHours: number;
+  totalCost: number;
+  currency: string;
+  entries: WoLaborEntry[];
+};
+
+export type WoLaborState = 'ready' | 'loading' | 'error' | 'forbidden';
+
+export type WoLaborTabLabels = {
+  title: string;
+  empty: string;
+  loading: string;
+  error: string;
+  forbidden: string;
+  clockIn: string;
+  clockOut: string;
+  clockingIn: string;
+  clockingOut: string;
+  clockInDenied: string;
+  clockOutDenied: string;
+  totalHours: string;
+  totalCost: string;
+  noRate: string;
+  noRateTooltip: string;
+  /** Disabled-control tooltip when the caller lacks production.consumption.write. */
+  disabledTooltip: string;
+  col: { operator: string; hours: string; rate: string; cost: string };
+};
 
 export type WoDetailLabels = {
   status: Record<WorkOrderDetailStatus, string>;
@@ -234,6 +280,8 @@ export type WoDetailLabels = {
     col: { category: string; start: string; end: string; duration: string; reason: string };
   };
   qa: { title: string; empty: string; total: string; pass: string; hold: string; fail: string };
+  /** E4B — Labor tab copy (summary table + clock-in/out controls). */
+  labor: WoLaborTabLabels;
   genealogy: {
     title: string;
     empty: string;
@@ -317,6 +365,26 @@ function fmtDate(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return '—';
   return d.toISOString().slice(0, 16).replace('T', ' ');
 }
+// E4B — labor formatters. Hours to 2dp ("h" suffix), money to 2dp (currency code
+// rendered alongside by the caller so it is not hard-coded to one symbol).
+const HOURS_FMT = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MONEY_FMT = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmtHours(n: number): string {
+  return `${HOURS_FMT.format(Number.isFinite(n) ? n : 0)} h`;
+}
+function fmtMoney(n: number): string {
+  return MONEY_FMT.format(Number.isFinite(n) ? n : 0);
+}
+
+/** E4B — desktop clock-in result (mirrors labor-actions.ClockInToWoResult). */
+export type WoClockInResult =
+  | { ok: true; logId: string }
+  | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
+
+/** E4B — desktop clock-out result (mirrors labor-actions.ClockOutFromWoResult). */
+export type WoClockOutResult =
+  | { ok: true; count: number }
+  | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
 
 export function WoDetailScreen({
   data,
@@ -331,6 +399,11 @@ export function WoDetailScreen({
   reverseConsumptionAction,
   printFgLabelAction,
   canPrintFgLabel = false,
+  laborSummary = null,
+  laborState = 'ready',
+  canManageLabor = false,
+  clockInAction,
+  clockOutAction,
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
@@ -376,8 +449,34 @@ export function WoDetailScreen({
    * affordance here only hides already-reversed rows + opens the e-sign modal.
    */
   reverseConsumptionAction: (input: ReverseConsumptionInput) => Promise<ReverseConsumptionResult>;
+  /**
+   * E4B — labor summary for this WO (getWoLaborSummary). Null when the read
+   * failed/forbade — the tab then surfaces the matching `laborState` notice.
+   * Entries carry the OPERATOR NAME (server-resolved); never a raw user UUID.
+   */
+  laborSummary?: WoLaborSummaryView | null;
+  /** E4B — labor summary read state (ready/loading/error/forbidden). */
+  laborState?: WoLaborState;
+  /**
+   * E4B — server-resolved production.consumption.write. When false the clock
+   * in/out controls render DISABLED with a tooltip (never render-then-hide). The
+   * action re-checks the permission server-side regardless.
+   */
+  canManageLabor?: boolean;
+  /**
+   * E4B — desktop clock-in/out. OWNED by the labor backend lane
+   * (production/_actions/labor-actions.ts) and threaded in by the page; this
+   * component never imports them directly. `source` is fixed to 'desktop' here —
+   * the scanner uses a separate /api/scanner/labor slice (out of scope).
+   */
+  clockInAction?: (input: { woId: string; source: 'desktop' }) => Promise<WoClockInResult>;
+  clockOutAction?: (input: { woId: string }) => Promise<WoClockOutResult>;
 }) {
   const [tab, setTab] = useState<TabKey>('overview');
+  // E4B — clock in/out transient state. The summary is refreshed via
+  // router.refresh() after a successful mutation (RSC re-reads getWoLaborSummary).
+  const [laborBusy, setLaborBusy] = useState<null | 'in' | 'out'>(null);
+  const [laborError, setLaborError] = useState<string | null>(null);
   const [busyOutputId, setBusyOutputId] = useState<string | null>(null);
   const [outputQaError, setOutputQaError] = useState<{ outputId: string; message: string } | null>(null);
   const [consumeOpen, setConsumeOpen] = useState(false);
@@ -446,6 +545,7 @@ export function WoDetailScreen({
     'downtime',
     'qa',
     'genealogy',
+    'labor',
     'history',
   ];
   const counts: Partial<Record<TabKey, number>> = {
@@ -454,6 +554,8 @@ export function WoDetailScreen({
     waste: data.waste.length,
     downtime: data.downtime.length,
     qa: data.qa.total,
+    // E4B — operator-count badge on the Labor tab (only when the summary read OK).
+    labor: laborSummary?.entries.length,
     history: data.history.length,
   };
 
@@ -478,6 +580,44 @@ export function WoDetailScreen({
             : labels.output.qaError;
       setBusyOutputId(null);
       setOutputQaError({ outputId, message });
+    });
+  }
+
+  // E4B — desktop clock-in/out. The action re-checks production.consumption.write
+  // server-side; a forbidden result surfaces the permission copy. On success we
+  // re-read the summary via router.refresh() (RSC re-runs getWoLaborSummary).
+  function mapLaborError(error: 'forbidden' | 'invalid_input' | 'persistence_failed', kind: 'in' | 'out'): string {
+    if (error === 'forbidden') return kind === 'in' ? labels.labor.clockInDenied : labels.labor.clockOutDenied;
+    return labels.labor.error;
+  }
+
+  function clockIn() {
+    if (!clockInAction || !canManageLabor || laborBusy !== null) return;
+    setLaborBusy('in');
+    setLaborError(null);
+    startTransition(async () => {
+      const result = await clockInAction({ woId: h.id, source: 'desktop' });
+      setLaborBusy(null);
+      if (result.ok) {
+        router.refresh();
+        return;
+      }
+      setLaborError(mapLaborError(result.error, 'in'));
+    });
+  }
+
+  function clockOut() {
+    if (!clockOutAction || !canManageLabor || laborBusy !== null) return;
+    setLaborBusy('out');
+    setLaborError(null);
+    startTransition(async () => {
+      const result = await clockOutAction({ woId: h.id });
+      setLaborBusy(null);
+      if (result.ok) {
+        router.refresh();
+        return;
+      }
+      setLaborError(mapLaborError(result.error, 'out'));
     });
   }
 
@@ -1057,6 +1197,106 @@ export function WoDetailScreen({
                   })}
                 </ul>
               </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Labor (E4B) — getWoLaborSummary entries + clock in/out controls */}
+        <TabsContent value="labor" className="mt-4">
+          <Card data-testid="wo-tab-labor" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <CardHead title={labels.labor.title}>
+              <button
+                type="button"
+                data-testid="wo-labor-clock-in"
+                disabled={!canManageLabor || laborBusy !== null}
+                title={!canManageLabor ? labels.labor.disabledTooltip : undefined}
+                aria-label={canManageLabor ? labels.labor.clockIn : `${labels.labor.clockIn} — ${labels.labor.disabledTooltip}`}
+                onClick={clockIn}
+                className="rounded-md border border-slate-900 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                {laborBusy === 'in' ? labels.labor.clockingIn : labels.labor.clockIn}
+              </button>
+              <button
+                type="button"
+                data-testid="wo-labor-clock-out"
+                disabled={!canManageLabor || laborBusy !== null}
+                title={!canManageLabor ? labels.labor.disabledTooltip : undefined}
+                aria-label={canManageLabor ? labels.labor.clockOut : `${labels.labor.clockOut} — ${labels.labor.disabledTooltip}`}
+                onClick={clockOut}
+                className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+              >
+                {laborBusy === 'out' ? labels.labor.clockingOut : labels.labor.clockOut}
+              </button>
+            </CardHead>
+
+            {laborError ? (
+              <div
+                role="alert"
+                data-testid="wo-labor-error-banner"
+                className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700"
+              >
+                {laborError}
+              </div>
+            ) : null}
+
+            {laborState === 'loading' ? (
+              <p data-testid="wo-labor-loading" role="status" aria-live="polite" className="px-4 py-10 text-center text-sm text-slate-500">
+                {labels.labor.loading}
+              </p>
+            ) : laborState === 'forbidden' ? (
+              <p data-testid="wo-labor-forbidden" role="alert" className="px-4 py-10 text-center text-sm text-amber-700">
+                {labels.labor.forbidden}
+              </p>
+            ) : laborState === 'error' || laborSummary === null ? (
+              <p data-testid="wo-labor-error" role="alert" className="px-4 py-10 text-center text-sm text-red-700">
+                {labels.labor.error}
+              </p>
+            ) : laborSummary.entries.length === 0 ? (
+              <Empty testid="wo-labor-empty" copy={labels.labor.empty} />
+            ) : (
+              <>
+                <Table aria-label={labels.labor.title}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">{labels.labor.col.operator}</TableHead>
+                      <TableHead scope="col" className="text-right">{labels.labor.col.hours}</TableHead>
+                      <TableHead scope="col" className="text-right">{labels.labor.col.rate}</TableHead>
+                      <TableHead scope="col" className="text-right">{labels.labor.col.cost}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {laborSummary.entries.map((e, i) => (
+                      <TableRow key={`${e.userName}-${i}`} data-testid="wo-labor-row">
+                        <TableCell className="text-sm font-medium text-slate-800">{e.userName}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums">{fmtHours(e.hours)}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums">
+                          {e.noRate ? (
+                            <span className="text-amber-600" title={labels.labor.noRateTooltip}>
+                              {labels.labor.noRate}
+                            </span>
+                          ) : (
+                            `${fmtMoney(e.ratePerHour)} ${laborSummary.currency}`
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums">
+                          {e.noRate ? '—' : `${fmtMoney(e.cost)} ${laborSummary.currency}`}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="flex flex-wrap items-center justify-end gap-6 border-t border-slate-200 px-4 py-3 text-sm">
+                  <span className="text-slate-600" data-testid="wo-labor-total-hours">
+                    {labels.labor.totalHours} <b className="font-mono tabular-nums">{fmtHours(laborSummary.totalHours)}</b>
+                  </span>
+                  <span className="text-slate-900" data-testid="wo-labor-total-cost">
+                    {labels.labor.totalCost}{' '}
+                    <b className="font-mono tabular-nums">
+                      {fmtMoney(laborSummary.totalCost)} {laborSummary.currency}
+                    </b>
+                  </span>
+                </div>
+              </>
             )}
           </Card>
         </TabsContent>

@@ -7,6 +7,32 @@
  * requires the reverseConsumption labels prop.
  */
 import type { ReverseModalLabels } from '../reverse-consumption-modal';
+import type { WoLaborTabLabels } from '../wo-detail-screen';
+
+/**
+ * E4B — shared Labor-tab labels fixture. Every WoDetailScreen render now requires
+ * the `labor` labels (the tab content reads them eagerly via Radix TabsContent),
+ * so the sibling modal suites reuse this constant.
+ */
+export const LABOR_TAB_LABELS: WoLaborTabLabels = {
+  title: 'Labor',
+  empty: 'No labor recorded for this work order yet.',
+  loading: 'Loading labor…',
+  error: 'Labor could not be loaded. Please retry shortly.',
+  forbidden: 'You do not have permission to view labor for this work order.',
+  clockIn: 'Clock in operator',
+  clockOut: 'Clock out',
+  clockingIn: 'Clocking in…',
+  clockingOut: 'Clocking out…',
+  clockInDenied: 'You do not have permission to clock in to this work order.',
+  clockOutDenied: 'You do not have permission to clock out of this work order.',
+  totalHours: 'Total hours',
+  totalCost: 'Total labor cost',
+  noRate: 'No rate',
+  noRateTooltip: 'No labor rate is configured for this operator’s role.',
+  disabledTooltip: 'You do not have permission to record labor (production.consumption.write).',
+  col: { operator: 'Operator', hours: 'Hours', rate: 'Rate / h', cost: 'Cost' },
+};
 
 export const REVERSE_LABELS: ReverseModalLabels = {
   title: 'Reverse consumption of {lp}',

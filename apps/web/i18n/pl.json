@@ -990,6 +990,43 @@
       "empty_override_types": "Nie skonfigurowano jeszcze żadnych typów nadpisań.",
       "empty_reason_codes": "Brak kodów powodów dla tego typu nadpisania.",
       "empty_rma_codes": "Nie skonfigurowano jeszcze żadnych kodów powodów RMA."
+    },
+    "laborRates": {
+      "eyebrow": "Praca",
+      "title": "Stawki pracy",
+      "subtitle": "Godzinowe stawki pracy wg roli lub grupy. Stawki zasilają koszt pracy zlecenia. Nowa data obowiązywania dodaje nową stawkę — stawki historyczne są zachowywane.",
+      "sectionTitle": "Skonfigurowane stawki",
+      "provenance": "Stawki są przechowywane na poziomie organizacji i stosowane wg daty obowiązywania przy obliczaniu kosztu pracy zlecenia.",
+      "addRate": "Nowa stawka",
+      "emptyCta": "Dodaj pierwszą stawkę",
+      "columnRole": "Rola / grupa",
+      "columnRate": "Stawka / h",
+      "columnCurrency": "Waluta",
+      "columnEffectiveFrom": "Obowiązuje od",
+      "columnStatus": "Status",
+      "statusCurrent": "Aktualna",
+      "statusFuture": "Zaplanowana",
+      "statusSuperseded": "Zastąpiona",
+      "historyNote": "Każda data obowiązywania to osobny wiersz — starsze stawki pozostają dla zgodności kosztów historycznych i nie są edytowane w miejscu.",
+      "dialogAddTitle": "Nowa stawka pracy",
+      "fieldRole": "Rola / grupa",
+      "fieldRoleHelp": "Dopasowuje slug, kod lub nazwę roli (np. operator, pakowacz).",
+      "fieldRate": "Stawka za godzinę",
+      "fieldRateHelp": "Koszt godzinowy w wybranej walucie.",
+      "fieldCurrency": "Waluta",
+      "fieldEffectiveFrom": "Obowiązuje od",
+      "fieldEffectiveFromHelp": "Nowa data obowiązywania tworzy nowy wiersz stawki; poprzednia stawka jest zachowana.",
+      "save": "Dodaj stawkę",
+      "savePending": "Dodawanie…",
+      "cancel": "Anuluj",
+      "createSuccess": "Stawka pracy dodana.",
+      "saveFailed": "Nie udało się zapisać stawki. Sprawdź pola i spróbuj ponownie.",
+      "invalidInput": "Podaj rolę, nieujemną stawkę oraz prawidłową walutę i datę.",
+      "insufficientPermission": "Do zarządzania stawkami pracy wymagane jest uprawnienie settings.org.update.",
+      "loading": "Wczytywanie stawek pracy…",
+      "empty": "Brak skonfigurowanych stawek pracy.",
+      "error": "Nie udało się wczytać stawek pracy. Spróbuj ponownie za chwilę.",
+      "forbidden": "Nie masz uprawnień do podglądu stawek pracy."
     }
   },
   "navigation": {
@@ -1165,7 +1202,8 @@
         "signoff": "Zasady zatwierdzeń",
         "lines": "Linie produkcyjne",
         "locations": "Lokalizacje",
-        "my_pin": "PIN e-podpisu i skanera"
+        "my_pin": "PIN e-podpisu i skanera",
+        "labor_rates": "Stawki pracy"
       }
     },
     "npd": {
@@ -6708,7 +6746,8 @@
           "downtime": "Przestoje",
           "qa": "Wyniki QA",
           "genealogy": "Genealogia",
-          "history": "Dziennik zdarzeń"
+          "history": "Dziennik zdarzeń",
+          "labor": "Praca"
         },
         "status": {
           "planned": "Zaplanowane",
@@ -6942,6 +6981,30 @@
             "esign_failed": "Podpis nie powiódł się — sprawdź hasło i spróbuj ponownie.",
             "persistence_failed": "Nie udało się cofnąć tego zużycia.",
             "generic": "Nie udało się cofnąć tego zużycia."
+          }
+        },
+        "labor": {
+          "title": "Praca",
+          "empty": "Brak zarejestrowanej pracy dla tego zlecenia.",
+          "loading": "Wczytywanie pracy…",
+          "error": "Nie udało się wczytać danych pracy. Spróbuj ponownie za chwilę.",
+          "forbidden": "Nie masz uprawnień do podglądu pracy dla tego zlecenia.",
+          "clockIn": "Zarejestruj operatora",
+          "clockOut": "Wyrejestruj",
+          "clockingIn": "Rejestrowanie…",
+          "clockingOut": "Wyrejestrowywanie…",
+          "clockInDenied": "Nie masz uprawnień do rejestracji czasu w tym zleceniu.",
+          "clockOutDenied": "Nie masz uprawnień do wyrejestrowania z tego zlecenia.",
+          "totalHours": "Łączne godziny",
+          "totalCost": "Łączny koszt pracy",
+          "noRate": "Brak stawki",
+          "noRateTooltip": "Brak skonfigurowanej stawki dla roli tego operatora — nie można obliczyć kosztu. Dodaj stawkę w Ustawienia → Stawki pracy.",
+          "disabledTooltip": "Nie masz uprawnień do rejestrowania pracy (production.consumption.write).",
+          "col": {
+            "operator": "Operator",
+            "hours": "Godziny",
+            "rate": "Stawka / h",
+            "cost": "Koszt"
           }
         }
       },

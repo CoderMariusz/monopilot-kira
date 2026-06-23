@@ -29,7 +29,7 @@ const LABELS: WoDetailLabels = {
   deferredActionTitle: 'Wired in the next step',
   changeoverGate: { title: 'Allergen changeover sign-off required', body: 'This line requires the allergen changeover to be dual-signed before this work order can start.', link: 'Open changeovers' },
   headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
-  tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', history: 'Event log' },
+  tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
   overview: {
     summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine',
     planned: 'Planned qty', output: 'Output', plannedWindow: 'Planned window', actualStart: 'Actual start', elapsed: 'Elapsed',
@@ -70,6 +70,15 @@ const LABELS: WoDetailLabels = {
   waste: { title: 'Waste events', empty: 'No waste recorded for this work order.', addAction: 'Log waste', voidAction: 'Void entry…', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
   downtime: { title: 'Downtime events', empty: 'No downtime recorded for this work order.', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
   qa: { title: 'QA results', empty: 'No inspections linked to this work order yet.', total: 'Total', pass: 'Pass', hold: 'Hold', fail: 'Fail' },
+  labor: {
+    title: 'Labor', empty: 'No labor recorded for this work order yet.', loading: 'Loading labor…',
+    error: 'Labor could not be loaded. Please retry shortly.', forbidden: 'You do not have permission to view labor for this work order.',
+    clockIn: 'Clock in operator', clockOut: 'Clock out', clockingIn: 'Clocking in…', clockingOut: 'Clocking out…',
+    clockInDenied: 'You do not have permission to clock in to this work order.', clockOutDenied: 'You do not have permission to clock out of this work order.',
+    totalHours: 'Total hours', totalCost: 'Total labor cost', noRate: 'No rate', noRateTooltip: 'No labor rate is configured for this operator’s role.',
+    disabledTooltip: 'You do not have permission to record labor (production.consumption.write).',
+    col: { operator: 'Operator', hours: 'Hours', rate: 'Rate / h', cost: 'Cost' },
+  },
   genealogy: { title: 'WO genealogy', empty: 'No consumption links yet — genealogy builds as LPs are scanned.', inputsLabel: 'Consumed inputs', fefoOk: 'FEFO', fefoDeviation: 'Deviation', reverseAction: 'Reverse…', reversedBadge: 'Reversed', correctionOfLabel: 'Correction of #{ref}' },
   history: { title: 'Event log', empty: 'No events recorded for this work order yet.', sourceStatus: 'Status', sourceExecution: 'Execution', col: { time: 'Time', source: 'Source', action: 'Action', transition: 'Transition', reason: 'Reason' } },
   voidCorrection: {
@@ -150,7 +159,18 @@ const listConsumableLpsActionStub: any = async () => ({ ok: true, data: { lps: [
 const voidWoOutputActionStub: any = async () => ({ ok: true });
 const voidWasteEntryActionStub: any = async () => ({ ok: true });
 
-function renderScreen(data = DATA) {
+// E4B — labor summary fixture (getWoLaborSummary shape): operator NAME only.
+const LABOR_SUMMARY = {
+  totalHours: 5.5,
+  totalCost: 110.0,
+  currency: 'USD',
+  entries: [
+    { userName: 'Anna Operator', hours: 3.5, ratePerHour: 20, cost: 70 },
+    { userName: 'Bob Packer', hours: 2.0, ratePerHour: 20, cost: 40 },
+  ],
+};
+
+function renderScreen(data = DATA, laborProps: Record<string, unknown> = {}) {
   // actions=null exercises the read-only path (no live action context): the
   // wired action bar is NOT rendered; the per-tab triggers are absent. The action
   // wiring itself is covered by wos/_components/modals/__tests__/wo-actions.test.tsx.
@@ -165,14 +185,15 @@ function renderScreen(data = DATA) {
       voidWoOutputAction: voidWoOutputActionStub,
       voidWasteEntryAction: voidWasteEntryActionStub,
       reverseConsumptionAction: (async () => ({ ok: true })) as never,
+      ...laborProps,
     }),
   );
 }
 
 describe('WoDetailScreen (parity: wo-detail.jsx:4-530)', () => {
-  it('renders all 8 tabs in prototype order', () => {
+  it('renders all tabs in prototype order (+ E4B Labor tab)', () => {
     renderScreen();
-    const order = ['overview', 'consumption', 'output', 'waste', 'downtime', 'qa', 'genealogy', 'history'];
+    const order = ['overview', 'consumption', 'output', 'waste', 'downtime', 'qa', 'genealogy', 'labor', 'history'];
     for (const k of order) {
       expect(screen.getByTestId(`wo-detail-tab-${k}`)).toBeInTheDocument();
     }
@@ -354,5 +375,121 @@ describe('WoDetailScreen — output-without-consumption SOFT warning', () => {
     expect(note).toHaveTextContent(LABELS.output.noConsumptionTooltip);
     // the note must never leak a raw UUID
     expect(note.textContent ?? '').not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/i);
+  });
+});
+
+describe('WoDetailScreen — E4B Labor tab', () => {
+  it('renders the labor summary table (operator NAME, hours, rate, cost) + totals', async () => {
+    const user = userEvent.setup();
+    renderScreen(DATA, { laborSummary: LABOR_SUMMARY, laborState: 'ready' });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    const tab = screen.getByTestId('wo-tab-labor');
+    expect(tab).toBeInTheDocument();
+    // operator NAMES are shown (never raw user UUIDs)
+    expect(screen.getByText('Anna Operator')).toBeInTheDocument();
+    expect(screen.getByText('Bob Packer')).toBeInTheDocument();
+    expect(screen.getAllByTestId('wo-labor-row')).toHaveLength(2);
+    // total hours + TOTAL LABOR COST surfaced
+    expect(screen.getByTestId('wo-labor-total-hours')).toHaveTextContent('5.50 h');
+    const totalCost = screen.getByTestId('wo-labor-total-cost');
+    expect(totalCost).toHaveTextContent('110.00');
+    expect(totalCost).toHaveTextContent('USD');
+    // no raw UUID anywhere in the labor tab
+    expect(tab.textContent ?? '').not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  });
+
+  it('clock-in calls clockInAction(woId, source=desktop) when permitted', async () => {
+    const user = userEvent.setup();
+    const clockInAction = vi.fn(async () => ({ ok: true, logId: 'log-1' }));
+    renderScreen(DATA, {
+      laborSummary: { ...LABOR_SUMMARY, entries: [] },
+      laborState: 'ready',
+      canManageLabor: true,
+      clockInAction: clockInAction as never,
+    });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    await user.click(screen.getByTestId('wo-labor-clock-in'));
+    expect(clockInAction).toHaveBeenCalledTimes(1);
+    expect(clockInAction).toHaveBeenCalledWith({ woId: DATA.header.id, source: 'desktop' });
+  });
+
+  it('clock-out calls clockOutAction(woId) when permitted', async () => {
+    const user = userEvent.setup();
+    const clockOutAction = vi.fn(async () => ({ ok: true, count: 1 }));
+    renderScreen(DATA, {
+      laborSummary: LABOR_SUMMARY,
+      laborState: 'ready',
+      canManageLabor: true,
+      clockOutAction: clockOutAction as never,
+    });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    await user.click(screen.getByTestId('wo-labor-clock-out'));
+    expect(clockOutAction).toHaveBeenCalledTimes(1);
+    expect(clockOutAction).toHaveBeenCalledWith({ woId: DATA.header.id });
+  });
+
+  it('disables clock controls + keeps a tooltip when the caller cannot manage labor', async () => {
+    const user = userEvent.setup();
+    renderScreen(DATA, { laborSummary: LABOR_SUMMARY, laborState: 'ready', canManageLabor: false });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    const clockIn = screen.getByTestId('wo-labor-clock-in');
+    expect(clockIn).toBeDisabled();
+    expect(clockIn).toHaveAttribute('title', LABELS.labor.disabledTooltip);
+    expect(screen.getByTestId('wo-labor-clock-out')).toBeDisabled();
+  });
+
+  it('shows the EMPTY state when no labor entries exist', async () => {
+    const user = userEvent.setup();
+    renderScreen(DATA, { laborSummary: { ...LABOR_SUMMARY, entries: [], totalHours: 0, totalCost: 0 }, laborState: 'ready' });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    expect(screen.getByTestId('wo-labor-empty')).toBeInTheDocument();
+  });
+
+  it('shows the LOADING state', async () => {
+    const user = userEvent.setup();
+    renderScreen(DATA, { laborSummary: null, laborState: 'loading' });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    expect(screen.getByTestId('wo-labor-loading')).toBeInTheDocument();
+  });
+
+  it('shows the ERROR state when the summary read failed', async () => {
+    const user = userEvent.setup();
+    renderScreen(DATA, { laborSummary: null, laborState: 'error' });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    expect(screen.getByTestId('wo-labor-error')).toBeInTheDocument();
+  });
+
+  it('shows the PERMISSION-DENIED state for a forbidden summary read', async () => {
+    const user = userEvent.setup();
+    renderScreen(DATA, { laborSummary: null, laborState: 'forbidden' });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    expect(screen.getByTestId('wo-labor-forbidden')).toBeInTheDocument();
+  });
+
+  it('surfaces the OPTIMISTIC/permission error banner when clock-in is forbidden', async () => {
+    const user = userEvent.setup();
+    const clockInAction = vi.fn(async () => ({ ok: false, error: 'forbidden' as const }));
+    renderScreen(DATA, {
+      laborSummary: { ...LABOR_SUMMARY, entries: [] },
+      laborState: 'ready',
+      canManageLabor: true,
+      clockInAction: clockInAction as never,
+    });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    await user.click(screen.getByTestId('wo-labor-clock-in'));
+    expect(await screen.findByTestId('wo-labor-error-banner')).toHaveTextContent(LABELS.labor.clockInDenied);
+  });
+
+  it('renders the noRate marker without computing a cost', async () => {
+    const user = userEvent.setup();
+    renderScreen(DATA, {
+      laborSummary: {
+        totalHours: 1, totalCost: 0, currency: 'USD',
+        entries: [{ userName: 'Cara Mixer', hours: 1, ratePerHour: 0, cost: 0, noRate: true }],
+      },
+      laborState: 'ready',
+    });
+    await user.click(screen.getByTestId('wo-detail-tab-labor'));
+    expect(screen.getByText('No rate')).toBeInTheDocument();
   });
 });
