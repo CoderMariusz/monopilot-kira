@@ -210,7 +210,6 @@ export function WoExecuteScreen({
       <Topbar
         title={header ? `${header.woNumber} · ${L.titleSuffix}` : L.titleSuffix}
         onBack={() => router.push(`/${locale}/scanner/wos`)}
-        syncState="online"
         labels={shellLabels.topbar}
       />
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 0 16px" }}>

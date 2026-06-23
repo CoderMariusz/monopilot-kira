@@ -266,7 +266,6 @@ export function PutawayScreen({ locale, labels }: { locale: string; labels: Scan
       <Topbar
         title={title}
         onBack={onBack}
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
 
@@ -483,16 +482,6 @@ function reasonLabel(reason: PutawaySuggestionReason, L: ScannerLabels["putawayS
   if (reason === "same_product") return L.reasonSameProduct;
   if (reason === "empty") return L.reasonEmpty;
   return L.reasonDefault;
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 const sectionTitle = {

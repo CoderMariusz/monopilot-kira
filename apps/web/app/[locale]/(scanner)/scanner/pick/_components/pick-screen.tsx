@@ -334,7 +334,6 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
       <Topbar
         title={title}
         onBack={onBack}
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
 
@@ -588,10 +587,6 @@ function remaining(m: PickMaterial): number {
 
 function isDone(m: PickMaterial): boolean {
   return remaining(m) <= 0;
-}
-
-function initials(name: string) {
-  return name.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
 function StatusChip({ label, done }: { label: string; done?: boolean }) {

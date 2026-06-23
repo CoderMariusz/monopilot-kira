@@ -31,15 +31,18 @@ test.describe('T-134 scanner route-group isolation', () => {
     expect(source, '(scanner)/layout.tsx must not add a Supabase/auth gate').not.toMatch(/createServerSupabaseClient|supabase\.auth|getUser\(/);
   });
 
-  test('public /en/dev/scanner renders a 390x844 ScannerFrame and no AppShell chrome', async ({ page }) => {
+  // Scanner-polish cleanup: /en/dev/scanner is now a dev-only harness (gated to
+  // NODE_ENV==='development', notFound() in prod) so it is not a direct-URL dead
+  // page. The real public scanner entry — /en/scanner/login — is the production
+  // route that proves frame isolation, so the browser probe uses it.
+  test('public /en/scanner/login renders a 390x844 ScannerFrame and no AppShell chrome', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    const response = await page.goto(routeUrl('/en/dev/scanner'), { waitUntil: 'domcontentloaded' });
+    const response = await page.goto(routeUrl('/en/scanner/login'), { waitUntil: 'domcontentloaded' });
 
-    expect(response?.status(), '/en/dev/scanner must be a public scanner harness route').toBe(200);
-    await expect(page.locator(scannerSelectors.frame), 'scanner-frame root must render on the dev harness').toBeVisible();
+    expect(response?.status(), '/en/scanner/login must be a public scanner route').toBe(200);
+    await expect(page.locator(scannerSelectors.frame), 'scanner-frame root must render on the login screen').toBeVisible();
     await expect(page.locator(scannerSelectors.statusBar), 'scanner status-bar slot must render').toBeVisible();
     await expect(page.locator(scannerSelectors.content), 'scanner content slot must render').toBeVisible();
-    await expect(page.locator(scannerSelectors.bottomActions), 'scanner bottom-actions slot must render').toBeVisible();
 
     const frameBox = await page.locator(scannerSelectors.frame).boundingBox();
     expect(frameBox, 'scanner-frame must have a measurable bounding box').not.toBeNull();
@@ -54,6 +57,13 @@ test.describe('T-134 scanner route-group isolation', () => {
     expect(body, 'response body must not include AppSidebar test-id').not.toContain('data-testid="app-sidebar"');
     expect(body, 'response body must not include AppTopbar test-id').not.toContain('data-testid="app-topbar"');
     expect(body, 'response body must not include AppShell test-id').not.toContain('data-testid="app-shell"');
+  });
+
+  test('the dev-only /en/dev/scanner harness is gated out of the production build', async ({ page }) => {
+    // In the Playwright prod webServer (next build && next start ⇒ NODE_ENV=production)
+    // the orphan dev harness must 404 instead of being a direct-URL dead page.
+    const response = await page.goto(routeUrl('/en/dev/scanner'), { waitUntil: 'domcontentloaded' });
+    expect(response?.status(), '/en/dev/scanner must be gated (notFound) in production').toBe(404);
   });
 
   test('app route group remains a separate sibling and does not import the scanner frame', () => {

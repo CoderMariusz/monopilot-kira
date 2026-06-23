@@ -73,7 +73,6 @@ export function ReceivePoListScreen({ locale, labels }: { locale: string; labels
       <Topbar
         title={L.listTitle}
         onBack={() => router.push(`/${locale}/scanner/home`)}
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
       <Content>
@@ -142,10 +141,6 @@ export function Empty({ title, body }: { title: string; body: string }) {
       <div style={{ marginTop: 6, color: T.mute, fontSize: 13 }}>{body}</div>
     </div>
   );
-}
-
-function initials(name: string) {
-  return name.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
 export const rowStyle = {

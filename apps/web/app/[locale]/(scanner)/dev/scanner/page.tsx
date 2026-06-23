@@ -1,8 +1,14 @@
+import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-// TODO(scanner-module): replace when scanner module lands. The (scanner) layout owns
-// the single ScannerFrame device chrome; this harness supplies only inner content.
+// Dev-only harness from before the scanner module landed. The real scanner now
+// lives under (scanner)/scanner/**; this static mock is gated to development so
+// it is not a direct-URL dead page in production.
 export default async function DevScannerPage() {
+  if (process.env.NODE_ENV !== "development") {
+    notFound();
+  }
+
   const t = await getTranslations("Navigation.app.modules");
   const scannerLabel = t("scanner");
 

@@ -169,7 +169,6 @@ export function ReceivePoItemScreen({
       <Topbar
         title={done ? L.doneTitle : line ? `${L.qtyTitle}: ${line.itemCode}` : L.qtyTitle}
         onBack={() => router.push(`/${locale}/scanner/receive-po/${poId}`)}
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
       <Content>
@@ -337,10 +336,6 @@ function Metric({ label, value }: { label: string; value: string }) {
 function remainingQty(line: ScannerPoLine): string {
   const remaining = Math.max(0, Number(line.qty) - Number(line.receivedQty));
   return Number.isInteger(remaining) ? String(remaining) : String(Number(remaining.toFixed(6)));
-}
-
-function initials(name: string) {
-  return name.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
 const productStyle = {

@@ -96,7 +96,6 @@ export function LpInfoScreen({ locale, labels }: { locale: string; labels: Scann
       <Topbar
         title={L.title}
         onBack={() => router.push(`/${locale}/scanner/home`)}
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
       <Content>
@@ -247,10 +246,6 @@ function formatDateTime(iso: string): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return iso;
   return new Date(t).toISOString().slice(0, 16).replace("T", " ");
-}
-
-function initials(name: string) {
-  return name.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
 function Badge({ kind, label }: { kind: "status" | "qa" | "expired"; label: string }) {

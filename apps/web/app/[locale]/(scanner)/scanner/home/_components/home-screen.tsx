@@ -83,23 +83,27 @@ export function HomeScreen({ locale, labels }: { locale: string; labels: Scanner
       <Topbar
         title={L.title}
         showBack={false}
-        syncState="online"
-        initials={session ? initials(session.user.name) : "JK"}
         onMenu={() => router.push(`/${locale}/scanner/settings`)}
-        onAvatar={() => setShowLogout(true)}
         labels={labels.topbar}
       />
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 0 16px" }}>
         {session && (
-          <div style={ctxStyle}>
+          <button
+            type="button"
+            style={ctxStyle}
+            onClick={() => setShowLogout(true)}
+            aria-label={labels.logout.title}
+          >
             <div style={avatarStyle} aria-hidden="true">
               {initials(session.user.name)}
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
               <div style={{ fontWeight: 700, color: T.txt }}>{session.user.name}</div>
             </div>
-            <span style={badgeStyle}>{labels.topbar.online}</span>
-          </div>
+            <span style={{ color: T.hint }} aria-hidden="true">
+              ›
+            </span>
+          </button>
         )}
 
         {SECTIONS.map((sec) => (
@@ -165,10 +169,13 @@ const ctxStyle = {
   display: "flex",
   alignItems: "center",
   gap: 10,
+  width: "calc(100% - 32px)",
   margin: "4px 16px 8px",
   padding: 12,
   borderRadius: 12,
+  border: `1px solid ${T.elev}`,
   background: T.surf,
+  cursor: "pointer",
 } as const;
 
 const avatarStyle = {
@@ -182,15 +189,6 @@ const avatarStyle = {
   fontSize: 13,
   fontWeight: 700,
   color: T.txt,
-} as const;
-
-const badgeStyle = {
-  padding: "3px 8px",
-  borderRadius: 999,
-  background: "#0e2a18",
-  color: T.green,
-  fontSize: 10,
-  fontWeight: 700,
 } as const;
 
 const sectionTitleStyle = {

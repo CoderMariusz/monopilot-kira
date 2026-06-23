@@ -63,7 +63,6 @@ export function ReceivePoLinesScreen({
       <Topbar
         title={po?.poNumber ?? L.listTitle}
         onBack={() => router.push(`/${locale}/scanner/receive-po`)}
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
       <Content>
@@ -120,10 +119,6 @@ export function ReceivePoLinesScreen({
       </Content>
     </ScannerScreen>
   );
-}
-
-function initials(name: string) {
-  return name.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
 function percent(received: string, ordered: string): number {

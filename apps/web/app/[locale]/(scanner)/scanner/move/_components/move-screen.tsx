@@ -262,7 +262,6 @@ export function MoveScreen({ locale, labels }: { locale: string; labels: Scanner
       <Topbar
         title={title}
         onBack={() => router.push(`/${locale}/scanner/home`)}
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
 
@@ -492,16 +491,6 @@ function reasonLabel(r: ReasonId, L: ScannerLabels["moveScreen"]) {
   if (r === "consolidation") return L.reasonConsolidation;
   if (r === "damage") return L.reasonDamage;
   return L.reasonOther;
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 const sectionTitle = {

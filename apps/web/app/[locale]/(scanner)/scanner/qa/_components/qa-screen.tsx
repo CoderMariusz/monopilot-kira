@@ -160,7 +160,6 @@ export function QaScreen({ locale, labels }: { locale: string; labels: ScannerLa
       <Topbar
         title={phase === "done" ? L.doneTitle : L.title}
         onBack={onBack}
-        syncState="online"
         labels={labels.topbar}
       />
 

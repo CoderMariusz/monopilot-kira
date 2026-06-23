@@ -3,7 +3,6 @@
     "Scanner": {
       "topbar": {
         "back": "Back",
-        "profile": "Profile",
         "menu": "Menu",
         "syncTitle": "Sync status",
         "online": "ONLINE",
@@ -123,11 +122,11 @@
           },
           "consume": {
             "title": "Consume",
-            "desc": "Scan BOM materials"
+            "desc": "Pick a work order to scan BOM"
           },
           "output": {
             "title": "Output",
-            "desc": "Register finished goods"
+            "desc": "Pick a work order to register goods"
           },
           "receive": {
             "title": "Receive PO",
@@ -413,7 +412,6 @@
     "Scanner": {
       "topbar": {
         "back": "Wróć",
-        "profile": "Profil",
         "menu": "Menu",
         "syncTitle": "Status synchronizacji",
         "online": "ONLINE",
@@ -533,11 +531,11 @@
           },
           "consume": {
             "title": "Konsumpcja",
-            "desc": "Skanuj materiały BOM"
+            "desc": "Wybierz zlecenie, aby skanować BOM"
           },
           "output": {
             "title": "Wyrób",
-            "desc": "Zarejestruj produkt"
+            "desc": "Wybierz zlecenie, aby zarejestrować wyrób"
           },
           "receive": {
             "title": "Przyjęcie PO",

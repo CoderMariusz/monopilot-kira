@@ -19,7 +19,6 @@ type TileLabel = { title: string; desc: string };
 interface ScannerLabelsShape {
   topbar: {
     back: string;
-    profile: string;
     menu: string;
     syncTitle: string;
     online: string;
@@ -398,7 +397,6 @@ const en: ScannerLabelsShape = {
   // shell primitives
   topbar: {
     back: "Back",
-    profile: "Profile",
     menu: "Menu",
     syncTitle: "Sync status",
     online: "ONLINE",
@@ -518,8 +516,8 @@ const en: ScannerLabelsShape = {
     footer: "Scanner v3.0 · MonoPilot MES",
     tiles: {
       wos: { title: "Work Orders", desc: "Consume + output" },
-      consume: { title: "Consume", desc: "Scan BOM materials" },
-      output: { title: "Output", desc: "Register finished goods" },
+      consume: { title: "Consume", desc: "Pick a work order to scan BOM" },
+      output: { title: "Output", desc: "Pick a work order to register goods" },
       receive: { title: "Receive PO", desc: "Purchase order" },
       move: { title: "Move LP", desc: "Relocate a pallet" },
       putaway: { title: "Putaway", desc: "Put away LP (FEFO)" },
@@ -841,7 +839,6 @@ const en: ScannerLabelsShape = {
 const pl: ScannerLabelsShape = {
   topbar: {
     back: "Wróć",
-    profile: "Profil",
     menu: "Menu",
     syncTitle: "Status synchronizacji",
     online: "ONLINE",
@@ -959,8 +956,8 @@ const pl: ScannerLabelsShape = {
     footer: "Skaner v3.0 · MonoPilot MES",
     tiles: {
       wos: { title: "Work Orders", desc: "Konsumpcja + wyrób" },
-      consume: { title: "Konsumpcja", desc: "Skanuj materiały BOM" },
-      output: { title: "Wyrób", desc: "Zarejestruj produkt" },
+      consume: { title: "Konsumpcja", desc: "Wybierz zlecenie, aby skanować BOM" },
+      output: { title: "Wyrób", desc: "Wybierz zlecenie, aby zarejestrować wyrób" },
       receive: { title: "Przyjęcie PO", desc: "Zamówienie zakupu" },
       move: { title: "Przesuń LP", desc: "Przenieś paletę" },
       putaway: { title: "Putaway", desc: "Odłóż LP (FEFO)" },

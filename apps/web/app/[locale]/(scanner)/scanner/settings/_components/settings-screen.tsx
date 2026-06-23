@@ -110,8 +110,6 @@ export function SettingsScreen({ locale, labels }: { locale: string; labels: Sca
       <Topbar
         title={L.title}
         onBack={() => router.push(`/${locale}/scanner/home`)}
-        syncState="online"
-        initials={session ? initials(session.user.name) : "JK"}
         labels={labels.topbar}
       />
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 0 16px" }}>
@@ -256,16 +254,6 @@ function PinField({
       />
     </div>
   );
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 const sectionTitleStyle = {

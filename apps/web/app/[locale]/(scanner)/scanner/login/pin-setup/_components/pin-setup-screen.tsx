@@ -106,7 +106,6 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
       <Topbar
         title={title}
         onBack={() => router.push(`/${locale}/scanner/login`)}
-        syncState="online"
         labels={labels.topbar}
       />
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>

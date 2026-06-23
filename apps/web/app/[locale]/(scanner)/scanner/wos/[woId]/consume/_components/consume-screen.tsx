@@ -265,7 +265,7 @@ export function ConsumeScreen({
 
   return (
     <ScannerScreen>
-      <Topbar title={title} onBack={onBack} syncState="online" labels={shellLabels.topbar} />
+      <Topbar title={title} onBack={onBack} labels={shellLabels.topbar} />
 
       {phase === "done" ? (
         <>

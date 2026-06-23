@@ -26,6 +26,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -52,16 +53,18 @@ type SyncState = "online" | "queued" | "err";
 export type TopbarProps = {
   title: string;
   onBack?: () => void;
+  /**
+   * Connectivity badge. When omitted the badge reflects live `navigator.onLine`
+   * (online ⇄ err on offline events) so it is never a hardcoded lie. Pass an
+   * explicit value only when the screen tracks its own sync queue / fetch error.
+   */
   syncState?: SyncState;
+  /** When provided, renders the ⋮ menu button. Omitted ⇒ no dead button. */
   onMenu?: () => void;
-  onAvatar?: () => void;
   showBack?: boolean;
-  /** user initials for the avatar button (server-resolved, no window.SCN_USER) */
-  initials?: string;
   /** localized aria/title labels */
   labels: {
     back: string;
-    profile: string;
     menu: string;
     syncTitle: string;
     online: string;
@@ -70,21 +73,46 @@ export type TopbarProps = {
   };
 };
 
+/**
+ * Live connectivity hook for the sync badge. SSR/first paint assumes online
+ * (so server and client markup agree), then reconciles to the real
+ * `navigator.onLine` value and tracks online/offline events.
+ */
+function useOnlineSync(): SyncState {
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    const sync = () => setOnline(navigator.onLine);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
+  return online ? "online" : "err";
+}
+
 // shell.jsx:36-58
+// Deviation (owner-signed-off scanner polish): the prototype's avatar-initials
+// button (a fake `window.SCN_USER || "JK"` logged-in person) is dropped — the
+// owner explicitly asked to remove the fake-person mockup and reclaim the space.
+// The ⋮ menu now renders only when wired (`onMenu`), and the sync badge defaults
+// to live `navigator.onLine` instead of a hardcoded "online".
 export function Topbar({
   title,
   onBack,
-  syncState = "online",
+  syncState,
   onMenu,
-  onAvatar,
   showBack = true,
-  initials = "JK",
   labels,
 }: TopbarProps) {
+  const liveSync = useOnlineSync();
+  const effectiveSync = syncState ?? liveSync;
   const badge =
-    syncState === "queued"
+    effectiveSync === "queued"
       ? { bg: "#3b2f0b", fg: T.amber, text: labels.queued }
-      : syncState === "err"
+      : effectiveSync === "err"
         ? { bg: "#3b1212", fg: T.red, text: labels.syncErr }
         : { bg: "#0e2a18", fg: T.green, text: labels.online };
 
@@ -153,12 +181,11 @@ export function Topbar({
       >
         {badge.text}
       </span>
-      <button type="button" style={tbtn} onClick={onAvatar} aria-label={labels.profile}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.txt2 }}>{initials}</span>
-      </button>
-      <button type="button" style={tbtn} onClick={onMenu} aria-label={labels.menu}>
-        ⋮
-      </button>
+      {onMenu ? (
+        <button type="button" style={tbtn} onClick={onMenu} aria-label={labels.menu}>
+          ⋮
+        </button>
+      ) : null}
     </div>
   );
 }

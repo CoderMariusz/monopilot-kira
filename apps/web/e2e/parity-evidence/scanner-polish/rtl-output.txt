@@ -1,0 +1,24 @@
+15:12:29 [vite] warning: `esbuild` option was specified by "vite:react-babel" plugin. This option is deprecated, please use `oxc` instead.
+`optimizeDeps.rollupOptions` / `ssr.optimizeDeps.rollupOptions` is deprecated. Use `optimizeDeps.rolldownOptions` instead. Note that this option may be set by a plugin. Set VITE_DEPRECATION_TRACE=1 to see where it is called.
+Both esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`
+[vite:react-babel] We recommend switching to `@vitejs/plugin-react-oxc` for improved performance. More information at https://vite.dev/rolldown
+
+ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web
+
+ ✓ components/shell/__tests__/scanner-primitives.test.tsx > Topbar — fake-person avatar removed > renders no profile / avatar button 32ms
+ ✓ components/shell/__tests__/scanner-primitives.test.tsx > Topbar — ⋮ menu only when wired > hides the menu button when onMenu is absent (no dead control) 2ms
+ ✓ components/shell/__tests__/scanner-primitives.test.tsx > Topbar — ⋮ menu only when wired > renders and fires the menu button when onMenu is provided 4ms
+ ✓ components/shell/__tests__/scanner-primitives.test.tsx > Topbar — sync badge reflects connectivity > shows ONLINE when navigator is online and no explicit syncState 1ms
+ ✓ components/shell/__tests__/scanner-primitives.test.tsx > Topbar — sync badge reflects connectivity > reflects offline as SYNC ERR (badge is not a hardcoded lie) 2ms
+ ✓ components/shell/__tests__/scanner-primitives.test.tsx > Topbar — sync badge reflects connectivity > updates the badge live on an offline event 1ms
+ ✓ components/shell/__tests__/scanner-primitives.test.tsx > Topbar — sync badge reflects connectivity > still honours an explicit syncState override 1ms
+ ✓ app/[locale]/(scanner)/scanner/home/_components/__tests__/home-screen.test.tsx > HomeScreen — no fake-person avatar in topbar > renders no profile/avatar button in the topbar 50ms
+ ✓ app/[locale]/(scanner)/scanner/home/_components/__tests__/home-screen.test.tsx > HomeScreen — ⋮ menu navigates to settings > pushes the scanner settings route when the menu is tapped 17ms
+ ✓ app/[locale]/(scanner)/scanner/home/_components/__tests__/home-screen.test.tsx > HomeScreen — logout stays reachable via the user card > opens the logout sheet when the user card is tapped 13ms
+ ✓ app/[locale]/(scanner)/scanner/home/_components/__tests__/home-screen.test.tsx > HomeScreen — honest consume/output tile copy > consume and output tiles say they go via a work order 5ms
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  15:12:29
+   Duration  749ms (transform 191ms, setup 408ms, import 194ms, tests 131ms, environment 519ms)
+

@@ -214,7 +214,6 @@ export function OutputScreen({
       <Topbar
         title={phase === "done" ? L.doneTitle : L.title}
         onBack={() => router.push(`/${locale}/scanner/wos/${woId}`)}
-        syncState="online"
         labels={shellLabels.topbar}
       />
 

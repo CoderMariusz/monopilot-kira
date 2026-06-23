@@ -87,7 +87,7 @@ export function LoginScreen({ locale, labels }: { locale: string; labels: Scanne
 
   return (
     <ScannerScreen>
-      <Topbar title={L.title} showBack={false} syncState="online" labels={labels.topbar} />
+      <Topbar title={L.title} showBack={false} labels={labels.topbar} />
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         <div style={{ padding: "28px 20px 8px", textAlign: "center" }}>
           <div style={{ fontSize: 44 }} aria-hidden="true">

@@ -106,7 +106,6 @@ export function WoListScreen({
       <Topbar
         title={L.title}
         onBack={() => router.push(`/${locale}/scanner/home`)}
-        syncState="online"
         labels={shellLabels.topbar}
       />
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 0 16px" }}>
