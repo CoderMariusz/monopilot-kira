@@ -84,3 +84,46 @@ LARGE. SC-1 (site RLS vs app-filter) is a design decision that touches ~38 table
 SC-2/3 rebuild the scanner session model. Needs owner sign-off on enforcement level (RLS vs app) and
 must be browser-verified (it changes what every operator sees). Pairs with finishing multi-site
 (`withSiteContext` + `/multi-site`). Sequence AFTER the read-only audit so the build is precise.
+
+## AUDIT FINDINGS (read-only, 2026-06-23 — DONE)
+**The owner's cross-warehouse bug is CONFIRMED.** Zero warehouse-boundary enforcement on any scanner
+write path — an operator CAN scan an LP from warehouse A and put it on a location in warehouse B.
+Root causes + the minimal fix:
+
+- **Scanner session has NO warehouse dimension at all.** `scanner_sessions` (mig 265) has
+  `site_id`+`line_id` but no `warehouse_id`; login/`/api/scanner/context`/bootstrap never set or
+  return a warehouse. So step 1 of any fix is adding it. (Bootstrap returns sites+lines, not warehouses.)
+- **No warehouse check on move/putaway/pick.** `lib/warehouse/scanner/movement.ts:692` `assertLocationExists`
+  checks org only (`org_id = app.current_org_id()`), not `loc.warehouse_id`. `loadMovableLpForUpdate`
+  (movement.ts:659) loads the LP by org only. So cross-warehouse is unguarded.
+- **Ghost warehouse_id:** `updateLpLocation` (movement.ts:826) writes `location_id` but NEVER updates
+  `license_plates.warehouse_id` → after an uncontrolled scanner move, `lp.warehouse_id` (still A) and
+  the location's warehouse (B) diverge. (The TO ship/receive IS the only controlled cross-warehouse
+  writer — receive creates the LP with `warehouse_id = to_warehouse_id`, actions.ts:897.)
+- **PO has no destination warehouse:** `purchase_orders` has no warehouse/site column;
+  `resolveWarehouse` (receive-po.ts:511) picks the ORG DEFAULT warehouse → in a multi-warehouse org
+  every scanner receipt lands in one warehouse regardless of site. The optional `toLocationId` accepts
+  ANY org location (receive-po.ts:493) → cross-warehouse receive is possible.
+- **Site is not a global scope:** `withSiteContext` does NOT exist (explicit comment at
+  `lib/site/site-context.ts:11` — read-side cookie filter only). Gap: 3/5 sampled CREATE actions stamp
+  no `site_id` (PO/TO tables have no site_id column at all; WO/receive-LP/output-LP omit it); 4/7
+  sampled LISTS don't filter by site (PO list, TO list, scanner PO list). 3/10 lists (WO/LP/OEE) do.
+
+**Minimal server-side fix set (the build target for SC-2/3):**
+1. Add `warehouse_id` to `scanner_sessions` (new mig) + set it at login/context + bootstrap returns
+   the session site's warehouses.
+2. `loadMovableLpForUpdate` (movement.ts:659): `AND lp.warehouse_id = <session.warehouse_id>` → LP from
+   another warehouse = not_found.
+3. `assertLocationExists` (movement.ts:692, and the pick call at :522): `AND loc.warehouse_id =
+   <session.warehouse_id>` → cross-warehouse destination = invalid_location.
+4. `updateLpLocation` (movement.ts:826): also set `warehouse_id` from the target location so it never
+   diverges.
+5. `resolveWarehouse` (receive-po.ts:511): resolve a SITE-LOCAL warehouse from the session, not the org
+   default.
+6. `resolveRequestedLocation` (receive-po.ts:493): `AND l.warehouse_id = <session.warehouse_id>`.
+7. The scanner must never write `warehouse_id` cross-warehouse; only TO ship/receive does. Reject a
+   scanner move where `lp.warehouse_id ≠ targetLocation.warehouse_id` with "use a Transfer Order".
+
+This is now a precise, buildable wave — but it's LARGE (new session field + 7 enforcement points +
+the site-global-scope decision) and changes what every operator sees, so it needs owner sign-off
+(RLS vs app-level for site) + browser verification. Not an autonomous fire-and-forget.
