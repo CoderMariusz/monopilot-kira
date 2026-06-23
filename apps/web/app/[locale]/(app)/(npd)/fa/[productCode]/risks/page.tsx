@@ -22,6 +22,7 @@ import {
 import { createRisk } from '../../../../../../(npd)/fa/[productCode]/risks/_actions/create-risk';
 import { listRisks } from '../../../../../../(npd)/fa/[productCode]/risks/_actions/list-risks';
 import { updateRisk } from '../../../../../../(npd)/fa/[productCode]/risks/_actions/update-risk';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,14 @@ type RiskPageProps = {
   canWrite?: boolean;
   state?: PageState;
 };
+
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
+
+const WRITE_PERMISSION = 'npd.risk.write';
 
 const DEFAULT_LABELS: RiskRegisterLabels = {
   title: 'Risk register',
@@ -120,6 +129,29 @@ async function buildLabels(locale: string): Promise<RiskRegisterLabels> {
 
 type LoaderResult = { state: PageState; rows: RiskRow[] };
 
+async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
+      limit 1`,
+    [ctx.userId, ctx.orgId, permission],
+  );
+  return rows.length > 0;
+}
+
+async function resolveCanWrite(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => hasPermission(rawCtx as OrgContextLike, WRITE_PERMISSION));
+  } catch {
+    return false;
+  }
+}
+
 async function readPageData(productCode: string): Promise<LoaderResult> {
   try {
     const result = await listRisks({ productCode });
@@ -161,13 +193,14 @@ export default async function RiskRegisterPage(propsInput: unknown = {}) {
         rows: props.rows ?? [],
       }
     : await readPageData(productCode);
+  const canWrite = injected ? (props.canWrite ?? false) : await resolveCanWrite();
 
   return (
     <RiskRegisterScreen
       productCode={productCode}
       rows={loaded.rows}
       labels={labels}
-      canWrite={props.canWrite ?? true}
+      canWrite={props.canWrite ?? canWrite}
       state={props.state ?? loaded.state}
       createRiskAction={createRisk}
       updateRiskAction={updateRisk}

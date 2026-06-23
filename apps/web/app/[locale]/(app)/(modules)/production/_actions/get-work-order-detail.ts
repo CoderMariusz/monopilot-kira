@@ -112,6 +112,7 @@ export type WoDetailOutput = {
   uom: string;
   qaStatus: string;
   lpId: string | null;
+  lpNumber: string | null;
   expiryDate: string | null;
   correctionOfId: string | null;
   isCorrected: boolean;
@@ -146,6 +147,7 @@ export type WoDetailGenealogyInput = {
   qtyKg: number;
   fefoAdherence: boolean;
   consumedAt: string | null;
+  correctionOfId: string | null;
 };
 
 /** History tab: a unified event-log row (status-history + execution events). */
@@ -339,13 +341,15 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           uom: string;
           qa_status: string;
           lp_id: string | null;
+          lp_number: string | null;
           expiry_date: string | Date | null;
           correction_of_id: string | null;
           is_corrected: boolean;
         }>(
           `select o.id::text as id, o.output_type, o.product_id::text as product_id,
                   i.item_code as product_code, i.name as product_name,
-                  o.batch_number, o.qty_kg, o.uom, o.qa_status, o.lp_id::text as lp_id, o.expiry_date,
+                  o.batch_number, o.qty_kg, o.uom, o.qa_status, o.lp_id::text as lp_id,
+                  lp.lp_number as lp_number, o.expiry_date,
                   o.correction_of_id::text as correction_of_id,
                   exists (
                     select 1
@@ -356,6 +360,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
              from public.wo_outputs o
              left join public.items i
                on i.org_id = o.org_id and i.id = o.product_id
+             left join public.license_plates lp
+               on lp.id = o.lp_id and lp.org_id = o.org_id
             where o.org_id = app.current_org_id() and o.wo_id = $1::uuid
             order by o.output_type asc, o.registered_at asc`,
           [woId],
@@ -479,6 +485,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         uom: r.uom,
         qaStatus: r.qa_status,
         lpId: r.lp_id,
+        lpNumber: r.lp_number,
         expiryDate: toIso(r.expiry_date),
         correctionOfId: r.correction_of_id,
         isCorrected: Boolean(r.is_corrected),
@@ -510,6 +517,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         qtyKg: Number(r.qty_consumed),
         fefoAdherence: Boolean(r.fefo_adherence_flag),
         consumedAt: toIso(r.consumed_at),
+        correctionOfId: r.correction_of_id,
       }));
 
       // SOFT-warning derivation (owner decision — warn, never block; no stored

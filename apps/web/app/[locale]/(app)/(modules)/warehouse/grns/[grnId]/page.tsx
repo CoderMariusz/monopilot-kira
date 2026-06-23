@@ -137,6 +137,7 @@ function DetailSkeleton() {
 
 // E1 — the SAME permission the printers actions enforce (settings.org.update).
 const PRINT_PERMISSION = 'settings.org.update';
+const CANCEL_RECEIPT_PERMISSION = 'warehouse.receipt.correct';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -167,6 +168,32 @@ async function resolveCanPrint(): Promise<boolean> {
             )
           limit 1`,
         [ctx.userId, ctx.orgId, PRINT_PERMISSION],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function resolveCanCancel(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or r.code = $3
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, CANCEL_RECEIPT_PERMISSION],
       );
       return rows.length > 0;
     });
@@ -255,7 +282,7 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
     );
   }
 
-  const canPrint = await resolveCanPrint();
+  const [canPrint, canCancel] = await Promise.all([resolveCanPrint(), resolveCanCancel()]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -266,7 +293,7 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
         locale={locale}
         releaseQaAction={releaseLpQa}
         cancelGrnLineAction={cancelGrnLineAction}
-        canCancelLines={result.data.status !== 'cancelled'}
+        canCancelLines={result.data.status !== 'cancelled' && canCancel}
         printLabelAction={printGrnLineLabel}
         canPrint={canPrint}
       />

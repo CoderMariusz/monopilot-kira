@@ -31,7 +31,6 @@ import SitesScreen, { type SitesScreenLabels } from './sites-screen.client';
 const labels: SitesScreenLabels = {
   title: 'Sites & production lines',
   subtitle: 'Factories, lines, and work centers where production happens.',
-  importLines: 'Import lines',
   addSite: '+ Add site',
   sitesTitle: 'Sites ({count})',
   mapRegionFallback: 'Region',
@@ -157,11 +156,17 @@ describe('SitesScreen', () => {
     );
   });
 
-  it('renders the page head with title, subtitle and the two head actions', () => {
+  it('renders the page head with title, subtitle and the Add site action (no dead Import lines control)', () => {
     const { container } = renderScreen();
     expect(container.querySelector('.sg-head')).not.toBeNull();
     expect(container.querySelector('.sg-title')?.textContent).toBe('Sites & production lines');
-    expect(screen.getByRole('button', { name: 'Import lines' })).toBeInTheDocument();
+    // The prototype "Import lines" button had no wired handler (a no-op dead
+    // control) so it is intentionally removed — see deviation log in page.tsx.
+    // Head actions must contain exactly one button: + Add site.
+    const headActions = container.querySelector('.sg-head-actions');
+    expect(headActions).not.toBeNull();
+    expect(within(headActions as HTMLElement).getAllByRole('button')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Import lines' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+ Add site' })).toBeInTheDocument();
   });
 
@@ -262,7 +267,6 @@ describe('SitesScreen', () => {
   it('disables the mutating actions unless the user can edit', () => {
     renderScreen({ canEdit: false });
     expect(screen.getByRole('button', { name: '+ Add site' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Import lines' })).toBeDisabled();
     cleanup();
     renderScreen({ canEdit: true });
     expect(screen.getByRole('button', { name: '+ Add site' })).toBeEnabled();

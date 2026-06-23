@@ -49,6 +49,7 @@ export type ProductionLine = {
 };
 
 export type ActivateLineInput = { lineId: string };
+export type DeactivateLineInput = { lineId: string };
 export type CreateLineInput = { siteId?: string | null; warehouseId?: string | null; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] };
 export type CreateLineResult =
   | { ok: true; data: { id: string; status: 'draft' | 'active' } }
@@ -58,6 +59,11 @@ export type ActivateLineResult =
   | { ok: true; data: { lineId: string; status: 'active' } }
   | { ok: false; code: 'NO_MACHINE'; validation: 'V-SET-62'; lineId: string; message: string }
   | { ok: false; code: 'ACTIVATION_FAILED'; lineId: string; message: string };
+
+export type DeactivateLineResult =
+  | { ok: true; data: { lineId: string; status: 'inactive' } }
+  | { ok: false; code: 'PERMISSION_DENIED'; lineId: string; message: string }
+  | { ok: false; code: 'DEACTIVATION_FAILED'; lineId: string; message: string };
 
 export type LinesPageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -80,6 +86,7 @@ export type LinesLabels = {
   bulkActivate: string;
   bulkActivatePending: string;
   bulkDeactivate: string;
+  bulkDeactivatePending: string;
   addLine: string;
   dialogAddTitle: string;
   fieldCode: string;
@@ -125,6 +132,7 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
   bulkActivate: 'Bulk Activate',
   bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
+  bulkDeactivatePending: 'Deactivating…',
   addLine: 'Add line',
   dialogAddTitle: 'Add production line',
   fieldCode: 'Code',
@@ -161,6 +169,7 @@ export type LinesScreenProps = {
   warehouses?: WarehouseOption[];
   canUpdateInfra: boolean;
   activateLine: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
+  deactivateLine?: (input: DeactivateLineInput) => Promise<DeactivateLineResult> | DeactivateLineResult;
   createLine: (input: CreateLineInput) => Promise<CreateLineResult> | CreateLineResult;
   state: LinesPageState;
 };
@@ -231,7 +240,7 @@ function SelectField({
   );
 }
 
-export default function LinesScreen({ labels: labelsProp, lines, machines, sites = [], warehouses = [], canUpdateInfra, activateLine, createLine, state }: LinesScreenProps) {
+export default function LinesScreen({ labels: labelsProp, lines, machines, sites = [], warehouses = [], canUpdateInfra, activateLine, deactivateLine, createLine, state }: LinesScreenProps) {
   const labels = labelsProp ?? DEFAULT_LINES_LABELS;
   const [rows, setRows] = React.useState<ProductionLine[]>(() => [...lines]);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -240,6 +249,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
   );
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
   const [pending, setPending] = React.useState(false);
+  const [deactivatePending, setDeactivatePending] = React.useState(false);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
@@ -316,6 +326,24 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
 
     setRowErrors(nextErrors);
     setPending(false);
+  };
+
+  const bulkDeactivate = async () => {
+    if (!canUpdateInfra || !deactivateLine || selectedIds.length === 0) return;
+    setDeactivatePending(true);
+    const nextErrors: Record<string, string> = {};
+
+    for (const lineId of selectedIds) {
+      const result = await deactivateLine({ lineId });
+      if ('data' in result) {
+        setStatusById((current) => ({ ...current, [result.data.lineId]: result.data.status }));
+      } else {
+        nextErrors[result.lineId] = result.message || labels.error;
+      }
+    }
+
+    setRowErrors(nextErrors);
+    setDeactivatePending(false);
   };
 
   const toggleCreateMachine = (machineId: string, checked: boolean) => {
@@ -422,8 +450,14 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
           >
             {pending ? labels.bulkActivatePending : labels.bulkActivate}
           </Button>
-          <Button type="button" variant="dry-run" disabled={!canUpdateInfra || selectedVisibleCount === 0} aria-label={!canUpdateInfra ? labels.insufficientPermission : labels.bulkDeactivate}>
-            {labels.bulkDeactivate}
+          <Button
+            type="button"
+            variant="dry-run"
+            disabled={!canUpdateInfra || !deactivateLine || deactivatePending || selectedVisibleCount === 0}
+            aria-label={!canUpdateInfra ? labels.insufficientPermission : labels.bulkDeactivate}
+            onClick={() => void bulkDeactivate()}
+          >
+            {deactivatePending ? labels.bulkDeactivatePending : labels.bulkDeactivate}
           </Button>
         </div>
       </header>

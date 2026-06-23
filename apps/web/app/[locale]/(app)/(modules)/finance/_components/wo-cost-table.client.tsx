@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 import type { CompletedWoCostsSummary } from '../_actions/wo-cost-actions';
 
@@ -50,8 +51,8 @@ function money(value: string | null, fallback: string): string {
 }
 
 export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [refreshCount, setRefreshCount] = useState(0);
 
   if (result.state === 'loading') {
     return (
@@ -92,7 +93,7 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
           data-testid="finance-refresh"
           className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm disabled:opacity-60"
           disabled={isPending}
-          onClick={() => startTransition(() => setRefreshCount((value) => value + 1))}
+          onClick={() => startTransition(() => router.refresh())}
         >
           {isPending ? labels.refreshing : labels.refresh}
         </button>
@@ -103,7 +104,6 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
           {labels.refreshing}
         </div>
       ) : null}
-      <span className="sr-only" data-testid="finance-refresh-count">{refreshCount}</span>
 
       {rows.length === 0 ? (
         <div data-testid="finance-empty" className="rounded border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">

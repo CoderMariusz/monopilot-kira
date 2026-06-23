@@ -7,6 +7,8 @@ import LinesScreen, {
   type ActivateLineInput,
   type ActivateLineResult,
   type CreateLineInput,
+  type DeactivateLineInput,
+  type DeactivateLineResult,
   type LinesLabels,
   type LinesPageState,
   type LineStatus,
@@ -40,6 +42,7 @@ const DEFAULT_LABELS: LinesLabels = {
   bulkActivate: 'Bulk Activate',
   bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
+  bulkDeactivatePending: 'Deactivating…',
   addLine: 'Add line',
   dialogAddTitle: 'Add production line',
   fieldCode: 'Code',
@@ -133,6 +136,7 @@ type LinesPageProps = {
   warehouses?: WarehouseOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
+  deactivateLine?: (input: DeactivateLineInput) => Promise<DeactivateLineResult> | DeactivateLineResult;
   createLine?: (input: CreateLineInput) => Promise<UpsertLineResult> | UpsertLineResult;
   state?: LinesPageState;
 };
@@ -351,6 +355,49 @@ export async function activateProductionLine(input: ActivateLineInput): Promise<
   }
 }
 
+/**
+ * Deactivates a single production line (status → 'inactive'). Mirrors
+ * {@link activateProductionLine} but does not run the V-SET-62 machine check
+ * (a line can always be deactivated). RBAC is re-verified server-side on every
+ * call (`settings.infra.update`) and the bulk handler in the client invokes it
+ * once per selected row, mirroring the bulk-activate flow.
+ */
+export async function deactivateProductionLine(input: DeactivateLineInput): Promise<DeactivateLineResult> {
+  'use server';
+
+  try {
+    return await withOrgContext(async (ctx): Promise<DeactivateLineResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasPermission(context, UPDATE_PERMISSION))) {
+        return {
+          ok: false,
+          code: 'PERMISSION_DENIED',
+          lineId: input.lineId,
+          message: DEFAULT_LABELS.insufficientPermission,
+        };
+      }
+
+      await context.client.query(
+        `update public.production_lines
+            set status = 'inactive'
+          where org_id = app.current_org_id()
+            and id = $1::uuid`,
+        [input.lineId],
+      );
+
+      return { ok: true, data: { lineId: input.lineId, status: 'inactive' } };
+    });
+  } catch {
+    console.error('[deactivateProductionLine] deactivation_failed', { lineId: input.lineId });
+    return {
+      ok: false,
+      code: 'DEACTIVATION_FAILED',
+      lineId: input.lineId,
+      message: 'Unable to deactivate production line. Try again after the backend is available.',
+    };
+  }
+}
+
 export default async function LinesPage(propsInput: unknown = {}) {
   const props = propsInput as LinesPageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
@@ -374,6 +421,9 @@ export default async function LinesPage(propsInput: unknown = {}) {
   const activateLineForClient = (props.activateLine ?? activateProductionLine) as (
     input: ActivateLineInput,
   ) => Promise<ActivateLineResult>;
+  const deactivateLineForClient = (props.deactivateLine ?? deactivateProductionLine) as (
+    input: DeactivateLineInput,
+  ) => Promise<DeactivateLineResult>;
 
   return React.createElement(LinesScreen, {
     labels,
@@ -383,6 +433,7 @@ export default async function LinesPage(propsInput: unknown = {}) {
     warehouses: runtime.warehouses,
     canUpdateInfra: runtime.canUpdateInfra,
     activateLine: activateLineForClient,
+    deactivateLine: deactivateLineForClient,
     createLine: props.createLine ?? persistLine,
     state: runtime.state,
   });

@@ -37,12 +37,19 @@ import type {
  * loaded server-side via `_actions/sites.ts`); no mocks. Selecting a site
  * lazily loads that site's lines through the injected `loadLines` server
  * action (the initial site's lines arrive pre-loaded from the server boundary).
+ *
+ * Parity deviation (sanctioned): the prototype head action row carries an
+ * "Import lines" button (org-screens.jsx:112) that is itself a non-functional
+ * stub — it had no wired handler in the prototype and no lines-import server
+ * action exists in the codebase. To honour the production rule against dead
+ * controls, the button is intentionally NOT translated here; only the wired
+ * "+ Add site" action remains. Re-introduce it together with a real import
+ * action if/when bulk line import lands.
  */
 
 export type SitesScreenLabels = {
   title: string;
   subtitle: string;
-  importLines: string;
   addSite: string;
   sitesTitle: string; // accepts a {count} placeholder
   mapRegionFallback: string;
@@ -135,7 +142,6 @@ export type SitesScreenProps = {
   modalLabels?: SitesModalLabels;
   /** Lazily loads the lines for a selected site (real Supabase query). */
   loadLines?: (siteId: string) => Promise<LineRow[]>;
-  onImportLines?: () => void;
   /** Server actions (injected by the page). */
   createSiteAction?: CreateSiteAction;
   createLineAction?: CreateLineAction;
@@ -174,7 +180,6 @@ export default function SitesScreen({
   labels,
   modalLabels = DEFAULT_SITES_MODAL_LABELS,
   loadLines,
-  onImportLines,
   createSiteAction,
   createLineAction,
   updateLineAction,
@@ -243,24 +248,14 @@ export default function SitesScreen({
         title={labels.title}
         sub={labels.subtitle}
         actions={
-          <>
-            <button
-              className="btn btn-secondary"
-              type="button"
-              disabled={!canEdit}
-              onClick={() => onImportLines?.()}
-            >
-              {labels.importLines}
-            </button>
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={!canEdit}
-              onClick={() => setActiveModal({ kind: 'addSite' })}
-            >
-              {labels.addSite}
-            </button>
-          </>
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={!canEdit}
+            onClick={() => setActiveModal({ kind: 'addSite' })}
+          >
+            {labels.addSite}
+          </button>
         }
       />
 

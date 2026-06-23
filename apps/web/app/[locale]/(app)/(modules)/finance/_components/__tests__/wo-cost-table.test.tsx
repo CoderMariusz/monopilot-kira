@@ -1,7 +1,13 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FinanceWoCostTable, type FinanceWoCostLabels } from '../wo-cost-table.client';
+
+const refreshMock = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshMock }),
+}));
 
 const labels: FinanceWoCostLabels = {
   title: 'WO actual costs',
@@ -67,6 +73,10 @@ const readyResult = {
 };
 
 describe('FinanceWoCostTable', () => {
+  beforeEach(() => {
+    refreshMock.mockClear();
+  });
+
   it('renders permission-denied, error, loading, and empty states', () => {
     const { rerender } = render(<FinanceWoCostTable result={{ state: 'permission-denied' }} labels={labels} />);
     expect(screen.getByTestId('finance-denied')).toHaveTextContent(labels.permissionDenied);
@@ -97,11 +107,11 @@ describe('FinanceWoCostTable', () => {
     expect(within(expanded).getByText('5.0000')).toBeInTheDocument();
   });
 
-  it('exposes an optimistic refresh state trigger', () => {
+  it('re-fetches the server component by calling router.refresh on Refresh', () => {
     render(<FinanceWoCostTable result={readyResult} labels={labels} />);
 
     fireEvent.click(screen.getByTestId('finance-refresh'));
 
-    expect(screen.getByTestId('finance-refresh-count')).toHaveTextContent('1');
+    expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -926,7 +926,6 @@
     "sites": {
       "title": "Sites & production lines",
       "subtitle": "Factories, lines, and work centers where production happens.",
-      "import_lines": "Import lines",
       "add_site": "+ Add site",
       "sites_title": "Sites ({count})",
       "map_region_fallback": "Region",
@@ -7857,6 +7856,11 @@
     "empty": {
       "title": "No snapshots yet",
       "body": "OEE snapshots are produced when a work order is completed. Complete a work order in Production to see availability, performance and quality here."
+    },
+    "andon": {
+      "title": "Andon board",
+      "stubBadge": "Coming soon",
+      "stubNotice": "The live Andon kiosk — real-time line status and downtime calls on the shop floor — ships in a later OEE wave. The route is reserved so links and bookmarks stay valid."
     }
   },
   "account": {

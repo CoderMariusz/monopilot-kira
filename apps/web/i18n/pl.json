@@ -907,7 +907,6 @@
     "sites": {
       "title": "Zakłady i linie produkcyjne",
       "subtitle": "Fabryki, linie i gniazda produkcyjne, w których odbywa się produkcja.",
-      "import_lines": "Importuj linie",
       "add_site": "+ Dodaj zakład",
       "sites_title": "Zakłady ({count})",
       "map_region_fallback": "Region",
@@ -7857,6 +7856,11 @@
     "empty": {
       "title": "Brak migawek",
       "body": "Migawki OEE powstają przy zakończeniu zlecenia produkcyjnego. Zakończ zlecenie w module Produkcja, aby zobaczyć tutaj dostępność, wydajność i jakość."
+    },
+    "andon": {
+      "title": "Tablica Andon",
+      "stubBadge": "Wkrótce",
+      "stubNotice": "Interaktywny kiosk Andon — status linii w czasie rzeczywistym i zgłoszenia przestojów na hali — pojawi się w kolejnej fali OEE. Ścieżka jest zarezerwowana, aby linki i zakładki pozostały aktualne."
     }
   },
   "account": {

@@ -26,7 +26,6 @@ async function buildLabels(locale: string): Promise<SitesScreenLabels> {
   return {
     title: t('title'),
     subtitle: t('subtitle'),
-    importLines: t('import_lines'),
     addSite: t('add_site'),
     sitesTitle: t('sites_title'),
     mapRegionFallback: t('map_region_fallback'),

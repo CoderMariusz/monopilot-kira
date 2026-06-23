@@ -37,6 +37,8 @@ const labels: Record<string, string> = {
   createLineFailed: 'Production line could not be created.',
   noMachinesAvailable: 'Create at least one machine before creating an active line.',
   bulkActivate: 'Bulk Activate',
+  bulkDeactivate: 'Bulk Deactivate',
+  bulkDeactivatePending: 'Deactivating…',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   noMachineTitle: 'No machines assigned',
   noMachineCode: 'NO_MACHINE',
@@ -99,6 +101,12 @@ type ActivateLineResult =
   | { ok: true; data: { lineId: string; status: 'active' } }
   | { ok: false; code: 'NO_MACHINE'; validation: 'V-SET-62'; lineId: string; message: string };
 
+type DeactivateLineInput = { lineId: string };
+
+type DeactivateLineResult =
+  | { ok: true; data: { lineId: string; status: 'inactive' } }
+  | { ok: false; code: 'PERMISSION_DENIED' | 'DEACTIVATION_FAILED'; lineId: string; message: string };
+
 type LinesPageProps = {
   params?: Promise<{ locale: string }>;
   lines?: ProductionLine[];
@@ -106,11 +114,16 @@ type LinesPageProps = {
   warehouses?: WarehouseOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult>;
+  deactivateLine?: (input: DeactivateLineInput) => Promise<DeactivateLineResult>;
   createLine?: (input: { code: string; name: string; siteId?: string | null; warehouseId?: string | null; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' } } | { ok: false; error?: string }>;
 };
 
 type LinesPage = (props: LinesPageProps) => React.ReactNode | Promise<React.ReactNode>;
-type LinesPageModule = { default: LinesPage; activateProductionLine: (input: ActivateLineInput) => Promise<unknown> };
+type LinesPageModule = {
+  default: LinesPage;
+  activateProductionLine: (input: ActivateLineInput) => Promise<unknown>;
+  deactivateProductionLine: (input: DeactivateLineInput) => Promise<unknown>;
+};
 
 async function loadLinesPageModule(): Promise<LinesPageModule> {
   const pageModulePath = './page.tsx';
@@ -195,6 +208,10 @@ async function renderLinesPage(overrides: Partial<LinesPageProps> = {}) {
     activateLine: vi.fn(async (input: ActivateLineInput) => ({
       ok: true as const,
       data: { lineId: input.lineId, status: 'active' as const },
+    })),
+    deactivateLine: vi.fn(async (input: DeactivateLineInput) => ({
+      ok: true as const,
+      data: { lineId: input.lineId, status: 'inactive' as const },
     })),
     ...overrides,
   };
@@ -384,6 +401,55 @@ describe('SET-018 line list behavior', () => {
     expect(lineRow(/cheese packing line.*line-4.*active/i)).toBeInTheDocument();
   });
 
+  it('triggers Bulk Deactivate on every selected row and flips their status to inactive', async () => {
+    const user = userEvent.setup();
+    const deactivateLine = vi.fn(async (input: DeactivateLineInput): Promise<DeactivateLineResult> => ({
+      ok: true,
+      data: { lineId: input.lineId, status: 'inactive' },
+    }));
+    const activeLine4: ProductionLine = { ...line4, status: 'active' };
+    const activeLine8: ProductionLine = { ...line8, status: 'active' };
+    await renderLinesPage({ lines: [line0, activeLine4, activeLine8], deactivateLine });
+
+    await selectLine(user, activeLine4);
+    await selectLine(user, activeLine8);
+    await user.click(screen.getByRole('button', { name: /bulk deactivate/i }));
+
+    await waitFor(() => expect(deactivateLine).toHaveBeenCalledTimes(2));
+    expect(deactivateLine).toHaveBeenCalledWith({ lineId: activeLine4.id });
+    expect(deactivateLine).toHaveBeenCalledWith({ lineId: activeLine8.id });
+    // line0 was never selected → never deactivated.
+    expect(deactivateLine).not.toHaveBeenCalledWith({ lineId: line0.id });
+
+    // Both selected rows flip to the Inactive status badge after the action
+    // resolves (the deactivate handler writes status='inactive' into statusById).
+    await waitFor(() => {
+      const row4 = lineRow(/cheese packing line.*line-4/i);
+      expect(within(row4).getByText(/^inactive$/i)).toBeInTheDocument();
+    });
+    expect(within(lineRow(/yogurt high-speed line.*line-8/i)).getByText(/^inactive$/i)).toBeInTheDocument();
+  });
+
+  it('disables Bulk Deactivate until at least one line is selected and when settings.infra.update is missing', async () => {
+    const user = userEvent.setup();
+    const activeLine4: ProductionLine = { ...line4, status: 'active' };
+    const { unmount } = await renderLinesPage({ lines: [line0, activeLine4] });
+
+    const deactivateButton = screen.getByText(/bulk deactivate/i).closest('button');
+    expect(deactivateButton).toBeDisabled();
+    await selectLine(user, activeLine4);
+    expect(screen.getByText(/bulk deactivate/i).closest('button')).toBeEnabled();
+    unmount();
+
+    await renderLinesPage({ lines: [line0, activeLine4], canUpdateInfra: false });
+    const forbiddenButton = screen.getByText(/bulk deactivate/i).closest('button');
+    expect(forbiddenButton).toBeDisabled();
+    expect(forbiddenButton).toHaveAttribute(
+      'aria-label',
+      expect.stringMatching(/insufficient permissions.*settings\.infra\.update/i),
+    );
+  });
+
   it('disables Bulk Activate with an explanatory aria-label when settings.infra.update is missing', async () => {
     await renderLinesPage({ canUpdateInfra: false });
 
@@ -476,6 +542,48 @@ describe('SET-018 line list behavior', () => {
       validation: 'V-SET-62',
       lineId: line0.id,
       message: expect.stringMatching(/assign at least one machine/i),
+    });
+    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/update public\.production_lines/i), expect.anything());
+  });
+
+  it('deactivateProductionLine sets the line status to inactive via withOrgContext when permitted', async () => {
+    const query = vi.fn(async (sql: string) => {
+      const normalized = sql.toLowerCase();
+      if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (normalized.includes('update public.production_lines')) return { rows: [], rowCount: 1 };
+      throw new Error(`Unexpected SQL in deactivate test: ${sql}`);
+    });
+    orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
+      callback({ userId: '00000000-0000-4000-8000-000000000001', orgId: '00000000-0000-4000-8000-000000000002', client: { query } }),
+    );
+
+    const { deactivateProductionLine } = await loadLinesPageModule();
+    const result = await deactivateProductionLine({ lineId: line4.id });
+
+    expect(result).toEqual({ ok: true, data: { lineId: line4.id, status: 'inactive' } });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringMatching(/update public\.production_lines\s+set status = 'inactive'/i),
+      [line4.id],
+    );
+  });
+
+  it('deactivateProductionLine returns a distinct permission error when settings.infra.update is missing', async () => {
+    const query = vi.fn(async (sql: string) => {
+      expect(sql).toMatch(/from public\.user_roles/i);
+      return { rows: [] };
+    });
+    orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
+      callback({ userId: '00000000-0000-4000-8000-000000000001', orgId: '00000000-0000-4000-8000-000000000002', client: { query } }),
+    );
+
+    const { deactivateProductionLine } = await loadLinesPageModule();
+    const result = await deactivateProductionLine({ lineId: line4.id });
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'PERMISSION_DENIED',
+      lineId: line4.id,
+      message: expect.stringMatching(/settings\.infra\.update/i),
     });
     expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/update public\.production_lines/i), expect.anything());
   });

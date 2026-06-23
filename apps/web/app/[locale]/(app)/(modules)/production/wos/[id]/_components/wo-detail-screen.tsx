@@ -898,7 +898,7 @@ export function WoDetailScreen({
                     <TableHead scope="col">{labels.output.col.expiry}</TableHead>
                     <TableHead scope="col">{labels.output.col.qa}</TableHead>
                     <TableHead scope="col">{labels.output.col.lp}</TableHead>
-                    <TableHead scope="col" className="text-right">{labels.output.col.qa}</TableHead>
+                    <TableHead scope="col" className="text-right">{labels.history.col.action}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -942,7 +942,7 @@ export function WoDetailScreen({
                       <TableCell className="font-mono text-xs text-slate-600">{o.batchNumber}</TableCell>
                       <TableCell className="font-mono text-xs text-slate-500">{fmtDate(o.expiryDate)}</TableCell>
                       <TableCell><Badge variant="muted" className="text-[10px]">{o.qaStatus}</Badge></TableCell>
-                      <TableCell className="font-mono text-xs text-slate-500">{o.lpId ? o.lpId.slice(0, 8) : '—'}</TableCell>
+                      <TableCell className="font-mono text-xs text-slate-500">{o.lpNumber ?? (o.lpId ? o.lpId.slice(0, 8) : '—')}</TableCell>
                       <TableCell className="text-right">
                         {canVoid && !isCorrected && !correctionRef ? (
                           <button

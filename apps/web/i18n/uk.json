@@ -907,7 +907,6 @@
     "sites": {
       "title": "Майданчики та виробничі лінії",
       "subtitle": "Заводи, лінії та робочі центри, де відбувається виробництво.",
-      "import_lines": "Імпортувати лінії",
       "add_site": "+ Додати майданчик",
       "sites_title": "Майданчики ({count})",
       "map_region_fallback": "Регіон",
@@ -7857,6 +7856,11 @@
     "empty": {
       "title": "No snapshots yet",
       "body": "OEE snapshots are produced when a work order is completed. Complete a work order in Production to see availability, performance and quality here."
+    },
+    "andon": {
+      "title": "Andon board",
+      "stubBadge": "Coming soon",
+      "stubNotice": "The live Andon kiosk — real-time line status and downtime calls on the shop floor — ships in a later OEE wave. The route is reserved so links and bookmarks stay valid."
     }
   },
   "account": {
