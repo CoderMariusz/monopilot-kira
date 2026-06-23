@@ -1268,7 +1268,8 @@
         "locations": "Locations",
         "my_pin": "E-sign & scanner PIN",
         "labor_rates": "Labor rates",
-        "temp_ranges": "Temperature ranges"
+        "temp_ranges": "Temperature ranges",
+        "docks": "Dock doors"
       }
     },
     "npd": {
@@ -9219,6 +9220,194 @@
     "filter": {
       "line": "Production line",
       "search": "WO/PO number"
+    }
+  },
+  "Yard": {
+    "board": {
+      "title": "Yard board",
+      "subtitle": "Today's dock appointments and vehicles currently on site.",
+      "breadcrumb": "Yard",
+      "warehouse": "Warehouse",
+      "loading": "Loading the yard board…",
+      "denied": "You do not have permission to view the yard board.",
+      "error": "Unable to load the yard board. Try again after the backend is available.",
+      "appointmentsTitle": "Today's appointments",
+      "appointmentsEmpty": "No appointments scheduled for today.",
+      "onSiteTitle": "On site now",
+      "onSiteEmpty": "No vehicles are on site.",
+      "gateInTitle": "Gate in",
+      "gateIn": "Gate in",
+      "gateInPending": "Gating in…",
+      "gateOut": "Gate out",
+      "gateOutPending": "Gating out…",
+      "weigh": "Weigh",
+      "manual": "Manual gate-in",
+      "againstAppointment": "Against appointment",
+      "noAppointment": "No appointment",
+      "vehicleReg": "Vehicle registration",
+      "trailerRef": "Trailer reference",
+      "driverName": "Driver name",
+      "carrier": "Carrier",
+      "noCarrier": "No carrier",
+      "reference": "Reference",
+      "direction": "Direction",
+      "time": "Time",
+      "duration": "Duration",
+      "dockDoor": "Dock door",
+      "status": "Status",
+      "minutes": "{count} min",
+      "appointmentsLink": "Appointments",
+      "weighbridgeLink": "Weighbridge",
+      "vehicleRegRequired": "Vehicle registration is required.",
+      "gateInFailed": "Gate-in failed. Try again.",
+      "gateOutFailed": "Gate-out failed. Try again.",
+      "net": "Net"
+    },
+    "appointments": {
+      "title": "Dock appointments",
+      "subtitle": "Plan inbound and outbound dock slots and resolve clashes.",
+      "breadcrumb": "Appointments",
+      "loading": "Loading appointments…",
+      "denied": "You do not have permission to view appointments.",
+      "error": "Unable to load appointments. Try again after the backend is available.",
+      "empty": "No appointments in this window.",
+      "book": "Book appointment",
+      "viewDay": "Day",
+      "viewWeek": "Week",
+      "previous": "Previous",
+      "next": "Next",
+      "today": "Today",
+      "columns": {
+        "time": "Time",
+        "dockDoor": "Dock door",
+        "carrier": "Carrier",
+        "direction": "Direction",
+        "reference": "Reference",
+        "duration": "Duration",
+        "status": "Status"
+      },
+      "modal": {
+        "title": "Book appointment",
+        "dockDoorLabel": "Dock door",
+        "carrierLabel": "Carrier",
+        "noCarrier": "No carrier",
+        "directionLabel": "Direction",
+        "referenceLabel": "Reference (optional)",
+        "scheduledAtLabel": "Date & time",
+        "durationLabel": "Duration (minutes)",
+        "submit": "Book",
+        "submitting": "Booking…",
+        "cancel": "Cancel",
+        "errors": {
+          "dockDoorRequired": "Select a dock door.",
+          "scheduledAtRequired": "Pick a date and time.",
+          "durationInvalid": "Duration must be a positive number of minutes.",
+          "invalid_input": "Invalid input.",
+          "forbidden": "You do not have permission to book appointments.",
+          "not_found": "Dock door or carrier not found.",
+          "overlap": "This slot overlaps an existing appointment on that dock door.",
+          "already_exists": "This appointment already exists.",
+          "invalid_status": "That status change is not allowed.",
+          "persistence_failed": "Booking failed. Try again."
+        }
+      }
+    },
+    "weighbridge": {
+      "title": "Weighbridge",
+      "subtitle": "Record gross and tare weights for vehicles on site.",
+      "breadcrumb": "Weighbridge",
+      "loading": "Loading weighbridge…",
+      "denied": "You do not have permission to use the weighbridge.",
+      "error": "Unable to load the weighbridge. Try again after the backend is available.",
+      "formTitle": "Record weighing",
+      "visitLabel": "On-site vehicle",
+      "noVisits": "No vehicles are on site to weigh.",
+      "grossLabel": "Gross weight (kg)",
+      "tareLabel": "Tare weight (kg)",
+      "netLabel": "Net weight (kg)",
+      "submit": "Record weighing",
+      "submitting": "Recording…",
+      "recentTitle": "Recent weighings",
+      "recentEmpty": "No weighings recorded yet.",
+      "columns": {
+        "vehicle": "Vehicle",
+        "carrier": "Carrier",
+        "gross": "Gross (kg)",
+        "tare": "Tare (kg)",
+        "net": "Net (kg)",
+        "weighedAt": "Recorded"
+      },
+      "errors": {
+        "visitRequired": "Select a vehicle.",
+        "grossInvalid": "Gross weight must be a non-negative number.",
+        "tareInvalid": "Tare weight must be a non-negative number.",
+        "netNegative": "Tare cannot exceed gross weight.",
+        "invalid_input": "Invalid input.",
+        "forbidden": "You do not have permission to record weighings.",
+        "not_found": "Vehicle visit not found.",
+        "persistence_failed": "Recording failed. Try again."
+      }
+    },
+    "docks": {
+      "title": "Dock doors",
+      "subtitle": "Manage dock doors and their inbound / outbound direction.",
+      "breadcrumb": "Dock doors",
+      "loading": "Loading dock doors…",
+      "denied": "You do not have permission to manage dock doors.",
+      "error": "Unable to load dock doors. Try again after the backend is available.",
+      "empty": "No dock doors configured.",
+      "emptyHint": "Add a dock door to schedule appointments against it.",
+      "add": "Add dock door",
+      "edit": "Edit",
+      "active": "Active",
+      "inactive": "Inactive",
+      "noWarehouse": "No warehouse",
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "direction": "Direction",
+        "warehouse": "Warehouse",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "modal": {
+        "titleAdd": "Add dock door",
+        "titleEdit": "Edit dock door",
+        "codeLabel": "Code",
+        "nameLabel": "Name (optional)",
+        "directionLabel": "Direction",
+        "warehouseLabel": "Warehouse",
+        "noWarehouse": "No warehouse",
+        "activeLabel": "Active",
+        "submit": "Save",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "errors": {
+          "codeRequired": "Code is required.",
+          "invalid_input": "Invalid input.",
+          "forbidden": "You do not have permission to edit dock doors.",
+          "not_found": "Dock door not found.",
+          "already_exists": "A dock door with this code already exists.",
+          "persistence_failed": "Saving failed. Try again."
+        }
+      }
+    },
+    "direction": {
+      "inbound": "Inbound",
+      "outbound": "Outbound",
+      "both": "Both"
+    },
+    "appointmentStatus": {
+      "scheduled": "Scheduled",
+      "arrived": "Arrived",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "no_show": "No-show"
+    },
+    "visitStatus": {
+      "on_site": "On site",
+      "departed": "Departed"
     }
   }
 }

@@ -67,6 +67,10 @@ const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
   // E1 — label print job log (printers + print_jobs, mig 304); was otherwise
   // unreachable from the warehouse hub.
   { key: "printHistory", href: "/warehouse/print-history", disabled: false },
+  // E5 — yard board (dock appointments / gate in-out / weighbridge, mig 317).
+  // Surfaced here so the yard module is reachable from the warehouse hub rather
+  // than being a URL-only screen (the lines/machines dead-end lesson).
+  { key: "yard", href: "/yard", disabled: false },
   // Cross-shell: opens the chrome-less device scanner (owner-reported the
   // scanner was otherwise unreachable from the app).
   { key: "scanner", href: "/scanner/home", disabled: false },

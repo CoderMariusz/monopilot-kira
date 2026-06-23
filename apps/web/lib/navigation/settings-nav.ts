@@ -35,6 +35,9 @@ export const SETTINGS_NAV_GROUPS = [
     // E1 — label printers (printers + print_jobs, mig 304). Sits with the other
     // infra master screens so it is not a URL-only dead-end (the lines/machines lesson).
     item("printers", "Printers", "🖨", false, "/settings/infra/printers"),
+    // E5 — yard dock doors (dock_doors, mig 317). Sits with the other infra
+    // master screens so it is not a URL-only dead-end (the lines/machines lesson).
+    item("docks", "Dock doors", "⚓", false, "/settings/infra/docks"),
     item("shifts", "Shifts & calendar", "⧗"),
     // E4B — hourly labor rates by role/group (feeds WO labor cost). Sits with the
     // other workforce/infra config so it is not a URL-only dead-end.

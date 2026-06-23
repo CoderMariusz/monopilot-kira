@@ -43,6 +43,10 @@
       "scanner": {
         "title": "Scanner",
         "desc": "Open the mobile scanner — receive, consume, output."
+      },
+      "yard": {
+        "title": "Yard",
+        "desc": "Dock appointments, gate in/out, and the weighbridge."
       }
     },
     "list": {
@@ -378,6 +382,10 @@
       "scanner": {
         "title": "Skaner",
         "desc": "Otwórz skaner mobilny — przyjęcie, zużycie, produkcja."
+      },
+      "yard": {
+        "title": "Plac",
+        "desc": "Awizacje dokowe, wjazd/wyjazd i waga samochodowa."
       }
     },
     "list": {

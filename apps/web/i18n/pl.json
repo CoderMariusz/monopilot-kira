@@ -1249,7 +1249,8 @@
         "locations": "Lokalizacje",
         "my_pin": "PIN e-podpisu i skanera",
         "labor_rates": "Stawki pracy",
-        "temp_ranges": "Zakresy temperatur"
+        "temp_ranges": "Zakresy temperatur",
+        "docks": "Bramy dokowe"
       }
     },
     "npd": {
@@ -9219,6 +9220,194 @@
     "filter": {
       "line": "Linia produkcyjna",
       "search": "Nr ZP/ZZ"
+    }
+  },
+  "Yard": {
+    "board": {
+      "title": "Tablica placu",
+      "subtitle": "Dzisiejsze awizacje przy dokach i pojazdy obecnie na placu.",
+      "breadcrumb": "Plac",
+      "warehouse": "Magazyn",
+      "loading": "Wczytywanie tablicy placu…",
+      "denied": "Nie masz uprawnień do podglądu tablicy placu.",
+      "error": "Nie można wczytać tablicy placu. Spróbuj ponownie, gdy backend będzie dostępny.",
+      "appointmentsTitle": "Dzisiejsze awizacje",
+      "appointmentsEmpty": "Brak awizacji na dziś.",
+      "onSiteTitle": "Obecnie na placu",
+      "onSiteEmpty": "Brak pojazdów na placu.",
+      "gateInTitle": "Wjazd",
+      "gateIn": "Zarejestruj wjazd",
+      "gateInPending": "Rejestrowanie wjazdu…",
+      "gateOut": "Wyjazd",
+      "gateOutPending": "Rejestrowanie wyjazdu…",
+      "weigh": "Zważ",
+      "manual": "Wjazd ręczny",
+      "againstAppointment": "Na podstawie awizacji",
+      "noAppointment": "Bez awizacji",
+      "vehicleReg": "Nr rejestracyjny pojazdu",
+      "trailerRef": "Nr naczepy",
+      "driverName": "Imię i nazwisko kierowcy",
+      "carrier": "Przewoźnik",
+      "noCarrier": "Brak przewoźnika",
+      "reference": "Referencja",
+      "direction": "Kierunek",
+      "time": "Godzina",
+      "duration": "Czas trwania",
+      "dockDoor": "Brama dokowa",
+      "status": "Status",
+      "minutes": "{count} min",
+      "appointmentsLink": "Awizacje",
+      "weighbridgeLink": "Waga",
+      "vehicleRegRequired": "Nr rejestracyjny jest wymagany.",
+      "gateInFailed": "Rejestracja wjazdu nie powiodła się. Spróbuj ponownie.",
+      "gateOutFailed": "Rejestracja wyjazdu nie powiodła się. Spróbuj ponownie.",
+      "net": "Netto"
+    },
+    "appointments": {
+      "title": "Awizacje dokowe",
+      "subtitle": "Planuj sloty przyjęć i wydań oraz rozwiązuj kolizje.",
+      "breadcrumb": "Awizacje",
+      "loading": "Wczytywanie awizacji…",
+      "denied": "Nie masz uprawnień do podglądu awizacji.",
+      "error": "Nie można wczytać awizacji. Spróbuj ponownie, gdy backend będzie dostępny.",
+      "empty": "Brak awizacji w tym oknie.",
+      "book": "Zarezerwuj slot",
+      "viewDay": "Dzień",
+      "viewWeek": "Tydzień",
+      "previous": "Poprzedni",
+      "next": "Następny",
+      "today": "Dziś",
+      "columns": {
+        "time": "Godzina",
+        "dockDoor": "Brama dokowa",
+        "carrier": "Przewoźnik",
+        "direction": "Kierunek",
+        "reference": "Referencja",
+        "duration": "Czas trwania",
+        "status": "Status"
+      },
+      "modal": {
+        "title": "Zarezerwuj slot",
+        "dockDoorLabel": "Brama dokowa",
+        "carrierLabel": "Przewoźnik",
+        "noCarrier": "Brak przewoźnika",
+        "directionLabel": "Kierunek",
+        "referenceLabel": "Referencja (opcjonalnie)",
+        "scheduledAtLabel": "Data i godzina",
+        "durationLabel": "Czas trwania (minuty)",
+        "submit": "Zarezerwuj",
+        "submitting": "Rezerwowanie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "dockDoorRequired": "Wybierz bramę dokową.",
+          "scheduledAtRequired": "Wybierz datę i godzinę.",
+          "durationInvalid": "Czas trwania musi być dodatnią liczbą minut.",
+          "invalid_input": "Nieprawidłowe dane.",
+          "forbidden": "Nie masz uprawnień do rezerwacji slotów.",
+          "not_found": "Nie znaleziono bramy dokowej lub przewoźnika.",
+          "overlap": "Ten slot nakłada się na istniejącą awizację w tej bramie.",
+          "already_exists": "Taka awizacja już istnieje.",
+          "invalid_status": "Taka zmiana statusu jest niedozwolona.",
+          "persistence_failed": "Rezerwacja nie powiodła się. Spróbuj ponownie."
+        }
+      }
+    },
+    "weighbridge": {
+      "title": "Waga samochodowa",
+      "subtitle": "Rejestruj wagę brutto i tarę pojazdów na placu.",
+      "breadcrumb": "Waga",
+      "loading": "Wczytywanie wagi…",
+      "denied": "Nie masz uprawnień do korzystania z wagi.",
+      "error": "Nie można wczytać wagi. Spróbuj ponownie, gdy backend będzie dostępny.",
+      "formTitle": "Zarejestruj ważenie",
+      "visitLabel": "Pojazd na placu",
+      "noVisits": "Brak pojazdów na placu do zważenia.",
+      "grossLabel": "Waga brutto (kg)",
+      "tareLabel": "Tara (kg)",
+      "netLabel": "Waga netto (kg)",
+      "submit": "Zarejestruj ważenie",
+      "submitting": "Rejestrowanie…",
+      "recentTitle": "Ostatnie ważenia",
+      "recentEmpty": "Brak zarejestrowanych ważeń.",
+      "columns": {
+        "vehicle": "Pojazd",
+        "carrier": "Przewoźnik",
+        "gross": "Brutto (kg)",
+        "tare": "Tara (kg)",
+        "net": "Netto (kg)",
+        "weighedAt": "Zarejestrowano"
+      },
+      "errors": {
+        "visitRequired": "Wybierz pojazd.",
+        "grossInvalid": "Waga brutto musi być liczbą nieujemną.",
+        "tareInvalid": "Tara musi być liczbą nieujemną.",
+        "netNegative": "Tara nie może przekraczać wagi brutto.",
+        "invalid_input": "Nieprawidłowe dane.",
+        "forbidden": "Nie masz uprawnień do rejestrowania ważeń.",
+        "not_found": "Nie znaleziono wizyty pojazdu.",
+        "persistence_failed": "Rejestracja nie powiodła się. Spróbuj ponownie."
+      }
+    },
+    "docks": {
+      "title": "Bramy dokowe",
+      "subtitle": "Zarządzaj bramami dokowymi i ich kierunkiem przyjęć / wydań.",
+      "breadcrumb": "Bramy dokowe",
+      "loading": "Wczytywanie bram dokowych…",
+      "denied": "Nie masz uprawnień do zarządzania bramami dokowymi.",
+      "error": "Nie można wczytać bram dokowych. Spróbuj ponownie, gdy backend będzie dostępny.",
+      "empty": "Brak skonfigurowanych bram dokowych.",
+      "emptyHint": "Dodaj bramę dokową, aby planować przy niej awizacje.",
+      "add": "Dodaj bramę dokową",
+      "edit": "Edytuj",
+      "active": "Aktywna",
+      "inactive": "Nieaktywna",
+      "noWarehouse": "Brak magazynu",
+      "columns": {
+        "code": "Kod",
+        "name": "Nazwa",
+        "direction": "Kierunek",
+        "warehouse": "Magazyn",
+        "status": "Status",
+        "actions": "Akcje"
+      },
+      "modal": {
+        "titleAdd": "Dodaj bramę dokową",
+        "titleEdit": "Edytuj bramę dokową",
+        "codeLabel": "Kod",
+        "nameLabel": "Nazwa (opcjonalnie)",
+        "directionLabel": "Kierunek",
+        "warehouseLabel": "Magazyn",
+        "noWarehouse": "Brak magazynu",
+        "activeLabel": "Aktywna",
+        "submit": "Zapisz",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "codeRequired": "Kod jest wymagany.",
+          "invalid_input": "Nieprawidłowe dane.",
+          "forbidden": "Nie masz uprawnień do edycji bram dokowych.",
+          "not_found": "Nie znaleziono bramy dokowej.",
+          "already_exists": "Brama dokowa z tym kodem już istnieje.",
+          "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie."
+        }
+      }
+    },
+    "direction": {
+      "inbound": "Przyjęcie",
+      "outbound": "Wydanie",
+      "both": "Oba"
+    },
+    "appointmentStatus": {
+      "scheduled": "Zaplanowana",
+      "arrived": "Przyjechał",
+      "in_progress": "W toku",
+      "completed": "Zakończona",
+      "cancelled": "Anulowana",
+      "no_show": "Nieobecność"
+    },
+    "visitStatus": {
+      "on_site": "Na placu",
+      "departed": "Wyjechał"
     }
   }
 }
