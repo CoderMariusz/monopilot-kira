@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -219,6 +220,16 @@ async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boo
   return rows.length > 0;
 }
 
+function revalidateTransferOrderPaths(toId: string): void {
+  try {
+    revalidatePath('/planning/transfer-orders');
+    revalidatePath(`/planning/transfer-orders/${toId}`);
+  } catch (err) {
+    if (process.env.VITEST) return;
+    throw err;
+  }
+}
+
 async function denseRenumberTransferOrderLines(client: QueryClient, toId: string): Promise<void> {
   await client.query(
     `with numbered as (
@@ -375,6 +386,7 @@ export async function createTransferOrder(rawInput: unknown): Promise<TransferOr
         resourceId: header.id,
         afterState: { toNumber: header.to_number, status: header.status, lineCount: input.lines.length },
       });
+      revalidateTransferOrderPaths(header.id);
       return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, header.id) } };
     });
   } catch (err) {
@@ -453,6 +465,7 @@ export async function updateTransferOrder(rawInput: unknown): Promise<TransferOr
           notes: row.notes,
         },
       });
+      revalidateTransferOrderPaths(row.id);
       return { ok: true, data: mapTransferOrder(row) };
     });
   } catch (err) {
@@ -509,6 +522,7 @@ export async function addTransferOrderLine(id: string, rawInput: unknown): Promi
         resourceId: input.toId,
         afterState: { itemId: input.itemId, quantity: input.quantity, uom: input.uom, notes: input.notes ?? null },
       });
+      revalidateTransferOrderPaths(input.toId);
       return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, input.toId) } };
     });
   } catch (err) {
@@ -579,6 +593,7 @@ export async function updateTransferOrderLine(
           notes: input.notes ?? null,
         },
       });
+      revalidateTransferOrderPaths(input.toId);
       return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, input.toId) } };
     });
   } catch (err) {
@@ -635,6 +650,7 @@ export async function deleteTransferOrderLine(id: string, lineId: string): Promi
         resourceId: input.toId,
         beforeState: { lineId: input.lineId },
       });
+      revalidateTransferOrderPaths(input.toId);
       return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, input.toId) } };
     });
   } catch (err) {
@@ -1096,6 +1112,7 @@ export async function transitionTransferOrderStatus(id: string, status: string):
         beforeState: { status: previous.status },
         afterState: { status: row.status, ...stockEffect },
       });
+      revalidateTransferOrderPaths(row.id);
       return { ok: true, data: mapTransferOrder(row) };
     });
   } catch (err) {

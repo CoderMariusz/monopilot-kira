@@ -64,6 +64,7 @@ type ListShipmentsResult = { ok: true; data: ShipmentRow[] } | { ok: false; erro
 
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_DASHBOARD_VIEW = 'ship.dashboard.view';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ALLOWED_CREATE_SO_STATUSES = new Set(['allocated', 'partially_allocated']);
 const SHIPMENT_STATUSES = new Set<ShipmentStatus>([
@@ -114,6 +115,22 @@ function toNumber(value: unknown): number {
 
 function isShipmentStatus(value: string): value is ShipmentStatus {
   return SHIPMENT_STATUSES.has(value as ShipmentStatus);
+}
+
+async function resolveLicensePlateId(ctx: ShippingContext, input: string): Promise<string | null> {
+  const candidate = input.trim();
+  if (!candidate) return null;
+  if (UUID_PATTERN.test(candidate)) return candidate;
+
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select id::text as id
+       from public.license_plates
+      where (lp_number = $1 or lp_code = $1)
+        and org_id = app.current_org_id()
+      limit 1`,
+    [candidate],
+  );
+  return rows[0]?.id ?? null;
 }
 
 function mapShipmentRow(row: {
@@ -276,6 +293,9 @@ export async function packLpIntoBox(input: {
     const shipment = shipmentRows[0];
     if (!shipment?.sales_order_id) return { ok: false, error: 'invalid_state' };
 
+    const licensePlateId = await resolveLicensePlateId(ctx, input.lpId);
+    if (!licensePlateId) return { ok: false, error: 'lp_not_found' };
+
     const { rows: alreadyPackedRows } = await ctx.client.query<{ id: string }>(
       `select sbc.id::text
          from public.shipment_box_contents sbc
@@ -283,7 +303,7 @@ export async function packLpIntoBox(input: {
           and sbc.license_plate_id = $1::uuid
           and sbc.deleted_at is null
         limit 1`,
-      [input.lpId],
+      [licensePlateId],
     );
     if (alreadyPackedRows.length > 0) return { ok: false, error: 'already_packed' };
 
@@ -310,7 +330,7 @@ export async function packLpIntoBox(input: {
           and sol.deleted_at is null
         order by ia.allocated_at desc
         limit 1`,
-      [input.lpId, shipment.sales_order_id],
+      [licensePlateId, shipment.sales_order_id],
     );
     const allocation = allocationRows[0];
     if (!allocation) return { ok: false, error: 'lp_not_allocated' };
@@ -373,7 +393,7 @@ export async function packLpIntoBox(input: {
         boxId,
         allocation.sales_order_line_id,
         allocation.product_id,
-        input.lpId,
+        licensePlateId,
         allocation.lot_number,
         allocation.quantity_allocated,
         userId,

@@ -25,6 +25,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Checkbox } from '@monopilot/ui/Checkbox';
@@ -32,6 +33,19 @@ import { Checkbox } from '@monopilot/ui/Checkbox';
 import { downloadJson, fileSafe, isoDateStamp } from '../../../../../../../../lib/shared/download';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
+
+/** Release-gate codes surfaced on the screen (mirror of the preflight blockers). */
+export type ReleaseGateCode =
+  | 'G4_REQUIRED'
+  | 'FG_CANDIDATE_REQUIRED'
+  | 'ACTIVE_SHARED_BOM_REQUIRED'
+  | 'FACTORY_SPEC_REQUIRED'
+  | 'V18_OPEN_HIGH_RISK';
+
+export type HandoffReleaseGateView = {
+  code: ReleaseGateCode;
+  met: boolean;
+};
 
 export type HandoffChecklistItemView = {
   id: string;
@@ -59,6 +73,10 @@ export type HandoffScreenData = {
   promoted: boolean;
   checklist: HandoffChecklistItemView[];
   destinationBom: HandoffDestinationBomView;
+  /** Per-gate release-preflight status (surfaces WHY Promote is blocked). */
+  releaseGates: HandoffReleaseGateView[];
+  /** True ⇔ every release gate is met. */
+  releaseGatesMet: boolean;
 };
 
 export type HandoffLabels = {
@@ -70,6 +88,23 @@ export type HandoffLabels = {
   blockedBody: string;
   promotedTitle: string;
   promotedBody: string;
+  // Release-gate panel (dead-end repair: surface WHY Promote is blocked).
+  releaseGatesTitle: string;
+  releaseGatesBody: string;
+  gateMet: string;
+  gateUnmet: string;
+  gateRemediation: string;
+  'gate.G4_REQUIRED': string;
+  'gate.FG_CANDIDATE_REQUIRED': string;
+  'gate.ACTIVE_SHARED_BOM_REQUIRED': string;
+  'gate.FACTORY_SPEC_REQUIRED': string;
+  'gate.V18_OPEN_HIGH_RISK': string;
+  // Post-promote next-step CTA (kill the dead end after a successful promote).
+  promotedNextTitle: string;
+  promotedNextBody: string;
+  advanceToLaunched: string;
+  viewBom: string;
+  viewProject: string;
   checklistTitle: string;
   destinationTitle: string;
   whatHappensTitle: string;
@@ -95,6 +130,22 @@ export type HandoffLabels = {
   error: string;
   forbidden: string;
   notSet: string;
+};
+
+/**
+ * Locale-prefixed navigation targets, resolved at the server boundary (page.tsx)
+ * so the client island never has to guess locale or route shape. Used by the
+ * release-gate remediation links + the post-promote next-step CTA.
+ */
+export type HandoffHrefs = {
+  /** Technical → factory specs (FACTORY_SPEC_REQUIRED remediation). */
+  factorySpecs: string;
+  /** Technical → BOM list (ACTIVE_SHARED_BOM_REQUIRED remediation + post-promote view). */
+  bom: string;
+  /** The NPD project root (where the existing "Advance stage →" flow lives). */
+  project: string;
+  /** The project gate screen (G4_REQUIRED / risk remediation). */
+  gate: string;
 };
 
 export type PromoteCall = { projectId: string };
@@ -187,15 +238,18 @@ export function HandoffScreen({
   state = 'ready',
   data,
   labels,
+  hrefs,
   onPromote,
   onToggleChecklistItem,
 }: {
   state?: PageState;
   data: HandoffScreenData | null;
   labels: HandoffLabels;
+  hrefs?: HandoffHrefs;
   onPromote?: (call: PromoteCall) => Promise<PromoteOutcome>;
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
 }) {
+  const router = useRouter();
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
   const [promoting, setPromoting] = React.useState(false);
   const [promoteError, setPromoteError] = React.useState<string | null>(null);
@@ -222,7 +276,7 @@ export function HandoffScreen({
     );
   }
 
-  const { checklist, destinationBom, promoted } = data;
+  const { checklist, destinationBom, promoted, releaseGates } = data;
 
   // Optimistic checklist projection (server is the source of truth).
   const effectiveChecklist = checklist.map((item) => ({
@@ -231,7 +285,31 @@ export function HandoffScreen({
   }));
   const allChecked =
     effectiveChecklist.length > 0 && effectiveChecklist.every((i) => i.isChecked);
-  const canPromote = allChecked && !promoted;
+  // Promote is gated on BOTH the handoff checklist AND every release gate. The
+  // server preflight remains authoritative; this mirror just stops the button
+  // looking "permanently disabled with no reason" (the reported dead end).
+  const releaseGatesMet = releaseGates.length > 0 && releaseGates.every((g) => g.met);
+  const canPromote = allChecked && releaseGatesMet && !promoted;
+
+  /** Remediation link for an unmet gate (locale-prefixed, resolved server-side). */
+  function gateRemediationHref(code: ReleaseGateCode): string | null {
+    if (!hrefs) return null;
+    switch (code) {
+      case 'FACTORY_SPEC_REQUIRED':
+        return hrefs.factorySpecs;
+      case 'ACTIVE_SHARED_BOM_REQUIRED':
+        return hrefs.bom;
+      case 'G4_REQUIRED':
+      case 'V18_OPEN_HIGH_RISK':
+        return hrefs.gate;
+      default:
+        return null;
+    }
+  }
+
+  function gateLabel(code: ReleaseGateCode): string {
+    return labels[`gate.${code}` as keyof HandoffLabels] ?? code;
+  }
 
   async function handleToggle(item: HandoffChecklistItemView, next: boolean) {
     if (!onToggleChecklistItem) return;
@@ -254,6 +332,10 @@ export function HandoffScreen({
       const result = await onPromote({ projectId: data!.projectId });
       if (!result.ok) {
         setPromoteError(result.error ?? 'error');
+      } else {
+        // Re-fetch the RSC tree so the "Promoted" bar + next-step CTA appear
+        // immediately (kills the "promote does nothing visible" symptom).
+        router.refresh();
       }
     } catch {
       setPromoteError('error');
@@ -307,6 +389,101 @@ export function HandoffScreen({
           <strong>{labels.blockedTitle}</strong> <span>{labels.blockedBody}</span>
         </div>
       )}
+
+      {/*
+        Post-promote next-step CTA — kills the dead end the user reported (after a
+        successful promote there was nowhere to go). Reachable, never auto-advanced:
+        the "Advance to Launched" link points at the project root where the existing
+        AdvanceGateModal owns the handoff → launched transition (pending owner
+        decision: NOT auto-advanced inside promote).
+      */}
+      {promoted && hrefs ? (
+        <Card data-testid="handoff-next-step">
+          <CardHeader>
+            <CardTitle>{labels.promotedNextTitle}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="muted text-sm">{labels.promotedNextBody}</p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={hrefs.project}
+                className="btn btn-primary"
+                data-testid="handoff-advance-launched-link"
+              >
+                {labels.advanceToLaunched}
+              </a>
+              <a href={hrefs.bom} className="btn btn-secondary" data-testid="handoff-view-bom-link">
+                {labels.viewBom}
+              </a>
+              <a
+                href={hrefs.project}
+                className="btn btn-secondary"
+                data-testid="handoff-view-project-link"
+              >
+                {labels.viewProject}
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/*
+        Release-gate panel — surfaces, per gate, whether the factory-release
+        preflight passes and WHY it does not (the reported dead end: Promote
+        looked permanently disabled with no explanation). Read-only mirror of
+        runReleasePreflight; the server preflight stays authoritative on promote.
+        Hidden once promoted (the gates have already passed).
+      */}
+      {!promoted ? (
+        <Card data-testid="handoff-release-gates">
+          <CardHeader>
+            <CardTitle>{labels.releaseGatesTitle}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="muted mb-2 text-sm">{labels.releaseGatesBody}</p>
+            <ul className="divide-y" data-testid="handoff-release-gates-list">
+              {releaseGates.map((gate) => {
+                const href = !gate.met ? gateRemediationHref(gate.code) : null;
+                return (
+                  <li
+                    key={gate.code}
+                    data-testid={`handoff-release-gate-${gate.code}`}
+                    data-gate={gate.code}
+                    data-met={gate.met}
+                    className="flex items-center gap-3 py-2"
+                  >
+                    {/* Shared testid for "count the gates" assertions. */}
+                    <span data-testid="handoff-release-gate" className="contents">
+                      <span
+                        aria-hidden="true"
+                        className={gate.met ? 'text-green-600' : 'text-red-600'}
+                      >
+                        {gate.met ? '✓' : '✕'}
+                      </span>
+                      <span className="flex-1 text-sm">{gateLabel(gate.code)}</span>
+                      <span
+                        className={`text-xs ${gate.met ? 'text-green-700' : 'text-red-700'}`}
+                        data-testid="handoff-release-gate-status"
+                      >
+                        {gate.met ? labels.gateMet : labels.gateUnmet}
+                      </span>
+                      {href ? (
+                        <a
+                          href={href}
+                          className="text-xs underline"
+                          data-testid="handoff-release-gate-remediation"
+                        >
+                          {labels.gateRemediation}
+                        </a>
+                      ) : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Handoff checklist — prototype lines 487-502. */}
       <Card data-testid="handoff-checklist-card">

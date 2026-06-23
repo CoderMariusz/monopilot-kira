@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { generateBol, recordPod, shipShipment } from './ship-actions';
+import { generateBol, recordPod, sealShipment, shipShipment } from './ship-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -23,6 +23,7 @@ let allowPermission = true;
 let shipmentStatus = 'packed';
 let boxCount = 1;
 let lpRows: Array<{ lp_id: string; lp_number: string | null }> = [];
+let packedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedLpIds: string[] = [];
 let salesOrderUpdate: Record<string, unknown> | null = null;
@@ -73,6 +74,15 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select distinct lp.id::text as lp_id')) {
         return { rows: lpRows, rowCount: lpRows.length };
+      }
+
+      if (q.startsWith('update public.shipments') && q.includes("set status = 'packed'")) {
+        packedShipmentUpdate = {
+          shipment_id: params[0],
+          packed_by: params[1],
+          sql,
+        };
+        return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
       if (q.startsWith('update public.shipments') && q.includes("set status = 'shipped'")) {
@@ -148,6 +158,7 @@ beforeEach(() => {
     { lp_id: LP_1, lp_number: 'LP-0001' },
     { lp_id: LP_2, lp_number: 'LP-0002' },
   ];
+  packedShipmentUpdate = null;
   shippedShipmentUpdate = null;
   shippedLpIds = [];
   salesOrderUpdate = null;
@@ -200,6 +211,44 @@ describe('shipShipment', () => {
     expect(shippedLpIds).toEqual([]);
     expect(outboxEvents).toEqual([]);
     expect(salesOrderUpdate).toBeNull();
+  });
+});
+
+describe('sealShipment', () => {
+  it('transitions a packing shipment with at least one box to packed', async () => {
+    shipmentStatus = 'packing';
+    boxCount = 1;
+
+    const result = await sealShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: true });
+    expect(packedShipmentUpdate).toMatchObject({
+      shipment_id: SHIPMENT_ID,
+      packed_by: USER_ID,
+    });
+    expect(normalize(String(packedShipmentUpdate?.sql))).toContain("status = 'packed'");
+    expect(normalize(String(packedShipmentUpdate?.sql))).toContain('packed_at = now()');
+    expect(normalize(String(packedShipmentUpdate?.sql))).toContain('packed_by = $2::uuid');
+  });
+
+  it("returns invalid_state when the shipment is not in 'packing'", async () => {
+    shipmentStatus = 'packed';
+    boxCount = 1;
+
+    const result = await sealShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(packedShipmentUpdate).toBeNull();
+  });
+
+  it('returns no_boxes when the packing shipment has no boxes', async () => {
+    shipmentStatus = 'packing';
+    boxCount = 0;
+
+    const result = await sealShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'no_boxes' });
+    expect(packedShipmentUpdate).toBeNull();
   });
 });
 

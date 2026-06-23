@@ -5,6 +5,7 @@ import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { releaseHold } from './hold-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -230,6 +231,7 @@ export async function resolveCcpDeviation(
         ccp_code: string;
         monitoring_log_id: string | null;
         measured_value: string | null;
+        hold_id: string | null;
       }>(
         `select
            d.id::text,
@@ -237,7 +239,8 @@ export async function resolveCcpDeviation(
            d.ccp_id::text,
            c.ccp_code,
            d.monitoring_log_id::text,
-           d.measured_value::text
+           d.measured_value::text,
+           d.hold_id::text
          from public.ccp_deviations d
          join public.haccp_ccps c on c.id = d.ccp_id and c.org_id = d.org_id
         where d.org_id = app.current_org_id()
@@ -279,6 +282,18 @@ export async function resolveCcpDeviation(
             and status = 'open'`,
         [parsed.id, parsed.actionTaken, parsed.disposition, ctx.userId, receipt.signatureId],
       );
+
+      if (deviation.hold_id) {
+        const released = await releaseHold({
+          holdId: deviation.hold_id,
+          disposition: 'release',
+          reasonText: 'CCP deviation resolved',
+          signature: parsed.signature,
+        });
+        if (!released.ok) {
+          throw new Error(released.message ?? `CCP deviation hold release failed: ${released.reason}`);
+        }
+      }
 
       const rows = await selectDeviationRows(ctx, undefined, parsed.id);
       const row = rows[0];

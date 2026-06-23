@@ -41,7 +41,7 @@ import { Button } from '@monopilot/ui/Button';
 
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import { ShipmentShipControls, type ShipmentShipLabels, type ShipmentShipCaps } from './shipment-ship-controls';
-import type { ShipShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
+import type { ShipShipmentResult, SealShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
 import type { ShipmentDetail } from '../_actions/shipments-data';
 
 export type ShipmentPackLabels = {
@@ -78,6 +78,13 @@ export type ShipmentPackLabels = {
     /** Tooltip when the control is disabled because the user lacks ship.pack.close. */
     noPermission: string;
   };
+  seal: {
+    submit: string;
+    submitting: string;
+    noPermission: string;
+    needsBox: string;
+    invalidState: string;
+  };
   errors: Record<string, string>;
   /** Ship / BOL / POD rail labels (added by the ship-controls lane). */
   ship: ShipmentShipLabels;
@@ -95,6 +102,7 @@ export type ShipmentPackViewProps = {
     lpId: string;
     boxId?: string;
   }) => Promise<PackLpResult>;
+  sealShipmentAction: (shipmentId: string) => Promise<SealShipmentResult>;
   /** Reviewed ship-actions.ts seams (imported by the page, never authored here). */
   shipShipmentAction: (shipmentId: string) => Promise<ShipShipmentResult>;
   generateBolAction: (input: {
@@ -112,6 +120,7 @@ export function ShipmentPackView({
   labels,
   caps,
   packLpIntoBoxAction,
+  sealShipmentAction,
   shipShipmentAction,
   generateBolAction,
   recordPodAction,
@@ -122,7 +131,9 @@ export function ShipmentPackView({
   const [lp, setLp] = React.useState('');
   const [boxNumber, setBoxNumber] = React.useState(''); // '' = new box
   const [pending, setPending] = React.useState(false);
+  const [sealPending, setSealPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [sealError, setSealError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
 
   const statusLabel = (s: string) => labels.status[s.toLowerCase()] ?? s;
@@ -144,6 +155,14 @@ export function ShipmentPackView({
 
   const disabled = !caps.canPack || pending;
   const tooltip = !caps.canPack ? labels.pack.noPermission : undefined;
+  const sealDisabledReason = !caps.canPack
+    ? labels.seal.noPermission
+    : boxes.length < 1
+      ? labels.seal.needsBox
+      : shipment.status !== 'packing'
+        ? labels.seal.invalidState
+        : null;
+  const sealDisabled = sealPending || Boolean(sealDisabledReason);
 
   async function onSubmit() {
     if (disabled) return;
@@ -155,6 +174,7 @@ export function ShipmentPackView({
     }
     setPending(true);
     setError(null);
+    setSealError(null);
     setSuccess(null);
     try {
       // boxId resolution: the reviewed packLpIntoBox takes an OPTIONAL boxId. The
@@ -181,6 +201,31 @@ export function ShipmentPackView({
       setError(labels.errors.persistence_failed);
     } finally {
       setPending(false);
+    }
+  }
+
+  async function onSeal() {
+    if (sealDisabled) return;
+    setSealPending(true);
+    setError(null);
+    setSealError(null);
+    setSuccess(null);
+    try {
+      const result = await sealShipmentAction(shipment.id);
+      if (!result.ok) {
+        setSealError(
+          result.error === 'invalid_state'
+            ? labels.seal.invalidState
+            : labels.errors[result.error] ?? labels.errors.persistence_failed,
+        );
+        setSealPending(false);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setSealError(labels.errors.persistence_failed);
+    } finally {
+      setSealPending(false);
     }
   }
 
@@ -360,6 +405,24 @@ export function ShipmentPackView({
                 </dd>
               </div>
             </dl>
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <Button
+                type="button"
+                className="btn--primary w-full"
+                data-testid="shipment-seal-submit"
+                disabled={sealDisabled}
+                aria-busy={sealPending}
+                title={sealDisabledReason ?? undefined}
+                onClick={() => void onSeal()}
+              >
+                {sealPending ? labels.seal.submitting : labels.seal.submit}
+              </Button>
+              {sealError ? (
+                <p role="alert" data-testid="shipment-seal-error" className="mt-2 text-sm text-red-600">
+                  {sealError}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           {/* Ship / BOL / POD controls + lifecycle (parity pack-screens.jsx:191-216). */}

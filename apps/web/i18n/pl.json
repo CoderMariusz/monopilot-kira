@@ -5152,7 +5152,22 @@
       "emptyBody": "Lista kontrolna przekazania jest tworzona, gdy projekt osiągnie etap przekazania.",
       "error": "Nie można załadować danych przekazania.",
       "forbidden": "Nie masz uprawnień do wyświetlenia etapu przekazania.",
-      "notSet": "—"
+      "notSet": "—",
+      "releaseGatesTitle": "Bramki wydania",
+      "releaseGatesBody": "Promocja przekazuje wyrób gotowy i BOM do fabryki. Każda bramka poniżej musi najpierw przejść — usuń wszystkie niespełnione.",
+      "gateMet": "Spełniona",
+      "gateUnmet": "Niespełniona",
+      "gateRemediation": "Rozwiąż",
+      "gate.G4_REQUIRED": "Projekt na bramce G4",
+      "gate.FG_CANDIDATE_REQUIRED": "Przypisany kandydat wyrobu gotowego",
+      "gate.ACTIVE_SHARED_BOM_REQUIRED": "Aktywny współdzielony BOM z pozycjami",
+      "gate.FACTORY_SPEC_REQUIRED": "Zatwierdzona specyfikacja fabryczna",
+      "gate.V18_OPEN_HIGH_RISK": "Brak otwartych wysokich ryzyk",
+      "promotedNextTitle": "Następny krok",
+      "promotedNextBody": "Wyrób gotowy i BOM zostały przekazane do fabryki. Przejdź projekt do statusu Uruchomiony lub otwórz wydany BOM w module Technicznym.",
+      "advanceToLaunched": "Przejdź do Uruchomiony →",
+      "viewBom": "Pokaż wydany BOM",
+      "viewProject": "Wróć do projektu"
     },
     "pipelineCreate": {
       "title": "Utwórz projekt NPD",
@@ -5991,6 +6006,7 @@
         "not_found": "To zlecenie przesunięcia już nie istnieje.",
         "already_exists": "Zlecenie o tym numerze już istnieje.",
         "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
+        "insufficient_stock": "Niewystarczający zapas do realizacji tego przesunięcia",
         "persistence_failed": "Coś poszło nie tak przy zapisie. Spróbuj ponownie."
       },
       "create": {
@@ -8860,11 +8876,18 @@
           "submit": "Spakuj",
           "submitting": "Pakowanie…",
           "success": "Spakowano do kartonu {n}.",
-          "noPermission": "Nie masz uprawnień do pakowania tej wysyłki."
+          "noPermission": "Nie masz uprawnień do pakowania tej wysyłki.",
+          "sealSubmit": "Zamknij pakowanie wysyłki",
+          "sealSubmitting": "Zamykanie pakowania…",
+          "sealNoPermission": "Nie masz uprawnień do zamknięcia pakowania tej wysyłki.",
+          "sealNeedsBox": "Spakuj co najmniej jeden karton przed zamknięciem pakowania.",
+          "sealInvalidState": "Tej wysyłki nie można zamknąć do wysyłki w bieżącym statusie."
         },
         "errors": {
           "invalid_input": "Wpisz kod nośnika.",
           "invalid_state": "Tej wysyłki nie można spakować w bieżącym statusie.",
+          "no_boxes": "Spakuj co najmniej jeden karton przed zamknięciem pakowania wysyłki.",
+          "lp_not_found": "Nie znaleziono tego nośnika.",
           "lp_not_allocated": "Ten nośnik nie jest zaalokowany do tego zamówienia sprzedaży.",
           "already_packed": "Ten nośnik jest już spakowany.",
           "invalid_box": "Ten karton już nie istnieje.",
@@ -8892,6 +8915,7 @@
         "shipped": "Wysyłka wysłana.",
         "noPermission": "Nie masz uprawnień do wysłania tej wysyłki.",
         "needsBox": "Spakuj co najmniej jeden karton przed wysyłką.",
+        "needsSeal": "Zamknij pakowanie wysyłki przed wysłaniem.",
         "alreadyShipped": "Ta wysyłka została już wysłana.",
         "errors": {
           "invalid_state": "Tej wysyłki nie można wysłać w bieżącym statusie.",

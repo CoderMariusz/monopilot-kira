@@ -3028,7 +3028,22 @@
       "emptyBody": "A handoff checklist is created once the project reaches the handoff stage.",
       "error": "Unable to load handoff data.",
       "forbidden": "You do not have permission to view the handoff stage.",
-      "notSet": "—"
+      "notSet": "—",
+      "releaseGatesTitle": "Release gates",
+      "releaseGatesBody": "Promoting releases the FG + BOM to the factory. Every gate below must pass first — resolve any that are not met.",
+      "gateMet": "Met",
+      "gateUnmet": "Not met",
+      "gateRemediation": "Resolve",
+      "gate.G4_REQUIRED": "Project at gate G4",
+      "gate.FG_CANDIDATE_REQUIRED": "FG product candidate mapped",
+      "gate.ACTIVE_SHARED_BOM_REQUIRED": "Active shared BOM with lines",
+      "gate.FACTORY_SPEC_REQUIRED": "Factory spec approved",
+      "gate.V18_OPEN_HIGH_RISK": "No open high risks",
+      "promotedNextTitle": "Next step",
+      "promotedNextBody": "The FG + BOM are released to the factory. Advance the project to Launched, or open the released BOM in Technical.",
+      "advanceToLaunched": "Advance to Launched →",
+      "viewBom": "View released BOM",
+      "viewProject": "Back to project"
     },
     "pipelineCreate": {
       "title": "Create NPD project",
@@ -6860,6 +6875,7 @@
         "not_found": "That transfer order no longer exists.",
         "already_exists": "A transfer order with that number already exists.",
         "invalid_state": "That action isn't allowed in the current status.",
+        "insufficient_stock": "Insufficient stock to fulfill this transfer",
         "persistence_failed": "Something went wrong saving your changes. Please retry."
       },
       "create": {
@@ -8857,11 +8873,18 @@
           "submit": "Pack",
           "submitting": "Packing…",
           "success": "Packed into box {n}.",
-          "noPermission": "You do not have permission to pack this shipment."
+          "noPermission": "You do not have permission to pack this shipment.",
+          "sealSubmit": "Seal shipment",
+          "sealSubmitting": "Sealing…",
+          "sealNoPermission": "You do not have permission to seal this shipment.",
+          "sealNeedsBox": "Pack at least one box before sealing.",
+          "sealInvalidState": "This shipment cannot be sealed in its current status."
         },
         "errors": {
           "invalid_input": "Enter a license plate code.",
           "invalid_state": "This shipment cannot be packed in its current status.",
+          "no_boxes": "Pack at least one box before sealing the shipment.",
+          "lp_not_found": "That license plate was not found.",
           "lp_not_allocated": "That license plate is not allocated to this sales order.",
           "already_packed": "That license plate is already packed.",
           "invalid_box": "That box no longer exists.",
@@ -8889,6 +8912,7 @@
         "shipped": "Shipment shipped.",
         "noPermission": "You do not have permission to ship this shipment.",
         "needsBox": "Pack at least one box before shipping.",
+        "needsSeal": "Seal the shipment before shipping.",
         "alreadyShipped": "This shipment has already been shipped.",
         "errors": {
           "invalid_state": "This shipment cannot be shipped in its current status.",

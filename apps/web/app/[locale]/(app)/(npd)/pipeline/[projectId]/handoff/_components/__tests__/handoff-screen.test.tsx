@@ -21,6 +21,14 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// The screen calls router.refresh() after a successful promote (kills the
+// "nothing happens" symptom). Mock next/navigation so the client island renders
+// under jsdom and we can assert refresh() fires exactly on success.
+const refreshSpy = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshSpy }),
+}));
+
 import {
   HandoffScreen,
   buildHandoffPacket,
@@ -34,6 +42,21 @@ afterEach(() => cleanup());
 const LABELS: HandoffLabels = {
   title: 'L_TITLE',
   breadcrumb: 'L_CRUMB',
+  releaseGatesTitle: 'L_GATES_TITLE',
+  releaseGatesBody: 'L_GATES_BODY',
+  gateMet: 'L_GATE_MET',
+  gateUnmet: 'L_GATE_UNMET',
+  gateRemediation: 'L_GATE_FIX',
+  'gate.G4_REQUIRED': 'L_GATE_G4',
+  'gate.FG_CANDIDATE_REQUIRED': 'L_GATE_FG',
+  'gate.ACTIVE_SHARED_BOM_REQUIRED': 'L_GATE_BOM',
+  'gate.FACTORY_SPEC_REQUIRED': 'L_GATE_SPEC',
+  'gate.V18_OPEN_HIGH_RISK': 'L_GATE_RISK',
+  promotedNextTitle: 'L_NEXT_TITLE',
+  promotedNextBody: 'L_NEXT_BODY',
+  advanceToLaunched: 'L_ADVANCE_LAUNCHED',
+  viewBom: 'L_VIEW_BOM',
+  viewProject: 'L_VIEW_PROJECT',
   readyTitle: 'L_READY_TITLE',
   readyBody: 'L_READY_BODY',
   blockedTitle: 'L_BLOCKED_TITLE',
@@ -67,7 +90,25 @@ const LABELS: HandoffLabels = {
   notSet: '—',
 };
 
-function dataReady(allChecked: boolean): HandoffScreenData {
+const HREFS = {
+  factorySpecs: '/en/technical/factory-specs',
+  bom: '/en/technical/bom',
+  project: '/en/pipeline/07300000-0000-4000-8000-0000000000c1',
+  gate: '/en/pipeline/07300000-0000-4000-8000-0000000000c1/gate',
+};
+
+const ALL_GATES_MET: HandoffScreenData['releaseGates'] = [
+  { code: 'G4_REQUIRED', met: true },
+  { code: 'FG_CANDIDATE_REQUIRED', met: true },
+  { code: 'ACTIVE_SHARED_BOM_REQUIRED', met: true },
+  { code: 'FACTORY_SPEC_REQUIRED', met: true },
+  { code: 'V18_OPEN_HIGH_RISK', met: true },
+];
+
+function dataReady(
+  allChecked: boolean,
+  gates: HandoffScreenData['releaseGates'] = ALL_GATES_MET,
+): HandoffScreenData {
   return {
     checklistId: 'cl-1',
     projectId: '07300000-0000-4000-8000-0000000000c1',
@@ -79,6 +120,8 @@ function dataReady(allChecked: boolean): HandoffScreenData {
       { id: 'i1', label: 'Recipe locked', isChecked: true, displayOrder: 1 },
       { id: 'i2', label: 'Nutrition approved', isChecked: allChecked, displayOrder: 2 },
     ],
+    releaseGates: gates,
+    releaseGatesMet: gates.every((g) => g.met),
     destinationBom: {
       bomCode: 'BOM-238',
       productSku: 'SKU-2451',
@@ -120,6 +163,65 @@ describe('HandoffScreen — parity structure', () => {
     );
     expect(screen.getByTestId('handoff-blocked-bar')).toHaveTextContent('L_BLOCKED_TITLE');
     expect(screen.getByTestId('handoff-promote-btn')).toBeDisabled();
+  });
+});
+
+describe('HandoffScreen — release-gate panel (dead-end repair)', () => {
+  it('renders a status row per release gate', () => {
+    render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} onPromote={vi.fn()} />);
+    const panel = screen.getByTestId('handoff-release-gates');
+    expect(panel).toBeInTheDocument();
+    expect(within(panel).getAllByTestId('handoff-release-gate')).toHaveLength(5);
+  });
+
+  it('marks an unmet gate, shows its remediation link, and DISABLES Promote even when the checklist is complete', () => {
+    const gates: HandoffScreenData['releaseGates'] = [
+      { code: 'G4_REQUIRED', met: true },
+      { code: 'FG_CANDIDATE_REQUIRED', met: true },
+      { code: 'ACTIVE_SHARED_BOM_REQUIRED', met: true },
+      { code: 'FACTORY_SPEC_REQUIRED', met: false },
+      { code: 'V18_OPEN_HIGH_RISK', met: true },
+    ];
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, gates)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+      />,
+    );
+    const unmet = screen.getByTestId('handoff-release-gate-FACTORY_SPEC_REQUIRED');
+    expect(unmet).toHaveAttribute('data-met', 'false');
+    // A remediation link is offered for the factory-spec gate.
+    expect(within(unmet).getByRole('link')).toHaveAttribute('href', expect.stringContaining('factory-specs'));
+    // Promote is blocked even though the checklist is complete — and the user SEES why.
+    expect(screen.getByTestId('handoff-promote-btn')).toBeDisabled();
+  });
+
+  it('enables Promote only when the checklist AND every release gate are met', () => {
+    render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} onPromote={vi.fn()} />);
+    expect(screen.getByTestId('handoff-promote-btn')).not.toBeDisabled();
+  });
+});
+
+describe('HandoffScreen — post-promote next step (dead-end repair)', () => {
+  it('refreshes the route after a successful promote', async () => {
+    refreshSpy.mockClear();
+    const onPromote = vi.fn().mockResolvedValue({ ok: true });
+    render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} onPromote={onPromote} />);
+    fireEvent.click(screen.getByTestId('handoff-promote-btn'));
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it('renders the next-step CTA (advance to launched + view BOM) once promoted', () => {
+    const data = { ...dataReady(true), promoted: true };
+    render(
+      <HandoffScreen state="ready" data={data} labels={LABELS} hrefs={HREFS} onPromote={vi.fn()} />,
+    );
+    const cta = screen.getByTestId('handoff-next-step');
+    expect(cta).toBeInTheDocument();
+    expect(within(cta).getByTestId('handoff-advance-launched-link')).toBeInTheDocument();
   });
 });
 

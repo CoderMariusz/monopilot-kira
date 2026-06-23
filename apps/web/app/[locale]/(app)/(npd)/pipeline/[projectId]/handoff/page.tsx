@@ -23,6 +23,7 @@ import { getTranslations } from 'next-intl/server';
 import {
   HandoffScreen,
   type PageState,
+  type HandoffHrefs,
   type HandoffLabels,
   type HandoffScreenData,
   type PromoteCall,
@@ -55,6 +56,23 @@ const DEFAULT_LABELS: HandoffLabels = {
   blockedBody: 'Complete every handoff checklist item before promoting to a production BOM.',
   promotedTitle: 'Promoted.',
   promotedBody: 'This project has been released to the factory. The production BOM is owned by the release pipeline.',
+  releaseGatesTitle: 'Release gates',
+  releaseGatesBody:
+    'Promoting releases the FG + BOM to the factory. Every gate below must pass first — resolve any that are not met.',
+  gateMet: 'Met',
+  gateUnmet: 'Not met',
+  gateRemediation: 'Resolve',
+  'gate.G4_REQUIRED': 'Project at gate G4',
+  'gate.FG_CANDIDATE_REQUIRED': 'FG product candidate mapped',
+  'gate.ACTIVE_SHARED_BOM_REQUIRED': 'Active shared BOM with lines',
+  'gate.FACTORY_SPEC_REQUIRED': 'Factory spec approved',
+  'gate.V18_OPEN_HIGH_RISK': 'No open high risks',
+  promotedNextTitle: 'Next step',
+  promotedNextBody:
+    'The FG + BOM are released to the factory. Advance the project to Launched, or open the released BOM in Technical.',
+  advanceToLaunched: 'Advance to Launched →',
+  viewBom: 'View released BOM',
+  viewProject: 'Back to project',
   checklistTitle: 'Handoff checklist',
   destinationTitle: 'Destination BOM',
   whatHappensTitle: 'What happens on promote',
@@ -153,11 +171,22 @@ export default async function HandoffPage(propsInput: unknown = {}) {
     ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
     : await readPageData(projectId);
 
+  // Locale-prefixed navigation targets, resolved at the server boundary so the
+  // client island never guesses route shapes. Powers the release-gate remediation
+  // links + the post-promote next-step CTA (kills the reported dead end).
+  const hrefs: HandoffHrefs = {
+    factorySpecs: `/${locale}/technical/factory-specs`,
+    bom: `/${locale}/technical/bom`,
+    project: `/${locale}/pipeline/${projectId}`,
+    gate: `/${locale}/pipeline/${projectId}/gate`,
+  };
+
   return (
     <HandoffScreen
       state={loaded.state}
       data={loaded.data}
       labels={labels}
+      hrefs={hrefs}
       onPromote={promoteAction}
       onToggleChecklistItem={toggleChecklistAction}
     />

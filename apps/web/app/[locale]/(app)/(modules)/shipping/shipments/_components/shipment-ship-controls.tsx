@@ -60,6 +60,8 @@ export type ShipmentShipLabels = {
     noPermission: string;
     /** Tooltip when no boxes are packed yet. */
     needsBox: string;
+    /** Tooltip when boxes exist but the shipment has not been sealed to packed yet. */
+    needsSeal: string;
     /** Tooltip when the shipment is already shipped/delivered. */
     alreadyShipped: string;
     errors: Record<string, string>;
@@ -167,15 +169,17 @@ export function ShipmentShipControls({
   const [shipPending, setShipPending] = React.useState(false);
   const [shipError, setShipError] = React.useState<string | null>(null);
 
-  const packed = boxCount >= 1;
-  // [Ship] shows only when the shipment is packed (≥1 box) and not yet shipped.
+  const hasBox = boxCount >= 1;
+  // [Ship] remains visible before shipping but is actionable only after packing is sealed.
   const showShip = !shipped;
 
   const shipDisabledReason = !caps.canShip
     ? labels.ship.noPermission
-    : !packed
+    : !hasBox
       ? labels.ship.needsBox
-      : null;
+      : normalized !== 'packed'
+        ? labels.ship.needsSeal
+        : null;
   const shipDisabled = shipPending || Boolean(shipDisabledReason);
 
   async function onShip() {

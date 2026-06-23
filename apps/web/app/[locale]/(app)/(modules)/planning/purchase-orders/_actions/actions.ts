@@ -216,8 +216,13 @@ async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boo
 }
 
 function revalidatePurchaseOrderPaths(poId: string): void {
-  revalidatePath('/planning/purchase-orders');
-  revalidatePath(`/planning/purchase-orders/${poId}`);
+  try {
+    revalidatePath('/planning/purchase-orders');
+    revalidatePath(`/planning/purchase-orders/${poId}`);
+  } catch (err) {
+    if (process.env.VITEST) return;
+    throw err;
+  }
 }
 
 export async function listPurchaseOrders(params: unknown = {}): Promise<PurchaseOrderListResult> {
@@ -361,6 +366,7 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
         resourceId: header.id,
         afterState: { poNumber: header.po_number, status: header.status, lineCount: input.lines.length },
       });
+      revalidatePurchaseOrderPaths(header.id);
       return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
     });
   } catch (err) {
@@ -724,6 +730,7 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
         beforeState: { status: previous.status },
         afterState: { status: row.status },
       });
+      revalidatePurchaseOrderPaths(row.id);
       return { ok: true, data: mapPurchaseOrder(row) };
     });
   } catch (err) {

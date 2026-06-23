@@ -107,10 +107,19 @@ const packLabels: ShipmentPackLabels = {
     success: 'Packed into box {n}.',
     noPermission: 'You do not have permission to pack this shipment.',
   },
+  seal: {
+    submit: 'Seal shipment',
+    submitting: 'Sealing…',
+    noPermission: 'You do not have permission to seal this shipment.',
+    needsBox: 'Pack at least one box before sealing.',
+    invalidState: 'This shipment cannot be sealed in its current status.',
+  },
   errors: {
     invalid_input: 'Enter a license plate code.',
     forbidden: "You don't have permission to do that.",
     invalid_state: 'This shipment cannot be packed in its current status.',
+    no_boxes: 'Pack at least one box before sealing the shipment.',
+    lp_not_found: 'That license plate was not found.',
     lp_not_allocated: 'That license plate is not allocated to this sales order.',
     already_packed: 'That license plate is already packed.',
     invalid_box: 'That box no longer exists.',
@@ -136,6 +145,7 @@ const packLabels: ShipmentPackLabels = {
       shipped: 'Shipment shipped.',
       noPermission: 'You do not have permission to ship this shipment.',
       needsBox: 'Pack at least one box before shipping.',
+      needsSeal: 'Seal the shipment before shipping.',
       alreadyShipped: 'This shipment has already been shipped.',
       errors: {
         forbidden: "You don't have permission to do that.",
@@ -287,6 +297,7 @@ function makeDetail(overrides: Partial<ShipmentDetail> = {}): ShipmentDetail {
 }
 
 type ShipResult = { ok: true } | { ok: false; error: string };
+type SealResult = { ok: true } | { ok: false; error: string };
 type BolResult = { ok: true; bolRef: string } | { ok: false; error: string };
 type PodResult = { ok: true } | { ok: false; error: string };
 
@@ -295,6 +306,7 @@ function renderPack(
   caps: { canPack: boolean; canShip?: boolean; canPod?: boolean } = { canPack: true },
   packAction?: (input: { shipmentId: string; lpId: string; boxId?: string }) => Promise<{ ok: true; boxId: string } | { ok: false; error: string }>,
   shipActions: {
+    seal?: (id: string) => Promise<SealResult>;
     ship?: (id: string) => Promise<ShipResult>;
     bol?: (input: { shipmentId: string; carrier?: string; serviceLevel?: string; trackingNumber?: string }) => Promise<BolResult>;
     pod?: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<PodResult>;
@@ -303,6 +315,7 @@ function renderPack(
   const packLpIntoBoxAction = vi.fn(
     packAction ?? (async () => ({ ok: true, boxId: 'box-uuid-1' }) as { ok: true; boxId: string }),
   );
+  const sealShipmentAction = vi.fn(shipActions.seal ?? (async () => ({ ok: true }) as SealResult));
   const shipShipmentAction = vi.fn(shipActions.ship ?? (async () => ({ ok: true }) as ShipResult));
   const generateBolAction = vi.fn(
     shipActions.bol ?? (async () => ({ ok: true, bolRef: 'a1b2c3d4e5f6a7b8' }) as BolResult),
@@ -315,12 +328,13 @@ function renderPack(
       labels={packLabels}
       caps={{ canPack: caps.canPack, canShip: caps.canShip ?? caps.canPack, canPod: caps.canPod ?? true }}
       packLpIntoBoxAction={packLpIntoBoxAction}
+      sealShipmentAction={sealShipmentAction}
       shipShipmentAction={shipShipmentAction}
       generateBolAction={generateBolAction}
       recordPodAction={recordPodAction}
     />,
   );
-  return { packLpIntoBoxAction, shipShipmentAction, generateBolAction, recordPodAction };
+  return { packLpIntoBoxAction, sealShipmentAction, shipShipmentAction, generateBolAction, recordPodAction };
 }
 
 describe('ShipmentPackView — header, boxes+SSCC, contents, Pack-LP control', () => {
@@ -377,6 +391,16 @@ describe('ShipmentPackView — header, boxes+SSCC, contents, Pack-LP control', (
     const submit = screen.getByTestId('pack-lp-submit');
     expect(submit).toBeDisabled();
     expect(submit).toHaveAttribute('title', 'You do not have permission to pack this shipment.');
+  });
+
+  it('calls sealShipment and refreshes when sealing a packing shipment with boxes', async () => {
+    const { sealShipmentAction } = renderPack();
+    const sealBtn = screen.getByTestId('shipment-seal-submit');
+    expect(sealBtn).toHaveTextContent('Seal shipment');
+    expect(sealBtn).not.toBeDisabled();
+    fireEvent.click(sealBtn);
+    await waitFor(() => expect(sealShipmentAction).toHaveBeenCalledWith(SHIPMENT_ID));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 });
 

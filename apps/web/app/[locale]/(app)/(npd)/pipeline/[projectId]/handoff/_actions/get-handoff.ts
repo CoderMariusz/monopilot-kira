@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { seedHandoffChecklist } from '../../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { probeReleaseGates, type ReleaseGateStatus } from './release-gate-status';
 
 const Input = z.object({
   projectId: z.string().uuid(),
@@ -60,6 +61,14 @@ export type HandoffData = {
   promoted: boolean;
   checklist: HandoffChecklistItemDto[];
   destinationBom: HandoffDestinationBomDto;
+  /**
+   * Per-gate release-preflight status, surfaced so the user SEES why "Promote"
+   * is blocked (the reported dead-end). Read-only mirror of runReleasePreflight;
+   * the real promote still runs the authoritative preflight server-side.
+   */
+  releaseGates: ReleaseGateStatus[];
+  /** True ⇔ every release gate is met (Promote precondition, in addition to the checklist). */
+  releaseGatesMet: boolean;
 };
 
 export type GetHandoffError = 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed';
@@ -251,6 +260,12 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
       );
       const release = releaseRes.rows[0] ?? null;
 
+      // Read-only release-gate probe — surfaces WHY Promote is blocked. Never
+      // throws (probe returns all-unmet for a missing project), so a probe
+      // failure can never turn the screen into a dead end.
+      const releaseGates = await probeReleaseGates(ctx, projectId);
+      const releaseGatesMet = releaseGates.length > 0 && releaseGates.every((g) => g.met);
+
       const items = itemsRes.rows.map((r) => ({
         id: r.id,
         label: r.label,
@@ -272,6 +287,8 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           ready,
           promoted,
           checklist: items,
+          releaseGates,
+          releaseGatesMet,
           destinationBom: {
             // Fallback resolves bom_headers to a HUMAN-READABLE identity (fa_code /
             // product code + version) — never the raw active_bom_header_id uuid.

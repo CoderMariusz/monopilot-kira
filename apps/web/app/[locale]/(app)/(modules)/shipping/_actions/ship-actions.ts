@@ -14,6 +14,7 @@ type QueryClient = {
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
 
 export type ShipShipmentResult = { ok: true } | { ok: false; error: string };
+export type SealShipmentResult = { ok: true } | { ok: false; error: string };
 
 export type GenerateBolInput = {
   shipmentId: string;
@@ -92,6 +93,70 @@ async function fetchShipmentLps(ctx: ShippingContext, shipmentId: string): Promi
     [shipmentId],
   );
   return rows;
+}
+
+export async function sealShipment(shipmentId: string): Promise<SealShipmentResult> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SealShipmentResult> => {
+      const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
+      const forbidden = await requirePermission(ctx, SHIP_PACK_CLOSE);
+      if (forbidden) return forbidden;
+
+      const { rows: shipmentRows } = await ctx.client.query<{
+        id: string;
+        status: string;
+        box_count: number | string | bigint | null;
+      }>(
+        `select sh.id::text,
+                sh.status,
+                count(distinct sb.id)::int as box_count
+           from public.shipments sh
+           left join public.shipment_boxes sb on sb.shipment_id = sh.id
+            and sb.org_id = app.current_org_id()
+            and sb.deleted_at is null
+          where sh.org_id = app.current_org_id()
+            and sh.id = $1::uuid
+            and sh.deleted_at is null
+          group by sh.id, sh.status
+          limit 1`,
+        [shipmentId],
+      );
+      const shipment = shipmentRows[0];
+      if (!shipment || shipment.status !== 'packing') {
+        return { ok: false, error: 'invalid_state' };
+      }
+      if (toNumber(shipment.box_count) < 1) {
+        return { ok: false, error: 'no_boxes' };
+      }
+
+      const { rows: updatedShipmentRows } = await ctx.client.query<{ id: string }>(
+        `update public.shipments
+            set status = 'packed',
+                packed_at = now(),
+                packed_by = $2::uuid,
+                updated_at = now(),
+                updated_by = $2::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'packing'
+            and deleted_at is null
+            and exists (
+              select 1
+                from public.shipment_boxes sb
+               where sb.org_id = app.current_org_id()
+                 and sb.shipment_id = public.shipments.id
+                 and sb.deleted_at is null
+            )
+          returning id::text`,
+        [shipmentId, userId],
+      );
+      if (!updatedShipmentRows[0]) throw new ActionError('persistence_failed');
+
+      return { ok: true };
+    });
+  } catch (err) {
+    return { ok: false, error: errorCode(err) };
+  }
 }
 
 export async function shipShipment(shipmentId: string): Promise<ShipShipmentResult> {

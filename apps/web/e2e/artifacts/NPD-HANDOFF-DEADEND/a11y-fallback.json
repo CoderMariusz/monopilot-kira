@@ -1,0 +1,12 @@
+{
+  "task": "NPD-HANDOFF-DEADEND",
+  "note": "Playwright + @axe-core blocked (no running RBAC-authenticated app server in worktree). RTL role/landmark checks below substitute.",
+  "hasH1": true,
+  "hasBreadcrumbNav": true,
+  "hasMainLandmark": true,
+  "gatePanelHasHeading": true,
+  "unmetGateHasRemediationLink": true,
+  "colorNotSoleSignal": true,
+  "noRawSelect": true,
+  "noRawCheckbox": true
+}

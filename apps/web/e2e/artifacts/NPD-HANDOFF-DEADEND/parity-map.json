@@ -1,0 +1,45 @@
+{
+  "task": "NPD-HANDOFF-DEADEND",
+  "anchor": "prototypes/design/Monopilot Design System/npd/other-stages.jsx:485-533",
+  "mapping": [
+    {
+      "prototype": "alert alert-green \"Ready to promote. All gates pass.\"",
+      "production": "promotion-state bar (green ready / green promoted / amber blocked)",
+      "lines": "485"
+    },
+    {
+      "prototype": "Handoff checklist card with ✓ rows",
+      "production": "shadcn Card + Checkbox primitive rows (data-testid=handoff-checklist)",
+      "lines": "487-502"
+    },
+    {
+      "prototype": "Destination BOM table",
+      "production": "shadcn Card label/value table (data-testid=handoff-destination-card)",
+      "lines": "505-516"
+    },
+    {
+      "prototype": "What happens on promote ordered list",
+      "production": "shadcn Card ordered list (6 steps)",
+      "lines": "517-527"
+    },
+    {
+      "prototype": "Export handoff packet + ✓ Promote to production BOM",
+      "production": "footer buttons; Promote disabled until checklist AND release gates met",
+      "lines": "530-533"
+    }
+  ],
+  "deviations": [
+    {
+      "deviation": "Added a \"Release gates\" panel surfacing each preflight blocker (Met/Not met + remediation link).",
+      "reason": "Prototype hard-codes \"All gates pass\" (line 485). Live, the gates can fail and the user reported Promote looking permanently disabled with no reason. The panel is a read-only mirror of runReleasePreflight; the server preflight stays authoritative on promote."
+    },
+    {
+      "deviation": "Added a post-promote \"Next step\" CTA card (Advance to Launched / View BOM / Back to project).",
+      "reason": "Prototype ends at promote with no onward navigation — a dead end. The CTA links to the existing project AdvanceGateModal (handoff → launched) and Technical BOM. Promote does NOT auto-advance to launched (pending owner decision); the step is reachable, not automatic."
+    },
+    {
+      "deviation": "router.refresh() after a successful promote.",
+      "reason": "Prototype is static; live the RSC tree must re-fetch so the \"Promoted\" bar + next-step CTA appear without a manual reload."
+    }
+  ]
+}

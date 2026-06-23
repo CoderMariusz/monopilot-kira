@@ -125,6 +125,85 @@ describe('getHandoff — RBAC + ready derivation', () => {
     expect(r.data.checklist).toHaveLength(2);
   });
 
+  it('surfaces per-gate release status via the read-only preflight probe', async () => {
+    handlerHolder.handler = permHandler(['npd.handoff.read'], (sql) => {
+      if (/from public.handoff_checklists/.test(sql)) {
+        return {
+          rows: [
+            {
+              id: CHECKLIST,
+              bom_verification_status: 'pending',
+              destination_bom_code: 'BOM-238',
+              promote_to_production_date: null,
+              destination_warehouse_id: null,
+            },
+          ],
+        };
+      }
+      if (/from public.handoff_checklist_items/.test(sql)) {
+        return { rows: [{ id: 'i1', label: 'Recipe locked', is_checked: true, display_order: 1 }] };
+      }
+      // The probe project lookup (current_gate + product_code) — note get-handoff
+      // also queries npd_projects for product name; distinguish by the columns.
+      if (/from public.npd_projects/.test(sql) && /current_gate/.test(sql)) {
+        return { rows: [{ current_gate: 'G4', product_code: 'FG-9' }] };
+      }
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [{ product_code: 'FG-9', product_name: 'Test FG' }] };
+      }
+      if (/from public.risks/.test(sql)) {
+        return { rows: [{ open_high_count: '0' }] }; // no open high risk → met
+      }
+      if (/from public.bom_headers/.test(sql)) {
+        return { rows: [{ id: 'bom-h', line_count: '2' }] }; // active BOM with lines → met
+      }
+      if (/from public.factory_specs/.test(sql)) {
+        return { rows: [{ id: 'spec-1' }] }; // approved spec → met
+      }
+      return { rows: [] };
+    });
+
+    const r = await getHandoff({ projectId: PROJECT });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.releaseGates).toHaveLength(5);
+    expect(r.data.releaseGates.every((g) => g.met)).toBe(true);
+    expect(r.data.releaseGatesMet).toBe(true);
+  });
+
+  it('reports unmet release gates (all false) when the project resolves no product / BOM / spec', async () => {
+    handlerHolder.handler = permHandler(['npd.handoff.read'], (sql) => {
+      if (/from public.handoff_checklists/.test(sql)) {
+        return {
+          rows: [
+            {
+              id: CHECKLIST,
+              bom_verification_status: null,
+              destination_bom_code: null,
+              promote_to_production_date: null,
+              destination_warehouse_id: null,
+            },
+          ],
+        };
+      }
+      if (/from public.handoff_checklist_items/.test(sql)) {
+        return { rows: [{ id: 'i1', label: 'Recipe locked', is_checked: true, display_order: 1 }] };
+      }
+      // Probe finds the project but at G1 with no product_code → every gate unmet.
+      if (/from public.npd_projects/.test(sql) && /current_gate/.test(sql)) {
+        return { rows: [{ current_gate: 'G1', product_code: null }] };
+      }
+      return { rows: [] };
+    });
+
+    const r = await getHandoff({ projectId: PROJECT });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.releaseGatesMet).toBe(false);
+    expect(r.data.releaseGates.find((g) => g.code === 'G4_REQUIRED')?.met).toBe(false);
+    expect(r.data.releaseGates.find((g) => g.code === 'FG_CANDIDATE_REQUIRED')?.met).toBe(false);
+  });
+
   it('derives ready=false when an item is unchecked', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.read'], (sql) => {
       if (/from public.handoff_checklists/.test(sql)) {

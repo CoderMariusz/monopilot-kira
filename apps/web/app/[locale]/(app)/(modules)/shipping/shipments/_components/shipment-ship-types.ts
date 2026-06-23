@@ -9,6 +9,8 @@
 
 export type ShipShipmentResult = { ok: true } | { ok: false; error: string };
 
+export type SealShipmentResult = { ok: true } | { ok: false; error: string };
+
 export type GenerateBolResult = { ok: true; bolRef: string } | { ok: false; error: string };
 
 export type RecordPodResult = { ok: true } | { ok: false; error: string };

@@ -20,6 +20,7 @@ const SITE_ID = '88888888-8888-4888-8888-888888888888';
 const LINE_ID = '99999999-9999-4999-8999-999999999999';
 const ITEM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const LP_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const LP_CODE = 'LP-0001';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -30,6 +31,7 @@ let insertedBoxes: Array<Record<string, unknown>> = [];
 let insertedContents: Array<Record<string, unknown>> = [];
 let existingPackedContent = false;
 let allocationExists = true;
+let lpCodeLookupId: string | null = LP_ID;
 let detailBoxes: Array<{ id: string; box_number: number; sscc: string | null }> = [];
 let detailContents: Array<{
   box_id: string;
@@ -111,6 +113,13 @@ function makeClient(): QueryClient {
         return {
           rows: [{ id: SHIPMENT_ID, sales_order_id: SO_ID, site_id: SITE_ID }],
           rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('select id::text as id from public.license_plates')) {
+        return {
+          rows: lpCodeLookupId ? [{ id: lpCodeLookupId }] : [],
+          rowCount: lpCodeLookupId ? 1 : 0,
         };
       }
 
@@ -219,6 +228,7 @@ beforeEach(() => {
   insertedContents = [];
   existingPackedContent = false;
   allocationExists = true;
+  lpCodeLookupId = LP_ID;
   detailBoxes = [{ id: BOX_ID, box_number: 1, sscc: generatedSscc }];
   detailContents = [
     {
@@ -288,6 +298,41 @@ describe('packLpIntoBox', () => {
         created_by: USER_ID,
       },
     ]);
+  });
+
+  it('resolves a scanned LP code to its UUID before packing', async () => {
+    const result = await packLpIntoBox({ shipmentId: SHIPMENT_ID, lpId: LP_CODE });
+
+    expect(result).toEqual({ ok: true, boxId: BOX_ID });
+    expect(
+      queryLog.some(
+        (entry) =>
+          normalize(entry.sql).startsWith('select id::text as id from public.license_plates') &&
+          entry.params[0] === LP_CODE,
+      ),
+    ).toBe(true);
+    expect(insertedContents[0]).toMatchObject({
+      license_plate_id: LP_ID,
+    });
+    expect(
+      queryLog.some(
+        (entry) =>
+          normalize(entry.sql).startsWith('select ia.sales_order_line_id::text') &&
+          entry.params[0] === LP_ID,
+      ),
+    ).toBe(true);
+  });
+
+  it('returns lp_not_found for an unknown scanned LP code without throwing a UUID cast error', async () => {
+    lpCodeLookupId = null;
+
+    const result = await packLpIntoBox({ shipmentId: SHIPMENT_ID, lpId: 'LP-9999' });
+
+    expect(result).toEqual({ ok: false, error: 'lp_not_found' });
+    expect(insertedBoxes).toEqual([]);
+    expect(insertedContents).toEqual([]);
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select sbc.id::text'))).toBe(false);
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select ia.sales_order_line_id::text'))).toBe(false);
   });
 });
 

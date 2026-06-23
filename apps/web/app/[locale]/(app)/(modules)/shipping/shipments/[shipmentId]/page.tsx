@@ -25,11 +25,12 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getShipment, packLpIntoBox } from '../../_actions/pack-actions';
-import { shipShipment, generateBol, recordPod } from '../../_actions/ship-actions';
+import { shipShipment, sealShipment, generateBol, recordPod } from '../../_actions/ship-actions';
 import { getCreateShipmentCapability } from '../_actions/shipments-data';
 import { ShipmentPackView, type ShipmentPackLabels, type PackLpResult } from '../_components/shipment-pack-view';
 import type {
   ShipShipmentResult,
+  SealShipmentResult,
   GenerateBolResult,
   RecordPodResult,
 } from '../_components/shipment-ship-types';
@@ -52,6 +53,11 @@ async function packLpAction(input: { shipmentId: string; lpId: string; boxId?: s
 async function shipShipmentAction(shipmentId: string): Promise<ShipShipmentResult> {
   'use server';
   return shipShipment(shipmentId);
+}
+
+async function sealShipmentAction(shipmentId: string): Promise<SealShipmentResult> {
+  'use server';
+  return sealShipment(shipmentId);
 }
 
 async function generateBolAction(input: {
@@ -126,10 +132,19 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       success: t('pack.control.success'),
       noPermission: t('pack.control.noPermission'),
     },
+    seal: {
+      submit: t('pack.control.sealSubmit'),
+      submitting: t('pack.control.sealSubmitting'),
+      noPermission: t('pack.control.sealNoPermission'),
+      needsBox: t('pack.control.sealNeedsBox'),
+      invalidState: t('pack.control.sealInvalidState'),
+    },
     errors: {
       invalid_input: t('pack.errors.invalid_input'),
       forbidden: t('errors.forbidden'),
       invalid_state: t('pack.errors.invalid_state'),
+      no_boxes: t('pack.errors.no_boxes'),
+      lp_not_found: t('pack.errors.lp_not_found'),
       lp_not_allocated: t('pack.errors.lp_not_allocated'),
       already_packed: t('pack.errors.already_packed'),
       invalid_box: t('pack.errors.invalid_box'),
@@ -167,6 +182,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
         shipped: t('ship.shipped'),
         noPermission: t('ship.noPermission'),
         needsBox: t('ship.needsBox'),
+        needsSeal: t('ship.needsSeal'),
         alreadyShipped: t('ship.alreadyShipped'),
         errors: {
           forbidden: t('errors.forbidden'),
@@ -261,6 +277,7 @@ async function PackContent({ locale, shipmentId }: { locale: string; shipmentId:
       }}
       labels={buildLabels(t)}
       packLpIntoBoxAction={packLpAction}
+      sealShipmentAction={sealShipmentAction}
       shipShipmentAction={shipShipmentAction}
       generateBolAction={generateBolAction}
       recordPodAction={recordPodAction}
