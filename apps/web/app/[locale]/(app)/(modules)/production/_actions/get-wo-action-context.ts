@@ -73,7 +73,10 @@ export type WoLineOption = { id: string; code: string };
  * hard-coded here — the page maps each code to its localized name via the modal
  * labels bundle.
  */
-export const WO_SHIFT_CODES = ['morning', 'afternoon', 'night'] as const;
+// Module-local (NOT exported): this is a `'use server'` file, which may only
+// export async functions — a const export here breaks the production build.
+// The shift options reach the client via the returned `shifts` list, not this const.
+const WO_SHIFT_CODES = ['morning', 'afternoon', 'night'] as const;
 
 export type WoActionContextData = {
   /** Runtime lifecycle status — null when the WO has no execution row yet. */
