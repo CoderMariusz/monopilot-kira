@@ -409,6 +409,25 @@ describe('ToDetailView — lines + status transitions (parity: to-screens.jsx:10
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
+  it('exposes Complete-receive + Cancel transitions on a partially_received TO (no dead-end)', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { transitionTransferOrderStatusAction } = renderDetail({ status: 'partially_received' });
+    transitionTransferOrderStatusAction.mockResolvedValue({ ok: true, data: {} });
+
+    // Mirrors the backend TO_TRANSITIONS: partially_received -> ['received','cancelled'].
+    const completeBtn = screen.getByTestId('to-transition-received');
+    const cancelBtn = screen.getByTestId('to-transition-cancelled');
+    expect(completeBtn).toHaveTextContent(enTo.detail.transitions.receive);
+    expect(cancelBtn).toHaveTextContent(enTo.detail.transitions.cancel);
+    // The dead-end placeholder must NOT render — actions exist.
+    expect(screen.queryByTestId('to-detail-no-actions')).toBeNull();
+
+    fireEvent.click(completeBtn);
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(transitionTransferOrderStatusAction).toHaveBeenCalledWith('to-1', 'received'));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
   it('exposes Receive on an in_transit TO and no actions on a terminal received TO', () => {
     const { rerender } = renderDetail({ status: 'in_transit' });
     expect(screen.getByTestId('to-transition-received')).toBeInTheDocument();

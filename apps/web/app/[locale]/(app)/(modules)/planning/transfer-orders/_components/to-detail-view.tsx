@@ -143,14 +143,24 @@ export type ToDetailViewProps = {
   reverseToReceiveLineAction?: (input: ReverseToReceiveLineInput) => Promise<ReverseToReceiveLineResult>;
 };
 
-/** Real enum transitions (mig 263): draft → in_transit | cancelled;
- *  in_transit → received | cancelled; received / cancelled are terminal. */
+/** Real enum transitions (mig 263), mirroring the server state machine
+ *  TO_TRANSITIONS in _actions/actions.ts:
+ *    draft               → in_transit | cancelled
+ *    in_transit          → received   | cancelled
+ *    partially_received  → received   | cancelled   (complete the receive, or cancel)
+ *    received / cancelled → terminal
+ *  Omitting partially_received here left it a UI dead-end (zero action buttons)
+ *  even though the backend allows completing/cancelling it — restored below. */
 const TRANSITIONS: Record<string, Array<{ to: string; labelKey: 'ship' | 'receive' | 'cancel'; tone: 'primary' | 'danger' }>> = {
   draft: [
     { to: 'in_transit', labelKey: 'ship', tone: 'primary' },
     { to: 'cancelled', labelKey: 'cancel', tone: 'danger' },
   ],
   in_transit: [
+    { to: 'received', labelKey: 'receive', tone: 'primary' },
+    { to: 'cancelled', labelKey: 'cancel', tone: 'danger' },
+  ],
+  partially_received: [
     { to: 'received', labelKey: 'receive', tone: 'primary' },
     { to: 'cancelled', labelKey: 'cancel', tone: 'danger' },
   ],
