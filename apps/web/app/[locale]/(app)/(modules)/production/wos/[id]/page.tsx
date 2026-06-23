@@ -34,6 +34,14 @@ import {
 } from './_components/wo-detail-screen';
 import type { VoidReasonCode } from './_components/void-correction-modal';
 import { buildWoModalLabels } from '../../_actions/wo-modal-labels';
+// E1 — FG label printing wired through the printers settings actions (mig 304).
+// The action ONLY supports entityType:'lp' and re-enforces RBAC server-side.
+import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import type {
+  OutputPrintLabelInput,
+  OutputPrintLabelResult,
+} from '../_components/modals/action-modals';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +53,58 @@ function WoDetailSkeleton() {
       <div className="h-80 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
     </div>
   );
+}
+
+// E1 — the SAME permission the printers actions enforce (settings.org.update).
+const PRINT_PERMISSION = 'settings.org.update';
+
+type PrintQueryResult<T> = { rows: T[]; rowCount?: number | null };
+type PrintQueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<PrintQueryResult<T>>;
+};
+type PrintOrgContextLike = { userId: string; orgId: string; client: PrintQueryClient };
+
+/**
+ * E1 — resolve settings.org.update server-side so the Register-output success
+ * [Print FG label] button is rendered enabled/disabled honestly (never
+ * render-then-disable leak; the action re-checks regardless). Failures degrade to
+ * "no permission", never a 500.
+ */
+async function resolveCanPrintFg(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as PrintOrgContextLike;
+      const { rows } = await ctx.client.query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or r.code = $3
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, PRINT_PERMISSION],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * E1 — Server Action adapter: maps the printers `printLabel` PrintJobRow down to
+ * the minimal {status, result_url} the output success state renders. The action
+ * itself re-validates RBAC + the entity, so this is a thin import-only seam.
+ */
+async function printFgLabel(input: OutputPrintLabelInput): Promise<OutputPrintLabelResult> {
+  'use server';
+  const job = await printLabel({ entityType: input.entityType, entityId: input.entityId });
+  return { status: job.status, result_url: job.result_url };
 }
 
 async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
@@ -463,6 +523,27 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         opt('output.catchWeight.invalidWeights') ?? 'Every unit weight must be a positive number.',
     };
 
+    // E1 — inject the Register-output success + [Print FG label] copy. Keys live
+    // under production.wos.actions.output.print.* (real en+pl; ro/uk mirror EN).
+    modalLabels.output.print = {
+      successTitle: opt('output.print.successTitle') ?? 'Output registered',
+      successBody:
+        opt('output.print.successBody') ?? 'The finished-goods license plate was created.',
+      lpLine: opt('output.print.lpLine') ?? 'FG label — {lp}',
+      action: opt('output.print.action') ?? 'Print FG label',
+      printing: opt('output.print.printing') ?? 'Printing…',
+      queued: opt('output.print.queued') ?? 'Print job queued for the printer.',
+      sent: opt('output.print.sent') ?? 'Label sent — download the rendered output below.',
+      download: opt('output.print.download') ?? 'Download label',
+      error:
+        opt('output.print.error') ??
+        'Label could not be printed. Try again or contact an administrator.',
+      forbidden:
+        opt('output.print.forbidden') ??
+        'Insufficient permissions: settings.org.update is required to print labels.',
+      close: opt('output.print.close') ?? 'Done',
+    };
+
     actions = {
       locale,
       status: actionCtx.data.executionStatus,
@@ -473,6 +554,10 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       modalLabels,
     };
   }
+
+  // E1 — only resolve the print permission when the action bar is offered at all
+  // (no point querying for a read-only/forbidden viewer).
+  const canPrintFgLabel = actions ? await resolveCanPrintFg() : false;
 
   return (
     <WoDetailScreen
@@ -488,6 +573,8 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       voidWoOutputAction={voidWoOutputAction}
       voidWasteEntryAction={voidWasteEntryAction}
       reverseConsumptionAction={reverseConsumptionAction}
+      printFgLabelAction={printFgLabel}
+      canPrintFgLabel={canPrintFgLabel}
     />
   );
 }

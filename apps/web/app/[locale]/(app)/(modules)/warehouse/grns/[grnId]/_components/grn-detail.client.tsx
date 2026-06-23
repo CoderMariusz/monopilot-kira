@@ -19,6 +19,15 @@
  * carried on grn_items only when the action surfaces it; the action exposes
  * batch/expiry/lp but NOT supplier-batch / QA / catch-weight per line, so those
  * columns render an em-dash rather than fabricated data.
+ *
+ * E1 (label print): each received line gets a [Print labels] button calling the
+ * printers `printLabel` Server Action. The backend `printLabel` ONLY accepts
+ * `entityType:'lp'` (it hard-rejects all other entity types) and the locked task
+ * forbids touching it, so we print the LP the line CREATED — entityType:'lp',
+ * entityId = line.lpId, copies = received qty (whole, ≥1). Gated on the same
+ * permission the printers actions enforce (settings.org.update, re-checked
+ * server-side); disabled with a tooltip when the caller lacks it OR the line has
+ * no LP yet. Result/download mirrors the B4 LP-detail pattern.
  */
 
 import { useState, useTransition } from 'react';
@@ -81,6 +90,17 @@ export type GrnDetailLabels = {
     invalidState: string;
     error: string;
   };
+  /** E1 — per-line label print copy (reuses the B4 print-labels namespace). */
+  printLabel: {
+    action: string;
+    printing: string;
+    queued: string;
+    sent: string;
+    download: string;
+    error: string;
+    forbidden: string;
+    noLp: string;
+  };
   /** C-R3 — cancel-receipt-line modal + cancelled-line display copy. */
   cancelLine: GrnLineCancelLabels & {
     /** Row affordance label ("Cancel receipt…"). */
@@ -89,6 +109,13 @@ export type GrnDetailLabels = {
     cancelledBadge: string;
   };
 };
+
+/**
+ * E1 — minimal view of the printers `printLabel` PrintJobRow the GRN line needs.
+ * The Server Action returns the full row; the client reads only status/result_url.
+ */
+export type GrnPrintLabelResult = { status: 'queued' | 'sent' | 'failed'; result_url: string | null };
+export type GrnPrintLabelInput = { entityType: 'lp'; entityId: string; copies?: number };
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -99,6 +126,12 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+/** Received qty → a positive whole copy count for the label print (≥1). */
+function copiesFromReceived(received: string): number {
+  const n = Math.floor(Number(received));
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
 export function GrnDetailClient({
   grn,
   labels,
@@ -106,6 +139,8 @@ export function GrnDetailClient({
   releaseQaAction,
   cancelGrnLineAction,
   canCancelLines = false,
+  printLabelAction,
+  canPrint = false,
 }: {
   grn: GrnDetail;
   labels: GrnDetailLabels;
@@ -121,6 +156,16 @@ export function GrnDetailClient({
   cancelGrnLineAction: (input: CancelGrnLineInput) => Promise<CancelGrnLineResult>;
   /** Server-resolved: when false the cancel affordances are hidden entirely. */
   canCancelLines?: boolean;
+  /**
+   * E1 — print a label for the LP a received line created. OWNED by the printers
+   * settings actions (settings/infra/printers/_actions/printers.ts → printLabel)
+   * and threaded in by the page via an import-only adapter seam; never imported
+   * here directly. RBAC (settings.org.update) is re-enforced server-side —
+   * `canPrint` only governs the disabled affordance.
+   */
+  printLabelAction: (input: GrnPrintLabelInput) => Promise<GrnPrintLabelResult>;
+  /** Server-resolved settings.org.update; false ⇒ print buttons disabled + tooltip. */
+  canPrint?: boolean;
 }) {
   const dash = labels.facts.none;
   const router = useRouter();
@@ -128,6 +173,29 @@ export function GrnDetailClient({
   const [rowError, setRowError] = useState<{ lpId: string; message: string } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ grnItemId: string; lineLabel: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  // E1 — per-line label-print state (keyed by grn_item id).
+  const [printBusyItemId, setPrintBusyItemId] = useState<string | null>(null);
+  const [printResult, setPrintResult] = useState<{ itemId: string; result: GrnPrintLabelResult } | null>(null);
+  const [printError, setPrintError] = useState<{ itemId: string; message: string } | null>(null);
+
+  async function printRow(itemId: string, lpId: string, received: string) {
+    if (!canPrint || printBusyItemId !== null) return;
+    setPrintBusyItemId(itemId);
+    setPrintError(null);
+    setPrintResult(null);
+    try {
+      const result = await printLabelAction({
+        entityType: 'lp',
+        entityId: lpId,
+        copies: copiesFromReceived(received),
+      });
+      setPrintResult({ itemId, result });
+    } catch {
+      setPrintError({ itemId, message: labels.printLabel.error });
+    } finally {
+      setPrintBusyItemId(null);
+    }
+  }
 
   function releaseRow(lpId: string) {
     setBusyLpId(lpId);
@@ -284,19 +352,88 @@ export function GrnDetailClient({
                     ) : null}
                   </TableCell>
                   <TableCell className="text-right">
-                    {it.lpId && it.lpQaStatus === 'pending' && !isCancelled ? (
-                      <button
-                        type="button"
-                        data-testid={`grn-release-qc-${it.id}`}
-                        disabled={isPending && busyLpId === it.lpId}
-                        onClick={() => releaseRow(it.lpId!)}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        {labels.qaRelease.action}
-                      </button>
-                    ) : (
-                      <span className="text-slate-400">{dash}</span>
-                    )}
+                    {(() => {
+                      // Release-QC for pending LPs; Print labels for any LP a
+                      // non-cancelled line created. When neither applies, an em-dash.
+                      const showRelease = Boolean(it.lpId) && it.lpQaStatus === 'pending' && !isCancelled;
+                      const showPrint = Boolean(it.lpId) && !isCancelled;
+                      return (
+                    <div className="flex flex-col items-end gap-1">
+                      {showRelease ? (
+                        <button
+                          type="button"
+                          data-testid={`grn-release-qc-${it.id}`}
+                          disabled={isPending && busyLpId === it.lpId}
+                          onClick={() => releaseRow(it.lpId!)}
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          {labels.qaRelease.action}
+                        </button>
+                      ) : null}
+                      {/* E1 — Print labels for the LP this line created. Hidden when
+                          the line never created an LP or the line is cancelled. */}
+                      {showPrint ? (
+                        <>
+                          <button
+                            type="button"
+                            data-testid={`grn-print-label-${it.id}`}
+                            disabled={!canPrint || printBusyItemId === it.id}
+                            title={canPrint ? undefined : labels.printLabel.forbidden}
+                            aria-label={
+                              canPrint
+                                ? labels.printLabel.action
+                                : `${labels.printLabel.action} — ${labels.printLabel.forbidden}`
+                            }
+                            onClick={() => void printRow(it.id, it.lpId!, it.receivedQty)}
+                            className={
+                              canPrint
+                                ? 'rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+                                : 'cursor-not-allowed rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-400'
+                            }
+                          >
+                            {printBusyItemId === it.id ? labels.printLabel.printing : labels.printLabel.action}
+                          </button>
+                          {printResult?.itemId === it.id ? (
+                            <div
+                              role="status"
+                              data-testid={`grn-print-label-result-${it.id}`}
+                              data-print-status={printResult.result.status}
+                              className="flex flex-col items-end gap-0.5 text-[11px] text-emerald-700"
+                            >
+                              <span>
+                                {printResult.result.status === 'sent'
+                                  ? labels.printLabel.sent
+                                  : labels.printLabel.queued}
+                              </span>
+                              {printResult.result.result_url ? (
+                                <a
+                                  href={printResult.result.result_url}
+                                  download
+                                  data-testid={`grn-print-label-download-${it.id}`}
+                                  className="text-sky-700 underline"
+                                >
+                                  {labels.printLabel.download}
+                                </a>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          {printError?.itemId === it.id ? (
+                            <p
+                              role="alert"
+                              data-testid={`grn-print-label-error-${it.id}`}
+                              className="text-[11px] text-red-700"
+                            >
+                              {printError.message}
+                            </p>
+                          ) : null}
+                        </>
+                      ) : null}
+                      {!showRelease && !showPrint ? (
+                        <span className="text-slate-400">{dash}</span>
+                      ) : null}
+                    </div>
+                      );
+                    })()}
                   </TableCell>
                   {canCancelLines ? (
                     <TableCell className="text-right">

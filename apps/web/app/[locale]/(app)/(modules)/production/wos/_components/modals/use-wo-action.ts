@@ -70,6 +70,20 @@ export function useWoAction(locale: string, woId: string): { run: RunWoAction } 
         // Re-fetch the server components so the new event/output/waste row + the
         // refreshed lifecycle status appear without a full reload.
         router.refresh();
+        // E1 — pass through the route's success body (the `outputs` route returns
+        // `{ data: { lp_id, lp_number, ... } }`) so the Register-output modal can
+        // offer a [Print FG label] for the created LP. Other routes carry no
+        // `data`, so this stays a plain `{ ok: true }` for them.
+        const data =
+          payload && typeof payload === 'object' && 'data' in payload
+            ? (payload as { data: unknown }).data
+            : null;
+        if (data && typeof data === 'object') {
+          const d = data as { lp_id?: unknown; lp_number?: unknown };
+          const lpId = typeof d.lp_id === 'string' ? d.lp_id : null;
+          const lpNumber = typeof d.lp_number === 'string' ? d.lp_number : null;
+          if (lpId || lpNumber) return { ok: true, data: { lpId, lpNumber } };
+        }
         return { ok: true };
       }
 

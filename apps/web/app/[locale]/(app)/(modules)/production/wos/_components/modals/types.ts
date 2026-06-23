@@ -33,14 +33,32 @@ export type WoActionKind =
   | 'waste';
 
 /**
+ * E1 — the slice of the route response the success path may carry. The `outputs`
+ * route returns `{ data: RegisterOutputResult }`; the Register-output modal reads
+ * the created FG LP id/number from here to offer a [Print FG label] action. All
+ * fields OPTIONAL — every other action route returns no `data` envelope and stays
+ * a plain `{ ok: true }`.
+ */
+export type WoActionData = {
+  /** Created/back-linked output LP id (uuid) — present on the outputs route. */
+  lpId?: string | null;
+  /** Created output LP human code (NEVER a raw uuid) — null on caller-supplied LP. */
+  lpNumber?: string | null;
+};
+
+/**
  * Result of a single action attempt. `errorCode` is the VERBATIM handler error
  * string (e.g. 'invalid_state_transition', 'quality_hold_active', 'forbidden',
  * 'wo_not_recordable', 'already_recorded', 'closed_production_strict_failed',
  * 'esign_failed', 'invalid_input', 'concurrent_modification') — surfaced inline
  * in the modal so the operator sees exactly why the route refused.
+ *
+ * `data` (E1) is an OPTIONAL pass-through of the route's success body so the
+ * Register-output modal can read the created FG LP for label printing. Existing
+ * callers ignore it (additive, backward-compatible).
  */
 export type WoActionResult =
-  | { ok: true }
+  | { ok: true; data?: WoActionData }
   | { ok: false; errorCode: string; httpStatus: number };
 
 /** The runner signature every modal receives. */
@@ -131,6 +149,25 @@ export type WoModalLabels = {
       baseTextareaLabel: string;
       baseTextareaHint: string;
       invalidWeights: string;
+    };
+    /**
+     * E1 — Register-output success state + [Print FG label] copy. OPTIONAL (same
+     * staging pattern as the keys above) so older label fixtures still type-check;
+     * the page injects EN fallbacks. `lpLine` is "FG label — {lp}" with the created
+     * LP CODE (never a uuid).
+     */
+    print?: {
+      successTitle: string;
+      successBody: string;
+      lpLine: string;
+      action: string;
+      printing: string;
+      queued: string;
+      sent: string;
+      download: string;
+      error: string;
+      forbidden: string;
+      close: string;
     };
   };
   waste: {

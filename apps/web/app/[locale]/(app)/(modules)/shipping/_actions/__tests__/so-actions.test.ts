@@ -4,6 +4,8 @@ import {
   allocateSalesOrder,
   createSalesOrder,
   deallocateSalesOrder,
+  getSalesOrder,
+  listSalesOrders,
   transitionSalesOrderStatus,
 } from '../so-actions';
 
@@ -87,6 +89,24 @@ function makeClient(): QueryClient {
         });
         return { rows: [], rowCount: 1 };
       }
+      if (q.startsWith('select so.id::text') && q.includes('line_count')) {
+        return {
+          rows: [
+            {
+              id: SO_ID,
+              so_number: insertedSo?.order_number ?? soNumber,
+              status,
+              customer_name: 'Acme Foods',
+              customer_code: 'ACME',
+              line_count: '1',
+              total: '10.0000',
+              created_at: '2026-06-11T10:00:00.000Z',
+              expected_ship_date: insertedSo?.promised_ship_date ?? '2026-06-20',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (q.startsWith('select so.id::text')) {
         return {
           rows: [
@@ -96,6 +116,7 @@ function makeClient(): QueryClient {
               status,
               customer_id: CUSTOMER_ID,
               customer_name: 'Acme Foods',
+              customer_code: 'ACME',
               promised_ship_date: insertedSo?.promised_ship_date ?? '2026-06-20',
               notes: insertedSo?.notes ?? 'deliver am',
               created_at: '2026-06-11T10:00:00.000Z',
@@ -112,6 +133,8 @@ function makeClient(): QueryClient {
               id: LINE_ID,
               line_number: 1,
               product_id: ITEM_ID,
+              item_code: 'FG-001',
+              item_name: 'Finished Good 001',
               quantity_ordered: '10',
               uom: 'kg',
               quantity_allocated: lineAllocatedQty,
@@ -190,6 +213,67 @@ beforeEach(() => {
   client = makeClient();
 });
 
+describe('SO read actions', () => {
+  it('returns forbidden instead of throwing when permission is denied', async () => {
+    allowPermission = false;
+
+    await expect(listSalesOrders()).resolves.toEqual({ ok: false, error: 'forbidden' });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('from public.sales_orders'))).toBe(false);
+  });
+
+  it('maps list rows to human display fields', async () => {
+    const result = await listSalesOrders({ status: 'draft' });
+
+    expect(result).toEqual({
+      ok: true,
+      data: [
+        {
+          id: SO_ID,
+          so_number: 'SO-202606-00001',
+          customer_name: 'Acme Foods',
+          customer_code: 'ACME',
+          status: 'draft',
+          line_count: 1,
+          total: '10.0000',
+          created_at: '2026-06-11T10:00:00.000Z',
+          expected_ship_date: '2026-06-20',
+        },
+      ],
+    });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('left join public.customers'))).toBe(true);
+  });
+
+  it('returns sales order detail with header and lines', async () => {
+    lineAllocatedQty = '4';
+
+    const result = await getSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        id: SO_ID,
+        so_number: 'SO-202606-00001',
+        customer_name: 'Acme Foods',
+        customer_code: 'ACME',
+        allocation_status: 'partially_allocated',
+        lines: [
+          {
+            id: LINE_ID,
+            line_no: 1,
+            item_id: ITEM_ID,
+            item_code: 'FG-001',
+            item_name: 'Finished Good 001',
+            qty: '10',
+            uom: 'kg',
+            allocated_qty: '4',
+            allocation_status: 'partially_allocated',
+          },
+        ],
+      },
+    });
+  });
+});
+
 describe('createSalesOrder', () => {
   it('generates the SO number and inserts the order plus lines', async () => {
     const result = await createSalesOrder({
@@ -199,7 +283,7 @@ describe('createSalesOrder', () => {
       lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
     });
 
-    expect(result?.soNumber).toBe('SO-202606-00001');
+    expect(result).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
     expect(insertedSo).toMatchObject({ order_number: 'SO-202606-00001', customer_id: CUSTOMER_ID });
     expect(insertedLines).toEqual([
       { sales_order_id: SO_ID, line_number: 1, product_id: ITEM_ID, quantity_ordered: '10' },
@@ -212,13 +296,13 @@ describe('transitionSalesOrderStatus', () => {
     const result = await transitionSalesOrderStatus(SO_ID, 'confirmed');
 
     expect(status).toBe('confirmed');
-    expect(result).toMatchObject({ id: SO_ID, status: 'confirmed' });
+    expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'confirmed' } });
   });
 
   it('returns ILLEGAL_TRANSITION for an invalid transition', async () => {
     const result = await transitionSalesOrderStatus(SO_ID, 'shipped');
 
-    expect(result).toEqual({ error: 'ILLEGAL_TRANSITION', from: 'draft', to: 'shipped' });
+    expect(result).toEqual({ ok: false, error: 'ILLEGAL_TRANSITION', from: 'draft', to: 'shipped' });
     expect(status).toBe('draft');
   });
 });
@@ -233,7 +317,7 @@ describe('allocateSalesOrder', () => {
 
     const result = await allocateSalesOrder(SO_ID);
 
-    expect(result).toMatchObject({ id: SO_ID, status: 'allocated' });
+    expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'allocated' } });
     expect(allocationRows).toEqual([
       { sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '6', status: 'allocated' },
       { sales_order_line_id: LINE_ID, lp_id: LP_2, qty: '4', status: 'allocated' },
@@ -248,7 +332,7 @@ describe('allocateSalesOrder', () => {
 
     const result = await allocateSalesOrder(SO_ID);
 
-    expect(result).toEqual({ error: 'INSUFFICIENT_STOCK', item_id: ITEM_ID, needed: '10', available: '3.5' });
+    expect(result).toEqual({ ok: false, error: 'INSUFFICIENT_STOCK', item_id: ITEM_ID, needed: '10', available: '3.5' });
     expect(allocationRows).toEqual([]);
     expect(lineAllocatedQty).toBe('0');
     expect(
@@ -271,7 +355,7 @@ describe('deallocateSalesOrder', () => {
 
     const result = await deallocateSalesOrder(SO_ID);
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, data: null });
     expect(lpReserved).toEqual({ [LP_1]: '0', [LP_2]: '0' });
     expect(lineAllocatedQty).toBe('0');
     expect(allocationRows).toEqual([

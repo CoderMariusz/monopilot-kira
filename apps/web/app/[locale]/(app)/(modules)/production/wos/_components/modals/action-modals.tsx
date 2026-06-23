@@ -41,10 +41,21 @@ import {
 } from '../../../../../../../../lib/uom/convert';
 import type {
   RunWoAction,
+  WoActionData,
   WoModalLabels,
   WoReasonCategory,
   WoWasteCategory,
 } from './types';
+
+/**
+ * E1 — minimal view of the printers `printLabel` PrintJobRow the output success
+ * state needs. OWNED by the printers settings actions and threaded in by the
+ * page; never imported here. RBAC (settings.org.update) is re-enforced
+ * server-side — `canPrintFgLabel` only governs the disabled affordance.
+ */
+export type OutputPrintLabelResult = { status: 'queued' | 'sent' | 'failed'; result_url: string | null };
+export type OutputPrintLabelInput = { entityType: 'lp'; entityId: string };
+export type PrintFgLabelAction = (input: OutputPrintLabelInput) => Promise<OutputPrintLabelResult>;
 
 // ── Shared shell ────────────────────────────────────────────────────────────
 
@@ -542,11 +553,29 @@ export function OutputModal({
   onClose,
   defaultProductId,
   uom,
-}: BaseModalProps & { defaultProductId: string | null; uom?: OutputUomContext | null }) {
+  printLabelAction,
+  canPrintFgLabel = false,
+}: BaseModalProps & {
+  defaultProductId: string | null;
+  uom?: OutputUomContext | null;
+  /**
+   * E1 — print the created FG LP label. OWNED by the printers settings actions
+   * (settings/infra/printers/_actions/printers.ts → printLabel) and threaded in by
+   * the page; never imported here directly. RBAC is re-enforced server-side.
+   */
+  printLabelAction?: PrintFgLabelAction;
+  /** Server-resolved settings.org.update; false ⇒ Print button disabled + tooltip. */
+  canPrintFgLabel?: boolean;
+}) {
   const [outputType, setOutputType] = useState<(typeof OUTPUT_TYPES)[number]>('primary');
   const [qty, setQty] = useState('');
   const [actualWeight, setActualWeight] = useState('');
   const [batch, setBatch] = useState('');
+  // E1 — success state: the created FG LP (id/number) + the print result.
+  const [output, setOutput] = useState<WoActionData | null>(null);
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printResult, setPrintResult] = useState<OutputPrintLabelResult | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
   // B-3 catch-weight per-unit captures. `catchUnits` backs the dynamic per-unit
   // grid (each/box catch items); `catchText` backs the base-uom textarea fallback
   // (one weight per line) where the unit count is unknown up front.
@@ -623,6 +652,21 @@ export function OutputModal({
     productId !== '' && qtyValid && weightValid && catchValid && consumptionAcknowledged && !busy;
 
   const cw = labels.output.catchWeight;
+  // E1 — print-FG-label copy with EN fallbacks (staged keys; injected by the page).
+  const p = labels.output.print ?? {
+    successTitle: 'Output registered',
+    successBody: 'The finished-goods license plate was created.',
+    lpLine: 'FG label — {lp}',
+    action: 'Print FG label',
+    printing: 'Printing…',
+    queued: 'Print job queued for the printer.',
+    sent: 'Label sent — download the rendered output below.',
+    download: 'Download label',
+    error: 'Label could not be printed. Try again or contact an administrator.',
+    forbidden: 'Insufficient permissions: settings.org.update is required to print labels.',
+    close: 'Done',
+  };
+  const fgLpCode = output?.lpNumber ?? null;
   const catchSumLine = cw ? cw.sumLabel.replace('{total}', catchSumKg) : `Σ ${catchSumKg} kg`;
   const catchTooManyLine = cw
     ? cw.tooMany.replace('{max}', String(CATCH_WEIGHT_MAX_UNITS))
@@ -715,10 +759,42 @@ export function OutputModal({
       setCatchUnits([]);
       setCatchText('');
       setNoConsumptionAck(false);
-      onClose();
+      // E1 — when the route surfaced the created FG LP, switch to the success
+      // state with a [Print FG label] affordance; otherwise close as before.
+      if (result.data && (result.data.lpId || result.data.lpNumber)) {
+        setOutput(result.data);
+      } else {
+        onClose();
+      }
     } else {
       setError(mapError(labels, result.errorCode));
     }
+  }
+
+  // E1 — print the FG label for the created LP, mirroring the B4 result pattern.
+  async function handlePrintFgLabel() {
+    const lpId = output?.lpId;
+    if (!printLabelAction || !canPrintFgLabel || !lpId || printBusy) return;
+    setPrintBusy(true);
+    setPrintError(null);
+    setPrintResult(null);
+    try {
+      const res = await printLabelAction({ entityType: 'lp', entityId: lpId });
+      setPrintResult(res);
+    } catch {
+      setPrintError(p.error);
+    } finally {
+      setPrintBusy(false);
+    }
+  }
+
+  // E1 — close + reset BOTH the form and the success/print state.
+  function closeAndReset() {
+    setOutput(null);
+    setPrintResult(null);
+    setPrintError(null);
+    setPrintBusy(false);
+    onClose();
   }
 
   // productCode/productName are threaded from the WO detail query (items join).
@@ -727,6 +803,74 @@ export function OutputModal({
     uom?.productCode || uom?.productName
       ? [uom?.productCode, uom?.productName].filter(Boolean).join(' — ')
       : '—';
+
+  // E1 — success state: output registered → offer [Print FG label] for the LP.
+  if (output) {
+    return (
+      <Modal open={open} onOpenChange={(n) => (n ? undefined : closeAndReset())} modalId="wo-output" size="md">
+        <Modal.Header title={p.successTitle} />
+        <Modal.Body>
+          <div data-testid="wo-output-success" className="flex flex-col gap-3">
+            <div className="flex flex-col items-center gap-1 py-3 text-center">
+              <span aria-hidden="true" className="text-3xl">✅</span>
+              <p className="text-sm font-medium text-slate-900">{p.successTitle}</p>
+              <p className="text-sm text-slate-500">{p.successBody}</p>
+            </div>
+            {fgLpCode ? (
+              <p data-testid="wo-output-fg-lp" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-center font-mono text-sm text-slate-800">
+                {p.lpLine.replace('{lp}', fgLpCode)}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              data-testid="wo-output-print-fg"
+              disabled={!canPrintFgLabel || !output.lpId || printBusy}
+              title={canPrintFgLabel ? undefined : p.forbidden}
+              aria-label={canPrintFgLabel ? p.action : `${p.action} — ${p.forbidden}`}
+              onClick={() => void handlePrintFgLabel()}
+              className={
+                canPrintFgLabel && output.lpId
+                  ? 'w-fit self-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50'
+                  : 'w-fit cursor-not-allowed self-center rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-400'
+              }
+            >
+              {printBusy ? p.printing : p.action}
+            </button>
+            {printResult ? (
+              <div
+                role="status"
+                data-testid="wo-output-print-result"
+                data-print-status={printResult.status}
+                className="flex flex-col items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+              >
+                <span>{printResult.status === 'sent' ? p.sent : p.queued}</span>
+                {printResult.result_url ? (
+                  <a
+                    href={printResult.result_url}
+                    download
+                    data-testid="wo-output-print-download"
+                    className="text-sky-700 underline"
+                  >
+                    {p.download}
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+            {printError ? (
+              <p role="alert" data-testid="wo-output-print-error" className="text-center text-sm text-red-700">
+                {printError}
+              </p>
+            ) : null}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button type="button" data-testid="wo-output-done" onClick={closeAndReset}>
+            {p.close}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    );
+  }
 
   return (
     <Modal open={open} onOpenChange={(n) => (n ? undefined : onClose())} modalId="wo-output" size="md">

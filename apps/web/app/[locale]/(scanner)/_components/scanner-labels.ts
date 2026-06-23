@@ -148,6 +148,10 @@ interface ScannerLabelsShape {
     doneTitle: string;
     doneSub: string;
     newLp: string;
+    scannerPrintLabel: string;
+    scannerPrinting: string;
+    scannerPrinted: string;
+    scannerPrintError: string;
     nextLine: string;
     backToList: string;
     loadingPo: string;
@@ -545,6 +549,10 @@ const en: ScannerLabelsShape = {
     doneTitle: "Received",
     doneSub: "New license plate created",
     newLp: "New LP",
+    scannerPrintLabel: "Print label",
+    scannerPrinting: "Printing...",
+    scannerPrinted: "Printed",
+    scannerPrintError: "Could not print label.",
     nextLine: "Next PO line",
     backToList: "Back to PO list",
     loadingPo: "Loading purchase orders…",
@@ -973,6 +981,10 @@ const pl: ScannerLabelsShape = {
     doneTitle: "Przyjęto",
     doneSub: "Utworzono nowy License Plate",
     newLp: "Nowy LP",
+    scannerPrintLabel: "Drukuj etykietę",
+    scannerPrinting: "Drukowanie...",
+    scannerPrinted: "Wydrukowano",
+    scannerPrintError: "Nie udało się wydrukować etykiety.",
     nextLine: "Następna pozycja PO",
     backToList: "Wróć do listy PO",
     loadingPo: "Ładowanie PO…",

@@ -44,6 +44,7 @@ export function ReceivePoItemScreen({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<ReceiveResponse | null>(null);
+  const [printState, setPrintState] = useState<"idle" | "printing" | "printed" | "error">("idle");
   // Lane W9-L8: optional destination — scan/type a location code, resolve it
   // via GET /api/warehouse/scanner/location (same manual-location pattern as
   // the putaway screen). Empty = default location (the hint says so).
@@ -141,11 +142,25 @@ export function ReceivePoItemScreen({
       const body = (await res.json()) as ReceiveResponse;
       if (!res.ok || !body.ok) throw new Error(body.error || `HTTP_${res.status}`);
       setDone(body);
+      setPrintState("idle");
     } catch (err) {
       const message = err instanceof Error ? err.message : "receive_failed";
       setError(message === "invalid_location" ? L.locationNotFound : message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function printLabel() {
+    if (!done?.lpId || printState === "printing") return;
+    setPrintState("printing");
+    try {
+      const res = await scannerFetch("print-label", { lpId: done.lpId });
+      const body = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !body.ok) throw new Error(body.error || `HTTP_${res.status}`);
+      setPrintState("printed");
+    } catch {
+      setPrintState("error");
     }
   }
 
@@ -248,6 +263,8 @@ export function ReceivePoItemScreen({
             {done.qcInspectionRequired && (
               <Banner kind="info" title={L.qcHoldTitle}>{L.qcHoldBody}</Banner>
             )}
+            {printState === "printed" && <Banner kind="success" title={L.scannerPrinted}>{L.scannerPrinted}</Banner>}
+            {printState === "error" && <Banner kind="err" title={L.scannerPrintError}>{L.scannerPrintError}</Banner>}
           </div>
         )}
       </Content>
@@ -259,6 +276,13 @@ export function ReceivePoItemScreen({
         )}
         {done && (
           <>
+            <Btn
+              onClick={printLabel}
+              disabled={!done.lpId || printState === "printing"}
+              style={{ minHeight: 56 }}
+            >
+              {printState === "printing" ? L.scannerPrinting : L.scannerPrintLabel}
+            </Btn>
             <Btn onClick={() => router.push(`/${locale}/scanner/receive-po/${poId}`)}>{L.nextLine}</Btn>
             <Btn variant="sec" onClick={() => router.push(`/${locale}/scanner/receive-po`)}>{L.backToList}</Btn>
           </>

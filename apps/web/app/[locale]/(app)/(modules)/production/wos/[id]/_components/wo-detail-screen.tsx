@@ -61,6 +61,7 @@ import {
   WoActionsProvider,
   WoActionTrigger,
 } from '../../_components/modals/wo-actions';
+import type { PrintFgLabelAction } from '../../_components/modals/action-modals';
 import {
   VoidCorrectionModal,
   type VoidModalLabels,
@@ -328,11 +329,23 @@ export function WoDetailScreen({
   voidWoOutputAction,
   voidWasteEntryAction,
   reverseConsumptionAction,
+  printFgLabelAction,
+  canPrintFgLabel = false,
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
   /** Null when the action-context read failed/forbade — buttons are then hidden. */
   actions: WoDetailActions | null;
+  /**
+   * E1 — print the created FG LP label after a successful Register-output. OWNED
+   * by the printers settings actions (settings/infra/printers/_actions/printers.ts)
+   * and threaded in by the page via an import-only adapter seam; this component
+   * never imports it directly. RBAC (settings.org.update) is re-enforced
+   * server-side — `canPrintFgLabel` only governs the disabled affordance.
+   */
+  printFgLabelAction?: PrintFgLabelAction;
+  /** Server-resolved settings.org.update; false ⇒ Print FG label disabled + tooltip. */
+  canPrintFgLabel?: boolean;
   /**
    * B-2 — set (with the WO's lineId) when start/release was blocked by the
    * `changeover_signoff_required` error from C4; renders the amber callout +
@@ -1188,6 +1201,8 @@ export function WoDetailScreen({
       defaultLineId={h.lineId}
       defaultProductId={h.productId}
       outputUom={outputUom}
+      printFgLabelAction={printFgLabelAction}
+      canPrintFgLabel={canPrintFgLabel}
     >
       {body}
     </WoActionsProvider>

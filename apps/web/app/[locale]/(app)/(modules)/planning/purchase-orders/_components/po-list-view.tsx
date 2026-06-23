@@ -76,6 +76,8 @@ export type PoListLabels = {
   exportLabel: string;
   exporting: string;
   exportError: string;
+  /** Wave E-IO — "Import" button → /planning/import?source=po (bulk PO import hub). */
+  importLabel: string;
   searchPlaceholder: string;
   rowsCount: string;
   supplierFilterLabel: string;
@@ -249,6 +251,15 @@ export function PoListView({
           className="w-72"
         />
         <div className="flex items-center gap-2">
+          {/* Wave E-IO — bulk PO import: deep-links to the import hub with PO preselected. */}
+          <Link
+            href={`/${locale}/planning/import?source=po`}
+            prefetch={false}
+            data-testid="po-list-import"
+            className="btn btn--secondary"
+          >
+            {labels.importLabel}
+          </Link>
           <Button
             type="button"
             className="btn--secondary"

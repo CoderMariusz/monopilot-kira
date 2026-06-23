@@ -54,7 +54,7 @@ export function OutputScreen({
   labels: ScannerProdLabels;
 }) {
   const router = useRouter();
-  const { session, ready } = useScannerSession();
+  const { session, ready, scannerFetch } = useScannerSession();
   const { woFetch, woPost } = useWoFetch();
   const L = labels.output;
 
@@ -75,6 +75,8 @@ export function OutputScreen({
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [clientOpId, setClientOpId] = useState<string | null>(null);
+  const [outputLpId, setOutputLpId] = useState<string | null>(null);
+  const [printState, setPrintState] = useState<"idle" | "printing" | "printed" | "error">("idle");
 
   useEffect(() => {
     if (ready && !session) router.replace(`/${locale}/scanner/login`);
@@ -166,12 +168,14 @@ export function OutputScreen({
         setSubmitErr(L.err409);
         return;
       }
-      const data = (await res.json()) as MutationResult;
+      const data = (await res.json()) as MutationResult & { lp_id?: string | null };
       if (!res.ok || !data.ok) {
         setSubmitErr(L.errGeneric);
         return;
       }
       setClientOpId(null);
+      setOutputLpId(typeof data.lp_id === "string" ? data.lp_id : null);
+      setPrintState("idle");
       setPhase("done");
     } catch {
       setSubmitErr(L.errGeneric);
@@ -186,8 +190,23 @@ export function OutputScreen({
     setBatch("");
     setSubmitErr(null);
     setClientOpId(null);
+    setOutputLpId(null);
+    setPrintState("idle");
     setPhase("form");
     void load();
+  };
+
+  const printLabel = async () => {
+    if (!outputLpId || printState === "printing") return;
+    setPrintState("printing");
+    try {
+      const res = await scannerFetch("print-label", { lpId: outputLpId });
+      const body = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !body.ok) throw new Error(body.error || `HTTP_${res.status}`);
+      setPrintState("printed");
+    } catch {
+      setPrintState("error");
+    }
   };
 
   return (
@@ -216,8 +235,18 @@ export function OutputScreen({
                 </div>
               )}
             </div>
+            {printState === "printed" && <Banner kind="success" title={L.scannerPrinted}>{L.scannerPrinted}</Banner>}
+            {printState === "error" && <Banner kind="err" title={L.scannerPrintError}>{L.scannerPrintError}</Banner>}
           </Content>
           <BottomActions>
+            <Btn
+              variant="p"
+              onClick={printLabel}
+              disabled={!outputLpId || printState === "printing"}
+              style={{ minHeight: 56 }}
+            >
+              {printState === "printing" ? L.scannerPrinting : L.scannerPrintLabel}
+            </Btn>
             <Btn variant="p" onClick={registerNext}>
               {L.registerNext}
             </Btn>

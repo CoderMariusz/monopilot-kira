@@ -21,8 +21,17 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getGrnDetail } from '../../_actions/grn-actions';
 import { releaseLpQa } from '../../_actions/lp-qa-actions';
+// E1 — label printing wired through the printers settings actions (mig 304). The
+// action ONLY supports entityType:'lp' and re-enforces RBAC server-side.
+import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getWhcTranslator } from '../../wh-c-labels';
-import { GrnDetailClient, type GrnDetailLabels } from './_components/grn-detail.client';
+import {
+  GrnDetailClient,
+  type GrnDetailLabels,
+  type GrnPrintLabelInput,
+  type GrnPrintLabelResult,
+} from './_components/grn-detail.client';
 import { cancelGrnLineAction } from './receipt-corrections-adapter';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +82,16 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
       invalidState: t('grnDetail.qaRelease.invalidState'),
       error: t('grnDetail.qaRelease.error'),
     },
+    printLabel: {
+      action: t('grnDetail.printLabel.action'),
+      printing: t('grnDetail.printLabel.printing'),
+      queued: t('grnDetail.printLabel.queued'),
+      sent: t('grnDetail.printLabel.sent'),
+      download: t('grnDetail.printLabel.download'),
+      error: t('grnDetail.printLabel.error'),
+      forbidden: t('grnDetail.printLabel.forbidden'),
+      noLp: t('grnDetail.printLabel.noLp'),
+    },
     cancelLine: {
       rowAction: t('grnDetail.cancelLine.rowAction'),
       cancelledBadge: t('grnDetail.cancelLine.cancelledBadge'),
@@ -114,6 +133,61 @@ function DetailSkeleton() {
       <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
     </div>
   );
+}
+
+// E1 — the SAME permission the printers actions enforce (settings.org.update).
+const PRINT_PERMISSION = 'settings.org.update';
+
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
+
+/**
+ * E1 — resolve settings.org.update server-side so the per-line Print button is
+ * rendered enabled/disabled honestly (never render-then-disable leak; the action
+ * re-checks regardless). Failures degrade to "no permission", never a 500.
+ */
+async function resolveCanPrint(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or r.code = $3
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, PRINT_PERMISSION],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * E1 — Server Action adapter: maps the printers `printLabel` PrintJobRow down to
+ * the minimal {status, result_url} the GRN line renders. The action itself
+ * re-validates RBAC + the entity, so this is a thin import-only seam.
+ */
+async function printGrnLineLabel(input: GrnPrintLabelInput): Promise<GrnPrintLabelResult> {
+  'use server';
+  const job = await printLabel({
+    entityType: input.entityType,
+    entityId: input.entityId,
+    copies: input.copies,
+  });
+  return { status: job.status, result_url: job.result_url };
 }
 
 function Panel({
@@ -181,6 +255,8 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
     );
   }
 
+  const canPrint = await resolveCanPrint();
+
   return (
     <div className="flex flex-col gap-4">
       {backLink}
@@ -191,6 +267,8 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
         releaseQaAction={releaseLpQa}
         cancelGrnLineAction={cancelGrnLineAction}
         canCancelLines={result.data.status !== 'cancelled'}
+        printLabelAction={printGrnLineLabel}
+        canPrint={canPrint}
       />
     </div>
   );

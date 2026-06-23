@@ -24,41 +24,79 @@ type SalesOrderStatus =
   | 'delivered'
   | 'cancelled';
 type TransitionTarget = SalesOrderStatus;
+type AllocationStatus = 'unallocated' | 'partially_allocated' | 'allocated';
+
+export type ForbiddenFailure = { ok: false; error: 'forbidden' };
+export type InvalidInputFailure = { ok: false; error: 'invalid_input'; message?: string };
+export type PersistenceFailure = { ok: false; error: 'persistence_failed'; message?: string };
+export type ActionFailure = ForbiddenFailure | InvalidInputFailure | PersistenceFailure;
+export type ActionResult<T, F extends { ok: false; error: string } = ForbiddenFailure> =
+  | { ok: true; data: T }
+  | F;
+
+export type SalesOrderListRow = {
+  id: string;
+  so_number: string;
+  customer_name: string | null;
+  customer_code: string | null;
+  status: SalesOrderStatus;
+  line_count: number;
+  total: string;
+  created_at: string;
+  expected_ship_date: string | null;
+};
 
 export type SalesOrderLine = {
   id: string;
-  lineNo: number;
-  itemId: string;
+  line_no: number;
+  item_id: string;
+  item_code: string | null;
+  item_name: string | null;
   qty: string;
   uom: string;
-  allocatedQty: string;
+  allocated_qty: string;
+  allocation_status: AllocationStatus;
 };
 
 export type SalesOrder = {
   id: string;
-  soNumber: string;
+  so_number: string;
   status: SalesOrderStatus;
-  customerId: string | null;
-  customerName: string | null;
-  requestedDate: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_code: string | null;
+  expected_ship_date: string | null;
   notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  lines?: SalesOrderLine[];
+  created_at: string;
+  updated_at: string;
+  allocation_status: AllocationStatus;
+  lines: SalesOrderLine[];
 };
 
 export type IllegalTransitionError = {
+  ok: false;
   error: 'ILLEGAL_TRANSITION';
   from: string;
   to: TransitionTarget;
 };
 
 export type InsufficientStockError = {
+  ok: false;
   error: 'INSUFFICIENT_STOCK';
   item_id: string;
   needed: string;
   available: string;
 };
+
+export type ListSalesOrdersResult = ActionResult<SalesOrderListRow[]>;
+export type GetSalesOrderResult = ActionResult<SalesOrder | null>;
+export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure>;
+export type TransitionSalesOrderStatusResult = ActionResult<SalesOrder | null, ForbiddenFailure | IllegalTransitionError>;
+export type AllocateSalesOrderResult = ActionResult<
+  SalesOrder | null,
+  ForbiddenFailure | IllegalTransitionError | InsufficientStockError
+>;
+export type DeallocateSalesOrderResult = ActionResult<null>;
 
 type CreateSalesOrderInput = {
   customer_id: string;
@@ -117,10 +155,11 @@ async function hasPermission(ctx: ShippingContext, permission: string): Promise<
   return rows.length > 0;
 }
 
-async function requirePermission(ctx: ShippingContext, permission: string): Promise<void> {
+async function requirePermission(ctx: ShippingContext, permission: string): Promise<ForbiddenFailure | null> {
   if (!(await hasPermission(ctx, permission))) {
-    throw new Error(`PermissionDenied:${permission}`);
+    return { ok: false, error: 'forbidden' };
   }
+  return null;
 }
 
 function toText(value: unknown): string | null {
@@ -131,6 +170,12 @@ function toText(value: unknown): string | null {
 function toDate(value: unknown): string | null {
   if (value == null) return null;
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value);
+}
+
+function toNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  return Number(value ?? 0);
 }
 
 function decimalToUnits(value: string): bigint {
@@ -151,12 +196,52 @@ function minUnits(a: bigint, b: bigint): bigint {
   return a < b ? a : b;
 }
 
-function mapSalesOrderRow(row: {
+function lineAllocationStatus(qty: string, allocatedQty: string): AllocationStatus {
+  const ordered = decimalToUnits(qty);
+  const allocated = decimalToUnits(allocatedQty);
+  if (allocated <= 0n) return 'unallocated';
+  if (allocated >= ordered) return 'allocated';
+  return 'partially_allocated';
+}
+
+function orderAllocationStatus(lines: readonly SalesOrderLine[]): AllocationStatus {
+  if (lines.length === 0) return 'unallocated';
+  if (lines.every((line) => line.allocation_status === 'allocated')) return 'allocated';
+  if (lines.some((line) => line.allocation_status !== 'unallocated')) return 'partially_allocated';
+  return 'unallocated';
+}
+
+function mapSalesOrderListRow(row: {
+  id: string;
+  so_number: string | null;
+  customer_name: string | null;
+  customer_code: string | null;
+  status: SalesOrderStatus;
+  line_count: number | string | bigint | null;
+  total: string | null;
+  created_at: string | Date;
+  expected_ship_date: string | Date | null;
+}): SalesOrderListRow {
+  return {
+    id: row.id,
+    so_number: row.so_number ?? '',
+    customer_name: row.customer_name,
+    customer_code: row.customer_code,
+    status: row.status,
+    line_count: toNumber(row.line_count),
+    total: row.total ?? '0',
+    created_at: toText(row.created_at) ?? '',
+    expected_ship_date: toDate(row.expected_ship_date),
+  };
+}
+
+function mapSalesOrderHeaderRow(row: {
   id: string;
   order_number: string | null;
   status: SalesOrderStatus;
   customer_id: string | null;
   customer_name: string | null;
+  customer_code: string | null;
   promised_ship_date: string | Date | null;
   notes: string | null;
   created_at: string | Date;
@@ -164,14 +249,17 @@ function mapSalesOrderRow(row: {
 }): SalesOrder {
   return {
     id: row.id,
-    soNumber: row.order_number ?? '',
+    so_number: row.order_number ?? '',
     status: row.status,
-    customerId: row.customer_id,
-    customerName: row.customer_name,
-    requestedDate: toDate(row.promised_ship_date),
+    customer_id: row.customer_id,
+    customer_name: row.customer_name,
+    customer_code: row.customer_code,
+    expected_ship_date: toDate(row.promised_ship_date),
     notes: row.notes,
-    createdAt: toText(row.created_at) ?? '',
-    updatedAt: toText(row.updated_at) ?? '',
+    created_at: toText(row.created_at) ?? '',
+    updated_at: toText(row.updated_at) ?? '',
+    allocation_status: 'unallocated',
+    lines: [],
   };
 }
 
@@ -179,17 +267,22 @@ function mapLineRow(row: {
   id: string;
   line_number: number;
   product_id: string;
+  item_code: string | null;
+  item_name: string | null;
   quantity_ordered: string;
   uom: string | null;
   quantity_allocated: string;
 }): SalesOrderLine {
   return {
     id: row.id,
-    lineNo: row.line_number,
-    itemId: row.product_id,
+    line_no: row.line_number,
+    item_id: row.product_id,
+    item_code: row.item_code,
+    item_name: row.item_name,
     qty: row.quantity_ordered,
     uom: row.uom ?? '',
-    allocatedQty: row.quantity_allocated,
+    allocated_qty: row.quantity_allocated,
+    allocation_status: lineAllocationStatus(row.quantity_ordered, row.quantity_allocated),
   };
 }
 
@@ -200,6 +293,7 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
     status: SalesOrderStatus;
     customer_id: string | null;
     customer_name: string | null;
+    customer_code: string | null;
     promised_ship_date: string | Date | null;
     notes: string | null;
     created_at: string | Date;
@@ -210,6 +304,7 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
             so.status,
             so.customer_id::text,
             c.name as customer_name,
+            c.customer_code,
             so.promised_ship_date,
             so.ext_data->>'notes' as notes,
             so.created_at,
@@ -224,11 +319,13 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
   );
   if (!rows[0]) return null;
 
-  const order = mapSalesOrderRow(rows[0]);
+  const order = mapSalesOrderHeaderRow(rows[0]);
   const lineRows = await ctx.client.query<{
     id: string;
     line_number: number;
     product_id: string;
+    item_code: string | null;
+    item_name: string | null;
     quantity_ordered: string;
     uom: string | null;
     quantity_allocated: string;
@@ -236,6 +333,8 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
     `select sol.id::text,
             sol.line_number,
             sol.product_id::text,
+            i.item_code,
+            i.name as item_name,
             sol.quantity_ordered::text,
             i.uom_base as uom,
             sol.quantity_allocated::text
@@ -247,7 +346,9 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
       order by sol.line_number`,
     [id],
   );
-  order.lines = lineRows.rows.map(mapLineRow);
+  const lines = lineRows.rows.map(mapLineRow);
+  order.lines = lines;
+  order.allocation_status = orderAllocationStatus(lines);
   return order;
 }
 
@@ -315,7 +416,7 @@ async function transitionSalesOrderStatusInContext(
   const current = rows[0]?.status;
   if (!current) return null;
   if (!isSalesOrderStatus(current) || !LEGAL_TRANSITIONS[current].includes(newStatus)) {
-    return { error: 'ILLEGAL_TRANSITION', from: current, to: newStatus };
+    return { ok: false, error: 'ILLEGAL_TRANSITION', from: current, to: newStatus };
   }
 
   if (newStatus === 'cancelled') {
@@ -334,31 +435,48 @@ async function transitionSalesOrderStatusInContext(
   return fetchSalesOrder(ctx, id);
 }
 
-export async function listSalesOrders(params: { status?: string; search?: string } = {}): Promise<SalesOrder[]> {
-  return withOrgContext(async ({ userId, orgId, client }) => {
+export async function listSalesOrders(params: { status?: string; search?: string } = {}): Promise<ListSalesOrdersResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ListSalesOrdersResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_READ);
+    const forbidden = await requirePermission(ctx, SHIP_SO_READ);
+    if (forbidden) return forbidden;
 
     const { rows } = await ctx.client.query<{
       id: string;
-      order_number: string | null;
+      so_number: string | null;
       status: SalesOrderStatus;
-      customer_id: string | null;
       customer_name: string | null;
-      promised_ship_date: string | Date | null;
-      notes: string | null;
+      customer_code: string | null;
+      line_count: number | string | bigint | null;
+      total: string | null;
+      expected_ship_date: string | Date | null;
       created_at: string | Date;
-      updated_at: string | Date;
     }>(
       `select so.id::text,
-              so.order_number,
+              so.order_number as so_number,
               so.status,
-              so.customer_id::text,
               c.name as customer_name,
-              so.promised_ship_date,
-              so.ext_data->>'notes' as notes,
+              c.customer_code,
+              (
+                select count(*)::int
+                  from public.sales_order_lines sol
+                 where sol.org_id = app.current_org_id()
+                   and sol.sales_order_id = so.id
+                   and sol.deleted_at is null
+              ) as line_count,
+              coalesce(
+                so.total_amount_gbp,
+                (
+                  select sum(coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp))
+                    from public.sales_order_lines sol
+                   where sol.org_id = app.current_org_id()
+                     and sol.sales_order_id = so.id
+                     and sol.deleted_at is null
+                ),
+                0
+              )::text as total,
               so.created_at,
-              so.updated_at
+              so.promised_ship_date as expected_ship_date
          from public.sales_orders so
          left join public.customers c on c.id = so.customer_id and c.org_id = app.current_org_id()
         where so.org_id = app.current_org_id()
@@ -368,35 +486,40 @@ export async function listSalesOrders(params: { status?: string; search?: string
             $2::text is null
             or so.order_number ilike '%' || $2 || '%'
             or c.name ilike '%' || $2 || '%'
+            or c.customer_code ilike '%' || $2 || '%'
           )
         order by so.created_at desc, so.order_number desc
         limit 200`,
       [params.status?.trim() || null, params.search?.trim() || null],
     );
-    return rows.map(mapSalesOrderRow);
+    return { ok: true, data: rows.map(mapSalesOrderListRow) };
   });
 }
 
-export async function getSalesOrder(id: string): Promise<SalesOrder | null> {
-  return withOrgContext(async ({ userId, orgId, client }) => {
+export async function getSalesOrder(id: string): Promise<GetSalesOrderResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<GetSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_READ);
-    return fetchSalesOrder(ctx, id);
+    const forbidden = await requirePermission(ctx, SHIP_SO_READ);
+    if (forbidden) return forbidden;
+    return { ok: true, data: await fetchSalesOrder(ctx, id) };
   });
 }
 
-export async function createSalesOrder(input: CreateSalesOrderInput): Promise<SalesOrder | null> {
-  return withOrgContext(async ({ userId, orgId, client }) => {
+export async function createSalesOrder(input: CreateSalesOrderInput): Promise<CreateSalesOrderResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<CreateSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_CREATE);
-    if (input.lines.length === 0) throw new Error('Sales order requires at least one line');
+    const forbidden = await requirePermission(ctx, SHIP_SO_CREATE);
+    if (forbidden) return forbidden;
+    if (input.lines.length === 0) {
+      return { ok: false, error: 'invalid_input', message: 'Sales order requires at least one line' };
+    }
 
     const { rows: numberRows } = await ctx.client.query<{ so_number: string }>(
       `select public.next_sales_order_document_number($1::uuid) as so_number`,
       [orgId],
     );
     const soNumber = numberRows[0]?.so_number;
-    if (!soNumber) throw new Error('Unable to generate sales order number');
+    if (!soNumber) return { ok: false, error: 'persistence_failed', message: 'Unable to generate sales order number' };
 
     const { rows } = await ctx.client.query<{ id: string }>(
       `insert into public.sales_orders
@@ -406,7 +529,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Sa
       [orgId, soNumber, input.customer_id, input.requested_date ?? null, input.notes ?? null, userId],
     );
     const soId = rows[0]?.id;
-    if (!soId) throw new Error('Unable to create sales order');
+    if (!soId) return { ok: false, error: 'persistence_failed', message: 'Unable to create sales order' };
 
     for (const [index, line] of input.lines.entries()) {
       await ctx.client.query(
@@ -417,25 +540,29 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Sa
       );
     }
 
-    return fetchSalesOrder(ctx, soId);
+    return { ok: true, data: await fetchSalesOrder(ctx, soId) };
   });
 }
 
 export async function transitionSalesOrderStatus(
   id: string,
   newStatus: TransitionTarget,
-): Promise<SalesOrder | IllegalTransitionError | null> {
-  return withOrgContext(async ({ userId, orgId, client }) => {
+): Promise<TransitionSalesOrderStatusResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<TransitionSalesOrderStatusResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, permissionForTransition(newStatus));
-    return transitionSalesOrderStatusInContext(ctx, id, newStatus);
+    const forbidden = await requirePermission(ctx, permissionForTransition(newStatus));
+    if (forbidden) return forbidden;
+    const result = await transitionSalesOrderStatusInContext(ctx, id, newStatus);
+    if (result && 'error' in result) return result;
+    return { ok: true, data: result };
   });
 }
 
-export async function allocateSalesOrder(id: string): Promise<SalesOrder | InsufficientStockError | IllegalTransitionError | null> {
-  return withOrgContext(async ({ userId, orgId, client }) => {
+export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrderResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<AllocateSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_ALLOCATE);
+    const forbidden = await requirePermission(ctx, SHIP_SO_ALLOCATE);
+    if (forbidden) return forbidden;
 
     const { rows: statusRows } = await ctx.client.query<{ status: string }>(
       `select status
@@ -447,9 +574,9 @@ export async function allocateSalesOrder(id: string): Promise<SalesOrder | Insuf
       [id],
     );
     const current = statusRows[0]?.status;
-    if (!current) return null;
+    if (!current) return { ok: true, data: null };
     if (!isSalesOrderStatus(current) || !LEGAL_TRANSITIONS[current].includes('allocated')) {
-      return { error: 'ILLEGAL_TRANSITION', from: current, to: 'allocated' };
+      return { ok: false, error: 'ILLEGAL_TRANSITION', from: current, to: 'allocated' };
     }
 
     const { rows: lines } = await ctx.client.query<{
@@ -508,6 +635,7 @@ export async function allocateSalesOrder(id: string): Promise<SalesOrder | Insuf
 
       if (needed > 0n) {
         return {
+          ok: false,
           error: 'INSUFFICIENT_STOCK',
           item_id: line.product_id,
           needed: line.quantity_ordered,
@@ -550,15 +678,18 @@ export async function allocateSalesOrder(id: string): Promise<SalesOrder | Insuf
       );
     }
 
-    return transitionSalesOrderStatusInContext(ctx, id, 'allocated');
+    const result = await transitionSalesOrderStatusInContext(ctx, id, 'allocated');
+    if (result && 'error' in result) return result;
+    return { ok: true, data: result };
   });
 }
 
-export async function deallocateSalesOrder(soId: string): Promise<{ ok: true }> {
-  return withOrgContext(async ({ userId, orgId, client }) => {
+export async function deallocateSalesOrder(soId: string): Promise<DeallocateSalesOrderResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<DeallocateSalesOrderResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    await requirePermission(ctx, SHIP_SO_ALLOCATE);
+    const forbidden = await requirePermission(ctx, SHIP_SO_ALLOCATE);
+    if (forbidden) return forbidden;
     await deallocateSalesOrderInContext(ctx, soId);
-    return { ok: true };
+    return { ok: true, data: null };
   });
 }

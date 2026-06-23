@@ -30,6 +30,7 @@ import {
   OutputModal,
   WasteModal,
   type OutputUomContext,
+  type PrintFgLabelAction,
 } from './action-modals';
 import type {
   WoActionKind,
@@ -75,6 +76,13 @@ export type WoActionsProviderProps = {
    * falls back to base-kg entry.
    */
   outputUom?: OutputUomContext | null;
+  /**
+   * E1 — print the created FG LP label (printers `printLabel` adapter, threaded
+   * from the RSC page). Optional + gated on the server-resolved settings.org.update
+   * (`canPrintFgLabel`); absent/false ⇒ the success-state button is disabled.
+   */
+  printFgLabelAction?: PrintFgLabelAction;
+  canPrintFgLabel?: boolean;
   children: React.ReactNode;
 };
 
@@ -99,6 +107,8 @@ export function WoActionsProvider(props: WoActionsProviderProps) {
         defaultLineId={props.defaultLineId}
         defaultProductId={props.defaultProductId}
         outputUom={props.outputUom ?? null}
+        printFgLabelAction={props.printFgLabelAction}
+        canPrintFgLabel={props.canPrintFgLabel ?? false}
       />
     </Ctx.Provider>
   );
@@ -151,6 +161,8 @@ function WoActionModals({
   defaultLineId,
   defaultProductId,
   outputUom,
+  printFgLabelAction,
+  canPrintFgLabel,
 }: {
   locale: string;
   woId: string;
@@ -160,6 +172,8 @@ function WoActionModals({
   defaultLineId: string | null;
   defaultProductId: string | null;
   outputUom: OutputUomContext | null;
+  printFgLabelAction?: PrintFgLabelAction;
+  canPrintFgLabel: boolean;
 }) {
   const { labels, open, setOpen } = useWoActionsCtx();
   const { run } = useWoAction(locale, woId);
@@ -175,7 +189,14 @@ function WoActionModals({
       <CancelModal open={open === 'cancel'} {...base} />
       <CompleteModal open={open === 'complete'} {...base} />
       <CloseModal open={open === 'close'} {...base} signerUserId={currentUserId} />
-      <OutputModal open={open === 'output'} {...base} defaultProductId={defaultProductId} uom={outputUom} />
+      <OutputModal
+        open={open === 'output'}
+        {...base}
+        defaultProductId={defaultProductId}
+        uom={outputUom}
+        printLabelAction={printFgLabelAction}
+        canPrintFgLabel={canPrintFgLabel}
+      />
       <WasteModal open={open === 'waste'} {...base} categories={wasteCategories} />
     </>
   );

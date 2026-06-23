@@ -89,7 +89,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         transactionId,
         outputId: data.output_id,
       });
-      return scannerOk({ output: data, transactionId, replay: false });
+      return scannerOk({ output: data, lp_id: data.lp_id, transactionId, replay: false });
     } catch (error) {
       if (error instanceof QualityHoldError) {
         await withScannerOrg(session, (ctx) => emitConsumeBlocked(ctx, error));

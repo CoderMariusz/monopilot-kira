@@ -131,6 +131,10 @@ interface ScannerProdLabelsShape {
     submitting: string;
     doneTitle: string;
     doneBody: string;
+    scannerPrintLabel: string;
+    scannerPrinting: string;
+    scannerPrinted: string;
+    scannerPrintError: string;
     registerNext: string;
     backToWo: string;
     errGeneric: string;
@@ -298,6 +302,10 @@ const en: ScannerProdLabelsShape = {
     submitting: "Saving…",
     doneTitle: "Output registered",
     doneBody: "Finished goods recorded to stock.",
+    scannerPrintLabel: "Print label",
+    scannerPrinting: "Printing...",
+    scannerPrinted: "Printed",
+    scannerPrintError: "Could not print label.",
     registerNext: "Register another",
     backToWo: "Back to WO",
     errGeneric: "Could not save. Try again.",
@@ -459,6 +467,10 @@ const pl: ScannerProdLabelsShape = {
     submitting: "Zapisywanie…",
     doneTitle: "Wyrób zarejestrowany",
     doneBody: "Wyrób gotowy zapisany do magazynu.",
+    scannerPrintLabel: "Drukuj etykietę",
+    scannerPrinting: "Drukowanie...",
+    scannerPrinted: "Wydrukowano",
+    scannerPrintError: "Nie udało się wydrukować etykiety.",
     registerNext: "Rejestruj kolejny",
     backToWo: "Wróć do WO",
     errGeneric: "Nie udało się zapisać. Spróbuj ponownie.",

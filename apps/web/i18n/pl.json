@@ -5695,7 +5695,8 @@
         "createPo": "Utwórz zamówienie",
         "export": "Eksportuj",
         "exporting": "Eksportowanie…",
-        "exportError": "Eksport nie powiódł się. Spróbuj ponownie."
+        "exportError": "Eksport nie powiódł się. Spróbuj ponownie.",
+        "import": "Importuj"
       },
       "poStatus": {
         "draft": "Wersja robocza",
@@ -6318,6 +6319,170 @@
         "colWeek": "Tydzień ISO",
         "colQty": "Ilość"
       }
+    },
+    "import": {
+      "title": "Import zbiorczy",
+      "subtitle": "Importuj dokumenty planowania z pliku CSV: zamówienia zakupu, zlecenia przesunięcia i zlecenia produkcyjne.",
+      "breadcrumb": {
+        "planning": "Planowanie",
+        "import": "Import"
+      },
+      "denied": "Nie masz uprawnień do importu zamówień zakupu. Poproś administratora o uprawnienia zapisu w planowaniu.",
+      "comingSoon": "Wkrótce",
+      "comingSoonTooltip": "Ten import jest budowany przez równoległy zespół i nie jest jeszcze dostępny.",
+      "po": {
+        "cardTitle": "Zamówienia zakupu",
+        "cardDesc": "Twórz szkice zamówień zakupu zbiorczo z pliku CSV. Wiersze są grupowane w zamówienia według dostawcy i odniesienia zewnętrznego.",
+        "downloadTemplate": "Pobierz szablon",
+        "importFile": "Importuj plik",
+        "templateColumnsLabel": "Kolumny"
+      },
+      "to": {
+        "cardTitle": "Zlecenia przesunięcia",
+        "cardDesc": "Zbiorczy import przesunięć zapasów między magazynami. Wiersze są grupowane w zlecenia przesunięcia według magazynu źródłowego, magazynu docelowego i odniesienia zewnętrznego.",
+        "downloadTemplate": "Pobierz szablon",
+        "importFile": "Importuj plik",
+        "templateColumnsLabel": "Kolumny",
+        "docsToCreate": "Zlecenia przesunięcia do utworzenia",
+        "createdHeading": "Utworzone zlecenia przesunięcia",
+        "noCreated": "Nie utworzono żadnych zleceń przesunięcia.",
+        "viewList": "Przejdź do zleceń przesunięcia",
+        "colFromWarehouse": "Magazyn źródłowy",
+        "colToWarehouse": "Magazyn docelowy",
+        "colItem": "Pozycja",
+        "forbidden": "Nie masz uprawnień do importu zleceń przesunięcia."
+      },
+      "wo": {
+        "cardTitle": "Zlecenia produkcyjne",
+        "cardDesc": "Zbiorczy import zleceń produkcyjnych. Dla każdego odniesienia zewnętrznego tworzone jest jedno zlecenie. Krok walidacji pokazuje przeliczenie jednostki miary przed zatwierdzeniem.",
+        "downloadTemplate": "Pobierz szablon",
+        "importFile": "Importuj plik",
+        "templateColumnsLabel": "Kolumny",
+        "docsToCreate": "Zlecenia produkcyjne do utworzenia",
+        "createdHeading": "Utworzone zlecenia produkcyjne",
+        "noCreated": "Nie utworzono żadnych zleceń produkcyjnych.",
+        "viewList": "Przejdź do zleceń produkcyjnych",
+        "colFinishedGood": "Wyrób gotowy",
+        "colQuantity": "Ilość",
+        "colConversion": "Przeliczenie ilości",
+        "forbidden": "Nie masz uprawnień do importu zleceń produkcyjnych."
+      },
+      "entityWizard": {
+        "backCta": "Wstecz",
+        "steps": {
+          "upload": "Wgraj",
+          "validate": "Waliduj",
+          "preview": "Podgląd",
+          "result": "Wynik"
+        },
+        "upload": {
+          "title": "Wgraj plik CSV",
+          "fileLabel": "Plik CSV",
+          "orgScopedNote": "Import jest ograniczony do Twojej organizacji. Organizacja pochodzi z Twojej sesji, nigdy z pliku.",
+          "selectedFile": "Wybrany plik",
+          "validateCta": "Waliduj wiersze"
+        },
+        "validate": {
+          "title": "Walidacja wierszy",
+          "counter": "{ok} poprawnych / {failed} błędów",
+          "rowsInFile": "Wierszy w pliku",
+          "okKpi": "Poprawne",
+          "errorsKpi": "Błędy",
+          "colRow": "Wiersz",
+          "colStatus": "Status",
+          "colColumn": "Kolumna",
+          "colIssue": "Problem",
+          "statusOk": "OK",
+          "statusError": "Błąd",
+          "noRowErrors": "Brak problemów",
+          "downloadErrorReport": "Pobierz raport błędów"
+        },
+        "preview": {
+          "title": "Podgląd",
+          "colExternalRef": "Odniesienie zewnętrzne",
+          "colLines": "Pozycje",
+          "modeLabel": "Tryb importu",
+          "modeAllOrNothing": "Wszystko albo nic",
+          "modeSkipInvalid": "Pomiń błędne",
+          "modeHelpAllOrNothing": "Jeśli którykolwiek wiersz ma błąd, nic nie zostanie zaimportowane.",
+          "modeHelpSkipInvalid": "Poprawne wiersze zostaną zaimportowane; wiersze z błędami zostaną pominięte.",
+          "commitCta": "Zatwierdź import"
+        },
+        "result": {
+          "title": "Wynik importu",
+          "createdKpi": "Utworzone",
+          "skippedKpi": "Pominięte",
+          "failedKpi": "Nieudane",
+          "skippedHeading": "Pominięte",
+          "importAnother": "Importuj kolejny plik"
+        },
+        "errors": {
+          "parseFailed": "Nie udało się odczytać pliku CSV. Sprawdź format i spróbuj ponownie.",
+          "headerMismatch": "W nagłówku CSV brakuje wymaganych kolumn. Pobierz szablon, aby uzyskać poprawne kolumny.",
+          "commitFailed": "Nie udało się ukończyć importu. Spróbuj ponownie."
+        }
+      },
+      "wizard": {
+        "backCta": "Wstecz",
+        "steps": {
+          "upload": "Wgraj",
+          "validate": "Waliduj",
+          "preview": "Podgląd",
+          "result": "Wynik"
+        },
+        "upload": {
+          "title": "Wgraj plik CSV",
+          "fileLabel": "Plik CSV",
+          "orgScopedNote": "Import jest ograniczony do Twojej organizacji. Organizacja pochodzi z Twojej sesji, nigdy z pliku.",
+          "selectedFile": "Wybrany plik",
+          "validateCta": "Waliduj wiersze"
+        },
+        "validate": {
+          "title": "Walidacja wierszy",
+          "counter": "{ok} poprawnych / {failed} błędów",
+          "rowsInFile": "Wierszy w pliku",
+          "okKpi": "Poprawne",
+          "errorsKpi": "Błędy",
+          "colRow": "Wiersz",
+          "colStatus": "Status",
+          "colColumn": "Kolumna",
+          "colIssue": "Problem",
+          "statusOk": "OK",
+          "statusError": "Błąd",
+          "noRowErrors": "Brak problemów",
+          "downloadErrorReport": "Pobierz raport błędów"
+        },
+        "preview": {
+          "title": "Podgląd",
+          "posToCreate": "Zamówienia do utworzenia",
+          "colExternalRef": "Odniesienie zewnętrzne",
+          "colSupplier": "Dostawca",
+          "colLines": "Pozycje",
+          "modeLabel": "Tryb importu",
+          "modeAllOrNothing": "Wszystko albo nic",
+          "modeSkipInvalid": "Pomiń błędne",
+          "modeHelpAllOrNothing": "Jeśli którykolwiek wiersz ma błąd, nic nie zostanie zaimportowane.",
+          "modeHelpSkipInvalid": "Poprawne wiersze zostaną zaimportowane; wiersze z błędami zostaną pominięte.",
+          "commitCta": "Zatwierdź import"
+        },
+        "result": {
+          "title": "Wynik importu",
+          "createdKpi": "Utworzone",
+          "skippedKpi": "Pominięte",
+          "failedKpi": "Nieudane",
+          "createdHeading": "Utworzone zamówienia zakupu",
+          "skippedHeading": "Pominięte",
+          "noCreated": "Nie utworzono żadnych zamówień zakupu.",
+          "viewPo": "Przejdź do zamówień zakupu",
+          "importAnother": "Importuj kolejny plik"
+        },
+        "errors": {
+          "parseFailed": "Nie udało się odczytać pliku CSV. Sprawdź format i spróbuj ponownie.",
+          "headerMismatch": "W nagłówku CSV brakuje wymaganych kolumn. Pobierz szablon, aby uzyskać poprawne kolumny.",
+          "forbidden": "Nie masz uprawnień do importu zamówień zakupu.",
+          "commitFailed": "Nie udało się ukończyć importu. Spróbuj ponownie."
+        }
+      }
     }
   },
   "production": {
@@ -6827,6 +6992,19 @@
             "baseTextareaLabel": "Wagi sztuk (jedna na wiersz, kg)",
             "baseTextareaHint": "Wpisz jedną dodatnią wagę w każdym wierszu.",
             "invalidWeights": "Każda waga sztuki musi być liczbą dodatnią."
+          },
+          "print": {
+            "successTitle": "Wyrób zarejestrowany",
+            "successBody": "Utworzono nośnik (LP) wyrobu gotowego.",
+            "lpLine": "Etykieta FG — {lp}",
+            "action": "Drukuj etykietę FG",
+            "printing": "Drukowanie…",
+            "queued": "Zadanie druku przekazane do drukarki.",
+            "sent": "Etykieta wysłana — pobierz wygenerowany plik poniżej.",
+            "download": "Pobierz etykietę",
+            "error": "Nie udało się wydrukować etykiety. Spróbuj ponownie lub skontaktuj się z administratorem.",
+            "forbidden": "Brak uprawnień: do druku etykiet wymagane jest settings.org.update.",
+            "close": "Gotowe"
           }
         },
         "waste": {
@@ -8171,6 +8349,138 @@
       "nav": {
         "title": "Ćwiczenia wycofania",
         "desc": "Przeglądaj zapisane śledzenia wycofania i ich czas trwania względem celu 4h."
+      }
+    }
+  },
+  "Shipping": {
+    "salesOrders": {
+      "title": "Zamówienia sprzedaży",
+      "subtitle": "Twórz, rezerwuj i realizuj zamówienia sprzedaży klientów.",
+      "error": "Nie udało się teraz wczytać zamówień sprzedaży. Spróbuj ponownie.",
+      "denied": "Nie masz uprawnień do przeglądania zamówień sprzedaży.",
+      "breadcrumb": {
+        "shipping": "Wysyłka",
+        "salesOrders": "Zamówienia sprzedaży"
+      },
+      "soStatus": {
+        "draft": "Wersja robocza",
+        "confirmed": "Potwierdzone",
+        "allocated": "Zarezerwowane",
+        "partially_picked": "Częściowo skompletowane",
+        "picked": "Skompletowane",
+        "partially_packed": "Częściowo spakowane",
+        "packed": "Spakowane",
+        "manifested": "Zmanifestowane",
+        "shipped": "Wysłane",
+        "partially_delivered": "Częściowo dostarczone",
+        "delivered": "Dostarczone",
+        "cancelled": "Anulowane"
+      },
+      "allocationStatus": {
+        "unallocated": "Niezarezerwowane",
+        "partially_allocated": "Częściowo zarezerwowane",
+        "allocated": "Zarezerwowane"
+      },
+      "list": {
+        "createSo": "Nowe zamówienie sprzedaży",
+        "searchPlaceholder": "Szukaj numeru ZS lub klienta…",
+        "rowsCount": "{n} wierszy",
+        "customerFilterLabel": "Klient",
+        "allCustomers": "Wszyscy klienci",
+        "clearFilters": "Wyczyść wszystkie filtry",
+        "tabsAll": "Wszystkie",
+        "view": "Podgląd",
+        "columns": {
+          "so": "Numer ZS",
+          "customer": "Klient",
+          "status": "Status",
+          "expected": "Planowana wysyłka",
+          "lines": "Pozycje",
+          "total": "Razem",
+          "actions": "Akcje"
+        },
+        "empty": {
+          "title": "Brak zamówień sprzedaży",
+          "body": "Utwórz pierwsze zamówienie sprzedaży, aby rozpocząć wysyłkę do klientów.",
+          "clear": "Wyczyść filtry"
+        }
+      },
+      "create": {
+        "title": "Nowe zamówienie sprzedaży",
+        "customerLabel": "Klient",
+        "customerPlaceholder": "Wybierz klienta",
+        "requestedLabel": "Żądana data wysyłki",
+        "notesLabel": "Uwagi",
+        "notesPlaceholder": "Uwagi (opcjonalnie)",
+        "linesTitle": "Pozycje",
+        "addLine": "+ Dodaj pozycję",
+        "removeLine": "Usuń pozycję",
+        "lineItem": "Pozycja",
+        "lineQty": "Ilość",
+        "lineUom": "JM",
+        "uomPlaceholder": "Jednostka",
+        "qtyPlaceholder": "0",
+        "submit": "Utwórz zamówienie sprzedaży",
+        "submitting": "Tworzenie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "customerRequired": "Wybierz klienta.",
+          "linesRequired": "Dodaj co najmniej jedną pozycję z produktem i dodatnią ilością."
+        },
+        "picker": {
+          "trigger": "+ Dodaj wyrób gotowy",
+          "searchLabel": "Szukaj wyrobów gotowych",
+          "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+          "loading": "Wyszukiwanie…",
+          "empty": "Brak pasujących wyrobów gotowych",
+          "cancel": "Anuluj",
+          "error": "Wyszukiwanie pozycji nie powiodło się"
+        }
+      },
+      "detail": {
+        "title": "Zamówienie sprzedaży",
+        "breadcrumbCurrent": "Szczegóły",
+        "notFound": "To zamówienie sprzedaży już nie istnieje.",
+        "backToList": "Powrót do zamówień sprzedaży",
+        "notesTitle": "Uwagi",
+        "summary": {
+          "title": "Podsumowanie",
+          "customer": "Klient",
+          "status": "Status",
+          "allocation": "Rezerwacja",
+          "expected": "Planowana wysyłka",
+          "created": "Utworzono",
+          "lines": "Pozycje",
+          "total": "Razem"
+        },
+        "lines": {
+          "title": "Pozycje zamówienia",
+          "seq": "Pozycja",
+          "item": "Pozycja",
+          "qty": "Zamówiono",
+          "uom": "JM",
+          "allocated": "Zarezerwowano",
+          "allocationStatus": "Rezerwacja",
+          "empty": "To zamówienie sprzedaży nie ma pozycji."
+        },
+        "actions": {
+          "title": "Akcje",
+          "allocate": "Rezerwuj",
+          "deallocate": "Zwolnij rezerwację",
+          "confirm": "Potwierdź",
+          "cancel": "Anuluj",
+          "pending": "Przetwarzanie…",
+          "confirmPrompt": "Zmienić status zamówienia {so} na {status}?",
+          "noPermission": "Nie masz uprawnień do wykonania tej akcji.",
+          "notAvailable": "Ta akcja jest niedostępna w bieżącym statusie."
+        }
+      },
+      "errors": {
+        "invalid_input": "Te dane są nieprawidłowe. Sprawdź i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień, aby to zrobić.",
+        "illegalTransition": "Ta zmiana statusu jest niedozwolona z bieżącego statusu.",
+        "insufficientStock": "Brak wystarczającego zwolnionego zapasu, aby zarezerwować to zamówienie.",
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
       }
     }
   }

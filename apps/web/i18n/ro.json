@@ -5695,7 +5695,8 @@
         "createPo": "Create PO",
         "export": "Export",
         "exporting": "Exporting…",
-        "exportError": "Export failed. Please retry."
+        "exportError": "Export failed. Please retry.",
+        "import": "Import"
       },
       "poStatus": {
         "draft": "Draft",
@@ -6318,6 +6319,170 @@
         "colWeek": "ISO-week",
         "colQty": "Qty"
       }
+    },
+    "import": {
+      "title": "Bulk import",
+      "subtitle": "Import Planning documents from a CSV file: purchase orders, transfer orders and work orders.",
+      "breadcrumb": {
+        "planning": "Planning",
+        "import": "Import"
+      },
+      "denied": "You do not have permission to import purchase orders. Ask an administrator for planning write access.",
+      "comingSoon": "Coming soon",
+      "comingSoonTooltip": "This importer is being built by a parallel lane and is not available yet.",
+      "po": {
+        "cardTitle": "Purchase orders",
+        "cardDesc": "Create draft purchase orders in bulk from a CSV. Rows are grouped into POs by supplier and external reference.",
+        "downloadTemplate": "Download template",
+        "importFile": "Import file",
+        "templateColumnsLabel": "Columns"
+      },
+      "to": {
+        "cardTitle": "Transfer orders",
+        "cardDesc": "Bulk import stock transfers between warehouses. Rows are grouped into transfer orders by source warehouse, destination warehouse and external reference.",
+        "downloadTemplate": "Download template",
+        "importFile": "Import file",
+        "templateColumnsLabel": "Columns",
+        "docsToCreate": "Transfer orders to create",
+        "createdHeading": "Created transfer orders",
+        "noCreated": "No transfer orders were created.",
+        "viewList": "Go to transfer orders",
+        "colFromWarehouse": "From warehouse",
+        "colToWarehouse": "To warehouse",
+        "colItem": "Item",
+        "forbidden": "You do not have permission to import transfer orders."
+      },
+      "wo": {
+        "cardTitle": "Work orders",
+        "cardDesc": "Bulk import production work orders. One work order is created per external reference. The validation step shows the unit-of-measure conversion before commit.",
+        "downloadTemplate": "Download template",
+        "importFile": "Import file",
+        "templateColumnsLabel": "Columns",
+        "docsToCreate": "Work orders to create",
+        "createdHeading": "Created work orders",
+        "noCreated": "No work orders were created.",
+        "viewList": "Go to work orders",
+        "colFinishedGood": "Finished good",
+        "colQuantity": "Quantity",
+        "colConversion": "Quantity conversion",
+        "forbidden": "You do not have permission to import work orders."
+      },
+      "entityWizard": {
+        "backCta": "Back",
+        "steps": {
+          "upload": "Upload",
+          "validate": "Validate",
+          "preview": "Preview",
+          "result": "Result"
+        },
+        "upload": {
+          "title": "Upload CSV",
+          "fileLabel": "CSV file",
+          "orgScopedNote": "Imports are scoped to your organisation. The org is taken from your session, never from the file.",
+          "selectedFile": "Selected file",
+          "validateCta": "Validate rows"
+        },
+        "validate": {
+          "title": "Validate rows",
+          "counter": "{ok} ok / {failed} errors",
+          "rowsInFile": "Rows in file",
+          "okKpi": "OK",
+          "errorsKpi": "Errors",
+          "colRow": "Row",
+          "colStatus": "Status",
+          "colColumn": "Column",
+          "colIssue": "Issue",
+          "statusOk": "OK",
+          "statusError": "Error",
+          "noRowErrors": "No issues",
+          "downloadErrorReport": "Download error report"
+        },
+        "preview": {
+          "title": "Preview",
+          "colExternalRef": "External reference",
+          "colLines": "Lines",
+          "modeLabel": "Import mode",
+          "modeAllOrNothing": "All-or-nothing",
+          "modeSkipInvalid": "Skip invalid",
+          "modeHelpAllOrNothing": "If any row has an error, nothing is imported.",
+          "modeHelpSkipInvalid": "Valid rows are imported; rows with errors are skipped.",
+          "commitCta": "Commit import"
+        },
+        "result": {
+          "title": "Import result",
+          "createdKpi": "Created",
+          "skippedKpi": "Skipped",
+          "failedKpi": "Failed",
+          "skippedHeading": "Skipped",
+          "importAnother": "Import another file"
+        },
+        "errors": {
+          "parseFailed": "Could not parse the CSV file. Check the format and try again.",
+          "headerMismatch": "The CSV header is missing required columns. Download the template for the correct columns.",
+          "commitFailed": "The import could not be completed. Please try again."
+        }
+      },
+      "wizard": {
+        "backCta": "Back",
+        "steps": {
+          "upload": "Upload",
+          "validate": "Validate",
+          "preview": "Preview",
+          "result": "Result"
+        },
+        "upload": {
+          "title": "Upload CSV",
+          "fileLabel": "CSV file",
+          "orgScopedNote": "Imports are scoped to your organisation. The org is taken from your session, never from the file.",
+          "selectedFile": "Selected file",
+          "validateCta": "Validate rows"
+        },
+        "validate": {
+          "title": "Validate rows",
+          "counter": "{ok} ok / {failed} errors",
+          "rowsInFile": "Rows in file",
+          "okKpi": "OK",
+          "errorsKpi": "Errors",
+          "colRow": "Row",
+          "colStatus": "Status",
+          "colColumn": "Column",
+          "colIssue": "Issue",
+          "statusOk": "OK",
+          "statusError": "Error",
+          "noRowErrors": "No issues",
+          "downloadErrorReport": "Download error report"
+        },
+        "preview": {
+          "title": "Preview",
+          "posToCreate": "Purchase orders to create",
+          "colExternalRef": "External reference",
+          "colSupplier": "Supplier",
+          "colLines": "Lines",
+          "modeLabel": "Import mode",
+          "modeAllOrNothing": "All-or-nothing",
+          "modeSkipInvalid": "Skip invalid",
+          "modeHelpAllOrNothing": "If any row has an error, nothing is imported.",
+          "modeHelpSkipInvalid": "Valid rows are imported; rows with errors are skipped.",
+          "commitCta": "Commit import"
+        },
+        "result": {
+          "title": "Import result",
+          "createdKpi": "Created",
+          "skippedKpi": "Skipped",
+          "failedKpi": "Failed",
+          "createdHeading": "Created purchase orders",
+          "skippedHeading": "Skipped",
+          "noCreated": "No purchase orders were created.",
+          "viewPo": "Go to purchase orders",
+          "importAnother": "Import another file"
+        },
+        "errors": {
+          "parseFailed": "Could not parse the CSV file. Check the format and try again.",
+          "headerMismatch": "The CSV header is missing required columns. Download the template for the correct columns.",
+          "forbidden": "You do not have permission to import purchase orders.",
+          "commitFailed": "The import could not be completed. Please try again."
+        }
+      }
     }
   },
   "production": {
@@ -6827,6 +6992,19 @@
             "baseTextareaLabel": "Per-unit weights (one per line, kg)",
             "baseTextareaHint": "Enter one positive weight per line.",
             "invalidWeights": "Every unit weight must be a positive number."
+          },
+          "print": {
+            "successTitle": "Output registered",
+            "successBody": "The finished-goods license plate was created.",
+            "lpLine": "FG label — {lp}",
+            "action": "Print FG label",
+            "printing": "Printing…",
+            "queued": "Print job queued for the printer.",
+            "sent": "Label sent — download the rendered output below.",
+            "download": "Download label",
+            "error": "Label could not be printed. Try again or contact an administrator.",
+            "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
+            "close": "Done"
           }
         },
         "waste": {
@@ -8171,6 +8349,138 @@
       "nav": {
         "title": "Recall drills",
         "desc": "Review saved recall traces and their duration against the 4h target."
+      }
+    }
+  },
+  "Shipping": {
+    "salesOrders": {
+      "title": "Sales orders",
+      "subtitle": "Raise, allocate and progress customer sales orders.",
+      "error": "We could not load sales orders right now. Please retry.",
+      "denied": "You do not have permission to view sales orders.",
+      "breadcrumb": {
+        "shipping": "Shipping",
+        "salesOrders": "Sales orders"
+      },
+      "soStatus": {
+        "draft": "Draft",
+        "confirmed": "Confirmed",
+        "allocated": "Allocated",
+        "partially_picked": "Partially picked",
+        "picked": "Picked",
+        "partially_packed": "Partially packed",
+        "packed": "Packed",
+        "manifested": "Manifested",
+        "shipped": "Shipped",
+        "partially_delivered": "Partially delivered",
+        "delivered": "Delivered",
+        "cancelled": "Cancelled"
+      },
+      "allocationStatus": {
+        "unallocated": "Unallocated",
+        "partially_allocated": "Partially allocated",
+        "allocated": "Allocated"
+      },
+      "list": {
+        "createSo": "New sales order",
+        "searchPlaceholder": "Search SO number or customer…",
+        "rowsCount": "{n} rows",
+        "customerFilterLabel": "Customer",
+        "allCustomers": "All customers",
+        "clearFilters": "Clear all filters",
+        "tabsAll": "All",
+        "view": "View",
+        "columns": {
+          "so": "SO number",
+          "customer": "Customer",
+          "status": "Status",
+          "expected": "Expected ship date",
+          "lines": "Lines",
+          "total": "Total",
+          "actions": "Actions"
+        },
+        "empty": {
+          "title": "No sales orders yet",
+          "body": "Create your first sales order to start shipping to customers.",
+          "clear": "Clear filters"
+        }
+      },
+      "create": {
+        "title": "New sales order",
+        "customerLabel": "Customer",
+        "customerPlaceholder": "Select a customer",
+        "requestedLabel": "Requested ship date",
+        "notesLabel": "Notes",
+        "notesPlaceholder": "Optional notes",
+        "linesTitle": "Lines",
+        "addLine": "+ Add line",
+        "removeLine": "Remove line",
+        "lineItem": "Item",
+        "lineQty": "Qty",
+        "lineUom": "UoM",
+        "uomPlaceholder": "Unit",
+        "qtyPlaceholder": "0",
+        "submit": "Create sales order",
+        "submitting": "Creating…",
+        "cancel": "Cancel",
+        "errors": {
+          "customerRequired": "Select a customer.",
+          "linesRequired": "Add at least one line with an item and a positive quantity."
+        },
+        "picker": {
+          "trigger": "+ Add finished good",
+          "searchLabel": "Search finished goods",
+          "searchPlaceholder": "Search by code or name…",
+          "loading": "Searching…",
+          "empty": "No matching finished goods",
+          "cancel": "Cancel",
+          "error": "Item search failed"
+        }
+      },
+      "detail": {
+        "title": "Sales order",
+        "breadcrumbCurrent": "Detail",
+        "notFound": "That sales order no longer exists.",
+        "backToList": "Back to sales orders",
+        "notesTitle": "Notes",
+        "summary": {
+          "title": "Summary",
+          "customer": "Customer",
+          "status": "Status",
+          "allocation": "Allocation",
+          "expected": "Expected ship date",
+          "created": "Created",
+          "lines": "Lines",
+          "total": "Total"
+        },
+        "lines": {
+          "title": "Order lines",
+          "seq": "Line",
+          "item": "Item",
+          "qty": "Ordered",
+          "uom": "UoM",
+          "allocated": "Allocated",
+          "allocationStatus": "Allocation",
+          "empty": "This sales order has no lines."
+        },
+        "actions": {
+          "title": "Actions",
+          "allocate": "Allocate",
+          "deallocate": "Deallocate",
+          "confirm": "Confirm",
+          "cancel": "Cancel",
+          "pending": "Working…",
+          "confirmPrompt": "Move sales order {so} to {status}?",
+          "noPermission": "You do not have permission to perform this action.",
+          "notAvailable": "This action is not available in the current status."
+        }
+      },
+      "errors": {
+        "invalid_input": "That input isn't valid. Please review and try again.",
+        "forbidden": "You don't have permission to do that.",
+        "illegalTransition": "That status change isn't allowed from the current status.",
+        "insufficientStock": "There is not enough released stock to allocate this order.",
+        "persistence_failed": "Something went wrong saving. Please retry."
       }
     }
   }

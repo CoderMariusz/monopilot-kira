@@ -83,6 +83,16 @@
         "invalidState": "This LP is no longer pending QC.",
         "error": "We could not release QC. Try again."
       },
+      "printLabel": {
+        "action": "Print labels",
+        "printing": "Printing…",
+        "queued": "Print job queued for the printer.",
+        "sent": "Label sent — download the rendered output below.",
+        "download": "Download label",
+        "error": "Label could not be printed. Try again or contact an administrator.",
+        "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
+        "noLp": "No license plate was created for this line yet."
+      },
       "cancelLine": {
         "rowAction": "Cancel receipt…",
         "cancelledBadge": "Cancelled",
@@ -343,6 +353,16 @@
         "denied": "Nie masz uprawnień do zwalniania QC przyjęć.",
         "invalidState": "Ten LP nie oczekuje już na QC.",
         "error": "Nie udało się zwolnić QC. Spróbuj ponownie."
+      },
+      "printLabel": {
+        "action": "Drukuj etykiety",
+        "printing": "Drukowanie…",
+        "queued": "Zadanie druku przekazane do drukarki.",
+        "sent": "Etykieta wysłana — pobierz wygenerowany plik poniżej.",
+        "download": "Pobierz etykietę",
+        "error": "Nie udało się wydrukować etykiety. Spróbuj ponownie lub skontaktuj się z administratorem.",
+        "forbidden": "Brak uprawnień: do druku etykiet wymagane jest settings.org.update.",
+        "noLp": "Dla tej pozycji nie utworzono jeszcze nośnika (LP)."
       },
       "cancelLine": {
         "rowAction": "Anuluj przyjęcie…",

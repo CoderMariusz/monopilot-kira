@@ -51,6 +51,16 @@ const LABELS: GrnDetailLabels = {
     invalidState: 'Invalid state',
     error: 'Error',
   },
+  printLabel: {
+    action: 'Print labels',
+    printing: 'Printing…',
+    queued: 'Print job queued for the printer.',
+    sent: 'Label sent — download the rendered output below.',
+    download: 'Download label',
+    error: 'Label could not be printed. Try again or contact an administrator.',
+    forbidden: 'Insufficient permissions: settings.org.update is required to print labels.',
+    noLp: 'No license plate was created for this line yet.',
+  },
   cancelLine: {
     rowAction: 'Cancel receipt…',
     cancelledBadge: 'Cancelled',
@@ -137,6 +147,7 @@ const releaseQaActionStub: any = async () => ({
   data: { lpId: 'lp-1', lpNumber: 'LP-001', status: 'available', qaStatus: 'released' },
 });
 const cancelOkStub: any = async () => ({ ok: true });
+const printOkStub: any = async () => ({ status: 'sent', result_url: 'data:text/plain,label' });
 
 function renderGrn(overrides: any = {}) {
   return render(
@@ -147,6 +158,8 @@ function renderGrn(overrides: any = {}) {
       releaseQaAction: releaseQaActionStub,
       cancelGrnLineAction: cancelOkStub,
       canCancelLines: true,
+      printLabelAction: printOkStub,
+      canPrint: true,
       ...overrides,
     }),
   );
@@ -157,6 +170,46 @@ describe('GrnDetailClient QA release affordance', () => {
     renderGrn();
     expect(screen.getByTestId('grn-release-qc-line-1')).toBeInTheDocument();
     expect(screen.queryByTestId('grn-release-qc-line-2')).not.toBeInTheDocument();
+  });
+});
+
+describe('GrnDetailClient — print labels (E1)', () => {
+  it('renders an enabled [Print labels] button on every received line when permitted', () => {
+    renderGrn();
+    const btn1 = screen.getByTestId('grn-print-label-line-1');
+    const btn2 = screen.getByTestId('grn-print-label-line-2');
+    expect(btn1).toHaveTextContent('Print labels');
+    expect(btn1).toBeEnabled();
+    expect(btn2).toBeEnabled();
+  });
+
+  it('calls printLabel with entityType "lp" + the line LP id + received-qty copies', async () => {
+    const user = userEvent.setup();
+    const printSpy = vi.fn(async () => ({ status: 'sent', result_url: 'data:text/plain,x' }));
+    renderGrn({ printLabelAction: printSpy as any });
+    await user.click(screen.getByTestId('grn-print-label-line-1'));
+    await waitFor(() => expect(printSpy).toHaveBeenCalledTimes(1));
+    // line-1 received 10 kg → entityId = its created LP, copies = 10.
+    expect(printSpy).toHaveBeenCalledWith({ entityType: 'lp', entityId: 'lp-1', copies: 10 });
+  });
+
+  it('shows the queued/sent result + a download link from result_url', async () => {
+    const user = userEvent.setup();
+    renderGrn();
+    await user.click(screen.getByTestId('grn-print-label-line-1'));
+    const result = await screen.findByTestId('grn-print-label-result-line-1');
+    expect(result).toHaveAttribute('data-print-status', 'sent');
+    expect(result).toHaveTextContent('Label sent — download the rendered output below.');
+    expect(screen.getByTestId('grn-print-label-download-line-1')).toHaveAttribute('href', 'data:text/plain,label');
+  });
+
+  it('disables the button with a permission tooltip when the caller lacks settings.org.update', () => {
+    const printSpy = vi.fn();
+    renderGrn({ canPrint: false, printLabelAction: printSpy as any });
+    const btn = screen.getByTestId('grn-print-label-line-1');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Insufficient permissions: settings.org.update is required to print labels.');
+    expect(printSpy).not.toHaveBeenCalled();
   });
 });
 
