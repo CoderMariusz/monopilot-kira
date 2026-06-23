@@ -369,8 +369,7 @@ export async function registerDisassemblyOutput(
           itemId: output.coProductItemId,
           costPerKg: fixedToDecimal(outputCostPerKg),
           currency: input.currency ?? inputLp.currency ?? 'PLN',
-          // TODO: use source 'disassembly_allocation' once item_cost_history_source_check allows it.
-          source: 'variance_roll',
+          source: 'disassembly_allocation',
           notes: `Disassembly allocation from input LP ${input.inputLpId}; allocated_cost=${fixedToDecimal(allocatedCost)}`,
         },
       });

@@ -18,21 +18,14 @@
  * disable + tooltip the controls, NEVER trusted for authorisation; a forbidden
  * result is surfaced inline (the action returns { ok:false, error:'forbidden' }).
  *
- * DATA-FEED GAP (documented for parity evidence): the reviewed getShipment
- * (pack-actions.ts) returns ONLY the ShipmentRow header — status / shippedAt /
- * packedAt — and does NOT surface bol_pdf_url / bol_signed_pdf_url / delivered_at /
- * carrier / tracking, even though ship-actions.ts writes them. So:
- *   - The [Ship] gate + the lifecycle "shipped" stamp use the REAL status +
- *     shippedAt that getShipment DOES return.
- *   - The BOL/POD links + delivered_at + carrier/tracking are surfaced
- *     OPTIMISTICALLY: after a successful generateBol/recordPod the action returns
- *     the bolRef / ok and we show the just-produced link + a "delivered" lifecycle
- *     state for the rest of the session; on the next server load they will persist
- *     only once getShipment is extended to return those columns. We do NOT modify
- *     pack-actions.ts (owned by the parallel lane) — see the linked gap note.
+ * Data feed: getShipment returns the persisted lifecycle/document fields written
+ * by ship-actions.ts (BOL URL, signed-BOL URL, delivered_at, carrier, service
+ * level, tracking number, shipped_at). The rail initializes from those loaded
+ * values, then supplements them optimistically until router.refresh reloads the
+ * server state.
  *
- * NO raw UUIDs are rendered: only the (mono) shipment NUMBER, the BOL reference,
- * and stamped timestamps are shown.
+ * NO raw UUIDs are rendered: only the (mono) shipment NUMBER, document labels,
+ * lifecycle timestamps, and carrier/tracking display values are shown.
  */
 
 import React from 'react';
@@ -88,6 +81,12 @@ export type ShipmentShipControlsProps = {
   shipmentId: string;
   status: string;
   shippedAt: string | null;
+  bolPdfUrl?: string | null;
+  bolSignedPdfUrl?: string | null;
+  deliveredAt?: string | null;
+  carrier?: string | null;
+  serviceLevel?: string | null;
+  trackingNumber?: string | null;
   boxCount: number;
   labels: ShipmentShipLabels;
   caps: ShipmentShipCaps;
@@ -105,6 +104,19 @@ const SHIPPED_STATES = new Set(['shipped', 'delivered']);
 const DELIVERED_STATES = new Set(['delivered']);
 
 const LOCALE_MAP: Record<string, string> = { pl: 'pl-PL', en: 'en-US', uk: 'uk-UA', ro: 'ro-RO' };
+const DOCUMENT_URL_PATTERN = /^https?:\/\//i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function displayText(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || UUID_PATTERN.test(trimmed)) return null;
+  return trimmed;
+}
+
+function documentUrl(value?: string | null): string | null {
+  const text = displayText(value);
+  return text && DOCUMENT_URL_PATTERN.test(text) ? text : null;
+}
 
 export function ShipmentShipControls({
   locale,
@@ -112,6 +124,12 @@ export function ShipmentShipControls({
   shipmentId,
   status,
   shippedAt,
+  bolPdfUrl,
+  bolSignedPdfUrl,
+  deliveredAt,
+  carrier,
+  serviceLevel,
+  trackingNumber,
   boxCount,
   labels,
   caps,
@@ -133,16 +151,18 @@ export function ShipmentShipControls({
     [locale],
   );
 
-  // Optimistic session state — see the DATA-FEED GAP note in the file header.
-  // getShipment does not return shipped_at after ship / the BOL+POD links, so we
-  // hold the just-produced values for the session; the badge still reflects the
-  // REAL server status until a refresh re-reads it.
+  // Start from persisted getShipment data and hold just-produced values during
+  // the current session until router.refresh re-reads the server state.
   const [shipped, setShipped] = React.useState(SHIPPED_STATES.has(normalized));
   const [shippedStamp, setShippedStamp] = React.useState<string | null>(shippedAt);
-  const [delivered, setDelivered] = React.useState(DELIVERED_STATES.has(normalized));
-  const [deliveredStamp, setDeliveredStamp] = React.useState<string | null>(null);
+  const [delivered, setDelivered] = React.useState(DELIVERED_STATES.has(normalized) || Boolean(deliveredAt));
+  const [deliveredStamp, setDeliveredStamp] = React.useState<string | null>(deliveredAt ?? null);
+  const [bolDocument, setBolDocument] = React.useState<string | null>(displayText(bolPdfUrl));
   const [bolRef, setBolRef] = React.useState<string | null>(null);
-  const [signedBol, setSignedBol] = React.useState<string | null>(null);
+  const [signedBol, setSignedBol] = React.useState<string | null>(displayText(bolSignedPdfUrl));
+  const [carrierValue, setCarrierValue] = React.useState<string | null>(displayText(carrier));
+  const [serviceLevelValue, setServiceLevelValue] = React.useState<string | null>(displayText(serviceLevel));
+  const [trackingValue, setTrackingValue] = React.useState<string | null>(displayText(trackingNumber));
 
   const [shipPending, setShipPending] = React.useState(false);
   const [shipError, setShipError] = React.useState<string | null>(null);
@@ -181,6 +201,11 @@ export function ShipmentShipControls({
   const lifecycleStage: ShipmentLifecycleStage = delivered ? 'delivered' : shipped ? 'shipped' : 'packing';
   const stageOrder: ShipmentLifecycleStage[] = ['packing', 'shipped', 'delivered'];
   const activeIndex = stageOrder.indexOf(lifecycleStage);
+  const bolHref = documentUrl(bolDocument);
+  const signedBolHref = documentUrl(signedBol);
+  const serviceLevelLabel = serviceLevelValue
+    ? labels.bol.serviceLevelOptions[serviceLevelValue] ?? serviceLevelValue
+    : null;
 
   return (
     <div className="flex flex-col gap-4" data-testid="shipment-ship-controls" data-prototype-label="ship_confirm_rail">
@@ -227,20 +252,58 @@ export function ShipmentShipControls({
               {deliveredStamp ? formatDateTime(deliveredStamp) : labels.lifecycle.notDelivered}
             </dd>
           </div>
-          {bolRef ? (
+          {carrierValue ? (
             <div className="flex items-center justify-between gap-2">
-              <dt className="text-slate-500">{labels.lifecycle.bolLink}</dt>
-              <dd className="font-mono text-blue-700" data-testid="shipment-bol-ref">
-                {bolRef.slice(0, 12)}
+              <dt className="text-slate-500">{labels.bol.carrierLabel}</dt>
+              <dd className="font-mono text-slate-800" data-testid="shipment-carrier">
+                {carrierValue}
               </dd>
             </div>
           ) : null}
-          {signedBol ? (
+          {serviceLevelLabel ? (
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-slate-500">{labels.bol.serviceLevelLabel}</dt>
+              <dd className="font-mono text-slate-800" data-testid="shipment-service-level">
+                {serviceLevelLabel}
+              </dd>
+            </div>
+          ) : null}
+          {trackingValue ? (
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-slate-500">{labels.bol.trackingLabel}</dt>
+              <dd className="font-mono text-slate-800" data-testid="shipment-tracking-number">
+                {trackingValue}
+              </dd>
+            </div>
+          ) : null}
+          {bolDocument || bolRef ? (
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-slate-500">{labels.lifecycle.bolLink}</dt>
+              <dd>
+                {bolHref ? (
+                  <a
+                    href={bolHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid="shipment-bol-link"
+                    className="text-blue-700 hover:underline"
+                  >
+                    {labels.lifecycle.bolLink}
+                  </a>
+                ) : (
+                  <span className="font-mono text-blue-700" data-testid="shipment-bol-ref">
+                    {bolRef ? bolRef.slice(0, 12) : labels.lifecycle.bolLink}
+                  </span>
+                )}
+              </dd>
+            </div>
+          ) : null}
+          {signedBolHref ? (
             <div className="flex items-center justify-between gap-2">
               <dt className="text-slate-500">{labels.lifecycle.signedBolLink}</dt>
               <dd>
                 <a
-                  href={signedBol}
+                  href={signedBolHref}
                   target="_blank"
                   rel="noreferrer"
                   data-testid="shipment-signed-bol-link"
@@ -296,12 +359,18 @@ export function ShipmentShipControls({
           <GenerateBolModal
             shipmentNumber={shipmentNumber}
             shipmentId={shipmentId}
-            hasBol={Boolean(bolRef)}
+            hasBol={Boolean(bolDocument || bolRef)}
             canBol={caps.canShip}
             labels={labels.bol}
             generateBolAction={async (input) => {
               const result = await generateBolAction(input);
-              if (result.ok) setBolRef(result.bolRef);
+              if (result.ok) {
+                setBolDocument(null);
+                setBolRef(result.bolRef);
+                setCarrierValue(displayText(input.carrier));
+                setServiceLevelValue(displayText(input.serviceLevel));
+                setTrackingValue(displayText(input.trackingNumber));
+              }
               return result;
             }}
           />
@@ -316,7 +385,7 @@ export function ShipmentShipControls({
               if (result.ok) {
                 setDelivered(true);
                 setDeliveredStamp(new Date().toISOString());
-                if (input.signedPdfUrl) setSignedBol(input.signedPdfUrl);
+                if (input.signedPdfUrl) setSignedBol(displayText(input.signedPdfUrl));
               }
               return result;
             }}

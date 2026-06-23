@@ -31,6 +31,12 @@ export type ShipmentRow = {
   createdAt: string;
   packedAt: string | null;
   shippedAt: string | null;
+  bolPdfUrl?: string | null;
+  bolSignedPdfUrl?: string | null;
+  deliveredAt?: string | null;
+  carrier?: string | null;
+  serviceLevel?: string | null;
+  trackingNumber?: string | null;
 };
 
 export type ShipmentBoxContentDetail = {
@@ -121,6 +127,12 @@ function mapShipmentRow(row: {
   created_at: string | Date;
   packed_at: string | Date | null;
   shipped_at: string | Date | null;
+  bol_pdf_url?: string | null;
+  bol_signed_pdf_url?: string | null;
+  delivered_at?: string | Date | null;
+  carrier?: string | null;
+  service_level?: string | null;
+  tracking_number?: string | null;
 }): ShipmentRow {
   return {
     id: row.id,
@@ -133,6 +145,12 @@ function mapShipmentRow(row: {
     createdAt: toText(row.created_at) ?? '',
     packedAt: toText(row.packed_at),
     shippedAt: toText(row.shipped_at),
+    bolPdfUrl: toText(row.bol_pdf_url),
+    bolSignedPdfUrl: toText(row.bol_signed_pdf_url),
+    deliveredAt: toText(row.delivered_at),
+    carrier: toText(row.carrier),
+    serviceLevel: toText(row.service_level),
+    trackingNumber: toText(row.tracking_number),
   };
 }
 
@@ -148,6 +166,12 @@ async function fetchShipmentRow(ctx: ShippingContext, id: string): Promise<Shipm
     created_at: string | Date;
     packed_at: string | Date | null;
     shipped_at: string | Date | null;
+    bol_pdf_url: string | null;
+    bol_signed_pdf_url: string | null;
+    delivered_at: string | Date | null;
+    carrier: string | null;
+    service_level: string | null;
+    tracking_number: string | null;
   }>(
     `select sh.id::text,
             sh.shipment_number,
@@ -164,6 +188,12 @@ async function fetchShipmentRow(ctx: ShippingContext, id: string): Promise<Shipm
             ) as box_count,
             sh.created_at,
             sh.packed_at,
+            sh.bol_pdf_url,
+            sh.bol_signed_pdf_url,
+            sh.delivered_at,
+            sh.carrier,
+            sh.service_level,
+            sh.tracking_number,
             sh.shipped_at
        from public.shipments sh
        left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()

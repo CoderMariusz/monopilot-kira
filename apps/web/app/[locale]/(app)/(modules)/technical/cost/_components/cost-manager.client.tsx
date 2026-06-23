@@ -33,7 +33,7 @@ import { Select } from '@monopilot/ui/Select';
 
 import { listCostHistory } from '../_actions/list-cost-history';
 import { postCost } from '../_actions/post-cost';
-import { COST_SOURCES, type CostActionError, type CostHistoryRow, type CostSource } from '../_actions/shared';
+import { COST_SOURCES, type CostActionError, type CostEditableSource, type CostHistoryRow } from '../_actions/shared';
 import type { CostItemOption } from '../_actions/list-cost-items';
 import { deltaPctExact, formatCost } from './numeric';
 
@@ -72,7 +72,7 @@ export type CostManagerCopy = {
   fieldApproverPlaceholder: string;
   cancel: string;
   record: string;
-  source: Record<CostSource, string>;
+  source: Record<CostEditableSource, string>;
   err: Record<CostActionError, string>;
 };
 
@@ -256,7 +256,7 @@ function CostEditModal({
   const sourceOptions = COST_SOURCES.map((value) => ({ value, label: copy.source[value] }));
   const [costPerKg, setCostPerKg] = React.useState('');
   const [currency, setCurrency] = React.useState('PLN');
-  const [source, setSource] = React.useState<CostSource>('manual');
+  const [source, setSource] = React.useState<CostEditableSource>('manual');
   const [notes, setNotes] = React.useState('');
   const [approver, setApprover] = React.useState('');
   const [needsApprover, setNeedsApprover] = React.useState(false);
@@ -336,7 +336,7 @@ function CostEditModal({
             <label>{copy.fieldSource}</label>
             <Select
               value={source}
-              onValueChange={(v) => setSource(v as CostSource)}
+              onValueChange={(v) => setSource(v as CostEditableSource)}
               options={sourceOptions}
               aria-label={copy.fieldSource}
             />
@@ -418,7 +418,9 @@ function HistoryTable({ rows, copy }: { rows: CostHistoryRow[]; copy: CostManage
                   {row.effectiveFrom}
                 </td>
                 <td>
-                  <span className="badge badge-gray">{row.source ? copy.source[row.source] : '—'}</span>
+                  <span className="badge badge-gray">
+                    {row.source ? (copy.source[row.source as CostEditableSource] ?? row.source) : '—'}
+                  </span>
                 </td>
                 <td className="num mono" style={{ textAlign: 'right', fontWeight: 600 }}>
                   {formatCost(row.costPerKg)}

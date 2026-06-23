@@ -193,7 +193,7 @@ describe('registerDisassemblyOutput', () => {
     expect(writeItemCostLedgerMock).toHaveBeenCalledTimes(3);
     const allocatedTotal = writeItemCostLedgerMock.mock.calls.reduce((sum, call, index) => {
       const params = call[1] as { input: { costPerKg: string; source: string } };
-      expect(params.input.source).toBe('variance_roll');
+      expect(params.input.source).toBe('disassembly_allocation');
       return sum + Number(params.input.costPerKg) * Number(outputs[index]!.qtyKg);
     }, 0);
     expect(allocatedTotal).toBeCloseTo(500, 5);

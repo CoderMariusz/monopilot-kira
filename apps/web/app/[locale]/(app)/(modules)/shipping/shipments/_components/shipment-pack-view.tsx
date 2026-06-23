@@ -11,11 +11,9 @@
  *
  * Deviations (documented for parity evidence):
  *   - The prototype's catch-weight grid (nominal/actual kg + variance badge), box
- *     dimensions, ZPL printer/station picker, ship-confirm checklist, packing-slip /
- *     BOL / confirm-shipment buttons and the SSCC label preview are dropped: none
- *     have a backing feed in getShipment (it returns header + boxes[{ boxNumber, sscc,
- *     contents:[{ lpCode, itemCode, itemName, qty }] }] only) and ship-confirm is owned
- *     by the parallel ship-actions lane. We render the REAL boxes + SSCC-18 + contents
+ *     dimensions, ZPL printer/station picker, packing-slip and the SSCC label
+ *     preview are dropped: none have a backing feed in getShipment. We render the
+ *     REAL boxes + SSCC-18 + contents, the persisted BOL/POD lifecycle values,
  *     and the single reviewed pack control (packLpIntoBox).
  *   - The prototype's left "picked LPs queue" is replaced by a single scan/enter-LP
  *     field (the only LP-resolving seam the reviewed packLpIntoBox exposes — it takes
@@ -371,6 +369,12 @@ export function ShipmentPackView({
             shipmentId={shipment.id}
             status={shipment.status}
             shippedAt={shipment.shippedAt}
+            bolPdfUrl={shipment.bolPdfUrl ?? null}
+            bolSignedPdfUrl={shipment.bolSignedPdfUrl ?? null}
+            deliveredAt={shipment.deliveredAt ?? null}
+            carrier={shipment.carrier ?? null}
+            serviceLevel={shipment.serviceLevel ?? null}
+            trackingNumber={shipment.trackingNumber ?? null}
             boxCount={boxes.length}
             labels={labels.ship}
             caps={{ canShip: caps.canShip, canPod: caps.canPod }}

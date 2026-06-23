@@ -31,7 +31,8 @@ export const COST_EDIT_PERMISSION = 'technical.cost.edit';
 
 // ── Cost source enum (mirrors item_cost_history_source_check) ─────────────────
 export const COST_SOURCES = ['manual', 'd365_sync', 'supplier_update', 'variance_roll'] as const;
-export type CostSource = (typeof COST_SOURCES)[number];
+export type CostEditableSource = (typeof COST_SOURCES)[number];
+export type CostSource = CostEditableSource | 'disassembly_allocation';
 
 // Sources that are subject to the >20% high-variance approver guard (V-TEC-53).
 // d365_sync + variance_roll are system rolls and bypass the guard.
