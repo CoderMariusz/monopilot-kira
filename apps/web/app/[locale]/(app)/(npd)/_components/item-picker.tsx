@@ -20,6 +20,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
@@ -90,8 +91,24 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqRef = React.useRef(0);
+
+  // The dropdown is portaled to <body> with fixed positioning so it is never
+  // clipped by a modal's overflow / out-stacked by a modal's z-index (the picker
+  // lives inside PO/TO/WO create modals). Anchor it to the trigger's rect.
+  const [panelRect, setPanelRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+
+  const updatePanelPosition = React.useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = Math.min(420, Math.max(320, r.width, window.innerWidth - 24));
+    // Keep the panel within the viewport horizontally.
+    const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12));
+    setPanelRect({ top: r.bottom + 4, left, width });
+  }, []);
 
   const runSearch = React.useCallback(
     (term: string) => {
@@ -127,24 +144,42 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
     };
   }, [open, query, runSearch]);
 
-  // Focus the search input when opening; reset state on close.
+  // Focus the search input when opening; reset state on close. Position + keep
+  // the portaled panel anchored to the trigger on open / scroll / resize.
   React.useEffect(() => {
     if (open) {
+      updatePanelPosition();
       inputRef.current?.focus();
-    } else {
-      setQuery('');
-      setOptions([]);
-      setError(false);
+      const reposition = () => updatePanelPosition();
+      window.addEventListener('scroll', reposition, true);
+      window.addEventListener('resize', reposition);
+      return () => {
+        window.removeEventListener('scroll', reposition, true);
+        window.removeEventListener('resize', reposition);
+      };
     }
-  }, [open]);
+    setQuery('');
+    setOptions([]);
+    setError(false);
+    setPanelRect(null);
+    return undefined;
+  }, [open, updatePanelPosition]);
 
-  // Close on outside click / Escape.
+  // The portaled input mounts only once panelRect is set — focus it then.
+  React.useEffect(() => {
+    if (open && panelRect) inputRef.current?.focus();
+  }, [open, panelRect]);
+
+  // Close on outside click / Escape. The panel is portaled, so a click inside it
+  // is NOT inside containerRef — exclude panelRef too or selecting an option closes
+  // before its onClick fires.
   React.useEffect(() => {
     if (!open) return;
     function onDocClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const inTrigger = containerRef.current?.contains(target);
+      const inPanel = panelRef.current?.contains(target);
+      if (!inTrigger && !inPanel) setOpen(false);
     }
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
@@ -189,11 +224,20 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
         {labels.trigger}
       </Button>
 
-      {open ? (
+      {open && panelRect && typeof document !== 'undefined' ? (
+        createPortal(
         <div
+          ref={panelRef}
           role="dialog"
           aria-label={labels.searchLabel}
-          className="absolute left-0 z-20 mt-1 w-72 rounded-md border border-slate-200 bg-white p-2 shadow-lg"
+          style={{
+            position: 'fixed',
+            top: panelRect.top,
+            left: panelRect.left,
+            width: panelRect.width,
+            zIndex: 1000,
+          }}
+          className="rounded-md border border-slate-200 bg-white p-2 shadow-xl"
           data-testid="item-picker-panel"
         >
           <Input
@@ -269,7 +313,9 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
               {labels.cancel}
             </Button>
           </div>
-        </div>
+        </div>,
+        document.body,
+        )
       ) : null}
     </div>
   );
