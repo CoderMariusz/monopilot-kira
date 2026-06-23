@@ -8581,6 +8581,66 @@
           "not_found": "Ta wysyłka już nie istnieje."
         }
       },
+      "lifecycle": {
+        "title": "Cykl życia",
+        "stages": {
+          "packing": "Pakowanie",
+          "shipped": "Wysłano",
+          "delivered": "Dostarczono"
+        },
+        "shippedAt": "Wysłano o",
+        "deliveredAt": "Dostarczono o",
+        "bolLink": "Referencja BOL",
+        "signedBolLink": "Podpisany BOL",
+        "notShipped": "Jeszcze nie wysłano",
+        "notDelivered": "Jeszcze nie dostarczono"
+      },
+      "ship": {
+        "title": "Wyślij wysyłkę",
+        "submit": "Wyślij wysyłkę",
+        "submitting": "Wysyłanie…",
+        "shipped": "Wysyłka wysłana.",
+        "noPermission": "Nie masz uprawnień do wysłania tej wysyłki.",
+        "needsBox": "Spakuj co najmniej jeden karton przed wysyłką.",
+        "alreadyShipped": "Ta wysyłka została już wysłana.",
+        "errors": {
+          "invalid_state": "Tej wysyłki nie można wysłać w bieżącym statusie.",
+          "not_found": "Ta wysyłka już nie istnieje."
+        }
+      },
+      "bol": {
+        "trigger": "Generuj BOL",
+        "triggerRegenerate": "Generuj BOL ponownie",
+        "title": "Generuj BOL dla {shipment}",
+        "description": "Wprowadź przewoźnika, poziom usługi i numer śledzenia listu przewozowego.",
+        "carrierLabel": "Przewoźnik",
+        "carrierPlaceholder": "np. DHL Freight",
+        "serviceLevelLabel": "Poziom usługi",
+        "serviceLevelPlaceholder": "Wybierz poziom usługi",
+        "serviceLevelOptions": {
+          "standard": "Standardowy",
+          "express": "Ekspresowy",
+          "economy": "Ekonomiczny",
+          "freight": "Spedycyjny"
+        },
+        "trackingLabel": "Numer śledzenia",
+        "trackingPlaceholder": "Numer śledzenia przewoźnika",
+        "cancel": "Anuluj",
+        "submit": "Generuj BOL",
+        "submitting": "Generowanie…"
+      },
+      "pod": {
+        "trigger": "Zarejestruj POD",
+        "title": "Zarejestruj potwierdzenie dostawy dla {shipment}",
+        "description": "Potwierdź dostawę i dołącz podpisany dokument potwierdzenia dostawy.",
+        "signedUrlLabel": "URL podpisanego dokumentu POD",
+        "signedUrlHelp": "Link do podpisanego listu przewozowego / pliku PDF potwierdzenia dostawy.",
+        "signedUrlPlaceholder": "https://…/signed-pod.pdf",
+        "cancel": "Anuluj",
+        "submit": "Oznacz jako dostarczone",
+        "submitting": "Rejestrowanie…",
+        "noPermission": "Nie masz uprawnień do rejestracji dostawy dla tej wysyłki."
+      },
       "errors": {
         "forbidden": "Nie masz uprawnień do tej operacji.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."

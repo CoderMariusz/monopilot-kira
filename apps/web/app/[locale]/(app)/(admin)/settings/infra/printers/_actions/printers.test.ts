@@ -17,6 +17,7 @@ const LP_ID = '66666666-6666-4666-8666-666666666666';
 const ITEM_ID = '77777777-7777-4777-8777-777777777777';
 const SOURCE_JOB_ID = '88888888-8888-4888-8888-888888888888';
 const NEW_JOB_ID = '99999999-9999-4999-8999-999999999999';
+const GS = '\x1d';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 type FakeClient = {
@@ -77,19 +78,27 @@ describe('printer server actions', () => {
       entity_id: LP_ID,
       lp_code: 'LP-0001',
       item_id: ITEM_ID,
-      gs1_gtin: '01234567890123',
-      lot: 'LOT-A',
+      gs1_gtin: '00614141123452',
+      lot: 'LOTA',
       expiry_date: '2026-07-31',
       catch_weight_kg: '12.500000',
+      gs1_raw: `010061414112345210LOTA${GS}172607313103012500`,
+      gs1_human: '(01)00614141123452(10)LOTA(17)260731(3103)012500',
     });
     expect(result.payload).not.toHaveProperty('gtin_missing');
+    expect(result.result_url).toContain(
+      encodeURIComponent('"gs1_human": "(01)00614141123452(10)LOTA(17)260731(3103)012500"'),
+    );
 
     const insert = callContaining('insert into public.print_jobs');
+    const insertedPayload = JSON.parse(String(insert.params[6])) as Record<string, unknown>;
     expect(insert.sql).toContain('app.current_org_id()');
     expect(insert.params[3]).toBe('lp');
     expect(insert.params[4]).toBe(LP_ID);
     expect(insert.params[5]).toBe(2);
     expect(insert.params[7]).toBe('sent');
+    expect(insertedPayload.gs1_raw).toBe(`010061414112345210LOTA${GS}172607313103012500`);
+    expect(insertedPayload.gs1_human).toBe('(01)00614141123452(10)LOTA(17)260731(3103)012500');
   });
 
   it('item without GTIN sets gtin_missing=true without throwing', async () => {
@@ -105,9 +114,15 @@ describe('printer server actions', () => {
     expect(result.status).toBe('sent');
     expect(result.payload.gtin_missing).toBe(true);
     expect(result.payload.gs1_gtin).toBeNull();
+    expect(result.payload.gs1_raw).toBe(`10LOTA${GS}172607313103012500`);
+    expect(result.payload.gs1_human).toBe('(10)LOTA(17)260731(3103)012500');
     const insert = callContaining('insert into public.print_jobs');
     const insertedPayload = JSON.parse(String(insert.params[6])) as Record<string, unknown>;
     expect(insertedPayload.gtin_missing).toBe(true);
+    expect(String(insertedPayload.gs1_raw).startsWith('01')).toBe(false);
+    expect(insertedPayload.gs1_raw).toBe(`10LOTA${GS}172607313103012500`);
+    expect(insertedPayload.gs1_human).toBe('(10)LOTA(17)260731(3103)012500');
+    expect(String(insertedPayload.gs1_human)).not.toContain('(01)');
   });
 
   it('reprintFromHistory clones the job', async () => {
@@ -154,7 +169,7 @@ function makeClient(options: { gs1Gtin?: string | null; printerType?: 'pdf' | 'z
   const client: FakeClient = {
     calls: [],
     canEdit: options.canEdit ?? true,
-    gs1Gtin: options.gs1Gtin === undefined ? '01234567890123' : options.gs1Gtin,
+    gs1Gtin: options.gs1Gtin === undefined ? '00614141123452' : options.gs1Gtin,
     printerType: options.printerType ?? 'pdf',
     insertedJobs: 0,
     async query(sql, params = []) {
@@ -202,7 +217,7 @@ function makeClient(options: { gs1Gtin?: string | null; printerType?: 'pdf' | 'z
               lp_code: 'LP-0001',
               item_id: ITEM_ID,
               gs1_gtin: client.gs1Gtin,
-              batch_lot: 'LOT-A',
+              batch_lot: 'LOTA',
               expiry_date: '2026-07-31',
               catch_weight_kg: '12.500000',
             },

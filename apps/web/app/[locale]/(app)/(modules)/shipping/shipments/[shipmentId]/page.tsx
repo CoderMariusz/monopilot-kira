@@ -25,8 +25,14 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getShipment, packLpIntoBox } from '../../_actions/pack-actions';
+import { shipShipment, generateBol, recordPod } from '../../_actions/ship-actions';
 import { getCreateShipmentCapability } from '../_actions/shipments-data';
 import { ShipmentPackView, type ShipmentPackLabels, type PackLpResult } from '../_components/shipment-pack-view';
+import type {
+  ShipShipmentResult,
+  GenerateBolResult,
+  RecordPodResult,
+} from '../_components/shipment-ship-types';
 import { ShippingTabs } from '../_components/shipping-tabs';
 
 /** Thin client-facing adapter so the client view's narrow seam type lines up with the
@@ -35,6 +41,32 @@ async function packLpAction(input: { shipmentId: string; lpId: string; boxId?: s
   'use server';
   const result = await packLpIntoBox(input);
   return result.ok ? { ok: true, boxId: result.boxId } : { ok: false, error: result.error };
+}
+
+/**
+ * Thin client-facing adapters for the reviewed ship-actions.ts seams (shipShipment /
+ * generateBol / recordPod). The actions are imported VERBATIM and never authored here;
+ * RBAC (ship.pack.close for ship/BOL, ship.dashboard.view for POD) is re-checked inside
+ * each action and a forbidden caller gets { ok:false, error:'forbidden' } rendered inline.
+ */
+async function shipShipmentAction(shipmentId: string): Promise<ShipShipmentResult> {
+  'use server';
+  return shipShipment(shipmentId);
+}
+
+async function generateBolAction(input: {
+  shipmentId: string;
+  carrier?: string;
+  serviceLevel?: string;
+  trackingNumber?: string;
+}): Promise<GenerateBolResult> {
+  'use server';
+  return generateBol(input);
+}
+
+async function recordPodAction(input: { shipmentId: string; signedPdfUrl?: string }): Promise<RecordPodResult> {
+  'use server';
+  return recordPod(input);
 }
 
 export const dynamic = 'force-dynamic';
@@ -104,6 +136,90 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       not_found: t('pack.errors.not_found'),
       persistence_failed: t('errors.persistence_failed'),
     },
+    ship: {
+      status: {
+        pending: t('status.pending'),
+        packing: t('status.packing'),
+        packed: t('status.packed'),
+        manifested: t('status.manifested'),
+        shipped: t('status.shipped'),
+        delivered: t('status.delivered'),
+        exception: t('status.exception'),
+      },
+      lifecycle: {
+        title: t('lifecycle.title'),
+        stages: {
+          packing: t('lifecycle.stages.packing'),
+          shipped: t('lifecycle.stages.shipped'),
+          delivered: t('lifecycle.stages.delivered'),
+        },
+        shippedAt: t('lifecycle.shippedAt'),
+        deliveredAt: t('lifecycle.deliveredAt'),
+        bolLink: t('lifecycle.bolLink'),
+        signedBolLink: t('lifecycle.signedBolLink'),
+        notShipped: t('lifecycle.notShipped'),
+        notDelivered: t('lifecycle.notDelivered'),
+      },
+      ship: {
+        title: t('ship.title'),
+        submit: t('ship.submit'),
+        submitting: t('ship.submitting'),
+        shipped: t('ship.shipped'),
+        noPermission: t('ship.noPermission'),
+        needsBox: t('ship.needsBox'),
+        alreadyShipped: t('ship.alreadyShipped'),
+        errors: {
+          forbidden: t('errors.forbidden'),
+          invalid_state: t('ship.errors.invalid_state'),
+          not_found: t('ship.errors.not_found'),
+          persistence_failed: t('errors.persistence_failed'),
+        },
+      },
+      bol: {
+        trigger: t('bol.trigger'),
+        triggerRegenerate: t('bol.triggerRegenerate'),
+        title: t('bol.title'),
+        description: t('bol.description'),
+        carrierLabel: t('bol.carrierLabel'),
+        carrierPlaceholder: t('bol.carrierPlaceholder'),
+        serviceLevelLabel: t('bol.serviceLevelLabel'),
+        serviceLevelPlaceholder: t('bol.serviceLevelPlaceholder'),
+        serviceLevelOptions: {
+          standard: t('bol.serviceLevelOptions.standard'),
+          express: t('bol.serviceLevelOptions.express'),
+          economy: t('bol.serviceLevelOptions.economy'),
+          freight: t('bol.serviceLevelOptions.freight'),
+        },
+        trackingLabel: t('bol.trackingLabel'),
+        trackingPlaceholder: t('bol.trackingPlaceholder'),
+        cancel: t('bol.cancel'),
+        submit: t('bol.submit'),
+        submitting: t('bol.submitting'),
+        noPermission: t('ship.noPermission'),
+        errors: {
+          forbidden: t('errors.forbidden'),
+          not_found: t('ship.errors.not_found'),
+          persistence_failed: t('errors.persistence_failed'),
+        },
+      },
+      pod: {
+        trigger: t('pod.trigger'),
+        title: t('pod.title'),
+        description: t('pod.description'),
+        signedUrlLabel: t('pod.signedUrlLabel'),
+        signedUrlHelp: t('pod.signedUrlHelp'),
+        signedUrlPlaceholder: t('pod.signedUrlPlaceholder'),
+        cancel: t('pod.cancel'),
+        submit: t('pod.submit'),
+        submitting: t('pod.submitting'),
+        noPermission: t('pod.noPermission'),
+        errors: {
+          forbidden: t('errors.forbidden'),
+          not_found: t('ship.errors.not_found'),
+          persistence_failed: t('errors.persistence_failed'),
+        },
+      },
+    },
   };
 }
 
@@ -130,16 +246,24 @@ async function PackContent({ locale, shipmentId }: { locale: string; shipmentId:
   }
 
   const data = result.data;
+  // canShip mirrors ship.pack.close (same permission createShipment / shipShipment /
+  // generateBol require). canPod = true here BY CONSTRUCTION: getShipment already
+  // requires ship.dashboard.view (recordPod's permission), so reaching this branch
+  // proves the caller holds it. Both are advisory only — each action re-checks
+  // server-side and a forbidden caller gets { ok:false, error:'forbidden' } inline.
   return (
     <ShipmentPackView
       locale={locale}
-      caps={{ canPack: caps.canCreate }}
+      caps={{ canPack: caps.canCreate, canShip: caps.canCreate, canPod: true }}
       detail={{
         shipment: { ...data.shipment, weight: null },
         boxes: data.boxes,
       }}
       labels={buildLabels(t)}
       packLpIntoBoxAction={packLpAction}
+      shipShipmentAction={shipShipmentAction}
+      generateBolAction={generateBolAction}
+      recordPodAction={recordPodAction}
     />
   );
 }

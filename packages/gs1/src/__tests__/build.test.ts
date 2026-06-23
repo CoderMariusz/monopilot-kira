@@ -13,9 +13,9 @@ describe('buildGs1Element', () => {
     });
 
     expect(result.raw).toBe(`010061414112345210BATCH001${GS}172612313103005000`);
-    expect(result.human).toBe(
-      `(01)00614141123452(10)BATCH001${GS}(17)261231(3103)005000`,
-    );
+    expect(result.raw).toContain(GS);
+    expect(result.human).toBe('(01)00614141123452(10)BATCH001(17)261231(3103)005000');
+    expect(result.human).not.toContain(GS);
   });
 
   it('builds an SSCC-only pallet element without a trailing separator', () => {
@@ -36,8 +36,10 @@ describe('buildGs1Element', () => {
     });
 
     expect(result.raw).toBe(`010061414112345210LOT123${GS}17261231`);
+    expect(result.raw).toContain(GS);
     expect(result.raw).not.toContain(`0100614141123452${GS}`);
-    expect(result.human).toBe(`(01)00614141123452(10)LOT123${GS}(17)261231`);
+    expect(result.human).toBe('(01)00614141123452(10)LOT123(17)261231');
+    expect(result.human).not.toContain(GS);
   });
 
   it('throws for invalid GTIN and SSCC check digits', () => {

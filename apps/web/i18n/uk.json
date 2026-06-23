@@ -8581,6 +8581,66 @@
           "not_found": "That shipment no longer exists."
         }
       },
+      "lifecycle": {
+        "title": "Lifecycle",
+        "stages": {
+          "packing": "Packing",
+          "shipped": "Shipped",
+          "delivered": "Delivered"
+        },
+        "shippedAt": "Shipped at",
+        "deliveredAt": "Delivered at",
+        "bolLink": "BOL reference",
+        "signedBolLink": "Signed BOL",
+        "notShipped": "Not shipped yet",
+        "notDelivered": "Not delivered yet"
+      },
+      "ship": {
+        "title": "Ship shipment",
+        "submit": "Ship shipment",
+        "submitting": "Shipping…",
+        "shipped": "Shipment shipped.",
+        "noPermission": "You do not have permission to ship this shipment.",
+        "needsBox": "Pack at least one box before shipping.",
+        "alreadyShipped": "This shipment has already been shipped.",
+        "errors": {
+          "invalid_state": "This shipment cannot be shipped in its current status.",
+          "not_found": "That shipment no longer exists."
+        }
+      },
+      "bol": {
+        "trigger": "Generate BOL",
+        "triggerRegenerate": "Regenerate BOL",
+        "title": "Generate BOL for {shipment}",
+        "description": "Record the carrier, service level and tracking number for the bill of lading.",
+        "carrierLabel": "Carrier",
+        "carrierPlaceholder": "e.g. DHL Freight",
+        "serviceLevelLabel": "Service level",
+        "serviceLevelPlaceholder": "Select a service level",
+        "serviceLevelOptions": {
+          "standard": "Standard",
+          "express": "Express",
+          "economy": "Economy",
+          "freight": "Freight"
+        },
+        "trackingLabel": "Tracking number",
+        "trackingPlaceholder": "Carrier tracking reference",
+        "cancel": "Cancel",
+        "submit": "Generate BOL",
+        "submitting": "Generating…"
+      },
+      "pod": {
+        "trigger": "Record POD",
+        "title": "Record proof of delivery for {shipment}",
+        "description": "Confirm delivery and attach the signed proof-of-delivery document.",
+        "signedUrlLabel": "Signed POD document URL",
+        "signedUrlHelp": "Link to the signed bill of lading / proof-of-delivery PDF.",
+        "signedUrlPlaceholder": "https://…/signed-pod.pdf",
+        "cancel": "Cancel",
+        "submit": "Mark delivered",
+        "submitting": "Recording…",
+        "noPermission": "You do not have permission to record delivery for this shipment."
+      },
       "errors": {
         "forbidden": "You don’t have permission to do that.",
         "persistence_failed": "Something went wrong saving. Please retry."

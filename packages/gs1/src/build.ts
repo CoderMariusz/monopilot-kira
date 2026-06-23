@@ -137,10 +137,11 @@ function appendPart(
   index: number,
   parts: ElementPart[],
   bracketed: boolean,
+  includeGroupSeparator: boolean,
 ): string {
   const prefix = bracketed ? `(${part.ai})` : part.ai;
   const separator =
-    part.separatorWhenNotLast && index < parts.length - 1 ? GROUP_SEPARATOR : '';
+    includeGroupSeparator && part.separatorWhenNotLast && index < parts.length - 1 ? GROUP_SEPARATOR : '';
 
   return `${prefix}${part.value}${separator}`;
 }
@@ -197,9 +198,9 @@ export function buildGs1Element(input: Gs1BuildInput): Gs1ElementResult {
   }
 
   return {
-    raw: parts.map((part, index) => appendPart(part, index, parts, false)).join(''),
+    raw: parts.map((part, index) => appendPart(part, index, parts, false, true)).join(''),
     human: parts
-      .map((part, index) => appendPart(part, index, parts, true))
+      .map((part, index) => appendPart(part, index, parts, true, false))
       .join(''),
   };
 }

@@ -117,6 +117,73 @@ const packLabels: ShipmentPackLabels = {
     not_found: 'That shipment no longer exists.',
     persistence_failed: 'Something went wrong saving. Please retry.',
   },
+  ship: {
+    status: statusLabels,
+    lifecycle: {
+      title: 'Lifecycle',
+      stages: { packing: 'Packing', shipped: 'Shipped', delivered: 'Delivered' },
+      shippedAt: 'Shipped at',
+      deliveredAt: 'Delivered at',
+      bolLink: 'BOL reference',
+      signedBolLink: 'Signed BOL',
+      notShipped: 'Not shipped yet',
+      notDelivered: 'Not delivered yet',
+    },
+    ship: {
+      title: 'Ship shipment',
+      submit: 'Ship shipment',
+      submitting: 'Shipping…',
+      shipped: 'Shipment shipped.',
+      noPermission: 'You do not have permission to ship this shipment.',
+      needsBox: 'Pack at least one box before shipping.',
+      alreadyShipped: 'This shipment has already been shipped.',
+      errors: {
+        forbidden: "You don't have permission to do that.",
+        invalid_state: 'This shipment cannot be shipped in its current status.',
+        not_found: 'That shipment no longer exists.',
+        persistence_failed: 'Something went wrong saving. Please retry.',
+      },
+    },
+    bol: {
+      trigger: 'Generate BOL',
+      triggerRegenerate: 'Regenerate BOL',
+      title: 'Generate BOL for {shipment}',
+      description: 'Record the carrier, service level and tracking number for the bill of lading.',
+      carrierLabel: 'Carrier',
+      carrierPlaceholder: 'e.g. DHL Freight',
+      serviceLevelLabel: 'Service level',
+      serviceLevelPlaceholder: 'Select a service level',
+      serviceLevelOptions: { standard: 'Standard', express: 'Express', economy: 'Economy', freight: 'Freight' },
+      trackingLabel: 'Tracking number',
+      trackingPlaceholder: 'Carrier tracking reference',
+      cancel: 'Cancel',
+      submit: 'Generate BOL',
+      submitting: 'Generating…',
+      noPermission: 'You do not have permission to ship this shipment.',
+      errors: {
+        forbidden: "You don't have permission to do that.",
+        not_found: 'That shipment no longer exists.',
+        persistence_failed: 'Something went wrong saving. Please retry.',
+      },
+    },
+    pod: {
+      trigger: 'Record POD',
+      title: 'Record proof of delivery for {shipment}',
+      description: 'Confirm delivery and attach the signed proof-of-delivery document.',
+      signedUrlLabel: 'Signed POD document URL',
+      signedUrlHelp: 'Link to the signed bill of lading / proof-of-delivery PDF.',
+      signedUrlPlaceholder: 'https://…/signed-pod.pdf',
+      cancel: 'Cancel',
+      submit: 'Mark delivered',
+      submitting: 'Recording…',
+      noPermission: 'You do not have permission to record delivery for this shipment.',
+      errors: {
+        forbidden: "You don't have permission to do that.",
+        not_found: 'That shipment no longer exists.',
+        persistence_failed: 'Something went wrong saving. Please retry.',
+      },
+    },
+  },
 };
 
 const createLabels: CreateShipmentLabels = {
@@ -219,24 +286,41 @@ function makeDetail(overrides: Partial<ShipmentDetail> = {}): ShipmentDetail {
   };
 }
 
+type ShipResult = { ok: true } | { ok: false; error: string };
+type BolResult = { ok: true; bolRef: string } | { ok: false; error: string };
+type PodResult = { ok: true } | { ok: false; error: string };
+
 function renderPack(
   detail: ShipmentDetail = makeDetail(),
-  caps: { canPack: boolean } = { canPack: true },
+  caps: { canPack: boolean; canShip?: boolean; canPod?: boolean } = { canPack: true },
   packAction?: (input: { shipmentId: string; lpId: string; boxId?: string }) => Promise<{ ok: true; boxId: string } | { ok: false; error: string }>,
+  shipActions: {
+    ship?: (id: string) => Promise<ShipResult>;
+    bol?: (input: { shipmentId: string; carrier?: string; serviceLevel?: string; trackingNumber?: string }) => Promise<BolResult>;
+    pod?: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<PodResult>;
+  } = {},
 ) {
   const packLpIntoBoxAction = vi.fn(
     packAction ?? (async () => ({ ok: true, boxId: 'box-uuid-1' }) as { ok: true; boxId: string }),
   );
+  const shipShipmentAction = vi.fn(shipActions.ship ?? (async () => ({ ok: true }) as ShipResult));
+  const generateBolAction = vi.fn(
+    shipActions.bol ?? (async () => ({ ok: true, bolRef: 'a1b2c3d4e5f6a7b8' }) as BolResult),
+  );
+  const recordPodAction = vi.fn(shipActions.pod ?? (async () => ({ ok: true }) as PodResult));
   render(
     <ShipmentPackView
       locale="en"
       detail={detail}
       labels={packLabels}
-      caps={caps}
+      caps={{ canPack: caps.canPack, canShip: caps.canShip ?? caps.canPack, canPod: caps.canPod ?? true }}
       packLpIntoBoxAction={packLpIntoBoxAction}
+      shipShipmentAction={shipShipmentAction}
+      generateBolAction={generateBolAction}
+      recordPodAction={recordPodAction}
     />,
   );
-  return { packLpIntoBoxAction };
+  return { packLpIntoBoxAction, shipShipmentAction, generateBolAction, recordPodAction };
 }
 
 describe('ShipmentPackView — header, boxes+SSCC, contents, Pack-LP control', () => {
@@ -355,5 +439,142 @@ describe('CreateShipmentButton — gated create on the SO detail', () => {
     );
     expect(createShipmentAction).toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+// ── Ship / BOL / POD controls (pack-screens.jsx:191-216) ──
+function packedDetail(status: ShipmentRow['status'] = 'packed'): ShipmentDetail {
+  return makeDetail({ shipment: { ...rows[0], status, shippedAt: null } });
+}
+
+describe('ShipmentShipControls — [Ship] gate + lifecycle', () => {
+  it('shows [Ship shipment] when packed (≥1 box) and not shipped, and calls shipShipment', async () => {
+    const { shipShipmentAction } = renderPack(packedDetail());
+    const shipBtn = screen.getByTestId('shipment-ship-submit');
+    expect(shipBtn).toHaveTextContent('Ship shipment');
+    expect(shipBtn).not.toBeDisabled();
+    fireEvent.click(shipBtn);
+    await waitFor(() => expect(shipShipmentAction).toHaveBeenCalledWith(SHIPMENT_ID));
+    // On success the shipped status note appears.
+    expect(await screen.findByTestId('shipment-ship-done')).toHaveTextContent('Shipment shipped.');
+    // No raw shipment UUID leaks into the rail.
+    expect(document.body.textContent).not.toContain(SHIPMENT_ID);
+  });
+
+  it('disables [Ship] with a needs-box tooltip when no boxes are packed', () => {
+    renderPack(makeDetail({ shipment: { ...rows[0], status: 'packed' }, boxes: [] }));
+    const shipBtn = screen.getByTestId('shipment-ship-submit');
+    expect(shipBtn).toBeDisabled();
+    expect(shipBtn).toHaveAttribute('title', 'Pack at least one box before shipping.');
+  });
+
+  it('disables [Ship] with a permission tooltip when the user lacks ship.pack.close', () => {
+    renderPack(packedDetail(), { canPack: false });
+    const shipBtn = screen.getByTestId('shipment-ship-submit');
+    expect(shipBtn).toBeDisabled();
+    expect(shipBtn).toHaveAttribute('title', 'You do not have permission to ship this shipment.');
+  });
+
+  it('surfaces a forbidden ship result inline without crashing', async () => {
+    const { shipShipmentAction } = renderPack(packedDetail(), { canPack: true, canShip: true }, undefined, {
+      ship: async () => ({ ok: false, error: 'forbidden' }),
+    });
+    fireEvent.click(screen.getByTestId('shipment-ship-submit'));
+    expect(await screen.findByTestId('shipment-ship-error')).toHaveTextContent(
+      "You don't have permission to do that.",
+    );
+    expect(shipShipmentAction).toHaveBeenCalled();
+    // Still in packing/packed lifecycle — not flipped to shipped.
+    expect(screen.queryByTestId('shipment-ship-done')).not.toBeInTheDocument();
+  });
+
+  it('hides [Ship] and shows the shipped lifecycle when the shipment is already shipped', () => {
+    renderPack(makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }));
+    expect(screen.queryByTestId('shipment-ship-submit')).not.toBeInTheDocument();
+    expect(screen.getByTestId('shipment-stage-shipped')).toHaveAttribute('data-active', 'true');
+    // shipped_at stamp surfaced (getShipment returns shippedAt).
+    expect(screen.getByTestId('shipment-shipped-at')).not.toHaveTextContent('Not shipped yet');
+  });
+});
+
+describe('GenerateBolModal — carrier/service/tracking → generateBol', () => {
+  it('opens, exposes carrier + tracking, calls generateBol and shows the BOL reference link', async () => {
+    const bol = vi.fn(async () => ({ ok: true, bolRef: 'a1b2c3d4e5f6deadbeef' }) as BolResult);
+    renderPack(packedDetail(), { canPack: true }, undefined, { bol });
+    fireEvent.click(screen.getByTestId('shipment-generate-bol-trigger'));
+    const form = await screen.findByTestId('shipment-generate-bol-form');
+    fireEvent.change(within(form).getByTestId('shipment-bol-carrier'), { target: { value: 'DHL Freight' } });
+    fireEvent.change(within(form).getByTestId('shipment-bol-tracking'), { target: { value: 'TRK-123' } });
+    fireEvent.click(screen.getByTestId('shipment-bol-submit'));
+    await waitFor(() =>
+      expect(bol).toHaveBeenCalledWith(
+        expect.objectContaining({ shipmentId: SHIPMENT_ID, carrier: 'DHL Freight', trackingNumber: 'TRK-123' }),
+      ),
+    );
+    // The returned bolRef is surfaced in the lifecycle rail (truncated, no raw UUID).
+    expect(await screen.findByTestId('shipment-bol-ref')).toHaveTextContent('a1b2c3d4e5f6');
+    expect(document.body.textContent).not.toContain(SHIPMENT_ID);
+  });
+
+  it('disables the BOL trigger with a permission tooltip when the user cannot ship', () => {
+    renderPack(packedDetail(), { canPack: false });
+    const trigger = screen.getByTestId('shipment-generate-bol-trigger');
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute('title', 'You do not have permission to ship this shipment.');
+  });
+
+  it('surfaces a generateBol error inline without crashing', async () => {
+    renderPack(packedDetail(), { canPack: true }, undefined, {
+      bol: async () => ({ ok: false, error: 'not_found' }),
+    });
+    fireEvent.click(screen.getByTestId('shipment-generate-bol-trigger'));
+    await screen.findByTestId('shipment-generate-bol-form');
+    fireEvent.click(screen.getByTestId('shipment-bol-submit'));
+    expect(await screen.findByTestId('shipment-bol-error')).toHaveTextContent('That shipment no longer exists.');
+  });
+});
+
+describe('RecordPodModal — signed POD url → recordPod', () => {
+  it('opens, calls recordPod with the signed url and stamps delivered + shows the signed BOL link', async () => {
+    const pod = vi.fn(async () => ({ ok: true }) as PodResult);
+    renderPack(makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }), { canPack: true }, undefined, { pod });
+    fireEvent.click(screen.getByTestId('shipment-record-pod-trigger'));
+    const form = await screen.findByTestId('shipment-record-pod-form');
+    fireEvent.change(within(form).getByTestId('shipment-pod-signed-url'), {
+      target: { value: 'https://files.example/signed-pod.pdf' },
+    });
+    fireEvent.click(screen.getByTestId('shipment-pod-submit'));
+    await waitFor(() =>
+      expect(pod).toHaveBeenCalledWith({
+        shipmentId: SHIPMENT_ID,
+        signedPdfUrl: 'https://files.example/signed-pod.pdf',
+      }),
+    );
+    // delivered_at stamped + signed BOL link surfaced.
+    await waitFor(() =>
+      expect(screen.getByTestId('shipment-delivered-at')).not.toHaveTextContent('Not delivered yet'),
+    );
+    const link = await screen.findByTestId('shipment-signed-bol-link');
+    expect(link).toHaveAttribute('href', 'https://files.example/signed-pod.pdf');
+    expect(screen.getByTestId('shipment-stage-delivered')).toHaveAttribute('data-active', 'true');
+  });
+
+  it('disables the POD trigger with a permission tooltip when the user cannot record delivery', () => {
+    renderPack(packedDetail(), { canPack: true, canPod: false });
+    const trigger = screen.getByTestId('shipment-record-pod-trigger');
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute('title', 'You do not have permission to record delivery for this shipment.');
+  });
+
+  it('surfaces a recordPod error inline without crashing', async () => {
+    renderPack(packedDetail(), { canPack: true }, undefined, {
+      pod: async () => ({ ok: false, error: 'forbidden' }),
+    });
+    fireEvent.click(screen.getByTestId('shipment-record-pod-trigger'));
+    await screen.findByTestId('shipment-record-pod-form');
+    fireEvent.click(screen.getByTestId('shipment-pod-submit'));
+    expect(await screen.findByTestId('shipment-pod-error')).toHaveTextContent(
+      "You don't have permission to do that.",
+    );
   });
 });

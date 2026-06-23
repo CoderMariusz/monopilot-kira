@@ -42,6 +42,8 @@ import { Select } from '@monopilot/ui/Select';
 import { Button } from '@monopilot/ui/Button';
 
 import { ShipmentStatusBadge } from './shipment-status-badge';
+import { ShipmentShipControls, type ShipmentShipLabels, type ShipmentShipCaps } from './shipment-ship-controls';
+import type { ShipShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
 import type { ShipmentDetail } from '../_actions/shipments-data';
 
 export type ShipmentPackLabels = {
@@ -79,6 +81,8 @@ export type ShipmentPackLabels = {
     noPermission: string;
   };
   errors: Record<string, string>;
+  /** Ship / BOL / POD rail labels (added by the ship-controls lane). */
+  ship: ShipmentShipLabels;
 };
 
 export type PackLpResult = { ok: true; boxId: string } | { ok: false; error: string };
@@ -87,16 +91,33 @@ export type ShipmentPackViewProps = {
   locale: string;
   detail: ShipmentDetail;
   labels: ShipmentPackLabels;
-  caps: { canPack: boolean };
+  caps: { canPack: boolean } & ShipmentShipCaps;
   packLpIntoBoxAction: (input: {
     shipmentId: string;
     lpId: string;
     boxId?: string;
   }) => Promise<PackLpResult>;
+  /** Reviewed ship-actions.ts seams (imported by the page, never authored here). */
+  shipShipmentAction: (shipmentId: string) => Promise<ShipShipmentResult>;
+  generateBolAction: (input: {
+    shipmentId: string;
+    carrier?: string;
+    serviceLevel?: string;
+    trackingNumber?: string;
+  }) => Promise<GenerateBolResult>;
+  recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
 };
 
-export function ShipmentPackView({ locale, detail, labels, caps, packLpIntoBoxAction }: ShipmentPackViewProps) {
-  void locale;
+export function ShipmentPackView({
+  locale,
+  detail,
+  labels,
+  caps,
+  packLpIntoBoxAction,
+  shipShipmentAction,
+  generateBolAction,
+  recordPodAction,
+}: ShipmentPackViewProps) {
   const router = useRouter();
   const { shipment, boxes } = detail;
 
@@ -342,6 +363,21 @@ export function ShipmentPackView({ locale, detail, labels, caps, packLpIntoBoxAc
               </div>
             </dl>
           </div>
+
+          {/* Ship / BOL / POD controls + lifecycle (parity pack-screens.jsx:191-216). */}
+          <ShipmentShipControls
+            locale={locale}
+            shipmentNumber={shipment.shipmentNumber}
+            shipmentId={shipment.id}
+            status={shipment.status}
+            shippedAt={shipment.shippedAt}
+            boxCount={boxes.length}
+            labels={labels.ship}
+            caps={{ canShip: caps.canShip, canPod: caps.canPod }}
+            shipShipmentAction={shipShipmentAction}
+            generateBolAction={generateBolAction}
+            recordPodAction={recordPodAction}
+          />
         </div>
       </div>
     </div>
