@@ -37,7 +37,7 @@ import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
 
-import { createDisassemblyBomDraft } from '../_actions/disassembly';
+import { createDisassemblyBomDraft } from '../_actions/disassembly-client-actions';
 import { listItems } from '../../items/_actions/list-items';
 import type { ItemListItem, ItemStatus } from '../../items/_actions/shared';
 

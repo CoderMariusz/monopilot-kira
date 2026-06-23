@@ -136,8 +136,12 @@ function formatIsoWeek(year: number, week: number): string {
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
 
-/** N forward ISO-week labels starting at the current week (UTC), oldest-first. */
-export function buildForecastWeeks(count: number, from: Date = new Date()): string[] {
+/**
+ * N forward ISO-week labels starting at the current week (UTC), oldest-first.
+ * Module-local (NOT exported): this is a `'use server'` file, which may only
+ * export async server actions — a sync export here breaks the production build.
+ */
+function buildForecastWeeks(count: number, from: Date = new Date()): string[] {
   const weeks: string[] = [];
   const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
   for (let i = 0; i < count; i += 1) {

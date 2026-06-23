@@ -120,3 +120,26 @@ putaway/move screens).
 - **R3c [Claude/Codex]** Sev2 settings dead controls (S2-1/2), TO partial-received buttons (S2-7), production genealogy correctionOfId (S2-12), finance refresh (S2-13).
 
 **ROUND 4:** remaining Sev3/4 + stubs + the master-plan E-waves (E2B/E4A/E5/E8/E9/E10), each per the master plan.
+
+---
+
+## ⛔ CRITICAL — production build was BROKEN on main (found + fixed run-2, 2026-06-23)
+
+`next build` (the Vercel production build) failed on `main` — meaning recent deploys very likely
+FAILED and the "live" site was a stale older build. Three accumulated errors, all from recent
+E-IO / E7 features, all now fixed:
+1. **Client→server-only `pg` leak:** `technical/bom/_components/disassembly-bom-create.tsx` ('use client')
+   value-imported `createDisassemblyBomDraft` from the `server-only` `_actions/disassembly.ts` (imports
+   `pg` via `withOrgContext`) → pulled pg/tls into the client bundle. Fix: new `'use server'` boundary
+   `bom/_actions/disassembly-client-actions.ts`; the client imports the action from there.
+2. **`'use server'` file with a sync export:** `planning/_actions/forecasts.ts` exported a SYNC
+   `buildForecastWeeks` — a `'use server'` file may export only async actions. Fix: dropped `export`
+   (internal-only; no importers).
+3. **`'use server'` file with a const export:** `purchase-orders/_actions/create-export-job.ts` exported
+   `const PO_EXPORT_CSV_COLUMNS`. Fix: dropped `export` (internal-only; no importers).
+
+Scanned both error classes repo-wide: these were the only occurrences. After the fix `pnpm --filter web
+build` was re-run to green. **Owner: confirm the next Vercel deploy succeeds** — if deploys had been
+failing since E7 (commit c744f350), the live site needs this fix pushed to catch up.
+**Lesson:** add `next build` to the pre-push / CI gate — typecheck + vitest do NOT catch the
+'use server' export rule or client-bundle leaks.

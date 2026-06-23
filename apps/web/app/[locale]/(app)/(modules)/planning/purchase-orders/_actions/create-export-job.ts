@@ -30,8 +30,12 @@ import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } f
 import { listPurchaseOrders } from './actions';
 import { listPurchaseOrderLineCounts } from './po-form-data';
 
-/** CSV column order (human-readable; NO UUIDs). */
-export const PO_EXPORT_CSV_COLUMNS = [
+/**
+ * CSV column order (human-readable; NO UUIDs). Module-local (NOT exported): this
+ * is a `'use server'` file, which may only export async server actions — a const
+ * export here breaks the production build.
+ */
+const PO_EXPORT_CSV_COLUMNS = [
   'po_number',
   'supplier_code',
   'supplier_name',
