@@ -111,7 +111,7 @@ export function WoExecuteScreen({
     setLaborState(optimistic);
     setLaborBusy(action);
     try {
-      const res = await scannerFetch("labor", { action, woId });
+      const res = await scannerFetch("labor", { action, woId, lineId: session?.lineId ?? undefined });
       if (!res.ok) {
         setLaborState(previous);
         return;

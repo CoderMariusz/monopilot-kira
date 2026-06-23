@@ -68,9 +68,32 @@ This is a big dedicated theme. Owner can't do it now — captured here in full.
   E1 print feature → fills field → flow advances), HW-scanner test (gun → field), no-camera fallback,
   iOS Safari fallback path.
 
-## Holistic "does it all connect" review (see the review run 2026-06-23)
-A read-only review of every scanner route/button/flow was run alongside this doc — findings folded
-in below as they land (dead buttons, unreachable screens, broken flow links, stubbed actions).
+## Holistic review findings (read-only audit, 2026-06-23)
+**Verdict: the scanner logically hangs together end-to-end** (login→site→home→WO start→consume[FEFO]
+→output[LP+print]→waste→clock; receive→GRN/LP→print; putaway/move/pick/lp/qa all complete + the data
+written at each step matches what downstream reads). De-mock IS in the current code (real clock +
+online dot, fake 09:41/signal/battery removed, hidden ≤640px) — the live `09:41` is just the
+un-deployed old build. THREE structural gaps + several small ones:
+
+### Goes into the OVERHAUL above (big, owner deferred)
+- **[SEV1] Camera + Manual buttons are DEAD** — `components/shell/scanner-primitives.tsx:432-443`,
+  no onClick, no camera API anywhere; present on 6+ screens (receive list, putaway, move, lp, qa,
+  pick). = G1/G2.
+- Native-keyboard vs on-screen keypad inconsistency = G5. HW keyboard-wedge: today only JS autofocus
+  (works for a HID gun into the focused field), no dedicated wedge capture = G3.
+
+### Quick-fix batch (small, NOT the camera overhaul — a separate "scanner fixes" wave)
+- **[SEV2] Labor clock-in missed `lineId`** — FIXED 2026-06-23 (`wo-execute-screen.tsx:114` now passes
+  `session.lineId`; was writing wo_labor_log.line_id=null → broke OEE-per-line).
+- **[SEV2] Labor state not hydrated** — `wo-execute-screen.tsx:63` inits 'clocked_out' every mount; no
+  `GET /api/scanner/labor?woId=` → nav-away resets buttons, allows double clock-in. FIX: GET + hydrate.
+- **[SEV2] QC-hold receive dead-end** — `receive-po-item-screen.tsx:264` shows "QC required" but no
+  "Inspect now" button; FIX: deep-link to the QA screen pre-loaded with the LP.
+- **[SEV3] Pick tautological phase** — `pick-screen.tsx:131` `setPhase(len===0?'materials':'materials')`.
+- **[SEV3] `my_line` WO filter unimplemented** — `wo-list-screen.tsx:83` (should match session.lineId).
+- **[SEV3] Receive-PO list scan field no onSubmit** — `receive-po-list-screen.tsx:69` (Enter does nothing).
+- **[SEV4] "Consume"/"Output" home tiles** both route to the WO list — `home-screen.tsx:36-37` (cosmetic).
+- **[SEV4] `dev/scanner` orphan stub** — `dev/scanner/page.tsx` no-onClick button, direct-URL reachable.
 
 ## Verification gates (owner's standard: hard evidence)
 - Camera actually decodes a real printed barcode in a phone browser (screenshot/video).
