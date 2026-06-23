@@ -7,7 +7,9 @@ import {
   APP_VERSION,
   emitConsumeBlocked,
   hasPermission,
+  OUTPUT_RECORDABLE_STATES,
   QualityHoldError,
+  readWoExecutionStatus,
   type ProductionContext,
 } from '../../../../../../../lib/production/shared';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
@@ -135,6 +137,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 }
               : {}),
           });
+        }
+
+        const executionStatus = await readWoExecutionStatus(
+          { client, userId: session.user_id, orgId: session.org_id } as ProductionContext,
+          woId,
+        );
+        if (executionStatus === null || !OUTPUT_RECORDABLE_STATES.has(executionStatus)) {
+          await client.query('rollback');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'wo_not_recordable', {
+            woId,
+            clientOpId,
+            status: executionStatus,
+          });
+          return scannerError('wo_not_recordable', 422, { status: executionStatus });
         }
 
         if (lpId) {

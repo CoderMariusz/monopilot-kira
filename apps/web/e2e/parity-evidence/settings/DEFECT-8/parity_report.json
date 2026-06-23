@@ -4,7 +4,7 @@
   "prototype_anchor": "prototypes/settings/access-screens.jsx:95-129",
   "permission_gate": "settings.roles.assign",
   "dual_store_write": "role_permissions (delete+insert ON CONFLICT) AND roles.permissions jsonb rebuilt to the same set, one txn",
-  "generated_at": "2026-06-18T17:50:28.506Z",
+  "generated_at": "2026-06-23T21:21:46.011Z",
   "states": {
     "create_modal": {
       "hasDialog": true,

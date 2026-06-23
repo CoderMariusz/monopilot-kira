@@ -30,6 +30,9 @@ const startWoMock = vi.fn();
 const findUserByEmailMock = vi.fn();
 const userHasPinMock = vi.fn();
 const verifyPinMock = vi.fn();
+const { readWoExecutionStatusMock } = vi.hoisted(() => ({
+  readWoExecutionStatusMock: vi.fn(),
+}));
 // withScannerOrg has two overloads: (session, fn) for service calls (start/
 // output/waste) and (client, session, fn) for scoped queries (lps). Dispatch
 // on arity, mirroring the real signature.
@@ -64,6 +67,14 @@ vi.mock('../../../../../../../lib/scanner/auth', () => ({
 vi.mock('../../../../../../../lib/scanner/with-scanner-org', () => ({
   withScannerOrg: (...args: unknown[]) => withScannerOrgMock(...args),
 }));
+
+vi.mock('../../../../../../../lib/production/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../../../../lib/production/shared')>();
+  return {
+    ...actual,
+    readWoExecutionStatus: (...args: unknown[]) => readWoExecutionStatusMock(...args),
+  };
+});
 
 vi.mock('../../../../../../../lib/production/output/register-output', () => ({
   registerOutput: (...args: unknown[]) => registerOutputMock(...args),
@@ -133,6 +144,7 @@ describe('production scanner WO routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakeClient.query.mockReset();
+    readWoExecutionStatusMock.mockResolvedValue('in_progress');
     registerOutputMock.mockResolvedValue({
       output_id: 'out-1',
       lp_id: null,
@@ -494,6 +506,43 @@ describe('production scanner WO routes', () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+  });
+
+  it.each([
+    ['cancelled', 'cancelled'],
+    ['closed', 'closed'],
+    ['never-started', null],
+  ] as const)('consume rejects a %s WO before updating material', async (_case, executionStatus) => {
+    const { POST } = await import('../consume/route');
+    readWoExecutionStatusMock.mockResolvedValueOnce(executionStatus);
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-cancelled-wo',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '1.000',
+        reasonCode: 'manual-cancelled',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'wo_not_recordable',
+      status: executionStatus,
+    });
+    expect(readWoExecutionStatusMock).toHaveBeenCalledWith(
+      expect.objectContaining({ client: fakeClient, userId: session.user_id, orgId: session.org_id }),
+      context.params.id,
+    );
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+    expect(fakeClient.query.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining(['rollback']));
   });
 
   it('consume rejects LP underflow with 409 lp_unavailable and rolls the txn back', async () => {
@@ -1045,7 +1094,7 @@ describe('production scanner WO routes', () => {
             scheduled_start: null,
             produced_base_kg: '0',
             produced_units: '0',
-            allergen_flag: false,
+            allergen_flag: true,
           }],
         };
       }
@@ -1060,6 +1109,8 @@ describe('production scanner WO routes', () => {
     const json = await response.json();
     expect(json.ok).toBe(true);
     expect(json.header).toMatchObject({ producedBaseKg: '0', producedUnits: '0' });
+    expect(json).toMatchObject({ allergenGate: true });
+    expect(json.header.allergenFlag).toBeUndefined();
     expect(typeof json.header.producedBaseKg).toBe('string');
     expect(typeof json.header.producedUnits).toBe('string');
   });

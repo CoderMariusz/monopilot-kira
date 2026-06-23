@@ -1,7 +1,7 @@
 'use server';
 
 import type pg from 'pg';
-import { signEvent } from '@monopilot/e-sign';
+import { hashESignSubject, signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
@@ -113,6 +113,11 @@ const releaseSchema = z.object({
   disposition: z.enum(['release', 'scrap', 'rework', 'partial']),
   reasonText: z.string().trim().min(1).max(2000),
   signature: z.object({ password: z.string().min(1) }),
+});
+
+const warehouseLpUnblockReleaseSchema = z.object({
+  lpId: uuidSchema,
+  reasonText: z.string().trim().min(1).max(2000),
 });
 
 async function hasPermission(ctx: QualityContext, permission: string): Promise<boolean> {
@@ -592,6 +597,214 @@ export async function createHold(input: {
   }
 }
 
+type HoldForRelease = {
+  id: string;
+  hold_number: string;
+  reference_type: ReferenceType;
+  reference_id: string;
+  hold_status: string;
+  released_at: Date | string | null;
+};
+
+type ReleaseHoldCoreInput = {
+  holdId: string;
+  disposition: ReleaseDisposition;
+  reasonText: string;
+};
+
+async function releaseHoldCore(
+  ctx: QualityContext,
+  input: ReleaseHoldCoreInput,
+  options: {
+    releaseSource: string;
+    expectedReference?: { type: ReferenceType; id: string };
+    getSignatureHash: (current: HoldForRelease) => Promise<string>;
+  },
+): Promise<ActionResult<ReleasedHold>> {
+  const hold = await ctx.client.query<HoldForRelease>(
+    `select id::text, hold_number, reference_type, reference_id::text, hold_status, released_at
+       from public.quality_holds
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      for update`,
+    [input.holdId],
+  );
+  const current = hold.rows[0];
+  if (!current) throw new Error('quality hold not found');
+  if (current.hold_status === 'released' || current.released_at !== null) {
+    throw new Error('quality hold is already released');
+  }
+  if (
+    options.expectedReference &&
+    (current.reference_type !== options.expectedReference.type || current.reference_id !== options.expectedReference.id)
+  ) {
+    throw new Error('quality hold does not match license plate');
+  }
+
+  const signatureHash = await options.getSignatureHash(current);
+
+  const dbDisposition =
+    input.disposition === 'release'
+      ? 'release_as_is'
+      : input.disposition === 'scrap'
+        ? 'scrap'
+        : input.disposition === 'rework'
+          ? 'rework'
+          : 'other';
+  const itemStatus = input.disposition === 'scrap' ? 'scrapped' : input.disposition === 'partial' ? 'partial_released' : 'released';
+  const lpQaStatus = input.disposition === 'scrap' ? 'rejected' : 'released';
+
+  const updated = await ctx.client.query<{ released_at: Date | string }>(
+    `update public.quality_holds
+        set hold_status = 'released',
+            released_by = $2::uuid,
+            released_at = pg_catalog.now(),
+            disposition = $3,
+            release_notes = $4,
+            release_signature_hash = $5
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and hold_status <> 'released'
+        and released_at is null
+      returning released_at`,
+    [input.holdId, ctx.userId, dbDisposition, input.reasonText, signatureHash],
+  );
+  const releasedAt = updated.rows[0]?.released_at;
+  if (!releasedAt) throw new Error('quality hold release update did not return a row');
+
+  await ctx.client.query(
+    `update public.quality_hold_items
+        set item_status = $2,
+            qty_released_kg = case when $2 = 'released' then qty_held_kg else qty_released_kg end
+      where org_id = app.current_org_id()
+        and hold_id = $1::uuid`,
+    [input.holdId, itemStatus],
+  );
+
+  const heldLps = await ctx.client.query<{
+    id: string;
+    status: string;
+    qa_status: string;
+    site_id: string | null;
+    wo_id: string | null;
+    grn_id: string | null;
+  }>(
+    `select lp.id::text, lp.status, lp.qa_status, lp.site_id::text, lp.wo_id::text, lp.grn_id::text
+       from public.quality_hold_items qhi
+       join public.license_plates lp on lp.id = qhi.license_plate_id and lp.org_id = qhi.org_id
+      where qhi.org_id = app.current_org_id()
+        and qhi.hold_id = $1::uuid
+        and qhi.license_plate_id is not null`,
+    [input.holdId],
+  );
+
+  if (heldLps.rows.length > 0) {
+    await ctx.client.query(
+      `update public.license_plates
+          set qa_status = $2,
+              status = case
+                when $5::boolean and status = 'blocked' then 'available'
+                else status
+              end,
+              updated_by = $3::uuid
+        where org_id = app.current_org_id()
+          and id = any($1::uuid[])
+          and status <> all($4::text[])`,
+      [heldLps.rows.map((lp) => lp.id), lpQaStatus, ctx.userId, [...TERMINAL_LP_STATUSES], input.disposition === 'release'],
+    );
+
+    for (const lp of heldLps.rows.filter((row) => !TERMINAL_LP_STATUSES.includes(row.status as (typeof TERMINAL_LP_STATUSES)[number]))) {
+      const restoresBlockedStatus = input.disposition === 'release' && lp.status === 'blocked';
+      const toState = restoresBlockedStatus ? 'available' : lp.status;
+      await ctx.client.query(
+        `insert into public.lp_state_history (
+           org_id,
+           site_id,
+           lp_id,
+           from_state,
+           to_state,
+           reason_code,
+           reason_text,
+           wo_id,
+           grn_id,
+           created_by,
+           ext_jsonb
+         )
+         values (
+           app.current_org_id(),
+           $2::uuid,
+           $1::uuid,
+           $3,
+           $4,
+           $5,
+           $6,
+           $7::uuid,
+           $8::uuid,
+           $9::uuid,
+           $10::jsonb
+         )`,
+        [
+          lp.id,
+          lp.site_id,
+          lp.status,
+          toState,
+          restoresBlockedStatus ? 'status_change' : 'quality_hold_release',
+          input.reasonText,
+          lp.wo_id,
+          lp.grn_id,
+          ctx.userId,
+          JSON.stringify({
+            action: restoresBlockedStatus ? 'status_change' : 'qa_status_change',
+            holdId: input.holdId,
+            disposition: input.disposition,
+            qaStatusFrom: lp.qa_status,
+            qaStatusTo: lpQaStatus,
+            releaseSource: options.releaseSource,
+            statusFrom: lp.status,
+            statusTo: toState,
+          }),
+        ],
+      );
+    }
+  }
+
+  if (current.reference_type === 'wo' && input.disposition === 'release') {
+    await ctx.client.query(
+      `update public.wo_outputs
+          set qa_status = 'PENDING',
+              updated_by = $2::uuid
+        where org_id = app.current_org_id()
+          and wo_id = $1::uuid
+          and qa_status = 'ON_HOLD'`,
+      [current.reference_id, ctx.userId],
+    );
+  }
+
+  await writeOutbox(ctx, {
+    eventType: 'quality.hold.released',
+    aggregateId: input.holdId,
+    payload: {
+      holdId: input.holdId,
+      holdNumber: current.hold_number,
+      disposition: input.disposition,
+      signatureHash,
+      releaseSource: options.releaseSource,
+    },
+  });
+
+  return {
+    ok: true,
+    data: {
+      id: input.holdId,
+      holdNumber: current.hold_number,
+      status: 'released',
+      disposition: input.disposition,
+      releasedAt: toIso(releasedAt) ?? '',
+      signatureHash,
+    },
+  };
+}
+
 export async function releaseHold(input: {
   holdId: string;
   disposition: ReleaseDisposition;
@@ -603,185 +816,79 @@ export async function releaseHold(input: {
     return await withOrgContext(async (ctx): Promise<ActionResult<ReleasedHold>> => {
       if (!(await hasPermission(ctx, 'quality.hold.release'))) return { ok: false, reason: 'forbidden' };
 
-      const hold = await ctx.client.query<{
-        id: string;
-        hold_number: string;
-        reference_type: ReferenceType;
-        reference_id: string;
-        hold_status: string;
-        released_at: Date | string | null;
-      }>(
-        `select id::text, hold_number, reference_type, reference_id::text, hold_status, released_at
-           from public.quality_holds
+      return releaseHoldCore(ctx, parsed, {
+        releaseSource: 'quality_hold_release',
+        getSignatureHash: async () => {
+          const receipt = await signEvent(
+            {
+              signerUserId: ctx.userId,
+              pin: parsed.signature.password,
+              intent: 'qa.hold.release',
+              subject: { holdId: parsed.holdId, disposition: parsed.disposition },
+              reason: parsed.reasonText,
+            },
+            { client: ctx.client as unknown as pg.PoolClient },
+          );
+          return receipt.subjectHash;
+        },
+      });
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function releaseHoldFromWarehouseLpUnblock(input: {
+  lpId: string;
+  reasonText: string;
+}): Promise<ActionResult<ReleasedHold>> {
+  try {
+    const parsed = warehouseLpUnblockReleaseSchema.parse(input);
+    return await withOrgContext(async (ctx): Promise<ActionResult<ReleasedHold>> => {
+      if (!(await hasPermission(ctx, 'warehouse.lp.block'))) return { ok: false, reason: 'forbidden' };
+
+      const lp = await ctx.client.query<{ id: string; status: string; qa_status: string }>(
+        `select id::text, status, qa_status
+           from public.license_plates
           where org_id = app.current_org_id()
             and id = $1::uuid
           for update`,
-        [parsed.holdId],
+        [parsed.lpId],
       );
-      const current = hold.rows[0];
-      if (!current) throw new Error('quality hold not found');
-      if (current.hold_status === 'released' || current.released_at !== null) {
-        throw new Error('quality hold is already released');
+      const currentLp = lp.rows[0];
+      if (!currentLp) return { ok: false, reason: 'error', message: 'license plate not found' };
+      if (currentLp.status !== 'blocked' || currentLp.qa_status !== 'on_hold') {
+        return { ok: false, reason: 'error', message: 'invalid_state' };
       }
 
-      const receipt = await signEvent(
-        {
-          signerUserId: ctx.userId,
-          pin: parsed.signature.password,
-          intent: 'qa.hold.release',
-          subject: { holdId: parsed.holdId, disposition: parsed.disposition },
-          reason: parsed.reasonText,
-        },
-        { client: ctx.client as unknown as pg.PoolClient },
-      );
-
-      const dbDisposition =
-        parsed.disposition === 'release'
-          ? 'release_as_is'
-          : parsed.disposition === 'scrap'
-            ? 'scrap'
-            : parsed.disposition === 'rework'
-              ? 'rework'
-              : 'other';
-      const itemStatus = parsed.disposition === 'scrap' ? 'scrapped' : parsed.disposition === 'partial' ? 'partial_released' : 'released';
-      const lpQaStatus = parsed.disposition === 'scrap' ? 'rejected' : 'released';
-
-      const updated = await ctx.client.query<{ released_at: Date | string }>(
-        `update public.quality_holds
-            set hold_status = 'released',
-                released_by = $2::uuid,
-                released_at = pg_catalog.now(),
-                disposition = $3,
-                release_notes = $4,
-                release_signature_hash = $5
+      const hold = await ctx.client.query<{ id: string }>(
+        `select id::text
+           from public.quality_holds
           where org_id = app.current_org_id()
-            and id = $1::uuid
-            and hold_status <> 'released'
+            and reference_type = 'lp'
+            and reference_id = $1::uuid
+            and hold_status = any($2::text[])
             and released_at is null
-          returning released_at`,
-        [parsed.holdId, ctx.userId, dbDisposition, parsed.reasonText, receipt.subjectHash],
+          order by created_at desc
+          limit 1
+          for update`,
+        [parsed.lpId, [...ACTIVE_HOLD_STATUSES]],
       );
-      const releasedAt = updated.rows[0]?.released_at;
-      if (!releasedAt) throw new Error('quality hold release update did not return a row');
+      const activeHold = hold.rows[0];
+      if (!activeHold) return { ok: false, reason: 'error', message: 'no_open_hold' };
 
-      await ctx.client.query(
-        `update public.quality_hold_items
-            set item_status = $2,
-                qty_released_kg = case when $2 = 'released' then qty_held_kg else qty_released_kg end
-          where org_id = app.current_org_id()
-            and hold_id = $1::uuid`,
-        [parsed.holdId, itemStatus],
-      );
-
-      const heldLps = await ctx.client.query<{
-        id: string;
-        status: string;
-        qa_status: string;
-        site_id: string | null;
-        wo_id: string | null;
-        grn_id: string | null;
-      }>(
-        `select lp.id::text, lp.status, lp.qa_status, lp.site_id::text, lp.wo_id::text, lp.grn_id::text
-           from public.quality_hold_items qhi
-           join public.license_plates lp on lp.id = qhi.license_plate_id and lp.org_id = qhi.org_id
-          where qhi.org_id = app.current_org_id()
-            and qhi.hold_id = $1::uuid
-            and qhi.license_plate_id is not null`,
-        [parsed.holdId],
-      );
-
-      if (heldLps.rows.length > 0) {
-        await ctx.client.query(
-          `update public.license_plates
-              set qa_status = $2,
-                  updated_by = $3::uuid
-            where org_id = app.current_org_id()
-              and id = any($1::uuid[])
-              and status <> all($4::text[])`,
-          [heldLps.rows.map((lp) => lp.id), lpQaStatus, ctx.userId, [...TERMINAL_LP_STATUSES]],
-        );
-
-        for (const lp of heldLps.rows.filter((row) => !TERMINAL_LP_STATUSES.includes(row.status as (typeof TERMINAL_LP_STATUSES)[number]))) {
-          await ctx.client.query(
-            `insert into public.lp_state_history (
-               org_id,
-               site_id,
-               lp_id,
-               from_state,
-               to_state,
-               reason_code,
-               reason_text,
-               wo_id,
-               grn_id,
-               created_by,
-               ext_jsonb
-             )
-             values (
-               app.current_org_id(),
-               $2::uuid,
-               $1::uuid,
-               $3,
-               $3,
-               'quality_hold_release',
-               $4,
-               $5::uuid,
-               $6::uuid,
-               $7::uuid,
-               $8::jsonb
-             )`,
-            [
-              lp.id,
-              lp.site_id,
-              lp.status,
-              parsed.reasonText,
-              lp.wo_id,
-              lp.grn_id,
-              ctx.userId,
-              JSON.stringify({
-                holdId: parsed.holdId,
-                disposition: parsed.disposition,
-                qaStatusFrom: lp.qa_status,
-                qaStatusTo: lpQaStatus,
-              }),
-            ],
-          );
-        }
-      }
-
-      if (current.reference_type === 'wo' && parsed.disposition === 'release') {
-        await ctx.client.query(
-          `update public.wo_outputs
-              set qa_status = 'PENDING',
-                  updated_by = $2::uuid
-            where org_id = app.current_org_id()
-              and wo_id = $1::uuid
-              and qa_status = 'ON_HOLD'`,
-          [current.reference_id, ctx.userId],
-        );
-      }
-
-      await writeOutbox(ctx, {
-        eventType: 'quality.hold.released',
-        aggregateId: parsed.holdId,
-        payload: {
-          holdId: parsed.holdId,
-          holdNumber: current.hold_number,
-          disposition: parsed.disposition,
-          signatureHash: receipt.subjectHash,
-        },
+      return releaseHoldCore(ctx, { holdId: activeHold.id, disposition: 'release', reasonText: parsed.reasonText }, {
+        releaseSource: 'warehouse_lp_unblock',
+        expectedReference: { type: 'lp', id: parsed.lpId },
+        getSignatureHash: async () =>
+          hashESignSubject({
+            holdId: activeHold.id,
+            lpId: parsed.lpId,
+            disposition: 'release',
+            reasonText: parsed.reasonText,
+            source: 'warehouse_lp_unblock',
+          }),
       });
-
-      return {
-        ok: true,
-        data: {
-          id: parsed.holdId,
-          holdNumber: current.hold_number,
-          status: 'released',
-          disposition: parsed.disposition,
-          releasedAt: toIso(releasedAt) ?? '',
-          signatureHash: receipt.subjectHash,
-        },
-      };
     });
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };

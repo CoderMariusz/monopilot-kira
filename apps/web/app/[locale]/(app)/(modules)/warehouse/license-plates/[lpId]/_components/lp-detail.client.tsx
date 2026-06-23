@@ -59,7 +59,7 @@ import type { LicensePlateDetail } from '../../../_actions/shared';
 import type { WarehouseResult } from '../../../_actions/shared';
 import type { createStockMove } from '../../../_actions/stock-move-actions';
 import type { listLocations } from '../../../_actions/location-read-actions';
-import type { blockLp, listOpenWorkOrdersForLpReserve, reserveLp } from '../_actions/lp-detail-actions';
+import type { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp, UnblockLpResult } from '../_actions/lp-detail-actions';
 import { LpBlockModal, type LpBlockModalLabels } from './lp-block-modal.client';
 import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
 import {
@@ -152,6 +152,24 @@ export type LpDetailLabels = {
     labelByKey: Record<LpDetailAction, string>;
     reserve: LpReserveModalLabels;
     block: LpBlockModalLabels;
+    unblock: {
+      title: string;
+      intro: string;
+      reason: string;
+      reasonPlaceholder: string;
+      cancel: string;
+      confirm: string;
+      submitting: string;
+      success: string;
+      errors: {
+        forbidden: string;
+        invalidState: string;
+        noOpenHold: string;
+        invalidInput: string;
+        notFound: string;
+        generic: string;
+      };
+    };
     qaRelease: {
       title: string;
       decision: string;
@@ -251,6 +269,7 @@ export function LpDetailClient({
   locale,
   releaseQaAction,
   blockLpAction,
+  unblockLpAction,
   reserveLpAction,
   listOpenWorkOrdersForLpReserveAction,
   listLocationsAction,
@@ -264,6 +283,7 @@ export function LpDetailClient({
   locale: string;
   releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
   blockLpAction: typeof blockLp;
+  unblockLpAction: typeof unblockLp;
   reserveLpAction: typeof reserveLp;
   listOpenWorkOrdersForLpReserveAction: typeof listOpenWorkOrdersForLpReserve;
   listLocationsAction: typeof listLocations;
@@ -291,6 +311,10 @@ export function LpDetailClient({
   const [qaError, setQaError] = useState<string | null>(null);
   const [reserveModalOpen, setReserveModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [unblockModalOpen, setUnblockModalOpen] = useState(false);
+  const [unblockReason, setUnblockReason] = useState('');
+  const [unblockError, setUnblockError] = useState<string | null>(null);
+  const [actionToast, setActionToast] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -305,6 +329,7 @@ export function LpDetailClient({
   const canReleaseQa = detail.qaStatus.toLowerCase() === 'pending';
   // AUDIT #5: "move" is live unless the LP is in a terminal lifecycle state.
   const canMove = !IMMOVABLE_STATUSES.has(detail.status.toLowerCase());
+  const isBlocked = detail.status.toLowerCase() === 'blocked';
   // C-R3: metadata edit is hidden for terminal LPs (consumed/shipped/merged/destroyed).
   const canEditMetadata = !METADATA_LOCKED_STATUSES.has(detail.status.toLowerCase());
 
@@ -336,6 +361,49 @@ export function LpDetailClient({
             ? labels.actions.qaRelease.invalidState
             : labels.actions.qaRelease.error;
       setQaError(message);
+    });
+  }
+
+  function closeUnblockModal() {
+    if (isPending) return;
+    setUnblockModalOpen(false);
+    setUnblockReason('');
+    setUnblockError(null);
+  }
+
+  function unblockErrorMessage(result: Extract<WarehouseResult<UnblockLpResult>, { ok: false }>): string {
+    if (result.reason === 'forbidden') return labels.actions.unblock.errors.forbidden;
+    if (result.reason === 'not_found') return labels.actions.unblock.errors.notFound;
+    switch (result.message) {
+      case 'invalid_input':
+        return labels.actions.unblock.errors.invalidInput;
+      case 'invalid_state':
+        return labels.actions.unblock.errors.invalidState;
+      case 'no_open_hold':
+        return labels.actions.unblock.errors.noOpenHold;
+      default:
+        return labels.actions.unblock.errors.generic;
+    }
+  }
+
+  function submitUnblock() {
+    const reason = unblockReason.trim();
+    if (!reason || isPending) return;
+    setUnblockError(null);
+    setActionToast(null);
+    startTransition(async () => {
+      const result = await unblockLpAction(detail.id, reason);
+      if (result.ok) {
+        setUnblockModalOpen(false);
+        setUnblockReason('');
+        setUnblockError(null);
+        setActionToast({ tone: 'success', text: labels.actions.unblock.success });
+        router.refresh();
+        return;
+      }
+      const message = unblockErrorMessage(result);
+      setUnblockError(message);
+      setActionToast({ tone: 'error', text: message });
     });
   }
 
@@ -507,6 +575,7 @@ export function LpDetailClient({
                   {labels.actions.labelByKey[key]}
                 </button>
               ) : key === 'block' ? (
+                isBlocked ? null : (
                 <button
                   key={key}
                   type="button"
@@ -516,6 +585,19 @@ export function LpDetailClient({
                 >
                   {labels.actions.labelByKey[key]}
                 </button>
+                )
+              ) : key === 'unblock' ? (
+                isBlocked ? (
+                  <button
+                    key={key}
+                    type="button"
+                    data-testid={`lp-action-${key}`}
+                    onClick={() => setUnblockModalOpen(true)}
+                    className="rounded-md border border-emerald-300 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                  >
+                    {labels.actions.labelByKey[key]}
+                  </button>
+                ) : null
               ) : (
                 <button
                   key={key}
@@ -542,6 +624,21 @@ export function LpDetailClient({
               </button>
             ) : null}
           </div>
+          {actionToast ? (
+            <div
+              role={actionToast.tone === 'error' ? 'alert' : 'status'}
+              aria-live={actionToast.tone === 'error' ? 'assertive' : 'polite'}
+              data-testid="lp-action-toast"
+              className={[
+                'mt-2 rounded-md border px-3 py-2 text-xs',
+                actionToast.tone === 'error'
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+              ].join(' ')}
+            >
+              {actionToast.text}
+            </div>
+          ) : null}
           <p className="mt-2 text-[11px] text-slate-400">{labels.ruleNote}</p>
         </Card>
 
@@ -868,6 +965,52 @@ export function LpDetailClient({
             className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
           >
             {labels.actions.qaRelease.confirm}
+          </button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal open={unblockModalOpen} onOpenChange={(open) => (!open ? closeUnblockModal() : setUnblockModalOpen(true))} modalId="lpUnblock" size="sm">
+        <Modal.Header title={labels.actions.unblock.title.replace('{lp}', detail.lpNumber)} />
+        <Modal.Body>
+          <div data-testid="lp-unblock-modal" className="flex flex-col gap-3">
+            <p className="text-sm text-slate-600">{labels.actions.unblock.intro}</p>
+            <label htmlFor="lp-unblock-reason" className="text-sm font-medium text-slate-700">
+              {labels.actions.unblock.reason}
+            </label>
+            <Textarea
+              id="lp-unblock-reason"
+              rows={3}
+              value={unblockReason}
+              disabled={isPending}
+              placeholder={labels.actions.unblock.reasonPlaceholder}
+              onChange={(event) => setUnblockReason(event.target.value)}
+              data-testid="lp-unblock-reason"
+            />
+            {unblockError ? (
+              <p role="alert" data-testid="lp-unblock-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {unblockError}
+              </p>
+            ) : null}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={closeUnblockModal}
+            data-testid="lp-unblock-cancel"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {labels.actions.unblock.cancel}
+          </button>
+          <button
+            type="button"
+            disabled={!unblockReason.trim() || isPending}
+            onClick={submitUnblock}
+            data-testid="lp-unblock-confirm"
+            className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
+          >
+            {isPending ? labels.actions.unblock.submitting : labels.actions.unblock.confirm}
           </button>
         </Modal.Footer>
       </Modal>

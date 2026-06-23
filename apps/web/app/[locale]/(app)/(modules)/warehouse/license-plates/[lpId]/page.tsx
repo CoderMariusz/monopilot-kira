@@ -30,7 +30,7 @@ import { getLpDetail } from '../../_actions/lp-actions';
 import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { listLocations } from '../../_actions/location-read-actions';
 import { createStockMove } from '../../_actions/stock-move-actions';
-import { blockLp, listOpenWorkOrdersForLpReserve, reserveLp } from './_actions/lp-detail-actions';
+import { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp } from './_actions/lp-detail-actions';
 import { updateLpMetadataAction } from './lp-metadata-adapter';
 // E1 — label printing wired through the printers settings actions (mig 304).
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
@@ -151,6 +151,24 @@ function buildLabels(locale: string): LpDetailLabels {
           invalidInput: t('detail.actions.blockModal.errors.invalidInput'),
           notFound: t('detail.actions.blockModal.errors.notFound'),
           generic: t('detail.actions.blockModal.errors.generic'),
+        },
+      },
+      unblock: {
+        title: t('detail.actions.unblockModal.title'),
+        intro: t('detail.actions.unblockModal.intro'),
+        reason: t('detail.actions.unblockModal.reason'),
+        reasonPlaceholder: t('detail.actions.unblockModal.reasonPlaceholder'),
+        cancel: t('detail.actions.unblockModal.cancel'),
+        confirm: t('detail.actions.unblockModal.confirm'),
+        submitting: t('detail.actions.unblockModal.submitting'),
+        success: t('detail.actions.unblockModal.success'),
+        errors: {
+          forbidden: t('detail.actions.unblockModal.errors.forbidden'),
+          invalidState: t('detail.actions.unblockModal.errors.invalidState'),
+          noOpenHold: t('detail.actions.unblockModal.errors.noOpenHold'),
+          invalidInput: t('detail.actions.unblockModal.errors.invalidInput'),
+          notFound: t('detail.actions.unblockModal.errors.notFound'),
+          generic: t('detail.actions.unblockModal.errors.generic'),
         },
       },
       qaRelease: {
@@ -393,6 +411,7 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
       locale={locale}
       releaseQaAction={releaseLpQa}
       blockLpAction={blockLp}
+      unblockLpAction={unblockLp}
       reserveLpAction={reserveLp}
       listOpenWorkOrdersForLpReserveAction={listOpenWorkOrdersForLpReserve}
       listLocationsAction={listLocations}

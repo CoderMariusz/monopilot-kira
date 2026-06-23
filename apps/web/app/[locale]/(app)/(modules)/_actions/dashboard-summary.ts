@@ -9,17 +9,16 @@
  *
  * Honest data policy:
  *   - Active WOs   → public.work_orders (mig 176), status in the live set.
- *   - Pending POs  → NO purchase-orders table yet → null + "module not live".
- *   - Low Stock    → NO stock-threshold signal yet → null + "module not live".
+ *   - Pending POs  → public.purchase_orders (mig 262), open procurement statuses.
+ *   - Low Stock    → public.reorder_thresholds (mig 178) vs v_inventory_available (mig 191).
  *   - Quality Holds→ public.quality_holds (mig 197), hold_status still open.
  *   - Shipments    → public.shipments (mig 211) created today.
  *   - Activity     → public.audit_events (mig 004), latest 10 org-scoped.
  *   - Alerts       → derived from cheap real signals (open quality holds,
  *                    shipments stuck in 'exception'); empty-state otherwise.
  *
- * A `null` KPI value renders as "—" with a "not live yet" hint (never a fake
- * number). A failed transaction degrades the whole page to the unavailable
- * state instead of throwing a 500.
+ * A failed transaction degrades the whole page to the unavailable state instead
+ * of throwing a 500. No fake numbers are ever invented.
  *
  * NOT a `"use server"` module: invoked directly from the dashboard Server
  * Component during render, like `skeleton-data.ts`.
@@ -61,6 +60,7 @@ export type DashboardData = {
 };
 
 const ACTIVE_WO_STATUSES = ["RELEASED", "IN_PROGRESS", "ON_HOLD"];
+const OPEN_PO_STATUSES = ["draft", "sent", "confirmed", "partially_received"];
 const OPEN_HOLD_STATUSES = ["open", "investigating", "escalated", "quarantined"];
 
 function emptyDashboard(): DashboardData {
@@ -68,8 +68,8 @@ function emptyDashboard(): DashboardData {
     ok: false,
     kpis: [
       { key: "activeWos", value: null, color: "blue", notLive: false },
-      { key: "pendingPos", value: null, color: "amber", notLive: true },
-      { key: "lowStock", value: null, color: "red", notLive: true },
+      { key: "pendingPos", value: null, color: "amber", notLive: false },
+      { key: "lowStock", value: null, color: "red", notLive: false },
       { key: "qualityHolds", value: null, color: "amber", notLive: false },
       { key: "shipmentsToday", value: null, color: "green", notLive: false },
     ],
@@ -89,6 +89,32 @@ export async function getDashboardData(): Promise<DashboardData> {
       const activeWos = await scalar(
         `select count(*)::int as n from public.work_orders where status = any($1::text[])`,
         [ACTIVE_WO_STATUSES],
+      );
+
+      const pendingPos = await scalar(
+        `select count(*)::int as n
+           from public.purchase_orders
+          where org_id = app.current_org_id()
+            and status = any($1::text[])`,
+        [OPEN_PO_STATUSES],
+      );
+
+      const lowStock = await scalar(
+        `select count(*)::int as n
+           from public.reorder_thresholds rt
+           join public.items i
+             on i.org_id = app.current_org_id()
+            and i.id = rt.item_id
+            and i.status = 'active'
+           left join (
+             select product_id, sum(available_qty)::numeric as available_qty
+               from public.v_inventory_available
+              where org_id = app.current_org_id()
+              group by product_id
+           ) inv on inv.product_id = rt.item_id
+          where rt.org_id = app.current_org_id()
+            and rt.min_qty > 0
+            and coalesce(inv.available_qty, 0::numeric) < rt.min_qty`,
       );
 
       const qualityHolds = await scalar(
@@ -119,10 +145,8 @@ export async function getDashboardData(): Promise<DashboardData> {
 
       const kpis: DashboardKpi[] = [
         { key: "activeWos", value: activeWos, color: "blue", notLive: false },
-        // Purchase orders have no table yet — render an honest "module not live".
-        { key: "pendingPos", value: null, color: "amber", notLive: true },
-        // No stock-threshold signal yet — honest "module not live".
-        { key: "lowStock", value: null, color: "red", notLive: true },
+        { key: "pendingPos", value: pendingPos, color: "amber", notLive: false },
+        { key: "lowStock", value: lowStock, color: "red", notLive: false },
         { key: "qualityHolds", value: qualityHolds, color: "amber", notLive: false },
         { key: "shipmentsToday", value: shipmentsToday, color: "green", notLive: false },
       ];

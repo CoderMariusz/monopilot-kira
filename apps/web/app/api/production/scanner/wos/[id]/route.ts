@@ -166,8 +166,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
           lineCode: header.line_code,
           producedBaseKg: header.produced_base_kg,
           producedUnits: header.produced_units,
-          allergenFlag: header.allergen_flag,
         },
+        allergenGate: header.allergen_flag,
         materials: materialsRes.rows.map((row) => ({
           id: row.id,
           materialName: row.material_name,

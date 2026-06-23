@@ -58,9 +58,17 @@ export async function completeWo(
     output_type: string;
     lp_id: string | null;
   }>(
-    `select id, output_type, lp_id
-       from public.wo_outputs
-      where org_id = app.current_org_id() and wo_id = $1::uuid`,
+    `select o.id, o.output_type, o.lp_id
+       from public.wo_outputs o
+      where o.org_id = app.current_org_id()
+        and o.wo_id = $1::uuid
+        and o.correction_of_id is null
+        and not exists (
+          select 1
+            from public.wo_outputs correction
+           where correction.org_id = o.org_id
+             and correction.correction_of_id = o.id
+        )`,
     [input.woId],
   );
 
@@ -89,11 +97,18 @@ export async function completeWo(
   // The qty_kg>0 comparison runs in SQL as NUMERIC — never coerced to JS float.
   const greenRes = await client.query<{ green: boolean }>(
     `select exists(
-              select 1 from public.wo_outputs
-               where org_id = app.current_org_id()
-                 and wo_id = $1::uuid
-                 and output_type = 'primary'
-                 and qty_kg > 0
+              select 1 from public.wo_outputs o
+               where o.org_id = app.current_org_id()
+                 and o.wo_id = $1::uuid
+                 and o.output_type = 'primary'
+                 and o.qty_kg > 0
+                 and o.correction_of_id is null
+                 and not exists (
+                   select 1
+                     from public.wo_outputs correction
+                    where correction.org_id = o.org_id
+                      and correction.correction_of_id = o.id
+                 )
             ) as green`,
     [input.woId],
   );

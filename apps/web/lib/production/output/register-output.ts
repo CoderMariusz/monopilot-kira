@@ -242,7 +242,8 @@ async function nextBatchNumber(
        from public.wo_outputs
       where wo_id = $1::uuid
         and org_id = app.current_org_id()
-        and output_type = $2`,
+        and output_type = $2
+        and correction_of_id is null`,
     [woId, outputType],
   );
   const seq = Number(rows[0]?.seq ?? '0') + 1;

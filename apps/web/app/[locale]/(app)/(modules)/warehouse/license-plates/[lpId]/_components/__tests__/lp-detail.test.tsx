@@ -122,6 +122,24 @@ function buildLabels(locale: string): LpDetailLabels {
           generic: t('detail.actions.blockModal.errors.generic'),
         },
       },
+      unblock: {
+        title: t('detail.actions.unblockModal.title'),
+        intro: t('detail.actions.unblockModal.intro'),
+        reason: t('detail.actions.unblockModal.reason'),
+        reasonPlaceholder: t('detail.actions.unblockModal.reasonPlaceholder'),
+        cancel: t('detail.actions.unblockModal.cancel'),
+        confirm: t('detail.actions.unblockModal.confirm'),
+        submitting: t('detail.actions.unblockModal.submitting'),
+        success: t('detail.actions.unblockModal.success'),
+        errors: {
+          forbidden: t('detail.actions.unblockModal.errors.forbidden'),
+          invalidState: t('detail.actions.unblockModal.errors.invalidState'),
+          noOpenHold: t('detail.actions.unblockModal.errors.noOpenHold'),
+          invalidInput: t('detail.actions.unblockModal.errors.invalidInput'),
+          notFound: t('detail.actions.unblockModal.errors.notFound'),
+          generic: t('detail.actions.unblockModal.errors.generic'),
+        },
+      },
       qaRelease: {
         title: t('detail.actions.qaRelease.title'),
         decision: t('detail.actions.qaRelease.decision'),
@@ -322,6 +340,10 @@ const blockLpActionStub: any = async () => ({
   ok: true,
   data: { lpId: 'lp-1', lpNumber: 'LP-0001', status: 'blocked', qaStatus: 'on_hold', holdId: 'hold-1', holdNumber: 'HLD-00000001' },
 });
+const unblockLpActionStub: any = async () => ({
+  ok: true,
+  data: { lpId: 'lp-1', status: 'available', qaStatus: 'released', holdId: 'hold-1', holdNumber: 'HLD-00000001', releasedAt: '2026-06-23T00:00:00.000Z' },
+});
 const reserveLpActionStub: any = async () => ({
   ok: true,
   data: {
@@ -362,6 +384,7 @@ function renderDetail(
       locale: 'en',
       releaseQaAction: releaseQaActionStub,
       blockLpAction: blockLpActionStub,
+      unblockLpAction: unblockLpActionStub,
       reserveLpAction: reserveLpActionStub,
       listOpenWorkOrdersForLpReserveAction: listOpenWorkOrdersForLpReserveActionStub,
       listLocationsAction: listLocationsActionStub,
@@ -419,6 +442,27 @@ describe('LpDetailClient (WH-003 parity)', () => {
     await user.click(screen.getByTestId('lp-action-block'));
     expect(await screen.findByTestId('lp-block-modal')).toBeInTheDocument();
     expect(screen.getByTestId('lp-block-confirm')).toBeDisabled();
+  });
+
+  it('shows the Unblock action ONLY for a blocked LP and opens the unblock modal', async () => {
+    const user = userEvent.setup();
+
+    // Non-blocked LP: Block is offered, Unblock is hidden.
+    const { unmount } = renderDetail({ status: 'available' });
+    expect(screen.getByTestId('lp-action-block')).toBeInTheDocument();
+    expect(screen.queryByTestId('lp-action-unblock')).not.toBeInTheDocument();
+    unmount();
+
+    // Blocked LP: Unblock is offered (and Block is hidden), and it opens the modal.
+    renderDetail({ status: 'blocked' });
+    expect(screen.queryByTestId('lp-action-block')).not.toBeInTheDocument();
+    const unblock = screen.getByTestId('lp-action-unblock');
+    expect(unblock).toHaveTextContent(EN.actions.labelByKey.unblock);
+    await user.click(unblock);
+    expect(await screen.findByTestId('lp-unblock-modal')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /unblock lp-0001/i })).toBeInTheDocument();
+    // Confirm is gated on a reason being entered.
+    expect(screen.getByTestId('lp-unblock-confirm')).toBeDisabled();
   });
 
   it('opens the QA release modal for pending LPs', () => {
@@ -655,7 +699,7 @@ describe('LP detail RSC crash regression (digest 1984471676)', () => {
     expect(Array.isArray(LP_DETAIL_ACTIONS_SERVER_SAFE)).toBe(true);
     const actionOrder: string[] = [];
     for (const k of LP_DETAIL_ACTIONS_SERVER_SAFE) actionOrder.push(k);
-    expect(actionOrder).toEqual(['split', 'merge', 'qa', 'reserve', 'move', 'block', 'destroy']);
+    expect(actionOrder).toEqual(['split', 'merge', 'qa', 'reserve', 'move', 'block', 'unblock', 'destroy']);
 
     expect(Array.isArray(LP_DEFERRED_ACTIONS_SERVER_SAFE)).toBe(true);
     const collected: string[] = [];

@@ -21,7 +21,7 @@ const shellLabels = getScannerLabels("en");
 const labels = getScannerProdLabels("en");
 const SESSION = { token: "tok-xyz", user: { id: "u1", name: "Jan Kowalski" } };
 
-function detail(status: "released" | "inprog", producedUnits = "0", producedBaseKg = "0") {
+function detail(status: "released" | "inprog", producedUnits = "0", producedBaseKg = "0", allergenGate = false) {
   return {
     status: 200,
     ok: true,
@@ -44,7 +44,7 @@ function detail(status: "released" | "inprog", producedUnits = "0", producedBase
       materials: [
         { id: "m-1", materialName: "Pork shoulder", requiredQty: "120", consumedQty: "0", uom: "kg", sequence: 1 },
       ],
-      allergenGate: false,
+      allergenGate,
     }),
   };
 }
@@ -98,5 +98,18 @@ describe("WoExecuteScreen", () => {
     expect(JSON.parse((postCall[1] as RequestInit).body as string)).toEqual({
       clientOpId: "33333333-3333-4333-8333-333333333333",
     });
+  });
+
+  it("shows the allergen banner when the detail API returns top-level allergenGate", async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true }) });
+      return Promise.resolve(detail("inprog", "0", "0", true));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderHub();
+
+    await waitFor(() => expect(screen.getByText(labels.execute.allergenTitle)).toBeInTheDocument());
+    expect(screen.getByText(labels.execute.allergenBody)).toBeInTheDocument();
   });
 });

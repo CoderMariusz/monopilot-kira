@@ -7897,6 +7897,20 @@
     },
     "andon": {
       "title": "Andon board",
+      "status": {
+        "running": "Running",
+        "paused": "Paused",
+        "idle": "Idle",
+        "down": "Down"
+      },
+      "wo": "WO",
+      "product": "Product",
+      "good": "Good",
+      "scrap": "Scrap",
+      "oee": "OEE",
+      "lastActivity": "Last activity",
+      "noLines": "No production lines are configured yet.",
+      "tokenAuthTodo": "Kiosk access currently uses normal app authentication. Token auth will be added later.",
       "stubBadge": "Coming soon",
       "stubNotice": "The live Andon kiosk — real-time line status and downtime calls on the shop floor — ships in a later OEE wave. The route is reserved so links and bookmarks stay valid."
     }

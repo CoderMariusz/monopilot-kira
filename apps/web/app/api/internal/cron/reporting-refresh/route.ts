@@ -40,6 +40,7 @@ function authorizeCron(req: Request): AuthDecision {
 
 type ReportingMatviewRow = {
   matviewname: string;
+  has_unique_index: boolean;
 };
 
 type RefreshError = {
@@ -67,6 +68,25 @@ function errorMessage(err: unknown): string {
 function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
+
+const REPORTING_MATVIEW_QUERY = `
+  select mv.matviewname,
+         exists (
+           select 1
+             from pg_class c
+             join pg_namespace n on n.oid = c.relnamespace
+             join pg_index i on i.indrelid = c.oid
+            where n.nspname = mv.schemaname
+              and c.relname = mv.matviewname
+              and i.indisunique
+              and i.indisvalid
+              and i.indpred is null
+              and i.indexprs is null
+         ) as has_unique_index
+    from pg_matviews mv
+   where mv.schemaname = 'public'
+     and mv.matviewname like 'mv\\_reporting\\_%' escape '\\'
+   order by mv.matviewname asc`;
 
 export async function POST(req: Request): Promise<Response> {
   const auth = authorizeCron(req);
@@ -97,14 +117,21 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     client = await pool.connect();
-    const matviews = await client.query<ReportingMatviewRow>(
-      `SELECT matviewname FROM pg_matviews WHERE schemaname='public' AND matviewname LIKE 'v_mv_reporting_%'`,
-    );
+    const matviews = await client.query<ReportingMatviewRow>(REPORTING_MATVIEW_QUERY);
+    console.info('[reporting-refresh] discovered reporting materialized views', {
+      count: matviews.rows.length,
+      names: matviews.rows.map((row) => row.matviewname),
+    });
 
     for (const row of matviews.rows) {
       try {
+        const concurrently = row.has_unique_index ? 'CONCURRENTLY ' : '';
+        console.info('[reporting-refresh] refreshing materialized view', {
+          name: row.matviewname,
+          concurrently: row.has_unique_index,
+        });
         await client.query(
-          `REFRESH MATERIALIZED VIEW public.${quoteIdentifier(row.matviewname)}`,
+          `REFRESH MATERIALIZED VIEW ${concurrently}public.${quoteIdentifier(row.matviewname)}`,
         );
         refreshed += 1;
       } catch (err) {
@@ -112,6 +139,10 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
 
+    console.info('[reporting-refresh] refresh complete', {
+      refreshed,
+      errors: errors.length,
+    });
     return json({ ok: true, refreshed, errors }, 200);
   } catch (err) {
     return json(

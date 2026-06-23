@@ -19,6 +19,7 @@ export const LP_DETAIL_ACTIONS = [
   'reserve',
   'move',
   'block',
+  'unblock',
   'destroy',
 ] as const;
 export type LpDetailAction = (typeof LP_DETAIL_ACTIONS)[number];

@@ -60,3 +60,48 @@ their `v_mv_reporting_*` wrappers are DEAD schema (no page reads them); `saved_r
 cross-warehouse scoping gap CONFIRMED (already in backlog); FEFO pick list not warehouse-scoped (L2); GRN UI badge
 `in_progress` has no matching DB status (L2); no whole-GRN cancel (L2); locations tree flat/no CRUD (L2);
 revalidatePath targets wrong route segment in corrections (L3, harmless under force-dynamic).
+
+### BATCH 2 (2026-06-24 ~23:00) — NPD / Technical / Planning-MRP / SO-Shipping / Settings
+
+**CRITICAL/clear to FIX autonomously (queued for the next fix round):**
+- **L1 Planning: FG shortage suggests BUY not MAKE** — `planning/_actions/mrp-compute.ts:365` `item_type==='intermediate'?'make':'buy'`
+  → an FG (which has a BOM, is manufactured) gets a 'buy' planned order → creates a draft PO to a supplier for a finished
+  good. Fix: `intermediate || fg → make`. [FIX]
+- **L1 SO: createSalesOrder CRASHES for items with null list_price** — DB constraint `unit_price_gbp > 0` (mig 211:287)
+  vs `resolveSalesLinePrice` returns 0 when list_price null (my R7a). Fix: relax constraint to `>= 0` (mig) [FIX]
+- **L1 SO: deallocateSalesOrder leaves status stuck** — `so-actions.ts:715` zeroes allocations but never resets
+  `sales_orders.status` to 'confirmed' → SO permanently stuck at 'allocated'. Fix: reset status. [FIX]
+- **L1 SO: recordPod never sets status='delivered'** — `ship-actions.ts:321` sets delivered_at only; shipment + SO stay
+  'shipped'; 'delivered' is unreachable. Fix: set status. [FIX]
+- **L1 SO/shipments RTL tests never run** — `sales-orders.test.tsx` + `shipments.test.tsx` fail to PARSE (missing
+  `/** @vitest-environment jsdom */` docblock) → 0 tests executed. Fix: add the docblock. [FIX]
+- **L2 Technical food-safety: ALLERGEN_CONFLICT never fires** — `bom/_actions/shared.ts:277` hardcodes
+  `targetFgForbiddenAllergens: []`, so a milk-containing RM can be added to a "milk-free" FG with no error. Fix: feed the
+  FG's real forbidden allergens into `validateRmUsability`. [FIX]
+- **L2 NPD ALREADY_CLOSED returns status 200** (should be 409) — `close-out-legacy-stages.ts:451`. [FIX]
+- **L2 Settings: /settings/gallery** (design-system demo) reachable in prod with no guard; **D365 "Run sync now" dead in
+  prod** (`integrations/d365/audit/page.tsx:155` — `runSyncNow` prop never populated though the API route exists). [FIX gallery; wire run-sync]
+- **L2 SO: shipShipment doesn't zero reserved_qty** on shipped LP (inventory over-counts). [FIX]
+
+**Hardcoded values that should be sourced (NPD approval — L2):** C3 margin threshold `15%` hardcoded in
+`packages/domain/.../evaluate-criteria.ts:44` (diverges from org `costing_margin_warn_pct`); C4 sensory always
+`not_required` (panel score never wired); C5 allergen passes vacuously on empty arrays; costing bootstrap labour/
+packaging/overhead seeded as '0'. [some FIX, threshold-config = 5am Q7]
+
+**Reverse-logic gaps (queued):** NPD `revertGate`/`rollbackGate` exists but has ZERO UI callers (dead) + reverting a
+Launched project doesn't clean closeout/product-activation/BOM (L1); a launched product can't be un-launched; gate
+rejection doesn't block a later advance. Technical: factory-spec `approved_for_factory` has no recall-to-draft (only
+`released_to_factory` recallable); BOM rollback to a superseded version not surfaced; cost rollup + nutrition NOT
+reactive to component/BOM changes (stale until manual). SO/Shipping: NO cancel-shipment / un-pack / un-pick / void-POD
+anywhere (once shipped, no stock credit-back). Planning: no `cancelPlannedOrder` (mig allows 'cancelled', no code sets it).
+
+**Good news (verified correct + real):** MRP netting math is CORRECT and fully Supabase-sourced (onHand/reserved/
+openSupply/demand all real, bigint micro-unit precision, rework anti-join correct). RBAC (roles→permissions→enforcement)
+is REAL + enforced. D365 is REAL infra (sync runs/DLQ/drift tables, workers) — just env-var-gated, not a mock. BOM
+versioning/snapshot, WO corrections framework (void/reverse with storno + double-reverse guards), allergen cascade
+packaging-exclusion — all correct. Settings pages are overwhelmingly REAL (read/write Supabase); only `gallery` is a demo.
+
+**Parity/scale (L2/L3 backlog):** planning dashboard 4/8 KPIs (prototype gap); dashboard `date_trunc('day',now())` no UTC
+(tz drift); forecasts grid only shows items with existing cells (can't plan zero-history items in-grid); duplicate
+settings trees (non-locale `(admin)/settings/*` redirects) + duplicate `/settings/machines` route; schedule cycle-guard
+full-scans wo_dependencies per drag.

@@ -611,6 +611,15 @@ async function markLpVoided(ctx: ProductionContext, lpId: string): Promise<void>
   );
 }
 
+async function unlinkLpGenealogyChildren(ctx: ProductionContext, lpId: string): Promise<void> {
+  await ctx.client.query(
+    `delete from public.lp_genealogy
+      where org_id = app.current_org_id()
+        and child_lp_id = $1::uuid`,
+    [lpId],
+  );
+}
+
 // F4 (R3 review) — QA-aware restore target. A consumed LP goes back to
 // 'available' (pickable) ONLY when its QA release still stands; anything else
 // ('pending', 'on_hold', 'rejected', …) restores to 'received' so the pallet
@@ -859,6 +868,7 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
       });
 
       await markLpVoided(ctx, original.lp_id);
+      await unlinkLpGenealogyChildren(ctx, original.lp_id);
       await writeLpVoidHistory(ctx, { original, lp, reasonCode, note });
       await writeOutputVoidAudit(ctx, {
         original,

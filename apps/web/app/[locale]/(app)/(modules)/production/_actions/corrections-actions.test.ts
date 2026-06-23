@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { signEvent } from '@monopilot/e-sign';
 
 import type { QueryClient } from '../../../../../../lib/production/shared';
+import { queryGenealogy } from '../../../../../../lib/warehouse/genealogy';
 import { reverseConsumption, voidWasteEntry, voidWoOutput } from './corrections-actions';
 
 vi.mock('next/cache', () => ({
@@ -36,6 +37,7 @@ const CATEGORY_ID = '55555555-5555-4555-8555-555555555555';
 const CORRECTION_ID = '66666666-6666-4666-8666-666666666666';
 const OUTPUT_ID = '77777777-7777-4777-8777-777777777777';
 const LP_ID = '88888888-8888-4888-8888-888888888888';
+const PARENT_LP_ID = '99999999-9999-4999-8999-999999999999';
 const CONSUMPTION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const COMPONENT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const NO_LP_ID = '00000000-0000-0000-0000-000000000000';
@@ -53,6 +55,7 @@ type State = {
   lpQaStatus: string;
   lpReservedQty: string;
   lpConsumedOrChild: boolean;
+  genealogyChildLinks: Set<string>;
   materialDecrementOk: boolean;
   woStatus: string;
   granted: Set<string>;
@@ -70,6 +73,21 @@ let queries: Array<{ sql: string; params: readonly unknown[] }>;
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function genealogyRow(id: string, direction: 'self' | 'descendant', depth: number) {
+  return {
+    lp_id: id,
+    lp_number: id === PARENT_LP_ID ? 'LP-PARENT' : 'LP-VOIDED-OUTPUT',
+    item_code: null,
+    quantity: '1.000000',
+    uom: 'kg',
+    status: id === LP_ID ? state.lpStatus : 'available',
+    created_at: '2026-06-12T08:00:00.000Z',
+    depth,
+    direction,
+    parent_lp_id: null,
+  };
 }
 
 function makeClient(): QueryClient {
@@ -188,6 +206,22 @@ function makeClient(): QueryClient {
         return { rows: [{ ok: state.lpConsumedOrChild }], rowCount: 1 };
       }
 
+      if (n.startsWith('delete from public.lp_genealogy')) {
+        state.genealogyChildLinks.delete(String(params[0]));
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (n.includes('with recursive') && n.includes('from public.lp_genealogy lg')) {
+        const seedLpId = String(params[0]);
+        const rows = seedLpId === PARENT_LP_ID
+          ? [
+              genealogyRow(PARENT_LP_ID, 'self', 0),
+              ...(state.genealogyChildLinks.has(LP_ID) ? [genealogyRow(LP_ID, 'descendant', 1)] : []),
+            ]
+          : [];
+        return { rows, rowCount: rows.length };
+      }
+
       if (n.includes('from public.wo_waste_log') && n.includes('correction_of_id = $1::uuid')) {
         return state.alreadyCorrected ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -265,6 +299,7 @@ beforeEach(() => {
     lpQaStatus: 'pending',
     lpReservedQty: '0.000000',
     lpConsumedOrChild: false,
+    genealogyChildLinks: new Set(),
     materialDecrementOk: true,
     woStatus: 'completed',
     granted: new Set(['production.waste.correct', 'production.output.correct', 'production.consumption.correct']),
@@ -633,6 +668,35 @@ describe('voidWoOutput', () => {
       }),
       expect.objectContaining({ client }),
     );
+  });
+
+  it('unlinks the voided output LP from lp_genealogy so the genealogy reader no longer returns it as a child', async () => {
+    state.genealogyChildLinks.add(LP_ID);
+    const before = await queryGenealogy(client, PARENT_LP_ID);
+    expect(before.map((node) => node.lpId)).toContain(LP_ID);
+
+    queries = [];
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'entry_error',
+      note: 'operator duplicate',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    const genealogyDelete = queries.find((q) => normalize(q.sql).startsWith('delete from public.lp_genealogy'));
+    const audit = queries.find((q) => normalize(q.sql).startsWith('insert into public.audit_events'));
+
+    expect(genealogyDelete).toBeDefined();
+    expect(genealogyDelete?.params).toEqual([LP_ID]);
+    expect(normalize(genealogyDelete!.sql)).toContain('org_id = app.current_org_id()');
+    expect(queries.indexOf(genealogyDelete!)).toBeGreaterThan(queries.indexOf(lpUpdate!));
+    expect(queries.indexOf(genealogyDelete!)).toBeLessThan(queries.indexOf(audit!));
+
+    const after = await queryGenealogy(client, PARENT_LP_ID);
+    expect(after.map((node) => node.lpId)).not.toContain(LP_ID);
   });
 
   it('refuses a released LP as not voidable', async () => {

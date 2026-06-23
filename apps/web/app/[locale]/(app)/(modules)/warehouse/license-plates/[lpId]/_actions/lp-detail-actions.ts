@@ -1,5 +1,6 @@
 'use server';
 
+import { releaseHoldFromWarehouseLpUnblock } from '../../../../quality/_actions/hold-actions';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import {
   WAREHOUSE_LP_RESERVE_PERMISSION,
@@ -23,6 +24,15 @@ export type BlockLpResult = {
   qaStatus: string;
   holdId: string;
   holdNumber: string;
+};
+
+export type UnblockLpResult = {
+  lpId: string;
+  status: 'available';
+  qaStatus: 'released';
+  holdId: string;
+  holdNumber: string;
+  releasedAt: string;
 };
 
 export type ReserveLpResult = {
@@ -322,6 +332,31 @@ export async function blockLp(lpIdInput: string, reasonInput: string): Promise<W
   } catch (error) {
     return mapFailure(error);
   }
+}
+
+export async function unblockLp(lpIdInput: string, reasonInput: string): Promise<WarehouseResult<UnblockLpResult>> {
+  const lpId = asTrimmed(lpIdInput);
+  const reason = asTrimmed(reasonInput);
+  if (!lpId || !reason) return { ok: false, reason: 'error', message: 'invalid_input' };
+
+  const released = await releaseHoldFromWarehouseLpUnblock({ lpId, reasonText: reason });
+  if (!released.ok) {
+    if (released.reason === 'forbidden') return { ok: false, reason: 'forbidden' };
+    if (released.message === 'license plate not found') return { ok: false, reason: 'not_found' };
+    return { ok: false, reason: 'error', message: released.message };
+  }
+
+  return {
+    ok: true,
+    data: {
+      lpId,
+      status: 'available',
+      qaStatus: 'released',
+      holdId: released.data.id,
+      holdNumber: released.data.holdNumber,
+      releasedAt: released.data.releasedAt,
+    },
+  };
 }
 
 export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: string): Promise<WarehouseResult<ReserveLpResult>> {

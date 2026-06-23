@@ -15,15 +15,24 @@ let insertedQtyKg: string | null;
 let insertedQtyUnits: string | null;
 let insertedUnitsUom: string | null;
 let insertedActualWeightKg: string | null;
+let insertedBatchNumber: string | null;
+let existingRealOutputCount: string;
+let existingAllOutputCount: string;
+let sequenceCountSql: string | null;
+let sequenceCountParams: readonly unknown[] | null;
 
 function makeCtx(): OrgContextLike {
   return { userId: USER_ID, orgId: ORG_ID, client };
 }
 
+function normalize(sql: string): string {
+  return sql.replace(/\s+/g, ' ').toLowerCase();
+}
+
 function makeClient(): QueryClient {
   return {
     query: async (sql: string, params: readonly unknown[] = []) => {
-      const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+      const normalized = normalize(sql);
       if (normalized.includes('from public.work_orders')) {
         return {
           rows: [
@@ -57,7 +66,16 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.wo_executions')) {
         return { rows: [{ status: 'in_progress' }], rowCount: 1 };
       }
+      if (normalized.includes('from public.wo_outputs') && normalized.includes('count(*)::text as seq')) {
+        sequenceCountSql = sql;
+        sequenceCountParams = params;
+        return {
+          rows: [{ seq: normalized.includes('correction_of_id is null') ? existingRealOutputCount : existingAllOutputCount }],
+          rowCount: 1,
+        };
+      }
       if (normalized.startsWith('insert into public.wo_outputs')) {
+        insertedBatchNumber = String(params[5]);
         insertedQtyKg = String(params[6]);
         insertedQtyUnits = params[11] === null ? null : String(params[11]);
         insertedUnitsUom = params[12] === null ? null : String(params[12]);
@@ -119,6 +137,11 @@ describe('registerOutput UOM quantity resolution', () => {
     insertedQtyUnits = null;
     insertedUnitsUom = null;
     insertedActualWeightKg = null;
+    insertedBatchNumber = null;
+    existingRealOutputCount = '0';
+    existingAllOutputCount = '0';
+    sequenceCountSql = null;
+    sequenceCountParams = null;
     client = makeClient();
   });
 
@@ -161,6 +184,22 @@ describe('registerOutput UOM quantity resolution', () => {
     });
 
     expect(insertedQtyKg).toBe('111.000');
+  });
+
+  it('generates the next batch number from real outputs only, skipping correction counter-entries', async () => {
+    existingRealOutputCount = '1';
+    existingAllOutputCount = '2';
+
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '111.000',
+    });
+
+    expect(insertedBatchNumber).toBe('WO-001-OUT-002');
+    expect(sequenceCountParams).toEqual([WO_ID, 'primary']);
+    expect(normalize(sequenceCountSql!)).toContain('and correction_of_id is null');
   });
 
   it('rejects unavailable pack conversion from the WO snapshot', async () => {

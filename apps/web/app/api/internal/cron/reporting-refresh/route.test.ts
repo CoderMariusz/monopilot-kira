@@ -15,6 +15,11 @@ type FakePool = {
   end: ReturnType<typeof vi.fn>;
 };
 
+type FakeMatview = {
+  matviewname: string;
+  has_unique_index: boolean;
+};
+
 let currentPool: FakePool;
 let currentClient: FakeClient;
 
@@ -50,7 +55,7 @@ function makeRequest(headers?: HeadersInit): Request {
 }
 
 function makeClient(
-  matviews: string[],
+  matviews: FakeMatview[],
   refreshFailures: Record<string, Error> = {},
 ): FakeClient {
   const calls: QueryCall[] = [];
@@ -59,15 +64,19 @@ function makeClient(
     query: vi.fn(async (sql: string) => {
       calls.push({ sql });
 
-      if (sql.includes('FROM pg_matviews')) {
+      if (sql.includes('from pg_matviews')) {
         return {
-          rows: matviews.map((matviewname) => ({ matviewname })),
+          rows: matviews,
           rowCount: matviews.length,
         };
       }
 
-      const refreshPrefix = 'REFRESH MATERIALIZED VIEW public.';
-      if (sql.startsWith(refreshPrefix)) {
+      const concurrentRefreshPrefix = 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.';
+      const plainRefreshPrefix = 'REFRESH MATERIALIZED VIEW public.';
+      if (sql.startsWith(concurrentRefreshPrefix) || sql.startsWith(plainRefreshPrefix)) {
+        const refreshPrefix = sql.startsWith(concurrentRefreshPrefix)
+          ? concurrentRefreshPrefix
+          : plainRefreshPrefix;
         const name = sql
           .slice(refreshPrefix.length)
           .replace(/^"/, '')
@@ -96,6 +105,10 @@ async function readJson(response: Response): Promise<unknown> {
   return response.json();
 }
 
+function normalizeSql(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim();
+}
+
 describe('POST /api/internal/cron/reporting-refresh', () => {
   it('returns 401 for an unauthorized request', async () => {
     const route = await loadRoute();
@@ -109,8 +122,8 @@ describe('POST /api/internal/cron/reporting-refresh', () => {
 
   it('refreshes each discovered reporting materialized view', async () => {
     currentClient = makeClient([
-      'v_mv_reporting_inventory',
-      'v_mv_reporting_oee',
+      { matviewname: 'mv_reporting_inventory_aging', has_unique_index: true },
+      { matviewname: 'mv_reporting_oee_rollup', has_unique_index: true },
     ]);
     currentPool = makePool(currentClient);
     const route = await loadRoute();
@@ -125,19 +138,47 @@ describe('POST /api/internal/cron/reporting-refresh', () => {
       refreshed: 2,
       errors: [],
     });
-    expect(currentClient.calls.map((call) => call.sql)).toEqual([
-      `SELECT matviewname FROM pg_matviews WHERE schemaname='public' AND matviewname LIKE 'v_mv_reporting_%'`,
-      'REFRESH MATERIALIZED VIEW public."v_mv_reporting_inventory"',
-      'REFRESH MATERIALIZED VIEW public."v_mv_reporting_oee"',
+    const discoverySql = normalizeSql(currentClient.calls[0]!.sql);
+    expect(discoverySql).toContain('from pg_matviews mv');
+    expect(discoverySql).toContain("mv.matviewname like 'mv\\_reporting\\_%' escape '\\'");
+    expect(discoverySql).not.toContain('v_mv_reporting');
+    expect(currentClient.calls.slice(1).map((call) => call.sql)).toEqual([
+      'REFRESH MATERIALIZED VIEW CONCURRENTLY public."mv_reporting_inventory_aging"',
+      'REFRESH MATERIALIZED VIEW CONCURRENTLY public."mv_reporting_oee_rollup"',
     ]);
     expect(currentClient.release).toHaveBeenCalledTimes(1);
     expect(currentPool.end).toHaveBeenCalledTimes(1);
   });
 
+  it('uses plain refresh when a discovered reporting materialized view has no unique index', async () => {
+    currentClient = makeClient([
+      { matviewname: 'mv_reporting_inventory_aging', has_unique_index: false },
+    ]);
+    currentPool = makePool(currentClient);
+    const route = await loadRoute();
+
+    const response = await route.POST(
+      makeRequest({ 'x-vercel-cron': '1' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await readJson(response)).toEqual({
+      ok: true,
+      refreshed: 1,
+      errors: [],
+    });
+    expect(currentClient.calls.slice(1).map((call) => call.sql)).toEqual([
+      'REFRESH MATERIALIZED VIEW public."mv_reporting_inventory_aging"',
+    ]);
+  });
+
   it('continues refreshing remaining materialized views when one refresh fails', async () => {
     currentClient = makeClient(
-      ['v_mv_reporting_broken', 'v_mv_reporting_good'],
-      { v_mv_reporting_broken: new Error('refresh failed') },
+      [
+        { matviewname: 'mv_reporting_broken', has_unique_index: true },
+        { matviewname: 'mv_reporting_good', has_unique_index: true },
+      ],
+      { mv_reporting_broken: new Error('refresh failed') },
     );
     currentPool = makePool(currentClient);
     const route = await loadRoute();
@@ -150,12 +191,11 @@ describe('POST /api/internal/cron/reporting-refresh', () => {
     expect(await readJson(response)).toEqual({
       ok: true,
       refreshed: 1,
-      errors: [{ name: 'v_mv_reporting_broken', message: 'refresh failed' }],
+      errors: [{ name: 'mv_reporting_broken', message: 'refresh failed' }],
     });
-    expect(currentClient.calls.map((call) => call.sql)).toEqual([
-      `SELECT matviewname FROM pg_matviews WHERE schemaname='public' AND matviewname LIKE 'v_mv_reporting_%'`,
-      'REFRESH MATERIALIZED VIEW public."v_mv_reporting_broken"',
-      'REFRESH MATERIALIZED VIEW public."v_mv_reporting_good"',
+    expect(currentClient.calls.slice(1).map((call) => call.sql)).toEqual([
+      'REFRESH MATERIALIZED VIEW CONCURRENTLY public."mv_reporting_broken"',
+      'REFRESH MATERIALIZED VIEW CONCURRENTLY public."mv_reporting_good"',
     ]);
     expect(currentClient.release).toHaveBeenCalledTimes(1);
     expect(currentPool.end).toHaveBeenCalledTimes(1);
