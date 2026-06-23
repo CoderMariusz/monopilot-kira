@@ -40,6 +40,7 @@ interface ScannerLabelsShape {
   scanError: { retry: string; back: string; close: string; codeLabel: string };
   qtyKeypad: { title: string; maxLabel: string; confirm: string; close: string };
   block: { retry: string; backToMenu: string; codeLabel: string };
+  labor: { clockIn: string; clockOut: string; clockedIn: string; clockedOut: string };
   login: {
     title: string;
     appName: string;
@@ -439,6 +440,12 @@ const en: ScannerLabelsShape = {
     retry: "Try again",
     backToMenu: "Back to menu",
     codeLabel: "Code",
+  },
+  labor: {
+    clockIn: "Clock In",
+    clockOut: "Clock Out",
+    clockedIn: "Clocked In",
+    clockedOut: "Clocked Out",
   },
   // login
   login: {
@@ -872,6 +879,12 @@ const pl: ScannerLabelsShape = {
     retry: "Spróbuj ponownie",
     backToMenu: "Wróć do menu",
     codeLabel: "Kod",
+  },
+  labor: {
+    clockIn: "Zaloguj się",
+    clockOut: "Wyloguj się",
+    clockedIn: "Zalogowano",
+    clockedOut: "Wylogowano",
   },
   login: {
     title: "Zaloguj się",

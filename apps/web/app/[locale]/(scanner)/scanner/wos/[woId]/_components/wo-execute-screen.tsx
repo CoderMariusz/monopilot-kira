@@ -33,6 +33,9 @@ import type { ApiError, WoDetailResponse, WoHeader, WoMaterial } from "../../_co
 import { toBaseQty, type OutputUom } from "../../../../../../../lib/uom/convert";
 
 type LoadState = "loading" | "ready" | "error" | "notfound";
+type LaborState = "clocked_in" | "clocked_out";
+type LaborAction = "in" | "out";
+type LaborResponse = { ok: true; state: LaborState } | { ok: false; error: string };
 
 export function WoExecuteScreen({
   locale,
@@ -46,9 +49,10 @@ export function WoExecuteScreen({
   labels: ScannerProdLabels;
 }) {
   const router = useRouter();
-  const { session, ready } = useScannerSession();
+  const { session, ready, scannerFetch } = useScannerSession();
   const { woFetch, woPost } = useWoFetch();
   const L = labels.execute;
+  const laborLabels = shellLabels.labor;
 
   const [state, setState] = useState<LoadState>("loading");
   const [header, setHeader] = useState<WoHeader | null>(null);
@@ -56,6 +60,8 @@ export function WoExecuteScreen({
   const [allergenGate, setAllergenGate] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startErr, setStartErr] = useState<string | null>(null);
+  const [laborState, setLaborState] = useState<LaborState>("clocked_out");
+  const [laborBusy, setLaborBusy] = useState<LaborAction | null>(null);
 
   useEffect(() => {
     if (ready && !session) router.replace(`/${locale}/scanner/login`);
@@ -97,6 +103,31 @@ export function WoExecuteScreen({
   // released/planned = no execution yet: Consume/Output/Waste stay locked until
   // the operator starts the WO (POST …/start wraps lib/production/start-wo).
   const notStarted = header?.status === "released" || header?.status === "planned";
+
+  const clockLabor = async (action: LaborAction) => {
+    if (laborBusy) return;
+    const previous = laborState;
+    const optimistic: LaborState = action === "in" ? "clocked_in" : "clocked_out";
+    setLaborState(optimistic);
+    setLaborBusy(action);
+    try {
+      const res = await scannerFetch("labor", { action, woId });
+      if (!res.ok) {
+        setLaborState(previous);
+        return;
+      }
+      const data = (await res.json()) as LaborResponse;
+      if (data.ok) {
+        setLaborState(data.state);
+      } else {
+        setLaborState(previous);
+      }
+    } catch {
+      setLaborState(previous);
+    } finally {
+      setLaborBusy(null);
+    }
+  };
 
   const start = async () => {
     if (starting) return;
@@ -204,6 +235,28 @@ export function WoExecuteScreen({
                 {L.allergenBody}
               </Banner>
             )}
+
+            <div style={laborPanelStyle}>
+              <div style={laborStatusStyle(laborState)}>{laborState === "clocked_in" ? laborLabels.clockedIn : laborLabels.clockedOut}</div>
+              <div style={laborButtonGridStyle}>
+                <Btn
+                  variant="p"
+                  onClick={() => void clockLabor("in")}
+                  disabled={laborBusy !== null || laborState === "clocked_in"}
+                  style={{ minHeight: 56, fontSize: 16 }}
+                >
+                  {laborLabels.clockIn}
+                </Btn>
+                <Btn
+                  variant="sec"
+                  onClick={() => void clockLabor("out")}
+                  disabled={laborBusy !== null || laborState === "clocked_out"}
+                  style={{ minHeight: 56, fontSize: 16 }}
+                >
+                  {laborLabels.clockOut}
+                </Btn>
+              </div>
+            </div>
 
             {notStarted && (
               <div style={{ display: "grid", gap: 6, padding: "4px 16px 8px" }}>
@@ -394,6 +447,34 @@ const metaGridStyle = {
   gap: 8,
   marginTop: 12,
 } as const;
+
+const laborPanelStyle = {
+  display: "grid",
+  gap: 8,
+  margin: "4px 16px 8px",
+  padding: 12,
+  borderRadius: 12,
+  border: `1px solid ${T.sep}`,
+  background: T.surf,
+} as const;
+
+const laborButtonGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 8,
+} as const;
+
+function laborStatusStyle(state: LaborState) {
+  return {
+    justifySelf: "start",
+    borderRadius: 999,
+    padding: "5px 10px",
+    background: state === "clocked_in" ? "rgba(34, 197, 94, 0.16)" : T.bg,
+    color: state === "clocked_in" ? T.green : T.mute,
+    fontSize: 12,
+    fontWeight: 800,
+  } as const;
+}
 
 const sectionTitleStyle = {
   padding: "12px 16px 6px",
