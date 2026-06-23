@@ -90,6 +90,14 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
   const input = parsed.data;
   const warnings: BomValidationCode[] = [];
 
+  if (input.bom_type === 'disassembly') {
+    return {
+      ok: false,
+      error: 'invalid_input',
+      message: 'Disassembly BOMs must be created with createDisassemblyBomDraft',
+    };
+  }
+
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<CreateBomDraftResult> => {
       const c = client as QueryClient;
@@ -160,11 +168,11 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
       // ── INSERT header (draft) + lines + co-products, atomically in the txn ─────
       const { rows: headerRows } = await c.query<{ id: string }>(
         `insert into public.bom_headers
-           (org_id, product_id, origin_module, status, version, yield_pct, effective_from, notes, created_by_user, app_version)
+           (org_id, product_id, origin_module, status, version, yield_pct, effective_from, notes, created_by_user, app_version, bom_type)
          values
-           (app.current_org_id(), $1, 'technical', 'draft', $2, $3::numeric, coalesce($4::date, current_date), $5, $6::uuid, 'technical-bom-v1')
+           (app.current_org_id(), $1, 'technical', 'draft', $2, $3::numeric, coalesce($4::date, current_date), $5, $6::uuid, 'technical-bom-v1', $7)
          returning id`,
-        [input.productId, version, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, userId],
+        [input.productId, version, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, userId, input.bom_type],
       );
       const headerId = headerRows[0]?.id;
       if (!headerId) return { ok: false, error: 'persistence_failed' };

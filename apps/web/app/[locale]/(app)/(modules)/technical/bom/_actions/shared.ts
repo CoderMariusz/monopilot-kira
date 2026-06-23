@@ -168,6 +168,7 @@ const CoProductInput = z.object({
 });
 
 export const CreateBomDraftInput = z.object({
+  bom_type: z.enum(['forward', 'disassembly']).optional().default('forward'),
   // The owning FG product_code (route :itemCode). Becomes bom_headers.product_id.
   productId: z.string().trim().min(1).max(128),
   // Parent (the FG itself) cost allocation share; non-byproduct lines+co-products

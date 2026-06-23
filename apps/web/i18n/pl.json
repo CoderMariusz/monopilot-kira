@@ -2088,6 +2088,39 @@
         "emptyBody": "Brak BOM-u dla {code} — dodaj pierwszy składnik, aby utworzyć wersję roboczą v1.",
         "addFirstComponent": "+ Dodaj pierwszy składnik",
         "draftBadge": "Nierozpoczęty"
+      },
+      "disassembly": {
+        "typeLabel": "Typ BOM",
+        "typeForward": "Standardowy",
+        "typeDisassembly": "Rozbiór",
+        "typeHint": "BOM rozbioru dzieli jeden surowiec wejściowy na kilka produktów ubocznych, każdy z oczekiwaną wydajnością i alokacją kosztów.",
+        "title": "Nowy BOM rozbioru",
+        "subtitle": "Jeden surowiec wejściowy jest dzielony na produkty wyjściowe. Alokacja kosztów musi wynosić 100%.",
+        "inputLabel": "Surowiec wejściowy",
+        "inputPlaceholder": "Wybierz surowiec do rozbioru…",
+        "inputRequired": "Surowiec wejściowy jest wymagany.",
+        "outputsLabel": "Produkty wyjściowe",
+        "addOutput": "+ Dodaj produkt",
+        "removeOutput": "Usuń produkt",
+        "colCoProduct": "Produkt",
+        "colExpectedYield": "Oczekiwana wydajność %",
+        "colAllocation": "Alokacja %",
+        "colActions": "Akcje",
+        "coProductPlaceholder": "Wybierz produkt…",
+        "allocationSumLabel": "Suma alokacji",
+        "allocationValid": "Suma alokacji wynosi 100% — poprawnie.",
+        "allocationError": "Alokacja kosztów musi sumować się do 100% (V-TEC-12). Dostosuj wiersze tak, aby suma wynosiła 100%.",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+        "loadingItems": "Ładowanie pozycji…",
+        "noItems": "Nie znaleziono pozycji.",
+        "cancel": "Anuluj",
+        "submit": "Utwórz wersję roboczą rozbioru",
+        "creating": "Tworzenie…",
+        "forbidden": "Nie masz uprawnień do utworzenia BOM.",
+        "saveError": "Nie udało się utworzyć BOM rozbioru. Spróbuj ponownie.",
+        "invalidInput": "Sprawdź surowiec wejściowy, wydajności i alokacje, a następnie spróbuj ponownie.",
+        "needCoProduct": "Każdy wiersz wyjściowy wymaga produktu.",
+        "needYield": "Każdy produkt wymaga oczekiwanej wydajności %."
       }
     },
     "bomList": {
@@ -2189,7 +2222,25 @@
       "notFound": "BOM not found.",
       "forbidden": "You do not have permission to view this BOM.",
       "originNpdProject": "Pochodzenie: projekt NPD →",
-      "colActions": "Akcje"
+      "colActions": "Akcje",
+      "disassembly": {
+        "sectionInput": "Wejście",
+        "sectionOutputs": "Wyjścia",
+        "inputItem": "Surowiec wejściowy",
+        "colCoProduct": "Produkt",
+        "colExpectedYield": "Oczekiwana wydajność %",
+        "colAllocation": "Alokacja %",
+        "colQty": "Ilość",
+        "colUom": "JM",
+        "allocationTotal": "Suma alokacji",
+        "allocationValid": "Poprawnie — suma alokacji wynosi 100%.",
+        "allocationError": "Suma alokacji nie wynosi 100% (V-TEC-12).",
+        "emptyOutputs": "Ten BOM rozbioru nie ma produktów wyjściowych.",
+        "editDraftOnly": "Edycja jest dostępna tylko gdy BOM jest wersją roboczą.",
+        "loading": "Ładowanie BOM rozbioru…",
+        "error": "Nie można załadować BOM rozbioru. Spróbuj ponownie.",
+        "notFound": "Nie znaleziono BOM rozbioru."
+      }
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -8349,6 +8400,182 @@
       "nav": {
         "title": "Ćwiczenia wycofania",
         "desc": "Przeglądaj zapisane śledzenia wycofania i ich czas trwania względem celu 4h."
+      }
+    },
+    "complaints": {
+      "nav": {
+        "title": "Reklamacje",
+        "desc": "Rejestruj reklamacje klientów, konwertuj je na NCR i śledź działania CAPA do zamknięcia."
+      },
+      "title": "Reklamacje",
+      "subtitle": "Rejestr reklamacji klientów — konwertuj na NCR i prowadź działania korygujące / zapobiegawcze.",
+      "loading": "Wczytywanie reklamacji…",
+      "breadcrumb": {
+        "quality": "Jakość",
+        "complaints": "Reklamacje"
+      },
+      "denied": {
+        "title": "Nie masz dostępu do rejestru reklamacji",
+        "body": "Poproś administratora o uprawnienie do panelu jakości."
+      },
+      "error": {
+        "title": "Nie można wczytać reklamacji",
+        "body": "Rejestr reklamacji nie mógł zostać odczytany. Odśwież, aby spróbować ponownie."
+      },
+      "severityValues": {
+        "low": "Niska",
+        "medium": "Średnia",
+        "high": "Wysoka",
+        "critical": "Krytyczna"
+      },
+      "statusValues": {
+        "open": "Otwarta",
+        "investigating": "W toku",
+        "converted": "Skonwertowana",
+        "closed": "Zamknięta"
+      },
+      "capaTypeValues": {
+        "corrective": "Korygujące",
+        "preventive": "Zapobiegawcze"
+      },
+      "capaStatusValues": {
+        "open": "Otwarte",
+        "in_progress": "W trakcie",
+        "closed": "Zamknięte"
+      },
+      "list": {
+        "newComplaint": "Nowa reklamacja",
+        "newComplaintDisabled": "Potrzebujesz uprawnienia do tworzenia, aby zarejestrować reklamację.",
+        "searchPlaceholder": "Szukaj nr reklamacji, klienta lub referencji…",
+        "searchLabel": "Szukaj reklamacji",
+        "statusLabel": "Status",
+        "statusAll": "Wszystkie statusy",
+        "rowsLabel": "Reklamacje: {count}",
+        "noCustomer": "Brak klienta",
+        "noRef": "—",
+        "emptyAll": "Brak reklamacji. Zarejestruj pierwszą reklamację klienta, aby zacząć ją śledzić.",
+        "emptyFiltered": "Żadna reklamacja nie pasuje do tego filtru.",
+        "columns": {
+          "complaintNumber": "Nr reklamacji",
+          "customer": "Klient",
+          "ref": "Ref. partii / LP",
+          "severity": "Waga",
+          "status": "Status",
+          "openedAt": "Otwarto"
+        }
+      },
+      "createModal": {
+        "title": "Nowa reklamacja",
+        "subtitle": "Zarejestruj reklamację klienta z referencją i wagą.",
+        "customer": "Klient",
+        "customerHelp": "Klient, który zgłosił reklamację.",
+        "customerPlaceholder": "Nazwa klienta…",
+        "batchRef": "Referencja partii / LP",
+        "batchRefHelp": "Partia lub licence-plate, której dotyczy reklamacja, jeśli znana.",
+        "batchRefPlaceholder": "np. BATCH-2026-014 / LP-0091",
+        "description": "Opis",
+        "descriptionHelp": "Opisz reklamację zgłoszoną przez klienta.",
+        "descriptionPlaceholder": "Opisz reklamację…",
+        "severity": "Waga",
+        "severityHelp": "Jak poważna jest reklamacja dla bezpieczeństwa / jakości wyrobu.",
+        "cancel": "Anuluj",
+        "submit": "Zarejestruj reklamację",
+        "submitting": "Rejestrowanie…",
+        "formIncomplete": "Opis jest wymagany do zarejestrowania reklamacji.",
+        "validation": {
+          "descriptionRequired": "Opis jest wymagany."
+        },
+        "error": "Nie można zarejestrować reklamacji: {message}",
+        "success": "Reklamacja zarejestrowana."
+      },
+      "detail": {
+        "backToList": "Powrót do reklamacji",
+        "convertedBanner": "Ta reklamacja została skonwertowana na NCR.",
+        "convert": "Konwertuj na NCR",
+        "converting": "Konwertowanie…",
+        "convertHelp": "Utwórz raport niezgodności z tej reklamacji do formalnego dochodzenia.",
+        "convertDisabledConverted": "Potrzebujesz uprawnienia do tworzenia, aby skonwertować tę reklamację.",
+        "convertError": "Nie można skonwertować reklamacji: {message}",
+        "linkedNcr": "Powiązany NCR",
+        "linkedNcrView": "Zobacz NCR",
+        "info": {
+          "title": "Reklamacja",
+          "complaintNumber": "Nr reklamacji",
+          "customer": "Klient",
+          "ref": "Ref. partii / LP",
+          "severity": "Waga",
+          "status": "Status",
+          "openedAt": "Otwarto",
+          "description": "Opis",
+          "noCustomer": "Brak klienta",
+          "noRef": "—"
+        }
+      },
+      "capa": {
+        "title": "Działania CAPA",
+        "subtitle": "Działania korygujące i zapobiegawcze dla tej reklamacji.",
+        "addAction": "Dodaj działanie CAPA",
+        "empty": "Brak działań CAPA. Dodaj działanie korygujące lub zapobiegawcze, aby prowadzić rozwiązanie.",
+        "error": "Nie można wczytać działań CAPA.",
+        "resolve": "Rozwiąż",
+        "resolveDisabled": "Potrzebujesz uprawnienia do tworzenia, aby zarządzać działaniami CAPA.",
+        "ownerLabel": "Właściciel",
+        "noOwner": "—",
+        "dueLabel": "Termin",
+        "noDue": "—",
+        "columns": {
+          "actionType": "Typ",
+          "description": "Działanie",
+          "owner": "Właściciel",
+          "due": "Termin",
+          "status": "Status",
+          "actions": "Akcje"
+        }
+      },
+      "capaCreateModal": {
+        "title": "Dodaj działanie CAPA",
+        "subtitle": "Zarejestruj działanie korygujące lub zapobiegawcze dla tej reklamacji.",
+        "actionType": "Typ działania",
+        "actionTypeHelp": "Korygujące usuwa przyczynę; zapobiegawcze powstrzymuje nawrót.",
+        "description": "Opis",
+        "descriptionHelp": "Opisz działanie korygujące / zapobiegawcze do podjęcia.",
+        "descriptionPlaceholder": "Opisz działanie…",
+        "owner": "Właściciel",
+        "ownerHelp": "Kto odpowiada za wykonanie tego działania.",
+        "ownerPlaceholder": "Nazwa właściciela…",
+        "dueDate": "Termin",
+        "dueDateHelp": "Data, do której to działanie ma być wykonane, jeśli ustawiona.",
+        "cancel": "Anuluj",
+        "submit": "Dodaj działanie",
+        "submitting": "Dodawanie…",
+        "formIncomplete": "Opis jest wymagany do dodania działania.",
+        "validation": {
+          "descriptionRequired": "Opis jest wymagany."
+        },
+        "error": "Nie można dodać działania CAPA: {message}",
+        "success": "Działanie CAPA dodane."
+      },
+      "capaResolveModal": {
+        "title": "Rozwiąż działanie CAPA",
+        "subtitle": "Potwierdź, że działanie jest ukończone, a następnie podpisz, aby je zamknąć.",
+        "summaryType": "Typ",
+        "summaryDescription": "Działanie",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Podpis potwierdza, że zamknąłeś to działanie CAPA (21 CFR Part 11).",
+          "password": "PIN podpisu",
+          "passwordHelp": "Wprowadź swój PIN podpisu, aby złożyć podpis elektroniczny.",
+          "passwordPlaceholder": "Wprowadź PIN"
+        },
+        "cancel": "Anuluj",
+        "submit": "Rozwiąż działanie",
+        "submitting": "Rozwiązywanie…",
+        "formIncomplete": "Wprowadź PIN, aby rozwiązać działanie.",
+        "validation": {
+          "passwordRequired": "Twój PIN podpisu jest wymagany."
+        },
+        "error": "Nie można rozwiązać działania CAPA: {message}",
+        "success": "Działanie CAPA rozwiązane."
       }
     }
   },

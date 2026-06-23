@@ -1,0 +1,50 @@
+{
+  "slice": "Wave E11 — Complaints + CAPA UI",
+  "prototype_match": false,
+  "spec_driven_source": "No dedicated complaints/CAPA prototype JSX exists. Complaints/CAPA are P2 placeholders in the NCR prototype (ncr-screens.jsx:283-284,312 + modals.jsx:367,397). Per UI-PROTOTYPE-PARITY-POLICY.md §1.2 the nearest reusable prototype patterns are cited below.",
+  "nearest_prototype_patterns": [
+    "prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:1-184 (QaNcrList) — list header '+ create' action → modal, status Select, dense table → row detail link, empty / empty-filtered states",
+    "prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:186-352 (QaNcrDetail) — context card, sticky primary action, linked-records cross-link",
+    "prototypes/design/Monopilot Design System/quality/modals.jsx:384-466 (NcrCloseModal) — read-only summary + e-sign PIN block (type=password)",
+    "prototypes/design/Monopilot Design System/quality/modals.jsx:554-594 (CcpDeviationLogModal) — corrective-action field + e-sign PIN block"
+  ],
+  "production_components": {
+    "/quality/complaints (list page)": "complaints/page.tsx → complaints/_components/complaints-list.client.tsx",
+    "new-complaint modal": "complaints/_components/complaint-create-modal.client.tsx",
+    "/quality/complaints/[id] (detail page)": "complaints/[id]/page.tsx → complaints/[id]/_components/complaint-detail.client.tsx",
+    "CAPA panel": "complaints/_components/capa-panel.client.tsx",
+    "CAPA add modal": "complaints/_components/capa-create-modal.client.tsx",
+    "CAPA resolve e-sign modal": "complaints/_components/capa-resolve-modal.client.tsx",
+    "landing nav card": "quality/page.tsx (additive 'complaints' <li>, quality.complaints.nav)"
+  },
+  "structural_parity": {
+    "list": "PageHeader (title+subtitle+breadcrumb) + Card filter bar (search input + shadcn status Select, NO raw <select>) + Card dense Table (complaint # mono link → detail, customer, batch/LP ref, severity Badge, status Badge, opened date) — mirrors QA-009 NCR list 1:1",
+    "detail": "back link + converted banner + 2-col grid (complaint info Card | Convert-to-NCR action Card) + CAPA panel Card below — mirrors QA-009a NCR detail context card + sticky action",
+    "modals": "shadcn Modal (Header/Body/Footer) with pill selectors (severity / action-type) and a read-only summary + e-sign PIN block for resolve — mirrors NCR-CREATE / NCR-CLOSE / CCP-deviation resolve"
+  },
+  "interaction_parity": {
+    "states": {
+      "loading": "Suspense skeleton on both RSC pages (data-state=loading, aria-busy) — no CLS",
+      "empty": "list empty-all + CAPA panel empty (data-state=empty); list filtered-empty when a filter matches no rows",
+      "error": "failed live read → red banner (data-state=error, role=alert), never a 500",
+      "permission-denied": "forbidden list/detail result → amber panel (data-state=permission-denied, role=alert)",
+      "optimistic": "create / convert / add-CAPA / resolve use useTransition + router.refresh(); action errors surfaced VERBATIM; the converted banner + linked-NCR link appear immediately on convert success"
+    },
+    "rbac": "the [+ New complaint] / [Convert to NCR] / [+ Add CAPA] / [Resolve] controls are gated on the SERVER-resolved canManageComplaints() write probe (quality.ncr.create); when absent they render DISABLED with a tooltip (title=...Disabled copy). Server actions re-check the grant — never client-trusted.",
+    "esign": "the CAPA [Resolve] modal exposes a PIN field (type=password) and submits resolveCapaAction(id, {signature:{password}}); 21 CFR Part 11 meaning copy shown",
+    "no_raw_uuid": "complaint NUMBER + customer display + batch/LP ref + action TYPE/description shown; the complaint id + linked NCR id live in deep-link hrefs ONLY, never visible text (asserted by RTL UUID-regex guards)"
+  },
+  "deviation_log": [
+    "createComplaint customerId/lpId are UUIDs with no picker/resolver yet (free-text UUID = banned audit-#4 antipattern). The create modal exposes free-text 'customer' + 'batch/LP reference' fields and wires them into the single free-text batchRef slot (customer name prefixed when present, e.g. 'Acme Foods · BATCH-9'); customerId/lpId stay unset. No fabricated UUID reaches the action.",
+    "createCapaAction ownerUserId is a UUID with no user picker yet. The add modal exposes an optional free-text 'owner' field but does NOT send it to the action (no resolver) — ownerUserId stays unset; owner assignment is a follow-up once a user picker lands. dueDate IS wired (real <input type=date> → YYYY-MM-DD slot).",
+    "The CAPA panel owner column renders the no-owner placeholder because the reviewed row carries only ownerUserId (UUID) with no resolved display name; surfacing the raw UUID is banned, so the name is shown once a resolver exists.",
+    "Live Playwright screenshot/trace/axe capture is SKIPPED in this isolated worktree (PLAYWRIGHT_BASE_URL unset) — identical to the sibling E3 ccp-monitoring/haccp/trace evidence harnesses. Accepted fallback per UI-PROTOTYPE-PARITY-POLICY.md: the RTL coverage in complaints/_components/__tests__/complaints.test.tsx (22 passing tests). The spec quality-complaints-parity-evidence.spec.ts is the harness that produces the pixel artifacts against a preview."
+  ],
+  "verification": {
+    "rtl": "pnpm --filter web vitest run --config vitest.ui.config.ts .../complaints.test.tsx → 22 passed",
+    "siblings": ".../ncrs.test.tsx + .../ccp-deviations.test.tsx → 32 passed (no regression)",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 pnpm --filter web typecheck → clean (tsc --noEmit, 0 errors)",
+    "i18n_lint": "node scripts/lint-no-hardcoded-strings.mjs → exit 0; zero complaints/** violations",
+    "playwright": "pnpm --filter web exec playwright test e2e/quality-complaints-parity-evidence.spec.ts --trace on → 5 discovered, skipped (no PLAYWRIGHT_BASE_URL), RTL fallback"
+  }
+}

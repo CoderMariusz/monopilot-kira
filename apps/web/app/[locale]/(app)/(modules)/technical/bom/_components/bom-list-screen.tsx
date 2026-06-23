@@ -448,9 +448,12 @@ export function BomListScreen({
         </>
       )}
 
-      {/* New BOM — FG picker that routes to the chosen FG's detail (createBomDraft
-          there). Mounted only while open so its next-intl/router hooks never run
-          on the read-only list (keeps the provider-less RTL render green). */}
+      {/* New BOM — type-aware create flow. NewBomModal now hosts the
+          [Forward | Disassembly] toggle (Wave E7): Forward mode keeps the FG
+          picker → route-to-detail behaviour intact; Disassembly mode collects
+          1 input + N co-products and submits the real createDisassemblyBomDraft.
+          Mounted only while open so its next-intl/router hooks never run on the
+          read-only list (keeps the provider-less RTL render green). */}
       {canCreate && newBomOpen ? (
         <NewBomModal
           open={newBomOpen}

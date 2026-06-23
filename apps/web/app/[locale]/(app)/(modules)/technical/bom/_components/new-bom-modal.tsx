@@ -26,6 +26,7 @@ import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
 
+import { BomTypeToggle, DisassemblyAuthoring, type BomType } from './disassembly-bom-create';
 import { listItems } from '../../items/_actions/list-items';
 import type { ItemListItem, ItemStatus } from '../../items/_actions/shared';
 
@@ -87,6 +88,10 @@ export function NewBomModal({
   };
   const contentRef = React.useRef<HTMLDivElement | null>(null);
 
+  // Wave E7 — type-aware create. Forward keeps the FG-picker route-to-detail flow
+  // below 1:1; Disassembly swaps the body for the input + co-products authoring
+  // form (DisassemblyAuthoring) which submits the real createDisassemblyBomDraft.
+  const [bomType, setBomType] = React.useState<BomType>('forward');
   const [search, setSearch] = React.useState('');
   const [items, setItems] = React.useState<ItemListItem[] | null>(null);
   const [listState, setListState] = React.useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -96,6 +101,7 @@ export function NewBomModal({
     if (!open) {
       setSearch('');
       setPicked(null);
+      setBomType('forward');
       // Re-arm the loader so re-opening the modal re-fetches a fresh FG list
       // (e.g. after the user created the missing FG item from the empty state).
       setListState('idle');
@@ -201,6 +207,15 @@ export function NewBomModal({
         </div>
 
         <div className="modal-body">
+          {/* Wave E7 — [Forward | Disassembly] type toggle. The Forward branch
+              below is unchanged (FG picker → route to detail); Disassembly swaps
+              in the input + co-products authoring form. */}
+          <BomTypeToggle bomType={bomType} onChange={setBomType} hintForward={t('subtitle')} />
+
+          {bomType === 'disassembly' ? (
+            <DisassemblyAuthoring detailHrefBase={detailHrefBase} onClose={onClose} />
+          ) : (
+            <>
           <input
             autoFocus
             aria-label={t('searchPlaceholder')}
@@ -283,22 +298,26 @@ export function NewBomModal({
               })
             )}
           </div>
+            </>
+          )}
         </div>
 
-        <div className="modal-foot">
-          <Button type="button" className="btn-secondary btn-sm" onClick={onClose}>
-            {t('cancel')}
-          </Button>
-          <Button
-            type="button"
-            className="btn-primary btn-sm"
-            data-testid="new-bom-confirm"
-            disabled={!picked || !isEligibleFg(picked)}
-            onClick={onConfirm}
-          >
-            {t('confirm')}
-          </Button>
-        </div>
+        {bomType === 'forward' ? (
+          <div className="modal-foot">
+            <Button type="button" className="btn-secondary btn-sm" onClick={onClose}>
+              {t('cancel')}
+            </Button>
+            <Button
+              type="button"
+              className="btn-primary btn-sm"
+              data-testid="new-bom-confirm"
+              disabled={!picked || !isEligibleFg(picked)}
+              onClick={onConfirm}
+            >
+              {t('confirm')}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

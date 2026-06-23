@@ -4025,6 +4025,39 @@
         "emptyBody": "No BOM yet for {code} — add the first component to create the v1 draft.",
         "addFirstComponent": "+ Add first component",
         "draftBadge": "Not started"
+      },
+      "disassembly": {
+        "typeLabel": "BOM type",
+        "typeForward": "Forward",
+        "typeDisassembly": "Disassembly",
+        "typeHint": "A disassembly BOM breaks one input item into several co-products, each with an expected yield and a cost allocation.",
+        "title": "New disassembly BOM",
+        "subtitle": "One input item is broken down into co-product outputs. Cost allocation must total 100%.",
+        "inputLabel": "Input item",
+        "inputPlaceholder": "Pick the input item to disassemble…",
+        "inputRequired": "An input item is required.",
+        "outputsLabel": "Co-product outputs",
+        "addOutput": "+ Add output",
+        "removeOutput": "Remove output",
+        "colCoProduct": "Co-product",
+        "colExpectedYield": "Expected yield %",
+        "colAllocation": "Allocation %",
+        "colActions": "Actions",
+        "coProductPlaceholder": "Pick a co-product…",
+        "allocationSumLabel": "Allocation total",
+        "allocationValid": "Allocation totals 100% — valid.",
+        "allocationError": "Cost allocation must total 100% (V-TEC-12). Adjust the rows so the total equals 100%.",
+        "searchPlaceholder": "Search by code or name…",
+        "loadingItems": "Loading items…",
+        "noItems": "No items found.",
+        "cancel": "Cancel",
+        "submit": "Create disassembly draft",
+        "creating": "Creating…",
+        "forbidden": "You do not have permission to create a BOM.",
+        "saveError": "Could not create the disassembly BOM. Please try again.",
+        "invalidInput": "Check the input item, yields and allocations, then try again.",
+        "needCoProduct": "Each output row needs a co-product item.",
+        "needYield": "Each output needs an expected yield %."
       }
     },
     "bomList": {
@@ -4126,7 +4159,25 @@
       "notFound": "BOM not found.",
       "forbidden": "You do not have permission to view this BOM.",
       "originNpdProject": "Origin: NPD project →",
-      "colActions": "Actions"
+      "colActions": "Actions",
+      "disassembly": {
+        "sectionInput": "Input",
+        "sectionOutputs": "Outputs",
+        "inputItem": "Input item",
+        "colCoProduct": "Co-product",
+        "colExpectedYield": "Expected yield %",
+        "colAllocation": "Allocation %",
+        "colQty": "Qty",
+        "colUom": "UoM",
+        "allocationTotal": "Allocation total",
+        "allocationValid": "Valid — allocation totals 100%.",
+        "allocationError": "Allocation total is not 100% (V-TEC-12).",
+        "emptyOutputs": "This disassembly BOM has no co-product outputs.",
+        "editDraftOnly": "Editing is only available while this BOM is a draft.",
+        "loading": "Loading disassembly BOM…",
+        "error": "Unable to load this disassembly BOM. Please try again.",
+        "notFound": "Disassembly BOM not found."
+      }
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -8346,6 +8397,182 @@
       "nav": {
         "title": "Recall drills",
         "desc": "Review saved recall traces and their duration against the 4h target."
+      }
+    },
+    "complaints": {
+      "nav": {
+        "title": "Complaints",
+        "desc": "Log customer complaints, convert them to NCRs and track CAPA actions to closure."
+      },
+      "title": "Complaints",
+      "subtitle": "Customer complaints register — convert to an NCR and drive corrective / preventive actions.",
+      "loading": "Loading complaints…",
+      "breadcrumb": {
+        "quality": "Quality",
+        "complaints": "Complaints"
+      },
+      "denied": {
+        "title": "You do not have access to the complaints register",
+        "body": "Ask an administrator for the Quality dashboard permission."
+      },
+      "error": {
+        "title": "Could not load complaints",
+        "body": "The complaints register could not be read. Refresh to try again."
+      },
+      "severityValues": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "critical": "Critical"
+      },
+      "statusValues": {
+        "open": "Open",
+        "investigating": "Investigating",
+        "converted": "Converted",
+        "closed": "Closed"
+      },
+      "capaTypeValues": {
+        "corrective": "Corrective",
+        "preventive": "Preventive"
+      },
+      "capaStatusValues": {
+        "open": "Open",
+        "in_progress": "In progress",
+        "closed": "Closed"
+      },
+      "list": {
+        "newComplaint": "New complaint",
+        "newComplaintDisabled": "You need the create permission to log a complaint.",
+        "searchPlaceholder": "Search complaint #, customer or reference…",
+        "searchLabel": "Search complaints",
+        "statusLabel": "Status",
+        "statusAll": "All statuses",
+        "rowsLabel": "{count} complaint(s)",
+        "noCustomer": "No customer",
+        "noRef": "—",
+        "emptyAll": "No complaints yet. Log the first customer complaint to start tracking it.",
+        "emptyFiltered": "No complaints match this filter.",
+        "columns": {
+          "complaintNumber": "Complaint #",
+          "customer": "Customer",
+          "ref": "Batch / LP ref",
+          "severity": "Severity",
+          "status": "Status",
+          "openedAt": "Opened"
+        }
+      },
+      "createModal": {
+        "title": "New complaint",
+        "subtitle": "Record a customer complaint with its reference and severity.",
+        "customer": "Customer",
+        "customerHelp": "The customer who raised the complaint.",
+        "customerPlaceholder": "Customer name…",
+        "batchRef": "Batch / LP reference",
+        "batchRefHelp": "The batch or licence-plate the complaint relates to, if known.",
+        "batchRefPlaceholder": "e.g. BATCH-2026-014 / LP-0091",
+        "description": "Description",
+        "descriptionHelp": "Describe the complaint as reported by the customer.",
+        "descriptionPlaceholder": "Describe the complaint…",
+        "severity": "Severity",
+        "severityHelp": "How serious the complaint is for product safety / quality.",
+        "cancel": "Cancel",
+        "submit": "Log complaint",
+        "submitting": "Logging…",
+        "formIncomplete": "A description is required to log the complaint.",
+        "validation": {
+          "descriptionRequired": "A description is required."
+        },
+        "error": "Could not log complaint: {message}",
+        "success": "Complaint logged."
+      },
+      "detail": {
+        "backToList": "Back to complaints",
+        "convertedBanner": "This complaint has been converted to an NCR.",
+        "convert": "Convert to NCR",
+        "converting": "Converting…",
+        "convertHelp": "Raise a non-conformance report from this complaint for formal investigation.",
+        "convertDisabledConverted": "You need the create permission to convert this complaint.",
+        "convertError": "Could not convert complaint: {message}",
+        "linkedNcr": "Linked NCR",
+        "linkedNcrView": "View NCR",
+        "info": {
+          "title": "Complaint",
+          "complaintNumber": "Complaint #",
+          "customer": "Customer",
+          "ref": "Batch / LP ref",
+          "severity": "Severity",
+          "status": "Status",
+          "openedAt": "Opened",
+          "description": "Description",
+          "noCustomer": "No customer",
+          "noRef": "—"
+        }
+      },
+      "capa": {
+        "title": "CAPA actions",
+        "subtitle": "Corrective and preventive actions for this complaint.",
+        "addAction": "Add CAPA action",
+        "empty": "No CAPA actions yet. Add a corrective or preventive action to drive resolution.",
+        "error": "Could not load CAPA actions.",
+        "resolve": "Resolve",
+        "resolveDisabled": "You need the create permission to manage CAPA actions.",
+        "ownerLabel": "Owner",
+        "noOwner": "—",
+        "dueLabel": "Due",
+        "noDue": "—",
+        "columns": {
+          "actionType": "Type",
+          "description": "Action",
+          "owner": "Owner",
+          "due": "Due",
+          "status": "Status",
+          "actions": "Actions"
+        }
+      },
+      "capaCreateModal": {
+        "title": "Add CAPA action",
+        "subtitle": "Record a corrective or preventive action for this complaint.",
+        "actionType": "Action type",
+        "actionTypeHelp": "Corrective addresses the cause; preventive stops recurrence.",
+        "description": "Description",
+        "descriptionHelp": "Describe the corrective / preventive action to be taken.",
+        "descriptionPlaceholder": "Describe the action…",
+        "owner": "Owner",
+        "ownerHelp": "Who is responsible for completing this action.",
+        "ownerPlaceholder": "Owner name…",
+        "dueDate": "Due date",
+        "dueDateHelp": "The date this action is due, if set.",
+        "cancel": "Cancel",
+        "submit": "Add action",
+        "submitting": "Adding…",
+        "formIncomplete": "A description is required to add the action.",
+        "validation": {
+          "descriptionRequired": "A description is required."
+        },
+        "error": "Could not add CAPA action: {message}",
+        "success": "CAPA action added."
+      },
+      "capaResolveModal": {
+        "title": "Resolve CAPA action",
+        "subtitle": "Confirm the action is complete, then sign to close it.",
+        "summaryType": "Type",
+        "summaryDescription": "Action",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "Signing records that you closed this CAPA action (21 CFR Part 11).",
+          "password": "Sign-off PIN",
+          "passwordHelp": "Enter your sign-off PIN to apply the electronic signature.",
+          "passwordPlaceholder": "Enter your PIN"
+        },
+        "cancel": "Cancel",
+        "submit": "Resolve action",
+        "submitting": "Resolving…",
+        "formIncomplete": "Enter your PIN to resolve the action.",
+        "validation": {
+          "passwordRequired": "Your sign-off PIN is required."
+        },
+        "error": "Could not resolve CAPA action: {message}",
+        "success": "CAPA action resolved."
       }
     }
   },

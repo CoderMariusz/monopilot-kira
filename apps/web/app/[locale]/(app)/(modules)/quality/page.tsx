@@ -45,6 +45,8 @@ export default async function QualityRoutePage({ params }: PageProps) {
   // Trace + Recall drills (Wave E2A) nav copy from the LIVE next-intl catalog.
   const tTrace = await getTranslations("quality.trace");
   const tRecall = await getTranslations("quality.recallDrills");
+  // Complaints + CAPA (Wave E11) nav copy from the LIVE next-intl catalog (quality.complaints.nav).
+  const tComplaints = await getTranslations("quality.complaints");
   const s = await getTranslations("Skeleton");
   const result = await getModuleCount("quality_event");
 
@@ -164,6 +166,19 @@ export default async function QualityRoutePage({ params }: PageProps) {
             >
               <span className="text-base font-semibold text-slate-950">{tRecall("nav.title")}</span>
               <span className="mt-1 text-sm text-slate-600">{tRecall("nav.desc")}</span>
+            </Link>
+          </li>
+
+          {/* Complaints + CAPA (Wave E11) — live → /quality/complaints. */}
+          <li key="complaints">
+            <Link
+              href={`/${locale}/quality/complaints`}
+              prefetch={false}
+              data-testid="quality-nav-complaints"
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <span className="text-base font-semibold text-slate-950">{tComplaints("nav.title")}</span>
+              <span className="mt-1 text-sm text-slate-600">{tComplaints("nav.desc")}</span>
             </Link>
           </li>
         </ul>

@@ -21,12 +21,17 @@ import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getBomDetailPage, getBomFgSummary } from '../_actions/detail-page';
+import { getDisassemblyBom } from '../_actions/disassembly';
 import {
   BomDetailScreen,
   type BomDetailData,
   type BomDetailLabels,
   type PageState,
 } from '../_components/bom-detail-screen';
+import {
+  DisassemblyBomDetail,
+  type DisassemblyBomDetailData,
+} from '../_components/disassembly-bom-detail';
 import { BomDetailActions } from '../_components/bom-detail-actions';
 import {
   BomFirstAuthoring,
@@ -282,6 +287,25 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
   }
 
   const d = result.data;
+
+  // Wave E7 — disassembly variant: when the selected version is a disassembly BOM
+  // (1 input + N co-products with allocation %), render the Input + Outputs view
+  // instead of the 7-tab forward layout. `getDisassemblyBom` filters on
+  // bom_type='disassembly' server-side and returns `not_found` cheaply for a
+  // forward BOM, so this never alters the existing forward path.
+  const disassembly = await getDisassemblyBom(d.header.id);
+  if (disassembly.ok) {
+    const dis: DisassemblyBomDetailData = disassembly.data;
+    return (
+      <DisassemblyBomDetail
+        state="ready"
+        data={dis}
+        detailHrefBase={DETAIL_HREF_BASE}
+        isEditable={d.header.status === 'draft'}
+      />
+    );
+  }
+
   const data: BomDetailData = {
     productId: d.productId,
     productName: d.productName,
