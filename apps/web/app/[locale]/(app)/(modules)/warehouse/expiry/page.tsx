@@ -19,8 +19,10 @@
  *
  * UI states: loading (Suspense skeleton, no CLS), empty (no expiring LPs copy),
  * error (failed live read → banner, never a 500), permission-denied (forbidden →
- * denied panel, nothing privileged rendered). Optimistic — N/A (read-only; the
- * "Force block" mutation is a later lane, rendered disabled).
+ * denied panel, nothing privileged rendered). Optimistic — the per-row "Force
+ * block" action is LIVE: it opens the shared LP block modal and calls the
+ * `blockLp` Server Action (RBAC `warehouse.lp.block` re-enforced server-side),
+ * then refreshes the dashboard so the now-blocked LP drops out of the FEFO read.
  *
  * Data note: getExpiryDashboard returns the FEFO `tier` (red/amber), item, location,
  * warehouse, qty, uom and expiry date — but NOT a per-LP status or batch number, so
@@ -34,6 +36,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getExpiryDashboard } from '../_actions/expiry-actions';
 import { getWhdTranslator } from '../wh-d-labels';
+import { blockLp } from '../license-plates/[lpId]/_actions/lp-detail-actions';
 import { ExpiryDashboardClient, type ExpiryLabels, type ExpiryRow } from './_components/expiry-dashboard.client';
 
 // Org-scoped DB read per request — never statically prerendered.
@@ -81,6 +84,24 @@ function buildExpiryLabels(locale: string): ExpiryLabels {
     expired: t('expiryPage.expired'),
     forceBlock: t('expiryPage.forceBlock'),
     forceBlockComingSoon: t('expiryPage.forceBlockComingSoon'),
+    blockModal: {
+      title: t('expiryPage.blockModal.title'),
+      intro: t('expiryPage.blockModal.intro'),
+      reason: t('expiryPage.blockModal.reason'),
+      reasonPlaceholder: t('expiryPage.blockModal.reasonPlaceholder'),
+      cancel: t('expiryPage.blockModal.cancel'),
+      confirm: t('expiryPage.blockModal.confirm'),
+      submitting: t('expiryPage.blockModal.submitting'),
+      errors: {
+        forbidden: t('expiryPage.blockModal.errors.forbidden'),
+        alreadyBlocked: t('expiryPage.blockModal.errors.alreadyBlocked'),
+        terminal: t('expiryPage.blockModal.errors.terminal'),
+        locked: t('expiryPage.blockModal.errors.locked'),
+        invalidInput: t('expiryPage.blockModal.errors.invalidInput'),
+        notFound: t('expiryPage.blockModal.errors.notFound'),
+        generic: t('expiryPage.blockModal.errors.generic'),
+      },
+    },
     none: t('expiryPage.none'),
     empty: t('expiryPage.empty'),
     status: {
@@ -154,6 +175,7 @@ async function ExpiryContent({ locale }: { locale: string }) {
       amberCount={result.data.amberCount}
       labels={buildExpiryLabels(locale)}
       locale={locale}
+      blockAction={blockLp}
     />
   );
 }

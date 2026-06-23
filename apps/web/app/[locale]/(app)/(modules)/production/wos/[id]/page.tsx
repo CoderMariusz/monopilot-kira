@@ -50,6 +50,7 @@ import { buildWoModalLabels } from '../../_actions/wo-modal-labels';
 // E1 — FG label printing wired through the printers settings actions (mig 304).
 // The action ONLY supports entityType:'lp' and re-enforces RBAC server-side.
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
+import { registerDisassemblyOutput } from '../../../../../../../lib/production/output/register-disassembly-output';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import type {
   OutputPrintLabelInput,
@@ -76,6 +77,15 @@ type PrintQueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<PrintQueryResult<T>>;
 };
 type PrintOrgContextLike = { userId: string; orgId: string; client: PrintQueryClient };
+
+// E7 — the disassembly service's OrgContextLike.client query shape (node-pg). The
+// withOrgContext client satisfies it; we narrow via this alias at the call site.
+type DisassemblyQueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
 
 /**
  * E1 — resolve settings.org.update server-side so the Register-output success
@@ -163,6 +173,29 @@ async function clockInDesktop(input: { woId: string; source: 'desktop' }): Promi
 async function clockOutDesktop(input: { woId: string }): Promise<ClockOutFromWoResult> {
   'use server';
   return clockOutFromWo({ woId: input.woId });
+}
+
+/**
+ * E7 — Server Action adapter for disassembly registration. Runs the SAME
+ * registerDisassemblyOutput service the disassembly-outputs route handler calls,
+ * inside a fresh withOrgContext txn (RLS + org scope). RBAC
+ * (production.output.write) + bom_type='disassembly' are re-validated inside the
+ * service — this only narrows the input shape + maps the result union down to the
+ * { ok } | { ok:false, errorCode } the modal renders (never leaks a raw UUID).
+ */
+async function registerDisassemblyOutputDesktop(input: {
+  woId: string;
+  inputLpId: string;
+  outputs: Array<{ coProductItemId: string; qtyKg: string }>;
+}): Promise<{ ok: true } | { ok: false; errorCode: string }> {
+  'use server';
+  return withOrgContext(async ({ userId, orgId, client }) => {
+    const result = await registerDisassemblyOutput(
+      { userId, orgId, client: client as unknown as DisassemblyQueryClient },
+      input,
+    );
+    return result.ok ? { ok: true } : { ok: false, errorCode: result.error };
+  });
 }
 
 async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
@@ -349,6 +382,61 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.',
       ),
       noConsumptionContinue: vc('output.noConsumptionContinue', 'Continue anyway'),
+    },
+    disassembly: {
+      triggerAction: vc('disassembly.triggerAction', 'Register disassembly outputs'),
+      title: vc('disassembly.title', 'Register disassembly outputs'),
+      subtitle: vc(
+        'disassembly.subtitle',
+        'Break the input license plate into its co-product cuts. Enter the actual yielded weight for each output — the input cost is allocated across them automatically.',
+      ),
+      inputLp: vc('disassembly.inputLp', 'Input license plate'),
+      inputLpPlaceholder: vc('disassembly.inputLpPlaceholder', 'Select the input to break down'),
+      inputLpEmpty: vc(
+        'disassembly.inputLpEmpty',
+        'No input has been consumed into this work order yet — record consumption of the input first.',
+      ),
+      outputsTitle: vc('disassembly.outputsTitle', 'Expected outputs'),
+      outputsEmpty: vc(
+        'disassembly.outputsEmpty',
+        'This disassembly BOM has no co-product outputs configured.',
+      ),
+      allocation: vc('disassembly.allocation', '{pct}% allocation'),
+      byproduct: vc('disassembly.byproduct', 'By-product'),
+      qty: vc('disassembly.qty', 'Yielded quantity'),
+      qtyHint: vc('disassembly.qtyHint', 'Actual weight of this cut, in {uom}.'),
+      submit: vc('disassembly.submit', 'Register outputs'),
+      submitting: vc('disassembly.submitting', 'Registering…'),
+      cancel: vc('disassembly.cancel', 'Cancel'),
+      formIncomplete: vc('disassembly.formIncomplete', 'Enter a positive quantity for every output.'),
+      errors: {
+        forbidden: vc(
+          'disassembly.errors.forbidden',
+          'You do not have permission to register disassembly outputs.',
+        ),
+        'not-disassembly': vc(
+          'disassembly.errors.not-disassembly',
+          'This work order is not a disassembly order.',
+        ),
+        'co-product-mismatch': vc(
+          'disassembly.errors.co-product-mismatch',
+          'The outputs do not match this disassembly BOM — refresh and retry.',
+        ),
+        'input-cost-missing': vc(
+          'disassembly.errors.input-cost-missing',
+          'The input license plate has no cost — set a cost for the input item before disassembly.',
+        ),
+        'invalid-input': vc('disassembly.errors.invalid-input', 'Check the fields and try again.'),
+        'not-found': vc(
+          'disassembly.errors.not-found',
+          'This work order or its BOM no longer exists — refresh and retry.',
+        ),
+        'warehouse-not-configured': vc(
+          'disassembly.errors.warehouse-not-configured',
+          'No default warehouse is configured — set one before registering output.',
+        ),
+        generic: vc('disassembly.errors.generic', 'Unable to register disassembly outputs.'),
+      },
     },
     waste: {
       title: t('waste.title'),
@@ -677,6 +765,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       voidWoOutputAction={voidWoOutputAction}
       voidWasteEntryAction={voidWasteEntryAction}
       reverseConsumptionAction={reverseConsumptionAction}
+      registerDisassemblyOutputAction={registerDisassemblyOutputDesktop}
       printFgLabelAction={printFgLabel}
       canPrintFgLabel={canPrintFgLabel}
       laborSummary={laborSummary}

@@ -169,6 +169,7 @@
       "emptyFiltered": "No inventory matches this search. Try a different term or pivot.",
       "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
       "error": "We could not load inventory right now. Refresh to try again.",
+      "pickable": "pickable",
       "none": "—"
     },
     "movements": {
@@ -440,6 +441,7 @@
       "emptyFiltered": "Żaden stan nie pasuje do tego wyszukiwania. Spróbuj innego hasła lub przekroju.",
       "denied": "Nie masz uprawnień do podglądu stanu magazynowego. Poproś administratora o uprawnienie warehouse.inventory.read.",
       "error": "Nie udało się teraz wczytać stanu magazynowego. Odśwież, aby spróbować ponownie.",
+      "pickable": "do pobrania",
       "none": "—"
     },
     "movements": {

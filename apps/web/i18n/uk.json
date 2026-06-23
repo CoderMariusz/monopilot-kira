@@ -6858,6 +6858,34 @@
           "noConsumptionTooltip": "No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.",
           "noConsumptionContinue": "Continue anyway"
         },
+        "disassembly": {
+          "triggerAction": "Register disassembly outputs",
+          "title": "Register disassembly outputs",
+          "subtitle": "Break the input license plate into its co-product cuts. Enter the actual yielded weight for each output — the input cost is allocated across them automatically.",
+          "inputLp": "Input license plate",
+          "inputLpPlaceholder": "Select the input to break down",
+          "inputLpEmpty": "No input has been consumed into this work order yet — record consumption of the input first.",
+          "outputsTitle": "Expected outputs",
+          "outputsEmpty": "This disassembly BOM has no co-product outputs configured.",
+          "allocation": "{pct}% allocation",
+          "byproduct": "By-product",
+          "qty": "Yielded quantity",
+          "qtyHint": "Actual weight of this cut, in {uom}.",
+          "submit": "Register outputs",
+          "submitting": "Registering…",
+          "cancel": "Cancel",
+          "formIncomplete": "Enter a positive quantity for every output.",
+          "errors": {
+            "forbidden": "You do not have permission to register disassembly outputs.",
+            "not-disassembly": "This work order is not a disassembly order.",
+            "co-product-mismatch": "The outputs do not match this disassembly BOM — refresh and retry.",
+            "input-cost-missing": "The input license plate has no cost — set a cost for the input item before disassembly.",
+            "invalid-input": "Check the fields and try again.",
+            "not-found": "This work order or its BOM no longer exists — refresh and retry.",
+            "warehouse-not-configured": "No default warehouse is configured — set one before registering output.",
+            "generic": "Unable to register disassembly outputs."
+          }
+        },
         "waste": {
           "title": "Waste events",
           "empty": "No waste recorded for this work order.",

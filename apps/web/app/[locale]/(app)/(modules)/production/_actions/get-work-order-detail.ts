@@ -81,6 +81,15 @@ export type WoDetailHeader = {
    * catch_weight_kg_per_unit). Defaults to 'fixed' when the item row is missing.
    */
   weightMode: 'fixed' | 'catch';
+  /**
+   * E7 — bom_headers.bom_type for the WO's active BOM (mig 309). A 'disassembly'
+   * WO has 1 input line + N co-product OUTPUTS (bom_co_products) and is executed
+   * via registerDisassemblyOutput (NOT the forward Register-output flow). Defaults
+   * to 'forward' when the WO has no BOM header or the column is absent. The
+   * detail screen reads this to decide whether to offer the "Register disassembly
+   * outputs" action — the route + service re-check it server-side regardless.
+   */
+  bomType: 'forward' | 'disassembly';
 };
 
 /** Consumption tab: BOM component required vs consumed. */
@@ -169,6 +178,39 @@ export type WoDetailQa = {
   fail: number;
 };
 
+/**
+ * E7 — an EXPECTED output of a disassembly BOM (one bom_co_products row). The
+ * disassembly registration screen lists these so the operator enters the actual
+ * yielded kg per co-product. `coProductItemId` is the value the
+ * registerDisassemblyOutput service keys allocation on; `itemCode`/`itemName`
+ * come from the items join (NEVER render the uuid). `allocationPct` is shown
+ * read-only (the service owns the cost split). Empty for a forward WO.
+ */
+export type WoDisassemblyOutput = {
+  coProductItemId: string;
+  itemCode: string | null;
+  itemName: string | null;
+  allocationPct: number;
+  isByproduct: boolean;
+  /** bom_co_products.quantity — the nominal/expected yield, prefilled in the form. */
+  expectedQty: number;
+  uom: string;
+};
+
+/**
+ * E7 — a candidate INPUT license plate for a disassembly WO: a consumed-input LP
+ * already linked to this WO via wo_material_consumption (the carcass/primal being
+ * broken down). The registration screen picks ONE of these as the
+ * registerDisassemblyOutput `inputLpId` whose cost is allocated across the
+ * outputs. Empty when nothing has been consumed yet (the screen then surfaces an
+ * empty state — consume the input first).
+ */
+export type WoDisassemblyInputLp = {
+  lpId: string;
+  lpNumber: string | null;
+  qtyKg: number;
+};
+
 export type WorkOrderDetailData = {
   header: WoDetailHeader;
   components: WoDetailComponent[];
@@ -178,6 +220,19 @@ export type WorkOrderDetailData = {
   genealogyInputs: WoDetailGenealogyInput[];
   history: WoDetailHistoryEvent[];
   qa: WoDetailQa;
+  /**
+   * E7 — the disassembly BOM's expected co-product OUTPUTS (bom_co_products).
+   * Non-empty ONLY when the WO's active BOM has bom_type='disassembly'; empty for
+   * a forward WO. The disassembly-registration screen lists these for qty entry.
+   */
+  disassemblyOutputs: WoDisassemblyOutput[];
+  /**
+   * E7 — candidate consumed-input LPs for a disassembly WO (the carcass/primal
+   * already consumed into this WO). The screen picks one as the
+   * registerDisassemblyOutput `inputLpId`. Empty for a forward WO or when nothing
+   * has been consumed yet.
+   */
+  disassemblyInputLps: WoDisassemblyInputLp[];
   /**
    * Newest OPEN medium+ allergen changeover on this WO's line (start gate 3a) —
    * resolved by the gate's single owner findOpenLineChangeover so the detail
@@ -240,6 +295,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         consumption_pct: string | number | null;
         output_pct: string | number | null;
         weight_mode: string | null;
+        bom_type: string | null;
+        bom_header_id: string | null;
       }>(
         `select w.id::text as id,
                 w.wo_number,
@@ -284,7 +341,9 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                              then round(coalesce(sum(o.qty_kg), 0) / w.planned_quantity * 100, 1)
                              else 0 end
                    from public.wo_outputs o
-                  where o.wo_id = w.id and o.org_id = app.current_org_id()) as output_pct
+                  where o.wo_id = w.id and o.org_id = app.current_org_id()) as output_pct,
+                coalesce(bh.bom_type, 'forward') as bom_type,
+                coalesce(w.active_bom_header_id, w.bom_id)::text as bom_header_id
            from public.work_orders w
            left join public.wo_executions e
              on e.org_id = w.org_id and e.wo_id = w.id
@@ -294,6 +353,9 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
              on pl.org_id = w.org_id and pl.id = w.production_line_id
            left join public.machines mc
              on mc.org_id = w.org_id and mc.id = w.machine_id
+           left join public.bom_headers bh
+             on bh.org_id = w.org_id
+            and bh.id = coalesce(w.active_bom_header_id, w.bom_id)
           where w.org_id = app.current_org_id() and w.id = $1::uuid`,
         [woId],
       );
@@ -592,6 +654,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         elapsedMin,
         bomVersion: h.bom_version,
         weightMode: h.weight_mode === 'catch' ? 'catch' : 'fixed',
+        bomType: h.bom_type === 'disassembly' ? 'disassembly' : 'forward',
       };
 
       // QA read-model not yet built — render an honest empty/zero summary.
@@ -602,6 +665,74 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         status === 'planned'
           ? await findOpenLineChangeover(c, null, h.production_line_id)
           : null;
+
+      // E7 — disassembly extras. Only loaded for a disassembly BOM (forward WOs
+      // skip both queries entirely). The expected outputs are this BOM's
+      // co-products (items join → code/name, never the uuid); the input-LP
+      // candidates are the LPs already consumed into this WO (the carcass/primal
+      // being broken down), folded from wo_material_consumption ⨝ license_plates.
+      let disassemblyOutputs: WoDisassemblyOutput[] = [];
+      let disassemblyInputLps: WoDisassemblyInputLp[] = [];
+      if (header.bomType === 'disassembly' && h.bom_header_id) {
+        const [coProductsRes, inputLpsRes] = await Promise.all([
+          c.query<{
+            co_product_item_id: string;
+            item_code: string | null;
+            item_name: string | null;
+            allocation_pct: string | number;
+            is_byproduct: boolean;
+            quantity: string | number;
+            uom: string;
+          }>(
+            `select cp.co_product_item_id::text as co_product_item_id,
+                    i.item_code, i.name as item_name,
+                    cp.allocation_pct, cp.is_byproduct, cp.quantity, cp.uom
+               from public.bom_co_products cp
+               left join public.items i
+                 on i.org_id = cp.org_id and i.id = cp.co_product_item_id
+              where cp.org_id = app.current_org_id()
+                and cp.bom_header_id = $1::uuid
+              order by i.item_code asc nulls last, cp.co_product_item_id asc`,
+            [h.bom_header_id],
+          ),
+          c.query<{
+            lp_id: string;
+            lp_number: string | null;
+            qty_kg: string | number;
+          }>(
+            `select mc.lp_id::text as lp_id,
+                    lp.lp_number,
+                    coalesce(sum(mc.qty_consumed), 0) as qty_kg
+               from public.wo_material_consumption mc
+               left join public.license_plates lp
+                 on lp.id = mc.lp_id and lp.org_id = mc.org_id
+              where mc.org_id = app.current_org_id()
+                and mc.wo_id = $1::uuid
+                and mc.lp_id is not null
+                and mc.lp_id <> $2::uuid
+                and mc.correction_of_id is null
+              group by mc.lp_id, lp.lp_number
+              order by lp.lp_number asc nulls last`,
+            [woId, NIL_LP_SENTINEL],
+          ),
+        ]);
+
+        disassemblyOutputs = coProductsRes.rows.map((r) => ({
+          coProductItemId: r.co_product_item_id,
+          itemCode: r.item_code,
+          itemName: r.item_name,
+          allocationPct: Number(r.allocation_pct),
+          isByproduct: Boolean(r.is_byproduct),
+          expectedQty: Number(r.quantity),
+          uom: r.uom,
+        }));
+
+        disassemblyInputLps = inputLpsRes.rows.map((r) => ({
+          lpId: r.lp_id,
+          lpNumber: r.lp_number,
+          qtyKg: Number(r.qty_kg),
+        }));
+      }
 
       return {
         ok: true,
@@ -614,6 +745,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           genealogyInputs,
           history,
           qa,
+          disassemblyOutputs,
+          disassemblyInputLps,
           openChangeoverId,
           hasOutputWithoutConsumption,
         },

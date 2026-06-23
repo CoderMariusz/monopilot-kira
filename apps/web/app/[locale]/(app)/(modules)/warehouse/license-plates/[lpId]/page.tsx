@@ -30,6 +30,7 @@ import { getLpDetail } from '../../_actions/lp-actions';
 import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { listLocations } from '../../_actions/location-read-actions';
 import { createStockMove } from '../../_actions/stock-move-actions';
+import { blockLp, listOpenWorkOrdersForLpReserve, reserveLp } from './_actions/lp-detail-actions';
 import { updateLpMetadataAction } from './lp-metadata-adapter';
 // E1 — label printing wired through the printers settings actions (mig 304).
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
@@ -47,8 +48,8 @@ import {
   type LpPrintLabelResult,
 } from './_components/lp-detail.client';
 import {
-  LP_DEFERRED_ACTIONS,
-  type LpDeferredAction,
+  LP_DETAIL_ACTIONS,
+  type LpDetailAction,
 } from './_components/lp-detail-constants';
 
 // Org-scoped DB read per request — never statically prerendered.
@@ -72,8 +73,8 @@ function DetailSkeleton() {
 
 function buildLabels(locale: string): LpDetailLabels {
   const t = getLpTranslator(locale);
-  const labelByKey = {} as Record<LpDeferredAction, string>;
-  for (const k of LP_DEFERRED_ACTIONS) labelByKey[k] = t(`detail.actions.${k}`);
+  const labelByKey = {} as Record<LpDetailAction, string>;
+  for (const k of LP_DETAIL_ACTIONS) labelByKey[k] = t(`detail.actions.${k}`);
   return {
     back: t('detail.back'),
     qtyLine: t('detail.header.qtyLine'),
@@ -107,6 +108,51 @@ function buildLabels(locale: string): LpDetailLabels {
     actions: {
       comingSoon: t('detail.actions.comingSoon'),
       labelByKey,
+      reserve: {
+        title: t('detail.actions.reserveModal.title'),
+        intro: t('detail.actions.reserveModal.intro'),
+        search: t('detail.actions.reserveModal.search'),
+        searchPlaceholder: t('detail.actions.reserveModal.searchPlaceholder'),
+        wo: t('detail.actions.reserveModal.wo'),
+        woPlaceholder: t('detail.actions.reserveModal.woPlaceholder'),
+        qty: t('detail.actions.reserveModal.qty'),
+        qtyHint: t('detail.actions.reserveModal.qtyHint'),
+        loading: t('detail.actions.reserveModal.loading'),
+        empty: t('detail.actions.reserveModal.empty'),
+        cancel: t('detail.actions.reserveModal.cancel'),
+        confirm: t('detail.actions.reserveModal.confirm'),
+        submitting: t('detail.actions.reserveModal.submitting'),
+        errors: {
+          forbidden: t('detail.actions.reserveModal.errors.forbidden'),
+          invalidInput: t('detail.actions.reserveModal.errors.invalidInput'),
+          notFound: t('detail.actions.reserveModal.errors.notFound'),
+          locked: t('detail.actions.reserveModal.errors.locked'),
+          invalidState: t('detail.actions.reserveModal.errors.invalidState'),
+          notReleased: t('detail.actions.reserveModal.errors.notReleased'),
+          otherWo: t('detail.actions.reserveModal.errors.otherWo'),
+          woNotOpen: t('detail.actions.reserveModal.errors.woNotOpen'),
+          qtyExceedsAvailable: t('detail.actions.reserveModal.errors.qtyExceedsAvailable'),
+          generic: t('detail.actions.reserveModal.errors.generic'),
+        },
+      },
+      block: {
+        title: t('detail.actions.blockModal.title'),
+        intro: t('detail.actions.blockModal.intro'),
+        reason: t('detail.actions.blockModal.reason'),
+        reasonPlaceholder: t('detail.actions.blockModal.reasonPlaceholder'),
+        cancel: t('detail.actions.blockModal.cancel'),
+        confirm: t('detail.actions.blockModal.confirm'),
+        submitting: t('detail.actions.blockModal.submitting'),
+        errors: {
+          forbidden: t('detail.actions.blockModal.errors.forbidden'),
+          alreadyBlocked: t('detail.actions.blockModal.errors.alreadyBlocked'),
+          terminal: t('detail.actions.blockModal.errors.terminal'),
+          locked: t('detail.actions.blockModal.errors.locked'),
+          invalidInput: t('detail.actions.blockModal.errors.invalidInput'),
+          notFound: t('detail.actions.blockModal.errors.notFound'),
+          generic: t('detail.actions.blockModal.errors.generic'),
+        },
+      },
       qaRelease: {
         title: t('detail.actions.qaRelease.title'),
         decision: t('detail.actions.qaRelease.decision'),
@@ -346,6 +392,9 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
       labels={buildLabels(locale)}
       locale={locale}
       releaseQaAction={releaseLpQa}
+      blockLpAction={blockLp}
+      reserveLpAction={reserveLp}
+      listOpenWorkOrdersForLpReserveAction={listOpenWorkOrdersForLpReserve}
       listLocationsAction={listLocations}
       createStockMoveAction={createStockMove}
       updateLpMetadataAction={updateLpMetadataAction}

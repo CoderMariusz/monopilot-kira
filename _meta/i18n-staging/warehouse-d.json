@@ -90,6 +90,24 @@
       "expired": "expired {days}d ago",
       "forceBlock": "Force block",
       "forceBlockComingSoon": "Coming soon",
+      "blockModal": {
+        "title": "Block {lp}",
+        "intro": "Create a quality hold and block this license plate from picking.",
+        "reason": "Reason",
+        "reasonPlaceholder": "Why is this LP being blocked?",
+        "cancel": "Cancel",
+        "confirm": "Block LP",
+        "submitting": "Blocking…",
+        "errors": {
+          "forbidden": "You do not have permission to block license plates.",
+          "alreadyBlocked": "This license plate is already blocked or on hold.",
+          "terminal": "Terminal license plates cannot be blocked.",
+          "locked": "This license plate is locked by another user.",
+          "invalidInput": "Enter a reason before blocking the license plate.",
+          "notFound": "The license plate was not found.",
+          "generic": "We could not block this license plate. Try again."
+        }
+      },
       "none": "—",
       "empty": "No license plates are past or nearing their expiry date. The daily expiry check runs automatically."
     }
@@ -184,6 +202,24 @@
       "expired": "po terminie {days} dni",
       "forceBlock": "Wymuś blokadę",
       "forceBlockComingSoon": "Wkrótce",
+      "blockModal": {
+        "title": "Zablokuj {lp}",
+        "intro": "Utwórz hold jakościowy i zablokuj ten LP przed pobraniem.",
+        "reason": "Powód",
+        "reasonPlaceholder": "Dlaczego ten LP jest blokowany?",
+        "cancel": "Anuluj",
+        "confirm": "Zablokuj LP",
+        "submitting": "Blokowanie…",
+        "errors": {
+          "forbidden": "Nie masz uprawnień do blokowania LP.",
+          "alreadyBlocked": "Ten LP jest już zablokowany lub na holdzie.",
+          "terminal": "Terminalnych LP nie można blokować.",
+          "locked": "Ten LP jest zablokowany przez innego użytkownika.",
+          "invalidInput": "Podaj powód przed zablokowaniem LP.",
+          "notFound": "Nie znaleziono LP.",
+          "generic": "Nie udało się zablokować tego LP. Spróbuj ponownie."
+        }
+      },
       "none": "—",
       "empty": "Żadne numery LP nie są po terminie ani nie zbliżają się do niego. Codzienna kontrola terminów działa automatycznie."
     }

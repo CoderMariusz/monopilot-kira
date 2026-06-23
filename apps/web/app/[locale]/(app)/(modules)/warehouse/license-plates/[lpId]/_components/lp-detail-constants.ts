@@ -12,13 +12,21 @@
  */
 
 /** Action keys from the prototype's action group (lp-screens.jsx:310-317). */
-export const LP_DEFERRED_ACTIONS = [
+export const LP_DETAIL_ACTIONS = [
   'split',
   'merge',
   'qa',
   'reserve',
   'move',
   'block',
+  'destroy',
+] as const;
+export type LpDetailAction = (typeof LP_DETAIL_ACTIONS)[number];
+
+/** Prototype actions still rendered disabled because no backing action exists. */
+export const LP_DEFERRED_ACTIONS = [
+  'split',
+  'merge',
   'destroy',
 ] as const;
 export type LpDeferredAction = (typeof LP_DEFERRED_ACTIONS)[number];

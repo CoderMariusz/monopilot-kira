@@ -145,6 +145,51 @@
           "denied": "You do not have permission to release receiving QC.",
           "invalidState": "This license plate is no longer pending QC.",
           "error": "We could not update QC status. Try again."
+        },
+        "reserveModal": {
+          "title": "Reserve {lp}",
+          "intro": "Reserve available quantity on this LP for an open work order.",
+          "search": "Search work orders",
+          "searchPlaceholder": "Search WO number or item…",
+          "wo": "Work order",
+          "woPlaceholder": "Select an open work order",
+          "qty": "Quantity",
+          "qtyHint": "Available: {qty} {uom}",
+          "loading": "Loading work orders…",
+          "empty": "No open work orders match this search.",
+          "cancel": "Cancel",
+          "confirm": "Reserve",
+          "submitting": "Reserving…",
+          "errors": {
+            "forbidden": "You do not have permission to reserve license plates.",
+            "invalidInput": "Select a work order and enter a positive quantity.",
+            "notFound": "The license plate or work order was not found.",
+            "locked": "This license plate is locked by another user.",
+            "invalidState": "This license plate cannot be reserved in its current state.",
+            "notReleased": "Only QA-released license plates can be reserved.",
+            "otherWo": "This license plate is already reserved for another work order.",
+            "woNotOpen": "That work order is not open.",
+            "qtyExceedsAvailable": "The quantity exceeds the LP available quantity.",
+            "generic": "We could not reserve this license plate. Try again."
+          }
+        },
+        "blockModal": {
+          "title": "Block {lp}",
+          "intro": "Create a quality hold and block this license plate from picking.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being blocked?",
+          "cancel": "Cancel",
+          "confirm": "Block LP",
+          "submitting": "Blocking…",
+          "errors": {
+            "forbidden": "You do not have permission to block license plates.",
+            "alreadyBlocked": "This license plate is already blocked or on hold.",
+            "terminal": "Terminal license plates cannot be blocked.",
+            "locked": "This license plate is locked by another user.",
+            "invalidInput": "Enter a reason before blocking the license plate.",
+            "notFound": "The license plate was not found.",
+            "generic": "We could not block this license plate. Try again."
+          }
         }
       },
       "ruleNote": "Available actions are determined by the LP state machine. Action modals are wired in a later lane.",
@@ -416,6 +461,51 @@
           "denied": "Nie masz uprawnień do zwalniania QC przyjęć.",
           "invalidState": "Ten LP nie oczekuje już na QC.",
           "error": "Nie udało się zmienić statusu QC. Spróbuj ponownie."
+        },
+        "reserveModal": {
+          "title": "Zarezerwuj {lp}",
+          "intro": "Zarezerwuj dostępną ilość na tym LP dla otwartego zlecenia produkcyjnego.",
+          "search": "Szukaj zleceń",
+          "searchPlaceholder": "Szukaj numeru WO lub towaru…",
+          "wo": "Zlecenie",
+          "woPlaceholder": "Wybierz otwarte zlecenie",
+          "qty": "Ilość",
+          "qtyHint": "Dostępne: {qty} {uom}",
+          "loading": "Wczytywanie zleceń…",
+          "empty": "Brak otwartych zleceń pasujących do wyszukiwania.",
+          "cancel": "Anuluj",
+          "confirm": "Zarezerwuj",
+          "submitting": "Rezerwowanie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do rezerwowania LP.",
+            "invalidInput": "Wybierz zlecenie i podaj dodatnią ilość.",
+            "notFound": "Nie znaleziono LP lub zlecenia.",
+            "locked": "Ten LP jest zablokowany przez innego użytkownika.",
+            "invalidState": "Tego LP nie można zarezerwować w obecnym stanie.",
+            "notReleased": "Można rezerwować tylko LP zwolnione przez QA.",
+            "otherWo": "Ten LP jest już zarezerwowany dla innego zlecenia.",
+            "woNotOpen": "To zlecenie nie jest otwarte.",
+            "qtyExceedsAvailable": "Ilość przekracza dostępną ilość LP.",
+            "generic": "Nie udało się zarezerwować tego LP. Spróbuj ponownie."
+          }
+        },
+        "blockModal": {
+          "title": "Zablokuj {lp}",
+          "intro": "Utwórz hold jakościowy i zablokuj ten LP przed pobraniem.",
+          "reason": "Powód",
+          "reasonPlaceholder": "Dlaczego ten LP jest blokowany?",
+          "cancel": "Anuluj",
+          "confirm": "Zablokuj LP",
+          "submitting": "Blokowanie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do blokowania LP.",
+            "alreadyBlocked": "Ten LP jest już zablokowany lub na holdzie.",
+            "terminal": "Terminalnych LP nie można blokować.",
+            "locked": "Ten LP jest zablokowany przez innego użytkownika.",
+            "invalidInput": "Podaj powód przed zablokowaniem LP.",
+            "notFound": "Nie znaleziono LP.",
+            "generic": "Nie udało się zablokować tego LP. Spróbuj ponownie."
+          }
         }
       },
       "ruleNote": "Dostępne akcje wynikają z maszyny stanów LP. Okna akcji zostaną podłączone w późniejszym etapie.",

@@ -6,8 +6,8 @@
  * reads Supabase via getLpDetail and is exercised live). Asserts:
  *   - all 7 tabs render + switch (overview/history/reservations/movements/
  *     genealogy/labels/raw) (parity lp-screens.jsx:220-228,325-331)
- *   - the prototype action group renders DISABLED with "Coming soon" (red-line —
- *     lp-screens.jsx:310-317)
+ *   - the prototype action group keeps deferred actions disabled and wires live
+ *     Reserve / Block / Move / QA actions (lp-screens.jsx:310-317)
  *   - genealogy parent/children render as detail links (lp-screens.jsx:400-450)
  *   - history / movements / reservations empty states
  *   - i18n: en + pl staged detail keys resolve (no leaked dotted keys)
@@ -31,18 +31,19 @@ vi.mock('next/navigation', () => ({
 import {
   LpDetailClient,
   LP_DEFERRED_ACTIONS,
+  LP_DETAIL_ACTIONS,
   LP_DETAIL_TABS,
   type LpDetailLabels,
-  type LpDeferredAction,
+  type LpDetailAction,
 } from '../lp-detail.client';
-import { LP_DEFERRED_ACTIONS as LP_DEFERRED_ACTIONS_SERVER_SAFE } from '../lp-detail-constants';
+import { LP_DEFERRED_ACTIONS as LP_DEFERRED_ACTIONS_SERVER_SAFE, LP_DETAIL_ACTIONS as LP_DETAIL_ACTIONS_SERVER_SAFE } from '../lp-detail-constants';
 import { getLpTranslator } from '../../../lp-labels';
 import type { LicensePlateDetail } from '../../../../_actions/shared';
 
 function buildLabels(locale: string): LpDetailLabels {
   const t = getLpTranslator(locale);
-  const labelByKey = {} as Record<LpDeferredAction, string>;
-  for (const k of LP_DEFERRED_ACTIONS) labelByKey[k] = t(`detail.actions.${k}`);
+  const labelByKey = {} as Record<LpDetailAction, string>;
+  for (const k of LP_DETAIL_ACTIONS) labelByKey[k] = t(`detail.actions.${k}`);
   return {
     back: t('detail.back'),
     qtyLine: t('detail.header.qtyLine'),
@@ -76,6 +77,51 @@ function buildLabels(locale: string): LpDetailLabels {
     actions: {
       comingSoon: t('detail.actions.comingSoon'),
       labelByKey,
+      reserve: {
+        title: t('detail.actions.reserveModal.title'),
+        intro: t('detail.actions.reserveModal.intro'),
+        search: t('detail.actions.reserveModal.search'),
+        searchPlaceholder: t('detail.actions.reserveModal.searchPlaceholder'),
+        wo: t('detail.actions.reserveModal.wo'),
+        woPlaceholder: t('detail.actions.reserveModal.woPlaceholder'),
+        qty: t('detail.actions.reserveModal.qty'),
+        qtyHint: t('detail.actions.reserveModal.qtyHint'),
+        loading: t('detail.actions.reserveModal.loading'),
+        empty: t('detail.actions.reserveModal.empty'),
+        cancel: t('detail.actions.reserveModal.cancel'),
+        confirm: t('detail.actions.reserveModal.confirm'),
+        submitting: t('detail.actions.reserveModal.submitting'),
+        errors: {
+          forbidden: t('detail.actions.reserveModal.errors.forbidden'),
+          invalidInput: t('detail.actions.reserveModal.errors.invalidInput'),
+          notFound: t('detail.actions.reserveModal.errors.notFound'),
+          locked: t('detail.actions.reserveModal.errors.locked'),
+          invalidState: t('detail.actions.reserveModal.errors.invalidState'),
+          notReleased: t('detail.actions.reserveModal.errors.notReleased'),
+          otherWo: t('detail.actions.reserveModal.errors.otherWo'),
+          woNotOpen: t('detail.actions.reserveModal.errors.woNotOpen'),
+          qtyExceedsAvailable: t('detail.actions.reserveModal.errors.qtyExceedsAvailable'),
+          generic: t('detail.actions.reserveModal.errors.generic'),
+        },
+      },
+      block: {
+        title: t('detail.actions.blockModal.title'),
+        intro: t('detail.actions.blockModal.intro'),
+        reason: t('detail.actions.blockModal.reason'),
+        reasonPlaceholder: t('detail.actions.blockModal.reasonPlaceholder'),
+        cancel: t('detail.actions.blockModal.cancel'),
+        confirm: t('detail.actions.blockModal.confirm'),
+        submitting: t('detail.actions.blockModal.submitting'),
+        errors: {
+          forbidden: t('detail.actions.blockModal.errors.forbidden'),
+          alreadyBlocked: t('detail.actions.blockModal.errors.alreadyBlocked'),
+          terminal: t('detail.actions.blockModal.errors.terminal'),
+          locked: t('detail.actions.blockModal.errors.locked'),
+          invalidInput: t('detail.actions.blockModal.errors.invalidInput'),
+          notFound: t('detail.actions.blockModal.errors.notFound'),
+          generic: t('detail.actions.blockModal.errors.generic'),
+        },
+      },
       qaRelease: {
         title: t('detail.actions.qaRelease.title'),
         decision: t('detail.actions.qaRelease.decision'),
@@ -272,6 +318,37 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
 
 const updateLpMetadataStub: any = async () => ({ ok: true });
 const printLabelActionStub: any = async () => ({ status: 'sent', result_url: 'data:text/plain;charset=utf-8,label' });
+const blockLpActionStub: any = async () => ({
+  ok: true,
+  data: { lpId: 'lp-1', lpNumber: 'LP-0001', status: 'blocked', qaStatus: 'on_hold', holdId: 'hold-1', holdNumber: 'HLD-00000001' },
+});
+const reserveLpActionStub: any = async () => ({
+  ok: true,
+  data: {
+    lpId: 'lp-1',
+    lpNumber: 'LP-0001',
+    status: 'reserved',
+    reservedQty: '5.000000',
+    availableQty: '115.000000',
+    reservedForWoId: 'wo-1',
+    reservedForWoNumber: 'WO-001',
+    uom: 'kg',
+  },
+});
+const listOpenWorkOrdersForLpReserveActionStub: any = async () => ({
+  ok: true,
+  data: [
+    {
+      id: 'wo-1',
+      woNumber: 'WO-001',
+      status: 'RELEASED',
+      itemCode: 'FG-001',
+      itemName: 'Finished good',
+      plannedQuantity: '100',
+      uom: 'kg',
+    },
+  ],
+});
 
 function renderDetail(
   over: Partial<LicensePlateDetail> = {},
@@ -284,6 +361,9 @@ function renderDetail(
       labels,
       locale: 'en',
       releaseQaAction: releaseQaActionStub,
+      blockLpAction: blockLpActionStub,
+      reserveLpAction: reserveLpActionStub,
+      listOpenWorkOrdersForLpReserveAction: listOpenWorkOrdersForLpReserveActionStub,
       listLocationsAction: listLocationsActionStub,
       createStockMoveAction: createStockMoveActionStub,
       updateLpMetadataAction: updateLpMetadataStub,
@@ -313,20 +393,32 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-raw-json')).toBeInTheDocument();
   });
 
-  it('keeps deferred actions disabled but makes QA live only while pending', () => {
+  it('keeps only deferred actions disabled and makes reserve / move / block live', () => {
     renderDetail();
     for (const key of LP_DEFERRED_ACTIONS) {
       const btn = screen.getByTestId(`lp-action-${key}`);
-      if (key === 'qa') {
-        expect(btn).toBeDisabled();
-        expect(btn).toHaveAttribute('title', EN.actions.qaRelease.unavailable);
-      } else if (key === 'move') {
-        expect(btn).toBeEnabled();
-      } else {
-        expect(btn).toBeDisabled();
-        expect(btn).toHaveAttribute('title', EN.actions.comingSoon);
-      }
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute('title', EN.actions.comingSoon);
     }
+    expect(screen.getByTestId('lp-action-qa')).toBeDisabled();
+    expect(screen.getByTestId('lp-action-qa')).toHaveAttribute('title', EN.actions.qaRelease.unavailable);
+    expect(screen.getByTestId('lp-action-reserve')).toBeEnabled();
+    expect(screen.getByTestId('lp-action-move')).toBeEnabled();
+    expect(screen.getByTestId('lp-action-block')).toBeEnabled();
+  });
+
+  it('opens reserve and block modals from the action group', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByTestId('lp-action-reserve'));
+    expect(await screen.findByTestId('lp-reserve-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-reserve-qty')).toHaveValue('120');
+    fireEvent.click(screen.getByTestId('modal-close-button'));
+
+    await user.click(screen.getByTestId('lp-action-block'));
+    expect(await screen.findByTestId('lp-block-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-block-confirm')).toBeDisabled();
   });
 
   it('opens the QA release modal for pending LPs', () => {
@@ -538,7 +630,7 @@ describe('LpDetailClient — edit metadata (C-R3)', () => {
 /**
  * REGRESSION — live crash on EVERY LP detail page (error digest 1984471676).
  *
- * The RSC page iterated LP_DEFERRED_ACTIONS imported from the 'use client'
+ * The RSC page iterated LP action arrays imported from the 'use client'
  * module; in the React server module graph every export of a client module is a
  * client-reference proxy, so `for (const k of LP_DEFERRED_ACTIONS)` threw
  * `TypeError: ... LP_DEFERRED_ACTIONS is not iterable` and 500'd the success
@@ -560,13 +652,19 @@ describe('LP detail RSC crash regression (digest 1984471676)', () => {
     expect(src).not.toMatch(/^\s*['"]use client['"]\s*;?\s*$/m);
 
     // The exact shape buildLabels() relies on at runtime in the RSC.
+    expect(Array.isArray(LP_DETAIL_ACTIONS_SERVER_SAFE)).toBe(true);
+    const actionOrder: string[] = [];
+    for (const k of LP_DETAIL_ACTIONS_SERVER_SAFE) actionOrder.push(k);
+    expect(actionOrder).toEqual(['split', 'merge', 'qa', 'reserve', 'move', 'block', 'destroy']);
+
     expect(Array.isArray(LP_DEFERRED_ACTIONS_SERVER_SAFE)).toBe(true);
     const collected: string[] = [];
     for (const k of LP_DEFERRED_ACTIONS_SERVER_SAFE) collected.push(k);
-    expect(collected).toEqual(['split', 'merge', 'qa', 'reserve', 'move', 'block', 'destroy']);
+    expect(collected).toEqual(['split', 'merge', 'destroy']);
   });
 
-  it('client module re-exports the same array (single source of truth)', () => {
+  it('client module re-exports the same arrays (single source of truth)', () => {
+    expect(LP_DETAIL_ACTIONS).toBe(LP_DETAIL_ACTIONS_SERVER_SAFE);
     expect(LP_DEFERRED_ACTIONS).toBe(LP_DEFERRED_ACTIONS_SERVER_SAFE);
   });
 
@@ -574,7 +672,7 @@ describe('LP detail RSC crash regression (digest 1984471676)', () => {
     const src = readFileSync(pagePath, 'utf8');
 
     // The value import must target the constants module.
-    expect(src).toMatch(/LP_DEFERRED_ACTIONS[\s\S]{0,200}from '\.\/_components\/lp-detail-constants'/);
+    expect(src).toMatch(/LP_DETAIL_ACTIONS[\s\S]{0,200}from '\.\/_components\/lp-detail-constants'/);
 
     // Every import from the client module must be the component or `type ...`.
     const clientImport = src.match(/import\s*\{([^}]+)\}\s*from '\.\/_components\/lp-detail\.client'/);

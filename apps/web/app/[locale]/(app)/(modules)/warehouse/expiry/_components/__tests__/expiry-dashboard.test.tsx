@@ -7,14 +7,18 @@
  *   - summary strip red/amber count cards (parity other-screens.jsx:399-410)
  *   - rows split into the red tier and amber tier sections (the tier field drives it)
  *   - rows render LP detail link, item, days-left, location (other-screens.jsx:464-485)
- *   - "Force block" renders DISABLED with a "Coming soon" title (documented red-line)
+ *   - "Force block" opens the block modal wired to the shared LP block action
  *   - global empty state when there are no rows
  *   - i18n: en + pl staged bundles resolve every label (no leaked dotted key)
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 import { ExpiryDashboardClient, type ExpiryLabels, type ExpiryRow } from '../expiry-dashboard.client';
 import { getWhdTranslator } from '../../../wh-d-labels';
@@ -47,6 +51,24 @@ function buildExpiryLabels(locale: string): ExpiryLabels {
     expired: t('expiryPage.expired'),
     forceBlock: t('expiryPage.forceBlock'),
     forceBlockComingSoon: t('expiryPage.forceBlockComingSoon'),
+    blockModal: {
+      title: t('expiryPage.blockModal.title'),
+      intro: t('expiryPage.blockModal.intro'),
+      reason: t('expiryPage.blockModal.reason'),
+      reasonPlaceholder: t('expiryPage.blockModal.reasonPlaceholder'),
+      cancel: t('expiryPage.blockModal.cancel'),
+      confirm: t('expiryPage.blockModal.confirm'),
+      submitting: t('expiryPage.blockModal.submitting'),
+      errors: {
+        forbidden: t('expiryPage.blockModal.errors.forbidden'),
+        alreadyBlocked: t('expiryPage.blockModal.errors.alreadyBlocked'),
+        terminal: t('expiryPage.blockModal.errors.terminal'),
+        locked: t('expiryPage.blockModal.errors.locked'),
+        invalidInput: t('expiryPage.blockModal.errors.invalidInput'),
+        notFound: t('expiryPage.blockModal.errors.notFound'),
+        generic: t('expiryPage.blockModal.errors.generic'),
+      },
+    },
     none: t('expiryPage.none'),
     empty: t('expiryPage.empty'),
     status: {
@@ -81,7 +103,11 @@ function makeRow(over: Partial<ExpiryRow>): ExpiryRow {
 }
 
 function renderExpiry(rows: ExpiryRow[], redCount: number, amberCount: number, labels: ExpiryLabels = EN) {
-  return render(<ExpiryDashboardClient rows={rows} redCount={redCount} amberCount={amberCount} labels={labels} locale="en" />);
+  const blockAction = vi.fn(async () => ({
+    ok: true as const,
+    data: { lpId: 'lp-1', lpNumber: 'LP00000007', status: 'blocked', qaStatus: 'on_hold', holdId: 'hold-1', holdNumber: 'HLD-00000001' },
+  }));
+  return render(<ExpiryDashboardClient rows={rows} redCount={redCount} amberCount={amberCount} labels={labels} locale="en" blockAction={blockAction} />);
 }
 
 describe('ExpiryDashboardClient (WH-019 parity)', () => {
@@ -127,12 +153,14 @@ describe('ExpiryDashboardClient (WH-019 parity)', () => {
     expect(within(row).getByText(EN.expired.replace('{days}', '6'))).toBeInTheDocument();
   });
 
-  it('renders Force block DISABLED with a "Coming soon" title (red-line, never faked)', () => {
+  it('opens the Force block modal for the selected LP', () => {
     renderExpiry([makeRow({ lpId: 'lp-1' })], 1, 0);
     const btn = screen.getByTestId('expiry-force-block-lp-1');
-    expect(btn).toBeDisabled();
-    expect(btn).toHaveAttribute('title', EN.forceBlockComingSoon);
+    expect(btn).toBeEnabled();
     expect(btn).toHaveTextContent(EN.forceBlock);
+    fireEvent.click(btn);
+    expect(screen.getByTestId('lp-block-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-block-confirm')).toBeDisabled();
   });
 
   it('shows the global empty state when there are no rows', () => {

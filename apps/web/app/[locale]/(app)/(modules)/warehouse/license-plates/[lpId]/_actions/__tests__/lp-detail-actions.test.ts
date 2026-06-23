@@ -1,0 +1,194 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { blockLp, reserveLp } from '../lp-detail-actions';
+import type { QueryClient } from '../../../../_actions/shared';
+
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const USER_ID = '22222222-2222-4222-8222-222222222222';
+const LP_ID = '33333333-3333-4333-8333-333333333333';
+const WO_ID = '44444444-4444-4444-8444-444444444444';
+const SITE_ID = '55555555-5555-4555-8555-555555555555';
+
+let client: QueryClient;
+let grantedPermissions: Set<string>;
+let lpStatus: string;
+let lpQaStatus: string;
+let lpReservedQty: string;
+let reserveTooLarge: boolean;
+let activeHold: boolean;
+
+vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+    action({ userId: USER_ID, orgId: ORG_ID, client }),
+  ),
+}));
+
+function normalize(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function makeClient(): QueryClient {
+  return {
+    query: vi.fn(async (sql: string, params?: unknown[]) => {
+      const q = normalize(sql);
+
+      if (q.includes('from public.user_roles')) {
+        const permission = String(params?.[2] ?? '');
+        const ok = grantedPermissions.has(permission);
+        return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
+      }
+
+      if (q.includes('from public.license_plates lp') && q.includes('for update')) {
+        return {
+          rows: [
+            {
+              id: LP_ID,
+              lp_number: 'LP-001',
+              status: lpStatus,
+              qa_status: lpQaStatus,
+              quantity: '10.000000',
+              reserved_qty: lpReservedQty,
+              reserved_for_wo_id: null,
+              uom: 'kg',
+              site_id: SITE_ID,
+              wo_id: null,
+              grn_id: null,
+              lock_is_active_for_other_user: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (q.includes('from public.v_active_holds')) {
+        return { rows: activeHold ? [{ hold_id: 'hold-existing' }] : [], rowCount: activeHold ? 1 : 0 };
+      }
+
+      if (q.startsWith('insert into public.quality_holds')) {
+        return { rows: [{ id: '66666666-6666-4666-8666-666666666666', hold_number: 'HLD-00000001' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.quality_hold_items')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.license_plates') && q.includes("set status = 'blocked'")) {
+        return {
+          rows: [{ id: LP_ID, lp_number: 'LP-001', status: 'blocked', qa_status: 'on_hold' }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('select id::text, wo_number, status from public.work_orders')) {
+        return { rows: [{ id: WO_ID, wo_number: 'WO-001', status: 'RELEASED' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select ($1::numeric <=')) {
+        return { rows: [{ fits: !reserveTooLarge }], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.license_plates lp') && q.includes('reserved_qty = reserved_qty +')) {
+        return reserveTooLarge
+          ? { rows: [], rowCount: 0 }
+          : {
+              rows: [
+                {
+                  id: LP_ID,
+                  lp_number: 'LP-001',
+                  status: 'reserved',
+                  reserved_qty: '5.000000',
+                  available_qty: '5.000000',
+                  reserved_for_wo_id: WO_ID,
+                  reserved_for_wo_number: 'WO-001',
+                  uom: 'kg',
+                },
+              ],
+              rowCount: 1,
+            };
+      }
+
+      if (q.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      return { rows: [], rowCount: 0 };
+    }),
+  };
+}
+
+describe('LP detail reserve/block server actions', () => {
+  beforeEach(() => {
+    grantedPermissions = new Set(['warehouse.lp.block', 'warehouse.lp.reserve']);
+    lpStatus = 'available';
+    lpQaStatus = 'released';
+    lpReservedQty = '0.000000';
+    reserveTooLarge = false;
+    activeHold = false;
+    client = makeClient();
+  });
+
+  it('blockLp creates a canonical quality hold, blocks the LP, and writes audit/outbox', async () => {
+    const result = await blockLp(LP_ID, 'expired product');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data).toMatchObject({ lpId: LP_ID, status: 'blocked', qaStatus: 'on_hold', holdNumber: 'HLD-00000001' });
+
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
+    expect(calls.find((call) => call.sql.includes('from public.user_roles'))?.params?.[2]).toBe('warehouse.lp.block');
+    expect(calls.some((call) => call.sql.startsWith('insert into public.quality_holds'))).toBe(true);
+    expect(calls.some((call) => call.sql.startsWith('insert into public.quality_hold_items'))).toBe(true);
+    expect(calls.some((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes("qa_status = 'on_hold'"))).toBe(true);
+    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
+    expect(history?.params?.[3]).toBe('expired product');
+    const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[1]).toContain('"source":"warehouse_lp_block"');
+  });
+
+  it('blockLp rejects an already-blocked LP before creating a hold', async () => {
+    lpStatus = 'blocked';
+
+    const result = await blockLp(LP_ID, 'duplicate hold');
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'already_blocked' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('insert into public.quality_holds'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('reserveLp reserves available quantity for an open WO and writes audit history', async () => {
+    const result = await reserveLp(LP_ID, WO_ID, '5');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data).toMatchObject({
+      lpId: LP_ID,
+      status: 'reserved',
+      reservedQty: '5.000000',
+      reservedForWoId: WO_ID,
+      reservedForWoNumber: 'WO-001',
+    });
+
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
+    expect(calls.find((call) => call.sql.includes('from public.user_roles'))?.params?.[2]).toBe('warehouse.lp.reserve');
+    const update = calls.find((call) => call.sql.startsWith('update public.license_plates lp') && call.sql.includes('reserved_qty = reserved_qty +'));
+    expect(update?.params?.slice(0, 4)).toEqual([LP_ID, '5', WO_ID, USER_ID]);
+    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
+    expect(history?.params?.[3]).toBe('Manual reserve 5 kg for WO-001');
+  });
+
+  it('reserveLp rejects qty greater than LP available quantity before updating', async () => {
+    reserveTooLarge = true;
+
+    const result = await reserveLp(LP_ID, WO_ID, '11');
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'qty_exceeds_available' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates lp') && sql.includes('reserved_qty = reserved_qty +'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+});

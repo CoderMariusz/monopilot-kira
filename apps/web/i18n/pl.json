@@ -6858,6 +6858,34 @@
           "noConsumptionTooltip": "Brak zarejestrowanej konsumpcji materiałów dla tego WO — wyrób nie będzie miał powiązania genealogicznego/identyfikowalności. Zarejestruj najpierw konsumpcję lub kontynuuj.",
           "noConsumptionContinue": "Kontynuuj mimo to"
         },
+        "disassembly": {
+          "triggerAction": "Zarejestruj wyniki rozbioru",
+          "title": "Zarejestruj wyniki rozbioru",
+          "subtitle": "Rozłóż wejściową paletę na elementy współproduktów. Wprowadź rzeczywistą uzyskaną wagę dla każdego wyniku — koszt wejścia zostanie automatycznie rozdzielony.",
+          "inputLp": "Wejściowa paleta (LP)",
+          "inputLpPlaceholder": "Wybierz wejście do rozbioru",
+          "inputLpEmpty": "Do tego zlecenia nie zużyto jeszcze żadnego wejścia — najpierw zarejestruj zużycie wejścia.",
+          "outputsTitle": "Oczekiwane wyniki",
+          "outputsEmpty": "Ten BOM rozbioru nie ma skonfigurowanych współproduktów wyjściowych.",
+          "allocation": "{pct}% alokacji",
+          "byproduct": "Produkt uboczny",
+          "qty": "Uzyskana ilość",
+          "qtyHint": "Rzeczywista waga tego elementu, w {uom}.",
+          "submit": "Zarejestruj wyniki",
+          "submitting": "Rejestrowanie…",
+          "cancel": "Anuluj",
+          "formIncomplete": "Wprowadź dodatnią ilość dla każdego wyniku.",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do rejestrowania wyników rozbioru.",
+            "not-disassembly": "To zlecenie nie jest zleceniem rozbioru.",
+            "co-product-mismatch": "Wyniki nie pasują do tego BOM rozbioru — odśwież i spróbuj ponownie.",
+            "input-cost-missing": "Wejściowa paleta nie ma kosztu — ustaw koszt pozycji wejściowej przed rozbiorem.",
+            "invalid-input": "Sprawdź pola i spróbuj ponownie.",
+            "not-found": "To zlecenie lub jego BOM już nie istnieje — odśwież i spróbuj ponownie.",
+            "warehouse-not-configured": "Nie skonfigurowano domyślnego magazynu — ustaw go przed rejestracją wyniku.",
+            "generic": "Nie można zarejestrować wyników rozbioru."
+          }
+        },
         "waste": {
           "title": "Zdarzenia odpadów",
           "empty": "Brak odpadów dla tego zlecenia produkcyjnego.",

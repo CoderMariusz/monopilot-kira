@@ -19,19 +19,23 @@
  * red/amber sections — same density, same columns, same semantic colors.
  *
  * DEVIATIONS (red-lines):
- *   - "Force block" / Destroy / Manager-override actions (other-screens.jsx:475-485)
- *     have NO backing Server Action in scope. We render a single DISABLED
- *     "Force block" button with a "Coming soon" title — never a fake/no-op action.
+ *   - Destroy / Manager-override actions (other-screens.jsx:475-485) remain
+ *     deferred. "Force block" is live and reuses the LP-detail block Server Action.
  *   - Tabs (Expired / Expiring soon), mode pills, product/warehouse filter selects,
  *     "Run cron now" / Export, and the legal use_by/best_before footnote cards are
  *     deferred to a later lane (no backing read/action in scope).
  */
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+
+import type { blockLp } from '../../license-plates/[lpId]/_actions/lp-detail-actions';
+import { LpBlockModal, type LpBlockModalLabels } from '../../license-plates/[lpId]/_components/lp-block-modal.client';
 
 export type ExpiryRow = {
   lpId: string;
@@ -68,6 +72,7 @@ export type ExpiryLabels = {
   expired: string;
   forceBlock: string;
   forceBlockComingSoon: string;
+  blockModal: LpBlockModalLabels;
   none: string;
   empty: string;
   status: Record<string, string>;
@@ -97,6 +102,7 @@ function TierSection({
   rows,
   labels,
   locale,
+  onForceBlock,
 }: {
   testId: string;
   title: string;
@@ -104,6 +110,7 @@ function TierSection({
   rows: ExpiryRow[];
   labels: ExpiryLabels;
   locale: string;
+  onForceBlock: (row: ExpiryRow) => void;
 }) {
   return (
     <Card data-testid={testId} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -168,15 +175,11 @@ function TierSection({
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  {/* RED-LINE: no backing Server Action for force-block in scope.
-                      Rendered DISABLED with a "Coming soon" title — never faked. */}
                   <button
                     type="button"
-                    disabled
-                    aria-disabled="true"
-                    title={labels.forceBlockComingSoon}
+                    onClick={() => onForceBlock(row)}
                     data-testid={`expiry-force-block-${row.lpId}`}
-                    className="cursor-not-allowed rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-400"
+                    className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
                   >
                     {labels.forceBlock}
                   </button>
@@ -196,15 +199,19 @@ export function ExpiryDashboardClient({
   amberCount,
   labels,
   locale,
+  blockAction,
 }: {
   rows: ExpiryRow[];
   redCount: number;
   amberCount: number;
   labels: ExpiryLabels;
   locale: string;
+  blockAction: typeof blockLp;
 }) {
   const redRows = rows.filter((r) => r.tier === 'red');
   const amberRows = rows.filter((r) => r.tier === 'amber');
+  const [blockingRow, setBlockingRow] = useState<ExpiryRow | null>(null);
+  const router = useRouter();
 
   return (
     <div className="flex flex-col gap-6" data-testid="expiry-dashboard">
@@ -239,6 +246,7 @@ export function ExpiryDashboardClient({
             rows={redRows}
             labels={labels}
             locale={locale}
+            onForceBlock={setBlockingRow}
           />
           <TierSection
             testId="expiry-tier-amber"
@@ -247,9 +255,26 @@ export function ExpiryDashboardClient({
             rows={amberRows}
             labels={labels}
             locale={locale}
+            onForceBlock={setBlockingRow}
           />
         </>
       )}
+      {blockingRow ? (
+        <LpBlockModal
+          open={Boolean(blockingRow)}
+          onOpenChange={(next) => {
+            if (!next) setBlockingRow(null);
+          }}
+          lpId={blockingRow.lpId}
+          lpNumber={blockingRow.lpNumber}
+          labels={labels.blockModal}
+          blockAction={blockAction}
+          onSuccess={() => {
+            setBlockingRow(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

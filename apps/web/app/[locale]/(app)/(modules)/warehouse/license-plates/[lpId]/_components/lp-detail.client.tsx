@@ -59,6 +59,8 @@ import type { LicensePlateDetail } from '../../../_actions/shared';
 import type { WarehouseResult } from '../../../_actions/shared';
 import type { createStockMove } from '../../../_actions/stock-move-actions';
 import type { listLocations } from '../../../_actions/location-read-actions';
+import type { blockLp, listOpenWorkOrdersForLpReserve, reserveLp } from '../_actions/lp-detail-actions';
+import { LpBlockModal, type LpBlockModalLabels } from './lp-block-modal.client';
 import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
 import {
   LpMetadataEditModal,
@@ -66,11 +68,12 @@ import {
   type UpdateLpMetadataInput,
   type UpdateLpMetadataResult,
 } from './lp-metadata-edit-modal.client';
-import { LP_DEFERRED_ACTIONS, type LpDeferredAction } from './lp-detail-constants';
+import { LpReserveModal, type LpReserveModalLabels } from './lp-reserve-modal.client';
+import { LP_DEFERRED_ACTIONS, LP_DETAIL_ACTIONS, type LpDetailAction, type LpDeferredAction } from './lp-detail-constants';
 
 // Client-side consumers (tests) may keep importing these from here; SERVER code
 // must import from './lp-detail-constants' — see the regression note there.
-export { LP_DEFERRED_ACTIONS, type LpDeferredAction };
+export { LP_DEFERRED_ACTIONS, LP_DETAIL_ACTIONS, type LpDetailAction, type LpDeferredAction };
 
 /** LP statuses for which the "move" action is NOT allowed (terminal lifecycle). */
 const IMMOVABLE_STATUSES = new Set(['consumed', 'merged', 'shipped', 'returned', 'destroyed']);
@@ -146,7 +149,9 @@ export type LpDetailLabels = {
   };
   actions: {
     comingSoon: string;
-    labelByKey: Record<LpDeferredAction, string>;
+    labelByKey: Record<LpDetailAction, string>;
+    reserve: LpReserveModalLabels;
+    block: LpBlockModalLabels;
     qaRelease: {
       title: string;
       decision: string;
@@ -245,6 +250,9 @@ export function LpDetailClient({
   labels,
   locale,
   releaseQaAction,
+  blockLpAction,
+  reserveLpAction,
+  listOpenWorkOrdersForLpReserveAction,
   listLocationsAction,
   createStockMoveAction,
   updateLpMetadataAction,
@@ -255,6 +263,9 @@ export function LpDetailClient({
   labels: LpDetailLabels;
   locale: string;
   releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
+  blockLpAction: typeof blockLp;
+  reserveLpAction: typeof reserveLp;
+  listOpenWorkOrdersForLpReserveAction: typeof listOpenWorkOrdersForLpReserve;
   listLocationsAction: typeof listLocations;
   createStockMoveAction: typeof createStockMove;
   /**
@@ -278,6 +289,8 @@ export function LpDetailClient({
   const [qaDecision, setQaDecision] = useState<ReleaseLpQaDecision>('released');
   const [qaNote, setQaNote] = useState('');
   const [qaError, setQaError] = useState<string | null>(null);
+  const [reserveModalOpen, setReserveModalOpen] = useState(false);
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -445,10 +458,10 @@ export function LpDetailClient({
             )}
           </IdentityRow>
 
-          {/* Action group. QA release (pending qa_status) and Move (non-terminal
-              status, AUDIT #5) are live; the rest remains deferred. */}
+          {/* Action group. QA release, Reserve, Move, and Block are live; split /
+              merge / destroy remain deferred. */}
           <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3" data-testid="lp-detail-actions">
-            {LP_DEFERRED_ACTIONS.map((key) =>
+            {LP_DETAIL_ACTIONS.map((key) =>
               key === 'qa' ? (
                 <button
                   key={key}
@@ -466,6 +479,16 @@ export function LpDetailClient({
                 >
                   {labels.actions.labelByKey[key]}
                 </button>
+              ) : key === 'reserve' ? (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={`lp-action-${key}`}
+                  onClick={() => setReserveModalOpen(true)}
+                  className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                >
+                  {labels.actions.labelByKey[key]}
+                </button>
               ) : key === 'move' ? (
                 <button
                   key={key}
@@ -480,6 +503,16 @@ export function LpDetailClient({
                       ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
                       : 'cursor-not-allowed border-slate-200 text-slate-400',
                   ].join(' ')}
+                >
+                  {labels.actions.labelByKey[key]}
+                </button>
+              ) : key === 'block' ? (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={`lp-action-${key}`}
+                  onClick={() => setBlockModalOpen(true)}
+                  className="rounded-md border border-red-300 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50"
                 >
                   {labels.actions.labelByKey[key]}
                 </button>
@@ -838,6 +871,29 @@ export function LpDetailClient({
           </button>
         </Modal.Footer>
       </Modal>
+
+      <LpReserveModal
+        open={reserveModalOpen}
+        onOpenChange={setReserveModalOpen}
+        lpId={detail.id}
+        lpNumber={detail.lpNumber}
+        availableQty={detail.availableQty}
+        uom={detail.uom}
+        labels={labels.actions.reserve}
+        reserveAction={reserveLpAction}
+        listWorkOrdersAction={listOpenWorkOrdersForLpReserveAction}
+        onSuccess={() => router.refresh()}
+      />
+
+      <LpBlockModal
+        open={blockModalOpen}
+        onOpenChange={setBlockModalOpen}
+        lpId={detail.id}
+        lpNumber={detail.lpNumber}
+        labels={labels.actions.block}
+        blockAction={blockLpAction}
+        onSuccess={() => router.refresh()}
+      />
 
       {/* AUDIT #5: LP MOVE modal — wires createStockMove. Refreshes on success so
           the Movements tab shows the new move. */}

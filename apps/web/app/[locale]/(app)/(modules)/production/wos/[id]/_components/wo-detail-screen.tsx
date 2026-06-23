@@ -76,6 +76,11 @@ import {
   type ReverseConsumptionInput,
   type ReverseConsumptionResult,
 } from './reverse-consumption-modal';
+import {
+  RegisterDisassemblyOutputModal,
+  type DisassemblyModalLabels,
+  type DisassemblyRegisterResult,
+} from './register-disassembly-output-modal';
 import type {
   WoActionPermissions,
   WoModalLabels,
@@ -258,6 +263,12 @@ export type WoDetailLabels = {
     /** Register-output modal [Continue anyway] affordance copy. */
     noConsumptionContinue: string;
   };
+  /**
+   * E7 — disassembly execution: the action-bar trigger + the registration modal
+   * copy (input-LP picker + per-output qty entry). Shown ONLY for a WO whose
+   * active BOM is bom_type='disassembly'.
+   */
+  disassembly: { triggerAction: string } & DisassemblyModalLabels;
   waste: {
     title: string;
     empty: string;
@@ -403,6 +414,7 @@ export function WoDetailScreen({
   voidWoOutputAction,
   voidWasteEntryAction,
   reverseConsumptionAction,
+  registerDisassemblyOutputAction,
   printFgLabelAction,
   canPrintFgLabel = false,
   laborSummary = null,
@@ -456,6 +468,18 @@ export function WoDetailScreen({
    */
   reverseConsumptionAction: (input: ReverseConsumptionInput) => Promise<ReverseConsumptionResult>;
   /**
+   * E7 — execute a disassembly WO (registerDisassemblyOutput via the
+   * disassembly-outputs route). OWNED by the page (which composes the locale-
+   * prefixed fetch + router.refresh on success); this component never imports the
+   * route directly. RBAC (production.output.write) + bom_type='disassembly' are
+   * re-checked server-side — the affordance here only governs the trigger/modal.
+   */
+  registerDisassemblyOutputAction: (input: {
+    woId: string;
+    inputLpId: string;
+    outputs: Array<{ coProductItemId: string; qtyKg: string }>;
+  }) => Promise<DisassemblyRegisterResult>;
+  /**
    * E4B — labor summary for this WO (getWoLaborSummary). Null when the read
    * failed/forbade — the tab then surfaces the matching `laborState` notice.
    * Entries carry the OPERATOR NAME (server-resolved); never a raw user UUID.
@@ -495,6 +519,8 @@ export function WoDetailScreen({
   const [reverseTarget, setReverseTarget] = useState<
     { consumptionId: string; lpLabel: string } | null
   >(null);
+  // E7 — disassembly registration modal open state.
+  const [disassemblyOpen, setDisassemblyOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { header: h } = data;
@@ -537,6 +563,17 @@ export function WoDetailScreen({
   // hides the affordance; the action re-checks production.consumption.write).
   const canRecordConsumption =
     actions !== null && (h.status === 'in_progress' || h.status === 'paused');
+
+  // E7 — the "Register disassembly outputs" action is offered ONLY when (a) the
+  // WO's active BOM is bom_type='disassembly', (b) an action context resolved
+  // (RBAC re-checked server-side — this only hides the affordance), and (c) the WO
+  // is in an output-recordable runtime state (mirrors OUTPUT_RECORDABLE_STATES:
+  // in_progress / paused / completed). The route + service re-validate everything.
+  const isDisassemblyWo = h.bomType === 'disassembly';
+  const canRegisterDisassembly =
+    actions !== null &&
+    isDisassemblyWo &&
+    (h.status === 'in_progress' || h.status === 'paused' || h.status === 'completed');
 
   function openConsume(materialId: string | null) {
     setConsumePreselectId(materialId);
@@ -697,6 +734,16 @@ export function WoDetailScreen({
               <WoActionTrigger kind="resume" label={labels.headerActions.resume} />
               <WoActionTrigger kind="waste" label={labels.headerActions.waste} testid="wo-action-waste-header" />
               <WoActionTrigger kind="output" label={labels.headerActions.catchWeight} testid="wo-action-catchweight" />
+              {canRegisterDisassembly ? (
+                <button
+                  type="button"
+                  data-testid="wo-action-disassembly"
+                  onClick={() => setDisassemblyOpen(true)}
+                  className="rounded-md border border-slate-900 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  {labels.disassembly.triggerAction}
+                </button>
+              ) : null}
               <WoActionTrigger kind="complete" label={labels.headerActions.complete} />
               <WoActionTrigger kind="close" label={labels.headerActions.close} />
               <WoActionTrigger kind="cancel" label={labels.headerActions.cancel} />
@@ -880,6 +927,16 @@ export function WoDetailScreen({
               ) : null}
               {actions ? (
                 <WoActionTrigger kind="output" label={labels.output.addAction} variant="tab" testid="wo-output-add" />
+              ) : null}
+              {canRegisterDisassembly ? (
+                <button
+                  type="button"
+                  data-testid="wo-output-disassembly"
+                  onClick={() => setDisassemblyOpen(true)}
+                  className="rounded-md border border-slate-900 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  {labels.disassembly.triggerAction}
+                </button>
               ) : null}
             </CardHead>
             {data.hasOutputWithoutConsumption ? (
@@ -1392,6 +1449,25 @@ export function WoDetailScreen({
           onClose={() => setReverseTarget(null)}
           onReversed={() => {
             setReverseTarget(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {/* E7 — disassembly registration modal. Mounted only for a disassembly WO
+          with a resolved action context; lists the BOM co-products for qty entry
+          and posts to the disassembly-outputs route. */}
+      {canRegisterDisassembly ? (
+        <RegisterDisassemblyOutputModal
+          open={disassemblyOpen}
+          woId={h.id}
+          outputs={data.disassemblyOutputs}
+          inputLps={data.disassemblyInputLps}
+          labels={labels.disassembly}
+          registerAction={registerDisassemblyOutputAction}
+          onClose={() => setDisassemblyOpen(false)}
+          onRegistered={() => {
+            setDisassemblyOpen(false);
             router.refresh();
           }}
         />
