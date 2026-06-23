@@ -43,7 +43,7 @@ export type LpMetadataReasonCode = (typeof LP_METADATA_REASON_CODES)[number];
 
 export type UpdateLpMetadataInput = {
   lpId: string;
-  expiryDate?: string;
+  expiryDate?: string | null;
   batchNumber?: string;
   reasonCode: LpMetadataReasonCode;
   note?: string;
@@ -93,6 +93,10 @@ export type LpMetadataEditLabels = {
 function dateInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
   return iso.slice(0, 10);
+}
+
+function dateInputToIso(date: string): string {
+  return `${date}T00:00:00.000Z`;
 }
 
 export function LpMetadataEditModal({
@@ -158,14 +162,18 @@ export function LpMetadataEditModal({
     setError(null);
     startTransition(async () => {
       const note_ = note.trim() ? note.trim() : undefined;
-      const result = await updateLpMetadataAction({
+      const payload: UpdateLpMetadataInput = {
         lpId: lp.id,
-        // Only send a field when the operator actually changed it.
-        expiryDate: expiryChanged ? (expiry || '') : undefined,
-        batchNumber: batchChanged ? batch.trim() : undefined,
         reasonCode,
         note: note_,
-      });
+      };
+      if (expiryChanged) {
+        payload.expiryDate = expiry ? dateInputToIso(expiry) : null;
+      }
+      if (batchChanged) {
+        payload.batchNumber = batch.trim();
+      }
+      const result = await updateLpMetadataAction(payload);
       if (!result.ok) {
         setError(mapError(result.error));
         return;

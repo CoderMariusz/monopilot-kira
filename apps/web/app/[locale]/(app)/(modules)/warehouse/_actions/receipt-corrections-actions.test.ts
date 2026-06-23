@@ -31,6 +31,9 @@ type State = {
   lpQaStatus: string;
   lpQuantity: string;
   lpReservedQty: string;
+  lpBatchNumber: string | null;
+  lpExpiryDate: string | null;
+  lpBestBeforeDate: string | null;
   blockedByUsage: boolean;
 };
 
@@ -77,9 +80,9 @@ function makeClient(): QueryClient {
                 lp_qa_status: state.lpQaStatus,
                 lp_quantity: state.lpQuantity,
                 lp_reserved_qty: state.lpReservedQty,
-                lp_batch_number: 'B-OLD',
-                lp_expiry_date: '2026-08-01T00:00:00.000Z',
-                lp_best_before_date: '2026-08-01T00:00:00.000Z',
+                lp_batch_number: state.lpBatchNumber,
+                lp_expiry_date: state.lpExpiryDate,
+                lp_best_before_date: state.lpBestBeforeDate,
               }]
             : [],
           rowCount: state.lpExists ? 1 : 0,
@@ -92,9 +95,9 @@ function makeClient(): QueryClient {
             ? [{
                 id: LP_ID,
                 status: state.lpStatus,
-                batch_number: 'B-OLD',
-                expiry_date: '2026-08-01T00:00:00.000Z',
-                best_before_date: '2026-08-01T00:00:00.000Z',
+                batch_number: state.lpBatchNumber,
+                expiry_date: state.lpExpiryDate,
+                best_before_date: state.lpBestBeforeDate,
               }]
             : [],
           rowCount: state.lpExists ? 1 : 0,
@@ -136,6 +139,9 @@ beforeEach(() => {
     lpQaStatus: 'pending',
     lpQuantity: '10.000000',
     lpReservedQty: '0.000000',
+    lpBatchNumber: 'B-OLD',
+    lpExpiryDate: '2026-08-01T00:00:00.000Z',
+    lpBestBeforeDate: '2026-09-15T00:00:00.000Z',
     blockedByUsage: false,
   };
   queries = [];
@@ -186,7 +192,7 @@ describe('receipt corrections actions', () => {
     expect(result).toEqual({ ok: false, error: 'already_cancelled' });
   });
 
-  it('updateLpMetadata writes expiry_date and best_before_date together with batch_number', async () => {
+  it('updateLpMetadata edits expiry_date without changing best_before_date', async () => {
     const result = await updateLpMetadata({
       lpId: LP_ID,
       expiryDate: '2026-12-31T00:00:00.000Z',
@@ -197,10 +203,90 @@ describe('receipt corrections actions', () => {
     expect(result).toEqual({ ok: true });
 
     const update = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
-    expect(normalize(update!.sql)).toContain('expiry_date = coalesce($2::timestamptz, expiry_date)');
-    expect(normalize(update!.sql)).toContain('best_before_date = coalesce($2::timestamptz, best_before_date)');
+    expect(normalize(update!.sql)).toContain('expiry_date = $2::timestamptz');
+    expect(normalize(update!.sql)).not.toContain('best_before_date');
     expect(normalize(update!.sql)).toContain('batch_number = coalesce($3, batch_number)');
     expect(update!.params).toEqual([LP_ID, '2026-12-31T00:00:00.000Z', 'B-NEW', USER_ID]);
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    const historyExt = JSON.parse(history!.params[7] as string);
+    expect(historyExt).toMatchObject({
+      expiry_date_from: state.lpExpiryDate,
+      expiry_date_to: '2026-12-31T00:00:00.000Z',
+      best_before_date_from: state.lpBestBeforeDate,
+      best_before_date_to: state.lpBestBeforeDate,
+    });
+
+    const audit = queries.find((q) => normalize(q.sql).startsWith('insert into public.audit_events'));
+    const afterState = JSON.parse(audit!.params[5] as string);
+    expect(afterState).toMatchObject({
+      expiry_date: '2026-12-31T00:00:00.000Z',
+      best_before_date: state.lpBestBeforeDate,
+      batch_number: 'B-NEW',
+    });
+  });
+
+  it('updateLpMetadata clears expiry_date when expiryDate is null', async () => {
+    const result = await updateLpMetadata({
+      lpId: LP_ID,
+      expiryDate: null,
+      reasonCode: 'wrong_batch',
+      note: 'Supplier label removed expiry',
+    });
+    expect(result).toEqual({ ok: true });
+
+    const update = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    expect(normalize(update!.sql)).toContain('expiry_date = $2::timestamptz');
+    expect(normalize(update!.sql)).not.toContain('coalesce($2::timestamptz, expiry_date)');
+    expect(normalize(update!.sql)).not.toContain('best_before_date');
+    expect(update!.params).toEqual([LP_ID, null, USER_ID]);
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    const historyExt = JSON.parse(history!.params[7] as string);
+    expect(historyExt).toMatchObject({
+      expiry_date_from: state.lpExpiryDate,
+      expiry_date_to: null,
+      best_before_date_to: state.lpBestBeforeDate,
+    });
+
+    const audit = queries.find((q) => normalize(q.sql).startsWith('insert into public.audit_events'));
+    const afterState = JSON.parse(audit!.params[5] as string);
+    expect(afterState).toMatchObject({
+      expiry_date: null,
+      best_before_date: state.lpBestBeforeDate,
+      batch_number: state.lpBatchNumber,
+    });
+  });
+
+  it('updateLpMetadata preserves expiry_date when expiryDate is omitted', async () => {
+    const result = await updateLpMetadata({
+      lpId: LP_ID,
+      batchNumber: 'B-NEW',
+      reasonCode: 'wrong_batch',
+    });
+    expect(result).toEqual({ ok: true });
+
+    const update = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    expect(normalize(update!.sql)).not.toContain('expiry_date');
+    expect(normalize(update!.sql)).not.toContain('best_before_date');
+    expect(normalize(update!.sql)).toContain('batch_number = coalesce($2, batch_number)');
+    expect(update!.params).toEqual([LP_ID, 'B-NEW', USER_ID]);
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    const historyExt = JSON.parse(history!.params[7] as string);
+    expect(historyExt).toMatchObject({
+      expiry_date_from: state.lpExpiryDate,
+      expiry_date_to: state.lpExpiryDate,
+      best_before_date_to: state.lpBestBeforeDate,
+    });
+
+    const audit = queries.find((q) => normalize(q.sql).startsWith('insert into public.audit_events'));
+    const afterState = JSON.parse(audit!.params[5] as string);
+    expect(afterState).toMatchObject({
+      expiry_date: state.lpExpiryDate,
+      best_before_date: state.lpBestBeforeDate,
+      batch_number: 'B-NEW',
+    });
   });
 
   it('updateLpMetadata refuses consumed LPs', async () => {

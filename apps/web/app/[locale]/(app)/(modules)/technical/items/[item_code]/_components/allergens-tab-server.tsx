@@ -15,6 +15,12 @@ import {
 import { AllergensTab, type AllergensTabLabels } from './allergens-tab.client';
 import type { DeclarationDraft, DeclarationSaveResult } from './allergen-declaration-modal';
 
+type AllergensTabMode = 'edit' | 'na';
+
+function modeForType(itemType: string | null): AllergensTabMode {
+  return itemType === 'packaging' ? 'na' : 'edit';
+}
+
 export async function AllergensTabServer({
   itemCode,
   labels,
@@ -23,6 +29,26 @@ export async function AllergensTabServer({
   labels: AllergensTabLabels;
 }) {
   const data: AllergenProfileEditorData = await loadAllergenProfileEditor(itemCode);
+  const mode = modeForType(data.itemType);
+
+  if (mode === 'na') {
+    return (
+      <div data-testid="allergens-tab" data-state="na" className="space-y-4 p-1">
+        <header>
+          <h2 className="text-base font-semibold tracking-tight">{labels.title}</h2>
+          <p className="mt-0.5 text-sm" style={{ color: 'var(--muted)' }}>
+            {labels.subtitle}
+          </p>
+        </header>
+        <div className="card" style={{ padding: 0 }} data-testid="allergens-not-applicable">
+          <div className="empty-state">
+            <div className="empty-state-title">{labels.empty}</div>
+            <div className="empty-state-body">Packaging items carry no allergens.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const state =
     data.state === 'error' ? 'error' : data.state === 'empty' ? 'empty' : 'ready';

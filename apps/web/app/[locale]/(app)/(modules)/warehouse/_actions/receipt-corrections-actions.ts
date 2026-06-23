@@ -25,7 +25,7 @@ const uuidSchema = z.string().uuid();
 const reasonCodeSchema = z.enum(CORRECTION_REASON_CODES);
 const optionalNoteSchema = z.string().trim().max(2000).optional().nullable();
 const optionalTextSchema = z.string().trim().max(255).optional().nullable();
-const optionalDateSchema = z.string().trim().datetime({ offset: true }).optional().nullable();
+const optionalDateSchema = z.string().datetime({ offset: true }).optional().nullable();
 const hasSuppliedValue = (value: string | null | undefined): boolean =>
   typeof value === 'string' && value.trim().length > 0;
 
@@ -41,7 +41,7 @@ const UpdateLpMetadataInput = z.object({
   batchNumber: optionalTextSchema,
   reasonCode: reasonCodeSchema,
   note: optionalNoteSchema,
-}).refine((value) => hasSuppliedValue(value.expiryDate) || hasSuppliedValue(value.batchNumber), {
+}).refine((value) => value.expiryDate !== undefined || hasSuppliedValue(value.batchNumber), {
   message: 'at least one metadata field is required',
 });
 
@@ -373,7 +373,7 @@ export async function updateLpMetadata(input: unknown): Promise<
   const parsed = UpdateLpMetadataInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
   const note = normalizeNote(parsed.data.note);
-  const expiryDate = normalizeNullableText(parsed.data.expiryDate);
+  const expiryDate = parsed.data.expiryDate;
   const batchNumber = normalizeNullableText(parsed.data.batchNumber);
 
   try {
@@ -389,17 +389,31 @@ export async function updateLpMetadata(input: unknown): Promise<
         return { ok: false, error: 'lp_not_editable' };
       }
 
+      const updateParams: unknown[] = [lp.id];
+      const updateAssignments: string[] = [];
+      if (expiryDate !== undefined) {
+        updateParams.push(expiryDate);
+        updateAssignments.push(`expiry_date = $${updateParams.length}::timestamptz`);
+      }
+      if (batchNumber !== undefined) {
+        updateParams.push(batchNumber);
+        updateAssignments.push(`batch_number = coalesce($${updateParams.length}, batch_number)`);
+      }
+      updateParams.push(userId);
+      updateAssignments.push(`updated_by = $${updateParams.length}::uuid`, 'updated_at = now()');
+
       await ctx.client.query(
         `update public.license_plates
-            set expiry_date = coalesce($2::timestamptz, expiry_date),
-                best_before_date = coalesce($2::timestamptz, best_before_date),
-                batch_number = coalesce($3, batch_number),
-                updated_by = $4::uuid,
-                updated_at = now()
+            set ${updateAssignments.join(',\n                ')}
           where org_id = app.current_org_id()
             and id = $1::uuid`,
-        [lp.id, expiryDate ?? null, batchNumber ?? null, userId],
+        updateParams,
       );
+
+      const nextExpiryDate = expiryDate === undefined ? lp.expiry_date : expiryDate;
+      const nextBatchNumber = batchNumber ?? lp.batch_number;
+      const expiryDateSeedValue = expiryDate === undefined ? 'unchanged' : (expiryDate ?? 'cleared');
+      const batchNumberSeedValue = batchNumber === undefined ? 'unchanged' : (batchNumber ?? 'preserved');
 
       await writeLpHistory(ctx, {
         lpId: lp.id,
@@ -407,15 +421,15 @@ export async function updateLpMetadata(input: unknown): Promise<
         toState: lp.status,
         reasonCode: 'metadata_corrected',
         note,
-        seed: `warehouse.lp.metadata:${orgId}:${lp.id}:${parsed.data.reasonCode}:${expiryDate ?? ''}:${batchNumber ?? ''}`,
+        seed: `warehouse.lp.metadata:${orgId}:${lp.id}:${parsed.data.reasonCode}:${expiryDateSeedValue}:${batchNumberSeedValue}`,
         ext: {
           correction_reason_code: parsed.data.reasonCode,
           expiry_date_from: lp.expiry_date,
-          expiry_date_to: expiryDate ?? lp.expiry_date,
+          expiry_date_to: nextExpiryDate,
           best_before_date_from: lp.best_before_date,
-          best_before_date_to: expiryDate ?? lp.best_before_date,
+          best_before_date_to: lp.best_before_date,
           batch_number_from: lp.batch_number,
-          batch_number_to: batchNumber ?? lp.batch_number,
+          batch_number_to: nextBatchNumber,
         },
       });
 
@@ -433,9 +447,9 @@ export async function updateLpMetadata(input: unknown): Promise<
         afterState: {
           reason_code: parsed.data.reasonCode,
           note,
-          expiry_date: expiryDate ?? lp.expiry_date,
-          best_before_date: expiryDate ?? lp.best_before_date,
-          batch_number: batchNumber ?? lp.batch_number,
+          expiry_date: nextExpiryDate,
+          best_before_date: lp.best_before_date,
+          batch_number: nextBatchNumber,
         },
       });
 

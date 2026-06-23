@@ -36,6 +36,7 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -138,6 +139,7 @@ export function SpecDetailClient({
   approveSpecAction: ApproveSpecFn;
   supersedeSpecAction: SupersedeSpecFn;
 }) {
+  const router = useRouter();
   const [signOpen, setSignOpen] = useState(false);
   const [supersedeBy, setSupersedeBy] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +151,11 @@ export function SpecDetailClient({
     setError(null);
     startTransition(async () => {
       const result = await submitForReviewAction({ specId: spec.id });
-      if (!result.ok) setError(labels.actions.submitError.replace('{message}', result.message ?? result.reason));
+      if (!result.ok) {
+        setError(labels.actions.submitError.replace('{message}', result.message ?? result.reason));
+        return;
+      }
+      router.refresh();
     });
   }
 
@@ -158,7 +164,11 @@ export function SpecDetailClient({
     if (supersedeBy === '') return;
     startTransition(async () => {
       const result = await supersedeSpecAction({ specId: spec.id, bySpecId: supersedeBy });
-      if (!result.ok) setError(labels.actions.supersedeError.replace('{message}', result.message ?? result.reason));
+      if (!result.ok) {
+        setError(labels.actions.supersedeError.replace('{message}', result.message ?? result.reason));
+        return;
+      }
+      router.refresh();
     });
   }
 
@@ -402,6 +412,7 @@ export function SpecDetailClient({
         }}
         labels={labels.sign}
         approveSpecAction={approveSpecAction}
+        onApproved={() => router.refresh()}
       />
     </div>
   );

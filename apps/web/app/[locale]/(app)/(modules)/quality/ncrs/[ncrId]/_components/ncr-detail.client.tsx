@@ -31,6 +31,7 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -147,6 +148,7 @@ export function NcrDetailClient({
   updateInvestigationAction: UpdateNcrInvestigationAction;
   closeNcrAction: CloseNcrAction;
 }) {
+  const router = useRouter();
   const isClosed = TERMINAL.has(ncr.status);
   const isCritical = ncr.severity === 'critical';
   const canClose = !isClosed && ncr.status === 'investigating';
@@ -492,6 +494,7 @@ export function NcrDetailClient({
           ncr={{ id: ncr.id, ncrNumber: ncr.ncrNumber, title: ncr.title, severity: ncr.severity, status: ncr.status }}
           labels={labels.closeLabels}
           closeNcrAction={closeNcrAction}
+          onClosed={() => router.refresh()}
         />
       )}
     </div>

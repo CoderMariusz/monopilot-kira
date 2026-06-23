@@ -26,6 +26,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -87,6 +88,7 @@ export function HoldDetailClient({
   locale: string;
   releaseHoldAction: typeof releaseHold;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<'items' | 'ncrs'>('items');
   const [releaseOpen, setReleaseOpen] = useState(false);
 
@@ -293,6 +295,7 @@ export function HoldDetailClient({
           }}
           labels={labels.releaseLabels}
           releaseHoldAction={releaseHoldAction}
+          onReleased={() => router.refresh()}
         />
       )}
     </div>

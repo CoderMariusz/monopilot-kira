@@ -166,6 +166,10 @@ async function computeCascadedSet(client: QueryClient, parentItemId: string): Pr
           from active_bom ab
           join public.bom_lines bl
             on bl.bom_header_id = ab.bom_header_id and bl.org_id = app.current_org_id()
+          join public.items component
+            on component.org_id = bl.org_id
+           and component.id = bl.item_id
+           and component.item_type <> 'packaging'
           join public.item_allergen_profiles iap
             on iap.org_id = app.current_org_id() and iap.item_id = bl.item_id
          where bl.item_id is not null
@@ -176,10 +180,14 @@ async function computeCascadedSet(client: QueryClient, parentItemId: string): Pr
           from active_bom ab
           join public.bom_lines bl
             on bl.bom_header_id = ab.bom_header_id and bl.org_id = app.current_org_id()
+          left join public.items component
+            on component.org_id = bl.org_id
+           and component.id = bl.item_id
           join public.manufacturing_operation_allergen_additions moa
             on moa.org_id = app.current_org_id()
            and moa.manufacturing_operation_name = bl.manufacturing_operation_name
          where bl.manufacturing_operation_name is not null
+           and (bl.item_id is null or component.item_type <> 'packaging')
      )
      select allergen_code, intensity, confidence from component_allergens
      union all

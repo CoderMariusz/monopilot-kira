@@ -112,6 +112,7 @@ export function HoldCreateModal({
   searchLpsAction,
   resolveWoAction,
   resolveGrnAction,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -121,6 +122,7 @@ export function HoldCreateModal({
   searchLpsAction: typeof searchLps;
   resolveWoAction: typeof resolveWoByNumber;
   resolveGrnAction: typeof resolveGrnByNumber;
+  onCreated?: () => void;
 }) {
   const [refType, setRefType] = useState<HoldRefType>('lp');
   // For lp: the resolved (picked) LP whose UUID is submitted. For other types:
@@ -280,6 +282,7 @@ export function HoldCreateModal({
         return;
       }
       close();
+      onCreated?.();
     });
   }
 

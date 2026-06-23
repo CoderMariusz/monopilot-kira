@@ -20,6 +20,7 @@
 import {
   ALLERGENS_EDIT_PERMISSION,
   allergenCodeExists,
+  type AllergenActionError,
   type AllergenResult,
   CONFIDENCES,
   hasPermission,
@@ -70,13 +71,16 @@ export type ProfileRow = {
   manualOverrideReason: string | null;
 };
 
-// ── Helper: resolve item_id from (org, item_code) under RLS ───────────────────
-async function resolveItemId(ctx: OrgActionContext, itemCode: string): Promise<string | null> {
-  const { rows } = await ctx.client.query<{ id: string }>(
-    `select id from public.items where org_id = $1::uuid and item_code = $2 limit 1`,
+type ItemIdentity = { id: string; itemType: string };
+
+// ── Helper: resolve item identity from (org, item_code) under RLS ─────────────
+async function resolveItemIdentity(ctx: OrgActionContext, itemCode: string): Promise<ItemIdentity | null> {
+  const { rows } = await ctx.client.query<{ id: string; item_type: string }>(
+    `select id, item_type from public.items where org_id = $1::uuid and item_code = $2 limit 1`,
     [ctx.orgId, itemCode],
   );
-  return rows[0]?.id ?? null;
+  const row = rows[0];
+  return row ? { id: row.id, itemType: row.item_type } : null;
 }
 
 // ── Create / Update (upsert by composite key) ─────────────────────────────────
@@ -96,13 +100,16 @@ export async function upsertProfile(
 
   if (!(await hasPermission(ctx, ALLERGENS_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
+  const item = await resolveItemIdentity(ctx, input.itemCode);
+  if (!item) return { ok: false, error: 'not_found' };
+  if (item.itemType === 'packaging') {
+    return { ok: false, error: 'not_applicable' as AllergenActionError };
+  }
+
   // V-TEC-40: allergen_code must reference Reference."Allergens".
   if (!(await allergenCodeExists(ctx, input.allergenCode))) {
     return { ok: false, error: 'invalid_allergen_code' };
   }
-
-  const itemId = await resolveItemId(ctx, input.itemCode);
-  if (!itemId) return { ok: false, error: 'not_found' };
 
   try {
     // Read prior state (for audit before/after + to know create-vs-update).
@@ -111,7 +118,7 @@ export async function upsertProfile(
               intensity, confidence, manual_override_reason as "manualOverrideReason"
          from public.item_allergen_profiles
         where org_id = $1::uuid and item_id = $2::uuid and allergen_code = $3`,
-      [ctx.orgId, itemId, input.allergenCode],
+      [ctx.orgId, item.id, input.allergenCode],
     );
     const prior = priorRows[0] ?? null;
     const isOverride = input.source === 'manual_override';
@@ -130,7 +137,7 @@ export async function upsertProfile(
        returning item_id as "itemId", allergen_code as "allergenCode", source,
                  intensity, confidence, manual_override_reason as "manualOverrideReason"`,
       [
-        itemId,
+        item.id,
         input.allergenCode,
         input.source,
         input.intensity,
@@ -148,7 +155,7 @@ export async function upsertProfile(
         `insert into public.item_allergen_profile_overrides
            (org_id, item_id, allergen_code, action, intensity, confidence, reason, overridden_by)
          values (app.current_org_id(), $1::uuid, $2, 'set', $3, $4, $5, $6::uuid)`,
-        [itemId, input.allergenCode, input.intensity, input.confidence, input.reason, ctx.userId],
+        [item.id, input.allergenCode, input.intensity, input.confidence, input.reason, ctx.userId],
       );
     }
 
@@ -163,7 +170,7 @@ export async function upsertProfile(
       actorUserId: ctx.userId,
       action,
       resourceType: 'item_allergen_profile',
-      resourceId: `${itemId}:${input.allergenCode}`,
+      resourceId: `${item.id}:${input.allergenCode}`,
       beforeState: prior,
       afterState: row,
     });
@@ -194,8 +201,8 @@ export async function deleteProfile(
 
   if (!(await hasPermission(ctx, ALLERGENS_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
-  const itemId = await resolveItemId(ctx, input.itemCode);
-  if (!itemId) return { ok: false, error: 'not_found' };
+  const item = await resolveItemIdentity(ctx, input.itemCode);
+  if (!item) return { ok: false, error: 'not_found' };
 
   try {
     const { rows: deleted } = await ctx.client.query<ProfileRow>(
@@ -203,7 +210,7 @@ export async function deleteProfile(
         where org_id = $1::uuid and item_id = $2::uuid and allergen_code = $3
         returning item_id as "itemId", allergen_code as "allergenCode", source,
                   intensity, confidence, manual_override_reason as "manualOverrideReason"`,
-      [ctx.orgId, itemId, input.allergenCode],
+      [ctx.orgId, item.id, input.allergenCode],
     );
     const old = deleted[0];
     if (!old) return { ok: false, error: 'not_found' };
@@ -216,7 +223,7 @@ export async function deleteProfile(
            (org_id, item_id, allergen_code, action, intensity, confidence, reason, overridden_by)
          values (app.current_org_id(), $1::uuid, $2, 'clear', $3, $4, $5, $6::uuid)`,
         [
-          itemId,
+          item.id,
           input.allergenCode,
           old.intensity,
           old.confidence,
@@ -231,12 +238,12 @@ export async function deleteProfile(
       actorUserId: ctx.userId,
       action: 'allergen.delete',
       resourceType: 'item_allergen_profile',
-      resourceId: `${itemId}:${input.allergenCode}`,
+      resourceId: `${item.id}:${input.allergenCode}`,
       beforeState: old,
       afterState: null,
     });
 
-    return { ok: true, data: { itemId, allergenCode: input.allergenCode } };
+    return { ok: true, data: { itemId: item.id, allergenCode: input.allergenCode } };
   } catch (err) {
     console.error('[technical/allergens] deleteProfile persistence_failed', {
       err: err instanceof Error ? err.message : String(err),
@@ -250,15 +257,15 @@ export async function listProfiles(
   ctx: OrgActionContext,
   itemCode: string,
 ): Promise<AllergenResult<ProfileRow[]>> {
-  const itemId = await resolveItemId(ctx, itemCode);
-  if (!itemId) return { ok: false, error: 'not_found' };
+  const item = await resolveItemIdentity(ctx, itemCode);
+  if (!item) return { ok: false, error: 'not_found' };
   const { rows } = await ctx.client.query<ProfileRow>(
     `select item_id as "itemId", allergen_code as "allergenCode", source,
             intensity, confidence, manual_override_reason as "manualOverrideReason"
        from public.item_allergen_profiles
       where org_id = $1::uuid and item_id = $2::uuid
       order by allergen_code asc`,
-    [ctx.orgId, itemId],
+    [ctx.orgId, item.id],
   );
   return { ok: true, data: rows };
 }

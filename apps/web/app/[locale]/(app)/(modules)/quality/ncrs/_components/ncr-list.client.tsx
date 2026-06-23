@@ -32,6 +32,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -126,6 +127,7 @@ export function NcrListClient({
   locale: string;
   createNcrAction: CreateNcrAction;
 }) {
+  const router = useRouter();
   const [status, setStatus] = useState<NcrStatus | 'all'>('all');
   const [severity, setSeverity] = useState<NcrSeverity | 'all'>('all');
   const [ncrType, setNcrType] = useState<NcrType | 'all'>('all');
@@ -395,6 +397,7 @@ export function NcrListClient({
         onOpenChange={setCreateOpen}
         labels={labels.createLabels}
         createNcrAction={createNcrAction}
+        onCreated={() => router.refresh()}
       />
     </div>
   );

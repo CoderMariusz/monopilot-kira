@@ -33,6 +33,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -143,6 +144,7 @@ export function HoldsListClient({
   resolveWoAction: typeof resolveWoByNumber;
   resolveGrnAction: typeof resolveGrnByNumber;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<HoldStatusTab>('active');
   const [search, setSearch] = useState('');
   const [refType, setRefType] = useState<HoldRefType | 'all'>('all');
@@ -336,6 +338,7 @@ export function HoldsListClient({
         searchLpsAction={searchLpsAction}
         resolveWoAction={resolveWoAction}
         resolveGrnAction={resolveGrnAction}
+        onCreated={() => router.refresh()}
       />
     </div>
   );

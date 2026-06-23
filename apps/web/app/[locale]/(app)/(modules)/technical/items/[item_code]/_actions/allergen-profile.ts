@@ -61,6 +61,7 @@ export type OverrideHistoryRow = {
 export type AllergenProfileEditorData = {
   itemCode: string;
   itemName: string;
+  itemType: string | null;
   badges: ProfileBadge[];
   references: AllergenRef[];
   overrides: OverrideHistoryRow[];
@@ -68,7 +69,7 @@ export type AllergenProfileEditorData = {
   state: EditorState;
 };
 
-type ItemRow = { id: string; name: string };
+type ItemRow = { id: string; name: string; item_type: string };
 
 export async function loadAllergenProfileEditor(
   itemCode: string,
@@ -76,6 +77,7 @@ export async function loadAllergenProfileEditor(
   const empty: AllergenProfileEditorData = {
     itemCode,
     itemName: itemCode,
+    itemType: null,
     badges: [],
     references: [],
     overrides: [],
@@ -87,7 +89,7 @@ export async function loadAllergenProfileEditor(
       const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
 
       const itemResult = await ctx.client.query<ItemRow>(
-        `select id, name from public.items
+        `select id, name, item_type from public.items
           where org_id = app.current_org_id() and item_code = $1 limit 1`,
         [itemCode],
       );
@@ -165,6 +167,7 @@ export async function loadAllergenProfileEditor(
       return {
         itemCode,
         itemName: item.name,
+        itemType: item.item_type,
         badges,
         references,
         overrides,
@@ -180,9 +183,11 @@ export async function loadAllergenProfileEditor(
   }
 }
 
+export type SaveProfileError = AllergenActionError | 'not_applicable';
+
 export type SaveProfileResult =
   | { ok: true; data: ProfileRow }
-  | { ok: false; error: AllergenActionError };
+  | { ok: false; error: SaveProfileError };
 
 /**
  * Manual-override write. The reason is mandatory (V-TEC-42); the underlying

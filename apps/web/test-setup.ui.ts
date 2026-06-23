@@ -128,6 +128,28 @@ vi.mock('next-intl/server', async () => {
   };
 });
 
+// Client islands now call useRouter().refresh() to re-render after a successful
+// mutation (the "stale UI after success" fix). RTL renders these islands directly
+// without an App Router context, so the real next/navigation hooks would throw
+// "invariant expected app router to be mounted". Provide an inert router whose
+// refresh()/push()/etc. are vi.fn() no-ops so the success callbacks are safe to
+// fire in tests; suites that need to assert the refresh re-mock this module
+// locally with their own spy.
+vi.mock('next/navigation', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('next/navigation');
+  return {
+    ...actual,
+    useRouter: () => ({
+      refresh: vi.fn(),
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+    }),
+  };
+});
+
 // Patch @testing-library/user-event to not treat [ as a special key bracket.
 // userEvent v14 treats [descriptor] as a key, but tests use literal strings
 // like '^[A-Z]+$' which contain character class syntax.

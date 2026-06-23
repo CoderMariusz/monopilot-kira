@@ -33,6 +33,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -556,6 +557,7 @@ function InspectionEsignModal({
   labels: InspectionDetailLabels['esign'];
   submitDecisionAction: SubmitInspectionDecisionAction;
 }) {
+  const router = useRouter();
   const [password, setPassword] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -588,6 +590,9 @@ function InspectionEsignModal({
         return;
       }
       close();
+      // Re-render the detail island so the immutable signed banner + decided
+      // status replace the editable form / decision buttons (no stale UI).
+      router.refresh();
     });
   }
 
