@@ -21,6 +21,7 @@ export type EvaluateApprovalCriteriaInput = {
   };
   costing: {
     targetMarginPct?: string | null;
+    marginThresholdPct?: string | null;
   };
   sensory: {
     required: boolean;
@@ -41,14 +42,14 @@ export type EvaluateApprovalCriteriaInput = {
 };
 
 const PASSING_NUTRI_GRADES = new Set(['A', 'B', 'C']);
-const MIN_TARGET_MARGIN = Dec.from('15');
+const DEFAULT_TARGET_MARGIN_PCT = '15';
 const MIN_SENSORY_MEAN = Dec.from('7');
 
 export function evaluateApprovalCriteria(input: EvaluateApprovalCriteriaInput): ApprovalCriteriaResult {
   return {
     C1: evaluateRecipeLocked(input.formulation.lockedAt),
     C2: evaluateNutrition(input.nutrition.nutriScoreGrade),
-    C3: evaluateTargetMargin(input.costing.targetMarginPct),
+    C3: evaluateTargetMargin(input.costing.targetMarginPct, input.costing.marginThresholdPct),
     C4: evaluateSensory(input.sensory),
     C5: evaluateAllergens(input.allergens),
     C6: input.risks.openHighCount > 0 ? 'warn' : 'pass',
@@ -65,9 +66,13 @@ function evaluateNutrition(grade: string | null | undefined): ApprovalCriterionS
   return PASSING_NUTRI_GRADES.has(grade.toUpperCase()) ? 'pass' : 'warn';
 }
 
-function evaluateTargetMargin(targetMarginPct: string | null | undefined): ApprovalCriterionStatus {
+function evaluateTargetMargin(
+  targetMarginPct: string | null | undefined,
+  marginThresholdPct: string | null | undefined,
+): ApprovalCriterionStatus {
   if (!targetMarginPct) return 'pending';
-  return Dec.from(targetMarginPct).cmp(MIN_TARGET_MARGIN) >= 0 ? 'pass' : 'warn';
+  const threshold = Dec.from(marginThresholdPct ?? DEFAULT_TARGET_MARGIN_PCT);
+  return Dec.from(targetMarginPct).cmp(threshold) >= 0 ? 'pass' : 'warn';
 }
 
 function evaluateSensory(input: EvaluateApprovalCriteriaInput['sensory']): ApprovalCriterionStatus {

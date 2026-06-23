@@ -105,3 +105,35 @@ packaging-exclusion — all correct. Settings pages are overwhelmingly REAL (rea
 (tz drift); forecasts grid only shows items with existing cells (can't plan zero-history items in-grid); duplicate
 settings trees (non-locale `(admin)/settings/*` redirects) + duplicate `/settings/machines` route; schedule cycle-guard
 full-scans wo_dependencies per drag.
+
+### BATCH 3 (2026-06-24 ~23:45) — Maintenance / Changeover / Downtime / Account / Multi-site + full-app sweep
+**TRACK 2 COVERAGE IS NOW ESSENTIALLY COMPLETE** — every module page has a verdict (only `onboarding/*` left, minor).
+
+**CLEAR to FIX autonomously:**
+- **L1 Changeover error codes lost** — `production/changeovers/page.tsx:80` `signChangeoverAction` `known` array lacks
+  `same_user_rejected` + `cleaning_incomplete` (returned by `changeover-actions.ts:547,559`) → both collapse to a generic
+  `esign_failed` message. The server guard fires correctly; only the user-facing copy is wrong. Fix: add both codes. [FIX]
+- **L2 Account stub fields** — `/account/profile` renders a `phone` field never persisted (`users` has no column) and
+  `revokeSession` is permanently `SESSIONS_BACKEND_UNAVAILABLE` (no sessions backend); `/account/notifications` quiet-hours
+  TIMES aren't persisted (only the enabled flag). Fix: hide the un-persisted fields / disable the dead Revoke button with a
+  note (cheapest), or add the columns + a sessions backend (bigger → queue). [FIX = hide/disable]
+
+**Stubs/phantoms (backlog, mostly known):** `/multi-site` + `/scheduler` = `ModuleStubNotice` (known waves). Maintenance
+PM-schedule engine + `oee_trigger`/`calibration_alert` MWO sources are phantom (enum+labels, no creator path); the
+downtime→auto-MWO link is wired in the action but never triggered. Two changeover routes coexist (`/changeover` read-only
+register + `/changeovers` interactive dual-sign) — consolidate. `/oee/andon` kiosk-token auth is a TODO (my E4A; session-auth
+only for now) — relates to 5am Q7.
+
+**Verified REAL (good):** account profile/notifications/PIN (persist, minus the stub fields above), finance, all production
+sub-pages (downtime/changeover/waste/shifts/analytics — real Supabase aggregates, no mocks), maintenance MWO CRUD, OEE +
+andon, reporting, all technical sub-pages + npd dashboard/formulations/allergen-cascade, the bulk of settings. RBAC real.
+
+**TEST-INFRA note (NOT a code bug, but CI hygiene):** the repo has TWO vitest configs — root `vitest.config.ts`
+(`environment:'node'`, no JSX) for `.ts` logic tests, and `vitest.ui.config.ts` (jsdom+JSX) for `.tsx` RTL tests. `.tsx`
+tests ONLY run under the UI config. Several `.tsx` files were also given a `/** @vitest-environment jsdom */` docblock so
+they run under the root config too — inconsistent. If CI runs only `vitest run` (root), ALL `.tsx` RTL tests are silently
+skipped. → Backlog: standardize (single config or CI runs both); not fixing tonight to avoid destabilizing the node tests.
+
+### BUILD-TRACK done this window (committed): E4A andon; audit-r1 (allergen-gate/consume-gate/WO-void/LP-unblock/reporting-cron);
+audit-r2 (MRP FG->make/SO-correctness+mig314/allergen-conflict/NPD-409/gallery-gate); BLD reporting period-selector+order/line
+filter (Q4) + NPD approval thresholds C3/C4/C5 now org-configurable/real (Q6). migs 312/313/314 LIVE.

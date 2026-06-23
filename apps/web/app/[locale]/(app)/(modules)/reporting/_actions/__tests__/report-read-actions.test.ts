@@ -227,7 +227,9 @@ describe('productionSummary', () => {
   it('defaults and clamps the day window (default 7; invalid input → default)', async () => {
     const def = await productionSummary({});
     expect(def.ok && def.data.days).toBe(7);
-    expect(capturedParams.woAgg).toEqual([7]);
+    expect(capturedParams.woAgg).toHaveLength(4);
+    expect(capturedParams.woAgg[2]).toBeNull();
+    expect(capturedParams.woAgg[3]).toBeNull();
     const invalid = await productionSummary({ days: -3 });
     expect(invalid.ok && invalid.data.days).toBe(7);
   });
@@ -295,7 +297,7 @@ describe('qualitySummary', () => {
       { status: 'pending', count: 4 },
       { status: 'passed', count: 6 },
     ]);
-    expect(capturedParams.inspections).toEqual([30]);
+    expect(capturedParams.inspections).toHaveLength(2);
     expect(res.data.ncrOpen).toBe(3);
     expect(res.data.ncrClosedInWindow).toBe(5);
     expect(res.data.rows).toEqual([

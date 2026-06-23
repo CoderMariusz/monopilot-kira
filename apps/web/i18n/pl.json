@@ -9016,5 +9016,19 @@
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
       }
     }
+  },
+  "reporting": {
+    "period": {
+      "today": "Dzisiaj",
+      "week": "Ten tydzień",
+      "month": "Ten miesiąc",
+      "last7d": "Ostatnie 7 dni",
+      "last30d": "Ostatnie 30 dni",
+      "custom": "Zakres niestandardowy"
+    },
+    "filter": {
+      "line": "Linia produkcyjna",
+      "search": "Nr ZP/ZZ"
+    }
   }
 }

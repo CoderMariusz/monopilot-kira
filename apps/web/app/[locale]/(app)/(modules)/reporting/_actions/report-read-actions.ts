@@ -38,6 +38,51 @@ import {
   type ReportingContext,
   type ReportingResult,
 } from './shared';
+import { reportingWindowDays, type ReportingLineOption } from '../shared';
+
+const MS_PER_DAY = 86_400_000;
+
+type ReportingLoaderInput = {
+  days?: number;
+  from?: Date;
+  to?: Date;
+  lineId?: string;
+  orderQuery?: string;
+};
+
+function cleanText(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function isValidDate(value: Date | undefined): value is Date {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+function normalizeWindow(input: ReportingLoaderInput, fallbackDays: number) {
+  const fallback = asDays(input.days, fallbackDays);
+  let from: Date;
+  let to: Date;
+
+  if (isValidDate(input.from) && isValidDate(input.to) && input.from <= input.to) {
+    from = input.from;
+    to = input.to;
+  } else {
+    to = new Date();
+    from = new Date(to.getTime() - fallback * MS_PER_DAY);
+  }
+
+  const window = { from, to };
+
+  return {
+    ...window,
+    fromIso: from.toISOString(),
+    toIso: to.toISOString(),
+    days: reportingWindowDays(window),
+    lineId: cleanText(input.lineId),
+    orderQuery: cleanText(input.orderQuery),
+  };
+}
 
 /** rpt.export.csv probe so the page can render the CSV buttons honestly. */
 export async function getReportingExportAccess(): Promise<
@@ -60,10 +105,38 @@ export async function getReportingExportAccess(): Promise<
   }
 }
 
+export async function reportingProductionLines(): Promise<
+  ReportingResult<ReportingLineOption[]>
+> {
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<ReportingResult<ReportingLineOption[]>> => {
+        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+        if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
+          return { ok: false, reason: 'forbidden' };
+        }
+
+        const res = await ctx.client.query<ReportingLineOption>(
+          `select id::text, code, name
+             from public.production_lines
+            where org_id = app.current_org_id()
+              and status = 'active'
+            order by lower(name), lower(code)`,
+        );
+
+        return { ok: true, data: res.rows };
+      },
+    );
+  } catch (error) {
+    console.error('[reporting] reportingProductionLines failed', error);
+    return { ok: false, reason: 'error' };
+  }
+}
+
 export async function productionSummary(
-  input: { days?: number } = {},
+  input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ProductionSummary>> {
-  const days = asDays(input.days, 7);
+  const window = normalizeWindow(input, 7);
   try {
     return await withOrgContext(
       async ({ userId, orgId, client }): Promise<ReportingResult<ProductionSummary>> => {
@@ -82,24 +155,39 @@ export async function productionSummary(
             where wo.org_id = app.current_org_id()
               and wo.status in ('COMPLETED', 'CLOSED')
               and wo.completed_at is not null
-              and wo.completed_at >= pg_catalog.now() - ($1::int * interval '1 day')`,
-          [days],
+              and wo.completed_at >= $1::timestamptz
+              and wo.completed_at <= $2::timestamptz
+              and ($3::text is null or wo.production_line_id::text = $3::text)
+              and ($4::text is null or wo.wo_number ilike '%' || $4::text || '%')`,
+          [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
         const output = await ctx.client.query<{ output_kg: string | null }>(
           `select sum(o.qty_kg)::text as output_kg
              from public.wo_outputs o
+             join public.work_orders wo
+               on wo.org_id = app.current_org_id()
+              and wo.id = o.wo_id
             where o.org_id = app.current_org_id()
-              and o.registered_at >= pg_catalog.now() - ($1::int * interval '1 day')`,
-          [days],
+              and o.registered_at >= $1::timestamptz
+              and o.registered_at <= $2::timestamptz
+              and ($3::text is null or wo.production_line_id::text = $3::text)
+              and ($4::text is null or wo.wo_number ilike '%' || $4::text || '%')`,
+          [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
         const waste = await ctx.client.query<{ waste_kg: string | null }>(
           `select sum(w.qty_kg)::text as waste_kg
              from public.wo_waste_log w
+             join public.work_orders wo
+               on wo.org_id = app.current_org_id()
+              and wo.id = w.wo_id
             where w.org_id = app.current_org_id()
-              and w.recorded_at >= pg_catalog.now() - ($1::int * interval '1 day')`,
-          [days],
+              and w.recorded_at >= $1::timestamptz
+              and w.recorded_at <= $2::timestamptz
+              and ($3::text is null or wo.production_line_id::text = $3::text)
+              and ($4::text is null or wo.wo_number ilike '%' || $4::text || '%')`,
+          [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
         // duration_min is GENERATED, NULL while an event is still open — open
@@ -107,9 +195,15 @@ export async function productionSummary(
         const downtime = await ctx.client.query<{ downtime_min: string | null }>(
           `select sum(d.duration_min)::text as downtime_min
              from public.downtime_events d
+             left join public.work_orders wo
+               on wo.org_id = app.current_org_id()
+              and wo.id = d.wo_id
             where d.org_id = app.current_org_id()
-              and d.started_at >= pg_catalog.now() - ($1::int * interval '1 day')`,
-          [days],
+              and d.started_at >= $1::timestamptz
+              and d.started_at <= $2::timestamptz
+              and ($3::text is null or d.line_id = $3::text)
+              and ($4::text is null or wo.wo_number ilike '%' || $4::text || '%')`,
+          [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
         const woRows = await ctx.client.query<{
@@ -137,10 +231,13 @@ export async function productionSummary(
             where wo.org_id = app.current_org_id()
               and wo.status in ('COMPLETED', 'CLOSED')
               and wo.completed_at is not null
-              and wo.completed_at >= pg_catalog.now() - ($1::int * interval '1 day')
+              and wo.completed_at >= $1::timestamptz
+              and wo.completed_at <= $2::timestamptz
+              and ($3::text is null or wo.production_line_id::text = $3::text)
+              and ($4::text is null or wo.wo_number ilike '%' || $4::text || '%')
             order by wo.completed_at desc, wo.wo_number desc
             limit 20`,
-          [days],
+          [window.fromIso, window.toIso, window.lineId, window.orderQuery],
         );
 
         const outputKg = num(output.rows[0]?.output_kg);
@@ -150,7 +247,7 @@ export async function productionSummary(
         return {
           ok: true,
           data: {
-            days,
+            days: window.days,
             wosCompleted: num(agg.rows[0]?.wos_completed),
             outputKg: outputKg.toFixed(3),
             wasteKg: wasteKg.toFixed(3),
@@ -178,7 +275,10 @@ export async function productionSummary(
   }
 }
 
-export async function inventorySnapshot(): Promise<ReportingResult<InventorySnapshot>> {
+export async function inventorySnapshot(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<InventorySnapshot>> {
+  const window = normalizeWindow(input, 7);
   try {
     return await withOrgContext(
       async ({ userId, orgId, client }): Promise<ReportingResult<InventorySnapshot>> => {
@@ -190,6 +290,8 @@ export async function inventorySnapshot(): Promise<ReportingResult<InventorySnap
         // On-hand = received/available/reserved/allocated (active family) +
         // blocked/quarantine (blocked family). consumed/merged/shipped/returned
         // LPs are gone from stock and excluded entirely.
+        // Future follow-up: inventory intentionally ignores line/order filters;
+        // the selected period only anchors expiry aging via its `to` timestamp.
         const res = await ctx.client.query<{
           warehouse_id: string;
           warehouse_code: string | null;
@@ -214,12 +316,12 @@ export async function inventorySnapshot(): Promise<ReportingResult<InventorySnap
                   sum(lp.quantity) filter (where lp.uom = 'kg')::text as qty_kg,
                   count(*) filter (
                     where lp.expiry_date is not null
-                      and lp.expiry_date < pg_catalog.now()
+                      and lp.expiry_date < $1::timestamptz
                   )::text as expired_count,
                   count(*) filter (
                     where lp.expiry_date is not null
-                      and lp.expiry_date >= pg_catalog.now()
-                      and lp.expiry_date < pg_catalog.now() + interval '7 days'
+                      and lp.expiry_date >= $1::timestamptz
+                      and lp.expiry_date < $1::timestamptz + interval '7 days'
                   )::text as expiring_7d_count
              from public.license_plates lp
              left join public.warehouses w
@@ -229,6 +331,7 @@ export async function inventorySnapshot(): Promise<ReportingResult<InventorySnap
               and lp.status in ('received', 'available', 'reserved', 'allocated', 'blocked', 'quarantine')
             group by lp.warehouse_id, w.code, w.name
             order by w.code nulls last`,
+          [window.toIso],
         );
 
         const rows = res.rows.map((r) => ({
@@ -266,9 +369,9 @@ export async function inventorySnapshot(): Promise<ReportingResult<InventorySnap
 }
 
 export async function qualitySummary(
-  input: { days?: number } = {},
+  input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<QualitySummary>> {
-  const days = asDays(input.days, 30);
+  const window = normalizeWindow(input, 30);
   try {
     return await withOrgContext(
       async ({ userId, orgId, client }): Promise<ReportingResult<QualitySummary>> => {
@@ -277,6 +380,8 @@ export async function qualitySummary(
           return { ok: false, reason: 'forbidden' };
         }
 
+        // Future follow-up: quality intentionally ignores line/order filters;
+        // only the selected date window is applied to windowed entities.
         const holds = await ctx.client.query<{ hold_status: string; count: string }>(
           `select h.hold_status, count(*)::text as count
              from public.quality_holds h
@@ -290,10 +395,11 @@ export async function qualitySummary(
           `select qi.status, count(*)::text as count
              from public.quality_inspections qi
             where qi.org_id = app.current_org_id()
-              and qi.created_at >= pg_catalog.now() - ($1::int * interval '1 day')
+              and qi.created_at >= $1::timestamptz
+              and qi.created_at <= $2::timestamptz
             group by qi.status
             order by qi.status`,
-          [days],
+          [window.fromIso, window.toIso],
         );
 
         const ncrs = await ctx.client.query<{ open_count: string; closed_in_window: string }>(
@@ -302,11 +408,12 @@ export async function qualitySummary(
                   )::text as open_count,
                   count(*) filter (
                     where n.closed_at is not null
-                      and n.closed_at >= pg_catalog.now() - ($1::int * interval '1 day')
+                      and n.closed_at >= $1::timestamptz
+                      and n.closed_at <= $2::timestamptz
                   )::text as closed_in_window
              from public.ncr_reports n
             where n.org_id = app.current_org_id()`,
-          [days],
+          [window.fromIso, window.toIso],
         );
 
         const holdRows = holds.rows.map((r) => ({
@@ -325,7 +432,7 @@ export async function qualitySummary(
         return {
           ok: true,
           data: {
-            days,
+            days: window.days,
             openHolds: holdRows.reduce((a, r) => a + r.count, 0),
             inspectionsByStatus: inspectionRows.map(({ status, count }) => ({ status, count })),
             ncrOpen,
@@ -347,9 +454,9 @@ export async function qualitySummary(
 }
 
 export async function procurementSummary(
-  input: { days?: number } = {},
+  input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ProcurementSummary>> {
-  const days = asDays(input.days, 30);
+  const window = normalizeWindow(input, 30);
   try {
     return await withOrgContext(
       async ({ userId, orgId, client }): Promise<ReportingResult<ProcurementSummary>> => {
@@ -362,10 +469,12 @@ export async function procurementSummary(
           `select po.status, count(*)::text as count
              from public.purchase_orders po
             where po.org_id = app.current_org_id()
-              and po.created_at >= pg_catalog.now() - ($1::int * interval '1 day')
+              and po.created_at >= $1::timestamptz
+              and po.created_at <= $2::timestamptz
+              and ($3::text is null or po.po_number ilike '%' || $3::text || '%')
             group by po.status
             order by po.status`,
-          [days],
+          [window.fromIso, window.toIso, window.orderQuery],
         );
 
         // HONEST GAP: purchase_orders has no confirmed_at and status changes are
@@ -382,7 +491,9 @@ export async function procurementSummary(
                on g.org_id = app.current_org_id()
               and g.po_id = po.id
             where po.org_id = app.current_org_id()
-              and po.created_at >= pg_catalog.now() - ($1::int * interval '1 day')
+              and po.created_at >= $1::timestamptz
+              and po.created_at <= $2::timestamptz
+              and ($3::text is null or po.po_number ilike '%' || $3::text || '%')
               -- R3 A3 — a GRN whose every line was cancelled (mig-298
               -- cancelled_at) is no longer a received GRN: it must not anchor
               -- the created→first-GRN cycle.
@@ -394,7 +505,7 @@ export async function procurementSummary(
                    and gi.cancelled_at is null
               )
             group by po.id, po.created_at`,
-          [days],
+          [window.fromIso, window.toIso, window.orderQuery],
         );
 
         const tos = await ctx.client.query<{ open_count: string }>(
@@ -407,7 +518,7 @@ export async function procurementSummary(
         return {
           ok: true,
           data: {
-            days,
+            days: window.days,
             posByStatus: pos.rows.map((r) => ({ status: r.status, count: num(r.count) })),
             avgConfirmedToFirstGrnDays: null,
             avgCreatedToFirstGrnDays: avgDays(

@@ -1,12 +1,14 @@
 'use server';
 
 import { evaluateApprovalCriteria as evaluateApprovalCriteriaPure } from '@monopilot/domain';
-import type { ApprovalCriteriaResult } from '@monopilot/domain';
+import type { ApprovalCriteriaResult, EvaluateApprovalCriteriaInput } from '@monopilot/domain';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getSensoryPanel } from '../../../../../[locale]/(app)/(npd)/pipeline/[projectId]/sensory/_actions/getSensoryPanel';
 
 const ProductCode = z.string().trim().min(1).max(120);
+const MARGIN_WARN_THRESHOLD_KEY = 'costing_margin_warn_pct';
 
 export type EvaluateApprovalCriteriaResult =
   | { ok: true; data: ApprovalCriteriaResult }
@@ -25,10 +27,23 @@ type CostingRow = {
   margin_pct: string;
 };
 
+type MarginThresholdRow = {
+  value_int: number | null;
+  value_text: string | null;
+};
+
 type ProductRow = {
   product_code: string;
   allergens: string[] | null;
   may_contain: string[] | null;
+};
+
+type ProjectRow = {
+  id: string;
+};
+
+type AllergenAuditRow = {
+  audited: boolean;
 };
 
 type RiskRow = {
@@ -64,6 +79,17 @@ export async function evaluateApprovalCriteria(
       );
       const productRow = product.rows[0];
       if (!productRow) return { ok: false as const, error: 'not_found' as const };
+
+      const project = await client.query<ProjectRow>(
+        `select id::text as id
+           from public.npd_projects
+          where product_code = $1
+            and org_id = app.current_org_id()
+          order by created_at desc
+          limit 1`,
+        [productCode],
+      );
+      const projectId = project.rows[0]?.id;
 
       const formulation = await client.query<FormulationRow>(
         `select locked_at, current_version_id
@@ -101,6 +127,33 @@ export async function evaluateApprovalCriteria(
         [productCode],
       );
 
+      const marginThreshold = await client.query<MarginThresholdRow>(
+        `select value_int, value_text
+           from "Reference"."AlertThresholds"
+          where threshold_key = $1`,
+        [MARGIN_WARN_THRESHOLD_KEY],
+      );
+
+      const sensory = projectId
+        ? await getSensoryPanel(projectId)
+        : { state: 'empty' as const, data: null };
+      const sensoryInput: EvaluateApprovalCriteriaInput['sensory'] =
+        sensory.state === 'ready' && sensory.data
+          ? { required: true, meanScore: sensory.data.overallScore }
+          : { required: false };
+
+      const allergenAudit = await client.query<AllergenAuditRow>(
+        `select exists (
+           select 1
+             from public.allergen_cascade_rebuild_jobs
+            where product_code = $1
+              and org_id = app.current_org_id()
+              and status = 'processed'
+              and processed_at is not null
+         ) as audited`,
+        [productCode],
+      );
+
       const risks = await client.query<RiskRow>(
         `select count(*)::text as open_high_count
            from public.risks
@@ -131,16 +184,20 @@ export async function evaluateApprovalCriteria(
 
       const docsRow = docs.rows[0] ?? { active_count: '0', expired_count: '0', invalid_count: '0' };
       const publishedAllergens = [...(productRow.allergens ?? []), ...(productRow.may_contain ?? [])];
+      const marginThresholdPct = resolveThreshold(marginThreshold.rows[0]);
 
       return {
         ok: true as const,
         data: evaluateApprovalCriteriaPure({
           formulation: { lockedAt: formulationRow.locked_at },
           nutrition: { nutriScoreGrade: nutrition.rows[0]?.grade ?? null },
-          costing: { targetMarginPct: costing.rows[0]?.margin_pct ?? null },
-          sensory: { required: false },
+          costing: {
+            targetMarginPct: costing.rows[0]?.margin_pct ?? null,
+            ...(marginThresholdPct ? { marginThresholdPct } : {}),
+          },
+          sensory: sensoryInput,
           allergens: {
-            audited: true,
+            audited: allergenAudit.rows[0]?.audited === true,
             passed: publishedAllergens.every((code) => code.trim().length > 0),
           },
           risks: {
@@ -161,4 +218,13 @@ export async function evaluateApprovalCriteria(
     });
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+function resolveThreshold(row: MarginThresholdRow | undefined): string | undefined {
+  if (!row) return undefined;
+  if (row.value_int !== null && row.value_int !== undefined) return String(row.value_int);
+  if (row.value_text !== null && row.value_text !== undefined && /^-?\d+(\.\d+)?$/.test(row.value_text.trim())) {
+    return row.value_text.trim();
+  }
+  return undefined;
 }

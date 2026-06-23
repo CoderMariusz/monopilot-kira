@@ -9016,5 +9016,19 @@
         "persistence_failed": "Something went wrong saving. Please retry."
       }
     }
+  },
+  "reporting": {
+    "period": {
+      "today": "Today",
+      "week": "This Week",
+      "month": "This Month",
+      "last7d": "Last 7d",
+      "last30d": "Last 30d",
+      "custom": "Custom range"
+    },
+    "filter": {
+      "line": "Production line",
+      "search": "WO/PO number"
+    }
   }
 }

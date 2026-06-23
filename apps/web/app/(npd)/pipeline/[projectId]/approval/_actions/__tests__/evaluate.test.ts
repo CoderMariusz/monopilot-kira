@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
+const WITH_ORG_CONTEXT_MODULE = '../../../../../../../lib/auth/with-org-context';
+const SENSORY_PANEL_MODULE =
+  '../../../../../../[locale]/(app)/(npd)/pipeline/[projectId]/sensory/_actions/getSensoryPanel';
 
 const tenantId = randomUUID();
 const orgA = randomUUID();
@@ -21,11 +24,168 @@ const versionA = randomUUID();
 const versionB = randomUUID();
 const productA = `FA-T078-${randomUUID().slice(0, 8)}`;
 const productB = `FA-T078-${randomUUID().slice(0, 8)}`;
+const cascadeEventA = randomUUID();
+const cascadeEventB = randomUUID();
 
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
 let owner: pg.Pool;
 let appPool: pg.Pool;
+
+type QueryHandler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
+
+type MockSensoryResult =
+  | { state: 'ready'; data: { overallScore: string | null } }
+  | { state: 'empty'; data: null };
+
+function buildApprovalQueryHandler(opts: {
+  marginPct?: string;
+  thresholdRow?: { value_int: number | null; value_text: string | null };
+  cascadeAudited?: boolean;
+  projectId?: string | null;
+} = {}): QueryHandler {
+  return (sql) => {
+    if (sql.includes('from public.product')) {
+      return {
+        rows: [{
+          product_code: productA,
+          allergens: ['gluten'],
+          may_contain: [],
+        }],
+      };
+    }
+    if (sql.includes('from public.npd_projects')) {
+      return { rows: opts.projectId === null ? [] : [{ id: opts.projectId ?? projectA }] };
+    }
+    if (sql.includes('from public.formulations')) {
+      return { rows: [{ locked_at: new Date('2026-01-01T00:00:00Z'), current_version_id: null }] };
+    }
+    if (sql.includes('from public.nutri_score_results')) {
+      return { rows: [{ grade: 'B' }] };
+    }
+    if (sql.includes('from public.costing_breakdowns')) {
+      return { rows: [{ margin_pct: opts.marginPct ?? '20.00' }] };
+    }
+    if (sql.includes('"Reference"."AlertThresholds"')) {
+      return { rows: opts.thresholdRow ? [opts.thresholdRow] : [] };
+    }
+    if (sql.includes('from public.allergen_cascade_rebuild_jobs')) {
+      return { rows: [{ audited: opts.cascadeAudited ?? true }] };
+    }
+    if (sql.includes('from public.risks')) {
+      return { rows: [{ open_high_count: '0' }] };
+    }
+    if (sql.includes('from public.compliance_docs')) {
+      return { rows: [{ active_count: '1', expired_count: '0', invalid_count: '0' }] };
+    }
+    return { rows: [] };
+  };
+}
+
+async function importEvaluateWithMocks(opts: {
+  handler?: QueryHandler;
+  sensoryResult?: MockSensoryResult;
+} = {}) {
+  const handler = opts.handler ?? buildApprovalQueryHandler();
+  const getSensoryPanelMock = vi.fn(async () => opts.sensoryResult ?? { state: 'empty', data: null });
+
+  vi.resetModules();
+  vi.doMock(WITH_ORG_CONTEXT_MODULE, () => ({
+    withOrgContext: async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({
+        orgId: orgA,
+        userId: userA,
+        sessionToken: 'test-session',
+        client: {
+          query: async (sql: string, params?: readonly unknown[]) => handler(sql, params),
+        },
+      }),
+  }));
+  vi.doMock(SENSORY_PANEL_MODULE, () => ({
+    getSensoryPanel: getSensoryPanelMock,
+  }));
+
+  const mod = await import('../evaluate');
+  return { evaluateApprovalCriteria: mod.evaluateApprovalCriteria, getSensoryPanelMock };
+}
+
+afterEach(() => {
+  vi.doUnmock(WITH_ORG_CONTEXT_MODULE);
+  vi.doUnmock(SENSORY_PANEL_MODULE);
+  vi.resetModules();
+});
+
+describe('evaluateApprovalCriteria Server Action — input wiring', () => {
+  it('forwards the org margin threshold so C3 can override the default 15 percent', async () => {
+    const { evaluateApprovalCriteria } = await importEvaluateWithMocks({
+      handler: buildApprovalQueryHandler({
+        marginPct: '18.00',
+        thresholdRow: { value_int: 20, value_text: null },
+      }),
+    });
+
+    const result = await evaluateApprovalCriteria(productA);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.data.C3 : null).toBe('warn');
+  });
+
+  it('uses the domain default 15 percent for C3 when the org threshold row is absent', async () => {
+    const { evaluateApprovalCriteria } = await importEvaluateWithMocks({
+      handler: buildApprovalQueryHandler({ marginPct: '18.00' }),
+    });
+
+    const result = await evaluateApprovalCriteria(productA);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.data.C3 : null).toBe('pass');
+  });
+
+  it('requires C4 and wires the sensory mean score when a panel exists', async () => {
+    const { evaluateApprovalCriteria, getSensoryPanelMock } = await importEvaluateWithMocks({
+      sensoryResult: { state: 'ready', data: { overallScore: '6.50' } },
+    });
+
+    const result = await evaluateApprovalCriteria(productA);
+
+    expect(getSensoryPanelMock).toHaveBeenCalledWith(projectA);
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.data.C4 : null).toBe('warn');
+  });
+
+  it('marks C4 not required when no sensory panel exists', async () => {
+    const { evaluateApprovalCriteria } = await importEvaluateWithMocks({
+      sensoryResult: { state: 'empty', data: null },
+    });
+
+    const result = await evaluateApprovalCriteria(productA);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.data.C4 : null).toBe('not_required');
+  });
+
+  it('keeps C5 pending when no processed allergen cascade row exists', async () => {
+    const { evaluateApprovalCriteria } = await importEvaluateWithMocks({
+      handler: buildApprovalQueryHandler({ cascadeAudited: false }),
+    });
+
+    const result = await evaluateApprovalCriteria(productA);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.data.C5 : null).toBe('pending');
+  });
+
+  it('passes C5 when a processed allergen cascade row exists', async () => {
+    const { evaluateApprovalCriteria } = await importEvaluateWithMocks({
+      handler: buildApprovalQueryHandler({ cascadeAudited: true }),
+    });
+
+    const result = await evaluateApprovalCriteria(productA);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.data.C5 : null).toBe('pass');
+  });
+});
 
 async function ensureAppUser(): Promise<void> {
   await ensureAppUserWithAdvisoryLock(owner);
@@ -133,10 +293,21 @@ async function seedSatisfiedApprovalRows(): Promise<void> {
       userB,
     ],
   );
+  await owner.query(
+    `insert into public.allergen_cascade_rebuild_jobs
+       (org_id, product_code, source_event_id, source_event_type, status, processed_at)
+     values ($1, $2, $3, 'reference.allergens_by_rm.bulk_changed', 'processed', now()),
+            ($4, $5, $6, 'reference.allergens_by_rm.bulk_changed', 'processed', now())
+     on conflict (org_id, product_code, source_event_id) do update
+       set status = excluded.status,
+           processed_at = excluded.processed_at`,
+    [orgA, productA, cascadeEventA, orgB, productB, cascadeEventB],
+  );
 }
 
 async function cleanup(): Promise<void> {
   await owner.query(`delete from public.risks where org_id in ($1, $2)`, [orgA, orgB]);
+  await owner.query(`delete from public.allergen_cascade_rebuild_jobs where org_id in ($1, $2)`, [orgA, orgB]);
   await owner.query(`delete from public.compliance_docs where org_id in ($1, $2)`, [orgA, orgB]);
   await owner.query(`delete from public.nutrition_allergens where org_id in ($1, $2)`, [orgA, orgB]);
   await owner.query(`delete from public.costing_breakdowns where org_id in ($1, $2)`, [orgA, orgB]);

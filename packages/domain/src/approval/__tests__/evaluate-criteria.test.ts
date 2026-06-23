@@ -37,7 +37,7 @@ describe('evaluateApprovalCriteria', () => {
     );
   });
 
-  it('returns C3 pass only when target margin is at least 15 percent', () => {
+  it('returns C3 pass only when target margin is at least the default 15 percent', () => {
     expect(evaluateApprovalCriteria({ ...satisfied, costing: { targetMarginPct: '15.00' } }).C3).toBe(
       'pass',
     );
@@ -47,6 +47,21 @@ describe('evaluateApprovalCriteria', () => {
     expect(evaluateApprovalCriteria({ ...satisfied, costing: { targetMarginPct: null } }).C3).toBe(
       'pending',
     );
+  });
+
+  it('returns C3 against the supplied org margin threshold when present', () => {
+    expect(
+      evaluateApprovalCriteria({
+        ...satisfied,
+        costing: { targetMarginPct: '18.00', marginThresholdPct: '20' },
+      }).C3,
+    ).toBe('warn');
+    expect(
+      evaluateApprovalCriteria({
+        ...satisfied,
+        costing: { targetMarginPct: '18.00', marginThresholdPct: '18' },
+      }).C3,
+    ).toBe('pass');
   });
 
   it('returns C4 not_required when D4 reduces sensory out of NPD approval', () => {

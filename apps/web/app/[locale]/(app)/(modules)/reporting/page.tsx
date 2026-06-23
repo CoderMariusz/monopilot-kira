@@ -27,6 +27,7 @@
  * See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  */
 import { Suspense } from 'react';
+import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
@@ -34,24 +35,33 @@ import {
   getReportingExportAccess,
   inventorySnapshot,
   procurementSummary,
+  reportingProductionLines,
   productionSummary,
   qualitySummary,
 } from './_actions/report-read-actions';
+import {
+  PeriodSelector,
+  type PeriodSelectorLabels,
+} from './_components/period-selector.client';
 import {
   ReportingOverviewClient,
   type ReportingLabels,
 } from './_components/reporting-overview.client';
 import { getRptTranslator } from './rpt-labels';
+import {
+  parseReportingFilters,
+  reportingWindowDays,
+  type ReportingFilters,
+  type ReportingSearchParams,
+  type ReportingWindow,
+} from './shared';
 
 // Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
-const PRODUCTION_DAYS = 7;
-const QUALITY_DAYS = 30;
-const PROCUREMENT_DAYS = 30;
-
 type PageProps = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<ReportingSearchParams>;
 };
 
 function ReportingSkeleton() {
@@ -64,19 +74,24 @@ function ReportingSkeleton() {
   );
 }
 
-function buildLabels(locale: string): ReportingLabels {
+function formatWindowLabel(window: ReportingWindow): string {
+  return `${window.from.toISOString().slice(0, 10)} - ${window.to.toISOString().slice(0, 10)}`;
+}
+
+function buildLabels(locale: string, window: ReportingWindow): ReportingLabels {
   const t = getRptTranslator(locale);
+  const windowLabel = formatWindowLabel(window);
   return {
     page: {
       exportCsv: t('page.exportCsv'),
       exportCsvDenied: t('page.exportCsvDenied'),
-      windowDays: t('page.windowDays', { days: PRODUCTION_DAYS }),
+      windowDays: t('page.windowDays', { days: reportingWindowDays(window) }),
       asOfNow: t('page.asOfNow'),
       notAvailable: t('page.notAvailable'),
     },
     production: {
       title: t('production.title'),
-      window: t('page.windowDays', { days: PRODUCTION_DAYS }),
+      window: windowLabel,
       kpi: {
         wosCompleted: t('production.kpi.wosCompleted'),
         outputKg: t('production.kpi.outputKg'),
@@ -121,7 +136,7 @@ function buildLabels(locale: string): ReportingLabels {
     },
     quality: {
       title: t('quality.title'),
-      window: t('page.windowDays', { days: QUALITY_DAYS }),
+      window: windowLabel,
       kpi: {
         openHolds: t('quality.kpi.openHolds'),
         inspections: t('quality.kpi.inspections'),
@@ -142,7 +157,7 @@ function buildLabels(locale: string): ReportingLabels {
     },
     procurement: {
       title: t('procurement.title'),
-      window: t('page.windowDays', { days: PROCUREMENT_DAYS }),
+      window: windowLabel,
       kpi: {
         posInWindow: t('procurement.kpi.posInWindow'),
         confirmedToGrn: t('procurement.kpi.confirmedToGrn'),
@@ -160,14 +175,37 @@ function buildLabels(locale: string): ReportingLabels {
   };
 }
 
-async function ReportingContent({ locale }: { locale: string }) {
-  const t = getRptTranslator(locale);
+async function buildSelectorLabels(locale: string): Promise<PeriodSelectorLabels> {
+  const t = await getTranslations({ locale, namespace: 'reporting' });
+  return {
+    today: t('period.today'),
+    week: t('period.week'),
+    month: t('period.month'),
+    last7d: t('period.last7d'),
+    last30d: t('period.last30d'),
+    custom: t('period.custom'),
+    line: t('filter.line'),
+    search: t('filter.search'),
+  };
+}
 
+async function loadReportingContent({
+  locale,
+  filters,
+}: {
+  locale: string;
+  filters: ReportingFilters;
+}) {
+  const t = getRptTranslator(locale);
+  const { from, to } = filters.window;
+
+  // Future follow-up: quality and inventory intentionally receive only the
+  // selected date window; line/order filters are scoped to production/procurement.
   const [production, inventory, quality, procurement, exportAccess] = await Promise.all([
-    productionSummary({ days: PRODUCTION_DAYS }),
-    inventorySnapshot(),
-    qualitySummary({ days: QUALITY_DAYS }),
-    procurementSummary({ days: PROCUREMENT_DAYS }),
+    productionSummary({ from, to, lineId: filters.lineId, orderQuery: filters.orderQuery }),
+    inventorySnapshot({ from, to }),
+    qualitySummary({ from, to }),
+    procurementSummary({ from, to, orderQuery: filters.orderQuery }),
     getReportingExportAccess(),
   ]);
 
@@ -208,14 +246,24 @@ async function ReportingContent({ locale }: { locale: string }) {
       quality={quality.data}
       procurement={procurement.data}
       canExportCsv={canExportCsv}
-      labels={buildLabels(locale)}
+      labels={buildLabels(locale, filters.window)}
     />
   );
 }
 
-export default async function ReportingRoutePage({ params }: PageProps) {
-  const { locale } = await params;
+export default async function ReportingRoutePage({ params, searchParams }: PageProps) {
+  const [{ locale }, rawSearchParams] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve({}),
+  ]);
   const t = getRptTranslator(locale);
+  const filters = parseReportingFilters(rawSearchParams);
+  const [selectorLabels, lineOptions, content] = await Promise.all([
+    buildSelectorLabels(locale),
+    reportingProductionLines(),
+    loadReportingContent({ locale, filters }),
+  ]);
+  const lines = lineOptions.ok ? lineOptions.data : [];
 
   return (
     <main
@@ -225,8 +273,26 @@ export default async function ReportingRoutePage({ params }: PageProps) {
       className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6"
     >
       <PageHeader title={t('page.title')} subtitle={t('page.subtitle')} />
-      <Suspense fallback={<ReportingSkeleton />}>
-        <ReportingContent locale={locale} />
+      <PeriodSelector
+        period={filters.period}
+        fromDate={filters.fromDate}
+        toDate={filters.toDate}
+        lineId={filters.lineId}
+        orderQuery={filters.orderQuery}
+        lines={lines}
+        labels={selectorLabels}
+      />
+      <Suspense
+        key={[
+          filters.period,
+          filters.fromDate,
+          filters.toDate,
+          filters.lineId ?? '',
+          filters.orderQuery ?? '',
+        ].join(':')}
+        fallback={<ReportingSkeleton />}
+      >
+        {content}
       </Suspense>
     </main>
   );
