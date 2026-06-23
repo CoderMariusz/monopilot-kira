@@ -77,7 +77,7 @@ async function signChangeoverAction(
   'use server';
   const res = await signChangeover(args[0]);
   if (res.ok) return { ok: true };
-  const known = ['forbidden', 'wrong_role', 'same_user', 'invalid_state', 'esign_failed'] as const;
+  const known = ['forbidden', 'wrong_role', 'same_user', 'same_user_rejected', 'invalid_state', 'cleaning_incomplete', 'esign_failed'] as const;
   const error = (known as readonly string[]).includes(res.error)
     ? (res.error as (typeof known)[number])
     : 'esign_failed';

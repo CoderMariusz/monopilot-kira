@@ -7473,7 +7473,9 @@
           "forbidden": "You are not authorized to sign changeovers.",
           "wrong_role": "Your role is not authorized for this signature slot",
           "same_user": "Second signature must be a different user",
+          "same_user_rejected": "Second signature must be a different user",
           "invalid_state": "This changeover is not in a state that can be signed.",
+          "cleaning_incomplete": "Cleaning must be completed before the final changeover sign-off.",
           "esign_failed": "Signature failed — the password did not match. Try again.",
           "generic": "Could not sign. Try again."
         }

@@ -82,7 +82,9 @@ export type SignChangeoverError =
   | 'forbidden'
   | 'wrong_role'
   | 'same_user'
+  | 'same_user_rejected'
   | 'invalid_state'
+  | 'cleaning_incomplete'
   | 'esign_failed';
 
 export type SignChangeoverInput = {

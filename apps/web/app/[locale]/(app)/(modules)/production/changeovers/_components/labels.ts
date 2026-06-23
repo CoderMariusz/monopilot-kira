@@ -90,7 +90,9 @@ export type ChangeoverSignLabels = {
     forbidden: string;
     wrong_role: string;
     same_user: string;
+    same_user_rejected: string;
     invalid_state: string;
+    cleaning_incomplete: string;
     esign_failed: string;
     generic: string;
   };

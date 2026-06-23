@@ -46,7 +46,7 @@ import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/conver
 import { createPurchaseOrder } from '../purchase-orders/_actions/actions';
 import { createWorkOrder } from '../work-orders/_actions/createWorkOrder';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { hasPlanningWritePermission } from './procurement-shared';
+import { hasPlanningWritePermission, writeProcurementAudit, type OrgActionContext } from './procurement-shared';
 import {
   computeMrp,
   type MrpItemRow,
@@ -154,6 +154,10 @@ export type MrpPlannedOrder = {
 export type MrpConvertResult =
   | { ok: true; created: number; poIds?: string[]; woIds?: string[]; skipped: Array<{ id: string; reason: string }> }
   | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
+
+export type MrpCancelResult =
+  | { ok: true; cancelled: true }
+  | { ok: false; error: 'forbidden' | 'invalid_input' | 'not_found' | 'invalid_state' | 'persistence_failed' };
 
 export type MrpRunsListResult =
   | { ok: true; data: MrpRunSummary[] }
@@ -736,6 +740,29 @@ type PlannedOrderForConversion = {
   release_status: string;
 };
 
+type PlannedOrderForCancel = {
+  id: string;
+  item_id: string;
+  item_code: string | null;
+  order_type: 'po' | 'to' | 'wo';
+  quantity: string;
+  uom: string;
+  due_date: string;
+  release_status: string;
+  released_order_id: string | null;
+  linked_po_status: string | null;
+  linked_to_status: string | null;
+  linked_wo_status: string | null;
+};
+
+// Mig 178 calls not-yet-released planned orders `suggested`/`firm`; there is no
+// persisted `pending` status in the local CHECK constraint, but accepting it here
+// keeps the action compatible with callers that use the product wording.
+const MRP_CANCELLABLE_RELEASE_STATUSES = ['pending', 'suggested', 'firm', 'released'];
+const MRP_RECEIVED_PO_STATUSES = ['partially_received', 'received'];
+const MRP_RECEIVED_TO_STATUSES = ['partially_received', 'received'];
+const MRP_CLOSED_WO_STATUSES = ['COMPLETED', 'CLOSED'];
+
 function uniqueValidIds(ids: string[]): string[] | null {
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > 200) return null;
   const unique = [...new Set(ids)];
@@ -787,6 +814,137 @@ async function markPlannedOrdersReleased(
         and id = any($1::uuid[])`,
     [ids, releasedOrderId],
   );
+}
+
+async function fetchPlannedOrderForCancel(
+  c: QueryClient,
+  plannedOrderId: string,
+): Promise<PlannedOrderForCancel | null> {
+  const { rows } = await c.query<PlannedOrderForCancel>(
+    `select po.id, po.item_id, i.item_code,
+            po.order_type, po.quantity::text as quantity, po.uom,
+            po.due_date::text as due_date, po.release_status,
+            po.released_order_id::text as released_order_id,
+            purchase_orders.status as linked_po_status,
+            transfer_orders.status as linked_to_status,
+            work_orders.status as linked_wo_status
+       from public.mrp_planned_orders po
+       left join public.items i
+         on i.org_id = app.current_org_id()
+        and i.id = po.item_id
+       left join public.purchase_orders
+         on purchase_orders.org_id = app.current_org_id()
+        and po.order_type = 'po'
+        and purchase_orders.id = po.released_order_id
+       left join public.transfer_orders
+         on transfer_orders.org_id = app.current_org_id()
+        and po.order_type = 'to'
+        and transfer_orders.id = po.released_order_id
+       left join public.work_orders
+         on work_orders.org_id = app.current_org_id()
+        and po.order_type = 'wo'
+        and work_orders.id = po.released_order_id
+      where po.org_id = app.current_org_id()
+        and po.id = $1::uuid
+      limit 1
+      for update of po`,
+    [plannedOrderId],
+  );
+  return rows[0] ?? null;
+}
+
+function isConvertedAndReceived(row: PlannedOrderForCancel): boolean {
+  if (row.order_type === 'po') return MRP_RECEIVED_PO_STATUSES.includes(row.linked_po_status ?? '');
+  if (row.order_type === 'to') return MRP_RECEIVED_TO_STATUSES.includes(row.linked_to_status ?? '');
+  if (row.order_type === 'wo') return MRP_CLOSED_WO_STATUSES.includes(row.linked_wo_status ?? '');
+  return false;
+}
+
+export async function cancelPlannedOrder(plannedOrderId: string): Promise<MrpCancelResult> {
+  if (typeof plannedOrderId !== 'string' || !UUID_RE.test(plannedOrderId)) {
+    return { ok: false, error: 'invalid_input' };
+  }
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpCancelResult> => {
+      const c = client as QueryClient;
+      const ctx: OrgActionContext = { userId, orgId, client: c };
+      if (!(await hasMrpConvertPermission(c, userId, orgId)) || !(await hasPlanningWritePermission(ctx))) {
+        return { ok: false, error: 'forbidden' };
+      }
+
+      const planned = await fetchPlannedOrderForCancel(c, plannedOrderId);
+      if (!planned) return { ok: false, error: 'not_found' };
+      if (!MRP_CANCELLABLE_RELEASE_STATUSES.includes(planned.release_status) || isConvertedAndReceived(planned)) {
+        return { ok: false, error: 'invalid_state' };
+      }
+
+      const updated = await c.query<{ id: string }>(
+        `update public.mrp_planned_orders po
+            set release_status = 'cancelled'
+          where po.org_id = app.current_org_id()
+            and po.id = $1::uuid
+            and po.release_status = any($2::text[])
+            and not exists (
+              select 1
+                from public.purchase_orders linked_po
+               where linked_po.org_id = app.current_org_id()
+                 and po.order_type = 'po'
+                 and linked_po.id = po.released_order_id
+                 and linked_po.status = any($3::text[])
+            )
+            and not exists (
+              select 1
+                from public.transfer_orders linked_to
+               where linked_to.org_id = app.current_org_id()
+                 and po.order_type = 'to'
+                 and linked_to.id = po.released_order_id
+                 and linked_to.status = any($4::text[])
+            )
+            and not exists (
+              select 1
+                from public.work_orders linked_wo
+               where linked_wo.org_id = app.current_org_id()
+                 and po.order_type = 'wo'
+                 and linked_wo.id = po.released_order_id
+                 and linked_wo.status = any($5::text[])
+            )
+        returning po.id`,
+        [
+          planned.id,
+          MRP_CANCELLABLE_RELEASE_STATUSES,
+          MRP_RECEIVED_PO_STATUSES,
+          MRP_RECEIVED_TO_STATUSES,
+          MRP_CLOSED_WO_STATUSES,
+        ],
+      );
+      if (!updated.rows[0]) return { ok: false, error: 'invalid_state' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.mrp_planned_order.cancelled',
+        resourceType: 'mrp_planned_order',
+        resourceId: planned.id,
+        beforeState: {
+          releaseStatus: planned.release_status,
+          releasedOrderId: planned.released_order_id,
+        },
+        afterState: {
+          releaseStatus: 'cancelled',
+          orderType: planned.order_type,
+          itemId: planned.item_id,
+          itemCode: planned.item_code,
+          quantity: planned.quantity,
+          uom: planned.uom,
+          dueDate: planned.due_date,
+        },
+      });
+
+      return { ok: true, cancelled: true };
+    });
+  } catch (err) {
+    console.error('[planning/mrp] cancelPlannedOrder failed', err);
+    return { ok: false, error: 'persistence_failed' };
+  }
 }
 
 export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<MrpConvertResult> {

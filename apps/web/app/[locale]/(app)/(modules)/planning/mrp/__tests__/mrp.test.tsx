@@ -12,6 +12,8 @@ import React from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type {
+  MrpCancelResult,
+  MrpPlannedOrder,
   MrpRunRequirementsResult,
   MrpRunResult,
   MrpRunsListResult,
@@ -158,7 +160,10 @@ const BELOW_MIN_ROW: MrpRow = {
   excludedUoms: [],
 };
 
-function okResult(rows: MrpRow[], extra: { runId?: string | null; runNumber?: string | null } = {}): MrpRunResult {
+function okResult(
+  rows: MrpRow[],
+  extra: { runId?: string | null; runNumber?: string | null; plannedOrders?: MrpPlannedOrder[] } = {},
+): MrpRunResult {
   return {
     ok: true,
     data: {
@@ -173,7 +178,7 @@ function okResult(rows: MrpRow[], extra: { runId?: string | null; runNumber?: st
       },
       runId: extra.runId ?? null,
       runNumber: extra.runNumber ?? null,
-      plannedOrders: [],
+      plannedOrders: extra.plannedOrders ?? [],
     },
   };
 }
@@ -291,6 +296,40 @@ describeUi('/planning/mrp — MrpView', () => {
     expect(screen.getByTestId('mrp-persisted-as')).toHaveTextContent('saved as MRP-20260611-AB12CD34');
     // A persisted run reloads the previous-runs list (mount + refresh).
     await waitFor(() => expect(listRunsAction).toHaveBeenCalledTimes(2));
+  });
+
+  it('cancels selected planned orders through the injected server action seam', async () => {
+    const plannedOrders: MrpPlannedOrder[] = [
+      {
+        id: 'po-1',
+        itemId: 'i1',
+        itemCode: 'RM-FLOUR',
+        itemName: 'Wheat flour',
+        type: 'buy',
+        qty: '25.000',
+        uom: 'kg',
+        needBy: '2026-06-18',
+        supplierId: 'sup-1',
+        status: 'suggested',
+      },
+    ];
+    const runAction = vi.fn(async () => okResult([SHORT_ROW], { plannedOrders }));
+    const cancelPlannedOrderAction = vi.fn(
+      async (): Promise<MrpCancelResult> => ({ ok: true, cancelled: true }),
+    );
+    renderView({ runAction, cancelPlannedOrderAction, timeFormatter: (iso) => iso });
+
+    fireEvent.click(screen.getByTestId('mrp-run-button'));
+    await waitFor(() => expect(screen.getByTestId('mrp-planned-orders-table')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('mrp-planned-select-po-1'));
+    expect(screen.getByTestId('mrp-planned-selection-count')).toHaveTextContent('1 selected');
+    fireEvent.click(screen.getByTestId('mrp-cancel-planned-button'));
+
+    await waitFor(() => expect(cancelPlannedOrderAction).toHaveBeenCalledWith('po-1'));
+    await waitFor(() => expect(screen.getByTestId('mrp-convert-feedback')).toHaveTextContent('Cancelled 1 planned order'));
+    expect(screen.getByTestId('mrp-planned-order-po-1')).toHaveTextContent('cancelled');
+    expect(screen.getByTestId('mrp-planned-select-po-1')).toBeDisabled();
   });
 
   it('lists previous runs and expands a run into its requirement ledger', async () => {

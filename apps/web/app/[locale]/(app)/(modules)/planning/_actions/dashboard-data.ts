@@ -191,8 +191,8 @@ export async function getPlanningDashboard(): Promise<PlanningDashboardResult> {
         `select count(*)::int as n
            from public.work_orders
           where org_id = app.current_org_id()
-            and scheduled_start_time >= date_trunc('day', now())
-            and scheduled_start_time < date_trunc('day', now()) + interval '1 day'`,
+            and scheduled_start_time >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
+            and scheduled_start_time < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '1 day'`,
       );
 
       // 7-day schedule window (today .. +7d), real WOs with a scheduled start.
@@ -208,8 +208,8 @@ export async function getPlanningDashboard(): Promise<PlanningDashboardResult> {
                 scheduled_start_time
            from public.work_orders
           where org_id = app.current_org_id()
-            and scheduled_start_time >= date_trunc('day', now())
-            and scheduled_start_time < date_trunc('day', now()) + interval '7 day'
+            and scheduled_start_time >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
+            and scheduled_start_time < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '7 day'
           order by scheduled_start_time asc
           limit 200`,
       );

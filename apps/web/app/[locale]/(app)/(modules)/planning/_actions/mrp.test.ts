@@ -11,7 +11,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
+import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -61,7 +61,10 @@ let reqInserts: Array<readonly unknown[]> = [];
 let plannedInserts: Array<readonly unknown[]> = [];
 let outboxInserts: Array<readonly unknown[]> = [];
 let releasedUpdates: Array<readonly unknown[]> = [];
+let cancelUpdates: Array<readonly unknown[]> = [];
+let auditInserts: Array<readonly unknown[]> = [];
 let conversionRows: Array<Record<string, unknown>> = [];
+let cancelLookupRows: Array<Record<string, unknown>> = [];
 let hasActiveBom = true;
 const createPurchaseOrderMock = vi.fn();
 const createWorkOrderMock = vi.fn();
@@ -138,11 +141,22 @@ function makeClient(): QueryClient {
         outboxInserts.push(params);
         return { rows: [], rowCount: 1 };
       }
+      if (normalized.includes('insert into public.audit_events')) {
+        auditInserts.push(params);
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('update public.mrp_planned_orders') && normalized.includes("set release_status = 'cancelled'")) {
+        cancelUpdates.push(params);
+        return { rows: [{ id: params[0] }], rowCount: 1 };
+      }
       if (normalized.startsWith('update public.mrp_planned_orders')) {
         releasedUpdates.push(params);
         return { rows: [], rowCount: 1 };
       }
       if (normalized.includes('from public.mrp_planned_orders')) {
+        if (normalized.includes('for update of po')) {
+          return { rows: cancelLookupRows as never[], rowCount: cancelLookupRows.length };
+        }
         if (!Array.isArray(params[0])) {
           return {
             rows: plannedInserts.map((p, index) => {
@@ -324,12 +338,114 @@ beforeEach(() => {
   plannedInserts = [];
   outboxInserts = [];
   releasedUpdates = [];
+  cancelUpdates = [];
+  auditInserts = [];
   conversionRows = [];
+  cancelLookupRows = [];
   hasActiveBom = true;
   createPurchaseOrderMock.mockReset();
   createPurchaseOrderMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
   createWorkOrderMock.mockReset();
   createWorkOrderMock.mockResolvedValue({ ok: true, workOrder: { id: WO_ID } });
+});
+
+describe('cancelPlannedOrder', () => {
+  it('cancels an org-scoped suggested planned order and writes an audit event', async () => {
+    cancelLookupRows = [
+      {
+        id: PO_PLANNED_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        release_status: 'suggested',
+        released_order_id: null,
+        linked_po_status: null,
+        linked_to_status: null,
+        linked_wo_status: null,
+      },
+    ];
+
+    const result = await cancelPlannedOrder(PO_PLANNED_ID);
+
+    expect(result).toEqual({ ok: true, cancelled: true });
+    expect(cancelUpdates).toHaveLength(1);
+    expect(cancelUpdates[0][0]).toBe(PO_PLANNED_ID);
+    expect(cancelUpdates[0][1]).toEqual(['pending', 'suggested', 'firm', 'released']);
+    const cancelSql = executed.find((sql) => sql.startsWith('update public.mrp_planned_orders') && sql.includes("set release_status = 'cancelled'"))!;
+    expect(cancelSql).toContain('app.current_org_id()');
+    expect(cancelSql).toContain('not exists');
+    expect(auditInserts).toHaveLength(1);
+    expect(auditInserts[0][2]).toBe('planning.mrp_planned_order.cancelled');
+    expect(auditInserts[0][3]).toBe('mrp_planned_order');
+    expect(auditInserts[0][4]).toBe(PO_PLANNED_ID);
+    expect(JSON.parse(auditInserts[0][5] as string)).toEqual({ releaseStatus: 'suggested', releasedOrderId: null });
+    expect(JSON.parse(auditInserts[0][6] as string)).toMatchObject({
+      releaseStatus: 'cancelled',
+      orderType: 'po',
+      itemId: FLOUR_ID,
+      itemCode: 'RM-FLOUR',
+    });
+  });
+
+  it('refuses to cancel a released planned PO after receipt has started', async () => {
+    cancelLookupRows = [
+      {
+        id: PO_PLANNED_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        release_status: 'released',
+        released_order_id: PO_ID,
+        linked_po_status: 'partially_received',
+        linked_to_status: null,
+        linked_wo_status: null,
+      },
+    ];
+
+    expect(await cancelPlannedOrder(PO_PLANNED_ID)).toEqual({ ok: false, error: 'invalid_state' });
+    expect(cancelUpdates).toHaveLength(0);
+    expect(auditInserts).toHaveLength(0);
+  });
+
+  it('refuses to cancel a released planned WO once the linked WO is closed', async () => {
+    cancelLookupRows = [
+      {
+        id: WO_PLANNED_ID,
+        item_id: DOUGH_ID,
+        item_code: 'INT-DOUGH',
+        order_type: 'wo',
+        quantity: '8.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        release_status: 'released',
+        released_order_id: WO_ID,
+        linked_po_status: null,
+        linked_to_status: null,
+        linked_wo_status: 'CLOSED',
+      },
+    ];
+
+    expect(await cancelPlannedOrder(WO_PLANNED_ID)).toEqual({ ok: false, error: 'invalid_state' });
+    expect(cancelUpdates).toHaveLength(0);
+    expect(auditInserts).toHaveLength(0);
+  });
+
+  it('uses the same write and MRP-convert RBAC gates as conversion actions', async () => {
+    allowWritePermission = false;
+    expect(await cancelPlannedOrder(PO_PLANNED_ID)).toEqual({ ok: false, error: 'forbidden' });
+    expect(cancelUpdates).toHaveLength(0);
+  });
+
+  it('rejects a non-uuid planned order id', async () => {
+    expect(await cancelPlannedOrder('not-a-uuid')).toEqual({ ok: false, error: 'invalid_input' });
+    expect(executed).toHaveLength(0);
+  });
 });
 
 describe('runMrp', () => {

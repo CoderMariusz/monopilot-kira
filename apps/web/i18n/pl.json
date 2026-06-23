@@ -7473,7 +7473,9 @@
           "forbidden": "Nie masz uprawnień do podpisywania przezbrojeń.",
           "wrong_role": "Twoja rola nie jest uprawniona do tego slotu podpisu",
           "same_user": "Drugi podpis musi złożyć inny użytkownik",
+          "same_user_rejected": "Drugi podpis musi złożyć inny użytkownik",
           "invalid_state": "To przezbrojenie nie jest w stanie umożliwiającym podpis.",
+          "cleaning_incomplete": "Czyszczenie musi być ukończone przed końcowym podpisaniem przezbrojenia.",
           "esign_failed": "Podpis nie powiódł się — hasło nie pasuje. Spróbuj ponownie.",
           "generic": "Nie udało się podpisać. Spróbuj ponownie."
         }

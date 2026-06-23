@@ -330,25 +330,11 @@ export default function MyProfilePage({
     }
   }
 
-  async function handleRevoke(sessionId: string) {
-    try {
-      const result = await revokeSession?.({ sessionId });
-      if (result && result.ok === false) {
-        setError(result.error ?? "Session could not be revoked.");
-        return;
-      }
-
-      setVisibleSessions((current) => current.filter((session) => session.id !== sessionId));
-      setMessage([
-        result?.deletedSessionId ? "user_sessions row deleted" : "session removed",
-        result?.invalidatedSessionToken ? "session token invalidated" : null,
-      ]
-        .filter(Boolean)
-        .join(" · "));
-    } catch {
-      setError("Session could not be revoked.");
-    }
-  }
+  // Per-session revoke intentionally has no client handler: there is no
+  // sessions backend (revokeSessionAction returns SESSIONS_BACKEND_UNAVAILABLE),
+  // so the per-row Revoke control is rendered disabled rather than wired to a
+  // call that always fails. The working "Log out everywhere" action below ends
+  // every session globally.
 
   return (
     <main
@@ -418,9 +404,9 @@ export default function MyProfilePage({
         <SettingField
           id="my-profile-phone"
           label="Phone"
+          hint="Phone number storage is not yet available — this field cannot be saved."
           value={draft.phone}
-          disabled={controlsDisabled}
-          onChange={(value) => updateDraft("phone", value)}
+          disabled
         />
         <SelectField
           id="my-profile-language"
@@ -524,8 +510,9 @@ export default function MyProfilePage({
                       className="btn-ghost btn-sm"
                       type="button"
                       data-session-id={session.id}
+                      disabled
+                      title="Per-session revoke is coming soon — use “Log out everywhere” to end every session."
                       style={{ color: "var(--red)" }}
-                      onClick={() => void handleRevoke(session.id)}
                     >
                       Revoke {session.device}
                     </Button>

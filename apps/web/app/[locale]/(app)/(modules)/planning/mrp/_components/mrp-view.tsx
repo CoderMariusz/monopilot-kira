@@ -23,6 +23,7 @@
 import React, { useEffect, useState, useTransition } from 'react';
 
 import type {
+  MrpCancelResult,
   MrpConvertResult,
   MrpPlannedOrder,
   MrpRunData,
@@ -33,7 +34,7 @@ import type {
   MrpRunsListResult,
   MrpRunSummary,
 } from '../../_actions/mrp';
-import { convertPlannedToPo, convertPlannedToWo } from '../../_actions/mrp';
+import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo } from '../../_actions/mrp';
 import type { MrpRow, MrpSeverity } from '../../_actions/mrp-compute';
 
 export type MrpLabels = {
@@ -243,35 +244,39 @@ function PlannedOrdersTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
-              <tr key={row.id} data-testid={`mrp-planned-order-${row.id}`}>
-                <td className="px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(row.id)}
-                    onChange={() => onToggle(row.id)}
-                    aria-label={`Select ${row.itemCode ?? row.id}`}
-                    data-testid={`mrp-planned-select-${row.id}`}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <div className="font-mono text-xs font-semibold text-slate-800">{row.itemCode ?? row.itemId}</div>
-                  <div className="text-slate-600">{row.itemName ?? ''}</div>
-                </td>
-                <td className="px-3 py-2">
-                  <span className={row.type === 'make' ? 'badge badge-blue' : row.type === 'buy' ? 'badge badge-amber' : 'badge badge-gray'}>
-                    {row.type}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-right font-mono">
-                  {row.qty} {row.uom}
-                </td>
-                <td className="px-3 py-2">{row.needBy}</td>
-                <td className="px-3 py-2">
-                  <span className="badge badge-gray">{row.status}</span>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const selectable = row.status !== 'cancelled';
+              return (
+                <tr key={row.id} data-testid={`mrp-planned-order-${row.id}`}>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectable && selectedIds.has(row.id)}
+                      disabled={!selectable}
+                      onChange={() => onToggle(row.id)}
+                      aria-label={`Select ${row.itemCode ?? row.id}`}
+                      data-testid={`mrp-planned-select-${row.id}`}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="font-mono text-xs font-semibold text-slate-800">{row.itemCode ?? row.itemId}</div>
+                    <div className="text-slate-600">{row.itemName ?? ''}</div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={row.type === 'make' ? 'badge badge-blue' : row.type === 'buy' ? 'badge badge-amber' : 'badge badge-gray'}>
+                      {row.type}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {row.qty} {row.uom}
+                  </td>
+                  <td className="px-3 py-2">{row.needBy}</td>
+                  <td className="px-3 py-2">
+                    <span className="badge badge-gray">{row.status}</span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -463,6 +468,7 @@ export function MrpView({
   runAction,
   listRunsAction,
   getRunRequirementsAction,
+  cancelPlannedOrderAction = cancelPlannedOrder,
   timeFormatter,
 }: {
   labels: MrpLabels;
@@ -472,6 +478,8 @@ export function MrpView({
   listRunsAction: () => Promise<MrpRunsListResult>;
   /** getMrpRunRequirements Server Action — per-run expandable ledger. */
   getRunRequirementsAction: (runId: string) => Promise<MrpRunRequirementsResult>;
+  /** cancelPlannedOrder Server Action — bulk invoked by selected planned-order rows. */
+  cancelPlannedOrderAction?: (plannedOrderId: string) => Promise<MrpCancelResult>;
   /** Locale-aware timestamp formatter (composed server-side; falls back to ISO). */
   timeFormatter?: (iso: string) => string;
 }) {
@@ -508,6 +516,22 @@ export function MrpView({
     return `Created ${result.created} ${noun}${result.created === 1 ? '' : 's'}${skipped}`;
   };
 
+  const markPlannedOrdersCancelled = (ids: string[]) => {
+    const cancelledIds = new Set(ids);
+    setResult((current) => {
+      if (!current || !current.ok) return current;
+      return {
+        ...current,
+        data: {
+          ...current.data,
+          plannedOrders: current.data.plannedOrders.map((order) =>
+            cancelledIds.has(order.id) ? { ...order, status: 'cancelled' } : order,
+          ),
+        },
+      };
+    });
+  };
+
   const convertSelected = (kind: 'po' | 'wo') => {
     const ids = [...selectedPlannedIds];
     if (ids.length === 0 || convertPending) return;
@@ -518,6 +542,30 @@ export function MrpView({
         setSelectedPlannedIds(new Set());
         setRunsRefreshKey((k) => k + 1);
       }
+    });
+  };
+
+  const cancelSelected = () => {
+    const ids = [...selectedPlannedIds];
+    if (ids.length === 0 || convertPending) return;
+    startConvertTransition(async () => {
+      const cancelledIds: string[] = [];
+      const failures: string[] = [];
+      for (const id of ids) {
+        const next = await cancelPlannedOrderAction(id);
+        if (next.ok) cancelledIds.push(id);
+        else failures.push(next.error);
+      }
+
+      if (cancelledIds.length > 0) {
+        markPlannedOrdersCancelled(cancelledIds);
+      }
+      const failed = failures.length > 0 ? `, failed ${failures.length}: ${failures.join(', ')}` : '';
+      setConvertFeedback(
+        `Cancelled ${cancelledIds.length} planned order${cancelledIds.length === 1 ? '' : 's'}${failed}`,
+      );
+      setSelectedPlannedIds(new Set());
+      setRunsRefreshKey((k) => k + 1);
     });
   };
 
@@ -625,6 +673,15 @@ export function MrpView({
                   data-testid="mrp-create-wo-button"
                 >
                   Create WO
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={selectedPlannedIds.size === 0 || convertPending}
+                  onClick={cancelSelected}
+                  data-testid="mrp-cancel-planned-button"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

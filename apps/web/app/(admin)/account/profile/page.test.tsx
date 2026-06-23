@@ -210,7 +210,12 @@ describe('SET-101 my_profile_screen prototype parity', () => {
     expect(within(profile).getByText(/shown in the ui/i)).toBeInTheDocument();
     expect(within(profile).getByLabelText(/^Email$/i)).toHaveAttribute('type', 'email');
     expect(within(profile).getByLabelText(/^Email$/i)).toBeDisabled();
+    // Phone has no `public.users.phone` column, so the field is rendered
+    // disabled (no silently-dropped input) with an explicit "not yet available"
+    // hint — see the deviation note. It still surfaces the value read-only.
     expect(within(profile).getByLabelText(/^Phone$/i)).toHaveValue('+48 600 123 456');
+    expect(within(profile).getByLabelText(/^Phone$/i)).toBeDisabled();
+    expect(within(profile).getByText(/phone number storage is not yet available/i)).toBeInTheDocument();
     expect(within(profile).getByRole('combobox', { name: /^Language$/i })).toHaveAttribute('data-slot');
     expect(within(profile).getByRole('combobox', { name: /^Timezone$/i })).toHaveAttribute('data-slot');
 
@@ -235,10 +240,14 @@ describe('SET-101 my_profile_screen prototype parity', () => {
     expect(within(sessionTable).getByText('Chrome on macOS')).toBeInTheDocument();
     expect(within(sessionTable).getByText('Current session')).toBeInTheDocument();
     expect(within(sessionTable).getByText('Monopilot Scanner')).toBeInTheDocument();
-    expect(within(sessionTable).getByRole('button', { name: /^Revoke Monopilot Scanner$/i })).toHaveAttribute(
-      'data-session-id',
-      'session-scanner',
-    );
+    // Per-session revoke has no backend (revokeSessionAction returns
+    // SESSIONS_BACKEND_UNAVAILABLE), so the control is rendered disabled with a
+    // "coming soon" title instead of a clickable action that always fails. The
+    // working escape hatch is "Log out everywhere" in the Danger zone below.
+    const revokeButton = within(sessionTable).getByRole('button', { name: /^Revoke Monopilot Scanner$/i });
+    expect(revokeButton).toHaveAttribute('data-session-id', 'session-scanner');
+    expect(revokeButton).toBeDisabled();
+    expect(revokeButton).toHaveAttribute('title', expect.stringMatching(/coming soon/i));
 
     const danger = screen.getByRole('region', { name: /^Danger zone$/i });
     expect(within(danger).getByRole('button', { name: /^Log out everywhere$/i })).toHaveAttribute(
@@ -261,8 +270,10 @@ describe('SET-101 my_profile_screen prototype parity', () => {
     expect(screen.getByLabelText(/^Full name$/i)).toHaveFocus();
     await user.tab();
     expect(screen.getByLabelText(/^Display name$/i)).toHaveFocus();
+    // Email and Phone are disabled (no backing column), so focus skips them and
+    // lands on the next interactive control — the Language dropdown trigger.
     await user.tab();
-    expect(screen.getByLabelText(/^Phone$/i)).toHaveFocus();
+    expect(screen.getByRole('combobox', { name: /^Language$/i })).toHaveFocus();
 
     expect(profileFieldSummary()).toMatchInlineSnapshot(`
       {
@@ -358,22 +369,24 @@ describe('SET-101 profile mutations', () => {
     expect(await screen.findByText(/NEXT_LOCALE=en/i)).toBeInTheDocument();
   });
 
-  it('deletes a revoked session and invalidates the session token server-side without exposing raw tokens', async () => {
+  it('does not wire the per-session Revoke control to a backend that always fails (disabled, no-op on click)', async () => {
     const user = userEvent.setup();
-    const revokeSession = vi.fn().mockResolvedValue({
-      ok: true,
-      deletedSessionId: 'session-scanner',
-      invalidatedSessionToken: true,
-    });
+    // There is no sessions backend: revokeSessionAction returns
+    // SESSIONS_BACKEND_UNAVAILABLE. The control must therefore be disabled, not a
+    // dead clickable button — clicking it must NOT invoke the action.
+    const revokeSession = vi.fn();
     const { container } = await renderMyProfile({ revokeSession });
 
-    await user.click(screen.getByRole('button', { name: /^Revoke Monopilot Scanner$/i }));
+    const revokeButton = screen.getByRole('button', { name: /^Revoke Monopilot Scanner$/i });
+    expect(revokeButton).toBeDisabled();
+    expect(revokeButton).toHaveAttribute('title', expect.stringMatching(/log out everywhere/i));
 
-    expect(revokeSession).toHaveBeenCalledTimes(1);
-    expect(revokeSession).toHaveBeenCalledWith({ sessionId: 'session-scanner' });
-    expect(screen.queryByText('Monopilot Scanner')).not.toBeInTheDocument();
-    expect(await screen.findByText(/user_sessions row deleted/i)).toBeInTheDocument();
-    expect(await screen.findByText(/session token invalidated/i)).toBeInTheDocument();
+    await user.click(revokeButton);
+
+    // Disabled control = no backend call, no optimistic row removal, no error.
+    expect(revokeSession).not.toHaveBeenCalled();
+    expect(screen.getByText('Monopilot Scanner')).toBeInTheDocument();
+    expect(screen.queryByText(/session could not be revoked/i)).not.toBeInTheDocument();
     expect(container).not.toHaveTextContent(/raw-session-token|refresh-token|access_token/i);
   });
 });
