@@ -36,6 +36,8 @@ import type {
   WoActionPermissions,
   WoModalLabels,
   WoReasonCategory,
+  WoShiftOption,
+  WoLineOption,
   WoState,
 } from './modals/types';
 
@@ -108,6 +110,8 @@ export type WoListActions = {
   locale: string;
   permissions: WoActionPermissions;
   downtimeCategories: WoReasonCategory[];
+  shifts: WoShiftOption[];
+  lines: WoLineOption[];
   modalLabels: WoModalLabels;
 };
 
@@ -317,6 +321,8 @@ export function WoListScreen({
                         }}
                         modalLabels={actions.modalLabels}
                         downtimeCategories={actions.downtimeCategories}
+                        shifts={actions.shifts}
+                        lines={actions.lines}
                       />
                     ) : (
                       <RowAction status={r.status} labels={labels} />

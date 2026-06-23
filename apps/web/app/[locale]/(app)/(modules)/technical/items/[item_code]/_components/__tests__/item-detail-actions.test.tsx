@@ -59,6 +59,7 @@ const baseItem: ItemDetail = {
   eachPerBox: null,
   boxesPerPallet: null,
   costPerKg: null,
+  listPriceGbp: null,
   updatedAt: '2026-06-11T00:00:00.000Z',
 };
 

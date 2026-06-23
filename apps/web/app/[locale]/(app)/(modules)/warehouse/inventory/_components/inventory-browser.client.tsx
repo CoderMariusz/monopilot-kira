@@ -6,7 +6,7 @@
  * Prototype parity (1:1): prototypes/design/Monopilot Design System/warehouse/
  *   other-screens.jsx:3-155 (inventory_browser_page):
  *     pivot pills By product / By location / By batch → other-screens.jsx:24-28
- *     product rows (code+name, total, available, LPs,
+ *     product rows (code+name, on-hand with pickable subfigure, LPs,
  *       earliest expiry)                              → other-screens.jsx:43-99
  *     location pivot rows                             → other-screens.jsx:102-123
  *     batch pivot rows                                → other-screens.jsx:125-150
@@ -18,8 +18,9 @@
  *
  * DEVIATIONS (red-lines): the prototype's value/GBP column + 🔒 manager-gate, the
  * expandable per-product LP sub-table, item-type / strategy / utilisation columns
- * and the extra filter selects are out of scope. The action surfaces total qty,
- * available, LP count and earliest expiry per pivot — those are the parity target.
+ * and the extra filter selects are out of scope. The action surfaces total
+ * on-hand qty, pickable qty, LP count and earliest expiry per pivot — those are
+ * the parity target.
  * No raw <select>: the pivot is a pill group; search is a text input.
  */
 
@@ -45,11 +46,16 @@ export type InventoryBrowserLabels = {
   emptyAll: string;
   emptyFiltered: string;
   none: string;
+  pickable: string;
   pivots: Record<InventoryPivot, string>;
-  product: { item: string; total: string; available: string; lps: string; earliestExpiry: string };
-  location: { location: string; warehouse: string; total: string; available: string; lps: string };
-  batch: { batch: string; item: string; total: string; available: string; lps: string; earliestExpiry: string };
+  product: { item: string; total: string; lps: string; earliestExpiry: string };
+  location: { location: string; warehouse: string; total: string; lps: string };
+  batch: { batch: string; item: string; total: string; lps: string; earliestExpiry: string };
 };
+
+function formatQty(qty: string, uom?: string | null): string {
+  return uom ? `${qty} ${uom}` : qty;
+}
 
 export function InventoryBrowserClient({
   byProduct,
@@ -182,7 +188,6 @@ export function InventoryBrowserClient({
               <TableRow>
                 <TableHead scope="col">{labels.product.item}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.product.total}</TableHead>
-                <TableHead scope="col" className="text-right">{labels.product.available}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.product.lps}</TableHead>
                 <TableHead scope="col">{labels.product.earliestExpiry}</TableHead>
               </TableRow>
@@ -198,11 +203,11 @@ export function InventoryBrowserClient({
                       ) : null}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">
-                    {r.quantity}{r.uom ? ` ${r.uom}` : ''}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums text-slate-700">
-                    {r.availableQty}{r.uom ? ` ${r.uom}` : ''}
+                  <TableCell className="text-right tabular-nums">
+                    <span className="block font-mono text-sm text-slate-900">{formatQty(r.totalQty, r.uom)}</span>
+                    <span className="block font-mono text-[11px] text-slate-500">
+                      {formatQty(r.pickableQty, r.uom)} {labels.pickable}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">{r.lpCount}</TableCell>
                   <TableCell className="font-mono text-xs text-slate-600">
@@ -219,7 +224,6 @@ export function InventoryBrowserClient({
                 <TableHead scope="col">{labels.location.location}</TableHead>
                 <TableHead scope="col">{labels.location.warehouse}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.location.total}</TableHead>
-                <TableHead scope="col" className="text-right">{labels.location.available}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.location.lps}</TableHead>
               </TableRow>
             </TableHeader>
@@ -228,8 +232,12 @@ export function InventoryBrowserClient({
                 <TableRow key={r.locationId ?? `loc-${i}`} data-testid={`inventory-location-${r.locationId ?? i}`}>
                   <TableCell className="font-mono text-xs text-slate-700">{r.locationCode ?? dash}</TableCell>
                   <TableCell className="font-mono text-xs text-slate-600">{r.warehouseCode ?? dash}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">{r.quantity}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums text-slate-700">{r.availableQty}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <span className="block font-mono text-sm text-slate-900">{r.totalQty}</span>
+                    <span className="block font-mono text-[11px] text-slate-500">
+                      {r.pickableQty} {labels.pickable}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">{r.lpCount}</TableCell>
                 </TableRow>
               ))}
@@ -242,7 +250,6 @@ export function InventoryBrowserClient({
                 <TableHead scope="col">{labels.batch.batch}</TableHead>
                 <TableHead scope="col">{labels.batch.item}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.batch.total}</TableHead>
-                <TableHead scope="col" className="text-right">{labels.batch.available}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.batch.lps}</TableHead>
                 <TableHead scope="col">{labels.batch.earliestExpiry}</TableHead>
               </TableRow>
@@ -254,8 +261,12 @@ export function InventoryBrowserClient({
                     {r.batchNumber ?? dash}
                   </TableCell>
                   <TableCell className="font-mono text-[11px] text-slate-600">{r.itemCode ?? dash}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">{r.quantity}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums text-slate-700">{r.availableQty}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <span className="block font-mono text-sm text-slate-900">{r.totalQty}</span>
+                    <span className="block font-mono text-[11px] text-slate-500">
+                      {r.pickableQty} {labels.pickable}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">{r.lpCount}</TableCell>
                   <TableCell className="font-mono text-xs text-slate-600">
                     {r.earliestExpiryDate ? r.earliestExpiryDate.slice(0, 10) : dash}

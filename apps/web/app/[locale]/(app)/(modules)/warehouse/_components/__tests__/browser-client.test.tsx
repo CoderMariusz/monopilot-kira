@@ -13,13 +13,13 @@ import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { InventoryBrowserClient, type InventoryBrowserLabels } from '../inventory-browser.client';
-import { getWhcTranslator } from '../../../wh-c-labels';
+import { InventoryBrowserClient, type InventoryBrowserLabels } from '../../inventory/_components/inventory-browser.client';
+import { getWhcTranslator } from '../../wh-c-labels';
 import type {
   InventoryByBatchRow,
   InventoryByLocationRow,
   InventoryByProductRow,
-} from '../../../_actions/shared';
+} from '../../_actions/shared';
 
 function buildLabels(locale: string): InventoryBrowserLabels {
   const t = getWhcTranslator(locale);
@@ -30,6 +30,7 @@ function buildLabels(locale: string): InventoryBrowserLabels {
     emptyAll: t('inventory.emptyAll'),
     emptyFiltered: t('inventory.emptyFiltered'),
     none: t('inventory.none'),
+    pickable: t('inventory.pickable'),
     pivots: {
       product: t('inventory.pivots.product'),
       location: t('inventory.pivots.location'),
@@ -38,7 +39,6 @@ function buildLabels(locale: string): InventoryBrowserLabels {
     product: {
       item: t('inventory.product.columns.item'),
       total: t('inventory.product.columns.total'),
-      available: t('inventory.product.columns.available'),
       lps: t('inventory.product.columns.lps'),
       earliestExpiry: t('inventory.product.columns.earliestExpiry'),
     },
@@ -46,14 +46,12 @@ function buildLabels(locale: string): InventoryBrowserLabels {
       location: t('inventory.location.columns.location'),
       warehouse: t('inventory.location.columns.warehouse'),
       total: t('inventory.location.columns.total'),
-      available: t('inventory.location.columns.available'),
       lps: t('inventory.location.columns.lps'),
     },
     batch: {
       batch: t('inventory.batch.columns.batch'),
       item: t('inventory.batch.columns.item'),
       total: t('inventory.batch.columns.total'),
-      available: t('inventory.batch.columns.available'),
       lps: t('inventory.batch.columns.lps'),
       earliestExpiry: t('inventory.batch.columns.earliestExpiry'),
     },
@@ -67,6 +65,8 @@ const PRODUCT: InventoryByProductRow[] = [
     productId: 'p-1',
     itemCode: 'R-1001',
     itemName: 'Wieprzowina',
+    totalQty: '500',
+    pickableQty: '420',
     quantity: '500',
     availableQty: '420',
     lpCount: 4,
@@ -77,6 +77,8 @@ const PRODUCT: InventoryByProductRow[] = [
     productId: 'p-2',
     itemCode: 'R-1002',
     itemName: 'Flour',
+    totalQty: '120',
+    pickableQty: '120',
     quantity: '120',
     availableQty: '120',
     lpCount: 1,
@@ -90,6 +92,8 @@ const LOCATION: InventoryByLocationRow[] = [
     locationCode: 'COLD-B3',
     warehouseId: 'w-1',
     warehouseCode: 'WH-A',
+    totalQty: '300',
+    pickableQty: '250',
     quantity: '300',
     availableQty: '250',
     lpCount: 3,
@@ -100,6 +104,8 @@ const BATCH: InventoryByBatchRow[] = [
     productId: 'p-1',
     itemCode: 'R-1001',
     batchNumber: 'B-2026-04-02',
+    totalQty: '200',
+    pickableQty: '180',
     quantity: '200',
     availableQty: '180',
     lpCount: 2,
@@ -113,12 +119,12 @@ function renderBrowser(over?: {
   byBatch?: InventoryByBatchRow[];
 }) {
   return render(
-    <InventoryBrowserClient
-      byProduct={over?.byProduct ?? PRODUCT}
-      byLocation={over?.byLocation ?? LOCATION}
-      byBatch={over?.byBatch ?? BATCH}
-      labels={EN}
-    />,
+    React.createElement(InventoryBrowserClient, {
+      byProduct: over?.byProduct ?? PRODUCT,
+      byLocation: over?.byLocation ?? LOCATION,
+      byBatch: over?.byBatch ?? BATCH,
+      labels: EN,
+    }),
   );
 }
 
@@ -136,6 +142,8 @@ describe('InventoryBrowserClient (WH-012 parity)', () => {
   it('defaults to the product pivot and switches pivots', () => {
     renderBrowser();
     expect(screen.getByTestId('inventory-product-p-1')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-product-p-1')).toHaveTextContent('500 kg');
+    expect(screen.getByTestId('inventory-product-p-1')).toHaveTextContent(`420 kg ${EN.pickable}`);
     fireEvent.click(screen.getByTestId('inventory-pivot-location'));
     expect(screen.queryByTestId('inventory-product-p-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('inventory-location-l-1')).toBeInTheDocument();

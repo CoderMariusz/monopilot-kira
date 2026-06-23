@@ -162,6 +162,7 @@ export type ItemListItem = {
   eachPerBox: number | null;
   boxesPerPallet: number | null;
   costPerKg: string | null;
+  listPriceGbp: string | null;
   updatedAt: string;
   /** Declared allergen names from item_allergen_profiles (empty when none). */
   allergens: string[];
@@ -201,6 +202,7 @@ export const CreateItemInput = z
     grossWeightMax: OptionalNumeric,
     // Cost writes must go through item_cost_history; keep decimal strings exact.
     costPerKg: CostPerKgInput.optional(),
+    listPriceGbp: OptionalNumeric,
     // numeric(5,2) in [0,100]
     varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
     shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
@@ -237,6 +239,7 @@ export const UpdateItemInput = z
     grossWeightMax: OptionalNumeric,
     // Accepted for legacy callers/import payloads, but updateItem never writes cost.
     costPerKg: CostPerKgInput.optional(),
+    listPriceGbp: OptionalNumeric,
     varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
     shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
     shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),

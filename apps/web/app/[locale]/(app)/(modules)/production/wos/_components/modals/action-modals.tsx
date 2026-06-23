@@ -45,6 +45,8 @@ import type {
   WoModalLabels,
   WoReasonCategory,
   WoWasteCategory,
+  WoShiftOption,
+  WoLineOption,
 } from './types';
 
 /**
@@ -73,6 +75,17 @@ function ErrorBanner({ message, testid }: { message: string; testid: string }) {
 
 function mapError(labels: WoModalLabels, code: string): string {
   return labels.errors[code] ?? labels.errorFallback;
+}
+
+/**
+ * Resolve a shift option's display name. The loader returns the stable scanner
+ * shift CODE (morning/afternoon/night); the localized label lives in
+ * labels.shifts.<code>. Falls back to the option's own `name` (then the code)
+ * for any future code not yet in the labels map.
+ */
+function shiftLabel(labels: WoModalLabels, opt: WoShiftOption): string {
+  const localized = (labels.shifts as Record<string, string | undefined>)[opt.code];
+  return localized ?? opt.name ?? opt.code;
 }
 
 /** Field row helper — label + control with a stable id. */
@@ -173,15 +186,27 @@ export function PauseModal({
   onClose,
   categories,
   defaultLineId,
-}: BaseModalProps & { categories: WoReasonCategory[]; defaultLineId: string | null }) {
+  lines = [],
+  shifts = [],
+}: BaseModalProps & {
+  categories: WoReasonCategory[];
+  defaultLineId: string | null;
+  lines: WoLineOption[];
+  shifts: WoShiftOption[];
+}) {
   const [reasonCategoryId, setReasonCategoryId] = useState('');
-  const [lineId, setLineId] = useState(defaultLineId ?? '');
+  // Line is now a dropdown (D8) — default to the WO's assigned line when it is a
+  // known option, otherwise leave empty so the operator must pick one (mandatory).
+  const [lineId, setLineId] = useState(
+    defaultLineId && lines.some((l) => l.id === defaultLineId) ? defaultLineId : '',
+  );
   const [shiftId, setShiftId] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canConfirm = reasonCategoryId !== '' && lineId.trim() !== '' && !busy;
+  // Line stays MANDATORY — only the entry method changed from free text to a picker.
+  const canConfirm = reasonCategoryId !== '' && lineId !== '' && !busy;
 
   async function handleConfirm() {
     if (!canConfirm) return;
@@ -190,8 +215,8 @@ export function PauseModal({
     const result = await run('pause', {
       transactionId: freshTransactionId(),
       reasonCategoryId,
-      lineId: lineId.trim(),
-      shiftId: shiftId.trim() || null,
+      lineId,
+      shiftId: shiftId || null,
       notes: notes.trim() || null,
     });
     setBusy(false);
@@ -230,10 +255,38 @@ export function PauseModal({
             )}
           </FieldRow>
           <FieldRow id="wo-pause-line" label={labels.pause.line}>
-            <Input id="wo-pause-line" value={lineId} disabled={busy} onChange={(e) => setLineId(e.target.value)} data-testid="wo-pause-line" />
+            {lines.length === 0 ? (
+              <p data-testid="wo-pause-no-lines" className="text-sm text-amber-700">
+                {labels.pause.noLines}
+              </p>
+            ) : (
+              <Select value={lineId} onValueChange={setLineId} aria-label={labels.pause.line}>
+                <SelectTrigger id="wo-pause-line" data-testid="wo-pause-line">
+                  <SelectValue placeholder={labels.pause.linePlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {lines.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </FieldRow>
           <FieldRow id="wo-pause-shift" label={labels.pause.shift}>
-            <Input id="wo-pause-shift" value={shiftId} disabled={busy} onChange={(e) => setShiftId(e.target.value)} data-testid="wo-pause-shift" />
+            <Select value={shiftId} onValueChange={setShiftId} aria-label={labels.pause.shift}>
+              <SelectTrigger id="wo-pause-shift" data-testid="wo-pause-shift">
+                <SelectValue placeholder={labels.pause.shiftPlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {shifts.map((s) => (
+                  <SelectItem key={s.code} value={s.code}>
+                    {shiftLabel(labels, s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FieldRow>
           <FieldRow id="wo-pause-notes" label={labels.pause.notes}>
             <Textarea id="wo-pause-notes" rows={2} value={notes} disabled={busy} onChange={(e) => setNotes(e.target.value)} data-testid="wo-pause-notes" />
@@ -1045,7 +1098,8 @@ export function WasteModal({
   run,
   onClose,
   categories,
-}: BaseModalProps & { categories: WoWasteCategory[] }) {
+  shifts = [],
+}: BaseModalProps & { categories: WoWasteCategory[]; shifts: WoShiftOption[] }) {
   const [categoryCode, setCategoryCode] = useState('');
   const [qty, setQty] = useState('');
   const [shiftId, setShiftId] = useState('');
@@ -1055,7 +1109,9 @@ export function WasteModal({
   const [error, setError] = useState<string | null>(null);
 
   const qtyValid = /^\d+(\.\d+)?$/.test(qty.trim()) && Number(qty.trim()) > 0;
-  const canConfirm = categoryCode !== '' && qtyValid && shiftId.trim() !== '' && !busy;
+  // Shift stays MANDATORY — a selected shift code is required, only the entry
+  // method changed from free text to a picker.
+  const canConfirm = categoryCode !== '' && qtyValid && shiftId !== '' && !busy;
 
   async function handleConfirm() {
     if (!canConfirm) return;
@@ -1065,7 +1121,7 @@ export function WasteModal({
       transaction_id: freshTransactionId(),
       category_code: categoryCode,
       qty_kg: qty.trim(),
-      shift_id: shiftId.trim(),
+      shift_id: shiftId,
       ...(reasonCode.trim() ? { reason_code: reasonCode.trim() } : {}),
       ...(notes.trim() ? { reason_notes: notes.trim() } : {}),
     });
@@ -1111,7 +1167,18 @@ export function WasteModal({
             <Input id="wo-waste-qty" inputMode="decimal" value={qty} disabled={busy} onChange={(e) => setQty(e.target.value)} data-testid="wo-waste-qty" />
           </FieldRow>
           <FieldRow id="wo-waste-shift" label={labels.waste.shift}>
-            <Input id="wo-waste-shift" value={shiftId} disabled={busy} onChange={(e) => setShiftId(e.target.value)} data-testid="wo-waste-shift" />
+            <Select value={shiftId} onValueChange={setShiftId} aria-label={labels.waste.shift}>
+              <SelectTrigger id="wo-waste-shift" data-testid="wo-waste-shift">
+                <SelectValue placeholder={labels.waste.shiftPlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {shifts.map((s) => (
+                  <SelectItem key={s.code} value={s.code}>
+                    {shiftLabel(labels, s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FieldRow>
           <FieldRow id="wo-waste-reason" label={labels.waste.reasonCode}>
             <Input id="wo-waste-reason" value={reasonCode} disabled={busy} onChange={(e) => setReasonCode(e.target.value)} data-testid="wo-waste-reason" />

@@ -66,8 +66,10 @@ function buildDeactivateLabels(t: Translator): DeactivateLabels {
 export default async function TechnicalItemsPage() {
   const { items, canCreate, canEdit, canDeactivate, state, limit, total, truncated } = await listItems();
   const t = await getTranslations('technical.items');
+  const tItems = await getTranslations('items');
 
   const wizardLabels = buildWizardLabels(t);
+  wizardLabels.fields.listPriceGbp = tItems('list_price_gbp_label');
   const deactivateLabels = buildDeactivateLabels(t);
   const transitionLabels = buildTransitionLabels(t);
   const newItemLabel = t('create.open');

@@ -49,6 +49,7 @@ export type ItemDetail = {
   eachPerBox: number | null;
   boxesPerPallet: number | null;
   costPerKg: string | null;
+  listPriceGbp: string | null;
   updatedAt: string;
 };
 
@@ -80,6 +81,7 @@ type ItemDetailRow = {
   each_per_box: number | null;
   boxes_per_pallet: number | null;
   cost_per_kg: string | null;
+  list_price_gbp: string | null;
   updated_at: string | Date;
 };
 
@@ -115,6 +117,7 @@ function mapDetail(row: ItemDetailRow): ItemDetail | null {
     eachPerBox: row.each_per_box,
     boxesPerPallet: row.boxes_per_pallet,
     costPerKg: row.cost_per_kg,
+    listPriceGbp: row.list_price_gbp,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
 }
@@ -132,7 +135,7 @@ export async function getItem(itemCode: string): Promise<GetItemResult> {
                   uom_base, uom_secondary, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
                   variance_tolerance_pct, shelf_life_days, shelf_life_mode,
                   output_uom, net_qty_per_each, each_per_box, boxes_per_pallet,
-                  cost_per_kg, updated_at
+                  cost_per_kg, list_price_gbp::text as list_price_gbp, updated_at
              from public.items
             where org_id = app.current_org_id()
               and item_code = $1

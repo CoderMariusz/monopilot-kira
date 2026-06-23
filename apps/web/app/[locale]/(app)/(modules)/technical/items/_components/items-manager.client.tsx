@@ -78,6 +78,7 @@ function rowToForm(item: ItemListItem): WizardFormState {
     netQtyPerEach: item.netQtyPerEach ?? '',
     eachPerBox: item.eachPerBox == null ? '' : String(item.eachPerBox),
     boxesPerPallet: item.boxesPerPallet == null ? '' : String(item.boxesPerPallet),
+    listPriceGbp: item.listPriceGbp ?? '',
   };
 }
 

@@ -59,7 +59,8 @@
     }
   },
   "items": {
-    "count": "{count, plural, one {# element} few {# elemente} other {# de elemente}}"
+    "count": "{count, plural, one {# element} few {# elemente} other {# de elemente}}",
+    "list_price_gbp_label": "List price (GBP / base UoM)"
   },
   "settings": {
     "users_screen": {
@@ -7061,7 +7062,10 @@
           "reason": "Downtime reason",
           "reasonPlaceholder": "Select a downtime category…",
           "line": "Line",
+          "linePlaceholder": "Select a production line…",
+          "noLines": "No production lines are configured for your organization.",
           "shift": "Shift",
+          "shiftPlaceholder": "Select a shift…",
           "notes": "Notes",
           "noCategories": "No downtime categories are configured for your organization."
         },
@@ -7143,9 +7147,15 @@
           "categoryPlaceholder": "Select a waste category…",
           "qty": "Quantity (kg)",
           "shift": "Shift",
+          "shiftPlaceholder": "Select a shift…",
           "reasonCode": "Reason code",
           "notes": "Notes",
           "noCategories": "No waste categories are configured for your organization."
+        },
+        "shifts": {
+          "morning": "Morning",
+          "afternoon": "Afternoon",
+          "night": "Night"
         }
       }
     },

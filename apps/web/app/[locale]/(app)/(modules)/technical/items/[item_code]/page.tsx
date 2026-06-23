@@ -121,6 +121,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   const itemCode = decodeURIComponent(rawCode);
 
   const t = await getTranslations('technical.items');
+  const tItems = await getTranslations('items');
   const result = await getItem(itemCode);
 
   // ── not-found / error states ────────────────────────────────────────────────
@@ -216,6 +217,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   };
 
   const wizardLabels = buildWizardLabels(t);
+  wizardLabels.fields.listPriceGbp = tItems('list_price_gbp_label');
   const transitionLabels = buildTransitionLabels(t);
 
   const deactivateLabels: DeactivateLabels = {

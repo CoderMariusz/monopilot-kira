@@ -7,9 +7,9 @@
  *   inventory/_components/inventory-browser.client.tsx.
  *
  * Data: the reviewed getInventoryByProduct / ByLocation / ByBatch actions
- * (imported, never authored), each run inside withOrgContext (RLS-scoped) over the
- * v_inventory_available view. RBAC enforced server-side; a `forbidden` result on
- * any pivot renders the permission-denied panel.
+ * (imported, never authored), each run inside withOrgContext (RLS-scoped) over
+ * license_plates. RBAC enforced server-side; a `forbidden` result on any pivot
+ * renders the permission-denied panel.
  *
  * UI states: loading (Suspense skeleton), empty + empty-filtered (in the client
  * island), error (failed read → banner), permission-denied (forbidden → panel),
@@ -42,6 +42,7 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): InventoryBrowserLa
     emptyAll: t('inventory.emptyAll'),
     emptyFiltered: t('inventory.emptyFiltered'),
     none: t('inventory.none'),
+    pickable: t('inventory.pickable'),
     pivots: {
       product: t('inventory.pivots.product'),
       location: t('inventory.pivots.location'),
@@ -50,7 +51,6 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): InventoryBrowserLa
     product: {
       item: t('inventory.product.columns.item'),
       total: t('inventory.product.columns.total'),
-      available: t('inventory.product.columns.available'),
       lps: t('inventory.product.columns.lps'),
       earliestExpiry: t('inventory.product.columns.earliestExpiry'),
     },
@@ -58,14 +58,12 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): InventoryBrowserLa
       location: t('inventory.location.columns.location'),
       warehouse: t('inventory.location.columns.warehouse'),
       total: t('inventory.location.columns.total'),
-      available: t('inventory.location.columns.available'),
       lps: t('inventory.location.columns.lps'),
     },
     batch: {
       batch: t('inventory.batch.columns.batch'),
       item: t('inventory.batch.columns.item'),
       total: t('inventory.batch.columns.total'),
-      available: t('inventory.batch.columns.available'),
       lps: t('inventory.batch.columns.lps'),
       earliestExpiry: t('inventory.batch.columns.earliestExpiry'),
     },

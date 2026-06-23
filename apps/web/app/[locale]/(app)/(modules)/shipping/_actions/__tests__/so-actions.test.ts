@@ -31,6 +31,7 @@ let status = 'draft';
 let soNumber = 'SO-202606-00001';
 let insertedSo: Record<string, unknown> | null = null;
 let insertedLines: Array<Record<string, unknown>> = [];
+let listPriceGbp: string | null = '7.2500';
 let allocationRows: Array<{ sales_order_line_id: string; lp_id: string; qty: string; status: string }> = [];
 let lpReserved: Record<string, string> = {};
 let lineAllocatedQty = '0';
@@ -80,12 +81,20 @@ function makeClient(): QueryClient {
         };
         return { rows: [{ id: SO_ID }], rowCount: 1 };
       }
+      if (q.startsWith('select id::text, list_price_gbp::text as list_price_gbp')) {
+        return { rows: [{ id: ITEM_ID, list_price_gbp: listPriceGbp }], rowCount: 1 };
+      }
       if (q.startsWith('insert into public.sales_order_lines')) {
+        const quantityOrdered = params[4] as string;
+        const unitPriceGbp = params[5] as number;
         insertedLines.push({
           sales_order_id: params[1],
           line_number: params[2],
           product_id: params[3],
-          quantity_ordered: params[4],
+          quantity_ordered: quantityOrdered,
+          unit_price_gbp: unitPriceGbp,
+          line_total_gbp: Number(quantityOrdered) * unitPriceGbp,
+          ext_data: { order_uom: params[6] },
         });
         return { rows: [], rowCount: 1 };
       }
@@ -205,6 +214,7 @@ beforeEach(() => {
   soNumber = 'SO-202606-00001';
   insertedSo = null;
   insertedLines = [];
+  listPriceGbp = '7.2500';
   allocationRows = [];
   lpReserved = {};
   lineAllocatedQty = '0';
@@ -286,8 +296,47 @@ describe('createSalesOrder', () => {
     expect(result).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
     expect(insertedSo).toMatchObject({ order_number: 'SO-202606-00001', customer_id: CUSTOMER_ID });
     expect(insertedLines).toEqual([
-      { sales_order_id: SO_ID, line_number: 1, product_id: ITEM_ID, quantity_ordered: '10' },
+      {
+        sales_order_id: SO_ID,
+        line_number: 1,
+        product_id: ITEM_ID,
+        quantity_ordered: '10',
+        unit_price_gbp: 7.25,
+        line_total_gbp: 72.5,
+        ext_data: { order_uom: 'kg' },
+      },
     ]);
+  });
+
+  it('uses item list_price_gbp for unit_price_gbp and line_total_gbp', async () => {
+    listPriceGbp = '2.5000';
+
+    await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '3', uom: 'case' }],
+    });
+
+    expect(insertedLines[0]).toMatchObject({
+      unit_price_gbp: 2.5,
+      line_total_gbp: 7.5,
+      ext_data: { order_uom: 'case' },
+    });
+  });
+
+  it('uses zero unit_price_gbp when item list_price_gbp is null', async () => {
+    listPriceGbp = null;
+
+    await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '3', uom: 'kg' }],
+    });
+
+    expect(insertedLines[0]).toMatchObject({
+      unit_price_gbp: 0,
+      line_total_gbp: 0,
+    });
   });
 });
 

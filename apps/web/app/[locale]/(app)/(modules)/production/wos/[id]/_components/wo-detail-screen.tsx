@@ -81,6 +81,8 @@ import type {
   WoModalLabels,
   WoReasonCategory,
   WoWasteCategory,
+  WoShiftOption,
+  WoLineOption,
   WoState,
 } from '../../_components/modals/types';
 
@@ -349,6 +351,10 @@ export type WoDetailActions = {
   currentUserId: string;
   downtimeCategories: WoReasonCategory[];
   wasteCategories: WoWasteCategory[];
+  /** D8 — shift options for the Waste/Pause shift dropdowns (mandatory, picker). */
+  shifts: WoShiftOption[];
+  /** D8 — production lines for the Pause line dropdown (mandatory, picker). */
+  lines: WoLineOption[];
   modalLabels: WoModalLabels;
 };
 
@@ -1438,6 +1444,8 @@ export function WoDetailScreen({
       currentUserId={actions.currentUserId}
       downtimeCategories={actions.downtimeCategories}
       wasteCategories={actions.wasteCategories}
+      shifts={actions.shifts}
+      lines={actions.lines}
       defaultLineId={h.lineId}
       defaultProductId={h.productId}
       outputUom={outputUom}

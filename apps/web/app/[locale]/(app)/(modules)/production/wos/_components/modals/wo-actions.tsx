@@ -38,6 +38,8 @@ import type {
   WoModalLabels,
   WoReasonCategory,
   WoWasteCategory,
+  WoShiftOption,
+  WoLineOption,
   WoState,
 } from './types';
 
@@ -66,6 +68,10 @@ export type WoActionsProviderProps = {
   currentUserId: string;
   downtimeCategories: WoReasonCategory[];
   wasteCategories: WoWasteCategory[];
+  /** Shift options for the Waste + Pause shift dropdowns (D8 — picker, mandatory). */
+  shifts: WoShiftOption[];
+  /** Org production lines for the Pause line dropdown (D8 — picker, mandatory). */
+  lines: WoLineOption[];
   /** WO's line id (string) prefilled into the Pause modal. */
   defaultLineId: string | null;
   /** WO's FG product id prefilled into the Register-output modal. */
@@ -104,6 +110,8 @@ export function WoActionsProvider(props: WoActionsProviderProps) {
         currentUserId={props.currentUserId}
         downtimeCategories={props.downtimeCategories}
         wasteCategories={props.wasteCategories}
+        shifts={props.shifts}
+        lines={props.lines}
         defaultLineId={props.defaultLineId}
         defaultProductId={props.defaultProductId}
         outputUom={props.outputUom ?? null}
@@ -158,6 +166,8 @@ function WoActionModals({
   currentUserId,
   downtimeCategories,
   wasteCategories,
+  shifts,
+  lines,
   defaultLineId,
   defaultProductId,
   outputUom,
@@ -169,6 +179,8 @@ function WoActionModals({
   currentUserId: string;
   downtimeCategories: WoReasonCategory[];
   wasteCategories: WoWasteCategory[];
+  shifts: WoShiftOption[];
+  lines: WoLineOption[];
   defaultLineId: string | null;
   defaultProductId: string | null;
   outputUom: OutputUomContext | null;
@@ -184,7 +196,14 @@ function WoActionModals({
   return (
     <>
       <StartModal open={open === 'start'} {...base} />
-      <PauseModal open={open === 'pause'} {...base} categories={downtimeCategories} defaultLineId={defaultLineId} />
+      <PauseModal
+        open={open === 'pause'}
+        {...base}
+        categories={downtimeCategories}
+        defaultLineId={defaultLineId}
+        lines={lines}
+        shifts={shifts}
+      />
       <ResumeModal open={open === 'resume'} {...base} />
       <CancelModal open={open === 'cancel'} {...base} />
       <CompleteModal open={open === 'complete'} {...base} />
@@ -197,7 +216,7 @@ function WoActionModals({
         printLabelAction={printFgLabelAction}
         canPrintFgLabel={canPrintFgLabel}
       />
-      <WasteModal open={open === 'waste'} {...base} categories={wasteCategories} />
+      <WasteModal open={open === 'waste'} {...base} categories={wasteCategories} shifts={shifts} />
     </>
   );
 }

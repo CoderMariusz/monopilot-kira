@@ -1,0 +1,15 @@
+{
+  "task": "D8 — shift/line free-text → dropdown",
+  "tool": "RTL role/accessible-name assertions",
+  "blocker": "jest-axe/vitest-axe not a dependency of apps/web; adding it is out of STRICT SCOPE (no package.json edits). Same documented substitute as catch-weight-evidence + T-040.",
+  "checks": {
+    "dialogRole": true,
+    "lineIsCombobox": true,
+    "shiftIsCombobox": true,
+    "lineHasAccessibleName": true,
+    "shiftHasAccessibleName": true,
+    "noRawTextInputForShiftOrLine": true,
+    "errorBannerUsesAlertRole": "verified in pause-state-error capture (role=\"alert\")"
+  },
+  "violations": []
+}

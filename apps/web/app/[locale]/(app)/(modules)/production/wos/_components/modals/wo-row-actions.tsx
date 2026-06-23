@@ -23,6 +23,8 @@ import type {
   WoActionPermissions,
   WoModalLabels,
   WoReasonCategory,
+  WoShiftOption,
+  WoLineOption,
   WoState,
 } from './types';
 
@@ -41,6 +43,8 @@ export function WoRowActions({
   rowLabels,
   modalLabels,
   downtimeCategories,
+  shifts,
+  lines,
 }: {
   locale: string;
   woId: string;
@@ -51,6 +55,8 @@ export function WoRowActions({
   rowLabels: WoListRowActionLabels;
   modalLabels: WoModalLabels;
   downtimeCategories: WoReasonCategory[];
+  shifts: WoShiftOption[];
+  lines: WoLineOption[];
 }) {
   const [open, setOpen] = useState<WoActionKind | null>(null);
   const { run } = useWoAction(locale, woId);
@@ -82,7 +88,14 @@ export function WoRowActions({
         {label}
       </button>
       <StartModal open={open === 'start'} {...base} />
-      <PauseModal open={open === 'pause'} {...base} categories={downtimeCategories} defaultLineId={lineId} />
+      <PauseModal
+        open={open === 'pause'}
+        {...base}
+        categories={downtimeCategories}
+        defaultLineId={lineId}
+        lines={lines}
+        shifts={shifts}
+      />
       <ResumeModal open={open === 'resume'} {...base} />
     </>
   );

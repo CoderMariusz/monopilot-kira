@@ -36,14 +36,14 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       const { rows } = await (client as QueryClient).query<{ id: string }>(
         `insert into public.items
            (org_id, item_code, item_type, name, status, uom_base, uom_secondary, product_group,
-            description, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
+           description, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
             variance_tolerance_pct, shelf_life_days, shelf_life_mode,
-            output_uom, net_qty_per_each, each_per_box, boxes_per_pallet, created_by)
+            output_uom, net_qty_per_each, each_per_box, boxes_per_pallet, list_price_gbp, created_by)
          values
            (app.current_org_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9,
             $10, $11::numeric, $12::numeric, $13::numeric, $14::numeric,
             $15::integer, $16,
-            $17, $18::numeric, $19::integer, $20::integer, $21::uuid)
+            $17, $18::numeric, $19::integer, $20::integer, $21::numeric, $22::uuid)
          returning id`,
         [
           input.itemCode,
@@ -66,6 +66,7 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           input.netQtyPerEach ?? null,
           input.eachPerBox ?? null,
           input.boxesPerPallet ?? null,
+          input.listPriceGbp ?? null,
           userId,
         ],
       );
@@ -93,6 +94,7 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           name: input.name,
           status: input.status,
           uomBase: input.uomBase,
+          listPriceGbp: input.listPriceGbp ?? null,
         },
       });
 

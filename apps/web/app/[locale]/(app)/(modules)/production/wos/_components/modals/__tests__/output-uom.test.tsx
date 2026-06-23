@@ -48,7 +48,7 @@ const LABELS: WoModalLabels = {
     uom_conversion_unavailable: 'Missing pack data — set it in Technical.',
   },
   start: { title: 'Start', subtitle: '.', line: 'Line', shift: 'Shift', optional: 'optional' },
-  pause: { title: 'Pause', subtitle: '.', reason: 'Reason', reasonPlaceholder: 'Select…', line: 'Line', shift: 'Shift', notes: 'Notes', noCategories: 'None' },
+  pause: { title: 'Pause', subtitle: '.', reason: 'Reason', reasonPlaceholder: 'Select…', line: 'Line', linePlaceholder: 'Select a line…', noLines: 'No lines.', shift: 'Shift', shiftPlaceholder: 'Select a shift…', notes: 'Notes', noCategories: 'None' },
   resume: { title: 'Resume', subtitle: '.', duration: 'Duration', durationHint: 'Optional' },
   cancelWo: { title: 'Cancel', subtitle: '.', reasonCode: 'Reason', notes: 'Notes' },
   complete: { title: 'Complete', subtitle: '.', override: 'Override', overrideHint: '.' },
@@ -77,7 +77,8 @@ const LABELS: WoModalLabels = {
       invalidWeights: 'Every unit weight must be a positive number.',
     },
   },
-  waste: { title: 'Log waste', subtitle: '.', category: 'Category', categoryPlaceholder: 'Select…', qty: 'Quantity (kg)', shift: 'Shift', reasonCode: 'Reason', notes: 'Notes', noCategories: 'None' },
+  waste: { title: 'Log waste', subtitle: '.', category: 'Category', categoryPlaceholder: 'Select…', qty: 'Quantity (kg)', shift: 'Shift', shiftPlaceholder: 'Select a shift…', reasonCode: 'Reason', notes: 'Notes', noCategories: 'None' },
+  shifts: { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' },
 };
 
 const WO_ID = '11111111-1111-1111-1111-111111111111';
@@ -127,6 +128,8 @@ function Harness({ uom }: { uom: OutputUomContext | null }) {
       currentUserId="22222222-2222-2222-2222-222222222222"
       downtimeCategories={[]}
       wasteCategories={[]}
+      shifts={[]}
+      lines={[]}
       defaultLineId={null}
       defaultProductId={PRODUCT_ID}
       outputUom={uom}

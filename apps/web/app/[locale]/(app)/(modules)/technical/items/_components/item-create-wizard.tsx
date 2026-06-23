@@ -114,6 +114,7 @@ export type WizardFormState = {
   netQtyPerEach: string;
   eachPerBox: string;
   boxesPerPallet: string;
+  listPriceGbp: string;
 };
 
 export function emptyWizardForm(): WizardFormState {
@@ -138,6 +139,7 @@ export function emptyWizardForm(): WizardFormState {
     netQtyPerEach: '',
     eachPerBox: '',
     boxesPerPallet: '',
+    listPriceGbp: '',
   };
 }
 
@@ -456,6 +458,7 @@ export function ItemWizard({
       netQtyPerEach: form.outputUom === 'base' ? undefined : numOrUndefined(form.netQtyPerEach),
       eachPerBox: form.outputUom === 'box' ? numOrUndefined(form.eachPerBox) : undefined,
       boxesPerPallet: form.outputUom === 'base' ? undefined : numOrUndefined(form.boxesPerPallet),
+      listPriceGbp: numOrUndefined(form.listPriceGbp),
     };
     startTransition(async () => {
       const result = isEdit
@@ -745,6 +748,22 @@ export function ItemWizard({
                 onChange={(e) => update('shelfLifeDays', e.currentTarget.value)}
               />
             </Field>
+            <Field label={labels.fields.listPriceGbp} htmlFor="wiz-list-price-gbp">
+              <Input
+                id="wiz-list-price-gbp"
+                name="listPriceGbp"
+                type="number"
+                min={0}
+                step="0.0001"
+                aria-label={labels.fields.listPriceGbp}
+                className="form-input"
+                value={form.listPriceGbp}
+                onChange={(e) => update('listPriceGbp', e.currentTarget.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="ff-inline">
             <Field label={labels.fields.shelfLifeMode}>
               <LabeledSelect
                 value={form.shelfLifeMode}
@@ -858,6 +877,7 @@ export function ItemWizard({
                 [labels.fields.nominalWeight, form.nominalWeight, true],
                 [labels.fields.tareWeight, form.tareWeight, true],
                 [labels.fields.grossWeightMax, form.grossWeightMax, true],
+                [labels.fields.listPriceGbp, form.listPriceGbp, true],
               ] as Array<[string, string, boolean]>
             ).map(([label, value, mono], i, rows) => (
               <div

@@ -59,7 +59,8 @@
     }
   },
   "items": {
-    "count": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}"
+    "count": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}",
+    "list_price_gbp_label": "List price (GBP / base UoM)"
   },
   "settings": {
     "users_screen": {
@@ -7061,7 +7062,10 @@
           "reason": "Powód przestoju",
           "reasonPlaceholder": "Wybierz kategorię przestoju…",
           "line": "Linia",
+          "linePlaceholder": "Wybierz linię produkcyjną…",
+          "noLines": "Brak skonfigurowanych linii produkcyjnych dla Twojej organizacji.",
           "shift": "Zmiana",
+          "shiftPlaceholder": "Wybierz zmianę…",
           "notes": "Notatki",
           "noCategories": "Brak skonfigurowanych kategorii przestoju dla Twojej organizacji."
         },
@@ -7143,9 +7147,15 @@
           "categoryPlaceholder": "Wybierz kategorię odpadu…",
           "qty": "Ilość (kg)",
           "shift": "Zmiana",
+          "shiftPlaceholder": "Wybierz zmianę…",
           "reasonCode": "Kod powodu",
           "notes": "Notatki",
           "noCategories": "Brak skonfigurowanych kategorii odpadu dla Twojej organizacji."
+        },
+        "shifts": {
+          "morning": "Ranna",
+          "afternoon": "Popołudniowa",
+          "night": "Nocna"
         }
       }
     },

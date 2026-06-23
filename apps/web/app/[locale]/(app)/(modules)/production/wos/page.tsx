@@ -140,6 +140,8 @@ async function WoListContent({ locale }: { locale: string }) {
         locale,
         permissions: actionCtx.data.permissions,
         downtimeCategories: actionCtx.data.downtimeCategories,
+        shifts: actionCtx.data.shifts,
+        lines: actionCtx.data.lines,
         modalLabels: buildWoModalLabels((k) => at(k)),
       }
     : null;

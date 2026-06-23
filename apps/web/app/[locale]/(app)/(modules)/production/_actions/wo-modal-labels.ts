@@ -55,7 +55,10 @@ export function buildWoModalLabels(t: Translator): WoModalLabels {
       reason: t('pause.reason'),
       reasonPlaceholder: t('pause.reasonPlaceholder'),
       line: t('pause.line'),
+      linePlaceholder: t('pause.linePlaceholder'),
+      noLines: t('pause.noLines'),
       shift: t('pause.shift'),
+      shiftPlaceholder: t('pause.shiftPlaceholder'),
       notes: t('pause.notes'),
       noCategories: t('pause.noCategories'),
     },
@@ -106,9 +109,15 @@ export function buildWoModalLabels(t: Translator): WoModalLabels {
       categoryPlaceholder: t('waste.categoryPlaceholder'),
       qty: t('waste.qty'),
       shift: t('waste.shift'),
+      shiftPlaceholder: t('waste.shiftPlaceholder'),
       reasonCode: t('waste.reasonCode'),
       notes: t('waste.notes'),
       noCategories: t('waste.noCategories'),
+    },
+    shifts: {
+      morning: t('shifts.morning'),
+      afternoon: t('shifts.afternoon'),
+      night: t('shifts.night'),
     },
   };
 }

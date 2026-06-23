@@ -12,9 +12,11 @@ import type {
   WoActionPermissions,
   WoReasonCategory,
   WoWasteCategory,
+  WoShiftOption,
+  WoLineOption,
 } from '../../../_actions/get-wo-action-context';
 
-export type { WoActionPermissions, WoReasonCategory, WoWasteCategory };
+export type { WoActionPermissions, WoReasonCategory, WoWasteCategory, WoShiftOption, WoLineOption };
 
 // Runtime WO lifecycle state. Re-exported HERE (a directive-free module) — a
 // bare `export type { X };` clause inside the 'use server' action file breaks
@@ -82,7 +84,13 @@ export type WoModalLabels = {
     reason: string;
     reasonPlaceholder: string;
     line: string;
+    /** Placeholder for the line <Select> (D8 — line is a dropdown, not free text). */
+    linePlaceholder: string;
+    /** Empty-state copy when the org has no production lines configured. */
+    noLines: string;
     shift: string;
+    /** Placeholder for the shift <Select>. */
+    shiftPlaceholder: string;
     notes: string;
     noCategories: string;
   };
@@ -177,8 +185,12 @@ export type WoModalLabels = {
     categoryPlaceholder: string;
     qty: string;
     shift: string;
+    /** Placeholder for the shift <Select> (D8 — shift is a dropdown, not free text). */
+    shiftPlaceholder: string;
     reasonCode: string;
     notes: string;
     noCategories: string;
   };
+  /** Localized labels for the fixed shift enum (code → display name). */
+  shifts: { morning: string; afternoon: string; night: string };
 };

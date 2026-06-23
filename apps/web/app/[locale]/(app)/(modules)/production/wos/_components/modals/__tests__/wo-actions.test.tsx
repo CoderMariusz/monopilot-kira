@@ -54,17 +54,27 @@ const LABELS: WoModalLabels = {
     esign_failed: 'E-signature failed — check your password and try again.',
   },
   start: { title: 'Start work order', subtitle: 'Begin execution.', line: 'Line', shift: 'Shift', optional: 'optional' },
-  pause: { title: 'Pause work order', subtitle: 'Open downtime.', reason: 'Downtime reason', reasonPlaceholder: 'Select…', line: 'Line', shift: 'Shift', notes: 'Notes', noCategories: 'No categories' },
+  pause: { title: 'Pause work order', subtitle: 'Open downtime.', reason: 'Downtime reason', reasonPlaceholder: 'Select…', line: 'Line', linePlaceholder: 'Select a line…', noLines: 'No lines configured.', shift: 'Shift', shiftPlaceholder: 'Select a shift…', notes: 'Notes', noCategories: 'No categories' },
   resume: { title: 'Resume work order', subtitle: 'Resume.', duration: 'Actual downtime (minutes)', durationHint: 'Optional' },
   cancelWo: { title: 'Cancel work order', subtitle: 'Cancel.', reasonCode: 'Reason code', notes: 'Notes' },
   complete: { title: 'Complete work order', subtitle: 'Complete.', override: 'Override reason code', overrideHint: 'Required to override.' },
   close: { title: 'Close work order', subtitle: 'Financial close.', password: 'Password', reason: 'Reason', legal: 'You electronically sign this close.' },
   output: { title: 'Register output', subtitle: 'Record output.', type: 'Output type', types: { primary: 'Primary', co_product: 'Co-product', by_product: 'By-product' }, product: 'Product ID', qty: 'Quantity (kg)', batch: 'Batch number', batchHint: 'Auto when blank.' },
-  waste: { title: 'Log waste', subtitle: 'Record waste.', category: 'Waste category', categoryPlaceholder: 'Select…', qty: 'Quantity (kg)', shift: 'Shift', reasonCode: 'Reason code', notes: 'Notes', noCategories: 'No categories' },
+  waste: { title: 'Log waste', subtitle: 'Record waste.', category: 'Waste category', categoryPlaceholder: 'Select…', qty: 'Quantity (kg)', shift: 'Shift', shiftPlaceholder: 'Select a shift…', reasonCode: 'Reason code', notes: 'Notes', noCategories: 'No categories' },
+  shifts: { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' },
 };
 
 const DOWNTIME_CATS = [{ id: '00000000-0000-0000-0000-0000000000c1', code: 'STOP', name: 'Unplanned stop' }];
 const WASTE_CATS = [{ code: 'SCRAP', name: 'Scrap' }];
+const SHIFTS = [
+  { code: 'morning', name: 'Morning' },
+  { code: 'afternoon', name: 'Afternoon' },
+  { code: 'night', name: 'Night' },
+];
+const LINES = [
+  { id: 'LINE-1', code: 'L1' },
+  { id: 'LINE-2', code: 'L2' },
+];
 
 function Harness({
   status,
@@ -83,6 +93,8 @@ function Harness({
       currentUserId="22222222-2222-2222-2222-222222222222"
       downtimeCategories={DOWNTIME_CATS}
       wasteCategories={WASTE_CATS}
+      shifts={SHIFTS}
+      lines={LINES}
       defaultLineId="LINE-1"
       defaultProductId="33333333-3333-3333-3333-333333333333"
     >
@@ -201,6 +213,7 @@ describe('WO action payloads (mock fetch)', () => {
     // open the select + pick the category
     await user.click(screen.getByTestId('wo-pause-reason'));
     await user.click(screen.getByRole('option', { name: 'Unplanned stop' }));
+    // The line defaults to the WO line (LINE-1); confirm without touching it.
     await user.click(screen.getByTestId('wo-pause-confirm'));
 
     await waitFor(() => expect(captured.url).toBeDefined());
@@ -210,6 +223,50 @@ describe('WO action payloads (mock fetch)', () => {
       lineId: 'LINE-1',
     });
     expect(typeof captured.body.transactionId).toBe('string');
+  });
+
+  it('Pause renders a LINE dropdown defaulting to the WO line and submits the chosen line', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<Harness status="in_progress" />);
+
+    await user.click(screen.getByTestId('wo-action-pause'));
+    // The line control is a Select (combobox), NOT a free-text input.
+    const lineTrigger = screen.getByTestId('wo-pause-line');
+    expect(lineTrigger).toHaveAttribute('role', 'combobox');
+    // It is NOT a text input — the operator cannot type a free-text line.
+    expect(lineTrigger.tagName).not.toBe('INPUT');
+
+    // pick the downtime reason (still mandatory) then change the line away from
+    // its default (LINE-1) to LINE-2.
+    await user.click(screen.getByTestId('wo-pause-reason'));
+    await user.click(screen.getByRole('option', { name: 'Unplanned stop' }));
+    await user.click(lineTrigger);
+    await user.click(screen.getByRole('option', { name: 'L2' }));
+    await user.click(screen.getByTestId('wo-pause-confirm'));
+
+    await waitFor(() => expect(captured.url).toBeDefined());
+    expect(captured.url).toContain('/pause');
+    expect(captured.body).toMatchObject({ lineId: 'LINE-2' });
+  });
+
+  it('Pause submits the WO default line when left untouched (defaultLineId preselected)', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<Harness status="in_progress" />);
+
+    await user.click(screen.getByTestId('wo-action-pause'));
+    await user.click(screen.getByTestId('wo-pause-reason'));
+    await user.click(screen.getByRole('option', { name: 'Unplanned stop' }));
+    // Confirm is enabled because the WO line (LINE-1) is preselected — proving the
+    // mandatory line defaults to the WO's assigned line.
+    expect(screen.getByTestId('wo-pause-confirm')).not.toBeDisabled();
+    await user.click(screen.getByTestId('wo-pause-confirm'));
+
+    await waitFor(() => expect(captured.url).toBeDefined());
+    expect(captured.body).toMatchObject({ lineId: 'LINE-1' });
   });
 
   it('Register output posts snake_case { transaction_id, output_type, product_id, qty_kg }', async () => {
@@ -244,7 +301,9 @@ describe('WO action payloads (mock fetch)', () => {
     await user.click(screen.getByTestId('wo-waste-category'));
     await user.click(screen.getByRole('option', { name: 'Scrap' }));
     await user.type(screen.getByTestId('wo-waste-qty'), '4.5');
-    await user.type(screen.getByTestId('wo-waste-shift'), 'SHIFT-A');
+    // Shift is a dropdown now — pick from the shift options.
+    await user.click(screen.getByTestId('wo-waste-shift'));
+    await user.click(screen.getByRole('option', { name: 'Afternoon' }));
     await user.click(screen.getByTestId('wo-waste-confirm'));
 
     await waitFor(() => expect(captured.url).toBeDefined());
@@ -252,9 +311,36 @@ describe('WO action payloads (mock fetch)', () => {
     expect(captured.body).toMatchObject({
       category_code: 'SCRAP',
       qty_kg: '4.5',
-      shift_id: 'SHIFT-A',
+      shift_id: 'afternoon',
     });
     expect(typeof captured.body.transaction_id).toBe('string');
+  });
+
+  it('Waste renders a SHIFT dropdown (combobox, not free text) and stays mandatory until a shift is picked', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<Harness status="in_progress" />);
+
+    await user.click(screen.getByTestId('wo-action-waste-trigger'));
+    const shiftTrigger = screen.getByTestId('wo-waste-shift');
+    // It is a Select trigger (combobox role), NOT a text input.
+    expect(shiftTrigger).toHaveAttribute('role', 'combobox');
+
+    // Category + qty filled but no shift yet → confirm stays disabled (mandatory).
+    await user.click(screen.getByTestId('wo-waste-category'));
+    await user.click(screen.getByRole('option', { name: 'Scrap' }));
+    await user.type(screen.getByTestId('wo-waste-qty'), '2');
+    expect(screen.getByTestId('wo-waste-confirm')).toBeDisabled();
+
+    // Pick a shift → now submittable.
+    await user.click(shiftTrigger);
+    await user.click(screen.getByRole('option', { name: 'Morning' }));
+    expect(screen.getByTestId('wo-waste-confirm')).not.toBeDisabled();
+
+    await user.click(screen.getByTestId('wo-waste-confirm'));
+    await waitFor(() => expect(captured.url).toBeDefined());
+    expect(captured.body).toMatchObject({ shift_id: 'morning' });
   });
 
   it('Close (e-sign) posts { transactionId, signerUserId, pin, reason }', async () => {

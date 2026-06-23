@@ -39,18 +39,46 @@ test.describe('WO execution action modals (DEMO-WO-259)', () => {
     'PLAYWRIGHT_BASE_URL unset — live RBAC-authenticated server required; RTL mocked-fetch fallback evidence used.',
   );
 
-  test('IN_PROGRESS WO: Pause modal posts a categorized downtime', async ({ page }) => {
+  test('IN_PROGRESS WO: Pause modal posts a categorized downtime (line + shift are DROPDOWNS)', async ({ page }) => {
     await openWoByNumber(page, 'DEMO-WO-259-003');
 
     await page.getByTestId('wo-action-pause').click();
     await page.getByTestId('wo-pause-reason').click();
     await page.getByRole('option').first().click();
-    await page.getByTestId('wo-pause-line').fill('DEMO-LINE-1');
+    // D8 — line is a <Select> combobox (not free-text), defaulting to the WO's
+    // assigned line. Pick a line from the dropdown.
+    const lineTrigger = page.getByTestId('wo-pause-line');
+    await expect(lineTrigger).toHaveRole('combobox');
+    await lineTrigger.click();
+    await page.getByRole('option').first().click();
+    // D8 — shift is a <Select> combobox sourced from the same fixed enum the
+    // scanner login uses (Morning / Afternoon / Night).
+    const shiftTrigger = page.getByTestId('wo-pause-shift');
+    await expect(shiftTrigger).toHaveRole('combobox');
+    await shiftTrigger.click();
+    await page.getByRole('option', { name: /Morning/i }).click();
     await page.screenshot({ path: path.join(evidenceDir, 'pause-modal.png') });
     await page.getByTestId('wo-pause-confirm').click();
 
     // The status badge flips to Paused after router.refresh().
     await expect(page.getByTestId('wo-detail-header')).toContainText(/Paused/i);
+  });
+
+  test('IN_PROGRESS WO: Log-waste modal SHIFT is a mandatory dropdown (not free text)', async ({ page }) => {
+    await openWoByNumber(page, 'DEMO-WO-259-003');
+
+    await page.getByTestId('wo-action-waste-header').click();
+    await page.getByTestId('wo-waste-category').click();
+    await page.getByRole('option').first().click();
+    await page.getByTestId('wo-waste-qty').fill('3.5');
+    // Confirm stays disabled while the mandatory shift is unset.
+    await expect(page.getByTestId('wo-waste-confirm')).toBeDisabled();
+    const wasteShift = page.getByTestId('wo-waste-shift');
+    await expect(wasteShift).toHaveRole('combobox');
+    await wasteShift.click();
+    await page.getByRole('option', { name: /Afternoon/i }).click();
+    await page.screenshot({ path: path.join(evidenceDir, 'waste-modal-shift-dropdown.png') });
+    await expect(page.getByTestId('wo-waste-confirm')).toBeEnabled();
   });
 
   test('IN_PROGRESS WO: Register output modal posts qty_kg as a decimal string', async ({ page }) => {

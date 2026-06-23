@@ -634,6 +634,8 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       currentUserId: actionCtx.data.currentUserId,
       downtimeCategories: actionCtx.data.downtimeCategories,
       wasteCategories: actionCtx.data.wasteCategories,
+      shifts: actionCtx.data.shifts,
+      lines: actionCtx.data.lines,
       modalLabels,
     };
   }

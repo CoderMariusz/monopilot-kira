@@ -55,7 +55,12 @@ const item: ItemDetail = {
   varianceTolerancePct: '5',
   shelfLifeDays: 21,
   shelfLifeMode: 'use_by',
+  outputUom: 'base',
+  netQtyPerEach: null,
+  eachPerBox: null,
+  boxesPerPallet: null,
   costPerKg: '12.5',
+  listPriceGbp: '20.0',
   updatedAt: '2026-06-01T00:00:00.000Z',
 };
 

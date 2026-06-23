@@ -203,6 +203,8 @@ export type InventoryByProductRow = {
   productId: string;
   itemCode: string | null;
   itemName: string | null;
+  totalQty: string;
+  pickableQty: string;
   quantity: string;
   availableQty: string;
   lpCount: number;
@@ -215,6 +217,8 @@ export type InventoryByLocationRow = {
   locationCode: string | null;
   warehouseId: string | null;
   warehouseCode: string | null;
+  totalQty: string;
+  pickableQty: string;
   quantity: string;
   availableQty: string;
   lpCount: number;
@@ -224,6 +228,8 @@ export type InventoryByBatchRow = {
   productId: string;
   itemCode: string | null;
   batchNumber: string | null;
+  totalQty: string;
+  pickableQty: string;
   quantity: string;
   availableQty: string;
   lpCount: number;

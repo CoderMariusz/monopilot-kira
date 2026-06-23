@@ -55,6 +55,7 @@ type ItemRow = {
   shelf_life_days: number | null;
   shelf_life_mode: string | null;
   cost_per_kg: string | null;
+  list_price_gbp: string | null;
   updated_at: string | Date;
   d365_sync_status: string | null;
   bom_count: string | number;
@@ -93,6 +94,7 @@ function mapRow(row: ItemRow): ItemListItem | null {
     eachPerBox: null,
     boxesPerPallet: null,
     costPerKg: row.cost_per_kg,
+    listPriceGbp: row.list_price_gbp,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
     allergens: Array.isArray(row.allergens) ? row.allergens.filter((a): a is string => typeof a === 'string') : [],
     bomCount: Number(row.bom_count) || 0,
@@ -132,7 +134,7 @@ export async function listItems(opts?: {
           `select i.id, i.item_code, i.name, i.item_type, i.status, i.uom_base, i.uom_secondary,
                   i.gs1_gtin, i.weight_mode, i.nominal_weight, i.tare_weight, i.gross_weight_max,
                   i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,
-                  i.cost_per_kg, i.updated_at, i.d365_sync_status,
+                  i.cost_per_kg, i.list_price_gbp::text as list_price_gbp, i.updated_at, i.d365_sync_status,
                   -- bom_headers.product_id is TEXT and FKs to product(org_id, product_code);
                   -- the items-master code namespace joins on item_code, not items.id (uuid).
                   (select count(*) from public.bom_headers bh

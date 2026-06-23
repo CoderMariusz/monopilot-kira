@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { resolveSalesLinePrice } from './sales-line-price';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -196,6 +197,12 @@ function minUnits(a: bigint, b: bigint): bigint {
   return a < b ? a : b;
 }
 
+function parseNullableNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function lineAllocationStatus(qty: string, allocatedQty: string): AllocationStatus {
   const ordered = decimalToUnits(qty);
   const allocated = decimalToUnits(allocatedQty);
@@ -336,7 +343,7 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
             i.item_code,
             i.name as item_name,
             sol.quantity_ordered::text,
-            i.uom_base as uom,
+            coalesce(sol.ext_data->>'order_uom', i.uom_base) as uom,
             sol.quantity_allocated::text
        from public.sales_order_lines sol
        left join public.items i on i.id = sol.product_id and i.org_id = app.current_org_id()
@@ -531,12 +538,33 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     const soId = rows[0]?.id;
     if (!soId) return { ok: false, error: 'persistence_failed', message: 'Unable to create sales order' };
 
+    const itemIds = Array.from(new Set(input.lines.map((line) => line.item_id)));
+    const { rows: itemRows } = await ctx.client.query<{ id: string; list_price_gbp: string | number | null }>(
+      `select id::text, list_price_gbp::text as list_price_gbp
+         from public.items
+        where org_id = app.current_org_id()
+          and id = any($1::uuid[])`,
+      [itemIds],
+    );
+    const itemsById = new Map(
+      itemRows.map((item) => [
+        item.id,
+        { id: item.id, list_price_gbp: parseNullableNumber(item.list_price_gbp) },
+      ]),
+    );
+
     for (const [index, line] of input.lines.entries()) {
+      const item = itemsById.get(line.item_id);
+      if (!item) return { ok: false, error: 'invalid_input', message: 'Unknown sales order item' };
+      const unitPriceGbp = resolveSalesLinePrice(item, { customerId: input.customer_id ?? undefined });
+
       await ctx.client.query(
         `insert into public.sales_order_lines
-          (org_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated, unit_price_gbp, line_total_gbp, created_by, updated_by)
-         values ($1::uuid, $2::uuid, $3::integer, $4::uuid, $5::numeric, 0, 1.0000, $5::numeric, $6::uuid, $6::uuid)`,
-        [orgId, soId, index + 1, line.item_id, line.qty, userId],
+          (org_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated,
+           unit_price_gbp, line_total_gbp, ext_data, created_by, updated_by)
+         values ($1::uuid, $2::uuid, $3::integer, $4::uuid, $5::numeric, 0,
+                 $6::numeric, ($5::numeric * $6::numeric), jsonb_build_object('order_uom', $7::text), $8::uuid, $8::uuid)`,
+        [orgId, soId, index + 1, line.item_id, line.qty, unitPriceGbp, line.uom, userId],
       );
     }
 

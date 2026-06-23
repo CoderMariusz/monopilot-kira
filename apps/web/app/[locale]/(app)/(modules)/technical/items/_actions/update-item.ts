@@ -35,6 +35,7 @@ type BeforeRow = {
   net_qty_per_each: string | null;
   each_per_box: number | null;
   boxes_per_pallet: number | null;
+  list_price_gbp: string | null;
 };
 
 export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
@@ -50,7 +51,8 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
       const before = await (client as QueryClient).query<BeforeRow>(
         `select name, item_type, status, uom_base, weight_mode,
                 nominal_weight, tare_weight, gross_weight_max, gs1_gtin,
-                output_uom, net_qty_per_each, each_per_box, boxes_per_pallet
+                output_uom, net_qty_per_each, each_per_box, boxes_per_pallet,
+                list_price_gbp
            from public.items
           where org_id = app.current_org_id() and id = $1::uuid`,
         [input.id],
@@ -77,7 +79,8 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
                 output_uom = $17,
                 net_qty_per_each = $18::numeric,
                 each_per_box = $19::integer,
-                boxes_per_pallet = $20::integer
+                boxes_per_pallet = $20::integer,
+                list_price_gbp = $21::numeric
           where org_id = app.current_org_id()
             and id = $1::uuid
         returning id`,
@@ -102,6 +105,7 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           input.netQtyPerEach ?? null,
           input.eachPerBox ?? null,
           input.boxesPerPallet ?? null,
+          input.listPriceGbp ?? null,
         ],
       );
       if ((rowCount ?? rows.length) < 1 || !rows[0]) return { ok: false, error: 'not_found' };
@@ -126,6 +130,7 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           netQtyPerEach: input.netQtyPerEach ?? null,
           eachPerBox: input.eachPerBox ?? null,
           boxesPerPallet: input.boxesPerPallet ?? null,
+          listPriceGbp: input.listPriceGbp ?? null,
         },
       });
 

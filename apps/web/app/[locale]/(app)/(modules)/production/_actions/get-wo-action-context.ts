@@ -54,6 +54,27 @@ export type WoActionPermissions = {
 export type WoReasonCategory = { id: string; code: string; name: string };
 export type WoWasteCategory = { code: string; name: string };
 
+/**
+ * Shift option for the Waste-modal shift dropdown. Sourced from the SAME fixed
+ * enum the scanner site-login uses (morning/afternoon/night → scanner_sessions.shift
+ * text column). `code` is the value submitted as `shift_id`; `name` is the i18n
+ * label resolved on the page (the loader returns the stable code, the modal labels
+ * carry the localized name).
+ */
+export type WoShiftOption = { code: string; name: string };
+/** Production line option for the Pause-modal line dropdown (public.production_lines). */
+export type WoLineOption = { id: string; code: string };
+
+/**
+ * The fixed shift enum — the scanner site-select screen (the canonical place a
+ * shift is chosen and persisted to scanner_sessions.shift) offers exactly these
+ * three codes. The desktop dropdown reuses the SAME set so a WO paused/wasted from
+ * the desk records a shift identical to one captured on the floor. Labels are NOT
+ * hard-coded here — the page maps each code to its localized name via the modal
+ * labels bundle.
+ */
+export const WO_SHIFT_CODES = ['morning', 'afternoon', 'night'] as const;
+
 export type WoActionContextData = {
   /** Runtime lifecycle status — null when the WO has no execution row yet. */
   executionStatus: WoState | null;
@@ -64,6 +85,21 @@ export type WoActionContextData = {
   downtimeCategories: WoReasonCategory[];
   /** Waste categories for the Log-waste category select (category_code). */
   wasteCategories: WoWasteCategory[];
+  /**
+   * Shift options for the Waste-modal shift dropdown (still MANDATORY — only the
+   * entry method changes from free text to a picker). Stable codes; the page maps
+   * each to its localized label. Same source the scanner login uses.
+   */
+  shifts: WoShiftOption[];
+  /**
+   * The org's production lines for the Pause-modal line dropdown (still MANDATORY).
+   * Always populated so a line can be chosen even when the WO has none assigned.
+   */
+  lines: WoLineOption[];
+  /** The WO's assigned production line id — preselected in the Pause dropdown (null ⇒ none). */
+  lineId: string | null;
+  /** The WO's assigned production line code (display only; null ⇒ none). */
+  lineCode: string | null;
 };
 
 export type WoActionContextResult =
@@ -85,10 +121,14 @@ function isUuid(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
-/** List-level slice: RBAC + downtime categories only (no per-WO status). */
+/** List-level slice: RBAC + downtime categories + line/shift options (no per-WO status). */
 export type WoListActionContextData = {
   permissions: WoActionPermissions;
   downtimeCategories: WoReasonCategory[];
+  /** Shift options for the per-row Pause modal (same fixed enum as the detail). */
+  shifts: WoShiftOption[];
+  /** Org production lines for the per-row Pause modal line dropdown. */
+  lines: WoLineOption[];
 };
 
 export type WoListActionContextResult =
@@ -116,17 +156,29 @@ export async function getWoListActionContext(): Promise<WoListActionContextResul
         return acc;
       }, {} as WoActionPermissions);
 
-      const downtimeRes = await c.query<{ id: string; code: string; name: string }>(
-        `select id::text as id, code, name from public.downtime_categories
-          where org_id = app.current_org_id() and is_active = true
-          order by name asc`,
-      );
+      const [downtimeRes, linesRes] = await Promise.all([
+        c.query<{ id: string; code: string; name: string }>(
+          `select id::text as id, code, name from public.downtime_categories
+            where org_id = app.current_org_id() and is_active = true
+            order by name asc`,
+        ),
+        c.query<{ id: string; code: string }>(
+          `select pl.id::text as id, pl.code
+             from public.production_lines pl
+            where pl.org_id = app.current_org_id()
+              and coalesce(pl.status, 'active') <> 'archived'
+            order by pl.code asc
+            limit 200`,
+        ),
+      ]);
 
       return {
         ok: true,
         data: {
           permissions,
           downtimeCategories: downtimeRes.rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
+          shifts: WO_SHIFT_CODES.map((code) => ({ code, name: code })),
+          lines: linesRes.rows.map((r) => ({ id: r.id, code: r.code })),
         },
       };
     });
@@ -144,13 +196,26 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
       const pctx = ctx as unknown as ProductionContext;
       const c = ctx.client;
 
-      // WO existence (RLS-scoped) — a missing / cross-org id is not_found.
-      const woRes = await c.query<{ id: string }>(
-        `select id::text as id from public.work_orders
-          where org_id = app.current_org_id() and id = $1::uuid limit 1`,
+      // WO existence (RLS-scoped) — a missing / cross-org id is not_found. Also
+      // pull the WO's assigned line (joined to production_lines for the code) so
+      // the Pause-modal line dropdown can preselect it.
+      const woRes = await c.query<{
+        id: string;
+        line_id: string | null;
+        line_code: string | null;
+      }>(
+        `select w.id::text as id,
+                w.production_line_id::text as line_id,
+                pl.code as line_code
+           from public.work_orders w
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
+          where w.org_id = app.current_org_id() and w.id = $1::uuid
+          limit 1`,
         [woId],
       );
       if (woRes.rows.length === 0) return { ok: false, reason: 'not_found' };
+      const woRow = woRes.rows[0];
 
       const permEntries = await Promise.all(
         (Object.keys(PERMISSION_STRINGS) as Array<keyof WoActionPermissions>).map(
@@ -164,7 +229,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
 
       const executionStatus = await readWoExecutionStatus(pctx, woId);
 
-      const [downtimeRes, wasteRes] = await Promise.all([
+      const [downtimeRes, wasteRes, linesRes] = await Promise.all([
         c.query<{ id: string; code: string; name: string }>(
           `select id::text as id, code, name from public.downtime_categories
             where org_id = app.current_org_id() and is_active = true
@@ -174,6 +239,14 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
           `select code, name from public.waste_categories
             where org_id = app.current_org_id() and is_active = true
             order by name asc`,
+        ),
+        c.query<{ id: string; code: string }>(
+          `select pl.id::text as id, pl.code
+             from public.production_lines pl
+            where pl.org_id = app.current_org_id()
+              and coalesce(pl.status, 'active') <> 'archived'
+            order by pl.code asc
+            limit 200`,
         ),
       ]);
 
@@ -185,6 +258,12 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
           currentUserId: ctx.userId,
           downtimeCategories: downtimeRes.rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
           wasteCategories: wasteRes.rows.map((r) => ({ code: r.code, name: r.name })),
+          // Fixed enum — the page maps each code to its localized label; the value
+          // submitted as shift_id stays the stable code (scanner-parity).
+          shifts: WO_SHIFT_CODES.map((code) => ({ code, name: code })),
+          lines: linesRes.rows.map((r) => ({ id: r.id, code: r.code })),
+          lineId: woRow.line_id,
+          lineCode: woRow.line_code,
         },
       };
     });
