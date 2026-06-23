@@ -6006,6 +6006,7 @@
         "not_found": "That transfer order no longer exists.",
         "already_exists": "A transfer order with that number already exists.",
         "invalid_state": "That action isn't allowed in the current status.",
+        "insufficient_stock": "Insufficient stock to fulfill this transfer",
         "persistence_failed": "Something went wrong saving your changes. Please retry."
       },
       "create": {
