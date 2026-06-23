@@ -49,9 +49,10 @@ Packaging is non-food → must not carry allergens; the allergen section must re
   imply direct entry; remove the `dev/scanner` orphan stub.
 
 ### WAVE SW — Site-global + scanner warehouse scoping (LARGE, confirmed bug — needs owner decision first)
-Full audit + 7-point fix in `2026-06-23-site-warehouse-scoping-wave.md`. **Owner decision before build:**
-enforce site via **RLS** (`app.current_site_id()`, ~38 tables) or **app-level filter**? And product-code
-warehouse model.
+Full audit + 7-point fix in `2026-06-23-site-warehouse-scoping-wave.md`. **OWNER DECIDED 2026-06-23:
+APP-LEVEL FILTER** (not RLS) — site scope enforced at the application/query layer (`withSiteContext`
+request seam + a shared `siteScoped()` list helper), faster than a ~38-table RLS migration. Product-code
+warehouse model still to confirm during build.
 - **SW1 [Codex+mig]** — add `warehouse_id` to `scanner_sessions` (mig 312) + set at login/context +
   bootstrap returns the session site's warehouses.
 - **SW2 [Codex]** — enforce warehouse boundary in `movement.ts`: `loadMovableLpForUpdate` (+lp.warehouse_id),
@@ -78,9 +79,13 @@ Full spec in `2026-06-23-scanner-overhaul-backlog.md`.
   putaway/move/pick/lp/qa).
 
 ### WAVE FG — fa→FG rename (LARGE — owner decision gates it)
-Full plan in `2026-06-23-fa-to-fg-rename-plan.md`. **Owner decides product-code option A (keep FA codes,
-new=FG) vs B (destructive rename).** Then: LANE1 [Claude] cosmetic (copy+TS identifiers+routes),
-LANE2 [Codex+mig] events+permissions (atomic), LANE3 [Codex+mig] secondary DB objects (one at a time).
+Full plan in `2026-06-23-fa-to-fg-rename-plan.md`. **OWNER DECIDED 2026-06-23: OPTION B (destructive
+rename of all existing codes).** Important context: a full **data wipe + fresh start is imminent**, so the
+destructive code-rename carries no real data-loss cost — and is largely moot: just make NEW products use
+`FG` codes now + do the cosmetic/TS/route rename, and let the fresh seed (post-wipe) use `FG` codes.
+Defer the live destructive data-migration (don't run it autonomously on live data). Then: LANE1 [Claude]
+cosmetic (copy+TS identifiers+routes), LANE2 [Codex+mig] events+permissions (atomic), LANE3 [Codex+mig]
+secondary DB objects (one at a time).
 
 ### WAVE E2B — Cold chain (M)
 - **[Codex+mig]** `delivery_condition_checks` + `product_temp_ranges` + `submitConditionCheck`
