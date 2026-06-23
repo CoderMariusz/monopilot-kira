@@ -8482,6 +8482,109 @@
         "insufficientStock": "Brak wystarczającego zwolnionego zapasu, aby zarezerwować to zamówienie.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
       }
+    },
+    "shipments": {
+      "title": "Wysyłki",
+      "subtitle": "Pakuj zaalokowane zamówienia sprzedaży do kartonów i śledź wysyłki wychodzące.",
+      "error": "Nie udało się teraz wczytać wysyłek. Spróbuj ponownie.",
+      "denied": "Nie masz uprawnień do przeglądania wysyłek.",
+      "breadcrumb": {
+        "shipping": "Wysyłka",
+        "shipments": "Wysyłki"
+      },
+      "tabs": {
+        "salesOrders": "Zamówienia sprzedaży",
+        "shipments": "Wysyłki"
+      },
+      "status": {
+        "pending": "Oczekuje",
+        "packing": "Pakowanie",
+        "packed": "Spakowano",
+        "manifested": "Zmanifestowano",
+        "shipped": "Wysłano",
+        "delivered": "Dostarczono",
+        "exception": "Wyjątek"
+      },
+      "list": {
+        "statusFilterLabel": "Status",
+        "allStatuses": "Wszystkie statusy",
+        "rowsCount": "Wysyłki: {n}",
+        "view": "Otwórz",
+        "weightUnit": "kg",
+        "noWeight": "—",
+        "columns": {
+          "shipment": "Wysyłka",
+          "salesOrder": "Zamówienie sprzedaży",
+          "customer": "Klient",
+          "status": "Status",
+          "boxes": "Kartony",
+          "weight": "Waga",
+          "actions": "Akcje"
+        },
+        "empty": {
+          "title": "Brak wysyłek",
+          "body": "Utwórz wysyłkę z zaalokowanego zamówienia sprzedaży, aby rozpocząć pakowanie."
+        }
+      },
+      "createShipment": {
+        "label": "Utwórz wysyłkę",
+        "pending": "Tworzenie…",
+        "noPermission": "Nie masz uprawnień do tworzenia wysyłek.",
+        "notAllocated": "Zaalokuj zamówienie sprzedaży przed utworzeniem wysyłki.",
+        "errors": {
+          "forbidden": "Nie masz uprawnień do tej operacji.",
+          "invalid_state": "Zaalokuj zamówienie sprzedaży przed utworzeniem wysyłki.",
+          "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+        }
+      },
+      "pack": {
+        "title": "Pakuj wysyłkę",
+        "breadcrumbCurrent": "Pakowanie",
+        "notFound": "Ta wysyłka już nie istnieje.",
+        "backToList": "Powrót do wysyłek",
+        "summary": {
+          "title": "Podsumowanie wysyłki",
+          "shipment": "Wysyłka",
+          "salesOrder": "Zamówienie sprzedaży",
+          "customer": "Klient",
+          "status": "Status",
+          "boxes": "Kartony"
+        },
+        "boxes": {
+          "title": "Kartony",
+          "empty": "Nie spakowano jeszcze żadnego kartonu. Zeskanuj lub wpisz kod nośnika, aby rozpocząć pierwszy karton.",
+          "boxLabel": "Karton {n}",
+          "ssccLabel": "SSCC",
+          "noSscc": "Nie wygenerowano",
+          "contentsEmpty": "Ten karton jest pusty.",
+          "colLp": "Nośnik",
+          "colItem": "Pozycja",
+          "colQty": "Ilość"
+        },
+        "control": {
+          "title": "Spakuj nośnik",
+          "lpLabel": "Kod nośnika",
+          "lpPlaceholder": "Zeskanuj lub wpisz kod nośnika…",
+          "boxLabel": "Karton",
+          "newBox": "Nowy karton",
+          "submit": "Spakuj",
+          "submitting": "Pakowanie…",
+          "success": "Spakowano do kartonu {n}.",
+          "noPermission": "Nie masz uprawnień do pakowania tej wysyłki."
+        },
+        "errors": {
+          "invalid_input": "Wpisz kod nośnika.",
+          "invalid_state": "Tej wysyłki nie można spakować w bieżącym statusie.",
+          "lp_not_allocated": "Ten nośnik nie jest zaalokowany do tego zamówienia sprzedaży.",
+          "already_packed": "Ten nośnik jest już spakowany.",
+          "invalid_box": "Ten karton już nie istnieje.",
+          "not_found": "Ta wysyłka już nie istnieje."
+        }
+      },
+      "errors": {
+        "forbidden": "Nie masz uprawnień do tej operacji.",
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+      }
     }
   }
 }

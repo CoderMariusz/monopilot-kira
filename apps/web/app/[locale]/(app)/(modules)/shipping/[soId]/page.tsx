@@ -32,7 +32,14 @@ import {
   transitionSalesOrderStatus,
 } from '../_actions/so-actions';
 import { getSoCapabilities } from '../_actions/so-form-data';
+import { createShipment } from '../_actions/pack-actions';
+import { getCreateShipmentCapability } from '../shipments/_actions/shipments-data';
 import { SoDetailView, type SoDetailLabels, type SoActionResult } from '../_components/so-detail-view';
+import {
+  CreateShipmentButton,
+  type CreateShipmentLabels,
+  type CreateShipmentResult,
+} from '../shipments/_components/create-shipment-button';
 
 /** Thin client-facing adapters so the client view's narrow `{ ok; error: string }`
  *  seam type lines up with the server result unions (which carry richer error
@@ -54,6 +61,29 @@ async function transitionAction(id: string, status: string): Promise<SoActionRes
     status as Parameters<typeof transitionSalesOrderStatus>[1],
   );
   return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error };
+}
+/** Server-wired createShipment seam for the additive [Create shipment] button. RBAC is
+ *  enforced server-side inside createShipment (ship.pack.close); the capability probe is
+ *  advisory UI gating only. */
+async function createShipmentAction(soId: string): Promise<CreateShipmentResult> {
+  'use server';
+  return createShipment(soId);
+}
+
+function buildCreateShipmentLabels(
+  t: Awaited<ReturnType<typeof getTranslations>>,
+): CreateShipmentLabels {
+  return {
+    label: t('createShipment.label'),
+    pending: t('createShipment.pending'),
+    noPermission: t('createShipment.noPermission'),
+    notAllocated: t('createShipment.notAllocated'),
+    errors: {
+      forbidden: t('createShipment.errors.forbidden'),
+      invalid_state: t('createShipment.errors.invalid_state'),
+      persistence_failed: t('createShipment.errors.persistence_failed'),
+    },
+  };
 }
 
 export const dynamic = 'force-dynamic';
@@ -137,7 +167,12 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): SoDetailLa
 
 async function DetailContent({ locale, soId }: { locale: string; soId: string }) {
   const t = await getTranslations('Shipping.salesOrders');
-  const [result, caps] = await Promise.all([getSalesOrder(soId), getSoCapabilities()]);
+  const tShip = await getTranslations('Shipping.shipments');
+  const [result, caps, shipCaps] = await Promise.all([
+    getSalesOrder(soId),
+    getSoCapabilities(),
+    getCreateShipmentCapability(),
+  ]);
 
   if (!result.ok) {
     return (
@@ -163,6 +198,16 @@ async function DetailContent({ locale, soId }: { locale: string; soId: string })
     <SoDetailView
       locale={locale}
       caps={caps}
+      createShipmentSlot={
+        <CreateShipmentButton
+          locale={locale}
+          soId={so.id}
+          allocationStatus={so.allocation_status}
+          canCreate={shipCaps.canCreate}
+          labels={buildCreateShipmentLabels(tShip)}
+          createShipmentAction={createShipmentAction}
+        />
+      }
       so={{
         id: so.id,
         soNumber: so.so_number,

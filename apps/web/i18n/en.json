@@ -8479,6 +8479,109 @@
         "insufficientStock": "There is not enough released stock to allocate this order.",
         "persistence_failed": "Something went wrong saving. Please retry."
       }
+    },
+    "shipments": {
+      "title": "Shipments",
+      "subtitle": "Pack allocated sales orders into boxes and track outbound shipments.",
+      "error": "We could not load shipments right now. Please retry.",
+      "denied": "You do not have permission to view shipments.",
+      "breadcrumb": {
+        "shipping": "Shipping",
+        "shipments": "Shipments"
+      },
+      "tabs": {
+        "salesOrders": "Sales orders",
+        "shipments": "Shipments"
+      },
+      "status": {
+        "pending": "Pending",
+        "packing": "Packing",
+        "packed": "Packed",
+        "manifested": "Manifested",
+        "shipped": "Shipped",
+        "delivered": "Delivered",
+        "exception": "Exception"
+      },
+      "list": {
+        "statusFilterLabel": "Status",
+        "allStatuses": "All statuses",
+        "rowsCount": "{n} shipments",
+        "view": "Open",
+        "weightUnit": "kg",
+        "noWeight": "—",
+        "columns": {
+          "shipment": "Shipment",
+          "salesOrder": "Sales order",
+          "customer": "Customer",
+          "status": "Status",
+          "boxes": "Boxes",
+          "weight": "Weight",
+          "actions": "Actions"
+        },
+        "empty": {
+          "title": "No shipments yet",
+          "body": "Create a shipment from an allocated sales order to start packing."
+        }
+      },
+      "createShipment": {
+        "label": "Create shipment",
+        "pending": "Creating…",
+        "noPermission": "You do not have permission to create shipments.",
+        "notAllocated": "Allocate the sales order before creating a shipment.",
+        "errors": {
+          "forbidden": "You don’t have permission to do that.",
+          "invalid_state": "Allocate the sales order before creating a shipment.",
+          "persistence_failed": "Something went wrong saving. Please retry."
+        }
+      },
+      "pack": {
+        "title": "Pack shipment",
+        "breadcrumbCurrent": "Pack",
+        "notFound": "That shipment no longer exists.",
+        "backToList": "Back to shipments",
+        "summary": {
+          "title": "Shipment summary",
+          "shipment": "Shipment",
+          "salesOrder": "Sales order",
+          "customer": "Customer",
+          "status": "Status",
+          "boxes": "Boxes"
+        },
+        "boxes": {
+          "title": "Boxes",
+          "empty": "No boxes packed yet. Scan or enter a license plate to start the first box.",
+          "boxLabel": "Box {n}",
+          "ssccLabel": "SSCC",
+          "noSscc": "Not generated",
+          "contentsEmpty": "This box is empty.",
+          "colLp": "License plate",
+          "colItem": "Item",
+          "colQty": "Qty"
+        },
+        "control": {
+          "title": "Pack a license plate",
+          "lpLabel": "License plate code",
+          "lpPlaceholder": "Scan or type LP code…",
+          "boxLabel": "Box",
+          "newBox": "New box",
+          "submit": "Pack",
+          "submitting": "Packing…",
+          "success": "Packed into box {n}.",
+          "noPermission": "You do not have permission to pack this shipment."
+        },
+        "errors": {
+          "invalid_input": "Enter a license plate code.",
+          "invalid_state": "This shipment cannot be packed in its current status.",
+          "lp_not_allocated": "That license plate is not allocated to this sales order.",
+          "already_packed": "That license plate is already packed.",
+          "invalid_box": "That box no longer exists.",
+          "not_found": "That shipment no longer exists."
+        }
+      },
+      "errors": {
+        "forbidden": "You don’t have permission to do that.",
+        "persistence_failed": "Something went wrong saving. Please retry."
+      }
     }
   }
 }

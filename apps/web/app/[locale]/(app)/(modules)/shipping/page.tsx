@@ -31,6 +31,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import { listSalesOrders, createSalesOrder } from './_actions/so-actions';
 import { listSoCustomers, searchSoItems } from './_actions/so-form-data';
 import { SoListView, type SoListLabels } from './_components/so-list-view';
+import { ShippingTabs } from './shipments/_components/shipping-tabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,6 +181,7 @@ export default async function ShippingRoutePage({ params, searchParams }: PagePr
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
   const t = await getTranslations('Shipping.salesOrders');
+  const tShip = await getTranslations('Shipping.shipments');
 
   return (
     <main
@@ -193,6 +195,7 @@ export default async function ShippingRoutePage({ params, searchParams }: PagePr
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.shipping') }, { label: t('breadcrumb.salesOrders') }]}
       />
+      <ShippingTabs locale={locale} labels={{ salesOrders: tShip('tabs.salesOrders'), shipments: tShip('tabs.shipments') }} />
       <Suspense fallback={<ListSkeleton />}>
         <ListContent locale={locale} autoOpenCreate={autoOpenCreate} />
       </Suspense>
