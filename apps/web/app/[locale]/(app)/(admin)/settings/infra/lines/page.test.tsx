@@ -26,6 +26,8 @@ const labels: Record<string, string> = {
   fieldCode: 'Code',
   fieldName: 'Name',
   fieldSite: 'Site',
+  warehouseFilter: 'Warehouse',
+  allWarehouses: 'All warehouses',
   fieldStatus: 'Status',
   fieldMachines: 'Machine sequence',
   createLine: 'Create line',
@@ -39,6 +41,7 @@ const labels: Record<string, string> = {
   noMachineTitle: 'No machines assigned',
   noMachineCode: 'NO_MACHINE',
   noMachineBody: 'Assign at least one machine before activating this line. V-SET-62',
+  unavailable: '—',
 };
 
 vi.mock('next-intl/server', () => ({
@@ -74,12 +77,19 @@ type ProductionLine = {
   code: string;
   name: string;
   status: LineStatus;
+  warehouseId?: string | null;
+  warehouseName?: string | null;
   machines: MachinePreview[];
 };
 
 type MachineOption = {
   id: string;
   code: string;
+  name: string;
+};
+
+type WarehouseOption = {
+  id: string;
   name: string;
 };
 
@@ -93,9 +103,10 @@ type LinesPageProps = {
   params?: Promise<{ locale: string }>;
   lines?: ProductionLine[];
   machines?: MachineOption[];
+  warehouses?: WarehouseOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult>;
-  createLine?: (input: { code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' } } | { ok: false; error?: string }>;
+  createLine?: (input: { code: string; name: string; siteId?: string | null; warehouseId?: string | null; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' } } | { ok: false; error?: string }>;
 };
 
 type LinesPage = (props: LinesPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -153,6 +164,10 @@ const availableMachines: MachineOption[] = [
   { id: '00000000-0000-4000-8000-000000000501', code: 'MIX-01', name: 'Mixer 01' },
   { id: '00000000-0000-4000-8000-000000000502', code: 'PACK-02', name: 'Packer 02' },
 ];
+const availableWarehouses: WarehouseOption[] = [
+  { id: '00000000-0000-4000-8000-000000000301', name: 'Raw materials - Krakow' },
+  { id: '00000000-0000-4000-8000-000000000302', name: 'Finished goods - Krakow' },
+];
 
 async function loadLinesPage(): Promise<LinesPage> {
   try {
@@ -175,6 +190,7 @@ async function renderLinesPage(overrides: Partial<LinesPageProps> = {}) {
     params: Promise.resolve({ locale: 'en' }),
     lines,
     machines: availableMachines,
+    warehouses: availableWarehouses,
     canUpdateInfra: true,
     activateLine: vi.fn(async (input: ActivateLineInput) => ({
       ok: true as const,
@@ -283,6 +299,9 @@ describe('SET-018 line list behavior', () => {
           ],
         };
       }
+      if (normalized.includes('from public.warehouses')) {
+        return { rows: availableWarehouses };
+      }
       throw new Error(`Unexpected SQL: ${sql}; params=${JSON.stringify(params)}`);
     });
     orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
@@ -295,6 +314,8 @@ describe('SET-018 line list behavior', () => {
 
     expect(orgContextMock.withOrgContext).toHaveBeenCalledTimes(1);
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/from public\.production_lines pl/i));
+    expect(query).toHaveBeenCalledWith(expect.stringMatching(/pl\.warehouse_id as warehouse_id/i));
+    expect(query).toHaveBeenCalledWith(expect.stringMatching(/from public\.warehouses/i));
     expect(screen.getByRole('heading', { name: /production lines/i })).toBeInTheDocument();
     expect(lineRow(/cheese packing line.*line-4.*WH-01 \/ ZONE-A \/ PACK/i)).toBeInTheDocument();
     expect(within(machinePreview(lineRow(/cheese packing line.*line-4/i))).getAllByTestId('settings-line-machine-chip')).toHaveLength(2);
@@ -375,6 +396,19 @@ describe('SET-018 line list behavior', () => {
     );
   });
 
+  it('populates the warehouse filter from warehouse props even when no line references a warehouse', async () => {
+    const user = userEvent.setup();
+    await renderLinesPage({
+      lines: [{ ...line0, warehouseId: null, warehouseName: null }],
+      warehouses: availableWarehouses,
+    });
+
+    await user.click(screen.getByRole('combobox', { name: /^warehouse$/i }));
+
+    expect(screen.getByRole('option', { name: /raw materials - krakow/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /finished goods - krakow/i })).toBeInTheDocument();
+  });
+
   it('opens Add line modal and creates a production line with selected machine sequence', async () => {
     const user = userEvent.setup();
     const createLine = vi.fn(async () => ({
@@ -383,8 +417,11 @@ describe('SET-018 line list behavior', () => {
     }));
     await renderLinesPage({ createLine });
 
+    await user.click(screen.getByRole('combobox', { name: /^warehouse$/i }));
+    await user.click(screen.getByRole('option', { name: /finished goods - krakow/i }));
     await user.click(screen.getByRole('button', { name: /^add line$/i }));
     const dialog = await screen.findByRole('dialog', { name: /add production line/i });
+    expect(within(dialog).getByRole('combobox', { name: /^warehouse$/i })).toHaveTextContent(/finished goods - krakow/i);
     await user.type(within(dialog).getByLabelText(/^code$/i), 'line-new');
     await user.type(within(dialog).getByLabelText(/^name$/i), 'New packing line');
     await user.click(within(dialog).getByRole('combobox', { name: /^status$/i }));
@@ -397,6 +434,7 @@ describe('SET-018 line list behavior', () => {
       code: 'line-new',
       name: 'New packing line',
       siteId: null,
+      warehouseId: availableWarehouses[1].id,
       status: 'active',
       machineIds: [availableMachines[0].id, availableMachines[1].id],
     }));

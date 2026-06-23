@@ -14,6 +14,8 @@ type WoListRow = {
   qty_entered_uom: string | null;
   uom_snapshot: Record<string, unknown> | null;
   scheduled_start: Date | string | null;
+  line_id: string | null;
+  line_code: string | null;
 };
 
 function iso(value: Date | string | null): string | null {
@@ -38,7 +40,9 @@ export async function GET(request: NextRequest) {
                 wo.qty_entered::text as qty_entered,
                 wo.qty_entered_uom,
                 wo.uom_snapshot,
-                wo.scheduled_start_time as scheduled_start
+                wo.scheduled_start_time as scheduled_start,
+                wo.production_line_id as line_id,
+                line.code as line_code
            from public.work_orders wo
            left join public.wo_executions exec
              on exec.wo_id = wo.id
@@ -46,6 +50,9 @@ export async function GET(request: NextRequest) {
            left join public.items item
              on item.id = wo.product_id
             and item.org_id = wo.org_id
+           left join public.production_lines line
+             on line.id = wo.production_line_id
+            and line.org_id = wo.org_id
           where wo.org_id = $1::uuid
             and (
               wo.status = 'RELEASED'
@@ -71,6 +78,8 @@ export async function GET(request: NextRequest) {
           qtyEnteredUom: row.qty_entered_uom,
           uomSnapshot: row.uom_snapshot,
           scheduledStart: iso(row.scheduled_start),
+          lineId: row.line_id,
+          lineCode: row.line_code,
         })),
       });
     } catch (error) {

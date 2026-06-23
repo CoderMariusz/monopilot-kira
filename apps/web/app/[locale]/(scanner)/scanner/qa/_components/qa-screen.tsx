@@ -197,55 +197,61 @@ export function QaScreen({ locale, labels }: { locale: string; labels: ScannerLa
       ) : (
         <>
           <Content>
-            {(phase === "scan" || phase === "loadingLp") && (
+            {(phase === "scan" ||
+              phase === "loadingLp" ||
+              phase === "notFound" ||
+              phase === "error") && (
               <>
                 <ScanInputArea
                   label={L.scanLabel}
                   placeholder={L.scanPlaceholder}
                   hint={L.scanHint}
                   value={code}
-                  onChange={setCode}
+                  onChange={(v) => {
+                    setCode(v);
+                    // editing after a failed scan clears the error ring + banner.
+                    if (phase === "notFound" || phase === "error") setPhase("scan");
+                  }}
                   onSubmit={(v) => void lookup(v)}
-                  state={phase === "loadingLp" ? "idle" : "idle"}
+                  state={phase === "notFound" || phase === "error" ? "err" : "idle"}
                   labels={labels.scanTools}
                 />
-                {phase === "loadingLp" ? (
+                {phase === "loadingLp" && (
                   <div data-testid="qa-loading-lp" style={{ padding: "24px", textAlign: "center", color: T.mute }}>
                     {L.loadingLp}
                   </div>
-                ) : (
+                )}
+                {phase === "scan" && (
                   <div data-testid="qa-prompt" style={{ padding: "24px 16px", textAlign: "center" }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: T.txt }}>{L.promptTitle}</div>
                     <div style={{ fontSize: 12, color: T.mute, marginTop: 6 }}>{L.promptBody}</div>
                   </div>
                 )}
+                {phase === "notFound" && (
+                  <div data-testid="qa-not-found">
+                    <Banner kind="warn" title={L.notFoundTitle}>
+                      {L.notFoundBody}
+                    </Banner>
+                    <div style={{ padding: "0 16px" }}>
+                      <Btn variant="sec" onClick={scanNext}>
+                        {L.retry}
+                      </Btn>
+                    </div>
+                  </div>
+                )}
+                {phase === "error" && (
+                  <div data-testid="qa-error">
+                    <Banner kind="err" title={L.errorLoad}>
+                      {" "}
+                    </Banner>
+                    <div style={{ padding: "0 16px" }}>
+                      <Btn variant="sec" onClick={() => void lookup(code)}>
+                        {L.retry}
+                      </Btn>
+                    </div>
+                  </div>
+                )}
               </>
-            )}
-
-            {phase === "notFound" && (
-              <div data-testid="qa-not-found">
-                <Banner kind="warn" title={L.notFoundTitle}>
-                  {L.notFoundBody}
-                </Banner>
-                <div style={{ padding: "0 16px" }}>
-                  <Btn variant="sec" onClick={scanNext}>
-                    {L.retry}
-                  </Btn>
-                </div>
-              </div>
-            )}
-
-            {phase === "error" && (
-              <div data-testid="qa-error">
-                <Banner kind="err" title={L.errorLoad}>
-                  {" "}
-                </Banner>
-                <div style={{ padding: "0 16px" }}>
-                  <Btn variant="sec" onClick={() => void lookup(code)}>
-                    {L.retry}
-                  </Btn>
-                </div>
-              </div>
             )}
 
             {(phase === "lp" || phase === "submitting") && lp && (

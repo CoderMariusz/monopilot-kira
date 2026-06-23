@@ -13,6 +13,7 @@ import LinesScreen, {
   type MachineOption,
   type ProductionLine,
   type SiteOption,
+  type WarehouseOption,
 } from './lines-screen.client';
 
 export const dynamic = 'force-dynamic';
@@ -105,6 +106,11 @@ type SiteOptionRow = {
   is_default: boolean;
 };
 
+type WarehouseOptionRow = {
+  id: string;
+  name: string;
+};
+
 type LineActivationRow = {
   id: string;
   code: string;
@@ -124,6 +130,7 @@ type LinesPageProps = {
   lines?: ProductionLine[];
   machines?: MachineOption[];
   sites?: SiteOption[];
+  warehouses?: WarehouseOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
   createLine?: (input: CreateLineInput) => Promise<UpsertLineResult> | UpsertLineResult;
@@ -202,17 +209,17 @@ function toProductionLines(rows: LineRow[]): ProductionLine[] {
   }));
 }
 
-async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; canUpdateInfra: boolean }> {
+async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; warehouses: WarehouseOption[]; canUpdateInfra: boolean }> {
   try {
-    return await withOrgContext(async (ctx): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; canUpdateInfra: boolean }> => {
+    return await withOrgContext(async (ctx): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; warehouses: WarehouseOption[]; canUpdateInfra: boolean }> => {
       const context = ctx as OrgContextLike;
       const [canRead, canUpdateInfra] = await Promise.all([
         hasPermission(context, READ_PERMISSION),
         hasPermission(context, UPDATE_PERMISSION),
       ]);
-      if (!canRead) return { state: 'permission_denied', lines: [], machines: [], sites: [], canUpdateInfra: false };
+      if (!canRead) return { state: 'permission_denied', lines: [], machines: [], sites: [], warehouses: [], canUpdateInfra: false };
 
-      const [linesResult, machinesResult, sitesResult] = await Promise.all([
+      const [linesResult, machinesResult, sitesResult, warehousesResult] = await Promise.all([
         context.client.query<LineRow>(
           `select pl.id as line_id,
                   pl.code as line_code,
@@ -221,8 +228,11 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
                   pl.default_location_id,
                   l.path as location_path,
                   l.name as location_name,
-                  w.id as warehouse_id,
-                  w.name as warehouse_name,
+                  pl.warehouse_id as warehouse_id,
+                  case
+                    when pl.warehouse_id is not null then plw.name
+                    else lw.name
+                  end as warehouse_name,
                   m.id as machine_id,
                   m.code as machine_code,
                   m.name as machine_name,
@@ -231,9 +241,12 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
              left join public.locations l
                on l.id = pl.default_location_id
               and l.org_id = app.current_org_id()
-             left join public.warehouses w
-               on w.id = l.warehouse_id
-              and w.org_id = app.current_org_id()
+             left join public.warehouses plw
+               on plw.id = pl.warehouse_id
+              and plw.org_id = app.current_org_id()
+             left join public.warehouses lw
+               on lw.id = l.warehouse_id
+              and lw.org_id = app.current_org_id()
              left join public.line_machines lm
                on lm.line_id = pl.id
              left join public.machines m
@@ -255,6 +268,12 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
               and is_active = true
             order by is_default desc, lower(name), lower(site_code)`,
         ),
+        context.client.query<WarehouseOptionRow>(
+          `select id, name
+             from public.warehouses
+            where org_id = app.current_org_id()
+            order by lower(name), id`,
+        ),
       ]);
       const lines = toProductionLines(linesResult.rows);
       return {
@@ -262,12 +281,13 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
         lines,
         machines: machinesResult.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
         sites: sitesResult.rows.map((row) => ({ id: row.id, code: row.site_code, name: row.name, isDefault: row.is_default })),
+        warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name })),
         canUpdateInfra,
       };
     });
   } catch (error) {
     console.error('[settings/infra/lines] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { state: 'error', lines: [], machines: [], sites: [], canUpdateInfra: false };
+    return { state: 'error', lines: [], machines: [], sites: [], warehouses: [], canUpdateInfra: false };
   }
 }
 
@@ -342,6 +362,7 @@ export default async function LinesPage(propsInput: unknown = {}) {
         lines: suppliedLines,
         machines: props.machines ?? [],
         sites: props.sites ?? [],
+        warehouses: props.warehouses ?? [],
         canUpdateInfra: props.canUpdateInfra ?? false,
       }
     : await loadLines();
@@ -359,6 +380,7 @@ export default async function LinesPage(propsInput: unknown = {}) {
     lines: runtime.lines,
     machines: runtime.machines,
     sites: runtime.sites,
+    warehouses: runtime.warehouses,
     canUpdateInfra: runtime.canUpdateInfra,
     activateLine: activateLineForClient,
     createLine: props.createLine ?? persistLine,

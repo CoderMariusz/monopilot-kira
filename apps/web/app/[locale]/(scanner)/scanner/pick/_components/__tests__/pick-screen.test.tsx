@@ -196,6 +196,102 @@ describe("PickScreen", () => {
     expect(screen.getAllByText(L.destinationRequired).length).toBeGreaterThan(0);
   });
 
+  it("resolves the typed destination CODE to a UUID before sending toLocationId (never raw text)", async () => {
+    seedSession();
+    let postCount = 0;
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        postCount += 1;
+        // first POST (one-tap) demands a staging destination; retry succeeds.
+        if (postCount === 1) {
+          return Promise.resolve({ status: 422, ok: false, json: async () => ({ error: "destination_required" }) });
+        }
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true, moveId: "mv-1" }) });
+      }
+      if (url.includes("/scanner/location")) {
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () => ({
+            location: { id: "loc-uuid-77", code: "STG-01", name: "Staging 01", warehouseId: "w1", warehouseCode: "WH1", locationType: "staging" },
+          }),
+        });
+      }
+      if (url.includes("/pick/lps")) return Promise.resolve(lpsOk());
+      return Promise.resolve(wosOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPick();
+    await waitFor(() => expect(screen.getByText("WO-2026-0108")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("WO-2026-0108").closest("button")!);
+    await waitFor(() => expect(screen.getByText("RM-001 · Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("RM-001 · Pork shoulder").closest("button")!);
+    await waitFor(() => expect(screen.getByText("LP-0001")).toBeInTheDocument());
+
+    // one-tap pick → 422 demands a destination → free-entry field appears.
+    fireEvent.click(screen.getByText("LP-0001").closest("button")!);
+    await waitFor(() => expect(screen.getByText(L.destinationLabel)).toBeInTheDocument());
+
+    // type a location CODE and submit (Enter) → it RESOLVES via the location API.
+    const destInput = screen.getByPlaceholderText(L.destinationPlaceholder) as HTMLInputElement;
+    fireEvent.change(destInput, { target: { value: "STG-01" } });
+    fireEvent.keyDown(destInput, { key: "Enter" });
+
+    // the resolve call targets the location lookup endpoint with the typed code…
+    await waitFor(() => {
+      const lookup = fetchMock.mock.calls.find((c) => String(c[0]).includes("/scanner/location"));
+      expect(lookup).toBeTruthy();
+    });
+    const lookup = fetchMock.mock.calls.find((c) => String(c[0]).includes("/scanner/location"))!;
+    expect(lookup[0]).toBe("/api/warehouse/scanner/location?code=STG-01");
+
+    // …and the resolved-location chip confirms the resolution (code + name).
+    await waitFor(() => expect(screen.getByText("Staging 01")).toBeInTheDocument());
+    expect(screen.getAllByText("STG-01").length).toBeGreaterThan(0);
+
+    // now confirm the pick again → the POST carries the RESOLVED UUID, not "STG-01".
+    fireEvent.click(screen.getByText("LP-0001").closest("button")!);
+    await waitFor(() => expect(postCount).toBe(2));
+    const post = fetchMock.mock.calls.filter((c) => (c[1] as RequestInit)?.method === "POST").at(-1)!;
+    const body = JSON.parse((post[1] as RequestInit).body as string);
+    expect(body.toLocationId).toBe("loc-uuid-77");
+    expect(body.toLocationId).not.toBe("STG-01");
+  });
+
+  it("shows location-not-found and keeps the destination field open on a 404 resolve", async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return Promise.resolve({ status: 422, ok: false, json: async () => ({ error: "destination_required" }) });
+      }
+      if (url.includes("/scanner/location")) {
+        return Promise.resolve({ status: 404, ok: false, json: async () => ({ error: "location_not_found" }) });
+      }
+      if (url.includes("/pick/lps")) return Promise.resolve(lpsOk());
+      return Promise.resolve(wosOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPick();
+    await waitFor(() => expect(screen.getByText("WO-2026-0108")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("WO-2026-0108").closest("button")!);
+    await waitFor(() => expect(screen.getByText("RM-001 · Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("RM-001 · Pork shoulder").closest("button")!);
+    await waitFor(() => expect(screen.getByText("LP-0001")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("LP-0001").closest("button")!);
+    await waitFor(() => expect(screen.getByText(L.destinationLabel)).toBeInTheDocument());
+
+    const destInput = screen.getByPlaceholderText(L.destinationPlaceholder) as HTMLInputElement;
+    fireEvent.change(destInput, { target: { value: "NOPE-99" } });
+    fireEvent.keyDown(destInput, { key: "Enter" });
+
+    // not-found state shown; the field stays open (loop not broken).
+    await waitFor(() => expect(screen.getAllByText(L.destNotFound).length).toBeGreaterThan(0));
+    expect(screen.getByPlaceholderText(L.destinationPlaceholder)).toBeInTheDocument();
+  });
+
   it("treats a non-destination 422 (invalid_material) as a generic error — destination field stays hidden (review fix F4)", async () => {
     seedSession();
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {

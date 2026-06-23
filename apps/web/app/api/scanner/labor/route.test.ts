@@ -14,6 +14,7 @@ const ORG_ID = '20000000-0000-4000-8000-000000000001';
 const USER_ID = '30000000-0000-4000-8000-000000000001';
 const WO_ID = '40000000-0000-4000-8000-000000000001';
 const LINE_ID = '50000000-0000-4000-8000-000000000001';
+const STARTED_AT = '2026-06-23T08:15:00.000Z';
 
 const session: ScannerSessionRow = {
   id: '10000000-0000-4000-8000-000000000001',
@@ -48,6 +49,13 @@ function request(body: Record<string, unknown>): Request {
     method: 'POST',
     headers: { authorization: 'Bearer token', 'content-type': 'application/json' },
     body: JSON.stringify(body),
+  });
+}
+
+function getRequest(woId = WO_ID): Request {
+  return new Request(`https://web.test/api/scanner/labor?woId=${woId}`, {
+    method: 'GET',
+    headers: { authorization: 'Bearer token' },
   });
 }
 
@@ -90,6 +98,53 @@ describe('scanner labor route', () => {
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'unauthorized' });
     expect(withScannerOrgMock).not.toHaveBeenCalled();
     expect(fakeClient.query).not.toHaveBeenCalled();
+  });
+
+  it('GET returns clocked_in with since when an open scanner labor row exists for the work order', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.wo_labor_log') && q.includes('ended_at is null')) {
+        return { rows: [{ since: new Date(STARTED_AT) }] };
+      }
+      return { rows: [] };
+    });
+    const { GET } = await import('./route');
+
+    const response = await GET(getRequest() as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ state: 'clocked_in', since: STARTED_AT });
+    expect(requireScannerSessionMock.mock.calls[0][1]).toBeNull();
+    expect(requireScannerSessionMock.mock.calls[0][2]).toBe('scanner.labor');
+
+    const calls = woLaborCalls();
+    expect(calls).toHaveLength(1);
+    const lookup = calls[0];
+    const q = normalize(lookup[0]);
+    expect(q).toContain('select started_at as since');
+    expect(q).toContain('from public.wo_labor_log');
+    expect(q).toContain('org_id = app.current_org_id()');
+    expect(q).toContain('user_id = $1::uuid');
+    expect(q).toContain('wo_id = $2::uuid');
+    expect(q).toContain('ended_at is null');
+    expect(q).toContain('order by started_at desc');
+    expect(q).toContain('limit 1');
+    expect(lookup[1]).toEqual([USER_ID, WO_ID]);
+  });
+
+  it('GET returns clocked_out when no open scanner labor row exists for the work order', async () => {
+    const { GET } = await import('./route');
+
+    const response = await GET(getRequest() as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ state: 'clocked_out' });
+
+    const calls = woLaborCalls();
+    expect(calls).toHaveLength(1);
+    const lookup = calls[0];
+    expect(normalize(lookup[0])).toContain('from public.wo_labor_log');
+    expect(lookup[1]).toEqual([USER_ID, WO_ID]);
   });
 
   it("action='in' inserts scanner wo_labor_log row after closing the user's prior open row", async () => {

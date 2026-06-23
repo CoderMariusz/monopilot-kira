@@ -310,6 +310,9 @@ interface ScannerLabelsShape {
     destinationPlaceholder: string;
     destinationHint: string;
     destinationRequired: string;
+    destResolving: string;
+    destNotFound: string;
+    destResolvedLabel: string;
     err409: string;
     lpNotReleased: string;
     errGeneric: string;
@@ -723,6 +726,9 @@ const en: ScannerLabelsShape = {
     destinationPlaceholder: "LOC-XXX-XX-XX…",
     destinationHint: "Scan or type the staging location for this material",
     destinationRequired: "A staging location is required for this pick.",
+    destResolving: "Looking up location…",
+    destNotFound: "Location not found.",
+    destResolvedLabel: "Staging location",
     err409: "This material has already been picked. Reloading…",
     lpNotReleased: "This LP is not QA-released and cannot be picked.",
     errGeneric: "Could not complete pick. Try again.",
@@ -1160,6 +1166,9 @@ const pl: ScannerLabelsShape = {
     destinationPlaceholder: "LOC-XXX-XX-XX…",
     destinationHint: "Zeskanuj lub wpisz lokalizację kompletacji dla tego materiału",
     destinationRequired: "Dla tego pobrania wymagana jest lokalizacja kompletacji.",
+    destResolving: "Wyszukiwanie lokalizacji…",
+    destNotFound: "Nie znaleziono lokalizacji.",
+    destResolvedLabel: "Lokalizacja kompletacji",
     err409: "Ten materiał został już zebrany. Odświeżanie…",
     lpNotReleased: "Ten LP nie ma zwolnienia QA i nie może zostać pobrany.",
     errGeneric: "Nie udało się wykonać pobrania. Spróbuj ponownie.",

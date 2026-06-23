@@ -14,6 +14,8 @@ type HeaderRow = {
   qty_entered_uom: string | null;
   uom_snapshot: Record<string, unknown> | null;
   scheduled_start: Date | string | null;
+  line_id: string | null;
+  line_code: string | null;
   produced_base_kg: string;
   produced_units: string | null;
   allergen_flag: boolean;
@@ -61,6 +63,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
                 wo.qty_entered_uom,
                 wo.uom_snapshot,
                 wo.scheduled_start_time as scheduled_start,
+                wo.production_line_id as line_id,
+                line.code as line_code,
                 coalesce((
                   select sum(out.qty_kg)::text
                     from public.wo_outputs out
@@ -96,6 +100,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
            left join public.items item
              on item.id = wo.product_id
             and item.org_id = wo.org_id
+           left join public.production_lines line
+             on line.id = wo.production_line_id
+            and line.org_id = wo.org_id
           where wo.org_id = $1::uuid
             and wo.id = $2::uuid
             and (
@@ -155,6 +162,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
           qtyEnteredUom: header.qty_entered_uom,
           uomSnapshot: header.uom_snapshot,
           scheduledStart: iso(header.scheduled_start),
+          lineId: header.line_id,
+          lineCode: header.line_code,
           producedBaseKg: header.produced_base_kg,
           producedUnits: header.produced_units,
           allergenFlag: header.allergen_flag,

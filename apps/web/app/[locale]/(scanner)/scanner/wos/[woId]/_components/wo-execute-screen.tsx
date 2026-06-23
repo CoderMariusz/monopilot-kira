@@ -35,7 +35,7 @@ import { toBaseQty, type OutputUom } from "../../../../../../../lib/uom/convert"
 type LoadState = "loading" | "ready" | "error" | "notfound";
 type LaborState = "clocked_in" | "clocked_out";
 type LaborAction = "in" | "out";
-type LaborResponse = { ok: true; state: LaborState } | { ok: false; error: string };
+type LaborResponse = { ok?: true; state: LaborState; since?: string } | { ok: false; error: string };
 
 export function WoExecuteScreen({
   locale,
@@ -61,6 +61,9 @@ export function WoExecuteScreen({
   const [starting, setStarting] = useState(false);
   const [startErr, setStartErr] = useState<string | null>(null);
   const [laborState, setLaborState] = useState<LaborState>("clocked_out");
+  const [laborSince, setLaborSince] = useState<string | null>(null);
+  const [laborKnown, setLaborKnown] = useState(false);
+  const [laborLoading, setLaborLoading] = useState(true);
   const [laborBusy, setLaborBusy] = useState<LaborAction | null>(null);
 
   useEffect(() => {
@@ -98,6 +101,38 @@ export function WoExecuteScreen({
     void load();
   }, [ready, load]);
 
+  useEffect(() => {
+    if (!ready || !session) return;
+    let cancelled = false;
+
+    const hydrateLabor = async () => {
+      setLaborKnown(false);
+      setLaborLoading(true);
+      setLaborSince(null);
+      try {
+        const query = new URLSearchParams({ woId }).toString();
+        const res = await scannerFetch(`labor?${query}`, undefined, { method: "GET" });
+        if (!res.ok) return;
+        const data = (await res.json()) as LaborResponse;
+        if ("ok" in data && data.ok === false) return;
+        if (data.state !== "clocked_in" && data.state !== "clocked_out") return;
+        if (cancelled) return;
+        setLaborState(data.state);
+        setLaborSince(data.state === "clocked_in" ? data.since ?? null : null);
+        setLaborKnown(true);
+      } catch {
+        /* keep labor controls disabled until state can be confirmed */
+      } finally {
+        if (!cancelled) setLaborLoading(false);
+      }
+    };
+
+    void hydrateLabor();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, session, scannerFetch, woId]);
+
   const go = (sub: string) => router.push(`/${locale}/scanner/wos/${woId}/${sub}`);
 
   // released/planned = no execution yet: Consume/Output/Waste stay locked until
@@ -105,25 +140,32 @@ export function WoExecuteScreen({
   const notStarted = header?.status === "released" || header?.status === "planned";
 
   const clockLabor = async (action: LaborAction) => {
-    if (laborBusy) return;
+    if (laborBusy || !laborKnown) return;
     const previous = laborState;
+    const previousSince = laborSince;
     const optimistic: LaborState = action === "in" ? "clocked_in" : "clocked_out";
+    const optimisticSince = action === "in" ? new Date().toISOString() : null;
     setLaborState(optimistic);
+    setLaborSince(optimisticSince);
     setLaborBusy(action);
     try {
       const res = await scannerFetch("labor", { action, woId, lineId: session?.lineId ?? undefined });
       if (!res.ok) {
         setLaborState(previous);
+        setLaborSince(previousSince);
         return;
       }
       const data = (await res.json()) as LaborResponse;
       if (data.ok) {
         setLaborState(data.state);
+        setLaborSince(data.state === "clocked_in" ? data.since ?? optimisticSince ?? previousSince : null);
       } else {
         setLaborState(previous);
+        setLaborSince(previousSince);
       }
     } catch {
       setLaborState(previous);
+      setLaborSince(previousSince);
     } finally {
       setLaborBusy(null);
     }
@@ -237,12 +279,18 @@ export function WoExecuteScreen({
             )}
 
             <div style={laborPanelStyle}>
-              <div style={laborStatusStyle(laborState)}>{laborState === "clocked_in" ? laborLabels.clockedIn : laborLabels.clockedOut}</div>
+              <div style={laborStatusStyle(laborState, laborKnown)} aria-busy={laborLoading}>
+                {laborLoading
+                  ? shellLabels.loading
+                  : laborKnown
+                    ? laborStatusText(laborState, laborSince, laborLabels, locale)
+                    : L.error}
+              </div>
               <div style={laborButtonGridStyle}>
                 <Btn
                   variant="p"
                   onClick={() => void clockLabor("in")}
-                  disabled={laborBusy !== null || laborState === "clocked_in"}
+                  disabled={!laborKnown || laborBusy !== null || laborState === "clocked_in"}
                   style={{ minHeight: 56, fontSize: 16 }}
                 >
                   {laborLabels.clockIn}
@@ -250,7 +298,7 @@ export function WoExecuteScreen({
                 <Btn
                   variant="sec"
                   onClick={() => void clockLabor("out")}
-                  disabled={laborBusy !== null || laborState === "clocked_out"}
+                  disabled={!laborKnown || laborBusy !== null || laborState === "clocked_out"}
                   style={{ minHeight: 56, fontSize: 16 }}
                 >
                   {laborLabels.clockOut}
@@ -425,6 +473,19 @@ function clampPct(ratio: number): number {
   return Math.min(100, Math.max(0, Math.round(ratio * 100)));
 }
 
+function laborStatusText(
+  state: LaborState,
+  since: string | null,
+  labels: ScannerLabels["labor"],
+  locale: string,
+): string {
+  const base = state === "clocked_in" ? labels.clockedIn : labels.clockedOut;
+  if (state !== "clocked_in" || !since) return base;
+  const started = new Date(since);
+  if (Number.isNaN(started.getTime())) return base;
+  return `${base} · ${started.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 const cardStyle = {
   margin: "8px 16px",
   padding: 14,
@@ -464,13 +525,14 @@ const laborButtonGridStyle = {
   gap: 8,
 } as const;
 
-function laborStatusStyle(state: LaborState) {
+function laborStatusStyle(state: LaborState, known: boolean) {
+  const active = known && state === "clocked_in";
   return {
     justifySelf: "start",
     borderRadius: 999,
     padding: "5px 10px",
-    background: state === "clocked_in" ? "rgba(34, 197, 94, 0.16)" : T.bg,
-    color: state === "clocked_in" ? T.green : T.mute,
+    background: active ? "rgba(34, 197, 94, 0.16)" : T.bg,
+    color: active ? T.green : T.mute,
     fontSize: 12,
     fontWeight: 800,
   } as const;

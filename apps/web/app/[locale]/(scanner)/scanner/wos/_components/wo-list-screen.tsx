@@ -80,8 +80,17 @@ export function WoListScreen({
     void load();
   }, [ready, load]);
 
+  const sessionLineId = session?.lineId ?? null;
+
   const visible = useMemo(() => {
     let rows = wos;
+    // "My line" — only WOs assigned to the scanner session's production line.
+    // The list API already scopes to session.line_id when one is set, so this is
+    // the client-side guard for sessions with a line (and shows nothing when the
+    // session has no line bound — there is no "my line" to match).
+    if (filter === "my_line") {
+      rows = sessionLineId ? rows.filter((w) => w.lineId === sessionLineId) : [];
+    }
     if (filter === "active") rows = rows.filter((w) => w.status === "inprog");
     if (q) {
       const needle = q.toLowerCase();
@@ -90,7 +99,7 @@ export function WoListScreen({
       );
     }
     return rows;
-  }, [wos, filter, q]);
+  }, [wos, filter, q, sessionLineId]);
 
   return (
     <ScannerScreen>

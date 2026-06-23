@@ -29,6 +29,10 @@ export type WoListItem = {
   qtyEnteredUom: string | null;
   uomSnapshot: UomSnapshot | null;
   scheduledStart: string | null;
+  /** the WO's production line UUID (null when unassigned) — used by the "My line" filter */
+  lineId: string | null;
+  /** human-readable production-line code, e.g. "L1" */
+  lineCode: string | null;
 };
 
 export type WoListResponse = { ok: true; wos: WoListItem[] } | ApiError;

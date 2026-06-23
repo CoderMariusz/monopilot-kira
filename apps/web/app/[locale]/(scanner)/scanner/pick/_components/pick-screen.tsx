@@ -42,6 +42,7 @@ import {
 } from "../../../../../../components/shell/scanner-primitives";
 import { useScannerSession } from "../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../_components/scanner-labels";
+import type { LocationLookupResponse, ScannerLocation } from "../../putaway/_components/types";
 import type {
   PickLp,
   PickLpsResponse,
@@ -74,7 +75,12 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   // destination only requested when the POST returns 422 demanding one.
   const [destNeeded, setDestNeeded] = useState(false);
+  // free-form typed location CODE; resolved into a UUID before it ships as
+  // toLocationId (parity with putaway/move — never send raw text on the wire).
   const [dest, setDest] = useState("");
+  const [destLocation, setDestLocation] = useState<ScannerLocation | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [resolveErr, setResolveErr] = useState<string | null>(null);
   const [pendingLp, setPendingLp] = useState<PickLp | null>(null);
   // clientOpId is held per attempt until success so a retry replays it.
   const [clientOpId, setClientOpId] = useState<string | null>(null);
@@ -161,17 +167,57 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
     setSubmitErr(null);
     setDestNeeded(false);
     setDest("");
+    setDestLocation(null);
+    setResolveErr(null);
     setPendingLp(null);
     setClientOpId(null);
     setPhase("lp");
     void loadLps(m);
   };
 
+  // Resolve a typed/scanned staging-location CODE into a UUID (exactly like
+  // putaway/move). The resolved location's id — never the raw text — is what
+  // ships as toLocationId. On 404 keep the field open so the loop continues.
+  const resolveLocation = useCallback(
+    async (raw: string) => {
+      const code = raw.trim();
+      if (!code) return;
+      setResolving(true);
+      setResolveErr(null);
+      setDestLocation(null);
+      try {
+        const res = await scannerFetch(
+          `/api/warehouse/scanner/location?code=${encodeURIComponent(code)}`,
+          undefined,
+          { method: "GET", namespace: "absolute" },
+        );
+        if (res.status === 401 || res.status === 403) return; // redirect handled
+        if (res.status === 404) {
+          setResolveErr(L.destNotFound);
+          return;
+        }
+        const body = (await res.json().catch(() => null)) as LocationLookupResponse | null;
+        if (!res.ok || !body || !body.location) {
+          setResolveErr(L.destNotFound);
+          return;
+        }
+        setDestLocation(body.location);
+        setSubmitErr(null);
+      } catch {
+        setResolveErr(L.errGeneric);
+      } finally {
+        setResolving(false);
+      }
+    },
+    [scannerFetch, L],
+  );
+
   const confirmPick = useCallback(
     async (lp: PickLp) => {
       if (!wo || !material || submitting) return;
-      // a destination was demanded by a prior 422 — require it before re-POST.
-      if (destNeeded && !dest.trim()) {
+      // a destination was demanded by a prior 422 — require a RESOLVED location
+      // (a resolved UUID, not raw typed text) before re-POST.
+      if (destNeeded && !destLocation) {
         setSubmitErr(L.destinationRequired);
         return;
       }
@@ -186,7 +232,8 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
         materialId: material.id,
         lpId: lp.id,
       };
-      if (destNeeded && dest.trim()) payload.toLocationId = dest.trim();
+      // ship the RESOLVED location's UUID — never the raw typed code.
+      if (destNeeded && destLocation) payload.toLocationId = destLocation.id;
       try {
         const res = await scannerFetch("/api/warehouse/scanner/pick", payload, {
           method: "POST",
@@ -227,7 +274,7 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
         setSubmitting(false);
       }
     },
-    [wo, material, submitting, destNeeded, dest, clientOpId, scannerFetch, L],
+    [wo, material, submitting, destNeeded, destLocation, clientOpId, scannerFetch, L],
   );
 
   // Re-fetch the WO list and re-bind the open WO so progress reflects the move.
@@ -256,6 +303,8 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
     setSubmitErr(null);
     setDestNeeded(false);
     setDest("");
+    setDestLocation(null);
+    setResolveErr(null);
     setPendingLp(null);
     setClientOpId(null);
     setPhase("materials");
@@ -446,9 +495,31 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
                     placeholder={L.destinationPlaceholder}
                     hint={L.destinationHint}
                     value={dest}
-                    onChange={setDest}
+                    onChange={(v) => {
+                      setDest(v);
+                      // editing invalidates any prior resolved choice / error
+                      if (destLocation) setDestLocation(null);
+                      if (resolveErr) setResolveErr(null);
+                    }}
+                    onSubmit={(v) => void resolveLocation(v)}
+                    state={resolveErr ? "err" : destLocation ? "ok" : "idle"}
                     labels={labels.scanTools}
                   />
+                  {resolving && <StateText>{L.destResolving}</StateText>}
+                  {resolveErr && (
+                    <Banner kind="err" title={resolveErr}>
+                      {" "}
+                    </Banner>
+                  )}
+                  {destLocation && !resolving && (
+                    <div style={resolvedChipStyle}>
+                      <div style={resolvedChipLabel}>{L.destResolvedLabel}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
+                        <span style={resolvedChipCode}>{destLocation.code}</span>
+                        <span style={{ fontSize: 12, color: T.mute }}>{destLocation.name}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -671,4 +742,28 @@ const suggestedChipStyle = {
   fontWeight: 700,
   letterSpacing: "0.04em",
   whiteSpace: "nowrap",
+} as const;
+
+// resolved-location confirmation chip (parity with putaway/move resolve UX).
+const resolvedChipStyle = {
+  margin: "8px 16px 0",
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: `1px solid ${T.green}`,
+  background: T.surf,
+} as const;
+
+const resolvedChipLabel = {
+  fontSize: 10,
+  fontWeight: 800,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: T.hint,
+} as const;
+
+const resolvedChipCode = {
+  fontFamily: "'Courier New', monospace",
+  letterSpacing: 0.5,
+  fontWeight: 800,
+  color: T.txt,
 } as const;

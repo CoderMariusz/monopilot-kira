@@ -17,10 +17,12 @@ type OrgActionContext = {
 type LineStatus = 'draft' | 'active';
 type LineRow = { id: string; code: string; name: string; status: LineStatus };
 type MachineRow = { id: string; status: string };
+type WarehouseRow = { id: string };
 
 type ParsedLineInput = {
   id: string | null;
   siteId: string | null;
+  warehouseId: string | null;
   code: string;
   name: string;
   status: LineStatus;
@@ -29,7 +31,7 @@ type ParsedLineInput = {
 
 export type UpsertLineResult =
   | { ok: true; data: { id: string; status: LineStatus } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'line_requires_machine' | 'invalid_machine_reference' | 'persistence_failed' };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'line_requires_machine' | 'invalid_machine_reference' | 'invalid_warehouse_reference' | 'persistence_failed' };
 
 const EDIT_PERMISSION = 'settings.infra.update';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -37,6 +39,7 @@ const UuidInput = z.string().trim().regex(UUID_RE);
 const LineInput = z.object({
   id: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
   siteId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
+  warehouseId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
   code: z.string().trim().min(1).max(64).transform((value) => value.toUpperCase()).pipe(z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/)),
   name: z.string().trim().min(1).max(128),
   status: z.enum(['draft', 'active']),
@@ -56,18 +59,23 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
         const machines = await getMachines(client, input.machineIds);
         if (machines.length !== new Set(input.machineIds).size) return { ok: false, error: 'invalid_machine_reference' };
       }
+      if (input.warehouseId) {
+        const warehouse = await getWarehouse(client, input.warehouseId);
+        if (!warehouse) return { ok: false, error: 'invalid_warehouse_reference' };
+      }
 
       const { rows } = await client.query<LineRow>(
         `insert into public.production_lines
-           (id, org_id, site_id, code, name, status)
-         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3, $4, $5)
+           (id, org_id, site_id, warehouse_id, code, name, status)
+         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3::uuid, $4, $5, $6)
          on conflict (id) do update set
            site_id = excluded.site_id,
+           warehouse_id = excluded.warehouse_id,
            code = excluded.code,
            name = excluded.name,
            status = excluded.status
-         returning id, code, name, status, $6::uuid[] as machine_ids`,
-        [input.id, input.siteId, input.code, input.name, input.status, input.machineIds],
+         returning id, code, name, status, $7::uuid[] as machine_ids`,
+        [input.id, input.siteId, input.warehouseId, input.code, input.name, input.status, input.machineIds],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
@@ -91,7 +99,7 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
         eventType: 'settings.line.upserted',
         aggregateType: 'production_line',
         aggregateId: row.id,
-        payload: { line_id: row.id, status: row.status, machine_ids: input.machineIds, actor_user_id: userId },
+        payload: { line_id: row.id, status: row.status, warehouse_id: input.warehouseId, machine_ids: input.machineIds, actor_user_id: userId },
       });
 
       return { ok: true, data: { id: row.id, status: row.status } };
@@ -107,6 +115,7 @@ function parseLineInput(raw: unknown): ParsedLineInput | null {
   return {
     id: parsed.data.id ?? null,
     siteId: parsed.data.siteId ?? null,
+    warehouseId: parsed.data.warehouseId ?? null,
     code: parsed.data.code,
     name: parsed.data.name,
     status: parsed.data.status,
@@ -123,6 +132,18 @@ async function getMachines(client: QueryClient, machineIds: string[]): Promise<M
     [machineIds],
   );
   return rows;
+}
+
+async function getWarehouse(client: QueryClient, warehouseId: string): Promise<WarehouseRow | null> {
+  const { rows } = await client.query<WarehouseRow>(
+    `select id
+       from public.warehouses
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [warehouseId],
+  );
+  return rows[0] ?? null;
 }
 
 async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {

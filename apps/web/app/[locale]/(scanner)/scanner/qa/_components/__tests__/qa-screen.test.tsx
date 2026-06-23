@@ -114,7 +114,7 @@ describe('QaScreen (scanner QC)', () => {
     expect(screen.getByText(labels.qaScreen.scanNext)).toBeInTheDocument();
   });
 
-  it('not-found: a 404 lp_not_found renders the not-found banner', async () => {
+  it('not-found: a 404 lp_not_found renders the not-found banner AND turns the scan ring red (field stays open)', async () => {
     seedSession();
     const fetchMock = vi
       .fn()
@@ -128,9 +128,21 @@ describe('QaScreen (scanner QC)', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await screen.findByTestId('qa-not-found');
+
+    // the scan field stays visible and its ring turns RED (was a no-op tautology).
+    const ringInput = screen.getByPlaceholderText(labels.qaScreen.scanPlaceholder);
+    expect(ringInput).toBeInTheDocument();
+    expect(ringInput).toHaveStyle({ border: '2px solid #ef4444' });
+
+    // typing again clears the error ring (back to scan phase).
+    fireEvent.change(ringInput, { target: { value: 'LP-RETRY' } });
+    expect(screen.queryByTestId('qa-not-found')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(labels.qaScreen.scanPlaceholder)).not.toHaveStyle({
+      border: '2px solid #ef4444',
+    });
   });
 
-  it('error: a non-401 failure shows the error banner with retry', async () => {
+  it('error: a non-401 failure shows the error banner with retry AND a red scan ring', async () => {
     seedSession();
     const fetchMock = vi.fn().mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
     vi.stubGlobal('fetch', fetchMock);
@@ -143,5 +155,8 @@ describe('QaScreen (scanner QC)', () => {
 
     await screen.findByTestId('qa-error');
     expect(within(screen.getByTestId('qa-error')).getByText(labels.qaScreen.retry)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(labels.qaScreen.scanPlaceholder)).toHaveStyle({
+      border: '2px solid #ef4444',
+    });
   });
 });

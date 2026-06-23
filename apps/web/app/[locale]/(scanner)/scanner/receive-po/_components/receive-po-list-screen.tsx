@@ -57,6 +57,17 @@ export function ReceivePoListScreen({ locale, labels }: { locale: string; labels
     return pos.filter((po) => `${po.poNumber} ${po.supplierCode ?? ""} ${po.supplierName}`.toLowerCase().includes(q));
   }, [pos, query]);
 
+  // Enter on a scanned/typed PO code advances the flow: prefer an exact PO-number
+  // match; otherwise, if the search narrows to a single PO, open it. No match
+  // leaves the list filtered so the operator can pick from the rows.
+  const onSubmit = (raw: string) => {
+    const code = raw.trim().toLowerCase();
+    if (!code) return;
+    const exact = pos.find((po) => po.poNumber.toLowerCase() === code);
+    const target = exact ?? (filtered.length === 1 ? filtered[0] : null);
+    if (target) router.push(`/${locale}/scanner/receive-po/${target.id}`);
+  };
+
   return (
     <ScannerScreen>
       <Topbar
@@ -72,6 +83,7 @@ export function ReceivePoListScreen({ locale, labels }: { locale: string; labels
           hint={L.scanHint}
           value={query}
           onChange={setQuery}
+          onSubmit={onSubmit}
           labels={labels.scanTools}
         />
         {state === "loading" && <StateText>{L.loadingPo}</StateText>}
