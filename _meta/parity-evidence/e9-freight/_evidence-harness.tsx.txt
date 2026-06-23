@@ -1,0 +1,114 @@
+/**
+ * WAVE E9 — parity-evidence harness (NOT a test glob match → `.spec.tsx`, run on
+ * demand). Renders each required UI state for /planning/carriers and the supplier
+ * scorecard and dumps the DOM to _meta/parity-evidence/e9-freight/*.html so the
+ * closeout has per-state structural-parity artifacts (no prototype JSX exists for
+ * these spec-driven screens, so the HTML snapshot + deviation log is the evidence).
+ */
+import '@testing-library/jest-dom/vitest';
+import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, vi } from 'vitest';
+
+import { CarriersView, type CarriersLabels } from '../_components/carriers-view';
+import { ScorecardView, type ScorecardLabels } from '../../suppliers/[id]/scorecard/_components/scorecard-view';
+import type { CarrierRow, TransportLaneRow, SupplierScorecard } from '../../_actions/freight-actions';
+
+const OUT = path.resolve(__dirname, '../../../../../../../../../_meta/parity-evidence/e9-freight');
+function dump(name: string, html: string) {
+  fs.mkdirSync(OUT, { recursive: true });
+  fs.writeFileSync(path.join(OUT, `${name}.html`), html, 'utf-8');
+}
+
+const CARRIER_LABELS: CarriersLabels = {
+  title: 'Carriers', addCarrier: '+ Add carrier', editCarrier: 'Edit carrier',
+  loading: 'Loading…', denied: "You don't have permission to view carriers.",
+  error: 'Failed to load carriers.', empty: 'No carriers configured',
+  emptyHint: 'Add a carrier to manage its transport lanes.', active: 'Active', inactive: 'Inactive',
+  manageLanes: 'Lanes', noContact: 'No contact',
+  modes: { road: 'Road', sea: 'Sea', air: 'Air', rail: 'Rail', parcel: 'Parcel' },
+  costBases: { per_shipment: 'per shipment', per_kg: 'per kg', per_km: 'per km', per_pallet: 'per pallet' },
+  columns: { code: 'Code', name: 'Name', mode: 'Mode', contact: 'Contact', status: 'Status', actions: 'Actions' },
+  carrierModal: {
+    titleAdd: 'Add carrier', titleEdit: 'Edit carrier', codeLabel: 'Code', nameLabel: 'Name',
+    modeLabel: 'Default mode', emailLabel: 'Contact email', phoneLabel: 'Contact phone',
+    activeLabel: 'Active', submit: 'Save', submitting: 'Saving…', cancel: 'Cancel', edit: 'Edit',
+    errors: { codeRequired: 'Code is required.', nameRequired: 'Name is required.', emailInvalid: 'Enter a valid email address.', invalid_input: 'Invalid input.', forbidden: "You don't have permission to edit carriers.", not_found: 'Carrier not found.', already_exists: 'A carrier with this code already exists.', persistence_failed: 'Saving failed. Try again.' },
+  },
+  lanes: {
+    title: 'Transport lanes', addLane: '+ Add lane', empty: 'No transport lanes for this carrier yet.', days: 'days',
+    columns: { route: 'Route', mode: 'Mode', cost: 'Cost', transit: 'Transit', status: 'Status', actions: 'Actions' },
+    edit: 'Edit',
+    modal: { titleAdd: 'Add transport lane', titleEdit: 'Edit transport lane', originLabel: 'Origin', destinationLabel: 'Destination', modeLabel: 'Mode', costBasisLabel: 'Cost basis', costAmountLabel: 'Cost amount', currencyLabel: 'Currency', transitDaysLabel: 'Transit days (optional)', activeLabel: 'Active', submit: 'Save', submitting: 'Saving…', cancel: 'Cancel', errors: { originRequired: 'Origin is required.', destinationRequired: 'Destination is required.', costInvalid: 'Cost must be a non-negative number (up to 4 decimals).', invalid_input: 'Invalid input.', forbidden: "You don't have permission to edit transport lanes.", not_found: 'Carrier or lane not found.', already_exists: 'This transport lane already exists.', persistence_failed: 'Saving failed. Try again.' } },
+  },
+};
+
+const CARRIER: CarrierRow = { id: 'c-1', code: 'DHL', name: 'DHL Freight', mode: 'road', contactEmail: 'ops@dhl.test', contactPhone: '+48 22 000 00 00', isActive: true };
+const LANE: TransportLaneRow = { id: 'l-1', carrierId: 'c-1', carrierName: 'DHL Freight', origin: 'Warsaw', destination: 'Berlin', mode: 'road', costBasis: 'per_shipment', costAmount: '450.0000', currency: 'EUR', transitDays: 2, isActive: true };
+
+const SCORECARD_LABELS: ScorecardLabels = {
+  kpis: { onTime: 'On-time %', onTimeHint: 'Share of received POs delivered on time.', qtyVariance: 'Avg qty variance', qtyVarianceHint: 'Average over/under received vs ordered.', ncr: 'NCRs', ncrHint: 'Total non-conformance reports.', openNcr: 'Open NCRs', openNcrHint: 'Not yet closed.' },
+  recent: { title: 'Recent purchase orders', empty: 'No purchase orders for this supplier yet.', columns: { po: 'PO', status: 'Status', expected: 'Expected', received: 'Received', onTime: 'On time', variance: 'Qty variance' }, onTimeYes: 'On time', onTimeNo: 'Late', pending: 'Pending', none: '—' },
+};
+
+const SCORECARD: SupplierScorecard = {
+  onTimePct: 92.5, avgQtyVariancePct: -1.25, ncrCount: 4, openNcrCount: 1,
+  recentPos: [
+    { id: 'po-1', poNumber: 'PO-1001', status: 'received', expectedDelivery: '2026-06-01T00:00:00.000Z', receivedAt: '2026-06-03T00:00:00.000Z', onTime: false, qtyVariancePct: 6.5 },
+    { id: 'po-2', poNumber: 'PO-1002', status: 'received', expectedDelivery: '2026-06-10T00:00:00.000Z', receivedAt: '2026-06-09T00:00:00.000Z', onTime: true, qtyVariancePct: 0 },
+  ],
+};
+
+describe('E9 parity evidence — capture per-state DOM', () => {
+  it('carriers: loading / table / empty / denied / error / dialog (optimistic)', async () => {
+    // loading
+    const slow = render(<CarriersView labels={CARRIER_LABELS} listCarriersAction={() => new Promise(() => {})} upsertCarrierAction={vi.fn()} listLanesAction={vi.fn()} upsertLaneAction={vi.fn()} />);
+    dump('carriers-01-loading', slow.container.innerHTML);
+    slow.unmount();
+
+    // table
+    const ok = render(<CarriersView labels={CARRIER_LABELS} listCarriersAction={vi.fn(async () => [CARRIER])} upsertCarrierAction={vi.fn(async () => ({ ok: true as const, data: CARRIER }))} listLanesAction={vi.fn(async () => [LANE])} upsertLaneAction={vi.fn(async () => ({ ok: true as const, data: LANE }))} />);
+    await waitFor(() => screen.getByTestId('carriers-table'));
+    dump('carriers-02-table', ok.container.innerHTML);
+    // dialog (optimistic submit pending captured as the open form)
+    fireEvent.click(screen.getByTestId('carriers-add'));
+    await waitFor(() => screen.getByTestId('carrier-form'));
+    dump('carriers-03-dialog', document.body.innerHTML);
+    // lanes panel
+    fireEvent.click(screen.getByTestId('carrier-cancel'));
+    fireEvent.click(screen.getByTestId('carrier-lanes-DHL'));
+    await waitFor(() => screen.getByTestId('lanes-table'));
+    dump('carriers-04-lanes-panel', ok.container.innerHTML);
+    ok.unmount();
+
+    // empty
+    const empty = render(<CarriersView labels={CARRIER_LABELS} listCarriersAction={vi.fn(async () => [])} upsertCarrierAction={vi.fn()} listLanesAction={vi.fn()} upsertLaneAction={vi.fn()} />);
+    await waitFor(() => screen.getByTestId('carriers-empty'));
+    dump('carriers-05-empty', empty.container.innerHTML);
+    empty.unmount();
+
+    // denied
+    const denied = render(<CarriersView labels={CARRIER_LABELS} listCarriersAction={vi.fn(async () => { throw new Error('forbidden'); })} upsertCarrierAction={vi.fn()} listLanesAction={vi.fn()} upsertLaneAction={vi.fn()} />);
+    await waitFor(() => screen.getByTestId('carriers-denied'));
+    dump('carriers-06-denied', denied.container.innerHTML);
+    denied.unmount();
+
+    // error
+    const err = render(<CarriersView labels={CARRIER_LABELS} listCarriersAction={vi.fn(async () => { throw new Error('boom'); })} upsertCarrierAction={vi.fn()} listLanesAction={vi.fn()} upsertLaneAction={vi.fn()} />);
+    await waitFor(() => screen.getByTestId('carriers-error'));
+    dump('carriers-07-error', err.container.innerHTML);
+    err.unmount();
+  });
+
+  it('scorecard: KPIs + recent table / empty', () => {
+    const full = render(<ScorecardView scorecard={SCORECARD} labels={SCORECARD_LABELS} />);
+    dump('scorecard-01-kpis-and-recent', full.container.innerHTML);
+    full.unmount();
+
+    const empty = render(<ScorecardView scorecard={{ onTimePct: null, avgQtyVariancePct: null, ncrCount: 0, openNcrCount: 0, recentPos: [] }} labels={SCORECARD_LABELS} />);
+    dump('scorecard-02-empty', empty.container.innerHTML);
+    empty.unmount();
+  });
+});

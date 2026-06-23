@@ -31,6 +31,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
@@ -71,6 +72,8 @@ export type SupplierDetailLabels = {
     confirmBlock: string;
     confirmActivate: string;
   };
+  /** Wave E9 — supplier scorecard deep link (on-time %, qty variance, NCRs). */
+  scorecard?: string;
   errors: Record<string, string>;
 };
 
@@ -78,9 +81,16 @@ export type SupplierDetailViewProps = {
   supplier: Supplier;
   labels: SupplierDetailLabels;
   transitionSupplierStatusAction: (id: string, status: SupplierStatus) => Promise<TransitionSupplierResult>;
+  /** Wave E9 — href to /planning/suppliers/[id]/scorecard (locale-prefixed by the page). */
+  scorecardHref?: string;
 };
 
-export function SupplierDetailView({ supplier, labels, transitionSupplierStatusAction }: SupplierDetailViewProps) {
+export function SupplierDetailView({
+  supplier,
+  labels,
+  transitionSupplierStatusAction,
+  scorecardHref,
+}: SupplierDetailViewProps) {
   const router = useRouter();
   const [pendingStatus, setPendingStatus] = React.useState<SupplierStatus | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -242,6 +252,17 @@ export function SupplierDetailView({ supplier, labels, transitionSupplierStatusA
           </div>
 
           <p className="text-xs text-slate-400">{labels.transitions.hint}</p>
+
+          {scorecardHref && labels.scorecard ? (
+            <Link
+              href={scorecardHref}
+              prefetch={false}
+              data-testid="supplier-scorecard-link"
+              className="mt-1 inline-flex text-sm font-medium text-blue-700 hover:underline"
+            >
+              {labels.scorecard}
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>

@@ -6243,6 +6243,10 @@
       "forecasts": {
         "title": "Prognozy",
         "desc": "Popyt niezależny per pozycja i tydzień ISO dla MRP"
+      },
+      "carriers": {
+        "title": "Przewoźnicy",
+        "desc": "Przewoźnicy i trasy transportowe dla wysyłek"
       }
     },
     "mrp": {
@@ -6633,6 +6637,144 @@
           "forbidden": "Nie masz uprawnień do importu zamówień zakupu.",
           "commitFailed": "Nie udało się ukończyć importu. Spróbuj ponownie."
         }
+      }
+    },
+    "carriers": {
+      "title": "Przewoźnicy",
+      "subtitle": "Przewoźnicy i ich trasy transportowe",
+      "breadcrumb": "Przewoźnicy",
+      "suppliersBreadcrumb": "Dostawcy",
+      "addCarrier": "+ Dodaj przewoźnika",
+      "editCarrier": "Edytuj przewoźnika",
+      "loading": "Ładowanie…",
+      "denied": "Nie masz uprawnień do przeglądania przewoźników.",
+      "error": "Nie udało się załadować przewoźników.",
+      "empty": "Brak skonfigurowanych przewoźników",
+      "emptyHint": "Dodaj przewoźnika, aby zarządzać jego trasami i kosztami frachtu.",
+      "active": "Aktywny",
+      "inactive": "Nieaktywny",
+      "manageLanes": "Trasy",
+      "noContact": "Brak kontaktu",
+      "modes": {
+        "road": "Drogowy",
+        "sea": "Morski",
+        "air": "Lotniczy",
+        "rail": "Kolejowy",
+        "parcel": "Paczka"
+      },
+      "costBases": {
+        "per_shipment": "za przesyłkę",
+        "per_kg": "za kg",
+        "per_km": "za km",
+        "per_pallet": "za paletę"
+      },
+      "columns": {
+        "code": "Kod",
+        "name": "Nazwa",
+        "mode": "Tryb",
+        "contact": "Kontakt",
+        "status": "Status",
+        "actions": "Akcje"
+      },
+      "carrierModal": {
+        "titleAdd": "Dodaj przewoźnika",
+        "titleEdit": "Edytuj przewoźnika",
+        "codeLabel": "Kod",
+        "nameLabel": "Nazwa",
+        "modeLabel": "Domyślny tryb",
+        "emailLabel": "E-mail kontaktowy",
+        "phoneLabel": "Telefon kontaktowy",
+        "activeLabel": "Aktywny",
+        "submit": "Zapisz",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "edit": "Edytuj",
+        "errors": {
+          "codeRequired": "Kod jest wymagany.",
+          "nameRequired": "Nazwa jest wymagana.",
+          "emailInvalid": "Podaj prawidłowy adres e-mail.",
+          "invalid_input": "Nieprawidłowe dane.",
+          "forbidden": "Nie masz uprawnień do edycji przewoźników.",
+          "not_found": "Nie znaleziono przewoźnika.",
+          "already_exists": "Przewoźnik o tym kodzie już istnieje.",
+          "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie."
+        }
+      },
+      "lanes": {
+        "title": "Trasy transportowe",
+        "addLane": "+ Dodaj trasę",
+        "empty": "Brak tras transportowych dla tego przewoźnika.",
+        "days": "dni",
+        "columns": {
+          "route": "Trasa",
+          "mode": "Tryb",
+          "cost": "Koszt",
+          "transit": "Tranzyt",
+          "status": "Status",
+          "actions": "Akcje"
+        },
+        "edit": "Edytuj",
+        "modal": {
+          "titleAdd": "Dodaj trasę transportową",
+          "titleEdit": "Edytuj trasę transportową",
+          "originLabel": "Punkt początkowy",
+          "destinationLabel": "Punkt docelowy",
+          "modeLabel": "Tryb",
+          "costBasisLabel": "Podstawa kosztu",
+          "costAmountLabel": "Kwota kosztu",
+          "currencyLabel": "Waluta",
+          "transitDaysLabel": "Dni tranzytu (opcjonalnie)",
+          "activeLabel": "Aktywna",
+          "submit": "Zapisz",
+          "submitting": "Zapisywanie…",
+          "cancel": "Anuluj",
+          "errors": {
+            "originRequired": "Punkt początkowy jest wymagany.",
+            "destinationRequired": "Punkt docelowy jest wymagany.",
+            "costInvalid": "Koszt musi być liczbą nieujemną (do 4 miejsc po przecinku).",
+            "invalid_input": "Nieprawidłowe dane.",
+            "forbidden": "Nie masz uprawnień do edycji tras transportowych.",
+            "not_found": "Nie znaleziono przewoźnika lub trasy.",
+            "already_exists": "Ta trasa transportowa już istnieje.",
+            "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie."
+          }
+        }
+      }
+    },
+    "scorecard": {
+      "title": "Karta wyników dostawcy",
+      "subtitle": "Terminowość dostaw, odchylenie ilości i historia jakości",
+      "breadcrumb": "Karta wyników",
+      "forSupplier": "Karta wyników dla",
+      "backToSupplier": "Powrót do dostawcy",
+      "backToSuppliers": "Powrót do dostawców",
+      "notFound": "Nie znaleziono dostawcy.",
+      "error": "Nie udało się załadować karty wyników dostawcy.",
+      "kpis": {
+        "onTime": "% terminowości",
+        "onTimeHint": "Udział odebranych zamówień dostarczonych w terminie lub przed nim.",
+        "qtyVariance": "Śr. odchylenie ilości",
+        "qtyVarianceHint": "Średnia nadwyżka/niedobór odebranej ilości względem zamówionej.",
+        "ncr": "Niezgodności",
+        "ncrHint": "Łączna liczba raportów niezgodności dla tego dostawcy.",
+        "openNcr": "Otwarte niezgodności",
+        "openNcrHint": "Raporty niezgodności jeszcze niezamknięte."
+      },
+      "recent": {
+        "title": "Ostatnie zamówienia zakupu",
+        "empty": "Brak zamówień zakupu dla tego dostawcy.",
+        "columns": {
+          "po": "Zamówienie",
+          "status": "Status",
+          "expected": "Oczekiwane",
+          "received": "Odebrane",
+          "onTime": "Terminowo",
+          "variance": "Odchylenie ilości"
+        },
+        "onTimeYes": "Terminowo",
+        "onTimeNo": "Opóźnione",
+        "pending": "Oczekuje",
+        "none": "—"
       }
     }
   },

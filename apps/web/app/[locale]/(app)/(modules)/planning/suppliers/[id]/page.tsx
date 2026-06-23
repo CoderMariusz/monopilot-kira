@@ -77,6 +77,7 @@ async function DetailContent({ locale, id, m }: { locale: string; id: string; m:
       transitionSupplierStatusAction={
         transitionSupplierStatus as (id: string, status: SupplierStatus) => Promise<TransitionSupplierResult>
       }
+      scorecardHref={`/${locale}/planning/suppliers/${id}/scorecard`}
     />
   );
 }

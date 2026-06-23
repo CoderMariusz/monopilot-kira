@@ -120,7 +120,8 @@
             "confirmDeactivate": "Deactivate {code}? Existing POs keep their link; new POs cannot select this supplier.",
             "confirmBlock": "Block {code}? It will be unavailable for new purchase orders until reactivated.",
             "confirmActivate": "Activate {code}? It will become available for new purchase orders."
-          }
+          },
+          "scorecard": "View supplier scorecard"
         },
         "errors": {
           "invalid_input": "Some fields are invalid. Check the form and try again.",
@@ -254,7 +255,8 @@
             "confirmDeactivate": "Dezaktywować {code}? Istniejące ZZ zachowują powiązanie; nowe ZZ nie mogą wybrać tego dostawcy.",
             "confirmBlock": "Zablokować {code}? Będzie niedostępny dla nowych zamówień zakupu do czasu reaktywacji.",
             "confirmActivate": "Aktywować {code}? Stanie się dostępny dla nowych zamówień zakupu."
-          }
+          },
+          "scorecard": "Zobacz kartę wyników dostawcy"
         },
         "errors": {
           "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź formularz i spróbuj ponownie.",

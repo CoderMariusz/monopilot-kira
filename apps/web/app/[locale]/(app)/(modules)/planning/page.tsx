@@ -44,6 +44,8 @@ const PLANNING_NAV_CARDS = [
   { key: "forecasts", href: "/planning/forecasts" },
   // W8 — line schedule board (gantt.jsx SCREEN-08); replaces the sequencing stub.
   { key: "schedule", href: "/planning/schedule" },
+  // Wave E9 — carriers + transport lanes (freight master, mig 316).
+  { key: "carriers", href: "/planning/carriers" },
 ] as const;
 
 import {

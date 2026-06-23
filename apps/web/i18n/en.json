@@ -7154,6 +7154,10 @@
       "forecasts": {
         "title": "Forecasts",
         "desc": "Independent demand per item & ISO-week for MRP"
+      },
+      "carriers": {
+        "title": "Carriers",
+        "desc": "Freight carriers & transport lanes for shipping"
       }
     },
     "mrp": {
@@ -7544,6 +7548,144 @@
           "forbidden": "You do not have permission to import purchase orders.",
           "commitFailed": "The import could not be completed. Please try again."
         }
+      }
+    },
+    "carriers": {
+      "title": "Carriers",
+      "subtitle": "Freight carriers and their transport lanes",
+      "breadcrumb": "Carriers",
+      "suppliersBreadcrumb": "Suppliers",
+      "addCarrier": "+ Add carrier",
+      "editCarrier": "Edit carrier",
+      "loading": "Loading…",
+      "denied": "You don't have permission to view carriers.",
+      "error": "Failed to load carriers.",
+      "empty": "No carriers configured",
+      "emptyHint": "Add a carrier to manage its transport lanes and freight costs.",
+      "active": "Active",
+      "inactive": "Inactive",
+      "manageLanes": "Lanes",
+      "noContact": "No contact",
+      "modes": {
+        "road": "Road",
+        "sea": "Sea",
+        "air": "Air",
+        "rail": "Rail",
+        "parcel": "Parcel"
+      },
+      "costBases": {
+        "per_shipment": "per shipment",
+        "per_kg": "per kg",
+        "per_km": "per km",
+        "per_pallet": "per pallet"
+      },
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "mode": "Mode",
+        "contact": "Contact",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "carrierModal": {
+        "titleAdd": "Add carrier",
+        "titleEdit": "Edit carrier",
+        "codeLabel": "Code",
+        "nameLabel": "Name",
+        "modeLabel": "Default mode",
+        "emailLabel": "Contact email",
+        "phoneLabel": "Contact phone",
+        "activeLabel": "Active",
+        "submit": "Save",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "edit": "Edit",
+        "errors": {
+          "codeRequired": "Code is required.",
+          "nameRequired": "Name is required.",
+          "emailInvalid": "Enter a valid email address.",
+          "invalid_input": "Invalid input.",
+          "forbidden": "You don't have permission to edit carriers.",
+          "not_found": "Carrier not found.",
+          "already_exists": "A carrier with this code already exists.",
+          "persistence_failed": "Saving failed. Try again."
+        }
+      },
+      "lanes": {
+        "title": "Transport lanes",
+        "addLane": "+ Add lane",
+        "empty": "No transport lanes for this carrier yet.",
+        "days": "days",
+        "columns": {
+          "route": "Route",
+          "mode": "Mode",
+          "cost": "Cost",
+          "transit": "Transit",
+          "status": "Status",
+          "actions": "Actions"
+        },
+        "edit": "Edit",
+        "modal": {
+          "titleAdd": "Add transport lane",
+          "titleEdit": "Edit transport lane",
+          "originLabel": "Origin",
+          "destinationLabel": "Destination",
+          "modeLabel": "Mode",
+          "costBasisLabel": "Cost basis",
+          "costAmountLabel": "Cost amount",
+          "currencyLabel": "Currency",
+          "transitDaysLabel": "Transit days (optional)",
+          "activeLabel": "Active",
+          "submit": "Save",
+          "submitting": "Saving…",
+          "cancel": "Cancel",
+          "errors": {
+            "originRequired": "Origin is required.",
+            "destinationRequired": "Destination is required.",
+            "costInvalid": "Cost must be a non-negative number (up to 4 decimals).",
+            "invalid_input": "Invalid input.",
+            "forbidden": "You don't have permission to edit transport lanes.",
+            "not_found": "Carrier or lane not found.",
+            "already_exists": "This transport lane already exists.",
+            "persistence_failed": "Saving failed. Try again."
+          }
+        }
+      }
+    },
+    "scorecard": {
+      "title": "Supplier scorecard",
+      "subtitle": "On-time delivery, quantity variance and quality history",
+      "breadcrumb": "Scorecard",
+      "forSupplier": "Scorecard for",
+      "backToSupplier": "Back to supplier",
+      "backToSuppliers": "Back to suppliers",
+      "notFound": "Supplier not found.",
+      "error": "Failed to load the supplier scorecard.",
+      "kpis": {
+        "onTime": "On-time %",
+        "onTimeHint": "Share of received POs delivered on or before the expected date.",
+        "qtyVariance": "Avg qty variance",
+        "qtyVarianceHint": "Average over/under received vs ordered quantity.",
+        "ncr": "NCRs",
+        "ncrHint": "Total non-conformance reports raised against this supplier.",
+        "openNcr": "Open NCRs",
+        "openNcrHint": "Non-conformance reports not yet closed."
+      },
+      "recent": {
+        "title": "Recent purchase orders",
+        "empty": "No purchase orders for this supplier yet.",
+        "columns": {
+          "po": "PO",
+          "status": "Status",
+          "expected": "Expected",
+          "received": "Received",
+          "onTime": "On time",
+          "variance": "Qty variance"
+        },
+        "onTimeYes": "On time",
+        "onTimeNo": "Late",
+        "pending": "Pending",
+        "none": "—"
       }
     }
   },

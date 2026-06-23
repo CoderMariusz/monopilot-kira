@@ -178,6 +178,8 @@ export function buildDetailLabels(m: Tree): SupplierDetailLabels {
       confirmBlock: msg(m, 'detail.transitions.confirmBlock'),
       confirmActivate: msg(m, 'detail.transitions.confirmActivate'),
     },
+    // Wave E9 — supplier scorecard deep link (falls back to the literal key if unstaged).
+    scorecard: msg(m, 'detail.scorecard'),
     errors: {
       invalid_input: msg(m, 'errors.invalid_input'),
       forbidden: msg(m, 'errors.forbidden'),
