@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 /**
  * Wave-shipping — Shipments list + pack screen + Create-shipment button:
  * RTL parity + state tests (RED-first).

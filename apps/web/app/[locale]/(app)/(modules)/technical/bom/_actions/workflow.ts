@@ -95,6 +95,7 @@ export async function approveBom(rawInput: unknown): Promise<BomWorkflowResult> 
         c,
         thisLines.map((l) => ({ itemId: l.item_id, componentCode: l.component_code })),
         'factory_spec_approval',
+        productId,
       );
       if (rmUsabilityFailures.length > 0) {
         return {

@@ -362,7 +362,7 @@ export function computeMrp(input: {
       const qtyMicro = gap > reorderQty ? gap : reorderQty;
       const leadDays = threshold?.preferred_supplier_id ? threshold.lead_time_days : null;
       suggestedAction = {
-        type: item.item_type === 'intermediate' ? 'make' : 'buy',
+        type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',
         qty: ceilMicroToWholeUnits(qtyMicro).toString(),
         dueDate:
           leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays)

@@ -215,12 +215,29 @@ type SupplierSpecUsabilityRow = {
   updated_at: string | Date | null;
 };
 
+type TargetFgForbiddenAllergenRow = {
+  allergen_code: string;
+};
+
 export async function validateBomLineRmUsability(
   c: QueryClient,
   lines: readonly BomLineUsabilityInput[],
   context: RmUsabilityContext,
+  targetFgProductId: string | null,
 ): Promise<BomRmUsabilityFailure[]> {
   const failures: BomRmUsabilityFailure[] = [];
+  const { rows: targetFgForbiddenAllergenRows } = targetFgProductId
+    ? await c.query<TargetFgForbiddenAllergenRow>(
+        `select distinct allergen_code
+           from public.nutrition_allergens
+          where org_id = app.current_org_id()
+            and product_code = $1
+            and presence = 'free_from'
+          order by allergen_code asc`,
+        [targetFgProductId],
+      )
+    : { rows: [] };
+  const targetFgForbiddenAllergens = targetFgForbiddenAllergenRows.map((row) => row.allergen_code);
 
   for (const line of lines) {
     const { rows: itemRows } = await c.query<ItemUsabilityRow>(
@@ -274,7 +291,7 @@ export async function validateBomLineRmUsability(
       item: itemRow ? { id: itemRow.id, status: itemRow.status, updatedAt: toIso(itemRow.updated_at) } : null,
       supplier,
       rmAllergens,
-      targetFgForbiddenAllergens: [],
+      targetFgForbiddenAllergens,
       qcRelease: { required: false },
     });
 

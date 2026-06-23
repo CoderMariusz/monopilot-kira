@@ -17,10 +17,12 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const FLOUR_ID = '33333333-3333-4333-8333-333333333333';
 const DOUGH_ID = '44444444-4444-4444-8444-444444444444';
+const FG_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const RUN_ID = '77777777-7777-4777-8777-777777777777';
 const SUPPLIER_ID = '88888888-8888-4888-8888-888888888888';
 const PO_PLANNED_ID = '99999999-9999-4999-8999-999999999999';
 const WO_PLANNED_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const FG_PLANNED_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
@@ -51,6 +53,7 @@ let thresholdRows: Array<{
 let reworkSelfSupply = false;
 /** demand_forecasts rows the independent-demand read returns (default none). */
 let forecastRows: Array<{ product_id: string; uom: string; qty: string }> = [];
+let includeFinishedGood = false;
 let executed: string[] = [];
 /** Captured DDL-shaped INSERT params. */
 let runInserts: Array<readonly unknown[]> = [];
@@ -65,6 +68,20 @@ const createWorkOrderMock = vi.fn();
 
 const WO_OTHER = '55555555-5555-4555-8555-555555555555';
 const WO_REWORK = '66666666-6666-4666-8666-666666666666';
+
+function plannedOrderIdForItem(itemId: string, index: number): string {
+  if (itemId === FLOUR_ID) return PO_PLANNED_ID;
+  if (itemId === DOUGH_ID) return WO_PLANNED_ID;
+  if (itemId === FG_ID) return FG_PLANNED_ID;
+  return `planned-${index}`;
+}
+
+function itemLabelForId(itemId: string): { code: string; name: string } {
+  if (itemId === FLOUR_ID) return { code: 'RM-FLOUR', name: 'Wheat flour' };
+  if (itemId === DOUGH_ID) return { code: 'INT-DOUGH', name: 'Bread dough' };
+  if (itemId === FG_ID) return { code: 'FG-BREAD', name: 'Finished bread' };
+  return { code: 'UNKNOWN', name: 'Unknown item' };
+}
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
@@ -128,18 +145,22 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.mrp_planned_orders')) {
         if (!Array.isArray(params[0])) {
           return {
-            rows: plannedInserts.map((p, index) => ({
-              id: index === 0 ? PO_PLANNED_ID : WO_PLANNED_ID,
-              item_id: p[2],
-              item_code: index === 0 ? 'RM-FLOUR' : 'INT-DOUGH',
-              item_name: index === 0 ? 'Wheat flour' : 'Bread dough',
-              order_type: p[3],
-              quantity: p[4],
-              uom: p[5],
-              due_date: p[6],
-              supplier_id: p[7],
-              release_status: 'suggested',
-            })),
+            rows: plannedInserts.map((p, index) => {
+              const itemId = String(p[2]);
+              const label = itemLabelForId(itemId);
+              return {
+                id: plannedOrderIdForItem(itemId, index),
+                item_id: p[2],
+                item_code: label.code,
+                item_name: label.name,
+                order_type: p[3],
+                quantity: p[4],
+                uom: p[5],
+                due_date: p[6],
+                supplier_id: p[7],
+                release_status: 'suggested',
+              };
+            }),
             rowCount: plannedInserts.length,
           };
         }
@@ -189,30 +210,43 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.items')) {
         expect(params[0]).toEqual(['rm', 'ingredient', 'intermediate', 'packaging', 'fg']);
+        const rows = [
+          {
+            id: FLOUR_ID,
+            item_code: 'RM-FLOUR',
+            name: 'Wheat flour',
+            item_type: 'rm',
+            uom_base: 'kg',
+            output_uom: 'base',
+            net_qty_per_each: null,
+            each_per_box: null,
+          },
+          {
+            id: DOUGH_ID,
+            item_code: 'INT-DOUGH',
+            name: 'Bread dough',
+            item_type: 'intermediate',
+            uom_base: 'kg',
+            output_uom: 'base',
+            net_qty_per_each: null,
+            each_per_box: null,
+          },
+        ];
+        if (includeFinishedGood) {
+          rows.push({
+            id: FG_ID,
+            item_code: 'FG-BREAD',
+            name: 'Finished bread',
+            item_type: 'fg',
+            uom_base: 'kg',
+            output_uom: 'base',
+            net_qty_per_each: null,
+            each_per_box: null,
+          });
+        }
         return {
-          rows: [
-            {
-              id: FLOUR_ID,
-              item_code: 'RM-FLOUR',
-              name: 'Wheat flour',
-              item_type: 'rm',
-              uom_base: 'kg',
-              output_uom: 'base',
-              net_qty_per_each: null,
-              each_per_box: null,
-            },
-            {
-              id: DOUGH_ID,
-              item_code: 'INT-DOUGH',
-              name: 'Bread dough',
-              item_type: 'intermediate',
-              uom_base: 'kg',
-              output_uom: 'base',
-              net_qty_per_each: null,
-              each_per_box: null,
-            },
-          ],
-          rowCount: 2,
+          rows,
+          rowCount: rows.length,
         };
       }
       if (normalized.includes('from public.v_inventory_available')) {
@@ -283,6 +317,7 @@ beforeEach(() => {
   reworkSelfSupply = false;
   forecastRows = [];
   thresholdRows = [];
+  includeFinishedGood = false;
   executed = [];
   runInserts = [];
   reqInserts = [];
@@ -462,6 +497,59 @@ describe('runMrp', () => {
     if (!result.ok) return;
     expect(runInserts[0][8]).toBe('manual');
     for (const req of reqInserts) expect(req[9]).toBe('dependent');
+  });
+
+  it('routes a finished-good shortage to a make planned order and WO conversion, never PO', async () => {
+    includeFinishedGood = true;
+    forecastRows = [{ product_id: FG_ID, uom: 'kg', qty: '9.000' }];
+
+    const result = await runMrp({ persist: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const fgRow = result.data.rows.find((r) => r.itemCode === 'FG-BREAD')!;
+    expect(fgRow.itemType).toBe('fg');
+    expect(fgRow.net).toBe('-9.000');
+    expect(fgRow.suggestedAction).toEqual({ type: 'make', qty: '9', dueDate: null, supplierId: null });
+
+    const fgPlannedInsert = plannedInserts.find((p) => p[2] === FG_ID)!;
+    expect(fgPlannedInsert[3]).toBe('wo');
+    const fgPlanned = result.data.plannedOrders.find((po) => po.itemId === FG_ID)!;
+    expect(fgPlanned.type).toBe('make');
+
+    conversionRows = [
+      {
+        id: FG_PLANNED_ID,
+        item_id: FG_ID,
+        item_code: 'FG-BREAD',
+        item_name: 'Finished bread',
+        order_type: 'wo',
+        quantity: '9.000000',
+        uom: 'kg',
+        due_date: fgPlanned.needBy,
+        supplier_id: null,
+        release_status: 'suggested',
+      },
+    ];
+
+    const woResult = await convertPlannedToWo([FG_PLANNED_ID]);
+    expect(woResult).toEqual({ ok: true, created: 1, woIds: [WO_ID], skipped: [] });
+    expect(createWorkOrderMock).toHaveBeenCalledWith({
+      productId: FG_ID,
+      itemCode: 'FG-BREAD',
+      plannedQuantity: '9.000',
+      notes: 'Created from MRP planned order',
+    });
+
+    createPurchaseOrderMock.mockClear();
+    const poResult = await convertPlannedToPo([FG_PLANNED_ID]);
+    expect(poResult).toEqual({
+      ok: true,
+      created: 0,
+      poIds: [],
+      skipped: [{ id: FG_PLANNED_ID, reason: 'not a buy planned order' }],
+    });
+    expect(createPurchaseOrderMock).not.toHaveBeenCalled();
   });
 
   it('persists the run header + per-item requirements per the mig-178 DDL ({ persist: true })', async () => {

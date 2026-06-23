@@ -46,3 +46,30 @@ Reports are real but every window is hardcoded (no daily/weekly/monthly) and the
   refresh. Wiring the MVs as the read source vs keeping raw-table queries is the only real choice — my default is keep
   raw-table queries (simpler, already correct) and treat the MVs as a later perf optimization. Flagging only the
   "do you want monthly/quarterly rollups + CSV/PDF export" scope.
+
+### Q5 — NPD revert / un-launch
+`revertGate`/`rollbackGate` exists, works, but has ZERO UI callers (dead), and reverting a *Launched* project doesn't
+clean up the closeout row / product activation / released BOM (would leave inconsistent state). A launched product
+can't be un-launched at all. **My rec:** treat Launch as terminal (block revert from Launched), and wire `revertGate`
+to an admin-only "Move back a gate" control for G1–G4 only (with audit). I'll implement that default unless you want a
+full un-launch/recall flow (bigger — needs to reverse BOM release + product deactivation). Flagging the business rule.
+
+### Q6 — NPD approval thresholds hardcoded
+C3 margin threshold is hardcoded `15%` in the domain package (diverges from the org-configurable `costing_margin_warn_pct`);
+C4 sensory is always `not_required` (the real panel score is never wired in); C5 allergen passes vacuously on an empty
+allergen list. **My rec (will implement):** make C3 read the org `costing_margin_warn_pct`; wire C4 to the real sensory
+panel (required when a panel exists); make C5 require that the allergen cascade was actually run. Flagging only: should
+C4 sensory be *mandatory* for approval, or only when a panel exists? (My default: only when a panel exists.)
+
+### Q7 — D365 integration: live or stays disabled?
+D365 is REAL infra (sync runs/DLQ/drift tables + workers) but **env-var-gated** — without `D365_BASE_URL`/creds the
+connection form is disabled and "Run sync now" is dead. **Decision needed:** do you want D365 actually connected in
+this env (you'd provide the creds / Azure app registration), or should it stay a disabled-but-present integration? I'll
+wire the "Run sync now" button to its existing API route regardless (it's dead-control today), but I can't supply creds.
+
+### Q8 — Shipping reverse paths (cancel shipment / un-pack / void POD)
+Once a shipment is created/shipped/delivered there is NO way to cancel it, un-pack an LP from a box, or void a POD — and
+shipped stock gets no credit-back. **My rec:** build a shipping-corrections slice (cancel-shipment → re-open allocations
++ restore LP; un-pack-LP; void-POD) mirroring the TO `reverseToReceiveLine` pattern (e-sign + stock counter-entries).
+This is a build wave — flagging for priority. (I'll fix the cheap L1s now: deallocate-status-stuck, recordPod-no-delivered,
+unit_price>0 crash, reserved_qty-not-zeroed-on-ship.)

@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import ModalGalleryClient, { type ModalGalleryLabels } from './modal-gallery.client';
@@ -24,6 +25,10 @@ const LABEL_KEYS: Array<keyof ModalGalleryLabels> = [
  * `prototypes/design/Monopilot Design System/settings/modals.jsx`.
  */
 export default async function GallerySettingsPage(props: GalleryPageProps = {}) {
+  if (process.env.NODE_ENV !== 'development') {
+    notFound();
+  }
+
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const t = await getTranslations({ locale, namespace: 'settings.gallery' });
 

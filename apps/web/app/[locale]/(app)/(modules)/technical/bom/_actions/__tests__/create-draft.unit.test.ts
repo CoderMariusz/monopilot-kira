@@ -12,6 +12,8 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 type FakeClient = {
   calls: QueryCall[];
   fgItem: { item_code: string; name: string | null; status: string; item_type: string } | null;
+  fgFreeFromAllergens: string[];
+  rmAllergens: { allergen_code: string; intensity: string }[];
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
@@ -37,6 +39,8 @@ function makeClient(fgItem: FakeClient['fgItem']): FakeClient {
   const client: FakeClient = {
     calls: [],
     fgItem,
+    fgFreeFromAllergens: [],
+    rmAllergens: [],
     async query(sql, params = []) {
       client.calls.push({ sql, params });
       const normalized = normalizeSql(sql);
@@ -121,8 +125,14 @@ function makeClient(fgItem: FakeClient['fgItem']): FakeClient {
           rowCount: 1,
         };
       }
+      if (normalized.includes('from public.nutrition_allergens')) {
+        return {
+          rows: client.fgFreeFromAllergens.map((allergen_code) => ({ allergen_code })) as never[],
+          rowCount: client.fgFreeFromAllergens.length,
+        };
+      }
       if (normalized.includes('from public.item_allergen_profiles')) {
-        return { rows: [] as never[], rowCount: 0 };
+        return { rows: client.rmAllergens as never[], rowCount: client.rmAllergens.length };
       }
       if (normalized.includes('from public.product')) {
         return { rows: [] as never[], rowCount: 0 };
@@ -195,6 +205,28 @@ describe('createBomDraft product reference self-heal', () => {
     expect(result).toMatchObject({ ok: false, error: 'invalid_input', message: 'invalid reference' });
     expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.product'))).toBe(false);
     expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(false);
+  });
+
+  it('rejects a milk-containing RM added to a milk-free FG with ALLERGEN_CONFLICT', async () => {
+    client.fgFreeFromAllergens = ['MILK'];
+    client.rmAllergens = [{ allergen_code: 'milk', intensity: 'contains' }];
+    const { createBomDraft } = await import('../create-draft');
+
+    const result = await createBomDraft({
+      productId: 'FG-MILK-FREE',
+      parentAllocationPct: 100,
+      lines: [{ itemId: RM_ID, componentCode: 'RM-MILK', quantity: 1, uom: 'kg' }],
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'validation_failed',
+      code: 'V-TEC-14',
+      rmUsabilityFailures: [{ componentCode: 'RM-MILK', itemId: RM_ID, reasons: ['ALLERGEN_CONFLICT'] }],
+    });
+    expect(result.message).toBe('RM-MILK: ALLERGEN_CONFLICT');
+    const targetFgQuery = client.calls.find((call) => normalizeSql(call.sql).includes('from public.nutrition_allergens'));
+    expect(targetFgQuery?.params).toEqual(['FG-MILK-FREE']);
   });
 });
 

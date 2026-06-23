@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 /**
  * Wave-shipping — Sales Orders list + create + detail: RTL parity + state tests.
  *

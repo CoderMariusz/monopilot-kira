@@ -115,6 +115,7 @@ export async function addBomLine(rawInput: unknown): Promise<BomLineActionResult
         c,
         [{ itemId: input.itemId ?? null, componentCode: input.componentCode }],
         'bom_edit',
+        header.product_id,
       );
       if (rmUsabilityFailures.length > 0) {
         return {

@@ -137,7 +137,7 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
       }
 
       // ── V-TEC-14: every component item passes canonical RM usability ──────────
-      const rmUsabilityFailures = await validateBomLineRmUsability(c, input.lines, 'bom_edit');
+      const rmUsabilityFailures = await validateBomLineRmUsability(c, input.lines, 'bom_edit', input.productId);
       if (rmUsabilityFailures.length > 0) {
         return {
           ok: false,

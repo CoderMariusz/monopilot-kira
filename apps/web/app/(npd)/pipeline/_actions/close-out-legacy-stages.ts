@@ -152,7 +152,7 @@ export async function closeOutLegacyStagesForLaunch(
   project: GateProjectRow,
 ): Promise<CloseoutInsertRow> {
   const existing = await loadExistingCloseout(ctx, project.id);
-  if (existing) throw new GateActionError('ALREADY_CLOSED', 200);
+  if (existing) throw new GateActionError('ALREADY_CLOSED', 409);
 
   if (!project.product_code) throw new GateActionError('HANDOFF_BOM_NOT_APPROVED', 409);
 
@@ -217,7 +217,7 @@ export async function closeOutLegacyStagesForLaunch(
 
   const closeout = inserted.rows[0] ?? await loadExistingCloseout(ctx, project.id);
   if (!closeout) throw new Error('npd_legacy_closeout insert returned no row');
-  if (!inserted.rows[0]) throw new GateActionError('ALREADY_CLOSED', 200);
+  if (!inserted.rows[0]) throw new GateActionError('ALREADY_CLOSED', 409);
 
   await emitOutbox(ctx, {
     eventType: LEGACY_STAGES_CLOSED_EVENT,
@@ -452,7 +452,7 @@ function alreadyClosed(_existing: ExistingCloseoutRow): CloseOutLegacyStagesResu
   return {
     ok: false,
     error: 'ALREADY_CLOSED',
-    status: 200,
+    status: 409,
   };
 }
 

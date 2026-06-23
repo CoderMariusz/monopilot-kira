@@ -33,6 +33,7 @@ export type RecordPodResult = { ok: true } | { ok: false; error: string };
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_DASHBOARD_VIEW = 'ship.dashboard.view';
 const SALES_ORDER_SHIPPED_STATUS = 'shipped';
+const SALES_ORDER_DELIVERED_STATUS = 'delivered';
 const LP_SHIPPED_EVENT_TYPE = 'warehouse.lp.shipped';
 
 class ActionError extends Error {
@@ -215,6 +216,7 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
       const { rows: updatedLpRows } = await ctx.client.query<{ id: string }>(
         `update public.license_plates
             set status = 'shipped',
+                reserved_qty = 0,
                 updated_at = now(),
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
@@ -325,19 +327,46 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
       const forbidden = await requirePermission(ctx, SHIP_DASHBOARD_VIEW);
       if (forbidden) return forbidden;
 
-      const { rows } = await ctx.client.query<{ id: string }>(
+      const { rows } = await ctx.client.query<{ id: string; sales_order_id: string | null }>(
         `update public.shipments
-            set delivered_at = now(),
+            set status = 'delivered',
+                delivered_at = now(),
                 bol_signed_pdf_url = $2::text,
                 updated_at = now(),
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
             and deleted_at is null
-          returning id::text`,
+          returning id::text, sales_order_id::text`,
         [input.shipmentId, input.signedPdfUrl ?? null, userId],
       );
-      if (!rows[0]) return { ok: false, error: 'not_found' };
+      const shipment = rows[0];
+      if (!shipment) return { ok: false, error: 'not_found' };
+
+      if (shipment.sales_order_id) {
+        const { rows: remainingRows } = await ctx.client.query<{ remaining_count: number | string | bigint | null }>(
+          `select count(*)::int as remaining_count
+             from public.shipments
+            where org_id = app.current_org_id()
+              and sales_order_id = $1::uuid
+              and deleted_at is null
+              and status <> 'delivered'`,
+          [shipment.sales_order_id],
+        );
+
+        if (toNumber(remainingRows[0]?.remaining_count) === 0) {
+          await ctx.client.query(
+            `update public.sales_orders
+                set status = $2,
+                    updated_at = now(),
+                    updated_by = $3::uuid
+              where org_id = app.current_org_id()
+                and id = $1::uuid
+                and deleted_at is null`,
+            [shipment.sales_order_id, SALES_ORDER_DELIVERED_STATUS, userId],
+          );
+        }
+      }
 
       return { ok: true };
     });

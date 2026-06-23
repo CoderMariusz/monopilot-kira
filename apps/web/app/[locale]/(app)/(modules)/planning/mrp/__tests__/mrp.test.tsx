@@ -9,10 +9,8 @@
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { MrpView, type MrpLabels } from '../_components/mrp-view';
 import type {
   MrpRunRequirementsResult,
   MrpRunResult,
@@ -20,7 +18,17 @@ import type {
 } from '../../_actions/mrp';
 import type { MrpRow } from '../../_actions/mrp-compute';
 
-const LABELS: MrpLabels = {
+const hasDom = typeof document !== 'undefined';
+const describeUi = hasDom ? describe : describe.skip;
+
+let render: typeof import('@testing-library/react').render;
+let screen: typeof import('@testing-library/react').screen;
+let fireEvent: typeof import('@testing-library/react').fireEvent;
+let waitFor: typeof import('@testing-library/react').waitFor;
+let cleanup: typeof import('@testing-library/react').cleanup;
+let MrpView: React.ComponentType<Record<string, unknown>>;
+
+const LABELS = {
   run: 'Run MRP',
   running: 'Running…',
   ranAt: 'Last run',
@@ -165,6 +173,7 @@ function okResult(rows: MrpRow[], extra: { runId?: string | null; runNumber?: st
       },
       runId: extra.runId ?? null,
       runNumber: extra.runNumber ?? null,
+      plannedOrders: [],
     },
   };
 }
@@ -172,19 +181,32 @@ function okResult(rows: MrpRow[], extra: { runId?: string | null; runNumber?: st
 const emptyRuns = (): Promise<MrpRunsListResult> => Promise.resolve({ ok: true, data: [] });
 const noReqs = (): Promise<MrpRunRequirementsResult> => Promise.resolve({ ok: true, data: [] });
 
-function renderView(over: Partial<React.ComponentProps<typeof MrpView>> = {}) {
-  return render(
-    <MrpView
-      labels={LABELS}
-      runAction={vi.fn()}
-      listRunsAction={vi.fn(emptyRuns)}
-      getRunRequirementsAction={vi.fn(noReqs)}
-      {...over}
-    />,
-  );
+function renderView(over: Record<string, unknown> = {}) {
+  return render(React.createElement(MrpView, {
+    labels: LABELS,
+    runAction: vi.fn(),
+    listRunsAction: vi.fn(emptyRuns),
+    getRunRequirementsAction: vi.fn(noReqs),
+    ...over,
+  }));
 }
 
-describe('/planning/mrp — MrpView', () => {
+describeUi('/planning/mrp — MrpView', () => {
+  beforeAll(async () => {
+    const testingLibrary = await import('@testing-library/react');
+    const mrpViewModule = await import('../_components/mrp-view');
+    render = testingLibrary.render;
+    screen = testingLibrary.screen;
+    fireEvent = testingLibrary.fireEvent;
+    waitFor = testingLibrary.waitFor;
+    cleanup = testingLibrary.cleanup;
+    MrpView = mrpViewModule.MrpView as React.ComponentType<Record<string, unknown>>;
+  });
+
+  afterEach(() => {
+    cleanup?.();
+  });
+
   it('renders the honest initial empty state before any run', async () => {
     renderView();
     expect(screen.getByTestId('mrp-empty-initial')).toHaveTextContent('No MRP run yet');

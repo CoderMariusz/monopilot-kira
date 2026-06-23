@@ -404,6 +404,15 @@ async function deallocateSalesOrderInContext(ctx: ShippingContext, soId: string)
         and sales_order_id = $1::uuid`,
     [soId, ctx.userId],
   );
+
+  await ctx.client.query(
+    `update public.sales_orders
+        set status = 'confirmed',
+            updated_by = $2::uuid
+      where org_id = app.current_org_id()
+        and id = $1::uuid`,
+    [soId, ctx.userId],
+  );
 }
 
 async function transitionSalesOrderStatusInContext(
