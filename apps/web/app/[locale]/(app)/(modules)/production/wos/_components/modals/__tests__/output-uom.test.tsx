@@ -420,3 +420,58 @@ describe('Register output — catch-weight per-unit capture', () => {
     expect(screen.queryByTestId('wo-output-catch-weights')).not.toBeInTheDocument();
   });
 });
+
+// ── output-without-consumption SOFT warning ──────────────────────────────────
+
+const NO_CONSUMPTION_WARNING = {
+  message:
+    'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.',
+  continueLabel: 'Continue anyway',
+};
+const BASE_NO_CONSUMPTION: OutputUomContext = {
+  productCode: 'FG-9',
+  productName: 'Bulk',
+  outputUom: 'base',
+  uomBase: 'kg',
+  noConsumptionWarning: NO_CONSUMPTION_WARNING,
+};
+
+describe('Register output — output-without-consumption SOFT warning', () => {
+  it('does NOT render the warning when the WO already has consumption', async () => {
+    const user = userEvent.setup();
+    render(<Harness uom={BOX_UOM} />);
+    await user.click(screen.getByTestId('wo-action-output'));
+    expect(screen.queryByTestId('wo-output-no-consumption-warning')).not.toBeInTheDocument();
+  });
+
+  it('shows the non-blocking warning + a [Continue anyway] affordance and gates confirm until acknowledged', async () => {
+    const user = userEvent.setup();
+    render(<Harness uom={BASE_NO_CONSUMPTION} />);
+    await user.click(screen.getByTestId('wo-action-output'));
+
+    const warn = screen.getByTestId('wo-output-no-consumption-warning');
+    expect(warn).toHaveTextContent(NO_CONSUMPTION_WARNING.message);
+    // confirm is gated (not yet acknowledged) even with a valid qty entered
+    await user.type(screen.getByTestId('wo-output-qty'), '120.5');
+    expect(screen.getByTestId('wo-output-confirm')).toBeDisabled();
+
+    // acknowledging the warning enables confirm (non-blocking — submit still works)
+    await user.click(screen.getByTestId('wo-output-no-consumption-continue'));
+    expect(screen.getByTestId('wo-output-confirm')).not.toBeDisabled();
+  });
+
+  it('submits normally after [Continue anyway] is acknowledged', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness uom={BASE_NO_CONSUMPTION} />);
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '120.5');
+    await user.click(screen.getByTestId('wo-output-no-consumption-continue'));
+    await user.click(screen.getByTestId('wo-output-confirm'));
+
+    await waitFor(() => expect(captured.body).toBeDefined());
+    expect(captured.body).toMatchObject({ qty_kg: '120.5', product_id: PRODUCT_ID });
+  });
+});

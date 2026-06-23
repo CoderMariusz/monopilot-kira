@@ -109,6 +109,7 @@ type PoLineRow = {
 const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'] as const;
 const DECIMAL_SCALE = 6n;
 const DECIMAL_FACTOR = 1_000_000n;
+const APP_VERSION = 'warehouse-scanner-receive-po-v1';
 
 export async function listScannerPurchaseOrders(
   client: QueryClient,
@@ -245,9 +246,8 @@ export async function receiveScannerPoLine(
     // CURRENT txid (migration 002) — the autocommit set_config done by
     // withScannerOrg's 3-arg overload never reaches it. See
     // lib/scanner/txn-org-context.ts for the full rationale.
-    // Audit note: every other statement in this function passes session.org_id
-    // explicitly ($1::uuid) and the scanner client is the owner pool (BYPASSRLS),
-    // so the allocator call is the only app.current_org_id()-dependent SQL here.
+    // Audit note: most scanner SQL passes session.org_id explicitly ($1::uuid),
+    // while the outbox insert below and QC allocator rely on app.current_org_id().
     orgContextToken = await registerTxnOrgContext(client, session.org_id);
 
     const inTxnReplay = await findReplay(client, session, input.clientOpId);
@@ -352,6 +352,14 @@ export async function receiveScannerPoLine(
       lpId: lp.id,
       grnId: grn.id,
       transactionId: randomUUID(),
+    });
+
+    await emitLpReceived(client, session, {
+      lpId: lp.id,
+      grnId: grn.id,
+      itemId: line.item_id,
+      qty: formatDecimal(qty),
+      uom: line.uom,
     });
 
     // Audit finding #4: honor tenant_variations.feature_flags->require_grn_qc_inspection.
@@ -695,6 +703,33 @@ async function insertLpGenesis(
      values ($1::uuid, $2::uuid, null, 'received', 'scanner_receive_po', 'Scanner PO receipt', $3::uuid, $4::uuid, $5::uuid)
      on conflict (org_id, transaction_id) do nothing`,
     [session.org_id, input.lpId, input.grnId, input.transactionId, session.user_id],
+  );
+}
+
+async function emitLpReceived(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  input: { lpId: string; grnId: string; itemId: string; qty: string; uom: string },
+): Promise<void> {
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), $1, $2, $3::uuid, $4::jsonb, $5)`,
+    [
+      'warehouse.lp.received',
+      'license_plate',
+      input.lpId,
+      JSON.stringify({
+        lp_id: input.lpId,
+        grn_id: input.grnId,
+        item_id: input.itemId,
+        qty: input.qty,
+        uom: input.uom,
+        org_id: session.org_id,
+        actor: session.user_id,
+      }),
+      APP_VERSION,
+    ],
   );
 }
 

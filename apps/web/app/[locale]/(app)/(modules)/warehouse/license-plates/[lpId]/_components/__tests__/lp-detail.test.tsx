@@ -193,7 +193,17 @@ function buildLabels(locale: string): LpDetailLabels {
       status: t('detail.genealogy.status'),
       qty: t('detail.genealogy.qty'),
     },
-    labels: { deferred: t('detail.labels.deferred'), printAction: t('detail.labels.printAction') },
+    labels: {
+      deferred: t('detail.labels.deferred'),
+      printAction: t('detail.labels.printAction'),
+      printing: t('detail.labels.printing'),
+      queued: t('detail.labels.queued'),
+      sent: t('detail.labels.sent'),
+      download: t('detail.labels.download'),
+      error: t('detail.labels.error'),
+      forbidden: t('detail.labels.forbidden'),
+      historyLink: t('detail.labels.historyLink'),
+    },
     raw: { title: t('detail.raw.title'), empty: t('detail.raw.empty') },
     expiryBanner: t('detail.expiryBanner'),
   };
@@ -261,6 +271,7 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
 }
 
 const updateLpMetadataStub: any = async () => ({ ok: true });
+const printLabelActionStub: any = async () => ({ status: 'sent', result_url: 'data:text/plain;charset=utf-8,label' });
 
 function renderDetail(
   over: Partial<LicensePlateDetail> = {},
@@ -276,6 +287,8 @@ function renderDetail(
       listLocationsAction: listLocationsActionStub,
       createStockMoveAction: createStockMoveActionStub,
       updateLpMetadataAction: updateLpMetadataStub,
+      printLabelAction: printLabelActionStub,
+      canPrint: true,
       ...actionOverrides,
     }),
   );
@@ -371,11 +384,29 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(row).toHaveTextContent('50 kg');
   });
 
-  it('red-lines label printing as deferred (disabled print affordance)', () => {
-    renderDetail();
+  it('E1 — label printing is LIVE: the Print button is enabled, calls printLabel({entityType:"lp", entityId}) and surfaces the result + download', async () => {
+    const printLabelAction = vi.fn(async () => ({ status: 'sent' as const, result_url: 'data:text/plain;charset=utf-8,label' }));
+    renderDetail({}, EN, { printLabelAction });
     fireEvent.click(screen.getByTestId('lp-detail-tab-labels'));
-    expect(screen.getByTestId('lp-labels-deferred')).toHaveTextContent(EN.labels.deferred);
-    expect(screen.getByTestId('lp-labels-print')).toBeDisabled();
+    const print = screen.getByTestId('lp-labels-print');
+    expect(print).toBeEnabled();
+    fireEvent.click(print);
+    await waitFor(() => expect(printLabelAction).toHaveBeenCalledTimes(1));
+    expect(printLabelAction).toHaveBeenCalledWith({ entityType: 'lp', entityId: 'lp-1' });
+    expect(await screen.findByTestId('lp-labels-print-result')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-labels-download')).toHaveAttribute('href', expect.stringMatching(/^data:text\/plain/));
+  });
+
+  it('E1 — Print button is disabled with a settings.org.update tooltip when the permission is missing', () => {
+    const printLabelAction = vi.fn();
+    renderDetail({}, EN, { printLabelAction, canPrint: false });
+    fireEvent.click(screen.getByTestId('lp-detail-tab-labels'));
+    const print = screen.getByTestId('lp-labels-print');
+    expect(print).toBeDisabled();
+    expect(print).toHaveAttribute('title', EN.labels.forbidden);
+    expect(print).toHaveAccessibleName(/settings\.org\.update/i);
+    fireEvent.click(print);
+    expect(printLabelAction).not.toHaveBeenCalled();
   });
 
   it('renders header status + QA badges and UoM from data', () => {

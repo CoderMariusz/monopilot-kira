@@ -64,6 +64,9 @@ const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
   { key: "reservations", href: "/warehouse/reservations", disabled: false },
   { key: "locations", href: "/warehouse/locations", disabled: false },
   { key: "expiry", href: "/warehouse/expiry", disabled: false },
+  // E1 — label print job log (printers + print_jobs, mig 304); was otherwise
+  // unreachable from the warehouse hub.
+  { key: "printHistory", href: "/warehouse/print-history", disabled: false },
   // Cross-shell: opens the chrome-less device scanner (owner-reported the
   // scanner was otherwise unreachable from the app).
   { key: "scanner", href: "/scanner/home", disabled: false },

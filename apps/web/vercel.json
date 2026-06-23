@@ -11,6 +11,14 @@
     {
       "path": "/api/internal/cron/catch-weight-variance",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/internal/cron/outbox",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/cron/reporting-refresh",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -70,6 +70,9 @@ const LABELS = {
     col: { type: 'Type', product: 'Product', qty: 'Qty', batch: 'Batch', expiry: 'Expiry', qa: 'QA', lp: 'LP' },
     qaPass: 'QA pass', qaFail: 'QA fail', qaDenied: 'No QA permission', qaInvalidState: 'Not pending', qaError: 'Unable to update QA',
     voidAction: 'Void output…',
+    noConsumptionBadge: 'No consumption',
+    noConsumptionTooltip: 'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.',
+    noConsumptionContinue: 'Continue anyway',
   },
   waste: { title: 'Waste events', empty: 'No waste.', addAction: 'Log waste', voidAction: 'Void entry…', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
   voidCorrection: {

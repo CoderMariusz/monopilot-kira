@@ -73,9 +73,18 @@ export async function queryGenealogy(
           join public.license_plates current
             on current.org_id = app.current_org_id()
            and current.id = ancestors.id
+          join lateral (
+            select current.parent_lp_id as parent_lp_id
+             where current.parent_lp_id is not null
+            union
+            select lg.parent_lp_id
+              from public.lp_genealogy lg
+             where lg.org_id = app.current_org_id()
+               and lg.child_lp_id = current.id
+          ) parent_edges on true
           join public.license_plates parent
             on parent.org_id = app.current_org_id()
-           and parent.id = current.parent_lp_id
+           and parent.id = parent_edges.parent_lp_id
          where ancestors.depth < 20
            and not parent.id = any(ancestors.path)
       ),
@@ -87,9 +96,23 @@ export async function queryGenealogy(
                descendants.path || child.id,
                descendants.depth + 1
           from descendants
+          join public.license_plates current
+            on current.org_id = app.current_org_id()
+           and current.id = descendants.id
+          join lateral (
+            select child.id as child_lp_id
+              from public.license_plates child
+             where child.org_id = app.current_org_id()
+               and child.parent_lp_id = current.id
+            union
+            select lg.child_lp_id
+              from public.lp_genealogy lg
+             where lg.org_id = app.current_org_id()
+               and lg.parent_lp_id = current.id
+          ) child_edges on true
           join public.license_plates child
             on child.org_id = app.current_org_id()
-           and child.parent_lp_id = descendants.id
+           and child.id = child_edges.child_lp_id
          where descendants.depth < 20
            and not child.id = any(descendants.path)
       ),

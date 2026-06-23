@@ -60,6 +60,13 @@ export function OutputScreen({
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [header, setHeader] = useState<WoHeader | null>(null);
+  // SOFT-warning (owner decision — warn, never block): TRUE when the WO has BOM
+  // materials but none of them shows any recorded consumption yet. Derived from
+  // the already-loaded detail `materials` (no extra round-trip / no API change);
+  // registering an output now leaves the resulting LP with no genealogy parent.
+  const [noConsumption, setNoConsumption] = useState(false);
+  // Single-click acknowledgement for the non-blocking notice on the form.
+  const [noConsumptionAck, setNoConsumptionAck] = useState(false);
   const [qty, setQty] = useState("");
   const [weight, setWeight] = useState("");
   const [batch, setBatch] = useState("");
@@ -88,6 +95,14 @@ export function OutputScreen({
       return;
     }
     setHeader(data.header);
+    // Derive the no-consumption soft-warning state from the loaded BOM materials:
+    // every material at 0 consumed ⇒ nothing recorded against this WO yet. With
+    // no materials at all we can't assert it, so we stay silent (no false alarm).
+    setNoConsumption(
+      data.materials.length > 0 &&
+        data.materials.every((m) => Number(m.consumedQty) <= 0),
+    );
+    setNoConsumptionAck(false);
     setPhase("form");
   }, [ready, woFetch, woId]);
 
@@ -195,6 +210,11 @@ export function OutputScreen({
                 {L.doneTitle}
               </div>
               <div style={{ fontSize: 13, color: T.mute, marginTop: 4 }}>{L.doneBody}</div>
+              {noConsumption && (
+                <div style={{ fontSize: 12, color: T.amber, marginTop: 8 }}>
+                  ⚠ {L.noConsumptionDoneNote}
+                </div>
+              )}
             </div>
           </Content>
           <BottomActions>
@@ -228,6 +248,20 @@ export function OutputScreen({
 
             {phase === "form" && header && (
               <>
+                {noConsumption && (
+                  <Banner kind="warn" title={L.noConsumptionTitle}>
+                    <div>{L.noConsumptionBody}</div>
+                    {!noConsumptionAck && (
+                      <button
+                        type="button"
+                        onClick={() => setNoConsumptionAck(true)}
+                        style={continueBtnStyle}
+                      >
+                        {L.noConsumptionContinue}
+                      </button>
+                    )}
+                  </Banner>
+                )}
                 <div style={{ padding: "12px 16px 0" }}>
                   <div style={fieldLabelStyle}>
                     {L.qtyLabel} <span style={{ color: T.red }}>*</span>
@@ -288,7 +322,17 @@ export function OutputScreen({
 
           {phase === "form" && (
             <BottomActions>
-              <Btn variant="p" disabled={!qty || Number(qty) <= 0 || submitting} onClick={confirm}>
+              <Btn
+                variant="p"
+                disabled={
+                  !qty ||
+                  Number(qty) <= 0 ||
+                  submitting ||
+                  (noConsumption && !noConsumptionAck)
+                }
+                title={noConsumption && !noConsumptionAck ? L.noConsumptionContinue : undefined}
+                onClick={confirm}
+              >
                 {submitting ? L.submitting : L.confirm}
               </Btn>
             </BottomActions>
@@ -321,6 +365,18 @@ function unitLabelFor(uom: OutputUom, labels: ScannerProdLabels): string {
   if (uom === "box") return labels.output.unitBox;
   return labels.output.unitBase;
 }
+
+const continueBtnStyle = {
+  marginTop: 8,
+  borderRadius: 8,
+  border: `1px solid ${T.amber}`,
+  background: "transparent",
+  color: T.amber,
+  padding: "6px 12px",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+} as const;
 
 const fieldLabelStyle = {
   marginBottom: 6,

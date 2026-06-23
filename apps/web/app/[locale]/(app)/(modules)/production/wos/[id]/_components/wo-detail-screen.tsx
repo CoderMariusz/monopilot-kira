@@ -198,6 +198,16 @@ export type WoDetailLabels = {
     qaError: string;
     /** C-R2 — row-level "Void output…" affordance. */
     voidAction: string;
+    /**
+     * SOFT-warning (owner decision — warn, never block) shown as a ⚠ badge on the
+     * WO header + Output tab when the WO has output but no real material
+     * consumption. `badge` is the short pill text; `tooltip` is the hover/`title`
+     * explanation. No raw UUIDs — derived state only.
+     */
+    noConsumptionBadge: string;
+    noConsumptionTooltip: string;
+    /** Register-output modal [Continue anyway] affordance copy. */
+    noConsumptionContinue: string;
   };
   waste: {
     title: string;
@@ -499,6 +509,16 @@ export function WoDetailScreen({
                   {labels.overview.bomVersion} {h.bomVersion}
                 </Badge>
               ) : null}
+              {data.hasOutputWithoutConsumption ? (
+                <Badge
+                  variant="warning"
+                  className="text-[10px]"
+                  data-testid="wo-no-consumption-badge"
+                  title={labels.output.noConsumptionTooltip}
+                >
+                  ⚠ {labels.output.noConsumptionBadge}
+                </Badge>
+              ) : null}
             </div>
             <p className="mt-1 text-xs text-slate-500">
               <span className={h.productName ? undefined : 'text-slate-400'} title={h.productName ? undefined : h.productId}>
@@ -689,10 +709,29 @@ export function WoDetailScreen({
         <TabsContent value="output" className="mt-4">
           <Card data-testid="wo-tab-output" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <CardHead title={labels.output.title}>
+              {data.hasOutputWithoutConsumption ? (
+                <Badge
+                  variant="warning"
+                  className="text-[10px]"
+                  data-testid="wo-output-no-consumption-badge"
+                  title={labels.output.noConsumptionTooltip}
+                >
+                  ⚠ {labels.output.noConsumptionBadge}
+                </Badge>
+              ) : null}
               {actions ? (
                 <WoActionTrigger kind="output" label={labels.output.addAction} variant="tab" testid="wo-output-add" />
               ) : null}
             </CardHead>
+            {data.hasOutputWithoutConsumption ? (
+              <p
+                role="note"
+                data-testid="wo-output-no-consumption-note"
+                className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800"
+              >
+                {labels.output.noConsumptionTooltip}
+              </p>
+            ) : null}
             {data.outputs.length === 0 ? (
               <Empty testid="wo-output-empty" copy={labels.output.empty} />
             ) : (
@@ -1124,6 +1163,16 @@ export function WoDetailScreen({
     netQtyPerEach: hu.netQtyPerEach ?? null,
     eachPerBox: hu.eachPerBox ?? null,
     weightMode: h.weightMode,
+    // SOFT-warning (owner decision — warn, never block): when the WO has no real
+    // material consumption yet, the Register-output modal surfaces a non-blocking
+    // "no genealogy link" notice with a [Continue anyway] affordance. Derived
+    // server-side; the modal still submits.
+    noConsumptionWarning: data.hasOutputWithoutConsumption
+      ? {
+          message: labels.output.noConsumptionTooltip,
+          continueLabel: labels.output.noConsumptionContinue,
+        }
+      : null,
   } as const;
 
   return (

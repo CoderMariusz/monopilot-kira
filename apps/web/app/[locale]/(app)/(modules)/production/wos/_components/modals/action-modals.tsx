@@ -489,6 +489,15 @@ export type OutputUomContext = {
   netQtyPerEach?: number | null;
   eachPerBox?: number | null;
   weightMode?: 'fixed' | 'catch';
+  /**
+   * SOFT-warning (owner decision — warn, NEVER block): set when the WO currently
+   * has no real material consumption recorded. The Register-output modal then
+   * shows a non-blocking notice before submit with a [Continue anyway]
+   * affordance — registering an output now gives the resulting LP no
+   * genealogy/traceability parent. Null/absent ⇒ no warning. Copy is resolved
+   * server-side (i18n) and threaded in — never authored in the modal.
+   */
+  noConsumptionWarning?: { message: string; continueLabel: string } | null;
 };
 
 function fmtKg(n: number): string {
@@ -545,6 +554,11 @@ export function OutputModal({
   const [catchText, setCatchText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // SOFT-warning acknowledgement (owner decision — warn, never block). When the
+  // WO has no recorded material consumption we surface a non-blocking notice; the
+  // operator clicks [Continue anyway] to acknowledge before submitting. Submit is
+  // never disabled by anything other than the normal field validity.
+  const [noConsumptionAck, setNoConsumptionAck] = useState(false);
 
   // Product id is FIXED to the WO's FG product — never an editable textbox. We
   // surface the read-only code + name and keep the id in the payload.
@@ -600,7 +614,13 @@ export function OutputModal({
       (isBase || catchWeights.length === catchN)
     : true;
 
-  const canConfirm = productId !== '' && qtyValid && weightValid && catchValid && !busy;
+  // SOFT-warning: a non-blocking acknowledgement gate. When present, the operator
+  // must click [Continue anyway] once before Confirm enables — but nothing here
+  // can hard-block the submit beyond a single acknowledging click.
+  const noConsumptionWarning = uom?.noConsumptionWarning ?? null;
+  const consumptionAcknowledged = noConsumptionWarning == null || noConsumptionAck;
+  const canConfirm =
+    productId !== '' && qtyValid && weightValid && catchValid && consumptionAcknowledged && !busy;
 
   const cw = labels.output.catchWeight;
   const catchSumLine = cw ? cw.sumLabel.replace('{total}', catchSumKg) : `Σ ${catchSumKg} kg`;
@@ -694,6 +714,7 @@ export function OutputModal({
       setBatch('');
       setCatchUnits([]);
       setCatchText('');
+      setNoConsumptionAck(false);
       onClose();
     } else {
       setError(mapError(labels, result.errorCode));
@@ -713,6 +734,25 @@ export function OutputModal({
       <Modal.Body>
         <p className="mb-3 text-sm text-slate-600">{labels.output.subtitle}</p>
         {error ? <ErrorBanner message={error} testid="wo-output-error" /> : null}
+        {noConsumptionWarning ? (
+          <div
+            role="status"
+            data-testid="wo-output-no-consumption-warning"
+            className="mb-3 flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+          >
+            <span>⚠ {noConsumptionWarning.message}</span>
+            {!noConsumptionAck ? (
+              <button
+                type="button"
+                data-testid="wo-output-no-consumption-continue"
+                onClick={() => setNoConsumptionAck(true)}
+                className="self-start rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+              >
+                {noConsumptionWarning.continueLabel}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="space-y-3">
           <FieldRow id="wo-output-type" label={labels.output.type}>
             <Select value={outputType} onValueChange={(v) => setOutputType(v as (typeof OUTPUT_TYPES)[number])} aria-label={labels.output.type}>
@@ -834,7 +874,17 @@ export function OutputModal({
         <Button type="button" data-testid="wo-output-cancel" disabled={busy} onClick={onClose}>
           {labels.cancel}
         </Button>
-        <Button type="button" data-testid="wo-output-confirm" disabled={!canConfirm} onClick={handleConfirm}>
+        <Button
+          type="button"
+          data-testid="wo-output-confirm"
+          disabled={!canConfirm}
+          onClick={handleConfirm}
+          title={
+            !canConfirm && !consumptionAcknowledged && noConsumptionWarning
+              ? noConsumptionWarning.continueLabel
+              : undefined
+          }
+        >
           {busy ? labels.submitting : labels.confirm}
         </Button>
       </Modal.Footer>

@@ -341,6 +341,19 @@ async function createOutputLp(
   const lp = rows[0];
   if (!lp) throw new ProductionActionError('persistence_failed', 500);
 
+  if (consumedLpIds.length > 0) {
+    for (const consumedLpId of consumedLpIds) {
+      await ctx.client.query(
+        `insert into public.lp_genealogy (
+           org_id, child_lp_id, parent_lp_id, relation_type, qty, uom
+         )
+         values (app.current_org_id(), $1::uuid, $2::uuid, 'consumed', $3::numeric, $4)
+         on conflict (org_id, child_lp_id, parent_lp_id, relation_type) do nothing`,
+        [lp.id, consumedLpId, input.quantity, input.uom],
+      );
+    }
+  }
+
   // Genesis row in the LP transition ledger (same contract as the GRN flow).
   await ctx.client.query(
     `insert into public.lp_state_history (

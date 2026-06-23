@@ -36,6 +36,14 @@ import {
 
 const PRODUCTION_VIEW_PERMISSION = 'production.oee.read';
 
+/**
+ * Nil-UUID LP sentinel that LP-less consumes coalesce into
+ * (consume-material-actions.ts / register-output.ts). A consumption row carrying
+ * this lp_id has no real source license plate, so it must NOT count as genealogy
+ * evidence for the "output-without-consumption" warning.
+ */
+const NIL_LP_SENTINEL = '00000000-0000-0000-0000-000000000000';
+
 export type WorkOrderDetailStatus = WoState;
 
 /** Overview header + KPI summary. */
@@ -174,6 +182,18 @@ export type WorkOrderDetailData = {
    * callout can never disagree with the START 409. Null = line clear.
    */
   openChangeoverId: string | null;
+  /**
+   * Owner-decision SOFT-warning state (no stored flag, no migration): TRUE when
+   * the WO has ≥1 registered output (wo_outputs) but ZERO *real* material
+   * consumption rows. "Real" excludes (a) the nil-UUID LP sentinel
+   * (00000000-0000-0000-0000-000000000000) that no-LP consumes write and
+   * (b) signed correction counter-entries (correction_of_id IS NOT NULL). When
+   * TRUE the output LP has no genealogy/traceability parent — the detail screen
+   * surfaces a non-blocking ⚠ badge + tooltip, and the register-output modal
+   * shows a non-blocking "continue anyway" warning. Derived from the already-
+   * loaded outputs + consumption rows — no extra round-trip.
+   */
+  hasOutputWithoutConsumption: boolean;
 };
 
 export type WorkOrderDetailResult =
@@ -389,9 +409,11 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           qty_consumed: string | number;
           fefo_adherence_flag: boolean;
           consumed_at: string | Date | null;
+          correction_of_id: string | null;
         }>(
           `select id::text as id, component_id::text as component_id, lp_id::text as lp_id,
-                  qty_consumed, fefo_adherence_flag, consumed_at
+                  qty_consumed, fefo_adherence_flag, consumed_at,
+                  correction_of_id::text as correction_of_id
              from public.wo_material_consumption
             where org_id = app.current_org_id() and wo_id = $1::uuid
             order by consumed_at asc`,
@@ -490,6 +512,16 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         consumedAt: toIso(r.consumed_at),
       }));
 
+      // SOFT-warning derivation (owner decision — warn, never block; no stored
+      // flag). Count only *real* consumption rows: drop the nil-UUID LP sentinel
+      // that LP-less consumes write, and drop signed correction counter-entries.
+      // Reuses the already-loaded genealogy rows + outputs — no extra round-trip.
+      const realConsumptionCount = genealogyRes.rows.filter(
+        (r) => r.lp_id !== NIL_LP_SENTINEL && r.correction_of_id == null,
+      ).length;
+      const hasOutputWithoutConsumption =
+        outputs.length > 0 && realConsumptionCount === 0;
+
       // Merge status-history + execution events into one chronological log.
       const history: WoDetailHistoryEvent[] = [
         ...statusRes.rows.map((r) => ({
@@ -575,6 +607,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           history,
           qa,
           openChangeoverId,
+          hasOutputWithoutConsumption,
         },
       };
     });

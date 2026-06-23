@@ -32,6 +32,9 @@ export const SETTINGS_NAV_GROUPS = [
     item("lines", "Production lines", "≣", false, "/settings/infra/lines"),
     item("warehouses", "Warehouses", "▥", false, "/settings/infra/warehouses"),
     item("locations", "Locations", "⌖", false, "/settings/infra/locations"),
+    // E1 — label printers (printers + print_jobs, mig 304). Sits with the other
+    // infra master screens so it is not a URL-only dead-end (the lines/machines lesson).
+    item("printers", "Printers", "🖨", false, "/settings/infra/printers"),
     item("shifts", "Shifts & calendar", "⧗"),
   ]),
   group("data", "Data", true, [

@@ -41,6 +41,7 @@ import { createHash } from 'node:crypto';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { assertLpConsumableForProduction } from '../../../../../../lib/production/lp-safety-guard';
 import {
+  APP_VERSION,
   emitConsumeBlocked,
   hasPermission,
   QualityHoldError,
@@ -49,6 +50,7 @@ import {
 } from '../../../../../../lib/production/shared';
 
 const CONSUMPTION_WRITE_PERMISSION = 'production.consumption.write';
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 export type RecordDesktopConsumptionInput = {
   woId: string;
@@ -470,14 +472,15 @@ export async function recordDesktopConsumption(
       // (5) Ledger row LAST — its UNIQUE(transaction_id) is the final
       // exactly-once gate (a racing replay that slipped past the probe trips
       // the constraint and rolls the whole txn back).
-      await ctx.client.query(
+      const consumption = await ctx.client.query<{ id: string }>(
         `insert into public.wo_material_consumption
            (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,
             operator_id, fefo_adherence_flag, ext_jsonb)
          values
            (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid,
             coalesce($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid),
-            $5::numeric, $6, $7::uuid, $8, $9::jsonb)`,
+            $5::numeric, $6, $7::uuid, $8, $9::jsonb)
+         returning id::text as id`,
         [
           txnId,
           woId,
@@ -498,6 +501,19 @@ export async function recordDesktopConsumption(
         ],
       );
 
+      if (lpId && lpId !== NIL_UUID) {
+        await emitMaterialConsumed(ctx.client, {
+          aggregateId: consumption.rows[0]?.id ?? woId,
+          woId,
+          lpId,
+          itemId: material.product_id,
+          qty,
+          uom: material.uom,
+          orgId,
+          actor: userId,
+        });
+      }
+
       return {
         ok: true,
         data: {
@@ -514,4 +530,39 @@ export async function recordDesktopConsumption(
     console.error('[production] recordDesktopConsumption failed', error);
     return { ok: false, reason: 'error' };
   }
+}
+
+async function emitMaterialConsumed(
+  client: QueryClient,
+  input: {
+    aggregateId: string;
+    woId: string;
+    lpId: string;
+    itemId: string;
+    qty: string;
+    uom: string;
+    orgId: string;
+    actor: string;
+  },
+): Promise<void> {
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), $1, $2, $3::uuid, $4::jsonb, $5)`,
+    [
+      'warehouse.material.consumed',
+      'wo_material_consumption',
+      input.aggregateId,
+      JSON.stringify({
+        wo_id: input.woId,
+        lp_id: input.lpId,
+        item_id: input.itemId,
+        qty: input.qty,
+        uom: input.uom,
+        org_id: input.orgId,
+        actor: input.actor,
+      }),
+      APP_VERSION,
+    ],
+  );
 }

@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server';
 
 import { assertLpConsumableForProduction } from '../../../../../../../lib/production/lp-safety-guard';
 import {
+  APP_VERSION,
   emitConsumeBlocked,
   hasPermission,
   QualityHoldError,
@@ -46,6 +47,8 @@ type MaterialGateRow = {
   over_warn: boolean;
   over_pct: string | null;
 };
+
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 function numericJson(value: string | null): number {
   if (value === null) return 0;
@@ -390,14 +393,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }
 
-      await client.query(
+      const consumption = await client.query<{ id: string }>(
         `insert into public.wo_material_consumption
            (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,
             operator_id, fefo_adherence_flag, ext_jsonb)
          values
            ($10::uuid, $1::uuid, $2::uuid, $3::uuid,
             coalesce($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid),
-            $5::numeric, $6, $7::uuid, $8, $9::jsonb)`,
+            $5::numeric, $6, $7::uuid, $8, $9::jsonb)
+         returning id::text as id`,
         [
           txnId,
           woId,
@@ -418,6 +422,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
           session.org_id,
         ],
       );
+
+      if (lpId && lpId !== NIL_UUID) {
+        await emitMaterialConsumed(client, {
+          aggregateId: consumption.rows[0]?.id ?? woId,
+          woId,
+          lpId,
+          itemId: material.product_id,
+          qty,
+          uom: material.uom,
+          orgId: session.org_id,
+          actor: session.user_id,
+        });
+      }
 
       await client.query(
         `insert into public.scanner_audit_log (
@@ -488,4 +505,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   if ('guardError' in result) return scannerError(result.error, result.status);
   return result;
+}
+
+async function emitMaterialConsumed(
+  client: ProductionContext['client'],
+  input: {
+    aggregateId: string;
+    woId: string;
+    lpId: string;
+    itemId: string;
+    qty: string;
+    uom: string;
+    orgId: string;
+    actor: string;
+  },
+): Promise<void> {
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), $1, $2, $3::uuid, $4::jsonb, $5)`,
+    [
+      'warehouse.material.consumed',
+      'wo_material_consumption',
+      input.aggregateId,
+      JSON.stringify({
+        wo_id: input.woId,
+        lp_id: input.lpId,
+        item_id: input.itemId,
+        qty: input.qty,
+        uom: input.uom,
+        org_id: input.orgId,
+        actor: input.actor,
+      }),
+      APP_VERSION,
+    ],
+  );
 }

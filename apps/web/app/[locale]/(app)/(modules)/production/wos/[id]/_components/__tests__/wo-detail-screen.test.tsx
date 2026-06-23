@@ -63,6 +63,9 @@ const LABELS: WoDetailLabels = {
     qaInvalidState: 'Output is no longer pending',
     qaError: 'Unable to update QA',
     voidAction: 'Void output…',
+    noConsumptionBadge: 'No consumption',
+    noConsumptionTooltip: 'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.',
+    noConsumptionContinue: 'Continue anyway',
   },
   waste: { title: 'Waste events', empty: 'No waste recorded for this work order.', addAction: 'Log waste', voidAction: 'Void entry…', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
   downtime: { title: 'Downtime events', empty: 'No downtime recorded for this work order.', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
@@ -133,6 +136,7 @@ const DATA: WorkOrderDetailData = {
   ],
   qa: { total: 0, pass: 0, hold: 0, fail: 0 },
   openChangeoverId: null,
+  hasOutputWithoutConsumption: false,
 };
 const releaseOutputQaActionStub: any = async () => ({
   ok: true,
@@ -318,5 +322,37 @@ describe('WoDetailScreen — B-2 allergen changeover sign-off callout', () => {
   it('links to the bare register when the lineId is unknown', () => {
     renderWithGate({ lineId: null });
     expect(screen.getByTestId('wo-changeover-gate-link')).toHaveAttribute('href', '/production/changeovers');
+  });
+});
+
+describe('WoDetailScreen — output-without-consumption SOFT warning', () => {
+  it('does NOT show the ⚠ badge / note when consumption exists (derived false)', async () => {
+    const user = userEvent.setup();
+    renderScreen({ ...DATA, hasOutputWithoutConsumption: false });
+    // header badge absent
+    expect(screen.queryByTestId('wo-no-consumption-badge')).not.toBeInTheDocument();
+    // output-tab badge + note absent
+    await user.click(screen.getByTestId('wo-detail-tab-output'));
+    expect(screen.queryByTestId('wo-output-no-consumption-badge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('wo-output-no-consumption-note')).not.toBeInTheDocument();
+  });
+
+  it('shows the ⚠ header badge with the explanatory tooltip when derived true', () => {
+    renderScreen({ ...DATA, hasOutputWithoutConsumption: true });
+    const badge = screen.getByTestId('wo-no-consumption-badge');
+    expect(badge).toHaveTextContent('No consumption');
+    // tooltip = the no-raw-UUID explanation
+    expect(badge).toHaveAttribute('title', LABELS.output.noConsumptionTooltip);
+  });
+
+  it('shows the Output-tab ⚠ badge + non-blocking note when derived true', async () => {
+    const user = userEvent.setup();
+    renderScreen({ ...DATA, hasOutputWithoutConsumption: true });
+    await user.click(screen.getByTestId('wo-detail-tab-output'));
+    expect(screen.getByTestId('wo-output-no-consumption-badge')).toHaveTextContent('No consumption');
+    const note = screen.getByTestId('wo-output-no-consumption-note');
+    expect(note).toHaveTextContent(LABELS.output.noConsumptionTooltip);
+    // the note must never leak a raw UUID
+    expect(note.textContent ?? '').not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/i);
   });
 });

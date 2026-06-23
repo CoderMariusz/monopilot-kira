@@ -94,6 +94,7 @@ function getRequest(query = ''): Request {
 
 const context = { params: { id: '60000000-0000-0000-0000-000000000001' } };
 const approverUserId = '30000000-0000-0000-0000-000000000099';
+const consumptionId = '71000000-0000-0000-0000-000000000001';
 
 function materialGate(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -250,6 +251,62 @@ describe('production scanner WO routes', () => {
       clientOpId: 'op-ledger-lp',
       materialId: '70000000-0000-0000-0000-000000000001',
       materialName: 'Sugar',
+    });
+  });
+
+  it('consume with lpId emits warehouse.material.consumed with the consumption aggregate', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+      if (sql.includes('from public.v_active_holds')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
+      if (sql.includes('update public.wo_materials')) {
+        return {
+          rows: [{
+            id: '70000000-0000-0000-0000-000000000001',
+            product_id: '80000000-0000-0000-0000-000000000001',
+            material_name: 'Sugar',
+            consumed_qty: '7.500',
+            uom: 'kg',
+          }],
+        };
+      }
+      if (sql.includes('update public.license_plates')) return { rows: [{ id: 'lp-1', quantity: '2.500' }] };
+      if (sql.includes('from public.v_inventory_available cand')) return { rows: [{ violates: false }] };
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-material-consumed-event',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '2.500',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    const outboxCall = fakeClient.query.mock.calls.find(
+      (call) =>
+        String(call[0]).includes('insert into public.outbox_events') &&
+        (call[1] as unknown[] | undefined)?.[0] === 'warehouse.material.consumed',
+    );
+    expect(outboxCall).toBeDefined();
+    const params = outboxCall?.[1] as unknown[];
+    expect(params[1]).toBe('wo_material_consumption');
+    expect(params[2]).toBe(consumptionId);
+    expect(JSON.parse(params[3] as string)).toMatchObject({
+      wo_id: context.params.id,
+      lp_id: '90000000-0000-0000-0000-000000000001',
+      item_id: '80000000-0000-0000-0000-000000000001',
+      qty: '2.500',
+      uom: 'kg',
+      org_id: session.org_id,
+      actor: session.user_id,
     });
   });
 

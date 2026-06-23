@@ -26,8 +26,10 @@
  *     consumed / merged / shipped / returned): it opens the LP MOVE modal which
  *     wires the existing createStockMove action. For terminal LPs it stays
  *     disabled with "Coming soon" parity styling.
- *   - Labels tab: print history is DEFERRED (the actions backend exposes no print
- *     log); the tab shows the deferred note + a disabled "Print label" affordance.
+ *   - Labels tab (E1): label printing is now LIVE — the tab renders an enabled
+ *     print affordance that calls printLabel for this LP (gated on
+ *     settings.org.update, re-checked server-side); it shows the queued/sent result
+ *     plus a download link when result_url is present, and links to Print history.
  *   - The prototype "audit" tab is realized as a "raw" tab (pretty ext_jsonb) per
  *     the task brief — the audit-log table has no backing read in this lane.
  *   - Reservations: the detail action exposes a single reserved-for-WO fact
@@ -200,7 +202,17 @@ export type LpDetailLabels = {
     status: string;
     qty: string;
   };
-  labels: { deferred: string; printAction: string };
+  labels: {
+    deferred: string;
+    printAction: string;
+    printing: string;
+    queued: string;
+    sent: string;
+    download: string;
+    error: string;
+    forbidden: string;
+    historyLink: string;
+  };
   raw: { title: string; empty: string };
   expiryBanner: string;
 };
@@ -221,6 +233,13 @@ function IdentityRow({ label, children }: { label: string; children: React.React
   );
 }
 
+/**
+ * E1 — minimal view of the `printLabel` Server Action result the labels tab needs.
+ * The action returns the full PrintJobRow; the client only reads status / result_url.
+ */
+export type LpPrintLabelResult = { status: 'queued' | 'sent' | 'failed'; result_url: string | null };
+export type LpPrintLabelInput = { entityType: 'lp'; entityId: string };
+
 export function LpDetailClient({
   detail,
   labels,
@@ -229,6 +248,8 @@ export function LpDetailClient({
   listLocationsAction,
   createStockMoveAction,
   updateLpMetadataAction,
+  printLabelAction,
+  canPrint,
 }: {
   detail: LicensePlateDetail;
   labels: LpDetailLabels;
@@ -236,6 +257,14 @@ export function LpDetailClient({
   releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
   listLocationsAction: typeof listLocations;
   createStockMoveAction: typeof createStockMove;
+  /**
+   * E1 — print a label for this LP. OWNED by the printers settings actions
+   * (settings/infra/printers/_actions/printers.ts → printLabel) and threaded in by
+   * the page; never imported here directly. RBAC (settings.org.update) is
+   * re-enforced server-side — `canPrint` only governs the disabled affordance.
+   */
+  printLabelAction: (input: LpPrintLabelInput) => Promise<LpPrintLabelResult>;
+  canPrint: boolean;
   /**
    * C-R3 — edit LP expiry / batch. OWNED by the warehouse corrections lane
    * (warehouse/_actions/lp-metadata-actions.ts) and threaded in by the page via an
@@ -252,6 +281,10 @@ export function LpDetailClient({
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // E1 — label print state for the labels tab.
+  const [printPending, setPrintPending] = useState(false);
+  const [printResult, setPrintResult] = useState<LpPrintLabelResult | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
   const router = useRouter();
 
   const lpHref = (id: string) => `/${locale}/warehouse/license-plates/${id}`;
@@ -291,6 +324,21 @@ export function LpDetailClient({
             : labels.actions.qaRelease.error;
       setQaError(message);
     });
+  }
+
+  async function submitPrintLabel() {
+    if (!canPrint || printPending) return;
+    setPrintPending(true);
+    setPrintError(null);
+    setPrintResult(null);
+    try {
+      const result = await printLabelAction({ entityType: 'lp', entityId: detail.id });
+      setPrintResult(result);
+    } catch {
+      setPrintError(labels.labels.error);
+    } finally {
+      setPrintPending(false);
+    }
   }
 
   return (
@@ -656,19 +704,57 @@ export function LpDetailClient({
 
           {tab === 'labels' ? (
             <Card data-testid="lp-tabpanel-labels" className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
-              {/* RED-LINE: label printing deferred to a later lane. */}
-              <p className="text-sm text-slate-500" data-testid="lp-labels-deferred">
+              {/* E1 — label printing is LIVE: calls printLabel({entityType:'lp', entityId}). */}
+              <p className="text-sm text-slate-500" data-testid="lp-labels-intro">
                 {labels.labels.deferred}
               </p>
               <button
                 type="button"
-                disabled
-                title={labels.actions.comingSoon}
+                disabled={!canPrint || printPending}
+                title={canPrint ? undefined : labels.labels.forbidden}
+                aria-label={canPrint ? labels.labels.printAction : `${labels.labels.printAction} — ${labels.labels.forbidden}`}
+                onClick={() => void submitPrintLabel()}
                 data-testid="lp-labels-print"
-                className="w-fit cursor-not-allowed rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-400"
+                className={
+                  canPrint
+                    ? 'w-fit rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50'
+                    : 'w-fit cursor-not-allowed rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-400'
+                }
               >
-                {labels.labels.printAction}
+                {printPending ? labels.labels.printing : labels.labels.printAction}
               </button>
+              {printResult ? (
+                <div
+                  role="status"
+                  data-testid="lp-labels-print-result"
+                  data-print-status={printResult.status}
+                  className="flex flex-col items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+                >
+                  <span>{printResult.status === 'sent' ? labels.labels.sent : labels.labels.queued}</span>
+                  {printResult.result_url ? (
+                    <a
+                      href={printResult.result_url}
+                      download
+                      data-testid="lp-labels-download"
+                      className="text-sky-700 underline"
+                    >
+                      {labels.labels.download}
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
+              {printError ? (
+                <p role="alert" data-testid="lp-labels-print-error" className="text-sm text-red-700">
+                  {printError}
+                </p>
+              ) : null}
+              <Link
+                href={`/${locale}/warehouse/print-history`}
+                data-testid="lp-labels-history-link"
+                className="w-fit text-xs text-sky-700 hover:underline"
+              >
+                {labels.labels.historyLink}
+              </Link>
             </Card>
           ) : null}
 

@@ -17,6 +17,8 @@ const EXPECTED_SETTINGS_NAV = [
       { key: "lines", label: "Production lines", icon: "≣" },
       { key: "warehouses", label: "Warehouses", icon: "▥" },
       { key: "locations", label: "Locations", icon: "⌖" },
+      // E1 — label printers (printers + print_jobs, mig 304).
+      { key: "printers", label: "Printers", icon: "🖨" },
       { key: "shifts", label: "Shifts & calendar", icon: "⧗" },
     ],
   },

@@ -1125,6 +1125,7 @@
         "profile": "Profil firmy",
         "sites": "Zakłady i linie",
         "warehouses": "Magazyny",
+        "printers": "Drukarki",
         "shifts": "Zmiany i kalendarz",
         "products": "Produkty i SKU",
         "boms": "BOM-y i receptury",
@@ -6581,7 +6582,10 @@
             "expiry": "Ważność",
             "qa": "QA",
             "lp": "LP"
-          }
+          },
+          "noConsumptionBadge": "Brak konsumpcji",
+          "noConsumptionTooltip": "Brak zarejestrowanej konsumpcji materiałów dla tego WO — wyrób nie będzie miał powiązania genealogicznego/identyfikowalności. Zarejestruj najpierw konsumpcję lub kontynuuj.",
+          "noConsumptionContinue": "Kontynuuj mimo to"
         },
         "waste": {
           "title": "Zdarzenia odpadów",
@@ -7752,6 +7756,421 @@
       "nav": {
         "title": "Monitorowanie CCP",
         "desc": "Rejestruj odczyty krytycznych punktów kontroli; poza limitem automatycznie otwiera NCR."
+      }
+    },
+    "ccpDeviations": {
+      "nav": {
+        "title": "Odchylenia CCP",
+        "desc": "Przeglądaj i rozwiązuj odczyty CCP poza limitem z podpisem elektronicznym."
+      },
+      "title": "Odchylenia CCP",
+      "subtitle": "Odczyty krytycznych punktów kontroli poza limitem oczekujące na działanie korygujące i podpis.",
+      "loading": "Wczytywanie odchyleń CCP…",
+      "breadcrumb": {
+        "quality": "Jakość",
+        "ccpDeviations": "Odchylenia CCP"
+      },
+      "denied": {
+        "title": "Nie masz dostępu do rejestru odchyleń CCP",
+        "body": "Poproś administratora o uprawnienie do pulpitu jakości lub nadpisania odchyleń CCP."
+      },
+      "error": {
+        "title": "Nie można wczytać odchyleń CCP",
+        "body": "Nie udało się odczytać rejestru odchyleń. Odśwież, aby spróbować ponownie."
+      },
+      "empty": {
+        "title": "Brak odchyleń CCP",
+        "body": "Odczyty CCP poza limitem pojawią się tutaj do działania korygującego i podpisu.",
+        "cta": "Przejdź do monitorowania CCP"
+      },
+      "emptyFiltered": "Żadne odchylenie nie pasuje do tego filtra.",
+      "filter": {
+        "label": "Status",
+        "open": "Otwarte",
+        "resolved": "Rozwiązane",
+        "all": "Wszystkie"
+      },
+      "rowsLabel": "{count} odchyleń",
+      "columns": {
+        "ccp": "CCP",
+        "reading": "Odczyt",
+        "status": "Status",
+        "hold": "Powiązana blokada",
+        "openedAt": "Otwarto",
+        "actions": "Akcje"
+      },
+      "status": {
+        "open": "Otwarte",
+        "resolved": "Rozwiązane"
+      },
+      "noHold": "—",
+      "noReading": "—",
+      "resolveAction": "Rozwiąż",
+      "resolveDisabled": "Potrzebujesz uprawnienia do nadpisania odchyleń CCP, aby rozwiązać odchylenie.",
+      "resolveModal": {
+        "title": "Rozwiąż odchylenie — {ccpCode}",
+        "subtitle": "Zapisz działanie korygujące i decyzję, a następnie podpisz, aby rozwiązać.",
+        "reading": "Odczyt",
+        "actionTaken": "Podjęte działanie korygujące",
+        "actionTakenHelp": "Opisz działanie korygujące wykonane dla tego odchylenia.",
+        "actionTakenPlaceholder": "Opisz podjęte działanie korygujące…",
+        "disposition": "Decyzja",
+        "dispositionHelp": "Co zdecydowano w sprawie wyrobu lub procesu.",
+        "dispositionPlaceholder": "np. Wyrób przerobiony / zezłomowany / zwolniony po przeglądzie…",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Podpis potwierdza, że rozwiązałeś to odchylenie CCP (21 CFR Part 11).",
+          "password": "PIN podpisu",
+          "passwordHelp": "Wprowadź swój PIN podpisu, aby złożyć podpis elektroniczny.",
+          "passwordPlaceholder": "Wprowadź PIN"
+        },
+        "cancel": "Anuluj",
+        "submit": "Rozwiąż odchylenie",
+        "submitting": "Rozwiązywanie…",
+        "formIncomplete": "Uzupełnij działanie korygujące, decyzję i PIN, aby kontynuować.",
+        "validation": {
+          "actionRequired": "Działanie korygujące jest wymagane.",
+          "dispositionRequired": "Decyzja jest wymagana.",
+          "passwordRequired": "Twój PIN podpisu jest wymagany."
+        },
+        "error": "Nie można rozwiązać odchylenia: {message}",
+        "success": "Odchylenie rozwiązane."
+      }
+    },
+    "haccp": {
+      "title": "Plany HACCP",
+      "subtitle": "Plany bezpieczeństwa żywności i ich krytyczne punkty kontroli (ISO 22000 / Codex HACCP).",
+      "loading": "Wczytywanie planów HACCP…",
+      "breadcrumb": {
+        "quality": "Jakość",
+        "haccp": "Plany HACCP"
+      },
+      "scopeType": {
+        "product": "Produkt",
+        "category": "Kategoria",
+        "line": "Linia"
+      },
+      "status": {
+        "draft": "Szkic",
+        "active": "Aktywny",
+        "superseded": "Zastąpiony"
+      },
+      "hazardType": {
+        "biological": "Biologiczne",
+        "chemical": "Chemiczne",
+        "physical": "Fizyczne",
+        "allergen": "Alergen"
+      },
+      "denied": {
+        "title": "Brak dostępu do planów HACCP",
+        "body": "Zarządzanie planami HACCP wymaga uprawnienia do edycji planu HACCP. Poproś administratora o jego nadanie."
+      },
+      "list": {
+        "newPlan": "Nowy plan",
+        "newPlanDisabled": "Aby utworzyć plan, potrzebujesz uprawnienia do edycji planu HACCP.",
+        "table": {
+          "ariaLabel": "Plany HACCP",
+          "name": "Plan",
+          "scope": "Zakres",
+          "version": "Wersja",
+          "status": "Status",
+          "ccps": "CCP",
+          "actions": "Akcje"
+        },
+        "scopeValue": "{type}: {ref}",
+        "ccpsValue": "{count} CCP",
+        "view": "Otwórz",
+        "activate": "Aktywuj",
+        "activateDisabled": "Aby aktywować plan, potrzebujesz uprawnienia do edycji planu HACCP.",
+        "newVersion": "Nowa wersja",
+        "newVersionDisabled": "Aby utworzyć nową wersję, potrzebujesz uprawnienia do edycji planu HACCP.",
+        "newVersionError": "Nie udało się utworzyć nowej wersji: {message}",
+        "empty": {
+          "title": "Brak planów HACCP",
+          "body": "Utwórz pierwszy plan HACCP, aby zdefiniować krytyczne punkty kontroli dla produktu, kategorii lub linii.",
+          "cta": "Utwórz pierwszy plan",
+          "ctaDisabled": "Aby utworzyć plan, potrzebujesz uprawnienia do edycji planu HACCP."
+        },
+        "error": {
+          "title": "Nie udało się wczytać planów HACCP",
+          "body": "Lista planów nie została wczytana. Odśwież stronę lub spróbuj ponownie za chwilę."
+        }
+      },
+      "create": {
+        "title": "Nowy plan HACCP",
+        "subtitle": "Nazwij plan i wybierz, co obejmuje. Powstaje jako szkic, który możesz uzupełnić o CCP przed aktywacją.",
+        "name": "Nazwa planu",
+        "namePlaceholder": "np. Linia wędlin A",
+        "scopeType": "Typ zakresu",
+        "scopeTypePlaceholder": "Wybierz typ zakresu",
+        "scopeRef": "Odniesienie zakresu",
+        "scopeRefPlaceholder": "np. kod produktu, kategoria lub linia",
+        "scopeRefHelp": "Opcjonalnie — produkt, kategoria lub linia, której dotyczy plan.",
+        "cancel": "Anuluj",
+        "submit": "Utwórz plan",
+        "submitting": "Tworzenie…",
+        "validation": {
+          "nameRequired": "Nazwa planu jest wymagana.",
+          "scopeTypeRequired": "Wybierz typ zakresu."
+        },
+        "error": "Nie udało się utworzyć planu: {message}"
+      },
+      "activate": {
+        "title": "Aktywuj „{name}”",
+        "summary": {
+          "name": "Plan",
+          "scope": "Zakres",
+          "version": "Wersja"
+        },
+        "checklistTitle": "Przed aktywacją",
+        "checklist": {
+          "ccpsDefined": "Krytyczne punkty kontroli planu są zdefiniowane.",
+          "limitsSet": "Limity krytyczne i działania korygujące są zapisane.",
+          "role": "Masz uprawnienia do zatwierdzenia tego planu HACCP."
+        },
+        "infoBox": "Aktywacja podpisuje plan Twoim podpisem elektronicznym (21 CFR Part 11) i czyni go wersją aktywną. Każda wcześniej aktywna wersja o tej samej nazwie zostaje zastąpiona.",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Podpisując, potwierdzasz, że ten plan HACCP jest zatwierdzony do użytku produkcyjnego.",
+          "password": "Hasło konta (PIN)",
+          "passwordHelp": "Twój podpis zostaje zapisany dla Twojego konta i bieżącego czasu serwera.",
+          "passwordPlaceholder": "Wpisz hasło"
+        },
+        "cancel": "Anuluj",
+        "submit": "Podpisz i aktywuj",
+        "submitting": "Aktywowanie…",
+        "validation": {
+          "passwordRequired": "Hasło jest wymagane do podpisania."
+        },
+        "error": "Nie udało się aktywować planu: {message}"
+      },
+      "detail": {
+        "title": "Plan HACCP",
+        "subtitle": "Nagłówek planu i powiązane krytyczne punkty kontroli.",
+        "breadcrumb": "Szczegóły planu",
+        "addCcp": "Dodaj CCP",
+        "addCcpDisabled": "Aby dodać CCP, potrzebujesz uprawnienia do edycji planu HACCP.",
+        "lockedHint": "CCP można edytować tylko, gdy plan jest szkicem.",
+        "activate": "Aktywuj plan",
+        "activateDisabled": "Aby aktywować plan, potrzebujesz uprawnienia do edycji planu HACCP.",
+        "scopeValue": "{type}: {ref}",
+        "header": {
+          "title": "Nagłówek planu",
+          "name": "Nazwa planu",
+          "scope": "Zakres",
+          "version": "Wersja",
+          "status": "Status",
+          "approvedBy": "Zatwierdzono dnia",
+          "notApproved": "Jeszcze nie zatwierdzono",
+          "ccpCount": "Krytyczne punkty kontroli"
+        },
+        "table": {
+          "ariaLabel": "Krytyczne punkty kontroli",
+          "code": "Kod",
+          "name": "Nazwa",
+          "step": "Etap procesu",
+          "hazard": "Zagrożenie",
+          "limits": "Limity krytyczne",
+          "frequency": "Częstotliwość"
+        },
+        "limitRange": "{min} – {max} {unit}",
+        "limitMinOnly": "≥ {min} {unit}",
+        "limitMaxOnly": "≤ {max} {unit}",
+        "limitNone": "—",
+        "empty": {
+          "title": "Brak krytycznych punktów kontroli",
+          "body": "Dodaj krytyczne punkty kontroli definiujące ten plan HACCP.",
+          "cta": "Dodaj pierwszy CCP",
+          "ctaDisabled": "Aby dodać CCP, potrzebujesz uprawnienia do edycji planu HACCP."
+        },
+        "notFound": {
+          "title": "Nie znaleziono planu",
+          "body": "Ten plan HACCP nie istnieje lub nie jest widoczny dla Twojej organizacji.",
+          "back": "Wróć do planów HACCP"
+        },
+        "error": {
+          "title": "Nie udało się wczytać planu",
+          "body": "Plan nie został wczytany. Odśwież stronę lub spróbuj ponownie za chwilę."
+        }
+      },
+      "ccpAdd": {
+        "title": "Dodaj krytyczny punkt kontroli",
+        "subtitle": "Zdefiniuj CCP dla tego planu HACCP. Limity krytyczne wprowadza się jako liczby; pozostaw granicę pustą dla limitu jednostronnego.",
+        "ccpCode": "Kod CCP",
+        "ccpCodePlaceholder": "np. CCP-01",
+        "ccpCodeHelp": "Krótki, unikalny kod tego CCP w organizacji.",
+        "name": "Nazwa",
+        "namePlaceholder": "np. Temperatura gotowania",
+        "processStep": "Etap procesu",
+        "processStepPlaceholder": "np. Gotowanie",
+        "hazardType": "Typ zagrożenia",
+        "hazardTypePlaceholder": "Wybierz typ zagrożenia",
+        "criticalLimitMin": "Limit min",
+        "criticalLimitMinPlaceholder": "np. 72",
+        "criticalLimitMax": "Limit maks",
+        "criticalLimitMaxPlaceholder": "np. 4",
+        "unit": "Jednostka",
+        "unitPlaceholder": "np. °C",
+        "limitHelp": "Wartości dziesiętne. Pozostaw granicę pustą dla limitu jednostronnego.",
+        "frequency": "Częstotliwość monitorowania",
+        "frequencyPlaceholder": "np. Każda partia",
+        "correctiveAction": "Działanie korygujące",
+        "correctiveActionPlaceholder": "Co zrobić w razie przekroczenia limitu",
+        "cancel": "Anuluj",
+        "submit": "Dodaj CCP",
+        "submitting": "Dodawanie…",
+        "validation": {
+          "ccpCodeRequired": "Kod CCP jest wymagany.",
+          "nameRequired": "Nazwa jest wymagana.",
+          "processStepRequired": "Etap procesu jest wymagany.",
+          "hazardTypeRequired": "Wybierz typ zagrożenia.",
+          "limitNumeric": "Limity krytyczne muszą być liczbami.",
+          "limitOrder": "Minimum musi być mniejsze lub równe maksimum."
+        },
+        "error": "Nie udało się dodać CCP: {message}"
+      },
+      "nav": {
+        "title": "Plany HACCP",
+        "desc": "Definiuj plany bezpieczeństwa żywności i ich krytyczne punkty kontroli; aktywuj podpisem elektronicznym."
+      }
+    },
+    "trace": {
+      "title": "Śledzenie i wycofanie",
+      "subtitle": "Śledź nośnik (LP), partię lub artykuł w górę i w dół łańcucha dostaw.",
+      "breadcrumb": {
+        "quality": "Jakość",
+        "trace": "Śledzenie i wycofanie"
+      },
+      "form": {
+        "legend": "Dane wejściowe śledzenia",
+        "refLabel": "Odnośnik",
+        "refPlaceholder": "Wprowadź kod LP, partię lub kod artykułu…",
+        "typeLabel": "Typ odnośnika",
+        "typePlaceholder": "Wybierz typ",
+        "directionLabel": "Kierunek",
+        "run": "Uruchom śledzenie",
+        "running": "Śledzenie…",
+        "saveDrill": "Zapisz jako ćwiczenie",
+        "savingDrill": "Zapisywanie ćwiczenia…"
+      },
+      "inputType": {
+        "lp": "Nośnik (LP)",
+        "batch": "Partia",
+        "item": "Artykuł"
+      },
+      "direction": {
+        "backward": "Wstecz",
+        "forward": "Naprzód",
+        "both": "Oba"
+      },
+      "nodeType": {
+        "supplier": "Dostawca",
+        "purchase_order": "Zamówienie zakupu",
+        "grn": "Przyjęcie towaru",
+        "input_lp": "Wejściowe LP",
+        "work_order": "Zlecenie produkcyjne",
+        "output_lp": "Wyjściowe LP",
+        "shipment_placeholder": "Wysyłka"
+      },
+      "summary": {
+        "title": "Podsumowanie śledzenia",
+        "lpCount": "Nośniki (LP)",
+        "woCount": "Zlecenia produkcyjne",
+        "shipmentCount": "Wysyłki",
+        "customersAffected": "Dotknięci klienci",
+        "totalKg": "Łącznie kg"
+      },
+      "graph": {
+        "title": "Genealogia",
+        "ariaLabel": "Graf genealogii śledzenia",
+        "open": "Otwórz",
+        "qty": "Ilość",
+        "via": "przez",
+        "noLink": "Brak ekranu szczegółów"
+      },
+      "table": {
+        "title": "Lista płaska",
+        "ariaLabel": "Płaska lista śledzenia",
+        "ref": "Odnośnik",
+        "type": "Typ",
+        "qty": "Ilość"
+      },
+      "states": {
+        "loading": "Uruchamianie śledzenia…",
+        "emptyTitle": "Nie uruchomiono jeszcze śledzenia",
+        "emptyBody": "Wprowadź odnośnik nośnika, partii lub artykułu i uruchom śledzenie, aby zobaczyć genealogię.",
+        "emptyCta": "Wprowadź odnośnik powyżej i wybierz Uruchom śledzenie.",
+        "errorTitle": "Śledzenie nie powiodło się",
+        "errorBody": "Nie udało się ukończyć śledzenia. Sprawdź odnośnik i spróbuj ponownie.",
+        "deniedTitle": "Brak dostępu",
+        "deniedBody": "Nie masz uprawnień do uruchamiania śledzeń."
+      },
+      "drillSaved": "Ćwiczenie wycofania zapisane.",
+      "drillSaveError": "Nie udało się zapisać ćwiczenia wycofania. Spróbuj ponownie.",
+      "nav": {
+        "title": "Śledzenie i wycofanie",
+        "desc": "Śledź LP, partię lub artykuł w górę i w dół łańcucha oraz zapisuj ćwiczenia wycofania."
+      }
+    },
+    "recallDrills": {
+      "title": "Ćwiczenia wycofania",
+      "subtitle": "Zapisane śledzenia wycofania wraz z czasem od startu do zakończenia względem celu 4h.",
+      "breadcrumb": {
+        "quality": "Jakość",
+        "recallDrills": "Ćwiczenia wycofania"
+      },
+      "newDrill": "Nowe ćwiczenie",
+      "targetBadge": "Cel: 4h",
+      "withinTarget": "W celu",
+      "overTarget": "Powyżej celu",
+      "inProgress": "W toku",
+      "durationPending": "—",
+      "durationHm": "{h}h {m}m",
+      "durationMs": "{m}m {s}s",
+      "durationS": "{s}s",
+      "col": {
+        "ref": "Odnośnik",
+        "type": "Typ",
+        "direction": "Kierunek",
+        "started": "Rozpoczęto",
+        "duration": "Czas trwania",
+        "status": "Status"
+      },
+      "inputType": {
+        "lp": "Nośnik (LP)",
+        "batch": "Partia",
+        "item": "Artykuł"
+      },
+      "direction": {
+        "backward": "Wstecz",
+        "forward": "Naprzód",
+        "both": "Oba"
+      },
+      "states": {
+        "loading": "Ładowanie ćwiczeń wycofania…",
+        "emptyTitle": "Brak ćwiczeń wycofania",
+        "emptyBody": "Uruchom śledzenie i zapisz je jako ćwiczenie, aby zmierzyć gotowość do wycofania względem celu 4h.",
+        "emptyCta": "Uruchom śledzenie",
+        "errorTitle": "Nie udało się załadować ćwiczeń wycofania",
+        "errorBody": "Odczyt na żywo nie powiódł się. Odśwież, aby spróbować ponownie.",
+        "deniedTitle": "Brak dostępu",
+        "deniedBody": "Nie masz uprawnień do przeglądania ćwiczeń wycofania."
+      },
+      "detail": {
+        "crumb": "Ćwiczenie",
+        "backToList": "Powrót do ćwiczeń wycofania",
+        "notFoundTitle": "Nie znaleziono ćwiczenia wycofania",
+        "notFoundBody": "To ćwiczenie wycofania nie istnieje lub nie masz do niego dostępu.",
+        "summaryTitle": "Podsumowanie śledzenia",
+        "reportTitle": "Śledzone odnośniki",
+        "startedAt": "Rozpoczęto",
+        "completedAt": "Zakończono",
+        "duration": "Czas trwania",
+        "rerun": "Uruchom ponownie na ekranie śledzenia"
+      },
+      "nav": {
+        "title": "Ćwiczenia wycofania",
+        "desc": "Przeglądaj zapisane śledzenia wycofania i ich czas trwania względem celu 4h."
       }
     }
   }

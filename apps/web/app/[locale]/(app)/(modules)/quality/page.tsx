@@ -37,6 +37,14 @@ export default async function QualityRoutePage({ params }: PageProps) {
   // (quality.ccpMonitoring.nav — added in this slice), not the staged holds
   // bundle the other cards still use (lesson F-D08a).
   const tCcp = await getTranslations("quality.ccpMonitoring");
+  // CCP deviations (Wave E3) nav copy from the LIVE next-intl catalog
+  // (quality.ccpDeviations.nav — added in this slice).
+  const tDev = await getTranslations("quality.ccpDeviations");
+  // HACCP plans (Wave E3) nav copy from the LIVE next-intl catalog (quality.haccp.nav).
+  const tHaccp = await getTranslations("quality.haccp");
+  // Trace + Recall drills (Wave E2A) nav copy from the LIVE next-intl catalog.
+  const tTrace = await getTranslations("quality.trace");
+  const tRecall = await getTranslations("quality.recallDrills");
   const s = await getTranslations("Skeleton");
   const result = await getModuleCount("quality_event");
 
@@ -104,6 +112,58 @@ export default async function QualityRoutePage({ params }: PageProps) {
             >
               <span className="text-base font-semibold text-slate-950">{tCcp("nav.title")}</span>
               <span className="mt-1 text-sm text-slate-600">{tCcp("nav.desc")}</span>
+            </Link>
+          </li>
+
+          {/* CCP deviations (Wave E3) — live → /quality/ccp-deviations. */}
+          <li key="ccp-deviations">
+            <Link
+              href={`/${locale}/quality/ccp-deviations`}
+              prefetch={false}
+              data-testid="quality-nav-ccp-deviations"
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <span className="text-base font-semibold text-slate-950">{tDev("nav.title")}</span>
+              <span className="mt-1 text-sm text-slate-600">{tDev("nav.desc")}</span>
+            </Link>
+          </li>
+
+          {/* HACCP plans (Wave E3) — live → /quality/haccp. */}
+          <li key="haccp">
+            <Link
+              href={`/${locale}/quality/haccp`}
+              prefetch={false}
+              data-testid="quality-nav-haccp"
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <span className="text-base font-semibold text-slate-950">{tHaccp("nav.title")}</span>
+              <span className="mt-1 text-sm text-slate-600">{tHaccp("nav.desc")}</span>
+            </Link>
+          </li>
+
+          {/* Trace & Recall (Wave E2A) — live → /quality/trace. */}
+          <li key="trace">
+            <Link
+              href={`/${locale}/quality/trace`}
+              prefetch={false}
+              data-testid="quality-nav-trace"
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <span className="text-base font-semibold text-slate-950">{tTrace("nav.title")}</span>
+              <span className="mt-1 text-sm text-slate-600">{tTrace("nav.desc")}</span>
+            </Link>
+          </li>
+
+          {/* Recall drills (Wave E2A) — live → /quality/recall-drills. */}
+          <li key="recall-drills">
+            <Link
+              href={`/${locale}/quality/recall-drills`}
+              prefetch={false}
+              data-testid="quality-nav-recall-drills"
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <span className="text-base font-semibold text-slate-950">{tRecall("nav.title")}</span>
+              <span className="mt-1 text-sm text-slate-600">{tRecall("nav.desc")}</span>
             </Link>
           </li>
         </ul>

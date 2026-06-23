@@ -31,13 +31,21 @@ import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { listLocations } from '../../_actions/location-read-actions';
 import { createStockMove } from '../../_actions/stock-move-actions';
 import { updateLpMetadataAction } from './lp-metadata-adapter';
+// E1 — label printing wired through the printers settings actions (mig 304).
+import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getLpTranslator } from '../lp-labels';
 // RSC boundary: runtime VALUES must come from the server-safe constants module —
 // importing them from the 'use client' module yields client-reference proxies and
 // crashed every LP detail render (`LP_DEFERRED_ACTIONS is not iterable`, live
 // error digest 1984471676). Type-only imports from the client module are erased
 // at compile time and stay safe.
-import { LpDetailClient, type LpDetailLabels } from './_components/lp-detail.client';
+import {
+  LpDetailClient,
+  type LpDetailLabels,
+  type LpPrintLabelInput,
+  type LpPrintLabelResult,
+} from './_components/lp-detail.client';
 import {
   LP_DEFERRED_ACTIONS,
   type LpDeferredAction,
@@ -217,10 +225,71 @@ function buildLabels(locale: string): LpDetailLabels {
       status: t('detail.genealogy.status'),
       qty: t('detail.genealogy.qty'),
     },
-    labels: { deferred: t('detail.labels.deferred'), printAction: t('detail.labels.printAction') },
+    labels: {
+      deferred: t('detail.labels.deferred'),
+      printAction: t('detail.labels.printAction'),
+      printing: t('detail.labels.printing'),
+      queued: t('detail.labels.queued'),
+      sent: t('detail.labels.sent'),
+      download: t('detail.labels.download'),
+      error: t('detail.labels.error'),
+      forbidden: t('detail.labels.forbidden'),
+      historyLink: t('detail.labels.historyLink'),
+    },
     raw: { title: t('detail.raw.title'), empty: t('detail.raw.empty') },
     expiryBanner: t('detail.expiryBanner'),
   };
+}
+
+const PRINT_PERMISSION = 'settings.org.update';
+
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
+
+/**
+ * E1 — resolve the SAME permission the printers actions enforce, server-side, so
+ * the labels-tab Print button is rendered enabled/disabled honestly (never
+ * render-then-disable leak; the action re-checks regardless). Failures degrade to
+ * "no permission" rather than crashing the detail page.
+ */
+async function resolveCanPrint(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or r.code = $3
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, PRINT_PERMISSION],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * E1 — Server Action adapter: maps the printers `printLabel` PrintJobRow down to
+ * the minimal {status, result_url} the labels tab renders. The action itself
+ * re-validates RBAC + the entity, so this is a thin import-only seam.
+ */
+async function printLpLabel(input: LpPrintLabelInput): Promise<LpPrintLabelResult> {
+  'use server';
+  const job = await printLabel({ entityType: input.entityType, entityId: input.entityId });
+  return { status: job.status, result_url: job.result_url };
 }
 
 async function DetailContent({ locale, lpId }: { locale: string; lpId: string }) {
@@ -269,6 +338,8 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
     );
   }
 
+  const canPrint = await resolveCanPrint();
+
   return (
     <LpDetailClient
       detail={result.data}
@@ -278,6 +349,8 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
       listLocationsAction={listLocations}
       createStockMoveAction={createStockMove}
       updateLpMetadataAction={updateLpMetadataAction}
+      printLabelAction={printLpLabel}
+      canPrint={canPrint}
     />
   );
 }

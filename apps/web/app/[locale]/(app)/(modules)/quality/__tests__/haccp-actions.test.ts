@@ -1,5 +1,7 @@
+import { signEvent } from '@monopilot/e-sign';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { resolveCcpDeviation } from '../_actions/ccp-deviation-actions';
 import { listCcps, listMonitoringLog, recordMonitoring, upsertCcp } from '../_actions/haccp-actions';
 
 type QueryClient = {
@@ -14,10 +16,28 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const CCP_ID = '33333333-3333-4333-8333-333333333333';
 const LOG_ID = '44444444-4444-4444-8444-444444444444';
 const NCR_ID = '55555555-5555-4555-8555-555555555555';
+const WO_ID = '66666666-6666-4666-8666-666666666666';
+const LP_ID = '77777777-7777-4777-8777-777777777777';
+const HOLD_ID = '88888888-8888-4888-8888-888888888888';
+const DEVIATION_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 let permissions: Set<string>;
 let ccpLimits: { min: string | null; max: string | null };
+let currentOutputLpId: string | null;
+let openedDeviationLogIds: Set<string>;
+
+vi.mock('@monopilot/e-sign', () => ({
+  signEvent: vi.fn(async () => ({
+    signatureId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    signerUserId: USER_ID,
+    intent: 'qa.haccp.ccp.deviation',
+    subjectHash: 'd'.repeat(64),
+    signedAt: '2026-06-23T10:00:00.000Z',
+    auditEventId: 306,
+    nonce: 'nonce-ccp-deviation',
+  })),
+}));
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -72,6 +92,7 @@ function makeClient(): QueryClient {
               ccp_code: 'CCP-COOK',
               critical_limit_min: ccpLimits.min,
               critical_limit_max: ccpLimits.max,
+              unit: 'C',
             },
           ],
           rowCount: 1,
@@ -133,6 +154,92 @@ function makeClient(): QueryClient {
         return { rows: [{ id: NCR_ID }], rowCount: 1 };
       }
 
+      if (q.includes('from public.ccp_deviations d') && q.includes('d.monitoring_log_id = $1::uuid')) {
+        const hasDeviation = openedDeviationLogIds.has(String(params[0]));
+        return {
+          rows: hasDeviation ? [{ id: DEVIATION_ID, breach_ncr_id: NCR_ID }] : [],
+          rowCount: hasDeviation ? 1 : 0,
+        };
+      }
+
+      if (q.includes('from public.wo_outputs o') && q.includes('join public.license_plates lp')) {
+        return {
+          rows: currentOutputLpId ? [{ id: currentOutputLpId, quantity: '12.500000' }] : [],
+          rowCount: currentOutputLpId ? 1 : 0,
+        };
+      }
+
+      if (q.startsWith('insert into public.ccp_deviations')) {
+        openedDeviationLogIds.add(String(params[1]));
+        return { rows: [{ id: DEVIATION_ID }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.quality_holds')) {
+        return { rows: [{ id: HOLD_ID, hold_number: 'HLD-00001000' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.quality_hold_items')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.license_plates')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.ccp_deviations') && q.includes('set hold_id')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.includes('from public.ccp_deviations d') && q.includes('for update')) {
+        return {
+          rows: [
+            {
+              id: DEVIATION_ID,
+              status: 'open',
+              ccp_id: CCP_ID,
+              ccp_code: 'CCP-COOK',
+              monitoring_log_id: LOG_ID,
+              measured_value: '69.9999',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('update public.ccp_deviations') && q.includes("set status = 'resolved'")) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('select d.id::text') && q.includes('from public.ccp_deviations d')) {
+        return {
+          rows: [
+            {
+              id: DEVIATION_ID,
+              status: 'resolved',
+              ccp_id: CCP_ID,
+              ccp_code: 'CCP-COOK',
+              ccp_name: 'Cook temperature',
+              monitoring_log_id: LOG_ID,
+              measured_value: '69.9999',
+              uom: 'C',
+              action_taken: 'Batch quarantined and root cause reviewed',
+              disposition: 'Released after QA review',
+              hold_id: HOLD_ID,
+              hold_number: 'HLD-00001000',
+              hold_reference_type: 'lp',
+              hold_reference_display: 'LP-0001 / FG-COOK',
+              hold_status: 'open',
+              opened_at: '2026-06-23T09:00:00.000Z',
+              opened_by_display: 'QA Lead',
+              closed_at: '2026-06-23T10:00:00.000Z',
+              closed_by_display: 'QA Lead',
+              esign_ref: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
       if (q.startsWith('update public.haccp_monitoring_log')) {
         return { rows: [], rowCount: 1 };
       }
@@ -150,6 +257,8 @@ describe('quality HACCP server actions', () => {
   beforeEach(() => {
     permissions = new Set(['quality.haccp.plan_edit', 'quality.ccp.deviation_override']);
     ccpLimits = { min: '70.0000', max: '75.0000' };
+    currentOutputLpId = LP_ID;
+    openedDeviationLogIds = new Set();
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -218,6 +327,15 @@ describe('quality HACCP server actions', () => {
     const outbox = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
     expect(normalize(String(outbox?.[0]))).toContain("'quality.ncr.opened'");
     expect(outbox?.[1]?.[0]).toBe(NCR_ID);
+    const deviationInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ccp_deviations'));
+    expect(deviationInsert?.[1]).toEqual([
+      CCP_ID,
+      LOG_ID,
+      '69.9999',
+      'C',
+      'Auto-hold not created: no work order target was provided.',
+      USER_ID,
+    ]);
   });
 
   it('recordMonitoring bilateral breach returns within_limits=false and creates NCR', async () => {
@@ -232,6 +350,88 @@ describe('quality HACCP server actions', () => {
       normalize(String(sql)).startsWith('insert into public.haccp_monitoring_log'),
     );
     expect(logInsert?.[1]?.[3]).toBe(false);
+  });
+
+  it('recordMonitoring breach with woId opens a deviation and links a created LP hold', async () => {
+    ccpLimits = { min: '70.0000', max: null };
+
+    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
+
+    expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
+    const outputLookup = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).includes('from public.wo_outputs o'));
+    expect(outputLookup?.[1]).toEqual([WO_ID]);
+    const holdInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
+    expect(holdInsert?.[1]).toEqual([
+      LP_ID,
+      'CCP breach CCP-COOK: measured value 69.9999 was outside configured limits.',
+      USER_ID,
+    ]);
+    const holdLink = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.ccp_deviations') && normalize(String(sql)).includes('set hold_id'));
+    expect(holdLink?.[1]).toEqual([DEVIATION_ID, HOLD_ID]);
+    const holdOutbox = vi.mocked(client.query).mock.calls.find(
+      ([sql, params]) => normalize(String(sql)).startsWith('insert into public.outbox_events') && params?.[0] === HOLD_ID,
+    );
+    expect(normalize(String(holdOutbox?.[0]))).toContain("'quality.hold.created'");
+  });
+
+  it('recordMonitoring breach without woId opens a deviation with hold_id null', async () => {
+    ccpLimits = { min: '70.0000', max: null };
+
+    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
+
+    expect(result.ok).toBe(true);
+    const deviationInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.ccp_deviations'));
+    expect(deviationInsert?.[1]?.[4]).toBe('Auto-hold not created: no work order target was provided.');
+    const holdLink = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.ccp_deviations') && normalize(String(sql)).includes('set hold_id'));
+    expect(holdLink).toBeUndefined();
+  });
+
+  it('resolveCcpDeviation requires e-sign and flips the deviation to resolved', async () => {
+    const result = await resolveCcpDeviation(DEVIATION_ID, {
+      actionTaken: 'Batch quarantined and root cause reviewed',
+      disposition: 'Released after QA review',
+      signature: { password: 'pin-1234' },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected deviation resolution to succeed');
+    expect(result.data.status).toBe('resolved');
+    expect(vi.mocked(signEvent)).toHaveBeenCalledWith(
+      {
+        signerUserId: USER_ID,
+        pin: 'pin-1234',
+        intent: 'qa.haccp.ccp.deviation',
+        subject: {
+          deviationId: DEVIATION_ID,
+          ccpId: CCP_ID,
+          ccpCode: 'CCP-COOK',
+          monitoringLogId: LOG_ID,
+          measuredValue: '69.9999',
+        },
+        reason: 'CCP deviation resolution',
+      },
+      { client },
+    );
+    const update = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.ccp_deviations') && normalize(String(sql)).includes("set status = 'resolved'"));
+    expect(update?.[1]).toEqual([
+      DEVIATION_ID,
+      'Batch quarantined and root cause reviewed',
+      'Released after QA review',
+      USER_ID,
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
+  });
+
+  it('re-recording the same monitoring_log_id does not double-open a deviation', async () => {
+    ccpLimits = { min: '70.0000', max: null };
+
+    await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
+    await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999' });
+
+    const deviationInserts = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.ccp_deviations'));
+    expect(deviationInserts).toHaveLength(1);
   });
 
   // ── FIX 2: relaxed board READ gate (plan_edit OR ccp.deviation_override) ──────

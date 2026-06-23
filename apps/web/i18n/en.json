@@ -1144,6 +1144,7 @@
         "profile": "Company profile",
         "sites": "Sites & lines",
         "warehouses": "Warehouses",
+        "printers": "Printers",
         "shifts": "Shifts & calendar",
         "products": "Products & SKUs",
         "boms": "BOMs & recipes",
@@ -5501,7 +5502,10 @@
             "expiry": "Expiry",
             "qa": "QA",
             "lp": "LP"
-          }
+          },
+          "noConsumptionBadge": "No consumption",
+          "noConsumptionTooltip": "No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.",
+          "noConsumptionContinue": "Continue anyway"
         },
         "waste": {
           "title": "Waste events",
@@ -7749,6 +7753,421 @@
       "nav": {
         "title": "CCP Monitoring",
         "desc": "Record critical control point readings; out-of-limit auto-opens an NCR."
+      }
+    },
+    "ccpDeviations": {
+      "nav": {
+        "title": "CCP deviations",
+        "desc": "Review and resolve out-of-limit CCP readings with an e-signature."
+      },
+      "title": "CCP deviations",
+      "subtitle": "Out-of-limit critical control point readings awaiting corrective action and sign-off.",
+      "loading": "Loading CCP deviations…",
+      "breadcrumb": {
+        "quality": "Quality",
+        "ccpDeviations": "CCP deviations"
+      },
+      "denied": {
+        "title": "You do not have access to the CCP deviation register",
+        "body": "Ask an administrator for the Quality dashboard or CCP deviation-override permission."
+      },
+      "error": {
+        "title": "Could not load CCP deviations",
+        "body": "The deviation register could not be read. Refresh to try again."
+      },
+      "empty": {
+        "title": "No CCP deviations",
+        "body": "Out-of-limit CCP readings appear here for corrective action and sign-off.",
+        "cta": "Go to CCP monitoring"
+      },
+      "emptyFiltered": "No deviations match this filter.",
+      "filter": {
+        "label": "Status",
+        "open": "Open",
+        "resolved": "Resolved",
+        "all": "All"
+      },
+      "rowsLabel": "{count} deviation(s)",
+      "columns": {
+        "ccp": "CCP",
+        "reading": "Reading",
+        "status": "Status",
+        "hold": "Linked hold",
+        "openedAt": "Opened",
+        "actions": "Actions"
+      },
+      "status": {
+        "open": "Open",
+        "resolved": "Resolved"
+      },
+      "noHold": "—",
+      "noReading": "—",
+      "resolveAction": "Resolve",
+      "resolveDisabled": "You need the CCP deviation-override permission to resolve a deviation.",
+      "resolveModal": {
+        "title": "Resolve deviation — {ccpCode}",
+        "subtitle": "Record the corrective action and disposition, then sign to resolve.",
+        "reading": "Reading",
+        "actionTaken": "Corrective action taken",
+        "actionTakenHelp": "Describe the corrective action carried out for this deviation.",
+        "actionTakenPlaceholder": "Describe the corrective action taken…",
+        "disposition": "Disposition",
+        "dispositionHelp": "What was decided for the affected product or process.",
+        "dispositionPlaceholder": "e.g. Product reworked / scrapped / released after review…",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "Signing records that you resolved this CCP deviation (21 CFR Part 11).",
+          "password": "Sign-off PIN",
+          "passwordHelp": "Enter your sign-off PIN to apply the electronic signature.",
+          "passwordPlaceholder": "Enter your PIN"
+        },
+        "cancel": "Cancel",
+        "submit": "Resolve deviation",
+        "submitting": "Resolving…",
+        "formIncomplete": "Complete the corrective action, disposition and PIN to continue.",
+        "validation": {
+          "actionRequired": "A corrective action is required.",
+          "dispositionRequired": "A disposition is required.",
+          "passwordRequired": "Your sign-off PIN is required."
+        },
+        "error": "Could not resolve deviation: {message}",
+        "success": "Deviation resolved."
+      }
+    },
+    "haccp": {
+      "title": "HACCP Plans",
+      "subtitle": "Food-safety plans and their critical control points (ISO 22000 / Codex HACCP).",
+      "loading": "Loading HACCP plans…",
+      "breadcrumb": {
+        "quality": "Quality",
+        "haccp": "HACCP Plans"
+      },
+      "scopeType": {
+        "product": "Product",
+        "category": "Category",
+        "line": "Line"
+      },
+      "status": {
+        "draft": "Draft",
+        "active": "Active",
+        "superseded": "Superseded"
+      },
+      "hazardType": {
+        "biological": "Biological",
+        "chemical": "Chemical",
+        "physical": "Physical",
+        "allergen": "Allergen"
+      },
+      "denied": {
+        "title": "You do not have access to HACCP plans",
+        "body": "Managing HACCP plans requires the HACCP plan-edit permission. Ask an administrator to grant it."
+      },
+      "list": {
+        "newPlan": "New plan",
+        "newPlanDisabled": "You need the HACCP plan-edit permission to create a plan.",
+        "table": {
+          "ariaLabel": "HACCP plans",
+          "name": "Plan",
+          "scope": "Scope",
+          "version": "Version",
+          "status": "Status",
+          "ccps": "CCPs",
+          "actions": "Actions"
+        },
+        "scopeValue": "{type}: {ref}",
+        "ccpsValue": "{count} CCPs",
+        "view": "View",
+        "activate": "Activate",
+        "activateDisabled": "You need the HACCP plan-edit permission to activate a plan.",
+        "newVersion": "New version",
+        "newVersionDisabled": "You need the HACCP plan-edit permission to create a new version.",
+        "newVersionError": "Could not create a new version: {message}",
+        "empty": {
+          "title": "No HACCP plans yet",
+          "body": "Create your first HACCP plan to define the critical control points for a product, category or line.",
+          "cta": "Create the first plan",
+          "ctaDisabled": "You need the HACCP plan-edit permission to create a plan."
+        },
+        "error": {
+          "title": "Could not load HACCP plans",
+          "body": "The plan list failed to load. Refresh the page or try again shortly."
+        }
+      },
+      "create": {
+        "title": "New HACCP plan",
+        "subtitle": "Name the plan and choose what it covers. It starts as a draft you can populate with CCPs before activating.",
+        "name": "Plan name",
+        "namePlaceholder": "e.g. Cooked meats line A",
+        "scopeType": "Scope type",
+        "scopeTypePlaceholder": "Select a scope type",
+        "scopeRef": "Scope reference",
+        "scopeRefPlaceholder": "e.g. product code, category or line",
+        "scopeRefHelp": "Optional — the product, category or line this plan applies to.",
+        "cancel": "Cancel",
+        "submit": "Create plan",
+        "submitting": "Creating…",
+        "validation": {
+          "nameRequired": "A plan name is required.",
+          "scopeTypeRequired": "Select a scope type."
+        },
+        "error": "Could not create the plan: {message}"
+      },
+      "activate": {
+        "title": "Activate “{name}”",
+        "summary": {
+          "name": "Plan",
+          "scope": "Scope",
+          "version": "Version"
+        },
+        "checklistTitle": "Before activating",
+        "checklist": {
+          "ccpsDefined": "The plan's critical control points are defined.",
+          "limitsSet": "Critical limits and corrective actions are recorded.",
+          "role": "You are authorised to approve this HACCP plan."
+        },
+        "infoBox": "Activating signs the plan with your e-signature (21 CFR Part 11) and makes it the live version. Any previously active version with the same name is superseded.",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "By signing you confirm this HACCP plan is approved for production use.",
+          "password": "Account password (PIN)",
+          "passwordHelp": "Your signature is recorded against your account and the current server time.",
+          "passwordPlaceholder": "Enter your password"
+        },
+        "cancel": "Cancel",
+        "submit": "Sign & activate",
+        "submitting": "Activating…",
+        "validation": {
+          "passwordRequired": "Your password is required to sign."
+        },
+        "error": "Could not activate the plan: {message}"
+      },
+      "detail": {
+        "title": "HACCP plan",
+        "subtitle": "Plan header and its linked critical control points.",
+        "breadcrumb": "Plan detail",
+        "addCcp": "Add CCP",
+        "addCcpDisabled": "You need the HACCP plan-edit permission to add a CCP.",
+        "lockedHint": "CCPs can only be edited while the plan is a draft.",
+        "activate": "Activate plan",
+        "activateDisabled": "You need the HACCP plan-edit permission to activate a plan.",
+        "scopeValue": "{type}: {ref}",
+        "header": {
+          "title": "Plan header",
+          "name": "Plan name",
+          "scope": "Scope",
+          "version": "Version",
+          "status": "Status",
+          "approvedBy": "Approved on",
+          "notApproved": "Not yet approved",
+          "ccpCount": "Critical control points"
+        },
+        "table": {
+          "ariaLabel": "Critical control points",
+          "code": "Code",
+          "name": "Name",
+          "step": "Process step",
+          "hazard": "Hazard",
+          "limits": "Critical limits",
+          "frequency": "Frequency"
+        },
+        "limitRange": "{min} – {max} {unit}",
+        "limitMinOnly": "≥ {min} {unit}",
+        "limitMaxOnly": "≤ {max} {unit}",
+        "limitNone": "—",
+        "empty": {
+          "title": "No critical control points yet",
+          "body": "Add the critical control points that define this HACCP plan.",
+          "cta": "Add the first CCP",
+          "ctaDisabled": "You need the HACCP plan-edit permission to add a CCP."
+        },
+        "notFound": {
+          "title": "Plan not found",
+          "body": "This HACCP plan does not exist or is not visible to your organisation.",
+          "back": "Back to HACCP plans"
+        },
+        "error": {
+          "title": "Could not load the plan",
+          "body": "The plan failed to load. Refresh the page or try again shortly."
+        }
+      },
+      "ccpAdd": {
+        "title": "Add critical control point",
+        "subtitle": "Define a CCP for this HACCP plan. Critical limits are entered as numbers; leave a bound blank for a one-sided limit.",
+        "ccpCode": "CCP code",
+        "ccpCodePlaceholder": "e.g. CCP-01",
+        "ccpCodeHelp": "A short unique code for this CCP within the org.",
+        "name": "Name",
+        "namePlaceholder": "e.g. Cooking temperature",
+        "processStep": "Process step",
+        "processStepPlaceholder": "e.g. Cooking",
+        "hazardType": "Hazard type",
+        "hazardTypePlaceholder": "Select a hazard type",
+        "criticalLimitMin": "Limit min",
+        "criticalLimitMinPlaceholder": "e.g. 72",
+        "criticalLimitMax": "Limit max",
+        "criticalLimitMaxPlaceholder": "e.g. 4",
+        "unit": "Unit",
+        "unitPlaceholder": "e.g. °C",
+        "limitHelp": "Decimal values. Leave a bound blank for a one-sided limit.",
+        "frequency": "Monitoring frequency",
+        "frequencyPlaceholder": "e.g. Each batch",
+        "correctiveAction": "Corrective action",
+        "correctiveActionPlaceholder": "What to do when the limit is breached",
+        "cancel": "Cancel",
+        "submit": "Add CCP",
+        "submitting": "Adding…",
+        "validation": {
+          "ccpCodeRequired": "A CCP code is required.",
+          "nameRequired": "A name is required.",
+          "processStepRequired": "A process step is required.",
+          "hazardTypeRequired": "Select a hazard type.",
+          "limitNumeric": "Critical limits must be numbers.",
+          "limitOrder": "The minimum must be less than or equal to the maximum."
+        },
+        "error": "Could not add the CCP: {message}"
+      },
+      "nav": {
+        "title": "HACCP plans",
+        "desc": "Define food-safety plans and their critical control points; activate with e-sign."
+      }
+    },
+    "trace": {
+      "title": "Trace & recall",
+      "subtitle": "Trace a license plate, batch or item up and down the supply chain.",
+      "breadcrumb": {
+        "quality": "Quality",
+        "trace": "Trace & recall"
+      },
+      "form": {
+        "legend": "Trace input",
+        "refLabel": "Reference",
+        "refPlaceholder": "Enter an LP code, batch or item code…",
+        "typeLabel": "Reference type",
+        "typePlaceholder": "Select a type",
+        "directionLabel": "Direction",
+        "run": "Run trace",
+        "running": "Tracing…",
+        "saveDrill": "Save as drill",
+        "savingDrill": "Saving drill…"
+      },
+      "inputType": {
+        "lp": "License plate",
+        "batch": "Batch",
+        "item": "Item"
+      },
+      "direction": {
+        "backward": "Backward",
+        "forward": "Forward",
+        "both": "Both"
+      },
+      "nodeType": {
+        "supplier": "Supplier",
+        "purchase_order": "Purchase order",
+        "grn": "Goods receipt",
+        "input_lp": "Input LP",
+        "work_order": "Work order",
+        "output_lp": "Output LP",
+        "shipment_placeholder": "Shipment"
+      },
+      "summary": {
+        "title": "Trace summary",
+        "lpCount": "License plates",
+        "woCount": "Work orders",
+        "shipmentCount": "Shipments",
+        "customersAffected": "Customers affected",
+        "totalKg": "Total kg"
+      },
+      "graph": {
+        "title": "Genealogy",
+        "ariaLabel": "Trace genealogy graph",
+        "open": "Open",
+        "qty": "Qty",
+        "via": "via",
+        "noLink": "No detail screen"
+      },
+      "table": {
+        "title": "Flat list",
+        "ariaLabel": "Trace flat list",
+        "ref": "Reference",
+        "type": "Type",
+        "qty": "Quantity"
+      },
+      "states": {
+        "loading": "Running trace…",
+        "emptyTitle": "No trace run yet",
+        "emptyBody": "Enter a license plate, batch or item reference and run a trace to see the genealogy.",
+        "emptyCta": "Enter a reference above and select Run trace.",
+        "errorTitle": "Trace failed",
+        "errorBody": "The trace could not be completed. Check the reference and try again.",
+        "deniedTitle": "Access denied",
+        "deniedBody": "You do not have permission to run traces."
+      },
+      "drillSaved": "Recall drill saved.",
+      "drillSaveError": "The recall drill could not be saved. Try again.",
+      "nav": {
+        "title": "Trace & recall",
+        "desc": "Trace an LP, batch or item up and down the chain and save recall drills."
+      }
+    },
+    "recallDrills": {
+      "title": "Recall drills",
+      "subtitle": "Saved recall traces with their start-to-complete duration against the 4h target.",
+      "breadcrumb": {
+        "quality": "Quality",
+        "recallDrills": "Recall drills"
+      },
+      "newDrill": "New drill",
+      "targetBadge": "Target: 4h",
+      "withinTarget": "Within target",
+      "overTarget": "Over target",
+      "inProgress": "In progress",
+      "durationPending": "—",
+      "durationHm": "{h}h {m}m",
+      "durationMs": "{m}m {s}s",
+      "durationS": "{s}s",
+      "col": {
+        "ref": "Reference",
+        "type": "Type",
+        "direction": "Direction",
+        "started": "Started",
+        "duration": "Duration",
+        "status": "Status"
+      },
+      "inputType": {
+        "lp": "License plate",
+        "batch": "Batch",
+        "item": "Item"
+      },
+      "direction": {
+        "backward": "Backward",
+        "forward": "Forward",
+        "both": "Both"
+      },
+      "states": {
+        "loading": "Loading recall drills…",
+        "emptyTitle": "No recall drills yet",
+        "emptyBody": "Run a trace and save it as a drill to measure your recall readiness against the 4h target.",
+        "emptyCta": "Run a trace",
+        "errorTitle": "Could not load recall drills",
+        "errorBody": "The live read failed. Refresh to try again.",
+        "deniedTitle": "Access denied",
+        "deniedBody": "You do not have permission to view recall drills."
+      },
+      "detail": {
+        "crumb": "Drill",
+        "backToList": "Back to recall drills",
+        "notFoundTitle": "Recall drill not found",
+        "notFoundBody": "This recall drill does not exist or you cannot access it.",
+        "summaryTitle": "Trace summary",
+        "reportTitle": "Traced references",
+        "startedAt": "Started",
+        "completedAt": "Completed",
+        "duration": "Duration",
+        "rerun": "Re-run on the trace screen"
+      },
+      "nav": {
+        "title": "Recall drills",
+        "desc": "Review saved recall traces and their duration against the 4h target."
       }
     }
   }

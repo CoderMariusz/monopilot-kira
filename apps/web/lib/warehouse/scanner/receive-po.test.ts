@@ -80,6 +80,34 @@ describe('scanner receive PO service', () => {
     expect(findCall(client, 'insert into public.quality_inspections')).toBeUndefined();
   });
 
+  it('emits warehouse.lp.received with the LP aggregate in the receive transaction', async () => {
+    const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000' });
+
+    await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-lp-received-event' });
+
+    const outbox = findCall(client, 'insert into public.outbox_events');
+    expect(outbox).toBeDefined();
+    expect(outbox?.params[0]).toBe('warehouse.lp.received');
+    expect(outbox?.params[1]).toBe('license_plate');
+    expect(outbox?.params[2]).toBe('lp-1');
+    expect(JSON.parse(String(outbox?.params[3]))).toMatchObject({
+      lp_id: 'lp-1',
+      grn_id: 'grn-1',
+      item_id: ITEM_ID,
+      qty: '10.5',
+      uom: 'kg',
+      org_id: ORG_A,
+      actor: USER_A,
+    });
+
+    const sqls = client.calls.map((call) => call.sql);
+    const historyIdx = sqls.findIndex((sql) => sql.includes('insert into public.lp_state_history'));
+    const outboxIdx = sqls.findIndex((sql) => sql.includes('insert into public.outbox_events'));
+    const commitIdx = sqls.indexOf('commit');
+    expect(outboxIdx).toBeGreaterThan(historyIdx);
+    expect(outboxIdx).toBeLessThan(commitIdx);
+  });
+
   it('opens a pending QC inspection for the LP when require_grn_qc_inspection is ON', async () => {
     const client = makeReceiveClient({
       orderedQty: '10.000000',

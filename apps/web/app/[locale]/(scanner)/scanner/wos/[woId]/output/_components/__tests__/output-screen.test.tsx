@@ -181,3 +181,83 @@ describe("OutputScreen", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/scanner/login"));
   });
 });
+
+// ── output-without-consumption SOFT warning ──────────────────────────────────
+
+function detailNoConsumption() {
+  return {
+    status: 200,
+    ok: true,
+    json: async () => ({
+      ok: true,
+      header: {
+        id: "wo-1",
+        woNumber: "WO-2026-0108",
+        status: "inprog",
+        itemCode: "FG-001",
+        productName: "Kabanos",
+        plannedQty: "300",
+        qtyEntered: "10",
+        qtyEnteredUom: "box",
+        uomSnapshot: BOX_SNAPSHOT,
+        scheduledStart: null,
+        producedBaseKg: "0",
+        producedUnits: "0",
+      },
+      // BOM materials present but NONE consumed yet ⇒ no-consumption warning.
+      materials: [
+        { id: "m1", materialName: "Pork shoulder", requiredQty: "600", consumedQty: "0", uom: "kg", sequence: 1 },
+      ],
+      allergenGate: false,
+    }),
+  };
+}
+
+describe("OutputScreen — output-without-consumption SOFT warning", () => {
+  it("shows the non-blocking warning + [Continue anyway] when nothing is consumed yet", async () => {
+    seedSession();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(detailNoConsumption()));
+
+    renderOutput();
+    await waitFor(() => expect(screen.getByLabelText(labels.output.enterQty)).toBeInTheDocument());
+
+    expect(screen.getByText(labels.output.noConsumptionBody)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: labels.output.noConsumptionContinue }),
+    ).toBeInTheDocument();
+  });
+
+  it("does NOT show the warning when consumption already exists", async () => {
+    seedSession();
+    const withConsumption = () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        ok: true,
+        header: {
+          id: "wo-1",
+          woNumber: "WO-2026-0108",
+          status: "inprog",
+          itemCode: "FG-001",
+          productName: "Kabanos",
+          plannedQty: "300",
+          qtyEntered: "10",
+          qtyEnteredUom: "box",
+          uomSnapshot: BOX_SNAPSHOT,
+          scheduledStart: null,
+          producedBaseKg: "0",
+          producedUnits: "0",
+        },
+        materials: [
+          { id: "m1", materialName: "Pork shoulder", requiredQty: "600", consumedQty: "200", uom: "kg", sequence: 1 },
+        ],
+        allergenGate: false,
+      }),
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(withConsumption()));
+
+    renderOutput();
+    await waitFor(() => expect(screen.getByLabelText(labels.output.enterQty)).toBeInTheDocument());
+    expect(screen.queryByText(labels.output.noConsumptionBody)).not.toBeInTheDocument();
+  });
+});

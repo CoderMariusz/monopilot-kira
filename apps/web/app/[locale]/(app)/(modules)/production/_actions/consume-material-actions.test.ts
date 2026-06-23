@@ -9,6 +9,7 @@ const WO_ID = '33333333-3333-4333-8333-333333333333';
 const MATERIAL_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 const LP_ID = '66666666-6666-4666-8666-666666666666';
+const CONSUMPTION_ID = '77777777-7777-4777-8777-777777777777';
 
 type State = {
   granted: Set<string>;
@@ -125,7 +126,7 @@ function makeClient(): QueryClient {
         return { rows: [{ violates: false }], rowCount: 1 };
       }
       if (n.startsWith('insert into public.wo_material_consumption')) {
-        return { rows: [], rowCount: 1 };
+        return { rows: [{ id: CONSUMPTION_ID }], rowCount: 1 };
       }
       // production.consume.blocked outbox emit (T-064 hold rejection path)
       if (n.startsWith('insert into public.outbox_events')) {
@@ -198,6 +199,29 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
     const update = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
     expect(update?.params).toEqual([ORG_ID, WO_ID, MATERIAL_ID, '2.500']);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
+  });
+
+  it('emits warehouse.material.consumed with the consumption aggregate on the happy path', async () => {
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(true);
+
+    const outbox = queries.find(
+      (q) =>
+        normalize(q.sql).startsWith('insert into public.outbox_events') &&
+        q.params[0] === 'warehouse.material.consumed',
+    );
+    expect(outbox).toBeDefined();
+    expect(outbox?.params[1]).toBe('wo_material_consumption');
+    expect(outbox?.params[2]).toBe(CONSUMPTION_ID);
+    expect(JSON.parse(String(outbox?.params[3]))).toMatchObject({
+      wo_id: WO_ID,
+      lp_id: LP_ID,
+      item_id: PRODUCT_ID,
+      qty: '2.500',
+      uom: 'kg',
+      org_id: ORG_ID,
+      actor: USER_ID,
+    });
   });
 
   it('returns invalid_material when the WHERE matches no row', async () => {

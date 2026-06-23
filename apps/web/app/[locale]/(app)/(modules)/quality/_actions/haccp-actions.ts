@@ -48,9 +48,12 @@ type MonitoringLogRow = {
 };
 
 type MonitoringResult = { withinLimits: boolean; ncrId: string | null; outboxEmitted: boolean };
+type OutputLp = { id: string; quantity: string };
+type CreatedDeviationHold = { id: string; holdNumber: string };
 
 const uuidSchema = z.string().uuid();
 const decimalStringSchema = z.string().trim().regex(/^-?\d+(\.\d+)?$/, 'must be a decimal string');
+const TERMINAL_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned'] as const;
 
 const listCcpsSchema = z.object({
   activeOnly: z.boolean().optional(),
@@ -69,6 +72,7 @@ const upsertCcpSchema = z
     monitoring_frequency: z.string().trim().max(160).optional(),
     corrective_action: z.string().trim().max(2000).optional(),
     line_id: uuidSchema.nullish(),
+    plan_id: uuidSchema.nullish(),
     is_active: z.boolean().optional(),
   })
   .refine(
@@ -147,6 +151,108 @@ async function writeNcrOpenedOutbox(
       }),
     ],
   );
+}
+
+async function writeHoldCreatedOutbox(
+  ctx: QualityContext,
+  params: { holdId: string; holdNumber: string; lpId: string },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), 'quality.hold.created', 'quality_hold', $1::uuid, $2::jsonb, 'quality-holds-v1')`,
+    [
+      params.holdId,
+      JSON.stringify({
+        org_id: ctx.orgId,
+        actor_user_id: ctx.userId,
+        holdId: params.holdId,
+        holdNumber: params.holdNumber,
+        referenceType: 'lp',
+        referenceId: params.lpId,
+        lpIds: [params.lpId],
+      }),
+    ],
+  );
+}
+
+async function findCurrentOutputLp(ctx: QualityContext, woId: string): Promise<OutputLp | null> {
+  const { rows } = await ctx.client.query<OutputLp>(
+    `select lp.id::text as id, lp.quantity::text as quantity
+       from public.wo_outputs o
+       join public.license_plates lp on lp.id = o.lp_id and lp.org_id = o.org_id
+      where o.org_id = app.current_org_id()
+        and o.wo_id = $1::uuid
+        and o.lp_id is not null
+      order by o.registered_at desc, o.created_at desc
+      limit 1
+      for update of lp`,
+    [woId],
+  );
+  return rows[0] ?? null;
+}
+
+async function createCcpDeviationHold(
+  ctx: QualityContext,
+  params: { lp: OutputLp; ccpCode: string; measuredValue: string },
+): Promise<CreatedDeviationHold> {
+  const reasonText = `CCP breach ${params.ccpCode}: measured value ${params.measuredValue} was outside configured limits.`;
+  const hold = await ctx.client.query<{ id: string; hold_number: string }>(
+    `insert into public.quality_holds (
+       org_id,
+       reference_type,
+       reference_id,
+       reason_free_text,
+       priority,
+       hold_status,
+       created_by
+     )
+     values (
+       app.current_org_id(),
+       'lp',
+       $1::uuid,
+       $2,
+       'critical',
+       'open',
+       $3::uuid
+     )
+     returning id::text, hold_number`,
+    [params.lp.id, reasonText, ctx.userId],
+  );
+  const created = hold.rows[0];
+  if (!created?.id) throw new Error('quality hold insert did not return a row');
+
+  await ctx.client.query(
+    `insert into public.quality_hold_items (
+       org_id,
+       hold_id,
+       license_plate_id,
+       qty_held_kg,
+       item_status,
+       notes
+     )
+     values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held', $4)
+     on conflict (hold_id, license_plate_id) do nothing`,
+    [created.id, params.lp.id, params.lp.quantity, reasonText],
+  );
+
+  await ctx.client.query(
+    `update public.license_plates
+        set qa_status = 'on_hold',
+            updated_by = $2::uuid
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and status <> all($3::text[])`,
+    [params.lp.id, ctx.userId, [...TERMINAL_LP_STATUSES]],
+  );
+
+  await writeHoldCreatedOutbox(ctx, {
+    holdId: created.id,
+    holdNumber: created.hold_number,
+    lpId: params.lp.id,
+  });
+
+  return { id: created.id, holdNumber: created.hold_number };
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -287,10 +393,12 @@ export async function upsertCcp(data: {
   monitoring_frequency?: string;
   corrective_action?: string;
   line_id?: string | null;
+  plan_id?: string | null;
   is_active?: boolean;
 }): Promise<ActionResult<CcpRow>> {
   try {
     const parsed = upsertCcpSchema.parse(data);
+    const hasPlanId = Object.prototype.hasOwnProperty.call(data, 'plan_id');
     return await withOrgContext(async (ctx): Promise<ActionResult<CcpRow>> => {
       if (!(await hasPermission(ctx, 'quality.haccp.plan_edit'))) return { ok: false, reason: 'forbidden' };
 
@@ -308,6 +416,7 @@ export async function upsertCcp(data: {
            monitoring_frequency,
            corrective_action,
            line_id,
+           plan_id,
            is_active,
            created_by
          )
@@ -324,8 +433,9 @@ export async function upsertCcp(data: {
            $9,
            $10,
            $11::uuid,
-           $12::boolean,
-           $13::uuid
+           $12::uuid,
+           $13::boolean,
+           $14::uuid
          )
          on conflict (org_id, ccp_code) do update
             set name = excluded.name,
@@ -337,6 +447,7 @@ export async function upsertCcp(data: {
                 monitoring_frequency = excluded.monitoring_frequency,
                 corrective_action = excluded.corrective_action,
                 line_id = excluded.line_id,
+                plan_id = case when $15::boolean then excluded.plan_id else public.haccp_ccps.plan_id end,
                 is_active = excluded.is_active
          returning
            id::text,
@@ -365,8 +476,10 @@ export async function upsertCcp(data: {
           parsed.monitoring_frequency ?? '',
           parsed.corrective_action ?? '',
           parsed.line_id ?? null,
+          parsed.plan_id ?? null,
           parsed.is_active ?? true,
           ctx.userId,
+          hasPlanId,
         ],
       );
       const row = rows[0];
@@ -430,8 +543,9 @@ export async function recordMonitoring(data: {
         ccp_code: string;
         critical_limit_min: string | null;
         critical_limit_max: string | null;
+        unit: string | null;
       }>(
-        `select id::text, ccp_code, critical_limit_min::text, critical_limit_max::text
+        `select id::text, ccp_code, critical_limit_min::text, critical_limit_max::text, nullif(unit, '') as unit
            from public.haccp_ccps
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -471,6 +585,21 @@ export async function recordMonitoring(data: {
       if (!logId) throw new Error('monitoring log insert did not return a row');
 
       if (withinLimits) return { ok: true, data: { withinLimits, ncrId: null, outboxEmitted: false } };
+
+      const existingDeviation = await ctx.client.query<{ id: string; breach_ncr_id: string | null }>(
+        `select d.id::text, l.breach_ncr_id::text
+           from public.ccp_deviations d
+           left join public.haccp_monitoring_log l on l.id = d.monitoring_log_id and l.org_id = d.org_id
+          where d.org_id = app.current_org_id()
+            and d.monitoring_log_id = $1::uuid
+          limit 1
+          for update of d`,
+        [logId],
+      );
+      const existing = existingDeviation.rows[0];
+      if (existing) {
+        return { ok: true, data: { withinLimits, ncrId: existing.breach_ncr_id, outboxEmitted: false } };
+      }
 
       const ncr = await ctx.client.query<{ id: string }>(
         `insert into public.ncr_reports (
@@ -520,6 +649,56 @@ export async function recordMonitoring(data: {
         logId,
         measuredValue: parsed.measuredValue,
       });
+
+      const outputLp = parsed.woId ? await findCurrentOutputLp(ctx, parsed.woId) : null;
+      const deviationNote =
+        parsed.woId && !outputLp
+          ? 'Auto-hold not created: no current output license plate was found for the work order.'
+          : !parsed.woId
+            ? 'Auto-hold not created: no work order target was provided.'
+            : null;
+
+      const deviation = await ctx.client.query<{ id: string }>(
+        `insert into public.ccp_deviations (
+           org_id,
+           ccp_id,
+           monitoring_log_id,
+           measured_value,
+           uom,
+           action_taken,
+           status,
+           opened_by
+         )
+         values (
+           app.current_org_id(),
+           $1::uuid,
+           $2::uuid,
+           $3::numeric,
+           $4,
+           $5,
+           'open',
+           $6::uuid
+         )
+         returning id::text`,
+        [parsed.ccpId, logId, parsed.measuredValue, ccp.unit, deviationNote, ctx.userId],
+      );
+      const deviationId = deviation.rows[0]?.id;
+      if (!deviationId) throw new Error('CCP deviation insert did not return a row');
+
+      if (outputLp) {
+        const hold = await createCcpDeviationHold(ctx, {
+          lp: outputLp,
+          ccpCode: ccp.ccp_code,
+          measuredValue: parsed.measuredValue,
+        });
+        await ctx.client.query(
+          `update public.ccp_deviations
+              set hold_id = $2::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [deviationId, hold.id],
+        );
+      }
 
       return { ok: true, data: { withinLimits, ncrId, outboxEmitted: true } };
     });

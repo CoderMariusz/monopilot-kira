@@ -261,7 +261,7 @@ const SCREEN_LABELS: WoDetailLabels = {
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', history: 'Event log' },
   overview: { summaryTitle: 'Summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine', planned: 'Planned', output: 'Output', plannedWindow: 'Window', actualStart: 'Start', elapsed: 'Elapsed', allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output', allergenYes: 'Yes', allergenNo: 'No', elapsedMin: 'min' },
   consumption: { title: 'Consumption', empty: 'none', addAction: 'Scan LP', col: { code: 'Code', component: 'Component', planned: 'Planned', consumed: 'Consumed', remaining: 'Remaining', progress: 'Progress' }, record: { trigger: 'Record', rowTrigger: 'Record', title: 't', subtitle: 's', material: 'm', materialPlaceholder: 'p', qty: 'q', qtyHint: 'h', lp: 'lp', lpLoading: 'l', lpEmpty: 'e', lpError: 'err', lpNone: 'none', lpSuggested: 'sug', reasonCode: 'r', reasonPlaceholder: 'rp', submit: 'sub', submitting: 'subbing', cancel: 'c', warningOver: 'w', warningClose: 'wc', errors: { forbidden: 'f', lp_unavailable: 'a', lp_not_released: 'nr', lp_expired: 'ex', lp_locked: 'lo', quality_hold_active: 'qh', reason_required: 'rr', invalid_material: 'im', invalid_qty: 'iq', generic: 'g' } } },
-  output: { title: 'Registered output', empty: 'No output registered yet.', addAction: 'Register output', col: { type: 'Type', product: 'Product', qty: 'Qty', batch: 'Batch / lot', expiry: 'Expiry', qa: 'QA', lp: 'LP' }, qaPass: 'QA pass', qaFail: 'QA fail', qaDenied: 'denied', qaInvalidState: 'inv', qaError: 'err', voidAction: 'Void output…' },
+  output: { title: 'Registered output', empty: 'No output registered yet.', addAction: 'Register output', col: { type: 'Type', product: 'Product', qty: 'Qty', batch: 'Batch / lot', expiry: 'Expiry', qa: 'QA', lp: 'LP' }, qaPass: 'QA pass', qaFail: 'QA fail', qaDenied: 'denied', qaInvalidState: 'inv', qaError: 'err', voidAction: 'Void output…', noConsumptionBadge: 'No consumption', noConsumptionTooltip: 'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.', noConsumptionContinue: 'Continue anyway' },
   waste: { title: 'Waste events', empty: 'none', addAction: 'Log waste', voidAction: 'Void entry…', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
   voidCorrection: VC_LABELS,
   downtime: { title: 'Downtime', empty: 'none', addAction: 'Log downtime', openLabel: 'Open', col: { category: 'Category', start: 'Start', end: 'End', duration: 'Duration', reason: 'Reason' } },
@@ -316,6 +316,7 @@ function baseData(extra: Partial<WorkOrderDetailData> = {}): WorkOrderDetailData
     history: [],
     qa: { total: 0, pass: 0, hold: 0, fail: 0 },
     openChangeoverId: null,
+    hasOutputWithoutConsumption: false,
     ...extra,
   } as WorkOrderDetailData;
 }

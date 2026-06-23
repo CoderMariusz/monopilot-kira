@@ -224,6 +224,12 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       qaInvalidState: t.has('output.qaInvalidState') ? t('output.qaInvalidState') : 'This output is no longer pending QA.',
       qaError: t.has('output.qaError') ? t('output.qaError') : 'Unable to update output QA.',
       voidAction: vc('output.voidAction', 'Void output…'),
+      noConsumptionBadge: vc('output.noConsumptionBadge', 'No consumption'),
+      noConsumptionTooltip: vc(
+        'output.noConsumptionTooltip',
+        'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.',
+      ),
+      noConsumptionContinue: vc('output.noConsumptionContinue', 'Continue anyway'),
     },
     waste: {
       title: t('waste.title'),

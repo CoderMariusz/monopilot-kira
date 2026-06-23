@@ -32,6 +32,10 @@
         "title": "Expiry",
         "desc": "FEFO red / amber expiry dashboard."
       },
+      "printHistory": {
+        "title": "Print history",
+        "desc": "Label print jobs — status, copies, and reprint."
+      },
       "inbound": {
         "title": "Inbound schedule",
         "desc": "Open POs / TOs and what arrives today."
@@ -192,8 +196,15 @@
         "qty": "Qty"
       },
       "labels": {
-        "deferred": "Label printing is deferred to a later lane.",
-        "printAction": "Print label"
+        "deferred": "Print a barcode / GS1 label for this license plate. Printer routing and job log live in Print history.",
+        "printAction": "Print label",
+        "printing": "Printing…",
+        "queued": "Print job queued for the printer.",
+        "sent": "Label sent — download the rendered output below.",
+        "download": "Download label",
+        "error": "Label could not be printed. Try again or contact an administrator.",
+        "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
+        "historyLink": "View print history"
       },
       "raw": {
         "title": "Raw extension data (ext_jsonb)",
@@ -291,6 +302,10 @@
       "expiry": {
         "title": "Terminy",
         "desc": "Panel terminów FEFO (czerwone / bursztynowe)."
+      },
+      "printHistory": {
+        "title": "Historia druku",
+        "desc": "Zadania druku etykiet — status, liczba kopii i ponowny druk."
       },
       "inbound": {
         "title": "Harmonogram dostaw",
@@ -452,8 +467,15 @@
         "qty": "Ilość"
       },
       "labels": {
-        "deferred": "Drukowanie etykiet jest odłożone na późniejszy etap.",
-        "printAction": "Drukuj etykietę"
+        "deferred": "Wydrukuj etykietę z kodem kreskowym / GS1 dla tej palety. Routing drukarki i dziennik zadań znajdują się w Historii druku.",
+        "printAction": "Drukuj etykietę",
+        "printing": "Drukowanie…",
+        "queued": "Zadanie druku dodane do kolejki drukarki.",
+        "sent": "Etykieta wysłana — pobierz wygenerowany plik poniżej.",
+        "download": "Pobierz etykietę",
+        "error": "Nie udało się wydrukować etykiety. Spróbuj ponownie lub skontaktuj się z administratorem.",
+        "forbidden": "Niewystarczające uprawnienia: do druku etykiet wymagane jest settings.org.update.",
+        "historyLink": "Zobacz historię druku"
       },
       "raw": {
         "title": "Surowe dane rozszerzeń (ext_jsonb)",

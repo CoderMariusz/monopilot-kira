@@ -137,6 +137,17 @@ interface ScannerProdLabelsShape {
     err409: string;
     err422: string;
     back: string;
+    /**
+     * SOFT-warning (owner decision — warn, never block): shown when the WO has no
+     * material consumption recorded. `noConsumptionTitle` heads a non-blocking
+     * notice; `noConsumptionBody` explains the missing genealogy link;
+     * `noConsumptionContinue` is the [Continue anyway] affordance.
+     */
+    noConsumptionTitle: string;
+    noConsumptionBody: string;
+    noConsumptionContinue: string;
+    /** Done-screen note repeated after a no-consumption output is registered. */
+    noConsumptionDoneNote: string;
   };
   waste: {
     title: string;
@@ -293,6 +304,11 @@ const en: ScannerProdLabelsShape = {
     err409: "Conflict — work order state changed. Refresh and retry.",
     err422: "Invalid output quantity or weight.",
     back: "Back",
+    noConsumptionTitle: "No consumption recorded",
+    noConsumptionBody:
+      "No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.",
+    noConsumptionContinue: "Continue anyway",
+    noConsumptionDoneNote: "Registered without material consumption — no genealogy link.",
   },
   waste: {
     title: "Record waste",
@@ -449,6 +465,11 @@ const pl: ScannerProdLabelsShape = {
     err409: "Konflikt — stan WO się zmienił. Odśwież i ponów.",
     err422: "Nieprawidłowa ilość lub waga wyrobu.",
     back: "Wróć",
+    noConsumptionTitle: "Brak zarejestrowanej konsumpcji",
+    noConsumptionBody:
+      "Brak zarejestrowanej konsumpcji materiałów dla tego WO — wyrób nie będzie miał powiązania genealogicznego/identyfikowalności. Zarejestruj najpierw konsumpcję lub kontynuuj.",
+    noConsumptionContinue: "Kontynuuj mimo to",
+    noConsumptionDoneNote: "Zarejestrowano bez konsumpcji materiałów — brak powiązania genealogicznego.",
   },
   waste: {
     title: "Rejestruj odpad",
