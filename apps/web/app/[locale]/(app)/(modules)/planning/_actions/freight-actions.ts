@@ -20,8 +20,8 @@
  * Real data: all reads/writes run inside withOrgContext (org_id =
  * app.current_org_id() via RLS) over the mig-316 freight tables
  * (public.carriers, public.transport_lanes) and the suppliers / purchase_orders
- * masters. Never mocks. Writes gate on the planning write permission
- * (npd.planning.write) server-side — never a client-trusted flag.
+ * masters. Never mocks. Writes gate on the freight manage permission
+ * (freight.manage) server-side — never a client-trusted flag.
  *
  * Defensive note: until mig 316 is applied in an environment, a read against a
  * missing relation (SQLSTATE 42P01) is mapped to an empty list / safe result so
@@ -31,7 +31,6 @@ import { Dec } from '@monopilot/domain';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
-  hasPlanningWritePermission,
   isPgError,
   pgErrorToResult,
   toNullableIso,
@@ -65,12 +64,31 @@ export type {
 } from './freight-types';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FREIGHT_MANAGE_PERMISSION = 'freight.manage';
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /** A missing-relation error (42P01) before mig 316 is applied — treated as "no data". */
 function isUndefinedTable(err: unknown): boolean {
   return isPgError(err) && err.code === '42P01';
+}
+
+async function hasFreightManagePermission(ctx: OrgActionContext): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (
+          rp.permission is not null
+          or coalesce(r.permissions, '[]'::jsonb) ? $3
+        )
+      limit 1`,
+    [ctx.userId, ctx.orgId, FREIGHT_MANAGE_PERMISSION],
+  );
+  return rows.length > 0;
 }
 
 type CarrierDbRow = {
@@ -161,7 +179,7 @@ export async function upsertCarrier(rawInput: unknown): Promise<FreightResult<Ca
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<FreightResult<CarrierRow>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      if (!(await hasFreightManagePermission(ctx))) return { ok: false, error: 'forbidden' };
 
       const params = [
         input.code,
@@ -244,7 +262,7 @@ export async function upsertTransportLane(rawInput: unknown): Promise<FreightRes
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<FreightResult<TransportLaneRow>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      if (!(await hasFreightManagePermission(ctx))) return { ok: false, error: 'forbidden' };
 
       const carrier = await ctx.client.query<{ id: string }>(
         `select id

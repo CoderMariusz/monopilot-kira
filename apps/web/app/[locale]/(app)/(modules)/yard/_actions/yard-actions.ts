@@ -87,7 +87,7 @@ type WeighingDbRow = {
   weighed_by: string;
 };
 
-const YARD_PERMISSION = 'npd.planning.write';
+const YARD_PERMISSION = 'yard.manage';
 const MAX_WEIGHT_KG_ABS = 1e15;
 const APPOINTMENT_STATUSES = new Set<string>(['scheduled', 'arrived', 'completed', 'cancelled', 'no_show']);
 const DOCK_DOOR_DIRECTIONS = new Set<string>(['inbound', 'outbound', 'both']);

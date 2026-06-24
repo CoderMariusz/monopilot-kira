@@ -48,9 +48,8 @@ type ExistingColdChainHoldRow = {
   id: string;
 };
 
-const QUALITY_DASHBOARD_VIEW_PERMISSION = 'quality.dashboard.view';
-const QUALITY_INSPECTION_EXECUTE_PERMISSION = 'quality.inspection.execute';
-const QUALITY_SETTINGS_EDIT_PERMISSION = 'quality.settings.edit';
+const QUALITY_COLDCHAIN_RECORD_PERMISSION = 'quality.coldchain.record';
+const QUALITY_COLDCHAIN_MANAGE_PERMISSION = 'quality.coldchain.manage';
 
 async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
@@ -171,7 +170,7 @@ async function findExistingColdChainHold(client: QueryClient, lpId: string): Pro
 export async function listProductTempRanges(): Promise<ListProductTempRangesResult> {
   try {
     return await withOrgContext<ListProductTempRangesResult>(async (ctx): Promise<ListProductTempRangesResult> => {
-      if (!(await hasPermission(ctx as OrgActionContext, QUALITY_DASHBOARD_VIEW_PERMISSION))) return { ok: false, error: 'forbidden' };
+      if (!(await hasPermission(ctx as OrgActionContext, QUALITY_COLDCHAIN_MANAGE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const client = (ctx as OrgActionContext).client;
       const { rows } = await client.query<ProductTempRangeRow>(
@@ -210,7 +209,7 @@ export async function upsertProductTempRange(
 
   try {
     return await withOrgContext<UpsertProductTempRangeResult>(async (ctx): Promise<UpsertProductTempRangeResult> => {
-      if (!(await hasPermission(ctx, QUALITY_SETTINGS_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+      if (!(await hasPermission(ctx, QUALITY_COLDCHAIN_MANAGE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const { rows } = await ctx.client.query<{ id: string }>(
         `insert into public.product_temp_ranges
@@ -243,8 +242,7 @@ export async function submitConditionCheck(
     return await withOrgContext<SubmitConditionCheckResult>(async (rawCtx): Promise<SubmitConditionCheckResult> => {
       const ctx = rawCtx as OrgActionContext;
       const { userId, client } = ctx;
-      // TODO: dedicated quality.coldchain.record permission
-      if (!(await hasPermission(ctx, QUALITY_INSPECTION_EXECUTE_PERMISSION))) return { ok: false, error: 'forbidden' };
+      if (!(await hasPermission(ctx, QUALITY_COLDCHAIN_RECORD_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const contextSiteId = ctx.siteId ?? null;
       const range = await loadRangeConfig(client, input.itemId);

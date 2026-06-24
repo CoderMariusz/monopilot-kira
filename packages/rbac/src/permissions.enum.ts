@@ -285,6 +285,10 @@ export const Permission = {
   QUALITY_BATCH_RELEASE: 'quality.batch.release',
   /** Quality dashboard view permission; PRD 09-QUALITY §8 QA-001 (base read). */
   QUALITY_DASHBOARD_VIEW: 'quality.dashboard.view',
+  /** Record cold-chain condition checks and temperature readings. */
+  QUALITY_COLDCHAIN_RECORD: 'quality.coldchain.record',
+  /** Manage product temperature range settings and cold-chain configuration. */
+  QUALITY_COLDCHAIN_MANAGE: 'quality.coldchain.manage',
   /** Quality settings edit (QA-060) permission; PRD 09-QUALITY §8 QA-060. */
   QUALITY_SETTINGS_EDIT: 'quality.settings.edit',
   /** Quality audit export (7y auditor) permission; PRD 09-QUALITY §2.2. */
@@ -513,7 +517,7 @@ export const Permission = {
   /** Multi-site cross-site read (super-admin audit) permission; PRD 14-MULTI-SITE §14.2. */
   MULTI_SITE_CROSS_SITE_READ: 'multi_site.cross_site.read',
 
-  // Planning-Extended (07-planning-ext) — finite-capacity scheduler + changeover-matrix family.
+  // Planning-Extended (07-planning-ext) — finite-capacity scheduler + changeover-matrix + logistics family.
   /** Scheduler dashboard / run-history read permission; PRD 07-PLANNING-EXT §3.1, §5.1. */
   SCHEDULER_RUN_READ: 'scheduler.run.read',
   /** Dispatch a finite-capacity solver run permission; PRD 07-PLANNING-EXT §5.1, §9.2. */
@@ -544,6 +548,10 @@ export const Permission = {
   PLANNING_MRP_CONVERT: 'planning.mrp.convert',
   /** Manage planning forecasts used as MRP/MPS demand inputs. */
   PLANNING_FORECAST_MANAGE: 'planning.forecast.manage',
+  /** Manage yard operations: docking, vehicle assignments, and gate movements. */
+  YARD_MANAGE: 'yard.manage',
+  /** Manage freight shipments, carrier assignments, and delivery scheduling. */
+  FREIGHT_MANAGE: 'freight.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -703,7 +711,7 @@ export const ALL_WAREHOUSE_PERMISSIONS = [
 
 /**
  * Quality (09-quality) module permission group; PRD 09-QUALITY §2.3 (RBAC matrix) + §6.3 (NCR/HACCP)
- * + §8 (QA-031A inspection.assign, QA-060 settings) + §2.2 (auditor 7y export). 13 page/action
+ * + §8 (QA-031A inspection.assign, QA-060 settings) + §2.2 (auditor 7y export). 15 page/action
  * permissions (T-065). Allergen dual-sign is owned by 08-PRODUCTION
  * (production.allergen_gate.sign_{first,second}) and is NOT re-declared here. Recognised by the
  * ESLint enum-lock guard via the ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130).
@@ -721,6 +729,8 @@ export const ALL_QUALITY_PERMISSIONS = [
   Permission.QUALITY_HACCP_PLAN_EDIT,
   Permission.QUALITY_BATCH_RELEASE,
   Permission.QUALITY_DASHBOARD_VIEW,
+  Permission.QUALITY_COLDCHAIN_RECORD,
+  Permission.QUALITY_COLDCHAIN_MANAGE,
   Permission.QUALITY_SETTINGS_EDIT,
   Permission.QUALITY_AUDIT_EXPORT,
 ] as readonly Permission[];
@@ -894,7 +904,7 @@ export const ALL_MULTI_SITE_PERMISSIONS = [
 
 /**
  * Planning-Extended (07-planning-ext) module permission group; PRD 07-PLANNING-EXT §3.1, §5.1,
- * §9 (scheduler runs / assignments / changeover matrix / config / forecast). 13 page/action
+ * §9 (scheduler runs / assignments / changeover matrix / config / forecast + logistics). 17 page/action
  * permissions. assignment.approve vs assignment.override are distinct grants (SoD); matrix.edit
  * (draft) vs matrix.publish (activate) are distinct grants (SoD). Recognised by the ESLint
  * enum-lock guard via the ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130).
@@ -916,6 +926,8 @@ export const ALL_SCHEDULER_PERMISSIONS = [
   Permission.PLANNING_MRP_RUN,
   Permission.PLANNING_MRP_CONVERT,
   Permission.PLANNING_FORECAST_MANAGE,
+  Permission.YARD_MANAGE,
+  Permission.FREIGHT_MANAGE,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {

@@ -159,6 +159,8 @@ const expectedQualityPermissions = [
   'quality.haccp.plan_edit',
   'quality.batch.release',
   'quality.dashboard.view',
+  'quality.coldchain.record',
+  'quality.coldchain.manage',
   'quality.settings.edit',
   'quality.audit.export',
 ] as const;
@@ -404,6 +406,8 @@ const expectedCanonicalPermissions = [
   'quality.haccp.plan_edit',
   'quality.batch.release',
   'quality.dashboard.view',
+  'quality.coldchain.record',
+  'quality.coldchain.manage',
   'quality.settings.edit',
   'quality.audit.export',
   'fin.settings.view',
@@ -524,6 +528,8 @@ const expectedCanonicalPermissions = [
   'planning.mrp.run',
   'planning.mrp.convert',
   'planning.forecast.manage',
+  'yard.manage',
+  'freight.manage',
 ] as const;
 
 type PermissionsModule = {
@@ -743,10 +749,10 @@ describe('rbac permission source of truth', () => {
   it('exports the quality permissions as a typed Permission array literal (T-065 §2.3)', async () => {
     const { ALL_PERMISSIONS, ALL_QUALITY_PERMISSIONS, Permission } = await loadPermissionsModule();
 
-    // AC1 — all 13 strings present exactly once, in order.
+    // AC1 — all 15 strings present exactly once, in order.
     expect(ALL_QUALITY_PERMISSIONS).toEqual(expectedQualityPermissions);
-    // AC3 — typed readonly Permission[] with length === 13.
-    expect(ALL_QUALITY_PERMISSIONS).toHaveLength(13);
+    // AC3 — typed readonly Permission[] with length === 15.
+    expect(ALL_QUALITY_PERMISSIONS).toHaveLength(15);
     expect(new Set(ALL_QUALITY_PERMISSIONS).size).toBe(ALL_QUALITY_PERMISSIONS.length);
 
     // AC2 — regex + uniqueness across the whole enum.
