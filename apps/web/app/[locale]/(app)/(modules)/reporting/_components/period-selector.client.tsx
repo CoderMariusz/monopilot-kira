@@ -26,6 +26,10 @@ export type PeriodSelectorProps = {
   orderQuery?: string;
   lines: ReportingLineOption[];
   labels: PeriodSelectorLabels;
+  showLineFilter?: boolean;
+  showSearchFilter?: boolean;
+  ariaLabel?: string;
+  testId?: string;
 };
 
 const PERIOD_BUTTONS: Array<{ value: ReportingPeriod; labelKey: keyof PeriodSelectorLabels }> = [
@@ -49,6 +53,10 @@ export function PeriodSelector({
   orderQuery,
   lines,
   labels,
+  showLineFilter = true,
+  showSearchFilter = true,
+  ariaLabel = 'Reporting filters',
+  testId = 'reporting-period-selector',
 }: PeriodSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -90,8 +98,8 @@ export function PeriodSelector({
 
   return (
     <section
-      aria-label="Reporting filters"
-      data-testid="reporting-period-selector"
+      aria-label={ariaLabel}
+      data-testid={testId}
       className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
       <div className="flex flex-col gap-4">
@@ -140,42 +148,48 @@ export function PeriodSelector({
           </div>
         ) : null}
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(220px,320px)_minmax(260px,1fr)]">
-          <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <span>{labels.line}</span>
-            <Select
-              value={lineId ?? 'all'}
-              options={lineOptions}
-              onValueChange={(value) => pushParams({ line: value === 'all' ? null : value })}
-              aria-label={labels.line}
-            />
-          </div>
+        {showLineFilter || showSearchFilter ? (
+          <div className="grid gap-3 lg:grid-cols-[minmax(220px,320px)_minmax(260px,1fr)]">
+            {showLineFilter ? (
+              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <span>{labels.line}</span>
+                <Select
+                  value={lineId ?? 'all'}
+                  options={lineOptions}
+                  onValueChange={(value) => pushParams({ line: value === 'all' ? null : value })}
+                  aria-label={labels.line}
+                />
+              </div>
+            ) : null}
 
-          <form
-            className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500"
-            onSubmit={(event) => {
-              event.preventDefault();
-              pushParams({ q: queryDraft.trim() || null });
-            }}
-          >
-            <span>{labels.search}</span>
-            <div className="flex gap-2">
-              <input
-                type="search"
-                value={queryDraft}
-                onChange={(event) => setQueryDraft(event.currentTarget.value)}
-                placeholder={labels.search}
-                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
-              />
-              <button
-                type="submit"
-                className="rounded-lg border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-medium text-white"
+            {showSearchFilter ? (
+              <form
+                className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  pushParams({ q: queryDraft.trim() || null });
+                }}
               >
-                {labels.search}
-              </button>
-            </div>
-          </form>
-        </div>
+                <span>{labels.search}</span>
+                <div className="flex gap-2">
+                  <input
+                    type="search"
+                    value={queryDraft}
+                    onChange={(event) => setQueryDraft(event.currentTarget.value)}
+                    placeholder={labels.search}
+                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-lg border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-medium text-white"
+                  >
+                    {labels.search}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );

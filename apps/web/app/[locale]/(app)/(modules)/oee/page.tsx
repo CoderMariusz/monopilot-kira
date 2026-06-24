@@ -24,6 +24,15 @@ import { Card } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getActiveSiteId } from '../../../../../lib/site/site-context';
+import {
+  PeriodSelector,
+  type PeriodSelectorLabels,
+} from '../reporting/_components/period-selector.client';
+import {
+  parsePeriodSearchParams,
+  type ReportingSearchParams,
+  type ReportingWindow,
+} from '../reporting/_lib/period';
 import { getOeeScreen } from './_actions/oee-data';
 import {
   OeeLinesTable,
@@ -33,6 +42,11 @@ import {
 } from './_components/oee-tables';
 
 export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<ReportingSearchParams>;
+};
 
 function OeeSkeleton() {
   return (
@@ -68,12 +82,26 @@ function KpiTile({
   );
 }
 
-async function OeeContent() {
+async function buildSelectorLabels(locale: string): Promise<PeriodSelectorLabels> {
+  const t = await getTranslations({ locale, namespace: 'reporting' });
+  return {
+    today: t('period.today'),
+    week: t('period.week'),
+    month: t('period.month'),
+    last7d: t('period.last7d'),
+    last30d: t('period.last30d'),
+    custom: t('period.custom'),
+    line: t('filter.line'),
+    search: t('filter.search'),
+  };
+}
+
+async function OeeContent({ window }: { window: ReportingWindow }) {
   const t = await getTranslations('oee');
   const locale = await getLocale();
   // 14-multi-site (CL4): topbar site picker cookie; null = All sites (no filter).
   const siteId = await getActiveSiteId();
-  const result = await getOeeScreen({ siteId });
+  const result = await getOeeScreen({ siteId, window });
 
   if (!result.ok && result.reason === 'forbidden') {
     return (
@@ -187,8 +215,17 @@ async function OeeContent() {
   );
 }
 
-export default async function OeeRoutePage() {
-  const t = await getTranslations('oee');
+export default async function OeeRoutePage({ params, searchParams }: PageProps) {
+  const [{ locale }, rawSearchParams] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve({}),
+  ]);
+  const periodSelection = parsePeriodSearchParams(rawSearchParams);
+  const [t, selectorLabels] = await Promise.all([
+    getTranslations({ locale, namespace: 'oee' }),
+    buildSelectorLabels(locale),
+  ]);
+
   return (
     <main
       data-screen="oee-dashboard"
@@ -197,8 +234,22 @@ export default async function OeeRoutePage() {
       className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6"
     >
       <PageHeader title={t('title')} subtitle={t('subtitle')} breadcrumb={[{ label: t('breadcrumb') }]} />
-      <Suspense fallback={<OeeSkeleton />}>
-        <OeeContent />
+      <PeriodSelector
+        period={periodSelection.period}
+        fromDate={periodSelection.fromDate}
+        toDate={periodSelection.toDate}
+        lines={[]}
+        labels={selectorLabels}
+        showLineFilter={false}
+        showSearchFilter={false}
+        ariaLabel={t('title')}
+        testId="oee-period-selector"
+      />
+      <Suspense
+        key={[periodSelection.period, periodSelection.fromDate, periodSelection.toDate].join(':')}
+        fallback={<OeeSkeleton />}
+      >
+        <OeeContent window={periodSelection.window} />
       </Suspense>
     </main>
   );

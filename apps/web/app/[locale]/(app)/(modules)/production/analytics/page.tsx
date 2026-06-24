@@ -23,11 +23,25 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { Card } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import {
+  PeriodSelector,
+  type PeriodSelectorLabels,
+} from '../../reporting/_components/period-selector.client';
+import {
+  parsePeriodSearchParams,
+  type ReportingSearchParams,
+  type ReportingWindow,
+} from '../../reporting/_lib/period';
 import { ParetoBars, type ParetoBar } from '../_components/pareto-bars';
 import { Sparkline, type SparklinePoint } from '../_components/sparkline';
 import { getAnalyticsScreen, type TopDowntimeRow } from './_actions/analytics-data';
 
 export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<ReportingSearchParams>;
+};
 
 function AnalyticsSkeleton() {
   return (
@@ -43,10 +57,24 @@ function AnalyticsSkeleton() {
   );
 }
 
-async function AnalyticsContent() {
+async function buildSelectorLabels(locale: string): Promise<PeriodSelectorLabels> {
+  const t = await getTranslations({ locale, namespace: 'reporting' });
+  return {
+    today: t('period.today'),
+    week: t('period.week'),
+    month: t('period.month'),
+    last7d: t('period.last7d'),
+    last30d: t('period.last30d'),
+    custom: t('period.custom'),
+    line: t('filter.line'),
+    search: t('filter.search'),
+  };
+}
+
+async function AnalyticsContent({ window }: { window: ReportingWindow }) {
   const t = await getTranslations('production.analytics');
   const locale = await getLocale();
-  const result = await getAnalyticsScreen();
+  const result = await getAnalyticsScreen({ window });
 
   if (!result.ok && result.reason === 'forbidden') {
     return (
@@ -159,8 +187,17 @@ async function AnalyticsContent() {
   );
 }
 
-export default async function AnalyticsPage() {
-  const t = await getTranslations('production.analytics');
+export default async function AnalyticsPage({ params, searchParams }: PageProps) {
+  const [{ locale }, rawSearchParams] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve({}),
+  ]);
+  const periodSelection = parsePeriodSearchParams(rawSearchParams);
+  const [t, selectorLabels] = await Promise.all([
+    getTranslations({ locale, namespace: 'production.analytics' }),
+    buildSelectorLabels(locale),
+  ]);
+
   return (
     <main
       data-screen="production-analytics"
@@ -172,8 +209,22 @@ export default async function AnalyticsPage() {
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.analytics') }]}
       />
-      <Suspense fallback={<AnalyticsSkeleton />}>
-        <AnalyticsContent />
+      <PeriodSelector
+        period={periodSelection.period}
+        fromDate={periodSelection.fromDate}
+        toDate={periodSelection.toDate}
+        lines={[]}
+        labels={selectorLabels}
+        showLineFilter={false}
+        showSearchFilter={false}
+        ariaLabel={t('title')}
+        testId="production-analytics-period-selector"
+      />
+      <Suspense
+        key={[periodSelection.period, periodSelection.fromDate, periodSelection.toDate].join(':')}
+        fallback={<AnalyticsSkeleton />}
+      >
+        <AnalyticsContent window={periodSelection.window} />
       </Suspense>
     </main>
   );

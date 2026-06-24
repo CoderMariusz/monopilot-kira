@@ -3,7 +3,8 @@
  *
  * oee_snapshots.site_id is a day-1 column (mig 184). The OPTIONAL siteId input
  * must bind in ALL THREE reads (KPIs, per-line aggregates, recent snapshots);
- * absent/invalid input binds NULL = All sites = pre-existing behaviour.
+ * absent/invalid input binds NULL = All sites = pre-existing behaviour. Period
+ * windows must bind as timestamps rather than hard-coded SQL intervals.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,6 +13,8 @@ import { getOeeScreen } from './oee-data';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SITE_ID = '99999999-9999-4999-8999-999999999999';
+const FROM = new Date('2026-06-01T00:00:00.000Z');
+const TO = new Date('2026-06-12T23:59:59.999Z');
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -40,13 +43,18 @@ beforeEach(() => {
 });
 
 describe('getOeeScreen site filter (14-multi-site CL4)', () => {
-  it('binds NULL in all three snapshot queries when called with no input', async () => {
+  it('binds NULL site and a default window in all three snapshot queries when called with no input', async () => {
     const result = await getOeeScreen();
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(3); // kpis + lines + recent
     for (const call of calls) {
       expect(call.sql).toContain('site_id = $1::uuid');
-      expect(call.params).toEqual([null]);
+      expect(call.sql).toContain('snapshot_minute >= $2::timestamptz');
+      expect(call.sql).toContain('snapshot_minute <= $3::timestamptz');
+      expect(call.sql).not.toContain("interval '7 days'");
+      expect(call.params[0]).toBeNull();
+      expect(call.params[1]).toBeInstanceOf(Date);
+      expect(call.params[2]).toBeInstanceOf(Date);
     }
   });
 
@@ -55,7 +63,7 @@ describe('getOeeScreen site filter (14-multi-site CL4)', () => {
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(3);
     for (const call of calls) {
-      expect(call.params).toEqual([SITE_ID]);
+      expect(call.params[0]).toBe(SITE_ID);
     }
   });
 
@@ -63,7 +71,17 @@ describe('getOeeScreen site filter (14-multi-site CL4)', () => {
     const result = await getOeeScreen({ siteId: 'SITE-DEMO-01' });
     expect(result.ok).toBe(true);
     for (const call of calls) {
-      expect(call.params).toEqual([null]);
+      expect(call.params[0]).toBeNull();
+    }
+  });
+
+  it('uses a custom from/to window instead of the default 7-day interval', async () => {
+    const result = await getOeeScreen({ window: { from: FROM, to: TO } });
+    expect(result.ok).toBe(true);
+    expect(calls).toHaveLength(3);
+    for (const call of calls) {
+      expect(call.sql).not.toContain("interval '7 days'");
+      expect(call.params).toEqual([null, FROM, TO]);
     }
   });
 });

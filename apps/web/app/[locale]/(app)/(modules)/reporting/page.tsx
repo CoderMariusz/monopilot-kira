@@ -49,12 +49,14 @@ import {
 } from './_components/reporting-overview.client';
 import { getRptTranslator } from './rpt-labels';
 import {
-  parseReportingFilters,
-  reportingWindowDays,
   type ReportingFilters,
+  parseReportingFilters,
+} from './shared';
+import {
+  reportingWindowDays,
   type ReportingSearchParams,
   type ReportingWindow,
-} from './shared';
+} from './_lib/period';
 
 // Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';

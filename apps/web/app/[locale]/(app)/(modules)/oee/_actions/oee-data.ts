@@ -27,7 +27,7 @@ type QueryClient = {
 
 const OEE_VIEW_PERMISSION = 'oee.dashboard.read';
 
-/** KPI tile aggregates over the trailing 7-day window. */
+/** KPI tile aggregates over the selected/default trailing 7-day window. */
 export type OeeKpis = {
   snapshotCount: number;
   /** round(avg, 1) as text; null when no non-null values exist in the window. */
@@ -76,15 +76,39 @@ export type OeeScreenResult =
   | { ok: false; reason: 'forbidden' | 'error' };
 
 /** Optional read filters (14-multi-site CL4 — additive, absent = unchanged). */
+export type OeeScreenWindow = {
+  from: Date;
+  to: Date;
+};
+
 export type OeeScreenInput = {
   /**
    * Site filter (topbar picker cookie) on oee_snapshots.site_id (day-1 column,
    * mig 184). null/undefined/non-uuid = All sites (no filter).
    */
   siteId?: string | null;
+  /** Date window for snapshot reads; absent = pre-existing trailing 7 days. */
+  window?: OeeScreenWindow;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MS_PER_DAY = 86_400_000;
+
+function defaultWindow(days: number): OeeScreenWindow {
+  const to = new Date();
+  return { from: new Date(to.getTime() - days * MS_PER_DAY), to };
+}
+
+function validDate(value: unknown): value is Date {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
+function resolveWindow(input: OeeScreenWindow | undefined): OeeScreenWindow {
+  if (validDate(input?.from) && validDate(input?.to) && input.from.getTime() <= input.to.getTime()) {
+    return input;
+  }
+  return defaultWindow(7);
+}
 
 async function hasPermission(
   c: QueryClient,
@@ -109,6 +133,7 @@ async function hasPermission(
 export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenResult> {
   const siteId =
     typeof input?.siteId === 'string' && UUID_RE.test(input.siteId) ? input.siteId : null;
+  const window = resolveWindow(input?.window);
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<OeeScreenResult> => {
       const c = client as QueryClient;
@@ -116,8 +141,8 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
       const allowed = await hasPermission(c, userId, orgId, OEE_VIEW_PERMISSION);
       if (!allowed) return { ok: false, reason: 'forbidden' };
 
-      // KPI tiles — trailing 7 days. avg() skips NULLs (honest-NULL components);
-      // an all-NULL column yields NULL → "—" tile.
+      // KPI tiles — selected date window. avg() skips NULLs
+      // (honest-NULL components); an all-NULL column yields NULL → "—" tile.
       const kpiRes = await c.query<{
         snapshot_count: number;
         avg_oee: string | null;
@@ -130,11 +155,12 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
                 round(avg(availability_pct), 1)::text as avg_a,
                 round(avg(performance_pct), 1)::text as avg_p,
                 round(avg(quality_pct), 1)::text as avg_q
-           from public.oee_snapshots
+          from public.oee_snapshots
           where org_id = app.current_org_id()
-            and snapshot_minute >= pg_catalog.now() - interval '7 days'
+            and snapshot_minute >= $2::timestamptz
+            and snapshot_minute <= $3::timestamptz
             and ($1::uuid is null or site_id = $1::uuid)`,
-        [siteId],
+        [siteId, window.from, window.to],
       );
       const k = kpiRes.rows[0];
       const kpis: OeeKpis = {
@@ -145,7 +171,7 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
         avgQuality: k?.avg_q ?? null,
       };
 
-      // Per-line aggregates — trailing 7 days. line_id stores the production line
+      // Per-line aggregates — selected date window. line_id stores the production line
       // uuid as text ('unassigned' fallback); resolve code/name where it matches.
       const linesRes = await c.query<{
         line_id: string;
@@ -169,12 +195,13 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
            left join public.production_lines pl
              on pl.org_id = s.org_id and pl.id::text = s.line_id
           where s.org_id = app.current_org_id()
-            and s.snapshot_minute >= pg_catalog.now() - interval '7 days'
+            and s.snapshot_minute >= $2::timestamptz
+            and s.snapshot_minute <= $3::timestamptz
             and ($1::uuid is null or s.site_id = $1::uuid)
           group by s.line_id, pl.code, pl.name
           order by avg(s.oee_pct) desc nulls last, s.line_id
           limit 50`,
-        [siteId],
+        [siteId, window.from, window.to],
       );
       const lines: OeeLineRow[] = linesRes.rows.map((r) => ({
         lineId: r.line_id,
@@ -187,7 +214,7 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
         avgOee: r.avg_oee,
       }));
 
-      // Recent snapshots — newest first (all-time, capped).
+      // Recent snapshots — newest first in the selected date window.
       const recentRes = await c.query<{
         id: string;
         snapshot_minute: string;
@@ -219,13 +246,15 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
            from public.oee_snapshots s
            left join public.production_lines pl
              on pl.org_id = s.org_id and pl.id::text = s.line_id
-           left join public.work_orders w
-             on w.org_id = s.org_id and w.id = s.active_wo_id
+          left join public.work_orders w
+            on w.org_id = s.org_id and w.id = s.active_wo_id
           where s.org_id = app.current_org_id()
+            and s.snapshot_minute >= $2::timestamptz
+            and s.snapshot_minute <= $3::timestamptz
             and ($1::uuid is null or s.site_id = $1::uuid)
           order by s.snapshot_minute desc, s.id desc
           limit 15`,
-        [siteId],
+        [siteId, window.from, window.to],
       );
       const recent: OeeSnapshotRow[] = recentRes.rows.map((r) => ({
         id: r.id,

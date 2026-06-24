@@ -58,6 +58,17 @@ export type AnalyticsScreenResult =
   | { ok: true; data: AnalyticsScreenData }
   | { ok: false; reason: 'forbidden' | 'error' };
 
+export type AnalyticsScreenWindow = {
+  from: Date;
+  to: Date;
+};
+
+export type AnalyticsScreenInput = {
+  window?: AnalyticsScreenWindow;
+};
+
+const MS_PER_DAY = 86_400_000;
+
 async function hasPermission(
   c: QueryClient,
   userId: string,
@@ -82,7 +93,25 @@ function num(v: string | number | null | undefined): number | null {
   return v === null || v === undefined ? null : Number(v);
 }
 
-export async function getAnalyticsScreen(): Promise<AnalyticsScreenResult> {
+function defaultWindow(days: number, now = new Date()): AnalyticsScreenWindow {
+  return { from: new Date(now.getTime() - days * MS_PER_DAY), to: now };
+}
+
+function validDate(value: unknown): value is Date {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
+function validWindow(input: AnalyticsScreenWindow | undefined): input is AnalyticsScreenWindow {
+  return validDate(input?.from) && validDate(input?.to) && input.from.getTime() <= input.to.getTime();
+}
+
+export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<AnalyticsScreenResult> {
+  const now = new Date();
+  const candidateWindow = input?.window;
+  const inputWindow = validWindow(candidateWindow) ? candidateWindow : undefined;
+  const analyticsWindow = inputWindow ?? defaultWindow(7, now);
+  const downtimeWindow = inputWindow ?? defaultWindow(30, now);
+
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<AnalyticsScreenResult> => {
       const c = client as QueryClient;
@@ -92,64 +121,73 @@ export async function getAnalyticsScreen(): Promise<AnalyticsScreenResult> {
         return { ok: false, reason: 'forbidden' };
       }
 
-      // OEE / FPQ / yield KPIs over the rolling 7-day window.
+      // OEE / FPQ / yield KPIs over the selected/default rolling 7-day window.
       const oeeKpiRes = await c.query<{ oee_avg: string | number | null; fpq_avg: string | number | null }>(
         `select avg(oee_pct) as oee_avg,
                 avg(quality_pct) as fpq_avg
            from public.oee_snapshots
           where org_id = app.current_org_id()
-            and snapshot_minute >= now() - interval '7 days'`,
+            and snapshot_minute >= $1::timestamptz
+            and snapshot_minute <= $2::timestamptz`,
+        [analyticsWindow.from, analyticsWindow.to],
       );
       const oeeAvgPct = num(oeeKpiRes.rows[0]?.oee_avg);
       const fpqAvgPct = num(oeeKpiRes.rows[0]?.fpq_avg);
       const yieldAvgPct = fpqAvgPct;
 
-      // Waste % over 7 days = waste / (waste + output).
+      // Waste % over the selected/default 7 days = waste / (waste + output).
       const wasteKpiRes = await c.query<{ waste_kg: string | number | null; output_kg: string | number | null }>(
         `select (select coalesce(sum(qty_kg), 0)
                    from public.wo_waste_log
                   where org_id = app.current_org_id()
-                    and recorded_at >= now() - interval '7 days') as waste_kg,
+                    and recorded_at >= $1::timestamptz
+                    and recorded_at <= $2::timestamptz) as waste_kg,
                 (select coalesce(sum(qty_kg), 0)
                    from public.wo_outputs
                   where org_id = app.current_org_id()
-                    and registered_at >= now() - interval '7 days') as output_kg`,
+                    and registered_at >= $1::timestamptz
+                    and registered_at <= $2::timestamptz) as output_kg`,
+        [analyticsWindow.from, analyticsWindow.to],
       );
       const wasteKg = Number(wasteKpiRes.rows[0]?.waste_kg ?? 0);
       const outputKg = Number(wasteKpiRes.rows[0]?.output_kg ?? 0);
       const denom = wasteKg + outputKg;
       const wastePct = denom > 0 ? (wasteKg / denom) * 100 : null;
 
-      // OEE trend — hourly buckets over 7 days, oldest→newest.
+      // OEE trend — hourly buckets over the selected/default 7 days, oldest→newest.
       const trendRes = await c.query<{ bucket: string; oee_pct: string | number | null }>(
         `select date_trunc('hour', snapshot_minute) as bucket,
                 avg(oee_pct) as oee_pct
            from public.oee_snapshots
           where org_id = app.current_org_id()
-            and snapshot_minute >= now() - interval '7 days'
+            and snapshot_minute >= $1::timestamptz
+            and snapshot_minute <= $2::timestamptz
           group by 1
           order by 1 asc`,
+        [analyticsWindow.from, analyticsWindow.to],
       );
       const oeeTrend: OeeTrendPoint[] = trendRes.rows
         .filter((r) => r.oee_pct !== null)
         .map((r) => ({ bucket: r.bucket, oeePct: Number(r.oee_pct) }));
 
-      // Yield by line — avg(quality_pct) over 7 days, sorted desc.
+      // Yield by line — avg(quality_pct) over the selected/default 7 days, sorted desc.
       const yieldRes = await c.query<{ line_id: string; yield_pct: string | number | null }>(
         `select line_id,
                 avg(quality_pct) as yield_pct
-           from public.oee_snapshots
+          from public.oee_snapshots
           where org_id = app.current_org_id()
-            and snapshot_minute >= now() - interval '7 days'
+            and snapshot_minute >= $1::timestamptz
+            and snapshot_minute <= $2::timestamptz
           group by line_id
           order by yield_pct desc
           limit 12`,
+        [analyticsWindow.from, analyticsWindow.to],
       );
       const yieldByLine: YieldByLineRow[] = yieldRes.rows
         .filter((r) => r.yield_pct !== null)
         .map((r) => ({ lineId: r.line_id, yieldPct: Number(r.yield_pct) }));
 
-      // Top downtime drivers over 30 days.
+      // Top downtime drivers over the selected/default 30 days.
       const topRes = await c.query<{
         category_name: string | null;
         line_id: string;
@@ -161,13 +199,15 @@ export async function getAnalyticsScreen(): Promise<AnalyticsScreenResult> {
                 count(*)::int as events,
                 coalesce(sum(de.duration_min), 0)::int as minutes
            from public.downtime_events de
-           left join public.downtime_categories dc
+          left join public.downtime_categories dc
              on dc.id = de.category_id and dc.org_id = de.org_id
           where de.org_id = app.current_org_id()
-            and de.started_at >= now() - interval '30 days'
+            and de.started_at >= $1::timestamptz
+            and de.started_at <= $2::timestamptz
           group by dc.name, de.line_id
           order by minutes desc, events desc
           limit 10`,
+        [downtimeWindow.from, downtimeWindow.to],
       );
       const topDowntime: TopDowntimeRow[] = topRes.rows.map((r) => ({
         categoryName: r.category_name,
