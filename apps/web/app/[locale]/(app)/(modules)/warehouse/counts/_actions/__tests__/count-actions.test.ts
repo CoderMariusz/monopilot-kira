@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { approveAndApplyVariance, recordCount } from '../count-actions';
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+
+import { revalidatePath } from 'next/cache';
+import { approveAndApplyVariance, createCountSession, recordCount } from '../count-actions';
 import type { CountLineStatus } from '../count-types';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -114,6 +117,10 @@ function makeClient(): QueryClient {
       }
 
       if (n.startsWith('select id::text from public.count_sessions')) {
+        return { rows: [{ id: SESSION_ID }], rowCount: 1 };
+      }
+
+      if (n.startsWith('insert into public.count_sessions')) {
         return { rows: [{ id: SESSION_ID }], rowCount: 1 };
       }
 
@@ -234,9 +241,18 @@ beforeEach(async () => {
 
   const { signEvent } = await import('@monopilot/e-sign');
   vi.mocked(signEvent).mockClear();
+  vi.mocked(revalidatePath).mockClear();
 });
 
 describe('stock count actions', () => {
+  it('revalidates the sessions list after creating a count session', async () => {
+    const result = await createCountSession({ warehouseId: WAREHOUSE_ID, countType: 'cycle' });
+
+    expect(result).toBe(SESSION_ID);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.count_sessions'))).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/warehouse/counts', 'page');
+  });
+
   it('computes variance_qty as countedQty minus system_qty without exposing system_qty', async () => {
     systemQty = '5';
 

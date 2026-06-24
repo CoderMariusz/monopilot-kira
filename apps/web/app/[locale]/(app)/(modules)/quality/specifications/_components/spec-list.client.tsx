@@ -34,6 +34,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -97,6 +98,7 @@ export function SpecListClient({
   createSpecAction: CreateSpecFn;
   searchItemsAction: ItemSearchFn<'fg' | 'intermediate'>;
 }) {
+  const router = useRouter();
   const [status, setStatus] = useState<SpecStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -268,6 +270,7 @@ export function SpecListClient({
         locale={locale}
         createSpecAction={createSpecAction}
         searchItemsAction={searchItemsAction}
+        onCreated={() => router.refresh()}
       />
     </div>
   );

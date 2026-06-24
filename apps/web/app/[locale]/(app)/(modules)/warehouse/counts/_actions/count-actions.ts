@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
+import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
@@ -736,6 +737,7 @@ export async function createCountSession(input: CreateCountSessionInput): Promis
     );
     const sessionId = rows[0]?.id;
     if (!sessionId) throw new Error('count_session_insert_failed');
+    revalidatePath('/[locale]/warehouse/counts', 'page');
     return sessionId;
   });
 }

@@ -127,6 +127,38 @@ describe('updateTrialBatch', () => {
     expect(result).toEqual({ ok: true, data: { id: BATCH, trialNo: 'T-012', result: 'pass' } });
     expect(calls.some((sql) => /update public\.trial_batches/.test(sql))).toBe(true);
     expect(calls.some((sql) => /insert into public\.audit_log/.test(sql))).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith(`/pipeline/${PROJECT}/trial`);
+    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/pipeline/${PROJECT}/trial`);
+  });
+
+  it('clears trial notes when null is explicitly present', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      return grantHandler({ perm: TRIAL_WRITE_PERMISSION, updateId: BATCH })(sql, params);
+    };
+
+    const result = await updateTrialBatch({ ...VALID, notes: null });
+
+    expect(result).toEqual({ ok: true, data: { id: BATCH, trialNo: 'T-012', result: 'pass' } });
+    const updateCall = calls.find(({ sql }) => /update public\.trial_batches/.test(sql));
+    expect(updateCall?.sql).toContain("notes                = case when $11::boolean then nullif($9, '') else notes end");
+    expect(updateCall?.params?.[8]).toBeNull();
+    expect(updateCall?.params?.[10]).toBe(true);
+  });
+
+  it('keeps trial notes when notes is omitted', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    const { notes: _notes, ...withoutNotes } = VALID;
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      return grantHandler({ perm: TRIAL_WRITE_PERMISSION, updateId: BATCH })(sql, params);
+    };
+
+    const result = await updateTrialBatch(withoutNotes);
+
+    expect(result).toEqual({ ok: true, data: { id: BATCH, trialNo: 'T-012', result: 'pass' } });
+    const updateCall = calls.find(({ sql }) => /update public\.trial_batches/.test(sql));
+    expect(updateCall?.params?.[8]).toBeNull();
+    expect(updateCall?.params?.[10]).toBe(false);
   });
 });

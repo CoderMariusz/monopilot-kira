@@ -185,7 +185,7 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
         after: { trialNo: input.trialNo, result: input.result, projectId: input.projectId },
       });
 
-      safeRevalidatePath(`/pipeline/${input.projectId}/trial`);
+      safeRevalidatePath(`/[locale]/pipeline/${input.projectId}/trial`);
       return { ok: true as const, data: { id, trialNo: input.trialNo, result: input.result } };
     });
   } catch (err) {
