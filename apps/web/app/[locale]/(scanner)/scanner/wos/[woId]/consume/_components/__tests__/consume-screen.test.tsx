@@ -251,6 +251,90 @@ describe("ConsumeScreen", () => {
     expect(screen.getByText(remainingText)).toBeInTheDocument();
   });
 
+  // SCAN-1: picking an LP whose AVAILABLE qty is below the BOM remaining-required
+  // must default the consume qty to the LP's available (min), never the remaining
+  // — you can't consume more than is physically on the pallet. Parity anchor:
+  // prototypes/.../scanner/flow-consume.jsx:300
+  //   setQty(String(Math.min(lpData.qty, line.qtyReq - line.qtyDone || lpData.qty)))
+  it("defaults the consume qty to the LP's available when it is BELOW the remaining-required (SCAN-1)", async () => {
+    seedSession();
+    // LP-0001 carries 40 kg available; the material needs 120 kg remaining.
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true }) });
+      }
+      if (url.includes("/lps")) return Promise.resolve(lpsOk());
+      return Promise.resolve(detailOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConsume();
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Pork shoulder").closest("button")!);
+
+    // pick the suggested LP (LP-0001, 40 kg available) — under the 120 kg remaining
+    await waitFor(() => expect(screen.getByText("LP-0001")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("LP-0001").closest("button")!);
+
+    // qty field is pre-filled with the LP's available (40), NOT the remaining (120)
+    const qtyField = await screen.findByLabelText(labels.consume.enterQty);
+    expect(within(qtyField).getByText("40")).toBeInTheDocument();
+    expect(within(qtyField).queryByText("120")).not.toBeInTheDocument();
+
+    // confirm WITHOUT touching the keypad → the POST carries the clamped default
+    fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (c) => typeof c[1] === "object" && c[1]?.method === "POST",
+      );
+      expect(postCall).toBeTruthy();
+    });
+    const postCall = fetchMock.mock.calls.find(
+      (c) => typeof c[1] === "object" && c[1]?.method === "POST",
+    )!;
+    const body = JSON.parse((postCall[1] as RequestInit).body as string);
+    // qty is the LP available (40), not the BOM remaining (120) — decimal STRING on the wire
+    expect(body.qty).toBe("40");
+    expect(body.lpId).toBe("lp-1");
+  });
+
+  it("keeps defaulting the consume qty to the remaining-required when the LP has MORE than required", async () => {
+    seedSession();
+    // Material "Salt" needs 4 kg; every LP candidate carries far more (40/80/25 kg).
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true }) });
+      }
+      if (url.includes("/lps")) return Promise.resolve(lpsOk());
+      return Promise.resolve(detailOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderConsume();
+    await waitFor(() => expect(screen.getByText("Salt")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Salt").closest("button")!);
+
+    await waitFor(() => expect(screen.getByText("LP-0001")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("LP-0001").closest("button")!);
+
+    // LP available (40) > remaining (4) → default stays the remaining-required (4)
+    const qtyField = await screen.findByLabelText(labels.consume.enterQty);
+    expect(within(qtyField).getByText("4")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: labels.consume.confirm }));
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (c) => typeof c[1] === "object" && c[1]?.method === "POST",
+      );
+      expect(postCall).toBeTruthy();
+    });
+    const postCall = fetchMock.mock.calls.find(
+      (c) => typeof c[1] === "object" && c[1]?.method === "POST",
+    )!;
+    const body = JSON.parse((postCall[1] as RequestInit).body as string);
+    expect(body.qty).toBe("4");
+  });
+
   it("shows the amber warn banner on a success that carries the warn-tier warning payload", async () => {
     seedSession();
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {

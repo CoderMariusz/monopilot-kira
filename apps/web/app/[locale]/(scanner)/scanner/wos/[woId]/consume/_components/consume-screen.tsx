@@ -173,6 +173,17 @@ export function ConsumeScreen({
   // the flow alive when no LP candidates exist or the LP fetch failed.
   const chooseLp = (lp: LpCandidate | null) => {
     setSelectedLp(lp);
+    // SCAN-1: default the consume qty to min(LP available, remaining-required) —
+    // you can't consume more than is physically on the pallet. When the LP holds
+    // more than the BOM still needs, the default stays the remaining-required
+    // (over-consume typing is still allowed). Manual / no-LP keeps the remaining.
+    // Parity: prototypes/.../scanner/flow-consume.jsx:300
+    //   setQty(String(Math.min(lpData.qty, line.qtyReq - line.qtyDone || lpData.qty)))
+    if (selected && lp) {
+      const remaining = remainingQty(selected);
+      const def = lpDefaultQty(lp, remaining);
+      setQty(def > 0 ? String(def) : "");
+    }
     setReasonCode("");
     setSubmitErr(null);
     setApproval(null);
@@ -559,6 +570,18 @@ function remainingQty(m: WoMaterial): number {
   const consumed = parseFloat(m.consumedQty);
   if (!Number.isFinite(required) || !Number.isFinite(consumed)) return 0;
   return Math.max(0, required - consumed);
+}
+
+// SCAN-1 default-qty clamp when an LP is picked: min(LP available, remaining).
+// Mirrors prototypes/.../scanner/flow-consume.jsx:300 — Decimal STRINGS on the
+// wire, parsed only for this display/default math. Falls back to `remaining`
+// when the LP qty string isn't a finite positive number (parity's `|| lpData.qty`
+// guard, but anchored to the remaining we already have). Trailing zeros trimmed
+// (qty precision on the wire) so "40.000" surfaces as "40".
+function lpDefaultQty(lp: LpCandidate, remaining: number): number {
+  const available = parseFloat(lp.qty);
+  if (!Number.isFinite(available) || available <= 0) return remaining;
+  return Number(Math.min(available, remaining).toFixed(3));
 }
 
 // LP remaining after this consumption — display-only math on the wire strings.
