@@ -26,6 +26,17 @@ interface ScannerLabelsShape {
     syncErr: string;
   };
   scanTools: { camera: string; manual: string };
+  cameraScanner: {
+    title: string;
+    scanning: string;
+    found: string;
+    cancel: string;
+    torch: string;
+    flip: string;
+    permissionDenied: string;
+    noCameraFound: string;
+    manualFallback: string;
+  };
   reasonSheet: { confirm: string; cancel: string; close: string; otherPlaceholder: string };
   language: { title: string; apply: string; cancel: string; close: string };
   logout: {
@@ -404,6 +415,17 @@ const en: ScannerLabelsShape = {
     syncErr: "SYNC ERR",
   },
   scanTools: { camera: "Camera", manual: "Manual" },
+  cameraScanner: {
+    title: "Scan with camera",
+    scanning: "Scanning…",
+    found: "Scanned",
+    cancel: "Cancel",
+    torch: "Torch",
+    flip: "Flip camera",
+    permissionDenied: "Camera access denied. Allow the camera in your device settings, or enter the code manually.",
+    noCameraFound: "No camera available on this device. Enter the code manually.",
+    manualFallback: "Enter manually",
+  },
   // modals
   reasonSheet: {
     confirm: "Confirm",
@@ -846,6 +868,17 @@ const pl: ScannerLabelsShape = {
     syncErr: "BŁĄD SYNC",
   },
   scanTools: { camera: "Kamera", manual: "Ręcznie" },
+  cameraScanner: {
+    title: "Skanuj kamerą",
+    scanning: "Skanowanie…",
+    found: "Zeskanowano",
+    cancel: "Anuluj",
+    torch: "Latarka",
+    flip: "Zmień kamerę",
+    permissionDenied: "Brak uprawnień do kamery. Nadaj uprawnienia w ustawieniach urządzenia lub wpisz kod ręcznie.",
+    noCameraFound: "Brak kamery na tym urządzeniu. Wpisz kod ręcznie.",
+    manualFallback: "Wpisz ręcznie",
+  },
   reasonSheet: {
     confirm: "Potwierdź",
     cancel: "Anuluj",

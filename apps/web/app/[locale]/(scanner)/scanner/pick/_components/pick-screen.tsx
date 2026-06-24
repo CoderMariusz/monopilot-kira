@@ -40,6 +40,7 @@ import {
   Topbar,
   scannerTokens as T,
 } from "../../../../../../components/shell/scanner-primitives";
+import { CameraScannerOverlay } from "../../../../../../components/shell/camera-scanner-overlay";
 import { useScannerSession } from "../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../_components/scanner-labels";
 import type { LocationLookupResponse, ScannerLocation } from "../../putaway/_components/types";
@@ -64,6 +65,9 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
   const [phase, setPhase] = useState<Phase>("loading");
   const [wos, setWos] = useState<PickWo[]>([]);
   const [query, setQuery] = useState("");
+  // two distinct camera contexts: the WO search field and the staging-location field.
+  const [woCameraOpen, setWoCameraOpen] = useState(false);
+  const [destCameraOpen, setDestCameraOpen] = useState(false);
   const [wo, setWo] = useState<PickWo | null>(null);
   const [material, setMaterial] = useState<PickMaterial | null>(null);
 
@@ -135,6 +139,21 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
     setMaterial(null);
     setSubmitErr(null);
     setPhase(w.materials.length === 0 ? "materials" : "materials");
+  };
+
+  // A camera-scanned WO code drives the SAME list-filter the typed search uses;
+  // if it resolves to exactly one work order, advance straight into it.
+  const onScanWoCode = (raw: string) => {
+    const code = raw.trim();
+    setQuery(code);
+    const q = code.toLowerCase();
+    if (!q) return;
+    const matches = wos.filter((w) =>
+      `${w.woNumber} ${w.productCode} ${w.productName}`.toLowerCase().includes(q),
+    );
+    const exact = wos.find((w) => w.woNumber.toLowerCase() === q);
+    const target = exact ?? (matches.length === 1 ? matches[0] : null);
+    if (target) openWo(target);
   };
 
   const loadLps = useCallback(
@@ -336,6 +355,25 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
         onBack={onBack}
         labels={labels.topbar}
       />
+      <CameraScannerOverlay
+        open={woCameraOpen}
+        onDecode={(scanned) => {
+          setWoCameraOpen(false);
+          onScanWoCode(scanned);
+        }}
+        onCancel={() => setWoCameraOpen(false)}
+        labels={labels.cameraScanner}
+      />
+      <CameraScannerOverlay
+        open={destCameraOpen}
+        onDecode={(scanned) => {
+          setDestCameraOpen(false);
+          setDest(scanned);
+          void resolveLocation(scanned);
+        }}
+        onCancel={() => setDestCameraOpen(false)}
+        labels={labels.cameraScanner}
+      />
 
       {phase === "done" && wo ? (
         <>
@@ -398,7 +436,9 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
                 hint={L.searchHint}
                 value={query}
                 onChange={setQuery}
+                onSubmit={onScanWoCode}
                 labels={labels.scanTools}
+                onOpenCamera={() => setWoCameraOpen(true)}
               />
               {phase === "empty" || filteredWos.length === 0 ? (
                 <Empty title={L.emptyTitle} body={query ? L.noMatchBody : L.emptyBody} />
@@ -503,6 +543,7 @@ export function PickScreen({ locale, labels }: { locale: string; labels: Scanner
                     onSubmit={(v) => void resolveLocation(v)}
                     state={resolveErr ? "err" : destLocation ? "ok" : "idle"}
                     labels={labels.scanTools}
+                    onOpenCamera={() => setDestCameraOpen(true)}
                   />
                   {resolving && <StateText>{L.destResolving}</StateText>}
                   {resolveErr && (

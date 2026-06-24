@@ -29,6 +29,7 @@ import {
   Topbar,
   scannerTokens as T,
 } from "../../../../../../components/shell/scanner-primitives";
+import { CameraScannerOverlay } from "../../../../../../components/shell/camera-scanner-overlay";
 import { useScannerSession } from "../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../_components/scanner-labels";
 import type { LpInfo, LpInfoResponse } from "./types";
@@ -43,6 +44,7 @@ export function LpInfoScreen({ locale, labels }: { locale: string; labels: Scann
   const [code, setCode] = useState("");
   const [phase, setPhase] = useState<Phase>("prompt");
   const [lp, setLp] = useState<LpInfo | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   // session gate — redirect once hydrated with no session
   useEffect(() => {
@@ -98,6 +100,16 @@ export function LpInfoScreen({ locale, labels }: { locale: string; labels: Scann
         onBack={() => router.push(`/${locale}/scanner/home`)}
         labels={labels.topbar}
       />
+      <CameraScannerOverlay
+        open={cameraOpen}
+        onDecode={(scanned) => {
+          setCameraOpen(false);
+          setCode(scanned);
+          void lookup(scanned);
+        }}
+        onCancel={() => setCameraOpen(false)}
+        labels={labels.cameraScanner}
+      />
       <Content>
         <ScanInputArea
           label={L.scanLabel}
@@ -108,6 +120,7 @@ export function LpInfoScreen({ locale, labels }: { locale: string; labels: Scann
           onSubmit={(v) => void lookup(v)}
           state={phase === "notfound" || phase === "error" ? "err" : "idle"}
           labels={labels.scanTools}
+          onOpenCamera={() => setCameraOpen(true)}
         />
 
         {phase === "prompt" && (

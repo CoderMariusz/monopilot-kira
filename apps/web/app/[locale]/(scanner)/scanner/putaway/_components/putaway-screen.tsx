@@ -41,6 +41,7 @@ import {
   Topbar,
   scannerTokens as T,
 } from "../../../../../../components/shell/scanner-primitives";
+import { CameraScannerOverlay } from "../../../../../../components/shell/camera-scanner-overlay";
 import { useScannerSession } from "../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../_components/scanner-labels";
 import type {
@@ -63,6 +64,7 @@ export function PutawayScreen({ locale, labels }: { locale: string; labels: Scan
 
   const [phase, setPhase] = useState<Phase>("scan");
   const [scanVal, setScanVal] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [lp, setLp] = useState<ScannerLp | null>(null);
   const [scanState, setScanState] = useState<"idle" | "err" | "ok">("idle");
   const [lookingUp, setLookingUp] = useState(false);
@@ -268,6 +270,16 @@ export function PutawayScreen({ locale, labels }: { locale: string; labels: Scan
         onBack={onBack}
         labels={labels.topbar}
       />
+      <CameraScannerOverlay
+        open={cameraOpen}
+        onDecode={(scanned) => {
+          setCameraOpen(false);
+          setScanVal(scanned);
+          void lookupLp(scanned);
+        }}
+        onCancel={() => setCameraOpen(false)}
+        labels={labels.cameraScanner}
+      />
 
       {phase === "done" && lp && chosen ? (
         <>
@@ -412,6 +424,7 @@ export function PutawayScreen({ locale, labels }: { locale: string; labels: Scan
               onSubmit={(v) => void lookupLp(v)}
               state={scanState}
               labels={labels.scanTools}
+              onOpenCamera={() => setCameraOpen(true)}
             />
             {lookingUp && <StateText>{L.lookingUp}</StateText>}
             {scanErr && (

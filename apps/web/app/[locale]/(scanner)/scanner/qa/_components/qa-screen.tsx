@@ -32,6 +32,7 @@ import {
   Topbar,
   scannerTokens as T,
 } from "../../../../../../components/shell/scanner-primitives";
+import { CameraScannerOverlay } from "../../../../../../components/shell/camera-scanner-overlay";
 import { useScannerSession } from "../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../_components/scanner-labels";
 
@@ -61,6 +62,7 @@ export function QaScreen({ locale, labels }: { locale: string; labels: ScannerLa
 
   const [phase, setPhase] = useState<Phase>("scan");
   const [code, setCode] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [lp, setLp] = useState<Lp | null>(null);
   const [newQaStatus, setNewQaStatus] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -162,6 +164,16 @@ export function QaScreen({ locale, labels }: { locale: string; labels: ScannerLa
         onBack={onBack}
         labels={labels.topbar}
       />
+      <CameraScannerOverlay
+        open={cameraOpen}
+        onDecode={(scanned) => {
+          setCameraOpen(false);
+          setCode(scanned);
+          void lookup(scanned);
+        }}
+        onCancel={() => setCameraOpen(false)}
+        labels={labels.cameraScanner}
+      />
 
       {phase === "done" ? (
         <>
@@ -214,6 +226,7 @@ export function QaScreen({ locale, labels }: { locale: string; labels: ScannerLa
                   onSubmit={(v) => void lookup(v)}
                   state={phase === "notFound" || phase === "error" ? "err" : "idle"}
                   labels={labels.scanTools}
+                  onOpenCamera={() => setCameraOpen(true)}
                 />
                 {phase === "loadingLp" && (
                   <div data-testid="qa-loading-lp" style={{ padding: "24px", textAlign: "center", color: T.mute }}>

@@ -11,6 +11,7 @@ import {
   Topbar,
   scannerTokens as T,
 } from "../../../../../../components/shell/scanner-primitives";
+import { CameraScannerOverlay } from "../../../../../../components/shell/camera-scanner-overlay";
 import { useScannerSession } from "../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../_components/scanner-labels";
 import type { ScannerPoSummary } from "./types";
@@ -19,6 +20,7 @@ export function ReceivePoListScreen({ locale, labels }: { locale: string; labels
   const router = useRouter();
   const { session, ready, scannerFetch } = useScannerSession();
   const [query, setQuery] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [pos, setPos] = useState<ScannerPoSummary[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error" | "denied">("loading");
   const L = labels.receivePo;
@@ -75,6 +77,16 @@ export function ReceivePoListScreen({ locale, labels }: { locale: string; labels
         onBack={() => router.push(`/${locale}/scanner/home`)}
         labels={labels.topbar}
       />
+      <CameraScannerOverlay
+        open={cameraOpen}
+        onDecode={(scanned) => {
+          setCameraOpen(false);
+          setQuery(scanned);
+          onSubmit(scanned);
+        }}
+        onCancel={() => setCameraOpen(false)}
+        labels={labels.cameraScanner}
+      />
       <Content>
         <ScanInputArea
           label={L.scanLabel}
@@ -84,6 +96,7 @@ export function ReceivePoListScreen({ locale, labels }: { locale: string; labels
           onChange={setQuery}
           onSubmit={onSubmit}
           labels={labels.scanTools}
+          onOpenCamera={() => setCameraOpen(true)}
         />
         {state === "loading" && <StateText>{L.loadingPo}</StateText>}
         {state === "denied" && <Banner kind="err" title={L.permissionDenied}>{L.permissionDenied}</Banner>}

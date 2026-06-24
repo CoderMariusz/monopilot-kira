@@ -393,6 +393,12 @@ export type ScanInputAreaProps = {
   state?: "idle" | "err" | "ok";
   extra?: ReactNode;
   labels: { camera: string; manual: string };
+  /**
+   * Opens the camera viewfinder overlay (CameraScannerOverlay). When omitted
+   * the Camera button is disabled rather than a dead no-op, so screens that
+   * have not (yet) wired a camera never present a button that does nothing.
+   */
+  onOpenCamera?: () => void;
 };
 
 export function ScanInputArea({
@@ -406,6 +412,7 @@ export function ScanInputArea({
   state = "idle",
   extra,
   labels,
+  onOpenCamera,
 }: ScanInputAreaProps) {
   const ref = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
@@ -458,12 +465,20 @@ export function ScanInputArea({
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button
           type="button"
-          style={scanToolStyle}
+          onClick={onOpenCamera}
+          disabled={!onOpenCamera}
+          aria-disabled={!onOpenCamera}
+          style={
+            onOpenCamera
+              ? scanToolStyle
+              : { ...scanToolStyle, opacity: 0.45, cursor: "not-allowed" }
+          }
         >
           <span aria-hidden="true">📷</span> {labels.camera}
         </button>
         <button
           type="button"
+          onClick={() => ref.current?.focus()}
           style={scanToolStyle}
         >
           <span aria-hidden="true">⌨</span> {labels.manual}
