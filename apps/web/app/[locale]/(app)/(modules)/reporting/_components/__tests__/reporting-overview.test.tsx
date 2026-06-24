@@ -15,7 +15,7 @@
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -31,6 +31,10 @@ import type {
 } from '../../_actions/shared';
 
 const downloadCsvMock = vi.fn((_content: string, filename: string) => filename);
+const exportProductionSummaryCsvMock = vi.fn(async () => ({
+  csv: 'WO #,Item,Planned,Actual,UoM,Yield %,Completed\nWO-0002,FG001 Meat Box,100.000,90.000,kg,90.00,2026-06-10T10:00:00.000Z',
+  filename: 'reporting-production-2026-06-24.csv',
+}));
 
 vi.mock('../../../../../../../lib/shared/download', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../../../../../lib/shared/download')>();
@@ -39,6 +43,10 @@ vi.mock('../../../../../../../lib/shared/download', async (importOriginal) => {
     downloadCsv: (content: string, filename: string) => downloadCsvMock(content, filename),
   };
 });
+
+vi.mock('../../_actions/report-read-actions', () => ({
+  exportProductionSummaryCsv: (input: unknown) => exportProductionSummaryCsvMock(input),
+}));
 
 // Mirrors the page's label builder (kept local to avoid importing the RSC page,
 // which transitively pulls the 'use server' action module into the jsdom test).
@@ -266,6 +274,7 @@ function renderOverview(overrides: Partial<React.ComponentProps<typeof Reporting
 
 beforeEach(() => {
   downloadCsvMock.mockClear();
+  exportProductionSummaryCsvMock.mockClear();
 });
 
 describe('ReportingOverviewClient', () => {
@@ -309,11 +318,11 @@ describe('ReportingOverviewClient', () => {
     ).toBeInTheDocument();
   });
 
-  it('exports each section as CSV through the shared download helper', () => {
+  it('exports each section as CSV through the shared download helper', async () => {
     renderOverview();
 
     fireEvent.click(screen.getByTestId('rpt-export-production'));
-    expect(downloadCsvMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(downloadCsvMock).toHaveBeenCalledTimes(1));
     const [prodCsv, prodName] = downloadCsvMock.mock.calls[0];
     expect(prodName).toMatch(/^reporting-production-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(prodCsv).toContain('WO #,Item,Planned,Actual,UoM,Yield %,Completed');

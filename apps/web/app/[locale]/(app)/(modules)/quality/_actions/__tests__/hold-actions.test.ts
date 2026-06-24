@@ -226,7 +226,7 @@ describe('quality hold server actions', () => {
     const lpUpdate = calls.find(
       ([sql, params]) => normalize(String(sql)).startsWith('update public.license_plates') && params?.[1] === 'released',
     );
-    expect(lpUpdate?.[1]).toEqual([[LP_ID, TERMINAL_LP_ID], 'released', USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
+    expect(lpUpdate?.[1]).toEqual([[LP_ID, TERMINAL_LP_ID], 'released', USER_ID, ['consumed', 'merged', 'shipped', 'returned'], true]);
     const historyCalls = calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.lp_state_history'));
     expect(historyCalls).toHaveLength(1);
     const outbox = calls.find(([sql, params]) => normalize(String(sql)).startsWith('insert into public.outbox_events') && params?.[0] === 'quality.hold.released');

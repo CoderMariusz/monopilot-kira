@@ -137,8 +137,10 @@ describe('ECO list screen', () => {
     expect(screen.getByText('ECO-2044')).toBeInTheDocument();
     expect(screen.getByText('Redukcja soli -10%')).toBeInTheDocument();
     // status + priority badges
-    expect(screen.getByText('draft')).toBeInTheDocument();
-    expect(screen.getByText('high')).toBeInTheDocument();
+    const row = screen.getByText('ECO-2044').closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText('Draft')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText('high')).toBeInTheDocument();
   });
 
   it('passes the status filter from the query param to loadEcoPage', async () => {

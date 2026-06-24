@@ -146,7 +146,7 @@ describe('TEC-042/043 RBAC + five UI states (AC3)', () => {
     // Open the (Line 2, gluten) cell combobox and select "high".
     const cell = screen.getByTestId('risk-cell-22222222-2222-2222-2222-222222222222-gluten');
     fireEvent.click(within(cell).getByRole('combobox'));
-    fireEvent.click(within(cell).getByText(LABELS.riskLevel.high));
+    fireEvent.click(screen.getByRole('option', { name: LABELS.riskLevel.high }));
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
         lineId: '22222222-2222-2222-2222-222222222222',
