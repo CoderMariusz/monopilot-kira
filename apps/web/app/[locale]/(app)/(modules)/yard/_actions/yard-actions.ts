@@ -410,7 +410,10 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Appo
     const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
     await requireYardPermission(ctx);
 
-    // TODO: TOCTOU: a DB GIST EXCLUDE constraint on (dock_id, tsrange) is the only race-safe guard — add as a separate migration.
+    // TOCTOU: the race-safe guard is the DB EXCLUDE constraint `dock_appointments_no_overlap` (mig 320, gist on
+    // (org, door, tstzrange(scheduled_at, ends_at))). This app pre-check gives the friendly overlap error for the
+    // common (sequential) case; a true concurrent race that passes this SELECT will be rejected by the constraint
+    // at INSERT (23P01) — the double-booking is still prevented (micro-TODO: map 23P01 -> the same friendly error).
     const overlap = await ctx.client.query<{ id: string }>(
       `select id
          from public.dock_appointments
