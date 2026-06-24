@@ -149,15 +149,15 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
           [projectId],
         ),
         context.client.query<ApprovalRow>(
-          `select id,
-                  gate_code,
-                  decision,
-                  approver_user_id::text as approver_user_id,
+          `select ga.id,
+                  ga.gate_code,
+                  ga.decision,
+                  ga.approver_user_id::text as approver_user_id,
                   coalesce(u.display_name, u.name) as approver_name,
-                  notes,
-                  rejection_reason,
-                  esigned_at::text as esigned_at,
-                  created_at::text as created_at
+                  ga.notes,
+                  ga.rejection_reason,
+                  ga.esigned_at::text as esigned_at,
+                  ga.created_at::text as created_at
              from public.gate_approvals ga
              left join public.users u on u.id = ga.approver_user_id
             where ga.org_id = app.current_org_id()
