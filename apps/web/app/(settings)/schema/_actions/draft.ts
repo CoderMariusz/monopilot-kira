@@ -43,14 +43,24 @@ export async function upsertDeptColumnDraft(
 
   const validationRaw = formData.get('validationJson');
   const presentationRaw = formData.get('presentationJson');
-  const validationJson =
-    typeof validationRaw === 'string' && validationRaw.length > 0
-      ? JSON.parse(validationRaw)
-      : {};
-  const presentationJson =
-    typeof presentationRaw === 'string' && presentationRaw.length > 0
-      ? JSON.parse(presentationRaw)
-      : {};
+  // Parse the JSON form fields defensively: a malformed body (this is a
+  // `'use server'` action callable with arbitrary FormData) would otherwise
+  // throw an uncaught SyntaxError → 500. On parse failure return the action's
+  // graceful failure shape instead of crashing.
+  let validationJson: unknown;
+  let presentationJson: unknown;
+  try {
+    validationJson =
+      typeof validationRaw === 'string' && validationRaw.length > 0
+        ? JSON.parse(validationRaw)
+        : {};
+    presentationJson =
+      typeof presentationRaw === 'string' && presentationRaw.length > 0
+        ? JSON.parse(presentationRaw)
+        : {};
+  } catch {
+    return { success: false, error: 'invalid_input' };
+  }
 
   return withOrgContext(async ({ userId, orgId, client }) =>
     // P1.6 — pass the in-transaction client from withOrgContext so the

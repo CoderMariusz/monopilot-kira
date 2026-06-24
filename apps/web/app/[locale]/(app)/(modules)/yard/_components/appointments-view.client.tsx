@@ -346,8 +346,9 @@ function BookAppointmentModal({
     const duration = Number(durationMin);
     if (!Number.isInteger(duration) || duration <= 0) return setFormError(m.errors.durationInvalid);
 
-    const scheduledIso = new Date(scheduledAt).toISOString();
-    if (Number.isNaN(new Date(scheduledAt).getTime())) return setFormError(m.errors.scheduledAtRequired);
+    const scheduledDate = new Date(scheduledAt);
+    if (Number.isNaN(scheduledDate.getTime())) return setFormError(m.errors.scheduledAtRequired);
+    const scheduledIso = scheduledDate.toISOString();
 
     setPending(true);
     try {

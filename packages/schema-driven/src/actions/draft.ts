@@ -60,7 +60,11 @@ export interface UpsertDeptColumnDraftInput {
 
 export type UpsertDeptColumnDraftResult =
   | { success: true; draftId: string }
-  | { success: false; error: 'forbidden'; status?: number };
+  // `invalid_input` is surfaced by the Next.js Server Action wrapper when the
+  // form-data validation/presentation JSON fails to parse (malformed request
+  // body). The lib function itself never emits it — it is a graceful 4xx-style
+  // failure shape so the wrapper can avoid an uncaught throw → 500.
+  | { success: false; error: 'forbidden' | 'invalid_input'; status?: number };
 
 export interface PublishDeptColumnDraftInput {
   actorUserId: string;

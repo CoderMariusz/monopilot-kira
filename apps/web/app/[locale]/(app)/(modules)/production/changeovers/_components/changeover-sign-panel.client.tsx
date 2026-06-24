@@ -36,6 +36,16 @@ import type { ChangeoverSignLabels } from './labels';
 
 type Slot = 'first' | 'second';
 
+// `signedAt` is a server-derived timestamp string. Guard before formatting so a
+// non-standard / unparseable value can't throw `RangeError` from `toISOString()`
+// during render and blank the panel — matches the production-module date idiom
+// (`if (Number.isNaN(d.getTime())) return '—'`).
+function formatSignedAt(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toISOString().slice(0, 16).replace('T', ' ');
+}
+
 function SignatureSlot({
   title,
   signer,
@@ -59,7 +69,7 @@ function SignatureSlot({
         <div className="mt-1 text-sm">
           <div className="font-medium text-slate-800">{signer.name}</div>
           <div className="text-[11px] text-slate-500">
-            {labels.signedAt}: {new Date(signer.signedAt).toISOString().slice(0, 16).replace('T', ' ')}
+            {labels.signedAt}: {formatSignedAt(signer.signedAt)}
           </div>
         </div>
       ) : (
