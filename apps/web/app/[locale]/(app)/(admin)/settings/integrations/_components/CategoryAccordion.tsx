@@ -142,38 +142,41 @@ export function CategoryAccordion({
               icon="🔌"
               title={labels.noCategoryIntegrations(category.category)}
               body={labels.emptyCategoryBody}
-              action={<Button type="button">{labels.browseCatalog}</Button>}
+              action={<Button type="button" disabled title="Coming soon">{labels.browseCatalog}</Button>}
             />
           </div>
         ) : (
-          category.items.map((item) => (
-            <div
-              key={item.id}
-              className="int-row grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 border-b px-4 py-3 last:border-b-0"
-            >
-              {integrationLogo(item)}
-              <div>
-                <div className="int-name text-sm font-semibold">{item.name}</div>
-                <div className="int-desc text-xs text-muted-foreground">{item.description}</div>
-              </div>
-              <div>
+          category.items.map((item) => {
+            const isD365 = item.id === 'd365';
+            return (
+              <div
+                key={item.id}
+                className="int-row grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 border-b px-4 py-3 last:border-b-0"
+              >
+                {integrationLogo(item)}
+                <div>
+                  <div className="int-name text-sm font-semibold">{item.name}</div>
+                  <div className="int-desc text-xs text-muted-foreground">{item.description}</div>
+                </div>
+                <div>
+                  {item.status === 'connected' ? (
+                    <Badge variant="success">{labels.statusConnected}</Badge>
+                  ) : (
+                    <Badge variant="muted">{labels.statusAvailable}</Badge>
+                  )}
+                </div>
                 {item.status === 'connected' ? (
-                  <Badge variant="success">{labels.statusConnected}</Badge>
+                  <Button type="button" disabled={!isD365} title={!isD365 ? 'Coming soon' : undefined} className="btn-secondary btn-sm">
+                    {labels.configure}
+                  </Button>
                 ) : (
-                  <Badge variant="muted">{labels.statusAvailable}</Badge>
+                  <Button type="button" disabled={!isD365} title={!isD365 ? 'Coming soon' : undefined} className="btn-primary btn-sm">
+                    {labels.connect}
+                  </Button>
                 )}
               </div>
-              {item.status === 'connected' ? (
-                <Button type="button" className="btn-secondary btn-sm">
-                  {labels.configure}
-                </Button>
-              ) : (
-                <Button type="button" className="btn-primary btn-sm">
-                  {labels.connect}
-                </Button>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </section>

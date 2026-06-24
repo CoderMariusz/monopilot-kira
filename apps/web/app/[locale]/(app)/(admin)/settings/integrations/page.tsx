@@ -176,8 +176,16 @@ function PageHead({ total, labels }: { total: number; labels: IntegrationLabels 
         <h1 className="text-2xl font-semibold">{labels.title}</h1>
         <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
       </div>
-      <Button type="button" className="btn-secondary">
+      <Button
+        type="button"
+        disabled
+        title="Coming soon"
+        className="btn-secondary"
+      >
         {labels.browseAll(total)}
+        <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+          Coming soon
+        </span>
       </Button>
     </header>
   );
@@ -215,30 +223,60 @@ function GridCatalog({ categories, labels }: { categories: IntegrationCategory[]
             icon="🔌"
             title={labels.noIntegrationsConfigured}
             body={labels.emptyBody}
-            action={<Button type="button">{labels.browseCatalog}</Button>}
+            action={
+              <Button type="button" disabled title="Coming soon">
+                {labels.browseCatalog}
+                <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                  Coming soon
+                </span>
+              </Button>
+            }
           />
         ) : (
-          all.map((item) => (
-            <Card key={item.id} data-testid="settings-integration-grid-card" className="cursor-pointer p-3" style={{ margin: 0 }}>
-              <div className="mb-2 flex gap-3">
-                {integrationLogo(item)}
-                <div>
-                  <div className="text-sm font-semibold">{item.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{item.category}</div>
+          all.map((item) => {
+            const isD365 = item.id === 'd365';
+            return (
+              <Card key={item.id} data-testid="settings-integration-grid-card" className="cursor-pointer p-3" style={{ margin: 0 }}>
+                <div className="mb-2 flex gap-3">
+                  {integrationLogo(item)}
+                  <div>
+                    <div className="text-sm font-semibold">{item.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{item.category}</div>
+                  </div>
                 </div>
-              </div>
-              <p className="mb-3 min-h-8 text-xs text-muted-foreground">{item.description}</p>
-              {item.status === 'connected' ? (
-                <Button type="button" className="btn-secondary btn-sm w-full">
-                  {labels.connectedConfigure}
-                </Button>
-              ) : (
-                <Button type="button" className="btn-primary btn-sm w-full">
-                  {labels.connect}
-                </Button>
-              )}
-            </Card>
-          ))
+                <p className="mb-3 min-h-8 text-xs text-muted-foreground">{item.description}</p>
+                {item.status === 'connected' ? (
+                  <Button
+                    type="button"
+                    disabled={!isD365}
+                    title={!isD365 ? 'Coming soon' : undefined}
+                    className="btn-secondary btn-sm w-full"
+                  >
+                    {labels.connectedConfigure}
+                    {!isD365 && (
+                      <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                        Coming soon
+                      </span>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    disabled={!isD365}
+                    title={!isD365 ? 'Coming soon' : undefined}
+                    className="btn-primary btn-sm w-full"
+                  >
+                    {labels.connect}
+                    {!isD365 && (
+                      <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                        Coming soon
+                      </span>
+                    )}
+                  </Button>
+                )}
+              </Card>
+            );
+          })
         )}
       </div>
     </div>
@@ -359,7 +397,14 @@ export default async function IntegrationsPage({ params, searchParams, state, ca
           icon="🔌"
           title={labels.noIntegrationsConfigured}
           body={labels.emptyBody}
-          action={<Button type="button">{labels.browseCatalog}</Button>}
+          action={
+            <Button type="button" disabled title="Coming soon">
+              {labels.browseCatalog}
+              <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                Coming soon
+              </span>
+            </Button>
+          }
         />
       </main>
     );
