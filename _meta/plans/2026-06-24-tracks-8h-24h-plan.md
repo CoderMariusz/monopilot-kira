@@ -110,7 +110,9 @@ create→persist→edit→cross-ref). OPEN list, expect more of this class every
 - **L1 Add line does NOT persist the site link** — the site always shows "No production lines are
   assigned"; the line is created without site_id (or the per-site list query mismatches). DATA INTEGRITY.
 - **L1 No way to edit a created line** — no update affordance/action in Settings Sites & Lines.
-- **L2 Line table omits the warehouse column** (production_lines has warehouse_id).
+- ~~L2 Line table omits the warehouse column~~ — **WON'T-FIX (owner 2026-06-24): site ≡ warehouse
+  (same `site_id`); a warehouse column/picker on a line DUPLICATES the site. Unify all terminology on
+  "site"; do NOT add warehouse fields to the lines UI. Bug 1 (refresh) is the ONLY sites&lines fix.**
 - **L1? Dock doors "Something went wrong"** — confirm mig 323 grant fixed it or there's a 2nd cause.
 - **L3 "Add machine" button near-invisible** — plain text vs the blue "+ Add line"/"+ Add process"; wrong variant.
 
@@ -128,6 +130,6 @@ create→persist→edit→cross-ref). OPEN list, expect more of this class every
 - [ ] mig 323 grant — cold-chain / freight / yard / cycle-count: open each, CREATE a record, confirm it
       persists + lists; reach the reverse/void path.
 - [ ] mig 324 scheduler perms — /pl/scheduler: "Uruchom harmonogram" + changeover matrix work for admin.
-- [ ] (after fix) Settings → Sites & Lines: add line → appears under the site → editable → warehouse column shows.
+- [ ] (after fix) Settings → Sites & Lines: add line → appears under the site → editable. (NO warehouse column — owner: site ≡ warehouse.)
 - [ ] (after fix) dock doors page loads cleanly (no "Something went wrong").
 - [ ] (after fix) "Add machine" button matches the other +Add buttons.
