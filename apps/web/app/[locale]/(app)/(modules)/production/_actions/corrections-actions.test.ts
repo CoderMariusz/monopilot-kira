@@ -40,6 +40,8 @@ const LP_ID = '88888888-8888-4888-8888-888888888888';
 const PARENT_LP_ID = '99999999-9999-4999-8999-999999999999';
 const CONSUMPTION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const COMPONENT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const MATERIAL_A_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const MATERIAL_B_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const NO_LP_ID = '00000000-0000-0000-0000-000000000000';
 
 type State = {
@@ -50,6 +52,8 @@ type State = {
   consumptionExists: boolean;
   consumptionAlreadyCorrected: boolean;
   consumptionNoLp: boolean;
+  consumptionQty: string;
+  consumptionExtJsonb: unknown;
   lpExists: boolean;
   lpStatus: string;
   lpQaStatus: string;
@@ -57,6 +61,7 @@ type State = {
   lpConsumedOrChild: boolean;
   genealogyChildLinks: Set<string>;
   materialDecrementOk: boolean;
+  materialRows: Array<{ id: string; product_id: string; consumed_qty: string }>;
   woStatus: string;
   granted: Set<string>;
   /** Simulates losing a concurrent-void race: the pre-check sees no correction
@@ -164,7 +169,7 @@ function makeClient(): QueryClient {
                 wo_id: WO_ID,
                 component_id: COMPONENT_ID,
                 lp_id: state.consumptionNoLp ? NO_LP_ID : LP_ID,
-                qty_consumed: '4.250',
+                qty_consumed: state.consumptionQty,
                 uom: 'kg',
                 operator_id: USER_ID,
                 fefo_adherence_flag: true,
@@ -173,7 +178,7 @@ function makeClient(): QueryClient {
                 over_consumption_approved_by: null,
                 over_consumption_approved_at: null,
                 over_consumption_reason_code: null,
-                ext_jsonb: { source: 'desktop' },
+                ext_jsonb: state.consumptionExtJsonb,
                 consumed_at: '2026-06-12T08:00:00.000Z',
                 wo_status: state.woStatus,
               }],
@@ -258,14 +263,27 @@ function makeClient(): QueryClient {
 
       // F1/F3 — pre-write FOR UPDATE lock + SQL-side decrement validation.
       if (n.includes('from public.wo_materials') && n.includes('for update')) {
+        const scopedById = n.includes('and id = $2::uuid');
+        const rows = state.materialRows
+          .filter((row) => (scopedById ? row.id === params[1] : row.product_id === params[1]))
+          .filter((row) => state.materialDecrementOk && Number(row.consumed_qty) - Number(params[2]) >= 0)
+          .map((row) => ({ id: row.id, can_decrement: true }));
         return {
-          rows: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', can_decrement: state.materialDecrementOk }],
-          rowCount: 1,
+          rows,
+          rowCount: rows.length,
         };
       }
 
       if (n.startsWith('update public.wo_materials')) {
-        return state.materialDecrementOk ? { rows: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }], rowCount: 1 } : { rows: [], rowCount: 0 };
+        const scopedById = n.includes('and id = $2::uuid');
+        const updated: Array<{ id: string }> = [];
+        state.materialRows = state.materialRows.map((row) => {
+          const matches = scopedById ? row.id === params[1] : row.product_id === params[1];
+          if (!matches || !state.materialDecrementOk || Number(row.consumed_qty) - Number(params[2]) < 0) return row;
+          updated.push({ id: row.id });
+          return { ...row, consumed_qty: String(Number(row.consumed_qty) - Number(params[2])) };
+        });
+        return { rows: updated, rowCount: updated.length };
       }
 
       if (n.startsWith('update public.license_plates')) {
@@ -294,6 +312,8 @@ beforeEach(() => {
     consumptionExists: true,
     consumptionAlreadyCorrected: false,
     consumptionNoLp: false,
+    consumptionQty: '4.250',
+    consumptionExtJsonb: { source: 'desktop' },
     lpExists: true,
     lpStatus: 'received',
     lpQaStatus: 'pending',
@@ -301,6 +321,7 @@ beforeEach(() => {
     lpConsumedOrChild: false,
     genealogyChildLinks: new Set(),
     materialDecrementOk: true,
+    materialRows: [{ id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '4.250' }],
     woStatus: 'completed',
     granted: new Set(['production.waste.correct', 'production.output.correct', 'production.consumption.correct']),
     wasteInsertConflict: false,
@@ -433,6 +454,41 @@ describe('reverseConsumption', () => {
     expect(queries.some((q) => normalize(q.sql).includes('from public.license_plates') && normalize(q.sql).includes('for update'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('decrements only the wo_materials line recorded on the original consumption when duplicate component lines exist', async () => {
+    state.consumptionNoLp = true;
+    state.consumptionQty = '100.000';
+    state.consumptionExtJsonb = { source: 'scanner', materialId: MATERIAL_A_ID };
+    state.materialRows = [
+      { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '100' },
+      { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '100' },
+    ];
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_quantity',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const materialLock = queries.find(
+      (q) => normalize(q.sql).includes('from public.wo_materials') && normalize(q.sql).includes('for update'),
+    );
+    expect(normalize(materialLock!.sql)).toContain('and id = $2::uuid');
+    expect(normalize(materialLock!.sql)).toContain('consumed_qty - $3::numeric >= 0');
+    expect(materialLock?.params).toEqual([WO_ID, MATERIAL_A_ID, '100.000']);
+
+    const materialUpdates = queries.filter((q) => normalize(q.sql).startsWith('update public.wo_materials'));
+    expect(materialUpdates).toHaveLength(1);
+    expect(normalize(materialUpdates[0]!.sql)).toContain('and id = $2::uuid');
+    expect(normalize(materialUpdates[0]!.sql)).toContain('consumed_qty - $3::numeric >= 0');
+    expect(materialUpdates[0]!.params).toEqual([WO_ID, MATERIAL_A_ID, '100.000']);
+    expect(state.materialRows).toEqual([
+      { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '0' },
+      { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '100' },
+    ]);
   });
 
   it('refuses shipped, merged, or destroyed LPs as not restorable', async () => {

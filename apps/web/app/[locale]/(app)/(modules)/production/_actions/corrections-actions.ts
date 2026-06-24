@@ -166,6 +166,13 @@ function isZeroDecimalString(value: string): boolean {
   return Number(value) === 0;
 }
 
+function materialIdFromConsumptionExt(original: ConsumptionRow): string | null {
+  const ext = original.ext_jsonb;
+  if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return null;
+  const materialId = (ext as { materialId?: unknown }).materialId;
+  return typeof materialId === 'string' && isUuid(materialId) ? materialId : null;
+}
+
 // Locks the original waste row (FOR UPDATE OF wl — same locking discipline as
 // loadOutputForUpdate) so concurrent voids of the same row serialize. The
 // hasWasteCorrection pre-check stays for a friendly error; the mig-296 unique
@@ -342,32 +349,34 @@ async function hasLpConsumptionOrChildren(ctx: ProductionContext, lpId: string):
 // non-negative. withOrgContext COMMITS on return, so every ok:false gate must
 // fire before the first mutation; this select is that gate for the ledger.
 async function lockWoMaterialsAndValidateDecrement(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
+  const materialId = materialIdFromConsumptionExt(original);
   const { rows } = await ctx.client.query<{ id: string; can_decrement: boolean }>(
     `select id::text as id,
             (consumed_qty - $3::numeric >= 0) as can_decrement
        from public.wo_materials
       where org_id = app.current_org_id()
         and wo_id = $1::uuid
-        and product_id = $2::uuid
+        and ${materialId ? 'id' : 'product_id'} = $2::uuid
+        and consumed_qty - $3::numeric >= 0
       for update`,
-    [original.wo_id, original.component_id, original.qty_consumed],
+    [original.wo_id, materialId ?? original.component_id, original.qty_consumed],
   );
-  // Mirrors decrementConsumedQty's WHERE: at least one row must absorb the full
-  // reversal without going negative.
-  return rows.some((row) => row.can_decrement);
+  // Mirrors decrementConsumedQty's WHERE.
+  return rows.length > 0 && rows.every((row) => row.can_decrement);
 }
 
 async function decrementConsumedQty(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
+  const materialId = materialIdFromConsumptionExt(original);
   const { rows } = await ctx.client.query<{ id: string }>(
     `update public.wo_materials
         set consumed_qty = consumed_qty - $3::numeric,
             updated_at = now()
       where org_id = app.current_org_id()
         and wo_id = $1::uuid
-        and product_id = $2::uuid
+        and ${materialId ? 'id' : 'product_id'} = $2::uuid
         and consumed_qty - $3::numeric >= 0
       returning id::text as id`,
-    [original.wo_id, original.component_id, original.qty_consumed],
+    [original.wo_id, materialId ?? original.component_id, original.qty_consumed],
   );
   return rows.length > 0;
 }
