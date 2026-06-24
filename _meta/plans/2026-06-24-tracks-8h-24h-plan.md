@@ -197,3 +197,13 @@ PASS: B scheduler · C yard · D integrations · E trace · F roles-enum · G PO
 - L3: #9 /pl/production/work-orders/[id] leaks WO-state JSON (API route under locale UI seg) · appointment
   UTC offset (09:00→08:00) · LP warehouse shows "FG" (seed) · some English labels in /pl.
 - NEW enum drift (Warehouse doc): `warehouse.receipt.correct` seeded (293/296) but absent from the enum.
+
+## AUDIT core-flows (2026-06-24) → Track-2 queue
+- ✅ **L1 DONE: shipment_seq + all public sequences granted to app_user (mig 326)** — SO→ship unblocked. RE-VERIFY: full SO→pick→pack→ship→POD chain.
+- **L1/L2 INFRA: DB pool exhaustion** (EMAXCONNSESSION, Supavisor session mode, pool_size 15) — `withOrgContext` owner-register path 500s under load (`lib/auth/with-org-context.ts`). May be heavy-test-induced; confirm under normal load + check for a connection leak / pooler mode.
+- **L2 No customer creation** (no createCustomer action/UI) → a clean system can't make an SO.
+- **L2 Desktop PO "receive" = status-flip** (no GRN/LP/QA; real receiving is scanner-only) — planning/purchase-orders/[id].
+- **L2 DRAFT WO dead-end**: production detail offers only "Start" which the SM rejects (needs RELEASED; Release is in planning) — `production/wos/_components/modals/gating.ts:28` render-then-reject.
+- **L2 Void-output e-sign mislabel**: UI says "account password — not a PIN" but backend verifies PIN (`page.tsx:481/487` vs `corrections-actions.ts:821`) → can't sign. Fix to "PIN or password" (Close modal is the reference). QUICK.
+- L3: scanner Putaway promotes QA-pending LP to available (`movement.ts:462`, gated downstream by v_inventory_available); catch-weight provenance dropped; completed_at/produced_quantity not stamped on Complete; create-SO item-picker behind overlay; /scanner/lp-info 404 /en back-link.
+- HEALTHY end-to-end: scanner receive/putaway/move, GRN release+cancel, WO output/waste/complete/close+PIN-esign, SO create/confirm/allocate.
