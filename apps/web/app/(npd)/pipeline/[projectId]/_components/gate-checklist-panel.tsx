@@ -115,6 +115,7 @@ export type GateChecklistLabels = {
   advance: string; // ICU "Advance to {gate}: {nextLabel} →"
   requestApproval: string;
   markLaunched: string;
+  advanceTerminalHint: string;
   expand: string;
   collapse: string;
   loading: string;
@@ -407,6 +408,7 @@ export function GateChecklistPanel({
   labels,
   canWrite = false,
   state = 'ready',
+  isTerminal = false,
   toggleGateChecklistItem,
   openModal,
 }: {
@@ -415,6 +417,7 @@ export function GateChecklistPanel({
   labels: GateChecklistLabels;
   canWrite?: boolean;
   state?: PanelState;
+  isTerminal?: boolean;
   toggleGateChecklistItem?: ToggleGateChecklistItemAction;
   openModal?: OpenModalFn;
 }) {
@@ -599,7 +602,7 @@ export function GateChecklistPanel({
                       .replace('{nextLabel}', currentGate.nextLabel ?? '')}
               </Button>
             )}
-            {!currentGate.next && currentBlockers.length === 0 && (
+            {!currentGate.next && currentBlockers.length === 0 && !isTerminal && (
               // Terminal G4 → launched. The launch is the same stage-native advance
               // the AdvanceGateModal performs (handoff → launched via advanceProjectGate);
               // we open that modal as the confirm + error surface so the server's
@@ -616,6 +619,15 @@ export function GateChecklistPanel({
                 {labels.markLaunched}
               </Button>
             )}
+            {isTerminal ? (
+              <span
+                className="badge badge-green"
+                title={labels.advanceTerminalHint}
+                data-testid="gate-advance-terminal"
+              >
+                {labels.advanceTerminalHint}
+              </span>
+            ) : null}
           </div>
         </Card>
       )}

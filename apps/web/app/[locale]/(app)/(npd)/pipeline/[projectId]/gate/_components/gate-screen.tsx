@@ -73,6 +73,8 @@ export type GateScreenData = {
   approvalProject: GateApprovalProject;
   /** Approval-history timeline entries (DESC, newest first). */
   approvals: ApprovalHistoryEntry[];
+  /** True once the project has reached the launched terminal state. */
+  isTerminal: boolean;
 };
 
 export type GateScreenLabels = {
@@ -155,6 +157,7 @@ export function GateScreen({
           labels={labels.checklist}
           canWrite={canWrite}
           state={state}
+          isTerminal={data.isTerminal}
           toggleGateChecklistItem={toggleGateChecklistItem}
           openModal={openModal}
         />

@@ -73,6 +73,7 @@ const LABELS: GateScreenLabels = {
     advance: 'Advance to {gate}: {nextLabel} →',
     requestApproval: 'Request approval →',
     markLaunched: 'Mark launched',
+    advanceTerminalHint: 'Launched — fully advanced',
     expand: 'Expand',
     collapse: 'Collapse',
     loading: 'Loading gate checklist…',
@@ -171,6 +172,7 @@ function makeData(currentGate: 'G2' | 'G3', withBlocker = false): GateScreenData
       { id: 'appr-2', gate: 'G3', gateLabel: 'Development', result: 'approved', approver: 'Quality Lead', role: 'Approver', notes: 'Development gate approved.', date: '2025-12-02', eSigned: true, eSignHash: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6abcd', eSignedAt: '2025-12-02T10:15:00.000Z' },
       { id: 'appr-1', gate: 'G2', gateLabel: 'Business Case', result: 'approved', approver: 'A. Owner', role: 'Approver', notes: 'Business case approved.', date: '2025-11-10', eSigned: false, eSignHash: null, eSignedAt: null },
     ],
+    isTerminal: false,
   };
 }
 

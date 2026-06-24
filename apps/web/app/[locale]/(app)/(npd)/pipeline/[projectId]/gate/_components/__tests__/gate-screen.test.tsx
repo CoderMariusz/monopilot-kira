@@ -87,6 +87,7 @@ const CHECKLIST_LABELS: GateScreenLabels['checklist'] = {
   advance: 'cl.advance {gate} {nextLabel}',
   requestApproval: 'cl.requestApproval',
   markLaunched: 'cl.markLaunched',
+  advanceTerminalHint: 'cl.advanceTerminalHint',
   expand: 'cl.expand',
   collapse: 'cl.collapse',
   loading: 'cl.loading',
@@ -220,6 +221,7 @@ function makeData(currentGate: 'G2' | 'G3'): GateScreenData {
         eSignedAt: null,
       },
     ],
+    isTerminal: false,
   };
 }
 

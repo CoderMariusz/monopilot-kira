@@ -55,6 +55,7 @@ const LABELS: GateChecklistLabels = {
   advance: 'Advance to {gate}: {nextLabel} →',
   requestApproval: 'Request Approval →',
   markLaunched: 'lbl.markLaunched',
+  advanceTerminalHint: 'lbl.advanceTerminalHint',
   expand: 'lbl.expand',
   collapse: 'lbl.collapse',
   loading: 'lbl.loading',
@@ -287,6 +288,22 @@ describe('GateChecklistPanel — terminal G4 / Mark as Launched', () => {
     );
     await user.click(screen.getByTestId('gate-mark-launched'));
     expect(openModal).toHaveBeenCalledWith('advanceGate', { project: TERMINAL_PROJECT });
+  });
+
+  it('renders the terminal launched hint instead of an enabled Mark as Launched CTA', () => {
+    render(
+      <GateChecklistPanel
+        project={TERMINAL_PROJECT}
+        gates={makeTerminalGates()}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        isTerminal
+      />,
+    );
+
+    expect(screen.queryByTestId('gate-mark-launched')).toBeNull();
+    expect(screen.getByTestId('gate-advance-terminal')).toHaveTextContent('lbl.advanceTerminalHint');
   });
 });
 

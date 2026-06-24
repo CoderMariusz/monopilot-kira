@@ -45,6 +45,7 @@ const LABELS: GateChecklistLabels = {
   advance: 'Advance to {gate}: {nextLabel} →',
   requestApproval: 'Request approval →',
   markLaunched: 'Mark as launched ✓',
+  advanceTerminalHint: 'Launched — fully advanced',
   expand: 'Expand gate',
   collapse: 'Collapse gate',
   loading: 'Loading gate checklist…',

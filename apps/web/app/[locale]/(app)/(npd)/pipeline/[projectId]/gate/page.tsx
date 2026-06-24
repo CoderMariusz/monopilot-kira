@@ -138,6 +138,7 @@ const DEFAULT_CHECKLIST_LABELS: GateChecklistLabels = {
   advance: 'Advance to {gate}: {nextLabel} →',
   requestApproval: 'Request approval →',
   markLaunched: 'Mark launched',
+  advanceTerminalHint: 'Launched — fully advanced',
   expand: 'Expand',
   collapse: 'Collapse',
   loading: 'Loading gate checklist…',
@@ -376,6 +377,7 @@ function buildGateScreenData(
   const gates = buildGateViews(currentGate, checklistByGate);
   const advance = buildAdvanceProps(projectId, code, name, currentGate, currentStage, gates);
   const currentKey: GateKey = isChecklistGate(currentGate) ? currentGate : 'G4';
+  const isTerminal = currentGate === 'Launched';
   return {
     panelProject: { id: projectId, code, name, currentGate: currentKey },
     gates,
@@ -384,6 +386,7 @@ function buildGateScreenData(
     advanceItems: advance.items,
     approvalProject: buildApprovalProject(projectId, code, name, currentGate, gates),
     approvals: approvalsTimeline.map(mapApprovalEntry),
+    isTerminal,
   };
 }
 
@@ -509,6 +512,7 @@ export default async function GatePage(propsInput: unknown = {}) {
       advanceItems: [],
       approvalProject: { id: projectId, code: '', name: '', gateCode: 'G3', requiredDone: 0, requiredTotal: 0, pct: 0 },
       approvals: [],
+      isTerminal: false,
     };
     return (
       <GateScreen
