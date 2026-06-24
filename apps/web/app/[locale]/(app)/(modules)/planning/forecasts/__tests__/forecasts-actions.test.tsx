@@ -22,7 +22,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   }),
 }));
 
-import { upsertForecast } from '../../_actions/forecasts';
+import { deleteForecast, upsertForecast } from '../../_actions/forecasts';
 
 describe('planning forecasts server actions', () => {
   beforeEach(() => {
@@ -69,5 +69,27 @@ describe('planning forecasts server actions', () => {
     expect(tx.rolledBack).toBe(true);
     expect(tx.committed).toBe(false);
     expect(tx.query.mock.calls.some(([sql]) => String(sql).includes('insert into public.audit_events'))).toBe(false);
+  });
+
+  it('clears a forecast cell by deleting the persisted demand_forecasts row', async () => {
+    const forecastId = '11111111-1111-4111-8111-111111111111';
+    tx.query.mockImplementation(async (sql: string, params?: readonly unknown[]) => {
+      if (sql.includes('from public.user_roles')) {
+        return { rows: [{ ok: true }] };
+      }
+      if (sql.includes('delete from public.demand_forecasts')) {
+        return { rows: [{ id: params?.[0] }] };
+      }
+      if (sql.includes('insert into public.audit_events')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const result = await deleteForecast(forecastId);
+
+    expect(result).toEqual({ ok: true, data: { id: forecastId } });
+    expect(tx.query).toHaveBeenCalledWith(expect.stringContaining('delete from public.demand_forecasts'), [forecastId]);
+    expect(tx.query.mock.calls.some(([sql]) => String(sql).includes('insert into public.audit_events'))).toBe(true);
   });
 });

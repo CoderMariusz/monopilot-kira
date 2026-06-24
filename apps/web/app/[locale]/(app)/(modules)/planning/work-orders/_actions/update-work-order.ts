@@ -52,7 +52,7 @@ const UpdateWorkOrderInput = z.object({
     .regex(/^\d+(?:\.\d{1,3})?$/, 'plannedQuantity must be a positive numeric string with up to 3 decimals')
     .refine((value) => Number(value) > 0, 'plannedQuantity must be positive')
     .optional(),
-  scheduledStartTime: z.string().datetime({ offset: true }).optional(),
+  scheduledStartTime: z.string().datetime({ offset: true }).nullable().optional(),
   productionLineId: z.string().uuid().optional(),
   machineId: z.string().uuid().optional(),
   notes: z.string().trim().max(2000).optional(),
@@ -213,7 +213,7 @@ export async function updateWorkOrder(params: {
   id: string;
   productId?: string;
   plannedQuantity?: string;
-  scheduledStartTime?: string;
+  scheduledStartTime?: string | null;
   productionLineId?: string;
   machineId?: string;
   notes?: string;
@@ -264,7 +264,7 @@ export async function updateWorkOrder(params: {
                 active_factory_spec_id = case when $9::boolean then $11::uuid else wo.active_factory_spec_id end,
                 planned_quantity = $3::numeric,
                 uom = case when $9::boolean then $12 else wo.uom end,
-                scheduled_start_time = $4::timestamptz,
+                scheduled_start_time = case when $15::boolean then $4::timestamptz else wo.scheduled_start_time end,
                 production_line_id = $5::uuid,
                 machine_id = $6::uuid,
                 uom_snapshot = case when $9::boolean then $13::jsonb else wo.uom_snapshot end,
@@ -292,7 +292,7 @@ export async function updateWorkOrder(params: {
           input.id,
           nextProductId,
           nextPlannedQuantity,
-          input.scheduledStartTime ?? current.scheduled_start_time,
+          input.scheduledStartTime ?? null,
           input.productionLineId ?? current.production_line_id,
           input.machineId ?? current.machine_id,
           input.notes === undefined ? current.notes : input.notes === '' ? null : input.notes,
@@ -303,6 +303,7 @@ export async function updateWorkOrder(params: {
           uomSnapshot?.uomBase ?? null,
           dbUomSnapshot ? JSON.stringify(dbUomSnapshot) : null,
           input.notes !== undefined,
+          input.scheduledStartTime !== undefined,
         ],
       );
       const workOrder = updated.rows[0];

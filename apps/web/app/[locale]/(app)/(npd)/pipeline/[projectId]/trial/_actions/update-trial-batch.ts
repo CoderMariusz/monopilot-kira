@@ -154,7 +154,7 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
                 yield_pct            = $6::numeric,
                 technologist_user_id = $7::uuid,
                 result               = $8,
-                notes                = $9,
+                notes                = case when $11::boolean then nullif($9, '') else notes end,
                 updated_by           = $10::uuid
           where id = $1::uuid and project_id = $2::uuid
             and org_id = app.current_org_id()
@@ -170,6 +170,7 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
           input.result,
           input.notes ?? null,
           userId,
+          input.notes !== undefined,
         ],
       );
       const id = updated.rows[0]?.id;

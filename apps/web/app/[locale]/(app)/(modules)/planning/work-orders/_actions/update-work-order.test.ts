@@ -21,6 +21,7 @@ let productInOrg = true;
 let lineInOrg = true;
 let machineInOrg = true;
 let raceUpdate = false;
+let currentScheduledStartTime: string | null = null;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -81,7 +82,7 @@ function makeClient(): QueryClient {
               status: currentStatus,
               product_id: PRODUCT_A_ID,
               planned_quantity: '100.000',
-              scheduled_start_time: null,
+              scheduled_start_time: currentScheduledStartTime,
               production_line_id: null,
               machine_id: null,
               notes: 'seed',
@@ -117,7 +118,7 @@ function makeClient(): QueryClient {
               product_id: String(params[1]),
               item_code: String(params[1]) === PRODUCT_B_ID ? 'FG-B' : 'FG-A',
               planned_quantity: String(params[2]),
-              scheduled_start_time: params[3] as string | null,
+              scheduled_start_time: params[14] === true ? (params[3] as string | null) : currentScheduledStartTime,
               production_line_id: params[4] as string | null,
               machine_id: params[5] as string | null,
               notes: params[6] as string | null,
@@ -159,6 +160,7 @@ describe('updateWorkOrder', () => {
     lineInOrg = true;
     machineInOrg = true;
     raceUpdate = false;
+    currentScheduledStartTime = null;
     client = makeClient();
   });
 
@@ -245,6 +247,37 @@ describe('updateWorkOrder', () => {
     const params = updateWorkOrderCall();
     expect(params[6]).toBe('seed');
     expect(params[13]).toBe(false);
+  });
+
+  it('clears scheduled start time when null is explicitly present', async () => {
+    currentScheduledStartTime = '2026-06-20T08:00:00.000Z';
+
+    const result = await updateWorkOrder({ id: WO_ID, scheduledStartTime: null });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrder.scheduledStartTime).toBeNull();
+    const call = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.work_orders'));
+    expect(String(call?.[0])).toContain(
+      'scheduled_start_time = case when $15::boolean then $4::timestamptz else wo.scheduled_start_time end',
+    );
+    expect(call?.[1]?.[3]).toBeNull();
+    expect(call?.[1]?.[14]).toBe(true);
+  });
+
+  it('keeps scheduled start time when it is omitted', async () => {
+    currentScheduledStartTime = '2026-06-20T08:00:00.000Z';
+
+    const result = await updateWorkOrder({ id: WO_ID });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrder.scheduledStartTime).toBe('2026-06-20T08:00:00.000Z');
+    const params = updateWorkOrderCall();
+    expect(params[3]).toBeNull();
+    expect(params[14]).toBe(false);
   });
 
   it('clears notes to JSON null when notes is an empty string', async () => {

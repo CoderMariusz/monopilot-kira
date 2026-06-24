@@ -428,7 +428,7 @@ export async function updateTransferOrder(rawInput: unknown): Promise<TransferOr
             set from_warehouse_id = $2::uuid,
                 to_warehouse_id = $3::uuid,
                 scheduled_date = $4::date,
-                notes = $5,
+                notes = case when $7::boolean then nullif($5, '') else notes end,
                 updated_by = $6::uuid,
                 updated_at = now()
           where org_id = app.current_org_id()
@@ -441,8 +441,9 @@ export async function updateTransferOrder(rawInput: unknown): Promise<TransferOr
           nextFromWarehouseId,
           nextToWarehouseId,
           input.expectedDate ?? previous.scheduled_date,
-          input.notes ?? previous.notes,
+          input.notes ?? null,
           userId,
+          input.notes !== undefined,
         ],
       );
       const row = updated.rows[0];

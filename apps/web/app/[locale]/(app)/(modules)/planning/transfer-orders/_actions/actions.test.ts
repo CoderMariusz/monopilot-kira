@@ -33,6 +33,7 @@ let raceHeaderUpdate = false;
 let raceLineUpdate = false;
 let raceLineDelete = false;
 let failNextLineInsert = false;
+let currentTransferNotes: string | null = null;
 /** F3: junction rows already received (dest_lp_id NOT NULL) — blocks cancel. */
 let receivedJunctionCount = 0;
 
@@ -170,7 +171,7 @@ function makeClient(): QueryClient {
         return { rows: [{ id: DEST_LP_ID }], rowCount: 1 };
       }
       if (normalized.startsWith('select id, to_number') || normalized.startsWith('select transfer_orders.id')) {
-        return { rows: orderExists ? [header({ status: currentStatus })] : [], rowCount: orderExists ? 1 : 0 };
+        return { rows: orderExists ? [header({ status: currentStatus, notes: currentTransferNotes })] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.transfer_orders')) {
         if (failNextAutoInsert) {
@@ -204,7 +205,7 @@ function makeClient(): QueryClient {
                 from_warehouse_id: params[1],
                 to_warehouse_id: params[2],
                 scheduled_date: params[3],
-                notes: params[4],
+                notes: params[6] === true ? (params[4] === '' ? null : params[4]) : currentTransferNotes,
               }),
             ],
             rowCount: 1,
@@ -235,6 +236,7 @@ describe('planning transfer order actions', () => {
     raceLineUpdate = false;
     raceLineDelete = false;
     failNextLineInsert = false;
+    currentTransferNotes = null;
     receivedJunctionCount = 0;
     client = makeClient();
   });
@@ -330,6 +332,35 @@ describe('planning transfer order actions', () => {
     if (!result.ok) throw new Error(result.error);
     expect(result.data.scheduledDate).toBe('2026-06-20');
     expect(client.query).toHaveBeenCalledWith(expect.stringContaining("and status = 'draft'"), expect.any(Array));
+  });
+
+  it('clears transfer order notes when an empty note is explicitly present', async () => {
+    currentTransferNotes = 'old transfer note';
+
+    const result = await updateTransferOrder({ id: TO_ID, notes: '' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.notes).toBeNull();
+    const updateCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.transfer_orders'));
+    expect(String(updateCall?.[0])).toContain("notes = case when $7::boolean then nullif($5, '') else notes end");
+    expect(updateCall?.[1]).toEqual([TO_ID, FROM_WAREHOUSE_ID, TO_WAREHOUSE_ID, '2026-06-19', '', USER_ID, true]);
+  });
+
+  it('keeps transfer order notes when notes is omitted', async () => {
+    currentTransferNotes = 'old transfer note';
+
+    const result = await updateTransferOrder({ id: TO_ID });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.notes).toBe('old transfer note');
+    const updateCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.transfer_orders'));
+    expect(updateCall?.[1]).toEqual([TO_ID, FROM_WAREHOUSE_ID, TO_WAREHOUSE_ID, '2026-06-19', null, USER_ID, false]);
   });
 
   it('returns invalid_state when updating a non-draft transfer order', async () => {
