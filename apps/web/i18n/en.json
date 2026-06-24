@@ -5569,6 +5569,7 @@
           "catchWeight": "Catch-weight",
           "complete": "Complete",
           "start": "Start",
+          "startReleaseHint": "Release this work order in Planning first.",
           "resume": "Resume",
           "cancel": "Cancel",
           "close": "Close"
@@ -9364,6 +9365,7 @@
       "today": "Today",
       "week": "This Week",
       "month": "This Month",
+      "quarter": "This Quarter",
       "last7d": "Last 7d",
       "last30d": "Last 30d",
       "custom": "Custom range"

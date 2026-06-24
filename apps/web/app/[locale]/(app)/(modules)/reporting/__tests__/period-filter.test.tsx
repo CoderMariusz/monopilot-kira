@@ -42,6 +42,7 @@ vi.mock('next-intl/server', () => ({
       'period.today': 'Today',
       'period.week': 'This Week',
       'period.month': 'This Month',
+      'period.quarter': 'This Quarter',
       'period.last7d': 'Last 7d',
       'period.last30d': 'Last 30d',
       'period.custom': 'Custom range',
@@ -149,4 +150,3 @@ describe('reporting period and filters', () => {
     );
   });
 });
-

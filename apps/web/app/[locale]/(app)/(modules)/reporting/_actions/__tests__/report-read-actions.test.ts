@@ -13,6 +13,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  exportProductionSummaryCsv,
   getReportingExportAccess,
   inventorySnapshot,
   procurementSummary,
@@ -374,5 +375,27 @@ describe('getReportingExportAccess', () => {
   it('is forbidden without rpt.dashboard.view', async () => {
     grantedPermissions = new Set(['rpt.export.csv']);
     expect(await getReportingExportAccess()).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('exportProductionSummaryCsv', () => {
+  it('returns a CSV payload and filename for the current production rows', async () => {
+    const res = await exportProductionSummaryCsv({
+      from: '2026-06-01T00:00:00.000Z',
+      to: '2026-06-30T23:59:59.999Z',
+      lineId: 'line-1',
+      orderQuery: 'WO',
+    });
+
+    expect(res.filename).toMatch(/^reporting-production-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(res.csv).toContain('WO,Item code,Item name,Planned qty,Actual qty,UOM,Yield %,Completed at');
+    expect(res.csv).toContain('WO-0002,FG001,Meat Box,100.000,90.000,kg,90.00,2026-06-10T10:00:00.000Z');
+    expect(res.csv).toContain('WO-0001,,,50.000,,each,,2026-06-09T08:00:00Z');
+  });
+
+  it('throws when rpt.export.csv is not granted', async () => {
+    grantedPermissions = new Set(['rpt.dashboard.view']);
+
+    await expect(exportProductionSummaryCsv()).rejects.toThrow('REPORTING_EXPORT_FORBIDDEN');
   });
 });

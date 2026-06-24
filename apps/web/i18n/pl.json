@@ -6960,6 +6960,7 @@
           "catchWeight": "Waga zmienna",
           "complete": "Zakończ",
           "start": "Rozpocznij",
+          "startReleaseHint": "Najpierw zwolnij to zlecenie produkcyjne w Planowaniu.",
           "resume": "Wznów",
           "cancel": "Anuluj",
           "close": "Zamknij"
@@ -9364,6 +9365,7 @@
       "today": "Dzisiaj",
       "week": "Ten tydzień",
       "month": "Ten miesiąc",
+      "quarter": "Ten kwartał",
       "last7d": "Ostatnie 7 dni",
       "last30d": "Ostatnie 30 dni",
       "custom": "Zakres niestandardowy"

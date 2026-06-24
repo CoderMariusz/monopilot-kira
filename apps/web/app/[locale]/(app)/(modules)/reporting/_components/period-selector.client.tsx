@@ -11,6 +11,7 @@ export type PeriodSelectorLabels = {
   today: string;
   week: string;
   month: string;
+  quarter: string;
   last7d: string;
   last30d: string;
   custom: string;
@@ -36,6 +37,7 @@ const PERIOD_BUTTONS: Array<{ value: ReportingPeriod; labelKey: keyof PeriodSele
   { value: 'today', labelKey: 'today' },
   { value: 'week', labelKey: 'week' },
   { value: 'month', labelKey: 'month' },
+  { value: 'quarter', labelKey: 'quarter' },
   { value: '7d', labelKey: 'last7d' },
   { value: '30d', labelKey: 'last30d' },
   { value: 'custom', labelKey: 'custom' },

@@ -19,16 +19,18 @@
  *   RFC-4180 via lib/shared/download, gated on rpt.export.csv) instead of the
  *   prototype's modal ExportDropdown (rpt.export.* schedule/PDF not in scope).
  *
- * Presentational only: receives already-loaded org-scoped summaries + resolved
- * i18n labels from the RSC page. No data fetching, no permission logic — the
- * rpt.export.csv decision arrives as the `canExportCsv` prop (buttons render
- * DISABLED with an explanatory title when denied — never a fake action).
+ * Receives already-loaded org-scoped summaries + resolved i18n labels from the
+ * RSC page. Permission logic stays server-side: `canExportCsv` controls disabled
+ * button state, and production CSV export revalidates RBAC in its Server Action.
  */
+
+import React from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../lib/shared/download';
+import { exportProductionSummaryCsv } from '../_actions/report-read-actions';
 import type {
   InventorySnapshot,
   ProcurementSummary,
@@ -113,6 +115,12 @@ export type ReportingOverviewProps = {
   inventory: InventorySnapshot;
   quality: QualitySummary;
   procurement: ProcurementSummary;
+  productionExportInput: {
+    from: string;
+    to: string;
+    lineId?: string;
+    orderQuery?: string;
+  };
   canExportCsv: boolean;
   labels: ReportingLabels;
 };
@@ -138,18 +146,20 @@ function ExportButton({
   label,
   deniedTitle,
   testId,
+  pending = false,
 }: {
-  onExport: () => void;
+  onExport: () => unknown;
   canExportCsv: boolean;
   label: string;
   deniedTitle: string;
   testId: string;
+  pending?: boolean;
 }) {
   return (
     <button
       type="button"
       data-testid={testId}
-      disabled={!canExportCsv}
+      disabled={!canExportCsv || pending}
       title={canExportCsv ? undefined : deniedTitle}
       onClick={onExport}
       className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -185,6 +195,7 @@ function ProductionSection({
   notAvailable,
   exportLabel,
   exportDenied,
+  exportInput,
 }: {
   data: ProductionSummary;
   labels: ReportingLabels['production'];
@@ -192,24 +203,17 @@ function ProductionSection({
   notAvailable: string;
   exportLabel: string;
   exportDenied: string;
+  exportInput: ReportingOverviewProps['productionExportInput'];
 }) {
+  const [pending, startTransition] = React.useTransition();
   const c = labels.columns;
-  const exportRows = () =>
-    downloadCsv(
-      toCsv(
-        [c.wo, c.item, c.planned, c.actual, c.uom, c.yield, c.completedAt],
-        data.rows.map((r) => [
-          r.woNumber,
-          r.itemCode ? `${r.itemCode} ${r.itemName ?? ''}`.trim() : (r.itemName ?? ''),
-          r.plannedQty,
-          r.actualQty,
-          r.uom,
-          r.yieldPct,
-          r.completedAt,
-        ]),
-      ),
-      `reporting-production-${isoDateStamp()}.csv`,
-    );
+  const exportRows = () => {
+    startTransition(() => {
+      void exportProductionSummaryCsv(exportInput).then((result) => {
+        downloadCsv(result.csv, result.filename);
+      });
+    });
+  };
 
   return (
     <Card data-testid="rpt-section-production">
@@ -224,6 +228,7 @@ function ProductionSection({
           label={exportLabel}
           deniedTitle={exportDenied}
           testId="rpt-export-production"
+          pending={pending}
         />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -541,6 +546,7 @@ export function ReportingOverviewClient({
   inventory,
   quality,
   procurement,
+  productionExportInput,
   canExportCsv,
   labels,
 }: ReportingOverviewProps) {
@@ -553,6 +559,7 @@ export function ReportingOverviewClient({
         notAvailable={labels.page.notAvailable}
         exportLabel={labels.page.exportCsv}
         exportDenied={labels.page.exportCsvDenied}
+        exportInput={productionExportInput}
       />
       <InventorySection
         data={inventory}

@@ -1,4 +1,4 @@
-export const REPORTING_PERIODS = ['today', 'week', 'month', '7d', '30d', 'custom'] as const;
+export const REPORTING_PERIODS = ['today', 'week', 'month', 'quarter', '7d', '30d', 'custom'] as const;
 
 export type ReportingPeriod = (typeof REPORTING_PERIODS)[number];
 
@@ -90,6 +90,12 @@ export function computeReportingWindow(
       const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
       const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
       return { period, from, to: new Date(nextMonth.getTime() - 1) };
+    }
+    case 'quarter': {
+      const quarterStartMonth = Math.floor(now.getUTCMonth() / 3) * 3;
+      const from = new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth, 1));
+      const nextQuarter = new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth + 3, 1));
+      return { period, from, to: new Date(nextQuarter.getTime() - 1) };
     }
     case '30d':
       return { period, from: new Date(now.getTime() - 30 * MS_PER_DAY), to: now };

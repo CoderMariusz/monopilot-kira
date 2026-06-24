@@ -50,6 +50,13 @@ type ReportingLoaderInput = {
   orderQuery?: string;
 };
 
+type ProductionSummaryCsvInput = {
+  from?: string;
+  to?: string;
+  lineId?: string;
+  orderQuery?: string;
+};
+
 function cleanText(value: string | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
@@ -82,6 +89,28 @@ function normalizeWindow(input: ReportingLoaderInput, fallbackDays: number) {
     lineId: cleanText(input.lineId),
     orderQuery: cleanText(input.orderQuery),
   };
+}
+
+function parseExportDate(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  return isValidDate(parsed) ? parsed : undefined;
+}
+
+function csvCell(value: string | number | null | undefined): string {
+  const s = value == null ? '' : String(value);
+  return /["\n\r,]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function toCsv(
+  header: readonly string[],
+  rows: ReadonlyArray<ReadonlyArray<string | number | null | undefined>>,
+): string {
+  return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+}
+
+function dateStamp(now = new Date()): string {
+  return now.toISOString().slice(0, 10);
 }
 
 /** rpt.export.csv probe so the page can render the CSV buttons honestly. */
@@ -272,6 +301,62 @@ export async function productionSummary(
   } catch (error) {
     console.error('[reporting] productionSummary failed', error);
     return { ok: false, reason: 'error' };
+  }
+}
+
+export async function exportProductionSummaryCsv(
+  input: ProductionSummaryCsvInput = {},
+): Promise<{ csv: string; filename: string }> {
+  const from = parseExportDate(input.from);
+  const to = parseExportDate(input.to);
+
+  try {
+    const access = await withOrgContext(
+      async ({ userId, orgId, client }): Promise<ReportingResult<{ canExport: boolean }>> => {
+        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+        if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
+          return { ok: false, reason: 'forbidden' };
+        }
+        if (!(await hasReportingPermission(ctx, RPT_EXPORT_CSV_PERMISSION))) {
+          return { ok: false, reason: 'forbidden' };
+        }
+        return { ok: true, data: { canExport: true } };
+      },
+    );
+
+    if (!access.ok) {
+      throw new Error(access.reason === 'forbidden' ? 'REPORTING_EXPORT_FORBIDDEN' : 'REPORTING_EXPORT_FAILED');
+    }
+
+    const summary = await productionSummary({
+      from,
+      to,
+      lineId: input.lineId,
+      orderQuery: input.orderQuery,
+    });
+
+    if (!summary.ok) {
+      throw new Error(summary.reason === 'forbidden' ? 'REPORTING_EXPORT_FORBIDDEN' : 'REPORTING_EXPORT_FAILED');
+    }
+
+    const csv = toCsv(
+      ['WO', 'Item code', 'Item name', 'Planned qty', 'Actual qty', 'UOM', 'Yield %', 'Completed at'],
+      summary.data.rows.map((r) => [
+        r.woNumber,
+        r.itemCode,
+        r.itemName,
+        r.plannedQty,
+        r.actualQty,
+        r.uom,
+        r.yieldPct,
+        r.completedAt,
+      ]),
+    );
+
+    return { csv, filename: `reporting-production-${dateStamp()}.csv` };
+  } catch (error) {
+    console.error('[reporting] exportProductionSummaryCsv failed', error);
+    throw error;
   }
 }
 

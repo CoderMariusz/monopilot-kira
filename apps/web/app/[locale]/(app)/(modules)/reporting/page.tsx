@@ -183,6 +183,7 @@ async function buildSelectorLabels(locale: string): Promise<PeriodSelectorLabels
     today: t('period.today'),
     week: t('period.week'),
     month: t('period.month'),
+    quarter: t('period.quarter'),
     last7d: t('period.last7d'),
     last30d: t('period.last30d'),
     custom: t('period.custom'),
@@ -247,6 +248,12 @@ async function loadReportingContent({
       inventory={inventory.data}
       quality={quality.data}
       procurement={procurement.data}
+      productionExportInput={{
+        from: from.toISOString(),
+        to: to.toISOString(),
+        lineId: filters.lineId,
+        orderQuery: filters.orderQuery,
+      }}
       canExportCsv={canExportCsv}
       labels={buildLabels(locale, filters.window)}
     />
