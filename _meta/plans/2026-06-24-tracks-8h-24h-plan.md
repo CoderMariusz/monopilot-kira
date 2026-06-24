@@ -163,3 +163,9 @@ Re-verify of c4872e9d FAILED A & C and exposed real root causes (my earlier Bug-
 - NEVER gate a build with `… | tail` — the pipe's exit code masks `next build` failure. Use `build > log 2>&1; echo EXIT=$?`.
 - NEVER run a build while a concurrent edit lane is mid-refactor (it catches a half-done tree). Wait for the lane to commit.
 - Root-cause by READING code is insufficient — REPRODUCE the live error (the a953 lane reasoned "cache race"; the real bug was a 42P10 the query throws). Verify the fixed query live before trusting.
+
+## RE-VERIFY QUEUE additions (batch 35339648→ next deploy)
+- [ ] `/settings/integrations` loads (no RSC crash) — fb98657e. Expand a category, Configure/Connect render.
+- [ ] `/quality/trace` loads (no RSC crash) — fb98657e. A node deep-link resolves correctly.
+- [ ] Settings→Roles matrix now shows the production correction perms (76a4c9b0 enum) — assignable.
+- [ ] PO reopen: action shipped (1142f7f0) but BUTTON not yet wired → expect NO reopen affordance yet; queue the Reopen-button UI lane. Verify cancel of a PO with received stock is blocked.
