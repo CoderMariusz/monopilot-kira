@@ -51,6 +51,10 @@
       "counts": {
         "title": "Stock counts",
         "desc": "Cycle counts, variance review, and apply."
+      },
+      "adjustments": {
+        "title": "Stock adjustments",
+        "desc": "Direct on-hand corrections — found stock, damage, write-offs."
       }
     },
     "list": {
@@ -394,6 +398,10 @@
       "counts": {
         "title": "Inwentaryzacje",
         "desc": "Liczenia cykliczne, przegląd różnic i zatwierdzenie."
+      },
+      "adjustments": {
+        "title": "Korekty stanu",
+        "desc": "Bezpośrednie korekty stanu — znaleziony towar, uszkodzenia, spisania."
       }
     },
     "list": {

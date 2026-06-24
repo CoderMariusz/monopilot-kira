@@ -68,6 +68,11 @@ const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
   // approve & apply: mint LP on +ve variance / reduce stock on −ve). Surfaced
   // here so the counts module is reachable from the hub (not URL-only).
   { key: "counts", href: "/warehouse/counts", disabled: false },
+  // W11 — direct stock adjustment (applyDirectAdjustment): one-off found stock /
+  // damage / write-off corrections with an e-sign + (for decreases) a distinct
+  // supervisor countersignature. Surfaced here so the adjustment flow is reachable
+  // from the hub rather than being a URL-only screen.
+  { key: "adjustments", href: "/warehouse/adjustments/new", disabled: false },
   // E1 — label print job log (printers + print_jobs, mig 304); was otherwise
   // unreachable from the warehouse hub.
   { key: "printHistory", href: "/warehouse/print-history", disabled: false },

@@ -24,7 +24,10 @@ const DESTROYED_STATUS = 'destroyed';
 // "adjust.approve" permission, so the elevated grant IS warehouse.stock.adjust.
 const WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION = 'warehouse.stock.adjust';
 
-export const DirectAdjustReasonCode = z.enum([
+// NOT exported: a 'use server' file may export only async functions; an exported
+// const (zod enum = object) fails `next build` once a page collects this module.
+// The inferred TYPE below is exported for consumers; the schema value stays private.
+const DirectAdjustReasonCode = z.enum([
   'found_stock',
   'spillage_damage',
   'expiry_write_off',
