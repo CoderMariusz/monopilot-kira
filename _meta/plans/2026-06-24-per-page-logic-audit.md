@@ -193,3 +193,14 @@ everyone) — now functional. REMAINING E-wave follow-ups (genuine L2/L3, approp
 STABLE not IMMUTABLE so it can't be a direct gist expression); a rare race already mitigated by the app pre-check;
 (3) E8 separate-approver SoD (apply currently both approves + commits — a deliberate explicit step, gated + audited).
 **All real L1/L2 bugs the adversarial reviews found across the 6 E-waves are now FIXED.** ~18 overnight commits.
+
+### E-WAVE follow-up UPDATE 2 (2026-06-24 ~03:10) — E5 gist no-overlap DONE
+E5 booking TOCTOU race CLOSED (commit aab53aab, mig 320 LIVE): gist EXCLUDE `dock_appointments_no_overlap` on
+(org, door, tstzrange(scheduled_at, ends_at)); ends_at materialized by a BEFORE trigger to dodge the timestamptz+interval
+STABLE/IMMUTABLE gotcha. DB now prevents double-booking regardless of concurrency. Only 2 E-wave follow-ups remain, both
+APPROPRIATELY DEFERRED (not safe to do autonomously at 3am): (1) E2B hold-creation txn-sharing — fails SAFE today
+(spurious quarantine never missed quarantine); the proper fix refactors the SHARED hold-actions.ts (createHoldCore) which
+risks every hold caller (LP block, CCP, QA) — needs careful daytime work; (2) E8 separate-approver SoD — a flow/role
+decision (apply currently both approves+commits as one explicit gated+audited step; a separate-approver requires the
+owner to decide the role split). **Every L1/L2 bug the adversarial reviews found is now FIXED; the 2 remainders are a
+shared-file refactor + a flow decision.** ~20 overnight commits; migs 312-320 live + in repo; build green throughout.
