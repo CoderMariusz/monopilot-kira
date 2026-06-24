@@ -6256,10 +6256,10 @@
         "notePlaceholder": "Dodaj kontekst cofnięcia",
         "esign": {
           "title": "Podpis elektroniczny",
-          "meaning": "Wpisz ponownie hasło do konta (lub PIN przełożonego), aby podpisać to cofnięcie. Twoja tożsamość i czas serwera są rejestrowane.",
-          "password": "Hasło lub PIN",
-          "passwordPlaceholder": "Hasło do konta lub PIN przełożonego",
-          "passwordHelp": "Użyj hasła do konta lub PIN-u przełożonego, jeśli został ustawiony."
+          "meaning": "Wpisz PIN e-podpisu, aby podpisać to cofnięcie — lub hasło konta, dopóki nie masz zarejestrowanego PIN-u. Twoja tożsamość i czas serwera zostaną zapisane.",
+          "password": "PIN e-podpisu lub hasło konta",
+          "passwordPlaceholder": "PIN e-podpisu lub hasło konta",
+          "passwordHelp": "Hasło konta jest akceptowane tylko dopóki nie masz zarejestrowanego PIN-u e-podpisu."
         },
         "cancel": "Anuluj",
         "submit": "Cofnij przyjęcie",
@@ -7717,10 +7717,10 @@
         "close": "Zamknij",
         "esign": {
           "title": "Podpis elektroniczny",
-          "meaning": "Wpisanie hasła do konta stanowi Twój prawnie wiążący podpis dla tego przezbrojenia alergenowego.",
-          "password": "Hasło konta",
-          "passwordPlaceholder": "Twoje hasło",
-          "passwordHelp": "Twoja tożsamość i czas podpisu są rejestrowane przez system.",
+          "meaning": "Wpisz PIN e-podpisu, aby podpisać to przezbrojenie alergenowe — lub hasło konta, dopóki nie masz zarejestrowanego PIN-u. To jest Twój prawnie wiążący podpis; Twoja tożsamość i czas podpisu są rejestrowane przez system.",
+          "password": "PIN e-podpisu lub hasło konta",
+          "passwordPlaceholder": "PIN e-podpisu lub hasło konta",
+          "passwordHelp": "Hasło konta jest akceptowane tylko dopóki nie masz zarejestrowanego PIN-u e-podpisu.",
           "submit": "Podpisz",
           "submitting": "Podpisywanie…",
           "cancel": "Anuluj",
@@ -9293,10 +9293,10 @@
         "notePlaceholder": "Dodaj kontekst anulowania",
         "esign": {
           "title": "Podpis elektroniczny",
-          "meaning": "Wpisz ponownie hasło konta, aby potwierdzić autoryzację anulowania.",
-          "password": "Hasło",
-          "passwordPlaceholder": "Hasło konta",
-          "passwordHelp": "Hasło konta, nie PIN."
+          "meaning": "Wpisz PIN e-podpisu, aby podpisać to anulowanie — lub hasło konta, dopóki nie masz zarejestrowanego PIN-u. Twoja tożsamość i czas serwera zostaną zapisane.",
+          "password": "PIN e-podpisu lub hasło konta",
+          "passwordPlaceholder": "PIN e-podpisu lub hasło konta",
+          "passwordHelp": "Hasło konta jest akceptowane tylko dopóki nie masz zarejestrowanego PIN-u e-podpisu."
         },
         "cancel": "Zachowaj wysyłkę",
         "submit": "Anuluj wysyłkę",

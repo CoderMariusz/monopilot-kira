@@ -79,7 +79,7 @@ const labels: ToDetailLabels = {
       note: 'Note',
       noteOptional: 'optional',
       notePlaceholder: 'Add context for the reversal',
-      esign: { title: 'Electronic signature', meaning: 'Re-enter your account password or supervisor PIN.', password: 'Password or PIN', passwordPlaceholder: 'Account password or supervisor PIN', passwordHelp: 'Use your account password, or a supervisor PIN.' },
+      esign: { title: 'Electronic signature', meaning: 'Enter your e-sign PIN to sign this reversal — or your account password while you have no PIN enrolled. Your identity and the server time are recorded.', password: 'E-sign PIN or account password', passwordPlaceholder: 'E-sign PIN or account password', passwordHelp: 'Your account password is accepted only while you have no e-sign PIN enrolled.' },
       cancel: 'Cancel',
       submit: 'Reverse receipt',
       submitting: 'Reversing…',

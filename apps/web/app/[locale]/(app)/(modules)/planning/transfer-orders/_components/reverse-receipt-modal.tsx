@@ -6,7 +6,8 @@
  * Reversibility UI for inter-warehouse receipts: a warehouse supervisor reverses a
  * RECEIVED transfer-order line by returning its destination LP to the source and
  * reopening the line. The modal collects the shared correction reason code + an
- * optional note + the account password / supervisor PIN (e-sign), mirroring the
+ * optional note + the signer's e-sign PIN (or account password while no PIN is
+ * enrolled — signEvent is PIN-first per the signer's own user_pins), mirroring the
  * production void/reverse-consumption modals
  * (production/wos/[id]/_components/void-correction-modal.tsx +
  * reverse-consumption-modal.tsx — the in-repo precedent; no prototype reverse-receipt

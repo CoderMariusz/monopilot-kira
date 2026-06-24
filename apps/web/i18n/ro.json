@@ -6256,10 +6256,10 @@
         "notePlaceholder": "Add context for the reversal",
         "esign": {
           "title": "Electronic signature",
-          "meaning": "Re-enter your account password (or supervisor PIN) to sign this reversal. Your identity and the server time are recorded.",
-          "password": "Password or PIN",
-          "passwordPlaceholder": "Account password or supervisor PIN",
-          "passwordHelp": "Use your account password, or a supervisor PIN if one is enrolled."
+          "meaning": "Enter your e-sign PIN to sign this reversal — or your account password while you have no PIN enrolled. Your identity and the server time are recorded.",
+          "password": "E-sign PIN or account password",
+          "passwordPlaceholder": "E-sign PIN or account password",
+          "passwordHelp": "Your account password is accepted only while you have no e-sign PIN enrolled."
         },
         "cancel": "Cancel",
         "submit": "Reverse receipt",
@@ -7716,10 +7716,10 @@
         "close": "Close",
         "esign": {
           "title": "Electronic signature",
-          "meaning": "Entering your account password constitutes your legally binding signature for this allergen changeover.",
-          "password": "Account password",
-          "passwordPlaceholder": "Your password",
-          "passwordHelp": "Your identity and the signing time are recorded by the system.",
+          "meaning": "Enter your e-sign PIN to sign this allergen changeover — or your account password while you have no PIN enrolled. This is your legally binding signature; your identity and the signing time are recorded by the system.",
+          "password": "E-sign PIN or account password",
+          "passwordPlaceholder": "E-sign PIN or account password",
+          "passwordHelp": "Your account password is accepted only while you have no e-sign PIN enrolled.",
           "submit": "Sign",
           "submitting": "Signing…",
           "cancel": "Cancel",
@@ -9292,10 +9292,10 @@
         "notePlaceholder": "Add context for the cancellation",
         "esign": {
           "title": "Electronic signature",
-          "meaning": "Re-enter your account password to confirm you authorise this cancellation.",
-          "password": "Password",
-          "passwordPlaceholder": "Account password",
-          "passwordHelp": "Your account password, not a PIN."
+          "meaning": "Enter your e-sign PIN to sign this cancellation — or your account password while you have no PIN enrolled. Your identity and the server time are recorded.",
+          "password": "E-sign PIN or account password",
+          "passwordPlaceholder": "E-sign PIN or account password",
+          "passwordHelp": "Your account password is accepted only while you have no e-sign PIN enrolled."
         },
         "cancel": "Keep shipment",
         "submit": "Cancel shipment",

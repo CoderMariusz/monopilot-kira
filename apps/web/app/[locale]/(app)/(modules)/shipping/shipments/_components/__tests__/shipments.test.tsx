@@ -212,10 +212,11 @@ const packLabels: ShipmentPackLabels = {
       notePlaceholder: 'Add context for the cancellation',
       esign: {
         title: 'Electronic signature',
-        meaning: 'Re-enter your account password to confirm.',
-        password: 'Password',
-        passwordPlaceholder: 'Account password',
-        passwordHelp: 'Your account password, not a PIN.',
+        meaning:
+          'Enter your e-sign PIN to sign this cancellation — or your account password while you have no PIN enrolled. Your identity and the server time are recorded.',
+        password: 'E-sign PIN or account password',
+        passwordPlaceholder: 'E-sign PIN or account password',
+        passwordHelp: 'Your account password is accepted only while you have no e-sign PIN enrolled.',
       },
       cancel: 'Keep shipment',
       submit: 'Cancel shipment',
