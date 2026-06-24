@@ -292,6 +292,9 @@ describe('generateBol', () => {
 
 describe('recordPod', () => {
   it('sets delivered_at and stores the signed BOL URL', async () => {
+    // recordPod now requires the shipment to be 'shipped' (proof-of-delivery
+    // follows dispatch); the prior default 'packed' is rejected by the new guard.
+    shipmentStatus = 'shipped';
     const result = await recordPod({
       shipmentId: SHIPMENT_ID,
       signedPdfUrl: 'https://storage.example/pod.pdf',

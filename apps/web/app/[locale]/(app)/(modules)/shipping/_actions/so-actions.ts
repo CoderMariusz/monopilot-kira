@@ -607,7 +607,8 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
         where org_id = app.current_org_id()
           and id = $1::uuid
           and deleted_at is null
-        limit 1`,
+        limit 1
+        for update`,
       [id],
     );
     const current = statusRows[0]?.status;

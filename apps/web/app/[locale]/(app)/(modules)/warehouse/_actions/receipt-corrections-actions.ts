@@ -26,8 +26,6 @@ const reasonCodeSchema = z.enum(CORRECTION_REASON_CODES);
 const optionalNoteSchema = z.string().trim().max(2000).optional().nullable();
 const optionalTextSchema = z.string().trim().max(255).optional().nullable();
 const optionalDateSchema = z.string().datetime({ offset: true }).optional().nullable();
-const hasSuppliedValue = (value: string | null | undefined): boolean =>
-  typeof value === 'string' && value.trim().length > 0;
 
 const CancelGrnLineInput = z.object({
   grnItemId: uuidSchema,
@@ -41,7 +39,7 @@ const UpdateLpMetadataInput = z.object({
   batchNumber: optionalTextSchema,
   reasonCode: reasonCodeSchema,
   note: optionalNoteSchema,
-}).refine((value) => value.expiryDate !== undefined || hasSuppliedValue(value.batchNumber), {
+}).refine((value) => value.expiryDate !== undefined || value.batchNumber !== undefined, {
   message: 'at least one metadata field is required',
 });
 
@@ -397,7 +395,11 @@ export async function updateLpMetadata(input: unknown): Promise<
       }
       if (batchNumber !== undefined) {
         updateParams.push(batchNumber);
-        updateAssignments.push(`batch_number = coalesce($${updateParams.length}, batch_number)`);
+        updateAssignments.push(
+          batchNumber === null
+            ? `batch_number = $${updateParams.length}`
+            : `batch_number = coalesce($${updateParams.length}, batch_number)`,
+        );
       }
       updateParams.push(userId);
       updateAssignments.push(`updated_by = $${updateParams.length}::uuid`, 'updated_at = now()');
@@ -411,9 +413,9 @@ export async function updateLpMetadata(input: unknown): Promise<
       );
 
       const nextExpiryDate = expiryDate === undefined ? lp.expiry_date : expiryDate;
-      const nextBatchNumber = batchNumber ?? lp.batch_number;
+      const nextBatchNumber = batchNumber === undefined ? lp.batch_number : batchNumber;
       const expiryDateSeedValue = expiryDate === undefined ? 'unchanged' : (expiryDate ?? 'cleared');
-      const batchNumberSeedValue = batchNumber === undefined ? 'unchanged' : (batchNumber ?? 'preserved');
+      const batchNumberSeedValue = batchNumber === undefined ? 'unchanged' : (batchNumber ?? 'cleared');
 
       await writeLpHistory(ctx, {
         lpId: lp.id,

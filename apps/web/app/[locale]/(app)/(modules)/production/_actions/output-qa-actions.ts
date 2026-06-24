@@ -124,17 +124,17 @@ export async function releaseWoOutputQa(
                  app.current_org_id(),
                  $1::uuid,
                  $2,
-                 $2,
-                 'production_output_qa_changed',
                  $3,
+                 'production_output_qa_changed',
+                 $5,
                  gen_random_uuid(),
                  $4::jsonb,
-                 $5::uuid
+                 $6::uuid
                )`,
             [
               row.lp_id,
-              lp.status,
-              note,
+              lp.qa_status,
+              lpQaStatus,
               JSON.stringify({
                 outputId,
                 outputQaStatusFrom: output.qa_status,
@@ -142,6 +142,7 @@ export async function releaseWoOutputQa(
                 qaStatusFrom: lp.qa_status,
                 qaStatusTo: lpQaStatus,
               }),
+              note,
               userId,
             ],
           );

@@ -327,6 +327,20 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
       const forbidden = await requirePermission(ctx, SHIP_BOL_SIGN);
       if (forbidden) return forbidden;
 
+      const { rows: shipmentRows } = await ctx.client.query<{ id: string; status: string }>(
+        `select id::text, status
+           from public.shipments
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and deleted_at is null
+          limit 1`,
+        [input.shipmentId],
+      );
+      const currentShipment = shipmentRows[0];
+      if (!currentShipment || currentShipment.status !== 'shipped') {
+        return { ok: false, error: 'invalid_state' };
+      }
+
       const { rows } = await ctx.client.query<{ id: string; sales_order_id: string | null }>(
         `update public.shipments
             set status = 'delivered',
@@ -336,12 +350,13 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
+            and status = 'shipped'
             and deleted_at is null
           returning id::text, sales_order_id::text`,
         [input.shipmentId, input.signedPdfUrl ?? null, userId],
       );
       const shipment = rows[0];
-      if (!shipment) return { ok: false, error: 'not_found' };
+      if (!shipment) throw new ActionError('persistence_failed');
 
       if (shipment.sales_order_id) {
         const { rows: remainingRows } = await ctx.client.query<{ remaining_count: number | string | bigint | null }>(

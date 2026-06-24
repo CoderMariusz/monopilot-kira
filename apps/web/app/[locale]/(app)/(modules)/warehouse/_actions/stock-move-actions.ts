@@ -229,14 +229,16 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
         [moveNumber, lpId, lp.location_id, toLocationId, lp.quantity, lp.uom, reason, transactionId, userId],
       );
 
-      await ctx.client.query(
-        `update public.license_plates
-            set location_id = $2::uuid,
-                updated_by = $3::uuid
-          where org_id = app.current_org_id()
-            and id = $1::uuid`,
-        [lpId, toLocationId, userId],
-      );
+      if (inserted.rows[0]) {
+        await ctx.client.query(
+          `update public.license_plates
+              set location_id = $2::uuid,
+                  updated_by = $3::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [lpId, toLocationId, userId],
+        );
+      }
 
       const move = await ctx.client.query<{
         id: string;
@@ -272,7 +274,7 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
         [transactionId],
       );
       const row = move.rows[0];
-      if (!row || !inserted) return { ok: false, reason: 'error' };
+      if (!row) return { ok: false, reason: 'error' };
 
       return {
         ok: true,

@@ -928,6 +928,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
     };
     const varianceMicro = toMicro(recomputedVarianceQty);
     const adjustmentQty = absDecimal(recomputedVarianceQty);
+    if (varianceMicro === 0n) throw new Error('variance_is_zero');
 
     const signatureReceipt = await signEvent(
       {

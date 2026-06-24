@@ -237,6 +237,10 @@ async function nextBatchNumber(
   woNumber: string,
   outputType: string,
 ): Promise<string> {
+  await ctx.client.query(
+    `select pg_advisory_xact_lock(hashtext($1::text || '::' || $2::text))`,
+    [woId, outputType],
+  );
   const { rows } = await ctx.client.query<{ seq: string }>(
     `select count(*)::text as seq
        from public.wo_outputs
