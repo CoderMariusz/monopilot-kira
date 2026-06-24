@@ -167,6 +167,7 @@ export type WoDetailLabels = {
   changeoverGate: { title: string; body: string; link: string };
   headerActions: {
     start: string;
+    startReleaseHint: string;
     pause: string;
     resume: string;
     waste: string;
@@ -729,6 +730,18 @@ export function WoDetailScreen({
           </div>
           {actions ? (
             <div className="flex shrink-0 flex-wrap gap-2" data-testid="wo-action-bar">
+              {actions.status === null ? (
+                <button
+                  type="button"
+                  data-testid="wo-action-start-disabled"
+                  disabled
+                  title={labels.headerActions.startReleaseHint}
+                  aria-label={`${labels.headerActions.start} — ${labels.headerActions.startReleaseHint}`}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  {labels.headerActions.start}
+                </button>
+              ) : null}
               <WoActionTrigger kind="start" label={labels.headerActions.start} />
               <WoActionTrigger kind="pause" label={labels.headerActions.pause} />
               <WoActionTrigger kind="resume" label={labels.headerActions.resume} />

@@ -262,6 +262,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
     },
     headerActions: {
       start: t('headerActions.start'),
+      startReleaseHint: t('headerActions.startReleaseHint'),
       pause: t('headerActions.pause'),
       resume: t('headerActions.resume'),
       waste: t('headerActions.waste'),

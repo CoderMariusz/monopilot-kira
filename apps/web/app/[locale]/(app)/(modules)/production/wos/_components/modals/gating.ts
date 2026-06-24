@@ -12,7 +12,7 @@
  *   completed    → close, cancel, output, waste
  *   closed       → (terminal)
  *   cancelled    → (terminal)
- *   null (no execution row yet) → treated as planned: start is the only verb.
+ *   null (no execution row yet) → not directly startable; release in Planning first.
  */
 
 import type { WoActionKind, WoActionPermissions, WoState } from './types';
@@ -20,7 +20,7 @@ import type { WoActionKind, WoActionPermissions, WoState } from './types';
 /** OUTPUT_RECORDABLE_STATES from lib/production/shared.ts. */
 const RECORDABLE: ReadonlySet<WoState> = new Set<WoState>(['in_progress', 'paused', 'completed']);
 
-/** Is the verb legal for this runtime status (null = no execution row = planned)? */
+/** Is the verb legal for this runtime status (null = no execution row, not startable here)? */
 export function isActionAvailable(
   kind: WoActionKind,
   status: WoState | null,
@@ -28,7 +28,7 @@ export function isActionAvailable(
   const s: WoState = status ?? 'planned';
   switch (kind) {
     case 'start':
-      return s === 'planned';
+      return status !== null && s === 'planned';
     case 'pause':
       return s === 'in_progress';
     case 'resume':
