@@ -91,13 +91,30 @@ export interface OrgContext {
 let ownerPool: pg.Pool | null = null;
 let appPool: pg.Pool | null = null;
 
+// Pool tuning rationale (2026-06-24 pool-pressure audit):
+//   - idleTimeoutMillis: release a backend after 10s idle. In the test env the
+//     traffic is bursty (operator clicks, then pauses); without this, every
+//     warm lambda holds up to `max` Supavisor connections open across the gaps,
+//     and N lambdas × held connections can exhaust the SESSION-mode pooler
+//     (pool_size=15). Releasing on idle frees them between bursts — pure win,
+//     no serialization cost (connections re-open on the next query).
+//   - connectionTimeoutMillis: fail fast with a clear error instead of hanging
+//     a request indefinitely when the pooler IS saturated.
+//   - max left at the pg default (10): a project-detail page fans out ~5-7
+//     CONCURRENT withOrgContext calls (see resolveContextFromSupabase note),
+//     each needing its own app connection + owner register. A lower cap (e.g.
+//     max:1) would serialize that fan-out and manufacture connectionTimeout
+//     500s — the opposite of the fix. The durable cap is a TRANSACTION-mode
+//     pooler URL (owner/Vercel-env action), not a per-pool max here.
+const POOL_TUNING = { idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 } as const;
+
 function getOwnerPool(): pg.Pool {
   if (ownerPool) return ownerPool;
   const cs = process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
   if (!cs) {
     throw new Error('withOrgContext requires DATABASE_URL_OWNER or DATABASE_URL');
   }
-  ownerPool = new Pool({ connectionString: cs });
+  ownerPool = new Pool({ connectionString: cs, ...POOL_TUNING });
   return ownerPool;
 }
 
@@ -114,7 +131,7 @@ function getAppPool(): pg.Pool {
     url.username = 'app_user';
     url.password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
   }
-  appPool = new Pool({ connectionString: url.toString() });
+  appPool = new Pool({ connectionString: url.toString(), ...POOL_TUNING });
   return appPool;
 }
 
