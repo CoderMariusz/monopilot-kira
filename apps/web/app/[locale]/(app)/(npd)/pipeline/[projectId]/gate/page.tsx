@@ -361,7 +361,7 @@ function mapApprovalEntry(row: GateApprovalTimelineItem): ApprovalHistoryEntry {
     eSigned,
     eSignHash: null,
     eSignedAt: row.esignedAt,
-  };
+  } as ApprovalHistoryEntry;
 }
 
 function buildGateScreenData(

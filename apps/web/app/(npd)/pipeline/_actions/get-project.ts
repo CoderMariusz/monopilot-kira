@@ -70,6 +70,7 @@ type ApprovalRow = {
   gate_code: ChecklistGate;
   decision: 'approved' | 'rejected';
   approver_user_id: string;
+  approver_name: string | null;
   notes: string | null;
   rejection_reason: string | null;
   esigned_at: string | null;
@@ -152,14 +153,16 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                   gate_code,
                   decision,
                   approver_user_id::text as approver_user_id,
+                  coalesce(u.display_name, u.name) as approver_name,
                   notes,
                   rejection_reason,
                   esigned_at::text as esigned_at,
                   created_at::text as created_at
-             from public.gate_approvals
-            where org_id = app.current_org_id()
-              and project_id = $1::uuid
-            order by created_at desc, id desc`,
+             from public.gate_approvals ga
+             left join public.users u on u.id = ga.approver_user_id
+            where ga.org_id = app.current_org_id()
+              and ga.project_id = $1::uuid
+            order by ga.created_at desc, ga.id desc`,
           [projectId],
         ),
       ]);
@@ -216,7 +219,7 @@ function mapApproval(row: ApprovalRow): GateApprovalTimelineItem {
     id: row.id,
     gateCode: row.gate_code,
     decision: row.decision,
-    approverUserId: row.approver_user_id,
+    approverUserId: row.approver_name ?? row.approver_user_id,
     notes: row.notes,
     rejectionReason: row.rejection_reason,
     esignedAt: row.esigned_at,
