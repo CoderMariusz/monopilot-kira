@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useId, useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
@@ -224,6 +225,7 @@ function InviteDialog({
   inviteUser?: InviteUserAction;
   onFeedback: (feedback: Feedback) => void;
 }) {
+  const t = useTranslations('settings.invitations');
   const defaultRoleId = roles[0]?.id ?? '';
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -268,7 +270,7 @@ function InviteDialog({
       if (result.ok) {
         onFeedback({
           kind: 'status',
-          message: interpolate('Invitation sent to {email}.', { email: result.data.email }),
+          message: t('invitation_sent', { email: result.data.email }),
         });
         resetForm();
         onOpenChange(false);
@@ -281,7 +283,7 @@ function InviteDialog({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} size="md" modalId="SM-06">
-      <Modal.Header title="Invite team member" />
+      <Modal.Header title={t('invite_team_member')} />
       <form onSubmit={submitInvite}>
         <Modal.Body>
           <div className="space-y-4 px-5 py-4">
@@ -310,7 +312,7 @@ function InviteDialog({
                 <span>Role</span>
                 <Select value={roleId} onValueChange={setRoleId} disabled={roles.length === 0}>
                   <SelectTrigger aria-label="Role">
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder={t('select_role')} />
                   </SelectTrigger>
                   <SelectContent>
                     {roles.map((role) => (
@@ -330,7 +332,7 @@ function InviteDialog({
               <span>Personal message</span>
               <Textarea
                 rows={2}
-                placeholder="Optional note for the invite email"
+                placeholder={t('optional_note')}
                 value={personalMessage}
                 onChange={(event) => setPersonalMessage(event.currentTarget.value)}
               />
@@ -488,6 +490,8 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     return <LoadingState />;
   }
 
+  const t = useTranslations('settings.invitations');
+
   if (!canView) {
     return (
       <main className="p-6">
@@ -512,14 +516,14 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     <main className="space-y-5 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="page-title">Pending Invitations</h1>
+          <h1 className="page-title">{t('heading')}</h1>
           <p className="muted text-sm">
             View and manage outstanding user invitations for this organisation.
           </p>
         </div>
         {canWrite && effectiveState !== 'empty' ? (
           <Button type="button" className="btn-primary" onClick={openInviteDialog}>
-            Invite User
+            {t('invite_user')}
           </Button>
         ) : null}
       </div>
@@ -545,7 +549,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
           <p className="empty-state-body">Invite a team member to get started.</p>
           {canWrite ? (
             <Button type="button" className="btn-primary empty-state-action" onClick={openInviteDialog}>
-              Invite User
+              {t('invite_user')}
             </Button>
           ) : null}
         </div>

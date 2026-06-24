@@ -680,10 +680,21 @@
       "permission_denied": "Brak uprawnień: wymagane settings.users.manage, aby zarządzać użytkownikami i rolami."
     },
     "invitations": {
-      "heading": "Oczekujące zaproszenia"
+      "heading": "Zaproszenia oczekujące",
+      "invite_team_member": "Zaproś członka zespołu",
+      "select_role": "Wybierz rolę",
+      "optional_note": "Opcjonalna notatka do wiadomości e-mail zaproszenia",
+      "invite_user": "Zaproś użytkownika",
+      "invitation_sent": "Zaproszenie wysłane do {email}."
     },
     "roles": {
-      "heading": "Role i uprawnienia"
+      "heading": "Role i uprawnienia",
+      "filter_by_module_or_permission": "Filtruj po module lub tekście uprawnienia",
+      "assign_role": "Przypisz rolę",
+      "assign_role_to_user": "Przypisz rolę użytkownikowi",
+      "system_roles": "Role systemowe",
+      "system_roles_tab": "Role systemowe",
+      "system_roles_table": "Role systemowe"
     },
     "security": {
       "heading": "Bezpieczeństwo"

@@ -680,10 +680,21 @@
       "permission_denied": "Доступ заборонено: для керування користувачами та ролями потрібно settings.users.manage."
     },
     "invitations": {
-      "heading": "Очікувані запрошення"
+      "heading": "Pending Invitations",
+      "invite_team_member": "Invite team member",
+      "select_role": "Select role",
+      "optional_note": "Optional note for the invite email",
+      "invite_user": "Invite User",
+      "invitation_sent": "Invitation sent to {email}."
     },
     "roles": {
-      "heading": "Ролі та дозволи"
+      "heading": "Roles & Permissions",
+      "filter_by_module_or_permission": "Filter by module or flat permission string",
+      "assign_role": "Assign role",
+      "assign_role_to_user": "Assign Role to User",
+      "system_roles": "System roles",
+      "system_roles_tab": "System Roles",
+      "system_roles_table": "System Roles"
     },
     "security": {
       "heading": "Безпека"

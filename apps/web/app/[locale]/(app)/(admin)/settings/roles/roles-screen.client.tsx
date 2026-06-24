@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 import RoleEditor, {
   type CreateRoleFn,
@@ -141,6 +142,7 @@ function DialogShell({
 }
 
 function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; permissions: RolePermission[]; onClose: () => void }) {
+  const t = useTranslations('settings.roles');
   const searchId = useId();
   const [query, setQuery] = useState('');
   const normalized = query.trim().toLowerCase();
@@ -165,7 +167,7 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="form-input"
-            placeholder="Filter by module or flat permission string"
+            placeholder={t('filter_by_module_or_permission')}
           />
         </div>
         {permissionGroups.map((group) => {
@@ -212,6 +214,7 @@ function AssignRoleDialog({
   assignRole: AssignRole;
   onClose: () => void;
 }) {
+  const t = useTranslations('settings.roles');
   const searchId = useId();
   const roleId = useId();
   const reasonId = useId();
@@ -224,7 +227,7 @@ function AssignRoleDialog({
 
   return (
     <DialogShell
-      title="Assign role"
+      title={t('assign_role')}
       modalId="SM-07"
       onClose={onClose}
       footer={
@@ -334,6 +337,7 @@ function AssignRoleDialog({
  * not wired, so we render a loud unavailable-state alert.
  */
 export default function RolesScreen(props: RolesScreenProps = {}) {
+  const t = useTranslations('settings.roles');
   const rolesUnavailable = props.roles === undefined;
   const roles = props.roles ?? [];
   const permissionsByRole = props.permissionsByRole ?? ({} as Record<RoleCode, RolePermission[]>);
@@ -350,7 +354,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
       <main className="space-y-5 p-6">
         <header>
           <p className="muted text-xs font-semibold uppercase tracking-wide">SET-011</p>
-          <h1 className="page-title">Roles &amp; Permissions</h1>
+          <h1 className="page-title">{t('heading')}</h1>
         </header>
         <div role="alert" data-testid="settings-roles-unavailable" className="alert alert-amber">
           <strong className="alert-title">Roles &amp; permissions are not available.</strong>
@@ -365,7 +369,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="muted text-xs font-semibold uppercase tracking-wide">SET-011</p>
-          <h1 className="page-title">Roles &amp; Permissions</h1>
+          <h1 className="page-title">{t('heading')}</h1>
           <p className="muted mt-1 text-sm">
             Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.
           </p>
@@ -373,7 +377,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
         {canManageRoles ? (
           <div className="flex flex-col items-end gap-2">
             <button type="button" className="btn btn-primary" onClick={() => setAssignOpen(true)}>
-              Assign Role to User
+              {t('assign_role_to_user')}
             </button>
             {roleAdmin ? (
               <RoleEditor
@@ -394,7 +398,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
 
       <div className="grid gap-3 md:grid-cols-3">
         <div className="kpi">
-          <div className="kpi-label">System roles</div>
+          <div className="kpi-label">{t('system_roles')}</div>
           <div className="kpi-value">{roles.length}</div>
         </div>
         <div className="kpi green">
@@ -411,7 +415,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
         <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--border)' }}>
           <div role="tablist" aria-label="Role type">
             <button role="tab" aria-selected="true" type="button" className="btn btn-primary btn-sm">
-              System Roles
+              {t('system_roles_tab')}
             </button>
             <button role="tab" aria-selected="false" type="button" className="btn btn-secondary btn-sm ml-2" disabled>
               Custom Roles
@@ -420,7 +424,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
           <span className="muted text-xs">Custom Roles are enterprise Phase 3 — soon.</span>
         </div>
         <div className="overflow-x-auto">
-          <table aria-label="System Roles" className="w-full border-collapse text-sm">
+          <table aria-label={t('system_roles_table')} className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b text-left" style={{ background: 'var(--gray-050)', borderColor: 'var(--border)' }}>
                 <th scope="col" className="px-4 py-2 font-semibold">Role name</th>
