@@ -236,6 +236,15 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
             left: panelRect.left,
             width: panelRect.width,
             zIndex: 1000,
+            // The panel is portaled to <body> so it escapes a create-modal's
+            // overflow/z-index. But the modals make the background inert by
+            // setting `pointer-events: none` on an ancestor (overlay/body), which
+            // an absolutely-portaled <body> child INHERITS — leaving every option
+            // visible but un-clickable by mouse (clicks fall through to the modal
+            // field behind). Explicitly re-enable pointer events on the panel
+            // (z-1000 already stacks it above the modal). Without this, picking a
+            // product in the WO/SO/PO/TO create modals is impossible by mouse.
+            pointerEvents: 'auto',
           }}
           className="rounded-md border border-slate-200 bg-white p-2 shadow-xl"
           data-testid="item-picker-panel"
