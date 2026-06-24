@@ -197,6 +197,7 @@ interface ScannerProdLabelsShape {
     noConsumptionContinue: string;
     /** Done-screen note repeated after a no-consumption output is registered. */
     noConsumptionDoneNote: string;
+    mass_balance_warning: string;
   };
   waste: {
     title: string;
@@ -407,6 +408,8 @@ const en: ScannerProdLabelsShape = {
       "No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.",
     noConsumptionContinue: "Continue anyway",
     noConsumptionDoneNote: "Registered without material consumption — no genealogy link.",
+    mass_balance_warning:
+      "Registered output ({outputKg} kg) requires approx {expectedKg} kg of components at {yieldPct}% yield, but {consumedKg} kg consumed so far.",
   },
   waste: {
     title: "Record waste",
@@ -617,6 +620,8 @@ const pl: ScannerProdLabelsShape = {
       "Brak zarejestrowanej konsumpcji materiałów dla tego WO — wyrób nie będzie miał powiązania genealogicznego/identyfikowalności. Zarejestruj najpierw konsumpcję lub kontynuuj.",
     noConsumptionContinue: "Kontynuuj mimo to",
     noConsumptionDoneNote: "Zarejestrowano bez konsumpcji materiałów — brak powiązania genealogicznego.",
+    mass_balance_warning:
+      "Zarejestrowana produkcja ({outputKg} kg) wymaga okolo {expectedKg} kg komponentu przy yield {yieldPct}%, ale skonsumowano dotad {consumedKg} kg.",
   },
   waste: {
     title: "Rejestruj odpad",
