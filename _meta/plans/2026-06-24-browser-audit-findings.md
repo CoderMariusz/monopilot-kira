@@ -364,3 +364,57 @@ Pre-check: `has_sequence_privilege('app_user','public.shipment_seq','USAGE') = t
 ## CLEANUP
 - Removed the seeded `wo_materials` test row (`RM-E2E-BEEF` on WO `b0e84a24`) after the #6 test — DB restored. Left in place (harmless AUDIT0624 test data): line `AUDIT0624-LINE-RV3` on Demo Plant, shipment `SH-2026-00002` (delivered) + its carton/SSCC, the consumed-to-shipment FG LP.
 
+---
+
+# RE-VERIFY 4 (#6 consume + scanner-reverse UI + sign-off settings)
+
+**Date:** 2026-06-24 (later run)
+**Target:** LIVE prod — https://monopilot-kira.vercel.app · login admin@monopilot.test · PL (`/pl/`)
+**Deployed commit confirmed:** Vercel deployment `dpl_6YfCn58bBj3rACwcUVJo9C5pe6k2` = **READY · production · SHA `fafbda6524a3f4b2844acb3b1c7238741ef9b278`** (the desktop-consume *dangling-$1* fix, the 3rd attempt) — verified via Vercel MCP `list_deployments`. Smoke: `/pl` app shell + nav render, active Supabase session admin@monopilot.test, site selector lists real sites (Demo Plant — Warsaw, AUDIT2-SITE, site 2). **Smoke PASS.**
+**Supabase project:** khjvkhzwfzuwzrusgobp.
+
+## ITEM 1 — #6 Desktop WO consume (3rd fix attempt, dangling-$1) → **PASS** ✅ (THE CRITICAL ONE)
+
+Setup (AUDIT0624 data): seeded one material line `AUDIT0624-RV4-BEEF-TRIM` (id `196b2a17…`) on the IN_PROGRESS WO **WO-20260610231609-B0E84A24** (`b0e84a24…`, org `…002`), product = `E2E Beef Trim 80/20` (`54916ced…`, kg) which has an available+QA-released FEFO LP **LP-1782293232526-89PB** (25 kg, batch AUDIT0624-BEEF-B1). (`v_inventory_available` = `status='available' AND qa_status='released'`; the older audit's `status='released'` probe was a red herring.)
+
+| step | result | evidence |
+|---|---|---|
+| Open desktop consume modal (Produkcja → WO detail → Zużycie tab → "Zarejestruj") | **PASS** — modal "Zarejestruj zużycie materiału" opens; component preselected, FEFO LP `LP-1782293232526-89PB · 25.000000 kg (sugerowany)` preselected | `reverify4-0624-6-01-consume-modal-filled.png` |
+| Enter qty **5 kg** + submit "Zarejestruj zużycie" | **PASS** — NO error toast, modal closed cleanly; row now reads **5 kg consumed / 15 kg remaining / 25%**; header overall consumption **2.8% → 16.7%**; the "⚠ Brak konsumpcji" badge disappeared | `reverify4-0624-6-02-consume-SUCCESS.png` |
+| DB persistence (Supabase MCP) | **PASS** — `wo_materials.consumed_qty` **0 → 5.000**; **1 row** in `wo_material_consumption` (id `6fc48dd6…`, qty 5.000, lp_id linked, operator_id `31fe18af…`, `fefo_adherence_flag=true`, transaction_id present); LP `LP-1782293232526-89PB` decremented **25 → 20.000 kg** with `consumed_by_wo_id` set to the WO | execute_sql |
+| Postgres error log around submit | **PASS / no 42P18** — submit ran at 10:38:10 UTC; the postgres log has **zero** `could not determine data type of parameter $1` at that time. The only 42P18 in the window is at 10:27:28 UTC (a *prior* session, before this test). The 42P18 family is genuinely closed on the deployed build. | get_logs(postgres) |
+
+**Verdict #6 = PASS.** The dangling-$1 fix (org filter `where org_id = app.current_org_id()` → `where org_id = $1::uuid` in both the `wo_materials` and `license_plates` UPDATEs, so the passed `$1`=orgId is now actually referenced) closes the 42P18. Desktop consume genuinely persists end-to-end: material counter, ledger row, and FEFO LP decrement all written in one txn. **Three-fix saga resolved.**
+
+## ITEM 2 — Scanner reverse-consume UI (new 4th hub tile + screen) → **PASS** ✅
+
+Path: `/pl/scanner/home` (logged in as Admin) → **Work Orders** → filter **Wszystkie** → WO `WO-20260610231609-B0E84A24` → execute screen.
+
+| check | result | evidence |
+|---|---|---|
+| 4th hub tile exists | **PASS** — execute screen shows exactly 4 tiles: **Konsumpcja** 📥 / **Rejestruj wyrób** 📤 / **Odpad** 🗑 / **Cofnij konsumpcję** ↩ ("Wycofaj konsumpcję materiału", amber). Tile enabled (WO in_progress). | `reverify4-0624-scanner-01-hub-4-tiles.png` |
+| Reverse screen loads + lists reversible consumptions | **PASS** — `/scanner/wos/[id]/reverse-consume` renders "Wybierz konsumpcję do cofnięcia" and lists the real consumption I'd just made: **AUDIT0624-RV4-BEEF-TRIM · 5.000 kg · LP-1782293232526-89PB · skonsumowano 24 cze, 11:38**. No crash. | `reverify4-0624-scanner-02-reverse-list.png` |
+| Detail captures reason + operator PIN (+ conditional supervisor) | **PASS** — selecting the row reveals: reason chips (Błąd wprowadzenia / Błędna ilość / Błędna partia / Błędny produkt / Inny), optional note, **"Twój PIN *"** operator-PIN field, submit disabled until PIN entered. Supervisor PIN is revealed *reactively* on a POST `invalid_supervisor` 401 when the org flag is ON (confirmed in code `reverse-consume-screen.tsx:80-205` + its test). I did NOT complete a reverse. | `reverify4-0624-scanner-03-reverse-pin-form.png` |
+
+**Verdict item 2 = PASS.** Tile + screen render without crash; operator-PIN always, supervisor-PIN conditional — all wired.
+
+## ITEM 3 — Settings → Sign-off & PINs (new section) → **PASS** ✅ (one minor UI note)
+
+A new **"Zatwierdzenia"** settings nav group exists with two links: **Zasady zatwierdzeń** (`/settings/signoff`, sign-off policies + production over-consumption tolerance) and **Zatwierdzenia i PIN-y** (`/settings/scanner-auth`, the scanner PIN policy). The supervisor-PIN-required toggle lives on the **scanner-auth** page.
+
+| check | result | evidence |
+|---|---|---|
+| `/pl/settings/signoff` loads | **PASS** — "Zasady zatwierdzeń": policy table (Allergen changeover, 2 sigs) + "Zatwierdzenia produkcyjne" (warn% + over-consumption tolerance, "wymaga zatwierdzenia kodem PIN przez przełożonego"). | `reverify4-0624-settings-01-signoff-page.png` |
+| `/pl/settings/scanner-auth` loads + toggle reads | **PASS** — "Cofanie konsumpcji na skanerze" with switch **"Wymagaj PIN-u przełożonego przy cofaniu na skanerze"** reading **checked** (default-ON when no `tenant_variations` row exists). | `reverify4-0624-settings-02-scanner-auth-toggle-saved.png` |
+| Toggle can be flipped + persists to `tenant_variations.feature_flags` | **PASS** — flipped OFF → Save enabled → "Zapisz" → status "Zasada zatwierdzeń skanera zapisana."; DB upserted `tenant_variations` (org `…002`) `feature_flags = {"scanner_reverse_require_supervisor_pin":"false"}`. Round-trip: flipped back ON + saved → DB flag back to `"true"` (default restored). | execute_sql (both directions) |
+
+**Verdict item 3 = PASS.** The new section loads, the supervisor-PIN toggle reads, flips both ways, and persists to `tenant_variations.feature_flags`. Helper copy updates correctly with state.
+
+## NEW BUG (re-verify 4)
+
+19. **L3 — scanner-auth supervisor toggle has a 0×0 mouse hitbox.** The `[data-testid="scanner-reverse-supervisor-toggle"]` `<button role="switch" class="switch">` computes to **`width:0px; height:0px`** (rect 0×0 at x≈285), so Playwright (and a real mouse) can't click it — only a synthetic `.click()` on the element flips it. The thumb/track styling (`.switch` / `.switch__thumb`) isn't sizing the button. Keyboard/programmatic toggling works and Save persists, so it's cosmetic-but-real (touch/mouse users can't toggle via the switch itself; the label text is also not wired as a click target). File-hint: the `.switch` CSS class / the `Switch` primitive used by `settings/scanner-auth/_components/*` — give the switch button an explicit width/height (it likely lost its dimensions in the shared `switch` style). Verify the same primitive on `/settings/signoff` and any other toggle.
+
+## CLEANUP (re-verify 4)
+- Reversed the #6 test footprint by hand to restore the DB: LP `LP-1782293232526-89PB` restored **20 → 25.000 kg** + `consumed_by_wo_id` nulled; deleted the `wo_material_consumption` row (`6fc48dd6…`); deleted the seeded `wo_materials` line `AUDIT0624-RV4-BEEF-TRIM` (`196b2a17…`). WO `b0e84a24` is back to its pre-test state (only its original `RM-BEEF-80` line, 1 kg consumed).
+- The `tenant_variations` row for org `…002` now exists with `scanner_reverse_require_supervisor_pin="true"` (the same as the prior implicit default — harmless; it just makes the default explicit).
+
