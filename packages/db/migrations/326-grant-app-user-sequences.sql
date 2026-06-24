@@ -1,0 +1,11 @@
+-- Migration 326: grant app_user USAGE+SELECT on all public sequences.
+--
+-- The wave-10 shipping sequence (shipment_seq) and other doc-numbering sequences
+-- were never granted to app_user (the role the app connects as) →
+-- `permission denied for sequence shipment_seq` (42501) blocked the ENTIRE
+-- SO→pick→pack→ship chain (createShipment INSERT). Same class as the wave-E table
+-- grant gap (mig 323), but for sequences. Blanket-grant fixes shipment_seq + every
+-- sibling in one shot. Found by the 2026-06-24 live browser audit. Applied live via
+-- Supabase MCP; idempotent. NOTE: new sequences must also grant app_user (the
+-- canonical create-table/sequence pattern) — or this gap recurs.
+grant usage, select on all sequences in schema public to app_user;
