@@ -308,3 +308,59 @@ Screenshots: `apps/web/e2e/artifacts/audit3-0624/`.
 ## HEALTHY (real Supabase, PL clean, persists end-to-end)
 Scanner Receive-PO (GRN + LP mint + QA pending + PO state machine), desktop GRN detail + Zwolnij QC + cancel-receipt reverse, scanner LP-info / Putaway / Move-LP (+ stock_moves ledger), WO output (fixed + catch-weight) + FG LP genealogy, WO waste, WO Complete→Close with e-sign, SO create/confirm/allocate state machine + allocation gate. Account-PIN management page (password-authorized) + scanner PIN login + shift-start.
 
+---
+
+# RE-VERIFY 3 (A / #6 / SEQ) — 2026-06-24
+
+**Auditor:** Track-1 browser re-verify (Claude Opus 4.8, Playwright MCP)
+**Target:** LIVE prod — https://monopilot-kira.vercel.app/pl/ · login admin@monopilot.test
+**Deployed commit (Vercel READY, production):** `a9e7247c` (descendant of local HEAD `746a2699`; **contains** the consume fix `cc9e8db9` AND the sites fix `f0b731fc` AND mig 326 / `shipment_seq` grant — all three fixes are genuinely in the live build).
+**Smoke:** GREEN — login → `/pl` app shell renders, all modules, PL clean; only console error is the pre-existing `/sw.js` 404 (harmless missing service-worker).
+**Data convention:** AUDIT0624-prefixed test data; DB verified via Supabase MCP on project `khjvkhzwfzuwzrusgobp`.
+**Artifacts:** `apps/web/e2e/artifacts/reverify3-0624/` (11 PNGs).
+
+## A — Sites & Lines list (fix f0b731fc) → **PASS** (3rd attempt finally works)
+
+| check | expected | actual | evidence |
+|---|---|---|---|
+| Existing lines visible for a seed-org-UUID site | the list SHOWS lines (was always empty "No production lines") | **PASS** — "Demo Plant — Warsaw" (`site_id 61dcddac…`, `org_id 00000000-…-002`, version-0/variant-0 UUID the strict regex used to reject) now lists **9 lines** (DEMO-LINE-1/2, LINE93/99/999/9921, AUDIT0624-LINE, AUDIT2-LINE2, LINE-TEST-01). Counts correct ("9 linii"). | `A-01-sites-lines-list-populated.png` |
+| Add line appears immediately | new row + count bump w/o reload | **PASS** — added `AUDIT0624-LINE-RV3 / "AUDIT0624-LINE ReVerify3"`; row appeared instantly, site count 9→10. DB row written with correct `site_id`. | `A-02-line-added-immediately.png` |
+| Per-row Edit visible + persists | Edytuj per row; edit saves | **PASS** — every row has **Edytuj**; edited the new line (name→"…EDITED", status active→**maintenance**); UI updated to "⚒ Konserwacja". DB: `status=maintenance`, `name='AUDIT0624-LINE ReVerify3 EDITED'`. | `A-03-line-edit-persisted.png` |
+
+**Verdict A = PASS.** The fix holds end-to-end: list populated, add immediate, edit persists to Supabase.
+
+## #6 — Desktop WO consume (fix cc9e8db9 — "untyped $1 / 42P18") → **FAIL** (still broken on live)
+
+Setup: seeded a consumable BOM component (`RM-E2E-BEEF`, 10 kg) onto IN_PROGRESS WO `b0e84a24` (Night Proof Sausage) so the desktop consume modal had a material **with a real available LP** (`LP-1782293232526-89PB`, batch AUDIT0624-BEEF-B1, 25 kg, available/released). Opened `/pl/production/wos/b0e84a24…` → Zużycie tab → Zarejestruj → modal correctly offered the FEFO LP (`LP-…-89PB · 25 kg (sugerowany)`) → entered qty **8 kg** → submit.
+
+| check | expected | actual | evidence |
+|---|---|---|---|
+| Consume with valid material+LP+qty | succeeds, persists, no error | **FAIL** — generic error toast **"Nie można zarejestrować zużycia."** in the modal. POST returned 200 (handled `{ok:false,reason:'error'}`), wrote **nothing**: `wo_materials.consumed_qty` stayed `0.000`, **0** rows in `wo_material_consumption`, LP quantity untouched at 25 kg. | `6-01-consume-modal-filled.png`, `6-02-consume-FAIL-untyped-param.png` |
+| Live root cause | — | **Postgres error log (project khjvkhzwfzuwzrusgobp) at the submit time:** `ERROR: could not determine data type of parameter $1` — i.e. the **42P18 untyped-parameter** family the fix claimed to close STILL fires on the live deploy. A DB statement IS reached and rejected (contradicts the prior `9570250e` rootcause doc's "no DB statement ever issued / DATABASE_URL_OWNER empty" theory — that theory was for the no-LP path; the **LP path** reaches Postgres and dies on 42P18). | postgres log |
+
+**Why it's still broken though `cc9e8db9` is deployed:** commit `cc9e8db9` only added `$1::text` to the advisory-lock (`consume-material-actions.ts:275`) + casts to `emitMaterialConsumed`'s outbox INSERT (:551). I re-tested **every** `$1`-bearing statement in the consume path as live `PREPARE`d statements (advisory-lock, replay-probe, holdsGuard, lp-safety-guard, the FEFO-violation `EXISTS`, the over-consume gate) — **each one prepares cleanly with explicit param types**. So the failure is the `pg` driver's *unnamed prepared-statement / type-inference* behaviour (it sends param OID 0 = unknown and lets the server infer), where some `$1` in this path is genuinely un-inferable at Parse time under the extended protocol — the `::text` cast added by `cc9e8db9` was **necessary but not sufficient**; another untyped `$1` remains. The fix as shipped does NOT resolve #6.
+
+**Verdict #6 = FAIL.** Desktop consume is still a silent no-op on live; the 42P18 error persists in the deployed build.
+
+**File-hint / next step:** `apps/web/app/[locale]/(app)/(modules)/production/_actions/consume-material-actions.ts` — `recordDesktopConsumption` path. The first stock-touching statement that can hit the driver's unknown-OID inference is the advisory lock at **:275** `pg_advisory_xact_lock(hashtextextended($1::text, 0))` — even with `$1::text`, the bare `0` is an untyped literal for `hashtextextended(text, bigint)`; cast it `0::bigint` (and audit each remaining `$N` in this action for a value passed as JS `null`/`undefined`, which the `pg` driver also sends as OID 0 → 42P18). Reproduce locally against the live driver (not via `PREPARE`, which masks it). Cross-check the prior rootcause doc `_meta/plans/2026-06-24-desktop-consume-rootcause.md`.
+
+## SEQ — SO → ship chain (mig 326 — `shipment_seq` grant) → **PASS** (reached POD/Delivered)
+
+Pre-check: `has_sequence_privilege('app_user','public.shipment_seq','USAGE') = true` (grant live). Used existing AUDIT0624 test data: customer **AUDIT0624 Test Customer** (1 customer in DB — no seed needed), SO **SO-202606-00001** already `allocated` (10 kg FG-NPD-004 reserved on LP `LP-1782293831593-FOP2`).
+
+| step | result | evidence |
+|---|---|---|
+| Create shipment (the action that 500'd on `permission denied for sequence shipment_seq`) | **PASS** — `Utwórz wysyłkę` → no 500, navigated to new shipment **SH-2026-00002** (Pakowanie). Sequence advanced. | `SEQ-01-so-allocated-detail.png`, `SEQ-02-shipment-created-pack.png` |
+| Pack carton (SSCC) | **PASS** — packed the allocated FG LP into Carton 1; server minted **SSCC-18 `012345670000000015`** (mod-10). Free-text "new" LP correctly rejected ("Nie znaleziono tego nośnika") — must be a real LP. | `SEQ-03-carton-packed-sscc.png` |
+| Close packing → Ship | **PASS** — `Zamknij pakowanie` → status Spakowano; `Wyślij wysyłkę` → **Wysłano** (shipped 24 cze 2026 11:13), "Wysyłka wysłana." | `SEQ-04-shipped.png` |
+| POD / Delivered | **PASS** — `Zarejestruj POD` modal → signed-POD URL → `Oznacz jako dostarczone` → **Dostarczono** (11:14). DB: `shipments.status='delivered'`, `shipped_at` + `delivered_at` stamped. | `SEQ-05-delivered-pod.png` |
+
+**Verdict SEQ = PASS.** `createShipment` no longer 500s; the full SO → create-shipment → pack/SSCC → ship → POD chain is clickable end-to-end on live and persists. The `shipment_seq` grant fixed the blocker.
+
+## NEW BUGS (re-verify 3)
+
+18. **L1 — Desktop WO consume STILL fails on live (42P18 not closed by `cc9e8db9`).** Live Postgres logs `could not determine data type of parameter $1` on the LP-consume path; consume writes nothing (consumed_qty 0, zero ledger rows, LP untouched). The shipped fix added `$1::text` to the advisory lock + outbox INSERT casts but an untyped `$1` remains (bare `0` literal in `hashtextextended($1::text, 0)` and/or a JS-`null` param the `pg` driver sends as OID 0). File: `production/_actions/consume-material-actions.ts:275` (cast `0::bigint`; sweep every `$N` for null-valued params). Note: the deployed commit `a9e7247c` DOES contain `cc9e8db9` — so this is a code-insufficiency, not a stale deploy.
+
+## CLEANUP
+- Removed the seeded `wo_materials` test row (`RM-E2E-BEEF` on WO `b0e84a24`) after the #6 test — DB restored. Left in place (harmless AUDIT0624 test data): line `AUDIT0624-LINE-RV3` on Demo Plant, shipment `SH-2026-00002` (delivered) + its carton/SSCC, the consumed-to-shipment FG LP.
+
