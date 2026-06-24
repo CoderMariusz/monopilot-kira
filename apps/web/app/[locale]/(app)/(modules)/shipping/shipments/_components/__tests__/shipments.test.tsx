@@ -194,6 +194,46 @@ const packLabels: ShipmentPackLabels = {
         persistence_failed: 'Something went wrong saving. Please retry.',
       },
     },
+    cancel: {
+      trigger: 'Cancel shipment',
+      title: 'Cancel shipment {shipment}',
+      intro: 'Cancelling releases allocated stock and recomputes the sales order status.',
+      reasonCode: 'Reason',
+      reasonPlaceholder: 'Select a reason',
+      reasonOptions: {
+        customer_request: 'Customer request',
+        order_error: 'Order error',
+        stock_shortage: 'Stock shortage',
+        duplicate_shipment: 'Duplicate shipment',
+        other: 'Other',
+      },
+      note: 'Note',
+      noteOptional: 'optional',
+      notePlaceholder: 'Add context for the cancellation',
+      esign: {
+        title: 'Electronic signature',
+        meaning: 'Re-enter your account password to confirm.',
+        password: 'Password',
+        passwordPlaceholder: 'Account password',
+        passwordHelp: 'Your account password, not a PIN.',
+      },
+      cancel: 'Keep shipment',
+      submit: 'Cancel shipment',
+      submitting: 'Cancelling…',
+      formIncomplete: 'Select a reason and enter your password.',
+      noPermission: 'You do not have permission to cancel this shipment.',
+      errors: {
+        forbidden: "You don't have permission to do that.",
+        not_found: 'That shipment no longer exists.',
+        invalid_input: 'That input isn’t valid. Please review and try again.',
+        invalid_state: 'This shipment can no longer be cancelled in its current status.',
+        illegal_transition: 'The sales order cannot be returned to a valid status.',
+        downstream_financial_record: 'This shipment has downstream financial records and cannot be cancelled.',
+        esign_failed: 'Signature failed. Check your password and try again.',
+        persistence_failed: 'Something went wrong saving. Please retry.',
+        generic: 'Something went wrong. Please retry.',
+      },
+    },
   },
 };
 
@@ -302,15 +342,18 @@ type SealResult = { ok: true } | { ok: false; error: string };
 type BolResult = { ok: true; bolRef: string } | { ok: false; error: string };
 type PodResult = { ok: true } | { ok: false; error: string };
 
+type CancelResult = { ok: true } | { ok: false; error: string };
+
 function renderPack(
   detail: ShipmentDetail = makeDetail(),
-  caps: { canPack: boolean; canShip?: boolean; canPod?: boolean } = { canPack: true },
+  caps: { canPack: boolean; canShip?: boolean; canPod?: boolean; canCancel?: boolean } = { canPack: true },
   packAction?: (input: { shipmentId: string; lpId: string; boxId?: string }) => Promise<{ ok: true; boxId: string } | { ok: false; error: string }>,
   shipActions: {
     seal?: (id: string) => Promise<SealResult>;
     ship?: (id: string) => Promise<ShipResult>;
     bol?: (input: { shipmentId: string; carrier?: string; serviceLevel?: string; trackingNumber?: string }) => Promise<BolResult>;
     pod?: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<PodResult>;
+    cancel?: (input: { shipmentId: string; reasonCode?: string | null; note?: string | null; signature: { password: string } }) => Promise<CancelResult>;
   } = {},
 ) {
   const packLpIntoBoxAction = vi.fn(
@@ -322,20 +365,27 @@ function renderPack(
     shipActions.bol ?? (async () => ({ ok: true, bolRef: 'a1b2c3d4e5f6a7b8' }) as BolResult),
   );
   const recordPodAction = vi.fn(shipActions.pod ?? (async () => ({ ok: true }) as PodResult));
+  const cancelShipmentAction = vi.fn(shipActions.cancel ?? (async () => ({ ok: true }) as CancelResult));
   render(
     <ShipmentPackView
       locale="en"
       detail={detail}
       labels={packLabels}
-      caps={{ canPack: caps.canPack, canShip: caps.canShip ?? caps.canPack, canPod: caps.canPod ?? true }}
+      caps={{
+        canPack: caps.canPack,
+        canShip: caps.canShip ?? caps.canPack,
+        canPod: caps.canPod ?? true,
+        canCancel: caps.canCancel ?? caps.canPack,
+      }}
       packLpIntoBoxAction={packLpIntoBoxAction}
       sealShipmentAction={sealShipmentAction}
       shipShipmentAction={shipShipmentAction}
       generateBolAction={generateBolAction}
       recordPodAction={recordPodAction}
+      cancelShipmentAction={cancelShipmentAction}
     />,
   );
-  return { packLpIntoBoxAction, sealShipmentAction, shipShipmentAction, generateBolAction, recordPodAction };
+  return { packLpIntoBoxAction, sealShipmentAction, shipShipmentAction, generateBolAction, recordPodAction, cancelShipmentAction };
 }
 
 describe('ShipmentPackView — header, boxes+SSCC, contents, Pack-LP control', () => {
@@ -601,5 +651,90 @@ describe('RecordPodModal — signed POD url → recordPod', () => {
     expect(await screen.findByTestId('shipment-pod-error')).toHaveTextContent(
       "You don't have permission to do that.",
     );
+  });
+});
+
+/**
+ * Wave-R reversibility — Cancel-shipment e-sign reverse button wired to cancelShipment.
+ *
+ * Prototype parity: the danger reverse action mirrors the right-rail ship action group
+ * (shipping/pack-screens.jsx:211-216, V-SHIP-SHIP) + the per-status danger button
+ * pattern; the e-sign confirm is spec-driven off the in-repo void-output precedent
+ * (production/wos/[id]/_components/void-correction-modal.tsx). Asserts: parity
+ * (trigger present in the ship action group for non-terminal shipments / hidden when
+ * terminal), all 5 states (idle form, optimistic submit, error, permission-denied via
+ * disabled+tooltip, success→refresh), the exact e-sign payload shape, and NO raw UUID.
+ */
+describe('CancelShipmentModal — ship.so.cancel e-sign reverse', () => {
+  async function pickReason(label: string) {
+    fireEvent.click(within(screen.getByTestId('shipment-cancel-reason')).getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: label }));
+  }
+
+  it('renders the [Cancel shipment] trigger for a non-terminal (packing) shipment, no raw UUID', () => {
+    renderPack();
+    const trigger = screen.getByTestId('shipment-cancel-trigger');
+    expect(trigger).toHaveTextContent('Cancel shipment');
+    expect(document.body.textContent).not.toContain(SHIPMENT_ID);
+  });
+
+  it('hides the [Cancel shipment] trigger when the shipment is already delivered (terminal)', () => {
+    renderPack(makeDetail({ shipment: { ...rows[0], status: 'delivered', deliveredAt: '2026-06-21T14:00:00Z' } }));
+    expect(screen.queryByTestId('shipment-cancel-trigger')).not.toBeInTheDocument();
+  });
+
+  it('disables the trigger with a permission tooltip when the user lacks ship.so.cancel', () => {
+    renderPack(makeDetail(), { canPack: true, canCancel: false });
+    const trigger = screen.getByTestId('shipment-cancel-trigger');
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute('title', 'You do not have permission to cancel this shipment.');
+  });
+
+  it('requires a reason + password (e-sign) before submit is enabled', async () => {
+    renderPack();
+    fireEvent.click(screen.getByTestId('shipment-cancel-trigger'));
+    await screen.findByTestId('shipment-cancel-form');
+    // e-sign block present (mirrors the void-output precedent).
+    expect(screen.getByTestId('shipment-cancel-esign')).toBeInTheDocument();
+    const submit = screen.getByTestId('shipment-cancel-submit');
+    expect(submit).toBeDisabled();
+    await pickReason('Customer request');
+    expect(submit).toBeDisabled(); // still no password
+    fireEvent.change(screen.getByTestId('shipment-cancel-password'), { target: { value: 'pw' } });
+    expect(submit).not.toBeDisabled();
+  });
+
+  it('submits the exact { shipmentId, reasonCode, note, signature:{ password } } payload and refreshes on success', async () => {
+    const { cancelShipmentAction } = renderPack();
+    fireEvent.click(screen.getByTestId('shipment-cancel-trigger'));
+    await screen.findByTestId('shipment-cancel-form');
+    await pickReason('Customer request');
+    fireEvent.change(screen.getByTestId('shipment-cancel-note'), { target: { value: 'customer cancelled' } });
+    fireEvent.change(screen.getByTestId('shipment-cancel-password'), { target: { value: 'pw123' } });
+    fireEvent.click(screen.getByTestId('shipment-cancel-submit'));
+    await waitFor(() =>
+      expect(cancelShipmentAction).toHaveBeenCalledWith({
+        shipmentId: SHIPMENT_ID,
+        reasonCode: 'customer_request',
+        note: 'customer cancelled',
+        signature: { password: 'pw123' },
+      }),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('surfaces the invalid_state error inline (delivered blocked server-side) without crashing', async () => {
+    renderPack(makeDetail(), { canPack: true }, undefined, {
+      cancel: async () => ({ ok: false, error: 'invalid_state' }),
+    });
+    fireEvent.click(screen.getByTestId('shipment-cancel-trigger'));
+    await screen.findByTestId('shipment-cancel-form');
+    await pickReason('Customer request');
+    fireEvent.change(screen.getByTestId('shipment-cancel-password'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByTestId('shipment-cancel-submit'));
+    expect(await screen.findByTestId('shipment-cancel-error')).toHaveTextContent(
+      'This shipment can no longer be cancelled in its current status.',
+    );
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

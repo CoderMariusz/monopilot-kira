@@ -41,6 +41,7 @@ import { Button } from '@monopilot/ui/Button';
 
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import { ShipmentShipControls, type ShipmentShipLabels, type ShipmentShipCaps } from './shipment-ship-controls';
+import type { CancelShipmentInput, CancelShipmentResult } from './cancel-shipment-modal';
 import type { ShipShipmentResult, SealShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
 import type { ShipmentDetail } from '../_actions/shipments-data';
 
@@ -112,6 +113,7 @@ export type ShipmentPackViewProps = {
     trackingNumber?: string;
   }) => Promise<GenerateBolResult>;
   recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
+  cancelShipmentAction: (input: CancelShipmentInput) => Promise<CancelShipmentResult>;
 };
 
 export function ShipmentPackView({
@@ -124,6 +126,7 @@ export function ShipmentPackView({
   shipShipmentAction,
   generateBolAction,
   recordPodAction,
+  cancelShipmentAction,
 }: ShipmentPackViewProps) {
   const router = useRouter();
   const { shipment, boxes } = detail;
@@ -440,10 +443,11 @@ export function ShipmentPackView({
             trackingNumber={shipment.trackingNumber ?? null}
             boxCount={boxes.length}
             labels={labels.ship}
-            caps={{ canShip: caps.canShip, canPod: caps.canPod }}
+            caps={{ canShip: caps.canShip, canPod: caps.canPod, canCancel: caps.canCancel }}
             shipShipmentAction={shipShipmentAction}
             generateBolAction={generateBolAction}
             recordPodAction={recordPodAction}
+            cancelShipmentAction={cancelShipmentAction}
           />
         </div>
       </div>

@@ -44,6 +44,7 @@ const errors = {
   already_exists: 'dup',
   invalid_state: 'no longer a draft',
   last_line: 'must keep one line',
+  po_has_receipts: 'PO already has receipts',
   persistence_failed: 'save failed',
 };
 
@@ -121,6 +122,7 @@ const detailLabels: PoDetailLabels = {
   lines: { title: 'PO lines', seq: '#', item: 'Item', qty: 'Qty', uom: 'UoM', unitPrice: 'Unit price', lineTotal: 'Line total', received: 'Received', receivedFull: 'Received', receivedPartial: 'Partial', empty: 'No lines.' },
   receivedSummary: { title: 'Receipt progress', lines: '{received} / {total} lines' },
   transitions: { title: 'Status', send: 'Submit', confirm: 'Confirm', receivePartial: 'Mark partial', receive: 'Mark received', cancel: 'Cancel PO', pending: 'Updating…', confirmPrompt: 'Change status of {po} to {status}?' },
+  reopen: { button: 'Reopen to draft', pending: 'Reopening…', confirmPrompt: 'Reopen {po} to draft?' },
   notesTitle: 'Notes',
   errors,
   edit: editLabels,

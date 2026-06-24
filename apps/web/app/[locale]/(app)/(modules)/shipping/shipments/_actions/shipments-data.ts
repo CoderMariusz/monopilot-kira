@@ -70,9 +70,18 @@ type QueryClient = {
  *  createShipment requires this permission; see pack-actions.ts SHIP_PACK_CLOSE). */
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 
+/** ship.so.cancel — gates the shipment-detail [Cancel shipment] button (the reviewed
+ *  cancelShipment requires this permission; see cancelShipment.ts SHIP_SO_CANCEL). */
+const SHIP_SO_CANCEL = 'ship.so.cancel';
+
 export type CreateShipmentCapability = {
   /** Whether the caller holds ship.pack.close (create + pack permission). */
   canCreate: boolean;
+};
+
+export type CancelShipmentCapability = {
+  /** Whether the caller holds ship.so.cancel (shipment cancel permission). */
+  canCancel: boolean;
 };
 
 /**
@@ -102,5 +111,35 @@ export async function getCreateShipmentCapability(): Promise<CreateShipmentCapab
     });
   } catch {
     return { canCreate: false };
+  }
+}
+
+/**
+ * Server-side RBAC probe for the shipment-detail [Cancel shipment] button. Mirrors
+ * getCreateShipmentCapability / the hasPermission() shape inside cancelShipment.ts
+ * (ship.so.cancel). Deny-safe on failure. NEVER client-trusted — the reviewed
+ * cancelShipment re-checks server-side and blocks delivered/cancelled regardless.
+ */
+export async function getCancelShipmentCapability(): Promise<CancelShipmentCapability> {
+  try {
+    return await withOrgContext<CancelShipmentCapability>(async (ctx) => {
+      const { rows } = await (ctx.client as unknown as QueryClient).query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, SHIP_SO_CANCEL],
+      );
+      return { canCancel: rows.length > 0 };
+    });
+  } catch {
+    return { canCancel: false };
   }
 }

@@ -5906,7 +5906,8 @@
         "not_found": "To zamówienie zakupu już nie istnieje.",
         "already_exists": "Zamówienie zakupu o tym numerze już istnieje.",
         "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
-        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
+        "po_has_receipts": "To zamówienie ma już przyjęcia i nie można przywrócić go do wersji roboczej."
       },
       "create": {
         "title": "Utwórz zamówienie zakupu",
@@ -5993,6 +5994,11 @@
         "receivedSummary": {
           "title": "Postęp przyjęcia",
           "lines": "{received} / {total} pozycji"
+        },
+        "reopen": {
+          "button": "Przywróć do wersji roboczej",
+          "pending": "Przywracanie…",
+          "confirmPrompt": "Przywrócić {po} do wersji roboczej? Zamówienie wróci do edytowalnej wersji roboczej."
         }
       },
       "notes": {
@@ -9220,6 +9226,44 @@
       "errors": {
         "forbidden": "Nie masz uprawnień do tej operacji.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+      },
+      "cancel": {
+        "trigger": "Anuluj wysyłkę",
+        "title": "Anuluj wysyłkę {shipment}",
+        "intro": "Anulowanie zwalnia zarezerwowany towar, przywraca nośniki (LP) do dostępnych i przelicza status zamówienia sprzedaży. Wymaga podpisu elektronicznego i nie można tego cofnąć.",
+        "reasonCode": "Powód",
+        "reasonPlaceholder": "Wybierz powód",
+        "reasonOptions": {
+          "customer_request": "Prośba klienta",
+          "order_error": "Błąd zamówienia",
+          "stock_shortage": "Brak towaru",
+          "duplicate_shipment": "Zduplikowana wysyłka",
+          "other": "Inny"
+        },
+        "note": "Notatka",
+        "noteOptional": "opcjonalnie",
+        "notePlaceholder": "Dodaj kontekst anulowania",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Wpisz ponownie hasło konta, aby potwierdzić autoryzację anulowania.",
+          "password": "Hasło",
+          "passwordPlaceholder": "Hasło konta",
+          "passwordHelp": "Hasło konta, nie PIN."
+        },
+        "cancel": "Zachowaj wysyłkę",
+        "submit": "Anuluj wysyłkę",
+        "submitting": "Anulowanie…",
+        "formIncomplete": "Wybierz powód i wpisz hasło.",
+        "noPermission": "Nie masz uprawnień do anulowania tej wysyłki.",
+        "errors": {
+          "not_found": "Ta wysyłka już nie istnieje.",
+          "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
+          "invalid_state": "Tej wysyłki nie można już anulować w bieżącym statusie.",
+          "illegal_transition": "Nie można przywrócić zamówienia sprzedaży do prawidłowego statusu. Sprawdź zamówienie.",
+          "downstream_financial_record": "Ta wysyłka ma powiązane zapisy finansowe i nie można jej anulować.",
+          "esign_failed": "Podpis nie powiódł się. Sprawdź hasło i spróbuj ponownie.",
+          "generic": "Coś poszło nie tak. Spróbuj ponownie."
+        }
       }
     }
   },

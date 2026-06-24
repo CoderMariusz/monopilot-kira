@@ -33,6 +33,12 @@ import React from 'react';
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import { GenerateBolModal, type GenerateBolLabels } from './generate-bol-modal';
 import { RecordPodModal, type RecordPodLabels } from './record-pod-modal';
+import {
+  CancelShipmentModal,
+  type CancelShipmentLabels,
+  type CancelShipmentInput,
+  type CancelShipmentResult,
+} from './cancel-shipment-modal';
 import type { ShipShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
 
 export type ShipmentLifecycleStage = 'packing' | 'shipped' | 'delivered';
@@ -68,6 +74,8 @@ export type ShipmentShipLabels = {
   };
   bol: GenerateBolLabels;
   pod: RecordPodLabels;
+  /** Cancel-shipment e-sign reverse (ship.so.cancel). */
+  cancel: CancelShipmentLabels;
 };
 
 export type ShipmentShipCaps = {
@@ -75,6 +83,8 @@ export type ShipmentShipCaps = {
   canShip: boolean;
   /** ship.dashboard.view — gates [Record POD]. */
   canPod: boolean;
+  /** ship.so.cancel — gates [Cancel shipment]. */
+  canCancel: boolean;
 };
 
 export type ShipmentShipControlsProps = {
@@ -100,10 +110,15 @@ export type ShipmentShipControlsProps = {
     trackingNumber?: string;
   }) => Promise<GenerateBolResult>;
   recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
+  /** Reviewed cancelShipment seam (imported by the page, never authored here). */
+  cancelShipmentAction: (input: CancelShipmentInput) => Promise<CancelShipmentResult>;
 };
 
 const SHIPPED_STATES = new Set(['shipped', 'delivered']);
 const DELIVERED_STATES = new Set(['delivered']);
+/** Cancel is offered only for non-terminal shipments — the reviewed cancelShipment
+ *  blocks delivered/cancelled server-side; this hides the affordance to match. */
+const CANCEL_TERMINAL_STATES = new Set(['delivered', 'cancelled']);
 
 const LOCALE_MAP: Record<string, string> = { pl: 'pl-PL', en: 'en-US', uk: 'uk-UA', ro: 'ro-RO' };
 const DOCUMENT_URL_PATTERN = /^https?:\/\//i;
@@ -138,8 +153,10 @@ export function ShipmentShipControls({
   shipShipmentAction,
   generateBolAction,
   recordPodAction,
+  cancelShipmentAction,
 }: ShipmentShipControlsProps) {
   const normalized = status.toLowerCase();
+  const cancellable = !CANCEL_TERMINAL_STATES.has(normalized);
 
   const formatDateTime = React.useCallback(
     (iso: string) => {
@@ -394,6 +411,21 @@ export function ShipmentShipControls({
               return result;
             }}
           />
+
+          {/* Cancel-shipment (e-sign reverse) — shown only for non-terminal
+              shipments; the reviewed cancelShipment blocks delivered/cancelled
+              server-side and re-checks ship.so.cancel. */}
+          {cancellable ? (
+            <div className="border-t border-slate-200 pt-2" data-testid="shipment-cancel-region">
+              <CancelShipmentModal
+                shipmentNumber={shipmentNumber}
+                shipmentId={shipmentId}
+                canCancel={caps.canCancel}
+                labels={labels.cancel}
+                cancelShipmentAction={cancelShipmentAction}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

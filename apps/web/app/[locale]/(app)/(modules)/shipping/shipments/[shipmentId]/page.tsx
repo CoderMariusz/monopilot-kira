@@ -26,8 +26,10 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getShipment, packLpIntoBox } from '../../_actions/pack-actions';
 import { shipShipment, sealShipment, generateBol, recordPod } from '../../_actions/ship-actions';
-import { getCreateShipmentCapability } from '../_actions/shipments-data';
+import { cancelShipment } from '../../_actions/cancelShipment';
+import { getCreateShipmentCapability, getCancelShipmentCapability } from '../_actions/shipments-data';
 import { ShipmentPackView, type ShipmentPackLabels, type PackLpResult } from '../_components/shipment-pack-view';
+import type { CancelShipmentInput, CancelShipmentResult } from '../_components/cancel-shipment-modal';
 import type {
   ShipShipmentResult,
   SealShipmentResult,
@@ -73,6 +75,24 @@ async function generateBolAction(input: {
 async function recordPodAction(input: { shipmentId: string; signedPdfUrl?: string }): Promise<RecordPodResult> {
   'use server';
   return recordPod(input);
+}
+
+/**
+ * Thin client-facing adapter for the reviewed cancelShipment seam (shipping reverse
+ * lane). The action is imported VERBATIM and never authored here; RBAC
+ * (ship.so.cancel), e-sign (intent cancel_shipment) and the delivered/cancelled
+ * state guard are all re-checked inside the action — a forbidden / blocked caller
+ * gets { ok:false, error } rendered inline in the modal.
+ */
+async function cancelShipmentAction(input: CancelShipmentInput): Promise<CancelShipmentResult> {
+  'use server';
+  const result = await cancelShipment({
+    shipmentId: input.shipmentId,
+    reasonCode: input.reasonCode ?? null,
+    note: input.note ?? null,
+    signature: { password: input.signature.password },
+  });
+  return result.ok ? { ok: true } : { ok: false, error: result.error, message: result.message };
 }
 
 export const dynamic = 'force-dynamic';
@@ -235,13 +255,57 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
           persistence_failed: t('errors.persistence_failed'),
         },
       },
+      cancel: {
+        trigger: t('cancel.trigger'),
+        title: t('cancel.title'),
+        intro: t('cancel.intro'),
+        reasonCode: t('cancel.reasonCode'),
+        reasonPlaceholder: t('cancel.reasonPlaceholder'),
+        reasonOptions: {
+          customer_request: t('cancel.reasonOptions.customer_request'),
+          order_error: t('cancel.reasonOptions.order_error'),
+          stock_shortage: t('cancel.reasonOptions.stock_shortage'),
+          duplicate_shipment: t('cancel.reasonOptions.duplicate_shipment'),
+          other: t('cancel.reasonOptions.other'),
+        },
+        note: t('cancel.note'),
+        noteOptional: t('cancel.noteOptional'),
+        notePlaceholder: t('cancel.notePlaceholder'),
+        esign: {
+          title: t('cancel.esign.title'),
+          meaning: t('cancel.esign.meaning'),
+          password: t('cancel.esign.password'),
+          passwordPlaceholder: t('cancel.esign.passwordPlaceholder'),
+          passwordHelp: t('cancel.esign.passwordHelp'),
+        },
+        cancel: t('cancel.cancel'),
+        submit: t('cancel.submit'),
+        submitting: t('cancel.submitting'),
+        formIncomplete: t('cancel.formIncomplete'),
+        noPermission: t('cancel.noPermission'),
+        errors: {
+          forbidden: t('errors.forbidden'),
+          not_found: t('cancel.errors.not_found'),
+          invalid_input: t('cancel.errors.invalid_input'),
+          invalid_state: t('cancel.errors.invalid_state'),
+          illegal_transition: t('cancel.errors.illegal_transition'),
+          downstream_financial_record: t('cancel.errors.downstream_financial_record'),
+          esign_failed: t('cancel.errors.esign_failed'),
+          persistence_failed: t('errors.persistence_failed'),
+          generic: t('cancel.errors.generic'),
+        },
+      },
     },
   };
 }
 
 async function PackContent({ locale, shipmentId }: { locale: string; shipmentId: string }) {
   const t = await getTranslations('Shipping.shipments');
-  const [result, caps] = await Promise.all([getShipment(shipmentId), getCreateShipmentCapability()]);
+  const [result, caps, cancelCaps] = await Promise.all([
+    getShipment(shipmentId),
+    getCreateShipmentCapability(),
+    getCancelShipmentCapability(),
+  ]);
 
   if (!result.ok) {
     if (result.error === 'forbidden') {
@@ -270,7 +334,7 @@ async function PackContent({ locale, shipmentId }: { locale: string; shipmentId:
   return (
     <ShipmentPackView
       locale={locale}
-      caps={{ canPack: caps.canCreate, canShip: caps.canCreate, canPod: true }}
+      caps={{ canPack: caps.canCreate, canShip: caps.canCreate, canPod: true, canCancel: cancelCaps.canCancel }}
       detail={{
         shipment: { ...data.shipment, weight: null },
         boxes: data.boxes,
@@ -281,6 +345,7 @@ async function PackContent({ locale, shipmentId }: { locale: string; shipmentId:
       shipShipmentAction={shipShipmentAction}
       generateBolAction={generateBolAction}
       recordPodAction={recordPodAction}
+      cancelShipmentAction={cancelShipmentAction}
     />
   );
 }
@@ -303,7 +368,7 @@ export default async function ShipmentPackPage({ params }: PageProps) {
           { label: t('pack.breadcrumbCurrent') },
         ]}
       />
-      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments') }} />
+      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments'), customers: t('tabs.customers') }} />
       <Suspense fallback={<PackSkeleton />}>
         <PackContent locale={locale} shipmentId={shipmentId} />
       </Suspense>

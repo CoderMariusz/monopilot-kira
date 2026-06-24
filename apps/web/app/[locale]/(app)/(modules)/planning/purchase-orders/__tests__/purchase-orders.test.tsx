@@ -54,6 +54,7 @@ const errors = {
   not_found: 'gone',
   already_exists: 'A purchase order with that number already exists.',
   invalid_state: 'invalid state',
+  po_has_receipts: 'This purchase order already has receipts and cannot be reopened to draft.',
   persistence_failed: 'save failed',
 };
 
@@ -163,6 +164,11 @@ const detailLabels: PoDetailLabels = {
     cancel: 'Cancel PO',
     pending: 'Updating…',
     confirmPrompt: 'Change status of {po} to {status}?',
+  },
+  reopen: {
+    button: 'Reopen to draft',
+    pending: 'Reopening…',
+    confirmPrompt: 'Reopen {po} to draft?',
   },
   notesTitle: 'Notes',
   errors,
@@ -585,5 +591,59 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
   it('renders no transition buttons for terminal statuses (received / cancelled)', () => {
     renderDetail({ status: 'received' });
     expect(screen.queryByTestId('po-detail-transitions')).toBeNull();
+  });
+
+  // ── Wave-R reversibility — sent→draft reopen (parity: po-screens.jsx:184-186
+  //    header danger/secondary action group; RBAC npd.planning.write + the
+  //    no-receipts guard are enforced server-side inside reopenPurchaseOrder). ──
+  function renderDetailWithReopen(over: Partial<PoDetail> = {}) {
+    const transitionAction = vi.fn<[string, string], Promise<PoTransitionResult>>();
+    const reopenAction = vi.fn<[string], Promise<PoTransitionResult>>();
+    const utils = render(
+      <PoDetailView
+        po={{ ...detail, ...over }}
+        labels={detailLabels}
+        locale="en"
+        transitionPurchaseOrderStatusAction={transitionAction}
+        reopenPurchaseOrderAction={reopenAction}
+      />,
+    );
+    return { ...utils, transitionAction, reopenAction };
+  }
+
+  it('shows [Reopen to draft] only for a sent PO and hides it for draft', () => {
+    const { rerender } = renderDetailWithReopen({ status: 'sent' });
+    expect(screen.getByTestId('po-reopen-draft')).toHaveTextContent('Reopen to draft');
+    rerender(
+      <PoDetailView
+        po={{ ...detail, status: 'draft' }}
+        labels={detailLabels}
+        locale="en"
+        transitionPurchaseOrderStatusAction={vi.fn()}
+        reopenPurchaseOrderAction={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('po-reopen-draft')).toBeNull();
+  });
+
+  it('confirms then calls reopenPurchaseOrder(id) and refreshes on success', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { reopenAction } = renderDetailWithReopen({ status: 'sent' });
+    reopenAction.mockResolvedValue({ ok: true, data: {} });
+    fireEvent.click(screen.getByTestId('po-reopen-draft'));
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(reopenAction).toHaveBeenCalledWith('po-1'));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('surfaces po_has_receipts honestly inline and does not refresh', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { reopenAction } = renderDetailWithReopen({ status: 'sent' });
+    reopenAction.mockResolvedValue({ ok: false, error: 'po_has_receipts' });
+    fireEvent.click(screen.getByTestId('po-reopen-draft'));
+    await waitFor(() =>
+      expect(screen.getByTestId('po-detail-error')).toHaveTextContent(errors.po_has_receipts),
+    );
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

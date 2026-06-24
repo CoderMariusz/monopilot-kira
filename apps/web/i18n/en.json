@@ -6817,7 +6817,8 @@
         "not_found": "That purchase order no longer exists.",
         "already_exists": "A purchase order with that number already exists.",
         "invalid_state": "That action isn't allowed in the current status.",
-        "persistence_failed": "Something went wrong saving. Please retry."
+        "persistence_failed": "Something went wrong saving. Please retry.",
+        "po_has_receipts": "This purchase order already has receipts and cannot be reopened to draft."
       },
       "create": {
         "title": "Create purchase order",
@@ -6904,6 +6905,11 @@
         "receivedSummary": {
           "title": "Receipt progress",
           "lines": "{received} / {total} lines"
+        },
+        "reopen": {
+          "button": "Reopen to draft",
+          "pending": "Reopening…",
+          "confirmPrompt": "Reopen {po} to draft? This returns the purchase order to an editable draft."
         }
       },
       "notes": {
@@ -9220,6 +9226,44 @@
       "errors": {
         "forbidden": "You don’t have permission to do that.",
         "persistence_failed": "Something went wrong saving. Please retry."
+      },
+      "cancel": {
+        "trigger": "Cancel shipment",
+        "title": "Cancel shipment {shipment}",
+        "intro": "Cancelling releases allocated stock, returns license plates to available, and recomputes the sales order status. This requires your electronic signature and cannot be undone.",
+        "reasonCode": "Reason",
+        "reasonPlaceholder": "Select a reason",
+        "reasonOptions": {
+          "customer_request": "Customer request",
+          "order_error": "Order error",
+          "stock_shortage": "Stock shortage",
+          "duplicate_shipment": "Duplicate shipment",
+          "other": "Other"
+        },
+        "note": "Note",
+        "noteOptional": "optional",
+        "notePlaceholder": "Add context for the cancellation",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "Re-enter your account password to confirm you authorise this cancellation.",
+          "password": "Password",
+          "passwordPlaceholder": "Account password",
+          "passwordHelp": "Your account password, not a PIN."
+        },
+        "cancel": "Keep shipment",
+        "submit": "Cancel shipment",
+        "submitting": "Cancelling…",
+        "formIncomplete": "Select a reason and enter your password.",
+        "noPermission": "You do not have permission to cancel this shipment.",
+        "errors": {
+          "not_found": "That shipment no longer exists.",
+          "invalid_input": "That input isn’t valid. Please review and try again.",
+          "invalid_state": "This shipment can no longer be cancelled in its current status.",
+          "illegal_transition": "The sales order cannot be returned to a valid status. Please review the order.",
+          "downstream_financial_record": "This shipment has downstream financial records and cannot be cancelled.",
+          "esign_failed": "Signature failed. Check your password and try again.",
+          "generic": "Something went wrong. Please retry."
+        }
       }
     }
   },

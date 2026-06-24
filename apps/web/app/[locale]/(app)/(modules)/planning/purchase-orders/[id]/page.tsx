@@ -27,6 +27,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import {
   getPurchaseOrder,
   transitionPurchaseOrderStatus,
+  reopenPurchaseOrder,
   updatePurchaseOrder,
   addPurchaseOrderLine,
   updatePurchaseOrderLine,
@@ -59,6 +60,13 @@ async function updatePurchaseOrderLineAction(input: { poId: string; lineId: stri
 async function deletePurchaseOrderLineAction(input: { poId: string; lineId: string }) {
   'use server';
   return deletePurchaseOrderLine(input);
+}
+/** Wave-R reversibility seam — sent→draft. The reviewed reopenPurchaseOrder
+ *  re-checks RBAC (npd.planning.write) + the no-receipts guard and returns
+ *  'po_has_receipts' when receipts exist; surfaced honestly in the view. */
+async function reopenPurchaseOrderAction(id: string) {
+  'use server';
+  return reopenPurchaseOrder(id);
 }
 
 export const dynamic = 'force-dynamic';
@@ -142,6 +150,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       pending: t('detail.transitions.pending'),
       confirmPrompt: t('detail.transitions.confirmPrompt'),
     },
+    reopen: {
+      button: t('detail.reopen.button'),
+      pending: t('detail.reopen.pending'),
+      confirmPrompt: t('detail.reopen.confirmPrompt'),
+    },
     notesTitle: t('notes.title'),
     errors: {
       invalid_input: t('errors.invalid_input'),
@@ -152,6 +165,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       // Contract: deletePurchaseOrderLine returns error 'last_line' when refusing
       // to remove the final line. Map it to the dedicated copy.
       last_line: t('edit.lastLineRefused'),
+      // Contract: reopenPurchaseOrder returns 'po_has_receipts' when the PO already
+      // has GRN receipts — surfaced honestly rather than swallowed.
+      po_has_receipts: t('errors.po_has_receipts'),
       persistence_failed: t('errors.persistence_failed'),
     },
     edit: {
@@ -271,6 +287,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       }}
       labels={buildLabels(t, locale, uom)}
       transitionPurchaseOrderStatusAction={transitionPurchaseOrderStatus}
+      reopenPurchaseOrderAction={reopenPurchaseOrderAction}
       suppliers={suppliers}
       searchPoItemsAction={searchPoItems}
       updatePurchaseOrderAction={updatePurchaseOrderAction}

@@ -108,6 +108,15 @@ export type PoDetailLabels = {
     pending: string;
     confirmPrompt: string;
   };
+  /** Wave-R reversibility — sent→draft reopen affordance. */
+  reopen: {
+    /** Button copy. */
+    button: string;
+    /** Busy copy while the reopen action is in flight. */
+    pending: string;
+    /** window.confirm prompt; `{po}` interpolated. */
+    confirmPrompt: string;
+  };
   notesTitle: string;
   errors: Record<string, string>;
   /** Wave R1 reversibility — DRAFT-only edit affordances. */
@@ -165,6 +174,7 @@ export function PoDetailView({
   labels,
   locale,
   transitionPurchaseOrderStatusAction,
+  reopenPurchaseOrderAction,
   suppliers = [],
   searchPoItemsAction,
   updatePurchaseOrderAction,
@@ -176,6 +186,10 @@ export function PoDetailView({
   labels: PoDetailLabels;
   locale: string;
   transitionPurchaseOrderStatusAction: (id: string, status: string) => Promise<PoTransitionResult>;
+  /** Wave-R reversibility — sent→draft. RBAC (npd.planning.write) + the no-receipts
+   *  guard are enforced server-side inside reopenPurchaseOrder; never client-trusted.
+   *  Optional so legacy callers / older tests keep type-checking. */
+  reopenPurchaseOrderAction?: (id: string) => Promise<PoTransitionResult>;
   /** Wave R1 edit seams — only used when status === 'draft'. Optional so legacy
    *  callers (non-edit usages / older tests) keep type-checking. */
   suppliers?: PoSupplierOption[];
@@ -205,6 +219,7 @@ export function PoDetailView({
 }) {
   const router = useRouter();
   const [pending, setPending] = React.useState<string | null>(null);
+  const [reopening, setReopening] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   // Wave R1 — DRAFT edit affordances. Gated on status===draft AND the seams being
@@ -212,6 +227,13 @@ export function PoDetailView({
   // the actions enforce RBAC + the draft-only state server-side.
   const isDraft = po.status.toLowerCase() === 'draft';
   const canEdit = isDraft && !!updatePurchaseOrderAction;
+
+  // Wave-R reversibility — sent→draft reopen. Offered ONLY for `sent` POs and only
+  // when the seam is wired (the page passes it). Never client-trusts the
+  // npd.planning.write permission nor the no-receipts guard — reopenPurchaseOrder
+  // re-checks both server-side and returns 'po_has_receipts' when receipts exist.
+  const isSent = po.status.toLowerCase() === 'sent';
+  const canReopen = isSent && !!reopenPurchaseOrderAction;
   const [editOpen, setEditOpen] = React.useState(false);
   const [lineModalOpen, setLineModalOpen] = React.useState(false);
   const [editLine, setEditLine] = React.useState<EditLineSeed | null>(null);
@@ -273,8 +295,28 @@ export function PoDetailView({
   const fullyReceivedLines = po.lines.filter((l) => receiptOf(l) === 'full').length;
   const receiptPct = po.lines.length > 0 ? Math.round((fullyReceivedLines / po.lines.length) * 100) : 0;
 
+  async function onReopen() {
+    if (!reopenPurchaseOrderAction || reopening || pending) return;
+    if (!window.confirm(labels.reopen.confirmPrompt.replace('{po}', po.poNumber))) return;
+    setReopening(true);
+    setError(null);
+    try {
+      const result = await reopenPurchaseOrderAction(po.id);
+      if (!result.ok) {
+        // Surface po_has_receipts honestly (its own copy); fall back to generic.
+        setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        setReopening(false);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError(labels.errors.persistence_failed);
+      setReopening(false);
+    }
+  }
+
   async function onTransition(to: string) {
-    if (pending) return;
+    if (pending || reopening) return;
     const prompt = labels.transitions.confirmPrompt
       .replace('{po}', po.poNumber)
       .replace('{status}', statusLabel(to));
@@ -311,6 +353,18 @@ export function PoDetailView({
             onClick={() => setEditOpen(true)}
           >
             {labels.edit.editOrder}
+          </button>
+        ) : null}
+        {canReopen ? (
+          <button
+            type="button"
+            data-testid="po-reopen-draft"
+            className={`${canEdit ? '' : 'ml-auto '}rounded-md border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50`}
+            disabled={reopening}
+            aria-busy={reopening}
+            onClick={() => void onReopen()}
+          >
+            {reopening ? labels.reopen.pending : labels.reopen.button}
           </button>
         ) : null}
       </div>
@@ -493,7 +547,7 @@ export function PoDetailView({
                       pending ? 'opacity-60' : '',
                     ].join(' ')}
                     data-testid={`po-transition-${a.to}`}
-                    disabled={pending !== null}
+                    disabled={pending !== null || reopening}
                     aria-busy={pending === a.to}
                     onClick={() => onTransition(a.to)}
                   >
