@@ -87,6 +87,13 @@ export async function mutateOnboarding(transition: Transition, rawInput: unknown
       }
 
       const persisted = await persistState(context.client, next.state);
+      if (!persisted) {
+        // 0 rows updated: the organization row vanished between readCurrentState
+        // and the UPDATE. The write never landed — don't fabricate success from
+        // the input state and don't emit audit/outbox for a transition that
+        // didn't persist.
+        return { ok: false, error: 'persistence_failed' };
+      }
       await writeAuditLog(context, transition, currentState, persisted);
       await writeOutbox(context, transition, persisted);
       revalidatePath(ONBOARDING_PATH);
@@ -235,7 +242,7 @@ function buildNextState(
   return { ok: false, error: 'invalid_step' };
 }
 
-async function persistState(client: QueryClient, state: OnboardingState): Promise<OnboardingState> {
+async function persistState(client: QueryClient, state: OnboardingState): Promise<OnboardingState | null> {
   const { rows } = await client.query<OrganizationRow>(
     `update public.organizations
         set onboarding_state = $1::jsonb,
@@ -245,7 +252,11 @@ async function persistState(client: QueryClient, state: OnboardingState): Promis
     [JSON.stringify(state)],
   );
 
-  return normalizeState(rows[0]?.onboarding_state ?? state);
+  const row = rows[0];
+  // No row updated → the org was deleted mid-request. Signal a lost write so
+  // the caller returns persistence_failed instead of echoing the input state.
+  if (!row) return null;
+  return normalizeState(row.onboarding_state ?? state);
 }
 
 async function writeAuditLog(

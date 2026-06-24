@@ -87,12 +87,19 @@ async function transitionDlq(
         return { ok: false, error: 'already_resolved' };
       }
 
-      await queryClient.query(
+      const updated = await queryClient.query(
         `update public.d365_sync_dlq
             set status = $2, resolved_at = pg_catalog.now(), resolved_by = $3, resolution_note = $4
-          where org_id = app.current_org_id() and id = $1::uuid`,
+          where org_id = app.current_org_id() and id = $1::uuid
+            and status not in ('resolved', 'retried', 'skipped')`,
         [dlqId, nextStatus, userId, note],
       );
+      // 0 rows updated means the row was concurrently resolved/skipped/retried
+      // between our pre-check SELECT and this UPDATE (TOCTOU). Don't report a
+      // resolution that never landed.
+      if ((updated.rowCount ?? 0) === 0) {
+        return { ok: false, error: 'already_resolved' };
+      }
       return { ok: true };
     });
   } catch {

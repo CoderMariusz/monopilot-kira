@@ -114,7 +114,23 @@ export async function editColumn(rawInput: EditColumnInput): Promise<EditColumnR
         ],
       );
 
-      const nextVersion = Number(updated.rows[0]?.schema_version ?? currentVersion + 1);
+      // 0 rows updated means the optimistic `schema_version = $7` guard did not
+      // match — a concurrent edit bumped the version between our read and write.
+      // Surface it as a conflict instead of fabricating `currentVersion + 1` and
+      // reporting a write that never landed.
+      const updatedRow = updated.rows[0];
+      if (!updatedRow) {
+        return {
+          ok: false,
+          error: 'CONCURRENT_EDIT',
+          data: {
+            currentSchemaVersion: currentVersion,
+            diff: conflictDiff(existing, input.patch),
+          },
+        };
+      }
+
+      const nextVersion = Number(updatedRow.schema_version);
       revalidatePath('/settings/schema');
       return { ok: true, data: { tableCode: input.tableCode, columnCode: input.columnCode, schemaVersion: nextVersion } };
     } catch (error) {

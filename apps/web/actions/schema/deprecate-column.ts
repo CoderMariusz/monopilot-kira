@@ -102,15 +102,40 @@ export async function deprecateColumn(rawInput: DeprecateColumnInput): Promise<D
         ],
       );
 
+      // 0 rows updated means the optimistic `schema_version = $5` guard did not
+      // match — a concurrent edit bumped the version between our read and write.
+      // Surface it as a conflict instead of fabricating `currentVersion + 1` and
+      // reporting a deprecation that never landed.
       const row = updated.rows[0];
+      if (!row) {
+        return {
+          ok: false,
+          error: 'CONCURRENT_EDIT',
+          data: {
+            currentSchemaVersion: currentVersion,
+            diff: {
+              expectedSchemaVersion: input.expectedSchemaVersion,
+              currentSchemaVersion: currentVersion,
+              attemptedDeprecation: { reason: input.reason },
+              current: {
+                dataType: existing.data_type,
+                tier: existing.tier,
+                storage: existing.storage,
+                deprecatedAt: existing.deprecated_at ?? null,
+              },
+            },
+          },
+        };
+      }
+
       revalidatePath('/settings/schema');
       return {
         ok: true,
         data: {
           tableCode: input.tableCode,
           columnCode: input.columnCode,
-          schemaVersion: Number(row?.schema_version ?? currentVersion + 1),
-          deprecatedAt: row?.deprecated_at ?? deprecatedAt,
+          schemaVersion: Number(row.schema_version),
+          deprecatedAt: row.deprecated_at ?? deprecatedAt,
         },
       };
     } catch (error) {
