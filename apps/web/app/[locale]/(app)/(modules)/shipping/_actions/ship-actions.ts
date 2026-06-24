@@ -31,7 +31,7 @@ export type RecordPodInput = {
 export type RecordPodResult = { ok: true } | { ok: false; error: string };
 
 const SHIP_PACK_CLOSE = 'ship.pack.close';
-const SHIP_DASHBOARD_VIEW = 'ship.dashboard.view';
+const SHIP_BOL_SIGN = 'ship.bol.sign';
 const SALES_ORDER_SHIPPED_STATUS = 'shipped';
 const SALES_ORDER_DELIVERED_STATUS = 'delivered';
 const LP_SHIPPED_EVENT_TYPE = 'warehouse.lp.shipped';
@@ -324,7 +324,7 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<RecordPodResult> => {
       const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-      const forbidden = await requirePermission(ctx, SHIP_DASHBOARD_VIEW);
+      const forbidden = await requirePermission(ctx, SHIP_BOL_SIGN);
       if (forbidden) return forbidden;
 
       const { rows } = await ctx.client.query<{ id: string; sales_order_id: string | null }>(
