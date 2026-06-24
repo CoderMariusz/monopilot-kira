@@ -327,7 +327,7 @@ async function upsertForecastWith(
     [input.itemId, input.isoWeek, baseQty, uom, source, ctx.userId],
   );
   const upserted = rows[0];
-  if (!upserted) return { ok: false as const, error: 'persistence_failed' as const };
+  if (!upserted) throw new Error('persistence_failed');
 
   await writeProcurementAudit(ctx, {
     action: 'planning.demand_forecast.upserted',
