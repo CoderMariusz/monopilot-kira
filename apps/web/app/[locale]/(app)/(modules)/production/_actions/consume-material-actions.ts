@@ -411,7 +411,7 @@ export async function recordDesktopConsumption(
       }>(
         `update public.wo_materials
             set consumed_qty = consumed_qty + $4::numeric
-          where org_id = app.current_org_id()
+          where org_id = $1::uuid
             and wo_id = $2::uuid
             and id = $3::uuid
             and $4::numeric > 0
@@ -436,7 +436,7 @@ export async function recordDesktopConsumption(
                   consumed_by_wo_id = $4::uuid,
                   updated_by = $5::uuid,
                   updated_at = now()
-            where org_id = app.current_org_id()
+            where org_id = $1::uuid
               and id = $2::uuid
               and product_id = $6::uuid
               and uom = $7
