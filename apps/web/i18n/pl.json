@@ -4347,7 +4347,9 @@
       "empty": "Brak pozycji listy kontrolnej",
       "emptyBody": "Ten projekt nie ma jeszcze skonfigurowanych pozycji listy kontrolnej bramki.",
       "error": "Nie można załadować listy kontrolnej bramki. Spróbuj ponownie.",
-      "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki."
+      "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki.",
+      "faDerivedHint": "Zamknięte w FA →",
+      "faDerivedLocked": "Wyliczane z FA"
     },
     "advanceGateModal": {
       "title": "Przejście do następnej bramki",
@@ -8162,8 +8164,14 @@
       "title": "Brak migawek",
       "body": "Migawki OEE powstają przy zakończeniu zlecenia produkcyjnego. Zakończ zlecenie w module Produkcja, aby zobaczyć tutaj dostępność, wydajność i jakość."
     },
+    "andonHub": {
+      "title": "Widok Andon / TV",
+      "body": "Otwórz status linii na żywo dla kiosków i ekranów na hali.",
+      "action": "Otwórz Andon"
+    },
     "andon": {
       "title": "Tablica Andon",
+      "denied": "Nie masz uprawnień do przeglądania ekranów kiosku Andon.",
       "status": {
         "running": "Pracuje",
         "paused": "Wstrzymana",

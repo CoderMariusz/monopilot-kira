@@ -18,6 +18,7 @@
  * See `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.
  */
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { getLocale, getTranslations } from 'next-intl/server';
 
 import { Card } from '@monopilot/ui/Card';
@@ -40,6 +41,7 @@ import {
   type OeeLinesTableLabels,
   type OeeSnapshotsTableLabels,
 } from './_components/oee-tables';
+import { canViewAndonKiosk } from './andon/andon-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,6 +80,34 @@ function KpiTile({
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{value}</div>
       {sub ? <div className="mt-1 text-xs text-slate-500">{sub}</div> : null}
+    </Card>
+  );
+}
+
+function AndonHubCard({
+  locale,
+  labels,
+}: {
+  locale: string;
+  labels: { title: string; body: string; action: string };
+}) {
+  return (
+    <Card
+      data-testid="oee-andon-hub-card"
+      className="rounded-xl border border-slate-200 bg-white p-4"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">{labels.title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{labels.body}</p>
+        </div>
+        <Link
+          href={`/${locale}/oee/andon`}
+          className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          {labels.action}
+        </Link>
+      </div>
     </Card>
   );
 }
@@ -226,6 +256,7 @@ export default async function OeeRoutePage({ params, searchParams }: PageProps) 
     getTranslations({ locale, namespace: 'oee' }),
     buildSelectorLabels(locale),
   ]);
+  const canViewAndon = await canViewAndonKiosk();
 
   return (
     <main
@@ -235,6 +266,16 @@ export default async function OeeRoutePage({ params, searchParams }: PageProps) 
       className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6"
     >
       <PageHeader title={t('title')} subtitle={t('subtitle')} breadcrumb={[{ label: t('breadcrumb') }]} />
+      {canViewAndon ? (
+        <AndonHubCard
+          locale={locale}
+          labels={{
+            title: t('andonHub.title'),
+            body: t('andonHub.body'),
+            action: t('andonHub.action'),
+          }}
+        />
+      ) : null}
       <PeriodSelector
         period={periodSelection.period}
         fromDate={periodSelection.fromDate}

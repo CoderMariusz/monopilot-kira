@@ -9,9 +9,14 @@ vi.mock('../andon-data', () => ({
   getLineLiveStatus: vi.fn(),
 }));
 
+vi.mock('../andon-permissions', () => ({
+  canViewAndonKiosk: vi.fn(),
+}));
+
 import OeeAndonRoutePage from '../page';
 import OeeAndonLinePage from '../[lineId]/page';
 import { getAllLinesLiveStatus, getLineLiveStatus } from '../andon-data';
+import { canViewAndonKiosk } from '../andon-permissions';
 
 const runningLine: LineLiveStatus = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -42,13 +47,15 @@ const pausedLine: LineLiveStatus = {
 describe('OeeAndonRoutePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(canViewAndonKiosk).mockResolvedValue(true);
   });
 
   it('lists production lines with status badges from the mocked live loader', async () => {
     vi.mocked(getAllLinesLiveStatus).mockResolvedValue([runningLine, pausedLine]);
 
-    render(await OeeAndonRoutePage());
+    render(await OeeAndonRoutePage({ params: Promise.resolve({ locale: 'en' }) }));
 
+    expect(canViewAndonKiosk).toHaveBeenCalled();
     expect(getAllLinesLiveStatus).toHaveBeenCalledWith('current');
     expect(screen.getByRole('heading', { name: 'Andon board' })).toBeInTheDocument();
     expect(screen.getByText('LINE-01')).toBeInTheDocument();
@@ -60,8 +67,19 @@ describe('OeeAndonRoutePage', () => {
     expect(screen.getAllByTestId('andon-status-badge')).toHaveLength(2);
     expect(screen.getByRole('link', { name: /LINE-01/ })).toHaveAttribute(
       'href',
-      `/oee/andon/${runningLine.id}`,
+      `/en/oee/andon/${runningLine.id}`,
     );
+  });
+
+  it('renders permission denied without loading Andon lines when kiosk permission is missing', async () => {
+    vi.mocked(canViewAndonKiosk).mockResolvedValue(false);
+
+    render(await OeeAndonRoutePage({ params: Promise.resolve({ locale: 'en' }) }));
+
+    expect(screen.getByTestId('andon-denied')).toHaveTextContent(
+      'You do not have permission to view Andon kiosk screens.',
+    );
+    expect(getAllLinesLiveStatus).not.toHaveBeenCalled();
   });
 
   it('renders the line kiosk from the mocked live status loader', async () => {
@@ -82,5 +100,20 @@ describe('OeeAndonRoutePage', () => {
     expect(screen.getByText('128.5')).toBeInTheDocument();
     expect(screen.getByText('3.25')).toBeInTheDocument();
     expect(screen.getByText('87.4%')).toBeInTheDocument();
+  });
+
+  it('renders permission denied without loading line status when kiosk permission is missing', async () => {
+    vi.mocked(canViewAndonKiosk).mockResolvedValue(false);
+
+    render(
+      await OeeAndonLinePage({
+        params: Promise.resolve({ locale: 'en', lineId: runningLine.id }),
+      }),
+    );
+
+    expect(screen.getByTestId('andon-denied')).toHaveTextContent(
+      'You do not have permission to view Andon kiosk screens.',
+    );
+    expect(getLineLiveStatus).not.toHaveBeenCalled();
   });
 });

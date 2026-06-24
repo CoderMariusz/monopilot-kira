@@ -28,7 +28,6 @@ async function buildLabels(locale: string): Promise<ProductsScreenLabels> {
       unit: t('column_unit'),
       weight: t('column_weight'),
       bom: t('column_bom'),
-      line: t('column_line'),
       status: t('column_status'),
     },
     status: {

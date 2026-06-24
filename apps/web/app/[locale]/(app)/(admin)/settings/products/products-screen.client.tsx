@@ -39,7 +39,6 @@ export type ProductsScreenLabels = {
     unit: string;
     weight: string;
     bom: string;
-    line: string;
     status: string;
   };
   status: Record<ProductStatus, string>;

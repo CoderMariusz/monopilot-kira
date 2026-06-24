@@ -8161,8 +8161,14 @@
       "title": "No snapshots yet",
       "body": "OEE snapshots are produced when a work order is completed. Complete a work order in Production to see availability, performance and quality here."
     },
+    "andonHub": {
+      "title": "Andon / TV view",
+      "body": "Open live line status for kiosk and shop-floor displays.",
+      "action": "Open Andon"
+    },
     "andon": {
       "title": "Andon board",
+      "denied": "You do not have permission to view Andon kiosk screens.",
       "status": {
         "running": "Running",
         "paused": "Paused",

@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { AndonLiveCard, type AndonLabels } from '../andon-live-card';
 import { CURRENT_ORG_ID, getLineLiveStatus } from '../andon-data';
+import { canViewAndonKiosk } from '../andon-permissions';
 import { LineStatus } from '../andon-types';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,25 @@ function buildLabels(t: (key: string) => string): AndonLabels {
 export default async function OeeAndonLinePage({ params }: PageProps) {
   const { locale, lineId } = await params;
   const t = await getTranslations('oee.andon');
+  const allowed = await canViewAndonKiosk();
+
+  if (!allowed) {
+    return (
+      <main
+        data-testid="module-landing-oee-andon-line"
+        data-screen="oee-andon-line"
+        className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6"
+      >
+        <div
+          role="note"
+          data-testid="andon-denied"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800"
+        >
+          {t('denied')}
+        </div>
+      </main>
+    );
+  }
 
   try {
     const status = await getLineLiveStatus(lineId, CURRENT_ORG_ID);

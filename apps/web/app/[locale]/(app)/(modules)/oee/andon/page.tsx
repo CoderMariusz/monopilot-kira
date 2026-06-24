@@ -2,9 +2,14 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 
 import { CURRENT_ORG_ID, getAllLinesLiveStatus } from './andon-data';
+import { canViewAndonKiosk } from './andon-permissions';
 import { LineStatus, type LineLiveStatus } from './andon-types';
 
 export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  params: Promise<{ locale: string }>;
+};
 
 const STATUS_STYLES: Record<LineStatus, string> = {
   [LineStatus.Running]: 'border-emerald-200 bg-emerald-50 text-emerald-800',
@@ -32,16 +37,18 @@ function StatusBadge({
 
 function LineCard({
   line,
+  locale,
   statusLabel,
   labels,
 }: {
   line: LineLiveStatus;
+  locale: string;
   statusLabel: string;
   labels: { wo: string; good: string; scrap: string; oee: string; lastActivity: string };
 }) {
   return (
     <Link
-      href={`/oee/andon/${line.id}`}
+      href={`/${locale}/oee/andon/${line.id}`}
       className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-4">
@@ -75,8 +82,29 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function OeeAndonRoutePage() {
+export default async function OeeAndonRoutePage({ params }: PageProps) {
+  const { locale } = await params;
   const t = await getTranslations('oee.andon');
+  const allowed = await canViewAndonKiosk();
+
+  if (!allowed) {
+    return (
+      <main
+        data-testid="module-landing-oee-andon"
+        data-screen="oee-andon"
+        className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6"
+      >
+        <div
+          role="note"
+          data-testid="andon-denied"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800"
+        >
+          {t('denied')}
+        </div>
+      </main>
+    );
+  }
+
   const lines = await getAllLinesLiveStatus(CURRENT_ORG_ID);
   const statusLabels: Record<LineStatus, string> = {
     [LineStatus.Running]: t('status.running'),
@@ -114,7 +142,13 @@ export default async function OeeAndonRoutePage() {
       ) : (
         <div data-testid="andon-line-grid" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {lines.map((line) => (
-            <LineCard key={line.id} line={line} labels={labels} statusLabel={statusLabels[line.status]} />
+            <LineCard
+              key={line.id}
+              line={line}
+              locale={locale}
+              labels={labels}
+              statusLabel={statusLabels[line.status]}
+            />
           ))}
         </div>
       )}

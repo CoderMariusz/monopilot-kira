@@ -33,7 +33,6 @@ const labels: ProductsScreenLabels = {
     unit: 'Unit',
     weight: 'Weight',
     bom: 'BOM',
-    line: 'Line',
     status: 'Status',
   },
   status: {
