@@ -137,7 +137,7 @@ async function readSchemaSourceColumns(client: QueryClient, deptCode: string): P
       where org_id = app.current_org_id()
         and dept_code = $1
         and deprecated_at is null
-      order by coalesce((presentation_json->>'display_order')::int, 0), column_code asc`,
+      order by case when (presentation_json->>'display_order') ~ '^-?[0-9]+$' then (presentation_json->>'display_order')::int else 0 end, column_code asc`,
     [deptCode],
   );
   const columns = rows

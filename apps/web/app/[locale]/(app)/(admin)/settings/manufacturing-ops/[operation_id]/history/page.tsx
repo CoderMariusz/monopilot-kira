@@ -249,7 +249,8 @@ async function queryAuditLog(input: OperationHistoryQueryInput): Promise<Operati
           and audit_log.resource_id = $1
           and ($2::timestamptz is null or audit_log.occurred_at >= $2::timestamptz)
           and ($3::timestamptz is null or audit_log.occurred_at <= $3::timestamptz)
-        order by audit_log.occurred_at desc`,
+        order by audit_log.occurred_at desc
+        limit 200`,
       [input.operationId, from, to],
     );
 

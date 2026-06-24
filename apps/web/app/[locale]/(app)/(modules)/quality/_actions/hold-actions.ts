@@ -196,7 +196,7 @@ function mapListRow(row: {
 async function getReasonDurationDays(ctx: QualityContext, reasonCodeId?: string): Promise<number | null> {
   if (!reasonCodeId) return null;
   const { rows } = await ctx.client.query<{ duration_days: number | string | null }>(
-    `select nullif(rt.row_data->>'default_hold_duration_days', '')::int as duration_days
+    `select case when (rt.row_data->>'default_hold_duration_days') ~ '^[0-9]+$' then (rt.row_data->>'default_hold_duration_days')::int else null end as duration_days
        from public.reference_tables rt
       where rt.org_id = $1::uuid
         and rt.table_code = 'reference.quality_hold_reasons'

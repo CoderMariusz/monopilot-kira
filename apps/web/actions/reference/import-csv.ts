@@ -317,7 +317,7 @@ async function loadSchemaColumns(client: QueryClient, tableCode: string): Promis
         and deprecated_at is null
       order by column_code,
                org_id nulls last,
-               coalesce((presentation_json->>'display_order')::integer, 0)`,
+               case when (presentation_json->>'display_order') ~ '^-?[0-9]+$' then (presentation_json->>'display_order')::int else 0 end`,
     [schemaTableCodes],
   );
   return rows.sort((left, right) => {
