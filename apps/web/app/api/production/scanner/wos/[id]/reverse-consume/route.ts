@@ -22,6 +22,8 @@ import {
 const OPERATION = 'production.scanner.wos.reverse_consume';
 const CONSUMPTION_REVERSE_INTENT = 'production.consumption.reverse';
 const CONSUMPTION_CORRECT_PERMISSION = 'production.consumption.correct';
+const CONSUMPTION_OVERRIDE_APPROVE_PERMISSION = 'production.consumption.override_approve';
+const CLOSED_WO_CORRECTION_PERMISSION = 'production.corrections.closed_wo';
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 type ConsumptionRow = {
@@ -525,6 +527,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
         return scannerError('invalid_pin', 401);
       }
 
+      if (!(await hasPermission(ctx, CONSUMPTION_CORRECT_PERMISSION))) {
+        await client.query('rollback');
+        await auditAttempt(client, session, OPERATION, 'forbidden', { woId, clientOpId });
+        return scannerError('forbidden', 403);
+      }
+
       const requireSupervisorPin = await supervisorPinRequired(ctx);
       let supervisorUserId: string | null = null;
       if (requireSupervisorPin) {
@@ -562,7 +570,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         }
 
         const supervisorCtx = { client, userId: supervisor.id, orgId: session.org_id } as unknown as ProductionContext;
-        if (!(await hasPermission(supervisorCtx, CONSUMPTION_CORRECT_PERMISSION))) {
+        if (!(await hasPermission(supervisorCtx, CONSUMPTION_OVERRIDE_APPROVE_PERMISSION))) {
           await client.query('rollback');
           await auditAttempt(client, session, OPERATION, 'supervisor_forbidden', { woId, clientOpId });
           return scannerError('supervisor_forbidden', 403);
@@ -581,6 +589,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
         await client.query('rollback');
         await auditAttempt(client, session, OPERATION, 'not_found', { woId, clientOpId, consumptionId, woMaterialId, lpId });
         return scannerError('not_found', 404);
+      }
+
+      if (original.wo_status === 'closed' && !(await hasPermission(ctx, CLOSED_WO_CORRECTION_PERMISSION))) {
+        await client.query('rollback');
+        await auditAttempt(client, session, OPERATION, 'closed_wo_correction_forbidden', { woId, clientOpId, consumptionId: original.id });
+        return scannerError('closed_wo_correction_forbidden', 403);
       }
 
       if (await hasConsumptionCorrection(ctx, original.id)) {
