@@ -220,12 +220,22 @@ export default function SitesScreen({
 
   const selectedLines = selectedSiteId ? (linesBySite[selectedSiteId] ?? []) : [];
 
-  // On a successful mutation: drop the affected site's cached lines so the next
-  // selection re-fetches, refresh the RSC tree (server re-queries Supabase), and
-  // close the modal.
+  // On a successful mutation: re-fetch the affected site's lines SYNCHRONOUSLY so
+  // the new/edited row appears immediately. `linesBySite` is client state seeded
+  // from props once on mount — router.refresh() re-renders the RSC tree but does
+  // NOT re-derive this client cache, so merely busting the entry left the list
+  // empty (the "No production lines are assigned" ghost) until a full remount.
+  // Still refresh the RSC tree for server-rendered counts, and close the modal.
   const handleMutated = React.useCallback(
     (siteId: string | null) => {
-      if (siteId) {
+      setActiveModal(null);
+      if (siteId && loadLines) {
+        setLoadingLines(true);
+        void Promise.resolve(loadLines(siteId))
+          .then((rows) => setLinesBySite((current) => ({ ...current, [siteId]: rows })))
+          .catch(() => setLinesBySite((current) => ({ ...current, [siteId]: [] })))
+          .finally(() => setLoadingLines(false));
+      } else if (siteId) {
         setLinesBySite((current) => {
           const next = { ...current };
           delete next[siteId];
@@ -233,9 +243,8 @@ export default function SitesScreen({
         });
       }
       router.refresh();
-      setActiveModal(null);
     },
-    [router],
+    [router, loadLines],
   );
 
   return (
