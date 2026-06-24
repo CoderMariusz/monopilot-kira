@@ -127,9 +127,17 @@ create→persist→edit→cross-ref). OPEN list, expect more of this class every
 - LOW intensity raised ~10% (owner) — a little more per tick, still token-aware until 16:00.
 
 ## TRACK-1 RE-VERIFY QUEUE (clear these FIRST each tick, after the fix's redeploy is READY)
-- [ ] mig 323 grant — cold-chain / freight / yard / cycle-count: open each, CREATE a record, confirm it
-      persists + lists; reach the reverse/void path.
-- [ ] mig 324 scheduler perms — /pl/scheduler: "Uruchom harmonogram" + changeover matrix work for admin.
-- [ ] (after fix) Settings → Sites & Lines: add line → appears under the site → editable. (NO warehouse column — owner: site ≡ warehouse.)
-- [ ] (after fix) dock doors page loads cleanly (no "Something went wrong").
-- [ ] (after fix) "Add machine" button matches the other +Add buttons.
+- [!] mig 323 grant — cold-chain / freight / yard / cycle-count: grant CONFIRMED (app_user has CRUD on all 8 tables).
+      Freight (carrier created+persisted) PASS; Cold-chain (temp range created+persisted, old gi.item_id bug GONE) PASS;
+      Cycle-count (session created+persisted, but list needs reload — NEW L2) PASS-with-caveat; **Yard FAIL** —
+      /settings/infra/docks + /yard + /yard/appointments all crash "Coś poszło nie tak" via function-prop-across-RSC
+      (yard-labels.ts), NOT the grant. (re-verified 2026-06-24, deploy c4872e9d)
+- [!] mig 324 scheduler perms — /pl/scheduler: perms seeded (4×6 roles); changeover matrix loads for admin (matrix.read PASS).
+      "Uruchom harmonogram" no longer 403s BUT now fails "Coś poszło nie tak" — NEW L1 ambiguous `id` (42702) in
+      MATRIX_SELECT/loadChangeoverMatrixForRun. Run not end-to-end. (re-verified 2026-06-24, deploy c4872e9d)
+- [!] Settings → Sites & Lines: add line → line PERSISTS (correct site_id) + badge count updates, BUT the detail-panel
+      lines list NEVER renders (empty for ALL sites, even Demo Plant w/ 8 lines, even after reload) → Edit unreachable.
+      NEW L1: `queryLinesForSite` SELECT DISTINCT+ORDER BY → 42P10. c4872e9d fixed the wrong layer (client cache).
+      (re-verified 2026-06-24, deploy c4872e9d)
+- [!] dock doors page — STILL "Coś poszło nie tak" (2nd cause = yard-labels function props, see mig-323 line above).
+- [ ] (after fix) "Add machine" button matches the other +Add buttons. — NOT RE-TESTED this tick (no fix shipped yet).

@@ -156,3 +156,45 @@ This wave does NOT use the ungranted tables (reads existing OEE/line/wo tables),
 
 **No AUDIT-prefixed data persisted** — every create attempt failed at the grant layer, so the live DB is unchanged by this audit.
 
+---
+
+# RE-VERIFY — 2026-06-24 (deploy c4872e9d; tester DEEP create→persist→display→edit→reverse)
+
+Login admin@monopilot.test on `/pl/`. **Smoke: GREEN** (login → `/pl` dashboard, PL locale; only console error = harmless `/sw.js` 404). Screenshots under `apps/web/e2e/artifacts/reverify-0624/`. Real Supabase rows verified via MCP (project `khjvkhzwfzuwzrusgobp`).
+
+## A — Sites & Lines refresh (c4872e9d, the headline) → **FAIL**
+
+Steps: Settings → Sites & Lines → site "site 2" (0 lines) → "+ Dodaj linię" → created line **AUDIT0624-LINE** (code+name) → Save.
+
+- The line **persists** (DB `production_lines` row has correct `site_id`; site badge updated **0 → 1 linii** immediately) — so the data-integrity half is fine.
+- BUT the per-site **lines list in the detail panel STILL shows the empty-state** "Do tego zakładu nie przypisano jeszcze linii produkcyjnych" — **immediately AND after a full page reload AND after reselecting the site.** The new line never renders; the per-row **Edit** button is therefore **unreachable** (cannot complete the edit sub-test).
+- Decisive tell: **"Demo Plant — Warsaw" shows "8 linii" in its badge but its detail panel is ALSO empty** on a clean load — i.e. the detail lines list is broken for EVERY site, not just newly-created ones.
+- **ROOT CAUSE (found, not the fix's layer):** `queryLinesForSite` in `…/settings/sites/_actions/sites.ts:330-353` uses `SELECT DISTINCT … GROUP BY … ORDER BY lower(pl.name), lower(pl.code)`. Postgres rejects this with **`42P10: for SELECT DISTINCT, ORDER BY expressions must appear in select list`** (reproduced live via MCP; also in postgres logs). So `getLinesForSite` **always throws**; the client `handleSelect`/`handleMutated` catch it and render `[]` (the ghost). The c4872e9d fix only rewired the client cache-refresh in `sites-screen.client.tsx` — but the underlying query was already broken, so re-fetching just re-throws.
+- **FIX (Track 2, L1):** drop the `distinct` keyword in `queryLinesForSite` (line 331) — the `GROUP BY` already dedups; removing DISTINCT returns all 8 lines (verified live). Same pattern likely worth grepping elsewhere.
+- Evidence: `A1-add-line-modal.png`, `A2-after-save-no-refresh.png`, `A3-site2-after-reload-still-empty.png`.
+
+## B — mig 323 grant (cold-chain / freight / yard / cycle-count)
+
+mig 323 grant **confirmed at DB level**: `app_user` now holds INSERT/SELECT/UPDATE/DELETE on `carriers`, `transport_lanes`, `yard_visits`, `dock_appointments`, `dock_doors`, `count_sessions`, `count_lines`, `product_temp_ranges`. (NOTE: migs 323/324 are NOT tracked in `supabase_migrations.schema_migrations` — they were applied ad-hoc via MCP, only up to 320 is tracked. Cosmetic, but means re-running the migration runner could re-attempt or miss them.)
+
+- **B-Freight (carriers) → PASS.** `/pl/planning/carriers` loads clean (PL). Created carrier **AUDIT0624-CARR / AUDIT0624-Carrier Test** (mode Drogowy, email) → **persists + lists** (DB row confirmed) with row-actions Edytuj + Trasy present. Evidence: `B1-carrier-created.png`.
+- **B-Cold-chain (temp ranges) → PASS.** `/pl/settings/quality/temp-ranges` loads clean. Created range for **RM-BEEF-80 / 0.0–4.0 °C / Wymagane** (real item picker, portal works) → **persists + lists** + success toast. The old `gi.item_id` GRN-temp-save bug is **GONE** — no view/function references `gi.item_id` anymore (MCP `pg_views`/`pg_proc` hunt = empty). Evidence: `B2-temp-range-created.png`.
+- **B-Yard (dock doors / appointments / board) → FAIL.** All three Yard pages crash to the global error boundary "Coś poszło nie tak": `/pl/settings/infra/docks`, `/pl/yard`, `/pl/yard/appointments`. **NOT the grant** (grant is fine; the page catches `forbidden`). **ROOT CAUSE (NEW L1):** the label builders `buildDocksLabels`/`buildBoardLabels`/`buildAppointmentsLabels` in `…/(modules)/yard/_components/yard-labels.ts` return objects with **function-valued props** (`directionLabel`, `statusLabel`, `minutes`, `directionOption` — e.g. lines 22-23, 47, 55-56, 77-78, 100-102, 170, 190, 203). The Server-Component pages pass these objects to **Client Components** (`DocksView`, board/appointments views) → Next.js throws **"Functions cannot be passed directly to Client Components"** during SSR. **FIX:** resolve all direction/status/minutes variants to plain strings (or precomputed `Record<>` maps) server-side before crossing the RSC boundary; never pass functions in the labels object. Cannot create a dock door / appointment until fixed. Evidence: `B3-yard-appointments-error.png`.
+- **B-Cycle-count → PASS (with NEW L2).** `/pl/warehouse/counts` loads clean. Created session (warehouse **Finished Goods**, type **Liczenie cykliczne**) → **persists** (DB `count_sessions` row status=open count_type=cycle). **NEW L2: the list did NOT refresh after create** — page still showed "Liczenia: 0"/empty; only after a manual reload did **CNT-2E51BF1F** appear (status Otwarte, working deep-link to detail). Same "router.refresh doesn't rebuild client cache" class as Sites&Lines. Detail page has full tabbed workflow (blind count / variance review); no items to count (empty FG stock) so approval/reverse path not exercised. Evidence: `B4-count-session-listed.png`.
+
+## C — mig 324 scheduler perms → **FAIL** (perm fix verified, but run still broken by a NEW L1)
+
+mig 324 **confirmed**: `scheduler.run.read/dispatch` + `scheduler.matrix.read/edit` all seeded to 6 roles each.
+
+- **Changeover matrix (matrix.read) → PASS.** `/pl/scheduler/changeover-matrix` loads for admin, no 403/error — empty state ("Brak profili przezbrojeń", derives from allergen profiles). matrix.edit perm seeded; no reachable edit control in the empty state, but READ definitively works.
+- **"Uruchom harmonogram" run → does NOT 403 (perm gate fixed) BUT FAILS to run.** Button is clickable, no permission-denied — instead shows inline **"Coś poszło nie tak. Spróbuj ponownie."** **ROOT CAUSE (NEW L1):** `MATRIX_SELECT` in `…/(modules)/scheduler/_actions/scheduler-actions.ts:75-89` lists **unqualified** columns (`id`, `org_id`, `site_id`, `version_id`, …); it's used in `loadChangeoverMatrixForRun` (line 133-147) which **joins `changeover_matrix cm` + `changeover_matrix_versions cmv`** — both have `id`/`org_id` → Postgres **`42702: column reference "id" is ambiguous`** (reproduced live via MCP + in postgres logs at the click timestamp). `runScheduler` catches it → returns `persistence_failed`. **FIX:** qualify `MATRIX_SELECT` columns with `cm.` (at least `id`, `org_id`, `site_id`, `version_id`, `line_id`).
+- Net: the **permission** subject of mig 324 is verified fixed; the **feature** is still not end-to-end (run dies on the ambiguous-id bug). Marked FAIL because the prompt's gate is "PASS if both work" and the run does not complete.
+- Evidence: `C1-scheduler-run-error.png`, `C2-changeover-matrix-loads.png`.
+
+## NEW BUGS surfaced (feed Track 2)
+
+1. **L1 — Sites&Lines per-site list query broken** (`settings/sites/_actions/sites.ts:331` `SELECT DISTINCT … ORDER BY lower(...)` → 42P10). Lines never render for ANY site. Fix = drop `distinct`. (This is why headline A is still broken after c4872e9d.)
+2. **L1 — Whole Yard module crashes** (`(modules)/yard/_components/yard-labels.ts`): function-valued label props passed from Server → Client Components. Affects `/settings/infra/docks`, `/yard`, `/yard/appointments`. Fix = stringify labels server-side. (This is the "2nd cause" behind the dock-doors "Something went wrong" — grant 323 alone did NOT fix it.)
+3. **L1 — Scheduler run fails** (`(modules)/scheduler/_actions/scheduler-actions.ts:75-89` `MATRIX_SELECT` + `:133` join): ambiguous `id` (42702). Fix = qualify with `cm.`.
+4. **L2 — Cycle-count list does not refresh after create** (`/warehouse/counts`): new session only appears after a manual page reload (router.refresh-vs-client-cache class). Fix = re-fetch/refresh the sessions list on create success.
+
