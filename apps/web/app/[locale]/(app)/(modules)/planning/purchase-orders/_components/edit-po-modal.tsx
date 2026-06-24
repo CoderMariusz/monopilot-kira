@@ -142,9 +142,9 @@ export function EditPoModal({
         // Empty date input clears the field server-side; send '' so the action can
         // distinguish "cleared" from "unchanged" (the contract treats undefined as
         // no-op, '' as explicit clear). We always send the resolved values.
-        expectedDelivery: expected || undefined,
+        expectedDelivery: expected.trim(),
         currency,
-        notes: notes.trim() || undefined,
+        notes: notes.trim(),
       });
       if (!result.ok) {
         const map = labels.errors as Record<string, string>;

@@ -8,7 +8,6 @@ import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering
 import {
   PurchaseOrderCreateInput,
   PurchaseOrderStatusSchema,
-  dateSchema,
   hasPlanningWritePermission,
   isPgError,
   numeric3Schema,
@@ -87,7 +86,11 @@ type PurchaseOrderListResult =
 const UpdatePurchaseOrderInput = z.object({
   id: uuidSchema,
   supplierId: uuidSchema.optional(),
-  expectedDelivery: dateSchema.optional(),
+  expectedDelivery: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^\d{4}-\d{2}-\d{2}$/.test(value), 'Invalid date')
+    .optional(),
   currency: z.string().trim().length(3).optional(),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -429,9 +432,9 @@ export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOr
       const { rows } = await ctx.client.query<PurchaseOrderRow>(
         `update public.purchase_orders
             set supplier_id = coalesce($2::uuid, supplier_id),
-                expected_delivery = coalesce($3::date, expected_delivery),
+                expected_delivery = case when $7::boolean then nullif($3, '')::date else expected_delivery end,
                 currency = coalesce($4, currency),
-                notes = coalesce($5, notes),
+                notes = case when $8::boolean then nullif($5, '') else notes end,
                 updated_by = $6::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -445,6 +448,8 @@ export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOr
           input.currency ?? null,
           input.notes ?? null,
           userId,
+          input.expectedDelivery !== undefined,
+          input.notes !== undefined,
         ],
       );
       const row = rows[0];
