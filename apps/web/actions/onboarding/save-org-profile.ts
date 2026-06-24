@@ -108,6 +108,14 @@ async function persistOrgProfile(input: SaveOrgProfileInput): Promise<PersistOrg
           query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
         };
       };
+
+      const onboardingCheck = await context.client.query<{ onboarding_completed_at: string | null }>(
+        `select onboarding_completed_at from public.organizations where id = app.current_org_id()`,
+      );
+      if (onboardingCheck.rows[0]?.onboarding_completed_at != null) {
+        return { ok: false, error: 'PERSISTENCE_FAILED', message: 'onboarding_already_completed' };
+      }
+
       const { rows } = await context.client.query<{
         id: string;
         name: string;

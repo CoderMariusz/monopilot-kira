@@ -27,7 +27,7 @@ export type ComputeNutritionResult =
         nutriScore: ReturnType<typeof nutriScore>;
       };
     }
-  | { ok: false; error: 'invalid_input' | 'not_found' | 'persistence_failed'; message?: string };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed'; message?: string };
 
 interface VersionRow {
   product_code: string | null;
@@ -54,6 +54,10 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
 
   try {
     return await withOrgContext(async ({ orgId, userId, client }) => {
+      if (!(await hasPermission({ userId, orgId, client }, 'npd.formulation.create_draft'))) {
+        return { ok: false as const, error: 'forbidden' as const };
+      }
+
       const version = await client.query<VersionRow>(
         `select f.product_code
            from public.formulation_versions fv
@@ -195,6 +199,23 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
     });
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+async function hasPermission(
+  ctx: { userId: string; orgId: string; client: { query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }> } },
+  permission: string,
+): Promise<boolean> {
+  const result = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+      limit 1`,
+    [ctx.userId, ctx.orgId, permission],
+  );
+  return result.rows.length > 0;
 }
 
 function stringifyNutrition(raw: Record<string, unknown>): Record<string, string> {

@@ -69,6 +69,7 @@ type SaveScenarioParams = z.infer<typeof ParamsSchema>;
 
 type SaveScenarioError =
   | 'invalid_input'
+  | 'forbidden'
   | 'margin_hard_fail'
   | 'not_found'
   | 'persistence_failed';
@@ -108,7 +109,11 @@ export async function saveCostingScenario(raw: unknown): Promise<SaveScenarioRes
   }
 
   try {
-    return await withOrgContext(async ({ orgId, client }) => {
+    return await withOrgContext(async ({ orgId, userId, client }) => {
+      if (!(await hasPermission({ userId, orgId, client }, 'npd.formulation.create_draft'))) {
+        return { ok: false as const, error: 'forbidden' as const };
+      }
+
       const upsert = await client.query<{ id: string }>(
         `insert into public.costing_breakdowns
            (org_id, product_code, scenario, raw_cost_eur, margin_pct, target_price_eur, params, computed_at)
@@ -158,4 +163,21 @@ export async function saveCostingScenario(raw: unknown): Promise<SaveScenarioRes
     });
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+async function hasPermission(
+  ctx: { userId: string; orgId: string; client: { query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }> } },
+  permission: string,
+): Promise<boolean> {
+  const result = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+      limit 1`,
+    [ctx.userId, ctx.orgId, permission],
+  );
+  return result.rows.length > 0;
 }

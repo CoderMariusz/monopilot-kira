@@ -65,6 +65,18 @@ async function seed(pool: pg.Pool) {
      on conflict (id) do update set org_id = excluded.org_id, email = excluded.email`,
     [userA, orgA, roleA],
   );
+  await pool.query(
+    `insert into public.user_roles (user_id, org_id, role_id)
+       values ($1, $2, $3)
+     on conflict do nothing`,
+    [userA, orgA, roleA],
+  );
+  await pool.query(
+    `insert into public.role_permissions (role_id, permission)
+       values ($1, 'npd.formulation.create_draft')
+     on conflict (role_id, permission) do nothing`,
+    [roleA],
+  );
   await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
        values ($1, $2, 'T072 Compute Product', 1, $3)
@@ -123,6 +135,9 @@ describe('computeNutrition action unit coverage', () => {
       query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
         calls.push({ sql, params });
         const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+        if (normalized.includes('from public.user_roles ur')) {
+          return { rows: [{ ok: true }], rowCount: 1 };
+        }
         if (normalized.includes('from public.formulation_versions')) {
           return { rows: [{ product_code: productA }], rowCount: 1 };
         }

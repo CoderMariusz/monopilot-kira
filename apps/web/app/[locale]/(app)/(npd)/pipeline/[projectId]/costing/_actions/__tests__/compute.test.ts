@@ -75,6 +75,18 @@ async function seed(pool: pg.Pool) {
      on conflict (id) do update set org_id = excluded.org_id, email = excluded.email`,
     [orgAUser, orgA, orgARole],
   );
+  await pool.query(
+    `insert into public.user_roles (user_id, org_id, role_id)
+       values ($1, $2, $3)
+     on conflict do nothing`,
+    [orgAUser, orgA, orgARole],
+  );
+  await pool.query(
+    `insert into public.role_permissions (role_id, permission)
+       values ($1, 'npd.formulation.create_draft')
+     on conflict (role_id, permission) do nothing`,
+    [orgARole],
+  );
   await pool.query('delete from public.product where product_code = $1', [productA]);
   await ownerQueryWithInferredOrgContext(pool,
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
