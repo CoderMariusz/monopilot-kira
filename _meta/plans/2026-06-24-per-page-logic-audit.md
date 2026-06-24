@@ -137,3 +137,23 @@ skipped. → Backlog: standardize (single config or CI runs both); not fixing to
 ### BUILD-TRACK done this window (committed): E4A andon; audit-r1 (allergen-gate/consume-gate/WO-void/LP-unblock/reporting-cron);
 audit-r2 (MRP FG->make/SO-correctness+mig314/allergen-conflict/NPD-409/gallery-gate); BLD reporting period-selector+order/line
 filter (Q4) + NPD approval thresholds C3/C4/C5 now org-configurable/real (Q6). migs 312/313/314 LIVE.
+
+### E-WAVE SELF-REVIEW (adversarial, 2026-06-24 ~02:00) — IMPORTANT honesty note
+The overnight E-waves PASS their own unit tests + typecheck + `next build`, but an adversarial code-review of the
+two most-sensitive ones found REAL correctness bugs the tests missed. The E-waves are "scaffolded + green", NOT yet
+production-hardened. Status:
+- **E10 cycle-count (stock adjustment): REVIEWED + FIXED (commit 44a0be08).** Found L1 TOCTOU (applied a stale
+  record-time variance), L1 single-LP shrinkage (couldn't drain across LPs), + L2 (no session gate, no stock_moves
+  ledger row, minted LP missing site_id/batch/expiry). All fixed + retested (10 pass).
+- **E8 scheduler: REVIEWED — FAIL, fixes PENDING (Codex hit its usage limit mid-fix; will redo when it resets ~02:13).**
+  Real bugs to fix: (L1) applySchedule has no WO-state guard (can reschedule terminal WOs) + commits un-approved DRAFT
+  assignments to production (SoD); (L2) uses `npd.planning.write` instead of the existing `scheduler.run.dispatch`/
+  `scheduler.matrix.edit`/`scheduler.matrix.read` perms; org-wide run collapses per-line changeover overrides (last
+  line clobbers); no outbox emission (`scheduler.run.completed`/`planning.schedule.published`); **NO time-phasing — the
+  solver copies existing WO times so sequence != time order, can schedule into the past, and can trip the DB
+  `scheduler_assignments_time_order_check` → `runScheduler` throws `persistence_failed` from ordinary data.** The solver's
+  greedy determinism/tie-break/null-handling are CORRECT.
+- **E2B cold-chain / E9 freight / E5 yard: NOT yet deep-reviewed.** Likely need the same hardening pass (RBAC perms,
+  edge cases). They are additive/lower-risk (don't mutate core inventory/production) but should be reviewed before relied on.
+**Takeaway for the owner:** treat the overnight E-waves as solid first-cut scaffolds that need one review+harden pass each
+(the pattern: adversarial review → fix → retest, as done for E10) before production use. This is normal for fast net-new builds.
