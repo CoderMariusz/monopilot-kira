@@ -9,6 +9,9 @@ const woId = '60000000-0000-0000-0000-000000000001';
 const consumptionId = '71000000-0000-0000-0000-000000000001';
 const reverseConsumptionId = '72000000-0000-0000-0000-000000000001';
 const lpId = '90000000-0000-0000-0000-000000000001';
+const componentId = '80000000-0000-0000-0000-000000000001';
+const materialLineAId = '70000000-0000-0000-0000-000000000001';
+const materialLineBId = '70000000-0000-0000-0000-000000000002';
 
 const session: ScannerSessionRow = {
   id: '10000000-0000-0000-0000-000000000001',
@@ -86,7 +89,7 @@ function originalConsumption(overrides: Record<string, unknown> = {}) {
     transaction_id: '73000000-0000-0000-0000-000000000001',
     site_id: '74000000-0000-0000-0000-000000000001',
     wo_id: woId,
-    component_id: '80000000-0000-0000-0000-000000000001',
+    component_id: componentId,
     lp_id: lpId,
     qty_consumed: '2.500',
     uom: 'kg',
@@ -124,11 +127,13 @@ type QueryOptions = {
   lp?: Record<string, unknown> | null;
   duplicateCorrectionInsert?: boolean;
   canDecrement?: boolean;
+  materialRows?: Array<{ id: string; product_id: string; consumed_qty: string }>;
 };
 
 function installQueryMock(options: QueryOptions = {}) {
-  fakeClient.query.mockImplementation(async (sqlInput: string, _params?: unknown[]) => {
+  fakeClient.query.mockImplementation(async (sqlInput: string, paramsInput?: unknown[]) => {
     const sql = String(sqlInput);
+    const params = paramsInput ?? [];
     if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
     if (sql.includes('insert into app.session_org_contexts')) return { rows: [] };
     if (sql.includes('select app.set_org_context')) return { rows: [] };
@@ -150,13 +155,38 @@ function installQueryMock(options: QueryOptions = {}) {
       return { rows: options.lp === null ? [] : [options.lp ?? restorableLp()] };
     }
     if (sql.includes('(consumed_qty - $3::numeric >= 0) as can_decrement')) {
+      if (options.materialRows) {
+        const scopedId = String(params[1]);
+        const qty = Number(params[2]);
+        const scopeKey = sql.includes('and id = $2::uuid') ? 'id' : 'product_id';
+        return {
+          rows: options.materialRows
+            .filter((row) => row[scopeKey] === scopedId)
+            .filter((row) => Number(row.consumed_qty) - qty >= 0)
+            .map((row) => ({ id: row.id, can_decrement: true })),
+        };
+      }
       return { rows: [{ id: '70000000-0000-0000-0000-000000000001', can_decrement: options.canDecrement ?? true }] };
     }
     if (sql.includes('insert into public.wo_material_consumption')) {
       if (options.duplicateCorrectionInsert) throw Object.assign(new Error('duplicate correction'), { code: '23505' });
       return { rows: [{ id: reverseConsumptionId }] };
     }
-    if (sql.includes('update public.wo_materials')) return { rows: [{ id: '70000000-0000-0000-0000-000000000001' }] };
+    if (sql.includes('update public.wo_materials')) {
+      if (options.materialRows) {
+        const scopedId = String(params[1]);
+        const qty = Number(params[2]);
+        const scopeKey = sql.includes('and id = $2::uuid') ? 'id' : 'product_id';
+        const updated = options.materialRows
+          .filter((row) => row[scopeKey] === scopedId)
+          .filter((row) => Number(row.consumed_qty) - qty >= 0);
+        for (const row of updated) {
+          row.consumed_qty = (Number(row.consumed_qty) - qty).toFixed(3);
+        }
+        return { rows: updated.map((row) => ({ id: row.id })) };
+      }
+      return { rows: [{ id: '70000000-0000-0000-0000-000000000001' }] };
+    }
     if (sql.includes('update public.license_plates')) return { rows: [{ id: lpId }] };
     return { rows: [] };
   });
@@ -221,6 +251,38 @@ describe('scanner reverse-consume route', () => {
     expect(decrementIndex).toBeGreaterThan(counterIndex);
     expect(restoreIndex).toBeGreaterThan(decrementIndex);
     expect(historyIndex).toBeGreaterThan(restoreIndex);
+  });
+
+  it('scopes duplicate component decrement to the consumed material line id', async () => {
+    const { POST } = await import('../reverse-consume/route');
+    const materialRows = [
+      { id: materialLineAId, product_id: componentId, consumed_qty: '5.000' },
+      { id: materialLineBId, product_id: componentId, consumed_qty: '7.000' },
+    ];
+    installQueryMock({
+      requireSupervisor: false,
+      materialRows,
+      original: originalConsumption({
+        component_id: componentId,
+        qty_consumed: '2.000',
+        ext_jsonb: { materialId: materialLineAId },
+      }),
+    });
+
+    const response = await POST(request(body({ clientOpId: 'reverse-op-dup-line' })) as never, context);
+
+    expect(response.status).toBe(200);
+    expect(materialRows).toEqual([
+      { id: materialLineAId, product_id: componentId, consumed_qty: '3.000' },
+      { id: materialLineBId, product_id: componentId, consumed_qty: '7.000' },
+    ]);
+    const woMaterialSqls = fakeClient.query.mock.calls
+      .map((call) => String(call[0]))
+      .filter((sql) => sql.includes('public.wo_materials'));
+    expect(woMaterialSqls).toHaveLength(2);
+    expect(woMaterialSqls.every((sql) => sql.includes('and id = $2::uuid'))).toBe(true);
+    const decrementCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('update public.wo_materials'));
+    expect(decrementCall?.[1]).toEqual([woId, materialLineAId, '2.000']);
   });
 
   it('supervisor-required happy path requires dual-control override approval', async () => {

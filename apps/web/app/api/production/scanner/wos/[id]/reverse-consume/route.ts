@@ -60,6 +60,13 @@ function isUuid(value: string | null): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+function materialIdFromConsumptionExt(original: ConsumptionRow): string | null {
+  const ext = original.ext_jsonb;
+  if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return null;
+  const materialId = (ext as { materialId?: unknown }).materialId;
+  return typeof materialId === 'string' && isUuid(materialId) ? materialId : null;
+}
+
 function bodyString(body: Record<string, unknown>, snake: string, camel?: string): string | null {
   return stringField(body, snake) ?? (camel ? stringField(body, camel) : null);
 }
@@ -210,17 +217,19 @@ async function loadLicensePlateForUpdate(ctx: ProductionContext, lpId: string): 
 }
 
 async function lockWoMaterialsAndValidateDecrement(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
+  const materialId = materialIdFromConsumptionExt(original);
   const { rows } = await ctx.client.query<{ id: string; can_decrement: boolean }>(
     `select id::text as id,
             (consumed_qty - $3::numeric >= 0) as can_decrement
        from public.wo_materials
       where org_id = app.current_org_id()
         and wo_id = $1::uuid
-        and product_id = $2::uuid
+        and ${materialId ? 'id' : 'product_id'} = $2::uuid
+        and consumed_qty - $3::numeric >= 0
       for update`,
-    [original.wo_id, original.component_id, original.qty_consumed],
+    [original.wo_id, materialId ?? original.component_id, original.qty_consumed],
   );
-  return rows.some((row) => row.can_decrement);
+  return rows.length > 0 && rows.every((row) => row.can_decrement);
 }
 
 async function supervisorPinRequired(ctx: ProductionContext): Promise<boolean> {
@@ -312,16 +321,17 @@ async function insertCounterEntry(
 }
 
 async function decrementConsumedQty(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
+  const materialId = materialIdFromConsumptionExt(original);
   const { rows } = await ctx.client.query<{ id: string }>(
     `update public.wo_materials
         set consumed_qty = consumed_qty - $3::numeric,
             updated_at = now()
       where org_id = app.current_org_id()
         and wo_id = $1::uuid
-        and product_id = $2::uuid
+        and ${materialId ? 'id' : 'product_id'} = $2::uuid
         and consumed_qty - $3::numeric >= 0
       returning id::text as id`,
-    [original.wo_id, original.component_id, original.qty_consumed],
+    [original.wo_id, materialId ?? original.component_id, original.qty_consumed],
   );
   return rows.length > 0;
 }
