@@ -62,4 +62,19 @@ describe('computeWoActualCostTotals', () => {
     expect(result.totalCost).toBe('11.0000');
     expect(result.costPerKgOutput).toBeNull();
   });
+
+  it('uses raw labor micro-units for costPerKgOutput before display rounding', () => {
+    const result = computeWoActualCostTotals({
+      materials: [],
+      labor: { runtimeMin: '0.000030', staffing: '1', ratePerHour: '1.0000' },
+      machineCost: null,
+      setupCost: null,
+      wasteKg: '0.000',
+      outputKg: '0.000001',
+    });
+
+    expect(result.labor?.cost).toBe('0.0000');
+    expect(result.totalCost).toBe('0.0000');
+    expect(result.costPerKgOutput).toBe('1.0000');
+  });
 });

@@ -114,7 +114,12 @@ describe('SensoryScreen — parity', () => {
   });
 
   it('shows the highlighted Overall summary row with "✓ Above benchmark"', () => {
-    renderReady();
+    renderReady({
+      data: {
+        ...DATA,
+        attributes: DATA.attributes.map((a) => ({ ...a, vsBenchmark: '0.10' })),
+      },
+    });
     const overall = screen.getByTestId('sensory-overall-row');
     expect(within(overall).getByText(LABELS.overall)).toBeInTheDocument();
     expect(within(overall).getByText('7.6 / 10')).toBeInTheDocument();
@@ -149,6 +154,18 @@ describe('SensoryScreen — parity', () => {
     });
     expect(screen.queryByTestId('sensory-above-benchmark')).not.toBeInTheDocument();
     expect(screen.getByTestId('sensory-below-benchmark')).toBeInTheDocument();
+  });
+
+  it('renders no benchmark verdict when a benchmark product exists but all deltas are unset', () => {
+    renderReady({
+      data: {
+        ...DATA,
+        benchmarkProductCode: 'BENCH-HAM',
+        attributes: DATA.attributes.map((a) => ({ ...a, vsBenchmark: null })),
+      },
+    });
+    expect(screen.queryByTestId('sensory-above-benchmark')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sensory-below-benchmark')).not.toBeInTheDocument();
   });
 });
 

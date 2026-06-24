@@ -204,5 +204,8 @@ describe('upsertLaborRate', () => {
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.labor_rates'))).toBe(false);
     const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.labor_rates'));
     expect(insert?.params).toEqual(['operator', '25.5000', 'GBP', '2026-06-23', USER_ID]);
+    expect(normalize(insert?.sql ?? '')).toContain(
+      'on conflict on constraint labor_rates_org_role_eff_unique do update set rate_per_hour = excluded.rate_per_hour, currency = excluded.currency, created_by = excluded.created_by',
+    );
   });
 });

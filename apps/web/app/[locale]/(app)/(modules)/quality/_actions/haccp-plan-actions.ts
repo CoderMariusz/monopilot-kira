@@ -339,6 +339,7 @@ export async function activateHaccpPlan(
       );
       const plan = current.rows[0];
       if (!plan) throw new Error('HACCP plan not found');
+      if (plan.status !== 'draft') throw new Error(`HACCP plan cannot be activated from status '${plan.status}'`);
 
       await signEvent(
         {
@@ -368,6 +369,7 @@ export async function activateHaccpPlan(
                 approved_at = pg_catalog.now()
           where org_id = app.current_org_id()
             and id = $1::uuid
+            and status = 'draft'
           returning
             id::text,
             name,

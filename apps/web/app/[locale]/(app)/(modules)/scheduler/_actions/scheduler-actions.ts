@@ -308,13 +308,14 @@ async function insertSchedulerAssignments(
   return rows;
 }
 
-async function loadRun(ctx: OrgActionContext, runId: string): Promise<SchedulerRunRow | null> {
+async function loadRun(ctx: OrgActionContext, runId: string, lockForUpdate = false): Promise<SchedulerRunRow | null> {
   const { rows } = await ctx.client.query<SchedulerRunRow>(
     `select ${RUN_SELECT}
        from public.scheduler_runs
       where org_id = app.current_org_id()
         and run_id = $1::uuid
-      limit 1`,
+      limit 1
+      ${lockForUpdate ? 'for update' : ''}`,
     [runId],
   );
   return rows[0] ?? null;
@@ -600,7 +601,7 @@ export async function applySchedule(runId: string): Promise<ApplyScheduleResult>
         return { ok: false, error: 'forbidden' };
       }
 
-      const run = await loadRun(ctx, runId);
+      const run = await loadRun(ctx, runId, true);
       if (!run) return { ok: false, error: 'not_found' };
 
       const assignments = await loadAssignments(ctx, runId);

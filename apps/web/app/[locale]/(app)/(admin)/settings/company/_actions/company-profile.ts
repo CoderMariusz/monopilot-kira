@@ -82,6 +82,7 @@ type OrganizationRow = {
   timezone: string | null;
   locale: string | null;
   currency: string | null;
+  date_format: string | null;
   gs1_prefix: string | null;
   region: string | null;
   tier: string | null;
@@ -101,7 +102,7 @@ type OrganizationRow = {
 
 // The columns selected/returned everywhere a CompanyProfile is built from a row.
 const ORGANIZATION_COLUMNS =
-  'id, name, logo_url, timezone, locale, currency, gs1_prefix, region, tier, seat_limit, ' +
+  'id, name, logo_url, timezone, locale, currency, date_format, gs1_prefix, region, tier, seat_limit, ' +
   'legal_name, vat, regon, industry, street, city, zip, country, email, phone, website';
 
 export type ReadCompanyProfileResult =
@@ -163,7 +164,7 @@ function toCompanyProfile(row: OrganizationRow): CompanyProfile {
     website: row.website ?? '',
     currency: text(row.currency, serverFallbackOrganization.currency),
     timezone: text(row.timezone, serverFallbackOrganization.timezone),
-    dateFormat: serverFallbackOrganization.dateFormat,
+    dateFormat: text(row.date_format, serverFallbackOrganization.dateFormat),
     region: text(row.region, serverFallbackOrganization.region),
   };
 }
@@ -231,24 +232,25 @@ export async function saveCompanyProfile(rawInput: SaveCompanyProfileInput): Pro
 
       // Persist EVERY editable field. Previously only name/timezone/currency were
       // written, so legal name, VAT/NIP, REGON, industry, address, and contact
-      // edits silently vanished on reload. `region` and `dateFormat` are not
-      // org-row columns and are intentionally excluded.
+      // edits silently vanished on reload. `region` is not an org-row column and
+      // is intentionally excluded.
       const { rows } = await context.client.query<OrganizationRow>(
         `update public.organizations
             set name       = $2,
                 timezone   = $3,
                 currency   = $4,
-                legal_name = $5,
-                vat        = $6,
-                regon      = $7,
-                industry   = $8,
-                street     = $9,
-                city       = $10,
-                zip        = $11,
-                country    = $12,
-                email      = $13,
-                phone      = $14,
-                website    = $15,
+                date_format = $5,
+                legal_name = $6,
+                vat        = $7,
+                regon      = $8,
+                industry   = $9,
+                street     = $10,
+                city       = $11,
+                zip        = $12,
+                country    = $13,
+                email      = $14,
+                phone      = $15,
+                website    = $16,
                 updated_at = now()
           where id = $1::uuid
           returning ${ORGANIZATION_COLUMNS}`,
@@ -257,6 +259,7 @@ export async function saveCompanyProfile(rawInput: SaveCompanyProfileInput): Pro
           input.tradingName,
           input.timezone,
           input.currency,
+          input.dateFormat,
           input.legalName,
           input.vat,
           input.regon,
@@ -287,6 +290,7 @@ export async function saveCompanyProfile(rawInput: SaveCompanyProfileInput): Pro
               name: input.tradingName,
               timezone: input.timezone,
               currency: input.currency,
+              date_format: input.dateFormat,
               legal_name: input.legalName,
               vat: input.vat,
               regon: input.regon,

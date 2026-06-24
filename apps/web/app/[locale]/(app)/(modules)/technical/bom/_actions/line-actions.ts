@@ -235,17 +235,28 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
       const beforeRow = before[0];
       if (!beforeRow) return { ok: false, error: 'not_found' };
 
-      // qty stays a decimal string on the wire → persisted ::numeric. uom/notes are
-      // patch-style: only overwrite when provided.
+      // qty stays a decimal string on the wire → persisted ::numeric. uom is
+      // patch-style; notes can be explicitly cleared with '' or null.
+      const notesProvided = input.notes !== undefined;
+      const nextNotes = !notesProvided || input.notes === '' ? null : input.notes;
       const { rowCount } = await c.query(
-        `update public.bom_lines
-            set quantity = $3::numeric,
-                uom = coalesce($4, uom),
-                manufacturing_operation_name = coalesce($5, manufacturing_operation_name)
-          where org_id = app.current_org_id()
-            and bom_header_id = $1::uuid
-            and id = $2::uuid`,
-        [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null, input.notes ?? null],
+        notesProvided
+          ? `update public.bom_lines
+               set quantity = $3::numeric,
+                   uom = coalesce($4, uom),
+                   manufacturing_operation_name = $5
+             where org_id = app.current_org_id()
+               and bom_header_id = $1::uuid
+               and id = $2::uuid`
+          : `update public.bom_lines
+               set quantity = $3::numeric,
+                   uom = coalesce($4, uom)
+             where org_id = app.current_org_id()
+               and bom_header_id = $1::uuid
+               and id = $2::uuid`,
+        notesProvided
+          ? [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null, nextNotes]
+          : [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null],
       );
       if (rowCount !== 1) return { ok: false, error: 'persistence_failed' };
 
@@ -255,7 +266,7 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
         action: AUDIT_BOM_LINE_UPDATED,
         resourceId: header.id,
         beforeState: { lineId: input.lineId, quantity: beforeRow.quantity, uom: beforeRow.uom, notes: beforeRow.manufacturing_operation_name },
-        afterState: { lineId: input.lineId, quantity: input.qty, uom: input.uom ?? beforeRow.uom, notes: input.notes ?? beforeRow.manufacturing_operation_name },
+        afterState: { lineId: input.lineId, quantity: input.qty, uom: input.uom ?? beforeRow.uom, notes: notesProvided ? nextNotes : beforeRow.manufacturing_operation_name },
       });
 
       revalidateForHeader(header.product_id);

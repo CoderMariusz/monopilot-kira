@@ -12,6 +12,7 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { safeRevalidatePath } from './revalidate';
 import {
   hasPermission,
+  isAllowedStatusTransition,
   isPgError,
   ITEMS_EDIT_PERMISSION,
   type OrgActionContext,
@@ -58,6 +59,12 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
         [input.id],
       );
       if (before.rows.length === 0) return { ok: false, error: 'not_found' };
+      const beforeRow = before.rows[0];
+      if (input.status !== beforeRow.status) {
+        if (input.status === 'blocked' || !isAllowedStatusTransition(beforeRow.status, input.status)) {
+          return { ok: false, error: 'invalid_input', message: 'invalid_transition' };
+        }
+      }
 
       const { rows, rowCount } = await (client as QueryClient).query<{ id: string }>(
         `update public.items
@@ -115,7 +122,7 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
         actorUserId: userId,
         action: 'item.updated',
         resourceId: input.id,
-        beforeState: before.rows[0],
+        beforeState: beforeRow,
         afterState: {
           name: input.name,
           itemType: input.itemType,

@@ -7,7 +7,6 @@ import {
   createComplaint,
   resolveCapaAction,
 } from './complaint-actions';
-import { createNcr } from './ncr-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -44,13 +43,6 @@ vi.mock('@monopilot/e-sign', () => ({
     signedAt: '2026-06-23T12:00:00.000Z',
     auditEventId: 50,
     nonce: 'nonce-capa',
-  })),
-}));
-
-vi.mock('./ncr-actions', () => ({
-  createNcr: vi.fn(async () => ({
-    ok: true,
-    data: { id: NCR_ID, ncrNumber: 'NCR-00001001', status: 'open' },
   })),
 }));
 
@@ -138,6 +130,8 @@ function makeClient(): QueryClient {
               complaint_number: 'CMP-0001',
               description: 'Customer reported damaged seal',
               severity: 'high',
+              status: 'open',
+              ncr_id: null,
               batch_ref: 'BATCH-1',
               lp_code: 'LP-0001',
               product_id: PRODUCT_ID,
@@ -145,6 +139,24 @@ function makeClient(): QueryClient {
           ],
           rowCount: 1,
         };
+      }
+
+      // No pre-existing orphan NCR for this complaint (the no-recovery path).
+      if (q.startsWith('select id::text') && q.includes('from public.ncr_reports')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      // convertComplaintToNcr now inserts the NCR inline on the SAME txn client
+      // (the old nested createNcr/withOrgContext is gone).
+      if (q.startsWith('insert into public.ncr_reports')) {
+        return {
+          rows: [{ id: NCR_ID, ncr_number: 'NCR-00001001', status: 'open' }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('update public.complaints')) {
@@ -208,10 +220,6 @@ describe('quality complaint and CAPA actions', () => {
     permissions = new Set(['quality.dashboard.view', 'quality.ncr.create']);
     client = makeClient();
     vi.clearAllMocks();
-    vi.mocked(createNcr).mockResolvedValue({
-      ok: true,
-      data: { id: NCR_ID, ncrNumber: 'NCR-00001001', status: 'open' },
-    });
     vi.mocked(signEvent).mockResolvedValue({
       signatureId: '99999999-9999-4999-8999-999999999999',
       signerUserId: USER_ID,
@@ -250,19 +258,28 @@ describe('quality complaint and CAPA actions', () => {
     expect(normalize(String(insert?.[0]))).toContain("'open'");
   });
 
-  it('convertComplaintToNcr calls canonical NCR create and links converted complaint', async () => {
+  it('convertComplaintToNcr creates the NCR atomically and links the converted complaint', async () => {
     const result = await convertComplaintToNcr(COMPLAINT_ID);
 
     expect(result).toEqual({ ok: true, data: { complaintId: COMPLAINT_ID, ncrId: NCR_ID } });
-    expect(createNcr).toHaveBeenCalledWith({
-      ncrType: 'complaint_related',
-      severity: 'major',
-      title: 'Customer complaint CMP-0001',
-      description: 'Customer reported damaged seal\n\nLP: LP-0001\n\nBatch: BATCH-1',
-      referenceType: 'complaint',
-      referenceId: COMPLAINT_ID,
-      productId: PRODUCT_ID,
-    });
+    // NCR insert now runs inline on the same transactional client; assert the
+    // insert params + that the opened-outbox event fired in the same txn.
+    const ncrInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.ncr_reports'),
+    );
+    expect(ncrInsert).toBeTruthy();
+    expect(ncrInsert?.[1]).toEqual([
+      'major',
+      'Customer complaint CMP-0001',
+      'Customer reported damaged seal\n\nLP: LP-0001\n\nBatch: BATCH-1',
+      COMPLAINT_ID,
+      PRODUCT_ID,
+      USER_ID,
+    ]);
+    const outbox = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.outbox_events'),
+    );
+    expect(outbox).toBeTruthy();
     const update = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.complaints'));
     expect(update?.[1]).toEqual([COMPLAINT_ID, NCR_ID]);
     expect(normalize(String(update?.[0]))).toContain("status = 'converted'");

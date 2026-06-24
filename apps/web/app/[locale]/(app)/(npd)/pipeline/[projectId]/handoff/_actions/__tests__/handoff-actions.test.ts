@@ -262,6 +262,9 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
 
   it('returns checklist_incomplete when an item is unchecked (no release call)', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.promote'], (sql) => {
+      if (/from public.npd_projects/.test(sql) && /current_stage/.test(sql)) {
+        return { rows: [{ current_stage: 'handoff', current_gate: 'G4' }] };
+      }
       if (/from public.handoff_checklists/.test(sql)) {
         return { rows: [{ id: CHECKLIST, destination_bom_code: 'BOM-238' }] };
       }
@@ -279,6 +282,9 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
     const calls: string[] = [];
     handlerHolder.handler = permHandler(['npd.handoff.promote'], (sql) => {
       calls.push(sql);
+      if (/from public.npd_projects/.test(sql) && /current_stage/.test(sql)) {
+        return { rows: [{ current_stage: 'handoff', current_gate: 'G4' }] };
+      }
       if (/from public.handoff_checklists/.test(sql)) {
         return { rows: [{ id: CHECKLIST, destination_bom_code: 'BOM-238' }] };
       }
@@ -298,7 +304,7 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
     const r = await promoteToProduction({ projectId: PROJECT });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(releaseMock).toHaveBeenCalledWith(PROJECT);
+    expect(releaseMock).toHaveBeenCalledWith(PROJECT, expect.objectContaining({ client: expect.any(Object) }));
     expect(r.data.releasedToFactory).toBe(true);
     expect(r.data.destinationBomCode).toBe('bom-h-1');
     expect(r.data.promoteToProductionDate).toBe('2026-06-06');
@@ -307,6 +313,9 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
 
   it('records a self-service release result when no destination BOM was pre-seeded on the checklist', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.promote'], (sql) => {
+      if (/from public.npd_projects/.test(sql) && /current_stage/.test(sql)) {
+        return { rows: [{ current_stage: 'handoff', current_gate: 'G4' }] };
+      }
       if (/from public.handoff_checklists/.test(sql)) {
         return { rows: [{ id: CHECKLIST, destination_bom_code: null }] };
       }
@@ -339,11 +348,14 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
         releasedToFactory: true,
       },
     });
-    expect(releaseMock).toHaveBeenCalledWith(PROJECT);
+    expect(releaseMock).toHaveBeenCalledWith(PROJECT, expect.objectContaining({ client: expect.any(Object) }));
   });
 
   it('surfaces release_blocked honestly when the release flow has preflight blockers (no fake BOM)', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.promote'], (sql) => {
+      if (/from public.npd_projects/.test(sql) && /current_stage/.test(sql)) {
+        return { rows: [{ current_stage: 'handoff', current_gate: 'G4' }] };
+      }
       if (/from public.handoff_checklists/.test(sql)) {
         return { rows: [{ id: CHECKLIST, destination_bom_code: null }] };
       }

@@ -65,6 +65,7 @@ export async function toggleHandoffChecklistItem(
             and hc.id = ci.handoff_checklist_id
             and hc.project_id = $2::uuid
             and hc.org_id = app.current_org_id()
+            and hc.bom_verification_status is distinct from 'promoted'
           returning ci.id, ci.is_checked`,
         [input.itemId, input.projectId, input.isChecked, ctx.userId],
       );

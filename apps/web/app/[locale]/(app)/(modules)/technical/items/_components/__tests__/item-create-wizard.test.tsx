@@ -52,9 +52,13 @@ async function fillBasicAndAdvance(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: L.next }));
 }
 
+function renderWizard(props: React.ComponentProps<typeof ItemWizard>) {
+  return render(React.createElement(ItemWizard, props));
+}
+
 describe('ItemWizard create mode (TEC-011)', () => {
   it('renders a labelled dialog with a 4-step tablist', () => {
-    render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     const tabs = within(screen.getByRole('tablist')).getAllByRole('tab');
@@ -65,14 +69,14 @@ describe('ItemWizard create mode (TEC-011)', () => {
 
   it('blocks Next on the basic step until code + name are present', async () => {
     const user = userEvent.setup();
-    render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
     await user.click(screen.getByRole('button', { name: L.next }));
     expect(await screen.findByRole('alert')).toHaveTextContent(L.errors.codeRequired);
   });
 
   it('offers Co-product and By-product in the item-type dropdown (legal per mig 248/255)', async () => {
     const user = userEvent.setup();
-    render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
     await fillBasicAndAdvance(user); // → classification
     await user.click(screen.getByRole('combobox', { name: L.fields.itemType }));
     expect(screen.getByRole('option', { name: L.typeLabels.co_product })).toBeInTheDocument();
@@ -83,9 +87,22 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(screen.getByRole('combobox', { name: L.fields.itemType })).toHaveTextContent(L.typeLabels.co_product);
   });
 
+  it('includes all item status values in create mode', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user); // → classification
+
+    await user.click(screen.getByRole('combobox', { name: L.fields.status }));
+
+    expect(screen.getByRole('option', { name: 'Draft' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Active' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Blocked' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Deprecated' })).toBeInTheDocument();
+  });
+
   it('reveals catch-weight fields when weight_mode = catch', async () => {
     const user = userEvent.setup();
-    render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
     await fillBasicAndAdvance(user); // → classification
     await user.click(screen.getByRole('button', { name: L.next })); // → weight
 
@@ -105,7 +122,7 @@ describe('ItemWizard create mode (TEC-011)', () => {
   it('submits createItem with the assembled payload from the review step', async () => {
     const user = userEvent.setup();
     createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });
-    render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
     await fillBasicAndAdvance(user); // → classification
     await user.click(screen.getByRole('button', { name: L.next })); // → weight
     await user.type(screen.getByLabelText(L.fields.gs1Gtin), '01234567890123');
@@ -148,14 +165,12 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
       grossWeightMax: '0.3000',
       gs1Gtin: '01234567890123',
     };
-    render(
-      <ItemWizard
-        open
-        onClose={vi.fn()}
-        mode={{ kind: 'edit', itemId: 'abc-id' }}
-        initialForm={initial}
-      />,
-    );
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'edit', itemId: 'abc-id' },
+      initialForm: initial,
+    });
     // code is read-only on the basic step
     const codeInput = screen.getByDisplayValue('RM-9');
     expect(codeInput).toHaveAttribute('readonly');
@@ -174,5 +189,38 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
       grossWeightMax: 0.3,
       gs1Gtin: '01234567890123',
     });
+  });
+
+  it('excludes blocked from the status dropdown when editing a non-blocked item', async () => {
+    const user = userEvent.setup();
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'edit', itemId: 'abc-id' },
+      initialForm: { ...emptyWizardForm(), itemCode: 'RM-9', name: 'Existing', status: 'active' },
+    });
+
+    await user.click(screen.getByRole('button', { name: L.next })); // classification
+    await user.click(screen.getByRole('combobox', { name: L.fields.status }));
+
+    expect(screen.getByRole('option', { name: 'Draft' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Active' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Blocked' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Deprecated' })).toBeInTheDocument();
+  });
+
+  it('keeps blocked in the status dropdown when editing a blocked item', async () => {
+    const user = userEvent.setup();
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'edit', itemId: 'abc-id' },
+      initialForm: { ...emptyWizardForm(), itemCode: 'RM-9', name: 'Existing', status: 'blocked' },
+    });
+
+    await user.click(screen.getByRole('button', { name: L.next })); // classification
+    await user.click(screen.getByRole('combobox', { name: L.fields.status }));
+
+    expect(screen.getByRole('option', { name: 'Blocked' })).toBeInTheDocument();
   });
 });

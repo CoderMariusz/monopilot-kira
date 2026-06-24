@@ -164,7 +164,7 @@ export function BomLineRowActions({
         lineId: target.lineId,
         qty: qty.trim(),
         uom: uom.trim() || undefined,
-        notes: notes.trim() || undefined,
+        notes: notes.trim(),
       });
       if (res.ok) {
         setEditOpen(false);

@@ -53,12 +53,15 @@ export type ReleaseNpdProjectToFactoryResult =
       blockers?: ReleasePreflightBlocker[];
     };
 
-export async function releaseNpdProjectToFactory(rawInput: unknown): Promise<ReleaseNpdProjectToFactoryResult> {
+export async function releaseNpdProjectToFactory(
+  rawInput: unknown,
+  existingContext?: OrgContextLike,
+): Promise<ReleaseNpdProjectToFactoryResult> {
   const parsed = inputSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'INVALID_INPUT', status: 400 };
 
   try {
-    return await withOrgContext<ReleaseNpdProjectToFactoryResult>(async (ctx) => {
+    const runRelease = async (ctx: OrgContextLike): Promise<ReleaseNpdProjectToFactoryResult> => {
       const context = ctx as OrgContextLike;
       await requireReleasePermission(context);
       await materializeNpdBom(context, { projectId: parsed.data.projectId });
@@ -101,7 +104,13 @@ export async function releaseNpdProjectToFactory(rawInput: unknown): Promise<Rel
           outboxEventType: RELEASED_TO_FACTORY_EVENT,
         },
       };
-    });
+    };
+
+    if (existingContext) {
+      return await runRelease(existingContext);
+    }
+
+    return await withOrgContext<ReleaseNpdProjectToFactoryResult>(async (ctx) => runRelease(ctx as OrgContextLike));
   } catch (error) {
     if (error instanceof ReleasePreflightError) {
       return {

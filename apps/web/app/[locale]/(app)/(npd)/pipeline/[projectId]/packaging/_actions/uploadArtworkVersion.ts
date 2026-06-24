@@ -55,6 +55,8 @@ export async function uploadArtworkVersion(formData: FormData): Promise<UploadAr
     return await withOrgContext<UploadArtworkVersionResult>(async ({ userId, orgId, client }) => {
       const queryClient = client as unknown as QueryClient;
 
+      await queryClient.query(`select pg_advisory_xact_lock(hashtextextended($1::text, 0))`, [projectId]);
+
       if (!(await hasNpdPermission(queryClient, userId, orgId, PACKAGING_WRITE_PERMISSION))) {
         return { ok: false, code: 'FORBIDDEN' };
       }

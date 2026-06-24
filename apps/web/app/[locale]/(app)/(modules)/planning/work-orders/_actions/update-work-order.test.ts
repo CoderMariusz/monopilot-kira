@@ -143,6 +143,14 @@ function makeClient(): QueryClient {
   };
 }
 
+function updateWorkOrderCall(): readonly unknown[] {
+  const call = vi
+    .mocked(client.query)
+    .mock.calls.find(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.work_orders'));
+  if (!call) throw new Error('update public.work_orders call missing');
+  return call[1] as readonly unknown[];
+}
+
 describe('updateWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
@@ -227,6 +235,25 @@ describe('updateWorkOrder', () => {
         }),
       ]),
     );
+    expect(updateCall?.[1]?.[13]).toBe(false);
+  });
+
+  it('keeps existing notes when notes is omitted without resnapshotting', async () => {
+    const result = await updateWorkOrder({ id: WO_ID });
+
+    expect(result.ok).toBe(true);
+    const params = updateWorkOrderCall();
+    expect(params[6]).toBe('seed');
+    expect(params[13]).toBe(false);
+  });
+
+  it('clears notes to JSON null when notes is an empty string', async () => {
+    const result = await updateWorkOrder({ id: WO_ID, notes: '' });
+
+    expect(result.ok).toBe(true);
+    const params = updateWorkOrderCall();
+    expect(params[6]).toBeNull();
+    expect(params[13]).toBe(true);
   });
 
   it('re-checks draft status in the UPDATE for races before snapshot writes', async () => {

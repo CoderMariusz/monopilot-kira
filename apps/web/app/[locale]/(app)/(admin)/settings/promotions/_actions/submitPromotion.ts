@@ -47,6 +47,7 @@ export type SubmitPromotionInput = z.infer<typeof SubmitPromotionInput>;
 export type SubmitPromotionError =
   | 'invalid_input'
   | 'forbidden'
+  | 'already_scheduled'
   | 'persistence_failed';
 
 export type SubmitPromotionResult =
@@ -103,12 +104,19 @@ export async function submitPromotion(raw: unknown): Promise<SubmitPromotionResu
            (org_id, component, current_version, target_version, status, scheduled_by, created_at)
          values
            (app.current_org_id(), $1, $2, $3, 'scheduled', $4::uuid, now())
+         on conflict (org_id, component) where status = 'scheduled' do nothing
          returning id::text, status`,
         [input.artefact, input.from, input.target, userId],
       );
 
       const created = rows[0];
-      if (!created) return { ok: false, error: 'persistence_failed' as const };
+      if (!created) {
+        return {
+          ok: false,
+          error: 'already_scheduled' as const,
+          message: 'A promotion is already scheduled for this artefact.',
+        };
+      }
 
       return {
         ok: true as const,

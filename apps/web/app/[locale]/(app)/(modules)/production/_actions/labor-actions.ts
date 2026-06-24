@@ -403,6 +403,11 @@ export async function upsertLaborRate(input: UpsertLaborRateInput): Promise<Upse
         `insert into public.labor_rates
            (org_id, role_group, rate_per_hour, currency, effective_from, created_by)
          values (app.current_org_id(), $1, $2::numeric, $3, $4::date, $5::uuid)
+         on conflict on constraint labor_rates_org_role_eff_unique
+         do update set
+           rate_per_hour = excluded.rate_per_hour,
+           currency = excluded.currency,
+           created_by = excluded.created_by
          returning id::text as id`,
         [roleGroup, rate, currency, effectiveFrom, userId],
       );

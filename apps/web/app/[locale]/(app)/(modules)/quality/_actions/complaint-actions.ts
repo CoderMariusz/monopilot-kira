@@ -5,7 +5,6 @@ import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { createNcr } from './ncr-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -22,6 +21,7 @@ type ComplaintStatus = 'open' | 'investigating' | 'converted' | 'closed';
 type CapaSourceType = 'complaint' | 'ncr';
 type CapaActionType = 'corrective' | 'preventive';
 type CapaStatus = 'open' | 'in_progress' | 'closed';
+type NcrSeverity = 'critical' | 'major' | 'minor';
 
 type ComplaintRow = {
   id: string;
@@ -221,6 +221,28 @@ function mapComplaintSeverity(severity: ComplaintSeverity): 'critical' | 'major'
   return 'minor';
 }
 
+async function writeNcrOpenedOutbox(
+  ctx: QualityContext,
+  params: { ncrId: string; ncrNumber: string; severity: NcrSeverity; ncrType: 'complaint_related' },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), 'quality.ncr.opened', 'ncr_report', $1::uuid, $2::jsonb, 'quality-ncr-v1')`,
+    [
+      params.ncrId,
+      JSON.stringify({
+        org_id: ctx.orgId,
+        actor_user_id: ctx.userId,
+        ncrId: params.ncrId,
+        ncrNumber: params.ncrNumber,
+        severity: params.severity,
+        ncrType: params.ncrType,
+      }),
+    ],
+  );
+}
+
 const complaintSelect = `
   select
     comp.id::text,
@@ -383,6 +405,8 @@ export async function convertComplaintToNcr(complaintId: string): Promise<Action
         complaint_number: string | null;
         description: string;
         severity: ComplaintSeverity;
+        status: ComplaintStatus;
+        ncr_id: string | null;
         batch_ref: string | null;
         lp_code: string | null;
         product_id: string | null;
@@ -392,6 +416,8 @@ export async function convertComplaintToNcr(complaintId: string): Promise<Action
            comp.complaint_number,
            comp.description,
            comp.severity,
+           comp.status,
+           comp.ncr_id::text,
            comp.batch_ref,
            coalesce(lp.lp_code, lp.lp_number) as lp_code,
            lp.product_id::text
@@ -405,6 +431,36 @@ export async function convertComplaintToNcr(complaintId: string): Promise<Action
       );
       const complaint = current.rows[0];
       if (!complaint) return { ok: false, error: 'not_found' };
+      if (complaint.ncr_id) return { ok: true, data: { complaintId: complaint.id, ncrId: complaint.ncr_id } };
+      if (complaint.status === 'converted') return { ok: false, error: 'already_converted' };
+
+      const existingNcr = await ctx.client.query<{ id: string }>(
+        `select id::text
+           from public.ncr_reports
+          where org_id = app.current_org_id()
+            and reference_type = 'complaint'
+            and reference_id = $1::uuid
+          order by created_at asc
+          limit 1`,
+        [parsedComplaintId],
+      );
+      const existing = existingNcr.rows[0];
+      if (existing) {
+        const linkedExisting = await ctx.client.query<{ id: string; ncr_id: string }>(
+          `update public.complaints
+              set ncr_id = $2::uuid,
+                  status = 'converted'
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and ncr_id is null
+              and status <> 'converted'
+            returning id::text, ncr_id::text`,
+          [parsedComplaintId, existing.id],
+        );
+        const existingRow = linkedExisting.rows[0];
+        if (!existingRow) return { ok: false, error: 'already_converted' };
+        return { ok: true, data: { complaintId: existingRow.id, ncrId: existingRow.ncr_id } };
+      }
 
       const title = complaint.complaint_number
         ? `Customer complaint ${complaint.complaint_number}`
@@ -414,23 +470,45 @@ export async function convertComplaintToNcr(complaintId: string): Promise<Action
         complaint.lp_code ? `LP: ${complaint.lp_code}` : null,
         complaint.batch_ref ? `Batch: ${complaint.batch_ref}` : null,
       ].filter(Boolean).join('\n\n');
+      const severity = mapComplaintSeverity(complaint.severity);
 
-      const ncr = await createNcr({
+      const ncr = await ctx.client.query<{ id: string; ncr_number: string; status: 'open' }>(
+        `insert into public.ncr_reports (
+           org_id,
+           ncr_type,
+           severity,
+           status,
+           title,
+           description,
+           reference_type,
+           reference_id,
+           product_id,
+           detected_by
+         )
+         values (
+           app.current_org_id(),
+           'complaint_related',
+           $1,
+           'open',
+           $2,
+           $3,
+           'complaint',
+           $4::uuid,
+           $5::uuid,
+           $6::uuid
+         )
+         returning id::text, ncr_number, status`,
+        [severity, title, context, parsedComplaintId, complaint.product_id ?? null, ctx.userId],
+      );
+      const created = ncr.rows[0];
+      if (!created) throw new Error('NCR insert did not return a row');
+
+      await writeNcrOpenedOutbox(ctx, {
+        ncrId: created.id,
+        ncrNumber: created.ncr_number,
+        severity,
         ncrType: 'complaint_related',
-        severity: mapComplaintSeverity(complaint.severity),
-        title,
-        description: context,
-        referenceType: 'complaint',
-        referenceId: parsedComplaintId,
-        productId: complaint.product_id ?? undefined,
       });
-
-      if (!ncr.ok) {
-        return {
-          ok: false,
-          error: ncr.reason === 'forbidden' ? 'forbidden' : ncr.message ?? 'ncr_create_failed',
-        };
-      }
 
       const linked = await ctx.client.query<{ id: string; ncr_id: string }>(
         `update public.complaints
@@ -438,11 +516,13 @@ export async function convertComplaintToNcr(complaintId: string): Promise<Action
                 status = 'converted'
           where org_id = app.current_org_id()
             and id = $1::uuid
+            and ncr_id is null
+            and status <> 'converted'
           returning id::text, ncr_id::text`,
-        [parsedComplaintId, ncr.data.id],
+        [parsedComplaintId, created.id],
       );
       const row = linked.rows[0];
-      if (!row) return { ok: false, error: 'not_found' };
+      if (!row) return { ok: false, error: 'already_converted' };
 
       return { ok: true, data: { complaintId: row.id, ncrId: row.ncr_id } };
     });
@@ -599,6 +679,7 @@ export async function resolveCapaAction(
       );
       const capa = current.rows[0];
       if (!capa) return { ok: false, error: 'not_found' };
+      if (capa.status === 'closed') return { ok: false, error: 'already_closed' };
 
       let esignRef: string;
       try {
@@ -630,6 +711,7 @@ export async function resolveCapaAction(
                 esign_ref = $3
           where org_id = app.current_org_id()
             and id = $1::uuid
+            and status <> 'closed'
           returning
             id::text,
             source_type,
@@ -647,7 +729,7 @@ export async function resolveCapaAction(
         [parsedId, ctx.userId, esignRef],
       );
       const row = updated.rows[0];
-      if (!row) return { ok: false, error: 'not_found' };
+      if ((updated.rowCount ?? 0) === 0 || !row) return { ok: false, error: 'already_closed' };
       return { ok: true, data: mapCapaActionRow(row) };
     });
   } catch (err) {

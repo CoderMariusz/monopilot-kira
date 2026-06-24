@@ -243,7 +243,7 @@ export function SensoryScreen({
   // A panel is shown above benchmark only when it scored against a benchmark
   // product AND it is not net-negative across attributes (at least one positive
   // ± and no all-negative set). String-only sign checks — no float math.
-  const overallIsAbove = (() => {
+  const overallBenchmarkStatus = (() => {
     if (data.benchmarkProductCode === null) return false;
     let anyNeg = false;
     let anyPos = false;
@@ -252,7 +252,8 @@ export function SensoryScreen({
       if (deltaNonNegative(a.vsBenchmark)) anyPos = true;
       else anyNeg = true;
     }
-    return anyPos || !anyNeg;
+    if (!anyPos && !anyNeg) return null;
+    return anyPos && !anyNeg;
   })();
 
   return (
@@ -348,7 +349,7 @@ export function SensoryScreen({
                       {formatScore(data.overallScore)} / 10
                     </TableCell>
                     <TableCell>
-                      {overallIsAbove ? (
+                      {overallBenchmarkStatus === null ? null : overallBenchmarkStatus ? (
                         <Badge
                           variant="success"
                           className="badge-green"

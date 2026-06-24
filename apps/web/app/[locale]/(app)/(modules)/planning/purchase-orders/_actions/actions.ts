@@ -803,7 +803,12 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
 
       const before = await ctx.client.query<{ status: string }>(
-        `select status from public.purchase_orders where org_id = app.current_org_id() and id = $1::uuid limit 1`,
+        `select status
+           from public.purchase_orders
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1
+          for update`,
         [id],
       );
       const previous = before.rows[0];

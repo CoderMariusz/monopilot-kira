@@ -368,6 +368,10 @@ export function ItemWizard({
     () => ITEM_TYPES.map((value) => ({ value, label: labels.typeLabels[value] ?? ITEM_TYPE_LABELS[value] })),
     [labels.typeLabels],
   );
+  const filteredStatusOptions: SelectOption[] = React.useMemo(() => {
+    if (!isEdit || initialForm?.status === 'blocked') return STATUS_OPTIONS;
+    return STATUS_OPTIONS.filter((option) => option.value !== 'blocked');
+  }, [initialForm?.status, isEdit]);
 
   const basicValid =
     form.itemCode.trim().length >= 1 && form.name.trim().length >= 1 && form.uomBase.trim().length >= 1;
@@ -609,7 +613,7 @@ export function ItemWizard({
               <LabeledSelect
                 value={form.status}
                 onValueChange={(v) => update('status', v as WizardFormState['status'])}
-                options={STATUS_OPTIONS}
+                options={filteredStatusOptions}
                 ariaLabel={labels.fields.status}
               />
             </Field>

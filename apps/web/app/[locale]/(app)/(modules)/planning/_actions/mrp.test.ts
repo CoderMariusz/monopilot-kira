@@ -63,11 +63,15 @@ let outboxInserts: Array<readonly unknown[]> = [];
 let releasedUpdates: Array<readonly unknown[]> = [];
 let cancelUpdates: Array<readonly unknown[]> = [];
 let auditInserts: Array<readonly unknown[]> = [];
+let workOrderInserts: Array<readonly unknown[]> = [];
+let woMaterialInserts: Array<readonly unknown[]> = [];
+let woOperationInserts: Array<readonly unknown[]> = [];
+let scheduleOutputInserts: Array<readonly unknown[]> = [];
+let woStatusHistoryInserts: Array<readonly unknown[]> = [];
 let conversionRows: Array<Record<string, unknown>> = [];
 let cancelLookupRows: Array<Record<string, unknown>> = [];
 let hasActiveBom = true;
 const createPurchaseOrderMock = vi.fn();
-const createWorkOrderMock = vi.fn();
 
 const WO_OTHER = '55555555-5555-4555-8555-555555555555';
 const WO_REWORK = '66666666-6666-4666-8666-666666666666';
@@ -95,10 +99,6 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../purchase-orders/_actions/actions', () => ({
   createPurchaseOrder: (input: unknown) => createPurchaseOrderMock(input),
-}));
-
-vi.mock('../work-orders/_actions/createWorkOrder', () => ({
-  createWorkOrder: (input: unknown) => createWorkOrderMock(input),
 }));
 
 function makeClient(): QueryClient {
@@ -145,6 +145,18 @@ function makeClient(): QueryClient {
         auditInserts.push(params);
         return { rows: [], rowCount: 1 };
       }
+      if (normalized.startsWith('update public.org_document_settings')) {
+        expect(params).toEqual([ORG_ID, 'wo']);
+        return {
+          rows: [{ old_seq: 42, number_prefix: 'WO', number_date_part: 'YYYYMM', number_seq_padding: 4 }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.startsWith('insert into public.org_document_settings')) {
+        expect(params[0]).toBe(ORG_ID);
+        expect(params[1]).toBe('wo');
+        return { rows: [], rowCount: 1 };
+      }
       if (normalized.startsWith('update public.mrp_planned_orders') && normalized.includes("set release_status = 'cancelled'")) {
         cancelUpdates.push(params);
         return { rows: [{ id: params[0] }], rowCount: 1 };
@@ -181,7 +193,30 @@ function makeClient(): QueryClient {
         return { rows: conversionRows as never[], rowCount: conversionRows.length };
       }
       if (normalized.includes('from public.bom_headers')) {
-        return { rows: hasActiveBom ? [{ id: 'bom-id' }] : [], rowCount: hasActiveBom ? 1 : 0 };
+        return { rows: hasActiveBom ? [{ id: 'bom-id', version: 1 }] : [], rowCount: hasActiveBom ? 1 : 0 };
+      }
+      if (normalized.includes('from public.factory_specs')) {
+        return { rows: [{ id: 'factory-spec-id' }], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.work_orders')) {
+        workOrderInserts.push(params);
+        return { rows: [{ id: params[0] }], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.wo_materials')) {
+        woMaterialInserts.push(params);
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.wo_operations')) {
+        woOperationInserts.push(params);
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.schedule_outputs')) {
+        scheduleOutputInserts.push(params);
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.wo_status_history')) {
+        woStatusHistoryInserts.push(params);
+        return { rows: [], rowCount: 1 };
       }
       if (normalized.includes('from public.mrp_runs')) {
         return {
@@ -223,6 +258,26 @@ function makeClient(): QueryClient {
         return { rows: thresholdRows, rowCount: thresholdRows.length };
       }
       if (normalized.includes('from public.items')) {
+        if (typeof params[0] === 'string') {
+          const label = itemLabelForId(params[0]);
+          return {
+            rows: [
+              {
+                id: params[0],
+                item_code: label.code,
+                name: label.name,
+                item_type: params[0] === FG_ID ? 'fg' : params[0] === DOUGH_ID ? 'intermediate' : 'rm',
+                output_uom: 'base',
+                uom_base: 'kg',
+                net_qty_per_each: null,
+                each_per_box: null,
+                boxes_per_pallet: null,
+                weight_mode: 'fixed',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         expect(params[0]).toEqual(['rm', 'ingredient', 'intermediate', 'packaging', 'fg']);
         const rows = [
           {
@@ -340,13 +395,16 @@ beforeEach(() => {
   releasedUpdates = [];
   cancelUpdates = [];
   auditInserts = [];
+  workOrderInserts = [];
+  woMaterialInserts = [];
+  woOperationInserts = [];
+  scheduleOutputInserts = [];
+  woStatusHistoryInserts = [];
   conversionRows = [];
   cancelLookupRows = [];
   hasActiveBom = true;
   createPurchaseOrderMock.mockReset();
   createPurchaseOrderMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
-  createWorkOrderMock.mockReset();
-  createWorkOrderMock.mockResolvedValue({ ok: true, workOrder: { id: WO_ID } });
 });
 
 describe('cancelPlannedOrder', () => {
@@ -649,13 +707,10 @@ describe('runMrp', () => {
     ];
 
     const woResult = await convertPlannedToWo([FG_PLANNED_ID]);
-    expect(woResult).toEqual({ ok: true, created: 1, woIds: [WO_ID], skipped: [] });
-    expect(createWorkOrderMock).toHaveBeenCalledWith({
-      productId: FG_ID,
-      itemCode: 'FG-BREAD',
-      plannedQuantity: '9.000',
-      notes: 'Created from MRP planned order',
-    });
+    expect(woResult).toEqual({ ok: true, created: 1, woIds: [workOrderInserts[0][0]], skipped: [] });
+    expect(workOrderInserts).toHaveLength(1);
+    expect(workOrderInserts[0][2]).toBe(FG_ID);
+    expect(workOrderInserts[0][4]).toBe('9.000');
 
     createPurchaseOrderMock.mockClear();
     const poResult = await convertPlannedToPo([FG_PLANNED_ID]);
@@ -842,7 +897,7 @@ describe('convertPlannedToPo', () => {
 });
 
 describe('convertPlannedToWo', () => {
-  it('calls canonical createWorkOrder for make planned orders with an active BOM', async () => {
+  it('inlines WO creation for make planned orders with an active BOM', async () => {
     conversionRows = [
       {
         id: WO_PLANNED_ID,
@@ -860,17 +915,24 @@ describe('convertPlannedToWo', () => {
 
     const result = await convertPlannedToWo([WO_PLANNED_ID]);
 
-    expect(result).toEqual({ ok: true, created: 1, woIds: [WO_ID], skipped: [] });
-    expect(createWorkOrderMock).toHaveBeenCalledWith({
-      productId: DOUGH_ID,
-      itemCode: 'INT-DOUGH',
-      plannedQuantity: '8.000',
-      notes: 'Created from MRP planned order',
-    });
-    expect(releasedUpdates).toEqual([[[WO_PLANNED_ID], WO_ID]]);
+    const woId = workOrderInserts[0][0] as string;
+    expect(result).toEqual({ ok: true, created: 1, woIds: [woId], skipped: [] });
+    expect(workOrderInserts).toHaveLength(1);
+    expect(workOrderInserts[0][2]).toBe(DOUGH_ID);
+    expect(workOrderInserts[0][3]).toBe('bom-id');
+    expect(workOrderInserts[0][4]).toBe('8.000');
+    expect(workOrderInserts[0][5]).toBe('INT-DOUGH');
+    expect(workOrderInserts[0][10]).toBe('factory-spec-id');
+    expect(woMaterialInserts).toEqual([[woId, '8.000', 1, 'bom-id']]);
+    expect(woOperationInserts).toEqual([[woId, '8.000', DOUGH_ID]]);
+    expect(scheduleOutputInserts).toEqual([[woId, DOUGH_ID, '8.000', 'Created from MRP planned order', 'kg']]);
+    expect(woStatusHistoryInserts).toEqual([
+      [woId, USER_ID, JSON.stringify({ app_version: 'planning-work-orders-v1', bom_header_id: 'bom-id' })],
+    ]);
+    expect(releasedUpdates).toEqual([[[WO_PLANNED_ID], woId]]);
   });
 
-  it('skips make planned orders with no active BOM before calling createWorkOrder', async () => {
+  it('skips make planned orders with no active BOM before inlining WO creation', async () => {
     hasActiveBom = false;
     conversionRows = [
       {
@@ -890,7 +952,7 @@ describe('convertPlannedToWo', () => {
     const result = await convertPlannedToWo([WO_PLANNED_ID]);
 
     expect(result).toEqual({ ok: true, created: 0, woIds: [], skipped: [{ id: WO_PLANNED_ID, reason: 'no active BOM' }] });
-    expect(createWorkOrderMock).not.toHaveBeenCalled();
+    expect(workOrderInserts).toHaveLength(0);
     expect(releasedUpdates).toHaveLength(0);
   });
 });

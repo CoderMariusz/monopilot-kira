@@ -233,6 +233,36 @@ describe('updateBomLine', () => {
     expect(upd!.params).toEqual([HEADER_ID, LINE_ID, '2.5', 'g', 'mix slowly']);
   });
 
+  it('omits the notes column when notes is undefined', async () => {
+    const { updateBomLine } = await import('../line-actions');
+    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', uom: 'g' });
+    expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
+    const upd = client.calls.find((c) => normalizeSql(c.sql).startsWith('update public.bom_lines') && normalizeSql(c.sql).includes('set quantity'));
+    expect(upd).toBeDefined();
+    expect(normalizeSql(upd!.sql)).not.toContain('manufacturing_operation_name');
+    expect(upd!.params).toEqual([HEADER_ID, LINE_ID, '2.5', 'g']);
+  });
+
+  it('clears notes to null when notes is an empty string', async () => {
+    const { updateBomLine } = await import('../line-actions');
+    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', notes: '' });
+    expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
+    const upd = client.calls.find((c) => normalizeSql(c.sql).startsWith('update public.bom_lines') && normalizeSql(c.sql).includes('set quantity'));
+    expect(upd).toBeDefined();
+    expect(normalizeSql(upd!.sql)).toContain('manufacturing_operation_name = $5');
+    expect(upd!.params[4]).toBeNull();
+  });
+
+  it('sets notes to a non-empty string when provided', async () => {
+    const { updateBomLine } = await import('../line-actions');
+    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', notes: 'some text' });
+    expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
+    const upd = client.calls.find((c) => normalizeSql(c.sql).startsWith('update public.bom_lines') && normalizeSql(c.sql).includes('set quantity'));
+    expect(upd).toBeDefined();
+    expect(normalizeSql(upd!.sql)).toContain('manufacturing_operation_name = $5');
+    expect(upd!.params[4]).toBe('some text');
+  });
+
   it('refuses with bom_not_editable on an active version (clone-on-write red-line)', async () => {
     install(makeClient({ headerStatus: 'active' }));
     const { updateBomLine } = await import('../line-actions');

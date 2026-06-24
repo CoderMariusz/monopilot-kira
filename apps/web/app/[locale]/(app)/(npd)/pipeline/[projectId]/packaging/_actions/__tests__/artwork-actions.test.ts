@@ -59,6 +59,15 @@ function grantAll() {
     .mockResolvedValueOnce({ rows: [] });
 }
 
+/** queryMock sequence for upload: 1) advisory lock, 2) RBAC gate, 3) project-in-org check, 4) audit insert. */
+function grantUploadAll() {
+  queryMock
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [{ ok: true }] })
+    .mockResolvedValueOnce({ rows: [{ id: PROJECT_ID }] })
+    .mockResolvedValueOnce({ rows: [] });
+}
+
 beforeEach(() => {
   queryMock.mockReset();
   storageUpload.mockReset();
@@ -94,10 +103,12 @@ describe('uploadArtworkVersion', () => {
 
   it('uploads v1 to the org-scoped artwork prefix when no versions exist', async () => {
     const { uploadArtworkVersion } = await import('../uploadArtworkVersion');
-    grantAll();
+    grantUploadAll();
     const file = new File(['png'], 'Label Front.png', { type: 'image/png' });
     const result = await uploadArtworkVersion(uploadForm(file));
     expect(result).toEqual(expect.objectContaining({ ok: true, version: 1 }));
+    expect(queryMock.mock.calls[0]?.[0]).toMatch(/pg_advisory_xact_lock\(hashtextextended\(\$1::text, 0\)\)/);
+    expect(queryMock.mock.calls[0]?.[1]).toEqual([PROJECT_ID]);
 
     const [path, , options] = storageUpload.mock.calls[0]!;
     expect(path).toMatch(
@@ -108,7 +119,7 @@ describe('uploadArtworkVersion', () => {
 
   it('increments to v3 when v2 is the highest existing version', async () => {
     const { uploadArtworkVersion } = await import('../uploadArtworkVersion');
-    grantAll();
+    grantUploadAll();
     storageList.mockResolvedValueOnce({
       data: [
         { name: 'v1-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-old.png', metadata: { size: 1 } },
@@ -122,7 +133,7 @@ describe('uploadArtworkVersion', () => {
     const [path] = storageUpload.mock.calls[0]!;
     expect(path).toMatch(new RegExp(`^${ORG_ID}/artwork/${PROJECT_ID}/v3-`));
 
-    const auditCall = queryMock.mock.calls[2]!;
+    const auditCall = queryMock.mock.calls[3]!;
     expect(auditCall[1]).toEqual(
       expect.arrayContaining([ORG_ID, USER_ID, 'npd.artwork.uploaded', 'npd_artwork']),
     );
@@ -130,7 +141,7 @@ describe('uploadArtworkVersion', () => {
 
   it('returns FORBIDDEN without npd.packaging.write', async () => {
     const { uploadArtworkVersion } = await import('../uploadArtworkVersion');
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    queryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
     const file = new File(['png'], 'art.png', { type: 'image/png' });
     await expect(uploadArtworkVersion(uploadForm(file))).resolves.toEqual({ ok: false, code: 'FORBIDDEN' });
     expect(storageUpload).not.toHaveBeenCalled();

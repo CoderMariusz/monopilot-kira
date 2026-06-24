@@ -293,6 +293,10 @@ export async function createSpec(input: {
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedSpec>> => {
       if (!(await hasPermission(ctx, 'quality.spec.approve'))) return { ok: false, reason: 'forbidden' };
 
+      await ctx.client.query(
+        `select pg_advisory_xact_lock(hashtext($1::text || '::' || $2::text))`,
+        [parsed.productId, parsed.specCode],
+      );
       const versionResult = await ctx.client.query<{ next_version: number | string }>(
         `select coalesce(max(version), 0) + 1 as next_version
            from public.quality_specifications

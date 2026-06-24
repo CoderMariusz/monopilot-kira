@@ -42,9 +42,10 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
 import { createPurchaseOrder } from '../purchase-orders/_actions/actions';
-import { createWorkOrder } from '../work-orders/_actions/createWorkOrder';
+import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { hasPlanningWritePermission, writeProcurementAudit, type OrgActionContext } from './procurement-shared';
 import {
@@ -1050,8 +1051,9 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
           continue;
         }
 
-        const activeBom = await c.query<{ id: string }>(
+        const activeBom = await c.query<{ id: string; version: number }>(
           `select id
+                  , version
              from public.bom_headers
             where org_id = app.current_org_id()
               and product_id = $1
@@ -1070,18 +1072,151 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
           skipped.push({ id: row.id, reason: 'quantity precision exceeds WO precision' });
           continue;
         }
-        const result = await createWorkOrder({
-          productId: row.item_id,
-          itemCode: row.item_code,
-          plannedQuantity: quantity,
-          notes: 'Created from MRP planned order',
-        });
-        if (!result.ok) {
-          skipped.push({ id: row.id, reason: result.error });
+        const itemUomResult = await c.query<{
+          output_uom: string;
+          uom_base: string;
+          net_qty_per_each: string | null;
+          each_per_box: string | null;
+          boxes_per_pallet: string | null;
+          weight_mode: 'fixed' | 'catch';
+        }>(
+          `select output_uom, uom_base, net_qty_per_each::text as net_qty_per_each,
+                  each_per_box::text as each_per_box, boxes_per_pallet::text as boxes_per_pallet,
+                  weight_mode
+             from public.items
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+            limit 1`,
+          [row.item_id],
+        );
+        const itemUom = itemUomResult.rows[0];
+        if (!itemUom) {
+          skipped.push({ id: row.id, reason: 'invalid_input' });
           continue;
         }
-        woIds.push(result.workOrder.id);
-        await markPlannedOrdersReleased(c, [row.id], result.workOrder.id);
+        const uomSnapshot = snapshotFromItemRow(itemUom);
+        const dbUomSnapshot = {
+          output_uom: itemUom.output_uom,
+          uom_base: itemUom.uom_base,
+          net_qty_per_each: itemUom.net_qty_per_each,
+          each_per_box: itemUom.each_per_box,
+          boxes_per_pallet: itemUom.boxes_per_pallet,
+          weight_mode: itemUom.weight_mode,
+        };
+        const specResult = await c.query<{ id: string }>(
+          `select id
+             from public.factory_specs
+            where org_id = app.current_org_id()
+              and fg_item_id = $1::uuid
+              and status in ('approved_for_factory', 'released_to_factory')
+            order by version desc
+            limit 1`,
+          [row.item_id],
+        );
+        const spec = specResult.rows[0];
+        const woId = randomUUID();
+        const notes = 'Created from MRP planned order';
+        const insertWorkOrderHeader = async (documentNumber: string) =>
+          c.query<{ id: string }>(
+            `insert into public.work_orders
+               (id, org_id, wo_number, product_id, item_type_at_creation, active_bom_header_id,
+                active_factory_spec_id,
+                planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
+                source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
+                ext_jsonb, created_by, updated_by)
+             values
+               ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
+                $11::uuid,
+                $5::numeric, $10, 'DRAFT', null, null, null,
+                'manual', $6, null, null, $9::jsonb, $7::jsonb, $8::uuid, $8::uuid)
+             returning id`,
+            [
+              woId,
+              documentNumber,
+              row.item_id,
+              activeBom.rows[0].id,
+              quantity,
+              row.item_code,
+              JSON.stringify({ notes, app_version: APP_VERSION }),
+              userId,
+              JSON.stringify(dbUomSnapshot),
+              uomSnapshot.uomBase,
+              spec?.id ?? null,
+            ],
+          );
+
+        try {
+          await insertWorkOrderHeader(await nextDocumentNumber(c, orgId, 'wo', new Date()));
+        } catch (error) {
+          if (!isPgError(error) || error.code !== '23505') throw error;
+          await insertWorkOrderHeader(await nextDocumentNumber(c, orgId, 'wo', new Date()));
+        }
+
+        await c.query(
+          `insert into public.wo_materials
+             (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,
+              bom_item_id, bom_version, material_source, notes)
+           select app.current_org_id(), $1::uuid, coalesce(i.id, bl.id), bl.component_code,
+                  round((bl.quantity * $2::numeric), 3), bl.uom, coalesce(bl.sequence, bl.line_no),
+                  bl.id, $3::integer, 'stock', bl.notes
+             from public.bom_lines bl
+             left join public.items i
+               on i.org_id = app.current_org_id()
+              and i.item_code = bl.component_code
+            where bl.org_id = app.current_org_id()
+              and bl.bom_header_id = $4::uuid
+            order by bl.line_no`,
+          [woId, quantity, activeBom.rows[0].version, activeBom.rows[0].id],
+        );
+        await c.query(
+          `insert into public.wo_operations
+             (org_id, site_id, wo_id, sequence, operation_name, machine_id, line_id,
+              expected_duration_minutes, status, notes)
+           select app.current_org_id(), ro.site_id, $1::uuid, ro.op_no, ro.op_name,
+                  ro.machine_id, ro.line_id,
+                  case
+                    when ro.run_time_per_unit_sec is null and ro.setup_time_min is null
+                      then null
+                    when coalesce(ro.setup_time_min, 0)::numeric
+                         + coalesce(ceil((ro.run_time_per_unit_sec * $2::numeric) / 60.0), 0) > 2147483647
+                      then null
+                    else (coalesce(ro.setup_time_min, 0)::numeric
+                          + coalesce(ceil((ro.run_time_per_unit_sec * $2::numeric) / 60.0), 0))::integer
+                  end,
+                  'pending', ro.op_code
+             from public.routing_operations ro
+             join public.routings r
+               on r.id = ro.routing_id
+              and r.org_id = ro.org_id
+            where ro.org_id = app.current_org_id()
+              and r.item_id = $3::uuid
+              and r.status = 'active'
+              and r.version = (
+                select max(r2.version) from public.routings r2
+                 where r2.org_id = app.current_org_id()
+                   and r2.item_id = $3::uuid
+                   and r2.status = 'active'
+              )
+            order by ro.op_no
+           on conflict (wo_id, sequence) do nothing`,
+          [woId, quantity, row.item_id],
+        );
+        await c.query(
+          `insert into public.schedule_outputs
+             (org_id, planned_wo_id, product_id, output_role, expected_qty, uom, allocation_pct, disposition, notes)
+           values
+             (app.current_org_id(), $1::uuid, $2::uuid, 'primary', $3::numeric, $5, 100.00, 'to_stock', $4)`,
+          [woId, row.item_id, quantity, notes, uomSnapshot.uomBase],
+        );
+        await c.query(
+          `insert into public.wo_status_history
+             (org_id, wo_id, from_status, to_status, action, user_id, context_jsonb)
+           values
+             (app.current_org_id(), $1::uuid, null, 'DRAFT', 'create', $2::uuid, $3::jsonb)`,
+          [woId, userId, JSON.stringify({ app_version: APP_VERSION, bom_header_id: activeBom.rows[0].id })],
+        );
+        woIds.push(woId);
+        await markPlannedOrdersReleased(c, [row.id], woId);
       }
 
       return { ok: true, created: woIds.length, woIds, skipped };

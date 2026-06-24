@@ -268,7 +268,10 @@ export async function updateWorkOrder(params: {
                 production_line_id = $5::uuid,
                 machine_id = $6::uuid,
                 uom_snapshot = case when $9::boolean then $13::jsonb else wo.uom_snapshot end,
-                ext_jsonb = jsonb_set(coalesce(wo.ext_jsonb, '{}'::jsonb), '{notes}', to_jsonb($7::text), true),
+                ext_jsonb = case
+                  when $14::boolean then jsonb_set(coalesce(wo.ext_jsonb, '{}'::jsonb), '{notes}', to_jsonb($7::text), true)
+                  else wo.ext_jsonb
+                end,
                 updated_by = $8::uuid,
                 updated_at = now()
           where wo.org_id = app.current_org_id()
@@ -288,13 +291,14 @@ export async function updateWorkOrder(params: {
           input.scheduledStartTime ?? current.scheduled_start_time,
           input.productionLineId ?? current.production_line_id,
           input.machineId ?? current.machine_id,
-          input.notes ?? current.notes,
+          input.notes === undefined ? current.notes : input.notes === '' ? null : input.notes,
           ctx.userId,
           mustResnapshot,
           bom?.id ?? null,
           spec?.id ?? null,
           uomSnapshot?.uomBase ?? null,
           dbUomSnapshot ? JSON.stringify(dbUomSnapshot) : null,
+          input.notes !== undefined,
         ],
       );
       const workOrder = updated.rows[0];

@@ -68,6 +68,19 @@ describe('BomLineRowActions', () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
+  it('sends an empty notes string when the notes field is cleared', async () => {
+    const user = userEvent.setup();
+    render(<BomLineRowActions target={TARGET} editable={true} canEdit={true} />);
+
+    await user.click(screen.getByTestId('bom-line-edit'));
+    const notes = screen.getByLabelText('Notes');
+    await user.clear(notes);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateBomLine).toHaveBeenCalledTimes(1));
+    expect(updateBomLine.mock.calls[0][0]).toMatchObject({ notes: '' });
+  });
+
   it('blocks save when qty is non-positive', async () => {
     const user = userEvent.setup();
     render(<BomLineRowActions target={TARGET} editable={true} canEdit={true} />);

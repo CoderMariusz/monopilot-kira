@@ -55,10 +55,6 @@ function divMicro(numerator: bigint, denominator: bigint): bigint {
   return neg ? -rounded : rounded;
 }
 
-function addMoney(values: readonly string[]): bigint {
-  return values.reduce((acc, value) => acc + toMicro(value), 0n);
-}
-
 export function computeWoActualCostTotals(input: WoActualCostMathInput): WoActualCostTotals {
   let materialQtyTotal = 0n;
   let materialsTotal = 0n;
@@ -89,6 +85,7 @@ export function computeWoActualCostTotals(input: WoActualCostMathInput): WoActua
           const staffedHours = mulMicro(runtimeHours, staffing);
           const cost = mulMicro(staffedHours, ratePerHour);
           return {
+            rawCost: cost,
             runtimeMin: microToFixed(runtimeMin, 3),
             staffing: microToDecimal(staffing),
             ratePerHour: microToFixed(ratePerHour, 4),
@@ -100,20 +97,22 @@ export function computeWoActualCostTotals(input: WoActualCostMathInput): WoActua
   const wasteCost = mulMicro(toMicro(input.wasteKg), avgMaterialCostPerKg);
   const setupCost = toMicro(input.setupCost ?? '0');
   const machineCost = toMicro(input.machineCost ?? '0');
-  const laborCost = labor == null ? 0n : toMicro(labor.cost);
-  const totalCost = addMoney([
-    microToDecimal(materialsTotal),
-    microToDecimal(laborCost),
-    microToDecimal(machineCost),
-    microToDecimal(setupCost),
-    microToDecimal(wasteCost),
-  ]);
+  const laborCost = labor == null ? 0n : labor.rawCost;
+  const totalCost = materialsTotal + laborCost + machineCost + setupCost + wasteCost;
   const outputKg = toMicro(input.outputKg);
 
   return {
     materials,
     materialsTotal: microToFixed(materialsTotal, 4),
-    labor,
+    labor:
+      labor == null
+        ? null
+        : {
+            runtimeMin: labor.runtimeMin,
+            staffing: labor.staffing,
+            ratePerHour: labor.ratePerHour,
+            cost: labor.cost,
+          },
     machineCost: microToFixed(machineCost, 4),
     setupCost: microToFixed(setupCost, 4),
     wasteCost: microToFixed(wasteCost, 4),

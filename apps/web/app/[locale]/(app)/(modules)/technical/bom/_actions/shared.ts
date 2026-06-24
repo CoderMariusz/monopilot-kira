@@ -359,7 +359,7 @@ export const UpdateBomLineInput = z.object({
   lineId: z.string().uuid(),
   qty: DecimalString,
   uom: z.string().trim().min(1).max(32).optional(),
-  notes: z.string().trim().max(256).optional(),
+  notes: z.string().trim().max(256).nullish(),
 });
 export type UpdateBomLineInputType = z.input<typeof UpdateBomLineInput>;
 

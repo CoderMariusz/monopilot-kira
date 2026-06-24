@@ -80,22 +80,25 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
   }
   const { projectId } = parsed.data;
 
-  // The factory-release flow opens its own org-scoped txn (its own preflight +
-  // RBAC). We call it BEFORE recording the handoff promotion so a release blocker
-  // (or release-RBAC failure) aborts without faking a BOM. Authorization for the
-  // handoff itself is checked first below.
-  let releaseDestinationBom: string | null = null;
-  let releasedToFactory = false;
-
   try {
-    // 1–3: handoff RBAC + checklist-complete gate (own txn so we fail fast and
-    // never invoke the release flow for an unauthorized / incomplete handoff).
-    const gate = await withOrgContext(async (rawCtx) => {
+    const result = await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as { userId: string; orgId: string; client: QueryClient };
 
       if (!(await hasHandoffPermission(ctx, PROMOTE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
       }
+
+      const checklistRes = await ctx.client.query<ChecklistRow>(
+        `select id, destination_bom_code
+           from public.handoff_checklists
+          where project_id = $1::uuid
+            and org_id = app.current_org_id()
+          limit 1
+          for update`,
+        [projectId],
+      );
+      const checklist = checklistRes.rows[0];
+      if (!checklist) return { ok: false as const, error: 'not_found' as const };
 
       const projectRes = await ctx.client.query<ProjectStageRow>(
         `select current_stage, current_gate
@@ -111,17 +114,6 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
         return { ok: false as const, error: 'launched_is_terminal' as const };
       }
 
-      const checklistRes = await ctx.client.query<ChecklistRow>(
-        `select id, destination_bom_code
-           from public.handoff_checklists
-          where project_id = $1::uuid
-            and org_id = app.current_org_id()
-          limit 1`,
-        [projectId],
-      );
-      const checklist = checklistRes.rows[0];
-      if (!checklist) return { ok: false as const, error: 'not_found' as const };
-
       const countRes = await ctx.client.query<ItemCountRow>(
         `select count(*) as total,
                 count(*) filter (where is_checked) as checked
@@ -136,38 +128,31 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
         return { ok: false as const, error: 'checklist_incomplete' as const };
       }
 
-      return { ok: true as const, checklistId: checklist.id, destinationBomCode: checklist.destination_bom_code };
-    });
-
-    if (!gate.ok) return gate;
-
-    // 4: REUSE the real factory-release flow (T-096). It performs its own
-    // preflight, RBAC (npd.gate.approve), outbox `fg.released_to_factory`, and
-    // factory_release_status upsert. We never reimplement BOM creation here.
-    const release = await releaseNpdProjectToFactory(projectId);
-    if (!release.ok) {
-      if (release.error === 'INVALID_INPUT') {
-        return { ok: false, error: 'invalid_input' };
+      // REUSE the real factory-release flow (T-096). It performs its own
+      // preflight, RBAC (npd.gate.approve), outbox `fg.released_to_factory`, and
+      // factory_release_status upsert. The existing ctx keeps those writes inside
+      // this same transaction.
+      const release = await releaseNpdProjectToFactory(projectId, ctx);
+      if (!release.ok) {
+        if (release.error === 'INVALID_INPUT') {
+          return { ok: false as const, error: 'invalid_input' as const };
+        }
+        if (release.error === 'FORBIDDEN') {
+          return { ok: false as const, error: 'forbidden' as const };
+        }
+        if (release.error === 'PRECONDITION_BLOCKERS') {
+          // Honest: do NOT fake a BOM. The release pipeline is the BOM owner.
+          return {
+            ok: false as const,
+            error: 'release_blocked' as const,
+            message: release.blockers?.map((b) => b.code).join(',') ?? undefined,
+          };
+        }
+        return { ok: false as const, error: 'persistence_failed' as const };
       }
-      if (release.error === 'FORBIDDEN') {
-        return { ok: false, error: 'forbidden' };
-      }
-      if (release.error === 'PRECONDITION_BLOCKERS') {
-        // Honest: do NOT fake a BOM. The release pipeline is the BOM owner.
-        return {
-          ok: false,
-          error: 'release_blocked',
-          message: release.blockers?.map((b) => b.code).join(',') ?? undefined,
-        };
-      }
-      return { ok: false, error: 'persistence_failed' };
-    }
-    releasedToFactory = true;
-    releaseDestinationBom = release.data.activeBomHeaderId ?? gate.destinationBomCode ?? null;
 
-    // 5: record the handoff promotion + audit (separate org-scoped txn).
-    const recorded = await withOrgContext(async (rawCtx) => {
-      const ctx = rawCtx as { userId: string; orgId: string; client: QueryClient };
+      const releasedToFactory = true;
+      const releaseDestinationBom = release.data.activeBomHeaderId ?? checklist.destination_bom_code ?? null;
 
       const updated = await ctx.client.query<{ id: string; promote_to_production_date: string }>(
         `update public.handoff_checklists
@@ -178,7 +163,7 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
           where id = $1::uuid
             and org_id = app.current_org_id()
           returning id, promote_to_production_date::text as promote_to_production_date`,
-        [gate.checklistId, releaseDestinationBom, ctx.userId],
+        [checklist.id, releaseDestinationBom, ctx.userId],
       );
       const row = updated.rows[0];
       if (!row) return { ok: false as const, error: 'persistence_failed' as const };
@@ -202,10 +187,15 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
         ],
       );
 
-      return { ok: true as const, promoteToProductionDate: row.promote_to_production_date };
+      return {
+        ok: true as const,
+        destinationBomCode: releaseDestinationBom,
+        promoteToProductionDate: row.promote_to_production_date,
+        releasedToFactory,
+      };
     });
 
-    if (!recorded.ok) return { ok: false, error: 'persistence_failed' };
+    if (!result.ok) return result;
 
     safeRevalidatePath(`/[locale]/(app)/(npd)/pipeline/${projectId}/handoff`);
 
@@ -213,9 +203,9 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
       ok: true,
       data: {
         projectId,
-        destinationBomCode: releaseDestinationBom,
-        promoteToProductionDate: recorded.promoteToProductionDate,
-        releasedToFactory,
+        destinationBomCode: result.destinationBomCode,
+        promoteToProductionDate: result.promoteToProductionDate,
+        releasedToFactory: result.releasedToFactory,
       },
     };
   } catch (error) {
