@@ -152,6 +152,7 @@ type ProjectRow = {
 type ApprovalRow = {
   decision: 'approved' | 'rejected';
   approver_user_id: string;
+  approver_name: string | null;
   esigned_at: string | null;
 };
 
@@ -230,19 +231,23 @@ async function readPageData(projectId: string, locale: string): Promise<LoaderRe
 
       // Approval-chain step status for the current gate (REAL gate_approvals row).
       const approval = await ctx.client.query<ApprovalRow>(
-        `select decision, approver_user_id::text as approver_user_id, esigned_at::text as esigned_at
-           from public.gate_approvals
-          where org_id = app.current_org_id()
-            and project_id = $1::uuid
-            and gate_code = $2
-          order by created_at desc
+        `select ga.decision,
+                ga.approver_user_id::text as approver_user_id,
+                coalesce(u.display_name, u.name) as approver_name,
+                ga.esigned_at::text as esigned_at
+           from public.gate_approvals ga
+           left join public.users u on u.id = ga.approver_user_id
+          where ga.org_id = app.current_org_id()
+            and ga.project_id = $1::uuid
+            and ga.gate_code = $2
+          order by ga.created_at desc
           limit 1`,
         [projectId, gateCode],
       );
       const latest = approval.rows[0];
       const step: ApprovalChainStep =
         latest?.decision === 'approved'
-          ? { who: 'Approver', name: latest.approver_user_id, status: 'done', when: latest.esigned_at }
+          ? { who: 'Approver', name: latest.approver_name ?? latest.approver_user_id, status: 'done', when: latest.esigned_at }
           : { who: 'Approver', name: null, status: 'current', when: null };
 
       return {
