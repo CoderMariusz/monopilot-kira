@@ -11,73 +11,76 @@
  * Traceability search, Change control (ECO) and Revision history joined the nav
  * on 2026-06-10: schema (mig 229/230) + reviewed server actions + screens are live.
  *
- * Desktop copy is short operational English per the design's copy rule, so these
- * labels are rendered directly (no per-item i18n namespace yet).
+ * i18n (2026-06-24): group + item copy is now translated via next-intl under the
+ * `Navigation.technical` namespace (groups / items), mirroring the settings nav.
+ * `label` is retained as the English source-of-truth fallback (and for tests);
+ * `i18nKey` is the canonical render path (TechnicalSubNav resolves it).
  */
 
 export type TechnicalNavItem = {
   key: string;
+  /** English source-of-truth label (fallback / test reference). */
   label: string;
+  /** next-intl key under `Navigation.technical` (e.g. `items.boms`). */
+  i18nKey: string;
   route: string;
   icon: string;
 };
 
 export type TechnicalNavGroup = {
   id: string;
+  /** English source-of-truth label (fallback / test reference). */
   label: string;
+  /** next-intl key under `Navigation.technical` (e.g. `groups.products`). */
+  i18nKey: string;
   items: TechnicalNavItem[];
 };
 
+/** Item-key → i18n key segment (matches the `Navigation.technical.items.*` json). */
+function i18nItemKey(key: string): string {
+  return `items.${key.replaceAll('-', '_')}`;
+}
+
+/** Item factory — derives the `i18nKey` from the stable item `key`. */
+function navItem(key: string, label: string, route: string, icon: string): TechnicalNavItem {
+  return { key, label, i18nKey: i18nItemKey(key), route, icon };
+}
+
+/** Group factory — derives the `i18nKey` from the stable group `id`. */
+function navGroup(id: string, label: string, items: TechnicalNavItem[]): TechnicalNavGroup {
+  return { id, label, i18nKey: `groups.${id.replaceAll('-', '_')}`, items };
+}
+
 export const TECHNICAL_NAV_GROUPS: TechnicalNavGroup[] = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    items: [{ key: 'dashboard', label: 'Dashboard', route: '/technical', icon: '◇' }],
-  },
-  {
-    id: 'products',
-    label: 'Products',
-    items: [
-      { key: 'products', label: 'Products', route: '/technical/items', icon: '◈' },
-      { key: 'materials', label: 'Materials', route: '/technical/materials', icon: '⬢' },
-      { key: 'boms', label: 'BOMs & recipes', route: '/technical/bom', icon: '▦' },
-      { key: 'specs', label: 'Product specifications', route: '/technical/factory-specs', icon: '☰' },
-      { key: 'nutrition', label: 'Nutrition panel', route: '/technical/nutrition', icon: '♥' },
-      { key: 'allergens', label: 'Allergen matrix', route: '/technical/allergens-config', icon: '!' },
-      { key: 'shelflife', label: 'Shelf life', route: '/technical/shelf-life', icon: '⧗' },
-    ],
-  },
-  {
-    id: 'cost-trace',
-    label: 'Cost & trace',
-    items: [
-      { key: 'costing', label: 'Recipe costing', route: '/technical/cost', icon: '$' },
-      { key: 'costhist', label: 'Cost history', route: '/technical/cost/history', icon: '∿' },
-      { key: 'traceability', label: 'Traceability search', route: '/technical/traceability', icon: '⌕' },
-    ],
-  },
-  {
-    id: 'process',
-    label: 'Process',
-    items: [
-      { key: 'routings', label: 'Routings', route: '/technical/routings', icon: '→' },
-      { key: 'tooling', label: 'Tooling', route: '/technical/tooling', icon: '⚙' },
-    ],
-  },
-  {
-    id: 'compliance',
-    label: 'Compliance',
-    items: [
-      { key: 'allergen-cascade', label: 'Allergen cascade', route: '/technical/allergens/cascade', icon: '⇣' },
-      { key: 'allergen-process', label: 'Process additions', route: '/technical/allergens/process-additions', icon: '⊕' },
-      { key: 'contamination-risk', label: 'Contamination risk', route: '/technical/allergens/contamination-risk', icon: '▦' },
-      { key: 'sensory', label: 'Sensory', route: '/technical/sensory', icon: '◐' },
-      { key: 'lab-results', label: 'Lab results', route: '/technical/lab-results', icon: '🧪' },
-      { key: 'compliance', label: 'Compliance', route: '/technical/compliance', icon: '✅' },
-      { key: 'eco', label: 'Change control (ECO)', route: '/technical/eco', icon: 'Δ' },
-      { key: 'revisions', label: 'Revision history', route: '/technical/revisions', icon: '↺' },
-    ],
-  },
+  navGroup('overview', 'Overview', [navItem('dashboard', 'Dashboard', '/technical', '◇')]),
+  navGroup('products', 'Products', [
+    navItem('products', 'Products', '/technical/items', '◈'),
+    navItem('materials', 'Materials', '/technical/materials', '⬢'),
+    navItem('boms', 'BOMs & recipes', '/technical/bom', '▦'),
+    navItem('specs', 'Product specifications', '/technical/factory-specs', '☰'),
+    navItem('nutrition', 'Nutrition panel', '/technical/nutrition', '♥'),
+    navItem('allergens', 'Allergen matrix', '/technical/allergens-config', '!'),
+    navItem('shelflife', 'Shelf life', '/technical/shelf-life', '⧗'),
+  ]),
+  navGroup('cost-trace', 'Cost & trace', [
+    navItem('costing', 'Recipe costing', '/technical/cost', '$'),
+    navItem('costhist', 'Cost history', '/technical/cost/history', '∿'),
+    navItem('traceability', 'Traceability search', '/technical/traceability', '⌕'),
+  ]),
+  navGroup('process', 'Process', [
+    navItem('routings', 'Routings', '/technical/routings', '→'),
+    navItem('tooling', 'Tooling', '/technical/tooling', '⚙'),
+  ]),
+  navGroup('compliance', 'Compliance', [
+    navItem('allergen-cascade', 'Allergen cascade', '/technical/allergens/cascade', '⇣'),
+    navItem('allergen-process', 'Process additions', '/technical/allergens/process-additions', '⊕'),
+    navItem('contamination-risk', 'Contamination risk', '/technical/allergens/contamination-risk', '▦'),
+    navItem('sensory', 'Sensory', '/technical/sensory', '◐'),
+    navItem('lab-results', 'Lab results', '/technical/lab-results', '🧪'),
+    navItem('compliance', 'Compliance', '/technical/compliance', '✅'),
+    navItem('eco', 'Change control (ECO)', '/technical/eco', 'Δ'),
+    navItem('revisions', 'Revision history', '/technical/revisions', '↺'),
+  ]),
 ];
 
 export function isTechnicalNavItemActive(route: string, currentPath: string): boolean {

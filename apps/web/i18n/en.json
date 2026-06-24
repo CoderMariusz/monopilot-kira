@@ -1310,6 +1310,41 @@
       "groups": {
         "apex": "Apex"
       }
+    },
+    "technical": {
+      "aria": {
+        "nav": "Technical"
+      },
+      "groups": {
+        "overview": "Overview",
+        "products": "Products",
+        "cost_trace": "Cost & trace",
+        "process": "Process",
+        "compliance": "Compliance"
+      },
+      "items": {
+        "dashboard": "Dashboard",
+        "products": "Products",
+        "materials": "Materials",
+        "boms": "BOMs & recipes",
+        "specs": "Product specifications",
+        "nutrition": "Nutrition panel",
+        "allergens": "Allergen matrix",
+        "shelflife": "Shelf life",
+        "costing": "Recipe costing",
+        "costhist": "Cost history",
+        "traceability": "Traceability search",
+        "routings": "Routings",
+        "tooling": "Tooling",
+        "allergen_cascade": "Allergen cascade",
+        "allergen_process": "Process additions",
+        "contamination_risk": "Contamination risk",
+        "sensory": "Sensory",
+        "lab_results": "Lab results",
+        "compliance": "Compliance",
+        "eco": "Change control (ECO)",
+        "revisions": "Revision history"
+      }
     }
   },
   "Topbar": {

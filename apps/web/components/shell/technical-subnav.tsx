@@ -2,10 +2,12 @@
 
 import type { JSX } from "react";
 import Link from "next/link";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
 import { TECHNICAL_NAV_GROUPS, isTechnicalNavItemActive } from "../../lib/navigation/technical-nav";
+
+const NAV_I18N_NAMESPACE = "Navigation.technical";
 
 type TechnicalSubNavProps = {
   locale?: string;
@@ -30,15 +32,20 @@ function stripLocalePrefix(pathname: string, locale: string) {
 export function TechnicalSubNav({ locale, pathnameOverride }: TechnicalSubNavProps): JSX.Element {
   const pathname = usePathname();
   const runtimeLocale = useLocale();
+  const t = useTranslations(NAV_I18N_NAMESPACE);
   const activeLocale = locale ?? runtimeLocale ?? "en";
   const activePathname = pathnameOverride ?? pathname ?? localizedHref(activeLocale, "/technical");
   const routePath = stripLocalePrefix(activePathname, activeLocale);
+
+  // Resolve a Navigation.technical key, falling back to the English source label
+  // if the key is somehow absent (the i18n-parity test guards against gaps).
+  const tr = (i18nKey: string, fallback: string): string => (t.has(i18nKey) ? t(i18nKey) : fallback);
 
   return (
     <nav
       data-testid="technical-subnav"
       role="navigation"
-      aria-label="Technical"
+      aria-label={t.has("aria.nav") ? t("aria.nav") : "Technical"}
       className="w-subnav shrink-0 border-r border-shell-border bg-white px-4 py-5 text-shell-fg"
       style={{ width: "var(--shell-subnav-w)" }}
     >
@@ -46,7 +53,7 @@ export function TechnicalSubNav({ locale, pathnameOverride }: TechnicalSubNavPro
         {TECHNICAL_NAV_GROUPS.map((group) => (
           <section key={group.id} className="space-y-1.5">
             <h2 className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-shell-muted">
-              {group.label}
+              {tr(group.i18nKey, group.label)}
             </h2>
 
             <div className="space-y-1">
@@ -70,7 +77,7 @@ export function TechnicalSubNav({ locale, pathnameOverride }: TechnicalSubNavPro
                     <span aria-hidden="true" className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-xs">
                       {item.icon}
                     </span>
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    <span className="min-w-0 flex-1 truncate">{tr(item.i18nKey, item.label)}</span>
                   </Link>
                 );
               })}

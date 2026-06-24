@@ -8,6 +8,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TECHNICAL_NAV_GROUPS, isTechnicalNavItemActive } from '../../../lib/navigation/technical-nav';
+import enMessages from '../../../i18n/en.json';
 
 let currentPathname = '/en/technical';
 
@@ -15,8 +16,18 @@ vi.mock('next/navigation', () => ({
   usePathname: () => currentPathname,
 }));
 
+// Translator backed by the real EN `Navigation.technical` namespace so the
+// rail renders the same English source labels the assertions reference.
+const navMessages = (enMessages as Record<string, any>).Navigation.technical as Record<string, any>;
+function lookup(key: string): string | undefined {
+  return key.split('.').reduce<any>((acc, part) => (acc && typeof acc === 'object' ? acc[part] : undefined), navMessages);
+}
+const tFn = ((key: string) => lookup(key) ?? key) as ((key: string) => string) & { has: (key: string) => boolean };
+tFn.has = (key: string) => typeof lookup(key) === 'string';
+
 vi.mock('next-intl', () => ({
   useLocale: () => 'en',
+  useTranslations: () => tFn,
 }));
 
 vi.mock('next/link', () => ({

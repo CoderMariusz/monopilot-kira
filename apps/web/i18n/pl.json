@@ -1291,6 +1291,41 @@
       "groups": {
         "apex": "Apex"
       }
+    },
+    "technical": {
+      "aria": {
+        "nav": "Technologia"
+      },
+      "groups": {
+        "overview": "Przegląd",
+        "products": "Produkty",
+        "cost_trace": "Koszty i identyfikowalność",
+        "process": "Proces",
+        "compliance": "Zgodność"
+      },
+      "items": {
+        "dashboard": "Pulpit",
+        "products": "Produkty",
+        "materials": "Materiały",
+        "boms": "BOM-y i receptury",
+        "specs": "Specyfikacje produktów",
+        "nutrition": "Panel wartości odżywczych",
+        "allergens": "Macierz alergenów",
+        "shelflife": "Termin przydatności",
+        "costing": "Kalkulacja receptur",
+        "costhist": "Historia kosztów",
+        "traceability": "Wyszukiwanie identyfikowalności",
+        "routings": "Marszruty",
+        "tooling": "Oprzyrządowanie",
+        "allergen_cascade": "Kaskada alergenów",
+        "allergen_process": "Dodatki procesowe",
+        "contamination_risk": "Ryzyko kontaminacji",
+        "sensory": "Ocena sensoryczna",
+        "lab_results": "Wyniki badań",
+        "compliance": "Zgodność",
+        "eco": "Kontrola zmian (ECO)",
+        "revisions": "Historia rewizji"
+      }
     }
   },
   "Topbar": {
@@ -1327,134 +1362,134 @@
   },
   "technical": {
     "dashboard": {
-      "title": "Technical dashboard",
-      "subtitle": "Health of the technical master data: active records, approvals, allergen overrides, D365 sync and cost reviews.",
+      "title": "Pulpit technologii",
+      "subtitle": "Stan danych podstawowych technologii: aktywne rekordy, zatwierdzenia, wyjątki alergenowe, synchronizacja D365 i przeglądy kosztów.",
       "breadcrumb": {
-        "technical": "Technical",
-        "dashboard": "Dashboard"
+        "technical": "Technologia",
+        "dashboard": "Pulpit"
       },
-      "error": "Unable to load the technical dashboard. Please try again.",
+      "error": "Nie udało się załadować pulpitu technologii. Spróbuj ponownie.",
       "kpi": {
         "activeItems": {
-          "label": "Active items",
-          "sub": "Raw materials, intermediates and finished goods"
+          "label": "Aktywne pozycje",
+          "sub": "Surowce, półprodukty i wyroby gotowe"
         },
         "pendingBom": {
-          "label": "Pending BOM approvals",
-          "sub": "Drafts and in-review versions awaiting approval"
+          "label": "Oczekujące zatwierdzenia BOM",
+          "sub": "Wersje robocze i w trakcie weryfikacji oczekujące na zatwierdzenie"
         },
         "allergenOverrides": {
-          "label": "Open allergen overrides",
-          "sub": "Manual overrides on item allergen profiles"
+          "label": "Otwarte wyjątki alergenowe",
+          "sub": "Ręczne wyjątki w profilach alergenów pozycji"
         },
         "d365Sync": {
-          "label": "D365 sync status",
-          "sub": "Latest synchronisation job"
+          "label": "Status synchronizacji D365",
+          "sub": "Ostatnie zadanie synchronizacji"
         },
         "costReview": {
-          "label": "Cost review queue",
-          "sub": "Machine-generated cost changes awaiting review"
+          "label": "Kolejka przeglądu kosztów",
+          "sub": "Maszynowo wygenerowane zmiany kosztów oczekujące na przegląd"
         }
       },
       "d365Status": {
-        "pending": "Pending",
-        "running": "Running",
-        "completed": "Completed",
-        "failed": "Failed",
-        "dead_lettered": "Dead-lettered",
-        "none": "No sync yet"
+        "pending": "Oczekuje",
+        "running": "W toku",
+        "completed": "Zakończono",
+        "failed": "Niepowodzenie",
+        "dead_lettered": "Przeniesiono do kolejki błędów",
+        "none": "Brak synchronizacji"
       },
       "recentChanges": {
-        "title": "Recent changes",
-        "empty": "No recent technical changes yet.",
+        "title": "Ostatnie zmiany",
+        "empty": "Brak ostatnich zmian technologicznych.",
         "col": {
-          "when": "When",
-          "resource": "Type",
-          "action": "Change",
-          "reference": "Ref"
+          "when": "Kiedy",
+          "resource": "Typ",
+          "action": "Zmiana",
+          "reference": "Nr ref."
         }
       },
       "d365Health": {
-        "title": "D365 health",
-        "open": "Open D365 integration →"
+        "title": "Kondycja D365",
+        "open": "Otwórz integrację D365 →"
       },
       "quickActions": {
-        "title": "Quick actions",
-        "createItem": "Create item",
-        "createBom": "New BOM",
-        "denied": "You do not have permission to create items or BOMs."
+        "title": "Szybkie akcje",
+        "createItem": "Utwórz pozycję",
+        "createBom": "Nowy BOM",
+        "denied": "Nie masz uprawnień do tworzenia pozycji ani BOM-ów."
       },
       "nav": {
-        "label": "Technical sections",
+        "label": "Sekcje technologii",
         "items": {
-          "title": "Items",
-          "desc": "Raw materials, intermediates, finished goods, co-products and by-products."
+          "title": "Pozycje",
+          "desc": "Surowce, półprodukty, wyroby gotowe, współprodukty i produkty uboczne."
         },
         "bom": {
-          "title": "Bills of materials",
-          "desc": "Shared BOM SSOT — versions, lines and co-products."
+          "title": "Receptury (BOM)",
+          "desc": "Wspólne SSOT dla BOM — wersje, linie i współprodukty."
         },
         "allergen": {
-          "title": "Allergens",
-          "desc": "Per-item allergen profiles, overrides and contamination risk."
+          "title": "Alergeny",
+          "desc": "Profile alergenów dla pozycji, wyjątki i ryzyko kontaminacji."
         },
         "cost": {
-          "title": "Cost per kg",
-          "desc": "Standard cost and item cost history (dual-owned with Finance)."
+          "title": "Koszt za kg",
+          "desc": "Koszt standardowy i historia kosztów pozycji (współwłasność z Finansami)."
         },
         "routings": {
-          "title": "Routings",
-          "desc": "Manufacturing operations and routing definitions."
+          "title": "Marszruty",
+          "desc": "Operacje produkcyjne i definicje marszrut."
         },
         "factorySpecs": {
-          "title": "Factory specs",
-          "desc": "Technical-owned approval bundles and released specifications."
+          "title": "Specyfikacje fabryczne",
+          "desc": "Pakiety zatwierdzeń i wydane specyfikacje należące do technologii."
         },
         "sensory": {
-          "title": "Sensory",
-          "desc": "Sensory schema and evaluation records."
+          "title": "Ocena sensoryczna",
+          "desc": "Schemat sensoryczny i zapisy ocen."
         },
         "d365": {
-          "title": "D365 integration",
-          "desc": "Sync jobs, code mapping and dead-letter queue (in Settings)."
+          "title": "Integracja D365",
+          "desc": "Zadania synchronizacji, mapowanie kodów i kolejka błędów (w Ustawieniach)."
         },
         "compliance": {
-          "title": "Regulatory compliance",
-          "desc": "FG portfolio status against active regulations (routing only)."
+          "title": "Zgodność regulacyjna",
+          "desc": "Status portfela wyrobów gotowych względem aktywnych regulacji (tylko nawigacja)."
         },
         "labResults": {
-          "title": "Lab results log",
-          "desc": "Read-only Quality-owned lab results in Technical context."
+          "title": "Dziennik wyników badań",
+          "desc": "Wyniki badań tylko do odczytu należące do Jakości w kontekście technologii."
         },
         "costImport": {
-          "title": "D365 cost import",
-          "desc": "Optional D365 cost pull — local history stays source of truth."
+          "title": "Import kosztów D365",
+          "desc": "Opcjonalny import kosztów z D365 — lokalna historia pozostaje źródłem prawdy."
         },
         "shelfLife": {
-          "title": "Shelf life",
-          "desc": "Shelf-life config & overrides"
+          "title": "Termin przydatności",
+          "desc": "Konfiguracja i wyjątki terminu przydatności"
         },
         "tooling": {
-          "title": "Tooling & equipment",
-          "desc": "Equipment setups from routings"
+          "title": "Oprzyrządowanie i sprzęt",
+          "desc": "Ustawienia sprzętu z marszrut"
         },
         "bulkImport": {
-          "title": "Bulk import",
-          "desc": "Import items from CSV"
+          "title": "Import zbiorczy",
+          "desc": "Import pozycji z pliku CSV"
         },
         "bomSnapshots": {
-          "title": "BOM snapshots",
-          "desc": "View immutable WO BOM snapshots"
+          "title": "Migawki BOM",
+          "desc": "Podgląd niezmiennych migawek BOM dla ZP"
         }
       },
       "resourceType": {
-        "item": "Item",
+        "item": "Pozycja",
         "bom": "BOM",
         "bom_header": "BOM",
-        "factory_spec": "Factory spec",
-        "routing": "Routing",
-        "allergen": "Allergen",
-        "item_cost": "Cost"
+        "factory_spec": "Specyfikacja fabryczna",
+        "routing": "Marszruta",
+        "allergen": "Alergen",
+        "item_cost": "Koszt"
       }
     },
     "items": {
