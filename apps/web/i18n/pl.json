@@ -7175,10 +7175,10 @@
           "closedWarning": "Anulowanie na zamkniętym zleceniu wymaga autoryzacji przełożonego.",
           "esign": {
             "title": "Podpis anulowania wyjścia",
-            "meaning": "Wpisz ponownie hasło konta, aby podpisać anulowanie tego wyjścia produkcyjnego. Twoja tożsamość i czas serwera zostaną zapisane.",
-            "password": "Hasło",
-            "passwordPlaceholder": "Hasło konta",
-            "passwordHelp": "To jest hasło Twojego konta — nie osobny PIN."
+            "meaning": "Wpisz PIN e-podpisu, aby podpisać anulowanie tego wyjścia produkcyjnego — lub hasło konta, dopóki nie masz zarejestrowanego PIN-u. Twoja tożsamość i czas serwera zostaną zapisane.",
+            "password": "PIN e-podpisu lub hasło konta",
+            "passwordPlaceholder": "PIN e-podpisu lub hasło konta",
+            "passwordHelp": "Hasło konta jest akceptowane tylko dopóki nie masz zarejestrowanego PIN-u e-podpisu."
           },
           "cancel": "Anuluj",
           "submit": "Anuluj wpis",
@@ -7264,10 +7264,10 @@
           "closedWarning": "Cofnięcie zużycia na zamkniętym zleceniu wymaga autoryzacji przełożonego.",
           "esign": {
             "title": "Podpis elektroniczny",
-            "meaning": "Wpisz ponownie hasło konta, aby podpisać to cofnięcie. Twoja tożsamość i czas serwera zostaną zapisane.",
-            "password": "Hasło",
-            "passwordPlaceholder": "Hasło konta",
-            "passwordHelp": "To jest hasło Twojego konta — nie osobny PIN."
+            "meaning": "Wpisz PIN e-podpisu, aby podpisać to cofnięcie — lub hasło konta, dopóki nie masz zarejestrowanego PIN-u. Twoja tożsamość i czas serwera zostaną zapisane.",
+            "password": "PIN e-podpisu lub hasło konta",
+            "passwordPlaceholder": "PIN e-podpisu lub hasło konta",
+            "passwordHelp": "Hasło konta jest akceptowane tylko dopóki nie masz zarejestrowanego PIN-u e-podpisu."
           },
           "cancel": "Anuluj",
           "submit": "Cofnij",
