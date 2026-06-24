@@ -10,10 +10,13 @@ const WAREHOUSE_ID = '44444444-4444-4444-8444-444444444444';
 const LOCATION_ID = '55555555-5555-4555-8555-555555555555';
 const ITEM_ID = '66666666-6666-4666-8666-666666666666';
 const LP_ID = '77777777-7777-4777-8777-777777777777';
+const LP_ID_2 = '77777777-7777-4777-8777-777777777778';
 const COUNT_LINE_ID = '88888888-8888-4888-8888-888888888888';
 const NEW_LP_ID = '99999999-9999-4999-8999-999999999999';
 const ADJUSTMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ADJUSTMENT_ID_2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab';
 const SIGNATURE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SITE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -26,6 +29,8 @@ type ApplyLine = {
   id: string;
   session_id: string;
   warehouse_id: string;
+  session_site_id: string | null;
+  session_status: string;
   location_id: string;
   item_id: string;
   lp_id: string | null;
@@ -43,6 +48,15 @@ let systemQty: string;
 let returnedCountedQty: string;
 let returnedVarianceQty: string;
 let applyLine: ApplyLine;
+let shrinkageLps: Array<{
+  id: string;
+  site_id: string | null;
+  status: string;
+  quantity: string;
+  reserved_qty: string;
+  uom: string;
+}>;
+let stockAdjustmentIds: string[];
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -52,6 +66,7 @@ vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../../../../../../../lib/warehouse/lp-create', () => ({
   makeLpNumber: vi.fn(() => 'LP-ADJ-0001'),
+  makeStockMoveNumber: vi.fn((transactionId: string) => `SM-${transactionId.replaceAll('-', '').slice(0, 20).toUpperCase()}`),
 }));
 
 vi.mock('@monopilot/e-sign', () => ({
@@ -75,6 +90,8 @@ function makeApplyLine(overrides: Partial<ApplyLine> = {}): ApplyLine {
     id: COUNT_LINE_ID,
     session_id: SESSION_ID,
     warehouse_id: WAREHOUSE_ID,
+    session_site_id: SITE_ID,
+    session_status: 'open',
     location_id: LOCATION_ID,
     item_id: ITEM_ID,
     lp_id: LP_ID,
@@ -149,26 +166,27 @@ function makeClient(): QueryClient {
         return { rows: [{ uom: 'kg' }], rowCount: 1 };
       }
 
+      if (n.startsWith("select after_state ->> 'batch_number'")) {
+        return { rows: [], rowCount: 0 };
+      }
+
       if (n.startsWith('insert into public.license_plates')) {
         return { rows: [{ id: NEW_LP_ID }], rowCount: 1 };
       }
 
       if (n.startsWith('select lp.id::text') && n.includes('for update')) {
-        return {
-          rows: [{
-            id: LP_ID,
-            site_id: null,
-            status: 'available',
-            quantity: '9',
-            reserved_qty: '0',
-            uom: 'kg',
-          }],
-          rowCount: 1,
-        };
+        return { rows: shrinkageLps, rowCount: shrinkageLps.length };
       }
 
       if (n.startsWith('update public.license_plates')) {
-        return { rows: [{ id: LP_ID, quantity: '7', status: 'available' }], rowCount: 1 };
+        return {
+          rows: [{
+            id: String(params[0]),
+            quantity: '0',
+            status: 'destroyed',
+          }],
+          rowCount: 1,
+        };
       }
 
       if (n.startsWith('insert into public.lp_state_history')) {
@@ -176,7 +194,12 @@ function makeClient(): QueryClient {
       }
 
       if (n.startsWith('insert into public.stock_adjustments')) {
-        return { rows: [{ id: ADJUSTMENT_ID }], rowCount: 1 };
+        const id = stockAdjustmentIds.shift() ?? ADJUSTMENT_ID;
+        return { rows: [{ id }], rowCount: 1 };
+      }
+
+      if (n.startsWith('insert into public.stock_moves')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (n.startsWith('insert into public.audit_events')) {
@@ -198,6 +221,15 @@ beforeEach(async () => {
   returnedCountedQty = '0';
   returnedVarianceQty = '0';
   applyLine = makeApplyLine();
+  shrinkageLps = [{
+    id: LP_ID,
+    site_id: SITE_ID,
+    status: 'available',
+    quantity: '9',
+    reserved_qty: '0',
+    uom: 'kg',
+  }];
+  stockAdjustmentIds = [ADJUSTMENT_ID, ADJUSTMENT_ID_2];
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -224,7 +256,7 @@ describe('stock count actions', () => {
     expect('systemQty' in result).toBe(false);
 
     const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_lines'));
-    expect(insert?.params).toEqual([SESSION_ID, LOCATION_ID, ITEM_ID, null, '5', '8', '3']);
+    expect(insert?.params).toEqual([SESSION_ID, LOCATION_ID, ITEM_ID, null, '5', '8', '3', USER_ID]);
   });
 
   it('approveAndApplyVariance with positive variance mints a new adjustment LP', async () => {
@@ -247,7 +279,32 @@ describe('stock count actions', () => {
 
     const lpInsert = queries.find((q) => normalize(q.sql).startsWith('insert into public.license_plates'));
     expect(normalize(lpInsert!.sql)).toContain("'adjustment'");
-    expect(lpInsert!.params).toEqual([WAREHOUSE_ID, LOCATION_ID, 'LP-ADJ-0001', ITEM_ID, '4', 'kg', USER_ID]);
+    expect(lpInsert!.params).toEqual([
+      SITE_ID,
+      WAREHOUSE_ID,
+      LOCATION_ID,
+      'LP-ADJ-0001',
+      ITEM_ID,
+      '4',
+      'kg',
+      null,
+      null,
+      USER_ID,
+    ]);
+  });
+
+  it("stale-system rejection: live on-hand drift triggers 'stock_changed_recount_required'", async () => {
+    applyLine = makeApplyLine({ system_qty: '5', counted_qty: '8', variance_qty: '3' });
+    systemQty = '6';
+
+    await expect(
+      approveAndApplyVariance({ countLineId: COUNT_LINE_ID, signature: { password: '123456' } }),
+    ).rejects.toThrow('stock_changed_recount_required');
+
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_moves'))).toBe(false);
   });
 
   it('approveAndApplyVariance with negative variance reduces on-hand LP quantity', async () => {
@@ -266,6 +323,105 @@ describe('stock count actions', () => {
 
     const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
     expect(lpUpdate?.params).toEqual([LP_ID, '2', USER_ID, 'destroyed']);
+  });
+
+  it('multi-LP FEFO shrinkage drain spreads a reduction across LPs in order', async () => {
+    systemQty = '9';
+    applyLine = makeApplyLine({ system_qty: '9', counted_qty: '2', variance_qty: '-7', lp_id: null });
+    shrinkageLps = [
+      {
+        id: LP_ID,
+        site_id: SITE_ID,
+        status: 'available',
+        quantity: '5',
+        reserved_qty: '0',
+        uom: 'kg',
+      },
+      {
+        id: LP_ID_2,
+        site_id: SITE_ID,
+        status: 'available',
+        quantity: '6',
+        reserved_qty: '0',
+        uom: 'kg',
+      },
+    ];
+
+    const result = await approveAndApplyVariance({
+      countLineId: COUNT_LINE_ID,
+      signature: { password: '123456' },
+    });
+
+    expect(result).toMatchObject({
+      direction: 'decrease',
+      adjustmentQty: '7',
+      lpId: LP_ID,
+    });
+
+    const lpUpdates = queries.filter((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    expect(lpUpdates.map((q) => q.params)).toEqual([
+      [LP_ID, '5', USER_ID, 'destroyed'],
+      [LP_ID_2, '2', USER_ID, 'destroyed'],
+    ]);
+
+    const historyInserts = queries.filter((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(historyInserts).toHaveLength(2);
+
+    const adjustmentInserts = queries.filter((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'));
+    expect(adjustmentInserts).toHaveLength(2);
+    expect(adjustmentInserts.map((q) => [q.params[4], q.params[5], q.params[9]])).toEqual([
+      [LP_ID, '5', USER_ID],
+      [LP_ID_2, '2', USER_ID],
+    ]);
+
+    const stockMoves = queries.filter((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMoves).toHaveLength(2);
+    expect(stockMoves.map((q) => [q.params[2], q.params[3], q.params[4], q.params[5]])).toEqual([
+      [LP_ID, LOCATION_ID, null, '-5'],
+      [LP_ID_2, LOCATION_ID, null, '-2'],
+    ]);
+  });
+
+  it("apply blocked on cancelled session with 'count_session_not_open'", async () => {
+    applyLine = makeApplyLine({ session_status: 'cancelled' });
+
+    await expect(
+      approveAndApplyVariance({ countLineId: COUNT_LINE_ID, signature: { password: '123456' } }),
+    ).rejects.toThrow('count_session_not_open');
+
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'))).toBe(false);
+  });
+
+  it('minted adjustment LP carries site_id', async () => {
+    applyLine = makeApplyLine({ variance_qty: '1', counted_qty: '6', lp_id: null, session_site_id: SITE_ID });
+
+    await approveAndApplyVariance({
+      countLineId: COUNT_LINE_ID,
+      signature: { password: '123456' },
+    });
+
+    const lpInsert = queries.find((q) => normalize(q.sql).startsWith('insert into public.license_plates'));
+    expect(lpInsert?.params[0]).toBe(SITE_ID);
+  });
+
+  it('stock_moves adjustment row is written in the apply transaction', async () => {
+    applyLine = makeApplyLine({ variance_qty: '4', counted_qty: '9', lp_id: null });
+
+    await approveAndApplyVariance({
+      countLineId: COUNT_LINE_ID,
+      signature: { password: '123456' },
+    });
+
+    const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMove?.params[0]).toBe(SITE_ID);
+    expect(stockMove?.params[2]).toBe(NEW_LP_ID);
+    expect(stockMove?.params[3]).toBe(null);
+    expect(stockMove?.params[4]).toBe(LOCATION_ID);
+    expect(stockMove?.params[5]).toBe('4');
+    expect(stockMove?.params[6]).toBe('kg');
+    expect(stockMove?.params[10]).toBe(USER_ID);
   });
 
   it('approveAndApplyVariance without a signature is rejected', async () => {

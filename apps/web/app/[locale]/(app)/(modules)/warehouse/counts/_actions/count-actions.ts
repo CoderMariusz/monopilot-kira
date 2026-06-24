@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { makeLpNumber } from '../../../../../../../lib/warehouse/lp-create';
+import { makeLpNumber, makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
 import { microToDecimal, toMicro } from '../../../../../../../lib/shared/decimal';
 import {
   hasWarehousePermission,
@@ -63,6 +63,8 @@ type CountLineForApply = {
   id: string;
   session_id: string;
   warehouse_id: string;
+  session_site_id: string | null;
+  session_status: string;
   location_id: string;
   item_id: string;
   lp_id: string | null;
@@ -79,6 +81,23 @@ type LpForShrinkage = {
   quantity: string;
   reserved_qty: string;
   uom: string;
+};
+
+type ShrinkageLeg = {
+  lp: LpForShrinkage;
+  quantity: string;
+};
+
+type AdjustmentLeg = {
+  lpId: string;
+  siteId: string | null;
+  quantity: string;
+  uom: string;
+};
+
+type CountLineAdjustmentMetadata = {
+  batchNumber: string | null;
+  expiryDate: string | null;
 };
 
 function isUuid(value: string): boolean {
@@ -106,6 +125,21 @@ function normalizeNonNegativeDecimal(value: unknown, field: string): string {
   const text = typeof value === 'number' ? String(value) : typeof value === 'string' ? value.trim() : '';
   if (!/^\d+(\.\d+)?$/.test(text)) throw new Error(`invalid_${field}`);
   return microToDecimal(toMicro(text));
+}
+
+function normalizeOptionalText(value: unknown, field: string): string | null {
+  if (value == null) return null;
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (text.length === 0) return null;
+  if (text.length > 120) throw new Error(`invalid_${field}`);
+  return text;
+}
+
+function normalizeOptionalTimestamp(value: unknown, field: string): string | null {
+  if (value == null || value === '') return null;
+  const date = value instanceof Date ? value : typeof value === 'string' ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) throw new Error(`invalid_${field}`);
+  return date.toISOString();
 }
 
 function toIso(value: string | Date | null | undefined): string | null {
@@ -248,6 +282,8 @@ async function readLineForApply(client: QueryClient, countLineId: string): Promi
     `select cl.id::text,
             cl.session_id::text,
             cs.warehouse_id::text,
+            cs.site_id::text as session_site_id,
+            cs.status as session_status,
             cl.location_id::text,
             cl.item_id::text,
             cl.lp_id::text,
@@ -294,34 +330,56 @@ async function resolveAdjustmentUom(
 
 async function createAdjustmentLicensePlate(
   ctx: WarehouseContext,
-  input: { warehouseId: string; locationId: string; itemId: string; quantity: string; uom: string; countLineId: string },
+  input: {
+    siteId: string | null;
+    warehouseId: string;
+    locationId: string;
+    itemId: string;
+    quantity: string;
+    uom: string;
+    countLineId: string;
+    batchNumber: string | null;
+    expiryDate: string | null;
+  },
 ): Promise<string> {
   const lpNumber = makeLpNumber();
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.license_plates (
-       org_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
-       status, qa_status, origin, created_by, updated_by
+       org_id, site_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
+       batch_number, expiry_date, status, qa_status, origin, created_by, updated_by
      )
      values (
-       app.current_org_id(), $1::uuid, $2::uuid, $3, $4::uuid, $5::numeric, $6,
-       'available', 'released', 'adjustment', $7::uuid, $7::uuid
+       app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
+       $8, $9::timestamptz, 'available', 'released', 'adjustment', $10::uuid, $10::uuid
      )
      returning id::text`,
-    [input.warehouseId, input.locationId, lpNumber, input.itemId, input.quantity, input.uom, ctx.userId],
+    [
+      input.siteId,
+      input.warehouseId,
+      input.locationId,
+      lpNumber,
+      input.itemId,
+      input.quantity,
+      input.uom,
+      input.batchNumber,
+      input.expiryDate,
+      ctx.userId,
+    ],
   );
   const lpId = rows[0]?.id;
   if (!lpId) throw new Error('lp_create_failed');
 
   await ctx.client.query(
     `insert into public.lp_state_history (
-       org_id, lp_id, from_state, to_state, reason_code, reason_text,
+       org_id, site_id, lp_id, from_state, to_state, reason_code, reason_text,
        transaction_id, ext_jsonb, created_by
      )
      values (
-       app.current_org_id(), $1::uuid, null, 'available', 'stock_count_adjustment',
-       $2, $3::uuid, $4::jsonb, $5::uuid
+       app.current_org_id(), $1::uuid, $2::uuid, null, 'available', 'stock_count_adjustment',
+       $3, $4::uuid, $5::jsonb, $6::uuid
      )`,
     [
+      input.siteId,
       lpId,
       STOCK_COUNT_REASON,
       randomUUID(),
@@ -337,10 +395,103 @@ async function createAdjustmentLicensePlate(
   return lpId;
 }
 
-async function selectLpForShrinkage(
+async function writeCountLineAdjustmentMetadata(
+  ctx: WarehouseContext,
+  input: { countLineId: string; batchNumber: string | null; expiryDate: string | null },
+): Promise<void> {
+  if (!input.batchNumber && !input.expiryDate) return;
+
+  await ctx.client.query(
+    `insert into public.audit_events (
+       org_id,
+       actor_user_id,
+       actor_type,
+       action,
+       resource_type,
+       resource_id,
+       before_state,
+       after_state,
+       request_id,
+       retention_class
+     )
+     values (
+       app.current_org_id(),
+       $1::uuid,
+       'user',
+       'warehouse.stock.count_metadata_recorded',
+       'count_line',
+       $2,
+       null,
+       $3::jsonb,
+       $4::uuid,
+       'operational'
+     )`,
+    [
+      ctx.userId,
+      input.countLineId,
+      JSON.stringify({
+        batch_number: input.batchNumber,
+        expiry_date: input.expiryDate,
+      }),
+      randomUUID(),
+    ],
+  );
+}
+
+async function readCountLineAdjustmentMetadata(
+  client: QueryClient,
+  countLineId: string,
+): Promise<CountLineAdjustmentMetadata> {
+  const { rows } = await client.query<{ batch_number: string | null; expiry_date: string | null }>(
+    `select after_state ->> 'batch_number' as batch_number,
+            after_state ->> 'expiry_date' as expiry_date
+       from public.audit_events
+      where org_id = app.current_org_id()
+        and resource_type = 'count_line'
+        and resource_id = $1
+        and action = 'warehouse.stock.count_metadata_recorded'
+      order by occurred_at desc, id desc
+      limit 1`,
+    [countLineId],
+  );
+  return {
+    batchNumber: rows[0]?.batch_number ?? null,
+    expiryDate: rows[0]?.expiry_date ?? null,
+  };
+}
+
+async function resolveAdjustmentSiteId(
+  client: QueryClient,
+  input: { sessionSiteId: string | null; warehouseId: string; locationId: string; lpId: string | null },
+): Promise<string | null> {
+  if (input.sessionSiteId) return input.sessionSiteId;
+
+  const { rows } = await client.query<{ site_id: string | null }>(
+    `select coalesce(
+              (select lp.site_id
+                 from public.license_plates lp
+                where lp.org_id = app.current_org_id()
+                  and lp.id = $3::uuid
+                  and lp.site_id is not null
+                limit 1),
+              (select lp.site_id
+                 from public.license_plates lp
+                where lp.org_id = app.current_org_id()
+                  and lp.warehouse_id = $1::uuid
+                  and lp.location_id = $2::uuid
+                  and lp.site_id is not null
+                order by lp.expiry_date asc nulls last, lp.lp_number asc
+                limit 1)
+            )::text as site_id`,
+    [input.warehouseId, input.locationId, input.lpId],
+  );
+  return rows[0]?.site_id ?? null;
+}
+
+async function selectLpsForShrinkage(
   client: QueryClient,
   input: { locationId: string; itemId: string; lpId: string | null; quantity: string },
-): Promise<LpForShrinkage | null> {
+): Promise<ShrinkageLeg[]> {
   const { rows } = await client.query<LpForShrinkage>(
     `select lp.id::text,
             lp.site_id::text,
@@ -355,13 +506,27 @@ async function selectLpForShrinkage(
         and ($3::uuid is null or lp.id = $3::uuid)
         and lp.status = 'available'
         and lp.qa_status = 'released'
-        and lp.quantity - $4::numeric >= lp.reserved_qty
+        and lp.quantity > lp.reserved_qty
       order by lp.expiry_date asc nulls last, lp.lp_number asc
-      limit 1
       for update`,
-    [input.locationId, input.itemId, input.lpId, input.quantity],
+    [input.locationId, input.itemId, input.lpId],
   );
-  return rows[0] ?? null;
+
+  let remaining = toMicro(input.quantity);
+  const legs: ShrinkageLeg[] = [];
+
+  for (const lp of rows) {
+    if (remaining <= 0n) break;
+    const available = toMicro(lp.quantity) - toMicro(lp.reserved_qty);
+    if (available <= 0n) continue;
+
+    const take = available < remaining ? available : remaining;
+    legs.push({ lp, quantity: microToDecimal(take) });
+    remaining -= take;
+  }
+
+  if (remaining > 0n) throw new Error('insufficient_on_hand');
+  return legs;
 }
 
 async function reduceLicensePlateForShrinkage(
@@ -423,11 +588,11 @@ async function insertStockAdjustment(
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.stock_adjustments (
        org_id, count_line_id, item_id, location_id, warehouse_id, lp_id,
-       adjustment_qty, direction, reason, esign_ref
+       adjustment_qty, direction, reason, esign_ref, applied_by
      )
      values (
        app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
-       $6::numeric, $7, $8, $9::uuid
+       $6::numeric, $7, $8, $9::uuid, $10::uuid
      )
      returning id::text`,
     [
@@ -440,11 +605,59 @@ async function insertStockAdjustment(
       input.direction,
       STOCK_COUNT_REASON,
       input.esignRef,
+      ctx.userId,
     ],
   );
   const adjustmentId = rows[0]?.id;
   if (!adjustmentId) throw new Error('stock_adjustment_insert_failed');
   return adjustmentId;
+}
+
+async function insertStockMove(
+  ctx: WarehouseContext,
+  input: {
+    countLine: CountLineForApply;
+    adjustmentId: string;
+    direction: 'increase' | 'decrease';
+    quantity: string;
+    lpId: string;
+    siteId: string | null;
+    uom: string;
+    esignRef: string;
+  },
+): Promise<void> {
+  const transactionId = randomUUID();
+  const signedQuantity =
+    input.direction === 'increase' ? input.quantity : microToDecimal(-toMicro(input.quantity));
+
+  await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, from_location_id, to_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid, $5::uuid,
+       $6::numeric, $7, $8, $8, $9::uuid, $10::jsonb, $11::uuid, $11::uuid
+     )`,
+    [
+      input.siteId,
+      makeStockMoveNumber(transactionId),
+      input.lpId,
+      input.direction === 'decrease' ? input.countLine.location_id : null,
+      input.direction === 'increase' ? input.countLine.location_id : null,
+      signedQuantity,
+      input.uom,
+      STOCK_COUNT_REASON,
+      transactionId,
+      JSON.stringify({
+        count_line_id: input.countLine.id,
+        stock_adjustment_id: input.adjustmentId,
+        esign_ref: input.esignRef,
+        direction: input.direction,
+      }),
+      ctx.userId,
+    ],
+  );
 }
 
 async function writeStockAdjustmentAudit(
@@ -581,6 +794,8 @@ export async function recordCount(input: RecordCountInput): Promise<CountLine> {
   const itemId = assertUuid(input?.itemId, 'item_id');
   const lpId = normalizeOptionalUuid(input?.lpId, 'lp_id');
   const countedQty = normalizeNonNegativeDecimal(input?.countedQty, 'counted_qty');
+  const batchNumber = normalizeOptionalText(input?.batchNumber ?? input?.batch_number, 'batch_number');
+  const expiryDate = normalizeOptionalTimestamp(input?.expiryDate ?? input?.expiry_date, 'expiry_date');
 
   return await withOrgContext(async ({ userId, orgId, client }): Promise<CountLine> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
@@ -620,22 +835,30 @@ export async function recordCount(input: RecordCountInput): Promise<CountLine> {
             set system_qty = $2::numeric,
                 counted_qty = $3::numeric,
                 variance_qty = $4::numeric,
-                status = 'counted'
+                status = 'counted',
+                counted_by = $5::uuid,
+                counted_at = now()
           where id = $1::uuid`,
-        [lineId, systemQty, countedQty, varianceQty],
+        [lineId, systemQty, countedQty, varianceQty, ctx.userId],
       );
     } else {
       const inserted = await ctx.client.query<{ id: string }>(
         `insert into public.count_lines (
-           session_id, location_id, item_id, lp_id, system_qty, counted_qty, variance_qty, status
+           session_id, location_id, item_id, lp_id, system_qty, counted_qty, variance_qty,
+           status, counted_by, counted_at
          )
-         values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::numeric, $6::numeric, $7::numeric, 'counted')
+         values (
+           $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::numeric, $6::numeric, $7::numeric,
+           'counted', $8::uuid, now()
+         )
          returning id::text`,
-        [sessionId, locationId, itemId, lpId, systemQty, countedQty, varianceQty],
+        [sessionId, locationId, itemId, lpId, systemQty, countedQty, varianceQty, ctx.userId],
       );
       lineId = inserted.rows[0]?.id ?? null;
     }
     if (!lineId) throw new Error('count_line_upsert_failed');
+
+    await writeCountLineAdjustmentMetadata(ctx, { countLineId: lineId, batchNumber, expiryDate });
 
     const { rows } = await ctx.client.query<CountLineRow>(
       `select cl.id::text,
@@ -682,11 +905,29 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
 
     const countLine = await readLineForApply(ctx.client, countLineId);
     if (!countLine) throw new Error('count_line_not_found');
+    if (countLine.session_status !== 'open' && countLine.session_status !== 'review') {
+      throw new Error('count_session_not_open');
+    }
     if (countLine.status === 'applied') throw new Error('variance_already_applied');
     if (countLine.counted_qty == null || countLine.variance_qty == null) throw new Error('count_line_not_counted');
 
-    const varianceMicro = toMicro(countLine.variance_qty);
-    const adjustmentQty = absDecimal(countLine.variance_qty);
+    const liveOnHand = await readCurrentOnHand(ctx.client, {
+      locationId: countLine.location_id,
+      itemId: countLine.item_id,
+      lpId: countLine.lp_id,
+    });
+    if (toMicro(liveOnHand.systemQty) !== toMicro(countLine.system_qty)) {
+      throw new Error('stock_changed_recount_required');
+    }
+
+    const recomputedVarianceQty = microToDecimal(toMicro(countLine.counted_qty) - toMicro(liveOnHand.systemQty));
+    const countLineForApply: CountLineForApply = {
+      ...countLine,
+      system_qty: liveOnHand.systemQty,
+      variance_qty: recomputedVarianceQty,
+    };
+    const varianceMicro = toMicro(recomputedVarianceQty);
+    const adjustmentQty = absDecimal(recomputedVarianceQty);
 
     const signatureReceipt = await signEvent(
       {
@@ -697,58 +938,107 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
         nonce: input.signature.nonce,
         subject: {
           permission: WAREHOUSE_STOCK_ADJUST_PERMISSION,
-          count_line_id: countLine.id,
-          session_id: countLine.session_id,
-          warehouse_id: countLine.warehouse_id,
-          location_id: countLine.location_id,
-          item_id: countLine.item_id,
-          lp_id: countLine.lp_id,
-          system_qty: countLine.system_qty,
-          counted_qty: countLine.counted_qty,
-          variance_qty: countLine.variance_qty,
+          count_line_id: countLineForApply.id,
+          session_id: countLineForApply.session_id,
+          warehouse_id: countLineForApply.warehouse_id,
+          location_id: countLineForApply.location_id,
+          item_id: countLineForApply.item_id,
+          lp_id: countLineForApply.lp_id,
+          system_qty: countLineForApply.system_qty,
+          counted_qty: countLineForApply.counted_qty,
+          variance_qty: countLineForApply.variance_qty,
         },
       },
       { client: ctx.client as unknown as ESignTxOptions['client'] },
     );
 
     let adjustedLpId: string | null = null;
+    const direction = varianceMicro > 0n ? 'increase' : 'decrease';
+    const adjustmentLegs: AdjustmentLeg[] = [];
+
     if (varianceMicro > 0n) {
       const uom = await resolveAdjustmentUom(ctx.client, {
-        itemId: countLine.item_id,
-        locationId: countLine.location_id,
-        lpId: countLine.lp_id,
+        itemId: countLineForApply.item_id,
+        locationId: countLineForApply.location_id,
+        lpId: countLineForApply.lp_id,
+      });
+      const metadata = await readCountLineAdjustmentMetadata(ctx.client, countLineForApply.id);
+      const siteId = await resolveAdjustmentSiteId(ctx.client, {
+        sessionSiteId: countLineForApply.session_site_id,
+        warehouseId: countLineForApply.warehouse_id,
+        locationId: countLineForApply.location_id,
+        lpId: countLineForApply.lp_id,
       });
       adjustedLpId = await createAdjustmentLicensePlate(ctx, {
-        warehouseId: countLine.warehouse_id,
-        locationId: countLine.location_id,
-        itemId: countLine.item_id,
+        siteId,
+        warehouseId: countLineForApply.warehouse_id,
+        locationId: countLineForApply.location_id,
+        itemId: countLineForApply.item_id,
         quantity: adjustmentQty,
         uom,
-        countLineId: countLine.id,
+        countLineId: countLineForApply.id,
+        batchNumber: metadata.batchNumber,
+        expiryDate: metadata.expiryDate,
       });
+      adjustmentLegs.push({ lpId: adjustedLpId, siteId, quantity: adjustmentQty, uom });
     } else if (varianceMicro < 0n) {
-      const lp = await selectLpForShrinkage(ctx.client, {
-        locationId: countLine.location_id,
-        itemId: countLine.item_id,
-        lpId: countLine.lp_id,
+      const shrinkageLegs = await selectLpsForShrinkage(ctx.client, {
+        locationId: countLineForApply.location_id,
+        itemId: countLineForApply.item_id,
+        lpId: countLineForApply.lp_id,
         quantity: adjustmentQty,
       });
-      if (!lp) throw new Error('insufficient_on_hand');
-      await reduceLicensePlateForShrinkage(ctx, { lp, quantity: adjustmentQty, countLineId: countLine.id });
-      adjustedLpId = lp.id;
+      for (const leg of shrinkageLegs) {
+        await reduceLicensePlateForShrinkage(ctx, {
+          lp: leg.lp,
+          quantity: leg.quantity,
+          countLineId: countLineForApply.id,
+        });
+        adjustmentLegs.push({
+          lpId: leg.lp.id,
+          siteId: leg.lp.site_id,
+          quantity: leg.quantity,
+          uom: leg.lp.uom,
+        });
+      }
+      adjustedLpId = adjustmentLegs[0]?.lpId ?? null;
     }
 
-    const direction = varianceMicro > 0n ? 'increase' : 'decrease';
-    const adjustmentId = await insertStockAdjustment(ctx, {
-      countLine,
-      direction,
-      adjustmentQty,
-      lpId: adjustedLpId,
-      esignRef: signatureReceipt.signatureId,
-    });
+    let adjustmentId: string | null = null;
+    if (adjustmentLegs.length > 0) {
+      for (const leg of adjustmentLegs) {
+        const legAdjustmentId = await insertStockAdjustment(ctx, {
+          countLine: countLineForApply,
+          direction,
+          adjustmentQty: leg.quantity,
+          lpId: leg.lpId,
+          esignRef: signatureReceipt.signatureId,
+        });
+        adjustmentId ??= legAdjustmentId;
+        await insertStockMove(ctx, {
+          countLine: countLineForApply,
+          adjustmentId: legAdjustmentId,
+          direction,
+          quantity: leg.quantity,
+          lpId: leg.lpId,
+          siteId: leg.siteId,
+          uom: leg.uom,
+          esignRef: signatureReceipt.signatureId,
+        });
+      }
+    } else {
+      adjustmentId = await insertStockAdjustment(ctx, {
+        countLine: countLineForApply,
+        direction,
+        adjustmentQty,
+        lpId: adjustedLpId,
+        esignRef: signatureReceipt.signatureId,
+      });
+    }
+    if (!adjustmentId) throw new Error('stock_adjustment_insert_failed');
 
     await writeStockAdjustmentAudit(ctx, {
-      countLine,
+      countLine: countLineForApply,
       adjustmentId,
       direction,
       adjustmentQty,
@@ -758,17 +1048,19 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
 
     await ctx.client.query(
       `update public.count_lines
-          set status = 'applied'
+          set system_qty = $2::numeric,
+              variance_qty = $3::numeric,
+              status = 'applied'
         where id = $1::uuid`,
-      [countLine.id],
+      [countLineForApply.id, countLineForApply.system_qty, countLineForApply.variance_qty],
     );
 
     return {
-      countLineId: countLine.id,
+      countLineId: countLineForApply.id,
       adjustmentId,
       direction,
       adjustmentQty,
-      varianceQty: countLine.variance_qty,
+      varianceQty: recomputedVarianceQty,
       lpId: adjustedLpId,
       esignRef: signatureReceipt.signatureId,
       status: 'applied',

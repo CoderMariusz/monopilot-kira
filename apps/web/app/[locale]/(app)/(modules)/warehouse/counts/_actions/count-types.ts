@@ -1,7 +1,7 @@
 export const COUNT_TYPES = ['cycle', 'full', 'spot'] as const;
 export type CountType = (typeof COUNT_TYPES)[number];
 
-export const COUNT_SESSION_STATUSES = ['open', 'in_review', 'approved', 'applied', 'cancelled'] as const;
+export const COUNT_SESSION_STATUSES = ['open', 'counting', 'review', 'closed', 'cancelled'] as const;
 export type CountSessionStatus = (typeof COUNT_SESSION_STATUSES)[number] | (string & {});
 
 export const COUNT_LINE_STATUSES = ['pending', 'counted', 'approved', 'applied', 'rejected'] as const;
@@ -53,6 +53,10 @@ export type RecordCountInput = {
   itemId: string;
   lpId?: string | null;
   countedQty: DecimalString | number;
+  batchNumber?: string | null;
+  batch_number?: string | null;
+  expiryDate?: string | Date | null;
+  expiry_date?: string | Date | null;
 };
 
 export type CountSignature = {
