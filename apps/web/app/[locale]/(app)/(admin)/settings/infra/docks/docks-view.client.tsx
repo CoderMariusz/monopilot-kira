@@ -21,6 +21,7 @@
  * table; dialog idle/pending/inline-error.
  */
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
@@ -33,6 +34,7 @@ import {
   type DockDoorRow,
   type UpsertDockDoorInput,
 } from '../../../../(modules)/yard/_components/yard-shared';
+import { buildDocksLabels } from '../../../../(modules)/yard/_components/yard-labels';
 
 export type WarehouseOption = {
   id: string;
@@ -84,7 +86,6 @@ export type DocksLabels = {
 };
 
 export type DocksViewProps = {
-  labels: DocksLabels;
   initialDocks: DockDoorRow[];
   warehouses: WarehouseOption[];
   canManage: boolean;
@@ -104,7 +105,12 @@ function directionBadge(direction: DockDoorDirection): string {
   return 'badge-green';
 }
 
-export function DocksView({ labels, initialDocks, warehouses, canManage, upsertDockDoorAction, state }: DocksViewProps) {
+export function DocksView({ initialDocks, warehouses, canManage, upsertDockDoorAction, state }: DocksViewProps) {
+  // Labels built client-side from the `Yard` next-intl namespace: they contain
+  // function-valued members (directionLabel/directionOption) which the RSC
+  // boundary cannot serialise, so they must NOT be passed as a prop.
+  const t = useTranslations('Yard');
+  const labels = React.useMemo(() => buildDocksLabels(t), [t]);
   const [docks, setDocks] = React.useState<DockDoorRow[]>(() => [...initialDocks]);
   const [modal, setModal] = React.useState<ModalState>({ open: false });
 

@@ -30,7 +30,6 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listAppointments, listYardVisits, gateIn, gateOut, recordWeighing } from './_actions/yard-actions';
 import { listCarriers } from '../planning/_actions/freight-actions';
-import { buildYardBoardLabels } from './_components/yard-labels';
 import { YardBoard } from './_components/yard-board.client';
 import type { AppointmentRow, CarrierOption } from './_components/yard-shared';
 
@@ -111,7 +110,6 @@ export default async function YardBoardPage({ params }: YardPageProps) {
         }
       />
       <YardBoard
-        labels={buildYardBoardLabels(t)}
         listAppointmentsTodayAction={listAppointmentsToday}
         listYardVisitsAction={listYardVisits}
         gateInAction={gateIn}

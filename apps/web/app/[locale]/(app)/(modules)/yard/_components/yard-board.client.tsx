@@ -24,6 +24,7 @@
  * board; the gate-in / gate-out / weigh actions show pending + disabled.
  */
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
@@ -42,6 +43,7 @@ import {
   type WeighingRow,
   type YardVisitRow,
 } from './yard-shared';
+import { buildYardBoardLabels } from './yard-labels';
 
 export type YardBoardLabels = {
   appointmentsTitle: string;
@@ -96,7 +98,6 @@ export type YardBoardLabels = {
 };
 
 export type YardBoardProps = {
-  labels: YardBoardLabels;
   /** Server Action seams (injected from the RSC page). Each THROWS on failure. */
   listAppointmentsTodayAction: () => Promise<AppointmentRow[]>;
   listYardVisitsAction: () => Promise<YardVisitRow[]>;
@@ -145,7 +146,6 @@ function formatTime(iso: string): string {
 }
 
 export function YardBoard({
-  labels,
   listAppointmentsTodayAction,
   listYardVisitsAction,
   gateInAction,
@@ -153,6 +153,11 @@ export function YardBoard({
   recordWeighingAction,
   carriers,
 }: YardBoardProps) {
+  // Labels built client-side from the `Yard` next-intl namespace: they contain
+  // function-valued members (minutes/directionLabel/statusLabel) which the RSC
+  // boundary cannot serialise, so they must NOT be passed as a prop.
+  const t = useTranslations('Yard');
+  const labels = React.useMemo(() => buildYardBoardLabels(t), [t]);
   const [appointments, setAppointments] = React.useState<AppointmentRow[] | null>(null);
   const [visits, setVisits] = React.useState<YardVisitRow[] | null>(null);
   const [state, setState] = React.useState<BoardState>('loading');

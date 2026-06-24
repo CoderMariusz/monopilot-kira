@@ -17,6 +17,7 @@
  * (no on-site vehicles → form disabled), form; submit idle/pending/inline-error.
  */
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
@@ -29,6 +30,7 @@ import {
   type WeighingRow,
   type YardVisitRow,
 } from './yard-shared';
+import { buildWeighbridgeLabels } from './yard-labels';
 
 export type WeighbridgeLabels = {
   loading: string;
@@ -66,7 +68,6 @@ export type WeighbridgeLabels = {
 };
 
 export type WeighbridgeViewProps = {
-  labels: WeighbridgeLabels;
   /** Server Action seams (injected from the RSC page). Each THROWS on failure. */
   listYardVisitsAction: () => Promise<YardVisitRow[]>;
   recordWeighingAction: (input: RecordWeighingInput) => Promise<WeighingRow>;
@@ -82,7 +83,11 @@ function formatDateTime(iso: string): string {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-export function WeighbridgeView({ labels, listYardVisitsAction, recordWeighingAction }: WeighbridgeViewProps) {
+export function WeighbridgeView({ listYardVisitsAction, recordWeighingAction }: WeighbridgeViewProps) {
+  // Built client-side from the `Yard` next-intl namespace (kept off the RSC
+  // boundary so the whole yard label family stays client-resolved and uniform).
+  const t = useTranslations('Yard');
+  const labels = React.useMemo(() => buildWeighbridgeLabels(t), [t]);
   const [visits, setVisits] = React.useState<YardVisitRow[] | null>(null);
   const [state, setState] = React.useState<ViewState>('loading');
   const [visitId, setVisitId] = React.useState('');

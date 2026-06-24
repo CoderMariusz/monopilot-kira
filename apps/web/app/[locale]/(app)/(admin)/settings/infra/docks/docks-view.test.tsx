@@ -7,56 +7,34 @@
  * the add/edit dialog upserting a dock door, and the RBAC affordance gate.
  */
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DocksView, type DocksLabels } from './docks-view.client';
-import type { DockDoorRow } from '../../../../(modules)/yard/_components/yard-shared';
+// The view now builds its labels client-side via useTranslations('Yard'); mock
+// next-intl with a translator backed by the real Yard namespace so the rendered
+// strings stay the real i18n values (no server→client function-prop boundary).
+vi.mock('next-intl', () => {
+  const tree = JSON.parse(
+    readFileSync(path.resolve(process.cwd(), 'i18n', 'en.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  function translatorFor(namespace?: string) {
+    const root = namespace
+      ? (namespace.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown>)?.[k], tree))
+      : tree;
+    return (key: string, values?: Record<string, string | number>) => {
+      const raw = key.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown>)?.[k], root);
+      if (typeof raw !== 'string') return `${namespace ?? ''}.${key}`;
+      return values ? raw.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`)) : raw;
+    };
+  }
+  return { useTranslations: (namespace?: string) => translatorFor(namespace) };
+});
 
-const LABELS: DocksLabels = {
-  loading: 'Loading dock doors…',
-  denied: 'You do not have permission to manage dock doors.',
-  error: 'Unable to load dock doors.',
-  empty: 'No dock doors configured.',
-  emptyHint: 'Add a dock door to schedule appointments against it.',
-  add: 'Add dock door',
-  edit: 'Edit',
-  active: 'Active',
-  inactive: 'Inactive',
-  noWarehouse: 'No warehouse',
-  columns: {
-    code: 'Code',
-    name: 'Name',
-    direction: 'Direction',
-    warehouse: 'Warehouse',
-    status: 'Status',
-    actions: 'Actions',
-  },
-  directionLabel: (d) => (d === 'inbound' ? 'Inbound' : d === 'outbound' ? 'Outbound' : 'Both'),
-  modal: {
-    titleAdd: 'Add dock door',
-    titleEdit: 'Edit dock door',
-    codeLabel: 'Code',
-    nameLabel: 'Name (optional)',
-    directionLabel: 'Direction',
-    warehouseLabel: 'Warehouse',
-    noWarehouse: 'No warehouse',
-    activeLabel: 'Active',
-    submit: 'Save',
-    submitting: 'Saving…',
-    cancel: 'Cancel',
-    directionOption: (d) => (d === 'inbound' ? 'Inbound' : d === 'outbound' ? 'Outbound' : 'Both'),
-    errors: {
-      codeRequired: 'Code is required.',
-      invalid_input: 'Invalid input.',
-      forbidden: 'You do not have permission to edit dock doors.',
-      not_found: 'Dock door not found.',
-      already_exists: 'A dock door with this code already exists.',
-      persistence_failed: 'Saving failed. Try again.',
-    },
-  },
-};
+import { DocksView } from './docks-view.client';
+import type { DockDoorRow } from '../../../../(modules)/yard/_components/yard-shared';
 
 const DOCK: DockDoorRow = {
   id: 'd-1',
@@ -71,7 +49,6 @@ const DOCK: DockDoorRow = {
 function renderView(over: Partial<React.ComponentProps<typeof DocksView>> = {}) {
   return render(
     <DocksView
-      labels={LABELS}
       initialDocks={[DOCK]}
       warehouses={[{ id: 'wh-1', name: 'Raw materials' }]}
       canManage

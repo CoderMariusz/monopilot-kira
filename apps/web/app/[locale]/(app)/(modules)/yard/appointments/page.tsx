@@ -22,7 +22,6 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listAppointments, bookAppointment, listDockDoors } from '../_actions/yard-actions';
 import { listCarriers } from '../../planning/_actions/freight-actions';
-import { buildAppointmentsLabels } from '../_components/yard-labels';
 import { AppointmentsView } from '../_components/appointments-view.client';
 import type { CarrierOption, DockDoorRow } from '../_components/yard-shared';
 
@@ -76,7 +75,6 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
         ]}
       />
       <AppointmentsView
-        labels={buildAppointmentsLabels(t)}
         dockDoors={dockDoors}
         carriers={carriers}
         listAppointmentsAction={listAppointments}

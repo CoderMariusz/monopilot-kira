@@ -26,7 +26,6 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listDockDoors, upsertDockDoor } from '../../../../(modules)/yard/_actions/yard-actions';
-import { buildDocksLabels } from '../../../../(modules)/yard/_components/yard-labels';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { DocksView, type WarehouseOption } from './docks-view.client';
 import type { DockDoorRow } from '../../../../(modules)/yard/_components/yard-shared';
@@ -97,7 +96,6 @@ export default async function DocksPage({ params }: DocksPageProps) {
       />
       <h1 id="settings-infra-docks-title" className="sr-only">{t('docks.title')}</h1>
       <DocksView
-        labels={buildDocksLabels(t)}
         initialDocks={docks}
         warehouses={warehouses}
         canManage={canManage}

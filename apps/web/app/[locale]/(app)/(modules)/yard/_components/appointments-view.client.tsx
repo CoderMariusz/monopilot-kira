@@ -16,6 +16,7 @@
  * table; dialog idle/pending/inline-error.
  */
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
@@ -32,6 +33,7 @@ import {
   type DockDoorRow,
   type ListAppointmentsInput,
 } from './yard-shared';
+import { buildAppointmentsLabels } from './yard-labels';
 
 export type AppointmentsLabels = {
   loading: string;
@@ -86,7 +88,6 @@ export type AppointmentsLabels = {
 };
 
 export type AppointmentsViewProps = {
-  labels: AppointmentsLabels;
   dockDoors: DockDoorRow[];
   carriers: CarrierOption[];
   /** Server Action seams (injected from the RSC page). Each THROWS on failure. */
@@ -145,13 +146,17 @@ function formatDateTime(iso: string): string {
 }
 
 export function AppointmentsView({
-  labels,
   dockDoors,
   carriers,
   listAppointmentsAction,
   bookAppointmentAction,
   initialDate,
 }: AppointmentsViewProps) {
+  // Labels built client-side from the `Yard` next-intl namespace: they contain
+  // function-valued members (minutes/directionLabel/statusLabel/directionOption)
+  // which the RSC boundary cannot serialise, so they must NOT be passed as a prop.
+  const t = useTranslations('Yard');
+  const labels = React.useMemo(() => buildAppointmentsLabels(t), [t]);
   const [anchor, setAnchor] = React.useState(initialDate);
   const [mode, setMode] = React.useState<ViewMode>('day');
   const [appointments, setAppointments] = React.useState<AppointmentRow[] | null>(null);

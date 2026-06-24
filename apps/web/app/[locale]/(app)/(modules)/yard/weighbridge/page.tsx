@@ -23,7 +23,6 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listYardVisits, recordWeighing } from '../_actions/yard-actions';
-import { buildWeighbridgeLabels } from '../_components/yard-labels';
 import { WeighbridgeView } from '../_components/weighbridge-view.client';
 
 export const dynamic = 'force-dynamic';
@@ -51,7 +50,6 @@ export default async function WeighbridgePage({ params }: WeighbridgePageProps) 
         ]}
       />
       <WeighbridgeView
-        labels={buildWeighbridgeLabels(t)}
         listYardVisitsAction={listYardVisits}
         recordWeighingAction={recordWeighing}
       />

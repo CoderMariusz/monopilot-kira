@@ -7,64 +7,34 @@
  * overlap-rejection error (bookAppointment THROWS 'overlap' server-side).
  */
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AppointmentsView, type AppointmentsLabels } from '../_components/appointments-view.client';
-import type { AppointmentRow, DockDoorRow } from '../_components/yard-shared';
+// The view now builds its labels client-side via useTranslations('Yard'); mock
+// next-intl with a translator backed by the real Yard namespace so the rendered
+// strings stay the real i18n values (no server→client function-prop boundary).
+vi.mock('next-intl', () => {
+  const tree = JSON.parse(
+    readFileSync(path.resolve(process.cwd(), 'i18n', 'en.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  function translatorFor(namespace?: string) {
+    const root = namespace
+      ? (namespace.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown>)?.[k], tree))
+      : tree;
+    return (key: string, values?: Record<string, string | number>) => {
+      const raw = key.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown>)?.[k], root);
+      if (typeof raw !== 'string') return `${namespace ?? ''}.${key}`;
+      return values ? raw.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`)) : raw;
+    };
+  }
+  return { useTranslations: (namespace?: string) => translatorFor(namespace) };
+});
 
-const LABELS: AppointmentsLabels = {
-  loading: 'Loading appointments…',
-  denied: 'You do not have permission to view appointments.',
-  error: 'Unable to load appointments.',
-  empty: 'No appointments in this window.',
-  book: 'Book appointment',
-  viewDay: 'Day',
-  viewWeek: 'Week',
-  previous: 'Previous',
-  next: 'Next',
-  today: 'Today',
-  columns: {
-    time: 'Time',
-    dockDoor: 'Dock door',
-    carrier: 'Carrier',
-    direction: 'Direction',
-    reference: 'Reference',
-    duration: 'Duration',
-    status: 'Status',
-  },
-  noCarrier: 'No carrier',
-  minutes: (count: number) => `${count} min`,
-  directionLabel: (d) => (d === 'inbound' ? 'Inbound' : 'Outbound'),
-  statusLabel: (s) => s,
-  modal: {
-    title: 'Book appointment',
-    dockDoorLabel: 'Dock door',
-    carrierLabel: 'Carrier',
-    noCarrier: 'No carrier',
-    directionLabel: 'Direction',
-    referenceLabel: 'Reference (optional)',
-    scheduledAtLabel: 'Date & time',
-    durationLabel: 'Duration (minutes)',
-    submit: 'Book',
-    submitting: 'Booking…',
-    cancel: 'Cancel',
-    directionOption: (d) => (d === 'inbound' ? 'Inbound' : 'Outbound'),
-    errors: {
-      dockDoorRequired: 'Select a dock door.',
-      scheduledAtRequired: 'Pick a date and time.',
-      durationInvalid: 'Duration must be a positive number of minutes.',
-      invalid_input: 'Invalid input.',
-      forbidden: 'You do not have permission to book appointments.',
-      not_found: 'Dock door or carrier not found.',
-      overlap: 'This slot overlaps an existing appointment on that dock door.',
-      already_exists: 'This appointment already exists.',
-      invalid_status: 'That status change is not allowed.',
-      persistence_failed: 'Booking failed. Try again.',
-    },
-  },
-};
+import { AppointmentsView } from '../_components/appointments-view.client';
+import type { AppointmentRow, DockDoorRow } from '../_components/yard-shared';
 
 const DOCK: DockDoorRow = {
   id: 'd-1',
@@ -94,7 +64,6 @@ const APPT: AppointmentRow = {
 function renderView(over: Partial<React.ComponentProps<typeof AppointmentsView>> = {}) {
   return render(
     <AppointmentsView
-      labels={LABELS}
       dockDoors={[DOCK]}
       carriers={[{ id: 'c-1', code: 'DHL', name: 'DHL Freight' }]}
       listAppointmentsAction={vi.fn(async () => [APPT])}

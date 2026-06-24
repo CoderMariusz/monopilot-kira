@@ -17,59 +17,28 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { YardBoard, type YardBoardLabels } from '../_components/yard-board.client';
-import type { AppointmentRow, YardVisitRow } from '../_components/yard-shared';
+// The board now builds its labels client-side via useTranslations('Yard'); mock
+// next-intl with a translator backed by the real Yard namespace so the rendered
+// strings stay the real i18n values (no server→client function-prop boundary).
+vi.mock('next-intl', () => {
+  const tree = JSON.parse(
+    readFileSync(path.resolve(process.cwd(), 'i18n', 'en.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  function translatorFor(namespace?: string) {
+    const root = namespace
+      ? (namespace.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown>)?.[k], tree))
+      : tree;
+    return (key: string, values?: Record<string, string | number>) => {
+      const raw = key.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown>)?.[k], root);
+      if (typeof raw !== 'string') return `${namespace ?? ''}.${key}`;
+      return values ? raw.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`)) : raw;
+    };
+  }
+  return { useTranslations: (namespace?: string) => translatorFor(namespace) };
+});
 
-const LABELS: YardBoardLabels = {
-  appointmentsTitle: "Today's appointments",
-  appointmentsEmpty: 'No appointments scheduled for today.',
-  onSiteTitle: 'On site now',
-  onSiteEmpty: 'No vehicles are on site.',
-  gateInTitle: 'Gate in',
-  gateIn: 'Gate in',
-  gateInPending: 'Gating in…',
-  gateOut: 'Gate out',
-  gateOutPending: 'Gating out…',
-  weigh: 'Weigh',
-  manual: 'Manual gate-in',
-  againstAppointment: 'Against appointment',
-  noAppointment: 'No appointment',
-  vehicleReg: 'Vehicle registration',
-  trailerRef: 'Trailer reference',
-  driverName: 'Driver name',
-  carrier: 'Carrier',
-  noCarrier: 'No carrier',
-  reference: 'Reference',
-  time: 'Time',
-  dockDoor: 'Dock door',
-  status: 'Status',
-  minutes: (count: number) => `${count} min`,
-  vehicleRegRequired: 'Vehicle registration is required.',
-  gateInFailed: 'Gate-in failed. Try again.',
-  gateOutFailed: 'Gate-out failed. Try again.',
-  loading: 'Loading the yard board…',
-  denied: 'You do not have permission to view the yard board.',
-  error: 'Unable to load the yard board.',
-  cancel: 'Cancel',
-  directionLabel: (d) => (d === 'inbound' ? 'Inbound' : 'Outbound'),
-  statusLabel: (s) => s,
-  weighFormTitle: 'Record weighing',
-  grossLabel: 'Gross weight (kg)',
-  tareLabel: 'Tare weight (kg)',
-  netLabel: 'Net weight (kg)',
-  weighSubmit: 'Record weighing',
-  weighSubmitting: 'Recording…',
-  weighErrors: {
-    grossInvalid: 'Gross weight must be a non-negative number.',
-    tareInvalid: 'Tare weight must be a non-negative number.',
-    netNegative: 'Tare cannot exceed gross weight.',
-    invalid_input: 'Invalid input.',
-    forbidden: 'You do not have permission to record weighings.',
-    not_found: 'Vehicle visit not found.',
-    overlap: 'Invalid input.',
-    persistence_failed: 'Recording failed. Try again.',
-  },
-};
+import { YardBoard } from '../_components/yard-board.client';
+import type { AppointmentRow, YardVisitRow } from '../_components/yard-shared';
 
 const APPT: AppointmentRow = {
   id: 'a-1',
@@ -105,7 +74,6 @@ const VISIT: YardVisitRow = {
 function renderBoard(over: Partial<React.ComponentProps<typeof YardBoard>> = {}) {
   return render(
     <YardBoard
-      labels={LABELS}
       listAppointmentsTodayAction={vi.fn(async () => [APPT])}
       listYardVisitsAction={vi.fn(async () => [VISIT])}
       gateInAction={vi.fn(async () => VISIT)}

@@ -1,11 +1,16 @@
 /**
- * WAVE E5 — server-side label builders for the yard screens.
+ * WAVE E5 — label builders for the yard screens.
  *
  * Each builder resolves the typed label object a client view needs from the
- * `Yard` next-intl namespace (en/pl real, ro/uk EN-mirrored). Resolved
- * server-side only; client components receive plain strings. Keeping the i18n
- * wiring here means every visible string flows through next-intl (no inline JSX
- * strings) and the label shapes stay in one place.
+ * `Yard` next-intl namespace (en/pl real, ro/uk EN-mirrored). These label
+ * objects contain FUNCTION-valued members (`minutes(count)`, `directionLabel`,
+ * `statusLabel`, `directionOption`) that cannot cross the RSC boundary, so the
+ * builders are invoked CLIENT-side: each `*.client.tsx` view calls
+ * `useTranslations('Yard')` and runs the matching builder itself (never passing
+ * the result as a server→client `labels` prop). Keeping the i18n wiring here
+ * means every visible string flows through next-intl (no inline JSX strings) and
+ * the label shapes stay in one place. The builders accept the `useTranslations`
+ * return type, so they work unchanged on the client.
  */
 import type { useTranslations } from 'next-intl';
 
