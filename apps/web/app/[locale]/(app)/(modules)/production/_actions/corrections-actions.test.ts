@@ -262,23 +262,24 @@ function makeClient(): QueryClient {
       }
 
       // F1/F3 — pre-write FOR UPDATE lock + SQL-side decrement validation.
-      if (n.includes('from public.wo_materials') && n.includes('for update')) {
+      if (n.includes('from public.wo_materials') && n.includes('for update') && !n.includes('update public.wo_materials')) {
         const scopedById = n.includes('and id = $2::uuid');
-        const rows = state.materialRows
-          .filter((row) => (scopedById ? row.id === params[1] : row.product_id === params[1]))
+        const matchingRows = state.materialRows.filter((row) => (scopedById ? row.id === params[1] : row.product_id === params[1]));
+        const rows = matchingRows
           .filter((row) => state.materialDecrementOk && Number(row.consumed_qty) - Number(params[2]) >= 0)
-          .map((row) => ({ id: row.id, can_decrement: true }));
+          .map((row) => ({ id: row.id, can_decrement: true, matching_line_count: String(matchingRows.length) }));
         return {
           rows,
           rowCount: rows.length,
         };
       }
 
-      if (n.startsWith('update public.wo_materials')) {
+      if (n.includes('update public.wo_materials')) {
         const scopedById = n.includes('and id = $2::uuid');
         const updated: Array<{ id: string }> = [];
+        const matchingRows = state.materialRows.filter((row) => (scopedById ? row.id === params[1] : row.product_id === params[1]));
         state.materialRows = state.materialRows.map((row) => {
-          const matches = scopedById ? row.id === params[1] : row.product_id === params[1];
+          const matches = scopedById ? row.id === params[1] : row.product_id === params[1] && matchingRows.length === 1;
           if (!matches || !state.materialDecrementOk || Number(row.consumed_qty) - Number(params[2]) < 0) return row;
           updated.push({ id: row.id });
           return { ...row, consumed_qty: String(Number(row.consumed_qty) - Number(params[2])) };
@@ -381,7 +382,7 @@ describe('reverseConsumption', () => {
     expect(materialLock?.params).toEqual([WO_ID, COMPONENT_ID, '4.250']);
     expect(queries.indexOf(materialLock!)).toBeLessThan(queries.indexOf(insert!));
 
-    const materialUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
+    const materialUpdate = queries.find((q) => normalize(q.sql).includes('update public.wo_materials'));
     expect(materialUpdate?.params).toEqual([WO_ID, COMPONENT_ID, '4.250']);
     expect(normalize(materialUpdate!.sql)).toContain('consumed_qty - $3::numeric >= 0');
 
@@ -450,7 +451,7 @@ describe('reverseConsumption', () => {
 
     expect(result).toEqual({ ok: true });
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).includes('update public.wo_materials'))).toBe(true);
     expect(queries.some((q) => normalize(q.sql).includes('from public.license_plates') && normalize(q.sql).includes('for update'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'))).toBe(false);
@@ -491,6 +492,57 @@ describe('reverseConsumption', () => {
     ]);
   });
 
+  it('refuses legacy consumption reversal on duplicate component lines without decrementing any material row', async () => {
+    state.consumptionNoLp = true;
+    state.consumptionQty = '2.000';
+    state.consumptionExtJsonb = { source: 'legacy' };
+    state.materialRows = [
+      { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '5.000' },
+      { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '7.000' },
+    ];
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_quantity',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'inconsistent_ledger' });
+    const materialLock = queries.find(
+      (q) => normalize(q.sql).includes('from public.wo_materials') && normalize(q.sql).includes('for update'),
+    );
+    expect(materialLock).toBeDefined();
+    expect(normalize(materialLock!.sql)).toContain('product_id = $2::uuid');
+    expect(materialLock?.params).toEqual([WO_ID, COMPONENT_ID, '2.000']);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).includes('update public.wo_materials'))).toBe(false);
+    expect(state.materialRows).toEqual([
+      { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '5.000' },
+      { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '7.000' },
+    ]);
+  });
+
+  it('allows legacy consumption reversal on a single component line and decrements that line', async () => {
+    state.consumptionNoLp = true;
+    state.consumptionQty = '2.000';
+    state.consumptionExtJsonb = { source: 'legacy' };
+    state.materialRows = [{ id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '5.000' }];
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_quantity',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+    const materialUpdates = queries.filter((q) => normalize(q.sql).includes('update public.wo_materials'));
+    expect(materialUpdates).toHaveLength(1);
+    expect(normalize(materialUpdates[0]!.sql)).toContain('product_id = $2::uuid');
+    expect(normalize(materialUpdates[0]!.sql)).toContain('(select count(*) from locked_materials) = 1');
+    expect(materialUpdates[0]!.params).toEqual([WO_ID, COMPONENT_ID, '2.000']);
+    expect(state.materialRows).toEqual([{ id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '3' }]);
+  });
+
   it('refuses shipped, merged, or destroyed LPs as not restorable', async () => {
     state.lpStatus = 'shipped';
 
@@ -504,7 +556,7 @@ describe('reverseConsumption', () => {
     // F1 — the restorability gate fires BEFORE any write: no counter insert, no
     // material decrement, no LP update, no audit (withOrgContext commits on return).
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).includes('update public.wo_materials'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.audit_events'))).toBe(false);
     expect(signEvent).not.toHaveBeenCalled();
@@ -533,7 +585,7 @@ describe('reverseConsumption', () => {
 
     expect(race).toEqual({ ok: false, error: 'already_corrected' });
     expect(queries.filter((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toHaveLength(1);
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).includes('update public.wo_materials'))).toBe(false);
   });
 
   it('refuses instead of clamping when material consumed_qty would go negative', async () => {
@@ -549,7 +601,7 @@ describe('reverseConsumption', () => {
     // F1 — the ledger gate fires BEFORE any write: the counter insert and the
     // decrement itself must never have run when ok:false is returned.
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).includes('update public.wo_materials'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.audit_events'))).toBe(false);
     expect(signEvent).not.toHaveBeenCalled();
@@ -593,7 +645,7 @@ describe('reverseConsumption', () => {
 
     expect(result).toEqual({ ok: false, error: 'esign_failed' });
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).includes('update public.wo_materials'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
   });
 });

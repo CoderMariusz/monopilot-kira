@@ -159,14 +159,20 @@ function installQueryMock(options: QueryOptions = {}) {
         const scopedId = String(params[1]);
         const qty = Number(params[2]);
         const scopeKey = sql.includes('and id = $2::uuid') ? 'id' : 'product_id';
+        const matchingRows = options.materialRows.filter((row) => row[scopeKey] === scopedId);
         return {
-          rows: options.materialRows
-            .filter((row) => row[scopeKey] === scopedId)
+          rows: matchingRows
             .filter((row) => Number(row.consumed_qty) - qty >= 0)
-            .map((row) => ({ id: row.id, can_decrement: true })),
+            .map((row) => ({ id: row.id, can_decrement: true, matching_line_count: String(matchingRows.length) })),
         };
       }
-      return { rows: [{ id: '70000000-0000-0000-0000-000000000001', can_decrement: options.canDecrement ?? true }] };
+      return {
+        rows: [{
+          id: '70000000-0000-0000-0000-000000000001',
+          can_decrement: options.canDecrement ?? true,
+          matching_line_count: '1',
+        }],
+      };
     }
     if (sql.includes('insert into public.wo_material_consumption')) {
       if (options.duplicateCorrectionInsert) throw Object.assign(new Error('duplicate correction'), { code: '23505' });
@@ -177,8 +183,10 @@ function installQueryMock(options: QueryOptions = {}) {
         const scopedId = String(params[1]);
         const qty = Number(params[2]);
         const scopeKey = sql.includes('and id = $2::uuid') ? 'id' : 'product_id';
+        const matchingRows = options.materialRows.filter((row) => row[scopeKey] === scopedId);
         const updated = options.materialRows
           .filter((row) => row[scopeKey] === scopedId)
+          .filter(() => scopeKey === 'id' || matchingRows.length === 1)
           .filter((row) => Number(row.consumed_qty) - qty >= 0);
         for (const row of updated) {
           row.consumed_qty = (Number(row.consumed_qty) - qty).toFixed(3);
@@ -283,6 +291,62 @@ describe('scanner reverse-consume route', () => {
     expect(woMaterialSqls.every((sql) => sql.includes('and id = $2::uuid'))).toBe(true);
     const decrementCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('update public.wo_materials'));
     expect(decrementCall?.[1]).toEqual([woId, materialLineAId, '2.000']);
+  });
+
+  it('rejects legacy consumption on duplicate component lines without decrementing any material row', async () => {
+    const { POST } = await import('../reverse-consume/route');
+    const materialRows = [
+      { id: materialLineAId, product_id: componentId, consumed_qty: '5.000' },
+      { id: materialLineBId, product_id: componentId, consumed_qty: '7.000' },
+    ];
+    installQueryMock({
+      requireSupervisor: false,
+      materialRows,
+      original: originalConsumption({
+        component_id: componentId,
+        qty_consumed: '2.000',
+        ext_jsonb: { source: 'legacy' },
+      }),
+    });
+
+    const response = await POST(request(body({ clientOpId: 'reverse-op-legacy-dup' })) as never, context);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'inconsistent_ledger' });
+    expect(materialRows).toEqual([
+      { id: materialLineAId, product_id: componentId, consumed_qty: '5.000' },
+      { id: materialLineBId, product_id: componentId, consumed_qty: '7.000' },
+    ]);
+    const woMaterialSqls = fakeClient.query.mock.calls
+      .map((call) => String(call[0]))
+      .filter((sql) => sql.includes('public.wo_materials'));
+    expect(woMaterialSqls).toHaveLength(1);
+    expect(woMaterialSqls[0]).toContain('product_id = $2::uuid');
+    expect(woMaterialSqls[0]).toContain('for update');
+    expect(mutationSqls().some((sql) => sql.includes('insert into public.wo_material_consumption'))).toBe(false);
+    expect(mutationSqls().some((sql) => sql.includes('update public.wo_materials'))).toBe(false);
+  });
+
+  it('allows legacy consumption on a single component line and decrements that line', async () => {
+    const { POST } = await import('../reverse-consume/route');
+    const materialRows = [{ id: materialLineAId, product_id: componentId, consumed_qty: '5.000' }];
+    installQueryMock({
+      requireSupervisor: false,
+      materialRows,
+      original: originalConsumption({
+        component_id: componentId,
+        qty_consumed: '2.000',
+        ext_jsonb: { source: 'legacy' },
+      }),
+    });
+
+    const response = await POST(request(body({ clientOpId: 'reverse-op-legacy-single' })) as never, context);
+
+    expect(response.status).toBe(200);
+    expect(materialRows).toEqual([{ id: materialLineAId, product_id: componentId, consumed_qty: '3.000' }]);
+    const decrementCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('update public.wo_materials'));
+    expect(String(decrementCall?.[0])).toContain('(select count(*) from locked_materials) = 1');
+    expect(decrementCall?.[1]).toEqual([woId, componentId, '2.000']);
   });
 
   it('supervisor-required happy path requires dual-control override approval', async () => {

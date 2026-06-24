@@ -350,6 +350,27 @@ async function hasLpConsumptionOrChildren(ctx: ProductionContext, lpId: string):
 // fire before the first mutation; this select is that gate for the ledger.
 async function lockWoMaterialsAndValidateDecrement(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
   const materialId = materialIdFromConsumptionExt(original);
+
+  if (!materialId) {
+    const { rows } = await ctx.client.query<{ id: string; can_decrement: boolean; matching_line_count: string }>(
+      `with locked_materials as (
+         select id,
+                consumed_qty
+           from public.wo_materials
+          where org_id = app.current_org_id()
+            and wo_id = $1::uuid
+            and product_id = $2::uuid
+          for update
+       )
+       select id::text as id,
+              (consumed_qty - $3::numeric >= 0) as can_decrement,
+              (select count(*) from locked_materials)::text as matching_line_count
+         from locked_materials`,
+      [original.wo_id, original.component_id, original.qty_consumed],
+    );
+    return rows.length === 1 && rows[0]?.matching_line_count === '1' && rows[0].can_decrement;
+  }
+
   const { rows } = await ctx.client.query<{ id: string; can_decrement: boolean }>(
     `select id::text as id,
             (consumed_qty - $3::numeric >= 0) as can_decrement
@@ -367,6 +388,35 @@ async function lockWoMaterialsAndValidateDecrement(ctx: ProductionContext, origi
 
 async function decrementConsumedQty(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
   const materialId = materialIdFromConsumptionExt(original);
+
+  if (!materialId) {
+    const { rows } = await ctx.client.query<{ id: string }>(
+      `with locked_materials as (
+         select id
+           from public.wo_materials
+          where org_id = app.current_org_id()
+            and wo_id = $1::uuid
+            and product_id = $2::uuid
+          for update
+       ),
+       single_material as (
+         select id
+           from locked_materials
+          where (select count(*) from locked_materials) = 1
+       )
+       update public.wo_materials wm
+          set consumed_qty = wm.consumed_qty - $3::numeric,
+              updated_at = now()
+         from single_material sm
+        where wm.org_id = app.current_org_id()
+          and wm.id = sm.id
+          and wm.consumed_qty - $3::numeric >= 0
+        returning wm.id::text as id`,
+      [original.wo_id, original.component_id, original.qty_consumed],
+    );
+    return rows.length === 1;
+  }
+
   const { rows } = await ctx.client.query<{ id: string }>(
     `update public.wo_materials
         set consumed_qty = consumed_qty - $3::numeric,
