@@ -31,7 +31,13 @@ A `sent`/`confirmed` PO is read-only; only exit is `→cancelled` (loses the doc
   **block with a clear message** ("receipts exist — cancel the GRN lines first"). Flagging — it's a procurement business rule.
 
 ### Q3 — Cycle count / found-stock → create a pallet (your ask: "can we create one via counting if we find stock")
-Entirely absent today (no table/action/UI; `warehouse.stock.adjust` is a phantom permission).
+**✅ BUILT overnight (commit 5689a74a, mig 318) with a sensible default — you just confirm the rule.** `/warehouse/counts`:
+blind count → variance → **approve (e-sign) → a positive variance MINTS a new pallet (LP, origin='adjustment'); a negative
+variance reduces stock**. First real consumer of the seeded `warehouse.stock.adjust` permission; writes a stock_adjustments
+audit row. **DECISION you still own:** the APPROVAL RULE — I defaulted to **single e-sign** (same as other corrections). Do you
+want a higher bar for stock adjustments (e.g. supervisor dual-sign, or a value/qty threshold above which a manager must sign)?
+And: should a count session be schedulable (ABC cycle plan) — currently it's manual/spot. (Original analysis below for context.)
+Entirely absent BEFORE this run (no table/action/UI; `warehouse.stock.adjust` was a phantom permission).
 - **My rec:** build a **stock-count + adjustment wave**: a count session (blind count per location), variance approval
   (e-sign), and a positive adjustment that **mints a new LP** (origin='adjustment') for found stock — plus a negative
   adjustment for shrinkage. This is a real wave (mig + actions + desktop UI + scanner "Count" tile).
