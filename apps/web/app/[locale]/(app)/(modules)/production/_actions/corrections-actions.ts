@@ -12,6 +12,7 @@ import {
   type CorrectionReasonCode,
   insertCounterEntry,
 } from '../../../../../../lib/corrections/correct-ledger-entry';
+import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 
 const WASTE_CORRECT_PERMISSION = 'production.waste.correct';
@@ -164,13 +165,6 @@ function negateDecimalString(value: string): string {
 
 function isZeroDecimalString(value: string): boolean {
   return Number(value) === 0;
-}
-
-function materialIdFromConsumptionExt(original: ConsumptionRow): string | null {
-  const ext = original.ext_jsonb;
-  if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return null;
-  const materialId = (ext as { materialId?: unknown }).materialId;
-  return typeof materialId === 'string' && isUuid(materialId) ? materialId : null;
 }
 
 // Locks the original waste row (FOR UPDATE OF wl — same locking discipline as

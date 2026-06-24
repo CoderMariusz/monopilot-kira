@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { NextRequest } from 'next/server';
 
 import { CORRECTION_REASON_CODES, type CorrectionReasonCode } from '../../../../../../../lib/corrections/correct-ledger-entry';
+import { materialIdFromConsumptionExt } from '../../../../../../../lib/corrections/material-scope';
 import { hasPermission, type ProductionContext } from '../../../../../../../lib/production/shared';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
 import { requireScannerSession } from '../../../../../../../lib/scanner/guard';
@@ -58,13 +59,6 @@ type LicensePlateRow = {
 
 function isUuid(value: string | null): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-}
-
-function materialIdFromConsumptionExt(original: ConsumptionRow): string | null {
-  const ext = original.ext_jsonb;
-  if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return null;
-  const materialId = (ext as { materialId?: unknown }).materialId;
-  return typeof materialId === 'string' && isUuid(materialId) ? materialId : null;
 }
 
 function bodyString(body: Record<string, unknown>, snake: string, camel?: string): string | null {
