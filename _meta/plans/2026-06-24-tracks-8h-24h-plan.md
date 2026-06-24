@@ -76,3 +76,29 @@ Q1 scanner-reverse · Q2 wrong-PO amend · Q3 cycle-count approval rule (built, 
 - Evening loop ramps 18:00–23:00 (HIGH: tester + 2–3 fix lanes per tick).
 - One-shot 23:00 → wind down for the day (reserve tomorrow's budget). One-shot ~05:00 tomorrow → resume.
 - Hourly progress note; do NOT push (owner pushes).
+
+## LIVE-AUDIT FIX QUEUE (2026-06-24, from Track-1 browser audit on the new deploy)
+Source: `_meta/plans/2026-06-24-browser-audit-findings.md`. Priority order for the evening HIGH window:
+1. ✅ **DONE — app_user grant gap** (mig 323, c8b38911): migs 315-318 granted wave-E tables to
+   `authenticated` not `app_user` → cold-chain/freight/yard/cycle-count all `permission denied`.
+   Applied live + committed. **Re-run the tester on these 4 waves** to confirm + audit their
+   reverse/void paths (were unreachable behind the grant gap).
+2. **L1 — Scheduler perms dead** (seed mig, next free number): `scheduler-actions.ts:21-23` enforces
+   `scheduler.run.dispatch` / `scheduler.matrix.read` / `scheduler.matrix.edit` but only
+   `scheduler.run.read` is seeded (mig 260) → "Uruchom harmonogram" + changeover matrix dead for
+   ALL roles incl. admin. Fix: seed the 3 perms to the roles that already hold `scheduler.run.read`
+   (mirror the cold-chain/yard/freight perm-seed in mig 319). Verify on live + ledger-record.
+3. **L1 — Cold-chain temp save `column gi.item_id does not exist`** on `/warehouse/grns/[grnId]`.
+   `grn_items` column is `product_id`. `git log -S "gi.item_id"` is EMPTY (not in any committed
+   file) → INVESTIGATE: it's likely a DB VIEW/FUNCTION (created ad-hoc via MCP, not a migration)
+   referencing `gi.item_id`. Hunt `pg_views`/`pg_proc` for `item_id` on a grn_items join; fix to
+   `product_id` via a new migration. Deploy revision already confirmed = 449772ae (not stale).
+4. **L2 — render-then-403 anti-pattern**: scheduler run button + matrix link (and similar) are
+   shown/enabled then server-rejected. Gate on the real permission (hidden/disabled), not just deny.
+5. **L1 (from Track-3 prod guide) — RBAC enum drift**: correction perms (`production.{output,
+   consumption,waste}.correct`, `production.corrections.closed_wo`, `production.wo.cancel`) are
+   seeded via migs 293/296/225 + consumed by actions but ABSENT from `permissions.enum.ts` →
+   invisible to enum-lock guard + Settings→Roles matrix. Add to the enum + bump the test count
+   (careful: also the scheduler perms from #2 likely belong in the enum too).
+6. **L3 polish**: andon OEE shows "-" (not computed); andon tile hrefs omit `/${locale}`;
+   `/pl/quality/cold-chain` 404 back-link hardcodes `/en/dashboard`.
