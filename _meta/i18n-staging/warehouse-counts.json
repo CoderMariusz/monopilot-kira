@@ -1,0 +1,289 @@
+{
+  "_note": "WAVE E10 — staged i18n bundle for the warehouse stock-count surfaces (sessions list + create dialog + blind-count entry + variance review + e-sign). en + pl are real; ro/uk mirror EN per the two-locale policy and are resolved server-side by counts-labels.ts with an EN fallback. Collapses into next-intl when the `warehouse` namespace is merged.",
+  "en": {
+    "list": {
+      "title": "Stock counts",
+      "subtitle": "Cycle-count sessions, variance review, and apply.",
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "counts": "Stock counts"
+      },
+      "newSession": "New count session",
+      "rowsLabel": "{count} sessions",
+      "empty": "No count sessions yet — start one with “New count session”.",
+      "denied": "You do not have permission to view stock counts.",
+      "error": "Could not load count sessions. Please try again.",
+      "none": "—",
+      "columns": {
+        "session": "Session",
+        "warehouse": "Warehouse",
+        "type": "Type",
+        "status": "Status",
+        "lines": "Lines",
+        "variances": "Variances",
+        "created": "Created"
+      },
+      "type": {
+        "cycle": "Cycle",
+        "full": "Full",
+        "spot": "Spot"
+      },
+      "status": {
+        "open": "Open",
+        "in_review": "In review",
+        "applied": "Applied",
+        "cancelled": "Cancelled",
+        "approved": "Approved"
+      },
+      "linesSummary": "{counted}/{total} counted"
+    },
+    "create": {
+      "title": "New count session",
+      "intro": "Pick a warehouse and a count type. The system snapshots on-hand and you count blind — system quantities stay hidden until you enter a count.",
+      "warehouseLabel": "Warehouse",
+      "warehousePlaceholder": "Select a warehouse",
+      "warehouseEmpty": "No warehouses available.",
+      "typeLabel": "Count type",
+      "typePlaceholder": "Select a count type",
+      "type": {
+        "cycle": "Cycle count",
+        "full": "Full count",
+        "spot": "Spot count"
+      },
+      "cancel": "Cancel",
+      "create": "Create session",
+      "creating": "Creating…",
+      "denied": "You do not have permission to create count sessions.",
+      "error": "Could not create the session. Please try again."
+    },
+    "detail": {
+      "title": "Count session {session}",
+      "subtitle": "Blind count, then review variances and apply.",
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "counts": "Stock counts"
+      },
+      "warehouse": "Warehouse",
+      "type": "Type",
+      "status": "Status",
+      "created": "Created",
+      "denied": "You do not have permission to view this count session.",
+      "notFound": "Count session not found.",
+      "error": "Could not load the count session. Please try again.",
+      "none": "—",
+      "tabs": {
+        "entry": "Blind count",
+        "review": "Variance review"
+      },
+      "entry": {
+        "heading": "Blind count entry",
+        "intro": "Enter the quantity you physically counted. System quantities are hidden until you record a count.",
+        "empty": "No lines to count in this session.",
+        "blind": "Hidden until counted",
+        "columns": {
+          "location": "Location",
+          "item": "Item",
+          "counted": "Counted qty",
+          "actions": ""
+        },
+        "qtyPlaceholder": "Counted qty",
+        "save": "Record count",
+        "saving": "Recording…",
+        "saved": "Counted",
+        "recount": "Recount",
+        "denied": "You do not have permission to record counts.",
+        "error": "Could not record the count. Please try again."
+      },
+      "review": {
+        "heading": "Variance review",
+        "intro": "Approving a POSITIVE variance creates a new pallet (LP) for the found stock. Approving a NEGATIVE variance reduces stock.",
+        "empty": "Nothing counted yet — record counts on the Blind count tab first.",
+        "columns": {
+          "location": "Location",
+          "item": "Item",
+          "system": "System",
+          "counted": "Counted",
+          "variance": "Variance",
+          "status": "Status",
+          "actions": ""
+        },
+        "positiveHint": "Found stock — approving mints a new LP.",
+        "negativeHint": "Lost stock — approving reduces on-hand.",
+        "matchHint": "No variance.",
+        "applied": "Applied",
+        "approve": "Approve & apply"
+      }
+    },
+    "esign": {
+      "title": "Approve & apply variance",
+      "intro": "Confirm the physical count and apply the variance to stock.",
+      "factsLocation": "Location",
+      "factsItem": "Item",
+      "factsSystem": "System qty",
+      "factsCounted": "Counted qty",
+      "factsVariance": "Variance",
+      "positiveEffect": "A new pallet (LP) will be created for {qty} {uom} of found stock.",
+      "negativeEffect": "Stock will be reduced by {qty} {uom} of lost stock.",
+      "block": "Electronic signature",
+      "blockMeaning": "Entering your password applies this variance under your name and is recorded in the audit trail.",
+      "password": "Account password",
+      "passwordPlaceholder": "Your password",
+      "passwordHelp": "Re-enter your account password to sign.",
+      "cancel": "Cancel",
+      "submit": "Approve & apply",
+      "submitting": "Applying…",
+      "formIncomplete": "Enter your password to apply.",
+      "errors": {
+        "forbidden": "You are not authorized to apply this variance.",
+        "not_found": "This count line no longer exists.",
+        "already_applied": "This variance has already been applied.",
+        "esign_failed": "Signature failed — check your password and try again.",
+        "invalid_input": "Check the entered values and try again.",
+        "error": "Could not apply the variance. Please try again."
+      }
+    }
+  },
+  "pl": {
+    "list": {
+      "title": "Inwentaryzacje",
+      "subtitle": "Liczenia cykliczne, przegląd różnic i zatwierdzanie.",
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "counts": "Inwentaryzacje"
+      },
+      "newSession": "Nowa inwentaryzacja",
+      "rowsLabel": "Liczenia: {count}",
+      "empty": "Brak inwentaryzacji — rozpocznij od „Nowa inwentaryzacja”.",
+      "denied": "Nie masz uprawnień do przeglądania inwentaryzacji.",
+      "error": "Nie udało się wczytać inwentaryzacji. Spróbuj ponownie.",
+      "none": "—",
+      "columns": {
+        "session": "Liczenie",
+        "warehouse": "Magazyn",
+        "type": "Typ",
+        "status": "Status",
+        "lines": "Pozycje",
+        "variances": "Różnice",
+        "created": "Utworzono"
+      },
+      "type": {
+        "cycle": "Cykliczne",
+        "full": "Pełne",
+        "spot": "Wyrywkowe"
+      },
+      "status": {
+        "open": "Otwarte",
+        "in_review": "W przeglądzie",
+        "applied": "Zatwierdzone",
+        "cancelled": "Anulowane",
+        "approved": "Zatwierdzone wstępnie"
+      },
+      "linesSummary": "Policzono {counted}/{total}"
+    },
+    "create": {
+      "title": "Nowa inwentaryzacja",
+      "intro": "Wybierz magazyn i typ liczenia. System zapisuje stan ewidencyjny, a Ty liczysz „w ciemno” — ilości systemowe są ukryte do momentu wpisania policzonej ilości.",
+      "warehouseLabel": "Magazyn",
+      "warehousePlaceholder": "Wybierz magazyn",
+      "warehouseEmpty": "Brak dostępnych magazynów.",
+      "typeLabel": "Typ liczenia",
+      "typePlaceholder": "Wybierz typ liczenia",
+      "type": {
+        "cycle": "Liczenie cykliczne",
+        "full": "Liczenie pełne",
+        "spot": "Liczenie wyrywkowe"
+      },
+      "cancel": "Anuluj",
+      "create": "Utwórz",
+      "creating": "Tworzenie…",
+      "denied": "Nie masz uprawnień do tworzenia inwentaryzacji.",
+      "error": "Nie udało się utworzyć inwentaryzacji. Spróbuj ponownie."
+    },
+    "detail": {
+      "title": "Inwentaryzacja {session}",
+      "subtitle": "Policz „w ciemno”, następnie przejrzyj różnice i zatwierdź.",
+      "breadcrumb": {
+        "warehouse": "Magazyn",
+        "counts": "Inwentaryzacje"
+      },
+      "warehouse": "Magazyn",
+      "type": "Typ",
+      "status": "Status",
+      "created": "Utworzono",
+      "denied": "Nie masz uprawnień do przeglądania tej inwentaryzacji.",
+      "notFound": "Nie znaleziono inwentaryzacji.",
+      "error": "Nie udało się wczytać inwentaryzacji. Spróbuj ponownie.",
+      "none": "—",
+      "tabs": {
+        "entry": "Liczenie w ciemno",
+        "review": "Przegląd różnic"
+      },
+      "entry": {
+        "heading": "Liczenie w ciemno",
+        "intro": "Wpisz fizycznie policzoną ilość. Ilości systemowe są ukryte do momentu zapisania liczenia.",
+        "empty": "Brak pozycji do policzenia w tej inwentaryzacji.",
+        "blind": "Ukryte do policzenia",
+        "columns": {
+          "location": "Lokalizacja",
+          "item": "Pozycja",
+          "counted": "Policzona ilość",
+          "actions": ""
+        },
+        "qtyPlaceholder": "Policzona ilość",
+        "save": "Zapisz liczenie",
+        "saving": "Zapisywanie…",
+        "saved": "Policzono",
+        "recount": "Policz ponownie",
+        "denied": "Nie masz uprawnień do zapisywania liczeń.",
+        "error": "Nie udało się zapisać liczenia. Spróbuj ponownie."
+      },
+      "review": {
+        "heading": "Przegląd różnic",
+        "intro": "Zatwierdzenie różnicy DODATNIEJ tworzy nową paletę (LP) dla znalezionego towaru. Zatwierdzenie różnicy UJEMNEJ zmniejsza stan.",
+        "empty": "Nic jeszcze nie policzono — najpierw zapisz liczenia w zakładce Liczenie w ciemno.",
+        "columns": {
+          "location": "Lokalizacja",
+          "item": "Pozycja",
+          "system": "System",
+          "counted": "Policzono",
+          "variance": "Różnica",
+          "status": "Status",
+          "actions": ""
+        },
+        "positiveHint": "Znaleziony towar — zatwierdzenie utworzy nowy LP.",
+        "negativeHint": "Brakujący towar — zatwierdzenie zmniejszy stan.",
+        "matchHint": "Brak różnicy.",
+        "applied": "Zatwierdzono",
+        "approve": "Zatwierdź i zastosuj"
+      }
+    },
+    "esign": {
+      "title": "Zatwierdź i zastosuj różnicę",
+      "intro": "Potwierdź fizyczne liczenie i zastosuj różnicę do stanu.",
+      "factsLocation": "Lokalizacja",
+      "factsItem": "Pozycja",
+      "factsSystem": "Ilość systemowa",
+      "factsCounted": "Policzona ilość",
+      "factsVariance": "Różnica",
+      "positiveEffect": "Utworzona zostanie nowa paleta (LP) na {qty} {uom} znalezionego towaru.",
+      "negativeEffect": "Stan zostanie zmniejszony o {qty} {uom} brakującego towaru.",
+      "block": "Podpis elektroniczny",
+      "blockMeaning": "Wpisanie hasła zatwierdza tę różnicę pod Twoim nazwiskiem i jest zapisywane w dzienniku audytu.",
+      "password": "Hasło konta",
+      "passwordPlaceholder": "Twoje hasło",
+      "passwordHelp": "Wpisz ponownie hasło konta, aby podpisać.",
+      "cancel": "Anuluj",
+      "submit": "Zatwierdź i zastosuj",
+      "submitting": "Stosowanie…",
+      "formIncomplete": "Wpisz hasło, aby zastosować.",
+      "errors": {
+        "forbidden": "Nie masz uprawnień do zastosowania tej różnicy.",
+        "not_found": "Ta pozycja liczenia już nie istnieje.",
+        "already_applied": "Ta różnica została już zastosowana.",
+        "esign_failed": "Podpis nieudany — sprawdź hasło i spróbuj ponownie.",
+        "invalid_input": "Sprawdź wprowadzone wartości i spróbuj ponownie.",
+        "error": "Nie udało się zastosować różnicy. Spróbuj ponownie."
+      }
+    }
+  }
+}

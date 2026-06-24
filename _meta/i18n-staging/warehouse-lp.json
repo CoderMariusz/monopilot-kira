@@ -47,6 +47,10 @@
       "yard": {
         "title": "Yard",
         "desc": "Dock appointments, gate in/out, and the weighbridge."
+      },
+      "counts": {
+        "title": "Stock counts",
+        "desc": "Cycle counts, variance review, and apply."
       }
     },
     "list": {
@@ -386,6 +390,10 @@
       "yard": {
         "title": "Plac",
         "desc": "Awizacje dokowe, wjazd/wyjazd i waga samochodowa."
+      },
+      "counts": {
+        "title": "Inwentaryzacje",
+        "desc": "Liczenia cykliczne, przegląd różnic i zatwierdzenie."
       }
     },
     "list": {

@@ -64,6 +64,10 @@ const WAREHOUSE_NAV_CARDS: WarehouseNavCard[] = [
   { key: "reservations", href: "/warehouse/reservations", disabled: false },
   { key: "locations", href: "/warehouse/locations", disabled: false },
   { key: "expiry", href: "/warehouse/expiry", disabled: false },
+  // E10 — stock-count sessions (cycle/full/spot blind count → variance review →
+  // approve & apply: mint LP on +ve variance / reduce stock on −ve). Surfaced
+  // here so the counts module is reachable from the hub (not URL-only).
+  { key: "counts", href: "/warehouse/counts", disabled: false },
   // E1 — label print job log (printers + print_jobs, mig 304); was otherwise
   // unreachable from the warehouse hub.
   { key: "printHistory", href: "/warehouse/print-history", disabled: false },
