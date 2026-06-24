@@ -26,13 +26,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 
 import type { CcpBoardItem, RecordMonitoringAction, UpsertCcpAction } from './ccp-contracts';
 import type { CcpBoardLabels, CcpRecordLabels, CcpCreateLabels } from './labels';
-import { formatLimit, type Translator } from './labels';
+import { formatLimit } from './labels';
 import { CcpRecordModal, type CcpRecordSuccess } from './ccp-record-modal.client';
 import { CcpCreateModal } from './ccp-create-modal.client';
 
@@ -65,7 +66,6 @@ export function CcpBoardClient({
   upsertCcpAction,
   canEdit,
   setupHref,
-  t,
 }: {
   items: CcpBoardItem[];
   labels: CcpBoardLabels;
@@ -83,10 +83,9 @@ export function CcpBoardClient({
   canEdit: boolean;
   /** href of the HACCP / quality landing screen (kept for legacy navigation, no longer the empty CTA). */
   setupHref: string;
-  /** the same translator the labels were built from — used for {min}/{max} limit interpolation. */
-  t: Translator;
 }) {
   const router = useRouter();
+  const t = useTranslations('quality.ccpMonitoring');
   const [recordOpen, setRecordOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [lastResult, setLastResult] = useState<CcpRecordSuccess | null>(null);

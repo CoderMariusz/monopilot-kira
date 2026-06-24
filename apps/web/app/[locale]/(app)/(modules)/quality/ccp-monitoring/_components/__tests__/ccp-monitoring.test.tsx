@@ -108,7 +108,6 @@ function renderBoard(
       upsertCcpAction={upsertAction as never}
       canEdit={canEdit}
       setupHref="/en/quality"
-      t={tEn}
     />,
   );
   return { recordAction, upsertAction };
@@ -148,7 +147,6 @@ describe('CcpBoardClient (E3 parity)', () => {
         upsertCcpAction={vi.fn() as never}
         canEdit
         setupHref="/en/quality"
-        t={tEn}
       />,
     );
     // No visible text node looks like a UUID.

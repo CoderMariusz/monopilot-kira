@@ -8,6 +8,8 @@
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
@@ -71,6 +73,19 @@ const SCORECARD: SupplierScorecard = {
 };
 
 describe('/planning/suppliers/[id]/scorecard — ScorecardView', () => {
+  it('keeps the server-to-client ScorecardView handoff serializable', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'app/[locale]/(app)/(modules)/planning/suppliers/[id]/scorecard/page.tsx'),
+      'utf8',
+    );
+    const scorecardViewProps = source.match(/<ScorecardView\s+([^>]+)\/>/s)?.[1] ?? '';
+
+    expect(scorecardViewProps).toContain('scorecard={scorecardResult.data}');
+    expect(scorecardViewProps).toContain('labels={buildLabels(t)}');
+    expect(scorecardViewProps).toContain('locale={locale}');
+    expect(scorecardViewProps).not.toMatch(/\b(t|formatDate|formatter|hrefBuilder)=/);
+  });
+
   it('renders the four KPI tiles from the mocked loader payload', () => {
     render(<ScorecardView scorecard={SCORECARD} labels={LABELS} />);
 

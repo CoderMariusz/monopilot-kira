@@ -51,8 +51,8 @@ export type ScorecardLabels = {
 export type ScorecardViewProps = {
   scorecard: SupplierScorecard;
   labels: ScorecardLabels;
-  /** Locale-aware date formatter (server-composed; falls back to ISO date). */
-  formatDate?: (iso: string) => string;
+  /** Locale string used client-side to format UTC dates without crossing the RSC boundary with a function prop. */
+  locale?: string;
 };
 
 function pct(value: number | null): string {
@@ -112,10 +112,13 @@ function varianceTone(value: number | null): 'neutral' | 'good' | 'warn' | 'bad'
   return 'bad';
 }
 
-export function ScorecardView({ scorecard, labels, formatDate }: ScorecardViewProps) {
+export function ScorecardView({ scorecard, labels, locale }: ScorecardViewProps) {
+  const dateFmt = locale
+    ? new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
+    : null;
   const fmt = (iso: string | null): string => {
     if (iso === null) return labels.recent.none;
-    return formatDate ? formatDate(iso) : iso.slice(0, 10);
+    return dateFmt ? dateFmt.format(new Date(iso)) : iso.slice(0, 10);
   };
 
   return (

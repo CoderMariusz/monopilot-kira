@@ -43,7 +43,7 @@ import type {
   RecordMonitoringAction,
   UpsertCcpAction,
 } from './_components/ccp-contracts';
-import { buildCcpBoardLabels, buildCcpRecordLabels, buildCcpCreateLabels, type Translator } from './_components/labels';
+import { buildCcpBoardLabels, buildCcpRecordLabels, buildCcpCreateLabels } from './_components/labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,7 +84,8 @@ function latestByCcp(logs: MonitoringLogRow[]): Map<string, MonitoringLogRow> {
   return latest;
 }
 
-async function BoardContent({ locale, t }: { locale: string; t: Translator }) {
+async function BoardContent({ locale }: { locale: string }) {
+  const t = await getTranslations('quality.ccpMonitoring');
   const labels = buildCcpBoardLabels(t);
   const recordLabels = buildCcpRecordLabels(t);
   const createLabels = buildCcpCreateLabels(t);
@@ -157,7 +158,6 @@ async function BoardContent({ locale, t }: { locale: string; t: Translator }) {
       upsertCcpAction={upsertCcp as unknown as UpsertCcpAction}
       canEdit={canEdit}
       setupHref={`/${locale}/quality`}
-      t={t}
     />
   );
 }
@@ -182,7 +182,7 @@ export default async function CcpMonitoringPage({ params }: PageProps) {
         ]}
       />
       <Suspense fallback={<BoardSkeleton loadingLabel={t('loading')} />}>
-        <BoardContent locale={locale} t={t as unknown as Translator} />
+        <BoardContent locale={locale} />
       </Suspense>
     </main>
   );

@@ -106,9 +106,6 @@ async function ScorecardContent({ locale, id }: { locale: string; id: string }) 
   }
 
   const supplierName = supplierResult.ok ? `${supplierResult.data.code} — ${supplierResult.data.name}` : id;
-  const dateFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
-  const formatDate = (iso: string) => dateFmt.format(new Date(iso));
-
   return (
     <>
       <div className="flex items-center justify-between" data-testid="scorecard-supplier-head">
@@ -124,7 +121,7 @@ async function ScorecardContent({ locale, id }: { locale: string; id: string }) 
           {t('scorecard.backToSupplier')}
         </Link>
       </div>
-      <ScorecardView scorecard={scorecardResult.data} labels={buildLabels(t)} formatDate={formatDate} />
+      <ScorecardView scorecard={scorecardResult.data} labels={buildLabels(t)} locale={locale} />
     </>
   );
 }
