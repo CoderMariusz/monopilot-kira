@@ -105,6 +105,13 @@ export type CatchWeightSummary = {
   warning: boolean;
 };
 
+export type MassBalanceWarning = {
+  expected_input_kg: string;
+  posted_consumption_kg: string;
+  effective_yield_pct: string;
+  warn_pct: number;
+};
+
 export type RegisterOutputResult = {
   output_id: string;
   lp_id: string | null;
@@ -113,11 +120,13 @@ export type RegisterOutputResult = {
   batch_number: string;
   expiry_date: string | null;
   catch_weight_summary: CatchWeightSummary | null;
+  mass_balance_warning?: MassBalanceWarning;
   /** Stubbed until T-033 (PDF label). */
   label_pdf_url: string | null;
 };
 
 const DEFAULT_CATCH_WEIGHT_TOLERANCE = 0.1; // 10% — PRD §7.3 default
+const MASS_BALANCE_WARN_PCT = 0.02;
 
 type ItemRow = {
   id: string;
@@ -138,6 +147,15 @@ type SiteWarehouseTarget = { id: string; default_location_id: string | null };
 
 const NO_WAREHOUSE_FOR_SITE_MESSAGE =
   'No warehouse is configured for your site — set one in Settings -> Sites';
+
+type MassBalanceGateRow = {
+  expected_input_kg: string | null;
+  posted_consumption_kg: string;
+  effective_yield_pct: string;
+  block_pct: string;
+  warn: boolean;
+  block: boolean;
+};
 
 // ─── Fixed-point decimal helpers (NUMERIC-exact, no binary float on kg) ──────────
 // We keep kg as integer micro-units (1e-6) internally so summation/division for
@@ -282,6 +300,106 @@ async function loadConsumedLpIds(ctx: OrgContextLike, woId: string): Promise<str
     [woId],
   );
   return rows.map((r) => r.lp_id);
+}
+
+async function evaluateMassBalanceGate(
+  ctx: OrgContextLike,
+  woId: string,
+  qtyKg: string,
+): Promise<MassBalanceWarning | undefined> {
+  const { rows } = await ctx.client.query<MassBalanceGateRow>(
+    `with cfg as (
+       select coalesce(
+                case
+                  when (tv.feature_flags->>'massbalance_threshold_pct') ~ '^[0-9]+(\\.[0-9]+)?$'
+                    then (tv.feature_flags->>'massbalance_threshold_pct')::numeric
+                  else 0
+                end,
+                0
+              ) as block_pct
+         from public.tenant_variations tv
+        where tv.org_id = app.current_org_id()
+     ),
+     yield_ctx as (
+       select coalesce(
+                (
+                  select wop.expected_yield_percent
+                    from public.wo_operations wop
+                   where wop.org_id = app.current_org_id()
+                     and wop.wo_id = wo.id
+                     and wop.expected_yield_percent is not null
+                   order by wop.sequence asc
+                   limit 1
+                ),
+                bh.yield_pct,
+                100::numeric
+              ) as effective_yield_pct
+         from public.work_orders wo
+         left join public.bom_headers bh
+           on bh.org_id = wo.org_id
+          and bh.id = wo.active_bom_header_id
+        where wo.org_id = app.current_org_id()
+          and wo.id = $1::uuid
+        limit 1
+     ),
+     totals as (
+       select coalesce(
+                (select sum(o.qty_kg)
+                   from public.wo_outputs o
+                  where o.org_id = app.current_org_id()
+                    and o.wo_id = $1::uuid),
+                0::numeric
+              ) + $2::numeric as running_output_kg,
+              coalesce(
+                (select sum(c.qty_consumed)
+                  from public.wo_material_consumption c
+                  where c.org_id = app.current_org_id()
+                    and c.wo_id = $1::uuid
+                    and c.uom = 'kg'),
+                0::numeric
+              ) as posted_consumption_kg
+     )
+     select case
+              when y.effective_yield_pct > 0
+                then (t.running_output_kg / (y.effective_yield_pct / 100.0))::text
+              else null
+            end as expected_input_kg,
+            t.posted_consumption_kg::text as posted_consumption_kg,
+            y.effective_yield_pct::text as effective_yield_pct,
+            coalesce((select block_pct from cfg), 0)::text as block_pct,
+            t.posted_consumption_kg > 0
+              and y.effective_yield_pct > 0
+              and (t.running_output_kg / (y.effective_yield_pct / 100.0))
+                    > (t.posted_consumption_kg * (1 + $3::numeric)) as warn,
+            t.posted_consumption_kg > 0
+              and y.effective_yield_pct > 0
+              and coalesce((select block_pct from cfg), 0) > 0
+              and (t.running_output_kg / (y.effective_yield_pct / 100.0))
+                    > (t.posted_consumption_kg * (1 + coalesce((select block_pct from cfg), 0) / 100)) as block
+       from yield_ctx y
+       cross join totals t`,
+    [woId, qtyKg, MASS_BALANCE_WARN_PCT],
+  );
+  const gate = rows[0];
+  if (!gate || gate.posted_consumption_kg === '0' || gate.expected_input_kg === null) return undefined;
+
+  if (gate.block) {
+    throw new ProductionActionError('insufficient_input_for_output', 409, {
+      message: `Insufficient posted input for output: expected ${gate.expected_input_kg} kg, posted ${gate.posted_consumption_kg} kg, yield ${gate.effective_yield_pct}%, threshold ${gate.block_pct}%.`,
+      expected_input_kg: gate.expected_input_kg,
+      posted_consumption_kg: gate.posted_consumption_kg,
+      effective_yield_pct: gate.effective_yield_pct,
+      block_pct: gate.block_pct,
+    });
+  }
+
+  if (!gate.warn) return undefined;
+  return {
+    expected_input_kg: gate.expected_input_kg,
+    posted_consumption_kg: gate.posted_consumption_kg,
+    effective_yield_pct: gate.effective_yield_pct,
+    warn_pct: MASS_BALANCE_WARN_PCT,
+  };
 }
 
 async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
@@ -499,6 +617,8 @@ export async function registerOutput(
     });
   }
 
+  const massBalanceWarning = await evaluateMassBalanceGate(ctx, woId, resolvedQtyKg);
+
   // 8. INSERT wo_outputs (V-PROD-24 unique-per-org-per-year enforced by index).
   let outputId: string;
   let lpId: string | null;
@@ -596,6 +716,7 @@ export async function registerOutput(
       units_uom: input.unitsUom ?? null,
       actual_weight_kg: input.actualWeightKg ?? null,
       catch_weight_variance_warning: catchSummary?.warning ?? false,
+      mass_balance_warning: massBalanceWarning ?? null,
       actor_user_id: ctx.userId,
     },
     dedupKey: `${PRODUCTION_OUTPUT_RECORDED_EVENT}:${input.transaction_id}`,
@@ -608,6 +729,7 @@ export async function registerOutput(
     batch_number: batchNumber,
     expiry_date: expiryDate,
     catch_weight_summary: catchSummary,
+    mass_balance_warning: massBalanceWarning,
     label_pdf_url: null, // T-033
   };
 }
