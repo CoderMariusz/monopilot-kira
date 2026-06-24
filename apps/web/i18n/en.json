@@ -5737,8 +5737,8 @@
           "notePlaceholder": "Add context for the correction",
           "closedWarning": "Voiding on a closed order requires supervisor authorization.",
           "esign": {
-            "title": "Electronic signature",
-            "meaning": "Re-enter your account password to sign this void. Your identity and the server time are recorded.",
+            "title": "Void output signature",
+            "meaning": "Re-enter your account password to sign this produced-output void. Your identity and the server time are recorded.",
             "password": "Password",
             "passwordPlaceholder": "Account password",
             "passwordHelp": "This is your account password — not a separate PIN."
