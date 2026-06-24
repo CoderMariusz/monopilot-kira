@@ -460,7 +460,8 @@ export function CloseModal({
   run,
   onClose,
   signerUserId,
-}: BaseModalProps & { signerUserId: string }) {
+  locale = 'en',
+}: BaseModalProps & { signerUserId: string; locale?: string }) {
   const [password, setPassword] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -511,7 +512,7 @@ export function CloseModal({
             // PIN (or the account password while no PIN is enrolled); the shared
             // PIN is managed on /account/pin.
             <p className="text-xs text-slate-500">
-              <Link href="/account/pin" className="underline" data-testid="wo-close-pin-link">
+              <Link href={`/${locale}/account/pin`} className="underline" data-testid="wo-close-pin-link">
                 {labels.close.pinHint}
               </Link>
             </p>
@@ -566,6 +567,26 @@ export type OutputUomContext = {
 
 function fmtKg(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
+function fmtMassBalanceNumber(value: string, digits = 3): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: digits });
+}
+
+function formatMassBalanceWarning(template: string, warning: NonNullable<WoActionData['massBalanceWarning']>): string {
+  const expectedKg = Number(warning.expected_input_kg);
+  const yieldPct = Number(warning.effective_yield_pct);
+  const outputKg =
+    Number.isFinite(expectedKg) && Number.isFinite(yieldPct)
+      ? String((expectedKg * yieldPct) / 100)
+      : warning.expected_input_kg;
+  return template
+    .replace('{outputKg}', fmtMassBalanceNumber(outputKg))
+    .replace('{expectedKg}', fmtMassBalanceNumber(warning.expected_input_kg))
+    .replace('{yieldPct}', fmtMassBalanceNumber(warning.effective_yield_pct, 2))
+    .replace('{consumedKg}', fmtMassBalanceNumber(warning.posted_consumption_kg));
 }
 
 // B-3 catch-weight: per-unit input cap. Beyond this we refuse the dynamic grid
@@ -720,6 +741,14 @@ export function OutputModal({
     close: 'Done',
   };
   const fgLpCode = output?.lpNumber ?? null;
+  const massBalanceWarning = output?.massBalanceWarning ?? null;
+  const massBalanceWarningText = massBalanceWarning
+    ? formatMassBalanceWarning(
+        labels.output.mass_balance_warning ??
+          'Registered output ({outputKg} kg) requires approx {expectedKg} kg of components at {yieldPct}% yield, but {consumedKg} kg consumed so far.',
+        massBalanceWarning,
+      )
+    : null;
   const catchSumLine = cw ? cw.sumLabel.replace('{total}', catchSumKg) : `Σ ${catchSumKg} kg`;
   const catchTooManyLine = cw
     ? cw.tooMany.replace('{max}', String(CATCH_WEIGHT_MAX_UNITS))
@@ -812,9 +841,9 @@ export function OutputModal({
       setCatchUnits([]);
       setCatchText('');
       setNoConsumptionAck(false);
-      // E1 — when the route surfaced the created FG LP, switch to the success
-      // state with a [Print FG label] affordance; otherwise close as before.
-      if (result.data && (result.data.lpId || result.data.lpNumber)) {
+      // E1 — when the route surfaced the created FG LP or post-submit warning,
+      // switch to the success state; otherwise close as before.
+      if (result.data && (result.data.lpId || result.data.lpNumber || result.data.massBalanceWarning)) {
         setOutput(result.data);
       } else {
         onClose();
@@ -873,6 +902,15 @@ export function OutputModal({
               <p data-testid="wo-output-fg-lp" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-center font-mono text-sm text-slate-800">
                 {p.lpLine.replace('{lp}', fgLpCode)}
               </p>
+            ) : null}
+            {massBalanceWarningText ? (
+              <div
+                role="status"
+                data-testid="wo-output-mass-balance-warning"
+                className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+              >
+                ⚠ {massBalanceWarningText}
+              </div>
             ) : null}
             <button
               type="button"

@@ -76,6 +76,8 @@ const LABELS: WoModalLabels = {
       baseTextareaHint: 'Enter one positive weight per line.',
       invalidWeights: 'Every unit weight must be a positive number.',
     },
+    mass_balance_warning:
+      'Registered output ({outputKg} kg) requires approx {expectedKg} kg of components at {yieldPct}% yield, but {consumedKg} kg consumed so far.',
   },
   waste: { title: 'Log waste', subtitle: '.', category: 'Category', categoryPlaceholder: 'Select…', qty: 'Quantity (kg)', shift: 'Shift', shiftPlaceholder: 'Select a shift…', reasonCode: 'Reason', notes: 'Notes', noCategories: 'None' },
   shifts: { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' },
@@ -250,6 +252,41 @@ describe('Register output — payload', () => {
     await waitFor(() => expect(captured.body).toBeDefined());
     expect(captured.body).toMatchObject({ qty_kg: '120.5', product_id: PRODUCT_ID });
     expect(captured.body.qtyUnits).toBeUndefined();
+  });
+
+  it('surfaces the mass-balance warning returned by the output action', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              lp_id: '44444444-4444-4444-8444-444444444444',
+              lp_number: 'LP-OUT-001',
+              mass_balance_warning: {
+                expected_input_kg: '100',
+                posted_consumption_kg: '50',
+                effective_yield_pct: '100',
+                warn_pct: 0.02,
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<Harness uom={{ productCode: 'FG-9', productName: 'Bulk', outputUom: 'base', uomBase: 'kg' }} />);
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '100');
+    await user.click(screen.getByTestId('wo-output-confirm'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('wo-output-mass-balance-warning')).toHaveTextContent(
+        'Registered output (100 kg) requires approx 100 kg of components at 100% yield, but 50 kg consumed so far.',
+      ),
+    );
   });
 });
 

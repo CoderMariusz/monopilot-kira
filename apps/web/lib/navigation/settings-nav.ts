@@ -52,7 +52,7 @@ export const SETTINGS_NAV_GROUPS = [
   ]),
   group("data", "Data", true, [
     item("products", "Products & SKUs", "▢"),
-    item("npd-fields", "NPD fields", "▦", false, "/settings/npd-fields", "npd.schema.edit"),
+    item("npd-fields", "NPD fields", "▦", false, "/settings/npd-fields"),
     item("boms", "BOMs & recipes", "⛓"),
     item("processes", "Processes", "⟶", true),
     item("machines", "Machines", "⚙"),

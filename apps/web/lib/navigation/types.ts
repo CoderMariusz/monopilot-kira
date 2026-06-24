@@ -4,6 +4,8 @@ export type AppModuleId =
   | "npd"
   | "technical"
   | "planning-basic"
+  | "yard"
+  | "freight"
   | "warehouse"
   | "scanner"
   | "planning-ext"
@@ -31,6 +33,8 @@ export type ModulePermissionKey =
   | "technical.sensory.read"
   | "npd.dashboard.view"
   | "scheduler.run.read"
+  | "yard.manage"
+  | "freight.manage"
   | "production.oee.read"
   | "warehouse.inventory.read"
   | "quality.dashboard.view"
@@ -41,7 +45,8 @@ export type ModulePermissionKey =
   | "multi_site.site.view"
   | "oee.dashboard.read";
 
-export type PermissionKey = ModulePermissionKey | null;
+export type PermissionKey = ModulePermissionKey | "npd.schema.edit" | null;
+export type SettingsPermissionKey = PermissionKey;
 
 export interface RbacDeferredMetadata {
   count_slot: CountSlot;
@@ -89,6 +94,7 @@ export interface SettingsNavItem extends RbacDeferredMetadata {
   route: string;
   icon_token: string;
   highlight?: boolean;
+  permission_key: SettingsPermissionKey;
 }
 
 export interface SettingsNavGroup {

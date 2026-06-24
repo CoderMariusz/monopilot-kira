@@ -128,19 +128,21 @@ function fmtDate(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return '—';
   return d.toISOString().slice(0, 16).replace('T', ' ');
 }
-function detailHref(id: string): string {
-  return `/production/wos/${id}`;
+function detailHref(locale: string, id: string): string {
+  return `/${locale}/production/wos/${id}`;
 }
 
 export function WoListScreen({
   rows,
   statusCounts,
   labels,
+  locale = 'en',
   actions,
 }: {
   rows: WorkOrderListItem[];
   statusCounts: Record<WoListStatus, number>;
   labels: WoListLabels;
+  locale?: string;
   /** Null when the action-context read failed/forbade — rows show no actions. */
   actions: WoListActions | null;
 }) {
@@ -248,7 +250,7 @@ export function WoListScreen({
                 <TableRow key={r.id} data-testid={`wo-row-${r.id}`}>
                   <TableCell className="font-mono text-sm font-semibold text-slate-900">
                     <Link
-                      href={detailHref(r.id)}
+                      href={detailHref(locale, r.id)}
                       data-testid={`wo-link-${r.id}`}
                       className="inline-flex items-center gap-2 hover:underline"
                     >

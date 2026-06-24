@@ -91,6 +91,28 @@ describe("filterNavGroupsByPermissions", () => {
     expect(visible.some((i) => i.key === "quality")).toBe(false);
   });
 
+  it("on the live registry, yard.manage reveals the Yard route only to permitted users", () => {
+    const withYard = filterNavGroupsByPermissions(APP_NAV_GROUPS, {
+      permissions: new Set(["yard.manage"]),
+      isAdmin: false,
+    }).flatMap((g) => g.items);
+    const withoutYard = filterNavGroupsByPermissions(APP_NAV_GROUPS, NO_PERMS).flatMap((g) => g.items);
+
+    expect(withYard.some((i) => i.key === "yard" && i.route === "/yard")).toBe(true);
+    expect(withoutYard.some((i) => i.key === "yard" || i.route === "/yard")).toBe(false);
+  });
+
+  it("on the live registry, freight.manage reveals the Freight route only to permitted users", () => {
+    const withFreight = filterNavGroupsByPermissions(APP_NAV_GROUPS, {
+      permissions: new Set(["freight.manage"]),
+      isAdmin: false,
+    }).flatMap((g) => g.items);
+    const withoutFreight = filterNavGroupsByPermissions(APP_NAV_GROUPS, NO_PERMS).flatMap((g) => g.items);
+
+    expect(withFreight.some((i) => i.key === "freight" && i.route === "/planning/carriers")).toBe(true);
+    expect(withoutFreight.some((i) => i.key === "freight" || i.route === "/planning/carriers")).toBe(false);
+  });
+
   it("drops gated items the user lacks but keeps ungated siblings", () => {
     const groups = [
       group("core", [item({ key: "dash", permission_key: null }), item({ key: "fin", permission_key: "finance.read" as AppSidebarNavItem["permission_key"] })]),

@@ -26,7 +26,7 @@
  * pending → disabled buttons + router.refresh reconcile).
  */
 import { Suspense } from 'react';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
@@ -209,6 +209,7 @@ export default async function ChangeoversPage({
 }: {
   searchParams: Promise<{ status?: string; lineId?: string }>;
 }) {
+  const locale = await getLocale();
   const t = await getTranslations('production.changeovers');
   const sp = await searchParams;
   const filter = resolveFilter(sp.status);
@@ -223,7 +224,7 @@ export default async function ChangeoversPage({
         title={t('list.title')}
         subtitle={t('list.subtitle')}
         breadcrumb={[
-          { label: t('breadcrumb.production'), href: '/production' },
+          { label: t('breadcrumb.production'), href: `/${locale}/production` },
           { label: t('breadcrumb.changeovers') },
         ]}
       />

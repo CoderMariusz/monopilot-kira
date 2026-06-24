@@ -46,6 +46,12 @@ export type WoActionData = {
   lpId?: string | null;
   /** Created output LP human code (NEVER a raw uuid) — null on caller-supplied LP. */
   lpNumber?: string | null;
+  massBalanceWarning?: {
+    expected_input_kg: string;
+    posted_consumption_kg: string;
+    effective_yield_pct: string;
+    warn_pct: number;
+  } | null;
 };
 
 /**
@@ -177,6 +183,7 @@ export type WoModalLabels = {
       forbidden: string;
       close: string;
     };
+    mass_balance_warning?: string;
   };
   waste: {
     title: string;

@@ -25,6 +25,8 @@ const expectedModulePermissionKeys = {
   npd: 'npd.dashboard.view',
   technical: 'technical.sensory.read',
   'planning-basic': 'scheduler.run.read',
+  yard: 'yard.manage',
+  freight: 'freight.manage',
   warehouse: 'warehouse.inventory.read',
   scanner: 'warehouse.inventory.read',
   'planning-ext': 'scheduler.run.read',
@@ -83,6 +85,8 @@ describe('T-135 navigation manifest integrity contracts', () => {
       'npd',
       'technical',
       'planning-basic',
+      'yard',
+      'freight',
       'warehouse',
       'scanner',
       'planning-ext',
@@ -98,10 +102,10 @@ describe('T-135 navigation manifest integrity contracts', () => {
     const appItems = APP_NAV_GROUPS.flatMap((group) => group.items);
 
     expect(APP_MODULES.map((module) => module.id)).toEqual(expectedModuleIds);
-    expect(APP_MODULES).toHaveLength(16);
+    expect(APP_MODULES).toHaveLength(18);
     expect(APP_NAV_GROUPS).toHaveLength(5);
-    // 15 desktop module items + the cross-shell Scanner link = 16.
-    expect(appItems).toHaveLength(16);
+    // 17 desktop module items (incl. yard + freight) + the cross-shell Scanner link = 18.
+    expect(appItems).toHaveLength(18);
     expectUnique(APP_MODULES.map((module) => module.id), 'APP_MODULES ids');
     expectUnique(APP_NAV_GROUPS.map((group) => group.id), 'APP_NAV_GROUPS ids');
     expectUnique(appItems.map((item) => item.key), 'APP_NAV_GROUPS item keys');

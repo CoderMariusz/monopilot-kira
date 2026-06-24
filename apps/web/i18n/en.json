@@ -1252,8 +1252,10 @@
         "settings": "Settings",
         "technical": "Technical",
         "planning": "Planning",
+        "freight": "Freight",
         "scheduler": "Scheduler",
         "production": "Production",
+        "yard": "Yard",
         "warehouse": "Warehouse",
         "scanner": "Scanner",
         "quality": "Quality",
@@ -6079,7 +6081,8 @@
             "error": "Label could not be printed. Try again or contact an administrator.",
             "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
             "close": "Done"
-          }
+          },
+          "mass_balance_warning": "Registered output ({outputKg} kg) requires approx {expectedKg} kg of components at {yieldPct}% yield, but {consumedKg} kg consumed so far."
         },
         "waste": {
           "title": "Log waste",

@@ -206,6 +206,7 @@ async function DowntimeContent({ windowDays }: { windowDays: number }) {
 }
 
 export default async function DowntimePage({ searchParams }: PageProps) {
+  const locale = await getLocale();
   const t = await getTranslations('production.downtime');
   const sp: { days?: string } = searchParams ? await searchParams : {};
   const windowDays = parseWindowDays(sp.days);
@@ -219,7 +220,7 @@ export default async function DowntimePage({ searchParams }: PageProps) {
       <PageHeader
         title={t('title')}
         subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.downtime') }]}
+        breadcrumb={[{ label: t('breadcrumb.production'), href: `/${locale}/production` }, { label: t('breadcrumb.downtime') }]}
         actions={<DateWindowSelect value={windowDays} ariaLabel={dateWindow.ariaLabel} options={dateWindow.options} />}
       />
       <Suspense key={windowDays} fallback={<DowntimeSkeleton />}>

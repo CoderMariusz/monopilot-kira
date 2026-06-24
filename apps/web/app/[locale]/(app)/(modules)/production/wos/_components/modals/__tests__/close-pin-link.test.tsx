@@ -53,12 +53,12 @@ describe('CloseModal PIN copy + settings link (W9-L7)', () => {
     expect(screen.getByText('E-sign PIN or account password')).toBeInTheDocument();
   });
 
-  it('links "No PIN? Set it in Settings →" to /account/pin', () => {
+  it('links "No PIN? Set it in Settings →" to the locale-aware /account/pin route', () => {
     render(<CloseModal {...BASE} />);
 
     const link = screen.getByTestId('wo-close-pin-link');
     expect(link).toHaveTextContent('No PIN? Set it in Settings →');
-    expect(link).toHaveAttribute('href', '/account/pin');
+    expect(link).toHaveAttribute('href', '/en/account/pin');
   });
 
   it('omits the link gracefully for older label bundles without pinHint', () => {

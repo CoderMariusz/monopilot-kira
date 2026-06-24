@@ -114,6 +114,13 @@ export type WastePayload = {
 
 export type MutationResult = { ok: true; replay?: boolean } | ApiError;
 
+export type MassBalanceWarning = {
+  expected_input_kg: string;
+  posted_consumption_kg: string;
+  effective_yield_pct: string;
+  warn_pct: number;
+};
+
 /** Reversible consumption row from GET /api/production/scanner/wos/[id]/consumptions */
 export type ReversibleConsumption = {
   consumptionId: string;

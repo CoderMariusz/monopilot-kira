@@ -407,6 +407,7 @@ export type WoClockOutResult =
 export function WoDetailScreen({
   data,
   labels,
+  locale = 'en',
   actions,
   changeoverGate,
   releaseOutputQaAction,
@@ -426,6 +427,7 @@ export function WoDetailScreen({
 }: {
   data: WorkOrderDetailData;
   labels: WoDetailLabels;
+  locale?: string;
   /** Null when the action-context read failed/forbade — buttons are then hidden. */
   actions: WoDetailActions | null;
   /**
@@ -683,8 +685,8 @@ export function WoDetailScreen({
           <Link
             href={
               changeoverGate.lineId
-                ? `/production/changeovers?lineId=${encodeURIComponent(changeoverGate.lineId)}`
-                : '/production/changeovers'
+                ? `/${locale}/production/changeovers?lineId=${encodeURIComponent(changeoverGate.lineId)}`
+                : `/${locale}/production/changeovers`
             }
             data-testid="wo-changeover-gate-link"
             className="shrink-0 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"

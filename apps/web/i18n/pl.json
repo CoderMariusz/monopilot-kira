@@ -1233,8 +1233,10 @@
         "settings": "Ustawienia",
         "technical": "Techniczne",
         "planning": "Planowanie",
+        "freight": "Spedycja",
         "scheduler": "Harmonogram",
         "production": "Produkcja",
+        "yard": "Plac",
         "warehouse": "Magazyn",
         "scanner": "Skaner",
         "quality": "Jakość",
@@ -7470,7 +7472,8 @@
             "error": "Nie udało się wydrukować etykiety. Spróbuj ponownie lub skontaktuj się z administratorem.",
             "forbidden": "Brak uprawnień: do druku etykiet wymagane jest settings.org.update.",
             "close": "Gotowe"
-          }
+          },
+          "mass_balance_warning": "Zarejestrowana produkcja ({outputKg} kg) wymaga okolo {expectedKg} kg komponentu przy yield {yieldPct}%, ale skonsumowano dotad {consumedKg} kg."
         },
         "waste": {
           "title": "Zarejestruj odpad",

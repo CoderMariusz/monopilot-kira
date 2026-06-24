@@ -64,9 +64,6 @@ const NAV_CARDS: NavCard[] = [
   { key: 'scanner', href: '/scanner/home' },
 ];
 
-/** Deep-link target for not-yet-startable (planned) WOs — Planning owns release. */
-const PLANNING_RELEASE_HREF = '/planning/work-orders';
-
 const KG_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
 /** Skeleton placeholder matching the eventual layout (no CLS). */
@@ -83,7 +80,7 @@ function DashboardSkeleton() {
   );
 }
 
-async function DashboardContent() {
+async function DashboardContent({ locale }: { locale: string }) {
   const t = await getTranslations('production.dashboard');
   const result = await getProductionDashboard();
 
@@ -180,8 +177,8 @@ async function DashboardContent() {
     producedLabel: r.producedKg === null ? '—' : `${KG_FMT.format(Math.round(r.producedKg))} kg`,
     progressPct: r.progressPct,
     allergenGate: r.allergenGate,
-    planningHref: PLANNING_RELEASE_HREF,
-    detailHref: `/production/wos/${r.id}`,
+    planningHref: `/${locale}/planning/work-orders`,
+    detailHref: `/${locale}/production/wos/${r.id}`,
   }));
 
   return (
@@ -196,7 +193,7 @@ async function DashboardContent() {
           {NAV_CARDS.map((card) => (
             <li key={card.key}>
               <Link
-                href={card.href}
+                href={`/${locale}${card.href}`}
                 data-testid={`production-nav-${card.key}`}
                 className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
               >
@@ -220,7 +217,12 @@ function oeeTone(pct: number | null): KpiTone {
   return 'danger';
 }
 
-export default async function ProductionDashboardPage() {
+export default async function ProductionDashboardPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
   const t = await getTranslations('production.dashboard');
 
   return (
@@ -235,7 +237,7 @@ export default async function ProductionDashboardPage() {
         breadcrumb={[{ label: t('breadcrumb.production') }, { label: t('breadcrumb.dashboard') }]}
       />
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent />
+        <DashboardContent locale={locale} />
       </Suspense>
     </main>
   );

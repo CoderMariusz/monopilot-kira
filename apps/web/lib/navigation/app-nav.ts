@@ -69,8 +69,10 @@ export const APP_NAV_GROUPS = [
   group("core", [DASHBOARD_ITEM, sidebarItem("settings")]),
   group("operations", [
     sidebarItem("planning-basic"),
+    sidebarItem("freight"),
     sidebarItem("planning-ext"),
     sidebarItem("production"),
+    sidebarItem("yard"),
     sidebarItem("warehouse"),
     sidebarItem("scanner"),
   ]),

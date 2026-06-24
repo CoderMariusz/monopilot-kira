@@ -1149,6 +1149,7 @@
         "warehouses": "Склади",
         "shifts": "Зміни та календар",
         "products": "Продукти та SKU",
+        "npd_fields": "NPD fields",
         "boms": "BOM-и та рецепти",
         "processes": "Процеси",
         "manufacturing_ops": "Виробничі операції",
@@ -1197,8 +1198,10 @@
         "settings": "Налаштування",
         "technical": "Технічний модуль",
         "planning": "Планування",
+        "freight": "Freight",
         "scheduler": "Планувальник",
         "production": "Виробництво",
+        "yard": "Yard",
         "warehouse": "Склад",
         "scanner": "Сканер",
         "quality": "Якість",
@@ -1235,6 +1238,7 @@
         "printers": "Printers",
         "shifts": "Зміни та календар",
         "products": "Продукти та SKU",
+        "npd_fields": "NPD fields",
         "boms": "BOM-и та рецепти",
         "processes": "Процеси",
         "manufacturing_ops": "Виробничі операції",
@@ -7430,7 +7434,8 @@
             "error": "Label could not be printed. Try again or contact an administrator.",
             "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
             "close": "Done"
-          }
+          },
+          "mass_balance_warning": "Registered output ({outputKg} kg) requires approx {expectedKg} kg of components at {yieldPct}% yield, but {consumedKg} kg consumed so far."
         },
         "waste": {
           "title": "Log waste",

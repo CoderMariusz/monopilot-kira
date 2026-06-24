@@ -31,7 +31,7 @@ const EXPECTED_SETTINGS_NAV = [
     admin: true,
     items: [
       { key: "products", label: "Products & SKUs", icon: "▢" },
-      { key: "npd-fields", label: "NPD fields", icon: "▦", permission_key: "npd.schema.edit" },
+      { key: "npd-fields", label: "NPD fields", icon: "▦" },
       { key: "boms", label: "BOMs & recipes", icon: "⛓" },
       { key: "processes", label: "Processes", icon: "⟶", highlight: true },
       // Wave-7 machines CRUD screen (supersedes /settings/infra/machines).
@@ -268,9 +268,7 @@ describe("UI-128 SETTINGS_NAV_GROUPS", () => {
 
     for (const item of (SETTINGS_NAV_GROUPS ?? []).flatMap(itemsOf)) {
       expect(item.count_slot, `${labelOf(item)} count_slot remains unimplemented in UI-128`).toBeNull();
-      const expectedPermission =
-        keyOf(item) === "npd-fields" ? "npd.schema.edit" : null;
-      expect(item.permission_key, `${labelOf(item)} permission_key`).toBe(expectedPermission);
+      expect(item.permission_key, `${labelOf(item)} permission_key remains deferred until the RBAC module`).toBeNull();
       expect(item.rbac_todo, `${labelOf(item)} rbac_todo documents the future RBAC gate`).toEqual(expect.any(String));
       expect(String(item.rbac_todo).trim().length, `${labelOf(item)} rbac_todo must be non-empty`).toBeGreaterThan(0);
     }

@@ -126,6 +126,7 @@ async function ShiftsContent({ windowDays }: { windowDays: number }) {
 }
 
 export default async function ShiftsPage({ searchParams }: PageProps) {
+  const locale = await getLocale();
   const t = await getTranslations('production.shifts');
   const sp: { days?: string } = searchParams ? await searchParams : {};
   const windowDays = parseWindowDays(sp.days);
@@ -139,7 +140,7 @@ export default async function ShiftsPage({ searchParams }: PageProps) {
       <PageHeader
         title={t('title')}
         subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.shifts') }]}
+        breadcrumb={[{ label: t('breadcrumb.production'), href: `/${locale}/production` }, { label: t('breadcrumb.shifts') }]}
         actions={<DateWindowSelect value={windowDays} ariaLabel={dateWindow.ariaLabel} options={dateWindow.options} />}
       />
       <Suspense key={windowDays} fallback={<ShiftsSkeleton />}>

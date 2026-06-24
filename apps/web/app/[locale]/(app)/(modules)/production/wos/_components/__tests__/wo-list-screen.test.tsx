@@ -6,7 +6,7 @@
  * reads Supabase via withOrgContext and is exercised live/Playwright). Asserts:
  *   - status tabs render with counts + filter the table (parity wo-list.jsx:8-40,17)
  *   - dense table columns + WO-number mono + allergen badge (wo-list.jsx:52-101,73)
- *   - rows link to `/production/wos/<id>` (wo-list.jsx:72 onOpenWo)
+ *   - rows link to `/{locale}/production/wos/<id>` (wo-list.jsx:72 onOpenWo)
  *   - deferred per-row action is DISABLED (out-of-scope mutation slot)
  *   - all UI states surfaced by this component: populated / empty / empty-filtered
  */
@@ -133,7 +133,7 @@ describe('WoListScreen (parity: wo-list.jsx:4-106)', () => {
     renderScreen();
     const link = screen.getByTestId(`wo-link-${ROWS[0]!.id}`);
     expect(link).toHaveTextContent('WO-2026-0001');
-    expect(link).toHaveAttribute('href', `/production/wos/${ROWS[0]!.id}`);
+    expect(link).toHaveAttribute('href', `/en/production/wos/${ROWS[0]!.id}`);
     expect(screen.getByTestId(`wo-allergen-${ROWS[0]!.id}`)).toBeInTheDocument();
     expect(screen.queryByTestId(`wo-allergen-${ROWS[1]!.id}`)).not.toBeInTheDocument();
   });

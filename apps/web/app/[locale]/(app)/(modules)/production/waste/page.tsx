@@ -178,6 +178,7 @@ async function WasteContent({ windowDays }: { windowDays: number }) {
 }
 
 export default async function WastePage({ searchParams }: PageProps) {
+  const locale = await getLocale();
   const t = await getTranslations('production.waste');
   const sp: { days?: string } = searchParams ? await searchParams : {};
   const windowDays = parseWindowDays(sp.days);
@@ -191,7 +192,7 @@ export default async function WastePage({ searchParams }: PageProps) {
       <PageHeader
         title={t('title')}
         subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.waste') }]}
+        breadcrumb={[{ label: t('breadcrumb.production'), href: `/${locale}/production` }, { label: t('breadcrumb.waste') }]}
         actions={<DateWindowSelect value={windowDays} ariaLabel={dateWindow.ariaLabel} options={dateWindow.options} />}
       />
       <Suspense key={windowDays} fallback={<WasteSkeleton />}>

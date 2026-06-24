@@ -151,6 +151,7 @@ async function WoListContent({ locale }: { locale: string }) {
       rows={rows}
       statusCounts={statusCounts}
       labels={labels}
+      locale={locale}
       actions={actions}
     />
   );

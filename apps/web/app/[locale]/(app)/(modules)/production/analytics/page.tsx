@@ -208,7 +208,7 @@ export default async function AnalyticsPage({ params, searchParams }: PageProps)
       <PageHeader
         title={t('title')}
         subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.analytics') }]}
+        breadcrumb={[{ label: t('breadcrumb.production'), href: `/${locale}/production` }, { label: t('breadcrumb.analytics') }]}
       />
       <PeriodSelector
         period={periodSelection.period}

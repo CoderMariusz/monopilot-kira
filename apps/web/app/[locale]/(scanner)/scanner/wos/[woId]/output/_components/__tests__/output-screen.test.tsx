@@ -172,6 +172,56 @@ describe("OutputScreen", () => {
     expect(body.qtyKg).toBeUndefined();
   });
 
+  it("shows the returned mass-balance warning on the done screen", async () => {
+    seedSession();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () => ({
+            ok: true,
+            lp_id: "lp-1",
+            output: {
+              mass_balance_warning: {
+                expected_input_kg: "100",
+                posted_consumption_kg: "50",
+                effective_yield_pct: "100",
+                warn_pct: 0.02,
+              },
+            },
+          }),
+        });
+      }
+      return Promise.resolve(detailOk());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderOutput();
+    await waitFor(() => expect(screen.getByLabelText(labels.output.enterQty)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText(labels.output.enterQty));
+    fireEvent.click(screen.getByRole("button", { name: "1" }));
+    fireEvent.click(screen.getByRole("button", { name: shellLabels.qtyKeypad.confirm }));
+    fireEvent.click(screen.getByRole("button", { name: labels.output.confirm }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Registered output (100 kg) requires approx 100 kg of components at 100% yield, but 50 kg consumed so far.",
+          { exact: false },
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getAllByText(labels.output.doneTitle).length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "Registered output (100 kg) requires approx 100 kg of components at 100% yield, but 50 kg consumed so far.",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("redirects to ../login when the detail load returns 401 (permission-denied)", async () => {
     seedSession();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 401, ok: false, json: async () => ({}) }));

@@ -717,6 +717,9 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         'Insufficient permissions: settings.org.update is required to print labels.',
       close: opt('output.print.close') ?? 'Done',
     };
+    modalLabels.output.mass_balance_warning =
+      opt('output.mass_balance_warning') ??
+      'Registered output ({outputKg} kg) requires approx {expectedKg} kg of components at {yieldPct}% yield, but {consumedKg} kg consumed so far.';
 
     actions = {
       locale,
@@ -797,8 +800,8 @@ export default async function ProductionWoDetailPage({
       <PageHeader
         title={t('title')}
         breadcrumb={[
-          { label: t('breadcrumb.production'), href: '/production' },
-          { label: t('breadcrumb.workOrders'), href: '/production/wos' },
+          { label: t('breadcrumb.production'), href: `/${locale}/production` },
+          { label: t('breadcrumb.workOrders'), href: `/${locale}/production/wos` },
         ]}
       />
       <Suspense fallback={<WoDetailSkeleton />}>

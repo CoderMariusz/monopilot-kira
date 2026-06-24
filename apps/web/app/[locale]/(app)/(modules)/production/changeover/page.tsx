@@ -142,6 +142,7 @@ async function ChangeoverContent() {
 }
 
 export default async function ChangeoverPage() {
+  const locale = await getLocale();
   const t = await getTranslations('production.changeover');
   return (
     <main
@@ -152,7 +153,7 @@ export default async function ChangeoverPage() {
       <PageHeader
         title={t('title')}
         subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.changeover') }]}
+        breadcrumb={[{ label: t('breadcrumb.production'), href: `/${locale}/production` }, { label: t('breadcrumb.changeover') }]}
       />
       <Suspense fallback={<ChangeoverSkeleton />}>
         <ChangeoverContent />

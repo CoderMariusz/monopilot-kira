@@ -336,13 +336,13 @@ describe('WoDetailScreen — B-2 allergen changeover sign-off callout', () => {
     expect(link).toHaveTextContent(LABELS.changeoverGate.link);
     expect(link).toHaveAttribute(
       'href',
-      '/production/changeovers?lineId=bbbbbbbb-2222-2222-2222-222222222222',
+      '/en/production/changeovers?lineId=bbbbbbbb-2222-2222-2222-222222222222',
     );
   });
 
   it('links to the bare register when the lineId is unknown', () => {
     renderWithGate({ lineId: null });
-    expect(screen.getByTestId('wo-changeover-gate-link')).toHaveAttribute('href', '/production/changeovers');
+    expect(screen.getByTestId('wo-changeover-gate-link')).toHaveAttribute('href', '/en/production/changeovers');
   });
 });
 

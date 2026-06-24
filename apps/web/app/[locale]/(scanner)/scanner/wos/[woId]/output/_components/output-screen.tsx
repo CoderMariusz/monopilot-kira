@@ -32,6 +32,7 @@ import type { ScannerLabels } from "../../../../../_components/scanner-labels";
 import type { ScannerProdLabels } from "../../../../../_components/scanner-prod-labels";
 import { useWoFetch } from "../../../_components/use-wo-fetch";
 import type {
+  MassBalanceWarning,
   MutationResult,
   OutputPayload,
   OutputUom,
@@ -76,6 +77,7 @@ export function OutputScreen({
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [clientOpId, setClientOpId] = useState<string | null>(null);
   const [outputLpId, setOutputLpId] = useState<string | null>(null);
+  const [massBalanceWarning, setMassBalanceWarning] = useState<MassBalanceWarning | null>(null);
   const [printState, setPrintState] = useState<"idle" | "printing" | "printed" | "error">("idle");
 
   useEffect(() => {
@@ -168,13 +170,17 @@ export function OutputScreen({
         setSubmitErr(L.err409);
         return;
       }
-      const data = (await res.json()) as MutationResult & { lp_id?: string | null };
+      const data = (await res.json()) as MutationResult & {
+        lp_id?: string | null;
+        output?: { mass_balance_warning?: MassBalanceWarning | null };
+      };
       if (!res.ok || !data.ok) {
         setSubmitErr(L.errGeneric);
         return;
       }
       setClientOpId(null);
       setOutputLpId(typeof data.lp_id === "string" ? data.lp_id : null);
+      setMassBalanceWarning(data.output?.mass_balance_warning ?? null);
       setPrintState("idle");
       setPhase("done");
     } catch {
@@ -191,6 +197,7 @@ export function OutputScreen({
     setSubmitErr(null);
     setClientOpId(null);
     setOutputLpId(null);
+    setMassBalanceWarning(null);
     setPrintState("idle");
     setPhase("form");
     void load();
@@ -231,6 +238,11 @@ export function OutputScreen({
               {noConsumption && (
                 <div style={{ fontSize: 12, color: T.amber, marginTop: 8 }}>
                   ⚠ {L.noConsumptionDoneNote}
+                </div>
+              )}
+              {massBalanceWarning && (
+                <div style={doneWarningStyle}>
+                  ⚠ {formatMassBalanceWarning(L.mass_balance_warning, massBalanceWarning)}
                 </div>
               )}
             </div>
@@ -394,6 +406,26 @@ function unitLabelFor(uom: OutputUom, labels: ScannerProdLabels): string {
   return labels.output.unitBase;
 }
 
+function fmtMassBalanceNumber(value: string, digits = 3): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: digits });
+}
+
+function formatMassBalanceWarning(template: string, warning: MassBalanceWarning): string {
+  const expectedKg = Number(warning.expected_input_kg);
+  const yieldPct = Number(warning.effective_yield_pct);
+  const outputKg =
+    Number.isFinite(expectedKg) && Number.isFinite(yieldPct)
+      ? String((expectedKg * yieldPct) / 100)
+      : warning.expected_input_kg;
+  return template
+    .replace("{outputKg}", fmtMassBalanceNumber(outputKg))
+    .replace("{expectedKg}", fmtMassBalanceNumber(warning.expected_input_kg))
+    .replace("{yieldPct}", fmtMassBalanceNumber(warning.effective_yield_pct, 2))
+    .replace("{consumedKg}", fmtMassBalanceNumber(warning.posted_consumption_kg));
+}
+
 const continueBtnStyle = {
   marginTop: 8,
   borderRadius: 8,
@@ -404,6 +436,18 @@ const continueBtnStyle = {
   fontSize: 12,
   fontWeight: 700,
   cursor: "pointer",
+} as const;
+
+const doneWarningStyle = {
+  marginTop: 12,
+  borderRadius: 8,
+  border: `1px solid ${T.amber}`,
+  background: "#fffbeb",
+  color: T.amber,
+  padding: 10,
+  fontSize: 12,
+  fontWeight: 600,
+  textAlign: "left",
 } as const;
 
 const fieldLabelStyle = {

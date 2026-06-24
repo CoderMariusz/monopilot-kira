@@ -50,7 +50,7 @@ const WO_ROWS: WoRowView[] = [
     producedLabel: '600 kg',
     progressPct: 50,
     allergenGate: true,
-    planningHref: '/planning/work-orders',
+    planningHref: '/en/planning/work-orders',
   },
   {
     id: 'wo-2',
@@ -62,7 +62,7 @@ const WO_ROWS: WoRowView[] = [
     producedLabel: '—',
     progressPct: 0,
     allergenGate: false,
-    planningHref: '/planning/work-orders',
+    planningHref: '/en/planning/work-orders',
   },
 ];
 
@@ -118,7 +118,7 @@ describe('SCR-08-02 WO list (parity: wo-list.jsx:52-101)', () => {
   it('renders a Planning deep-link for planned (not-yet-startable) WOs — no in-Production Release control', () => {
     render(<WoListTable rows={WO_ROWS} labels={WO_LABELS} />);
     const link = screen.getByTestId('production-wo-planning-link-wo-2');
-    expect(link).toHaveAttribute('href', '/planning/work-orders');
+    expect(link).toHaveAttribute('href', '/en/planning/work-orders');
     expect(link).toHaveTextContent('Open in Planning');
     // Hard red-line: no "Release WO" control anywhere in Production.
     expect(screen.queryByText(/release wo/i)).not.toBeInTheDocument();

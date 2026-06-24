@@ -28,7 +28,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 
-import type { RunWoAction, WoActionKind, WoActionResult } from './types';
+import type { RunWoAction, WoActionData, WoActionKind, WoActionResult } from './types';
 
 /** action verb → route-handler path segment. */
 const ROUTE_SEGMENT: Record<WoActionKind, string> = {
@@ -79,10 +79,15 @@ export function useWoAction(locale: string, woId: string): { run: RunWoAction } 
             ? (payload as { data: unknown }).data
             : null;
         if (data && typeof data === 'object') {
-          const d = data as { lp_id?: unknown; lp_number?: unknown };
+          const d = data as { lp_id?: unknown; lp_number?: unknown; mass_balance_warning?: unknown };
           const lpId = typeof d.lp_id === 'string' ? d.lp_id : null;
           const lpNumber = typeof d.lp_number === 'string' ? d.lp_number : null;
-          if (lpId || lpNumber) return { ok: true, data: { lpId, lpNumber } };
+          const massBalanceWarning = isMassBalanceWarning(d.mass_balance_warning)
+            ? d.mass_balance_warning
+            : null;
+          if (lpId || lpNumber || massBalanceWarning) {
+            return { ok: true, data: { lpId, lpNumber, massBalanceWarning } };
+          }
         }
         return { ok: true };
       }
@@ -103,6 +108,17 @@ export function useWoAction(locale: string, woId: string): { run: RunWoAction } 
 /** Mint a fresh idempotency id per attempt (crypto.randomUUID per the lane spec). */
 export function freshTransactionId(): string {
   return crypto.randomUUID();
+}
+
+function isMassBalanceWarning(value: unknown): value is NonNullable<WoActionData['massBalanceWarning']> {
+  if (!value || typeof value !== 'object') return false;
+  const warning = value as Record<string, unknown>;
+  return (
+    typeof warning.expected_input_kg === 'string' &&
+    typeof warning.posted_consumption_kg === 'string' &&
+    typeof warning.effective_yield_pct === 'string' &&
+    typeof warning.warn_pct === 'number'
+  );
 }
 
 export type { WoActionResult };

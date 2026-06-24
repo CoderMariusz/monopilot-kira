@@ -14,6 +14,8 @@ const MODULE_IDS = [
   "npd",
   "technical",
   "planning-basic",
+  "yard",
+  "freight",
   "warehouse",
   "scanner",
   "planning-ext",
@@ -33,6 +35,8 @@ const EXPECTED_MODULE_PERMISSION_KEYS = {
   npd: "npd.dashboard.view",
   technical: "technical.sensory.read",
   "planning-basic": "scheduler.run.read",
+  yard: "yard.manage",
+  freight: "freight.manage",
   warehouse: "warehouse.inventory.read",
   scanner: "warehouse.inventory.read",
   "planning-ext": "scheduler.run.read",
@@ -58,8 +62,10 @@ const EXPECTED_NAV_GROUPS = [
     label: "Operations",
     items: [
       { label: "Planning", module_id: "planning-basic", route: "/planning" },
+      { label: "Freight", module_id: "freight", route: "/planning/carriers" },
       { label: "Scheduler", module_id: "planning-ext", route: "/scheduler" },
       { label: "Production", module_id: "production", route: "/production" },
+      { label: "Yard", module_id: "yard", route: "/yard" },
       { label: "Warehouse", module_id: "warehouse", route: "/warehouse" },
       // Cross-shell link: Scanner navigates out of the (app) shell into the
       // chrome-less (scanner) route group at /scanner/home.
@@ -214,8 +220,8 @@ describe("UI-128 APP_NAV_GROUPS", () => {
     expect(APP_NAV_GROUPS?.map(labelOf)).toEqual(EXPECTED_NAV_GROUPS.map((group) => group.label));
 
     const actualItems = (APP_NAV_GROUPS ?? []).flatMap(itemsOf);
-    // 15 desktop modules + the cross-shell Scanner link = 16 sidebar items.
-    expect(actualItems).toHaveLength(16);
+    // 17 desktop modules + the cross-shell Scanner link = 18 sidebar items.
+    expect(actualItems).toHaveLength(18);
     expect(actualItems.map(labelOf)).toEqual(EXPECTED_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.label)));
     expect(actualItems.map(moduleIdOf)).toEqual(EXPECTED_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.module_id)));
     expect(actualItems.map(routeOf)).toEqual(EXPECTED_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.route)));
