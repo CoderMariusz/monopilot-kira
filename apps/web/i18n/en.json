@@ -9409,5 +9409,80 @@
       "on_site": "On site",
       "departed": "Departed"
     }
+  },
+  "Scheduler": {
+    "title": "Scheduler",
+    "subtitle": "Sequence open work orders across production lines, minimising changeovers.",
+    "matrixLink": "Changeover matrix",
+    "breadcrumb": {
+      "scheduler": "Scheduler"
+    },
+    "denied": "You do not have permission to view the scheduler.",
+    "loadError": "Could not load the scheduler. Try again.",
+    "run": {
+      "title": "Run scheduler",
+      "horizon": "Planning horizon",
+      "horizonDays": "{n} days",
+      "button": "Run scheduler",
+      "running": "Running…"
+    },
+    "board": {
+      "proposedTitle": "Proposed sequence",
+      "sequenceCol": "Sequence",
+      "woCol": "Work order",
+      "plannedStart": "Planned start",
+      "profileCol": "Profile",
+      "changeover": "Changeover",
+      "totalCost": "Total changeover cost: {cost}",
+      "empty": "No proposal yet",
+      "emptyHint": "Run the scheduler to generate a proposed sequence per production line.",
+      "noAssignments": "The run produced no assignments — there are no open work orders in the horizon.",
+      "appliedBadge": "Applied"
+    },
+    "apply": {
+      "button": "Apply schedule",
+      "applying": "Applying…",
+      "confirmTitle": "Apply this schedule?",
+      "confirmBody": "This writes the proposed sequence, line and planned start onto the work orders. It changes production planning and cannot be undone automatically.",
+      "confirm": "Apply schedule",
+      "cancel": "Cancel"
+    },
+    "errors": {
+      "invalid_input": "Invalid input. Check the horizon and try again.",
+      "forbidden": "You do not have permission to perform this action.",
+      "not_found": "This run could not be found.",
+      "persistence_failed": "Something went wrong. Please try again."
+    },
+    "matrix": {
+      "title": "Changeover matrix",
+      "subtitle": "From-profile to to-profile changeover cost and wash requirement.",
+      "breadcrumb": "Changeover matrix",
+      "breadcrumbScheduler": "Scheduler",
+      "fromTo": "FROM \\ TO",
+      "cellModalTitle": "{from} → {to}",
+      "cost": "Changeover cost (minutes)",
+      "washRequired": "Wash required",
+      "diagonalHint": "Same profile — no changeover.",
+      "emptyTitle": "No changeover profiles yet",
+      "emptyHint": "Changeover profiles appear here once allergen profiles are defined for your items.",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "denied": "You do not have permission to view the changeover matrix.",
+      "loadError": "Could not load the changeover matrix. Try again.",
+      "legend": {
+        "none": "0 (none)",
+        "low": "1–15 (low)",
+        "medium": "16–45 (medium)",
+        "high": "> 45 (high)",
+        "wash": "Wash required"
+      },
+      "errors": {
+        "invalid_input": "Enter a valid non-negative cost.",
+        "forbidden": "You do not have permission to edit the changeover matrix.",
+        "not_found": "This matrix entry could not be found.",
+        "persistence_failed": "Something went wrong. Please try again."
+      }
+    }
   }
 }

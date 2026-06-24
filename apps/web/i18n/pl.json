@@ -9409,5 +9409,80 @@
       "on_site": "Na placu",
       "departed": "Wyjechał"
     }
+  },
+  "Scheduler": {
+    "title": "Harmonogram",
+    "subtitle": "Sekwencjonuj otwarte zlecenia produkcyjne na liniach, minimalizując przezbrojenia.",
+    "matrixLink": "Macierz przezbrojeń",
+    "breadcrumb": {
+      "scheduler": "Harmonogram"
+    },
+    "denied": "Nie masz uprawnień do przeglądania harmonogramu.",
+    "loadError": "Nie udało się załadować harmonogramu. Spróbuj ponownie.",
+    "run": {
+      "title": "Uruchom harmonogram",
+      "horizon": "Horyzont planowania",
+      "horizonDays": "{n} dni",
+      "button": "Uruchom harmonogram",
+      "running": "Trwa obliczanie…"
+    },
+    "board": {
+      "proposedTitle": "Proponowana sekwencja",
+      "sequenceCol": "Kolejność",
+      "woCol": "Zlecenie",
+      "plannedStart": "Planowany start",
+      "profileCol": "Profil",
+      "changeover": "Przezbrojenie",
+      "totalCost": "Łączny koszt przezbrojeń: {cost}",
+      "empty": "Brak propozycji",
+      "emptyHint": "Uruchom harmonogram, aby wygenerować proponowaną sekwencję dla każdej linii.",
+      "noAssignments": "Przebieg nie utworzył przypisań — brak otwartych zleceń w horyzoncie.",
+      "appliedBadge": "Zastosowano"
+    },
+    "apply": {
+      "button": "Zastosuj harmonogram",
+      "applying": "Stosowanie…",
+      "confirmTitle": "Zastosować ten harmonogram?",
+      "confirmBody": "Zapisze to proponowaną sekwencję, linię i planowany start na zleceniach. Zmienia to planowanie produkcji i nie można tego automatycznie cofnąć.",
+      "confirm": "Zastosuj harmonogram",
+      "cancel": "Anuluj"
+    },
+    "errors": {
+      "invalid_input": "Nieprawidłowe dane. Sprawdź horyzont i spróbuj ponownie.",
+      "forbidden": "Nie masz uprawnień do wykonania tej operacji.",
+      "not_found": "Nie znaleziono tego przebiegu.",
+      "persistence_failed": "Coś poszło nie tak. Spróbuj ponownie."
+    },
+    "matrix": {
+      "title": "Macierz przezbrojeń",
+      "subtitle": "Koszt przezbrojenia i wymóg mycia z profilu źródłowego do docelowego.",
+      "breadcrumb": "Macierz przezbrojeń",
+      "breadcrumbScheduler": "Harmonogram",
+      "fromTo": "Z \\ DO",
+      "cellModalTitle": "{from} → {to}",
+      "cost": "Koszt przezbrojenia (minuty)",
+      "washRequired": "Wymagane mycie",
+      "diagonalHint": "Ten sam profil — brak przezbrojenia.",
+      "emptyTitle": "Brak profili przezbrojeń",
+      "emptyHint": "Profile przezbrojeń pojawią się tutaj po zdefiniowaniu profili alergenów dla pozycji.",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj",
+      "denied": "Nie masz uprawnień do przeglądania macierzy przezbrojeń.",
+      "loadError": "Nie udało się załadować macierzy przezbrojeń. Spróbuj ponownie.",
+      "legend": {
+        "none": "0 (brak)",
+        "low": "1–15 (niski)",
+        "medium": "16–45 (średni)",
+        "high": "> 45 (wysoki)",
+        "wash": "Wymagane mycie"
+      },
+      "errors": {
+        "invalid_input": "Podaj prawidłowy, nieujemny koszt.",
+        "forbidden": "Nie masz uprawnień do edycji macierzy przezbrojeń.",
+        "not_found": "Nie znaleziono tej pozycji macierzy.",
+        "persistence_failed": "Coś poszło nie tak. Spróbuj ponownie."
+      }
+    }
   }
 }
