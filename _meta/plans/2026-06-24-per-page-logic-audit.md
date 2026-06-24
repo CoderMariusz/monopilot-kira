@@ -182,3 +182,14 @@ wave gates) is a shared follow-up.
 are DB-mocked, so SQL-semantics + atomicity + cross-file-RBAC bugs pass. Every E-wave needs the review→fix→retest pass
 (E10 done; E2B/E9/E5/E8 fixes pending — Codex hit its usage cap ~02:00, resets ~02:13). Owner: do NOT treat the E-waves as
 production-ready yet — they're solid scaffolds with a known, prioritized fix-list (here).
+
+### E-WAVE follow-up UPDATE (2026-06-24 ~03:00) — RBAC permission migration DONE
+The dedicated-permission follow-up is COMPLETE (commit c4ac2e1c, mig 319 LIVE): added quality.coldchain.record/.manage +
+yard.manage + freight.manage to the RBAC enum + seeded them to the predecessor-perm roles (4 perms x 6 roles confirmed) +
+swapped the wave gates. This was actually an L1 (E2B's UI was gated on coldchain perms that didn't exist -> dead for
+everyone) — now functional. REMAINING E-wave follow-ups (genuine L2/L3, appropriately deferred — NOT blocking):
+(1) E2B hold creation txn-sharing — atomicity, but fails SAFE today (spurious quarantine, never missed quarantine);
+(2) E5 booking gist EXCLUDE no-overlap constraint — needs an ends_at column + trigger (Postgres: timestamptz+interval is
+STABLE not IMMUTABLE so it can't be a direct gist expression); a rare race already mitigated by the app pre-check;
+(3) E8 separate-approver SoD (apply currently both approves + commits — a deliberate explicit step, gated + audited).
+**All real L1/L2 bugs the adversarial reviews found across the 6 E-waves are now FIXED.** ~18 overnight commits.
