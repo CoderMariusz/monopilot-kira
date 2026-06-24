@@ -185,7 +185,7 @@ async function computeWoActualCostInContext(
             coalesce(x.started_at, wo.started_at) as started_at,
             coalesce(x.completed_at, wo.completed_at) as completed_at,
             coalesce(sum(o.qty_kg), 0)::text as output_kg,
-            coalesce(w.waste_kg, 0)::text as waste_kg
+            coalesce(w.waste_kg, '0')::text as waste_kg
        from public.work_orders wo
        left join public.wo_executions x
          on x.org_id = app.current_org_id()
