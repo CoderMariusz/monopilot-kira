@@ -272,7 +272,7 @@ export async function recordDesktopConsumption(
       const txnId = deterministicTransactionId(`${orgId}:desktop-consume:${clientOpId}`);
 
       // (1) Serialize concurrent in-flight replays of the same clientOpId.
-      await ctx.client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+      await ctx.client.query(`select pg_advisory_xact_lock(hashtextextended($1::text, 0))`, [
         `${orgId}:desktop-consume:${clientOpId}`,
       ]);
 
@@ -548,7 +548,7 @@ async function emitMaterialConsumed(
   await client.query(
     `insert into public.outbox_events
        (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values (app.current_org_id(), $1, $2, $3::uuid, $4::jsonb, $5)`,
+     values (app.current_org_id(), $1::text, $2::text, $3::uuid, $4::jsonb, $5::text)`,
     [
       'warehouse.material.consumed',
       'wo_material_consumption',
