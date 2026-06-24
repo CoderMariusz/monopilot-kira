@@ -1,10 +1,9 @@
 /**
- * Unit tests for the e-sign login-password fallback (live D-4, 2026-06-10).
+ * Unit tests for the e-sign password-or-PIN credential resolver.
  *
  * verifyPin is module-mocked; the pg client is a fake routed by SQL substring;
- * fetch is stubbed. Covers: no-PIN signer + valid password → signs; no-PIN
- * signer + wrong password → EPinFailedError; enrolled-PIN signer NEVER falls
- * back; 'locked' never falls back.
+ * fetch is stubbed. Covers: enrolled-PIN signer + valid password → signs,
+ * wrong password + wrong PIN → EPinFailedError, and direct PIN success.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -66,17 +65,18 @@ afterEach(() => {
   verifyPinMock.mockReset();
 });
 
-describe('e-sign login-password fallback', () => {
-  it('signs when the signer has NO enrolled PIN and the login password verifies', async () => {
+describe('e-sign password-or-PIN credential resolver', () => {
+  it('signs when a PIN-enrolled signer supplies a valid login password', async () => {
     verifyPinMock.mockResolvedValue(false);
     const fetchMock = vi.fn(async () => ({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const client = makeClient({ pinEnrolled: false });
+    const client = makeClient({ pinEnrolled: true });
     const receipt = await signEvent(INPUT, { client: client as never });
 
     expect(receipt.signatureId).toBe('sig-1');
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(verifyPinMock).not.toHaveBeenCalled();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://unit.supabase.co/auth/v1/token?grant_type=password');
     expect(JSON.parse(String(init.body))).toEqual({
@@ -85,48 +85,42 @@ describe('e-sign login-password fallback', () => {
     });
   });
 
-  it('rejects when the signer has NO enrolled PIN and the password does not verify', async () => {
+  it('rejects when the supplied credential is neither a valid password nor a valid PIN', async () => {
     verifyPinMock.mockResolvedValue(false);
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
 
-    const client = makeClient({ pinEnrolled: false });
-    await expect(signEvent(INPUT, { client: client as never })).rejects.toBeInstanceOf(
-      EPinFailedError,
-    );
-  });
-
-  it('NEVER falls back when a PIN is enrolled — a wrong PIN stays a failure', async () => {
-    verifyPinMock.mockResolvedValue(false);
-    const fetchMock = vi.fn(async () => ({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
     const client = makeClient({ pinEnrolled: true });
-    await expect(signEvent(INPUT, { client: client as never })).rejects.toBeInstanceOf(
-      EPinFailedError,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
+    // A realistic PIN is 4-8 digits; password fails (fetch ok:false), so the
+    // numeric secret falls through to verifyPin (which also rejects it).
+    await expect(
+      signEvent({ ...INPUT, pin: '1234' }, { client: client as never }),
+    ).rejects.toBeInstanceOf(EPinFailedError);
+    expect(verifyPinMock).toHaveBeenCalledWith(SIGNER, '1234', { client });
   });
 
-  it("NEVER falls back when the PIN account is 'locked'", async () => {
+  it("accepts a valid login password without consulting a 'locked' PIN row", async () => {
     verifyPinMock.mockResolvedValue('locked');
-    const fetchMock = vi.fn(async () => ({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const client = makeClient({ pinEnrolled: false });
-    await expect(signEvent(INPUT, { client: client as never })).rejects.toBeInstanceOf(
-      EPinFailedError,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('still signs directly when the PIN verifies (fallback untouched)', async () => {
-    verifyPinMock.mockResolvedValue(true);
     const fetchMock = vi.fn(async () => ({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
 
     const client = makeClient({ pinEnrolled: true });
     const receipt = await signEvent(INPUT, { client: client as never });
     expect(receipt.signatureId).toBe('sig-1');
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(verifyPinMock).not.toHaveBeenCalled();
+  });
+
+  it('still signs when the password check fails but the PIN verifies', async () => {
+    verifyPinMock.mockResolvedValue(true);
+    const fetchMock = vi.fn(async () => ({ ok: false }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = makeClient({ pinEnrolled: true });
+    // Signer types their numeric PIN; the password grant fails, so the PIN
+    // fallback verifies it (4-8 digit format gate lets it through).
+    const receipt = await signEvent({ ...INPUT, pin: '1234' }, { client: client as never });
+    expect(receipt.signatureId).toBe('sig-1');
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(verifyPinMock).toHaveBeenCalledWith(SIGNER, '1234', { client });
   });
 });

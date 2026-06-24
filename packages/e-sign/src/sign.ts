@@ -41,17 +41,7 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
 
-/**
- * Login-password fallback for signers with NO enrolled PIN.
- *
- * The T-016 step-up PIN remains the primary credential, but no enrollment UI
- * exists yet, so `user_pins` is empty for every real user and e-sign was
- * unreachable app-wide (live D-4, 2026-06-10). When the signer has no PIN row,
- * the supplied secret is verified as their Supabase LOGIN password via the
- * auth password grant (no session is created or persisted; the issued token is
- * discarded). A 'locked' PIN never falls back — lockout stays authoritative.
- */
-async function verifyLoginPasswordFallback(
+async function verifyLoginPassword(
   client: NonNullable<ESignTxOptions['client']>,
   signerUserId: string,
   secret: string,
@@ -79,36 +69,33 @@ async function verifyLoginPasswordFallback(
   }
 }
 
-async function signerHasEnrolledPin(
-  client: NonNullable<ESignTxOptions['client']>,
-  signerUserId: string,
-): Promise<boolean> {
-  const { rows } = await client.query<{ ok: boolean }>(
-    `select true as ok from public.user_pins where user_id = $1::uuid limit 1`,
-    [signerUserId],
-  );
-  return rows.length > 0;
-}
-
 async function signEventInClient(
   input: SignEventInput,
   client: NonNullable<ESignTxOptions['client']>,
   requestId?: string,
 ): Promise<ESignReceipt> {
   const parsed = signEventSchema.parse(input);
-  const pinResult = await verifyPin(parsed.signerUserId, parsed.pin, { client });
-  if (pinResult !== true) {
-    // 'locked' is final. A plain mismatch only falls back to the login-password
-    // check when the signer has no PIN enrolled at all (verifyPin returns false
-    // for both "wrong pin" and "no pin row" — disambiguate here).
-    const allowFallback =
-      pinResult === false && !(await signerHasEnrolledPin(client, parsed.signerUserId));
-    const fallbackOk =
-      allowFallback &&
-      (await verifyLoginPasswordFallback(client, parsed.signerUserId, parsed.pin));
-    if (!fallbackOk) {
-      throw new EPinFailedError();
-    }
+  // Credential precedence (CFR Part 11): the Supabase LOGIN PASSWORD is the
+  // canonical e-sign credential; the enrolled step-up PIN is an optional
+  // convenience factor. We verify the password first (every e-sign modal
+  // collects "account password"), then fall back to the PIN.
+  //
+  // POLICY NOTE (owner to confirm): because password is canonical, a *locked*
+  // PIN is intentionally NOT a hard stop for a signer who supplies a valid
+  // account password — lockout protects the weaker 6-digit factor, not the
+  // stronger password. If e-sign must honor PIN lockout as an account freeze,
+  // add an early `verifyPin === 'locked'` short-circuit here.
+  const passwordOk = await verifyLoginPassword(client, parsed.signerUserId, parsed.pin);
+  if (!passwordOk) {
+    // Only consult the PIN credential when the secret is plausibly a PIN
+    // (4–8 digits). This stops a mistyped *account password* from ever reaching
+    // verifyPin and burning the signer's PIN-lockout budget (verifyPin
+    // increments attempts/locks for users who have a PIN row).
+    const looksLikePin = /^[0-9]{4,8}$/.test(parsed.pin);
+    const pinResult = looksLikePin
+      ? await verifyPin(parsed.signerUserId, parsed.pin, { client })
+      : false;
+    if (pinResult !== true) throw new EPinFailedError();
   }
 
   const subjectHash = hashESignSubject(parsed.subject);

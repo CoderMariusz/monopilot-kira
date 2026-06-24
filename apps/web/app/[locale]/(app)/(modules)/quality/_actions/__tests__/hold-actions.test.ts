@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { signEvent } from '@monopilot/e-sign';
 
 import { createHold, listHolds, releaseHold } from '../hold-actions';
 
@@ -206,7 +207,7 @@ describe('quality hold server actions', () => {
       holdId: HOLD_ID,
       disposition: 'release',
       reasonText: 'inspection passed',
-      signature: { password: 'pw' },
+      signature: { password: 'Account-Password-1!' },
     });
 
     expect(result).toEqual({
@@ -231,6 +232,14 @@ describe('quality hold server actions', () => {
     expect(historyCalls).toHaveLength(1);
     const outbox = calls.find(([sql, params]) => normalize(String(sql)).startsWith('insert into public.outbox_events') && params?.[0] === 'quality.hold.released');
     expect(outbox).toBeTruthy();
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerUserId: USER_ID,
+        pin: 'Account-Password-1!',
+        intent: 'qa.hold.release',
+      }),
+      expect.objectContaining({ client }),
+    );
 
     holdAlreadyReleased = true;
     const second = await releaseHold({

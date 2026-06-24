@@ -69,7 +69,7 @@ export class ESignSoDError extends Error {
 }
 
 export class EPinFailedError extends Error {
-  constructor(message = 'PIN verification failed') {
+  constructor(message = 'Invalid password or PIN') {
     super(message);
     this.name = 'EPinFailedError';
   }
