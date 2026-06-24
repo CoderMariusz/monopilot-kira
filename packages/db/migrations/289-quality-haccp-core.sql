@@ -27,9 +27,6 @@ create table if not exists public.haccp_ccps (
     critical_limit_min is null
     or critical_limit_max is null
     or critical_limit_min <= critical_limit_max
-  ),
-  constraint haccp_ccps_active_limit_required_check check (
-    not is_active or critical_limit_min is not null or critical_limit_max is not null
   )
 );
 
