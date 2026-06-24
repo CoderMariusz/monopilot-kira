@@ -3272,7 +3272,12 @@
         "openBundle": "Open bundle approval",
         "close": "Close",
         "markReviewed": "Mark reviewed",
-        "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
+        "permissionDenied": "You do not have the Technical permission to approve this specification for factory use.",
+        "blockingReason": {
+          "PENDING_NPD_RELEASE": "Pending NPD release",
+          "PENDING_TECHNICAL_APPROVAL": "Pending Technical approval",
+          "RELEASE_BLOCKED": "Release blocked"
+        }
       },
       "recall": {
         "action": "Recall to draft",
@@ -3370,6 +3375,16 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
+      },
+      "status": {
+        "draft": "Draft",
+        "in_review": "In review",
+        "approved_for_factory": "Approved for factory",
+        "released_to_factory": "Released to factory",
+        "superseded": "Superseded",
+        "archived": "Archived",
+        "active": "Active",
+        "technical_approved": "Technical approved"
       },
       "flowTitle": "Release flow",
       "flowHelp": "Pair a matching shared BOM, then submit the draft for Technical review.",
@@ -3597,7 +3612,7 @@
       "present": "Prezent",
       "trace": "Urme",
       "absent": "Absent",
-      "detectedHeading": "{count, plural, one {# alergen detectat:} few {# alergeni detectați:} other {# de alergeni detectați:}}",
+      "detectedHeading": "{count} allergen(s) detected:",
       "mustDeclare": "Trebuie declarat pe etichetă.",
       "noneDetected": "Niciun alergen detectat din ingredientele curente.",
       "statusLabel": "{name} — {status}"
@@ -6371,6 +6386,13 @@
         "intermediate": "Intermediate",
         "packaging": "Packaging"
       },
+      "status": {
+        "suggested": "Suggested",
+        "planned": "Planned",
+        "cancelled": "Cancelled",
+        "completed": "Completed",
+        "failed": "Failed"
+      },
       "persistToggle": "Save this run",
       "persistNote": "This run will be saved to MRP history (run header + requirements ledger). No orders are created.",
       "persistedAs": "saved as",
@@ -8219,7 +8241,7 @@
         "invalid_input": "Fill in every field.",
         "invalid_pin_format": "The PIN must be 4–6 digits.",
         "pin_mismatch": "The two PIN entries do not match.",
-        "invalid_credentials": "Authorization failed — wrong password or PIN.",
+        "invalid_credentials": "Invalid password or PIN",
         "pin_locked": "The PIN is temporarily locked after too many failed attempts. Try again later or authorize with your account password.",
         "persistence_failed": "Saving the PIN failed. Try again."
       }
@@ -8461,18 +8483,18 @@
         "esign": {
           "title": "Electronic signature",
           "meaning": "Signing records that you resolved this CCP deviation (21 CFR Part 11).",
-          "password": "Sign-off PIN",
-          "passwordHelp": "Enter your sign-off PIN to apply the electronic signature.",
-          "passwordPlaceholder": "Enter your PIN"
+          "password": "Account password or e-sign PIN",
+          "passwordHelp": "Enter your account password or e-sign PIN to apply the electronic signature.",
+          "passwordPlaceholder": "Enter your password or PIN"
         },
         "cancel": "Cancel",
         "submit": "Resolve deviation",
         "submitting": "Resolving…",
-        "formIncomplete": "Complete the corrective action, disposition and PIN to continue.",
+        "formIncomplete": "Complete the corrective action, disposition and password or PIN to continue.",
         "validation": {
           "actionRequired": "A corrective action is required.",
           "dispositionRequired": "A disposition is required.",
-          "passwordRequired": "Your sign-off PIN is required."
+          "passwordRequired": "Your password or PIN is required."
         },
         "error": "Could not resolve deviation: {message}",
         "success": "Deviation resolved."
@@ -8975,16 +8997,16 @@
         "esign": {
           "title": "Electronic signature",
           "meaning": "Signing records that you closed this CAPA action (21 CFR Part 11).",
-          "password": "Sign-off PIN",
-          "passwordHelp": "Enter your sign-off PIN to apply the electronic signature.",
-          "passwordPlaceholder": "Enter your PIN"
+          "password": "Account password or e-sign PIN",
+          "passwordHelp": "Enter your account password or e-sign PIN to apply the electronic signature.",
+          "passwordPlaceholder": "Enter your password or PIN"
         },
         "cancel": "Cancel",
         "submit": "Resolve action",
         "submitting": "Resolving…",
-        "formIncomplete": "Enter your PIN to resolve the action.",
+        "formIncomplete": "Enter your password or PIN to resolve the action.",
         "validation": {
-          "passwordRequired": "Your sign-off PIN is required."
+          "passwordRequired": "Your password or PIN is required."
         },
         "error": "Could not resolve CAPA action: {message}",
         "success": "CAPA action resolved."

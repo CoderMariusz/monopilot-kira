@@ -150,6 +150,14 @@ function buildLabels(locale: string, window: ReportingWindow): ReportingLabels {
         inspection: t('quality.entity.inspection'),
         ncr: t('quality.entity.ncr'),
       },
+      status: {
+        open: t('quality.status.open'),
+        pending: t('quality.status.pending'),
+        passed: t('quality.status.passed'),
+        failed: t('quality.status.failed'),
+        on_hold: t('quality.status.on_hold'),
+        closed_in_window: t('quality.status.closed_in_window'),
+      },
       columns: {
         entity: t('quality.columns.entity'),
         status: t('quality.columns.status'),
@@ -168,6 +176,14 @@ function buildLabels(locale: string, window: ReportingWindow): ReportingLabels {
       },
       confirmedToGrnNote: t('procurement.confirmedToGrnNote'),
       createdToGrnNote: t('procurement.createdToGrnNote'),
+      status: {
+        cancelled: t('procurement.status.cancelled'),
+        draft: t('procurement.status.draft'),
+        partially_received: t('procurement.status.partially_received'),
+        received: t('procurement.status.received'),
+        sent: t('procurement.status.sent'),
+        confirmed: t('procurement.status.confirmed'),
+      },
       columns: {
         status: t('procurement.columns.status'),
         count: t('procurement.columns.count'),

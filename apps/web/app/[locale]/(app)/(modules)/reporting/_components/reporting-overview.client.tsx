@@ -96,6 +96,7 @@ export type ReportingLabels = {
     window: string;
     kpi: { openHolds: string; inspections: string; ncrOpen: string; ncrClosed: string };
     entity: { hold: string; inspection: string; ncr: string };
+    status: Record<string, string>;
     columns: { entity: string; status: string; count: string };
     empty: string;
   };
@@ -105,6 +106,7 @@ export type ReportingLabels = {
     kpi: { posInWindow: string; confirmedToGrn: string; createdToGrn: string; openTos: string };
     confirmedToGrnNote: string;
     createdToGrnNote: string;
+    status: Record<string, string>;
     columns: { status: string; count: string };
     empty: string;
   };
@@ -398,11 +400,12 @@ function QualitySection({
   const c = labels.columns;
   const inspectionsTotal = data.inspectionsByStatus.reduce((a, r) => a + r.count, 0);
   const entityLabel = (entity: 'hold' | 'inspection' | 'ncr') => labels.entity[entity];
+  const statusLabel = (status: string) => labels.status[status] ?? status;
   const exportRows = () =>
     downloadCsv(
       toCsv(
         [c.entity, c.status, c.count],
-        data.rows.map((r) => [entityLabel(r.entity), r.status, r.count]),
+        data.rows.map((r) => [entityLabel(r.entity), statusLabel(r.status), r.count]),
       ),
       `reporting-quality-${isoDateStamp()}.csv`,
     );
@@ -444,7 +447,7 @@ function QualitySection({
               {data.rows.map((r) => (
                 <TableRow key={`${r.entity}-${r.status}`}>
                   <TableCell className="text-xs">{entityLabel(r.entity)}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.status}</TableCell>
+                  <TableCell className="text-xs">{statusLabel(r.status)}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{r.count}</TableCell>
                 </TableRow>
               ))}
@@ -475,11 +478,12 @@ function ProcurementSection({
 }) {
   const c = labels.columns;
   const posTotal = data.posByStatus.reduce((a, r) => a + r.count, 0);
+  const statusLabel = (status: string) => labels.status[status] ?? status;
   const exportRows = () =>
     downloadCsv(
       toCsv(
         [c.status, c.count],
-        data.posByStatus.map((r) => [r.status, r.count]),
+        data.posByStatus.map((r) => [statusLabel(r.status), r.count]),
       ),
       `reporting-procurement-${isoDateStamp()}.csv`,
     );
@@ -527,7 +531,7 @@ function ProcurementSection({
             <TableBody>
               {data.posByStatus.map((r) => (
                 <TableRow key={r.status}>
-                  <TableCell className="font-mono text-xs">{r.status}</TableCell>
+                  <TableCell className="text-xs">{statusLabel(r.status)}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{r.count}</TableCell>
                 </TableRow>
               ))}

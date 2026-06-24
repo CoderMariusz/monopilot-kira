@@ -305,7 +305,7 @@ describe('T-090 ReleaseBundlePanelButton', () => {
 
     const select = await screen.findByLabelText('Linked BOM');
     fireEvent.click(select);
-    fireEvent.click(await screen.findByText('v7 · draft'));
+    fireEvent.click(await screen.findByText('v7 · Draft'));
     fireEvent.click(screen.getByRole('button', { name: 'Link BOM' }));
 
     await waitFor(() => expect(linkBomMock).toHaveBeenCalledWith({ specId: 'spec-1', bomHeaderId: 'bom-2' }));
@@ -356,7 +356,7 @@ describe('T-090 ReleaseBundlePanelButton', () => {
     render(React.createElement(ReleaseBundlePanelButton, { factorySpecId: "spec-1", label: "Open bundle approval" }));
     fireEvent.click(screen.getByRole('button', { name: 'Open bundle approval' }));
 
-    await screen.findByText('active');
+    await screen.findByText('Active');
     expect(screen.queryByText(/requires a draft\/in_review BOM/i)).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Approval reason'), {

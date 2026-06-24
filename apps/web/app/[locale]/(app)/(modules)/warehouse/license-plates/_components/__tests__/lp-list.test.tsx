@@ -38,6 +38,7 @@ function buildLabels(locale: string): LpListLabels {
       qc_hold: t('list.tabs.qc_hold'),
     },
     status: {
+      received: t('status.received'),
       available: t('status.available'),
       reserved: t('status.reserved'),
       blocked: t('status.blocked'),

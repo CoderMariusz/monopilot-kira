@@ -74,6 +74,7 @@ export type MrpLabels = {
   severity: Record<MrpSeverity, string>;
   actionTypes: { buy: string; make: string; none: string };
   itemTypes: Record<string, string>;
+  status: Record<string, string>;
   previousRuns: {
     title: string;
     empty: string;
@@ -219,10 +220,12 @@ function PlannedOrdersTable({
   rows,
   selectedIds,
   onToggle,
+  statusLabels,
 }: {
   rows: MrpPlannedOrder[];
   selectedIds: Set<string>;
   onToggle: (id: string) => void;
+  statusLabels: Record<string, string>;
 }) {
   if (rows.length === 0) return null;
 
@@ -272,7 +275,7 @@ function PlannedOrdersTable({
                   </td>
                   <td className="px-3 py-2">{row.needBy}</td>
                   <td className="px-3 py-2">
-                    <span className="badge badge-gray">{row.status}</span>
+                    <span className="badge badge-gray">{statusLabels[row.status] ?? row.status}</span>
                   </td>
                 </tr>
               );
@@ -394,7 +397,7 @@ function PreviousRuns({
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <span className="badge badge-gray">{run.status}</span>
+                        <span className="badge badge-gray">{labels.status[run.status] ?? run.status}</span>
                       </td>
                       <td className="px-3 py-2 text-right">
                         <button
@@ -703,7 +706,7 @@ export function MrpView({
               <ResultsTable rows={result.data.rows} labels={labels} />
             )}
           </div>
-          <PlannedOrdersTable rows={result.data.plannedOrders} selectedIds={selectedPlannedIds} onToggle={togglePlanned} />
+          <PlannedOrdersTable rows={result.data.plannedOrders} selectedIds={selectedPlannedIds} onToggle={togglePlanned} statusLabels={labels.status} />
         </>
       ) : null}
 

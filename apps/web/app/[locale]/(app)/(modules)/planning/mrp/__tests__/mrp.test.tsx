@@ -72,6 +72,13 @@ const LABELS = {
   },
   actionTypes: { buy: 'BUY', make: 'MAKE', none: '—' },
   itemTypes: { rm: 'Raw material', ingredient: 'Ingredient', intermediate: 'Intermediate', packaging: 'Packaging' },
+  status: {
+    suggested: 'Suggested',
+    planned: 'Planned',
+    cancelled: 'Cancelled',
+    completed: 'Completed',
+    failed: 'Failed',
+  },
   previousRuns: {
     title: 'Previous runs',
     empty: 'No persisted runs yet',
@@ -328,7 +335,7 @@ describeUi('/planning/mrp — MrpView', () => {
 
     await waitFor(() => expect(cancelPlannedOrderAction).toHaveBeenCalledWith('po-1'));
     await waitFor(() => expect(screen.getByTestId('mrp-convert-feedback')).toHaveTextContent('Cancelled 1 planned order'));
-    expect(screen.getByTestId('mrp-planned-order-po-1')).toHaveTextContent('cancelled');
+    expect(screen.getByTestId('mrp-planned-order-po-1')).toHaveTextContent('Cancelled');
     expect(screen.getByTestId('mrp-planned-select-po-1')).toBeDisabled();
   });
 

@@ -16,6 +16,7 @@ import path from "node:path";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getLocale } from "next-intl/server";
 
 function loadEn() {
   return JSON.parse(readFileSync(path.resolve(__dirname, "../../../i18n/en.json"), "utf-8"));
@@ -64,6 +65,7 @@ vi.mock("next/link", () => ({
 }));
 
 import LocaleNotFound from "../not-found";
+import RootNotFound from "../../not-found";
 import AppError from "../(app)/error";
 
 afterEach(() => cleanup());
@@ -81,6 +83,14 @@ describe("Shell gap #1 — localized 404", () => {
     const home = screen.getByTestId("not-found-home");
     expect(home).toHaveAttribute("href", "/en/dashboard");
     expect(home).toHaveTextContent(en.Errors.notFound.backToDashboard);
+  });
+
+  it("renders the root 404 dashboard link with the active locale", async () => {
+    vi.mocked(getLocale).mockResolvedValueOnce("pl");
+
+    render(await RootNotFound());
+
+    expect(screen.getByTestId("root-not-found-home")).toHaveAttribute("href", "/pl/dashboard");
   });
 });
 

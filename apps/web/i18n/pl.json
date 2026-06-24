@@ -3307,7 +3307,12 @@
         "openBundle": "Open bundle approval",
         "close": "Close",
         "markReviewed": "Mark reviewed",
-        "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
+        "permissionDenied": "You do not have the Technical permission to approve this specification for factory use.",
+        "blockingReason": {
+          "PENDING_NPD_RELEASE": "Oczekuje na zwolnienie NPD",
+          "PENDING_TECHNICAL_APPROVAL": "Oczekuje na zatwierdzenie techniczne",
+          "RELEASE_BLOCKED": "Zwolnienie zablokowane"
+        }
       },
       "recall": {
         "action": "Cofnij do roboczej",
@@ -3420,6 +3425,16 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
+      },
+      "status": {
+        "draft": "Robocza",
+        "in_review": "W przeglądzie",
+        "approved_for_factory": "Zatwierdzona do produkcji",
+        "released_to_factory": "Zwolniona do produkcji",
+        "superseded": "Zastąpiona",
+        "archived": "Zarchiwizowana",
+        "active": "Aktywna",
+        "technical_approved": "Zatwierdzona technicznie"
       },
       "pinSetupLink": "Nie masz PIN-u? Ustaw go w Ustawieniach →"
     },
@@ -3632,7 +3647,7 @@
       "present": "Obecny",
       "trace": "Ślady",
       "absent": "Brak",
-      "detectedHeading": "{count, plural, one {Wykryto # alergen:} few {Wykryto # alergeny:} many {Wykryto # alergenów:} other {Wykryto # alergenu:}}",
+      "detectedHeading": "Wykryto {count} alergenów:",
       "mustDeclare": "Musi być zadeklarowany na etykiecie.",
       "noneDetected": "Nie wykryto alergenów w bieżących składnikach.",
       "statusLabel": "{name} — {status}"
@@ -6408,6 +6423,13 @@
         "intermediate": "Półprodukt",
         "packaging": "Opakowanie"
       },
+      "status": {
+        "suggested": "Sugerowane",
+        "planned": "Zaplanowane",
+        "cancelled": "Anulowane",
+        "completed": "Zakończone",
+        "failed": "Nieudane"
+      },
       "persistToggle": "Zapisz to uruchomienie",
       "persistNote": "To uruchomienie zostanie zapisane w historii MRP (nagłówek + rejestr zapotrzebowań). Żadne zamówienia nie są tworzone.",
       "persistedAs": "zapisano jako",
@@ -8257,7 +8279,7 @@
         "invalid_input": "Wypełnij wszystkie pola.",
         "invalid_pin_format": "PIN musi mieć 4–6 cyfr.",
         "pin_mismatch": "Wpisane PIN-y różnią się od siebie.",
-        "invalid_credentials": "Autoryzacja nieudana — błędne hasło lub PIN.",
+        "invalid_credentials": "Nieprawidłowe hasło lub PIN",
         "pin_locked": "PIN jest tymczasowo zablokowany po zbyt wielu nieudanych próbach. Spróbuj później lub autoryzuj się hasłem konta.",
         "persistence_failed": "Zapis PIN-u nie powiódł się. Spróbuj ponownie."
       }
@@ -8499,18 +8521,18 @@
         "esign": {
           "title": "Podpis elektroniczny",
           "meaning": "Podpis potwierdza, że rozwiązałeś to odchylenie CCP (21 CFR Part 11).",
-          "password": "PIN podpisu",
-          "passwordHelp": "Wprowadź swój PIN podpisu, aby złożyć podpis elektroniczny.",
-          "passwordPlaceholder": "Wprowadź PIN"
+          "password": "Hasło konta lub PIN e-podpisu",
+          "passwordHelp": "Wprowadź hasło konta lub PIN e-podpisu, aby złożyć podpis elektroniczny.",
+          "passwordPlaceholder": "Wprowadź hasło lub PIN"
         },
         "cancel": "Anuluj",
         "submit": "Rozwiąż odchylenie",
         "submitting": "Rozwiązywanie…",
-        "formIncomplete": "Uzupełnij działanie korygujące, decyzję i PIN, aby kontynuować.",
+        "formIncomplete": "Uzupełnij działanie korygujące, decyzję oraz hasło lub PIN, aby kontynuować.",
         "validation": {
           "actionRequired": "Działanie korygujące jest wymagane.",
           "dispositionRequired": "Decyzja jest wymagana.",
-          "passwordRequired": "Twój PIN podpisu jest wymagany."
+          "passwordRequired": "Hasło lub PIN są wymagane."
         },
         "error": "Nie można rozwiązać odchylenia: {message}",
         "success": "Odchylenie rozwiązane."
@@ -9013,16 +9035,16 @@
         "esign": {
           "title": "Podpis elektroniczny",
           "meaning": "Podpis potwierdza, że zamknąłeś to działanie CAPA (21 CFR Part 11).",
-          "password": "PIN podpisu",
-          "passwordHelp": "Wprowadź swój PIN podpisu, aby złożyć podpis elektroniczny.",
-          "passwordPlaceholder": "Wprowadź PIN"
+          "password": "Hasło konta lub PIN e-podpisu",
+          "passwordHelp": "Wprowadź hasło konta lub PIN e-podpisu, aby złożyć podpis elektroniczny.",
+          "passwordPlaceholder": "Wprowadź hasło lub PIN"
         },
         "cancel": "Anuluj",
         "submit": "Rozwiąż działanie",
         "submitting": "Rozwiązywanie…",
-        "formIncomplete": "Wprowadź PIN, aby rozwiązać działanie.",
+        "formIncomplete": "Wprowadź hasło lub PIN, aby rozwiązać działanie.",
         "validation": {
-          "passwordRequired": "Twój PIN podpisu jest wymagany."
+          "passwordRequired": "Hasło lub PIN są wymagane."
         },
         "error": "Nie można rozwiązać działania CAPA: {message}",
         "success": "Działanie CAPA rozwiązane."

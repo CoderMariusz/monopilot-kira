@@ -119,6 +119,14 @@ function buildLabels(locale: string): ReportingLabels {
         inspection: t('quality.entity.inspection'),
         ncr: t('quality.entity.ncr'),
       },
+      status: {
+        open: t('quality.status.open'),
+        pending: t('quality.status.pending'),
+        passed: t('quality.status.passed'),
+        failed: t('quality.status.failed'),
+        on_hold: t('quality.status.on_hold'),
+        closed_in_window: t('quality.status.closed_in_window'),
+      },
       columns: {
         entity: t('quality.columns.entity'),
         status: t('quality.columns.status'),
@@ -137,6 +145,14 @@ function buildLabels(locale: string): ReportingLabels {
       },
       confirmedToGrnNote: t('procurement.confirmedToGrnNote'),
       createdToGrnNote: t('procurement.createdToGrnNote'),
+      status: {
+        cancelled: t('procurement.status.cancelled'),
+        draft: t('procurement.status.draft'),
+        partially_received: t('procurement.status.partially_received'),
+        received: t('procurement.status.received'),
+        sent: t('procurement.status.sent'),
+        confirmed: t('procurement.status.confirmed'),
+      },
       columns: {
         status: t('procurement.columns.status'),
         count: t('procurement.columns.count'),
@@ -302,7 +318,7 @@ describe('ReportingOverviewClient', () => {
 
     const proc = within(screen.getByTestId('rpt-section-procurement'));
     expect(proc.getByText('Procurement summary')).toBeInTheDocument();
-    expect(proc.getByText('confirmed')).toBeInTheDocument();
+    expect(proc.getByText('Confirmed')).toBeInTheDocument();
   });
 
   it('renders the honest n/a placeholder for the not-computable confirmed→GRN KPI', () => {
@@ -334,11 +350,11 @@ describe('ReportingOverviewClient', () => {
 
     fireEvent.click(screen.getByTestId('rpt-export-quality'));
     expect(downloadCsvMock.mock.calls[2][1]).toMatch(/^reporting-quality-/);
-    expect(downloadCsvMock.mock.calls[2][0]).toContain('Hold,open,2');
+    expect(downloadCsvMock.mock.calls[2][0]).toContain('Hold,Open,2');
 
     fireEvent.click(screen.getByTestId('rpt-export-procurement'));
     expect(downloadCsvMock.mock.calls[3][1]).toMatch(/^reporting-procurement-/);
-    expect(downloadCsvMock.mock.calls[3][0]).toContain('confirmed,2');
+    expect(downloadCsvMock.mock.calls[3][0]).toContain('Confirmed,2');
   });
 
   it('disables CSV buttons (with explanatory title) without rpt.export.csv', () => {

@@ -80,6 +80,13 @@ export default async function PlanningMrpPage({ params }: MrpPageProps) {
       intermediate: t('mrp.itemTypes.intermediate'),
       packaging: t('mrp.itemTypes.packaging'),
     },
+    status: {
+      suggested: t('mrp.status.suggested'),
+      planned: t('mrp.status.planned'),
+      cancelled: t('mrp.status.cancelled'),
+      completed: t('mrp.status.completed'),
+      failed: t('mrp.status.failed'),
+    },
     previousRuns: {
       title: t('mrp.previousRuns.title'),
       empty: t('mrp.previousRuns.empty'),

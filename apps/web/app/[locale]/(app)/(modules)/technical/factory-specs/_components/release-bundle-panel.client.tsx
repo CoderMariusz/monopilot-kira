@@ -151,6 +151,14 @@ function PairedStatusCard({
   );
 }
 
+function statusLabel(
+  t: ReturnType<typeof useTranslations<'Technical.releaseBundle'>>,
+  status: string | null,
+): string | null {
+  if (!status) return null;
+  return t(`status.${status}`);
+}
+
 function BlockerRow({ blocker, blockerKindLabel }: { blocker: BundleBlocker; blockerKindLabel: (k: BundleBlocker['kind']) => string }) {
   return (
     <div className={`alert ${SEVERITY_ALERT[blocker.severity]}`} style={{ fontSize: 12, alignItems: 'flex-start' }}>
@@ -312,7 +320,7 @@ function BundleModalBody({
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <PairedStatusCard
           heading={t('factorySpec')}
-          status={data.spec.status}
+          status={statusLabel(t, data.spec.status)}
           rows={[
             { label: t('specId'), value: `${data.spec.specCode} v${data.spec.version}`, mono: true },
             { label: t('owner'), value: data.spec.owner },
@@ -321,7 +329,7 @@ function BundleModalBody({
         />
         <PairedStatusCard
           heading={t('sharedBom')}
-          status={data.bom.status}
+          status={statusLabel(t, data.bom.status)}
           rows={[
             { label: t('bomId'), value: data.bom.id ? data.bom.id.slice(0, 8) : '—', mono: true },
             { label: t('version'), value: data.bom.version != null ? `v${data.bom.version}` : '—', mono: true },
@@ -361,10 +369,10 @@ function BundleModalBody({
               value={selectedBomHeaderId}
               onValueChange={setSelectedBomHeaderId}
               disabled={data.bomOptions.length === 0 || !['draft', 'in_review'].includes(data.spec.status)}
-              options={data.bomOptions.map((option) => ({
-                value: option.id,
-                label: option.label,
-              }))}
+                options={data.bomOptions.map((option) => ({
+                  value: option.id,
+                  label: t('bomOption', { version: option.version, status: statusLabel(t, option.status) ?? option.status }),
+                }))}
             >
               <SelectTrigger id="factory-spec-bom-link" aria-label={t('linkBomLabel')}>
                 <SelectValue placeholder={t('linkBomPlaceholder')} />
@@ -372,7 +380,7 @@ function BundleModalBody({
               <SelectContent>
                 {data.bomOptions.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
-                    {t('bomOption', { version: option.version, status: option.status })}
+                    {t('bomOption', { version: option.version, status: statusLabel(t, option.status) ?? option.status })}
                   </SelectItem>
                 ))}
               </SelectContent>

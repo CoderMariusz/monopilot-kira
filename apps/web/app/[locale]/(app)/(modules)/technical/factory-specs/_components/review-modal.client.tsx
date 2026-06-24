@@ -186,7 +186,7 @@ export function FactorySpecRowActions({
         <div className="mt-3 flex items-center gap-2">
           <span className={`badge ${BADGE_TONE[badge.colorToken] ?? 'badge-gray'}`}>{badge.label}</span>
           {badge.blockingReasonCode ? (
-            <span className="text-xs text-muted-foreground">{badge.blockingReasonCode}</span>
+            <span className="text-xs text-muted-foreground">{t(`modal.blockingReason.${badge.blockingReasonCode}`)}</span>
           ) : null}
         </div>
 

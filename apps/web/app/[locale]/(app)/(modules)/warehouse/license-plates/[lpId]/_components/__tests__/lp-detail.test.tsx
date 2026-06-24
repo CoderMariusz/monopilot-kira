@@ -48,6 +48,7 @@ function buildLabels(locale: string): LpDetailLabels {
     back: t('detail.back'),
     qtyLine: t('detail.header.qtyLine'),
     statusLabel: {
+      received: t('status.received'),
       available: t('status.available'),
       reserved: t('status.reserved'),
       blocked: t('status.blocked'),

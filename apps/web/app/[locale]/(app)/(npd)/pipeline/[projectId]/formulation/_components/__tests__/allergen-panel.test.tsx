@@ -45,7 +45,7 @@ const LABELS: AllergenPanelLabels = {
   present: 'lbl.present',
   trace: 'lbl.trace',
   absent: 'lbl.absent',
-  detectedHeading: 'lbl.detectedHeading',
+  detectedHeading: 'lbl.detectedHeading {count}',
   mustDeclare: 'lbl.mustDeclare',
   noneDetected: 'lbl.noneDetected',
   // ICU-style placeholders prove the component composes name + status into the
@@ -117,6 +117,7 @@ describe('AllergenPanel (T-115 parity + states + a11y)', () => {
       />,
     );
     const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('lbl.detectedHeading 2');
     expect(alert).toHaveTextContent('lbl.mustDeclare');
     expect(alert).toHaveTextContent('name.milk');
     expect(alert).toHaveTextContent('name.mustard');

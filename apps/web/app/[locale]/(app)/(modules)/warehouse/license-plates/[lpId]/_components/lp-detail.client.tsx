@@ -819,7 +819,7 @@ export function LpDetailClient({
                           {c.lpNumber}
                         </Link>
                         <span className="text-slate-400">·</span>
-                        <span className="text-slate-600">{c.status}</span>
+                        <span className="text-slate-600">{labels.statusLabel[c.status] ?? c.status}</span>
                         <span className="text-slate-400">·</span>
                         <span className="font-mono text-slate-600">
                           {c.quantity} {c.uom}
