@@ -328,7 +328,7 @@ async function queryLinesForSite(context: OrgContextLike, orgId: string, siteId:
   if (!parsed.success || context.orgId !== parsed.data.orgId) return [];
 
   const { rows } = await context.client.query<LineDbRow>(
-    `select distinct
+    `select
             pl.id::text,
             pl.org_id::text,
             pl.code,

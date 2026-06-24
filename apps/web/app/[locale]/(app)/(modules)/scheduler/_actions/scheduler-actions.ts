@@ -88,6 +88,26 @@ const MATRIX_SELECT = `
   created_at,
   updated_at`;
 
+// cm-qualified variant of MATRIX_SELECT for loadChangeoverMatrixForRun, which joins
+// changeover_matrix (cm) ⋈ changeover_matrix_versions (cmv). id/org_id/site_id (and
+// created_at/updated_at) exist in BOTH tables, so the bare MATRIX_SELECT is ambiguous
+// (Postgres 42702 "column reference id is ambiguous") — qualify every column with cm.
+const MATRIX_SELECT_CM = `
+  cm.id::text,
+  cm.org_id::text,
+  cm.site_id::text,
+  cm.version_id::text,
+  cm.line_id,
+  cm.allergen_from,
+  cm.allergen_to,
+  cm.changeover_minutes::text,
+  cm.requires_cleaning,
+  cm.requires_atp,
+  cm.risk_level,
+  cm.notes,
+  cm.created_at,
+  cm.updated_at`;
+
 function isUuid(value: string | null | undefined): value is string {
   return !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -131,7 +151,7 @@ async function loadChangeoverMatrixForRun(
   lineId: string | null,
 ): Promise<ChangeoverMatrixEntry[]> {
   const { rows } = await ctx.client.query<ChangeoverMatrixEntry>(
-    `select ${MATRIX_SELECT}
+    `select ${MATRIX_SELECT_CM}
        from public.changeover_matrix cm
        join public.changeover_matrix_versions cmv
          on cmv.org_id = cm.org_id
