@@ -1,0 +1,1 @@
+- ~09:25 LOW tick — shipped mig 324 (scheduler dispatch/matrix perms seed; L1 from live audit); applied live + ledger-recorded; verified 6 role-grants each for run.dispatch/matrix.read/matrix.edit. Committed, NOT pushed.
