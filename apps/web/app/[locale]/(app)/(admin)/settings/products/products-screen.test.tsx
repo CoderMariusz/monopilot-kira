@@ -54,7 +54,6 @@ const products: ProductRow[] = [
     unit: 'EA',
     weight: '0.15',
     bomLink: 'BOM-A1B2C3D4',
-    line: 'Line 1',
     status: 'active',
   },
   {
@@ -65,7 +64,6 @@ const products: ProductRow[] = [
     unit: 'EA',
     weight: '0.2',
     bomLink: '',
-    line: '',
     status: 'development',
   },
   {
@@ -76,7 +74,6 @@ const products: ProductRow[] = [
     unit: 'L',
     weight: '0.25',
     bomLink: 'BOM-EE55FF66',
-    line: 'Line 2',
     status: 'pilot',
   },
   {
@@ -87,7 +84,6 @@ const products: ProductRow[] = [
     unit: 'L',
     weight: '0.5',
     bomLink: '',
-    line: 'Line 1',
     status: 'discontinued',
   },
 ];
@@ -129,7 +125,7 @@ describe('ProductsScreen', () => {
     renderScreen();
     const table = screen.getByTestId('products-table');
 
-    ['SKU', 'Name', 'Category', 'Unit', 'Weight', 'BOM', 'Line', 'Status'].forEach((header) => {
+    ['SKU', 'Name', 'Category', 'Unit', 'Weight', 'BOM', 'Status'].forEach((header) => {
       expect(within(table).getByText(header)).toBeInTheDocument();
     });
 

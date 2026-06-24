@@ -13,7 +13,7 @@ import type { ProductRow, ProductStatus } from './_actions/products';
  * (ProductsScreen) — PageHead ("Import CSV" / "+ New product" actions) + a
  * Section whose head carries "{n} products" + category pills (left) and a
  * SKU/name search box (right), over a table (SKU, Name, Category, Unit, Weight,
- * BOM, Line, Status) with status badges
+ * BOM, Status) with status badges
  * (Active green / Development blue / Pilot amber / Discontinued gray).
  *
  * Built from the shared settings primitives (`PageHead`, `Section`) so the
@@ -205,7 +205,6 @@ export default function ProductsScreen({
                 <th>{labels.columns.unit}</th>
                 <th>{labels.columns.weight}</th>
                 <th>{labels.columns.bom}</th>
-                <th>{labels.columns.line}</th>
                 <th>{labels.columns.status}</th>
               </tr>
             </thead>
@@ -226,7 +225,6 @@ export default function ProductsScreen({
                       <span className="muted">—</span>
                     )}
                   </td>
-                  <td>{product.line || '—'}</td>
                   <td>
                     <StatusBadge status={product.status} label={labels.status[product.status]} />
                   </td>

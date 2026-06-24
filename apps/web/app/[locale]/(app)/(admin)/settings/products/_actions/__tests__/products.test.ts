@@ -43,7 +43,6 @@ describe('settings products data-layer contract', () => {
         unit: 'kg',
         weight: '0.5',
         bom_link: 'BOM-ABC12345',
-        line: 'Line 1',
         status: 'active',
       },
     ];
@@ -64,7 +63,6 @@ describe('settings products data-layer contract', () => {
         unit: 'kg',
         weight: '0.5',
         bomLink: 'BOM-ABC12345',
-        line: 'Line 1',
         status: 'active',
       },
     ]);
@@ -73,7 +71,6 @@ describe('settings products data-layer contract', () => {
     expect(productsCall, 'loader must query the canonical public.items table').toBeTruthy();
     expect(productsCall?.sql).toContain('app.current_org_id()');
     expect(productsCall?.sql).toContain('public.bom_headers');
-    expect(productsCall?.sql).toContain('public.production_lines');
     expect(productsCall?.params).toEqual(['22222222-2222-2222-2222-222222222222']);
   });
 });

@@ -17,7 +17,6 @@ export type ProductRow = {
   unit: string;
   weight: string;
   bomLink: string;
-  line: string;
   status: ProductStatus;
 };
 
@@ -39,7 +38,6 @@ type ProductDbRow = {
   unit: string;
   weight: string | null;
   bom_link: string | null;
-  line: string | null;
   status: string;
 };
 
@@ -84,7 +82,6 @@ function toProductRow(row: ProductDbRow): ProductRow {
     unit: row.unit,
     weight: row.weight ?? '',
     bomLink: row.bom_link ?? '',
-    line: row.line ?? '',
     status: normalizeStatus(row.status),
   };
 }
@@ -119,7 +116,6 @@ const PRODUCT_SELECT = `
            when bom.id is null then null
            else 'BOM-' || upper(left(bom.id::text, 8))
          end as bom_link,
-         null::text as line,
          i.status
     from public.items i
     left join lateral (
