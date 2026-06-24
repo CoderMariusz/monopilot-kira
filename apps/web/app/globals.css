@@ -359,6 +359,29 @@ a {
 .checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
 .checkbox__indicator { font-size: 12px; line-height: 1; color: #fff; }
 
+/* The @monopilot/ui <Switch> primitive emits .switch/.switch__thumb, which this
+   design system never defined — the toggle rendered 0×0 px and was unclickable
+   by mouse (live: settings scanner-auth supervisor-PIN toggle). Mirrors the
+   prototype .sg-toggle/.slider control (settings.css:54-59): 36×20 track, 16×16
+   thumb, blue when on / gray-300 when off. */
+.switch {
+  position: relative; display: inline-block; flex: 0 0 36px;
+  width: 36px; height: 20px; padding: 0; cursor: pointer;
+  border: 0; border-radius: 10px; background: var(--gray-300);
+  transition: background 0.15s;
+}
+.switch:hover:not(:disabled) { background: #94a3b8; }
+.switch[data-state='checked'] { background: var(--blue); }
+.switch:disabled { opacity: 0.55; cursor: not-allowed; }
+.switch:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.switch__thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s;
+}
+.switch[data-state='checked'] .switch__thumb { transform: translateX(16px); }
+
 /* BEM aliases — the @monopilot/ui <Button> primitive emits double-dash variant
    classes (.btn--primary etc.); mirror the single-dash design-system tones so any
    <Button variant> / className="btn--*" renders styled instead of as the bare
