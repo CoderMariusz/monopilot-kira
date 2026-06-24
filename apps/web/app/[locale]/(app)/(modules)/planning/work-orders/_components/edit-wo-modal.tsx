@@ -263,7 +263,10 @@ export function EditWoModal({
         scheduledStartTime: scheduledStart ? new Date(scheduledStart + 'T00:00:00').toISOString() : undefined,
         productionLineId: lineId || undefined,
         machineId: machineId || undefined,
-        notes: notes.trim() || undefined,
+        // Send the (possibly empty) string so the action can tell "cleared"
+        // ('' -> JSON null) from "unchanged". `|| undefined` silently dropped a
+        // clear: the action read undefined as "keep" and the old note survived.
+        notes: notes.trim(),
       });
       if (!result.ok) {
         const map = labels.errors as Record<string, string>;
