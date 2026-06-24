@@ -144,7 +144,13 @@ type LineDbRow = {
   status: string;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Format-only UUID check (8-4-4-4-12 hex). MUST NOT enforce the RFC-4122
+// version/variant bytes ([1-5] / [89ab]): the seed org UUIDs are
+// 00000000-0000-0000-0000-0000000000xx (version=0, variant=0) and a strict
+// regex rejected them at the queryLinesForSite guard → the per-site lines list
+// returned [] for every user (querySites used a plain string guard, hence worked).
+// The real org security guard is `context.orgId !== orgId`, not this format check.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 
 const SiteSettingsInput = z
