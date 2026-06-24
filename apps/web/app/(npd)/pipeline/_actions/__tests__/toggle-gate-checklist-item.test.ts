@@ -35,6 +35,7 @@ const BEFORE = {
   required: true,
   completed_at: null,
   completed_by_user: null,
+  fa_dept: null,
 };
 
 const AFTER = {
@@ -80,6 +81,27 @@ describe('toggleGateChecklistItem', () => {
     ctx.handler = handler({ found: false });
     const result = await toggleGateChecklistItem({ projectId: PROJECT, itemId: ITEM, completed: true });
     expect(result).toEqual({ ok: false, code: 'NOT_FOUND', status: 404 });
+  });
+
+  it('rejects manual toggles for FA-derived Done_<Dept> items', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.gate_checklist_items') && sql.includes('for update')) {
+        return { rows: [{ ...BEFORE, item_text: 'Done_Technical: Technical department NPD data closed', fa_dept: 'Technical' }] };
+      }
+      if (sql.includes('update public.gate_checklist_items')) return { rows: [AFTER] };
+      return { rows: [] };
+    };
+
+    const result = await toggleGateChecklistItem({ projectId: PROJECT, itemId: ITEM, completed: true });
+
+    expect(result).toEqual({ ok: false, code: 'FORBIDDEN', status: 403 });
+    expect(calls.some((call) => call.sql.includes('Done\\_') && call.sql.includes('escape'))).toBe(true);
+    expect(calls.some((call) => /update public\.gate_checklist_items/.test(call.sql))).toBe(false);
+    expect(calls.some((call) => /insert into public\.audit_events/.test(call.sql))).toBe(false);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it('updates completion state, audits, and revalidates the pipeline', async () => {

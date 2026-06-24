@@ -53,6 +53,8 @@ const LABELS: GateChecklistLabels = {
   emptyBody: 'This project has no gate checklist items configured yet.',
   error: 'Unable to load the gate checklist. Try again.',
   forbidden: 'You do not have permission to view this gate checklist.',
+  faDerivedHint: 'Closed in FA →',
+  faDerivedLocked: 'FA-derived',
 };
 
 const PROJECT: GateChecklistProject = {
@@ -106,7 +108,7 @@ afterEach(() => cleanup());
 describe('T-107 parity evidence — per-state DOM snapshots', () => {
   it('captures ready (current gate with a blocker)', () => {
     const { container } = render(
-      <GateChecklistPanel project={PROJECT} gates={gatesWithBlocker()} labels={LABELS} canWrite state="ready" />,
+      React.createElement(GateChecklistPanel, { project: PROJECT, gates: gatesWithBlocker(), labels: LABELS, canWrite: true, state: 'ready' }),
     );
     write('ready', container.innerHTML);
     expect(container.querySelector('[data-testid="gate-checklist-panel"]')).not.toBeNull();
@@ -114,7 +116,7 @@ describe('T-107 parity evidence — per-state DOM snapshots', () => {
 
   it('captures loading', () => {
     const { container } = render(
-      <GateChecklistPanel project={PROJECT} gates={gatesWithBlocker()} labels={LABELS} canWrite state="loading" />,
+      React.createElement(GateChecklistPanel, { project: PROJECT, gates: gatesWithBlocker(), labels: LABELS, canWrite: true, state: 'loading' }),
     );
     write('loading', container.innerHTML);
     expect(container.querySelector('[data-testid="gate-checklist-loading"]')).not.toBeNull();
@@ -122,28 +124,28 @@ describe('T-107 parity evidence — per-state DOM snapshots', () => {
 
   it('captures empty', () => {
     const { container } = render(
-      <GateChecklistPanel project={PROJECT} gates={[]} labels={LABELS} canWrite state="ready" />,
+      React.createElement(GateChecklistPanel, { project: PROJECT, gates: [], labels: LABELS, canWrite: true, state: 'ready' }),
     );
     write('empty', container.innerHTML);
   });
 
   it('captures error', () => {
     const { container } = render(
-      <GateChecklistPanel project={PROJECT} gates={gatesWithBlocker()} labels={LABELS} canWrite state="error" />,
+      React.createElement(GateChecklistPanel, { project: PROJECT, gates: gatesWithBlocker(), labels: LABELS, canWrite: true, state: 'error' }),
     );
     write('error', container.innerHTML);
   });
 
   it('captures permission-denied', () => {
     const { container } = render(
-      <GateChecklistPanel project={PROJECT} gates={gatesWithBlocker()} labels={LABELS} canWrite={false} state="permission_denied" />,
+      React.createElement(GateChecklistPanel, { project: PROJECT, gates: gatesWithBlocker(), labels: LABELS, canWrite: false, state: 'permission_denied' }),
     );
     write('permission-denied', container.innerHTML);
   });
 
   it('captures permission-denied-ready (RBAC: ready data but no write — checkboxes disabled, no attach)', () => {
     const { container } = render(
-      <GateChecklistPanel project={PROJECT} gates={gatesWithBlocker()} labels={LABELS} canWrite={false} state="ready" />,
+      React.createElement(GateChecklistPanel, { project: PROJECT, gates: gatesWithBlocker(), labels: LABELS, canWrite: false, state: 'ready' }),
     );
     write('rbac-readonly', container.innerHTML);
   });

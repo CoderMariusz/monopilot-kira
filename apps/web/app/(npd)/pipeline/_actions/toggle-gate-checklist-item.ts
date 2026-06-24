@@ -27,6 +27,7 @@ type ChecklistAuditRow = {
   required: boolean;
   completed_at: string | null;
   completed_by_user: string | null;
+  fa_dept: string | null;
 };
 
 export async function toggleGateChecklistItem(rawInput: unknown): Promise<ToggleGateChecklistItemResult> {
@@ -47,11 +48,29 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
                 gci.item_text,
                 gci.required,
                 gci.completed_at::text as completed_at,
-                gci.completed_by_user::text as completed_by_user
+                gci.completed_by_user::text as completed_by_user,
+                done.dept as fa_dept
            from public.gate_checklist_items gci
            join public.npd_projects p
              on p.id = gci.project_id
             and p.org_id = gci.org_id
+           left join lateral (
+             select closure.dept
+               from public.product pfa
+               cross join (values
+                 ('Core', pfa.closed_core),
+                 ('Planning', pfa.closed_planning),
+                 ('Commercial', pfa.closed_commercial),
+                 ('Production', pfa.closed_production),
+                 ('Technical', pfa.closed_technical),
+                 ('MRP', pfa.closed_mrp),
+                 ('Procurement', pfa.closed_procurement)
+              ) as closure(dept, closed_value)
+              where pfa.org_id = app.current_org_id()
+                and pfa.product_code = p.product_code
+                and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$\$$
+              limit 1
+           ) done on true
           where gci.id = $2::uuid
             and gci.project_id = $1::uuid
             and gci.org_id = app.current_org_id()
@@ -60,6 +79,7 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
       );
       const beforeRow = before.rows[0];
       if (!beforeRow) return { ok: false, code: 'NOT_FOUND', status: 404 };
+      if (beforeRow.fa_dept !== null) return { ok: false, code: 'FORBIDDEN', status: 403 };
 
       const updated = await context.client.query<ChecklistAuditRow>(
         `update public.gate_checklist_items

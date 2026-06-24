@@ -81,6 +81,8 @@ const LABELS: GateScreenLabels = {
     emptyBody: 'Checklist items appear once the project gate is configured.',
     error: 'Unable to load the gate checklist.',
     forbidden: 'You do not have permission to view this gate.',
+    faDerivedHint: 'Closed in FA →',
+    faDerivedLocked: 'FA-derived',
   },
   advance: {
     title: 'Advance gate',

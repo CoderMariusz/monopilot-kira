@@ -357,7 +357,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
           id: item.id,
           text: item.itemText,
           required: item.required,
-          done: item.completedAt !== null,
+          done: item.done,
         }));
   const advanceModal = {
     labels: {

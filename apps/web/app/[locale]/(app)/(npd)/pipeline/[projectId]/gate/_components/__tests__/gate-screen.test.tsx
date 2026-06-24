@@ -95,6 +95,8 @@ const CHECKLIST_LABELS: GateScreenLabels['checklist'] = {
   emptyBody: 'cl.emptyBody',
   error: 'cl.error',
   forbidden: 'cl.forbidden',
+  faDerivedHint: 'cl.faDerivedHint',
+  faDerivedLocked: 'cl.faDerivedLocked',
 };
 
 const ADVANCE_LABELS: GateScreenLabels['advance'] = {

@@ -73,6 +73,8 @@ export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_de
 
 const DEBOUNCE_MS = 800;
 
+export type AllergenReference = { code: string; name: string };
+
 export type FormulationEditorData = {
   projectId: string;
   versionId: string;
@@ -392,15 +394,24 @@ function toNutritionRows(nutrition: Record<string, string>): NutritionRow[] {
 }
 
 /**
- * calc.allergens (detected union) → full EU14 presence list for the AllergenPanel.
- * Detected codes are 'present'; the remaining EU14 codes are 'absent'. The compute
- * path emits a binary union (no trace), so every detected allergen is 'present'.
+ * calc.allergens (detected union) → full reference presence list for the
+ * AllergenPanel. Detected codes are 'present'; the remaining reference codes are
+ * 'absent'. The compute path emits a binary union (no trace), so every detected
+ * allergen is 'present'.
  */
-function toAllergenStatuses(detected: string[], names: Record<string, string>): AllergenStatus[] {
+function toAllergenStatuses(
+  detected: string[],
+  names: Record<string, string>,
+  allergenReference?: AllergenReference[],
+): AllergenStatus[] {
   const present = new Set(detected);
-  return EU14_ALLERGEN_CODES.map((code) => ({
+  const references =
+    allergenReference && allergenReference.length > 0
+      ? allergenReference
+      : EU14_ALLERGEN_CODES.map((code) => ({ code, name: names[code] ?? code }));
+  return references.map(({ code, name }) => ({
     code,
-    name: names[code] ?? code,
+    name: name || names[code] || code,
     status: present.has(code) ? ('present' as const) : ('absent' as const),
   }));
 }
@@ -518,6 +529,7 @@ export function FormulationEditor({
   panelLabels,
   nutritionTargets,
   allergenNames,
+  allergenReference,
   currency = 'EUR',
   canEdit = false,
   submitAllowed = true,
@@ -545,6 +557,8 @@ export function FormulationEditor({
   nutritionTargets?: NutritionTargets;
   /** Locale-resolved EU14 allergen display names, keyed by code. */
   allergenNames?: Record<string, string>;
+  /** Org-scoped allergen reference rows from Reference.Allergens. Falls back to EU14 when empty. */
+  allergenReference?: AllergenReference[];
   /** ISO-4217 currency code for the CostPanel (default EUR). */
   currency?: string;
   canEdit?: boolean;
@@ -1437,7 +1451,7 @@ export function FormulationEditor({
                   includePackaging={false}
                 />
                 <AllergenPanel
-                  allergens={toAllergenStatuses(calc.allergens, allergenNames ?? {})}
+                  allergens={toAllergenStatuses(calc.allergens, allergenNames ?? {}, allergenReference)}
                   labels={panelLabels.allergen}
                 />
               </>

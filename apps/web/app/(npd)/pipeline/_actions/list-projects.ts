@@ -51,7 +51,12 @@ export async function listProjects(rawInput: unknown = {}): Promise<ListProjects
                 p.notes,
                 p.created_at::text as created_at,
                 count(gci.id)::text as checklist_total,
-                count(gci.id) filter (where gci.completed_at is not null)::text as checklist_completed,
+                count(gci.id) filter (
+                  where case
+                    when done.dept is null then gci.completed_at is not null
+                    else coalesce(done.closed_value, '') = 'Yes'
+                  end
+                )::text as checklist_completed,
                 c.id as closeout_id,
                 c.trial_shelf_life_set,
                 c.trial_allergens_cascade_recomputed_at::text as trial_allergens_cascade_recomputed_at,
@@ -63,6 +68,23 @@ export async function listProjects(rawInput: unknown = {}): Promise<ListProjects
            left join public.gate_checklist_items gci
              on gci.project_id = p.id
             and gci.org_id = app.current_org_id()
+           left join lateral (
+             select closure.dept, closure.closed_value
+               from public.product pfa
+               cross join (values
+                 ('Core', pfa.closed_core),
+                 ('Planning', pfa.closed_planning),
+                 ('Commercial', pfa.closed_commercial),
+                 ('Production', pfa.closed_production),
+                 ('Technical', pfa.closed_technical),
+                 ('MRP', pfa.closed_mrp),
+                 ('Procurement', pfa.closed_procurement)
+              ) as closure(dept, closed_value)
+              where pfa.org_id = app.current_org_id()
+                and pfa.product_code = p.product_code
+                and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$\$$
+              limit 1
+           ) done on true
            left join public.npd_legacy_closeout c
              on c.npd_project_id = p.id
             and c.org_id = app.current_org_id()

@@ -23,9 +23,12 @@ export type ChecklistItem = {
   categoryCode: string;
   itemText: string;
   required: boolean;
+  done: boolean;
   completedAt: string | null;
   completedByUser: string | null;
   evidenceFile: string | null;
+  faDept: string | null;
+  faProductCode: string | null;
 };
 
 export type GateApprovalTimelineItem = {
@@ -60,9 +63,12 @@ type ChecklistItemRow = {
   category_code: string;
   item_text: string;
   required: boolean;
+  done: boolean;
   completed_at: string | null;
   completed_by_user: string | null;
   evidence_file: string | null;
+  fa_dept: string | null;
+  fa_product_code: string | null;
 };
 
 type ApprovalRow = {
@@ -111,7 +117,12 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                 p.notes,
                 p.created_at::text as created_at,
                 count(gci.id)::text as checklist_total,
-                count(gci.id) filter (where gci.completed_at is not null)::text as checklist_completed,
+                count(gci.id) filter (
+                  where case
+                    when done.dept is null then gci.completed_at is not null
+                    else coalesce(done.closed_value, '') = 'Yes'
+                  end
+                )::text as checklist_completed,
                 (select count(fi.id)
                    from public.formulations f
                    join public.formulation_versions fv on fv.id = f.current_version_id
@@ -122,6 +133,23 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
            left join public.gate_checklist_items gci
              on gci.project_id = p.id
             and gci.org_id = app.current_org_id()
+           left join lateral (
+             select closure.dept, closure.closed_value
+               from public.product pfa
+               cross join (values
+                 ('Core', pfa.closed_core),
+                 ('Planning', pfa.closed_planning),
+                 ('Commercial', pfa.closed_commercial),
+                 ('Production', pfa.closed_production),
+                 ('Technical', pfa.closed_technical),
+                 ('MRP', pfa.closed_mrp),
+                 ('Procurement', pfa.closed_procurement)
+              ) as closure(dept, closed_value)
+              where pfa.org_id = app.current_org_id()
+                and pfa.product_code = p.product_code
+                and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$\$$
+              limit 1
+           ) done on true
           where p.org_id = app.current_org_id()
             and p.id = $1::uuid
           group by p.id
@@ -134,18 +162,44 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
 
       const [checklistRows, approvalsRows] = await Promise.all([
         context.client.query<ChecklistItemRow>(
-          `select id,
-                  gate_code,
-                  category_code,
-                  item_text,
-                  required,
-                  completed_at::text as completed_at,
-                  completed_by_user::text as completed_by_user,
-                  evidence_file
-             from public.gate_checklist_items
-            where org_id = app.current_org_id()
-              and project_id = $1::uuid
-            order by gate_code, created_at, id`,
+          `select gci.id,
+                  gci.gate_code,
+                  gci.category_code,
+                  gci.item_text,
+                  gci.required,
+                  case
+                    when done.dept is null then gci.completed_at is not null
+                    else coalesce(done.closed_value, '') = 'Yes'
+                  end as done,
+                  gci.completed_at::text as completed_at,
+                  gci.completed_by_user::text as completed_by_user,
+                  gci.evidence_file,
+                  done.dept as fa_dept,
+                  case when done.dept is null then null else p.product_code end as fa_product_code
+             from public.gate_checklist_items gci
+             join public.npd_projects p
+               on p.id = gci.project_id
+              and p.org_id = gci.org_id
+             left join lateral (
+               select closure.dept, closure.closed_value
+                 from public.product pfa
+                 cross join (values
+                   ('Core', pfa.closed_core),
+                   ('Planning', pfa.closed_planning),
+                   ('Commercial', pfa.closed_commercial),
+                   ('Production', pfa.closed_production),
+                   ('Technical', pfa.closed_technical),
+                   ('MRP', pfa.closed_mrp),
+                   ('Procurement', pfa.closed_procurement)
+                ) as closure(dept, closed_value)
+                where pfa.org_id = app.current_org_id()
+                  and pfa.product_code = p.product_code
+                  and gci.item_text like ('Done\\_' || closure.dept || ':%') escape $$\$$
+                limit 1
+             ) done on true
+            where gci.org_id = app.current_org_id()
+              and gci.project_id = $1::uuid
+            order by gci.gate_code, gci.created_at, gci.id`,
           [projectId],
         ),
         context.client.query<ApprovalRow>(
@@ -206,9 +260,12 @@ function groupChecklist(rows: ChecklistItemRow[]): Record<ChecklistGate, Checkli
       categoryCode: row.category_code,
       itemText: row.item_text,
       required: row.required,
+      done: row.done,
       completedAt: row.completed_at,
       completedByUser: row.completed_by_user,
       evidenceFile: row.evidence_file,
+      faDept: row.fa_dept,
+      faProductCode: row.fa_product_code,
     });
   }
   return grouped;

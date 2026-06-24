@@ -146,6 +146,8 @@ const DEFAULT_CHECKLIST_LABELS: GateChecklistLabels = {
   emptyBody: 'Checklist items appear once the project gate is configured.',
   error: 'Unable to load the gate checklist.',
   forbidden: 'You do not have permission to view this gate.',
+  faDerivedHint: 'Closed in FA →',
+  faDerivedLocked: 'FA-derived',
 };
 
 const DEFAULT_ADVANCE_LABELS: AdvanceGateLabels = {
@@ -249,17 +251,22 @@ function pctOf(items: { done: boolean }[]): number {
 }
 
 function mapChecklistItem(item: ChecklistItem) {
+  const faHref = item.faDept && item.faProductCode
+    ? `/fa/${encodeURIComponent(item.faProductCode)}?dept=${encodeURIComponent(item.faDept)}`
+    : null;
   return {
     id: item.id,
     text: item.itemText,
     required: item.required,
-    done: item.completedAt !== null,
+    done: item.done,
     // Category codes are stored lower-case (e.g. 'technical'); the panel groups by the
     // canonical TECHNICAL/BUSINESS/COMPLIANCE upper-case codes.
     category: item.categoryCode.toUpperCase() as CategoryCode,
     by: item.completedByUser,
     at: item.completedAt,
     file: item.evidenceFile,
+    faDept: item.faDept,
+    faHref,
   };
 }
 

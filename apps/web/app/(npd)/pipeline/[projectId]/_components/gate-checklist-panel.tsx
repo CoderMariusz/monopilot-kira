@@ -58,6 +58,8 @@ export type ChecklistItemView = {
   by: string | null;
   at: string | null;
   file: string | null;
+  faDept?: string | null;
+  faHref?: string | null;
 };
 
 export type GateView = {
@@ -123,6 +125,8 @@ export type GateChecklistLabels = {
   emptyBody: string;
   error: string;
   forbidden: string;
+  faDerivedHint: string;
+  faDerivedLocked: string;
 };
 
 function categoryLabel(category: string, labels: GateChecklistLabels): string {
@@ -238,6 +242,7 @@ function ChecklistItemRow({
   onToggle: (item: ChecklistItemView) => void;
   pending: boolean;
 }) {
+  const isFaDerived = !!item.faDept;
   const isBlocking = item.required && !item.done;
   const metaId = `item-meta-${item.id}`;
   return (
@@ -253,8 +258,8 @@ function ChecklistItemRow({
     >
       <Checkbox
         checked={item.done}
-        disabled={!canWrite || pending}
-        onCheckedChange={() => onToggle(item)}
+        disabled={isFaDerived || !canWrite || pending}
+        onCheckedChange={isFaDerived ? undefined : () => onToggle(item)}
         aria-label={item.text}
         aria-describedby={metaId}
         data-testid="gate-checklist-checkbox"
@@ -278,6 +283,11 @@ function ChecklistItemRow({
               <span aria-hidden="true">⚠</span> {labels.blocking}
             </Badge>
           )}
+          {isFaDerived && (
+            <Badge variant="muted" data-testid="gate-item-fa-derived-badge">
+              <span aria-hidden="true">🔒</span> {labels.faDerivedLocked}
+            </Badge>
+          )}
           {item.file && (
             <span className="text-xs text-slate-500" data-testid="gate-item-file">
               <span aria-hidden="true">📎</span> {item.file}
@@ -285,7 +295,24 @@ function ChecklistItemRow({
           )}
         </div>
         <div id={metaId} className="mt-0.5 text-xs text-slate-500">
-          {item.done && item.by
+          {isFaDerived
+            ? (
+                <>
+                  {labels.faDerivedHint}{' '}
+                  {item.faHref ? (
+                    <a
+                      href={item.faHref}
+                      className="font-medium text-blue-600 hover:text-blue-700"
+                      data-testid="gate-item-fa-link"
+                    >
+                      {item.faDept}
+                    </a>
+                  ) : (
+                    <span>{item.faDept}</span>
+                  )}
+                </>
+              )
+            : item.done && item.by
             ? labels.completedBy.replace('{by}', item.by).replace('{at}', item.at ?? '')
             : labels.notStarted}
         </div>
@@ -445,6 +472,7 @@ export function GateChecklistPanel({
   const currentBlockers = currentGate?.blockers ?? [];
 
   async function handleToggleItem(item: ChecklistItemView) {
+    if (item.faDept) return;
     if (!canWrite || !toggleGateChecklistItem) return;
     const next = !item.done;
     setOverrides((prev) => ({ ...prev, [item.id]: next }));

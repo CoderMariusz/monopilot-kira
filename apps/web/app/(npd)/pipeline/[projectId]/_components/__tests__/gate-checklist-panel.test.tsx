@@ -63,6 +63,8 @@ const LABELS: GateChecklistLabels = {
   emptyBody: 'lbl.emptyBody',
   error: 'lbl.error',
   forbidden: 'lbl.forbidden',
+  faDerivedHint: 'lbl.faDerivedHint',
+  faDerivedLocked: 'lbl.faDerivedLocked',
 };
 
 const PROJECT: GateChecklistProject = {
@@ -115,16 +117,7 @@ function makeReadyGates(): GateView[] {
 }
 
 function renderPanel(overrides: Partial<React.ComponentProps<typeof GateChecklistPanel>> = {}) {
-  return render(
-    <GateChecklistPanel
-      project={PROJECT}
-      gates={makeGates()}
-      labels={LABELS}
-      canWrite
-      state="ready"
-      {...overrides}
-    />,
-  );
+  return render(React.createElement(GateChecklistPanel, { project: PROJECT, gates: makeGates(), labels: LABELS, canWrite: true, state: 'ready', ...overrides }));
 }
 
 afterEach(() => cleanup());
@@ -261,13 +254,13 @@ describe('GateChecklistPanel — terminal G4 / Mark as Launched', () => {
 
   it('renders the Mark as Launched CTA at the terminal gate (no advance button)', () => {
     render(
-      <GateChecklistPanel
-        project={TERMINAL_PROJECT}
-        gates={makeTerminalGates()}
-        labels={LABELS}
-        canWrite
-        state="ready"
-      />,
+      React.createElement(GateChecklistPanel, {
+        project: TERMINAL_PROJECT,
+        gates: makeTerminalGates(),
+        labels: LABELS,
+        canWrite: true,
+        state: 'ready',
+      }),
     );
     expect(screen.getByTestId('gate-mark-launched')).toHaveTextContent('lbl.markLaunched');
     expect(screen.queryByTestId('gate-advance-button')).toBeNull();
@@ -277,14 +270,14 @@ describe('GateChecklistPanel — terminal G4 / Mark as Launched', () => {
     const user = userEvent.setup();
     const openModal = vi.fn();
     render(
-      <GateChecklistPanel
-        project={TERMINAL_PROJECT}
-        gates={makeTerminalGates()}
-        labels={LABELS}
-        canWrite
-        state="ready"
-        openModal={openModal}
-      />,
+      React.createElement(GateChecklistPanel, {
+        project: TERMINAL_PROJECT,
+        gates: makeTerminalGates(),
+        labels: LABELS,
+        canWrite: true,
+        state: 'ready',
+        openModal,
+      }),
     );
     await user.click(screen.getByTestId('gate-mark-launched'));
     expect(openModal).toHaveBeenCalledWith('advanceGate', { project: TERMINAL_PROJECT });
@@ -292,14 +285,14 @@ describe('GateChecklistPanel — terminal G4 / Mark as Launched', () => {
 
   it('renders the terminal launched hint instead of an enabled Mark as Launched CTA', () => {
     render(
-      <GateChecklistPanel
-        project={TERMINAL_PROJECT}
-        gates={makeTerminalGates()}
-        labels={LABELS}
-        canWrite
-        state="ready"
-        isTerminal
-      />,
+      React.createElement(GateChecklistPanel, {
+        project: TERMINAL_PROJECT,
+        gates: makeTerminalGates(),
+        labels: LABELS,
+        canWrite: true,
+        state: 'ready',
+        isTerminal: true,
+      }),
     );
 
     expect(screen.queryByTestId('gate-mark-launched')).toBeNull();
@@ -348,6 +341,42 @@ describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
     renderPanel({ canWrite: true });
     expect(screen.queryByTestId('gate-item-attach')).toBeNull();
     expect(screen.queryByRole('button', { name: /Attach/i })).toBeNull();
+  });
+
+  it('renders FA-derived Done rows as read-only with an FA department link and no toggle call', async () => {
+    const user = userEvent.setup();
+    const toggle = vi.fn().mockResolvedValue({ ok: true });
+    const gates = makeReadyGates();
+    const g2 = gates.find((g) => g.key === 'G2')!;
+    g2.items = [
+      {
+        id: 'g2-done-technical',
+        text: 'Done_Technical: Technical department NPD data closed',
+        required: true,
+        done: true,
+        category: 'TECHNICAL',
+        by: null,
+        at: null,
+        file: null,
+        faDept: 'Technical',
+        faHref: '/fa/FG-NPD-001?dept=Technical',
+      },
+    ];
+
+    renderPanel({ gates, toggleGateChecklistItem: toggle });
+    const row = screen.getByTestId('gate-checklist-item');
+    const checkbox = within(row).getByRole('checkbox');
+
+    expect(checkbox).toBeDisabled();
+    expect(within(row).getByTestId('gate-item-fa-derived-badge')).toHaveTextContent('lbl.faDerivedLocked');
+    expect(within(row).getByText('lbl.faDerivedHint')).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: 'Technical' })).toHaveAttribute(
+      'href',
+      '/fa/FG-NPD-001?dept=Technical',
+    );
+
+    await user.click(checkbox);
+    expect(toggle).not.toHaveBeenCalled();
   });
 });
 

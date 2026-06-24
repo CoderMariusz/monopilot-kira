@@ -26,6 +26,7 @@ import { getTranslations } from 'next-intl/server';
 
 import {
   FormulationEditor,
+  type AllergenReference,
   type FormulationEditorData,
   type FormulationLabels,
   type FormulationPanelLabels,
@@ -407,6 +408,16 @@ async function loadCurrentStage(ctx: OrgContextLike, projectId: string): Promise
   return rows[0]?.current_stage ?? null;
 }
 
+async function loadAllergenReference(ctx: OrgContextLike): Promise<AllergenReference[]> {
+  const { rows } = await ctx.client.query<{ allergen_code: string; allergen_name: string }>(
+    `select allergen_code, allergen_name
+       from "Reference"."Allergens"
+      where org_id = app.current_org_id()
+      order by allergen_name asc`,
+  );
+  return rows.map((row) => ({ code: row.allergen_code, name: row.allergen_name }));
+}
+
 interface VersionRow {
   id: string;
   version_number: number;
@@ -452,7 +463,13 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
   return rows.length > 0;
 }
 
-type LoaderResult = { state: PageState; data: FormulationEditorData | null; canEdit: boolean; submitAllowed: boolean };
+type LoaderResult = {
+  state: PageState;
+  data: FormulationEditorData | null;
+  canEdit: boolean;
+  submitAllowed: boolean;
+  allergenReference: AllergenReference[];
+};
 
 async function readPageData(projectId: string): Promise<LoaderResult> {
   // Perf (#1 + #3): editability (RBAC) + pack weight do NOT depend on the
@@ -465,20 +482,22 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       packWeightG: string | null;
       versions: Array<{ id: string; versionNumber: number }>;
       currentStage: string | null;
+      allergenReference: AllergenReference[];
     }> => {
       try {
         return await withOrgContext(async (rawCtx) => {
           const ctx = rawCtx as OrgContextLike;
-          const [canEdit, packWeightG, versions, currentStage] = await Promise.all([
+          const [canEdit, packWeightG, versions, currentStage, allergenReference] = await Promise.all([
             hasPermission(ctx, EDIT_PERMISSION),
             loadPackWeightG(ctx, projectId),
             loadVersionHistory(ctx, projectId),
             loadCurrentStage(ctx, projectId),
+            loadAllergenReference(ctx),
           ]);
-          return { canEdit, packWeightG, versions, currentStage };
+          return { canEdit, packWeightG, versions, currentStage, allergenReference };
         });
       } catch {
-        return { canEdit: false, packWeightG: null, versions: [], currentStage: null };
+        return { canEdit: false, packWeightG: null, versions: [], currentStage: null, allergenReference: [] };
       }
     })(),
   ]);
@@ -486,16 +505,17 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
   const submitAllowed = basics.currentStage === 'recipe';
   const packWeightG = basics.packWeightG;
   const versionHistory = basics.versions;
+  const allergenReference = basics.allergenReference;
 
   if (!result.ok) {
-    if (result.error === 'not_found') return { state: 'empty', data: null, canEdit, submitAllowed };
-    if (result.error === 'invalid_input') return { state: 'empty', data: null, canEdit, submitAllowed };
-    return { state: 'error', data: null, canEdit, submitAllowed };
+    if (result.error === 'not_found') return { state: 'empty', data: null, canEdit, submitAllowed, allergenReference };
+    if (result.error === 'invalid_input') return { state: 'empty', data: null, canEdit, submitAllowed, allergenReference };
+    return { state: 'error', data: null, canEdit, submitAllowed, allergenReference };
   }
 
   const { formulation, currentVersion, ingredients } = result.data;
   if (!currentVersion) {
-    return { state: 'empty', data: null, canEdit, submitAllowed };
+    return { state: 'empty', data: null, canEdit, submitAllowed, allergenReference };
   }
 
   const data: FormulationEditorData = {
@@ -540,7 +560,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     }),
   };
 
-  return { state: 'ready', data, canEdit, submitAllowed };
+  return { state: 'ready', data, canEdit, submitAllowed, allergenReference };
 }
 
 export default async function FormulationPage(propsInput: unknown = {}) {
@@ -562,6 +582,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
         data: props.data ?? null,
         canEdit: props.canEdit ?? false,
         submitAllowed: true,
+        allergenReference: [],
       }
     : await readPageData(projectId);
 
@@ -573,6 +594,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       panelLabels={panelLabels}
       nutritionTargets={NUTRITION_TARGETS}
       allergenNames={allergenNames}
+      allergenReference={loaded.allergenReference}
       currency="EUR"
       canEdit={loaded.canEdit}
       submitAllowed={loaded.submitAllowed}
