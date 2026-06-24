@@ -552,15 +552,14 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
           `update public.inventory_allocations
               set status = 'released',
                   released_at = coalesce(released_at, now()),
-                  ext_data = coalesce(ext_data, '{}'::jsonb) || $3::jsonb,
+                  ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
                   updated_at = now(),
-                  updated_by = $4::uuid
+                  updated_by = $3::uuid
             where org_id = app.current_org_id()
               and id = $1::uuid
               and status in ('allocated', 'picked')`,
           [
             allocation.id,
-            allocation.qty,
             JSON.stringify({ cancellation_signature_id: signatureId, cancelled_shipment_id: shipment.id }),
             userId,
           ],
