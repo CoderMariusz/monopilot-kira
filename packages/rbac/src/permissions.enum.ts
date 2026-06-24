@@ -129,6 +129,8 @@ export const Permission = {
   NPD_RECIPE_SUBMIT_FOR_TRIAL: 'npd.recipe.submit_for_trial',
   /** NPD pilot BOM promotion permission; PRD 01-NPD §2.2, §18. */
   NPD_PILOT_PROMOTE_TO_BOM: 'npd.pilot.promote_to_bom',
+  /** NPD planning write permission; seeded by NPD planning migrations. */
+  NPD_PLANNING_WRITE: 'npd.planning.write',
   /** NPD gate advancement permission; PRD 01-NPD §2.2, §17.9. */
   NPD_GATE_ADVANCE: 'npd.gate.advance',
   /** NPD gate approval permission; PRD 01-NPD §2.2, §17.9. */
@@ -627,6 +629,7 @@ export const ALL_NPD_PERMISSIONS = [
   Permission.NPD_FORMULATION_LOCK,
   Permission.NPD_RECIPE_SUBMIT_FOR_TRIAL,
   Permission.NPD_PILOT_PROMOTE_TO_BOM,
+  Permission.NPD_PLANNING_WRITE,
   Permission.NPD_GATE_ADVANCE,
   Permission.NPD_GATE_APPROVE,
   Permission.NPD_BOM_EXPORT,

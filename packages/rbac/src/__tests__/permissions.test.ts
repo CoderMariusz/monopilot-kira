@@ -75,6 +75,7 @@ const expectedNpdPermissions = [
   'npd.formulation.lock',
   'npd.recipe.submit_for_trial',
   'npd.pilot.promote_to_bom',
+  'npd.planning.write',
   'npd.gate.advance',
   'npd.gate.approve',
   'npd.bom.export',
@@ -339,6 +340,7 @@ const expectedCanonicalPermissions = [
   'npd.formulation.lock',
   'npd.recipe.submit_for_trial',
   'npd.pilot.promote_to_bom',
+  'npd.planning.write',
   'npd.gate.advance',
   'npd.gate.approve',
   'npd.bom.export',
@@ -644,7 +646,7 @@ describe('rbac permission source of truth', () => {
     const { ALL_PERMISSIONS, ALL_NPD_PERMISSIONS, Permission } = await loadPermissionsModule();
 
     expect(ALL_NPD_PERMISSIONS).toEqual(expectedNpdPermissions);
-    expect(ALL_NPD_PERMISSIONS).toHaveLength(28);
+    expect(ALL_NPD_PERMISSIONS).toHaveLength(29);
     expect(new Set(ALL_NPD_PERMISSIONS).size).toBe(ALL_NPD_PERMISSIONS.length);
     expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
 
