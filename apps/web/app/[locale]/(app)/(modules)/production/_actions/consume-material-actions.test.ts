@@ -60,6 +60,11 @@ function makeClient(): QueryClient {
           ? { rows: [{ material_id: MATERIAL_ID, consumed_qty: '12.500', uom: 'kg', lp_id: LP_ID }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
+      if (n.includes('from public.license_plates lp') && n.includes('quantity - $4::numeric >= lp.reserved_qty')) {
+        return state.lpDecrementSucceeds
+          ? { rows: [{ id: LP_ID }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
       if (n.includes('from public.license_plates lp')) {
         return {
           rows: [{
@@ -285,7 +290,9 @@ describe('recordDesktopConsumption — LP underflow refusal', () => {
     state.lpDecrementSucceeds = false;
     const result = await recordDesktopConsumption(VALID_INPUT);
     expect(result).toEqual({ ok: false, reason: 'lp_unavailable' });
-    // The whole txn rolls back — no ledger row commits.
+    // CHK-1 regression: lp_unavailable is a pre-mutation gate, so the WO line
+    // is never incremented and no orphaned consumption ledger row is attempted.
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
   });
 

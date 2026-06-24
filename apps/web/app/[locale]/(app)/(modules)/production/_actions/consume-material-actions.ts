@@ -7,10 +7,14 @@
  * DISABLED DeferredButton — `wo_materials.consumed_qty` (and the matching LP
  * decrement) could only be written from the handheld scanner consume route
  * (`apps/web/app/api/production/scanner/wos/[id]/consume/route.ts`). Desktop
- * operators need the same capability, so this Server Action MIRRORS that route's
- * stock-mutating SQL EXACTLY:
- *   - single conditional UPDATE of `wo_materials.consumed_qty` (no-row → invalid_material),
- *   - optional LP decrement with the reserved-qty-safe WHERE (no-row → lp_unavailable).
+ * operators need the same capability, so this Server Action reuses that route's
+ * stock-mutating SQL. But unlike the scanner route (which owns its transaction and
+ * can ROLLBACK before a late return), withOrgContext auto-commits on a plain return
+ * — so every ok:false gate (including LP availability) MUST fire BEFORE the first
+ * mutation, and any failure AFTER the first write THROWS to force a rollback:
+ *   - LP availability gate + reserved-qty-safe LP decrement first,
+ *   - then the conditional UPDATE of `wo_materials.consumed_qty`,
+ *   - then the consumption-ledger insert (exactly-once) last.
  *
  * It does NOT touch the scanner routes, and it does NOT write `scanner_audit_log`
  * (that table is scanner-session-only: session_id/device_id provenance the
@@ -401,6 +405,49 @@ export async function recordDesktopConsumption(
           }
         : undefined;
 
+      if (lpId) {
+        const lpAvailability = await ctx.client.query<{ id: string }>(
+          `select lp.id::text as id
+             from public.license_plates lp
+            where lp.org_id = app.current_org_id()
+              and lp.id = $1::uuid
+              and lp.product_id = $2::uuid
+              and lp.uom = $3
+              and lp.quantity - $4::numeric >= lp.reserved_qty
+            limit 1
+            for update`,
+          [lpId, gate.product_id, gate.uom, qty],
+        );
+        if (!lpAvailability.rows[0]) {
+          return { ok: false, reason: 'lp_unavailable' };
+        }
+      }
+
+      if (lpId) {
+        // Optional LP decrement with the reserved-qty-safe WHERE — MIRRORS the
+        // scanner route. The pre-mutation gate above owns the user-facing
+        // lp_unavailable return; a no-row here means state changed despite the
+        // lock/read gate, so throw to force withOrgContext rollback.
+        const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
+          `update public.license_plates
+              set quantity = quantity - $3::numeric,
+                  status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
+                  consumed_by_wo_id = $4::uuid,
+                  updated_by = $5::uuid,
+                  updated_at = now()
+            where org_id = $1::uuid
+              and id = $2::uuid
+              and product_id = $6::uuid
+              and uom = $7
+              and quantity - $3::numeric >= reserved_qty
+            returning id::text, quantity::text as quantity`,
+          [orgId, lpId, qty, woId, userId, gate.product_id, gate.uom],
+        );
+        if (!lpRes.rows[0]) {
+          throw new Error('recordDesktopConsumption: LP decrement failed after availability gate');
+        }
+      }
+
       // (4) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.
       const materialRes = await ctx.client.query<{
         id: string;
@@ -421,33 +468,11 @@ export async function recordDesktopConsumption(
       );
       const material = materialRes.rows[0];
       if (!material) {
-        return { ok: false, reason: 'invalid_material' };
+        throw new Error('recordDesktopConsumption: material update failed after material gate');
       }
 
       let fefoAdherence = true;
       if (lpId) {
-        // Optional LP decrement with the reserved-qty-safe WHERE — MIRRORS the
-        // scanner route (no-row → lp_unavailable). The whole txn rolls back so
-        // the consumed_qty bump above never commits without its LP movement.
-        const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
-          `update public.license_plates
-              set quantity = quantity - $3::numeric,
-                  status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
-                  consumed_by_wo_id = $4::uuid,
-                  updated_by = $5::uuid,
-                  updated_at = now()
-            where org_id = $1::uuid
-              and id = $2::uuid
-              and product_id = $6::uuid
-              and uom = $7
-              and quantity - $3::numeric >= reserved_qty
-            returning id::text, quantity::text as quantity`,
-          [orgId, lpId, qty, woId, userId, material.product_id, material.uom],
-        );
-        if (!lpRes.rows[0]) {
-          return { ok: false, reason: 'lp_unavailable' };
-        }
-
         // FEFO adherence: was a strictly-earlier-expiry candidate skipped?
         const fefo = await ctx.client.query<{ violates: boolean }>(
           `select exists (
