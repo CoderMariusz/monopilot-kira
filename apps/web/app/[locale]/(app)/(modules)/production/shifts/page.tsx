@@ -20,9 +20,32 @@ import { getLocale, getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { DateWindowSelect, type DateWindowOption } from '../_components/date-window-select.client';
 import { getShiftsScreen } from './_actions/shifts-data';
 
 export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  searchParams?: Promise<{ days?: string }>;
+};
+
+function parseWindowDays(value: string | undefined): number {
+  const days = Number(value);
+  return [1, 7, 30, 90].includes(days) ? days : 1;
+}
+
+async function buildDateWindowOptions(): Promise<{ ariaLabel: string; options: DateWindowOption[] }> {
+  const t = await getTranslations('production.dateWindow');
+  return {
+    ariaLabel: t('ariaLabel'),
+    options: [
+      { value: '1', label: t('today') },
+      { value: '7', label: t('days7') },
+      { value: '30', label: t('days30') },
+      { value: '90', label: t('days90') },
+    ],
+  };
+}
 
 function ShiftsSkeleton() {
   return (
@@ -32,10 +55,10 @@ function ShiftsSkeleton() {
   );
 }
 
-async function ShiftsContent() {
+async function ShiftsContent({ windowDays }: { windowDays: number }) {
   const t = await getTranslations('production.shifts');
   const locale = await getLocale();
-  const result = await getShiftsScreen();
+  const result = await getShiftsScreen(windowDays);
 
   if (!result.ok && result.reason === 'forbidden') {
     return (
@@ -102,8 +125,11 @@ async function ShiftsContent() {
   );
 }
 
-export default async function ShiftsPage() {
+export default async function ShiftsPage({ searchParams }: PageProps) {
   const t = await getTranslations('production.shifts');
+  const sp: { days?: string } = searchParams ? await searchParams : {};
+  const windowDays = parseWindowDays(sp.days);
+  const dateWindow = await buildDateWindowOptions();
   return (
     <main
       data-screen="production-shifts"
@@ -114,9 +140,10 @@ export default async function ShiftsPage() {
         title={t('title')}
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.shifts') }]}
+        actions={<DateWindowSelect value={windowDays} ariaLabel={dateWindow.ariaLabel} options={dateWindow.options} />}
       />
-      <Suspense fallback={<ShiftsSkeleton />}>
-        <ShiftsContent />
+      <Suspense key={windowDays} fallback={<ShiftsSkeleton />}>
+        <ShiftsContent windowDays={windowDays} />
       </Suspense>
     </main>
   );

@@ -101,14 +101,28 @@ async function hasPermission(
 const KIND_VALUES: DowntimeKind[] = ['planned', 'unplanned', 'changeover'];
 const SOURCE_VALUES: DowntimeSource[] = ['manual', 'wo_pause', 'plc_auto', 'changeover'];
 
+function normalizeWindowDays(windowDays: number): number {
+  return [1, 7, 30, 90].includes(windowDays) ? windowDays : 1;
+}
+
+function downtimeDatePredicate(column: string, windowDays: number): string {
+  const start =
+    windowDays === 1
+      ? `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC')`
+      : `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC') - make_interval(days => ${windowDays - 1})`;
+  return `${start}
+            and ${column} < date_trunc('day', now() AT TIME ZONE 'UTC') + interval '1 day'`;
+}
+
 /**
  * Aggregates the downtime KPI strip + Pareto + event log in a SINGLE org-context
  * transaction (sequential queries on one pooled pg client).
  */
-export async function getDowntimeScreen(): Promise<DowntimeScreenResult> {
+export async function getDowntimeScreen(windowDays = 1): Promise<DowntimeScreenResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<DowntimeScreenResult> => {
       const c = client as QueryClient;
+      const days = normalizeWindowDays(windowDays);
 
       const allowed = await hasPermission(c, userId, orgId, PRODUCTION_VIEW_PERMISSION);
       if (!allowed) {
@@ -121,7 +135,8 @@ export async function getDowntimeScreen(): Promise<DowntimeScreenResult> {
                 coalesce(sum(duration_min), 0)::int as total_min,
                 count(*) filter (where ended_at is null)::int as open_count
            from public.downtime_events
-          where org_id = app.current_org_id()`,
+          where org_id = app.current_org_id()
+            and ${downtimeDatePredicate('started_at', days)}`,
       );
       const eventCount = kpiRes.rows[0]?.event_count ?? 0;
       const totalMin = kpiRes.rows[0]?.total_min ?? 0;
@@ -142,6 +157,7 @@ export async function getDowntimeScreen(): Promise<DowntimeScreenResult> {
            left join public.downtime_categories dc
              on dc.id = de.category_id and dc.org_id = de.org_id
           where de.org_id = app.current_org_id()
+            and ${downtimeDatePredicate('de.started_at', days)}
           group by dc.name, dc.kind
           order by total_min desc, events desc
           limit 12`,
@@ -188,6 +204,7 @@ export async function getDowntimeScreen(): Promise<DowntimeScreenResult> {
            left join public.users u
              on u.id = de.operator_id
           where de.org_id = app.current_org_id()
+            and ${downtimeDatePredicate('de.started_at', days)}
           order by de.started_at desc
           limit 100`,
       );

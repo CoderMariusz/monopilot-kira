@@ -25,6 +25,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { Card } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { DateWindowSelect, type DateWindowOption } from '../_components/date-window-select.client';
 import { ParetoBars, type ParetoBar, type ParetoTone } from '../_components/pareto-bars';
 import {
   getDowntimeScreen,
@@ -34,6 +35,28 @@ import {
 import { DowntimeTable, type DowntimeTableLabels } from './_components/downtime-table';
 
 export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  searchParams?: Promise<{ days?: string }>;
+};
+
+function parseWindowDays(value: string | undefined): number {
+  const days = Number(value);
+  return [1, 7, 30, 90].includes(days) ? days : 1;
+}
+
+async function buildDateWindowOptions(): Promise<{ ariaLabel: string; options: DateWindowOption[] }> {
+  const t = await getTranslations('production.dateWindow');
+  return {
+    ariaLabel: t('ariaLabel'),
+    options: [
+      { value: '1', label: t('today') },
+      { value: '7', label: t('days7') },
+      { value: '30', label: t('days30') },
+      { value: '90', label: t('days90') },
+    ],
+  };
+}
 
 function kindTone(kind: DowntimeKind | null): ParetoTone {
   if (kind === 'unplanned') return 'plant';
@@ -56,10 +79,10 @@ function DowntimeSkeleton() {
   );
 }
 
-async function DowntimeContent() {
+async function DowntimeContent({ windowDays }: { windowDays: number }) {
   const t = await getTranslations('production.downtime');
   const locale = await getLocale();
-  const result = await getDowntimeScreen();
+  const result = await getDowntimeScreen(windowDays);
 
   if (!result.ok && result.reason === 'forbidden') {
     return (
@@ -182,8 +205,11 @@ async function DowntimeContent() {
   );
 }
 
-export default async function DowntimePage() {
+export default async function DowntimePage({ searchParams }: PageProps) {
   const t = await getTranslations('production.downtime');
+  const sp: { days?: string } = searchParams ? await searchParams : {};
+  const windowDays = parseWindowDays(sp.days);
+  const dateWindow = await buildDateWindowOptions();
   return (
     <main
       data-screen="production-downtime"
@@ -194,9 +220,10 @@ export default async function DowntimePage() {
         title={t('title')}
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.downtime') }]}
+        actions={<DateWindowSelect value={windowDays} ariaLabel={dateWindow.ariaLabel} options={dateWindow.options} />}
       />
-      <Suspense fallback={<DowntimeSkeleton />}>
-        <DowntimeContent />
+      <Suspense key={windowDays} fallback={<DowntimeSkeleton />}>
+        <DowntimeContent windowDays={windowDays} />
       </Suspense>
     </main>
   );

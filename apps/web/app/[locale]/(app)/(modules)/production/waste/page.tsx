@@ -23,11 +23,34 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { Card } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { DateWindowSelect, type DateWindowOption } from '../_components/date-window-select.client';
 import { ParetoBars, type ParetoBar } from '../_components/pareto-bars';
 import { getWasteScreen, type WasteByLineRow, type WasteParetoRow } from './_actions/waste-data';
 import { WasteTable, type WasteTableLabels } from './_components/waste-table';
 
 export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  searchParams?: Promise<{ days?: string }>;
+};
+
+function parseWindowDays(value: string | undefined): number {
+  const days = Number(value);
+  return [1, 7, 30, 90].includes(days) ? days : 1;
+}
+
+async function buildDateWindowOptions(): Promise<{ ariaLabel: string; options: DateWindowOption[] }> {
+  const t = await getTranslations('production.dateWindow');
+  return {
+    ariaLabel: t('ariaLabel'),
+    options: [
+      { value: '1', label: t('today') },
+      { value: '7', label: t('days7') },
+      { value: '30', label: t('days30') },
+      { value: '90', label: t('days90') },
+    ],
+  };
+}
 
 function WasteSkeleton() {
   return (
@@ -43,10 +66,10 @@ function WasteSkeleton() {
   );
 }
 
-async function WasteContent() {
+async function WasteContent({ windowDays }: { windowDays: number }) {
   const t = await getTranslations('production.waste');
   const locale = await getLocale();
-  const result = await getWasteScreen();
+  const result = await getWasteScreen(windowDays);
 
   if (!result.ok && result.reason === 'forbidden') {
     return (
@@ -154,8 +177,11 @@ async function WasteContent() {
   );
 }
 
-export default async function WastePage() {
+export default async function WastePage({ searchParams }: PageProps) {
   const t = await getTranslations('production.waste');
+  const sp: { days?: string } = searchParams ? await searchParams : {};
+  const windowDays = parseWindowDays(sp.days);
+  const dateWindow = await buildDateWindowOptions();
   return (
     <main
       data-screen="production-waste"
@@ -166,9 +192,10 @@ export default async function WastePage() {
         title={t('title')}
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.production'), href: '/production' }, { label: t('breadcrumb.waste') }]}
+        actions={<DateWindowSelect value={windowDays} ariaLabel={dateWindow.ariaLabel} options={dateWindow.options} />}
       />
-      <Suspense fallback={<WasteSkeleton />}>
-        <WasteContent />
+      <Suspense key={windowDays} fallback={<WasteSkeleton />}>
+        <WasteContent windowDays={windowDays} />
       </Suspense>
     </main>
   );

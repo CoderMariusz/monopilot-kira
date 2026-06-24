@@ -88,10 +88,24 @@ async function hasPermission(
   return rows.length > 0;
 }
 
-export async function getWasteScreen(): Promise<WasteScreenResult> {
+function normalizeWindowDays(windowDays: number): number {
+  return [1, 7, 30, 90].includes(windowDays) ? windowDays : 1;
+}
+
+function wasteDatePredicate(column: string, windowDays: number): string {
+  const start =
+    windowDays === 1
+      ? `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC')`
+      : `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC') - make_interval(days => ${windowDays - 1})`;
+  return `${start}
+            and ${column} < date_trunc('day', now() AT TIME ZONE 'UTC') + interval '1 day'`;
+}
+
+export async function getWasteScreen(windowDays = 1): Promise<WasteScreenResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<WasteScreenResult> => {
       const c = client as QueryClient;
+      const days = normalizeWindowDays(windowDays);
 
       const allowed = await hasPermission(c, userId, orgId, PRODUCTION_VIEW_PERMISSION);
       if (!allowed) {
@@ -105,10 +119,11 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
         `select coalesce(sum(wl.qty_kg), 0) as total_kg,
                 count(*) filter (where wl.correction_of_id is null)::int as event_count,
                 count(distinct w.production_line_id)::int as line_count
-           from public.wo_waste_log wl
+          from public.wo_waste_log wl
            left join public.work_orders w
              on w.id = wl.wo_id and w.org_id = wl.org_id
-          where wl.org_id = app.current_org_id()`,
+          where wl.org_id = app.current_org_id()
+            and ${wasteDatePredicate('recorded_at', days)}`,
       );
       const totalKg = Number(kpiRes.rows[0]?.total_kg ?? 0);
       const eventCount = kpiRes.rows[0]?.event_count ?? 0;
@@ -123,6 +138,7 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
            left join public.waste_categories wc
              on wc.id = wl.category_id and wc.org_id = wl.org_id
           where wl.org_id = app.current_org_id()
+            and ${wasteDatePredicate('recorded_at', days)}
           group by wc.name
           order by qty_kg desc, events desc
           limit 12`,
@@ -147,6 +163,7 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
            left join public.work_orders w
              on w.id = wl.wo_id and w.org_id = wl.org_id
           where wl.org_id = app.current_org_id()
+            and ${wasteDatePredicate('recorded_at', days)}
             and w.production_line_id is not null
           group by w.production_line_id
           order by qty_kg desc
@@ -189,6 +206,7 @@ export async function getWasteScreen(): Promise<WasteScreenResult> {
            left join public.users u
              on u.id = wl.operator_id
           where wl.org_id = app.current_org_id()
+            and ${wasteDatePredicate('recorded_at', days)}
           order by wl.recorded_at desc
           limit 100`,
       );

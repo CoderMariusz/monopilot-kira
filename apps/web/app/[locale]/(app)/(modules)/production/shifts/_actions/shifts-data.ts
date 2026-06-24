@@ -64,10 +64,24 @@ async function hasPermission(
   return rows.length > 0;
 }
 
-export async function getShiftsScreen(): Promise<ShiftsScreenResult> {
+function normalizeWindowDays(windowDays: number): number {
+  return [1, 7, 30, 90].includes(windowDays) ? windowDays : 1;
+}
+
+function shiftDatePredicate(column: string, windowDays: number): string {
+  const start =
+    windowDays === 1
+      ? `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC')`
+      : `${column} >= date_trunc('day', now() AT TIME ZONE 'UTC') - make_interval(days => ${windowDays - 1})`;
+  return `${start}
+              and ${column} < date_trunc('day', now() AT TIME ZONE 'UTC') + interval '1 day'`;
+}
+
+export async function getShiftsScreen(windowDays = 1): Promise<ShiftsScreenResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<ShiftsScreenResult> => {
       const c = client as QueryClient;
+      const days = normalizeWindowDays(windowDays);
 
       const allowed = await hasPermission(c, userId, orgId, PRODUCTION_VIEW_PERMISSION);
       if (!allowed) {
@@ -92,6 +106,7 @@ export async function getShiftsScreen(): Promise<ShiftsScreenResult> {
                   count(*)::int as downtime_events
              from public.downtime_events
             where org_id = app.current_org_id() and shift_id is not null
+              and ${shiftDatePredicate('started_at', days)}
             group by shift_id
          ),
          ws as (
@@ -100,12 +115,14 @@ export async function getShiftsScreen(): Promise<ShiftsScreenResult> {
                   count(*)::int as waste_events
              from public.wo_waste_log
             where org_id = app.current_org_id()
+              and ${shiftDatePredicate('recorded_at', days)}
             group by shift_id
          ),
          oe as (
            select distinct on (shift_id) shift_id, oee_pct
              from public.oee_snapshots
             where org_id = app.current_org_id()
+              and ${shiftDatePredicate('snapshot_minute', days)}
             order by shift_id, snapshot_minute desc
          ),
          keys as (
