@@ -9068,7 +9068,8 @@
       },
       "tabs": {
         "salesOrders": "Sales orders",
-        "shipments": "Shipments"
+        "shipments": "Shipments",
+        "customers": "Customers"
       },
       "status": {
         "pending": "Pending",
@@ -9264,6 +9265,97 @@
           "esign_failed": "Signature failed. Check your password and try again.",
           "generic": "Something went wrong. Please retry."
         }
+      }
+    },
+    "customers": {
+      "title": "Customers",
+      "subtitle": "The customer master that sales orders are raised against.",
+      "error": "We could not load customers. Please retry.",
+      "breadcrumb": {
+        "shipping": "Shipping",
+        "customers": "Customers"
+      },
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "category": {
+        "retail": "Retail",
+        "wholesale": "Wholesale",
+        "distributor": "Distributor"
+      },
+      "kpis": {
+        "total": "Total customers",
+        "totalSub": "In this organisation",
+        "active": "Active",
+        "activeSub": "Can receive orders",
+        "inactive": "Inactive",
+        "inactiveSub": "Deactivated",
+        "withCredit": "With credit limit",
+        "withCreditSub": "Limit set"
+      },
+      "list": {
+        "newCustomer": "Create customer",
+        "searchPlaceholder": "Search by name, code, or email…",
+        "rowsCount": "{n} rows",
+        "showing": "Showing {n} of {total}",
+        "noLimit": "—",
+        "view": "View",
+        "tabs": {
+          "all": "All",
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "columns": {
+          "name": "Name",
+          "code": "Code",
+          "category": "Category",
+          "creditLimit": "Credit limit",
+          "email": "Email",
+          "status": "Status",
+          "actions": ""
+        },
+        "empty": {
+          "title": "No customers yet",
+          "body": "Create your first customer so you can raise a sales order.",
+          "clear": "Clear filters"
+        }
+      },
+      "create": {
+        "title": "Create customer",
+        "subtitle": "Add a customer to raise sales orders against.",
+        "codeLabel": "Customer code",
+        "codeHelp": "Auto-generated if blank · CUST-YYYY-NNNNN",
+        "codePlaceholder": "CUST-2026-00123",
+        "categoryLabel": "Category",
+        "nameLabel": "Full name",
+        "namePlaceholder": "Lidl Polska Sp. z o.o.",
+        "emailLabel": "Email",
+        "emailPlaceholder": "orders@customer.com",
+        "phoneLabel": "Phone",
+        "phonePlaceholder": "+48 22 000 0000",
+        "taxIdLabel": "Tax ID (VAT)",
+        "taxIdPlaceholder": "PL7820030500",
+        "creditLimitLabel": "Credit limit (GBP)",
+        "creditLimitHelp": "Optional",
+        "creditLimitPlaceholder": "e.g. 250000",
+        "activeLabel": "Active",
+        "activeHelp": "Customer can receive orders",
+        "submit": "Create customer",
+        "submitting": "Creating…",
+        "cancel": "Cancel",
+        "errors": {
+          "nameRequired": "Enter a full name (at least 2 characters).",
+          "emailInvalid": "Enter a valid email address.",
+          "creditLimitInvalid": "Enter a valid amount (e.g. 250000 or 250000.00)."
+        }
+      },
+      "errors": {
+        "invalid_input": "That input isn't valid. Please review and try again.",
+        "forbidden": "You don't have permission to do that.",
+        "not_found": "That customer could not be found.",
+        "already_exists": "A customer with that code already exists.",
+        "persistence_failed": "Something went wrong saving. Please retry."
       }
     }
   },

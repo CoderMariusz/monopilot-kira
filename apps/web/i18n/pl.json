@@ -9068,7 +9068,8 @@
       },
       "tabs": {
         "salesOrders": "Zamówienia sprzedaży",
-        "shipments": "Wysyłki"
+        "shipments": "Wysyłki",
+        "customers": "Klienci"
       },
       "status": {
         "pending": "Oczekuje",
@@ -9264,6 +9265,97 @@
           "esign_failed": "Podpis nie powiódł się. Sprawdź hasło i spróbuj ponownie.",
           "generic": "Coś poszło nie tak. Spróbuj ponownie."
         }
+      }
+    },
+    "customers": {
+      "title": "Klienci",
+      "subtitle": "Kartoteka klientów, dla których wystawiane są zamówienia sprzedaży.",
+      "error": "Nie udało się wczytać klientów. Spróbuj ponownie.",
+      "breadcrumb": {
+        "shipping": "Wysyłka",
+        "customers": "Klienci"
+      },
+      "status": {
+        "active": "Aktywny",
+        "inactive": "Nieaktywny"
+      },
+      "category": {
+        "retail": "Detal",
+        "wholesale": "Hurt",
+        "distributor": "Dystrybutor"
+      },
+      "kpis": {
+        "total": "Wszyscy klienci",
+        "totalSub": "W tej organizacji",
+        "active": "Aktywni",
+        "activeSub": "Mogą otrzymywać zamówienia",
+        "inactive": "Nieaktywni",
+        "inactiveSub": "Dezaktywowani",
+        "withCredit": "Z limitem kredytowym",
+        "withCreditSub": "Limit ustawiony"
+      },
+      "list": {
+        "newCustomer": "Utwórz klienta",
+        "searchPlaceholder": "Szukaj po nazwie, kodzie lub e-mailu…",
+        "rowsCount": "{n} wierszy",
+        "showing": "Wyświetlono {n} z {total}",
+        "noLimit": "—",
+        "view": "Pokaż",
+        "tabs": {
+          "all": "Wszyscy",
+          "active": "Aktywni",
+          "inactive": "Nieaktywni"
+        },
+        "columns": {
+          "name": "Nazwa",
+          "code": "Kod",
+          "category": "Kategoria",
+          "creditLimit": "Limit kredytowy",
+          "email": "E-mail",
+          "status": "Status",
+          "actions": ""
+        },
+        "empty": {
+          "title": "Brak klientów",
+          "body": "Utwórz pierwszego klienta, aby móc wystawić zamówienie sprzedaży.",
+          "clear": "Wyczyść filtry"
+        }
+      },
+      "create": {
+        "title": "Utwórz klienta",
+        "subtitle": "Dodaj klienta, dla którego będziesz wystawiać zamówienia sprzedaży.",
+        "codeLabel": "Kod klienta",
+        "codeHelp": "Generowany automatycznie, jeśli pusty · CUST-RRRR-NNNNN",
+        "codePlaceholder": "CUST-2026-00123",
+        "categoryLabel": "Kategoria",
+        "nameLabel": "Pełna nazwa",
+        "namePlaceholder": "Lidl Polska Sp. z o.o.",
+        "emailLabel": "E-mail",
+        "emailPlaceholder": "zamowienia@klient.pl",
+        "phoneLabel": "Telefon",
+        "phonePlaceholder": "+48 22 000 0000",
+        "taxIdLabel": "NIP",
+        "taxIdPlaceholder": "PL7820030500",
+        "creditLimitLabel": "Limit kredytowy (GBP)",
+        "creditLimitHelp": "Opcjonalnie",
+        "creditLimitPlaceholder": "np. 250000",
+        "activeLabel": "Aktywny",
+        "activeHelp": "Klient może otrzymywać zamówienia",
+        "submit": "Utwórz klienta",
+        "submitting": "Tworzenie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "nameRequired": "Podaj pełną nazwę (co najmniej 2 znaki).",
+          "emailInvalid": "Podaj prawidłowy adres e-mail.",
+          "creditLimitInvalid": "Podaj prawidłową kwotę (np. 250000 lub 250000.00)."
+        }
+      },
+      "errors": {
+        "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do wykonania tej operacji.",
+        "not_found": "Nie znaleziono tego klienta.",
+        "already_exists": "Klient o tym kodzie już istnieje.",
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
       }
     }
   },

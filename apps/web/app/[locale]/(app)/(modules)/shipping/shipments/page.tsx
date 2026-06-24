@@ -112,7 +112,7 @@ export default async function ShipmentsListPage({ params }: PageProps) {
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.shipping'), href: `/${locale}/shipping` }, { label: t('breadcrumb.shipments') }]}
       />
-      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments') }} />
+      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments'), customers: t('tabs.customers') }} />
       <Suspense fallback={<ListSkeleton />}>
         <ListContent locale={locale} />
       </Suspense>
