@@ -157,3 +157,28 @@ production-hardened. Status:
   edge cases). They are additive/lower-risk (don't mutate core inventory/production) but should be reviewed before relied on.
 **Takeaway for the owner:** treat the overnight E-waves as solid first-cut scaffolds that need one review+harden pass each
 (the pattern: adversarial review → fix → retest, as done for E10) before production use. This is normal for fast net-new builds.
+
+### E-WAVE REVIEW continued (2026-06-24 ~02:10) — E2B / E9 / E5 all FAIL (mocked tests missed these)
+Common pattern across ALL overnight E-waves: RBAC perms wrong/missing + atomicity + SQL-semantics bugs the mocked unit
+tests structurally can't catch. Full fix-list (file:line):
+**E2B cold-chain (3×L1):** (L1) `submitConditionCheck` non-atomic — `createHold` opens its OWN withOrgContext txn, so a
+failure after it commits leaves an ORPHAN hold + unlinked check (fix: a `createHoldCore(ctx,…)` that shares the open txn).
+(L1) `submitConditionCheck` has NO server-side RBAC gate though the UI claims it re-checks `quality.coldchain.record` — any
+org user can trigger a critical hold (fix: add hasPermission). (L1) `quality.coldchain.record`/`.manage` DON'T EXIST in the
+RBAC enum/seed → affordances dead for everyone + upsert actually gates on `quality.settings.edit` (mismatch). (L2) dead
+`forbidden` contract on list; breach-with-no-lpId silently skips the hold; no idempotency → double-submit = dup holds. (L3)
+`Number(null)→0` masks null min/max (can't express single-sided "≤ -18°C frozen").
+**E9 freight (L1+L2):** (L1) `freight-actions.ts:441-453` received-qty CTE filters `g.status<>'cancelled'` but NOT
+`gi.cancelled_at is null` → cancelled GRN lines inflate variance (violates mig 298 contract). (L2) draft GRNs count toward
+on-time%/received (fix: `g.status='completed'`). (L3) on-time uses earliest-line receipt for a multi-line PO.
+**E5 yard (L1+L2):** (L1) `recordWeighing` accepts negative/zero/gross<tare weights (no app or DB sign guard); `Dec.from`
+crashes on exponential weight strings like 1e21. (L2) `bookAppointment` overlap is a TOCTOU race (SELECT-then-INSERT, no
+gist EXCLUDE constraint) → concurrent double-booking. (L3) no_show blocks the slot; gateIn/gateOut not idempotent (gateOut
+re-stamps an already-departed visit — no `status='on_site'` guard). 
+**Cross-cutting:** E9/E5/E8 reuse `npd.planning.write` instead of their proper permission families (E8's `scheduler.*` perms
+EXIST; E2B's `quality.coldchain.*` DON'T). A permissions migration (define + seed coldchain/yard/freight perms, fix the
+wave gates) is a shared follow-up.
+**HONEST STATUS:** the gates I used (typecheck + `next build` + unit tests) are necessary but INSUFFICIENT — the unit tests
+are DB-mocked, so SQL-semantics + atomicity + cross-file-RBAC bugs pass. Every E-wave needs the review→fix→retest pass
+(E10 done; E2B/E9/E5/E8 fixes pending — Codex hit its usage cap ~02:00, resets ~02:13). Owner: do NOT treat the E-waves as
+production-ready yet — they're solid scaffolds with a known, prioritized fix-list (here).
