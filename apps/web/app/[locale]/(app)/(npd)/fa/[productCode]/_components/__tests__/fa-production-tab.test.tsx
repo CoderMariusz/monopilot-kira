@@ -283,7 +283,10 @@ describe('FaProductionTab — AC2 chain2 (manufacturing_operation_1 → intermed
     const user = userEvent.setup();
     renderReady();
     // Open the op1 Select and pick a new value via its options.
-    const option = within(screen.getAllByTestId('fa-prod-component')[0]).getAllByRole('option', {
+    await user.click(within(screen.getAllByTestId('fa-prod-component')[0]).getByRole('combobox', {
+      name: 'Process 1',
+    }));
+    const option = screen.getAllByRole('option', {
       name: 'Cook',
     })[0];
     await user.click(option);
@@ -302,7 +305,10 @@ describe('FaProductionTab — AC3 chain1 (line → equipment_setup autofilled)',
   it('Save calls updateFaCell for line when it is changed', async () => {
     const user = userEvent.setup();
     renderReady();
-    const option = within(screen.getAllByTestId('fa-prod-component')[0]).getAllByRole('option', {
+    await user.click(within(screen.getAllByTestId('fa-prod-component')[0]).getByRole('combobox', {
+      name: 'Line',
+    }));
+    const option = screen.getAllByRole('option', {
       name: 'L3',
     })[0];
     await user.click(option);

@@ -358,7 +358,8 @@ describe('SET-032 localized Schema Diff Viewer', () => {
     expect(againstSelect).toBeInTheDocument();
 
     // Switch the "compare" version from v2 to v1 and confirm the summary updates.
-    const v1Option = within(fromSelect.closest('[data-slot="select"]')!).getByRole('option', { name: /^v1 /i });
+    await user.click(fromSelect);
+    const v1Option = screen.getByRole('option', { name: /^v1 /i });
     await user.click(v1Option);
     expect(screen.getByText(/v1\s*→\s*v3/i)).toBeInTheDocument();
   });

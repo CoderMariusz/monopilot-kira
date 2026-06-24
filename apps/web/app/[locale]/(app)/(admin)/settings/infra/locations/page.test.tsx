@@ -398,14 +398,14 @@ describe('UI-SET-002 locations modal CRUD parity RED', () => {
     await user.type(within(currentDialog()).getByLabelText(/code/i), 'c5');
     await user.type(within(currentDialog()).getByLabelText(/^name/i), 'Cold Storage Bin C5');
     await user.click(within(currentDialog()).getByRole('combobox', { name: /parent location/i }));
-    await user.click(within(currentDialog()).getByRole('option', { name: /apex › z02 › b01/i }));
+    await user.click(screen.getByRole('option', { name: /apex › z02 › b01/i }));
     expect(within(currentDialog()).getByText(/maximum location depth/i)).toBeInTheDocument();
     expect(within(currentDialog()).getByRole('button', { name: /create location/i })).toBeDisabled();
 
     await user.click(within(currentDialog()).getByRole('combobox', { name: /parent location/i }));
-    await user.click(within(currentDialog()).getByRole('option', { name: /apex › z02$/i }));
+    await user.click(screen.getByRole('option', { name: /apex › z02$/i }));
     await user.click(within(currentDialog()).getByRole('combobox', { name: /^type/i }));
-    await user.click(within(currentDialog()).getByRole('option', { name: /^storage$/i }));
+    await user.click(screen.getByRole('option', { name: /^storage$/i }));
     await user.type(within(currentDialog()).getByLabelText(/barcode/i), 'LOC-C5');
     await user.click(within(currentDialog()).getByRole('button', { name: /create location/i }));
 
