@@ -201,18 +201,28 @@ export const Permission = {
   PRODUCTION_WO_COMPLETE: 'production.wo.complete',
   /** Production WO financial close permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_WO_CLOSE: 'production.wo.close',
+  /** Production WO cancel permission; seeded by migration 225. */
+  PRODUCTION_WO_CANCEL: 'production.wo.cancel',
   /** Production material consumption write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_CONSUMPTION_WRITE: 'production.consumption.write',
   /** Production over-consumption approval permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_CONSUMPTION_OVERRIDE_APPROVE: 'production.consumption.override_approve',
+  /** Production material consumption correction permission; seeded by corrections migrations. */
+  PRODUCTION_CONSUMPTION_CORRECT: 'production.consumption.correct',
   /** Production output write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_OUTPUT_WRITE: 'production.output.write',
   /** Production catch-weight override permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_OUTPUT_CATCH_WEIGHT_OVERRIDE: 'production.output.catch_weight_override',
+  /** Production output correction permission; seeded by corrections migrations. */
+  PRODUCTION_OUTPUT_CORRECT: 'production.output.correct',
   /** Production waste write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_WASTE_WRITE: 'production.waste.write',
   /** Production over-threshold waste approval permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_WASTE_OVERTHRESHOLD_APPROVE: 'production.waste.overthreshold_approve',
+  /** Production waste correction permission; seeded by corrections migrations. */
+  PRODUCTION_WASTE_CORRECT: 'production.waste.correct',
+  /** Production closed-WO correction permission; seeded by corrections migrations. */
+  PRODUCTION_CORRECTIONS_CLOSED_WO: 'production.corrections.closed_wo',
   /** Production downtime write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_DOWNTIME_WRITE: 'production.downtime.write',
   /** Production downtime taxonomy edit permission (admin); PRD 08-PRODUCTION §3.2 (RBAC). */
@@ -658,7 +668,7 @@ export const ALL_TECHNICAL_PERMISSIONS = [
 
 /**
  * Production (08-production) module permission group; PRD 08-PRODUCTION §3.2 (RBAC) +
- * §12 (D365 DLQ) + §13 (OEE). 17 page/action permissions. Allergen gate is split into
+ * §12 (D365 DLQ) + §13 (OEE). 23 page/action permissions. Allergen gate is split into
  * first/second signer to enforce SoD (dual sign-off cannot share a permission grant).
  * Recognised by the ESLint enum-lock guard via the ALL_<MODULE>_PERMISSIONS export
  * convention (02-settings T-130). Seeded to roles by migration 185.
@@ -669,12 +679,17 @@ export const ALL_PRODUCTION_PERMISSIONS = [
   Permission.PRODUCTION_WO_RESUME,
   Permission.PRODUCTION_WO_COMPLETE,
   Permission.PRODUCTION_WO_CLOSE,
+  Permission.PRODUCTION_WO_CANCEL,
   Permission.PRODUCTION_CONSUMPTION_WRITE,
   Permission.PRODUCTION_CONSUMPTION_OVERRIDE_APPROVE,
+  Permission.PRODUCTION_CONSUMPTION_CORRECT,
   Permission.PRODUCTION_OUTPUT_WRITE,
   Permission.PRODUCTION_OUTPUT_CATCH_WEIGHT_OVERRIDE,
+  Permission.PRODUCTION_OUTPUT_CORRECT,
   Permission.PRODUCTION_WASTE_WRITE,
   Permission.PRODUCTION_WASTE_OVERTHRESHOLD_APPROVE,
+  Permission.PRODUCTION_WASTE_CORRECT,
+  Permission.PRODUCTION_CORRECTIONS_CLOSED_WO,
   Permission.PRODUCTION_DOWNTIME_WRITE,
   Permission.PRODUCTION_DOWNTIME_TAXONOMY_EDIT,
   Permission.PRODUCTION_CHANGEOVER_WRITE,

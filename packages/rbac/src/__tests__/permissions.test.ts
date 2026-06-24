@@ -113,12 +113,17 @@ const expectedProductionPermissions = [
   'production.wo.resume',
   'production.wo.complete',
   'production.wo.close',
+  'production.wo.cancel',
   'production.consumption.write',
   'production.consumption.override_approve',
+  'production.consumption.correct',
   'production.output.write',
   'production.output.catch_weight_override',
+  'production.output.correct',
   'production.waste.write',
   'production.waste.overthreshold_approve',
+  'production.waste.correct',
+  'production.corrections.closed_wo',
   'production.downtime.write',
   'production.downtime.taxonomy_edit',
   'production.changeover.write',
@@ -366,12 +371,17 @@ const expectedCanonicalPermissions = [
   'production.wo.resume',
   'production.wo.complete',
   'production.wo.close',
+  'production.wo.cancel',
   'production.consumption.write',
   'production.consumption.override_approve',
+  'production.consumption.correct',
   'production.output.write',
   'production.output.catch_weight_override',
+  'production.output.correct',
   'production.waste.write',
   'production.waste.overthreshold_approve',
+  'production.waste.correct',
+  'production.corrections.closed_wo',
   'production.downtime.write',
   'production.downtime.taxonomy_edit',
   'production.changeover.write',
@@ -691,10 +701,10 @@ describe('rbac permission source of truth', () => {
   it('exports the production permissions as a typed Permission array literal (T-056 §3.2)', async () => {
     const { ALL_PERMISSIONS, ALL_PRODUCTION_PERMISSIONS, Permission } = await loadPermissionsModule();
 
-    // AC1 — all 17 strings present exactly once, in order.
+    // AC1 — all 23 strings present exactly once, in order.
     expect(ALL_PRODUCTION_PERMISSIONS).toEqual(expectedProductionPermissions);
-    // AC3 — typed readonly Permission[] with length === 18.
-    expect(ALL_PRODUCTION_PERMISSIONS).toHaveLength(18);
+    // AC3 — typed readonly Permission[] with length === 23.
+    expect(ALL_PRODUCTION_PERMISSIONS).toHaveLength(23);
     expect(new Set(ALL_PRODUCTION_PERMISSIONS).size).toBe(ALL_PRODUCTION_PERMISSIONS.length);
 
     // AC2 — regex + uniqueness across the whole enum.
