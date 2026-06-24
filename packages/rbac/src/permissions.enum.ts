@@ -259,6 +259,8 @@ export const Permission = {
   WAREHOUSE_LP_FORCE_UNLOCK: 'warehouse.lp.force_unlock',
   /** Warehouse GRN receive (from PO/TO) permission; PRD 05-WAREHOUSE §7. */
   WAREHOUSE_GRN_RECEIVE: 'warehouse.grn.receive',
+  /** Warehouse receipt correction permission; Wave R4 corrections foundation. */
+  WAREHOUSE_RECEIPT_CORRECT: 'warehouse.receipt.correct',
   /** Warehouse transfer receive reversal correction permission; Wave R4 reversibility. */
   WAREHOUSE_TRANSFER_CORRECT: 'warehouse.transfer.correct',
   /** Warehouse stock move permission; PRD 05-WAREHOUSE §8. */
@@ -718,6 +720,7 @@ export const ALL_WAREHOUSE_PERMISSIONS = [
   Permission.WAREHOUSE_LP_SHIP,
   Permission.WAREHOUSE_LP_FORCE_UNLOCK,
   Permission.WAREHOUSE_GRN_RECEIVE,
+  Permission.WAREHOUSE_RECEIPT_CORRECT,
   Permission.WAREHOUSE_TRANSFER_CORRECT,
   Permission.WAREHOUSE_STOCK_MOVE,
   Permission.WAREHOUSE_STOCK_ADJUST,

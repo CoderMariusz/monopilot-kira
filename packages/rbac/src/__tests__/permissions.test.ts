@@ -144,6 +144,7 @@ const expectedWarehousePermissions = [
   'warehouse.lp.ship',
   'warehouse.lp.force_unlock',
   'warehouse.grn.receive',
+  'warehouse.receipt.correct',
   'warehouse.transfer.correct',
   'warehouse.stock.move',
   'warehouse.stock.adjust',
@@ -400,6 +401,7 @@ const expectedCanonicalPermissions = [
   'warehouse.lp.ship',
   'warehouse.lp.force_unlock',
   'warehouse.grn.receive',
+  'warehouse.receipt.correct',
   'warehouse.transfer.correct',
   'warehouse.stock.move',
   'warehouse.stock.adjust',
@@ -741,7 +743,7 @@ describe('rbac permission source of truth', () => {
     const { ALL_PERMISSIONS, ALL_WAREHOUSE_PERMISSIONS, Permission } = await loadPermissionsModule();
 
     expect(ALL_WAREHOUSE_PERMISSIONS).toEqual(expectedWarehousePermissions);
-    expect(ALL_WAREHOUSE_PERMISSIONS).toHaveLength(16);
+    expect(ALL_WAREHOUSE_PERMISSIONS).toHaveLength(17);
     expect(new Set(ALL_WAREHOUSE_PERMISSIONS).size).toBe(ALL_WAREHOUSE_PERMISSIONS.length);
     expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
 
