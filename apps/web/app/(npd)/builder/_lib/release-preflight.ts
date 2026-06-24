@@ -5,6 +5,7 @@ export const RELEASE_TO_FACTORY_PERMISSION = 'npd.gate.approve';
 export type ReleasePreflightBlocker = {
   code:
     | 'G4_REQUIRED'
+    | 'LAUNCHED_IS_TERMINAL'
     | 'FG_CANDIDATE_REQUIRED'
     | 'ACTIVE_SHARED_BOM_REQUIRED'
     | 'FACTORY_SPEC_REQUIRED'
@@ -25,6 +26,7 @@ type ProjectRow = {
   id: string;
   code: string;
   current_gate: string;
+  current_stage: string;
   product_code: string | null;
 };
 
@@ -60,7 +62,7 @@ export async function runReleasePreflight(
   input: { projectId: string; activeFactorySpecId?: string | null },
 ): Promise<ReleasePreflightReady> {
   const { rows } = await ctx.client.query<ProjectRow>(
-    `select id, code, current_gate, product_code
+    `select id, code, current_gate, current_stage, product_code
        from public.npd_projects
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -76,6 +78,12 @@ export async function runReleasePreflight(
   }
 
   const blockers: ReleasePreflightBlocker[] = [];
+  if (project.current_stage === 'launched' || project.current_gate === 'Launched') {
+    blockers.push({
+      code: 'LAUNCHED_IS_TERMINAL',
+      message: 'Launched NPD projects are terminal and cannot be released again.',
+    });
+  }
   if (project.current_gate !== 'G4') {
     blockers.push({ code: 'G4_REQUIRED', message: 'NPD project must be at G4 before factory release.' });
   }

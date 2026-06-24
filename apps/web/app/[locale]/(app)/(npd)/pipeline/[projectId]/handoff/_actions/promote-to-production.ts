@@ -45,6 +45,7 @@ export type PromoteToProductionError =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
+  | 'launched_is_terminal'
   | 'checklist_incomplete'
   | 'release_blocked'
   | 'persistence_failed';
@@ -70,6 +71,7 @@ type QueryClient = {
 
 type ChecklistRow = { id: string; destination_bom_code: string | null };
 type ItemCountRow = { total: string | number; checked: string | number };
+type ProjectStageRow = { current_stage: string; current_gate: string };
 
 export async function promoteToProduction(raw: unknown): Promise<PromoteToProductionResult> {
   const parsed = Input.safeParse(raw);
@@ -93,6 +95,20 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
 
       if (!(await hasHandoffPermission(ctx, PROMOTE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
+      }
+
+      const projectRes = await ctx.client.query<ProjectStageRow>(
+        `select current_stage, current_gate
+           from public.npd_projects
+          where id = $1::uuid
+            and org_id = app.current_org_id()
+          limit 1`,
+        [projectId],
+      );
+      const project = projectRes.rows[0];
+      if (!project) return { ok: false as const, error: 'not_found' as const };
+      if (project.current_stage === 'launched' || project.current_gate === 'Launched') {
+        return { ok: false as const, error: 'launched_is_terminal' as const };
       }
 
       const checklistRes = await ctx.client.query<ChecklistRow>(

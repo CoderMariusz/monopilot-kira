@@ -7,11 +7,12 @@ import { z } from 'zod';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import {
   APP_VERSION,
+  GATE_ADVANCE_PERMISSION,
   GATE_REVERTED_EVENT,
   emitOutbox,
   loadProjectForUpdate,
   previousGate,
-  requireAdmin,
+  requireActionPermission,
   serializeGateError,
   updateProjectGate,
 } from './_lib/gate-helpers';
@@ -19,7 +20,7 @@ import { type OrgContextLike, type ProjectGate } from './shared';
 
 const inputSchema = z.object({
   projectId: z.string().uuid(),
-  targetGate: z.enum(['G0', 'G1', 'G2', 'G3']),
+  targetGate: z.enum(['G0', 'G1', 'G2', 'G3', 'G4']),
   reason: z.string().trim().min(10).max(2000),
 });
 
@@ -42,9 +43,13 @@ export async function rollbackGate(rawInput: unknown): Promise<RollbackGateResul
   try {
     return await withOrgContext<RollbackGateResult>(async (ctx) => {
       const context = ctx as OrgContextLike;
-      await requireAdmin(context);
+      await requireActionPermission(context, GATE_ADVANCE_PERMISSION);
 
       const project = await loadProjectForUpdate(context, parsed.data.projectId);
+      if (project.current_stage === 'launched' || project.current_gate === 'Launched') {
+        return { ok: false, error: 'launched_is_terminal', status: 409 };
+      }
+
       const targetGate = parsed.data.targetGate as ProjectGate;
       if (!isRollbackTarget(project.current_gate, targetGate)) {
         return { ok: false, error: 'ROLLBACK_VIOLATION', status: 422 };
