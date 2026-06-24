@@ -78,7 +78,7 @@ type PurchaseOrder = {
 };
 
 type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
-type PurchaseOrderError = ProcurementError | 'last_line';
+type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
   | { ok: true; data: PurchaseOrder[]; archivedCount: number }
@@ -189,6 +189,37 @@ async function fetchDraftPurchaseOrderForUpdate(client: QueryClient, poId: strin
     [poId],
   );
   return rows[0] ?? null;
+}
+
+async function getPurchaseOrderReceiptState(client: QueryClient, poId: string): Promise<{ activeReceivedCount: number; grnLineCount: number }> {
+  const { rows } = await client.query<{ active_received_count: string | number; grn_line_count: string | number }>(
+    `select count(*) filter (
+              where gi.cancelled_at is null
+                and coalesce(g.status, 'draft') <> 'cancelled'
+                and gi.received_qty > 0
+            ) as active_received_count,
+            count(*) as grn_line_count
+       from public.grn_items gi
+       left join public.grns g
+         on g.org_id = app.current_org_id()
+        and g.id = gi.grn_id
+      where gi.org_id = app.current_org_id()
+        and (
+          gi.po_line_id in (
+            select pol.id
+              from public.purchase_order_lines pol
+             where pol.org_id = app.current_org_id()
+               and pol.po_id = $1::uuid
+          )
+          or g.po_id = $1::uuid
+        )`,
+    [poId],
+  );
+  const row = rows[0];
+  return {
+    activeReceivedCount: Number(row?.active_received_count ?? 0),
+    grnLineCount: Number(row?.grn_line_count ?? 0),
+  };
 }
 
 async function ensureSupplierInOrg(client: QueryClient, supplierId: string): Promise<boolean> {
@@ -684,12 +715,83 @@ export async function deletePurchaseOrderLine(rawInput: unknown): Promise<Purcha
 // re-validate here so a forged/stale request can never apply an illegal jump.
 const PO_TRANSITIONS: Record<string, readonly string[]> = {
   draft: ['sent', 'cancelled'],
-  sent: ['confirmed', 'cancelled'],
+  sent: ['draft', 'confirmed', 'cancelled'],
   confirmed: ['partially_received', 'received', 'cancelled'],
   partially_received: ['received', 'cancelled'],
   received: [],
   cancelled: [],
 };
+
+export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderResult<PurchaseOrder>> {
+  const parsed = uuidSchema.safeParse(poId);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrder>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, parsed.data);
+      if (!before) return { ok: false, error: 'not_found' };
+      if (before.status !== 'sent') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+
+      const receiptState = await getPurchaseOrderReceiptState(ctx.client, parsed.data);
+      if (receiptState.activeReceivedCount > 0 || receiptState.grnLineCount > 0) {
+        return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };
+      }
+
+      const { rows } = await ctx.client.query<PurchaseOrderRow>(
+        `update public.purchase_orders
+            set status = 'draft',
+                updated_by = $2::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'sent'
+            and not exists (
+              select 1
+                from public.grn_items gi
+                left join public.grns g
+                  on g.org_id = app.current_org_id()
+                 and g.id = gi.grn_id
+               where gi.org_id = app.current_org_id()
+                 and (
+                   gi.po_line_id in (
+                     select pol.id
+                       from public.purchase_order_lines pol
+                      where pol.org_id = app.current_org_id()
+                        and pol.po_id = $1::uuid
+                   )
+                   or g.po_id = $1::uuid
+                 )
+            )
+        returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+        [parsed.data, userId],
+      );
+      const row = rows[0];
+      if (!row) {
+        const currentReceiptState = await getPurchaseOrderReceiptState(ctx.client, parsed.data);
+        if (currentReceiptState.activeReceivedCount > 0 || currentReceiptState.grnLineCount > 0) {
+          return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };
+        }
+        return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+      }
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.purchase_order.status_changed',
+        resourceType: 'purchase_order',
+        resourceId: row.id,
+        beforeState: { status: before.status },
+        afterState: { status: row.status },
+      });
+      revalidatePurchaseOrderPaths(row.id);
+      return { ok: true, data: mapPurchaseOrder(row) };
+    });
+  } catch (err) {
+    console.error('[planning/purchase-orders] reopenPurchaseOrder failed', err);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
 
 export async function transitionPurchaseOrderStatus(id: string, status: string): Promise<PurchaseOrderResult<PurchaseOrder>> {
   const parsed = PurchaseOrderStatusSchema.safeParse(status);
@@ -710,6 +812,10 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       // Guard the transition server-side against the legal state machine.
       const allowed = PO_TRANSITIONS[previous.status] ?? [];
       if (!allowed.includes(parsed.data)) return { ok: false, error: 'invalid_state' };
+      if (parsed.data === 'cancelled') {
+        const receiptState = await getPurchaseOrderReceiptState(ctx.client, id);
+        if (receiptState.activeReceivedCount > 0) return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };
+      }
 
       const { rows } = await ctx.client.query<PurchaseOrderRow>(
         `update public.purchase_orders
