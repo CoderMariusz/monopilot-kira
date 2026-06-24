@@ -156,16 +156,55 @@ export async function recordWaste(
     });
   }
 
+  if (input.lp_id) {
+    const lpGate = await ctx.client.query<{ id: string; quantity: string; reserved_qty: string; has_available: boolean }>(
+      `select id::text as id,
+              quantity::text as quantity,
+              reserved_qty::text as reserved_qty,
+              (quantity - reserved_qty >= $2::numeric) as has_available
+         from public.license_plates
+        where id = $1::uuid
+          and org_id = $3::uuid
+        limit 1
+        for update`,
+      [input.lp_id, input.qty_kg, ctx.orgId],
+    );
+    const lp = lpGate.rows[0];
+    if (!lp) {
+      throw new ProductionActionError('invalid_reference', 422, { field: 'lp_id' });
+    }
+    if (!lp.has_available) {
+      throw new ProductionActionError('insufficient_lp_quantity', 409, {
+        message: 'Insufficient available quantity on license plate for waste quantity.',
+      });
+    }
+
+    const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
+      `update public.license_plates
+          set quantity = quantity - $3::numeric,
+              status = case when quantity - $3::numeric <= 0 then 'destroyed' else status end,
+              updated_at = now()
+        where org_id = $1::uuid
+          and id = $2::uuid
+          and quantity - $3::numeric >= reserved_qty
+        returning id::text, quantity::text as quantity`,
+      [ctx.orgId, input.lp_id, input.qty_kg],
+    );
+    if (!lpRes.rows[0]) {
+      throw new Error('recordWaste: LP decrement failed after availability gate');
+    }
+  }
+
   // 6. INSERT wo_waste_log.
   let wasteId: string;
   try {
     const { rows } = await ctx.client.query<{ id: string }>(
       `insert into public.wo_waste_log
          (org_id, site_id, transaction_id, wo_id, category_id, qty_kg, reason_code,
-          reason_notes, operator_id, shift_id, scan_event_id)
+          reason_notes, operator_id, shift_id, scan_event_id, lp_id)
        values
          (app.current_org_id(), null, $1::uuid, $2::uuid, $3::uuid, $4::numeric, $5,
-          $6, $7::uuid, $8, $9::uuid)
+          $6, $7::uuid, $8, $9::uuid, $10::uuid)
        returning id`,
       [
         input.transaction_id,
@@ -177,6 +216,7 @@ export async function recordWaste(
         input.operator_id ?? ctx.userId,
         input.shift_id,
         input.scan_event_id ?? null,
+        input.lp_id ?? null,
       ],
     );
     const row = rows[0];

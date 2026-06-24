@@ -23,6 +23,7 @@ type State = {
   lpExpired: boolean;
   lpLockedByOther: boolean;
   lpHeld: boolean;
+  woExecutionStatus: 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled' | null;
 };
 
 let state: State;
@@ -59,6 +60,11 @@ function makeClient(): QueryClient {
         return state.replayExists
           ? { rows: [{ material_id: MATERIAL_ID, consumed_qty: '12.500', uom: 'kg', lp_id: LP_ID }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
+      }
+      if (n.includes('from public.wo_executions')) {
+        return state.woExecutionStatus === null
+          ? { rows: [], rowCount: 0 }
+          : { rows: [{ status: state.woExecutionStatus }], rowCount: 1 };
       }
       if (n.includes('from public.license_plates lp') && n.includes('quantity - $4::numeric >= lp.reserved_qty')) {
         return state.lpDecrementSucceeds
@@ -169,6 +175,7 @@ beforeEach(() => {
     lpExpired: false,
     lpLockedByOther: false,
     lpHeld: false,
+    woExecutionStatus: 'in_progress',
   };
   queries = [];
   client = makeClient();
@@ -246,6 +253,25 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
 });
 
 describe('recordDesktopConsumption — over-consumption gate', () => {
+  it('returns wo_not_consumable before over-consume or stock mutation when the WO is cancelled', async () => {
+    state.woExecutionStatus = 'cancelled';
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result).toEqual({ ok: false, reason: 'wo_not_consumable', message: 'WO is cancelled.' });
+    expect(queries.some((q) => normalize(q.sql).includes('for update of wm'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+  });
+
+  it('allows an in-progress WO through the lifecycle gate and records consumption', async () => {
+    state.woExecutionStatus = 'in_progress';
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).includes('from public.wo_executions'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
+  });
+
   it('returns overconsume_blocked (no mutation) when consumed+qty exceeds required × (1+threshold)', async () => {
     state.overLimit = true;
     const result = await recordDesktopConsumption(VALID_INPUT);

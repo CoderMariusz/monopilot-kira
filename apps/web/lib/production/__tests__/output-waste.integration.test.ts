@@ -62,6 +62,122 @@ function ctxFor(client: pg.PoolClient, userId: string): OrgContextLike {
   return { userId, orgId: seed.orgId, siteId: seed.siteId, client: client as unknown as QueryClient };
 }
 
+type QueryCall = { sql: string; params: unknown[] };
+
+function normalizeSql(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function makeWasteUnitContext(options?: { lpQuantity?: string; lpReserved?: string }) {
+  const woId = randomUUID();
+  const wasteId = randomUUID();
+  const lpId = randomUUID();
+  const state = {
+    lp: options
+      ? {
+          id: lpId,
+          quantity: Number(options.lpQuantity),
+          reservedQty: Number(options.lpReserved ?? '0'),
+          status: 'available',
+        }
+      : null,
+    wasteRows: [] as Array<{ id: string; lp_id: string | null }>,
+  };
+  const calls: QueryCall[] = [];
+  const client: QueryClient = {
+    query: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      const normalized = normalizeSql(sql);
+      if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (normalized.includes('from public.work_orders')) return { rows: [{ id: woId, wo_number: 'WO-UNIT' }] };
+      if (normalized.includes('from public.wo_executions')) return { rows: [{ status: 'in_progress' }] };
+      if (normalized.includes('from public.waste_categories')) return { rows: [{ id: seed.wasteCategoryId }] };
+      if (normalized.includes('from public.v_active_holds')) return { rows: [] };
+      if (normalized.includes('from public.license_plates') && normalized.includes('for update')) {
+        if (!state.lp) return { rows: [] };
+        const qty = Number(params[1]);
+        return {
+          rows: [
+            {
+              id: state.lp.id,
+              has_available: state.lp.quantity - state.lp.reservedQty >= qty,
+            },
+          ],
+        };
+      }
+      if (normalized.startsWith('update public.license_plates')) {
+        if (!state.lp) return { rows: [] };
+        const qty = Number(params[2]);
+        if (state.lp.quantity - qty < state.lp.reservedQty) return { rows: [] };
+        state.lp.quantity -= qty;
+        if (state.lp.quantity <= 0) state.lp.status = 'consumed';
+        return { rows: [{ id: state.lp.id, quantity: state.lp.quantity.toFixed(6) }] };
+      }
+      if (normalized.startsWith('insert into public.wo_waste_log')) {
+        const lp = (params[9] ?? null) as string | null;
+        state.wasteRows.push({ id: wasteId, lp_id: lp });
+        return { rows: [{ id: wasteId }] };
+      }
+      if (normalized.startsWith('insert into public.outbox_events')) return { rows: [] };
+      throw new Error(`Unexpected SQL in recordWaste unit test: ${sql}`);
+    },
+  } as unknown as QueryClient;
+  return {
+    woId,
+    lpId,
+    state,
+    calls,
+    ctx: { userId: seed.adminUserId, orgId: seed.orgId, siteId: seed.siteId, client },
+  };
+}
+
+describe('recordWaste LP inventory integrity', () => {
+  it('5kg waste from a 20kg LP decrements quantity, keeps status, and persists lp_id', async () => {
+    const fx = makeWasteUnitContext({ lpQuantity: '20', lpReserved: '0' });
+    await recordWaste(fx.ctx, fx.woId, {
+      transaction_id: randomUUID(),
+      category_code: 'TRIM',
+      qty_kg: '5',
+      shift_id: 'A',
+      lp_id: fx.lpId,
+    });
+
+    expect(fx.state.lp?.quantity).toBe(15);
+    expect(fx.state.lp?.status).toBe('available');
+    expect(fx.state.wasteRows).toEqual([{ id: expect.any(String), lp_id: fx.lpId }]);
+  });
+
+  it('rejects 25kg waste from a 20kg available LP with insufficient_lp_quantity', async () => {
+    const fx = makeWasteUnitContext({ lpQuantity: '20', lpReserved: '0' });
+    await expect(
+      recordWaste(fx.ctx, fx.woId, {
+        transaction_id: randomUUID(),
+        category_code: 'TRIM',
+        qty_kg: '25',
+        shift_id: 'A',
+        lp_id: fx.lpId,
+      }),
+    ).rejects.toMatchObject({ code: 'insufficient_lp_quantity' });
+
+    expect(fx.state.lp?.quantity).toBe(20);
+    expect(fx.state.wasteRows).toHaveLength(0);
+  });
+
+  it('waste without lp_id succeeds without touching LPs and inserts NULL lp_id', async () => {
+    const fx = makeWasteUnitContext({ lpQuantity: '20', lpReserved: '0' });
+    await recordWaste(fx.ctx, fx.woId, {
+      transaction_id: randomUUID(),
+      category_code: 'TRIM',
+      qty_kg: '5',
+      shift_id: 'A',
+    });
+
+    expect(fx.state.lp?.quantity).toBe(20);
+    expect(fx.calls.some((c) => normalizeSql(c.sql).includes('license_plates'))).toBe(false);
+    expect(fx.state.wasteRows).toEqual([{ id: expect.any(String), lp_id: null }]);
+  });
+});
+
 async function seedAll(): Promise<void> {
   await ensureAppUser(owner);
   await owner.query(

@@ -48,7 +48,9 @@ import {
   APP_VERSION,
   emitConsumeBlocked,
   hasPermission,
+  OUTPUT_RECORDABLE_STATES,
   QualityHoldError,
+  readWoExecutionStatus,
   type ProductionContext,
   type QueryClient,
 } from '../../../../../../lib/production/shared';
@@ -110,6 +112,7 @@ export type ConsumeActionError =
   | 'quality_hold_active'
   | 'reason_required'
   | 'overconsume_blocked'
+  | 'wo_not_consumable'
   | 'invalid_input'
   | 'error';
 
@@ -306,6 +309,15 @@ export async function recordDesktopConsumption(
         return {
           ok: true,
           data: { materialId, consumedQty: r.consumed_qty, uom: r.uom, lpId: r.lp_id, replay: true },
+        };
+      }
+
+      const executionStatus = await readWoExecutionStatus(ctx, woId);
+      if (executionStatus === null || !OUTPUT_RECORDABLE_STATES.has(executionStatus)) {
+        return {
+          ok: false,
+          reason: 'wo_not_consumable',
+          message: `WO is ${executionStatus ?? 'not started'}.`,
         };
       }
 

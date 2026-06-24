@@ -72,6 +72,7 @@ export type ProductionError =
   | 'allergen_changeover_required'
   | 'closed_production_strict_failed'
   | 'insufficient_input_for_output'
+  | 'insufficient_lp_quantity'
   | 'esign_failed'
   | 'rate_limited'
   | 'persistence_failed';
@@ -93,6 +94,7 @@ export const ERROR_STATUS: Record<ProductionError, number> = {
   allergen_changeover_required: 409,
   closed_production_strict_failed: 409,
   insufficient_input_for_output: 409,
+  insufficient_lp_quantity: 409,
   esign_failed: 403,
   rate_limited: 429,
   persistence_failed: 500,
@@ -297,6 +299,7 @@ export type ProductionErrorCode =
   | 'uom_conversion_unavailable'
   | 'invalid_reference'
   | 'insufficient_input_for_output'
+  | 'insufficient_lp_quantity'
   // W9-K-II (F-A04): output-LP creation needs an org default warehouse; 409
   // when the org has none configured (mirrors the scanner GRN receive contract).
   | 'warehouse_not_configured'
