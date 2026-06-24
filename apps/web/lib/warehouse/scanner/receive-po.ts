@@ -70,6 +70,11 @@ export type ReceiveLineResult =
       inspectionId: string | null;
     }
   | {
+      ok: false;
+      reason: 'no_warehouse_for_site';
+      message: string;
+    }
+  | {
       ok: true;
       replay: true;
       grnId: string | null;
@@ -110,6 +115,8 @@ const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'] as const;
 const DECIMAL_SCALE = 6n;
 const DECIMAL_FACTOR = 1_000_000n;
 const APP_VERSION = 'warehouse-scanner-receive-po-v1';
+const NO_WAREHOUSE_FOR_SITE_MESSAGE =
+  'No warehouse is configured for your site — set one in Settings -> Sites';
 
 export async function listScannerPurchaseOrders(
   client: QueryClient,
@@ -280,6 +287,20 @@ export async function receiveScannerPoLine(
       throw new ReceivePoError('over_receive_cap', 409);
     }
 
+    const warehouse = await resolveWarehouse(client, session);
+    if (!warehouse) {
+      await insertAudit(client, session, input.clientOpId, 'no_warehouse_for_site', {
+        poLineId: input.poLineId,
+        siteId: session.site_id,
+      });
+      await client.query('commit');
+      return {
+        ok: false,
+        reason: 'no_warehouse_for_site',
+        message: NO_WAREHOUSE_FOR_SITE_MESSAGE,
+      };
+    }
+
     // Lane W9-L8: optional explicit destination. Validated INSIDE the txn,
     // org-scoped (l.org_id = session.org_id) — a location from another org or
     // a vanished id is indistinguishable from "not found" → 422
@@ -297,13 +318,19 @@ export async function receiveScannerPoLine(
       }
     }
 
-    const warehouse = await resolveWarehouse(client, session);
-    if (!warehouse) throw new ReceivePoError('warehouse_not_configured', 409);
+    if (requestedLocation && requestedLocation.warehouse_id !== warehouse.id) {
+      await insertAudit(client, session, input.clientOpId, 'invalid_location', {
+        poLineId: input.poLineId,
+        toLocationId: input.toLocationId,
+      });
+      await client.query('commit');
+      throw new ReceivePoError('invalid_location', 422);
+    }
 
-    // Destination for the new LP (and its GRN item line): the validated
-    // explicit location wins, else the legacy default-warehouse location.
-    // The GRN header itself stays on the default warehouse — unchanged.
-    const destWarehouseId = requestedLocation?.warehouse_id ?? warehouse.id;
+    // Destination for the new LP (and its GRN item line): the session-site
+    // warehouse is fixed; a validated location within that warehouse wins.
+    // The GRN header uses the same session-site warehouse target.
+    const destWarehouseId = warehouse.id;
     const destLocationId = requestedLocation?.id ?? warehouse.default_location_id;
 
     const grn = await getOrCreateOpenGrn(client, session, {
@@ -323,6 +350,7 @@ export async function receiveScannerPoLine(
     const expiryDate = computeExpiryDate(input.bestBefore ?? null, line.shelf_life_days);
     const lp = await insertLicensePlate(client, session, {
       lpNumber,
+      siteId: session.site_id,
       warehouseId: destWarehouseId,
       locationId: destLocationId,
       productId: line.item_id,
@@ -509,6 +537,7 @@ async function resolveRequestedLocation(
 type WarehouseTarget = { id: string; default_location_id: string | null };
 
 async function resolveWarehouse(client: QueryClient, session: ScannerSessionRow): Promise<WarehouseTarget | null> {
+  if (!session.site_id) return null;
   const { rows } = await client.query<WarehouseTarget>(
     `select w.id,
             (select l.id
@@ -518,10 +547,11 @@ async function resolveWarehouse(client: QueryClient, session: ScannerSessionRow)
               order by l.level asc, l.code asc
               limit 1) as default_location_id
        from public.warehouses w
-      where w.org_id = $1::uuid
-      order by w.is_default desc, w.created_at asc, w.id asc
+      where w.org_id = app.current_org_id()
+        and w.site_id = $1::uuid
+      order by w.is_default desc nulls last
       limit 1`,
-    [session.org_id],
+    [session.site_id],
   );
   return rows[0] ?? null;
 }
@@ -586,6 +616,7 @@ async function insertLicensePlate(
   session: ScannerSessionRow,
   input: {
     lpNumber: string;
+    siteId: string | null;
     warehouseId: string;
     locationId: string | null;
     productId: string;
@@ -600,20 +631,21 @@ async function insertLicensePlate(
 ): Promise<{ id: string }> {
   const { rows } = await client.query<{ id: string }>(
     `insert into public.license_plates (
-       org_id, warehouse_id, lp_number, product_id, quantity, uom,
+       org_id, site_id, warehouse_id, lp_number, product_id, quantity, uom,
        status, qa_status, batch_number, best_before_date, expiry_date,
        shelf_life_mode_snapshot, location_id, origin,
        grn_id, created_by, updated_by
      )
      values (
-       $1::uuid, $2::uuid, $3, $4::uuid, $5::numeric, $6,
-       'received', 'pending', $7, $8::timestamptz, $9::timestamptz,
-       $10, $11::uuid, 'grn',
-       $12::uuid, $13::uuid, $13::uuid
+       $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
+       'received', 'pending', $8, $9::timestamptz, $10::timestamptz,
+       $11, $12::uuid, 'grn',
+       $13::uuid, $14::uuid, $14::uuid
      )
      returning id`,
     [
       session.org_id,
+      input.siteId,
       input.warehouseId,
       input.lpNumber,
       input.productId,

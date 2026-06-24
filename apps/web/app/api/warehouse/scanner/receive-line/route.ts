@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
     withScannerOrg(client, session, async () => {
       try {
         const received = await receiveScannerPoLine(client, session, input);
+        if (!received.ok) {
+          return jsonError(received.reason, 409, { reason: received.reason, message: received.message });
+        }
         return jsonOk(received);
       } catch (err) {
         if (err instanceof ReceivePoError) return jsonError(err.code, err.status);

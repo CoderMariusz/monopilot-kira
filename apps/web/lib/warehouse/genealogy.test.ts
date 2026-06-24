@@ -13,6 +13,7 @@ const OUTPUT_ID = '66666666-6666-4666-8666-666666666666';
 const WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
 const LOCATION_ID = '88888888-8888-4888-8888-888888888888';
 const OUTPUT_LP_ID = '99999999-9999-4999-8999-999999999999';
+const SITE_ID = 'site-001';
 const PARENT_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PARENT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const PARENT_C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -25,7 +26,7 @@ function normalize(sql: string): string {
 }
 
 function makeCtx(client: QueryClient): OrgContextLike {
-  return { userId: USER_ID, orgId: ORG_ID, client };
+  return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
 }
 
 function makeRegisterClient(consumedLpIds: string[]): QueryClient & { calls: QueryCall[] } {
@@ -66,6 +67,7 @@ function makeRegisterClient(consumedLpIds: string[]): QueryClient & { calls: Que
         return { rows: [{ id: OUTPUT_ID, lp_id: null, expiry_date: null }], rowCount: 1 };
       }
       if (normalized.includes('from public.warehouses')) {
+        expect(params).toEqual([SITE_ID]);
         return { rows: [{ id: WAREHOUSE_ID, default_location_id: LOCATION_ID }], rowCount: 1 };
       }
       if (normalized.includes('from public.wo_material_consumption')) {
@@ -115,7 +117,7 @@ describe('LP genealogy junction integration points', () => {
     });
 
     const lpInsert = client.calls.find((call) => normalize(call.sql).startsWith('insert into public.license_plates'));
-    expect(lpInsert?.params[9]).toBe(PARENT_A);
+    expect(lpInsert?.params[10]).toBe(PARENT_A);
 
     const genealogyInserts = client.calls.filter((call) =>
       normalize(call.sql).startsWith('insert into public.lp_genealogy'),

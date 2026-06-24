@@ -35,7 +35,7 @@ export type QueryClient = {
  * The org-context handed to every production service. Mirrors the BOM-snapshot
  * `OrgActionContext` so the snapshot service can be called with the SAME ctx.
  */
-export type ProductionContext = { userId: string; orgId: string; client: QueryClient };
+export type ProductionContext = { userId: string; orgId: string; siteId?: string | null; client: QueryClient };
 
 /** Materialized WO lifecycle states (migration 182 `wo_executions_status_check`). */
 export const WO_STATES = [
@@ -297,6 +297,7 @@ export type ProductionErrorCode =
   // W9-K-II (F-A04): output-LP creation needs an org default warehouse; 409
   // when the org has none configured (mirrors the scanner GRN receive contract).
   | 'warehouse_not_configured'
+  | 'no_warehouse_for_site'
   | 'persistence_failed';
 
 export class ProductionActionError extends Error {

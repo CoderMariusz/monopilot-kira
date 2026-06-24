@@ -29,13 +29,15 @@ export async function POST(request: NextRequest) {
           lpId: input.lpId,
           clientOpId: input.clientOpId,
         });
-        return jsonError('forbidden', 403);
+        return jsonError('forbidden', 403, {
+          message: 'You need the "warehouse.stock.move" permission to move stock. Ask an admin to grant it.',
+        });
       }
 
       try {
         return jsonOk(await moveScannerLp(scopedClient, session, input));
       } catch (error) {
-        if (error instanceof WarehouseScannerError) return jsonError(error.code, error.status);
+        if (error instanceof WarehouseScannerError) return jsonError(error.code, error.status, { message: error.message });
         throw error;
       }
     }),

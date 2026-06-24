@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { writeItemCostLedger } from '../../../app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger';
-import { makeLpNumber, resolveDefaultWarehouse } from '../../warehouse/lp-create';
+import { makeLpNumber } from '../../warehouse/lp-create';
 import {
   emitOutbox,
   hasPermission,
@@ -40,6 +40,7 @@ export type RegisterDisassemblyOutputInputType = z.input<typeof RegisterDisassem
 
 export type RegisterDisassemblyOutputResult =
   | { ok: true; outputs: Array<{ lpId: string; lpCode: string }> }
+  | { ok: false; reason: 'no_warehouse_for_site'; message: string }
   | { ok: false; error: string };
 
 type WoBomRow = {
@@ -64,7 +65,11 @@ type InputLpRow = {
   currency: string | null;
 };
 
+type SiteWarehouseTarget = { id: string; default_location_id: string | null };
+
 const SCALE = 1_000_000n;
+const NO_WAREHOUSE_FOR_SITE_MESSAGE =
+  'No warehouse is configured for your site — set one in Settings -> Sites';
 
 function decimalToFixed(value: string): bigint {
   const [intPart = '0', fracRaw = ''] = value.split('.');
@@ -160,6 +165,26 @@ async function nextOutputSequence(ctx: OrgContextLike, woId: string): Promise<nu
   return Number(rows[0]?.seq ?? '0') + 1;
 }
 
+async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
+  if (!ctx.siteId) return null;
+  const { rows } = await ctx.client.query<SiteWarehouseTarget>(
+    `select w.id,
+            (select l.id
+               from public.locations l
+              where l.org_id = w.org_id
+                and l.warehouse_id = w.id
+              order by l.level asc, l.code asc
+              limit 1) as default_location_id
+       from public.warehouses w
+      where w.org_id = app.current_org_id()
+        and w.site_id = $1::uuid
+      order by w.is_default desc nulls last
+      limit 1`,
+    [ctx.siteId],
+  );
+  return rows[0] ?? null;
+}
+
 async function createDisassemblyOutputLp(
   ctx: OrgContextLike,
   input: {
@@ -172,23 +197,24 @@ async function createDisassemblyOutputLp(
     actorUserId: string;
   },
 ): Promise<{ id: string; lpCode: string }> {
-  const warehouse = await resolveDefaultWarehouse(ctx.client);
-  if (!warehouse) throw new Error('warehouse_not_configured');
+  const warehouse = await resolveWarehouseForSessionSite(ctx);
+  if (!warehouse) throw new Error('no_warehouse_for_site');
 
   const lpCode = makeLpNumber();
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.license_plates (
-       org_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
+       org_id, site_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
        status, qa_status, batch_number, expiry_date, best_before_date,
        origin, wo_id, parent_lp_id, ext_jsonb, created_by, updated_by
      )
      values (
-       app.current_org_id(), $1::uuid, $2::uuid, $3, $4::uuid, $5::numeric, 'kg',
-       'received', 'pending', $6, null, null,
-       'production', $7::uuid, $8::uuid, $9::jsonb, $10::uuid, $10::uuid
+       app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, 'kg',
+       'received', 'pending', $7, null, null,
+       'production', $8::uuid, $9::uuid, $10::jsonb, $11::uuid, $11::uuid
      )
      returning id`,
     [
+      ctx.siteId,
       warehouse.id,
       warehouse.default_location_id,
       lpCode,
@@ -403,6 +429,13 @@ export async function registerDisassemblyOutput(
 
     return { ok: true, outputs: results };
   } catch (error) {
+    if (error instanceof Error && error.message === 'no_warehouse_for_site') {
+      return {
+        ok: false,
+        reason: 'no_warehouse_for_site',
+        message: NO_WAREHOUSE_FOR_SITE_MESSAGE,
+      };
+    }
     if (error instanceof Error && error.message === 'warehouse_not_configured') {
       return { ok: false, error: 'warehouse-not-configured' };
     }

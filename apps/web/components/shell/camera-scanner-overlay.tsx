@@ -31,6 +31,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 
 // Minimal structural type for the zxing IScannerControls we use.
 type ScannerControls = {
@@ -141,7 +142,7 @@ export function CameraScannerOverlay({
       let stream: MediaStream;
       try {
         stream = await mediaDevices.getUserMedia({
-          video: { facingMode: facing },
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false,
         });
       } catch (e) {
@@ -156,6 +157,18 @@ export function CameraScannerOverlay({
         return;
       }
       streamRef.current = stream;
+
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        try {
+          const caps = track.getCapabilities?.() as any;
+          if (caps?.focusMode?.includes("continuous")) {
+            await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] });
+          }
+        } catch {
+          /* unsupported — ignore */
+        }
+      }
 
       // Torch capability probe (experimental; absent on iOS Safari + most desktops).
       try {
@@ -175,9 +188,22 @@ export function CameraScannerOverlay({
       }
 
       try {
-        const reader = new BrowserMultiFormatReader();
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.QR_CODE,
+          BarcodeFormat.DATA_MATRIX,
+          BarcodeFormat.PDF_417,
+        ]);
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        const reader = new BrowserMultiFormatReader(hints);
         const controls = (await reader.decodeFromConstraints(
-          { video: { facingMode: facing }, audio: false },
+          { video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
           video,
           (decodeResult, _err, ctrls) => {
             if (cancelled || decodedRef.current || !decodeResult) return;

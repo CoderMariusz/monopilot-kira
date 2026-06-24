@@ -52,6 +52,7 @@ import { buildWoModalLabels } from '../../_actions/wo-modal-labels';
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
 import { registerDisassemblyOutput } from '../../../../../../../lib/production/output/register-disassembly-output';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import type {
   OutputPrintLabelInput,
   OutputPrintLabelResult,
@@ -190,11 +191,12 @@ async function registerDisassemblyOutputDesktop(input: {
 }): Promise<{ ok: true } | { ok: false; errorCode: string }> {
   'use server';
   return withOrgContext(async ({ userId, orgId, client }) => {
+    const siteId = await getActiveSiteId();
     const result = await registerDisassemblyOutput(
-      { userId, orgId, client: client as unknown as DisassemblyQueryClient },
+      { userId, orgId, siteId, client: client as unknown as DisassemblyQueryClient },
       input,
     );
-    return result.ok ? { ok: true } : { ok: false, errorCode: result.error };
+    return result.ok ? { ok: true } : { ok: false, errorCode: 'error' in result ? result.error : result.reason };
   });
 }
 

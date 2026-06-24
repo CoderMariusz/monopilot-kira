@@ -48,6 +48,7 @@ const seed = {
   productId: randomUUID(),
   catchProductId: randomUUID(),
   wasteCategoryId: randomUUID(),
+  siteId: randomUUID(),
   // W9-K-II: registerOutput now creates the output LP — it needs an org
   // default warehouse (+ location) to exist.
   warehouseId: randomUUID(),
@@ -58,7 +59,7 @@ let owner: pg.Pool;
 let app: pg.Pool;
 
 function ctxFor(client: pg.PoolClient, userId: string): OrgContextLike {
-  return { userId, orgId: seed.orgId, client: client as unknown as QueryClient };
+  return { userId, orgId: seed.orgId, siteId: seed.siteId, client: client as unknown as QueryClient };
 }
 
 async function seedAll(): Promise<void> {
@@ -126,9 +127,9 @@ async function seedAll(): Promise<void> {
   );
   // W9-K-II: org default warehouse + location for the output LP destination.
   await owner.query(
-    `insert into public.warehouses (id, org_id, code, name, warehouse_type, is_default)
-     values ($1, $2, $3, 'E3 WH', 'general', true) on conflict (id) do nothing`,
-    [seed.warehouseId, seed.orgId, `E3WH-${seed.warehouseId.slice(0, 8)}`],
+    `insert into public.warehouses (id, org_id, site_id, code, name, warehouse_type, is_default)
+     values ($1, $2, $3, $4, 'E3 WH', 'general', true) on conflict (id) do nothing`,
+    [seed.warehouseId, seed.orgId, seed.siteId, `E3WH-${seed.warehouseId.slice(0, 8)}`],
   );
   await owner.query(
     `insert into public.locations (id, org_id, warehouse_id, code, name, location_type, level, path)

@@ -42,6 +42,7 @@ const seed = {
   adminUserId: randomUUID(),
   fgProductId: randomUUID(),
   rmProductId: randomUUID(),
+  siteId: randomUUID(),
   warehouseId: randomUUID(),
   locationId: randomUUID(),
   parentLpAId: randomUUID(),
@@ -52,7 +53,7 @@ let owner: pg.Pool;
 let app: pg.Pool;
 
 function ctxFor(client: pg.PoolClient, userId: string): OrgContextLike {
-  return { userId, orgId: seed.orgId, client: client as unknown as QueryClient };
+  return { userId, orgId: seed.orgId, siteId: seed.siteId, client: client as unknown as QueryClient };
 }
 
 async function seedAll(): Promise<void> {
@@ -99,9 +100,9 @@ async function seedAll(): Promise<void> {
   );
   // Org default warehouse + one location (the output LP destination).
   await owner.query(
-    `insert into public.warehouses (id, org_id, code, name, warehouse_type, is_default)
-     values ($1, $2, $3, 'W9KII Main WH', 'general', true) on conflict (id) do nothing`,
-    [seed.warehouseId, seed.orgId, `W9WH-${seed.warehouseId.slice(0, 8)}`],
+    `insert into public.warehouses (id, org_id, site_id, code, name, warehouse_type, is_default)
+     values ($1, $2, $3, $4, 'W9KII Main WH', 'general', true) on conflict (id) do nothing`,
+    [seed.warehouseId, seed.orgId, seed.siteId, `W9WH-${seed.warehouseId.slice(0, 8)}`],
   );
   await owner.query(
     `insert into public.locations (id, org_id, warehouse_id, code, name, location_type, level, path)

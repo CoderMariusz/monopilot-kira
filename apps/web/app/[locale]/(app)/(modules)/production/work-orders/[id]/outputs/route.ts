@@ -15,6 +15,7 @@
  * inside the state-change txn.
  */
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
 import {
   ProductionActionError,
   QualityHoldError,
@@ -46,7 +47,8 @@ export async function POST(
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<Response> => {
-      const orgCtx: OrgContextLike = { userId, orgId, client: client as unknown as QueryClient };
+      const siteId = await getActiveSiteId();
+      const orgCtx: OrgContextLike = { userId, orgId, siteId, client: client as unknown as QueryClient };
       const result = await registerOutput(orgCtx, woId, body);
       return json({ data: result }, 200);
     });

@@ -108,7 +108,15 @@ let appPool: pg.Pool | null = null;
 //     pooler URL (owner/Vercel-env action), not a per-pool max here.
 const POOL_TUNING = { idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 } as const;
 
-function getOwnerPool(): pg.Pool {
+/**
+ * Owner (BYPASSRLS) pool. Exported so the site-context composition
+ * (`apps/web/lib/auth/with-site-context.ts`) can register its own
+ * `app.session_site_contexts` rows on the SAME privileged pool rather than
+ * opening a second owner pool — the trust tables are revoked from app_user, so
+ * this INSERT cannot run on the app-role pool. Do NOT use this for data-plane
+ * reads/writes: it bypasses RLS by design.
+ */
+export function getOwnerPool(): pg.Pool {
   if (ownerPool) return ownerPool;
   const cs = process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
   if (!cs) {

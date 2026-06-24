@@ -86,8 +86,9 @@ export class WarehouseScannerError extends Error {
   constructor(
     public code: string,
     public status: number,
+    message: string,
   ) {
-    super(code);
+    super(message);
     this.name = 'WarehouseScannerError';
   }
 }
@@ -218,7 +219,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
     [lpId],
   );
   const target = lp.rows[0];
-  if (!target) throw new WarehouseScannerError('lp_not_found', 404);
+  if (!target) throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found. Scan the barcode again or contact a supervisor.');
 
   const { rows } = await client.query<{
     location_id: string;
@@ -437,7 +438,7 @@ export async function moveScannerLp(
 
   return inIdempotentScannerWrite(client, session, `warehouse.scanner.${input.moveType}`, input.clientOpId, async () => {
     const lp = await loadMovableLpForUpdate(client, session, input.lpId);
-    if (!lp) throw new WarehouseScannerError('lp_not_found', 404);
+    if (!lp) throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found. Scan the barcode again or contact a supervisor.');
     assertLpMovable(lp);
 
     await assertLocationExists(client, input.toLocationId);
@@ -512,26 +513,26 @@ export async function pickScannerLp(
       [input.woId, input.materialId],
     );
     const material = pick.rows[0];
-    if (!material) throw new WarehouseScannerError('invalid_material', 422);
+    if (!material) throw new WarehouseScannerError('invalid_material', 422, 'This work order material is not available for picking.');
 
     // Review fix F4: distinct error code — the pick screen branches on the
     // parsed body code (destination_required → reveal the destination field;
     // any other 422 → generic error). Do NOT reuse a generic 422 code here.
     const toLocationId = input.toLocationId ?? material.staging_location_id;
-    if (!toLocationId) throw new WarehouseScannerError('destination_required', 422);
+    if (!toLocationId) throw new WarehouseScannerError('destination_required', 422, 'Choose a destination location before picking this pallet.');
     await assertLocationExists(client, toLocationId);
 
     const lp = await loadMovableLpForUpdate(client, session, input.lpId);
-    if (!lp) throw new WarehouseScannerError('lp_not_found', 404);
+    if (!lp) throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found. Scan the barcode again or contact a supervisor.');
     assertLpMovable(lp);
     // PICK-ONLY QA gate (review fix F3): staging to production is a consume
     // precursor, so only QA-released stock may be picked. Putaway/move of held
     // LPs stays allowed — relocating quarantined stock is a legit warehouse op.
     if (lp.qa_status !== 'released') {
-      throw new WarehouseScannerError('lp_not_released', 409);
+      throw new WarehouseScannerError('lp_not_released', 409, 'This pallet cannot be picked until QA releases it.');
     }
     if (lp.product_id !== material.product_id || lp.uom !== material.uom) {
-      throw new WarehouseScannerError('lp_not_movable', 409);
+      throw new WarehouseScannerError('lp_not_movable', 409, 'This pallet does not match the selected work order material.');
     }
 
     const transactionId = transactionIdFor('warehouse.pick', input.clientOpId);
@@ -683,9 +684,11 @@ async function loadMovableLpForUpdate(
 
 function assertLpMovable(lp: MovableLpRow): void {
   if (IMMOVABLE_STATUSES.includes(lp.status as (typeof IMMOVABLE_STATUSES)[number])) {
-    throw new WarehouseScannerError('lp_not_movable', 409);
+    throw new WarehouseScannerError('lp_not_movable', 409, `This pallet can't be moved because its status is '${lp.status}'.`);
   }
-  if (lp.lock_is_active_for_other_user) throw new WarehouseScannerError('lp_not_movable', 409);
+  if (lp.lock_is_active_for_other_user) {
+    throw new WarehouseScannerError('lp_not_movable', 409, 'This pallet is currently locked by another scanner session.');
+  }
 }
 
 async function assertLocationExists(client: QueryClient, locationId: string): Promise<void> {
@@ -697,7 +700,7 @@ async function assertLocationExists(client: QueryClient, locationId: string): Pr
       limit 1`,
     [locationId],
   );
-  if (!rows[0]) throw new WarehouseScannerError('invalid_location', 422);
+  if (!rows[0]) throw new WarehouseScannerError('invalid_location', 422, 'Location not found. Scan the location again or choose another one.');
 }
 
 async function insertStockMove(
@@ -754,7 +757,7 @@ async function insertStockMove(
     [input.transactionId],
   );
   const move = existing.rows[0];
-  if (!move) throw new WarehouseScannerError('move_not_recorded', 409);
+  if (!move) throw new WarehouseScannerError('move_not_recorded', 409, 'The stock move could not be recorded. Try again or contact a supervisor.');
   return move.id;
 }
 
@@ -858,11 +861,28 @@ export function isUuid(value: string): boolean {
 }
 
 export function validateUuid(value: string, code: string): void {
-  if (!isUuid(value)) throw new WarehouseScannerError(code, 422);
+  if (!isUuid(value)) throw new WarehouseScannerError(code, 422, invalidUuidMessage(code));
 }
 
 export function validateClientOpId(value: string): void {
-  if (!value || value.length > 120) throw new WarehouseScannerError('invalid_client_op_id', 422);
+  if (!value || value.length > 120) {
+    throw new WarehouseScannerError('invalid_client_op_id', 422, 'This scanner request is invalid. Refresh and try again.');
+  }
+}
+
+function invalidUuidMessage(code: string): string {
+  switch (code) {
+    case 'invalid_lp_id':
+      return 'Pallet barcode is invalid. Scan the barcode again.';
+    case 'invalid_location_id':
+      return 'Location barcode is invalid. Scan the location again.';
+    case 'invalid_wo_id':
+      return 'Work order is invalid. Refresh the pick list and try again.';
+    case 'invalid_material_id':
+      return 'Work order material is invalid. Refresh the pick list and try again.';
+    default:
+      return 'This scanner request is invalid. Refresh and try again.';
+  }
 }
 
 function iso(value: string | Date | null): string | null {

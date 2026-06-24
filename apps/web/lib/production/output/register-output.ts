@@ -41,7 +41,7 @@
 import { z } from 'zod';
 
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
-import { makeLpNumber, resolveDefaultWarehouse } from '../../warehouse/lp-create';
+import { makeLpNumber } from '../../warehouse/lp-create';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
   PRODUCTION_OUTPUT_WRITE_PERMISSION,
@@ -133,6 +133,11 @@ type WoRow = {
   uom: string;
   uom_snapshot: Record<string, unknown> | null;
 };
+
+type SiteWarehouseTarget = { id: string; default_location_id: string | null };
+
+const NO_WAREHOUSE_FOR_SITE_MESSAGE =
+  'No warehouse is configured for your site — set one in Settings -> Sites';
 
 // ─── Fixed-point decimal helpers (NUMERIC-exact, no binary float on kg) ──────────
 // We keep kg as integer micro-units (1e-6) internally so summation/division for
@@ -279,13 +284,31 @@ async function loadConsumedLpIds(ctx: OrgContextLike, woId: string): Promise<str
   return rows.map((r) => r.lp_id);
 }
 
+async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
+  if (!ctx.siteId) return null;
+  const { rows } = await ctx.client.query<SiteWarehouseTarget>(
+    `select w.id,
+            (select l.id
+               from public.locations l
+              where l.org_id = w.org_id
+                and l.warehouse_id = w.id
+              order by l.level asc, l.code asc
+              limit 1) as default_location_id
+       from public.warehouses w
+      where w.org_id = app.current_org_id()
+        and w.site_id = $1::uuid
+      order by w.is_default desc nulls last
+      limit 1`,
+    [ctx.siteId],
+  );
+  return rows[0] ?? null;
+}
+
 /**
  * 8b (F-A04/F-B08): materialize the output as INVENTORY. Creates the output LP
  * in the SAME transaction as the wo_outputs row:
- *   - warehouse/location = the org default warehouse + its first location (the
- *     same "receiving default" the GRN flow resolves; work_orders/production
- *     lines carry no warehouse mapping today, so this is the least-surprising
- *     default — revisit when lines get a site/warehouse link);
+ *   - warehouse/location = the scanner session site's default warehouse and
+ *     its first location;
  *   - status 'received' + qa_status 'pending' — the LP is NOT born 'available';
  *     it flows through the QA release → available promotion path;
  *   - genealogy: parent_lp_id = FIRST consumed LP (license_plates models a
@@ -308,8 +331,13 @@ async function createOutputLp(
     actorUserId: string;
   },
 ): Promise<{ id: string; lp_number: string }> {
-  const warehouse = await resolveDefaultWarehouse(ctx.client);
-  if (!warehouse) throw new ProductionActionError('warehouse_not_configured', 409);
+  const warehouse = await resolveWarehouseForSessionSite(ctx);
+  if (!warehouse) {
+    throw new ProductionActionError('no_warehouse_for_site', 409, {
+      reason: 'no_warehouse_for_site',
+      message: NO_WAREHOUSE_FOR_SITE_MESSAGE,
+    });
+  }
 
   const consumedLpIds = await loadConsumedLpIds(ctx, input.woId);
   const parentLpId = consumedLpIds[0] ?? null;
@@ -317,18 +345,19 @@ async function createOutputLp(
 
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.license_plates (
-       org_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
+       org_id, site_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
        status, qa_status, batch_number, expiry_date, best_before_date,
        origin, wo_id, parent_lp_id, ext_jsonb, created_by, updated_by
      )
      values (
-       app.current_org_id(), $1::uuid, $2::uuid, $3, $4::uuid, $5::numeric, $6,
-       'received', 'pending', $7, $8::timestamptz, $8::timestamptz,
-       'production', $9::uuid, $10::uuid,
-       jsonb_build_object('consumed_lp_ids', $11::jsonb), $12::uuid, $12::uuid
+       app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
+       'received', 'pending', $8, $9::timestamptz, $9::timestamptz,
+       'production', $10::uuid, $11::uuid,
+       jsonb_build_object('consumed_lp_ids', $12::jsonb), $13::uuid, $13::uuid
      )
      returning id`,
     [
+      ctx.siteId,
       warehouse.id,
       warehouse.default_location_id,
       lpNumber,

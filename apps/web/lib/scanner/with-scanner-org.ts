@@ -13,6 +13,7 @@ export type ScannerOrgContext = {
   client: pg.PoolClient;
   session: ScannerSessionRow;
   orgId: string;
+  siteId?: string | null;
   userId: string;
 };
 
@@ -61,7 +62,7 @@ export async function withScannerOrg<T>(
     const client = arg1 as pg.PoolClient;
     const session = arg2 as ScannerSessionRow;
     await client.query('select set_config($1, $2, true)', ['app.current_org_id', session.org_id]);
-    return arg3({ client, session, orgId: session.org_id, userId: session.user_id });
+    return arg3({ client, session, orgId: session.org_id, siteId: session.site_id, userId: session.user_id });
   }
 
   const session = arg1 as ScannerSessionRow;
@@ -81,6 +82,7 @@ export async function withScannerOrg<T>(
     const result = await action({
       userId: session.user_id,
       orgId: session.org_id,
+      siteId: session.site_id,
       client,
     });
     await client.query('commit');

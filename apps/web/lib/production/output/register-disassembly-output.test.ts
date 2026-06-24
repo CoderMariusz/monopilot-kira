@@ -12,6 +12,7 @@ import { registerDisassemblyOutput } from './register-disassembly-output';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const SITE_ID = '22222222-2222-4222-8222-222222222223';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
 const BOM_ID = '44444444-4444-4444-8444-444444444444';
 const INPUT_LP_ID = '55555555-5555-4555-8555-555555555555';
@@ -53,7 +54,7 @@ class MockClient implements QueryClient {
           {
             id: WO_ID,
             wo_number: 'WO-DIS-001',
-            site_id: null,
+            site_id: SITE_ID,
             uom: 'kg',
             bom_header_id: BOM_ID,
             bom_type: bomType,
@@ -130,7 +131,7 @@ function normalizeSql(sql: string): string {
 }
 
 function makeCtx(): OrgContextLike {
-  return { userId: USER_ID, orgId: ORG_ID, client };
+  return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
 }
 
 function callsStartingWith(prefix: string): QueryCall[] {
@@ -173,12 +174,12 @@ describe('registerDisassemblyOutput', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
+    if (!result.ok) throw new Error('error' in result ? result.error : result.reason);
     expect(result.outputs).toHaveLength(3);
 
     const lpInserts = callsStartingWith('insert into public.license_plates');
     expect(lpInserts).toHaveLength(3);
-    expect(lpInserts.map((call) => call.params[7])).toEqual([INPUT_LP_ID, INPUT_LP_ID, INPUT_LP_ID]);
+    expect(lpInserts.map((call) => call.params[8])).toEqual([INPUT_LP_ID, INPUT_LP_ID, INPUT_LP_ID]);
 
     const genealogyInserts = callsStartingWith('insert into public.lp_genealogy');
     expect(genealogyInserts).toHaveLength(3);

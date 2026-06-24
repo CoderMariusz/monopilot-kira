@@ -21,6 +21,7 @@
  * 403, validation/shape errors → 422, everything else → 409.
  */
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
 import {
   type OrgContextLike,
   type QueryClient,
@@ -71,10 +72,14 @@ export async function POST(
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<Response> => {
-      const orgCtx: OrgContextLike = { userId, orgId, client: client as unknown as QueryClient };
+      const siteId = await getActiveSiteId();
+      const orgCtx: OrgContextLike = { userId, orgId, siteId, client: client as unknown as QueryClient };
       const result = await registerDisassemblyOutput(orgCtx, payload as never);
       if (result.ok) {
         return json({ data: result }, 200);
+      }
+      if ('reason' in result) {
+        return json({ error: result.reason, reason: result.reason, message: result.message }, 409);
       }
       return json({ error: result.error }, statusForError(result.error));
     });

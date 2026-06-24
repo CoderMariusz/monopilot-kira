@@ -15,18 +15,18 @@ const PO_ID = '00000000-0000-4000-8000-0000000000p0'.replace('p', 'a');
 const LINE_ID = '00000000-0000-4000-8000-0000000000b1';
 const ITEM_ID = '00000000-0000-4000-8000-0000000000c1';
 const SUPPLIER_ID = '00000000-0000-4000-8000-0000000000d1';
+const SITE_ID = '00000000-0000-4000-8000-0000000000d2';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
-// lane W9-L8: operator-chosen destination (different warehouse than default)
+// lane W9-L8: operator-chosen destination inside the session-site warehouse
 const REQ_LOCATION_ID = '00000000-0000-4000-8000-0000000000f2';
-const REQ_WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e2';
 
 const session: ScannerSessionRow = {
   id: SESSION_ID,
   org_id: ORG_A,
   user_id: USER_A,
   device_id: null,
-  site_id: null,
+  site_id: SITE_ID,
   line_id: null,
   shift: null,
   mode: 'personal',
@@ -222,8 +222,8 @@ describe('scanner receive PO service', () => {
     expect(client.statements).not.toContain('begin');
   });
 
-  // LP insert params (audit F-B07): [org, warehouse, lpNumber, product, qty, uom,
-  // batch, best_before, expiry, shelf_life_mode_snapshot, location, grn, user]
+  // LP insert params (audit F-B07): [org, site, warehouse, lpNumber, product, qty,
+  // uom, batch, best_before, expiry, shelf_life_mode_snapshot, location, grn, user]
   it('writes the canonical expiry_date from the explicit best-before input (audit F-B07)', async () => {
     const client = makeReceiveClient({
       orderedQty: '10.000000',
@@ -237,9 +237,9 @@ describe('scanner receive PO service', () => {
     const lpInsert = findCall(client, 'insert into public.license_plates');
     expect(lpInsert?.sql).toContain('expiry_date');
     expect(lpInsert?.sql).toContain('shelf_life_mode_snapshot');
-    expect(lpInsert?.params[7]).toBe('2026-07-01'); // best_before_date kept for back-compat
-    expect(lpInsert?.params[8]).toBe('2026-07-01'); // expiry_date: explicit input wins over shelf life
-    expect(lpInsert?.params[9]).toBe('use_by'); // snapshot from items.shelf_life_mode
+    expect(lpInsert?.params[8]).toBe('2026-07-01'); // best_before_date kept for back-compat
+    expect(lpInsert?.params[9]).toBe('2026-07-01'); // expiry_date: explicit input wins over shelf life
+    expect(lpInsert?.params[10]).toBe('use_by'); // snapshot from items.shelf_life_mode
   });
 
   it('computes expiry_date from items.shelf_life_days when no best-before is scanned', async () => {
@@ -254,9 +254,9 @@ describe('scanner receive PO service', () => {
     await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-expiry-shelf', bestBefore: null });
 
     const lpInsert = findCall(client, 'insert into public.license_plates');
-    expect(lpInsert?.params[7]).toBeNull(); // no operator input → best_before_date stays null
-    expect(lpInsert?.params[8]).toBe('2026-07-11'); // receive date + 30 days shelf life
-    expect(lpInsert?.params[9]).toBe('best_before');
+    expect(lpInsert?.params[8]).toBeNull(); // no operator input → best_before_date stays null
+    expect(lpInsert?.params[9]).toBe('2026-07-11'); // receive date + 30 days shelf life
+    expect(lpInsert?.params[10]).toBe('best_before');
   });
 
   it('leaves expiry_date null when neither best-before nor item shelf life exists', async () => {
@@ -265,14 +265,14 @@ describe('scanner receive PO service', () => {
     await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-expiry-none', bestBefore: null });
 
     const lpInsert = findCall(client, 'insert into public.license_plates');
-    expect(lpInsert?.params[7]).toBeNull();
-    expect(lpInsert?.params[8]).toBeNull(); // FEFO orders NULL expiry last (mig 191 NULLS LAST)
-    expect(lpInsert?.params[9]).toBeNull();
+    expect(lpInsert?.params[8]).toBeNull();
+    expect(lpInsert?.params[9]).toBeNull(); // FEFO orders NULL expiry last (mig 191 NULLS LAST)
+    expect(lpInsert?.params[10]).toBeNull();
   });
 
   // ── lane W9-L8: optional destination location ──────────────────────────────
-  // LP insert params: [org, warehouseId, lpNumber, productId, qty, uom, batch,
-  // best_before, expiry, shelf_life_mode_snapshot, locationId, grnId, user]
+  // LP insert params: [org, siteId, warehouseId, lpNumber, productId, qty, uom,
+  // batch, best_before, expiry, shelf_life_mode_snapshot, locationId, grnId, user]
   // GRN item params: [org, grnId, lineNumber, productId, poLineId, orderedQty,
   // receivedQty, uom, batch, bestBefore, locationId, lpId, user]
 
@@ -280,7 +280,7 @@ describe('scanner receive PO service', () => {
     const client = makeReceiveClient({
       orderedQty: '20.000000',
       receivedQty: '0.000000',
-      requestedLocation: { id: REQ_LOCATION_ID, warehouse_id: REQ_WAREHOUSE_ID },
+      requestedLocation: { id: REQ_LOCATION_ID, warehouse_id: WAREHOUSE_ID },
     });
 
     const result = await receiveScannerPoLine(client, session, {
@@ -298,16 +298,17 @@ describe('scanner receive PO service', () => {
     const sqls = client.calls.map((call) => call.sql);
     expect(sqls.indexOf('begin')).toBeLessThan(sqls.findIndex((sql) => sql.includes('and l.id = $2::uuid')));
 
-    // LP lands in the requested location with the LOCATION's warehouse
+    // LP lands in the requested location with the session-site warehouse
     const lpInsert = findCall(client, 'insert into public.license_plates');
-    expect(lpInsert?.params[1]).toBe(REQ_WAREHOUSE_ID);
-    expect(lpInsert?.params[10]).toBe(REQ_LOCATION_ID);
+    expect(lpInsert?.params[1]).toBe(SITE_ID);
+    expect(lpInsert?.params[2]).toBe(WAREHOUSE_ID);
+    expect(lpInsert?.params[11]).toBe(REQ_LOCATION_ID);
 
     // the GRN item line mirrors where the goods actually went
     const grnItemInsert = findCall(client, 'insert into public.grn_items');
     expect(grnItemInsert?.params[10]).toBe(REQ_LOCATION_ID);
 
-    // GRN header keeps the default warehouse/location — unchanged behaviour
+    // GRN header uses the same session-site warehouse target
     const grnInsert = findCall(client, 'insert into public.grns');
     expect(grnInsert?.params).toEqual(expect.arrayContaining([WAREHOUSE_ID, LOCATION_ID]));
     expect(client.statements).toContain('commit');
@@ -345,10 +346,26 @@ describe('scanner receive PO service', () => {
     // no destination → the requested-location lookup never runs
     expect(client.calls.some((call) => call.sql.includes('and l.id = $2::uuid'))).toBe(false);
     const lpInsert = findCall(client, 'insert into public.license_plates');
-    expect(lpInsert?.params[1]).toBe(WAREHOUSE_ID);
-    expect(lpInsert?.params[10]).toBe(LOCATION_ID);
+    expect(lpInsert?.params[1]).toBe(SITE_ID);
+    expect(lpInsert?.params[2]).toBe(WAREHOUSE_ID);
+    expect(lpInsert?.params[11]).toBe(LOCATION_ID);
     const grnItemInsert = findCall(client, 'insert into public.grn_items');
     expect(grnItemInsert?.params[10]).toBe(LOCATION_ID);
+  });
+
+  it('returns no_warehouse_for_site when the session site has no configured warehouse', async () => {
+    const client = makeReceiveClient({ orderedQty: '20.000000', receivedQty: '0.000000', noWarehouse: true });
+
+    const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-no-site-warehouse' });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'no_warehouse_for_site',
+      message: 'No warehouse is configured for your site — set one in Settings -> Sites',
+    });
+    expect(client.calls.some((call) => call.sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(auditResult(client)).toBe('no_warehouse_for_site');
+    expect(client.statements).toContain('commit');
   });
 
   it('rejects over-receipt beyond the 10 percent cap', async () => {
@@ -394,6 +411,7 @@ function makeReceiveClient(options: {
   shelfLifeDays?: number | null;
   shelfLifeMode?: string | null;
   requestedLocation?: { id: string; warehouse_id: string };
+  noWarehouse?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   const statements: string[] = [];
@@ -448,6 +466,7 @@ function makeReceiveClient(options: {
         };
       }
       if (normalized.includes('from public.warehouses w')) {
+        if (options.noWarehouse) return { rows: [] as T[], rowCount: 0 };
         return { rows: [{ id: WAREHOUSE_ID, default_location_id: LOCATION_ID }] as T[], rowCount: 1 };
       }
       if (normalized.includes('from public.grns') && normalized.includes('status =')) {

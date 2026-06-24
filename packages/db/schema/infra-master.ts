@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline';
+import { sites } from './multi-site';
 
 export const warehouses = pgTable(
   'warehouses',
@@ -25,6 +26,7 @@ export const warehouses = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id').references(() => sites.id),
     code: text('code').notNull(),
     name: text('name').notNull(),
     warehouseType: text('warehouse_type').notNull(),
