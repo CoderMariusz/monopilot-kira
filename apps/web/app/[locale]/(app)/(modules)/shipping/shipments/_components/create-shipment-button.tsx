@@ -11,10 +11,18 @@
  * Additive only: this renders ALONGSIDE S2's existing allocate/confirm/cancel buttons
  * in the SO detail action group — it never replaces them.
  *
- * Gating: shown disabled + tooltip when (a) the user lacks ship.pack.close (the
- * `canCreate` server-side probe — never client-trusted; createShipment re-checks), or
- * (b) the SO allocation_status is not allocated / partially_allocated (the reviewed
- * createShipment only accepts those states).
+ * Gating mirrors the SERVER guard in createShipment (pack-actions.ts): the action
+ * only accepts an SO whose STATUS is in ALLOWED_CREATE_SO_STATUSES
+ * ({ allocated, partially_allocated }). We gate on the same condition, so the button
+ * is shown disabled + tooltip when (a) the user lacks ship.pack.close (the
+ * `canCreate` server-side probe — never client-trusted; createShipment re-checks),
+ * (b) the SO has not yet reached an allocated status (allocation in progress), or
+ * (c) the SO is in a terminal / post-allocation status (shipped / delivered /
+ * cancelled / picked / packed …) where a new shipment can no longer be raised. Case
+ * (c) is the L2 state-machine leak: a delivered SO keeps allocation_status='allocated'
+ * so gating on allocation alone left the button enabled, the server then rejected with
+ * invalid_state, and the UI showed the misleading "not allocated" reason. We now gate
+ * on the SO status (the real server condition) and surface the correct reason.
  *
  * Action states: optimistic (pending — button disabled + busy), error (inline alert
  * keyed off the action error code), success (router.push to the new pack screen). NO
@@ -32,18 +40,30 @@ export type CreateShipmentLabels = {
   pending: string;
   /** Tooltip when disabled because the user lacks ship.pack.close. */
   noPermission: string;
-  /** Tooltip when disabled because the SO is not (partially) allocated. */
+  /** Tooltip when disabled because the SO has not reached an allocated status yet. */
   notAllocated: string;
+  /**
+   * Tooltip when disabled because the SO is in a terminal / post-allocation status
+   * (shipped / delivered / cancelled / picked / packed …) — a shipment can no longer
+   * be raised from it. Mirrors the createShipment server guard.
+   */
+  notShippable: string;
   errors: Record<string, string>;
 };
 
 export type CreateShipmentResult = { ok: true; shipmentId: string } | { ok: false; error: string };
 
-const ALLOCATED_STATES = new Set(['allocated', 'partially_allocated']);
+/**
+ * The SO statuses createShipment accepts (pack-actions.ts ALLOWED_CREATE_SO_STATUSES).
+ * Gating the button on the SO STATUS is the real server condition — allocation_status
+ * alone stays 'allocated' through shipped/delivered and is NOT a sufficient gate.
+ */
+const SHIPPABLE_SO_STATUSES = new Set(['allocated', 'partially_allocated']);
 
 export function CreateShipmentButton({
   locale,
   soId,
+  soStatus,
   allocationStatus,
   canCreate,
   labels,
@@ -51,6 +71,12 @@ export function CreateShipmentButton({
 }: {
   locale: string;
   soId: string;
+  /**
+   * The sales order STATUS (the same field createShipment checks server-side). Gating
+   * on this is what closes the L2 leak: a delivered/shipped/cancelled SO must NOT offer
+   * an enabled [Create shipment].
+   */
+  soStatus: string;
   allocationStatus: string;
   canCreate: boolean;
   labels: CreateShipmentLabels;
@@ -60,9 +86,21 @@ export function CreateShipmentButton({
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const allocated = ALLOCATED_STATES.has(allocationStatus.toLowerCase());
-  const disabled = !canCreate || !allocated || pending;
-  const tooltip = !canCreate ? labels.noPermission : !allocated ? labels.notAllocated : undefined;
+  const status = soStatus.toLowerCase();
+  const alloc = allocationStatus.toLowerCase();
+  // The real server gate: the SO status must be allocated / partially_allocated.
+  const shippable = SHIPPABLE_SO_STATUSES.has(status);
+  // Distinguish "not yet allocated" (still working toward it) from "past the window"
+  // (terminal / post-allocation) so the disabled tooltip + inline error tell the truth.
+  const preAllocation = !shippable && alloc === 'unallocated';
+  const disabled = !canCreate || !shippable || pending;
+  const tooltip = !canCreate
+    ? labels.noPermission
+    : preAllocation
+      ? labels.notAllocated
+      : !shippable
+        ? labels.notShippable
+        : undefined;
 
   async function onClick() {
     if (disabled) return;

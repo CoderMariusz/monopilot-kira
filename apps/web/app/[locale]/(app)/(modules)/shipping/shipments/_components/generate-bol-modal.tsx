@@ -56,6 +56,8 @@ export function GenerateBolModal({
   shipmentId,
   hasBol,
   canBol,
+  statusReady = true,
+  statusTooltip,
   labels,
   generateBolAction,
 }: {
@@ -64,6 +66,14 @@ export function GenerateBolModal({
   /** Whether a BOL already exists (toggles the trigger copy to "Regenerate"). */
   hasBol: boolean;
   canBol: boolean;
+  /**
+   * Whether the shipment STATUS is inside the ship-confirm window (packed / shipped).
+   * Defaults to true so existing callers/tests are unaffected; the controls rail passes
+   * the real condition so a terminal shipment cannot offer an enabled Generate BOL.
+   */
+  statusReady?: boolean;
+  /** Tooltip shown when the trigger is disabled because of the shipment status. */
+  statusTooltip?: string;
   labels: GenerateBolLabels;
   generateBolAction: (input: {
     shipmentId: string;
@@ -80,8 +90,8 @@ export function GenerateBolModal({
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const disabled = !canBol;
-  const tooltip = disabled ? labels.noPermission : undefined;
+  const disabled = !canBol || !statusReady;
+  const tooltip = !canBol ? labels.noPermission : !statusReady ? statusTooltip : undefined;
 
   function reset() {
     setCarrier('');

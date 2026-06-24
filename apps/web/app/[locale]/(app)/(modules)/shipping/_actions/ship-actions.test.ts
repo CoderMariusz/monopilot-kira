@@ -72,6 +72,12 @@ function makeClient(): QueryClient {
         };
       }
 
+      // recordPod's status pre-check (ship-actions.ts:330) — a plain
+      // `select id::text, status from public.shipments` (no box_count join).
+      if (q.startsWith('select id::text, status') && q.includes('from public.shipments')) {
+        return { rows: [{ id: SHIPMENT_ID, status: shipmentStatus }], rowCount: 1 };
+      }
+
       if (q.startsWith('select distinct lp.id::text as lp_id')) {
         return { rows: lpRows, rowCount: lpRows.length };
       }

@@ -204,6 +204,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
         needsBox: t('ship.needsBox'),
         needsSeal: t('ship.needsSeal'),
         alreadyShipped: t('ship.alreadyShipped'),
+        bolNotAvailable: t('ship.bolNotAvailable'),
+        podNotShipped: t('ship.podNotShipped'),
         errors: {
           forbidden: t('errors.forbidden'),
           invalid_state: t('ship.errors.invalid_state'),

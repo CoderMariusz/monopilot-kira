@@ -44,12 +44,22 @@ export function RecordPodModal({
   shipmentNumber,
   shipmentId,
   canPod,
+  statusReady = true,
+  statusTooltip,
   labels,
   recordPodAction,
 }: {
   shipmentNumber: string;
   shipmentId: string;
   canPod: boolean;
+  /**
+   * Whether the shipment STATUS allows recording a POD (server: status === 'shipped').
+   * Defaults to true so existing callers/tests that don't gate by status are unaffected;
+   * the controls rail passes the real condition to close the state-machine leak.
+   */
+  statusReady?: boolean;
+  /** Tooltip shown when the trigger is disabled because of the shipment status. */
+  statusTooltip?: string;
   labels: RecordPodLabels;
   recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
 }) {
@@ -59,8 +69,8 @@ export function RecordPodModal({
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const disabled = !canPod;
-  const tooltip = disabled ? labels.noPermission : undefined;
+  const disabled = !canPod || !statusReady;
+  const tooltip = !canPod ? labels.noPermission : !statusReady ? statusTooltip : undefined;
 
   function reset() {
     setSignedUrl('');

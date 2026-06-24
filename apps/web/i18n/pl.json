@@ -9155,9 +9155,10 @@
         "notAllocated": "Zaalokuj zamówienie sprzedaży przed utworzeniem wysyłki.",
         "errors": {
           "forbidden": "Nie masz uprawnień do tej operacji.",
-          "invalid_state": "Zaalokuj zamówienie sprzedaży przed utworzeniem wysyłki.",
+          "invalid_state": "Dla tego zamówienia sprzedaży nie można już utworzyć wysyłki w jego bieżącym statusie.",
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
-        }
+        },
+        "notShippable": "Dla tego zamówienia sprzedaży nie można już utworzyć wysyłki w jego bieżącym statusie."
       },
       "pack": {
         "title": "Pakuj wysyłkę",
@@ -9236,7 +9237,9 @@
         "errors": {
           "invalid_state": "Tej wysyłki nie można wysłać w bieżącym statusie.",
           "not_found": "Ta wysyłka już nie istnieje."
-        }
+        },
+        "bolNotAvailable": "List przewozowy (BOL) można wygenerować dopiero po spakowaniu wysyłki, do momentu jej dostarczenia.",
+        "podNotShipped": "Potwierdzenie dostawy (POD) można zarejestrować tylko dla wysłanej wysyłki."
       },
       "bol": {
         "trigger": "Generuj BOL",

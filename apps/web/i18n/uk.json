@@ -9154,9 +9154,10 @@
         "notAllocated": "Allocate the sales order before creating a shipment.",
         "errors": {
           "forbidden": "You don’t have permission to do that.",
-          "invalid_state": "Allocate the sales order before creating a shipment.",
+          "invalid_state": "This sales order can no longer raise a shipment in its current status.",
           "persistence_failed": "Something went wrong saving. Please retry."
-        }
+        },
+        "notShippable": "This sales order can no longer raise a shipment in its current status."
       },
       "pack": {
         "title": "Pack shipment",
@@ -9235,7 +9236,9 @@
         "errors": {
           "invalid_state": "This shipment cannot be shipped in its current status.",
           "not_found": "That shipment no longer exists."
-        }
+        },
+        "bolNotAvailable": "A bill of lading can only be generated once the shipment is packed, until it is delivered.",
+        "podNotShipped": "Proof of delivery can only be recorded for a shipment that has been shipped."
       },
       "bol": {
         "trigger": "Generate BOL",

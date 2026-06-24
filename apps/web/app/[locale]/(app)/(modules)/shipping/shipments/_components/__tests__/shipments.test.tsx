@@ -148,6 +148,8 @@ const packLabels: ShipmentPackLabels = {
       needsBox: 'Pack at least one box before shipping.',
       needsSeal: 'Seal the shipment before shipping.',
       alreadyShipped: 'This shipment has already been shipped.',
+      bolNotAvailable: 'A bill of lading can only be generated once the shipment is packed, until it is delivered.',
+      podNotShipped: 'Proof of delivery can only be recorded for a shipment that has been shipped.',
       errors: {
         forbidden: "You don't have permission to do that.",
         invalid_state: 'This shipment cannot be shipped in its current status.',
@@ -243,9 +245,10 @@ const createLabels: CreateShipmentLabels = {
   pending: 'Creating…',
   noPermission: 'You do not have permission to create shipments.',
   notAllocated: 'Allocate the sales order before creating a shipment.',
+  notShippable: 'This sales order can no longer raise a shipment in its current status.',
   errors: {
     forbidden: "You don't have permission to do that.",
-    invalid_state: 'Allocate the sales order before creating a shipment.',
+    invalid_state: 'This sales order can no longer raise a shipment in its current status.',
     persistence_failed: 'Something went wrong saving. Please retry.',
   },
 };
@@ -468,6 +471,7 @@ function renderCreate(
     <CreateShipmentButton
       locale="en"
       soId={SO_ID}
+      soStatus="allocated"
       allocationStatus="allocated"
       canCreate
       labels={createLabels}
@@ -495,23 +499,47 @@ describe('CreateShipmentButton — gated create on the SO detail', () => {
     expect(btn).toHaveAttribute('title', 'You do not have permission to create shipments.');
   });
 
-  it('is disabled with a status tooltip when the SO is not allocated', () => {
-    renderCreate({ allocationStatus: 'unallocated' });
+  it('is disabled with a "not allocated yet" tooltip when the SO has not been allocated (confirmed + unallocated)', () => {
+    renderCreate({ soStatus: 'confirmed', allocationStatus: 'unallocated' });
     const btn = screen.getByTestId('so-action-create-shipment');
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute('title', 'Allocate the sales order before creating a shipment.');
   });
 
   it('is enabled for a partially_allocated SO with permission', () => {
-    renderCreate({ allocationStatus: 'partially_allocated' });
+    renderCreate({ soStatus: 'partially_allocated', allocationStatus: 'partially_allocated' });
     expect(screen.getByTestId('so-action-create-shipment')).not.toBeDisabled();
   });
 
-  it('surfaces an invalid_state error inline without navigating', async () => {
+  // ── L2 state-machine leak: a delivered SO keeps allocation_status='allocated', so
+  // gating on allocation alone left [Create shipment] ENABLED. It must now be disabled
+  // (the server rejects createShipment with invalid_state for terminal SO statuses),
+  // and the tooltip must tell the TRUTH (terminal), not the misleading "not allocated".
+  it.each(['delivered', 'shipped', 'cancelled', 'picked', 'packed'])(
+    'is DISABLED with a terminal-status tooltip when the SO status is %s (allocation_status still allocated)',
+    (soStatus) => {
+      renderCreate({ soStatus, allocationStatus: 'allocated' });
+      const btn = screen.getByTestId('so-action-create-shipment');
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute(
+        'title',
+        'This sales order can no longer raise a shipment in its current status.',
+      );
+    },
+  );
+
+  it('does NOT call createShipment when the SO is delivered (button disabled — server reject unreachable)', () => {
+    const { createShipmentAction } = renderCreate({ soStatus: 'delivered', allocationStatus: 'allocated' });
+    fireEvent.click(screen.getByTestId('so-action-create-shipment'));
+    expect(createShipmentAction).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an invalid_state error inline (truthful terminal reason) without navigating', async () => {
     const { createShipmentAction } = renderCreate({}, async () => ({ ok: false, error: 'invalid_state' }));
     fireEvent.click(screen.getByTestId('so-action-create-shipment'));
     expect(await screen.findByTestId('create-shipment-error')).toHaveTextContent(
-      'Allocate the sales order before creating a shipment.',
+      'This sales order can no longer raise a shipment in its current status.',
     );
     expect(createShipmentAction).toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
@@ -599,6 +627,30 @@ describe('GenerateBolModal — carrier/service/tracking → generateBol', () => 
     expect(trigger).toHaveAttribute('title', 'You do not have permission to ship this shipment.');
   });
 
+  // ── L2 state-machine leak: Generate BOL must be DISABLED on a terminal shipment
+  // (delivered / cancelled / exception) — it is only applicable in the packed→shipped
+  // ship-confirm window. The user has ship.pack.close here; the gate is the status.
+  it('DISABLES the BOL trigger with a status tooltip when the shipment is delivered (terminal)', () => {
+    renderPack(
+      makeDetail({ shipment: { ...rows[0], status: 'delivered', deliveredAt: '2026-06-21T14:00:00Z' } }),
+      { canPack: true },
+    );
+    const trigger = screen.getByTestId('shipment-generate-bol-trigger');
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute(
+      'title',
+      'A bill of lading can only be generated once the shipment is packed, until it is delivered.',
+    );
+  });
+
+  it('keeps the BOL trigger ENABLED for a shipped shipment (still inside its window)', () => {
+    renderPack(
+      makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }),
+      { canPack: true },
+    );
+    expect(screen.getByTestId('shipment-generate-bol-trigger')).not.toBeDisabled();
+  });
+
   it('surfaces a generateBol error inline without crashing', async () => {
     renderPack(packedDetail(), { canPack: true }, undefined, {
       bol: async () => ({ ok: false, error: 'not_found' }),
@@ -636,16 +688,62 @@ describe('RecordPodModal — signed POD url → recordPod', () => {
   });
 
   it('disables the POD trigger with a permission tooltip when the user cannot record delivery', () => {
-    renderPack(packedDetail(), { canPack: true, canPod: false });
+    // Use a shipped shipment so the status gate is satisfied and the PERMISSION reason
+    // is the one surfaced (permission is checked before status).
+    renderPack(
+      makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }),
+      { canPack: true, canPod: false },
+    );
     const trigger = screen.getByTestId('shipment-record-pod-trigger');
     expect(trigger).toBeDisabled();
     expect(trigger).toHaveAttribute('title', 'You do not have permission to record delivery for this shipment.');
   });
 
+  // ── L2 state-machine leak: Record POD must be DISABLED unless the shipment is
+  // 'shipped' (server: recordPod requires status === 'shipped'). A delivered shipment
+  // (terminal) and a packed shipment (not yet shipped) must both block it.
+  it('DISABLES the POD trigger with a status tooltip when the shipment is delivered (terminal)', () => {
+    renderPack(
+      makeDetail({ shipment: { ...rows[0], status: 'delivered', deliveredAt: '2026-06-21T14:00:00Z' } }),
+      { canPack: true, canPod: true },
+    );
+    const trigger = screen.getByTestId('shipment-record-pod-trigger');
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute(
+      'title',
+      'Proof of delivery can only be recorded for a shipment that has been shipped.',
+    );
+  });
+
+  it('DISABLES the POD trigger with a status tooltip when the shipment is only packed (not shipped)', () => {
+    renderPack(packedDetail(), { canPack: true, canPod: true });
+    const trigger = screen.getByTestId('shipment-record-pod-trigger');
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute(
+      'title',
+      'Proof of delivery can only be recorded for a shipment that has been shipped.',
+    );
+  });
+
+  it('keeps the POD trigger ENABLED for a shipped shipment with permission', () => {
+    renderPack(
+      makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }),
+      { canPack: true, canPod: true },
+    );
+    expect(screen.getByTestId('shipment-record-pod-trigger')).not.toBeDisabled();
+  });
+
   it('surfaces a recordPod error inline without crashing', async () => {
-    renderPack(packedDetail(), { canPack: true }, undefined, {
-      pod: async () => ({ ok: false, error: 'forbidden' }),
-    });
+    // The POD trigger is only enabled while the shipment is 'shipped' (its valid
+    // window), so exercise the error path from there.
+    renderPack(
+      makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }),
+      { canPack: true },
+      undefined,
+      {
+        pod: async () => ({ ok: false, error: 'forbidden' }),
+      },
+    );
     fireEvent.click(screen.getByTestId('shipment-record-pod-trigger'));
     await screen.findByTestId('shipment-record-pod-form');
     fireEvent.click(screen.getByTestId('shipment-pod-submit'));

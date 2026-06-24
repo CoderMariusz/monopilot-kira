@@ -70,6 +70,10 @@ export type ShipmentShipLabels = {
     needsSeal: string;
     /** Tooltip when the shipment is already shipped/delivered. */
     alreadyShipped: string;
+    /** Tooltip when Generate BOL is disabled because the shipment status is out of its window. */
+    bolNotAvailable: string;
+    /** Tooltip when Record POD is disabled because the shipment is not in 'shipped'. */
+    podNotShipped: string;
     errors: Record<string, string>;
   };
   bol: GenerateBolLabels;
@@ -119,6 +123,17 @@ const DELIVERED_STATES = new Set(['delivered']);
 /** Cancel is offered only for non-terminal shipments — the reviewed cancelShipment
  *  blocks delivered/cancelled server-side; this hides the affordance to match. */
 const CANCEL_TERMINAL_STATES = new Set(['delivered', 'cancelled']);
+/**
+ * State-machine gates mirroring the server guards in ship-actions.ts:
+ *   - recordPod requires shipment.status === 'shipped' (ship-actions.ts).
+ *   - generateBol is part of the ship-confirm window (packed → shipped); it is
+ *     inapplicable on a terminal shipment (delivered / cancelled / exception). The
+ *     action itself has no status guard, so gating the affordance here is what keeps
+ *     the UI honest for terminal shipments (the L2 leak: delivered shipments showed an
+ *     enabled Generate-BOL / Record-POD).
+ */
+const POD_ALLOWED_STATES = new Set(['shipped']);
+const BOL_ALLOWED_STATES = new Set(['packed', 'shipped']);
 
 const LOCALE_MAP: Record<string, string> = { pl: 'pl-PL', en: 'en-US', uk: 'uk-UA', ro: 'ro-RO' };
 const DOCUMENT_URL_PATTERN = /^https?:\/\//i;
@@ -189,6 +204,12 @@ export function ShipmentShipControls({
   const hasBox = boxCount >= 1;
   // [Ship] remains visible before shipping but is actionable only after packing is sealed.
   const showShip = !shipped;
+
+  // State-machine gates for the BOL / POD affordances (mirror the server guards). These
+  // run off the LOADED server status (not the optimistic `shipped`/`delivered` flags) so
+  // a terminal shipment never shows an enabled Generate-BOL / Record-POD on first paint.
+  const bolStatusReady = BOL_ALLOWED_STATES.has(normalized);
+  const podStatusReady = POD_ALLOWED_STATES.has(normalized);
 
   const shipDisabledReason = !caps.canShip
     ? labels.ship.noPermission
@@ -382,6 +403,8 @@ export function ShipmentShipControls({
             shipmentId={shipmentId}
             hasBol={Boolean(bolDocument || bolRef)}
             canBol={caps.canShip}
+            statusReady={bolStatusReady}
+            statusTooltip={labels.ship.bolNotAvailable}
             labels={labels.bol}
             generateBolAction={async (input) => {
               const result = await generateBolAction(input);
@@ -400,6 +423,8 @@ export function ShipmentShipControls({
             shipmentNumber={shipmentNumber}
             shipmentId={shipmentId}
             canPod={caps.canPod}
+            statusReady={podStatusReady}
+            statusTooltip={labels.ship.podNotShipped}
             labels={labels.pod}
             recordPodAction={async (input) => {
               const result = await recordPodAction(input);

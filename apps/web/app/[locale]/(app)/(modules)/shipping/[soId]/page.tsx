@@ -78,6 +78,7 @@ function buildCreateShipmentLabels(
     pending: t('createShipment.pending'),
     noPermission: t('createShipment.noPermission'),
     notAllocated: t('createShipment.notAllocated'),
+    notShippable: t('createShipment.notShippable'),
     errors: {
       forbidden: t('createShipment.errors.forbidden'),
       invalid_state: t('createShipment.errors.invalid_state'),
@@ -202,6 +203,7 @@ async function DetailContent({ locale, soId }: { locale: string; soId: string })
         <CreateShipmentButton
           locale={locale}
           soId={so.id}
+          soStatus={so.status}
           allocationStatus={so.allocation_status}
           canCreate={shipCaps.canCreate}
           labels={buildCreateShipmentLabels(tShip)}
