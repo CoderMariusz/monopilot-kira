@@ -269,6 +269,10 @@ export async function updateWorkOrder(params: {
                 machine_id = $6::uuid,
                 uom_snapshot = case when $9::boolean then $13::jsonb else wo.uom_snapshot end,
                 ext_jsonb = case
+                  -- clear: drop the key. jsonb_set(target,path,NULL) returns NULL
+                  -- for the WHOLE jsonb, which violates ext_jsonb NOT NULL — so a
+                  -- cleared note must REMOVE 'notes', not jsonb_set it to NULL.
+                  when $14::boolean and $7::text is null then coalesce(wo.ext_jsonb, '{}'::jsonb) - 'notes'
                   when $14::boolean then jsonb_set(coalesce(wo.ext_jsonb, '{}'::jsonb), '{notes}', to_jsonb($7::text), true)
                   else wo.ext_jsonb
                 end,
