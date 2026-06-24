@@ -71,7 +71,7 @@ export async function listProjects(rawInput: unknown = {}): Promise<ListProjects
            left join lateral (
              select closure.dept, closure.closed_value
                from public.product pfa
-               cross join (values
+               cross join lateral (values
                  ('Core', pfa.closed_core),
                  ('Planning', pfa.closed_planning),
                  ('Commercial', pfa.closed_commercial),

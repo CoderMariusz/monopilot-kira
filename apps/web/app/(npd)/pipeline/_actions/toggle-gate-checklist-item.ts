@@ -57,7 +57,7 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
            left join lateral (
              select closure.dept
                from public.product pfa
-               cross join (values
+               cross join lateral (values
                  ('Core', pfa.closed_core),
                  ('Planning', pfa.closed_planning),
                  ('Commercial', pfa.closed_commercial),
