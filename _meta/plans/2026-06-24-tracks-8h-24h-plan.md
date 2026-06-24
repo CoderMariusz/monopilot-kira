@@ -165,7 +165,18 @@ Re-verify of c4872e9d FAILED A & C and exposed real root causes (my earlier Bug-
 - Root-cause by READING code is insufficient — REPRODUCE the live error (the a953 lane reasoned "cache race"; the real bug was a 42P10 the query throws). Verify the fixed query live before trusting.
 
 ## RE-VERIFY QUEUE additions (batch 35339648→ next deploy)
-- [ ] `/settings/integrations` loads (no RSC crash) — fb98657e. Expand a category, Configure/Connect render.
-- [ ] `/quality/trace` loads (no RSC crash) — fb98657e. A node deep-link resolves correctly.
-- [ ] Settings→Roles matrix now shows the production correction perms (76a4c9b0 enum) — assignable.
-- [ ] PO reopen: action shipped (1142f7f0) but BUTTON not yet wired → expect NO reopen affordance yet; queue the Reopen-button UI lane. Verify cancel of a PO with received stock is blocked.
+- [x] `/settings/integrations` loads (no RSC crash) — fb98657e. PASS on crash-fix. NEW L2: "Przeglądaj katalog" is a DEAD click (catalog/accordion unreachable). (re-verified 2026-06-24, deploy 1142f7f0)
+- [x] `/quality/trace` loads (no RSC crash) — fb98657e. PASS. Ran real trace on LP-1782211767577-B473 → full genealogy; LP node deep-link resolves to the right LP detail. (re-verified 1142f7f0)
+- [x] Settings→Roles matrix correction perms (76a4c9b0 enum) — PASS w/ caveat. 5 perms in permissions.enum.ts:205-225 + deployed; matrix is enum-driven ⇒ assignable. Granular 241-perm matrix UI not directly reachable from /settings/users to click each row (coarse grid only). (re-verified 1142f7f0)
+- [x] PO cancel-with-stock (1142f7f0) — PASS. Server guard `po_has_receipts` verified in deployed source + `received` terminal. Reopen BUTTON confirmed ABSENT (queue Reopen-button UI lane). META L2: PO cancel has NO UI affordance anywhere (detail/list) — couldn't trigger the error in-browser. (re-verified 1142f7f0)
+
+## TRACK-1 RE-VERIFY 2 RESULTS (deploy 1142f7f0, 2026-06-24) — full A–G + new-page audit in `2026-06-24-browser-audit-findings.md`
+- [!] **A — Sites&Lines** — FAIL. 42P10 gone + line CREATE/persist/count work (8→9), but the per-site lines LIST is still empty for ALL sites at runtime (RSC payload has 0 line rows); Edit unreachable. NEW L1 #5: `queryLinesForSite` returns [] under `withOrgContext` despite standalone SQL returning 9.
+- [x] **B — Scheduler** — PASS. Run is end-to-end (real sequence, 4 lines), matrix loads. 42702 resolved.
+- [x] **C — Yard** — PASS. All 4 pages load; dock door + appointment created/persisted/listed/cross-ref'd.
+- [x] **D — /settings/integrations** — PASS (crash-fix) + NEW L2 #7 (dead "Przeglądaj katalog").
+- [x] **E — /quality/trace** — PASS (trace + deep-link resolve).
+- [x] **F — Settings→Roles** — PASS w/ caveat (enum verified; granular matrix UI not reachable here).
+- [x] **G — PO cancel-with-stock** — PASS (server guard verified) + META L2 #8 (no cancel UI) + Reopen button absent.
+- NEW L1 #6: **desktop WO consume silently fails** (`consume-material-actions.ts` recordDesktopConsumption → generic error, writes nothing). Core production consume broken on desktop.
+- NEW L3 #9: `/pl/production/work-orders/[id]` leaks WO-state JSON to the browser (API route.ts under locale UI segment).
