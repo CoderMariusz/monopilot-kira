@@ -58,6 +58,8 @@ interface ScannerProdLabelsShape {
     tileOutputDesc: string;
     tileWaste: string;
     tileWasteDesc: string;
+    tileReverse: string;
+    tileReverseDesc: string;
     materialsTitle: string;
     materialsEmpty: string;
     required: string;
@@ -109,6 +111,49 @@ interface ScannerProdLabelsShape {
     lpOnHold: string;
     reasonRequired: string;
     back: string;
+  };
+  reverse: {
+    title: string;
+    loading: string;
+    listTitle: string;
+    empty: string;
+    error: string;
+    retry: string;
+    manualLp: string;
+    consumedAt: string;
+    reasonLabel: string;
+    reasonEntryError: string;
+    reasonWrongQuantity: string;
+    reasonWrongBatch: string;
+    reasonWrongProduct: string;
+    reasonOther: string;
+    noteLabel: string;
+    notePlaceholder: string;
+    operatorPinLabel: string;
+    operatorPinPlaceholder: string;
+    supervisorTitle: string;
+    supervisorBody: string;
+    supervisorEmail: string;
+    supervisorPin: string;
+    confirm: string;
+    submitting: string;
+    doneTitle: string;
+    doneBody: string;
+    lpRestored: string;
+    reverseNext: string;
+    backToWo: string;
+    errGeneric: string;
+    errInvalidPin: string;
+    errPinLocked: string;
+    errInvalidSupervisor: string;
+    errSupervisorForbidden: string;
+    errPinNotEnrolled: string;
+    errForbidden: string;
+    errNotFound: string;
+    errAlreadyCorrected: string;
+    errLpNotRestorable: string;
+    errClosedWo: string;
+    errInconsistent: string;
   };
   output: {
     title: string;
@@ -229,6 +274,8 @@ const en: ScannerProdLabelsShape = {
     tileOutputDesc: "Finished goods to stock",
     tileWaste: "Waste",
     tileWasteDesc: "Record scrap / waste",
+    tileReverse: "Reverse consumption",
+    tileReverseDesc: "Undo a material consumption",
     materialsTitle: "Materials (BOM)",
     materialsEmpty: "No materials on this work order.",
     required: "required",
@@ -280,6 +327,49 @@ const en: ScannerProdLabelsShape = {
     lpOnHold: "This license plate is on an active quality hold.",
     reasonRequired: "Enter a reason code for manual consumption.",
     back: "Back",
+  },
+  reverse: {
+    title: "Reverse consumption",
+    loading: "Loading consumptions…",
+    listTitle: "Pick a consumption to reverse",
+    empty: "No reversible consumptions on this work order.",
+    error: "Could not load consumptions. Try again.",
+    retry: "Try again",
+    manualLp: "Manual / no LP",
+    consumedAt: "consumed",
+    reasonLabel: "Reason",
+    reasonEntryError: "Entry error",
+    reasonWrongQuantity: "Wrong quantity",
+    reasonWrongBatch: "Wrong batch",
+    reasonWrongProduct: "Wrong product",
+    reasonOther: "Other",
+    noteLabel: "Note (optional)",
+    notePlaceholder: "Optional explanation…",
+    operatorPinLabel: "Your PIN",
+    operatorPinPlaceholder: "Operator PIN",
+    supervisorTitle: "Supervisor approval",
+    supervisorBody: "This reversal requires a supervisor sign-off.",
+    supervisorEmail: "Supervisor email",
+    supervisorPin: "Supervisor PIN",
+    confirm: "Reverse consumption",
+    submitting: "Saving…",
+    doneTitle: "Consumption reversed",
+    doneBody: "Material returned and BOM progress refreshed.",
+    lpRestored: "License plate restored to {status}.",
+    reverseNext: "Reverse another",
+    backToWo: "Back to WO",
+    errGeneric: "Could not reverse. Try again.",
+    errInvalidPin: "Incorrect PIN. Try again.",
+    errPinLocked: "PIN locked after too many attempts. Contact a supervisor.",
+    errInvalidSupervisor: "Supervisor email or PIN is invalid.",
+    errSupervisorForbidden: "This supervisor is not allowed to approve reversals.",
+    errPinNotEnrolled: "Supervisor has no PIN set up.",
+    errForbidden: "You do not have permission to reverse consumptions.",
+    errNotFound: "This consumption could not be found.",
+    errAlreadyCorrected: "This consumption was already reversed.",
+    errLpNotRestorable: "The license plate can no longer be restored.",
+    errClosedWo: "This work order is closed and cannot be corrected here.",
+    errInconsistent: "Work order quantities are inconsistent. Refresh and retry.",
   },
   output: {
     title: "Register output",
@@ -394,6 +484,8 @@ const pl: ScannerProdLabelsShape = {
     tileOutputDesc: "Wyrób gotowy do magazynu",
     tileWaste: "Odpad",
     tileWasteDesc: "Zarejestruj odpad / scrap",
+    tileReverse: "Cofnij konsumpcję",
+    tileReverseDesc: "Wycofaj konsumpcję materiału",
     materialsTitle: "Materiały (BOM)",
     materialsEmpty: "Brak materiałów na tym WO.",
     required: "wymagane",
@@ -445,6 +537,49 @@ const pl: ScannerProdLabelsShape = {
     lpOnHold: "Ten nośnik ma aktywną blokadę jakości.",
     reasonRequired: "Wpisz kod powodu dla konsumpcji ręcznej.",
     back: "Wróć",
+  },
+  reverse: {
+    title: "Cofnij konsumpcję",
+    loading: "Ładowanie konsumpcji…",
+    listTitle: "Wybierz konsumpcję do cofnięcia",
+    empty: "Brak konsumpcji możliwych do cofnięcia na tym WO.",
+    error: "Nie udało się załadować konsumpcji. Spróbuj ponownie.",
+    retry: "Spróbuj ponownie",
+    manualLp: "Ręcznie / bez LP",
+    consumedAt: "skonsumowano",
+    reasonLabel: "Powód",
+    reasonEntryError: "Błąd wprowadzenia",
+    reasonWrongQuantity: "Błędna ilość",
+    reasonWrongBatch: "Błędna partia",
+    reasonWrongProduct: "Błędny produkt",
+    reasonOther: "Inny",
+    noteLabel: "Notatka (opcjonalnie)",
+    notePlaceholder: "Opcjonalne wyjaśnienie…",
+    operatorPinLabel: "Twój PIN",
+    operatorPinPlaceholder: "PIN operatora",
+    supervisorTitle: "Zgoda przełożonego",
+    supervisorBody: "To cofnięcie wymaga podpisu przełożonego.",
+    supervisorEmail: "Email przełożonego",
+    supervisorPin: "PIN przełożonego",
+    confirm: "Cofnij konsumpcję",
+    submitting: "Zapisywanie…",
+    doneTitle: "Konsumpcja cofnięta",
+    doneBody: "Materiał zwrócony, postęp BOM odświeżony.",
+    lpRestored: "Nośnik przywrócony do statusu {status}.",
+    reverseNext: "Cofnij kolejną",
+    backToWo: "Wróć do WO",
+    errGeneric: "Nie udało się cofnąć. Spróbuj ponownie.",
+    errInvalidPin: "Nieprawidłowy PIN. Spróbuj ponownie.",
+    errPinLocked: "PIN zablokowany po zbyt wielu próbach. Skontaktuj się z przełożonym.",
+    errInvalidSupervisor: "Email lub PIN przełożonego jest nieprawidłowy.",
+    errSupervisorForbidden: "Ten przełożony nie może zatwierdzać cofnięć.",
+    errPinNotEnrolled: "Przełożony nie ma ustawionego PIN-u.",
+    errForbidden: "Nie masz uprawnień do cofania konsumpcji.",
+    errNotFound: "Nie znaleziono tej konsumpcji.",
+    errAlreadyCorrected: "Ta konsumpcja została już cofnięta.",
+    errLpNotRestorable: "Nośnik nie może już zostać przywrócony.",
+    errClosedWo: "To WO jest zamknięte i nie może być tu korygowane.",
+    errInconsistent: "Ilości WO są niespójne. Odśwież i ponów.",
   },
   output: {
     title: "Rejestruj wyrób gotowy",

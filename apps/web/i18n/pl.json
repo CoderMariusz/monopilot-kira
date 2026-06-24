@@ -1072,6 +1072,20 @@
       "pickerEmpty": "Brak pasujących produktów",
       "pickerCancel": "Anuluj",
       "pickerError": "Wyszukiwanie produktów nie powiodło się"
+    },
+    "scannerAuth": {
+      "title": "Zatwierdzenia i PIN-y",
+      "description": "Wymagania dotyczące PIN-ów i zatwierdzeń dla operacji skanera.",
+      "reverseTitle": "Cofanie konsumpcji na skanerze",
+      "reverseDescription": "Określ, czy cofnięcie konsumpcji materiału na skanerze wymaga zatwierdzenia przełożonego oprócz PIN-u operatora.",
+      "toggleLabel": "Wymagaj PIN-u przełożonego przy cofaniu na skanerze",
+      "toggleHelpOn": "Przełożony musi podać email i PIN (oraz mieć uprawnienie do zatwierdzania nadkonsumpcji) przy każdym cofnięciu na skanerze, dodatkowo do PIN-u operatora.",
+      "toggleHelpOff": "Operatorzy mogą cofnąć konsumpcję wyłącznie własnym PIN-em — zatwierdzenie przełożonego nie jest wymagane.",
+      "operatorNote": "Operator zawsze potrzebuje własnego PIN-u oraz uprawnienia production.consumption.correct, niezależnie od tego ustawienia.",
+      "save": "Zapisz",
+      "saved": "Zasada zatwierdzeń skanera zapisana.",
+      "readOnly": "Potrzebujesz uprawnień administratora, aby zmienić zasady zatwierdzeń skanera.",
+      "errorGeneric": "Nie udało się zapisać. Spróbuj ponownie."
     }
   },
   "navigation": {
@@ -1250,7 +1264,8 @@
         "my_pin": "PIN e-podpisu i skanera",
         "labor_rates": "Stawki pracy",
         "temp_ranges": "Zakresy temperatur",
-        "docks": "Bramy dokowe"
+        "docks": "Bramy dokowe",
+        "scanner_auth": "Zatwierdzenia i PIN-y"
       }
     },
     "npd": {

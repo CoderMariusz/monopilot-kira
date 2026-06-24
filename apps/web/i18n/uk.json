@@ -1072,6 +1072,20 @@
       "pickerEmpty": "No matching products",
       "pickerCancel": "Cancel",
       "pickerError": "Product search failed"
+    },
+    "scannerAuth": {
+      "title": "Sign-off & PINs",
+      "description": "PIN and sign-off requirements for scanner operations.",
+      "reverseTitle": "Scanner reverse-consume",
+      "reverseDescription": "Control whether reversing a material consumption on the scanner needs a supervisor sign-off on top of the operator PIN.",
+      "toggleLabel": "Require supervisor PIN for scanner reverse",
+      "toggleHelpOn": "A supervisor must enter their email and PIN (and hold consumption override-approve rights) for every scanner reversal, in addition to the operator PIN.",
+      "toggleHelpOff": "Operators can reverse a consumption with only their own PIN — no supervisor sign-off is required.",
+      "operatorNote": "The operator always needs their own PIN and the production.consumption.correct permission, regardless of this setting.",
+      "save": "Save",
+      "saved": "Scanner sign-off policy saved.",
+      "readOnly": "You need admin rights to change scanner sign-off policies.",
+      "errorGeneric": "Could not save. Try again."
     }
   },
   "navigation": {
@@ -1250,7 +1264,8 @@
         "my_pin": "E-sign & scanner PIN",
         "labor_rates": "Labor rates",
         "temp_ranges": "Temperature ranges",
-        "docks": "Dock doors"
+        "docks": "Dock doors",
+        "scanner_auth": "Sign-off & PINs"
       }
     },
     "npd": {

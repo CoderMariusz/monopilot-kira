@@ -62,7 +62,12 @@ export const SETTINGS_NAV_GROUPS = [
     item("security", "Security", "🔒"),
     item("audit-logs", "Audit logs", "◷", true, "/settings/audit"),
   ]),
-  group("signoff", "Sign-off", true, [item("signoff", "Sign-off policies", "✍")]),
+  group("signoff", "Sign-off", true, [
+    item("signoff", "Sign-off policies", "✍"),
+    // Owner-requested section gathering the scanner PIN / sign-off toggles
+    // (currently: supervisor-PIN requirement for scanner reverse-consume).
+    item("scanner-auth", "Sign-off & PINs", "🔐", false, "/settings/scanner-auth"),
+  ]),
   group("operations", "Operations", true, [
     item("devices", "Scanner devices", "📱"),
     item("notifications", "Notifications", "◔"),

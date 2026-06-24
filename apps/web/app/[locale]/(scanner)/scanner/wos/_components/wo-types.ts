@@ -114,4 +114,51 @@ export type WastePayload = {
 
 export type MutationResult = { ok: true; replay?: boolean } | ApiError;
 
+/** Reversible consumption row from GET /api/production/scanner/wos/[id]/consumptions */
+export type ReversibleConsumption = {
+  consumptionId: string;
+  materialName: string;
+  /** LP UUID, or null when the consumption was manual / no-LP */
+  lpId: string | null;
+  /** human LP number, or null when manual / no-LP */
+  lpNumber: string | null;
+  /** DECIMAL STRING in the material uom */
+  qty: string;
+  uom: string;
+  /** ISO timestamp or null */
+  consumedAt: string | null;
+};
+
+export type WoConsumptionsResponse = { ok: true; consumptions: ReversibleConsumption[] } | ApiError;
+
+/** Reverse-consume reason codes — mirrors CORRECTION_REASON_CODES on the API. */
+export type ReverseReasonCode =
+  | "entry_error"
+  | "wrong_quantity"
+  | "wrong_batch"
+  | "wrong_product"
+  | "other";
+
+export type ReverseConsumePayload = {
+  clientOpId: string;
+  consumptionId: string;
+  operatorPin: string;
+  reasonCode: ReverseReasonCode;
+  note?: string;
+  /** Required only when the org flag scanner_reverse_require_supervisor_pin is on. */
+  supervisorEmail?: string;
+  supervisorPin?: string;
+};
+
+export type ReverseConsumeResult =
+  | {
+      ok: true;
+      success: true;
+      replay?: boolean;
+      consumption_id: string | null;
+      reverse_consumption_id: string | null;
+      lp_status_after: string | null;
+    }
+  | ApiError;
+
 export type { OutputUom, UomSnapshot };

@@ -329,6 +329,10 @@ export function WoExecuteScreen({
               <ActionTile icon="📥" title={L.tileConsume} desc={L.tileConsumeDesc} onClick={() => go("consume")} disabled={notStarted} />
               <ActionTile icon="📤" title={L.tileOutput} desc={L.tileOutputDesc} onClick={() => go("output")} variant="green" disabled={notStarted} />
               <ActionTile icon="🗑" title={L.tileWaste} desc={L.tileWasteDesc} onClick={() => go("waste")} variant="amber" disabled={notStarted} />
+              {/* SCN reverse-consume — undo a recorded material consumption (operator PIN
+                  always + supervisor PIN when the org flag requires it). Same start gate
+                  as Consume: a consumption can only exist after the WO is running. */}
+              <ActionTile icon="↩" title={L.tileReverse} desc={L.tileReverseDesc} onClick={() => go("reverse-consume")} variant="amber" disabled={notStarted} />
             </div>
 
             <div style={sectionTitleStyle}>{L.materialsTitle}</div>
