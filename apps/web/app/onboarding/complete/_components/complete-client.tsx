@@ -323,7 +323,11 @@ export function OnboardingCompleteClient({
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
               Work orders live in <b>04-PLANNING-BASIC</b>. You'll schedule a production run (line, quantity, BOM). First-WO-created timestamp is captured for onboarding KPI: &lt;15min P50.
             </p>
-            <Button type="button" className="mt-4 btn-primary">
+            <Button
+              type="button"
+              className="mt-4 btn-primary"
+              onClick={() => router.push(localeAwarePath(pathname, '/planning'))}
+            >
               Open planning →
             </Button>
             <p className="mt-2 text-xs text-slate-500">Optional — you can skip this step.</p>

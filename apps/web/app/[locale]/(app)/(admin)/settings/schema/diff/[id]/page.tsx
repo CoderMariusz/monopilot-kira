@@ -1,6 +1,5 @@
 import { getTranslations } from 'next-intl/server';
 
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent } from '@monopilot/ui/Card';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
@@ -347,7 +346,13 @@ export default async function SchemaDiffPage(propsInput: PageProps) {
             {current ? <span className="muted mono">migration_id: {routeId} · table: {current.tableCode}</span> : null}
           </p>
         </div>
-        <Button type="button" className="btn-secondary">← {labels.backToSchemaBrowser}</Button>
+        <a
+          href={`/${locale}/settings/schema`}
+          className="btn btn-secondary settings-schema-diff__back-link"
+          data-back-link="schema-browser"
+        >
+          ← {labels.backToSchemaBrowser}
+        </a>
       </header>
 
       {state === 'forbidden' ? <StateCard role="alert" title={labels.forbiddenTitle} body={labels.forbiddenBody} /> : null}
