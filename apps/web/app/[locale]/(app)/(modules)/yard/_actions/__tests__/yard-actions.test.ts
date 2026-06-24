@@ -37,7 +37,7 @@ type YardVisit = {
   driver_name: string | null;
   gate_in_at: string;
   gate_out_at: string | null;
-  status: 'on_site' | 'departed';
+  status: 'arrived' | 'on_site' | 'completed' | 'departed';
 };
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -49,6 +49,7 @@ const APPOINTMENT_ID = '66666666-6666-4666-8666-666666666666';
 const VISIT_ID = '77777777-7777-4777-8777-777777777777';
 const WEIGHING_ID = '88888888-8888-4888-8888-888888888888';
 const SITE_ID = '99999999-9999-4999-8999-999999999999';
+const UNKNOWN_VISIT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 let client: QueryClient;
 let appointments: Appointment[];
@@ -124,7 +125,7 @@ function makeClient(): QueryClient {
         const [doorId, scheduledAt, durationMin] = params as [string, string, number];
         const rows = appointments
           .filter((appointment) => appointment.dock_door_id === doorId)
-          .filter((appointment) => appointment.status !== 'cancelled')
+          .filter((appointment) => !['cancelled', 'no_show'].includes(appointment.status))
           .filter((appointment) => overlaps(appointment.scheduled_at, appointment.duration_min, scheduledAt, durationMin))
           .map((appointment) => ({ id: appointment.id }));
         return { rows, rowCount: rows.length };
@@ -154,12 +155,22 @@ function makeClient(): QueryClient {
         return { rows: [row], rowCount: 1 };
       }
 
-      if (q.startsWith('select carrier_id, site_id from public.dock_appointments')) {
+      if (q.startsWith('select carrier_id, site_id, status from public.dock_appointments')) {
         const appointment = appointments.find((row) => row.id === params[0]);
         return {
-          rows: appointment ? [{ carrier_id: appointment.carrier_id, site_id: appointment.site_id }] : [],
+          rows: appointment
+            ? [{ carrier_id: appointment.carrier_id, site_id: appointment.site_id, status: appointment.status }]
+            : [],
           rowCount: appointment ? 1 : 0,
         };
+      }
+
+      if (q.startsWith('select id from public.yard_visits') && q.includes('dock_appointment_id')) {
+        const rows = visits
+          .filter((visit) => visit.dock_appointment_id === params[0])
+          .filter((visit) => ['arrived', 'on_site', 'completed'].includes(visit.status))
+          .map((visit) => ({ id: visit.id }));
+        return { rows, rowCount: rows.length };
       }
 
       if (q.startsWith('insert into public.yard_visits')) {
@@ -194,11 +205,16 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.yard_visits')) {
-        const visit = visits.find((row) => row.id === params[0]);
+        const visit = visits.find((row) => row.id === params[0] && row.gate_out_at === null);
         if (visit) {
           visit.status = 'departed';
           visit.gate_out_at = '2026-06-24T11:25:00.000Z';
         }
+        return { rows: visit ? [{ id: visit.id }] : [], rowCount: visit ? 1 : 0 };
+      }
+
+      if (q.startsWith('select id from public.yard_visits')) {
+        const visit = visits.find((row) => row.id === params[0]);
         return { rows: visit ? [{ id: visit.id }] : [], rowCount: visit ? 1 : 0 };
       }
 
@@ -289,6 +305,27 @@ describe('yard actions', () => {
     });
   });
 
+  it('bookAppointment accepts when the only conflicting appointment is no_show', async () => {
+    appointments = [appointmentRow({ status: 'no_show' })];
+
+    const result = await bookAppointment({
+      dockDoorId: DOOR_A_ID,
+      carrierId: CARRIER_ID,
+      direction: 'outbound',
+      reference: 'REF-4',
+      scheduledAt: '2026-06-24T10:30:00.000Z',
+      durationMin: 30,
+    });
+
+    expect(result).toMatchObject({
+      dockDoorId: DOOR_A_ID,
+      status: 'scheduled',
+      direction: 'outbound',
+      reference: 'REF-4',
+    });
+    expect(appointments).toHaveLength(2);
+  });
+
   it("gateIn creates a yard_visit with status 'on_site' and marks the appointment arrived", async () => {
     visits = [];
 
@@ -310,11 +347,78 @@ describe('yard actions', () => {
     expect(appointments[0]?.status).toBe('arrived');
   });
 
+  it('gateIn returns already_arrived and does not create a second visit for an already-arrived appointment', async () => {
+    const result = await gateIn({
+      appointmentId: APPOINTMENT_ID,
+      vehicleReg: 'WX12 ABC',
+    });
+
+    expect(result).toEqual({ error: 'already_arrived' });
+    expect(visits).toHaveLength(1);
+  });
+
+  it('gateIn returns appointment_cancelled and does not create a visit for a cancelled appointment', async () => {
+    appointments = [appointmentRow({ status: 'cancelled' })];
+    visits = [];
+
+    const result = await gateIn({
+      appointmentId: APPOINTMENT_ID,
+      vehicleReg: 'WX12 ABC',
+    });
+
+    expect(result).toEqual({ error: 'appointment_cancelled' });
+    expect(visits).toHaveLength(0);
+  });
+
   it("gateOut sets gate_out_at and status 'departed'", async () => {
     const result = await gateOut(VISIT_ID);
 
-    expect(result.status).toBe('departed');
-    expect(result.gateOutAt).toBe('2026-06-24T11:25:00.000Z');
+    expect(result).toMatchObject({
+      status: 'departed',
+      gateOutAt: '2026-06-24T11:25:00.000Z',
+    });
+  });
+
+  it('gateOut returns already_departed when called twice for the same visit', async () => {
+    const first = await gateOut(VISIT_ID);
+    const second = await gateOut(VISIT_ID);
+
+    expect(first).toMatchObject({
+      status: 'departed',
+      gateOutAt: '2026-06-24T11:25:00.000Z',
+    });
+    expect(second).toEqual({ error: 'already_departed' });
+  });
+
+  it('gateOut returns not_found for an unknown visit', async () => {
+    const result = await gateOut(UNKNOWN_VISIT_ID);
+
+    expect(result).toEqual({ error: 'not_found' });
+  });
+
+  it('recordWeighing rejects invalid weights', async () => {
+    await expect(
+      recordWeighing({
+        yardVisitId: VISIT_ID,
+        grossKg: -1,
+        tareKg: 0,
+      }),
+    ).resolves.toEqual({ error: 'invalid_weight' });
+    await expect(
+      recordWeighing({
+        yardVisitId: VISIT_ID,
+        grossKg: 10,
+        tareKg: 11,
+      }),
+    ).resolves.toEqual({ error: 'invalid_weight' });
+    await expect(
+      recordWeighing({
+        yardVisitId: VISIT_ID,
+        grossKg: 1e21,
+        tareKg: 0,
+      }),
+    ).resolves.toEqual({ error: 'invalid_weight' });
+    expect(weighingParams).toBeNull();
   });
 
   it('recordWeighing computes net_kg correctly as gross minus tare', async () => {
@@ -332,6 +436,8 @@ describe('yard actions', () => {
       netKg: 4_450.25,
       weighedBy: USER_ID,
     });
+    expect(weighingParams?.[1]).toBe('12340.5000000000');
+    expect(weighingParams?.[2]).toBe('7890.2500000000');
     expect(weighingParams?.[3]).toBe('4450.250');
   });
 });

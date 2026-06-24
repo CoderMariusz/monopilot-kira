@@ -32,6 +32,8 @@ type YardActionContext = {
   client: QueryClient;
 };
 
+type ActionError<Code extends string> = { error: Code };
+
 type DateLike = string | Date;
 
 type DockDoorDbRow = {
@@ -86,6 +88,7 @@ type WeighingDbRow = {
 };
 
 const YARD_PERMISSION = 'npd.planning.write';
+const MAX_WEIGHT_KG_ABS = 1e15;
 const APPOINTMENT_STATUSES = new Set<string>(['scheduled', 'arrived', 'completed', 'cancelled', 'no_show']);
 const DOCK_DOOR_DIRECTIONS = new Set<string>(['inbound', 'outbound', 'both']);
 const APPOINTMENT_DIRECTIONS = new Set<string>(['inbound', 'outbound']);
@@ -108,11 +111,6 @@ function requireTrimmed(value: string, field: string): string {
   const trimmed = value.trim();
   if (trimmed.length === 0) throw new Error(`${field} is required`);
   return trimmed;
-}
-
-function requireFiniteNumber(value: number, field: string): number {
-  if (!Number.isFinite(value)) throw new Error(`${field} must be finite`);
-  return value;
 }
 
 function requirePositiveInteger(value: number, field: string): number {
@@ -145,12 +143,36 @@ function toNumber(value: string | number): number {
   return typeof value === 'number' ? value : Number(value);
 }
 
-function decimalNumber(value: number): Dec {
-  requireFiniteNumber(value, 'weight');
+function decimalNumber(value: string): Dec {
   return Dec.from(String(value));
 }
 
-function netKgDecimal(grossKg: number, tareKg: number): string {
+function formatWeightDecimal(value: number): string {
+  return value.toFixed(10);
+}
+
+function invalidWeight(): ActionError<'invalid_weight'> {
+  return { error: 'invalid_weight' };
+}
+
+function validatedWeightDecimals(
+  grossKg: number,
+  tareKg: number,
+): { grossKg: string; tareKg: string; netKg: string } | ActionError<'invalid_weight'> {
+  if (!Number.isFinite(grossKg) || !Number.isFinite(tareKg)) return invalidWeight();
+  if (grossKg < 0 || tareKg < 0 || grossKg < tareKg) return invalidWeight();
+  if (Math.abs(grossKg) >= MAX_WEIGHT_KG_ABS || Math.abs(tareKg) >= MAX_WEIGHT_KG_ABS) return invalidWeight();
+
+  const grossKgDecimal = formatWeightDecimal(grossKg);
+  const tareKgDecimal = formatWeightDecimal(tareKg);
+  return {
+    grossKg: grossKgDecimal,
+    tareKg: tareKgDecimal,
+    netKg: netKgDecimal(grossKgDecimal, tareKgDecimal),
+  };
+}
+
+function netKgDecimal(grossKg: string, tareKg: string): string {
   return decimalNumber(grossKg).sub(decimalNumber(tareKg)).toFixed(3);
 }
 
@@ -235,9 +257,12 @@ function mapWeighing(row: WeighingDbRow): WeighingRow {
   };
 }
 
-async function readAppointment(client: QueryClient, appointmentId: string): Promise<{ carrier_id: string | null; site_id: string | null } | null> {
-  const { rows } = await client.query<{ carrier_id: string | null; site_id: string | null }>(
-    `select carrier_id, site_id
+async function readAppointment(
+  client: QueryClient,
+  appointmentId: string,
+): Promise<{ carrier_id: string | null; site_id: string | null; status: string } | null> {
+  const { rows } = await client.query<{ carrier_id: string | null; site_id: string | null; status: string }>(
+    `select carrier_id, site_id, status
        from public.dock_appointments
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -385,12 +410,13 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Appo
     const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
     await requireYardPermission(ctx);
 
+    // TODO: TOCTOU: a DB GIST EXCLUDE constraint on (dock_id, tsrange) is the only race-safe guard — add as a separate migration.
     const overlap = await ctx.client.query<{ id: string }>(
       `select id
          from public.dock_appointments
         where org_id = app.current_org_id()
           and dock_door_id = $1::uuid
-          and status <> 'cancelled'
+          and status not in ('cancelled', 'no_show')
           and tstzrange(scheduled_at, scheduled_at + (duration_min || ' minutes')::interval, '[)')
               && tstzrange($2::timestamptz, $2::timestamptz + ($3::integer || ' minutes')::interval, '[)')
         limit 1`,
@@ -465,69 +491,101 @@ export async function setAppointmentStatus(appointmentId: string, status: Appoin
   });
 }
 
-export async function gateIn(input: GateInInput): Promise<YardVisitRow> {
+export async function gateIn(
+  input: GateInInput,
+): Promise<YardVisitRow> {
   const vehicleReg = requireTrimmed(input.vehicleReg, 'vehicleReg');
   const trailerRef = toNullableTrimmed(input.trailerRef);
   const driverName = toNullableTrimmed(input.driverName);
   const appointmentId = input.appointmentId ?? null;
 
-  return await withOrgContext(async ({ userId, orgId, client }): Promise<YardVisitRow> => {
-    const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
-    await requireYardPermission(ctx);
+  return await withOrgContext(
+    async ({ userId, orgId, client }): Promise<YardVisitRow> => {
+      const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
+      await requireYardPermission(ctx);
 
-    let carrierId = input.carrierId ?? null;
-    let siteId: string | null = null;
+      let carrierId = input.carrierId ?? null;
+      let siteId: string | null = null;
 
-    if (appointmentId) {
-      const appointment = await readAppointment(ctx.client, appointmentId);
-      if (!appointment) throw new Error('appointment not found');
-      carrierId = carrierId ?? appointment.carrier_id;
-      siteId = appointment.site_id;
-    }
+      if (appointmentId) {
+        const appointment = await readAppointment(ctx.client, appointmentId);
+        if (!appointment) throw new Error('appointment not found');
+        if (appointment.status === 'cancelled') {
+          return { error: 'appointment_cancelled' } as unknown as YardVisitRow;
+        }
 
-    const { rows } = await ctx.client.query<{ id: string }>(
-      `insert into public.yard_visits
-         (org_id, site_id, dock_appointment_id, carrier_id, vehicle_reg, trailer_ref, driver_name, gate_in_at, status)
-       values
-         (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, now(), 'on_site')
-       returning id`,
-      [siteId, appointmentId, carrierId, vehicleReg, trailerRef, driverName],
-    );
+        const existingVisit = await ctx.client.query<{ id: string }>(
+          `select id
+             from public.yard_visits
+            where org_id = app.current_org_id()
+              and dock_appointment_id = $1::uuid
+              and status in ('arrived', 'on_site', 'completed')
+            limit 1`,
+          [appointmentId],
+        );
+        if (existingVisit.rows.length > 0) return { error: 'already_arrived' } as unknown as YardVisitRow;
 
-    const visitId = rows[0]?.id;
-    if (!visitId) throw new Error('yard visit not saved');
+        carrierId = carrierId ?? appointment.carrier_id;
+        siteId = appointment.site_id;
+      }
 
-    if (appointmentId) {
-      await ctx.client.query(
-        `update public.dock_appointments
+      const { rows } = await ctx.client.query<{ id: string }>(
+        `insert into public.yard_visits
+           (org_id, site_id, dock_appointment_id, carrier_id, vehicle_reg, trailer_ref, driver_name, gate_in_at, status)
+         values
+           (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, now(), 'on_site')
+         returning id`,
+        [siteId, appointmentId, carrierId, vehicleReg, trailerRef, driverName],
+      );
+
+      const visitId = rows[0]?.id;
+      if (!visitId) throw new Error('yard visit not saved');
+
+      if (appointmentId) {
+        await ctx.client.query(
+          `update public.dock_appointments
             set status = 'arrived'
           where org_id = app.current_org_id()
             and id = $1::uuid`,
-        [appointmentId],
-      );
-    }
+          [appointmentId],
+        );
+      }
 
-    return await readYardVisit(ctx.client, visitId);
-  });
+      return await readYardVisit(ctx.client, visitId);
+    },
+  );
 }
 
 export async function gateOut(yardVisitId: string): Promise<YardVisitRow> {
-  return await withOrgContext(async ({ userId, orgId, client }): Promise<YardVisitRow> => {
-    const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
-    await requireYardPermission(ctx);
+  return await withOrgContext(
+    async ({ userId, orgId, client }): Promise<YardVisitRow> => {
+      const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
+      await requireYardPermission(ctx);
 
-    const { rows } = await ctx.client.query<{ id: string }>(
-      `update public.yard_visits
+      const updated = await ctx.client.query<{ id: string }>(
+        `update public.yard_visits
           set gate_out_at = now(),
               status = 'departed'
         where org_id = app.current_org_id()
           and id = $1::uuid
+          and gate_out_at is null
       returning id`,
-      [yardVisitId],
-    );
-    if (!rows[0]) throw new Error('yard visit not found');
-    return await readYardVisit(ctx.client, yardVisitId);
-  });
+        [yardVisitId],
+      );
+      if ((updated.rowCount ?? updated.rows.length) === 0) {
+        const existingVisit = await ctx.client.query<{ id: string }>(
+          `select id
+           from public.yard_visits
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+          [yardVisitId],
+        );
+        return (existingVisit.rows.length > 0 ? { error: 'already_departed' } : { error: 'not_found' }) as unknown as YardVisitRow;
+      }
+      return await readYardVisit(ctx.client, yardVisitId);
+    },
+  );
 }
 
 export async function listYardVisits(): Promise<YardVisitRow[]> {
@@ -572,9 +630,8 @@ export async function listYardVisits(): Promise<YardVisitRow[]> {
 }
 
 export async function recordWeighing(input: RecordWeighingInput): Promise<WeighingRow> {
-  requireFiniteNumber(input.grossKg, 'grossKg');
-  requireFiniteNumber(input.tareKg, 'tareKg');
-  const netKg = netKgDecimal(input.grossKg, input.tareKg);
+  const weights = validatedWeightDecimals(input.grossKg, input.tareKg);
+  if ('error' in weights) return weights as unknown as WeighingRow;
 
   return await withOrgContext(async ({ userId, orgId, client }): Promise<WeighingRow> => {
     const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
@@ -586,7 +643,7 @@ export async function recordWeighing(input: RecordWeighingInput): Promise<Weighi
        values
          (app.current_org_id(), $1::uuid, $2::numeric, $3::numeric, $4::numeric, now(), $5::uuid)
        returning id, yard_visit_id, gross_kg, tare_kg, net_kg, weighed_at, weighed_by`,
-      [input.yardVisitId, String(input.grossKg), String(input.tareKg), netKg, userId],
+      [input.yardVisitId, weights.grossKg, weights.tareKg, weights.netKg, userId],
     );
 
     const row = rows[0];

@@ -447,8 +447,9 @@ export async function getSupplierScorecard(supplierId: string): Promise<FreightR
              join public.grns g
                on g.id = gi.grn_id
               and g.org_id = app.current_org_id()
-              and g.status <> 'cancelled'
+              and g.status = 'completed'
             where gi.org_id = app.current_org_id()
+              and gi.cancelled_at is null
               and gi.po_line_id is not null
             group by gi.po_line_id
          )

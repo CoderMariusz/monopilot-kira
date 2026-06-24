@@ -60,6 +60,12 @@ function laneRow() {
   };
 }
 
+function expectScorecardSql(): string {
+  const sql = executed.find((statement) => statement.startsWith('with received_by_line as'));
+  expect(sql).toBeDefined();
+  return sql ?? '';
+}
+
 function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
@@ -237,9 +243,29 @@ describe('freight planning actions', () => {
         qtyVariancePct: 10,
       }),
     ]);
-    expect(executed.find((sql) => sql.startsWith('with received_by_line as'))).toContain('from public.grn_items');
+    expect(expectScorecardSql()).toContain('from public.grn_items');
     expect(executed.find((sql) => sql.startsWith('select count(*)::text as ncr_count'))).toContain(
       'from public.ncr_reports',
     );
+  });
+
+  it('scorecard SQL excludes cancelled GRN lines from received quantity variance', async () => {
+    const result = await getSupplierScorecard(SUPPLIER_ID);
+
+    expect(result.ok).toBe(true);
+    const sql = expectScorecardSql();
+    expect(sql).toContain('sum(gi.received_qty) as received_qty');
+    expect(sql).toContain("and g.status = 'completed'");
+    expect(sql).toContain('and gi.cancelled_at is null');
+  });
+
+  it('scorecard SQL ignores draft GRNs for on-time receipt dates and received quantity', async () => {
+    const result = await getSupplierScorecard(SUPPLIER_ID);
+
+    expect(result.ok).toBe(true);
+    const sql = expectScorecardSql();
+    expect(sql).toContain('min(g.receipt_date) as first_receipt_date');
+    expect(sql).toContain("and g.status = 'completed'");
+    expect(sql).not.toContain("g.status <> 'cancelled'");
   });
 });
