@@ -3,7 +3,7 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 
 export type SchedulerRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type SchedulerRunType = 'schedule' | 'dry_run' | 'what_if';
-export type SchedulerAssignmentStatus = 'draft' | 'approved' | 'rejected' | 'overridden';
+export type SchedulerAssignmentStatus = 'draft' | 'approved' | 'rejected' | 'overridden' | 'cancelled';
 export type ChangeoverRiskLevel = 'low' | 'medium' | 'high' | 'segregated';
 
 export interface SchedulerRunRow {
@@ -160,7 +160,13 @@ export type SchedulerRunResult =
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'persistence_failed' };
 
 export type ApplyScheduleResult =
-  | { ok: true; run: SchedulerRunRow; assignments: SchedulerAssignment[]; applied: boolean }
+  | {
+      ok: true;
+      run: SchedulerRunRow;
+      assignments: SchedulerAssignment[];
+      applied: boolean | SchedulerAssignment[];
+      stale: SchedulerAssignment[];
+    }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
 
 export type ListChangeoverMatrixResult =

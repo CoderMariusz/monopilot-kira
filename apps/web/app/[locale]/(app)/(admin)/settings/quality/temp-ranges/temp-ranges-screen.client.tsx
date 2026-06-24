@@ -37,8 +37,8 @@ export type TempRangeRow = {
   itemId: string;
   itemCode: string;
   itemName: string;
-  minTempC: number;
-  maxTempC: number;
+  minTempC: number | null;
+  maxTempC: number | null;
   requiresCheck: boolean;
 };
 
@@ -119,6 +119,10 @@ function StateNotice({ state, labels }: { state: PageState; labels: TempRangesLa
 }
 
 const tempFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+function formatTemp(value: number | null): string {
+  return value === null ? '-' : `${tempFmt.format(value)} °C`;
+}
 
 export default function TempRangesScreen({
   initialRanges,
@@ -395,10 +399,10 @@ export default function TempRangesScreen({
                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-right font-mono text-sm tabular-nums text-slate-700">
-                      {tempFmt.format(range.minTempC)} °C
+                      {formatTemp(range.minTempC)}
                     </TableCell>
                     <TableCell className="px-4 py-3 text-right font-mono text-sm tabular-nums text-slate-700">
-                      {tempFmt.format(range.maxTempC)} °C
+                      {formatTemp(range.maxTempC)}
                     </TableCell>
                     <TableCell className="px-4 py-3">
                       <Badge

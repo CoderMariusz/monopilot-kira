@@ -3,8 +3,8 @@ export type ProductTempRange = {
   itemId: string;
   itemCode: string;
   itemName: string;
-  minTempC: number;
-  maxTempC: number;
+  minTempC: number | null;
+  maxTempC: number | null;
   requiresCheck: boolean;
 };
 

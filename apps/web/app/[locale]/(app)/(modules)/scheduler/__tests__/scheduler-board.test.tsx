@@ -145,7 +145,7 @@ function renderBoard(opts: {
   const runAction = opts.runAction ?? vi.fn(async () => okRun());
   const applyAction =
     opts.applyAction ??
-    vi.fn(async () => ({ ok: true as const, run: runRow(), assignments: [], applied: true }));
+    vi.fn(async () => ({ ok: true as const, run: runRow(), assignments: [], applied: true, stale: [] }));
   render(
     <SchedulerBoardView
       labels={labels}

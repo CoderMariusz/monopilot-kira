@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sequenceWorkOrders } from '../sequence-solver';
 import type { ChangeoverMatrixEntry, WorkOrderForScheduling } from '../scheduler-types';
@@ -11,6 +11,8 @@ function wo(input: {
   due: string;
   allergens: string[];
   scheduledStart?: string;
+  scheduledEnd?: string;
+  lineId?: string;
 }): WorkOrderForScheduling {
   return {
     id: input.id,
@@ -23,11 +25,11 @@ function wo(input: {
     status: 'DRAFT',
     planned_quantity: '100.000',
     uom: 'kg',
-    production_line_id: LINE_ID,
+    production_line_id: input.lineId ?? LINE_ID,
     planned_start_date: input.scheduledStart ?? null,
-    planned_end_date: input.due,
+    planned_end_date: input.scheduledEnd ?? input.due,
     scheduled_start_time: input.scheduledStart ?? null,
-    scheduled_end_time: null,
+    scheduled_end_time: input.scheduledEnd ?? null,
     due_date: input.due,
     allergen_ids: input.allergens,
   };
@@ -65,6 +67,10 @@ function naiveDueDateTotal(wos: WorkOrderForScheduling[], entries: ChangeoverMat
 }
 
 describe('sequenceWorkOrders', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('returns an empty sequence for empty input', () => {
     expect(sequenceWorkOrders([], [])).toEqual([]);
   });
@@ -131,5 +137,57 @@ describe('sequenceWorkOrders', () => {
     expect(greedyTotal).toBeLessThan(naiveTotal);
     expect(greedyTotal).toBe(60);
     expect(naiveTotal).toBe(120);
+  });
+
+  it('time-phases assignments per line without past or start-after-end times', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const otherLine = '55555555-5555-4555-8555-555555555555';
+    const a = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T10:00:00.000Z',
+    });
+    const b = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['nuts'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T07:00:00.000Z',
+    });
+    const c = wo({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      due: '2026-06-03T08:00:00.000Z',
+      allergens: ['soy'],
+      lineId: otherLine,
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+
+    const result = sequenceWorkOrders([a, b, c], []);
+    const now = new Date('2026-06-24T12:00:00.000Z').getTime();
+    for (const assignment of result) {
+      const start = new Date(assignment.planned_start_at).getTime();
+      const end = new Date(assignment.planned_end_at ?? '').getTime();
+      expect(start).toBeGreaterThanOrEqual(now);
+      expect(end).toBeGreaterThanOrEqual(start);
+    }
+    expect(result.find((assignment) => assignment.wo_id === a.id)?.planned_start_at).toBe(
+      '2026-06-24T12:00:00.000Z',
+    );
+    expect(result.find((assignment) => assignment.wo_id === a.id)?.planned_end_at).toBe(
+      '2026-06-24T14:00:00.000Z',
+    );
+    expect(result.find((assignment) => assignment.wo_id === b.id)?.planned_start_at).toBe(
+      '2026-06-24T14:00:00.000Z',
+    );
+    expect(result.find((assignment) => assignment.wo_id === b.id)?.planned_end_at).toBe(
+      '2026-06-24T14:00:00.000Z',
+    );
+    expect(result.find((assignment) => assignment.wo_id === c.id)?.planned_start_at).toBe(
+      '2026-06-24T12:00:00.000Z',
+    );
   });
 });

@@ -32,18 +32,24 @@ type ProductTempRangeRow = {
   item_id: string;
   item_code: string | null;
   item_name: string | null;
-  min_temp_c: string | number;
-  max_temp_c: string | number;
+  min_temp_c: string | number | null;
+  max_temp_c: string | number | null;
   requires_check: boolean;
 };
 
 type RangeConfigRow = {
   id: string;
-  min_temp_c: string | number;
-  max_temp_c: string | number;
+  min_temp_c: string | number | null;
+  max_temp_c: string | number | null;
   requires_check: boolean;
 };
 
+type ExistingColdChainHoldRow = {
+  id: string;
+};
+
+const QUALITY_DASHBOARD_VIEW_PERMISSION = 'quality.dashboard.view';
+const QUALITY_INSPECTION_EXECUTE_PERMISSION = 'quality.inspection.execute';
 const QUALITY_SETTINGS_EDIT_PERMISSION = 'quality.settings.edit';
 
 async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
@@ -70,22 +76,37 @@ function mapProductTempRange(row: ProductTempRangeRow): ProductTempRange {
     itemId: row.item_id,
     itemCode: row.item_code ?? '',
     itemName: row.item_name ?? '',
-    minTempC: Number(row.min_temp_c),
-    maxTempC: Number(row.max_temp_c),
+    minTempC: toNullableNumber(row.min_temp_c),
+    maxTempC: toNullableNumber(row.max_temp_c),
     requiresCheck: row.requires_check,
   };
 }
 
 function coldChainBreachReason(input: {
   measuredTempC: number;
-  minTempC: number;
-  maxTempC: number;
+  minTempC: number | null;
+  maxTempC: number | null;
 }): string {
-  return `Cold-chain breach: measured ${input.measuredTempC} C outside configured range ${input.minTempC} C to ${input.maxTempC} C`;
+  return `Cold-chain breach: measured ${input.measuredTempC} C outside configured range ${formatTempRange(input)}`;
 }
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+function toNullableNumber(value: string | number | null | undefined): number | null {
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatTempRange(input: { minTempC: number | null; maxTempC: number | null }): string {
+  if (input.minTempC !== null && input.maxTempC !== null) {
+    return `${input.minTempC} C to ${input.maxTempC} C`;
+  }
+  if (input.minTempC !== null) return `at least ${input.minTempC} C`;
+  if (input.maxTempC !== null) return `at most ${input.maxTempC} C`;
+  return 'unbounded';
 }
 
 async function resolveConditionSiteId(
@@ -129,9 +150,30 @@ async function loadRangeConfig(client: QueryClient, itemId: string): Promise<Ran
   return rows[0] ?? null;
 }
 
+async function findExistingColdChainHold(client: QueryClient, lpId: string): Promise<ExistingColdChainHoldRow | null> {
+  const { rows } = await client.query<ExistingColdChainHoldRow>(
+    `select h.id::text
+       from public.quality_holds h
+      where h.org_id = app.current_org_id()
+        and h.reference_type = 'lp'
+        and h.reference_id = $1::uuid
+        and h.hold_status in ('open', 'investigating', 'escalated', 'quarantined')
+        and h.released_at is null
+        and h.reason_free_text like 'Cold-chain breach:%'
+        and h.created_at >= pg_catalog.now() - interval '24 hours'
+      order by h.created_at desc
+      limit 1`,
+    [lpId],
+  );
+  return rows[0] ?? null;
+}
+
 export async function listProductTempRanges(): Promise<ListProductTempRangesResult> {
   try {
-    return await withOrgContext<ListProductTempRangesResult>(async ({ client }): Promise<ListProductTempRangesResult> => {
+    return await withOrgContext<ListProductTempRangesResult>(async (ctx): Promise<ListProductTempRangesResult> => {
+      if (!(await hasPermission(ctx as OrgActionContext, QUALITY_DASHBOARD_VIEW_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const client = (ctx as OrgActionContext).client;
       const { rows } = await client.query<ProductTempRangeRow>(
         `select
            ptr.id::text,
@@ -201,18 +243,40 @@ export async function submitConditionCheck(
     return await withOrgContext<SubmitConditionCheckResult>(async (rawCtx): Promise<SubmitConditionCheckResult> => {
       const ctx = rawCtx as OrgActionContext;
       const { userId, client } = ctx;
+      // TODO: dedicated quality.coldchain.record permission
+      if (!(await hasPermission(ctx, QUALITY_INSPECTION_EXECUTE_PERMISSION))) return { ok: false, error: 'forbidden' };
+
       const contextSiteId = ctx.siteId ?? null;
       const range = await loadRangeConfig(client, input.itemId);
-      const minTempC = range ? Number(range.min_temp_c) : null;
-      const maxTempC = range ? Number(range.max_temp_c) : null;
+      const minTempC = toNullableNumber(range?.min_temp_c);
+      const maxTempC = toNullableNumber(range?.max_temp_c);
+      const hasBounds = minTempC !== null || maxTempC !== null;
       const inRange =
         !range ||
         !range.requires_check ||
-        (minTempC !== null && maxTempC !== null && input.measuredTempC >= minTempC && input.measuredTempC <= maxTempC);
-      const reason = !inRange && minTempC !== null && maxTempC !== null
+        !hasBounds ||
+        ((minTempC === null || input.measuredTempC >= minTempC) && (maxTempC === null || input.measuredTempC <= maxTempC));
+      const reason = !inRange && hasBounds
         ? coldChainBreachReason({ measuredTempC: input.measuredTempC, minTempC, maxTempC })
         : null;
       const siteId = contextSiteId ?? await resolveConditionSiteId(client, input);
+      let holdId: string | null = null;
+
+      if (!inRange && input.lpId && hasBounds) {
+        const existingHold = await findExistingColdChainHold(client, input.lpId);
+        holdId = existingHold?.id ?? null;
+        if (!holdId) {
+          // TODO: make hold creation share the outer txn
+          const hold = await createHold({
+            referenceType: 'lp',
+            referenceId: input.lpId,
+            reasonText: reason ?? coldChainBreachReason({ measuredTempC: input.measuredTempC, minTempC, maxTempC }),
+            priority: 'critical',
+          });
+          if (!hold.ok) return { ok: false, error: 'persistence_failed' };
+          holdId = hold.data.id;
+        }
+      }
 
       const inserted = await client.query<{ id: string }>(
         `insert into public.delivery_condition_checks (
@@ -226,6 +290,7 @@ export async function submitConditionCheck(
            max_temp_c,
            in_range,
            reason,
+           hold_id,
            checked_by,
            checked_at
          )
@@ -241,6 +306,7 @@ export async function submitConditionCheck(
            $8::boolean,
            $9,
            $10::uuid,
+           $11::uuid,
            pg_catalog.now()
          )
          returning id::text`,
@@ -254,33 +320,14 @@ export async function submitConditionCheck(
           maxTempC,
           inRange,
           reason,
+          holdId,
           userId,
         ],
       );
       const checkId = inserted.rows[0]?.id;
       if (!checkId) return { ok: false, error: 'persistence_failed' };
 
-      if (inRange || !input.lpId || minTempC === null || maxTempC === null) {
-        return { ok: true, inRange };
-      }
-
-      const hold = await createHold({
-        referenceType: 'lp',
-        referenceId: input.lpId,
-        reasonText: reason ?? coldChainBreachReason({ measuredTempC: input.measuredTempC, minTempC, maxTempC }),
-        priority: 'critical',
-      });
-      if (!hold.ok) return { ok: false, error: 'persistence_failed' };
-
-      await client.query(
-        `update public.delivery_condition_checks
-            set hold_id = $2::uuid
-          where org_id = app.current_org_id()
-            and id = $1::uuid`,
-        [checkId, hold.data.id],
-      );
-
-      return { ok: true, inRange: false, holdId: hold.data.id };
+      return holdId ? { ok: true, inRange: false, holdId } : { ok: true, inRange };
     });
   } catch {
     return { ok: false, error: 'persistence_failed' };

@@ -2,7 +2,6 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
-  PLANNING_WO_WRITE_PERMISSION,
   hasPermission,
   type OrgActionContext,
 } from '../../planning/work-orders/_actions/shared';
@@ -19,10 +18,14 @@ import type {
   WorkOrderForScheduling,
 } from './scheduler-types';
 
-const SCHEDULER_READ_PERMISSION = 'scheduler.run.read';
+const SCHEDULER_RUN_DISPATCH_PERMISSION = 'scheduler.run.dispatch';
+const SCHEDULER_MATRIX_READ_PERMISSION = 'scheduler.matrix.read';
+const SCHEDULER_MATRIX_EDIT_PERMISSION = 'scheduler.matrix.edit';
 const OPTIMIZER_VERSION = 'e8-greedy-v1';
 const OPEN_WO_STATUSES = ['DRAFT', 'RELEASED'] as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const SCHEDULER_RUN_COMPLETED_EVENT = 'scheduler.run.completed';
+const PLANNING_SCHEDULE_PUBLISHED_EVENT = 'planning.schedule.published';
 
 const RUN_SELECT = `
   run_id::text,
@@ -135,7 +138,10 @@ async function loadChangeoverMatrixForRun(
         and cmv.id = cm.version_id
         and cmv.is_active = true
       where cm.org_id = app.current_org_id()
-        and ($1::text is null or cm.line_id is null or cm.line_id = $1::text)
+        and (
+          ($1::text is null and cm.line_id is null)
+          or ($1::text is not null and (cm.line_id is null or cm.line_id = $1::text))
+        )
       order by cm.line_id nulls first, cm.allergen_from, cm.allergen_to`,
     [lineId],
   );
@@ -300,7 +306,7 @@ async function loadAssignments(ctx: OrgActionContext, runId: string): Promise<Sc
        from public.scheduler_assignments
       where org_id = app.current_org_id()
         and run_id = $1::uuid
-        and status <> 'rejected'
+        and status not in ('rejected', 'cancelled')
       order by sequence_index asc nulls last, created_at asc`,
     [runId],
   );
@@ -333,8 +339,8 @@ async function applyAssignmentToWorkOrder(
   ctx: OrgActionContext,
   runId: string,
   assignment: SchedulerAssignment,
-): Promise<void> {
-  await ctx.client.query(
+): Promise<boolean> {
+  const result = await ctx.client.query(
     `update public.work_orders wo
         set scheduled_start_time = $2::timestamptz,
             scheduled_end_time = $3::timestamptz,
@@ -347,7 +353,8 @@ async function applyAssignmentToWorkOrder(
             updated_by = $7::uuid,
             updated_at = now()
       where wo.org_id = app.current_org_id()
-        and wo.id = $1::uuid`,
+        and wo.id = $1::uuid
+        and wo.status in ('DRAFT', 'RELEASED')`,
     [
       assignment.wo_id,
       assignment.planned_start_at,
@@ -356,6 +363,64 @@ async function applyAssignmentToWorkOrder(
       runId,
       assignment.sequence_index,
       ctx.userId,
+    ],
+  );
+  return Number(result.rowCount ?? 0) > 0;
+}
+
+async function approveSchedulerAssignment(
+  ctx: OrgActionContext,
+  assignment: SchedulerAssignment,
+): Promise<SchedulerAssignment | null> {
+  const { rows } = await ctx.client.query<SchedulerAssignment>(
+    `update public.scheduler_assignments
+        set approved_by = $2::uuid,
+            approved_at = now(),
+            status = 'approved',
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and status not in ('rejected', 'cancelled')
+      returning ${ASSIGNMENT_SELECT}`,
+    [assignment.id, ctx.userId],
+  );
+  return rows[0] ?? null;
+}
+
+async function emitSchedulerRunCompletedEvent(
+  ctx: OrgActionContext,
+  runId: string,
+  counts: { work_orders: number; assignments: number; total_changeover_cost: number },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values
+       (app.current_org_id(), $1, 'scheduler_run', $2::uuid, $3::jsonb, $4)`,
+    [
+      SCHEDULER_RUN_COMPLETED_EVENT,
+      runId,
+      JSON.stringify({ run_id: runId, actor_user_id: ctx.userId, counts }),
+      OPTIMIZER_VERSION,
+    ],
+  );
+}
+
+async function emitSchedulePublishedEvent(
+  ctx: OrgActionContext,
+  runId: string,
+  counts: { applied: number; stale: number },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values
+       (app.current_org_id(), $1, 'scheduler_run', $2::uuid, $3::jsonb, $4)`,
+    [
+      PLANNING_SCHEDULE_PUBLISHED_EVENT,
+      runId,
+      JSON.stringify({ run_id: runId, actor_user_id: ctx.userId, counts }),
+      OPTIMIZER_VERSION,
     ],
   );
 }
@@ -473,7 +538,7 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
 
   try {
     return await withOrgContext(async (ctx: OrgActionContext): Promise<SchedulerRunResult> => {
-      if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
+      if (!(await hasPermission(ctx, SCHEDULER_RUN_DISPATCH_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
 
@@ -493,6 +558,11 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
         solveDurationMs,
       });
       const assignments = await insertSchedulerAssignments(ctx, run.run_id, normalized.lineId, sequenced);
+      await emitSchedulerRunCompletedEvent(ctx, run.run_id, {
+        work_orders: workOrders.length,
+        assignments: assignments.length,
+        total_changeover_cost: totalChangeover(sequenced),
+      });
       return { ok: true, run, assignments };
     });
   } catch (error) {
@@ -506,7 +576,7 @@ export async function applySchedule(runId: string): Promise<ApplyScheduleResult>
 
   try {
     return await withOrgContext(async (ctx: OrgActionContext): Promise<ApplyScheduleResult> => {
-      if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
+      if (!(await hasPermission(ctx, SCHEDULER_RUN_DISPATCH_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
 
@@ -514,14 +584,36 @@ export async function applySchedule(runId: string): Promise<ApplyScheduleResult>
       if (!run) return { ok: false, error: 'not_found' };
 
       const assignments = await loadAssignments(ctx, runId);
-      if (wasApplied(run)) return { ok: true, run, assignments, applied: false };
+      if (wasApplied(run)) return { ok: true, run, assignments, applied: false, stale: [] };
 
+      // TODO: enforce separate approver-role SoD once scheduler roles are split.
+      const appliedAssignments: SchedulerAssignment[] = [];
+      const staleAssignments: SchedulerAssignment[] = [];
       for (const assignment of assignments) {
-        await applyAssignmentToWorkOrder(ctx, runId, assignment);
+        const applied = await applyAssignmentToWorkOrder(ctx, runId, assignment);
+        if (!applied) {
+          staleAssignments.push(assignment);
+          continue;
+        }
+        const approved = await approveSchedulerAssignment(ctx, assignment);
+        if (!approved) {
+          throw new Error(`scheduler assignment ${assignment.id} could not be approved after WO apply`);
+        }
+        appliedAssignments.push(approved);
       }
 
-      const appliedRun = await markRunApplied(ctx, runId, assignments.length);
-      return { ok: true, run: appliedRun, assignments, applied: true };
+      const appliedRun = await markRunApplied(ctx, runId, appliedAssignments.length);
+      await emitSchedulePublishedEvent(ctx, runId, {
+        applied: appliedAssignments.length,
+        stale: staleAssignments.length,
+      });
+      return {
+        ok: true,
+        run: appliedRun,
+        assignments: [...appliedAssignments, ...staleAssignments],
+        applied: appliedAssignments,
+        stale: staleAssignments,
+      };
     });
   } catch (error) {
     console.error('[scheduler/applySchedule] persistence_failed', error);
@@ -532,7 +624,7 @@ export async function applySchedule(runId: string): Promise<ApplyScheduleResult>
 export async function listChangeoverMatrix(): Promise<ListChangeoverMatrixResult> {
   try {
     return await withOrgContext(async (ctx: OrgActionContext): Promise<ListChangeoverMatrixResult> => {
-      if (!(await hasPermission(ctx, SCHEDULER_READ_PERMISSION))) {
+      if (!(await hasPermission(ctx, SCHEDULER_MATRIX_READ_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
 
@@ -555,7 +647,7 @@ export async function upsertChangeoverMatrixEntry(
 ): Promise<UpsertChangeoverMatrixEntryResult> {
   try {
     return await withOrgContext(async (ctx: OrgActionContext): Promise<UpsertChangeoverMatrixEntryResult> => {
-      if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
+      if (!(await hasPermission(ctx, SCHEDULER_MATRIX_EDIT_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
 

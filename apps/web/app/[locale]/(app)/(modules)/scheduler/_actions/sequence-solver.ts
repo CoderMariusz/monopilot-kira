@@ -39,6 +39,26 @@ function compareByDueDateThenId(a: WorkOrderForScheduling, b: WorkOrderForSchedu
   return a.id.localeCompare(b.id);
 }
 
+function timestampMs(value: string | Date | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const ms = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function durationMs(wo: WorkOrderForScheduling): number | null {
+  const pairs: Array<[string | Date | null, string | Date | null]> = [
+    [wo.scheduled_start_time, wo.scheduled_end_time],
+    [wo.planned_start_date, wo.planned_end_date],
+  ];
+  for (const [startValue, endValue] of pairs) {
+    const start = timestampMs(startValue);
+    const end = timestampMs(endValue);
+    if (start === null || end === null || end < start) continue;
+    return end - start;
+  }
+  return null;
+}
+
 export function sequenceWorkOrders(
   wos: WorkOrderForScheduling[],
   matrix: ChangeoverMatrixEntry[],
@@ -76,23 +96,26 @@ export function sequenceWorkOrders(
   }
 
   let cumulative = 0;
+  const now = Date.now();
+  const plannedEndByLine = new Map<string, number>();
+
   return sequence.map((workOrder, index) => {
     const previous = index === 0 ? null : sequence[index - 1];
     const fromKey = previous ? allergenProfileKey(previous) : '';
     const toKey = allergenProfileKey(workOrder);
     const changeoverCost = previous ? costLookup.get(matrixKey(fromKey, toKey)) ?? 0 : 0;
+    const lineKey = workOrder.production_line_id ?? '__unassigned__';
+    const plannedStart = Math.max(now, plannedEndByLine.get(lineKey) ?? now);
+    const plannedEnd = Math.max(plannedStart, plannedStart + (durationMs(workOrder) ?? 0));
+    plannedEndByLine.set(lineKey, plannedEnd);
     cumulative += changeoverCost;
 
     return {
       wo_id: workOrder.id,
       sequence_index: index + 1,
       line_id: workOrder.production_line_id,
-      planned_start_at: new Date(workOrder.scheduled_start_time ?? workOrder.planned_start_date ?? workOrder.due_date).toISOString(),
-      planned_end_at: workOrder.scheduled_end_time
-        ? new Date(workOrder.scheduled_end_time).toISOString()
-        : workOrder.planned_end_date
-          ? new Date(workOrder.planned_end_date).toISOString()
-          : null,
+      planned_start_at: new Date(plannedStart).toISOString(),
+      planned_end_at: new Date(plannedEnd).toISOString(),
       changeover_cost: changeoverCost,
       cumulative_changeover_cost: cumulative,
       allergen_profile_key: toKey,

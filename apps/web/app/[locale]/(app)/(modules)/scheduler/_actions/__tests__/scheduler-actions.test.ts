@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SchedulerAssignment, SchedulerRunRow, WorkOrderForScheduling } from '../scheduler-types';
+import type { ChangeoverMatrixEntry, SchedulerAssignment, SchedulerRunRow, WorkOrderForScheduling } from '../scheduler-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -13,6 +13,7 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const RUN_ID = '33333333-3333-4333-8333-333333333333';
 const LINE_ID = '44444444-4444-4444-8444-444444444444';
+const LINE_OVERRIDE_ID = '99999999-9999-4999-8999-999999999999';
 const WO_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const WO_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
@@ -21,6 +22,9 @@ let allowPermission = true;
 let calls: Array<{ sql: string; params: readonly unknown[] }> = [];
 let insertedAssignmentPayload: Array<Record<string, unknown>> = [];
 let runAlreadyApplied = false;
+let includeLineSpecificOverride = false;
+let assignmentRows: SchedulerAssignment[] = [];
+let staleWoIds = new Set<string>();
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -28,7 +32,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-import { applySchedule, runScheduler } from '../scheduler-actions';
+import { applySchedule, listChangeoverMatrix, runScheduler, upsertChangeoverMatrixEntry } from '../scheduler-actions';
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -63,7 +67,11 @@ function assignmentRow(input: {
   woId: string;
   sequence: number;
   start: string;
+  end?: string | null;
   changeover: number;
+  status?: SchedulerAssignment['status'];
+  approvedBy?: string | null;
+  approvedAt?: string | null;
 }): SchedulerAssignment {
   return {
     id: input.id,
@@ -72,10 +80,10 @@ function assignmentRow(input: {
     run_id: RUN_ID,
     wo_id: input.woId,
     line_id: LINE_ID,
-    status: 'draft',
+    status: input.status ?? 'draft',
     sequence_index: String(input.sequence),
     planned_start_at: input.start,
-    planned_end_at: null,
+    planned_end_at: input.end ?? null,
     changeover_minutes: String(input.changeover),
     optimizer_score: String(input.changeover),
     override_original_line_id: null,
@@ -83,11 +91,31 @@ function assignmentRow(input: {
     override_reason_code: null,
     override_by: null,
     override_at: null,
-    approved_by: null,
-    approved_at: null,
+    approved_by: input.approvedBy ?? null,
+    approved_at: input.approvedAt ?? null,
     ext: {},
     created_at: '2026-06-01T00:00:00.000Z',
     updated_at: '2026-06-01T00:00:00.000Z',
+  };
+}
+
+function matrixEntry(over: Partial<ChangeoverMatrixEntry> = {}): ChangeoverMatrixEntry {
+  return {
+    id: '66666666-6666-4666-8666-666666666666',
+    org_id: ORG_ID,
+    site_id: null,
+    version_id: '77777777-7777-4777-8777-777777777777',
+    line_id: null,
+    allergen_from: 'milk',
+    allergen_to: 'nuts',
+    changeover_minutes: '30.00',
+    requires_cleaning: true,
+    requires_atp: false,
+    risk_level: 'low',
+    notes: null,
+    created_at: '2026-06-01T00:00:00.000Z',
+    updated_at: '2026-06-01T00:00:00.000Z',
+    ...over,
   };
 }
 
@@ -134,27 +162,23 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.changeover_matrix cm') && q.includes('cmv.is_active = true')) {
+        const defaultRow = matrixEntry();
+        const lineOverride = matrixEntry({
+          id: '99999999-9999-4999-8999-999999999999',
+          line_id: LINE_OVERRIDE_ID,
+          changeover_minutes: '120.00',
+        });
+        const hasOrgDefaultOnlyFilter = q.includes('($1::text is null and cm.line_id is null)');
         return {
-          rows: [
-            {
-              id: '66666666-6666-4666-8666-666666666666',
-              org_id: ORG_ID,
-              site_id: null,
-              version_id: '77777777-7777-4777-8777-777777777777',
-              line_id: null,
-              allergen_from: 'milk',
-              allergen_to: 'nuts',
-              changeover_minutes: '30.00',
-              requires_cleaning: true,
-              requires_atp: false,
-              risk_level: 'low',
-              notes: null,
-              created_at: '2026-06-01T00:00:00.000Z',
-              updated_at: '2026-06-01T00:00:00.000Z',
-            },
-          ],
-          rowCount: 1,
+          rows: includeLineSpecificOverride && !(params[0] === null && hasOrgDefaultOnlyFilter)
+            ? [defaultRow, lineOverride]
+            : [defaultRow],
+          rowCount: includeLineSpecificOverride ? 2 : 1,
         };
+      }
+
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('insert into public.scheduler_runs')) {
@@ -183,17 +207,43 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.scheduler_assignments')) {
         return {
-          rows: [assignmentRow({ id: '88888888-8888-4888-8888-888888888888', woId: WO_A, sequence: 1, start: '2026-06-01T08:00:00.000Z', changeover: 0 })],
-          rowCount: 1,
+          rows: assignmentRows,
+          rowCount: assignmentRows.length,
         };
       }
 
       if (q.startsWith('update public.work_orders')) {
-        return { rows: [], rowCount: 1 };
+        return { rows: [], rowCount: staleWoIds.has(String(params[0])) ? 0 : 1 };
+      }
+
+      if (q.startsWith('update public.scheduler_assignments')) {
+        const found = assignmentRows.find((row) => row.id === params[0]);
+        return {
+          rows: found
+            ? [
+                {
+                  ...found,
+                  status: 'approved',
+                  approved_by: USER_ID,
+                  approved_at: '2026-06-01T12:00:00.000Z',
+                  updated_at: '2026-06-01T12:00:00.000Z',
+                } satisfies SchedulerAssignment,
+              ]
+            : [],
+          rowCount: found ? 1 : 0,
+        };
       }
 
       if (q.startsWith('update public.scheduler_runs')) {
         return { rows: [runRow({ applied_at: '2026-06-01T12:00:00.000Z' })], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.changeover_matrix')) {
+        return { rows: [matrixEntry({ id: String(params[0]), changeover_minutes: '15.00' })], rowCount: 1 };
+      }
+
+      if (q.includes('from public.changeover_matrix')) {
+        return { rows: [matrixEntry()], rowCount: 1 };
       }
 
       return { rows: [], rowCount: 0 };
@@ -206,6 +256,17 @@ beforeEach(() => {
   calls = [];
   insertedAssignmentPayload = [];
   runAlreadyApplied = false;
+  includeLineSpecificOverride = false;
+  assignmentRows = [
+    assignmentRow({
+      id: '88888888-8888-4888-8888-888888888888',
+      woId: WO_A,
+      sequence: 1,
+      start: '2026-06-01T08:00:00.000Z',
+      changeover: 0,
+    }),
+  ];
+  staleWoIds = new Set<string>();
   client = makeClient();
 });
 
@@ -225,7 +286,29 @@ describe('runScheduler', () => {
     expect(insertedAssignmentPayload[1]).toEqual(
       expect.objectContaining({ changeover_minutes: 30, optimizer_score: 30, line_id: LINE_ID }),
     );
-    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe('npd.planning.write');
+    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe('scheduler.run.dispatch');
+    expect(
+      calls.some(
+        (call) =>
+          normalize(call.sql).startsWith('insert into public.outbox_events') &&
+          call.params[0] === 'scheduler.run.completed',
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps org-wide null-line runs on org-default matrix rows only', async () => {
+    includeLineSpecificOverride = true;
+
+    const result = await runScheduler({ horizonDays: 7 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    const matrixCall = calls.find((call) => normalize(call.sql).includes('from public.changeover_matrix cm'));
+    expect(matrixCall?.params[0]).toBeNull();
+    expect(normalize(matrixCall?.sql ?? '')).toContain('($1::text is null and cm.line_id is null)');
+    expect(insertedAssignmentPayload[1]).toEqual(
+      expect.objectContaining({ changeover_minutes: 30, optimizer_score: 30 }),
+    );
   });
 });
 
@@ -238,7 +321,103 @@ describe('applySchedule', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.applied).toBe(false);
+    expect(result.stale).toEqual([]);
     expect(calls.some((call) => normalize(call.sql).startsWith('update public.work_orders'))).toBe(false);
     expect(calls.some((call) => normalize(call.sql).startsWith('update public.scheduler_runs'))).toBe(false);
+  });
+
+  it('skips a stale COMPLETED work order and returns it in stale[]', async () => {
+    assignmentRows = [
+      assignmentRow({
+        id: '88888888-8888-4888-8888-888888888888',
+        woId: WO_A,
+        sequence: 1,
+        start: '2026-06-01T08:00:00.000Z',
+        changeover: 0,
+      }),
+      assignmentRow({
+        id: '99999999-9999-4999-8999-999999999999',
+        woId: WO_B,
+        sequence: 2,
+        start: '2026-06-01T10:00:00.000Z',
+        changeover: 30,
+      }),
+    ];
+    staleWoIds = new Set([WO_B]);
+
+    const result = await applySchedule(RUN_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(Array.isArray(result.applied)).toBe(true);
+    expect(Array.isArray(result.applied) ? result.applied.map((row) => row.wo_id) : []).toEqual([WO_A]);
+    expect(result.stale.map((row) => row.wo_id)).toEqual([WO_B]);
+    const workOrderUpdate = calls.find((call) => normalize(call.sql).startsWith('update public.work_orders'));
+    expect(normalize(workOrderUpdate?.sql ?? '')).toContain("wo.status in ('draft', 'released')");
+  });
+
+  it("stamps applied assignments as approved by the applying user", async () => {
+    const result = await applySchedule(RUN_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    const applied = Array.isArray(result.applied) ? result.applied : [];
+    expect(applied).toHaveLength(1);
+    expect(applied[0]).toEqual(
+      expect.objectContaining({
+        status: 'approved',
+        approved_by: USER_ID,
+        approved_at: '2026-06-01T12:00:00.000Z',
+      }),
+    );
+    const assignmentUpdate = calls.find((call) => normalize(call.sql).startsWith('update public.scheduler_assignments'));
+    expect(normalize(assignmentUpdate?.sql ?? '')).toContain("status = 'approved'");
+    expect(assignmentUpdate?.params[1]).toBe(USER_ID);
+  });
+
+  it('filters rejected and cancelled assignments out of the apply set', async () => {
+    await applySchedule(RUN_ID);
+
+    const loadCall = calls.find((call) => normalize(call.sql).includes('from public.scheduler_assignments'));
+    expect(normalize(loadCall?.sql ?? '')).toContain("status not in ('rejected', 'cancelled')");
+  });
+
+  it('emits planning.schedule.published for an apply attempt', async () => {
+    await applySchedule(RUN_ID);
+
+    expect(
+      calls.some(
+        (call) =>
+          normalize(call.sql).startsWith('insert into public.outbox_events') &&
+          call.params[0] === 'planning.schedule.published',
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('scheduler RBAC gates', () => {
+  it('uses the scheduler-specific permission strings', async () => {
+    await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
+    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
+      'scheduler.run.dispatch',
+    );
+
+    calls = [];
+    await applySchedule(RUN_ID);
+    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
+      'scheduler.run.dispatch',
+    );
+
+    calls = [];
+    await upsertChangeoverMatrixEntry({ id: '66666666-6666-4666-8666-666666666666', changeover_minutes: '15.00' });
+    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
+      'scheduler.matrix.edit',
+    );
+
+    calls = [];
+    await listChangeoverMatrix();
+    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
+      'scheduler.matrix.read',
+    );
   });
 });
