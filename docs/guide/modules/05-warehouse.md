@@ -21,7 +21,8 @@
 >
 > Routes are written without the `[locale]` prefix. Last reviewed against the
 > uncommitted working tree (W9 putaway/move/pick + destination-location, R3 receipt
-> corrections + LP-metadata, mig-318 stock-count adjustments).
+> corrections + LP-metadata, mig-318 stock-count adjustments, W11 direct
+> stock-adjustment + mig-328 reason-CHECK/approver).
 
 ---
 
@@ -39,6 +40,10 @@ production line), **consumed** by production (08-production decrements the LP), 
 (**cancel the GRN line** → LP `returned`; **correct LP metadata** in place) and the
 ledger is reconciled by **stock counts** (cycle/full/spot) whose variance is applied
 under a **CFR-21 e-signature** as a real `stock_adjustments` + `stock_moves` entry.
+A one-off LP-level **direct stock adjustment** (`/warehouse/adjustments/new`) covers
+the same `stock_adjustments`/`stock_moves` write without a count session — an
+operator adds found stock (mints a QA-hold LP) or removes damaged/expired stock
+(supervisor-countersigned, FEFO-drained).
 
 The pickability rule is enforced once, in the **`v_inventory_available` view**
 (mig 191): a row is only consumable/pickable when `status='available'` **and**
@@ -130,6 +135,26 @@ and `counts/_actions/count-actions.ts`. The scanner write logic is
 | `recordCount({sessionId,locationId,itemId,lpId?,countedQty,batchNumber?,expiryDate?})` | Record a counted qty for a (location, item, LP) slot. Reads live system qty from `v_inventory_available`, computes `variance = counted − system` (NUMERIC-exact), upserts a `count_lines` row (`status='counted'`); optional batch/expiry stashed as an audit metadata row for an increase-LP. | reads `v_inventory_available`; writes `count_lines`, `audit_events` | `warehouse.stock.adjust` | re-count (re-upsert) |
 | `approveAndApplyVariance({countLineId,signature})` | **Apply the variance** under a **CFR-21 e-signature** (`signEvent`, intent `warehouse.stock.adjust`, PIN/password). Re-reads live on-hand and **refuses if stock moved since counting** (`stock_changed_recount_required`); recomputes variance. **Increase** → mints a new `available/released` adjustment LP (origin `adjustment`); **decrease** → FEFO-drains existing LPs (`stock_count_shrinkage`, an LP hitting 0 → `destroyed`). Writes `stock_adjustments` + signed `stock_moves` (`move_type='adjustment'`) + audit, marks the line `applied`. | reads `v_inventory_available`, `license_plates`, `items`; writes `e_sign_log`, `license_plates`, `lp_state_history`, `stock_adjustments`, `stock_moves`, `count_lines`, `audit_events` | `warehouse.stock.adjust` + e-sign | counter-count + re-apply (no one-click undo) |
 
+### Direct stock adjustment (mig 328) — `warehouse/_actions/direct-adjust-actions.ts` + `adjustments/_actions/adjust-form-actions.ts`
+
+> A one-off, **LP-level** add/remove that books a real `stock_adjustments` +
+> `stock_moves(move_type='adjustment')` entry **without a count session** — the
+> non-cycle-count sibling of `approveAndApplyVariance`. Lives at
+> `/warehouse/adjustments/new` (`adjustments/new/page.tsx`, RBAC-gated server-side by
+> `getDirectAdjustFormContext` → `warehouse.stock.adjust`), realising the warehouse
+> M-03 stock-move modal (`prototypes/design/Monopilot Design System/warehouse/modals.jsx:396-499`).
+> The single mutation is `applyDirectAdjustment`; the form's reads are three additive
+> lookups in `adjust-form-actions.ts`. All qty maths are NUMERIC-exact (`toMicro`/
+> `microToDecimal`, never a JS float).
+
+| Action (file) | What it does | Reads / writes | Gate | Reverse |
+|---|---|---|---|---|
+| `applyDirectAdjustment(input)` (`_actions/direct-adjust-actions.ts`) | **The mutation.** One `withOrgContext` txn. **Increase** (no `lpId`) → mints a NEW adjustment LP born `status='available'`, **`qa_status='pending'` (QA-hold)**, origin `adjustment`. **Decrease** → warehouse-scoped, FEFO-ordered (`expiry asc nulls last`) `for update` LP selection (`direct-adjust-actions.ts:145-164`), TOCTOU-safe drain (`quantity - qty >= reserved_qty` guard, an LP hitting 0 → `destroyed`); requires a **DISTINCT supervisor** (SoD) holding `warehouse.stock.adjust` + their **PIN**. e-signs (`signEvent`, intent `warehouse.stock.adjust`, initiator PIN/password); idempotent via `pg_advisory_xact_lock(hashtextextended(clientOpId))` + a `stock_moves(org_id, transaction_id)` replay short-circuit. Reason ∈ `{found_stock, spillage_damage, expiry_write_off, data_entry_error, system_sync, other}`; passing `lpId` on an increase is refused (`use_count_session`). | reads `license_plates`, `warehouses`, `locations`, `user_pins`, `user_roles`/`roles`; writes `license_plates`, `stock_adjustments`, `stock_moves`, `lp_state_history`, `e_sign_log` | `warehouse.stock.adjust` (+ initiator e-sign; **+ distinct-supervisor PIN + grant on decrease**) | counter-adjustment + re-apply (no one-click undo) |
+| `getDirectAdjustFormContext()` (`adjustments/_actions/adjust-form-actions.ts`) | Page gate — returns `{ canAdjust:true }` or `forbidden` (rendered as the denied panel; the page never trusts a client flag). | reads `user_roles`/`roles`/`role_permissions` | `warehouse.stock.adjust` | — (read) |
+| `searchAdjustItems({query?})` | Item picker. Wraps the org-scoped `searchItems` but widens the fan-out to **all stocked types** (`fg/rm/ingredient/intermediate/co_product/byproduct/packaging`) — any stocked item can be adjusted. | reads `items` (RLS-pinned) | (form-gated by the page) | — (read) |
+| `searchEligibleSupervisors({query?})` | Supervisor combobox for a **decrease**: org users **≠ caller** who hold `warehouse.stock.adjust` AND have an enrolled PIN (name/email match, cap 20). Advisory only — `applyDirectAdjustment` re-verifies SoD + grant + PIN in-txn. | reads `users`, `user_roles`, `roles`, `role_permissions`, `user_pins` | `warehouse.stock.adjust` | — (read) |
+| `listDecreaseLps({locationId,itemId})` | Optional "specific pallet (LP)" picker for a decrease — the `available`/`released`/unreserved LPs at the location for the item, **FEFO-ordered** (mirrors the mutation's selection). | reads `license_plates` | `warehouse.stock.adjust` | — (read) |
+
 ### Scanner — receive (shared with Purchasing) — `lib/warehouse/scanner/receive-po.ts`
 
 | Action (route) | What it does | Reads / writes | Gate | Reverse |
@@ -150,7 +175,7 @@ and `counts/_actions/count-actions.ts`. The scanner write logic is
 | `listPickWorkOrders` (`GET …/scanner/pick/wos`) / `listFefoLps` (`GET …/scanner/pick/lps`) | Pickable WOs (RELEASED / in_progress / paused, line-scoped) + the FEFO-ordered LP candidates for a material (`v_inventory_available`, `expiry asc nulls last`). | reads `work_orders`, `wo_executions`, `wo_materials`, `items`, `production_lines`, `v_inventory_available`, `locations` | scanner session (`warehouse.scanner.pick.wos` / `.pick.lps`) | — (read) |
 | `getScannerLpDetail` via `GET …/scanner/location` | Scan/resolve a location code (validity for the move/putaway destination). | reads `locations` | scanner session (`warehouse.scanner.location.lookup`) | — (read) |
 
-**Action count inventoried: 32** — 2 LP reads, 2 GRN reads, 5 inventory/expiry/movements/locations/genealogy reads, 1 stock move, 3 reservations (+ open-WO picker), 3 LP-QA/block/unblock, 2 receipt corrections, 5 count, 3 scanner receive, 6 scanner putaway/move/pick + lookups. The write core is: `receiveScannerPoLine`, `releaseLpQa`, `moveScannerLp` (putaway/transfer), `pickScannerLp`, `createStockMove`, `reserveLp`/`releaseReservation`, `blockLp`/`unblockLp`, `cancelGrnLine`/`updateLpMetadata`, and `approveAndApplyVariance`.
+**Action count inventoried: 37** — 2 LP reads, 2 GRN reads, 5 inventory/expiry/movements/locations/genealogy reads, 1 stock move, 3 reservations (+ open-WO picker), 3 LP-QA/block/unblock, 2 receipt corrections, 5 count, 5 direct adjustment (1 mutation + 4 reads), 3 scanner receive, 6 scanner putaway/move/pick + lookups. The write core is: `receiveScannerPoLine`, `releaseLpQa`, `moveScannerLp` (putaway/transfer), `pickScannerLp`, `createStockMove`, `reserveLp`/`releaseReservation`, `blockLp`/`unblockLp`, `cancelGrnLine`/`updateLpMetadata`, `approveAndApplyVariance`, and `applyDirectAdjustment`.
 
 > The **Inbound schedule** screen (`/warehouse/inbound`) and the **Locations tree**
 > (`/warehouse/locations`) add **no new actions** — inbound reuses Purchasing/Planning's
@@ -338,7 +363,40 @@ a wrong line. (See *06-purchasing.md* for the full PO-side receiving overlap.)
    `stock_adjustments` + a signed `adjustment` `stock_moves` row and marks the line
    `applied`.
 
-### (viii) Cancel / correct a wrong receipt
+### (viii) Direct stock adjustment (no count session)
+
+> Use this for a **one-off** found-stock / damage / write-off correction on a known
+> location+item — **not** a full reconciliation. For a session-based blind count whose
+> variance you review and apply, use **(vii) stock count** instead. Both write the same
+> `stock_adjustments`/`stock_moves` ledger; this one skips the `count_sessions` wrapper.
+
+1. Warehouse hub → **Adjustments** card (`/warehouse/adjustments/new`; the hub card is
+   wired in `warehouse/page.tsx:71-75`). Gated on `warehouse.stock.adjust` — a holder
+   without it sees an access-denied panel.
+2. Pick a **location** (site + warehouse derived from it), an **item** (`searchAdjustItems`
+   — any stocked type), a **direction**, a **quantity** + **UoM**, and a **reason code**
+   (`found_stock / spillage_damage / expiry_write_off / data_entry_error / system_sync /
+   other`; free-text required on `other`).
+3. **Increase (add found stock):** optionally enter **batch / best-before**, then your
+   **e-sign PIN/password** → `applyDirectAdjustment` mints a **new LP** at
+   `qa_status='pending'` (a **QA-hold** — it is not FEFO-consumable until QA releases
+   it, exactly like a received LP). Passing a specific LP on an increase is refused
+   (`use_count_session`) — top up via a count instead.
+4. **Decrease (remove damaged/expired):** optionally pin a **specific pallet (LP)**
+   (`listDecreaseLps`, else the server FEFO-drains the location); then **two people sign**
+   — your own e-sign PIN **and** a **distinct supervisor** (`searchEligibleSupervisors`)
+   who independently holds `warehouse.stock.adjust` and enters **their** PIN. The
+   supervisor cannot be you (`supervisor_self_approval`), must be enrolled
+   (`supervisor_pin_not_enrolled`) and is re-checked in-txn
+   (`supervisor_pin_invalid` / `_locked` / `supervisor_forbidden`). This mirrors the
+   scanner over-consume / reverse-consume second-person gate. The server FEFO-drains
+   `available`/`released`/unreserved LPs (an LP zeroed → `destroyed`) and refuses if
+   there isn't enough unreserved stock (`insufficient_unreserved` / `insufficient_stock`).
+5. On success you get the **affected LP** number. Re-submitting the same operation is a
+   safe no-op (idempotent on `clientOpId`). There is no one-click undo — reverse with a
+   counter-adjustment.
+
+### (ix) Cancel / correct a wrong receipt
 
 1. `/warehouse/grns/[grnId]` → on an active line click **Cancel** (visible only if you
    hold `warehouse.receipt.correct` and the GRN isn't cancelled).
@@ -351,7 +409,7 @@ a wrong line. (See *06-purchasing.md* for the full PO-side receiving overlap.)
    (`updateLpMetadata`) from the LP screen to fix expiry/batch in place (audited; same
    `warehouse.receipt.correct` gate). Refused on terminal/`returned` LPs.
 
-### (ix) Block / unblock an LP (warehouse-side hold)
+### (x) Block / unblock an LP (warehouse-side hold)
 
 1. `/warehouse/license-plates/[lpId]` → **Block** → reason → `blockLp` opens a real
    `quality_holds` row and flips the LP `blocked`/`on_hold` (gated `warehouse.lp.block`).
@@ -369,7 +427,7 @@ Core LP / receipt / movement (read/write, 05-warehouse canonical):
 - `lp_genealogy` — child↔parent LP edges (`consumed`/`derived`), traversed by `queryGenealogy`.
 - `grns` / `grn_items` — GRN header (day-draft, source_type='po') + receipt lines (received_qty, po_line_id, lp_id, `cancelled_at`/reason).
 - `stock_moves` — explicit move ledger (`putaway`/`transfer`/`issue`/`adjustment`; idempotent on `(org_id, transaction_id)`).
-- `count_sessions` / `count_lines` / `stock_adjustments` — stock-count sessions, counted lines + variance, applied adjustments (mig 318).
+- `count_sessions` / `count_lines` / `stock_adjustments` — stock-count sessions, counted lines + variance, applied adjustments (mig 318). `stock_adjustments` is **also** written by the direct adjustment (mig 328 adds `approved_by` + a reason-code CHECK constraining `reason` to the 6 direct-adjust codes + a SoD CHECK `approved_by <> applied_by`).
 - `locations` / `warehouses` — facility tree + warehouse master (read for moves, putaway, tree, default-location resolution).
 - `warehouse_storage_settings` — `expiry_warning_days` per warehouse (expiry tiers).
 
@@ -383,10 +441,11 @@ Views / cross-module reads:
 - `quality_holds` / `quality_hold_items` / `quality_inspections` — block writes a hold; receive opens a GRN-QC inspection when the flag is on (09-quality-owned).
 - `tenant_variations` — `feature_flags->require_grn_qc_inspection` (read).
 - `print_jobs` — LP/label print history (E1; read via `listPrintJobs`).
+- `users` / `user_roles` / `roles` / `role_permissions` / `user_pins` — the direct-adjustment SoD gate (read): `searchEligibleSupervisors` lists distinct PIN-enrolled `warehouse.stock.adjust` holders and `applyDirectAdjustment` re-verifies the supervisor's grant + PIN in-txn.
 
 Governance / events:
 
-- `e_sign_log` — CFR-21 e-sign for `approveAndApplyVariance` (intent `warehouse.stock.adjust`).
+- `e_sign_log` — CFR-21 e-sign for `approveAndApplyVariance` **and** `applyDirectAdjustment` (intent `warehouse.stock.adjust`; the direct decrease additionally verifies a distinct supervisor's PIN against `user_pins`).
 - `audit_events` — receipt corrections (`warehouse.receipt.corrected`, `warehouse.lp.metadata_corrected`), stock adjustments (`warehouse.stock.adjusted`, `warehouse.stock.count_metadata_recorded`).
 - `outbox_events` — `warehouse.lp.received` (receive), `warehouse.lp.transitioned` (QA release + putaway promotion), `quality.hold.created` (block).
 - `scanner_audit_log` — scanner receive/putaway/move/pick idempotency + audit (`(org_id, client_op_id)`).
@@ -442,12 +501,24 @@ Grounded in the code that was read — no guesses:
    `merged`: no `mergeLp`/`splitLp` action was found in `warehouse/_actions/**` or
    `lib/warehouse/**`. The statuses/permissions exist; the operations don't (yet).
 
-9. **The Inbound schedule and Locations tree own no data layer of their own.** Inbound
+9. **Direct adjustment doesn't yet write `stock_adjustments.approved_by`.** Mig 328
+   adds the first-class `approved_by` column (+ a SoD CHECK `approved_by <> applied_by`),
+   but `applyDirectAdjustment`'s `insertStockAdjustment` INSERT does **not** populate it
+   — the countersigning supervisor is currently persisted only in
+   `stock_moves.ext_jsonb.supervisor_approved_by` (and `lp_state_history.ext`). Wiring it
+   into the `stock_adjustments` row is a flagged follow-up (mig 328 header self-documents
+   this). Likewise the reason-code and SoD CHECKs are `NOT VALID` (guard new rows only,
+   to stay legacy-safe over old cycle-count rows). Also: there is **no distinct
+   `warehouse.stock.adjust.approve` permission** — the supervisor SoD gate reuses
+   `warehouse.stock.adjust` itself (same elevated grant the initiator holds), so any
+   second adjuster qualifies as a supervisor.
+
+10. **The Inbound schedule and Locations tree own no data layer of their own.** Inbound
    reuses Planning's PO + TO list actions and Locations reuses `listLocations` +
    `listLPs` (counts computed client-side, capped) — flagged so the reader doesn't look
    for `warehouse/inbound/_actions` or a `locationTree` action (there are none).
 
-10. **`apps/worker` outbox consumer does not run.** `warehouse.lp.received` /
+11. **`apps/worker` outbox consumer does not run.** `warehouse.lp.received` /
     `warehouse.lp.transitioned` / `quality.hold.created` are persisted to
     `outbox_events` but there is no live dispatcher (per `MON-project-overview`), so
     downstream reactions are a seam, not yet delivered.

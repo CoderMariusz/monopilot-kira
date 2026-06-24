@@ -22,13 +22,17 @@
 >
 > Routes are written without the `[locale]` prefix. Last reviewed against the
 > uncommitted working tree (W11 reverse-consume, scanner reverse-consume
-> supervisor-PIN flag, labor clock-in/out, scanner QC inspect).
+> supervisor-PIN flag, labor clock-in/out, scanner QC inspect, **camera/barcode
+> scanning** — the `@zxing`-backed `CameraScannerOverlay` now wired into all six
+> scan-input screens; see *§d(viii)*).
 
 ---
 
 ## a. Overview
 
-The Scanner replaces a desktop mouse with a **PIN + a barcode**. An operator logs
+The Scanner replaces a desktop mouse with a **PIN + a barcode** (typed, read by a
+hardware wedge, or — now — captured by the **device camera** via the
+`@zxing`-backed viewfinder overlay; *§d(viii)*). An operator logs
 in with **email + numeric PIN** (not a Supabase cookie session), picks a
 **site / line / shift** context, and then drives the shop floor from a tile grid:
 **Production** (work orders → consume / register output / waste / reverse), 
@@ -236,6 +240,18 @@ so the scanner registers it explicitly:
 > (`(scanner)/_components/scanner-*labels`); the home tile grid is
 > `home-screen.tsx:31-56`. Tiles whose screens aren't built are rendered
 > **disabled** with `title="Coming soon"` (`home-screen.tsx:118-120`).
+>
+> Every screen that scans a code does it through the shared `ScanInputArea`
+> primitive (`scanner-primitives.tsx:404-490`) — type/wedge into the field **or**
+> tap **📷 Camera** to open the camera viewfinder (*§d(viii)*). The camera is
+> wired into **all six** scan-input screens: **Move LP**
+> (`move-screen.tsx:269,333`), **Putaway** (`putaway-screen.tsx:273,427`),
+> **Pick** (`pick-screen.tsx:358,367` — two overlays: WO search + staging
+> location, opened by `setWoCameraOpen`/`setDestCameraOpen` at `:441,546`),
+> **LP info** (`lp-info-screen.tsx:103,123`), **QC inspect**
+> (`qa-screen.tsx:167,229`), and **Receive PO** (`receive-po-list-screen.tsx:80,99`).
+> A screen that doesn't pass `onOpenCamera` shows the Camera button **disabled**
+> instead of a dead no-op (`scanner-primitives.tsx:466-475`).
 
 ### (i) Enrol a PIN + log in
 
@@ -309,6 +325,41 @@ the PIN session is the identity.
 - **Print label:** scan an LP → **Print** (`POST /api/scanner/print-label`) mints a
   `print_jobs` row; needs any of `settings.org.update` / `warehouse.grn.receive` /
   `warehouse.stock.move` / `production.output.write`.
+
+### (viii) Scan a barcode with the device camera
+
+Every scan-input screen exposes a **📷 Camera** button beside the manual field
+(`scanner-primitives.tsx:466-478`). Tapping it opens a **full-screen
+viewfinder overlay** (`CameraScannerOverlay`) that runs a real continuous decode
+over the phone's rear camera; the decoded code is handed back to the same lookup /
+submit handler the manual field already feeds, so there is **one** downstream path
+whether you type, scan with a hardware wedge, or scan with the camera.
+
+- The overlay grabs the camera with `getUserMedia({ video: { facingMode:
+  'environment' } })` and decodes via `@zxing/browser`'s
+  `BrowserMultiFormatReader` (`camera-scanner-overlay.tsx:143-196`). A reticle +
+  animated scan-line show the target; a **torch** round-button appears only where
+  the device reports torch capability, and a **flip-camera** button switches
+  front/back (`camera-scanner-overlay.tsx:438-509`).
+- On a hit the overlay flashes `✓ <code>` for ~600 ms, then calls `onDecode(code)`
+  and the host closes it + runs the lookup (e.g. `move-screen.tsx:269-278`,
+  routing the scanned value into `lookupLp`).
+- **Permission denied** (`NotAllowedError`) and **no-camera** (`NotFoundError`,
+  e.g. a desktop) both render an in-overlay panel with an **"Enter manually"**
+  button that returns you to the focused manual field
+  (`camera-scanner-overlay.tsx:147-153, 396-435`) — the camera is never a dead end.
+- Closing, cancelling, hardware-back, or a camera flip **tears down the decoder
+  and stops every `MediaStream` track** (`camera-scanner-overlay.tsx:99-122,
+  210-214`), so the camera light is never left on.
+
+> **Caveats.** `getUserMedia` is **HTTPS-only** (fine on Vercel; localhost is
+> exempt). **iOS Safari requires a user gesture** to start the camera — the
+> Camera-button tap supplies it, but the overlay cannot auto-open on mount.
+> **Torch is not universally supported** (absent on iOS Safari + most desktops),
+> so the control is shown only behind a capability probe and otherwise rendered
+> disabled (`camera-scanner-overlay.tsx:160-168, 472-491`). All overlay copy is
+> localized via the `cameraScanner` label block (`scanner-labels.ts:418-428` EN /
+> `:871-881` PL).
 
 ---
 
@@ -452,6 +503,18 @@ Config / reference / governance:
 ## h. Known gaps / TODO
 
 Grounded in the code that was read — no guesses:
+
+> **No longer a gap — camera/barcode scanning is shipped.** Earlier reviews
+> listed camera scanning as unbuilt (a dead **Camera** no-op button / deferred
+> "SCN" wave). It is now **implemented**: `CameraScannerOverlay`
+> (`components/shell/camera-scanner-overlay.tsx`) runs a real `@zxing/browser`
+> `BrowserMultiFormatReader` continuous decode over `getUserMedia`, and the
+> `ScanInputArea` Camera button is wired (`scanner-primitives.tsx:466-478`) across
+> all six scan-input screens (*§d(viii)* + the §d header note). The deps
+> `@zxing/browser` + `@zxing/library` are in `apps/web/package.json:33-34`. What
+> remains for full hardware coverage is environmental, not a missing feature:
+> HTTPS-only `getUserMedia`, the iOS-Safari user-gesture requirement, and
+> device-dependent torch support (all called out in *§d(viii)*).
 
 1. **The offline sync queue is built but UNWIRED.** `packages/sync-queue`
    (IndexedDB `enqueue`/`listPending`/`flusher` + UUID-v7 `generateTransactionId`,
