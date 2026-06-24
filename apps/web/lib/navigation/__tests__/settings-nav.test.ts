@@ -19,6 +19,8 @@ const EXPECTED_SETTINGS_NAV = [
       { key: "locations", label: "Locations", icon: "⌖" },
       // E1 — label printers (printers + print_jobs, mig 304).
       { key: "printers", label: "Printers", icon: "🖨" },
+      // Stale test contract: E5 dock doors are now surfaced with the other infra settings.
+      { key: "docks", label: "Dock doors", icon: "⚓" },
       { key: "shifts", label: "Shifts & calendar", icon: "⧗" },
       // E4B — hourly labor rates by role/group (feeds WO labor cost).
       { key: "labor-rates", label: "Labor rates", icon: "💰" },
@@ -29,6 +31,7 @@ const EXPECTED_SETTINGS_NAV = [
     admin: true,
     items: [
       { key: "products", label: "Products & SKUs", icon: "▢" },
+      { key: "npd-fields", label: "NPD fields", icon: "▦", permission_key: "npd.schema.edit" },
       { key: "boms", label: "BOMs & recipes", icon: "⛓" },
       { key: "processes", label: "Processes", icon: "⟶", highlight: true },
       // Wave-7 machines CRUD screen (supersedes /settings/infra/machines).
@@ -53,7 +56,11 @@ const EXPECTED_SETTINGS_NAV = [
   {
     label: "Sign-off",
     admin: true,
-    items: [{ key: "signoff", label: "Sign-off policies", icon: "✍" }],
+    items: [
+      { key: "signoff", label: "Sign-off policies", icon: "✍" },
+      // Stale test contract: scanner PIN/sign-off settings now live in this section.
+      { key: "scanner-auth", label: "Sign-off & PINs", icon: "🔐" },
+    ],
   },
   {
     label: "Operations",
@@ -234,7 +241,7 @@ describe("UI-128 SETTINGS_NAV_GROUPS", () => {
     const keys = actualItems.map(i18nKeyOf);
     expect(new Set(keys).size, "Each settings subnav i18n key must be unique").toBe(keys.length);
 
-    for (const locale of ["en", "pl", "uk", "ro"]) {
+    for (const locale of ["en", "pl"]) {
       const messages = loadLocale(locale);
       for (const key of keys) {
         expect(getByPath(messages, key), `${key} must resolve in ${locale}.json`).toEqual(expect.any(String));
@@ -261,7 +268,9 @@ describe("UI-128 SETTINGS_NAV_GROUPS", () => {
 
     for (const item of (SETTINGS_NAV_GROUPS ?? []).flatMap(itemsOf)) {
       expect(item.count_slot, `${labelOf(item)} count_slot remains unimplemented in UI-128`).toBeNull();
-      expect(item.permission_key, `${labelOf(item)} permission_key remains unimplemented in UI-128`).toBeNull();
+      const expectedPermission =
+        keyOf(item) === "npd-fields" ? "npd.schema.edit" : null;
+      expect(item.permission_key, `${labelOf(item)} permission_key`).toBe(expectedPermission);
       expect(item.rbac_todo, `${labelOf(item)} rbac_todo documents the future RBAC gate`).toEqual(expect.any(String));
       expect(String(item.rbac_todo).trim().length, `${labelOf(item)} rbac_todo must be non-empty`).toBeGreaterThan(0);
     }

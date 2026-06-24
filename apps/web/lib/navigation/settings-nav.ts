@@ -1,8 +1,15 @@
-import type { SettingsNavGroup, SettingsNavItem } from "./types";
+import type { SettingsNavGroup, SettingsNavItem, SettingsPermissionKey } from "./types";
 
 const RBAC_TODO = "UI-128 keeps settings navigation ungated; wire permission_key in the future RBAC module.";
 
-const item = (key: string, label: string, icon: string, highlight = false, route = `/settings/${key}`): SettingsNavItem => ({
+const item = (
+  key: string,
+  label: string,
+  icon: string,
+  highlight = false,
+  route = `/settings/${key}`,
+  permissionKey: SettingsPermissionKey = null,
+): SettingsNavItem => ({
   key,
   label,
   i18n_key: `Navigation.settings.items.${key.replaceAll("-", "_")}`,
@@ -10,7 +17,7 @@ const item = (key: string, label: string, icon: string, highlight = false, route
   icon_token: icon,
   ...(highlight ? { highlight: true } : {}),
   count_slot: null,
-  permission_key: null,
+  permission_key: permissionKey,
   rbac_todo: RBAC_TODO,
 });
 
@@ -45,6 +52,7 @@ export const SETTINGS_NAV_GROUPS = [
   ]),
   group("data", "Data", true, [
     item("products", "Products & SKUs", "▢"),
+    item("npd-fields", "NPD fields", "▦", false, "/settings/npd-fields", "npd.schema.edit"),
     item("boms", "BOMs & recipes", "⛓"),
     item("processes", "Processes", "⟶", true),
     item("machines", "Machines", "⚙"),
