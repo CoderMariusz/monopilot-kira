@@ -141,3 +141,25 @@ create→persist→edit→cross-ref). OPEN list, expect more of this class every
       (re-verified 2026-06-24, deploy c4872e9d)
 - [!] dock doors page — STILL "Coś poszło nie tak" (2nd cause = yard-labels function props, see mig-323 line above).
 - [ ] (after fix) "Add machine" button matches the other +Add buttons. — NOT RE-TESTED this tick (no fix shipped yet).
+
+## RE-VERIFY ROUND 1 → fixes in flight (2026-06-24 ~mid-morning)
+Re-verify of c4872e9d FAILED A & C and exposed real root causes (my earlier Bug-1 fix was the wrong layer):
+- **Fix 1 — sites&lines 42P10** (drop DISTINCT in queryLinesForSite) — DONE `8ecbb0ee`, live-query-verified. RE-VERIFY pending redeploy.
+- **Fix 2 — scheduler 42702** (MATRIX_SELECT_CM cm-qualified in the join) — DONE `8ecbb0ee`, live-query-verified. RE-VERIFY pending.
+- **Fix 3 — yard whole-module crash** (function-valued label props Server→Client → build labels client-side; 4 views + 4 pages) — DONE (yard lane), typecheck + 25/25 RTL. RE-VERIFY pending.
+
+### NEW L1s flagged by the yard lane — SAME crash pattern (server→client function props), NOT yet fixed:
+- **`/settings/integrations`** — `settings/integrations/page.tsx:422-428` passes function-valued `IntegrationLabels`
+  (`categorySummary`, `connectedBadge`, …) into client `<CategoryAccordion>` → identical crash. Fix: build those labels client-side.
+- **`/quality/trace`** — `quality/trace/page.tsx:90` passes `buildDetailHref={(type,nodeId)=>…}` (a raw function) into
+  client `<TraceWorkbench>` → identical crash. Fix: build the href client-side (or pass serialisable data).
+- (Cleared safe by the lane: reporting, planning/mrp, production tables, settings/notifications+email — those function-labels stay server-side.)
+
+### Still queued
+- **L2 cycle-count list doesn't refresh after create** (`/warehouse/counts`) — same class as the sites refresh.
+- `gi.item_id` cold-chain — re-verify saw it GONE on temp-ranges; needs a targeted check on the GRN-line temp-save path before closing.
+
+### LESSONS (process)
+- NEVER gate a build with `… | tail` — the pipe's exit code masks `next build` failure. Use `build > log 2>&1; echo EXIT=$?`.
+- NEVER run a build while a concurrent edit lane is mid-refactor (it catches a half-done tree). Wait for the lane to commit.
+- Root-cause by READING code is insufficient — REPRODUCE the live error (the a953 lane reasoned "cache race"; the real bug was a 42P10 the query throws). Verify the fixed query live before trusting.
