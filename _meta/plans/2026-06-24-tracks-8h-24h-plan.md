@@ -180,3 +180,20 @@ Re-verify of c4872e9d FAILED A & C and exposed real root causes (my earlier Bug-
 - [x] **G — PO cancel-with-stock** — PASS (server guard verified) + META L2 #8 (no cancel UI) + Reopen button absent.
 - NEW L1 #6: **desktop WO consume silently fails** (`consume-material-actions.ts` recordDesktopConsumption → generic error, writes nothing). Core production consume broken on desktop.
 - NEW L3 #9: `/pl/production/work-orders/[id]` leaks WO-state JSON to the browser (API route.ts under locale UI segment).
+
+## OWNER DECISION (2026-06-24) — scanner-reverse auth = SECURE (no mig 322)
+operator-PIN-only mode STILL requires the operator to hold `production.consumption.correct` →
+only leads/supervisors can reverse. Do NOT seed the perm to scanner-operator roles (no mig 322).
+Already implemented by the M1 fix (5 commits). Decision: locked.
+
+## RE-VERIFY 2 outcome (deploy 1142f7f0) + new bugs
+PASS: B scheduler · C yard · D integrations · E trace · F roles-enum · G PO-guard (6/7).
+- **A Sites&Lines = FAIL (3rd layer)**: 42P10 fixed + create/persist OK, but `queryLinesForSite`
+  returns [] under withOrgContext while `querySites` works. NOT a grant (app_user SELECT verified on
+  production_lines/shift_patterns/locations/sites). Root-cause lane dispatched.
+- **#6 L1 desktop WO consume silently fails** (`recordDesktopConsumption`) — core flow; root-cause lane dispatched.
+- L2: #7 integrations "Przeglądaj katalog" dead click · #8 PO cancel has NO UI affordance (guard works) ·
+  Reopen button still absent.
+- L3: #9 /pl/production/work-orders/[id] leaks WO-state JSON (API route under locale UI seg) · appointment
+  UTC offset (09:00→08:00) · LP warehouse shows "FG" (seed) · some English labels in /pl.
+- NEW enum drift (Warehouse doc): `warehouse.receipt.correct` seeded (293/296) but absent from the enum.
