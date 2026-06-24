@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { AppSidebar } from '../../../components/shell/app-sidebar';
 import { AppTopbar } from '../../../components/shell/app-topbar';
-import { createServerSupabaseClient } from '../../../lib/auth/supabase-server';
+import { createServerSupabaseClient, getCachedUser } from '../../../lib/auth/supabase-server';
 import { APP_NAV_GROUPS } from '../../../lib/navigation/app-nav';
 import { filterNavGroupsByPermissions } from '../../../lib/navigation/filter-nav';
 import { getNavPermissionContext } from '../../../lib/navigation/nav-permissions';
@@ -126,8 +126,7 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
   let authError: unknown = null;
 
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase.auth.getUser();
+    const { data, error } = await getCachedUser();
     supabaseUser = data.user as AuthenticatedUser | null | undefined;
     authError = error;
   } catch (caught) {

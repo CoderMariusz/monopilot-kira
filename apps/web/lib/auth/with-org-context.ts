@@ -67,7 +67,7 @@
 import { randomUUID } from 'node:crypto';
 import { cache } from 'react';
 import pg from 'pg';
-import { createServerSupabaseClient } from './supabase-server';
+import { getCachedUser } from './supabase-server';
 
 const { Pool } = pg;
 
@@ -168,11 +168,9 @@ async function resolveContextFromTestStub(): Promise<{ userId: string; orgId: st
  * (each app connection needs its own org binding) — only the resolution is shared.
  */
 const resolveContextFromSupabase = cache(async function resolveContextFromSupabase(): Promise<{ userId: string; orgId: string }> {
-  const supabase = await createServerSupabaseClient();
-
   // getUser() verifies the JWT against Supabase JWKS. NEVER use getSession()
   // for trust decisions — it returns whatever cookies hold without verifying.
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await getCachedUser();
   if (error || !data?.user?.id) {
     throw new Error(
       `withOrgContext: Supabase JWT verification failed${error ? `: ${error.message}` : ''}`,

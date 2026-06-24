@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   }),
   createServerSupabaseClient: vi.fn(),
   getUser: vi.fn(),
+  cachedUserPromise: undefined as Promise<unknown> | undefined,
   topbarCalls: [] as Array<Record<string, unknown>>,
   sidebarCalls: [] as Array<Record<string, unknown>>,
   loadAuditCallerAccess: vi.fn(),
@@ -45,6 +46,13 @@ vi.mock('next-intl/server', () => ({
 
 vi.mock('../../../../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
+  createCachedServerSupabaseClient: mocks.createServerSupabaseClient,
+  getCachedUser: async () => {
+    mocks.cachedUserPromise ??= Promise.resolve()
+      .then(() => mocks.createServerSupabaseClient())
+      .then((supabase) => supabase.auth.getUser());
+    return mocks.cachedUserPromise;
+  },
 }));
 
 vi.mock('../../../../../../components/shell/app-topbar', () => ({
@@ -262,6 +270,7 @@ describe('SET-013 audit log viewer prototype parity and partition-aware query', 
     vi.clearAllMocks();
     mocks.topbarCalls.length = 0;
     mocks.sidebarCalls.length = 0;
+    mocks.cachedUserPromise = undefined;
     setAuthenticatedShellUser();
     window.history.replaceState(null, '', '/en/settings/audit');
   });
@@ -473,6 +482,7 @@ describe('SET-013 audit log viewer real-data wiring (no forbidden-by-default, no
     vi.clearAllMocks();
     mocks.topbarCalls.length = 0;
     mocks.sidebarCalls.length = 0;
+    mocks.cachedUserPromise = undefined;
     setAuthenticatedShellUser();
     window.history.replaceState(null, '', '/en/settings/audit');
   });

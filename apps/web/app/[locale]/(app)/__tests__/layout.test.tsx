@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   }),
   createServerSupabaseClient: vi.fn(),
   getUser: vi.fn(),
+  cachedUserPromise: undefined as Promise<unknown> | undefined,
   topbarCalls: [] as ShellComponentCall[],
   sidebarCalls: [] as ShellComponentCall[],
 }));
@@ -43,6 +44,13 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('../../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
+  createCachedServerSupabaseClient: mocks.createServerSupabaseClient,
+  getCachedUser: async () => {
+    mocks.cachedUserPromise ??= Promise.resolve()
+      .then(() => mocks.createServerSupabaseClient())
+      .then((supabase) => supabase.auth.getUser());
+    return mocks.cachedUserPromise;
+  },
 }));
 
 // 14-multi-site (CL4): the layout fetches the org's sites + the active-site
@@ -159,6 +167,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.topbarCalls.length = 0;
   mocks.sidebarCalls.length = 0;
+  mocks.cachedUserPromise = undefined;
   setAuthenticatedUser();
 });
 

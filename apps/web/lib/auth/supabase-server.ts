@@ -11,6 +11,7 @@
  */
 
 import { createServerClient } from '@supabase/ssr';
+import { cache } from 'react';
 
 /**
  * Create a server-side Supabase client that reads cookies from the Next.js
@@ -77,3 +78,10 @@ export async function createServerSupabaseClient() {
     cookies: cookieAdapter,
   });
 }
+
+export const createCachedServerSupabaseClient = cache(createServerSupabaseClient);
+
+export const getCachedUser = cache(async function getCachedUser() {
+  const supabase = await createCachedServerSupabaseClient();
+  return supabase.auth.getUser();
+});

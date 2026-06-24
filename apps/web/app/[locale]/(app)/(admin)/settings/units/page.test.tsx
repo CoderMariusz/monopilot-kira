@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   }),
   createServerSupabaseClient: vi.fn(),
   getUser: vi.fn(),
+  cachedUserPromise: undefined as Promise<unknown> | undefined,
   withOrgContext: vi.fn(),
   createUnit: vi.fn(),
   createCustomConversion: vi.fn(),
@@ -46,6 +47,13 @@ vi.mock('./_actions/manage-units', () => ({
 
 vi.mock('../../../../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
+  createCachedServerSupabaseClient: mocks.createServerSupabaseClient,
+  getCachedUser: async () => {
+    mocks.cachedUserPromise ??= Promise.resolve()
+      .then(() => mocks.createServerSupabaseClient())
+      .then((supabase) => supabase.auth.getUser());
+    return mocks.cachedUserPromise;
+  },
 }));
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
@@ -188,7 +196,14 @@ describe('SET-094 Units (UoM) screen parity', () => {
     vi.clearAllMocks();
     mocks.topbarCalls.length = 0;
     mocks.sidebarCalls.length = 0;
+    mocks.cachedUserPromise = undefined;
     mocks.withOrgContext.mockReset();
+    mocks.withOrgContext.mockImplementation(async (callback: (ctx: { client: { query: typeof vi.fn }; userId: string }) => Promise<unknown>) =>
+      callback({
+        userId: 'set-094-user',
+        client: { query: vi.fn(async () => ({ rows: [], rowCount: 0 })) },
+      }),
+    );
     mocks.createUnit.mockReset();
     mocks.createCustomConversion.mockReset();
     mocks.softDeleteUnit.mockReset();

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   }),
   createServerSupabaseClient: vi.fn(),
   getUser: vi.fn(),
+  cachedUserPromise: undefined as Promise<unknown> | undefined,
   topbarCalls: [] as ShellComponentCall[],
   sidebarCalls: [] as ShellComponentCall[],
 }));
@@ -35,6 +36,13 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('../../../../../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
+  createCachedServerSupabaseClient: mocks.createServerSupabaseClient,
+  getCachedUser: async () => {
+    mocks.cachedUserPromise ??= Promise.resolve()
+      .then(() => mocks.createServerSupabaseClient())
+      .then((supabase) => supabase.auth.getUser());
+    return mocks.cachedUserPromise;
+  },
 }));
 
 vi.mock('../../../../../../../components/shell/app-topbar', () => ({
@@ -227,6 +235,7 @@ describe('SET-061 dept taxonomy editor UX route and structure', () => {
     vi.clearAllMocks();
     mocks.topbarCalls.length = 0;
     mocks.sidebarCalls.length = 0;
+    mocks.cachedUserPromise = undefined;
     setAuthenticatedShellUser();
   });
 
