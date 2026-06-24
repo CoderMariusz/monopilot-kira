@@ -102,3 +102,32 @@ Source: `_meta/plans/2026-06-24-browser-audit-findings.md`. Priority order for t
    (careful: also the scheduler perms from #2 likely belong in the enum too).
 6. **L3 polish**: andon OEE shows "-" (not computed); andon tile hrefs omit `/${locale}`;
    `/pl/quality/cold-chain` 404 back-link hardcodes `/en/dashboard`.
+   (NOTE: queue #2 scheduler perms = DONE, mig 324 / 27e60228.)
+
+## OWNER-FOUND LIVE BUGS (2026-06-24, Settings → Sites & Lines + dock doors) — root-cause lane a953 running
+The owner found these just clicking ~3 fields — the tester was TOO SHALLOW (checked page-load, not
+create→persist→edit→cross-ref). OPEN list, expect more of this class everywhere:
+- **L1 Add line does NOT persist the site link** — the site always shows "No production lines are
+  assigned"; the line is created without site_id (or the per-site list query mismatches). DATA INTEGRITY.
+- **L1 No way to edit a created line** — no update affordance/action in Settings Sites & Lines.
+- **L2 Line table omits the warehouse column** (production_lines has warehouse_id).
+- **L1? Dock doors "Something went wrong"** — confirm mig 323 grant fixed it or there's a 2nd cause.
+- **L3 "Add machine" button near-invisible** — plain text vs the blue "+ Add line"/"+ Add process"; wrong variant.
+
+## TRACK-1 RIGOR + VERIFY LOOP (owner mandate 2026-06-24)
+- The tester MUST go DEEP per entity, NOT page-load-only: CREATE a record → confirm it PERSISTS and
+  DISPLAYS everywhere it should (its list, its parent, related settings) → EDIT it → check cross-references
+  and related table columns → REVERSE/delete. The owner found 4 bugs in one create-flow the tester skipped.
+- Tests are LIVE, never mocks — confirm against the running app + the real Supabase rows.
+- **VERIFY LOOP:** every Track-2 fix MUST append a Track-1 RE-VERIFY item below. Loop = Tor1 finds →
+  records → Tor2 fixes → **Tor1 re-clicks the exact path to confirm live**. A fix is NOT done until
+  re-verified live on the new deploy.
+- LOW intensity raised ~10% (owner) — a little more per tick, still token-aware until 16:00.
+
+## TRACK-1 RE-VERIFY QUEUE (clear these FIRST each tick, after the fix's redeploy is READY)
+- [ ] mig 323 grant — cold-chain / freight / yard / cycle-count: open each, CREATE a record, confirm it
+      persists + lists; reach the reverse/void path.
+- [ ] mig 324 scheduler perms — /pl/scheduler: "Uruchom harmonogram" + changeover matrix work for admin.
+- [ ] (after fix) Settings → Sites & Lines: add line → appears under the site → editable → warehouse column shows.
+- [ ] (after fix) dock doors page loads cleanly (no "Something went wrong").
+- [ ] (after fix) "Add machine" button matches the other +Add buttons.
