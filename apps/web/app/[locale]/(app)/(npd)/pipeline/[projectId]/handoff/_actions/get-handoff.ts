@@ -113,6 +113,7 @@ type ChecklistRow = {
   id: string;
   bom_verification_status: string | null;
   destination_bom_code: string | null;
+  destination_bom_display_code: string | null;
   promote_to_production_date: string | null;
   destination_warehouse_id: string | null;
 };
@@ -158,11 +159,20 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
         `select id,
                 bom_verification_status,
                 destination_bom_code,
+                case
+                  when destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                    then coalesce(bh.fa_code, bh.product_id) || ' v' || bh.version::text
+                  else destination_bom_code
+                end as destination_bom_display_code,
                 promote_to_production_date::text as promote_to_production_date,
                 destination_warehouse_id
-           from public.handoff_checklists
-          where project_id = $1::uuid
-            and org_id = app.current_org_id()
+           from public.handoff_checklists hc
+           left join public.bom_headers bh
+             on bh.org_id = hc.org_id
+            and hc.destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and bh.id = hc.destination_bom_code::uuid
+          where hc.project_id = $1::uuid
+            and hc.org_id = app.current_org_id()
           limit 1`,
         [projectId],
       );
@@ -192,11 +202,20 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           `select id,
                   bom_verification_status,
                   destination_bom_code,
+                  case
+                    when destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                      then coalesce(bh.fa_code, bh.product_id) || ' v' || bh.version::text
+                    else destination_bom_code
+                  end as destination_bom_display_code,
                   promote_to_production_date::text as promote_to_production_date,
                   destination_warehouse_id
-             from public.handoff_checklists
-            where project_id = $1::uuid
-              and org_id = app.current_org_id()
+             from public.handoff_checklists hc
+             left join public.bom_headers bh
+               on bh.org_id = hc.org_id
+              and hc.destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+              and bh.id = hc.destination_bom_code::uuid
+            where hc.project_id = $1::uuid
+              and hc.org_id = app.current_org_id()
             limit 1`,
           [projectId],
         );
@@ -293,7 +312,7 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
             // Fallback resolves bom_headers to a HUMAN-READABLE identity (fa_code /
             // product code + version) — never the raw active_bom_header_id uuid.
             // When neither exists the screen renders its notSet em-dash.
-            bomCode: checklist.destination_bom_code ?? release?.bom_display_code ?? null,
+            bomCode: checklist.destination_bom_display_code ?? checklist.destination_bom_code ?? release?.bom_display_code ?? null,
             productSku: project.product_code,
             productName: project.product_name,
             effectiveFrom: checklist.promote_to_production_date,

@@ -63,6 +63,7 @@ type NcrDetail = NcrListRow & {
   referenceType: NcrReferenceType | null;
   referenceId: string | null;
   affectedQtyKg: string | null;
+  detectedById: string | null;
   detectedBy: string | null;
   detectedAt: string;
   rootCause: string | null;
@@ -331,6 +332,7 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
           reference_type: NcrReferenceType | null;
           reference_id: string | null;
           affected_qty_kg: string | null;
+          detected_by_id: string | null;
           detected_by: string | null;
           detected_at: Date | string;
           root_cause: string | null;
@@ -356,7 +358,8 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
            i.item_code as product_code,
            i.name as product_name,
            n.affected_qty_kg::text,
-           n.detected_by::text,
+           n.detected_by::text as detected_by_id,
+           coalesce(detected.display_name, detected.name, detected.email::text, n.detected_by::text) as detected_by,
            n.detected_at,
            n.root_cause,
            n.root_cause_category,
@@ -372,6 +375,7 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
          from public.ncr_reports n
          left join public.items i on i.id = n.product_id and i.org_id = n.org_id
          left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
+         left join public.users detected on detected.id = n.detected_by and detected.org_id = n.org_id
         where n.org_id = app.current_org_id()
           and n.id = $1::uuid
         limit 1`,
@@ -393,6 +397,7 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
           referenceType: row.reference_type,
           referenceId: row.reference_id,
           affectedQtyKg: row.affected_qty_kg,
+          detectedById: row.detected_by_id,
           detectedBy: row.detected_by,
           detectedAt: toIso(row.detected_at) ?? '',
           rootCause: row.root_cause,

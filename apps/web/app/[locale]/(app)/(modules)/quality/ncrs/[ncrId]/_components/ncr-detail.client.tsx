@@ -262,7 +262,9 @@ export function NcrDetailClient({
             <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
               <div className="flex gap-2">
                 <dt className="text-slate-500">{labels.context.detectedBy}:</dt>
-                <dd className="text-slate-800">{ncr.detectedBy ?? '—'}</dd>
+                <dd className="text-slate-800" title={!ncr.detectedBy && ncr.detectedById ? ncr.detectedById : undefined}>
+                  {ncr.detectedBy ?? '—'}
+                </dd>
               </div>
               <div className="flex gap-2">
                 <dt className="text-slate-500">{labels.context.detectedAt}:</dt>

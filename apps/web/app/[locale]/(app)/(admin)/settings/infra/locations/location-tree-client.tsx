@@ -8,7 +8,7 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 
 export type Warehouse = { id: string; code: string; name: string };
-export type LocationRow = { id: string; warehouseId: string; parentId: string | null; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
+export type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
 export type UpsertLocationInput = { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string; active?: boolean; barcode?: string | null };
 export type UpsertLocationResult = { ok: true; data: { id: string; path: string; level: number } } | { ok: false; error: string };
 export type DeleteLocationInput = { locationId: string; warehouseId: string };
@@ -192,7 +192,7 @@ export function LocationTreeScreen({
       setFormError(labels.upsertError);
       return;
     }
-    const saved: LocationRow = { id: result.data.id, warehouseId, parentId: input.parentId, name: input.name, level: result.data.level, path: result.data.path, locationType: input.locationType, barcode: input.barcode ?? null, isActive: input.active ?? true };
+    const saved: LocationRow = { id: result.data.id, warehouseId, parentId: input.parentId, code: input.code, name: input.name, level: result.data.level, path: result.data.path, locationType: input.locationType, barcode: input.barcode ?? null, isActive: input.active ?? true };
     setRows((current) => sortByPath([saved, ...current.filter((row) => row.id !== saved.id)]));
     setSelected(saved.id);
     setDialogMode(null);
@@ -386,7 +386,7 @@ function formatLabel(template: string, values: Record<string, string | number>) 
 }
 
 function locationCode(location: LocationRow) {
-  return location.path.split('.').filter(Boolean).at(-1)?.toUpperCase() ?? location.name.toUpperCase();
+  return location.code?.trim() || location.path.split('.').filter(Boolean).at(-1)?.toUpperCase() || location.name.toUpperCase();
 }
 
 function parentPathFor(location: LocationRow, rows: LocationRow[]) {

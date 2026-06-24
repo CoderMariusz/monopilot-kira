@@ -56,8 +56,9 @@ export type WoDetailHeader = {
   productName: string | null;
   status: WorkOrderDetailStatus;
   lineId: string | null;
-  /** production_lines.code — null when no line is assigned. */
+  /** production_lines.code/name — null when no line is assigned. */
   lineCode: string | null;
+  lineName: string | null;
   machineId: string | null;
   /** machines.code / machines.name (mig 042) — null when no machine is assigned
    *  or the machine row is missing. The UI must render these, never the uuid. */
@@ -280,6 +281,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         status: string;
         production_line_id: string | null;
         line_code: string | null;
+        line_name: string | null;
         machine_id: string | null;
         machine_code: string | null;
         machine_name: string | null;
@@ -305,6 +307,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                 i.name as product_name,
                 i.weight_mode,
                 pl.code as line_code,
+                pl.name as line_name,
                 coalesce(
                   e.status,
                   case w.status
@@ -638,6 +641,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         status,
         lineId: h.production_line_id,
         lineCode: h.line_code,
+        lineName: h.line_name,
         machineId: h.machine_id,
         machineCode: h.machine_code,
         machineName: h.machine_name,

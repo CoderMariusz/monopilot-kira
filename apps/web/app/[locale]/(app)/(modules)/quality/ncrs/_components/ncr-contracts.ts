@@ -145,6 +145,7 @@ export type NcrDetail = NcrServerListRow & {
   referenceType: NcrReferenceType | null;
   referenceId: string | null;
   affectedQtyKg: string | null;
+  detectedById?: string | null;
   detectedBy: string | null;
   detectedAt: string;
   rootCause: string | null;

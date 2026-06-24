@@ -9,7 +9,7 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
 type Warehouse = { id: string; code: string; name: string };
-type LocationRow = { id: string; warehouseId: string; parentId: string | null; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
+type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
 type CreateLocationInput = { csvRowNumber: number; warehouseId: string; parentPath: string | null; name: string; level: number; path: string };
 type CreateLocationResult =
   | { ok: true; data?: unknown }
@@ -274,6 +274,7 @@ async function readLocationData(): Promise<{
           `select id,
                   warehouse_id as "warehouseId",
                   parent_id as "parentId",
+                  code,
                   name,
                   level,
                   path,

@@ -725,7 +725,7 @@ export function WoDetailScreen({
                   ? `${h.productName}${h.itemCode ? ` (${h.itemCode})` : ''}`
                   : '—'}
               </span>
-              {h.lineCode ? <> · {h.lineCode}</> : null}
+              {h.lineName || h.lineCode ? <> · {h.lineName ?? h.lineCode}</> : null}
               {' · '}
               {labels.overview.elapsed} <b>{h.elapsedMin === null ? '—' : `${h.elapsedMin} ${labels.overview.elapsedMin}`}</b>
             </p>
