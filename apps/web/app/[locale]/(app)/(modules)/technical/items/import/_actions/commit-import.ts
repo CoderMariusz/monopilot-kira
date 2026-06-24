@@ -32,12 +32,26 @@ import {
   type ImportScope,
   parseItemsCsv,
 } from '../../../../../../../../lib/import/parse-items-csv';
+import { INVALID_STATUS_TRANSITION_IMPORT_ERROR } from './import-error-codes';
+
+export type CommitImportRowError = {
+  rowNumber: number;
+  itemCode: string;
+  column: 'status';
+  code: typeof INVALID_STATUS_TRANSITION_IMPORT_ERROR;
+  from: string;
+  to: string;
+};
 
 export type CommitImportResult =
-  | { ok: true; committed: { created: number; updated: number; skipped: number; errors: number } }
+  | {
+      ok: true;
+      committed: { created: number; updated: number; skipped: number; errors: number };
+      rowErrors: CommitImportRowError[];
+    }
   | { ok: false; error: 'forbidden' | 'parse_failed' | 'invalid_reason' };
 
-type ExistingRow = { id: string; item_code: string; item_type: string; name: string };
+type ExistingRow = { id: string; item_code: string; item_type: string; name: string; status: string };
 
 export async function commitItemsImport(
   scope: ImportScope,
@@ -56,7 +70,7 @@ export async function commitItemsImport(
       if (!parsed.ok) return { ok: false, error: 'parse_failed' };
 
       const { rows: existingRows } = await qc.query<ExistingRow>(
-        `select id, item_code, item_type, name from public.items where org_id = app.current_org_id()`,
+        `select id, item_code, item_type, name, status from public.items where org_id = app.current_org_id()`,
       );
       const byCode = new Map(existingRows.map((r) => [r.item_code, r]));
       const preview = diffItemsAgainstExisting(
@@ -69,6 +83,7 @@ export async function commitItemsImport(
       let updated = 0;
       let skipped = 0;
       let errors = preview.counts.errors;
+      const rowErrors: CommitImportRowError[] = [];
 
       for (const row of preview.rows) {
         if (row.op === 'create') {
@@ -105,7 +120,19 @@ export async function commitItemsImport(
             costPerKg: row.parsed.costPerKg,
           });
           if (res.ok) updated += 1;
-          else errors += 1;
+          else {
+            errors += 1;
+            if (res.error === 'invalid_input' && res.message === 'invalid_transition') {
+              rowErrors.push({
+                rowNumber: row.rowNumber,
+                itemCode: row.itemCode,
+                column: 'status',
+                code: INVALID_STATUS_TRANSITION_IMPORT_ERROR,
+                from: prior.status,
+                to: row.parsed.status ?? 'active',
+              });
+            }
+          }
         } else {
           skipped += 1;
         }
@@ -122,7 +149,7 @@ export async function commitItemsImport(
       });
 
       safeRevalidatePath('/technical/items');
-      return { ok: true, committed: { created, updated, skipped, errors } };
+      return { ok: true, committed: { created, updated, skipped, errors }, rowErrors };
     });
   } catch (error) {
     console.error('[technical/items/import] commitItemsImport failed', {

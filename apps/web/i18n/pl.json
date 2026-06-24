@@ -2709,6 +2709,7 @@
       "forbidden": "You do not have permission to import items.",
       "parseFailed": "Could not parse the CSV. Check the header row and try again.",
       "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it.",
+      "invalidStatusTransition": "Nieprawidłowa zmiana statusu {from}→{to} — zmieniaj status przez przepływ dezaktywacji/aktywacji produktu, nie przez import.",
       "backToItems": "Back to items"
     },
     "bomSnapshots": {
@@ -6847,6 +6848,13 @@
     }
   },
   "production": {
+    "dateWindow": {
+      "today": "Dzisiaj",
+      "days7": "7 dni",
+      "days30": "30 dni",
+      "days90": "90 dni",
+      "ariaLabel": "Zakres dat"
+    },
     "dashboard": {
       "title": "Produkcja",
       "subtitle": "Widok zmiany na żywo — zlecenia, produkcja, OEE i przestoje.",

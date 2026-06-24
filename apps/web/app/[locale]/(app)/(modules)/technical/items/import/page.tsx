@@ -65,6 +65,7 @@ function buildLabels(t: Translator): BulkImportLabels {
     forbidden: t('forbidden'),
     parseFailed: t('parseFailed'),
     supplierBlocker: t('supplierBlocker'),
+    invalidStatusTransition: t('invalidStatusTransition'),
   };
 }
 

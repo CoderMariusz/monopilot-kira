@@ -2709,6 +2709,7 @@
       "forbidden": "You do not have permission to import items.",
       "parseFailed": "Could not parse the CSV. Check the header row and try again.",
       "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it.",
+      "invalidStatusTransition": "Invalid status change {from}→{to} — change status via the item's deactivate/activate flow, not import.",
       "backToItems": "Back to items"
     },
     "bomSnapshots": {
@@ -6847,6 +6848,13 @@
     }
   },
   "production": {
+    "dateWindow": {
+      "today": "Today",
+      "days7": "7 days",
+      "days30": "30 days",
+      "days90": "90 days",
+      "ariaLabel": "Date range"
+    },
     "dashboard": {
       "title": "Production",
       "subtitle": "Live shift view — work orders, output, OEE and downtime.",

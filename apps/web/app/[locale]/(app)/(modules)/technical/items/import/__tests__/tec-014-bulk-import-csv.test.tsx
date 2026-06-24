@@ -68,6 +68,8 @@ const LABELS: BulkImportLabels = {
   forbidden: 'You cannot import items.',
   parseFailed: 'Could not parse the CSV.',
   supplierBlocker: 'supplier_specs upload required first.',
+  invalidStatusTransition:
+    "Invalid status change {from}→{to} — change status via the item's deactivate/activate flow, not import.",
 };
 
 const PREVIEW: ItemImportPreview = {
@@ -153,7 +155,7 @@ describe('TEC-014 Bulk Import wizard (spec: spec-driven-screens.jsx:25-218)', ()
   it('calls commit with scope + reason and shows the applied summary', async () => {
     const commitAction = vi
       .fn()
-      .mockResolvedValue({ ok: true, committed: { created: 1, updated: 1, skipped: 0, errors: 0 } });
+      .mockResolvedValue({ ok: true, committed: { created: 1, updated: 1, skipped: 0, errors: 0 }, rowErrors: [] });
     render(
       <BulkImportWizard
         labels={LABELS}
@@ -215,5 +217,104 @@ describe('TEC-014 pure parse + diff (org-scoped, Technical red-lines)', () => {
     const diff = diffItemsAgainstExisting('rm_supplier_specs', parse.rows, new Map());
     expect(diff.counts.warnings).toBe(1);
     expect(diff.counts.errors).toBe(0);
+  });
+});
+
+describe('commitItemsImport status-transition errors', () => {
+  it('returns invalid_status_transition row errors and does not update the item', async () => {
+    vi.resetModules();
+    vi.doMock('server-only', () => ({}));
+    vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }));
+    vi.doMock('../../_actions/create-item', () => ({
+      createItem: vi.fn(async () => ({ ok: true, data: { id: 'created-id', itemCode: 'RM-NEW' } })),
+    }));
+
+    const item = {
+      id: '33333333-3333-4333-8333-333333333333',
+      item_code: 'RM-1',
+      item_type: 'rm',
+      name: 'Existing item',
+      status: 'active',
+    };
+    const calls: Array<{ sql: string; params: readonly unknown[] }> = [];
+    const normalizeSql = (sql: string) => sql.replace(/\s+/g, ' ').trim().toLowerCase();
+    const client = {
+      async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []) {
+        calls.push({ sql, params });
+        const normalized = normalizeSql(sql);
+        if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] as T[], rowCount: 1 };
+        if (normalized === 'select id, item_code, item_type, name, status from public.items where org_id = app.current_org_id()') {
+          return { rows: [item] as T[], rowCount: 1 };
+        }
+        if (normalized.startsWith('select name, item_type, status, uom_base')) {
+          return {
+            rows: [
+              {
+                name: item.name,
+                item_type: item.item_type,
+                status: item.status,
+                uom_base: 'kg',
+                weight_mode: 'fixed',
+                nominal_weight: null,
+                tare_weight: null,
+                gross_weight_max: null,
+                gs1_gtin: null,
+                output_uom: 'base',
+                net_qty_per_each: null,
+                each_per_box: null,
+                boxes_per_pallet: null,
+                list_price_gbp: null,
+              },
+            ] as T[],
+            rowCount: 1,
+          };
+        }
+        if (normalized.startsWith('update public.items')) {
+          item.name = String(params[1]);
+          item.item_type = String(params[2]);
+          item.status = String(params[3]);
+          return { rows: [{ id: item.id }] as T[], rowCount: 1 };
+        }
+        if (normalized.startsWith('insert into public.audit_log')) return { rows: [] as T[], rowCount: 1 };
+        return { rows: [] as T[], rowCount: 0 };
+      },
+    };
+
+    vi.doMock('../../../../../../../../lib/auth/with-org-context', () => ({
+      withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) =>
+        action({
+          userId: '22222222-2222-4222-8222-222222222222',
+          orgId: '11111111-1111-4111-8111-111111111111',
+          client,
+        }),
+      ),
+    }));
+
+    const { commitItemsImport } = await import('../_actions/commit-import');
+    const { INVALID_STATUS_TRANSITION_IMPORT_ERROR } = await import('../_actions/import-error-codes');
+
+    const result = await commitItemsImport(
+      'rm',
+      'item_code,name,item_type,uom_base,status\nRM-1,Imported name,rm,kg,draft',
+      'Q2 refresh import note',
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      committed: { created: 0, updated: 0, skipped: 0, errors: 1 },
+      rowErrors: [
+        {
+          rowNumber: 2,
+          itemCode: 'RM-1',
+          column: 'status',
+          code: INVALID_STATUS_TRANSITION_IMPORT_ERROR,
+          from: 'active',
+          to: 'draft',
+        },
+      ],
+    });
+    expect(result.ok && result.rowErrors[0]?.code).not.toBe('invalid_input');
+    expect(calls.some((call) => normalizeSql(call.sql).startsWith('update public.items'))).toBe(false);
+    expect(item).toMatchObject({ name: 'Existing item', status: 'active' });
   });
 });

@@ -29,7 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import Textarea from '@monopilot/ui/Textarea';
 
 import type { PreviewImportResult } from '../_actions/preview-import';
-import type { CommitImportResult } from '../_actions/commit-import';
+import type { CommitImportResult, CommitImportRowError } from '../_actions/commit-import';
 import type { ImportScope, ItemImportPreview } from '../../../../../../../../lib/import/parse-items-csv';
 
 type Step = 'upload' | 'validate' | 'diff' | 'confirm';
@@ -77,6 +77,7 @@ export type BulkImportLabels = {
   forbidden: string;
   parseFailed: string;
   supplierBlocker: string;
+  invalidStatusTransition: string;
 };
 
 const SCOPE_OPTIONS = (labels: BulkImportLabels): Array<{ value: ImportScope; label: string }> => [
@@ -85,6 +86,14 @@ const SCOPE_OPTIONS = (labels: BulkImportLabels): Array<{ value: ImportScope; la
   { value: 'rm', label: labels.scopeRm },
   { value: 'rm_supplier_specs', label: labels.scopeRmSupplier },
 ];
+
+type ValidationIssueRow =
+  | { rowNumber: number; kind: 'error' | 'warning' | 'info'; column: string; message: string }
+  | (CommitImportRowError & { kind: 'error'; message: string });
+
+function isInvalidStatusTransitionIssue(issue: ValidationIssueRow): issue is CommitImportRowError & { kind: 'error'; message: string } {
+  return 'code' in issue && issue.code === 'invalid_status_transition';
+}
 
 // Locked design-system wizard stepper (globals.css `.wiz-*`), translated 1:1 from
 // the prototype Stepper primitive (_shared/modals.jsx:46-62): current step → blue
@@ -145,6 +154,7 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
   const [committed, setCommitted] = React.useState<{ created: number; updated: number; skipped: number; errors: number } | null>(
     null,
   );
+  const [commitRowErrors, setCommitRowErrors] = React.useState<CommitImportRowError[]>([]);
 
   const onFile = React.useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -159,6 +169,7 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
       const res = await previewAction(scope, csvText);
       if (res.ok) {
         setPreview(res.preview);
+        setCommitRowErrors([]);
         setStep('validate');
       } else {
         setErrorKey(res.error === 'forbidden' ? labels.forbidden : labels.parseFailed);
@@ -172,6 +183,8 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
       const res = await commitAction(scope, csvText, reason);
       if (res.ok) {
         setCommitted(res.committed);
+        setCommitRowErrors(res.rowErrors);
+        if (res.rowErrors.length > 0) setStep('validate');
       } else if (res.error === 'forbidden') {
         setErrorKey(labels.forbidden);
       } else {
@@ -184,9 +197,26 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
   const hasWarnings = (preview?.counts.warnings ?? 0) > 0;
   const confirmValid = reason.trim().length >= 10 && !hasErrors;
 
-  const validationRows = (preview?.rows ?? []).flatMap((row) =>
+  const validationRows: ValidationIssueRow[] = (preview?.rows ?? []).flatMap((row) =>
     row.issues.map((iss) => ({ rowNumber: row.rowNumber, ...iss })),
+  ).concat(
+    commitRowErrors.map((err) => ({
+      rowNumber: err.rowNumber,
+      kind: 'error' as const,
+      column: err.column,
+      message: '',
+      code: err.code,
+      from: err.from,
+      to: err.to,
+    })),
   );
+
+  const renderIssueMessage = (iss: ValidationIssueRow) => {
+    if (isInvalidStatusTransitionIssue(iss)) {
+      return labels.invalidStatusTransition.replace('{from}', iss.from).replace('{to}', iss.to);
+    }
+    return iss.message;
+  };
 
   return (
     <div data-prototype-label="bulk_import_csv_screen" data-screen="technical-items-import" className="flex flex-col gap-4">
@@ -310,7 +340,7 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
                       </span>
                     </TableCell>
                     <TableCell className="mono text-sm">{iss.column}</TableCell>
-                    <TableCell className="text-sm">{iss.message}</TableCell>
+                    <TableCell className="text-sm">{renderIssueMessage(iss)}</TableCell>
                   </TableRow>
                 ))
               ) : (
