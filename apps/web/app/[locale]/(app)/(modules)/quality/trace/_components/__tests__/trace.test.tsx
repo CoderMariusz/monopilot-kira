@@ -85,7 +85,6 @@ function renderWorkbench(opts: {
     <TraceWorkbench
       labels={LABELS}
       locale="en"
-      buildDetailHref={(type, nodeId) => toDetailHref('en', type, nodeId)}
       runTraceReportAction={runAction as never}
       startRecallDrillAction={startAction as never}
       completeRecallDrillAction={completeAction as never}

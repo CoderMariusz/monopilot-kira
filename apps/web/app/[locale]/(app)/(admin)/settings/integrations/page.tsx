@@ -30,8 +30,6 @@ type IntegrationLabels = {
   search: string;
   browseAll: (total: number) => string;
   connectedAvailable: (connected: number, total: number) => string;
-  categorySummary: (connected: number, total: number) => string;
-  connectedBadge: (connected: number) => string;
   kpiConnected: string;
   kpiCategories: string;
   kpiSyncLast24h: string;
@@ -39,14 +37,8 @@ type IntegrationLabels = {
   loading: string;
   error: string;
   noIntegrationsConfigured: string;
-  noCategoryIntegrations: (category: string) => string;
   emptyBody: string;
-  emptyCategoryBody: string;
   browseCatalog: string;
-  statusConnected: string;
-  statusAvailable: string;
-  configure: string;
-  configureNamed: (name: string) => string;
   connect: string;
   connectedConfigure: string;
   activityTitle: string;
@@ -58,8 +50,6 @@ type IntegrationLabels = {
   columnStatus: string;
   statusSuccess: string;
   statusFailedRetry: string;
-  expand: string;
-  collapse: string;
 };
 
 // No production fallback catalog/activity rows. The default route renders the
@@ -96,9 +86,6 @@ async function getIntegrationLabels(locale: string): Promise<IntegrationLabels> 
     browseAll: (total) => translate(t, 'browseAll', 'Browse all ({total})', { total }),
     connectedAvailable: (connected, total) =>
       translate(t, 'connectedAvailable', '{connected} connected · {total} available', { connected, total }),
-    categorySummary: (connected, total) =>
-      translate(t, 'categorySummary', '{connected} connected · {total} available', { connected, total }),
-    connectedBadge: (connected) => translate(t, 'connectedBadge', '{connected} connected', { connected }),
     kpiConnected: translate(t, 'kpi.connected', 'Connected'),
     kpiCategories: translate(t, 'kpi.categories', 'Categories'),
     kpiSyncLast24h: translate(t, 'kpi.syncLast24h', 'Sync last 24h'),
@@ -106,23 +93,12 @@ async function getIntegrationLabels(locale: string): Promise<IntegrationLabels> 
     loading: translate(t, 'states.loading', 'Loading integrations…'),
     error: translate(t, 'states.error', 'Unable to load integrations. Try refreshing or contact your administrator.'),
     noIntegrationsConfigured: translate(t, 'states.emptyTitle', 'No integrations configured'),
-    noCategoryIntegrations: (category) =>
-      translate(t, 'states.emptyCategoryTitle', 'No {category} integrations yet', { category: category.toLowerCase() }),
     emptyBody: translate(
       t,
       'states.emptyBody',
       'Browse the catalog to connect Monopilot to your ERP, accounting, BI, and shipping tools.',
     ),
-    emptyCategoryBody: translate(
-      t,
-      'states.emptyCategoryBody',
-      'Request a connector from the Monopilot team or browse the catalog for alternatives.',
-    ),
     browseCatalog: translate(t, 'actions.browseCatalog', 'Browse catalog'),
-    statusConnected: translate(t, 'status.connected', '● Connected'),
-    statusAvailable: translate(t, 'status.available', '— Available'),
-    configure: translate(t, 'actions.configure', 'Configure'),
-    configureNamed: (name) => translate(t, 'actions.configureNamed', 'Configure {name}', { name }),
     connect: translate(t, 'actions.connect', 'Connect'),
     connectedConfigure: translate(t, 'actions.connectedConfigure', '✓ Connected · Configure'),
     activityTitle: translate(t, 'activity.title', 'Recent sync activity'),
@@ -138,8 +114,6 @@ async function getIntegrationLabels(locale: string): Promise<IntegrationLabels> 
     columnStatus: translate(t, 'activity.columns.status', 'Status'),
     statusSuccess: translate(t, 'status.success', '✓ Success'),
     statusFailedRetry: translate(t, 'status.failedRetry', '✗ Failed · Retry backoff'),
-    expand: translate(t, 'actions.expand', 'Expand category'),
-    collapse: translate(t, 'actions.collapse', 'Collapse category'),
   };
 }
 
@@ -419,23 +393,10 @@ export default async function IntegrationsPage({ params, searchParams, state, ca
             />
           </div>
           {resolvedCategories.map((category) => (
-            <CategoryAccordion
-              key={category.category}
-              category={category}
-              labels={{
-                categorySummary: labels.categorySummary,
-                connectedBadge: labels.connectedBadge,
-                noCategoryIntegrations: labels.noCategoryIntegrations,
-                emptyCategoryBody: labels.emptyCategoryBody,
-                browseCatalog: labels.browseCatalog,
-                statusConnected: labels.statusConnected,
-                statusAvailable: labels.statusAvailable,
-                configure: labels.configure,
-                connect: labels.connect,
-                expand: labels.expand,
-                collapse: labels.collapse,
-              }}
-            />
+            // CategoryAccordion (client) builds its own function-valued labels
+            // via useTranslations — those functions cannot cross the RSC
+            // boundary as props, so none are passed here.
+            <CategoryAccordion key={category.category} category={category} />
           ))}
           <ActivityTable activity={resolvedActivity} labels={labels} locale={locale} />
         </>

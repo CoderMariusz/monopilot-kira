@@ -16,9 +16,11 @@
  *
  * No raw UUID ever reaches the UI (plan rule 0.11): the actions return human
  * refs (lp_code / wo_number / grn number / supplier code+name) in node.ref /
- * node.label; the deep-link href is built SERVER-SIDE from the internal nodeId by
- * `toDetailHref` (passed into the island as a bound resolver) and used only in
- * the href attribute.
+ * node.label; the deep-link href is built CLIENT-side inside the island by the
+ * pure, locale-scoped `toDetailHref` (from the `locale` string prop) and used
+ * only in the href attribute. The builder is run in the client — not passed as
+ * a function-valued prop — because a function cannot cross the RSC boundary
+ * (doing so crashes the page).
  *
  * UI states (all four): loading (the client island shows a skeleton while the
  * action runs), empty (no run yet → CTA to enter a ref), error (a thrown trace
@@ -39,12 +41,11 @@ import {
 // Read-only RBAC probe (additive read confined to trace/**).
 import { canViewTrace } from './_actions/can-view-trace';
 import { TraceWorkbench } from './_components/trace-workbench.client';
-import { buildTraceLabels, toDetailHref, type Translator } from './_components/labels';
+import { buildTraceLabels, type Translator } from './_components/labels';
 import type {
   RunTraceReportAction,
   StartRecallDrillAction,
   CompleteRecallDrillAction,
-  TraceNodeType,
 } from './_components/trace-contracts';
 
 export const dynamic = 'force-dynamic';
@@ -87,7 +88,6 @@ export default async function TracePage({ params }: PageProps) {
         <TraceWorkbench
           labels={labels}
           locale={locale}
-          buildDetailHref={(type: TraceNodeType, nodeId: string) => toDetailHref(locale, type, nodeId)}
           runTraceReportAction={runTraceReport as unknown as RunTraceReportAction}
           startRecallDrillAction={startRecallDrill as unknown as StartRecallDrillAction}
           completeRecallDrillAction={completeRecallDrill as unknown as CompleteRecallDrillAction}

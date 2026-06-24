@@ -41,6 +41,17 @@ vi.mock('next-intl/server', () => ({
   }),
 }));
 
+// CategoryAccordion (client) now builds its own function-valued labels via
+// useTranslations('settings.integrations_screen'); those functions cannot cross
+// the RSC server→client boundary as props. Mock next-intl's useTranslations with
+// a translator that returns the key unchanged — exactly like the getTranslations
+// mock above — so the component's translate() helper falls through to the same
+// inline English defaults the page used, keeping the parity assertions valid.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string, values?: Record<string, string | number>) =>
+    key.replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`)),
+}));
+
 type IntegrationItem = {
   id: string;
   name: string;

@@ -19,8 +19,10 @@
  *
  * Rule 0.11: no raw UUID is ever rendered — only `node.ref`/`node.label` (human
  * refs: lp_code / wo_number / grn number / supplier code+name). The deep-link
- * href is built from the internal `nodeId` UUID by `buildDetailHref` (passed in
- * from the server) and used ONLY in the `href` attribute, never as visible text.
+ * href is built from the internal `nodeId` UUID by the pure, locale-scoped
+ * `toDetailHref` (run here from the `locale` string prop — not passed as a
+ * function-valued prop, which cannot cross the RSC boundary) and used ONLY in
+ * the `href` attribute, never as visible text.
  */
 
 import { useMemo, useState, useTransition } from 'react';
@@ -39,7 +41,7 @@ import type {
   TraceNodeView,
   TraceReportView,
 } from './trace-contracts';
-import { DIRECTIONS, INPUT_TYPES, type TraceLabels } from './labels';
+import { DIRECTIONS, INPUT_TYPES, toDetailHref, type TraceLabels } from './labels';
 
 const NODE_VARIANT: Record<TraceNodeType, BadgeVariant> = {
   supplier: 'info',
@@ -77,7 +79,6 @@ function summaryItem(testid: string, label: string, value: string | number) {
 export function TraceWorkbench({
   labels,
   locale,
-  buildDetailHref,
   runTraceReportAction,
   startRecallDrillAction,
   completeRecallDrillAction,
@@ -85,8 +86,6 @@ export function TraceWorkbench({
 }: {
   labels: TraceLabels;
   locale: string;
-  /** server-built deep-link resolver (UUID → detail href; never client-trusted UUID). */
-  buildDetailHref: (type: TraceNodeType, nodeId: string) => string | null;
   runTraceReportAction: RunTraceReportAction;
   startRecallDrillAction: StartRecallDrillAction;
   completeRecallDrillAction: CompleteRecallDrillAction;
@@ -105,17 +104,21 @@ export function TraceWorkbench({
   const canRun = trimmedRef.length > 0 && !running;
 
   // The plain runTraceReport returns nodes WITHOUT detailHref; we enrich each
-  // node with a deep-link href client-side using the server-supplied resolver.
+  // node with a deep-link href client-side. `toDetailHref` is a PURE,
+  // locale-scoped builder (validates the UUID format and only constructs the
+  // href — never renders the UUID), so it runs here from the `locale` string
+  // prop. This avoids passing a function-valued resolver across the RSC
+  // boundary (which cannot serialise and crashes the page).
   const enrich = useMemo(
     () =>
       (raw: TraceReportView): TraceReportView => ({
         ...raw,
         nodes: raw.nodes.map((n) => ({
           ...n,
-          detailHref: n.detailHref ?? buildDetailHref(n.type, n.nodeId),
+          detailHref: n.detailHref ?? toDetailHref(locale, n.type, n.nodeId),
         })),
       }),
-    [buildDetailHref],
+    [locale],
   );
 
   function runTrace() {
