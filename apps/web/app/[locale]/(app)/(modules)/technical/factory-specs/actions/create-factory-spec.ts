@@ -56,11 +56,14 @@ export async function createFactorySpec(rawInput: unknown): Promise<CreateFactor
       }
 
       const { rows: versionRows } = await c.query<{ next_version: number | string }>(
-        `select coalesce(max(version), 0) + 1 as next_version
-           from public.factory_specs
+        `with advisory_lock as (
+           select pg_advisory_xact_lock(hashtextextended($1::text || ':factory-spec:' || $2::text, 0))
+         )
+         select coalesce(max(version), 0) + 1 as next_version
+           from public.factory_specs, advisory_lock
           where org_id = app.current_org_id()
-            and fg_item_id = $1::uuid`,
-        [input.fgItemId],
+            and fg_item_id = $2::uuid`,
+        [orgId, input.fgItemId],
       );
       const version = Number(versionRows[0]?.next_version ?? 1);
 

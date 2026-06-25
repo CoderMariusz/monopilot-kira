@@ -563,6 +563,10 @@ async function getOrCreateOpenGrn(
   session: ScannerSessionRow,
   input: { poId: string; supplierId: string; warehouseId: string; locationId: string | null },
 ): Promise<GrnRow> {
+  await client.query(
+    `select pg_advisory_xact_lock(hashtextextended($1::text || ':grn-day:' || to_char(current_date, 'YYYYMMDD'), 0))`,
+    [session.org_id],
+  );
   const existing = await client.query<GrnRow>(
     `select id, grn_number
        from public.grns
