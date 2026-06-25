@@ -19,6 +19,7 @@
  */
 
 import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import {
@@ -60,6 +61,7 @@ const ParamsSchema = z.object({
 });
 
 const Input = z.object({
+  projectId: z.string().uuid(),
   productCode: z.string().trim().min(1).max(64),
   scenario: z.string().trim().min(1).max(64),
   params: ParamsSchema,
@@ -140,6 +142,8 @@ export async function saveCostingScenario(raw: unknown): Promise<SaveScenarioRes
       const breakdownId = upsert.rows[0]?.id;
       if (!breakdownId) return { ok: false as const, error: 'not_found' as const };
 
+      safeRevalidatePath(`/[locale]/pipeline/${input.projectId}/costing`, 'page');
+
       return {
         ok: true as const,
         data: {
@@ -162,6 +166,14 @@ export async function saveCostingScenario(raw: unknown): Promise<SaveScenarioRes
       err: err instanceof Error ? err.message : String(err),
     });
     return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+function safeRevalidatePath(path: string, type?: 'layout' | 'page'): void {
+  try {
+    revalidatePath(path, type);
+  } catch {
+    // Vitest imports Server Actions outside a Next request/static generation store.
   }
 }
 

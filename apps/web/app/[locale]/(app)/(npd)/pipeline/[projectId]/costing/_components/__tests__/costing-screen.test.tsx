@@ -17,7 +17,7 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({
@@ -239,19 +239,22 @@ describe('CostingScreen — save scenario', () => {
     expect(save).toBeDisabled();
   });
 
-  it('calls onSaveScenario with the named scenario + current params on Save', () => {
+  it('calls onSaveScenario with the named scenario + current params on Save', async () => {
     const onSaveScenario = vi.fn().mockResolvedValue({ ok: true });
-    renderReady({ onSaveScenario });
+    const onRefresh = vi.fn();
+    renderReady({ onSaveScenario, onRefresh });
     const nameInput = screen.getByLabelText(LABELS.scenarioName);
     fireEvent.change(nameInput, { target: { value: 'my-scenario' } });
     const save = screen.getByRole('button', { name: LABELS.saveScenario });
     fireEvent.click(save);
-    expect(onSaveScenario).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onSaveScenario).toHaveBeenCalledTimes(1));
     const arg = onSaveScenario.mock.calls[0][0];
+    expect(arg.projectId).toBe('project-1');
     expect(arg.productCode).toBe('FA1001');
     expect(arg.scenario).toBe('my-scenario');
     // Params are decimal strings (never floats).
     expect(typeof arg.params.rawCostEur).toBe('string');
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
   });
 });
 

@@ -24,7 +24,9 @@ const tenantId = '07300000-0000-4000-8000-000000000000';
 const orgA = '07300000-0000-4000-8000-00000000000a';
 const orgAUser = '07300000-0000-4000-8000-0000000000aa';
 const orgARole = '07300000-0000-4000-8000-0000000001aa';
+const projectA = '07300000-0000-4000-8000-0000000000ab';
 const productA = 'FA-T073-A';
+const revalidatedPaths = vi.hoisted(() => [] as Array<{ path: string; type?: string }>);
 
 // Shared mutable context the mocked withOrgContext binds the action to.
 const ctxHolder: { orgId: string; userId: string; sessionToken: string; client: pg.PoolClient | null } = {
@@ -43,6 +45,12 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
       sessionToken: ctxHolder.sessionToken,
       client: ctxHolder.client,
     });
+  },
+}));
+
+vi.mock('next/cache', () => ({
+  revalidatePath: (path: string, type?: string) => {
+    revalidatedPaths.push({ path, type });
   },
 }));
 
@@ -269,13 +277,16 @@ runIntegration('computeCosting (integration)', () => {
   });
 
   it('saveCostingScenario UPSERTs a named what-if idempotently', async () => {
+    revalidatedPaths.length = 0;
     const first = await saveCostingScenario({
+      projectId: projectA,
       productCode: productA,
       scenario: 'optimistic',
       params: { ...baseParams, marginPct: '30' },
     });
     expect(first.ok).toBe(true);
     const second = await saveCostingScenario({
+      projectId: projectA,
       productCode: productA,
       scenario: 'optimistic',
       params: { ...baseParams, marginPct: '35' },
@@ -291,6 +302,10 @@ runIntegration('computeCosting (integration)', () => {
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0]!.n).toBe('1');
     expect(rows.rows[0]!.margin_pct).toBe('35.0000');
+    expect(revalidatedPaths).toContainEqual({
+      path: `/[locale]/pipeline/${projectA}/costing`,
+      type: 'page',
+    });
   });
 
   it('saveCostingScenario PERSISTS the exact what-if PARAMETERS and they are retrievable by name (rework finding 2)', async () => {
@@ -305,7 +320,7 @@ runIntegration('computeCosting (integration)', () => {
       distributorMarkupPct: '12',
       retailMarkupPct: '38',
     };
-    const res = await saveCostingScenario({ productCode: productA, scenario: 'with-params', params });
+    const res = await saveCostingScenario({ projectId: projectA, productCode: productA, scenario: 'with-params', params });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     // Action echoes the params it saved.
@@ -327,8 +342,8 @@ runIntegration('computeCosting (integration)', () => {
   it('saveCostingScenario idempotent OVERWRITE by name replaces persisted params (rework finding 2)', async () => {
     const p1 = { ...baseParams, marginPct: '30', yieldPct: '90' };
     const p2 = { ...baseParams, marginPct: '31', yieldPct: '85' };
-    await saveCostingScenario({ productCode: productA, scenario: 'overwrite-me', params: p1 });
-    const second = await saveCostingScenario({ productCode: productA, scenario: 'overwrite-me', params: p2 });
+    await saveCostingScenario({ projectId: projectA, productCode: productA, scenario: 'overwrite-me', params: p1 });
+    const second = await saveCostingScenario({ projectId: projectA, productCode: productA, scenario: 'overwrite-me', params: p2 });
     expect(second.ok).toBe(true);
 
     const rows = await appClient.query<{ n: string; params: Record<string, string> }>(
@@ -564,6 +579,7 @@ describe('computeCosting (input validation)', () => {
   it('saveCostingScenario also rejects out-of-bounds inputs with invalid_input', async () => {
     const { saveCostingScenario } = await import('../save-scenario');
     const tooHighYield = await saveCostingScenario({
+      projectId: projectA,
       productCode: 'FA-X',
       scenario: 'bad',
       params: { ...baseParams, yieldPct: '101' },
@@ -572,6 +588,7 @@ describe('computeCosting (input validation)', () => {
     if (!tooHighYield.ok) expect(tooHighYield.error).toBe('invalid_input');
 
     const tooHighMargin = await saveCostingScenario({
+      projectId: projectA,
       productCode: 'FA-X',
       scenario: 'bad',
       params: { ...baseParams, marginPct: '100' },

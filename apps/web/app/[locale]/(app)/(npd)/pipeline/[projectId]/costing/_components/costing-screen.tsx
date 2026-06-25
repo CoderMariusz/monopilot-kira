@@ -134,6 +134,7 @@ export type CostingLabels = {
 };
 
 export type SaveScenarioCall = {
+  projectId: string;
   productCode: string;
   scenario: string;
   params: CostingParams;
@@ -391,11 +392,13 @@ export function CostingScreen({
     setSaveState('saving');
     try {
       const result = await onSaveScenario({
+        projectId: data!.projectId,
         productCode: data!.productCode,
         scenario: scenarioName.trim() || `scenario-${Date.now()}`,
         params: activeParams,
       });
       setSaveState(result.ok ? 'saved' : 'error');
+      if (result.ok) refresh();
     } catch {
       setSaveState('error');
     }
