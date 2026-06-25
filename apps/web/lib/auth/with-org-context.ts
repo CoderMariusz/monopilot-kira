@@ -91,22 +91,32 @@ export interface OrgContext {
 let ownerPool: pg.Pool | null = null;
 let appPool: pg.Pool | null = null;
 
-// Pool tuning rationale (2026-06-24 pool-pressure audit):
-//   - idleTimeoutMillis: release a backend after 10s idle. In the test env the
-//     traffic is bursty (operator clicks, then pauses); without this, every
-//     warm lambda holds up to `max` Supavisor connections open across the gaps,
-//     and N lambdas × held connections can exhaust the SESSION-mode pooler
-//     (pool_size=15). Releasing on idle frees them between bursts — pure win,
-//     no serialization cost (connections re-open on the next query).
-//   - connectionTimeoutMillis: fail fast with a clear error instead of hanging
-//     a request indefinitely when the pooler IS saturated.
-//   - max left at the pg default (10): a project-detail page fans out ~5-7
-//     CONCURRENT withOrgContext calls (see resolveContextFromSupabase note),
-//     each needing its own app connection + owner register. A lower cap (e.g.
-//     max:1) would serialize that fan-out and manufacture connectionTimeout
-//     500s — the opposite of the fix. The durable cap is a TRANSACTION-mode
-//     pooler URL (owner/Vercel-env action), not a per-pool max here.
-const POOL_TUNING = { idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 } as const;
+// Pool tuning rationale (2026-06-25 pool-EXHAUSTION fix — supersedes the 06-24
+// idle-timeout-only tuning, which was insufficient):
+//   ROOT CAUSE: on Vercel the lambda FREEZES between invocations, so the JS
+//   event loop stops and pg's `idleTimeoutMillis` timer NEVER FIRES while frozen
+//   — a warm-but-frozen lambda keeps up to `max` connections open on the
+//   SESSION-mode Supavisor pooler (pool_size=15). With the old default max:10 on
+//   BOTH the app and owner pools, ONE frozen lambda could pin ~20 client slots;
+//   a few lambdas exhausted the 15-slot pool → EMAXCONNSESSION → the whole app
+//   shell degraded ("Live data unavailable", nav collapses to Dashboard).
+//   FIX: cap each pool small so a frozen lambda's footprint stays within budget.
+//     - appPool max:4  — enough for the project-detail ~5-7-way fan-out to run
+//       mostly-parallel (the rest queue briefly, well under connectionTimeout);
+//       the heaviest fan-out (/reporting) was already collapsed to ONE
+//       withOrgContext via reportingBundle (#64).
+//     - ownerPool max:2 — owner queries are single autocommit statements
+//       (register/delete session_org_contexts, users lookup), held for ms only.
+//   DURABLE FIX (owner / Vercel-env action, NOT code): point DATABASE_URL_APP /
+//   DATABASE_URL_OWNER at the TRANSACTION-mode pooler (port 6543) — it
+//   multiplexes a server connection per-transaction, so pool_size 15 supports
+//   far more concurrent clients. The app is compatible: app.set_org_context runs
+//   INSIDE the begin/commit txn, and all owner queries are single statements.
+//   connectionTimeoutMillis: fail fast (clear error) instead of hanging when the
+//   pooler is saturated. idleTimeoutMillis: drain fast when the lambda IS awake.
+const APP_POOL_MAX = 4;
+const OWNER_POOL_MAX = 2;
+const POOL_TUNING = { idleTimeoutMillis: 5_000, connectionTimeoutMillis: 8_000 } as const;
 
 /**
  * Owner (BYPASSRLS) pool. Exported so the site-context composition
@@ -122,7 +132,7 @@ export function getOwnerPool(): pg.Pool {
   if (!cs) {
     throw new Error('withOrgContext requires DATABASE_URL_OWNER or DATABASE_URL');
   }
-  ownerPool = new Pool({ connectionString: cs, ...POOL_TUNING });
+  ownerPool = new Pool({ connectionString: cs, max: OWNER_POOL_MAX, ...POOL_TUNING });
   return ownerPool;
 }
 
@@ -139,7 +149,7 @@ function getAppPool(): pg.Pool {
     url.username = 'app_user';
     url.password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
   }
-  appPool = new Pool({ connectionString: url.toString(), ...POOL_TUNING });
+  appPool = new Pool({ connectionString: url.toString(), max: APP_POOL_MAX, ...POOL_TUNING });
   return appPool;
 }
 

@@ -17,11 +17,21 @@ export type ScannerOrgContext = {
   userId: string;
 };
 
+// Pool-EXHAUSTION fix (2026-06-25): these scanner pools previously had NO
+// tuning (pg default max:10, no idle timeout), so a frozen Vercel lambda pinned
+// up to 20 SESSION-mode Supavisor slots (pool_size=15) — same root cause as
+// lib/auth/with-org-context.ts. Cap small + drain fast. Durable fix = the
+// transaction-mode pooler URL (port 6543), an owner/Vercel-env action.
+const SCANNER_POOL_TUNING = {
+  idleTimeoutMillis: 5_000,
+  connectionTimeoutMillis: 8_000,
+} as const;
+
 function getOwnerPool(): pg.Pool {
   if (ownerPool) return ownerPool;
   const cs = process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
   if (!cs) throw new Error('withScannerOrg requires DATABASE_URL_OWNER or DATABASE_URL');
-  ownerPool = new Pool({ connectionString: cs });
+  ownerPool = new Pool({ connectionString: cs, max: 2, ...SCANNER_POOL_TUNING });
   return ownerPool;
 }
 
@@ -35,7 +45,7 @@ function getAppPool(): pg.Pool {
     url.username = 'app_user';
     url.password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
   }
-  appPool = new Pool({ connectionString: url.toString() });
+  appPool = new Pool({ connectionString: url.toString(), max: 3, ...SCANNER_POOL_TUNING });
   return appPool;
 }
 
