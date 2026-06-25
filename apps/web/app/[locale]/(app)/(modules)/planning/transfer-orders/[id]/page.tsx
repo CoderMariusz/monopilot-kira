@@ -108,6 +108,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     status: {
       draft: t('toStatus.draft'),
       in_transit: t('toStatus.in_transit'),
+      partially_received: t('toStatus.partially_received'),
       received: t('toStatus.received'),
       cancelled: t('toStatus.cancelled'),
     },
@@ -147,6 +148,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       already_exists: t('errors.already_exists'),
       invalid_state: t('errors.invalid_state'),
       insufficient_stock: t('errors.insufficient_stock'),
+      // Contract: transitionTransferOrderStatus returns error 'partially_received'
+      // when a TO with already-received destination LPs is asked to cancel — surface
+      // the actionable message instead of the generic persistence_failed fallback.
+      partially_received: t('errors.partially_received'),
       // Contract: deleteTransferOrderLine returns error 'last_line' on final-line refusal.
       last_line: t('edit.lastLineRefused'),
       persistence_failed: t('errors.persistence_failed'),

@@ -6555,6 +6555,7 @@
       "toStatus": {
         "draft": "Draft",
         "in_transit": "In transit",
+        "partially_received": "Partially received",
         "received": "Received",
         "cancelled": "Cancelled"
       },
@@ -6590,6 +6591,7 @@
         "already_exists": "A transfer order with that number already exists.",
         "invalid_state": "That action isn't allowed in the current status.",
         "insufficient_stock": "Insufficient stock to fulfill this transfer",
+        "partially_received": "This transfer has already-received stock. Receive the remainder or reverse the received license plates before cancelling.",
         "persistence_failed": "Something went wrong saving your changes. Please retry."
       },
       "create": {

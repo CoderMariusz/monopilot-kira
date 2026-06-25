@@ -111,6 +111,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     status: {
       draft: t('toStatus.draft'),
       in_transit: t('toStatus.in_transit'),
+      partially_received: t('toStatus.partially_received'),
       received: t('toStatus.received'),
       cancelled: t('toStatus.cancelled'),
     },

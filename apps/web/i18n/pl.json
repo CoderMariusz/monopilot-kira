@@ -6555,6 +6555,7 @@
       "toStatus": {
         "draft": "Szkic",
         "in_transit": "W transporcie",
+        "partially_received": "Częściowo przyjęte",
         "received": "Przyjęte",
         "cancelled": "Anulowane"
       },
@@ -6590,6 +6591,7 @@
         "already_exists": "Zlecenie o tym numerze już istnieje.",
         "invalid_state": "Ta akcja nie jest dozwolona w bieżącym statusie.",
         "insufficient_stock": "Niewystarczający zapas do realizacji tego przesunięcia",
+        "partially_received": "To przesunięcie ma już przyjęty zapas. Przyjmij pozostałą część lub cofnij przyjęte palety, zanim anulujesz.",
         "persistence_failed": "Coś poszło nie tak przy zapisie. Spróbuj ponownie."
       },
       "create": {
