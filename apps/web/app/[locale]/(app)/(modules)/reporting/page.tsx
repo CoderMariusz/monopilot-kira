@@ -35,6 +35,7 @@ import {
   getReportingExportAccess,
   inventorySnapshot,
   procurementSummary,
+  receiptsSummary,
   reportingProductionLines,
   productionSummary,
   qualitySummary,
@@ -192,6 +193,33 @@ async function buildLabels(locale: string, window: ReportingWindow): Promise<Rep
       },
       empty: t('procurement.empty'),
     },
+    receipts: {
+      title: t('receipts.title'),
+      window: windowLabel,
+      kpi: {
+        grnCount: t('receipts.kpi.grnCount'),
+        completedGrnCount: t('receipts.kpi.completedGrnCount'),
+        itemLineCount: t('receipts.kpi.itemLineCount'),
+        receivedQty: t('receipts.kpi.receivedQty'),
+      },
+      qtyNote: t('receipts.qtyNote'),
+      status: {
+        draft: t('receipts.status.draft'),
+        completed: t('receipts.status.completed'),
+        cancelled: t('receipts.status.cancelled'),
+        posted: t('receipts.status.posted'),
+      },
+      columns: {
+        grn: t('receipts.columns.grn'),
+        supplier: t('receipts.columns.supplier'),
+        warehouse: t('receipts.columns.warehouse'),
+        status: t('receipts.columns.status'),
+        lines: t('receipts.columns.lines'),
+        qtyByUom: t('receipts.columns.qtyByUom'),
+        receiptDate: t('receipts.columns.receiptDate'),
+      },
+      empty: t('receipts.empty'),
+    },
   };
 }
 
@@ -222,15 +250,16 @@ async function loadReportingContent({
 
   // Future follow-up: quality and inventory intentionally receive only the
   // selected date window; line/order filters are scoped to production/procurement.
-  const [production, inventory, quality, procurement, exportAccess] = await Promise.all([
+  const [production, inventory, quality, procurement, receipts, exportAccess] = await Promise.all([
     productionSummary({ from, to, lineId: filters.lineId, orderQuery: filters.orderQuery }),
     inventorySnapshot({ from, to }),
     qualitySummary({ from, to }),
     procurementSummary({ from, to, orderQuery: filters.orderQuery }),
+    receiptsSummary({ from, to, orderQuery: filters.orderQuery }),
     getReportingExportAccess(),
   ]);
 
-  const results = [production, inventory, quality, procurement] as const;
+  const results = [production, inventory, quality, procurement, receipts] as const;
 
   // ── Permission-denied state (server-resolved by the actions) ────────────────
   if (results.some((r) => !r.ok && r.reason === 'forbidden')) {
@@ -246,7 +275,7 @@ async function loadReportingContent({
   }
 
   // ── Error state (failed live read → banner, never a 500) ────────────────────
-  if (!production.ok || !inventory.ok || !quality.ok || !procurement.ok) {
+  if (!production.ok || !inventory.ok || !quality.ok || !procurement.ok || !receipts.ok) {
     return (
       <div
         role="alert"
@@ -267,6 +296,7 @@ async function loadReportingContent({
       inventory={inventory.data}
       quality={quality.data}
       procurement={procurement.data}
+      receipts={receipts.data}
       productionExportInput={{
         from: from.toISOString(),
         to: to.toISOString(),

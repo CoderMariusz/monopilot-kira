@@ -36,6 +36,7 @@ import type {
   ProcurementSummary,
   ProductionSummary,
   QualitySummary,
+  ReceiptsSummary,
 } from '../_actions/shared';
 
 export type ReportingLabels = {
@@ -111,6 +112,23 @@ export type ReportingLabels = {
     columns: { status: string; count: string };
     empty: string;
   };
+  receipts: {
+    title: string;
+    window: string;
+    kpi: { grnCount: string; completedGrnCount: string; itemLineCount: string; receivedQty: string };
+    qtyNote: string;
+    status: Record<string, string>;
+    columns: {
+      grn: string;
+      supplier: string;
+      warehouse: string;
+      status: string;
+      lines: string;
+      qtyByUom: string;
+      receiptDate: string;
+    };
+    empty: string;
+  };
 };
 
 export type ReportingOverviewProps = {
@@ -118,6 +136,7 @@ export type ReportingOverviewProps = {
   inventory: InventorySnapshot;
   quality: QualitySummary;
   procurement: ProcurementSummary;
+  receipts: ReceiptsSummary;
   productionExportInput: {
     from: string;
     to: string;
@@ -551,6 +570,112 @@ function ProcurementSection({
   );
 }
 
+// ── Section: receipts (GRN) ───────────────────────────────────────────────────
+
+function formatQtyByUom(rows: Array<{ uom: string; qty: string }>): string {
+  return rows.map((row) => `${row.qty} ${row.uom}`).join(' · ');
+}
+
+function ReceiptsSection({
+  data,
+  labels,
+  canExportCsv,
+  notAvailable,
+  exportLabel,
+  exportDenied,
+}: {
+  data: ReceiptsSummary;
+  labels: ReportingLabels['receipts'];
+  canExportCsv: boolean;
+  notAvailable: string;
+  exportLabel: string;
+  exportDenied: string;
+}) {
+  const c = labels.columns;
+  const statusLabel = (status: string) => labels.status[status] ?? status;
+  const exportRows = () =>
+    downloadCsv(
+      toCsv(
+        [c.grn, c.supplier, c.warehouse, c.status, c.lines, c.qtyByUom, c.receiptDate],
+        data.rows.map((r) => [
+          r.grnNumber,
+          r.supplierName ?? '',
+          r.warehouseCode ?? r.warehouseId,
+          statusLabel(r.status),
+          r.itemLineCount,
+          formatQtyByUom(r.receivedQtyByUom),
+          shortDate(r.receiptDate),
+        ]),
+      ),
+      `reporting-receipts-${isoDateStamp()}.csv`,
+    );
+
+  return (
+    <Card data-testid="rpt-section-receipts">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle>{labels.title}</CardTitle>
+          <p className="mt-0.5 text-xs text-slate-500">{labels.window}</p>
+        </div>
+        <ExportButton
+          onExport={exportRows}
+          canExportCsv={canExportCsv}
+          label={exportLabel}
+          deniedTitle={exportDenied}
+          testId="rpt-export-receipts"
+        />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiTile label={labels.kpi.grnCount} value={String(data.totals.grnCount)} />
+          <KpiTile label={labels.kpi.completedGrnCount} value={String(data.totals.completedGrnCount)} />
+          <KpiTile label={labels.kpi.itemLineCount} value={String(data.totals.itemLineCount)} />
+          <KpiTile
+            label={labels.kpi.receivedQty}
+            value={data.totals.receivedQtyByUom.length > 0 ? formatQtyByUom(data.totals.receivedQtyByUom) : notAvailable}
+            sub={labels.qtyNote}
+          />
+        </div>
+        {data.rows.length === 0 ? (
+          <SectionEmpty message={labels.empty} testId="rpt-empty-receipts" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{c.grn}</TableHead>
+                <TableHead>{c.supplier}</TableHead>
+                <TableHead>{c.warehouse}</TableHead>
+                <TableHead>{c.status}</TableHead>
+                <TableHead className="text-right">{c.lines}</TableHead>
+                <TableHead className="text-right">{c.qtyByUom}</TableHead>
+                <TableHead>{c.receiptDate}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.rows.map((r) => (
+                <TableRow key={r.grnId}>
+                  <TableCell className="font-mono text-xs font-semibold">{r.grnNumber}</TableCell>
+                  <TableCell className="text-xs">{r.supplierName ?? notAvailable}</TableCell>
+                  <TableCell className="text-xs">
+                    <span className="font-mono">{r.warehouseCode ?? notAvailable}</span>
+                    {r.warehouseName ? <span className="ml-2 text-slate-500">{r.warehouseName}</span> : null}
+                  </TableCell>
+                  <TableCell className="text-xs">{statusLabel(r.status)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">{r.itemLineCount}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">
+                    {r.receivedQtyByUom.length > 0 ? formatQtyByUom(r.receivedQtyByUom) : null}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{shortDate(r.receiptDate)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export function ReportingOverviewClient({
@@ -558,6 +683,7 @@ export function ReportingOverviewClient({
   inventory,
   quality,
   procurement,
+  receipts,
   productionExportInput,
   canExportCsv,
   labels,
@@ -592,6 +718,14 @@ export function ReportingOverviewClient({
       <ProcurementSection
         data={procurement}
         labels={labels.procurement}
+        canExportCsv={canExportCsv}
+        notAvailable={labels.page.notAvailable}
+        exportLabel={labels.page.exportCsv}
+        exportDenied={labels.page.exportCsvDenied}
+      />
+      <ReceiptsSection
+        data={receipts}
+        labels={labels.receipts}
         canExportCsv={canExportCsv}
         notAvailable={labels.page.notAvailable}
         exportLabel={labels.page.exportCsv}

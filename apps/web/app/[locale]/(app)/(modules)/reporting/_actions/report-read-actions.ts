@@ -30,11 +30,13 @@ import {
   num,
   pct,
   toIso,
+  type GrnReceiptRow,
   type InventorySnapshot,
   type ProcurementSummary,
   type ProductionSummary,
   type QualitySummary,
   type QueryClient,
+  type ReceiptsSummary,
   type ReportingContext,
   type ReportingResult,
 } from './shared';
@@ -483,6 +485,132 @@ export async function inventorySnapshot(
     );
   } catch (error) {
     console.error('[reporting] inventorySnapshot failed', error);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+export async function receiptsSummary(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<ReceiptsSummary>> {
+  const window = normalizeWindow(input, 7);
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<ReportingResult<ReceiptsSummary>> => {
+        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+        if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
+          return { ok: false, reason: 'forbidden' };
+        }
+
+        const res = await ctx.client.query<{
+          grn_id: string;
+          grn_number: string;
+          source_type: string;
+          po_id: string | null;
+          to_id: string | null;
+          supplier_id: string | null;
+          supplier_name: string | null;
+          warehouse_id: string;
+          warehouse_code: string | null;
+          warehouse_name: string | null;
+          status: string;
+          item_line_count: string;
+          received_qty_by_uom: QtyByUomRow[] | string | null;
+          receipt_date: string | Date;
+          completed_at: string | Date | null;
+        }>(
+          `select g.id::text as grn_id,
+                  g.grn_number,
+                  g.source_type,
+                  g.po_id::text,
+                  g.to_id::text,
+                  g.supplier_id::text,
+                  s.name as supplier_name,
+                  g.warehouse_id::text,
+                  w.code as warehouse_code,
+                  w.name as warehouse_name,
+                  g.status,
+                  coalesce(gi.item_line_count, 0)::text as item_line_count,
+                  coalesce(gi.received_qty_by_uom, '[]'::jsonb) as received_qty_by_uom,
+                  g.receipt_date,
+                  g.completed_at
+             from public.grns g
+             left join public.warehouses w
+               on w.org_id = app.current_org_id()
+              and w.id = g.warehouse_id
+             left join public.suppliers s
+               on s.org_id = app.current_org_id()
+              and s.id = g.supplier_id
+             left join lateral (
+               select (select count(*)::integer
+                         from public.grn_items gi_count
+                        where gi_count.org_id = app.current_org_id()
+                          and gi_count.grn_id = g.id) as item_line_count,
+                      (select jsonb_agg(
+                        jsonb_build_object('uom', by_uom.uom, 'qty', by_uom.total_qty::text)
+                        order by by_uom.uom
+                      )
+                         from (
+                   select gi.uom, sum(gi.received_qty) as total_qty
+                     from public.grn_items gi
+                    where gi.org_id = app.current_org_id()
+                      and gi.grn_id = g.id
+                    group by gi.uom
+                         ) by_uom) as received_qty_by_uom
+             ) gi on true
+            where g.org_id = app.current_org_id()
+              and g.receipt_date >= $1::timestamptz
+              and g.receipt_date <= $2::timestamptz
+              and ($3::text is null or g.grn_number ilike '%' || $3::text || '%')
+            order by g.receipt_date desc, g.grn_number desc
+            limit 50`,
+          [window.fromIso, window.toIso, window.orderQuery],
+        );
+
+        const rows: GrnReceiptRow[] = res.rows.map((r) => ({
+          grnId: r.grn_id,
+          grnNumber: r.grn_number,
+          sourceType: r.source_type,
+          poId: r.po_id,
+          toId: r.to_id,
+          supplierId: r.supplier_id,
+          supplierName: r.supplier_name,
+          warehouseId: r.warehouse_id,
+          warehouseCode: r.warehouse_code,
+          warehouseName: r.warehouse_name,
+          status: r.status,
+          itemLineCount: num(r.item_line_count),
+          receivedQtyByUom: parseQtyByUom(r.received_qty_by_uom),
+          receiptDate: toIso(r.receipt_date) ?? '',
+          completedAt: toIso(r.completed_at),
+        }));
+
+        const qtyTotals = new Map<string, number>();
+        rows.forEach((row) => {
+          row.receivedQtyByUom.forEach((qty) => {
+            qtyTotals.set(qty.uom, (qtyTotals.get(qty.uom) ?? 0) + num(qty.qty));
+          });
+        });
+
+        return {
+          ok: true,
+          data: {
+            days: window.days,
+            totals: {
+              grnCount: rows.length,
+              completedGrnCount: rows.filter((r) => r.status === 'completed').length,
+              cancelledGrnCount: rows.filter((r) => r.status === 'cancelled').length,
+              itemLineCount: rows.reduce((a, r) => a + r.itemLineCount, 0),
+              receivedQtyByUom: [...qtyTotals.entries()]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([uom, qty]) => ({ uom, qty: qty.toFixed(3) })),
+            },
+            rows,
+          },
+        };
+      },
+    );
+  } catch (error) {
+    console.error('[reporting] receiptsSummary failed', error);
     return { ok: false, reason: 'error' };
   }
 }

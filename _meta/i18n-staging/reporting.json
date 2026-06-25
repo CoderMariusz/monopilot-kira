@@ -105,6 +105,32 @@
         "count": "Count"
       },
       "empty": "No purchase orders were created in this window."
+    },
+    "receipts": {
+      "title": "Receipts (GRN) summary",
+      "kpi": {
+        "grnCount": "GRNs received (window)",
+        "completedGrnCount": "Completed",
+        "itemLineCount": "Received lines",
+        "receivedQty": "Received qty"
+      },
+      "qtyNote": "Totals by receipt unit of measure",
+      "columns": {
+        "grn": "GRN",
+        "supplier": "Supplier",
+        "warehouse": "Warehouse",
+        "status": "Status",
+        "lines": "Lines",
+        "qtyByUom": "Received qty",
+        "receiptDate": "Received"
+      },
+      "status": {
+        "draft": "Draft",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "posted": "Posted"
+      },
+      "empty": "No goods receipts were recorded in this window."
     }
   },
   "pl": {
@@ -213,6 +239,32 @@
         "count": "Liczba"
       },
       "empty": "W tym okresie nie utworzono żadnych zamówień zakupu."
+    },
+    "receipts": {
+      "title": "Przyjęcia (GRN) — podsumowanie",
+      "kpi": {
+        "grnCount": "Przyjęcia GRN (okno)",
+        "completedGrnCount": "Zakończone",
+        "itemLineCount": "Przyjęte pozycje",
+        "receivedQty": "Przyjęta ilość"
+      },
+      "qtyNote": "Sumy wg jednostki przyjęcia",
+      "columns": {
+        "grn": "GRN",
+        "supplier": "Dostawca",
+        "warehouse": "Magazyn",
+        "status": "Status",
+        "lines": "Pozycje",
+        "qtyByUom": "Przyjęta ilość",
+        "receiptDate": "Przyjęto"
+      },
+      "status": {
+        "draft": "Robocze",
+        "completed": "Zakończone",
+        "cancelled": "Anulowane",
+        "posted": "Zaksięgowane"
+      },
+      "empty": "W tym oknie nie zarejestrowano żadnych przyjęć."
     }
   }
 }

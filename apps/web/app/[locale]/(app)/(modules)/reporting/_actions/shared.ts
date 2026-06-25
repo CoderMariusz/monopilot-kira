@@ -166,6 +166,38 @@ export type InventorySnapshot = {
   }>;
 };
 
+export type GrnReceiptRow = {
+  grnId: string;
+  grnNumber: string;
+  sourceType: string;
+  poId: string | null;
+  toId: string | null;
+  supplierId: string | null;
+  supplierName: string | null;
+  warehouseId: string;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  status: string;
+  itemLineCount: number;
+  /** Received GRN item quantity totals grouped by original grn_items.uom. */
+  receivedQtyByUom: Array<{ uom: string; qty: string }>;
+  receiptDate: string;
+  completedAt: string | null;
+};
+
+export type ReceiptsSummary = {
+  days: number;
+  totals: {
+    grnCount: number;
+    completedGrnCount: number;
+    cancelledGrnCount: number;
+    itemLineCount: number;
+    /** Received GRN item quantity totals grouped by original grn_items.uom. */
+    receivedQtyByUom: Array<{ uom: string; qty: string }>;
+  };
+  rows: GrnReceiptRow[];
+};
+
 export type QualitySummary = {
   days: number;
   /** Holds currently in open/investigating/quarantined/escalated (not windowed). */

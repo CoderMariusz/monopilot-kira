@@ -19,6 +19,7 @@ import {
   procurementSummary,
   productionSummary,
   qualitySummary,
+  receiptsSummary,
 } from '../report-read-actions';
 
 type QueryClient = {
@@ -41,6 +42,7 @@ let outputRow: Record<string, unknown>;
 let wasteRow: Record<string, unknown>;
 let downtimeRow: Record<string, unknown>;
 let lpRows: Array<Record<string, unknown>>;
+let grnRows: Array<Record<string, unknown>>;
 let holdRows: Array<Record<string, unknown>>;
 let inspectionRows: Array<Record<string, unknown>>;
 let ncrRow: Record<string, unknown>;
@@ -81,6 +83,10 @@ function makeClient(): QueryClient {
         return { rows: woRows };
       }
       if (q.includes('from public.license_plates')) return { rows: lpRows };
+      if (q.includes('from public.grns') && q.includes('g.grn_number')) {
+        capturedParams.grns = [...(params ?? [])];
+        return { rows: grnRows };
+      }
       if (q.includes('from public.quality_holds')) return { rows: holdRows };
       if (q.includes('from public.quality_inspections')) {
         capturedParams.inspections = [...(params ?? [])];
@@ -155,6 +161,46 @@ beforeEach(() => {
       qty_by_uom: [{ uom: 'each', qty: '50.000' }],
       expired_count: '0',
       expiring_7d_count: '0',
+    },
+  ];
+
+  grnRows = [
+    {
+      grn_id: '55555555-5555-4555-8555-555555555555',
+      grn_number: 'GRN-2026-00002',
+      source_type: 'po',
+      po_id: '66666666-6666-4666-8666-666666666666',
+      to_id: null,
+      supplier_id: '77777777-7777-4777-8777-777777777777',
+      supplier_name: 'Acme Supplies',
+      warehouse_id: WH_ID,
+      warehouse_code: 'WH1',
+      warehouse_name: 'Main',
+      status: 'completed',
+      item_line_count: '2',
+      received_qty_by_uom: [
+        { uom: 'box', qty: '5.000000' },
+        { uom: 'kg', qty: '125.250000' },
+      ],
+      receipt_date: new Date('2026-06-10T09:30:00Z'),
+      completed_at: '2026-06-10T10:00:00Z',
+    },
+    {
+      grn_id: '88888888-8888-4888-8888-888888888888',
+      grn_number: 'GRN-2026-00001',
+      source_type: 'return',
+      po_id: null,
+      to_id: null,
+      supplier_id: null,
+      supplier_name: null,
+      warehouse_id: '44444444-4444-4444-8444-444444444444',
+      warehouse_code: 'WH2',
+      warehouse_name: 'Cold',
+      status: 'draft',
+      item_line_count: '1',
+      received_qty_by_uom: [{ uom: 'kg', qty: '10.750000' }],
+      receipt_date: '2026-06-09T08:00:00Z',
+      completed_at: null,
     },
   ];
 
@@ -295,6 +341,52 @@ describe('inventorySnapshot', () => {
   it('is forbidden without rpt.dashboard.view', async () => {
     grantedPermissions = new Set();
     expect(await inventorySnapshot()).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('receiptsSummary', () => {
+  it('returns mapped ReceiptsSummary rows and rolls up totals', async () => {
+    const res = await receiptsSummary({ days: 7 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.days).toBe(7);
+    expect(capturedParams.grns).toHaveLength(3);
+    expect(res.data.rows).toHaveLength(2);
+    expect(res.data.rows[0]).toEqual({
+      grnId: '55555555-5555-4555-8555-555555555555',
+      grnNumber: 'GRN-2026-00002',
+      sourceType: 'po',
+      poId: '66666666-6666-4666-8666-666666666666',
+      toId: null,
+      supplierId: '77777777-7777-4777-8777-777777777777',
+      supplierName: 'Acme Supplies',
+      warehouseId: WH_ID,
+      warehouseCode: 'WH1',
+      warehouseName: 'Main',
+      status: 'completed',
+      itemLineCount: 2,
+      receivedQtyByUom: [
+        { uom: 'box', qty: '5.000000' },
+        { uom: 'kg', qty: '125.250000' },
+      ],
+      receiptDate: '2026-06-10T09:30:00.000Z',
+      completedAt: '2026-06-10T10:00:00Z',
+    });
+    expect(res.data.totals).toEqual({
+      grnCount: 2,
+      completedGrnCount: 1,
+      cancelledGrnCount: 0,
+      itemLineCount: 3,
+      receivedQtyByUom: [
+        { uom: 'box', qty: '5.000' },
+        { uom: 'kg', qty: '136.000' },
+      ],
+    });
+  });
+
+  it('returns forbidden error when caller lacks rpt.dashboard.view permission', async () => {
+    grantedPermissions = new Set();
+    expect(await receiptsSummary()).toEqual({ ok: false, reason: 'forbidden' });
   });
 });
 
