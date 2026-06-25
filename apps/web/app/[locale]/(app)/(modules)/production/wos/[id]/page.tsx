@@ -340,7 +340,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
         submit: rec('submit', 'Record consumption'),
         submitting: rec('submitting', 'Recording…'),
         cancel: rec('cancel', 'Cancel'),
-        formIncomplete: 'Complete all required fields to continue.',
+        formIncomplete: t('consumption.record.formIncomplete'),
         warningOver: rec('warningOver', 'Over required quantity by {pct}% — recorded and flagged.'),
         warningClose: rec('warningClose', 'Close'),
         errors: {
@@ -493,7 +493,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       cancel: vc('voidCorrection.cancel', 'Cancel'),
       submit: vc('voidCorrection.submit', 'Void'),
       submitting: vc('voidCorrection.submitting', 'Voiding…'),
-      formIncomplete: 'Complete all required fields to continue.',
+      formIncomplete: t('voidCorrection.formIncomplete'),
       errors: {
         forbidden: vc('voidCorrection.errors.forbidden', 'You do not have permission to void this record.'),
         not_found: vc('voidCorrection.errors.not_found', 'This record no longer exists — refresh and retry.'),
@@ -610,7 +610,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       cancel: vc('reverseConsumption.cancel', 'Cancel'),
       submit: vc('reverseConsumption.submit', 'Reverse'),
       submitting: vc('reverseConsumption.submitting', 'Reversing…'),
-      formIncomplete: 'Complete all required fields to continue.',
+      formIncomplete: t('reverseConsumption.formIncomplete'),
       errors: {
         forbidden: vc('reverseConsumption.errors.forbidden', 'You do not have permission to reverse this consumption.'),
         not_found: vc('reverseConsumption.errors.not_found', 'This consumption entry no longer exists — refresh and retry.'),

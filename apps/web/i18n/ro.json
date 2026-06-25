@@ -7527,6 +7527,7 @@
             "submit": "Record consumption",
             "submitting": "Recording…",
             "cancel": "Cancel",
+            "formIncomplete": "Complete all required fields to continue.",
             "errors": {
               "forbidden": "You do not have permission to record consumption.",
               "lp_unavailable": "That license plate no longer has enough free stock for this quantity.",
@@ -7629,6 +7630,7 @@
           "cancel": "Cancel",
           "submit": "Void",
           "submitting": "Voiding…",
+          "formIncomplete": "Complete all required fields to continue.",
           "errors": {
             "forbidden": "You do not have permission to void this record.",
             "not_found": "This record no longer exists — refresh and retry.",
@@ -7718,6 +7720,7 @@
           "cancel": "Cancel",
           "submit": "Reverse",
           "submitting": "Reversing…",
+          "formIncomplete": "Complete all required fields to continue.",
           "errors": {
             "forbidden": "You do not have permission to reverse this consumption.",
             "not_found": "This consumption entry no longer exists — refresh and retry.",

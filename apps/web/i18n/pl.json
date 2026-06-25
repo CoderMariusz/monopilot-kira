@@ -7529,6 +7529,7 @@
             "submit": "Zarejestruj zużycie",
             "submitting": "Rejestrowanie…",
             "cancel": "Anuluj",
+            "formIncomplete": "Uzupełnij wszystkie wymagane pola, aby kontynuować.",
             "errors": {
               "forbidden": "Nie masz uprawnień do rejestrowania zużycia.",
               "lp_unavailable": "Ten nośnik nie ma już wystarczającego wolnego stanu dla tej ilości.",
@@ -7629,6 +7630,7 @@
           "cancel": "Anuluj",
           "submit": "Anuluj wpis",
           "submitting": "Anulowanie…",
+          "formIncomplete": "Uzupełnij wszystkie wymagane pola, aby kontynuować.",
           "errors": {
             "forbidden": "Nie masz uprawnień do anulowania tego wpisu.",
             "not_found": "Ten wpis już nie istnieje — odśwież i spróbuj ponownie.",
@@ -7718,6 +7720,7 @@
           "cancel": "Anuluj",
           "submit": "Cofnij",
           "submitting": "Cofanie…",
+          "formIncomplete": "Uzupełnij wszystkie wymagane pola, aby kontynuować.",
           "errors": {
             "forbidden": "Nie masz uprawnień do cofnięcia tego zużycia.",
             "not_found": "Ten wpis zużycia już nie istnieje — odśwież i spróbuj ponownie.",
