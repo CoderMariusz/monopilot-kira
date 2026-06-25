@@ -43,6 +43,29 @@ export type D365SyncLabels = {
     maxAttempts: string;
     retryBackoff: string;
   };
+  hints: {
+    pullCron: string;
+    batchSize: string;
+    pushQueue: string;
+    maxAttempts: string;
+    retryBackoff: string;
+  };
+  status: {
+    saving: string;
+    lastApplied: string;
+    appliedBy: string;
+    notRecorded: string;
+    notAppliedYet: string;
+    enabled: string;
+    disabled: string;
+    legacyNotice: string;
+    invalidCron: string;
+    nextRunUnavailable: string;
+    nextRun: string;
+    dlqDescription: string;
+    dlqLink: string;
+    forbiddenBody: string;
+  };
 };
 
 const prototypeSource = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:27-107';
@@ -99,8 +122,8 @@ function isCronNumber(value: string, min: number, max: number) {
   return parsed >= min && parsed <= max;
 }
 
-function nextRunPreview(cron: string, locale: string) {
-  if (!isValidFiveFieldCron(cron)) return 'Next run unavailable until the cron is valid.';
+function nextRunPreview(cron: string, locale: string, labels: D365SyncLabels) {
+  if (!isValidFiveFieldCron(cron)) return labels.status.nextRunUnavailable;
 
   const [minuteField, hourField] = cron.trim().split(/\s+/);
   const now = new Date();
@@ -116,11 +139,11 @@ function nextRunPreview(cron: string, locale: string) {
     else next.setUTCDate(next.getUTCDate() + 1);
   }
 
-  return `Next run ${new Intl.DateTimeFormat(locale || 'en', {
+  return labels.status.nextRun.replace('{date}', new Intl.DateTimeFormat(locale || 'en', {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'UTC',
-  }).format(next)} UTC`;
+  }).format(next));
 }
 
 function firstCronValue(field: string, min: number, max: number) {
@@ -130,8 +153,8 @@ function firstCronValue(field: string, min: number, max: number) {
   return Number(candidate);
 }
 
-function formatAppliedAt(value: string | null, locale: string) {
-  if (!value) return 'Not applied yet';
+function formatAppliedAt(value: string | null, locale: string, labels: D365SyncLabels) {
+  if (!value) return labels.status.notAppliedYet;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(locale || 'en', {
@@ -212,7 +235,7 @@ export function D365SyncConfigForm({
   };
   const parsed = syncConfigSchema.safeParse(payload);
   const cronError = pullCron.trim() && !cronField.safeParse(pullCron).success
-    ? 'Invalid cron expression. Use a valid cron-parser style 5-field expression.'
+    ? labels.status.invalidCron
     : null;
   const canSubmit = parsed.success && !pending;
 
@@ -246,19 +269,19 @@ export function D365SyncConfigForm({
           <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
         <Button type="submit" form="d365-sync-config-form" disabled={!canSubmit} className="btn-primary">
-          {pending ? 'Saving…' : labels.save}
+          {pending ? labels.status.saving : labels.save}
         </Button>
       </header>
 
       <div data-testid="d365-sync-applied-strip" className="alert alert-blue">
-        <strong>Last applied</strong>{' '}
-        <span className="font-mono">{formatAppliedAt(config.last_applied_at, locale)}</span>
+        <strong>{labels.status.lastApplied}</strong>{' '}
+        <span className="font-mono">{formatAppliedAt(config.last_applied_at, locale, labels)}</span>
         {' · '}
-        <span>Applied by {config.applied_by_user ?? 'not recorded'}</span>
+        <span>{labels.status.appliedBy.replace('{user}', config.applied_by_user ?? labels.status.notRecorded)}</span>
       </div>
 
       <div className="alert alert-amber" role="note">
-        <strong>LEGACY-D365.</strong> Sync is retained for transition operations; no credentials are stored on this SET-082 screen.
+        {labels.status.legacyNotice}
       </div>
 
       <form id="d365-sync-config-form" onSubmit={onSubmit} className="space-y-4">
@@ -266,7 +289,7 @@ export function D365SyncConfigForm({
           <Field
             field="pull_cron"
             label={labels.fields.pullCron}
-            hint="Use a valid 5-field cron expression."
+            hint={labels.hints.pullCron}
             error={cronError}
           >
             <label className="sr-only" htmlFor="d365-pull-cron">
@@ -282,10 +305,10 @@ export function D365SyncConfigForm({
               style={{ width: 220 }}
             />
             <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
-              {nextRunPreview(pullCron, locale)}
+              {nextRunPreview(pullCron, locale, labels)}
             </p>
           </Field>
-          <Field field="batch_size" label={labels.fields.batchSize} hint="Records pulled or pushed per worker batch.">
+          <Field field="batch_size" label={labels.fields.batchSize} hint={labels.hints.batchSize}>
             <Input
               id="d365-batch-size"
               aria-label={labels.fields.batchSize}
@@ -298,16 +321,16 @@ export function D365SyncConfigForm({
               style={{ width: 120 }}
             />
           </Field>
-          <Field field="push_queue_enabled" label={labels.fields.pushQueue} hint="Enqueues outbound MES changes for D365 export-only sync.">
+          <Field field="push_queue_enabled" label={labels.fields.pushQueue} hint={labels.hints.pushQueue}>
             <div className="flex items-center gap-3">
               <Switch aria-label={labels.fields.pushQueue} checked={pushQueueEnabled} onCheckedChange={setPushQueueEnabled} />
-              <Badge variant={pushQueueEnabled ? 'success' : 'muted'}>{pushQueueEnabled ? 'Enabled' : 'Disabled'}</Badge>
+              <Badge variant={pushQueueEnabled ? 'success' : 'muted'}>{pushQueueEnabled ? labels.status.enabled : labels.status.disabled}</Badge>
             </div>
           </Field>
         </Section>
 
         <Section title={labels.sections.retry}>
-          <Field field="max_attempts" label={labels.fields.maxAttempts} hint="Worker retries before moving the item to the dead-letter queue.">
+          <Field field="max_attempts" label={labels.fields.maxAttempts} hint={labels.hints.maxAttempts}>
             <Input
               id="d365-max-attempts"
               aria-label={labels.fields.maxAttempts}
@@ -320,7 +343,7 @@ export function D365SyncConfigForm({
               style={{ width: 120 }}
             />
           </Field>
-          <Field field="retry_backoff_minutes" label={labels.fields.retryBackoff} hint="Minutes between retry attempts.">
+          <Field field="retry_backoff_minutes" label={labels.fields.retryBackoff} hint={labels.hints.retryBackoff}>
             <Input
               id="d365-retry-backoff"
               aria-label={labels.fields.retryBackoff}
@@ -337,9 +360,9 @@ export function D365SyncConfigForm({
 
         <Section title={labels.sections.dlq}>
           <div className="py-4 text-sm text-muted-foreground">
-            Items that exceed the retry policy are visible in the worker-owned DLQ tooling.{' '}
+            {labels.status.dlqDescription}{' '}
             <a className="font-medium text-[var(--blue-700)] underline" href={config.dlq_href}>
-              Dead-letter queue
+              {labels.status.dlqLink}
             </a>
           </div>
         </Section>

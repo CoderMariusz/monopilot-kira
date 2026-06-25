@@ -57,13 +57,43 @@ export type D365Labels = {
   error: string;
   sections?: {
     endpoint?: string;
+    authentication?: string;
+    pollingSync?: string;
+    lastTest?: string;
   };
   fields?: {
     baseUrl?: string;
+    environment?: string;
+    tenantId?: string;
+    clientId?: string;
+    clientSecret?: string;
+    serviceAccountEmail?: string;
+    pollCron?: string;
+    integrationEnabled?: string;
+  };
+  hints?: {
+    baseUrl?: string;
+    tenantId?: string;
+    clientId?: string;
+    clientSecret?: string;
+    serviceAccountEmail?: string;
+    pollCron?: string;
+    integrationEnabled?: string;
+  };
+  validation?: {
+    invalidUuid?: string;
+    tooShort?: string;
+    cronFiveFields?: string;
   };
   dialog?: {
     testTitle?: string;
     close?: string;
+  };
+  notices?: {
+    legacy?: string;
+    rotationUnavailable?: string;
+    connected?: string;
+    failed?: string;
   };
   preflight?: {
     incomplete?: string;
@@ -279,9 +309,9 @@ function ReadyD365ConnectionForm({
 
   const payload = { baseUrl, environment, tenantId, clientId, serviceAccountEmail, pollCron, enabled };
   const urlInvalid = baseUrl.trim() && !(baseUrl.startsWith('https://') && baseUrl.toLowerCase().includes('.dynamics.com')) ? labels.urlInvalid : null;
-  const tenantInvalid = tenantId.trim() && !/^[0-9a-f-]{36}$/i.test(tenantId) ? 'Invalid UUID format.' : null;
-  const clientInvalid = clientId.trim() && clientId.length < 8 ? 'Too short.' : null;
-  const cronInvalid = pollCron.trim() && pollCron.trim().split(/\s+/).length !== 5 ? 'Cron must have 5 space-separated fields.' : null;
+  const tenantInvalid = tenantId.trim() && !/^[0-9a-f-]{36}$/i.test(tenantId) ? (labels.validation?.invalidUuid ?? 'Invalid UUID format.') : null;
+  const clientInvalid = clientId.trim() && clientId.length < 8 ? (labels.validation?.tooShort ?? 'Too short.') : null;
+  const cronInvalid = pollCron.trim() && pollCron.trim().split(/\s+/).length !== 5 ? (labels.validation?.cronFiveFields ?? 'Cron must have 5 space-separated fields.') : null;
   const allValid = Boolean(baseUrl.trim() && tenantId.trim() && clientId.trim() && pollCron.trim()) && !urlInvalid && !tenantInvalid && !clientInvalid && !cronInvalid;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -320,13 +350,17 @@ function ReadyD365ConnectionForm({
     <Root>
       <PageHeader labels={labels} canSave={allValid} onTestConnection={() => setDialogOpen(true)} />
       <div className="alert alert-amber" role="note">
-        <strong>LEGACY-D365.</strong> This integration will be retired when Monopilot replaces D365. Referenced by{' '}
-        <span className="font-mono">integration.d365.so_trigger.enabled</span> (gates Planning SCREEN-13 + D365 Queue).
+        {labels.notices?.legacy ?? (
+          <>
+            <strong>LEGACY-D365.</strong> This integration will be retired when Monopilot replaces D365. Referenced by{' '}
+            <span className="font-mono">integration.d365.so_trigger.enabled</span> (gates Planning SCREEN-13 + D365 Queue).
+          </>
+        )}
       </div>
 
       <form id="d365-connection-form" onSubmit={onSubmit} className="space-y-4">
         <Section title={labels.sections?.endpoint ?? 'Endpoint'}>
-          <Field field="baseUrl" label={labels.fields?.baseUrl ?? 'Base URL'} htmlFor="d365-base-url" hint="e.g. https://apex.operations.dynamics.com" error={urlInvalid}>
+          <Field field="baseUrl" label={labels.fields?.baseUrl ?? 'Base URL'} htmlFor="d365-base-url" hint={labels.hints?.baseUrl ?? 'e.g. https://apex.operations.dynamics.com'} error={urlInvalid}>
             <Input
               id="d365-base-url"
               type="url"
@@ -338,17 +372,17 @@ function ReadyD365ConnectionForm({
               style={{ width: '100%', maxWidth: 420 }}
             />
           </Field>
-          <Field field="environment" label="Environment" htmlFor="d365-environment">
+          <Field field="environment" label={labels.fields?.environment ?? 'Environment'} htmlFor="d365-environment">
             <Select value={environment} onValueChange={(value) => setEnvironment(value as D365Environment)}>
-              <SelectTrigger aria-label="Environment">
-                <SelectValue placeholder="Environment" />
+              <SelectTrigger aria-label={labels.fields?.environment ?? 'Environment'}>
+                <SelectValue placeholder={labels.fields?.environment ?? 'Environment'} />
               </SelectTrigger>
             </Select>
           </Field>
         </Section>
 
-        <Section title="Authentication (Azure AD)">
-          <Field field="tenantId" label="Tenant ID" htmlFor="d365-tenant-id" hint="UUID format, from Azure portal." error={tenantInvalid}>
+        <Section title={labels.sections?.authentication ?? 'Authentication (Azure AD)'}>
+          <Field field="tenantId" label={labels.fields?.tenantId ?? 'Tenant ID'} htmlFor="d365-tenant-id" hint={labels.hints?.tenantId ?? 'UUID format, from Azure portal.'} error={tenantInvalid}>
             <Input
               id="d365-tenant-id"
               data-slot="input"
@@ -358,7 +392,7 @@ function ReadyD365ConnectionForm({
               style={{ width: 360 }}
             />
           </Field>
-          <Field field="clientId" label="Client ID" htmlFor="d365-client-id" hint="Azure App Registration client ID." error={clientInvalid}>
+          <Field field="clientId" label={labels.fields?.clientId ?? 'Client ID'} htmlFor="d365-client-id" hint={labels.hints?.clientId ?? 'Azure App Registration client ID.'} error={clientInvalid}>
             <Input
               id="d365-client-id"
               data-slot="input"
@@ -368,7 +402,7 @@ function ReadyD365ConnectionForm({
               style={{ width: 360 }}
             />
           </Field>
-          <Field field="clientSecret" label="Client Secret" htmlFor="d365-client-secret" hint="Never shown after save. Use 'Rotate' to update.">
+          <Field field="clientSecret" label={labels.fields?.clientSecret ?? 'Client Secret'} htmlFor="d365-client-secret" hint={labels.hints?.clientSecret ?? "Never shown after save. Use 'Rotate' to update."}>
             <div className="flex items-center gap-2">
               <Input
                 id="d365-client-secret"
@@ -384,14 +418,14 @@ function ReadyD365ConnectionForm({
                 type="button"
                 className="btn-secondary btn-sm"
                 disabled={!rotateD365ClientSecret}
-                title={!rotateD365ClientSecret ? 'Key rotation is not available yet.' : undefined}
+                title={!rotateD365ClientSecret ? (labels.notices?.rotationUnavailable ?? 'Key rotation is not available yet.') : undefined}
                 onClick={onRotateSecret}
               >
                 {labels.rotateSecret}
               </Button>
             </div>
           </Field>
-          <Field field="serviceAccountEmail" label="Service account email" htmlFor="d365-service-account-email" hint="Fallback basic-auth identity.">
+          <Field field="serviceAccountEmail" label={labels.fields?.serviceAccountEmail ?? 'Service account email'} htmlFor="d365-service-account-email" hint={labels.hints?.serviceAccountEmail ?? 'Fallback basic-auth identity.'}>
             <Input
               id="d365-service-account-email"
               type="email"
@@ -404,8 +438,8 @@ function ReadyD365ConnectionForm({
           </Field>
         </Section>
 
-        <Section title="Polling & sync">
-          <Field field="pollCron" label="Pull cron schedule" htmlFor="d365-poll-cron" hint="Standard 5-field cron. Example: '0 2 * * *' = daily 02:00." error={cronInvalid}>
+        <Section title={labels.sections?.pollingSync ?? 'Polling & sync'}>
+          <Field field="pollCron" label={labels.fields?.pollCron ?? 'Pull cron schedule'} htmlFor="d365-poll-cron" hint={labels.hints?.pollCron ?? "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00."} error={cronInvalid}>
             <Input
               id="d365-poll-cron"
               data-slot="input"
@@ -417,14 +451,14 @@ function ReadyD365ConnectionForm({
           </Field>
           <Field
             field="enabled"
-            label="Integration enabled"
+            label={labels.fields?.integrationEnabled ?? 'Integration enabled'}
             htmlFor="d365-enabled"
-            hint="Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle."
+            hint={labels.hints?.integrationEnabled ?? 'Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.'}
             error={constantsIncomplete ? preflightWarning : null}
           >
             <Switch
               id="d365-enabled"
-              aria-label="Integration enabled"
+              aria-label={labels.fields?.integrationEnabled ?? 'Integration enabled'}
               checked={enabled}
               onCheckedChange={onEnabledChange}
               disabled={constantsIncomplete}
@@ -437,16 +471,16 @@ function ReadyD365ConnectionForm({
           </Field>
         </Section>
 
-        <Section title="Last test">
+        <Section title={labels.sections?.lastTest ?? 'Last test'}>
           {config.lastTest.ok ? (
             <div className="alert alert-green">
-              ✓ Connected at <span className="font-mono">{config.lastTest.at}</span> · Latency{' '}
-              <span className="font-mono">{config.lastTest.latencyMs}ms</span> · Env{' '}
+              {labels.notices?.connected ?? 'Connected'} <span className="font-mono">{config.lastTest.at}</span> ·{' '}
+              <span className="font-mono">{config.lastTest.latencyMs}ms</span> ·{' '}
               <span className="font-mono">{config.lastTest.environment}</span>
             </div>
           ) : (
             <div className="alert alert-red">
-              ✗ Failed — run 'Test connection' to retry.
+              {labels.notices?.failed ?? "Failed — run 'Test connection' to retry."}
             </div>
           )}
         </Section>

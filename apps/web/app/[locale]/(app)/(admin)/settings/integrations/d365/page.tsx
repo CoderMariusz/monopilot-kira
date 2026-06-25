@@ -183,8 +183,12 @@ function MissingPrerequisitesConnectionScreen({
       </header>
 
       <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <strong>LEGACY-D365.</strong> This integration will be retired when Monopilot replaces D365. Referenced by{' '}
-        <span className="font-mono">integration.d365.so_trigger.enabled</span> (gates Planning SCREEN-13 + D365 Queue).
+        {labels.notices?.legacy ?? (
+          <>
+            <strong>LEGACY-D365.</strong> This integration will be retired when Monopilot replaces D365. Referenced by{' '}
+            <span className="font-mono">integration.d365.so_trigger.enabled</span> (gates Planning SCREEN-13 + D365 Queue).
+          </>
+        )}
       </div>
 
       <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
@@ -192,27 +196,27 @@ function MissingPrerequisitesConnectionScreen({
       </div>
 
       <form id="d365-connection-form" className="space-y-4" aria-disabled="true">
-        <GuardedSection title="Endpoint">
-          <GuardedField field="baseUrl" label="Base URL" htmlFor="d365-base-url" hint="e.g. https://apex.operations.dynamics.com">
-            <Input id="d365-base-url" type="url" aria-label="Base URL" data-slot="input" value="" disabled style={{ width: '100%', maxWidth: 420 }} />
+        <GuardedSection title={labels.sections?.endpoint ?? 'Endpoint'}>
+          <GuardedField field="baseUrl" label={labels.fields?.baseUrl ?? 'Base URL'} htmlFor="d365-base-url" hint={labels.hints?.baseUrl ?? 'e.g. https://apex.operations.dynamics.com'}>
+            <Input id="d365-base-url" type="url" aria-label={labels.fields?.baseUrl ?? 'Base URL'} data-slot="input" value="" disabled style={{ width: '100%', maxWidth: 420 }} />
           </GuardedField>
-          <GuardedField field="environment" label="Environment" htmlFor="d365-environment">
+          <GuardedField field="environment" label={labels.fields?.environment ?? 'Environment'} htmlFor="d365-environment">
             <Select value="" disabled>
-              <SelectTrigger aria-label="Environment">
-                <SelectValue placeholder="Environment" />
+              <SelectTrigger aria-label={labels.fields?.environment ?? 'Environment'}>
+                <SelectValue placeholder={labels.fields?.environment ?? 'Environment'} />
               </SelectTrigger>
             </Select>
           </GuardedField>
         </GuardedSection>
 
-        <GuardedSection title="Authentication (Azure AD)">
-          <GuardedField field="tenantId" label="Tenant ID" htmlFor="d365-tenant-id" hint="UUID format, from Azure portal.">
+        <GuardedSection title={labels.sections?.authentication ?? 'Authentication (Azure AD)'}>
+          <GuardedField field="tenantId" label={labels.fields?.tenantId ?? 'Tenant ID'} htmlFor="d365-tenant-id" hint={labels.hints?.tenantId ?? 'UUID format, from Azure portal.'}>
             <Input id="d365-tenant-id" data-slot="input" value="" disabled className="font-mono" style={{ width: 360 }} />
           </GuardedField>
-          <GuardedField field="clientId" label="Client ID" htmlFor="d365-client-id" hint="Azure App Registration client ID.">
+          <GuardedField field="clientId" label={labels.fields?.clientId ?? 'Client ID'} htmlFor="d365-client-id" hint={labels.hints?.clientId ?? 'Azure App Registration client ID.'}>
             <Input id="d365-client-id" data-slot="input" value="" disabled className="font-mono" style={{ width: 360 }} />
           </GuardedField>
-          <GuardedField field="clientSecret" label="Client Secret" htmlFor="d365-client-secret" hint="Never shown after save. Use 'Rotate' to update.">
+          <GuardedField field="clientSecret" label={labels.fields?.clientSecret ?? 'Client Secret'} htmlFor="d365-client-secret" hint={labels.hints?.clientSecret ?? "Never shown after save. Use 'Rotate' to update."}>
             <div className="flex items-center gap-2">
               <Input id="d365-client-secret" data-slot="input" type="password" readOnly value="" disabled style={{ width: 200 }} />
               <Button type="button" className="btn-secondary btn-sm" disabled>
@@ -220,23 +224,23 @@ function MissingPrerequisitesConnectionScreen({
               </Button>
             </div>
           </GuardedField>
-          <GuardedField field="serviceAccountEmail" label="Service account email" htmlFor="d365-service-account-email" hint="Fallback basic-auth identity.">
+          <GuardedField field="serviceAccountEmail" label={labels.fields?.serviceAccountEmail ?? 'Service account email'} htmlFor="d365-service-account-email" hint={labels.hints?.serviceAccountEmail ?? 'Fallback basic-auth identity.'}>
             <Input id="d365-service-account-email" type="email" data-slot="input" value="" disabled style={{ width: 320 }} />
           </GuardedField>
         </GuardedSection>
 
-        <GuardedSection title="Polling & sync">
-          <GuardedField field="pollCron" label="Pull cron schedule" htmlFor="d365-poll-cron" hint="Standard 5-field cron. Example: '0 2 * * *' = daily 02:00.">
+        <GuardedSection title={labels.sections?.pollingSync ?? 'Polling & sync'}>
+          <GuardedField field="pollCron" label={labels.fields?.pollCron ?? 'Pull cron schedule'} htmlFor="d365-poll-cron" hint={labels.hints?.pollCron ?? "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00."}>
             <Input id="d365-poll-cron" data-slot="input" value="" disabled className="font-mono" style={{ width: 200 }} />
           </GuardedField>
-          <GuardedField field="enabled" label="Integration enabled" htmlFor="d365-enabled" hint="Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.">
-            <Switch id="d365-enabled" aria-label="Integration enabled" checked={false} disabled />
+          <GuardedField field="enabled" label={labels.fields?.integrationEnabled ?? 'Integration enabled'} htmlFor="d365-enabled" hint={labels.hints?.integrationEnabled ?? 'Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.'}>
+            <Switch id="d365-enabled" aria-label={labels.fields?.integrationEnabled ?? 'Integration enabled'} checked={false} disabled />
           </GuardedField>
         </GuardedSection>
 
-        <GuardedSection title="Last test">
+        <GuardedSection title={labels.sections?.lastTest ?? 'Last test'}>
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-            ✗ Failed — run 'Test connection' to retry.
+            {labels.notices?.failed ?? "Failed — run 'Test connection' to retry."}
           </div>
         </GuardedSection>
       </form>
@@ -289,6 +293,46 @@ export default async function D365ConnectionPage(propsInput: unknown) {
       t('settings.integrations.d365.connection.preflightMissing'),
       'Missing D365 constants:',
     ),
+  };
+  labels.sections = {
+    endpoint: label('settings.integrations.d365.connection.sections.endpoint', t('settings.integrations.d365.connection.sections.endpoint'), 'Endpoint'),
+    authentication: label('settings.integrations.d365.connection.sections.authentication', t('settings.integrations.d365.connection.sections.authentication'), 'Authentication (Azure AD)'),
+    pollingSync: label('settings.integrations.d365.connection.sections.pollingSync', t('settings.integrations.d365.connection.sections.pollingSync'), 'Polling & sync'),
+    lastTest: label('settings.integrations.d365.connection.sections.lastTest', t('settings.integrations.d365.connection.sections.lastTest'), 'Last test'),
+  };
+  labels.fields = {
+    baseUrl: label('settings.integrations.d365.connection.fields.baseUrl', t('settings.integrations.d365.connection.fields.baseUrl'), 'Base URL'),
+    environment: label('settings.integrations.d365.connection.fields.environment', t('settings.integrations.d365.connection.fields.environment'), 'Environment'),
+    tenantId: label('settings.integrations.d365.connection.fields.tenantId', t('settings.integrations.d365.connection.fields.tenantId'), 'Tenant ID'),
+    clientId: label('settings.integrations.d365.connection.fields.clientId', t('settings.integrations.d365.connection.fields.clientId'), 'Client ID'),
+    clientSecret: label('settings.integrations.d365.connection.fields.clientSecret', t('settings.integrations.d365.connection.fields.clientSecret'), 'Client Secret'),
+    serviceAccountEmail: label('settings.integrations.d365.connection.fields.serviceAccountEmail', t('settings.integrations.d365.connection.fields.serviceAccountEmail'), 'Service account email'),
+    pollCron: label('settings.integrations.d365.connection.fields.pollCron', t('settings.integrations.d365.connection.fields.pollCron'), 'Pull cron schedule'),
+    integrationEnabled: label('settings.integrations.d365.connection.fields.integrationEnabled', t('settings.integrations.d365.connection.fields.integrationEnabled'), 'Integration enabled'),
+  };
+  labels.hints = {
+    baseUrl: label('settings.integrations.d365.connection.hints.baseUrl', t('settings.integrations.d365.connection.hints.baseUrl'), 'e.g. https://apex.operations.dynamics.com'),
+    tenantId: label('settings.integrations.d365.connection.hints.tenantId', t('settings.integrations.d365.connection.hints.tenantId'), 'UUID format, from Azure portal.'),
+    clientId: label('settings.integrations.d365.connection.hints.clientId', t('settings.integrations.d365.connection.hints.clientId'), 'Azure App Registration client ID.'),
+    clientSecret: label('settings.integrations.d365.connection.hints.clientSecret', t('settings.integrations.d365.connection.hints.clientSecret'), "Never shown after save. Use 'Rotate' to update."),
+    serviceAccountEmail: label('settings.integrations.d365.connection.hints.serviceAccountEmail', t('settings.integrations.d365.connection.hints.serviceAccountEmail'), 'Fallback basic-auth identity.'),
+    pollCron: label('settings.integrations.d365.connection.hints.pollCron', t('settings.integrations.d365.connection.hints.pollCron'), "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00."),
+    integrationEnabled: label('settings.integrations.d365.connection.hints.integrationEnabled', t('settings.integrations.d365.connection.hints.integrationEnabled'), 'Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.'),
+  };
+  labels.validation = {
+    invalidUuid: label('settings.integrations.d365.connection.validation.invalidUuid', t('settings.integrations.d365.connection.validation.invalidUuid'), 'Invalid UUID format.'),
+    tooShort: label('settings.integrations.d365.connection.validation.tooShort', t('settings.integrations.d365.connection.validation.tooShort'), 'Too short.'),
+    cronFiveFields: label('settings.integrations.d365.connection.validation.cronFiveFields', t('settings.integrations.d365.connection.validation.cronFiveFields'), 'Cron must have 5 space-separated fields.'),
+  };
+  labels.dialog = {
+    testTitle: label('settings.integrations.d365.connection.dialog.testTitle', t('settings.integrations.d365.connection.dialog.testTitle'), 'Test D365 connection'),
+    close: label('settings.integrations.d365.connection.dialog.close', t('settings.integrations.d365.connection.dialog.close'), 'Close'),
+  };
+  labels.notices = {
+    legacy: label('settings.integrations.d365.connection.notices.legacy', t('settings.integrations.d365.connection.notices.legacy'), 'LEGACY-D365. This integration will be retired when Monopilot replaces D365. Referenced by integration.d365.so_trigger.enabled (gates Planning SCREEN-13 + D365 Queue).'),
+    rotationUnavailable: label('settings.integrations.d365.connection.notices.rotationUnavailable', t('settings.integrations.d365.connection.notices.rotationUnavailable'), 'Key rotation is not available yet.'),
+    connected: label('settings.integrations.d365.connection.notices.connected', t('settings.integrations.d365.connection.notices.connected'), 'Connected at'),
+    failed: label('settings.integrations.d365.connection.notices.failed', t('settings.integrations.d365.connection.notices.failed'), "Failed — run 'Test connection' to retry."),
   };
   const missingPrerequisites = label(
     'settings.integrations.d365.connection.missingPrerequisites',

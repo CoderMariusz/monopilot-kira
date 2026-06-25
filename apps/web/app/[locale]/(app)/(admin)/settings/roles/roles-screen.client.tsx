@@ -78,14 +78,14 @@ export type RolesScreenProps = {
 
 const permissionGroups: RolePermission['group'][] = ['Settings', 'NPD workflow authorization', 'Technical approval'];
 
-function statusLabel(status: PermissionStatus) {
-  if (status === 'disabled_by_org_policy') return 'Org policy block';
-  if (status === 'misconfigured_policy') return 'Policy issue';
-  return 'Enabled by org policy';
+function statusLabel(status: PermissionStatus, t: (key: string) => string) {
+  if (status === 'disabled_by_org_policy') return t('permissionStatus.orgPolicyBlock');
+  if (status === 'misconfigured_policy') return t('permissionStatus.policyIssue');
+  return t('permissionStatus.enabledByOrgPolicy');
 }
 
-function resolvedPolicySummary(permission: RolePermission) {
-  if (permission.status === 'disabled_by_org_policy') return 'Org policy blocks this workflow or assignment grant.';
+function resolvedPolicySummary(permission: RolePermission, t: (key: string) => string) {
+  if (permission.status === 'disabled_by_org_policy') return t('orgPolicyBlocksGrant');
   return permission.policySummary;
 }
 
@@ -106,12 +106,14 @@ function DialogShell({
   children,
   footer,
   modalId,
+  closeLabel,
   onClose,
 }: {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   modalId?: string;
+  closeLabel: string;
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -130,7 +132,7 @@ function DialogShell({
           <h2 id={titleId} className="modal-title">
             {title}
           </h2>
-          <button type="button" className="modal-close" aria-label={`Close ${title}`} onClick={onClose}>
+          <button type="button" className="modal-close" aria-label={closeLabel} onClick={onClose}>
             ✕
           </button>
         </div>
@@ -152,15 +154,15 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
   });
 
   return (
-    <DialogShell title={`Permissions — ${role.name}`} onClose={onClose}>
+    <DialogShell title={t('permissionsTitle', { role: role.name })} closeLabel={t('closeDialog', { title: t('permissionsTitle', { role: role.name }) })} onClose={onClose}>
       <div className="space-y-4">
         {permissions.some((permission) => permission.status === 'disabled_by_org_policy') ? (
           <p className="alert alert-amber">
-            Disabled by org authorization policy
+            {t('disabledByOrgPolicy')}
           </p>
         ) : null}
         <div className="ff">
-          <label htmlFor={searchId}>Search permissions</label>
+          <label htmlFor={searchId}>{t('searchPermissions')}</label>
           <input
             id={searchId}
             type="search"
@@ -173,10 +175,10 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
         {permissionGroups.map((group) => {
           const groupPermissions = filtered.filter((permission) => permission.group === group);
           return (
-            <section key={group} role="region" aria-label={group} className="card" style={{ margin: 0 }}>
-              <h3 className="card-title">{group}</h3>
+            <section key={group} role="region" aria-label={t(`permissionGroups.${group}`)} className="card" style={{ margin: 0 }}>
+              <h3 className="card-title">{t(`permissionGroups.${group}`)}</h3>
               {groupPermissions.length === 0 ? (
-                <p className="muted mt-2 text-sm">No flat permissions match this filter.</p>
+                <p className="muted mt-2 text-sm">{t('noPermissionsMatch')}</p>
               ) : (
                 <ul className="mt-3 space-y-3">
                   {groupPermissions.map((permission) => (
@@ -184,13 +186,13 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
                       <div className="flex flex-wrap items-center gap-2">
                         <code className="mono rounded bg-white px-2 py-1 font-semibold" style={{ border: '1px solid var(--border)' }}>{permission.name}</code>
                         <Badge tone={permission.directlyGrantedBySeed ? 'green' : 'slate'}>
-                          {permission.directlyGrantedBySeed ? 'Direct grant by role seed' : 'Not directly granted by role seed'}
+                          {permission.directlyGrantedBySeed ? t('directGrantByRoleSeed') : t('notDirectGrantByRoleSeed')}
                         </Badge>
                         <Badge tone={permission.status === 'enabled' ? 'green' : permission.status === 'misconfigured_policy' ? 'red' : 'amber'}>
-                          {statusLabel(permission.status)}
+                          {statusLabel(permission.status, t)}
                         </Badge>
                       </div>
-                      {resolvedPolicySummary(permission) ? <p className="muted mt-2 text-sm">{resolvedPolicySummary(permission)}</p> : null}
+                      {resolvedPolicySummary(permission, t) ? <p className="muted mt-2 text-sm">{resolvedPolicySummary(permission, t)}</p> : null}
                     </li>
                   ))}
                 </ul>
@@ -229,11 +231,12 @@ function AssignRoleDialog({
     <DialogShell
       title={t('assign_role')}
       modalId="SM-07"
+      closeLabel={t('closeDialog', { title: t('assign_role') })}
       onClose={onClose}
       footer={
         <>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="button"
@@ -245,14 +248,14 @@ function AssignRoleDialog({
               onClose();
             }}
           >
-            Assign role
+            {t('assignRoleButton')}
           </button>
         </>
       }
     >
       <div className="space-y-4">
         <div className="ff">
-          <label htmlFor={searchId}>Search user</label>
+          <label htmlFor={searchId}>{t('searchUser')}</label>
           <input
             id={searchId}
             type="text"
@@ -260,12 +263,12 @@ function AssignRoleDialog({
             autoFocus
             onChange={(event) => setQuery(event.target.value)}
             className="form-input"
-            placeholder="Name or email…"
+            placeholder={t('nameOrEmailPlaceholder')}
           />
         </div>
-        <div role="listbox" aria-label="Assignable users" className="max-h-56 overflow-auto rounded-md border" style={{ borderColor: 'var(--border)' }}>
+        <div role="listbox" aria-label={t('assignableUsers')} className="max-h-56 overflow-auto rounded-md border" style={{ borderColor: 'var(--border)' }}>
           {filteredUsers.length === 0 ? (
-            <p className="muted px-3 py-2 text-sm">No matching org members.</p>
+            <p className="muted px-3 py-2 text-sm">{t('noMatchingOrgMembers')}</p>
           ) : (
             filteredUsers.slice(0, 8).map((user) => (
               <button
@@ -283,7 +286,7 @@ function AssignRoleDialog({
                 <span>
                   <span className="block text-sm font-medium">{user.name}</span>
                   <span className="muted block text-xs">
-                    {user.email} · current: {user.currentRoleCode}
+                    {t('currentRole', { email: user.email, role: user.currentRoleCode })}
                   </span>
                 </span>
               </button>
@@ -292,7 +295,7 @@ function AssignRoleDialog({
         </div>
         <div className="ff">
           <label htmlFor={roleId}>
-            New role <span className="req">*</span>
+            {t('newRole')} <span className="req">*</span>
           </label>
           <select
             id={roleId}
@@ -300,7 +303,7 @@ function AssignRoleDialog({
             onChange={(event) => setRoleCode(event.target.value as RoleCode)}
             className="form-input"
           >
-            <option value="">— pick role —</option>
+            <option value="">{t('pickRole')}</option>
             {roles.map((role) => (
               <option key={role.code} value={role.code}>
                 {role.name}
@@ -309,7 +312,7 @@ function AssignRoleDialog({
           </select>
         </div>
         <div className="ff">
-          <label htmlFor={reasonId}>Reason</label>
+          <label htmlFor={reasonId}>{t('reason')}</label>
           <textarea
             id={reasonId}
             value={reason}
@@ -320,8 +323,12 @@ function AssignRoleDialog({
         </div>
         {selectedUser && roleCode ? (
           <p className="alert alert-blue">
-            Assigning <strong>{roleCode}</strong> to <strong>{selectedUser.name}</strong>. Previous role{' '}
-            <strong>{selectedUser.currentRoleCode}</strong> will be replaced.
+            {t.rich('assigningPreview', {
+              role: roleCode,
+              name: selectedUser.name,
+              previousRole: selectedUser.currentRoleCode,
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
         ) : null}
       </div>
@@ -357,8 +364,8 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
           <h1 className="page-title">{t('heading')}</h1>
         </header>
         <div role="alert" data-testid="settings-roles-unavailable" className="alert alert-amber">
-          <strong className="alert-title">Roles &amp; permissions are not available.</strong>
-          <p>The roles server loader has not been wired in this environment. No seed data is shown.</p>
+          <strong className="alert-title">{t('unavailableTitle')}</strong>
+          <p>{t('unavailableBody')}</p>
         </div>
       </main>
     );
@@ -371,7 +378,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
           <p className="muted text-xs font-semibold uppercase tracking-wide">SET-011</p>
           <h1 className="page-title">{t('heading')}</h1>
           <p className="muted mt-1 text-sm">
-            Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.
+            {t('subtitle')}
           </p>
         </div>
         {canManageRoles ? (
@@ -391,7 +398,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
           </div>
         ) : (
           <div className="alert alert-amber max-w-sm">
-            Role assignment controls are hidden for this Read-only operator. Required permission: settings.roles.assign or settings.roles.manage.
+            {t('readOnlyAssignmentNotice')}
           </div>
         )}
       </header>
@@ -402,12 +409,12 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
           <div className="kpi-value">{roles.length}</div>
         </div>
         <div className="kpi green">
-          <div className="kpi-label">Assigned users</div>
+          <div className="kpi-label">{t('assignedUsers')}</div>
           <div className="kpi-value">{totalUsers}</div>
         </div>
         <div className="kpi amber">
-          <div className="kpi-label">Permission depth</div>
-          <div className="mt-1 text-sm font-semibold">Flat groups, no role × module matrix</div>
+          <div className="kpi-label">{t('permissionDepth')}</div>
+          <div className="mt-1 text-sm font-semibold">{t('flatGroupsNoMatrix')}</div>
         </div>
       </div>
 
@@ -418,27 +425,27 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
               {t('system_roles_tab')}
             </button>
             <button role="tab" aria-selected="false" type="button" className="btn btn-secondary btn-sm ml-2" disabled>
-              Custom Roles
+              {t('customRoles')}
             </button>
           </div>
-          <span className="muted text-xs">Custom Roles are enterprise Phase 3 — soon.</span>
+          <span className="muted text-xs">{t('customRolesSoon')}</span>
         </div>
         <div className="overflow-x-auto">
           <table aria-label={t('system_roles_table')} className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b text-left" style={{ background: 'var(--gray-050)', borderColor: 'var(--border)' }}>
-                <th scope="col" className="px-4 py-2 font-semibold">Role name</th>
-                <th scope="col" className="px-4 py-2 font-semibold">Code</th>
-                <th scope="col" className="px-4 py-2 font-semibold">Users assigned</th>
-                <th scope="col" className="px-4 py-2 font-semibold">Scope</th>
-                <th scope="col" className="px-4 py-2 font-semibold">Actions</th>
+                <th scope="col" className="px-4 py-2 font-semibold">{t('columns.roleName')}</th>
+                <th scope="col" className="px-4 py-2 font-semibold">{t('columns.code')}</th>
+                <th scope="col" className="px-4 py-2 font-semibold">{t('columns.usersAssigned')}</th>
+                <th scope="col" className="px-4 py-2 font-semibold">{t('columns.scope')}</th>
+                <th scope="col" className="px-4 py-2 font-semibold">{t('columns.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {roles.length === 0 ? (
                 <tr>
                   <td className="muted px-4 py-6 text-sm" colSpan={5}>
-                    No system roles are configured yet.
+                    {t('noSystemRoles')}
                   </td>
                 </tr>
               ) : (
@@ -447,10 +454,10 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
                     <td className="px-4 py-2 font-medium">{role.name}</td>
                     <td className="px-4 py-2"><code className="mono">{role.code}</code></td>
                     <td className="px-4 py-2">{role.usersAssigned}</td>
-                    <td className="px-4 py-2">{!canManageRoles && role.scope === 'Read-only' ? 'Read only' : role.scope}</td>
+                    <td className="px-4 py-2">{!canManageRoles && role.scope === 'Read-only' ? t('readOnlyScope') : role.scope}</td>
                     <td className="px-4 py-2">
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPermissionRole(role)}>
-                        View Permissions
+                        {t('viewPermissions')}
                       </button>
                     </td>
                   </tr>

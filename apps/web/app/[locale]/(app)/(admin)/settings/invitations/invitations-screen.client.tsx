@@ -94,8 +94,8 @@ function statusTone(status: InvitationStatus) {
   return 'green';
 }
 
-function statusLabel(status: InvitationStatus) {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+function statusLabel(status: InvitationStatus, t: (key: string) => string) {
+  return t(`status.${status}`);
 }
 
 function Badge({ children, tone }: { children: React.ReactNode; tone: string }) {
@@ -145,15 +145,18 @@ type RuntimeActions = {
   getInvitationLifecycleToken?: InvitationsScreenProps['getInvitationLifecycleToken'];
 };
 
-function normalizeRuntimeInvitation(item: RuntimeInvitationListItem): PendingInvitation | null {
+function normalizeRuntimeInvitation(
+  item: RuntimeInvitationListItem,
+  fallbacks: { unassigned: string; system: string; notAvailable: string },
+): PendingInvitation | null {
   if (item.status !== 'pending' && item.status !== 'expired' && item.status !== 'accepted') return null;
   return {
     id: item.id,
     email: item.email,
-    role: item.role ?? 'Unassigned',
-    invitedBy: item.invitedBy ?? 'System',
-    invitedAt: item.invitedAt ?? '—',
-    expiresAt: item.expiresAt ?? '—',
+    role: item.role ?? fallbacks.unassigned,
+    invitedBy: item.invitedBy ?? fallbacks.system,
+    invitedAt: item.invitedAt ?? fallbacks.notAvailable,
+    expiresAt: item.expiresAt ?? fallbacks.notAvailable,
     status: item.status,
     inviteToken: item.inviteToken ?? undefined,
   };
@@ -168,6 +171,7 @@ function RevokeDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations('settings.invitations');
   const titleId = useId();
 
   return (
@@ -182,23 +186,26 @@ function RevokeDialog({
       >
         <div className="modal-head">
           <h2 id={titleId} className="modal-title">
-            Revoke invitation
+            {t('revokeDialog.title')}
           </h2>
         </div>
         <div className="modal-body space-y-3 text-sm">
           <div className="alert alert-red" style={{ marginBottom: 0 }}>
-            Revoke invitation for <strong>{invitation.email}</strong>?
+            {t.rich('revokeDialog.confirm', {
+              email: invitation.email,
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </div>
           <p className="muted">
-            This pending invitation expires at {invitation.expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used.
+            {t('revokeDialog.body', { expiresAt: invitation.expiresAt })}
           </p>
         </div>
         <div className="modal-foot">
           <Button type="button" className="btn-secondary btn-sm" onClick={onCancel}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button type="button" className="btn-danger btn-sm" onClick={onConfirm}>
-            Confirm revoke
+            {t('confirmRevoke')}
           </Button>
         </div>
       </div>
@@ -253,7 +260,7 @@ function InviteDialog({
     setInlineError(null);
 
     if (!inviteUser || !email.trim() || !roleId) {
-      setInlineError('Enter a valid email and role.');
+      setInlineError(t('errors.emailAndRoleRequired'));
       return;
     }
 
@@ -277,7 +284,7 @@ function InviteDialog({
         return;
       }
 
-      setInlineError(interpolate('Invitation failed: {error}', { error: 'error' in result ? result.error : 'invite_failed' }));
+      setInlineError(t('errors.invitationFailed', { error: 'error' in result ? result.error : 'invite_failed' }));
     });
   }
 
@@ -293,7 +300,7 @@ function InviteDialog({
               </div>
             ) : null}
             <label className="block space-y-1 text-sm font-medium">
-              <span>Email address</span>
+              <span>{t('emailAddress')}</span>
               <Input
                 type="email"
                 value={email}
@@ -304,14 +311,14 @@ function InviteDialog({
               />
             </label>
             <label className="block space-y-1 text-sm font-medium">
-              <span>Name (optional)</span>
+              <span>{t('nameOptional')}</span>
               <Input type="text" value={name} onChange={(event) => setName(event.currentTarget.value)} />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1 text-sm font-medium">
-                <span>Role</span>
+                <span>{t('role')}</span>
                 <Select value={roleId} onValueChange={setRoleId} disabled={roles.length === 0}>
-                  <SelectTrigger aria-label="Role">
+                  <SelectTrigger aria-label={t('role')}>
                     <SelectValue placeholder={t('select_role')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -324,12 +331,12 @@ function InviteDialog({
                 </Select>
               </label>
               <label className="block space-y-1 text-sm font-medium">
-                <span>Site</span>
+                <span>{t('site')}</span>
                 <Input type="text" value={site} onChange={(event) => setSite(event.currentTarget.value)} />
               </label>
             </div>
             <label className="block space-y-1 text-sm font-medium">
-              <span>Personal message</span>
+              <span>{t('personalMessage')}</span>
               <Textarea
                 rows={2}
                 placeholder={t('optional_note')}
@@ -338,17 +345,17 @@ function InviteDialog({
               />
             </label>
             <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-              The invite link expires after 7 days and is scoped to this organisation.
+              {t('inviteExpiryNotice')}
             </p>
           </div>
         </Modal.Body>
         <Modal.Footer>
           <div className="flex justify-end gap-2 rounded-b-xl border-t bg-slate-50 px-5 py-4">
             <Button type="button" className="btn-secondary" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t('cancel')}
             </Button>
             <Button type="submit" className="btn-primary" disabled={isPending || !inviteUser || !roleId}>
-              Send invitation
+              {t('sendInvitation')}
             </Button>
           </div>
         </Modal.Footer>
@@ -358,6 +365,7 @@ function InviteDialog({
 }
 
 export default function InvitationsScreen(props: Partial<InvitationsScreenProps> = {}) {
+  const t = useTranslations('settings.invitations');
   const isControlled = 'invitations' in props || 'permissions' in props || 'state' in props;
   const [runtimeInvitations, setRuntimeInvitations] = useState<PendingInvitation[]>([]);
   const [runtimePermissions, setRuntimePermissions] = useState<string[]>([]);
@@ -385,12 +393,16 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
         if (!result.ok) {
           const errorCode = 'error' in result ? result.error : 'persistence_failed';
           setRuntimePermissions([]);
-          setRuntimeError(errorCode === 'forbidden' ? `Permission denied: ${VIEW_PERMISSION} or ${INVITE_PERMISSION} is required to view pending invitations.` : 'Invitations could not be loaded.');
+          setRuntimeError(errorCode === 'forbidden' ? t('permissionDenied', { viewPermission: VIEW_PERMISSION, invitePermission: INVITE_PERMISSION }) : t('loadError'));
           setRuntimeState('error');
           return;
         }
         const loadedInvitations = (result.data.invitations as RuntimeInvitationListItem[])
-          .map((item: RuntimeInvitationListItem) => normalizeRuntimeInvitation(item))
+          .map((item: RuntimeInvitationListItem) => normalizeRuntimeInvitation(item, {
+            unassigned: t('unassigned'),
+            system: t('system'),
+            notAvailable: t('notAvailable'),
+          }))
           .filter((item: PendingInvitation | null): item is PendingInvitation => item !== null);
         setRuntimePermissions([VIEW_PERMISSION, INVITE_PERMISSION, ROLE_ASSIGN_PERMISSION]);
         setRuntimeInvitations(loadedInvitations);
@@ -398,7 +410,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
       } catch {
         if (cancelled) return;
         setRuntimePermissions([]);
-        setRuntimeError('Invitations could not be loaded.');
+        setRuntimeError(t('loadError'));
         setRuntimeState('error');
       }
     }
@@ -406,7 +418,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     return () => {
       cancelled = true;
     };
-  }, [isControlled]);
+  }, [isControlled, t]);
 
   const invitations = props.invitations ?? runtimeInvitations;
   const permissions = props.permissions ?? runtimePermissions;
@@ -441,22 +453,22 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     try {
       input = await tokenInput(invitation);
     } catch (error) {
-      setFeedback({ kind: 'alert', message: `Could not resend invitation: ${error instanceof Error ? error.message : 'token_unavailable'}.` });
+      setFeedback({ kind: 'alert', message: t('errors.resendFailed', { error: error instanceof Error ? error.message : 'token_unavailable' }) });
       return;
     }
     if (!resendInvitation || !input) {
-      setFeedback({ kind: 'alert', message: 'Could not resend invitation: lifecycle action unavailable.' });
+      setFeedback({ kind: 'alert', message: t('errors.resendLifecycleUnavailable') });
       return;
     }
     const result = await Promise.resolve(resendInvitation(input));
     if (result.ok) {
       setFeedback({
         kind: 'status',
-        message: `Invitation resent for ${invitation.email}. Audit result ${result.auditEventId ?? 'recorded'}.`,
+        message: t('resentFeedback', { email: invitation.email, auditResult: result.auditEventId ?? t('recorded') }),
       });
       return;
     }
-    setFeedback({ kind: 'alert', message: `Could not resend invitation: ${result.error ?? 'invite_failed'}.` });
+    setFeedback({ kind: 'alert', message: t('errors.resendFailed', { error: result.error ?? 'invite_failed' }) });
   }
 
   async function handleRevoke(invitation: PendingInvitation) {
@@ -466,12 +478,12 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
       input = await tokenInput(invitation);
     } catch (error) {
       setRevokeTarget(null);
-      setFeedback({ kind: 'alert', message: `Could not revoke invitation: ${error instanceof Error ? error.message : 'token_unavailable'}.` });
+      setFeedback({ kind: 'alert', message: t('errors.revokeFailed', { error: error instanceof Error ? error.message : 'token_unavailable' }) });
       return;
     }
     if (!revokeInvitation || !input) {
       setRevokeTarget(null);
-      setFeedback({ kind: 'alert', message: 'Could not revoke invitation: lifecycle action unavailable.' });
+      setFeedback({ kind: 'alert', message: t('errors.revokeLifecycleUnavailable') });
       return;
     }
     const result = await Promise.resolve(revokeInvitation(input));
@@ -479,24 +491,22 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     if (result.ok) {
       setFeedback({
         kind: 'status',
-        message: `Invitation revoked for ${invitation.email}. Audit result ${result.auditEventId ?? 'recorded'}.`,
+        message: t('revokedFeedback', { email: invitation.email, auditResult: result.auditEventId ?? t('recorded') }),
       });
       return;
     }
-    setFeedback({ kind: 'alert', message: `Could not revoke invitation: ${result.error ?? 'invite_failed'}.` });
+    setFeedback({ kind: 'alert', message: t('errors.revokeFailed', { error: result.error ?? 'invite_failed' }) });
   }
 
   if (state === 'loading') {
     return <LoadingState />;
   }
 
-  const t = useTranslations('settings.invitations');
-
   if (!canView) {
     return (
       <main className="p-6">
         <div role="alert" className="alert alert-amber">
-          Permission denied: {VIEW_PERMISSION} or {INVITE_PERMISSION} is required to view pending invitations.
+          {t('permissionDenied', { viewPermission: VIEW_PERMISSION, invitePermission: INVITE_PERMISSION })}
         </div>
       </main>
     );
@@ -506,7 +516,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     return (
       <main className="p-6">
         <div role="alert" className="alert alert-red">
-          {errorMessage ?? 'Invitations could not be loaded.'}
+          {errorMessage ?? t('loadError')}
         </div>
       </main>
     );
@@ -518,7 +528,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
         <div>
           <h1 className="page-title">{t('heading')}</h1>
           <p className="muted text-sm">
-            View and manage outstanding user invitations for this organisation.
+            {t('subtitle')}
           </p>
         </div>
         {canWrite && effectiveState !== 'empty' ? (
@@ -530,7 +540,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
 
       {!canWrite ? (
         <div role="note" className="alert alert-amber">
-          Read-only mode: {INVITE_PERMISSION} and {ROLE_ASSIGN_PERMISSION} are required for Invite, Resend, or Revoke controls.
+          {t('readOnlyNotice', { invitePermission: INVITE_PERMISSION, roleAssignPermission: ROLE_ASSIGN_PERMISSION })}
         </div>
       ) : null}
 
@@ -545,8 +555,8 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
           <div className="empty-state-icon" aria-hidden="true">
             &#9993;
           </div>
-          <p className="empty-state-title">No pending invitations.</p>
-          <p className="empty-state-body">Invite a team member to get started.</p>
+          <p className="empty-state-title">{t('emptyTitle')}</p>
+          <p className="empty-state-body">{t('emptyBody')}</p>
           {canWrite ? (
             <Button type="button" className="btn-primary empty-state-action" onClick={openInviteDialog}>
               {t('invite_user')}
@@ -554,22 +564,22 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
           ) : null}
         </div>
       ) : (
-        <section aria-label="Pending invitations panel" className="card" style={{ margin: 0, padding: 0 }}>
+        <section aria-label={t('panelAriaLabel')} className="card" style={{ margin: 0, padding: 0 }}>
           <div className="border-b p-4" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="card-title">Invitation lifecycle</h2>
-            <p className="muted text-sm">Pending can be resent or revoked; expired can be resent; accepted invitations are immutable.</p>
+            <h2 className="card-title">{t('lifecycleTitle')}</h2>
+            <p className="muted text-sm">{t('lifecycleDescription')}</p>
           </div>
           <div className="overflow-x-auto p-4">
-            <table aria-label="Pending Invitations" className="w-full border-collapse text-sm">
+            <table aria-label={t('tableAriaLabel')} className="w-full border-collapse text-sm">
               <thead>
                 <tr style={{ background: 'var(--gray-050)' }}>
-                  <th scope="col" className="p-2 text-left">Email</th>
-                  <th scope="col" className="p-2 text-left">Role</th>
-                  <th scope="col" className="p-2 text-left">Invited By</th>
-                  <th scope="col" className="p-2 text-left">Invited At</th>
-                  <th scope="col" className="p-2 text-left">Expires At</th>
-                  <th scope="col" className="p-2 text-left">Status</th>
-                  <th scope="col" className="p-2 text-left">Actions</th>
+                  <th scope="col" className="p-2 text-left">{t('columns.email')}</th>
+                  <th scope="col" className="p-2 text-left">{t('columns.role')}</th>
+                  <th scope="col" className="p-2 text-left">{t('columns.invitedBy')}</th>
+                  <th scope="col" className="p-2 text-left">{t('columns.invitedAt')}</th>
+                  <th scope="col" className="p-2 text-left">{t('columns.expiresAt')}</th>
+                  <th scope="col" className="p-2 text-left">{t('columns.status')}</th>
+                  <th scope="col" className="p-2 text-left">{t('columns.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -581,32 +591,32 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
                     <td className="muted mono p-2">{invitation.invitedAt}</td>
                     <td className="muted mono p-2">{invitation.expiresAt}</td>
                     <td className="p-2">
-                      <Badge tone={statusTone(invitation.status)}>{statusLabel(invitation.status)}</Badge>
+                      <Badge tone={statusTone(invitation.status)}>{statusLabel(invitation.status, t)}</Badge>
                     </td>
                     <td className="p-2">
                       {canWrite && invitation.status === 'pending' && (invitation.inviteToken || getInvitationLifecycleToken) ? (
                         <div className="flex gap-2">
                           <Button type="button" className="btn-secondary btn-sm" onClick={() => void handleResend(invitation)}>
-                            Resend
+                            {t('resend')}
                           </Button>
                           <Button type="button" className="btn-danger btn-sm" onClick={() => setRevokeTarget(invitation)}>
-                            Revoke
+                            {t('revoke')}
                           </Button>
                         </div>
                       ) : null}
                       {canWrite && invitation.status === 'expired' && invitation.inviteToken ? (
                         <Button type="button" className="btn-secondary btn-sm" onClick={() => void handleResend(invitation)}>
-                          Resend
+                          {t('resend')}
                         </Button>
                       ) : null}
                       {invitation.status === 'accepted' ? (
-                        <span className="muted text-xs">Accepted user is immutable.</span>
+                        <span className="muted text-xs">{t('acceptedImmutable')}</span>
                       ) : null}
                       {!canWrite && invitation.status !== 'accepted' ? (
-                        <span className="muted text-xs">No actions</span>
+                        <span className="muted text-xs">{t('noActions')}</span>
                       ) : null}
                       {canWrite && invitation.status !== 'accepted' && !invitation.inviteToken && !(invitation.status === 'pending' && getInvitationLifecycleToken) ? (
-                        <span className="muted text-xs">Lifecycle action unavailable</span>
+                        <span className="muted text-xs">{t('lifecycleUnavailable')}</span>
                       ) : null}
                     </td>
                   </tr>

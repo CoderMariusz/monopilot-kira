@@ -685,7 +685,64 @@
       "select_role": "Wybierz rolę",
       "optional_note": "Opcjonalna notatka do wiadomości e-mail zaproszenia",
       "invite_user": "Zaproś użytkownika",
-      "invitation_sent": "Zaproszenie wysłane do {email}."
+      "invitation_sent": "Zaproszenie wysłane do {email}.",
+      "cancel": "Anuluj",
+      "confirmRevoke": "Potwierdź cofnięcie",
+      "emailAddress": "Adres e-mail",
+      "nameOptional": "Imię i nazwisko (opcjonalnie)",
+      "role": "Rola",
+      "site": "Zakład",
+      "personalMessage": "Wiadomość osobista",
+      "inviteExpiryNotice": "Link zaproszenia wygasa po 7 dniach i jest ograniczony do tej organizacji.",
+      "sendInvitation": "Wyślij zaproszenie",
+      "unassigned": "Nieprzypisane",
+      "system": "System",
+      "notAvailable": "—",
+      "permissionDenied": "Brak uprawnień: {viewPermission} lub {invitePermission} jest wymagane do wyświetlenia oczekujących zaproszeń.",
+      "loadError": "Nie udało się załadować zaproszeń.",
+      "subtitle": "Wyświetlaj i zarządzaj oczekującymi zaproszeniami użytkowników dla tej organizacji.",
+      "readOnlyNotice": "Tryb tylko do odczytu: {invitePermission} i {roleAssignPermission} są wymagane dla akcji Zaproś, Wyślij ponownie lub Cofnij.",
+      "emptyTitle": "Brak oczekujących zaproszeń.",
+      "emptyBody": "Zaproś członka zespołu, aby rozpocząć.",
+      "panelAriaLabel": "Panel oczekujących zaproszeń",
+      "lifecycleTitle": "Cykl życia zaproszenia",
+      "lifecycleDescription": "Oczekujące można wysłać ponownie lub cofnąć; wygasłe można wysłać ponownie; zaakceptowane zaproszenia są niezmienne.",
+      "tableAriaLabel": "Oczekujące zaproszenia",
+      "resend": "Wyślij ponownie",
+      "revoke": "Cofnij",
+      "acceptedImmutable": "Zaakceptowany użytkownik jest niezmienny.",
+      "noActions": "Brak akcji",
+      "lifecycleUnavailable": "Akcja cyklu życia niedostępna",
+      "recorded": "zarejestrowano",
+      "resentFeedback": "Zaproszenie dla {email} wysłano ponownie. Wynik audytu {auditResult}.",
+      "revokedFeedback": "Zaproszenie dla {email} cofnięto. Wynik audytu {auditResult}.",
+      "status": {
+        "pending": "Oczekujące",
+        "expired": "Wygasłe",
+        "accepted": "Zaakceptowane"
+      },
+      "revokeDialog": {
+        "title": "Cofnij zaproszenie",
+        "confirm": "Cofnąć zaproszenie dla <strong>{email}</strong>?",
+        "body": "To oczekujące zaproszenie wygasa {expiresAt}. Cofnięcie zapisze wynik audytu T-124 i uniemożliwi użycie magicznego linku."
+      },
+      "errors": {
+        "emailAndRoleRequired": "Wpisz poprawny adres e-mail i wybierz rolę.",
+        "invitationFailed": "Zaproszenie nie powiodło się: {error}",
+        "resendFailed": "Nie udało się wysłać zaproszenia ponownie: {error}.",
+        "resendLifecycleUnavailable": "Nie udało się wysłać zaproszenia ponownie: akcja cyklu życia jest niedostępna.",
+        "revokeFailed": "Nie udało się cofnąć zaproszenia: {error}.",
+        "revokeLifecycleUnavailable": "Nie udało się cofnąć zaproszenia: akcja cyklu życia jest niedostępna."
+      },
+      "columns": {
+        "email": "E-mail",
+        "role": "Rola",
+        "invitedBy": "Zaprosił(a)",
+        "invitedAt": "Zaproszono",
+        "expiresAt": "Wygasa",
+        "status": "Status",
+        "actions": "Akcje"
+      }
     },
     "roles": {
       "heading": "Role i uprawnienia",
@@ -694,7 +751,55 @@
       "assign_role_to_user": "Przypisz rolę użytkownikowi",
       "system_roles": "Role systemowe",
       "system_roles_tab": "Role systemowe",
-      "system_roles_table": "Role systemowe"
+      "system_roles_table": "Role systemowe",
+      "cancel": "Anuluj",
+      "assignRoleButton": "Przypisz rolę",
+      "closeDialog": "Zamknij {title}",
+      "permissionsTitle": "Uprawnienia — {role}",
+      "disabledByOrgPolicy": "Wyłączone przez politykę autoryzacji organizacji",
+      "searchPermissions": "Szukaj uprawnień",
+      "noPermissionsMatch": "Żadne płaskie uprawnienia nie pasują do filtra.",
+      "directGrantByRoleSeed": "Bezpośrednio nadane przez ziarno roli",
+      "notDirectGrantByRoleSeed": "Nie nadane bezpośrednio przez ziarno roli",
+      "orgPolicyBlocksGrant": "Polityka organizacji blokuje ten workflow lub nadanie przypisania.",
+      "searchUser": "Szukaj użytkownika",
+      "nameOrEmailPlaceholder": "Imię i nazwisko lub e-mail…",
+      "assignableUsers": "Użytkownicy do przypisania",
+      "noMatchingOrgMembers": "Brak pasujących członków organizacji.",
+      "currentRole": "{email} · obecnie: {role}",
+      "newRole": "Nowa rola",
+      "pickRole": "— wybierz rolę —",
+      "reason": "Powód",
+      "assigningPreview": "Przypisanie <strong>{role}</strong> do <strong>{name}</strong>. Poprzednia rola <strong>{previousRole}</strong> zostanie zastąpiona.",
+      "unavailableTitle": "Role i uprawnienia są niedostępne.",
+      "unavailableBody": "Loader ról serwera nie został podłączony w tym środowisku. Dane seed nie są wyświetlane.",
+      "subtitle": "Przejrzyj systemowe role seed, płaskie uprawnienia Settings/Auth i stan polityk autoryzacji organizacji.",
+      "readOnlyAssignmentNotice": "Kontrolki przypisywania ról są ukryte dla operatora tylko do odczytu. Wymagane uprawnienie: settings.roles.assign lub settings.roles.manage.",
+      "assignedUsers": "Przypisani użytkownicy",
+      "permissionDepth": "Głębokość uprawnień",
+      "flatGroupsNoMatrix": "Płaskie grupy, bez macierzy rola × moduł",
+      "customRoles": "Role niestandardowe",
+      "customRolesSoon": "Role niestandardowe to enterprise Phase 3 — wkrótce.",
+      "noSystemRoles": "Nie skonfigurowano jeszcze ról systemowych.",
+      "readOnlyScope": "Tylko odczyt",
+      "viewPermissions": "Wyświetl uprawnienia",
+      "permissionStatus": {
+        "orgPolicyBlock": "Blokada polityki organizacji",
+        "policyIssue": "Problem z polityką",
+        "enabledByOrgPolicy": "Włączone przez politykę organizacji"
+      },
+      "permissionGroups": {
+        "Settings": "Ustawienia",
+        "NPD workflow authorization": "Autoryzacja workflow NPD",
+        "Technical approval": "Zatwierdzenie techniczne"
+      },
+      "columns": {
+        "roleName": "Nazwa roli",
+        "code": "Kod",
+        "usersAssigned": "Przypisani użytkownicy",
+        "scope": "Zakres",
+        "actions": "Akcje"
+      }
     },
     "security": {
       "heading": "Bezpieczeństwo"
@@ -844,6 +949,29 @@
           "pushQueue": "Kolejka wysyłania",
           "maxAttempts": "Maks. liczba prób",
           "retryBackoff": "Opóźnienie ponowienia"
+        },
+        "hints": {
+          "pullCron": "Użyj poprawnego 5-polowego wyrażenia cron.",
+          "batchSize": "Rekordy pobierane lub wysyłane w jednej partii workera.",
+          "pushQueue": "Kolejkuje wychodzące zmiany MES dla eksportowej synchronizacji D365.",
+          "maxAttempts": "Liczba ponowień workera przed przeniesieniem elementu do kolejki dead-letter.",
+          "retryBackoff": "Minuty między próbami ponowienia."
+        },
+        "status": {
+          "saving": "Zapisywanie…",
+          "lastApplied": "Ostatnio zastosowano",
+          "appliedBy": "Zastosował(a) {user}",
+          "notRecorded": "nie zarejestrowano",
+          "notAppliedYet": "Jeszcze nie zastosowano",
+          "enabled": "Włączone",
+          "disabled": "Wyłączone",
+          "legacyNotice": "LEGACY-D365. Synchronizacja jest zachowana dla operacji przejściowych; na ekranie SET-082 nie są przechowywane poświadczenia.",
+          "invalidCron": "Nieprawidłowe wyrażenie cron. Użyj poprawnego 5-polowego wyrażenia w stylu cron-parser.",
+          "nextRunUnavailable": "Następne uruchomienie niedostępne, dopóki cron nie będzie poprawny.",
+          "nextRun": "Następne uruchomienie {date} UTC",
+          "dlqDescription": "Elementy przekraczające politykę ponowień są widoczne w narzędziu DLQ należącym do workera.",
+          "dlqLink": "Kolejka dead-letter",
+          "forbiddenBody": "Ta konfiguracja jest ograniczona do roli właściciela konta."
         }
       }
     },
@@ -862,7 +990,47 @@
           "error": "Nie można załadować połączenia D365.",
           "missingPrerequisites": "Brakuje wymagań wstępnych połączenia D365. Skonfiguruj endpoint, dzierżawcę Azure AD, identyfikator klienta i referencję sekretu przed zapisem lub włączeniem synchronizacji.",
           "preflightIncomplete": "D365 nie może zostać włączone, dopóki wszystkie pięć stałych referencyjnych nie zostanie skonfigurowane.",
-          "preflightMissing": "Brakujące stałe D365:"
+          "preflightMissing": "Brakujące stałe D365:",
+          "sections": {
+            "endpoint": "Endpoint",
+            "authentication": "Uwierzytelnianie (Azure AD)",
+            "pollingSync": "Polling i synchronizacja",
+            "lastTest": "Ostatni test"
+          },
+          "fields": {
+            "baseUrl": "Bazowy URL",
+            "environment": "Środowisko",
+            "tenantId": "Tenant ID",
+            "clientId": "Client ID",
+            "clientSecret": "Client Secret",
+            "serviceAccountEmail": "E-mail konta serwisowego",
+            "pollCron": "Harmonogram cron pobierania",
+            "integrationEnabled": "Integracja włączona"
+          },
+          "hints": {
+            "baseUrl": "np. https://apex.operations.dynamics.com",
+            "tenantId": "Format UUID z portalu Azure.",
+            "clientId": "Identyfikator klienta Azure App Registration.",
+            "clientSecret": "Nigdy nie jest pokazywany po zapisie. Użyj 'Rotate', aby zaktualizować.",
+            "serviceAccountEmail": "Zapasowa tożsamość basic-auth.",
+            "pollCron": "Standardowy 5-polowy cron. Przykład: '0 2 * * *' = codziennie 02:00.",
+            "integrationEnabled": "Odzwierciedla flagę `integration.d365.enabled`. Pre-flight uruchamia się przy przełączeniu."
+          },
+          "validation": {
+            "invalidUuid": "Nieprawidłowy format UUID.",
+            "tooShort": "Za krótkie.",
+            "cronFiveFields": "Cron musi mieć 5 pól rozdzielonych spacjami."
+          },
+          "dialog": {
+            "testTitle": "Test połączenia D365",
+            "close": "Zamknij"
+          },
+          "notices": {
+            "legacy": "LEGACY-D365. Ta integracja zostanie wycofana, gdy Monopilot zastąpi D365. Odwołuje się do niej integration.d365.so_trigger.enabled (bramkuje Planning SCREEN-13 + kolejkę D365).",
+            "rotationUnavailable": "Rotacja klucza nie jest jeszcze dostępna.",
+            "connected": "Połączono o",
+            "failed": "Niepowodzenie — uruchom 'Test connection', aby spróbować ponownie."
+          }
         }
       }
     },
@@ -1132,6 +1300,57 @@
       "saved": "Zasada zatwierdzeń skanera zapisana.",
       "readOnly": "Potrzebujesz uprawnień administratora, aby zmienić zasady zatwierdzeń skanera.",
       "errorGeneric": "Nie udało się zapisać. Spróbuj ponownie."
+    },
+    "schema_column_wizard": {
+      "breadcrumb": "Ustawienia / Przeglądarka schematu / Kreator kolumny",
+      "wizardStepList": "Lista kroków kreatora",
+      "wizardSteps": "Kroki kreatora kolumny schematu",
+      "deptEmpty": "Nie znaleziono nadpisań działów tenant; pokazano bazową siedmiodziałową konfigurację Apex.",
+      "published": "Kolumna opublikowana. Schemat Zod jest regenerowany…",
+      "publishError": "Nie udało się opublikować kolumny: {error}",
+      "loadingStepData": "Ładowanie danych kroku",
+      "loadingStepStatus": "Ładowanie danych kroku…",
+      "doneChecklistHint": "Po włączeniu pole pojawia się na liście Done i blokuje ukończenie, jeśli jest puste.",
+      "sectionLabelInForm": "Etykieta sekcji w formularzu",
+      "orderWithinSection": "Kolejność w sekcji",
+      "selectTable": "Wybierz tabelę…",
+      "sampleValue": "Przykładowa wartość",
+      "previewTable": "Tabela",
+      "previewColumn": "Kolumna",
+      "previewDepartment": "Dział",
+      "previewBlocking": "Blokowanie",
+      "conflictField": "Pole",
+      "conflictYours": "Twoje",
+      "conflictLatestPublished": "Najnowsze opublikowane",
+      "deptLoadFallback": "Nie udało się załadować nadpisań działów tenant. Jako awaryjną pokazano bazową konfigurację działów Apex.",
+      "deptLoadForbidden": "Nie masz uprawnień do załadowania nadpisań działów tenant. Bazowe działy Apex pokazano tylko do odczytu.",
+      "defaultPresentationSection": "Szczegóły opakowania",
+      "defaultDepartment": "Opakowania"
+    },
+    "tenant_variations": {
+      "breadcrumb": "Ustawienia / Tenant",
+      "activeDeptVariants": "Aktywne warianty działów L2.",
+      "configurableCustomized": "{configurable} konfigurowalne · {customized} dostosowane",
+      "orgSpecificColumnAdditions": "Kolumny dodane specyficznie dla organizacji.",
+      "ruleEngineRollout": "Stopniowe wdrożenie rule_engine v2.",
+      "authorizationUpdated": "Zaktualizowano {date}",
+      "featureFlagsSubtitle": "Przełączniki Phase 2/3 per tenant. Pełne zarządzanie flagami jest na ekranie Feature Flags.",
+      "noTenantLocalFeatureFlags": "Brak lokalnych flag funkcji dla tenant.",
+      "activeBaselineEmpty": "Nie skonfigurowano wariantów tenant. Organizacja używa standardowej konfiguracji bazowej.",
+      "deptAction": "Akcja",
+      "sourceTargets": "Źródło → cele",
+      "columnsAffected": "Dotknięte kolumny",
+      "lastModified": "Ostatnio zmieniono",
+      "by": "Przez",
+      "ruleCode": "Kod reguły",
+      "currentVariant": "Bieżący wariant",
+      "availableVariants": "Dostępne warianty",
+      "lastChanged": "Ostatnia zmiana",
+      "neverChanged": "Nigdy nie zmieniono",
+      "enabled": "Włączone",
+      "disabled": "Wyłączone",
+      "updatedBySystem": "system",
+      "tenantLocalFeatureFlag": "Lokalna flaga funkcji tenant."
     }
   },
   "navigation": {

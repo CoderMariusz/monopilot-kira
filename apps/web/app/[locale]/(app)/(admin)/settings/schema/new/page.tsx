@@ -88,6 +88,30 @@ const DEFAULT_LABELS = {
   concurrentEditTitle: 'Concurrent edit detected',
   concurrentEditBody: 'Another admin published a newer version while you were editing. Review the diff and republish.',
   provenance: 'tenant_variations.dept_overrides',
+  breadcrumb: 'Settings / Schema browser / Column wizard',
+  wizardStepList: 'Wizard step list',
+  wizardSteps: 'Schema column wizard steps',
+  deptEmpty: 'No tenant department overrides found; showing the seven-dept Apex baseline.',
+  published: 'Column published. Zod schema regenerating…',
+  publishError: 'Could not publish column: {error}',
+  loadingStepData: 'Loading step data',
+  loadingStepStatus: 'Loading step data…',
+  doneChecklistHint: 'When ON, this field appears in the Done checklist and blocks completion if empty.',
+  sectionLabelInForm: 'Section label in form',
+  orderWithinSection: 'Order within section',
+  selectTable: 'Select table…',
+  sampleValue: 'Sample value',
+  previewTable: 'Table',
+  previewColumn: 'Column',
+  previewDepartment: 'Department',
+  previewBlocking: 'Blocking',
+  conflictField: 'Field',
+  conflictYours: 'Yours',
+  conflictLatestPublished: 'Latest published',
+  deptLoadFallback: 'Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.',
+  deptLoadForbidden: 'You do not have permission to load tenant department overrides. Baseline Apex departments are shown read-only.',
+  defaultPresentationSection: 'Packaging Details',
+  defaultDepartment: 'Packaging',
 } as const;
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>;
@@ -200,14 +224,14 @@ async function buildStepLabels(locale: string): Promise<{ types: TypeCardLabels;
   return { types, validation };
 }
 
-async function loadDeptOptions(): Promise<DeptLoadState> {
+async function loadDeptOptions(labels: WizardLabels): Promise<DeptLoadState> {
   try {
     const result = await getTenantVariations();
     if (!result) {
       return {
         status: 'error',
         options: BASELINE_DEPTS,
-        message: 'Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.',
+        message: labels.deptLoadFallback,
       };
     }
     if (!result.ok) {
@@ -216,13 +240,13 @@ async function loadDeptOptions(): Promise<DeptLoadState> {
         return {
           status: 'forbidden',
           options: BASELINE_DEPTS,
-          message: 'You do not have permission to load tenant department overrides. Baseline Apex departments are shown read-only.',
+          message: labels.deptLoadForbidden,
         };
       }
       return {
         status: 'error',
         options: BASELINE_DEPTS,
-        message: 'Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.',
+        message: labels.deptLoadFallback,
       };
     }
     const options = mergeTenantDeptOverrides(BASELINE_DEPTS, result.data?.deptOverrides);
@@ -231,7 +255,7 @@ async function loadDeptOptions(): Promise<DeptLoadState> {
     return {
       status: 'error',
       options: BASELINE_DEPTS,
-      message: 'Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.',
+      message: labels.deptLoadFallback,
     };
   }
 }
@@ -269,7 +293,7 @@ function titleizeCode(code: string): string {
     .join(' ');
 }
 
-function wizardStateFromParams(searchParams: PageSearchParams): WizardState {
+function wizardStateFromParams(searchParams: PageSearchParams, labels: WizardLabels): WizardState {
   return {
     table: one(searchParams.tableCode) ?? one(searchParams.table) ?? '',
     dept: one(searchParams.departmentCode) ?? one(searchParams.dept) ?? '',
@@ -277,7 +301,7 @@ function wizardStateFromParams(searchParams: PageSearchParams): WizardState {
     validation: [],
     blocking: one(searchParams.blockingRule) ?? one(searchParams.blocking) ?? 'none',
     doneRequired: one(searchParams.requiredForDone) === 'on' || one(searchParams.doneRequired) === 'true',
-    presentationSection: one(searchParams.presentationSection) ?? 'Packaging Details',
+    presentationSection: one(searchParams.presentationSection) ?? labels.defaultPresentationSection,
     presentationOrder: numberParam(searchParams.presentationOrder) ?? 10,
     scope: one(searchParams.scope) === 'universal' ? 'universal' : 'org',
     columnCode: one(searchParams.columnCode) ?? one(searchParams.column) ?? 'pack_finish',
@@ -437,8 +461,8 @@ export default async function SchemaColumnWizardPage(propsInput: unknown) {
   const searchParams = props.searchParams ? await props.searchParams : {};
   const labels = await buildLabels(locale);
   const stepLabels = await buildStepLabels(locale);
-  const deptState = await loadDeptOptions();
-  const wizard = wizardStateFromParams(searchParams);
+  const deptState = await loadDeptOptions(labels);
+  const wizard = wizardStateFromParams(searchParams, labels);
   const step = stepFromParams(searchParams, wizard);
   const conflict = conflictFromParams(searchParams, labels);
   const viewState = one(searchParams.state);
@@ -446,7 +470,7 @@ export default async function SchemaColumnWizardPage(propsInput: unknown) {
   return (
     <section data-testid="schema-column-wizard" data-screen="schema-column-wizard" className="settings-page settings-page--schema-column-wizard" aria-describedby="schema-column-wizard-subtitle">
       <header data-region="page-head" className="schema-column-wizard__header">
-        <div className="muted mono">Settings / Schema browser / Column wizard</div>
+        <div className="muted mono">{labels.breadcrumb}</div>
         <h1 id="schema-column-wizard-title">{labels.title}</h1>
         <p id="schema-column-wizard-subtitle">{labels.subtitle}</p>
         <form method="get" action={`/${locale}/settings/schema/new`}>
@@ -459,8 +483,8 @@ export default async function SchemaColumnWizardPage(propsInput: unknown) {
       <StateBanners labels={labels} deptState={deptState} conflict={conflict} actionError={one(searchParams.actionError)} published={one(searchParams.published) === '1'} />
 
       <div className="schema-column-wizard__grid" style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 680px)', gap: 24 }}>
-        <nav aria-label="Wizard step list" className="sg-section schema-column-wizard__rail">
-          <ol aria-label="Schema column wizard steps">
+        <nav aria-label={labels.wizardStepList} className="sg-section schema-column-wizard__rail">
+          <ol aria-label={labels.wizardSteps}>
             {STEPS.map((key, index) => (
               <li key={key} aria-current={step === index + 1 ? 'step' : undefined}>
                 <span aria-hidden="true">{step > index + 1 ? '✓' : index + 1}</span> {labels[key]}
@@ -485,7 +509,7 @@ export default async function SchemaColumnWizardPage(propsInput: unknown) {
               );
             })}
           </div>
-          {viewState === 'loading' ? <LoadingStepCard /> : <WizardStep locale={locale} labels={labels} stepLabels={stepLabels} deptState={deptState} step={step} wizard={wizard} />}
+          {viewState === 'loading' ? <LoadingStepCard labels={labels} /> : <WizardStep locale={locale} labels={labels} stepLabels={stepLabels} deptState={deptState} step={step} wizard={wizard} />}
           <WizardFooter locale={locale} labels={labels} deptState={deptState} step={step} wizard={wizard} />
         </section>
       </div>
@@ -499,19 +523,19 @@ function StateBanners({ labels, deptState, conflict, actionError, published }: {
     <>
       {deptState.status === 'error' ? <div className="alert alert-red" role="alert">{deptState.message}</div> : null}
       {deptState.status === 'forbidden' ? <div className="alert alert-amber" role="alert">{deptState.message}</div> : null}
-      {deptState.status === 'empty' ? <div className="alert alert-blue" role="status">No tenant department overrides found; showing the seven-dept Apex baseline.</div> : null}
-      {published ? <div className="alert alert-blue" role="status">Column published. Zod schema regenerating…</div> : null}
-      {actionError ? <div className="alert alert-red" role="alert">Could not publish column: {actionError}</div> : null}
+      {deptState.status === 'empty' ? <div className="alert alert-blue" role="status">{labels.deptEmpty}</div> : null}
+      {published ? <div className="alert alert-blue" role="status">{labels.published}</div> : null}
+      {actionError ? <div className="alert alert-red" role="alert">{labels.publishError.replace('{error}', actionError)}</div> : null}
       {conflict ? <div className="alert alert-amber" role="alert"><strong>{labels.concurrentEditTitle}.</strong> {conflict.body}</div> : null}
     </>
   );
 }
 
-function LoadingStepCard() {
+function LoadingStepCard({ labels }: { labels: WizardLabels }) {
   return (
-    <section role="region" aria-label="Loading step data" className="sg-section-body schema-column-wizard__step">
+    <section role="region" aria-label={labels.loadingStepData} className="sg-section-body schema-column-wizard__step">
       <div className="spinner" aria-hidden="true" />
-      <p role="status">Loading step data…</p>
+      <p role="status">{labels.loadingStepStatus}</p>
     </section>
   );
 }
@@ -564,7 +588,7 @@ function WizardStep({ locale, labels, stepLabels, deptState, step, wizard }: { l
         <StepForm locale={locale} wizard={wizard} nextStep={7} omit={['requiredForDone']}>
           <WizardRegion title={labels.step6} question={labels.doneQuestion}>
             <label>
-              <input type="checkbox" name="requiredForDone" defaultChecked={wizard.doneRequired} /> When ON, this field appears in the Done checklist and blocks completion if empty.
+              <input type="checkbox" name="requiredForDone" defaultChecked={wizard.doneRequired} /> {labels.doneChecklistHint}
             </label>
           </WizardRegion>
         </StepForm>
@@ -574,11 +598,11 @@ function WizardStep({ locale, labels, stepLabels, deptState, step, wizard }: { l
         <StepForm locale={locale} wizard={wizard} nextStep={8} omit={['presentationSection', 'presentationOrder']}>
           <WizardRegion title={labels.step7} question={labels.presentationQuestion}>
             <div className="ff">
-              <label>Section label in form</label>
+              <label>{labels.sectionLabelInForm}</label>
               <input name="presentationSection" defaultValue={wizard.presentationSection} className="form-input" />
             </div>
             <div className="ff">
-              <label>Order within section</label>
+              <label>{labels.orderWithinSection}</label>
               <input name="presentationOrder" type="number" defaultValue={wizard.presentationOrder} className="form-input" />
             </div>
           </WizardRegion>
@@ -599,7 +623,7 @@ function TableStep({ locale, labels, wizard }: { locale: string; labels: WizardL
         <div className="ff">
           <label htmlFor="schema-column-table">{labels.tableQuestion}</label>
           <select id="schema-column-table" name="table" defaultValue={wizard.table} required className="form-input">
-            <option value="">Select table…</option>
+            <option value="">{labels.selectTable}</option>
             {TABLE_OPTIONS.map((table) => <option key={table} value={table}>{table}</option>)}
           </select>
         </div>
@@ -632,13 +656,13 @@ function PreviewStep({ labels, wizard }: { labels: WizardLabels; wizard: WizardS
     <WizardRegion title={labels.reviewQuestion} question={labels.reviewQuestion}>
       <div role="status" className="badge badge-green">{wizard.scope === 'universal' ? 'L1' : 'L2'}</div>
       <div className="schema-column-wizard__sample-field">
-        <label>{wizard.presentationSection}<input readOnly value="Sample value" /></label>
+        <label>{wizard.presentationSection}<input readOnly value={labels.sampleValue} /></label>
       </div>
       <dl>
-        <dt>Table</dt><dd>{wizard.table || 'main_table'}</dd>
-        <dt>Column</dt><dd>{wizard.columnCode}</dd>
-        <dt>Department</dt><dd>{wizard.dept || 'Packaging'}</dd>
-        <dt>Blocking</dt><dd>{wizard.blocking}</dd>
+        <dt>{labels.previewTable}</dt><dd>{wizard.table || 'main_table'}</dd>
+        <dt>{labels.previewColumn}</dt><dd>{wizard.columnCode}</dd>
+        <dt>{labels.previewDepartment}</dt><dd>{wizard.dept || labels.defaultDepartment}</dd>
+        <dt>{labels.previewBlocking}</dt><dd>{wizard.blocking}</dd>
       </dl>
     </WizardRegion>
   );
@@ -683,9 +707,9 @@ function ConflictDialog({ labels, locale, wizard, conflict }: { labels: WizardLa
         <div className="modal-body">
           <p>{conflict.body}</p>
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-            <dt className="muted">Field</dt><dd className="mono">{String(diff.field ?? 'schema')}</dd>
-            <dt className="muted">Yours</dt><dd className="mono">{String(diff.before ?? 'draft')}</dd>
-            <dt className="muted">Latest published</dt><dd className="mono">{String(diff.after ?? 'latest')}</dd>
+            <dt className="muted">{labels.conflictField}</dt><dd className="mono">{String(diff.field ?? 'schema')}</dd>
+            <dt className="muted">{labels.conflictYours}</dt><dd className="mono">{String(diff.before ?? 'draft')}</dd>
+            <dt className="muted">{labels.conflictLatestPublished}</dt><dd className="mono">{String(diff.after ?? 'latest')}</dd>
           </dl>
         </div>
         <div className="modal-foot">

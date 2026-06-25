@@ -685,7 +685,64 @@
       "select_role": "Select role",
       "optional_note": "Optional note for the invite email",
       "invite_user": "Invite User",
-      "invitation_sent": "Invitation sent to {email}."
+      "invitation_sent": "Invitation sent to {email}.",
+      "cancel": "Cancel",
+      "confirmRevoke": "Confirm revoke",
+      "emailAddress": "Email address",
+      "nameOptional": "Name (optional)",
+      "role": "Role",
+      "site": "Site",
+      "personalMessage": "Personal message",
+      "inviteExpiryNotice": "The invite link expires after 7 days and is scoped to this organisation.",
+      "sendInvitation": "Send invitation",
+      "unassigned": "Unassigned",
+      "system": "System",
+      "notAvailable": "—",
+      "permissionDenied": "Permission denied: {viewPermission} or {invitePermission} is required to view pending invitations.",
+      "loadError": "Invitations could not be loaded.",
+      "subtitle": "View and manage outstanding user invitations for this organisation.",
+      "readOnlyNotice": "Read-only mode: {invitePermission} and {roleAssignPermission} are required for Invite, Resend, or Revoke controls.",
+      "emptyTitle": "No pending invitations.",
+      "emptyBody": "Invite a team member to get started.",
+      "panelAriaLabel": "Pending invitations panel",
+      "lifecycleTitle": "Invitation lifecycle",
+      "lifecycleDescription": "Pending can be resent or revoked; expired can be resent; accepted invitations are immutable.",
+      "tableAriaLabel": "Pending Invitations",
+      "resend": "Resend",
+      "revoke": "Revoke",
+      "acceptedImmutable": "Accepted user is immutable.",
+      "noActions": "No actions",
+      "lifecycleUnavailable": "Lifecycle action unavailable",
+      "recorded": "recorded",
+      "resentFeedback": "Invitation resent for {email}. Audit result {auditResult}.",
+      "revokedFeedback": "Invitation revoked for {email}. Audit result {auditResult}.",
+      "status": {
+        "pending": "Pending",
+        "expired": "Expired",
+        "accepted": "Accepted"
+      },
+      "revokeDialog": {
+        "title": "Revoke invitation",
+        "confirm": "Revoke invitation for <strong>{email}</strong>?",
+        "body": "This pending invitation expires at {expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used."
+      },
+      "errors": {
+        "emailAndRoleRequired": "Enter a valid email and role.",
+        "invitationFailed": "Invitation failed: {error}",
+        "resendFailed": "Could not resend invitation: {error}.",
+        "resendLifecycleUnavailable": "Could not resend invitation: lifecycle action unavailable.",
+        "revokeFailed": "Could not revoke invitation: {error}.",
+        "revokeLifecycleUnavailable": "Could not revoke invitation: lifecycle action unavailable."
+      },
+      "columns": {
+        "email": "Email",
+        "role": "Role",
+        "invitedBy": "Invited By",
+        "invitedAt": "Invited At",
+        "expiresAt": "Expires At",
+        "status": "Status",
+        "actions": "Actions"
+      }
     },
     "roles": {
       "heading": "Roles & Permissions",
@@ -694,7 +751,55 @@
       "assign_role_to_user": "Assign Role to User",
       "system_roles": "System roles",
       "system_roles_tab": "System Roles",
-      "system_roles_table": "System Roles"
+      "system_roles_table": "System Roles",
+      "cancel": "Cancel",
+      "assignRoleButton": "Assign role",
+      "closeDialog": "Close {title}",
+      "permissionsTitle": "Permissions — {role}",
+      "disabledByOrgPolicy": "Disabled by org authorization policy",
+      "searchPermissions": "Search permissions",
+      "noPermissionsMatch": "No flat permissions match this filter.",
+      "directGrantByRoleSeed": "Direct grant by role seed",
+      "notDirectGrantByRoleSeed": "Not directly granted by role seed",
+      "orgPolicyBlocksGrant": "Org policy blocks this workflow or assignment grant.",
+      "searchUser": "Search user",
+      "nameOrEmailPlaceholder": "Name or email…",
+      "assignableUsers": "Assignable users",
+      "noMatchingOrgMembers": "No matching org members.",
+      "currentRole": "{email} · current: {role}",
+      "newRole": "New role",
+      "pickRole": "— pick role —",
+      "reason": "Reason",
+      "assigningPreview": "Assigning <strong>{role}</strong> to <strong>{name}</strong>. Previous role <strong>{previousRole}</strong> will be replaced.",
+      "unavailableTitle": "Roles & permissions are not available.",
+      "unavailableBody": "The roles server loader has not been wired in this environment. No seed data is shown.",
+      "subtitle": "Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.",
+      "readOnlyAssignmentNotice": "Role assignment controls are hidden for this Read-only operator. Required permission: settings.roles.assign or settings.roles.manage.",
+      "assignedUsers": "Assigned users",
+      "permissionDepth": "Permission depth",
+      "flatGroupsNoMatrix": "Flat groups, no role × module matrix",
+      "customRoles": "Custom Roles",
+      "customRolesSoon": "Custom Roles are enterprise Phase 3 — soon.",
+      "noSystemRoles": "No system roles are configured yet.",
+      "readOnlyScope": "Read only",
+      "viewPermissions": "View Permissions",
+      "permissionStatus": {
+        "orgPolicyBlock": "Org policy block",
+        "policyIssue": "Policy issue",
+        "enabledByOrgPolicy": "Enabled by org policy"
+      },
+      "permissionGroups": {
+        "Settings": "Settings",
+        "NPD workflow authorization": "NPD workflow authorization",
+        "Technical approval": "Technical approval"
+      },
+      "columns": {
+        "roleName": "Role name",
+        "code": "Code",
+        "usersAssigned": "Users assigned",
+        "scope": "Scope",
+        "actions": "Actions"
+      }
     },
     "security": {
       "heading": "Безпека"
@@ -844,6 +949,29 @@
           "pushQueue": "Push queue",
           "maxAttempts": "Max attempts",
           "retryBackoff": "Retry backoff"
+        },
+        "hints": {
+          "pullCron": "Use a valid 5-field cron expression.",
+          "batchSize": "Records pulled or pushed per worker batch.",
+          "pushQueue": "Enqueues outbound MES changes for D365 export-only sync.",
+          "maxAttempts": "Worker retries before moving the item to the dead-letter queue.",
+          "retryBackoff": "Minutes between retry attempts."
+        },
+        "status": {
+          "saving": "Saving…",
+          "lastApplied": "Last applied",
+          "appliedBy": "Applied by {user}",
+          "notRecorded": "not recorded",
+          "notAppliedYet": "Not applied yet",
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "legacyNotice": "LEGACY-D365. Sync is retained for transition operations; no credentials are stored on this SET-082 screen.",
+          "invalidCron": "Invalid cron expression. Use a valid cron-parser style 5-field expression.",
+          "nextRunUnavailable": "Next run unavailable until the cron is valid.",
+          "nextRun": "Next run {date} UTC",
+          "dlqDescription": "Items that exceed the retry policy are visible in the worker-owned DLQ tooling.",
+          "dlqLink": "Dead-letter queue",
+          "forbiddenBody": "This configuration is restricted to the account holder role."
         }
       }
     },
@@ -862,7 +990,47 @@
           "error": "Unable to load D365 connection.",
           "missingPrerequisites": "D365 connection prerequisites are missing. Configure the endpoint, Azure AD tenant, client ID, and secret reference before saving or enabling sync.",
           "preflightIncomplete": "D365 cannot be enabled until all five reference constants are configured.",
-          "preflightMissing": "Missing D365 constants:"
+          "preflightMissing": "Missing D365 constants:",
+          "sections": {
+            "endpoint": "Endpoint",
+            "authentication": "Authentication (Azure AD)",
+            "pollingSync": "Polling & sync",
+            "lastTest": "Last test"
+          },
+          "fields": {
+            "baseUrl": "Base URL",
+            "environment": "Environment",
+            "tenantId": "Tenant ID",
+            "clientId": "Client ID",
+            "clientSecret": "Client Secret",
+            "serviceAccountEmail": "Service account email",
+            "pollCron": "Pull cron schedule",
+            "integrationEnabled": "Integration enabled"
+          },
+          "hints": {
+            "baseUrl": "e.g. https://apex.operations.dynamics.com",
+            "tenantId": "UUID format, from Azure portal.",
+            "clientId": "Azure App Registration client ID.",
+            "clientSecret": "Never shown after save. Use 'Rotate' to update.",
+            "serviceAccountEmail": "Fallback basic-auth identity.",
+            "pollCron": "Standard 5-field cron. Example: '0 2 * * *' = daily 02:00.",
+            "integrationEnabled": "Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle."
+          },
+          "validation": {
+            "invalidUuid": "Invalid UUID format.",
+            "tooShort": "Too short.",
+            "cronFiveFields": "Cron must have 5 space-separated fields."
+          },
+          "dialog": {
+            "testTitle": "Test D365 connection",
+            "close": "Close"
+          },
+          "notices": {
+            "legacy": "LEGACY-D365. This integration will be retired when Monopilot replaces D365. Referenced by integration.d365.so_trigger.enabled (gates Planning SCREEN-13 + D365 Queue).",
+            "rotationUnavailable": "Key rotation is not available yet.",
+            "connected": "Connected at",
+            "failed": "Failed — run 'Test connection' to retry."
+          }
         }
       }
     },
@@ -1132,6 +1300,57 @@
       "stage_pilot": "Pilot",
       "stage_approval": "Approval",
       "stage_handoff": "Handoff"
+    },
+    "schema_column_wizard": {
+      "breadcrumb": "Settings / Schema browser / Column wizard",
+      "wizardStepList": "Wizard step list",
+      "wizardSteps": "Schema column wizard steps",
+      "deptEmpty": "No tenant department overrides found; showing the seven-dept Apex baseline.",
+      "published": "Column published. Zod schema regenerating…",
+      "publishError": "Could not publish column: {error}",
+      "loadingStepData": "Loading step data",
+      "loadingStepStatus": "Loading step data…",
+      "doneChecklistHint": "When ON, this field appears in the Done checklist and blocks completion if empty.",
+      "sectionLabelInForm": "Section label in form",
+      "orderWithinSection": "Order within section",
+      "selectTable": "Select table…",
+      "sampleValue": "Sample value",
+      "previewTable": "Table",
+      "previewColumn": "Column",
+      "previewDepartment": "Department",
+      "previewBlocking": "Blocking",
+      "conflictField": "Field",
+      "conflictYours": "Yours",
+      "conflictLatestPublished": "Latest published",
+      "deptLoadFallback": "Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.",
+      "deptLoadForbidden": "You do not have permission to load tenant department overrides. Baseline Apex departments are shown read-only.",
+      "defaultPresentationSection": "Packaging Details",
+      "defaultDepartment": "Packaging"
+    },
+    "tenant_variations": {
+      "breadcrumb": "Settings / Tenant",
+      "activeDeptVariants": "Active L2 dept variants.",
+      "configurableCustomized": "{configurable} configurable · {customized} customized",
+      "orgSpecificColumnAdditions": "Org-specific column additions.",
+      "ruleEngineRollout": "rule_engine v2 progressive rollout.",
+      "authorizationUpdated": "Updated {date}",
+      "featureFlagsSubtitle": "Per-tenant Phase 2/3 toggles. Full flag management is in the Feature Flags screen.",
+      "noTenantLocalFeatureFlags": "No tenant-local feature flags configured.",
+      "activeBaselineEmpty": "No tenant variations configured. Your organization uses the standard baseline.",
+      "deptAction": "Action",
+      "sourceTargets": "Source → Targets",
+      "columnsAffected": "Columns affected",
+      "lastModified": "Last modified",
+      "by": "By",
+      "ruleCode": "Rule Code",
+      "currentVariant": "Current Variant",
+      "availableVariants": "Available Variants",
+      "lastChanged": "Last Changed",
+      "neverChanged": "Never changed",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "updatedBySystem": "system",
+      "tenantLocalFeatureFlag": "Tenant-local feature flag."
     }
   },
   "navigation": {

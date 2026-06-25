@@ -60,7 +60,7 @@ function Forbidden({ labels }: { labels: D365SyncLabels }) {
       <Card className="border-red-200 bg-red-50">
         <CardContent className="p-4">
           <h1 className="text-xl font-semibold text-red-950">{labels.forbiddenTitle}</h1>
-          <p className="mt-2 text-sm text-red-900">This configuration is restricted to the account holder role.</p>
+          <p className="mt-2 text-sm text-red-900">{labels.status.forbiddenBody}</p>
         </CardContent>
       </Card>
     </main>
@@ -123,6 +123,29 @@ export default async function D365SyncPage(propsInput: D365SyncPageProps = {}) {
       pushQueue: label('d365.sync.fields.pushQueue', t('d365.sync.fields.pushQueue'), 'Push queue'),
       maxAttempts: label('d365.sync.fields.maxAttempts', t('d365.sync.fields.maxAttempts'), 'Max attempts'),
       retryBackoff: label('d365.sync.fields.retryBackoff', t('d365.sync.fields.retryBackoff'), 'Retry backoff'),
+    },
+    hints: {
+      pullCron: label('d365.sync.hints.pullCron', t('d365.sync.hints.pullCron'), 'Use a valid 5-field cron expression.'),
+      batchSize: label('d365.sync.hints.batchSize', t('d365.sync.hints.batchSize'), 'Records pulled or pushed per worker batch.'),
+      pushQueue: label('d365.sync.hints.pushQueue', t('d365.sync.hints.pushQueue'), 'Enqueues outbound MES changes for D365 export-only sync.'),
+      maxAttempts: label('d365.sync.hints.maxAttempts', t('d365.sync.hints.maxAttempts'), 'Worker retries before moving the item to the dead-letter queue.'),
+      retryBackoff: label('d365.sync.hints.retryBackoff', t('d365.sync.hints.retryBackoff'), 'Minutes between retry attempts.'),
+    },
+    status: {
+      saving: label('d365.sync.status.saving', t('d365.sync.status.saving'), 'Saving…'),
+      lastApplied: label('d365.sync.status.lastApplied', t('d365.sync.status.lastApplied'), 'Last applied'),
+      appliedBy: label('d365.sync.status.appliedBy', t('d365.sync.status.appliedBy'), 'Applied by {user}'),
+      notRecorded: label('d365.sync.status.notRecorded', t('d365.sync.status.notRecorded'), 'not recorded'),
+      notAppliedYet: label('d365.sync.status.notAppliedYet', t('d365.sync.status.notAppliedYet'), 'Not applied yet'),
+      enabled: label('d365.sync.status.enabled', t('d365.sync.status.enabled'), 'Enabled'),
+      disabled: label('d365.sync.status.disabled', t('d365.sync.status.disabled'), 'Disabled'),
+      legacyNotice: label('d365.sync.status.legacyNotice', t('d365.sync.status.legacyNotice'), 'LEGACY-D365. Sync is retained for transition operations; no credentials are stored on this SET-082 screen.'),
+      invalidCron: label('d365.sync.status.invalidCron', t('d365.sync.status.invalidCron'), 'Invalid cron expression. Use a valid cron-parser style 5-field expression.'),
+      nextRunUnavailable: label('d365.sync.status.nextRunUnavailable', t('d365.sync.status.nextRunUnavailable'), 'Next run unavailable until the cron is valid.'),
+      nextRun: label('d365.sync.status.nextRun', t('d365.sync.status.nextRun'), 'Next run {date} UTC'),
+      dlqDescription: label('d365.sync.status.dlqDescription', t('d365.sync.status.dlqDescription'), 'Items that exceed the retry policy are visible in the worker-owned DLQ tooling.'),
+      dlqLink: label('d365.sync.status.dlqLink', t('d365.sync.status.dlqLink'), 'Dead-letter queue'),
+      forbiddenBody: label('d365.sync.status.forbiddenBody', t('d365.sync.status.forbiddenBody'), 'This configuration is restricted to the account holder role.'),
     },
   };
 
