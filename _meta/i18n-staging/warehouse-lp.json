@@ -232,9 +232,58 @@
             "notFound": "The license plate was not found.",
             "generic": "We could not unblock this license plate. Try again."
           }
+        },
+        "splitModal": {
+          "title": "Split {lp}",
+          "intro": "Split a quantity off this LP into a new child license plate. The remainder stays on this LP.",
+          "qty": "Split quantity",
+          "qtyHint": "Available to split: {qty} {uom} (must be less than the full available quantity).",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being split?",
+          "cancel": "Cancel",
+          "confirm": "Split LP",
+          "submitting": "Splitting…",
+          "validation": {
+            "positive": "Enter a quantity greater than zero.",
+            "lessThanAvailable": "The split quantity must be less than the available quantity.",
+            "reasonRequired": "Enter a reason before splitting."
+          },
+          "errors": {
+            "forbidden": "You do not have permission to split license plates.",
+            "notFound": "The license plate was not found.",
+            "invalidInput": "Enter a positive quantity and a reason before splitting.",
+            "invalidState": "This license plate cannot be split in its current state.",
+            "onHold": "This license plate is under an active quality hold and cannot be split.",
+            "qtyTooLarge": "The split quantity must be less than the available quantity.",
+            "generic": "We could not split this license plate. Try again."
+          }
+        },
+        "destroyModal": {
+          "title": "Destroy / scrap {lp}",
+          "intro": "Permanently scrap this license plate. The remaining quantity is written off and the LP becomes terminal.",
+          "warning": "This cannot be undone. The LP is marked destroyed and its stock is written off.",
+          "acknowledge": "I understand this license plate will be permanently scrapped.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being destroyed?",
+          "cancel": "Cancel",
+          "confirm": "Destroy LP",
+          "submitting": "Destroying…",
+          "errors": {
+            "forbidden": "You do not have permission to destroy license plates.",
+            "notFound": "The license plate was not found.",
+            "invalidInput": "Enter a reason before destroying the license plate.",
+            "terminal": "This license plate is already consumed, shipped, merged or destroyed and cannot be destroyed.",
+            "reserved": "This license plate has reserved stock — clear the reservation before destroying it.",
+            "generic": "We could not destroy this license plate. Try again."
+          }
+        },
+        "ineligible": {
+          "split": "This license plate cannot be split in its current state (no available quantity, or it is held, reserved or terminal).",
+          "destroy": "This license plate cannot be destroyed — it is already terminal, or has reserved stock to clear first.",
+          "mergeDeferred": "Merge is not available from this screen yet — open the mergeable LPs from the inventory list."
         }
       },
-      "ruleNote": "Available actions are determined by the LP state machine. Action modals are wired in a later lane.",
+      "ruleNote": "Available actions are determined by the LP state machine. Split and Destroy are live; Merge is wired in a later lane.",
       "tabs": {
         "overview": "Overview",
         "history": "State history",
@@ -590,9 +639,58 @@
             "notFound": "Nie znaleziono LP.",
             "generic": "Nie udało się odblokować tego LP. Spróbuj ponownie."
           }
+        },
+        "splitModal": {
+          "title": "Podziel {lp}",
+          "intro": "Wydziel część ilości z tego LP do nowego, podrzędnego nośnika. Reszta pozostaje na tym LP.",
+          "qty": "Ilość do wydzielenia",
+          "qtyHint": "Dostępne do podziału: {qty} {uom} (musi być mniejsze niż pełna dostępna ilość).",
+          "reason": "Powód",
+          "reasonPlaceholder": "Dlaczego ten LP jest dzielony?",
+          "cancel": "Anuluj",
+          "confirm": "Podziel LP",
+          "submitting": "Dzielenie…",
+          "validation": {
+            "positive": "Podaj ilość większą od zera.",
+            "lessThanAvailable": "Ilość do wydzielenia musi być mniejsza niż dostępna ilość.",
+            "reasonRequired": "Podaj powód przed podziałem."
+          },
+          "errors": {
+            "forbidden": "Nie masz uprawnień do dzielenia LP.",
+            "notFound": "Nie znaleziono LP.",
+            "invalidInput": "Podaj dodatnią ilość i powód przed podziałem.",
+            "invalidState": "Tego LP nie można podzielić w obecnym stanie.",
+            "onHold": "Ten LP jest na aktywnym holdzie jakościowym i nie można go podzielić.",
+            "qtyTooLarge": "Ilość do wydzielenia musi być mniejsza niż dostępna ilość.",
+            "generic": "Nie udało się podzielić tego LP. Spróbuj ponownie."
+          }
+        },
+        "destroyModal": {
+          "title": "Zniszcz / złomuj {lp}",
+          "intro": "Trwale zezłomuj ten nośnik LP. Pozostała ilość zostaje spisana, a LP staje się terminalny.",
+          "warning": "Tej operacji nie można cofnąć. LP zostanie oznaczony jako zniszczony, a jego stan spisany.",
+          "acknowledge": "Rozumiem, że ten nośnik LP zostanie trwale zezłomowany.",
+          "reason": "Powód",
+          "reasonPlaceholder": "Dlaczego ten LP jest niszczony?",
+          "cancel": "Anuluj",
+          "confirm": "Zniszcz LP",
+          "submitting": "Niszczenie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do niszczenia LP.",
+            "notFound": "Nie znaleziono LP.",
+            "invalidInput": "Podaj powód przed zniszczeniem LP.",
+            "terminal": "Ten LP jest już zużyty, wysłany, scalony lub zniszczony i nie można go zniszczyć.",
+            "reserved": "Ten LP ma zarezerwowany stan — usuń rezerwację przed zniszczeniem.",
+            "generic": "Nie udało się zniszczyć tego LP. Spróbuj ponownie."
+          }
+        },
+        "ineligible": {
+          "split": "Tego LP nie można podzielić w obecnym stanie (brak dostępnej ilości albo jest na holdzie, zarezerwowany lub terminalny).",
+          "destroy": "Tego LP nie można zniszczyć — jest już terminalny lub ma zarezerwowany stan do usunięcia.",
+          "mergeDeferred": "Scalanie nie jest jeszcze dostępne z tego ekranu — otwórz LP do scalenia z listy stanów magazynowych."
         }
       },
-      "ruleNote": "Dostępne akcje wynikają z maszyny stanów LP. Okna akcji zostaną podłączone w późniejszym etapie.",
+      "ruleNote": "Dostępne akcje wynikają z maszyny stanów LP. Podział i Zniszczenie są aktywne; Scalanie zostanie podłączone w późniejszym etapie.",
       "tabs": {
         "overview": "Przegląd",
         "history": "Historia stanów",

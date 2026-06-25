@@ -165,6 +165,55 @@ function buildLabels(locale: string): LpDetailLabels {
         invalidState: t('detail.actions.qaRelease.invalidState'),
         error: t('detail.actions.qaRelease.error'),
       },
+      split: {
+        title: t('detail.actions.splitModal.title'),
+        intro: t('detail.actions.splitModal.intro'),
+        qty: t('detail.actions.splitModal.qty'),
+        qtyHint: t('detail.actions.splitModal.qtyHint'),
+        reason: t('detail.actions.splitModal.reason'),
+        reasonPlaceholder: t('detail.actions.splitModal.reasonPlaceholder'),
+        cancel: t('detail.actions.splitModal.cancel'),
+        confirm: t('detail.actions.splitModal.confirm'),
+        submitting: t('detail.actions.splitModal.submitting'),
+        validation: {
+          positive: t('detail.actions.splitModal.validation.positive'),
+          lessThanAvailable: t('detail.actions.splitModal.validation.lessThanAvailable'),
+          reasonRequired: t('detail.actions.splitModal.validation.reasonRequired'),
+        },
+        errors: {
+          forbidden: t('detail.actions.splitModal.errors.forbidden'),
+          notFound: t('detail.actions.splitModal.errors.notFound'),
+          invalidInput: t('detail.actions.splitModal.errors.invalidInput'),
+          invalidState: t('detail.actions.splitModal.errors.invalidState'),
+          onHold: t('detail.actions.splitModal.errors.onHold'),
+          qtyTooLarge: t('detail.actions.splitModal.errors.qtyTooLarge'),
+          generic: t('detail.actions.splitModal.errors.generic'),
+        },
+      },
+      destroy: {
+        title: t('detail.actions.destroyModal.title'),
+        intro: t('detail.actions.destroyModal.intro'),
+        warning: t('detail.actions.destroyModal.warning'),
+        acknowledge: t('detail.actions.destroyModal.acknowledge'),
+        reason: t('detail.actions.destroyModal.reason'),
+        reasonPlaceholder: t('detail.actions.destroyModal.reasonPlaceholder'),
+        cancel: t('detail.actions.destroyModal.cancel'),
+        confirm: t('detail.actions.destroyModal.confirm'),
+        submitting: t('detail.actions.destroyModal.submitting'),
+        errors: {
+          forbidden: t('detail.actions.destroyModal.errors.forbidden'),
+          notFound: t('detail.actions.destroyModal.errors.notFound'),
+          invalidInput: t('detail.actions.destroyModal.errors.invalidInput'),
+          terminal: t('detail.actions.destroyModal.errors.terminal'),
+          reserved: t('detail.actions.destroyModal.errors.reserved'),
+          generic: t('detail.actions.destroyModal.errors.generic'),
+        },
+      },
+      ineligible: {
+        split: t('detail.actions.ineligible.split'),
+        destroy: t('detail.actions.ineligible.destroy'),
+        mergeDeferred: t('detail.actions.ineligible.mergeDeferred'),
+      },
     },
     move: {
       title: t('detail.move.title'),
@@ -346,6 +395,8 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
 }
 
 const updateLpMetadataStub: any = async () => ({ ok: true });
+const splitLpActionStub: any = async () => ({ ok: true });
+const destroyLpActionStub: any = async () => ({ ok: true });
 const printLabelActionStub: any = async () => ({ status: 'sent', result_url: 'data:text/plain;charset=utf-8,label' });
 const blockLpActionStub: any = async () => ({
   ok: true,
@@ -400,6 +451,8 @@ function renderDetail(
       listOpenWorkOrdersForLpReserveAction: listOpenWorkOrdersForLpReserveActionStub,
       listLocationsAction: listLocationsActionStub,
       createStockMoveAction: createStockMoveActionStub,
+      splitLpAction: splitLpActionStub,
+      destroyLpAction: destroyLpActionStub,
       updateLpMetadataAction: updateLpMetadataStub,
       printLabelAction: printLabelActionStub,
       canPrint: true,
@@ -427,18 +480,184 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-raw-json')).toBeInTheDocument();
   });
 
-  it('keeps only deferred actions disabled and makes reserve / move / block live', () => {
+  it('keeps only deferred actions disabled and makes reserve / move / block / split / destroy live', () => {
     renderDetail();
+    // Merge is the only remaining deferred action (no candidate-LP source).
+    expect(LP_DEFERRED_ACTIONS).toEqual(['merge']);
     for (const key of LP_DEFERRED_ACTIONS) {
       const btn = screen.getByTestId(`lp-action-${key}`);
       expect(btn).toBeDisabled();
-      expect(btn).toHaveAttribute('title', EN.actions.comingSoon);
+      expect(btn).toHaveAttribute('title', EN.actions.ineligible.mergeDeferred);
     }
     expect(screen.getByTestId('lp-action-qa')).toBeDisabled();
     expect(screen.getByTestId('lp-action-qa')).toHaveAttribute('title', EN.actions.qaRelease.unavailable);
     expect(screen.getByTestId('lp-action-reserve')).toBeEnabled();
     expect(screen.getByTestId('lp-action-move')).toBeEnabled();
     expect(screen.getByTestId('lp-action-block')).toBeEnabled();
+    // WH-R3: split + destroy are LIVE for an available LP with positive available qty.
+    expect(screen.getByTestId('lp-action-split')).toBeEnabled();
+    expect(screen.getByTestId('lp-action-destroy')).toBeEnabled();
+  });
+
+  it('WH-R3: gates split + destroy on backend eligibility with a tooltip when ineligible', () => {
+    // Terminal LP: both split + destroy are disabled with their ineligibility tooltip.
+    const { unmount } = renderDetail({ status: 'consumed' });
+    const splitBtn = screen.getByTestId('lp-action-split');
+    const destroyBtn = screen.getByTestId('lp-action-destroy');
+    expect(splitBtn).toBeDisabled();
+    expect(splitBtn).toHaveAttribute('title', EN.actions.ineligible.split);
+    expect(destroyBtn).toBeDisabled();
+    expect(destroyBtn).toHaveAttribute('title', EN.actions.ineligible.destroy);
+    unmount();
+
+    // Reserved LP: destroy is blocked (reserved stock must be cleared first).
+    renderDetail({ status: 'reserved', reservedQty: '5', availableQty: '0' });
+    expect(screen.getByTestId('lp-action-destroy')).toBeDisabled();
+    // Split is also blocked (status not in the split-allowed set + no available qty).
+    expect(screen.getByTestId('lp-action-split')).toBeDisabled();
+  });
+
+  it('WH-R3: split modal submits with a clientOpId and the strict-< guard blocks an over-split', async () => {
+    const user = userEvent.setup();
+    const splitLpAction = vi.fn(async () => ({ ok: true }) as const);
+    // available = quantity - reserved = 120 - 0 = 120.
+    renderDetail({ status: 'available', quantity: '120', reservedQty: '0', availableQty: '120' }, EN, {
+      splitLpAction,
+    });
+
+    await user.click(screen.getByTestId('lp-action-split'));
+    expect(await screen.findByTestId('lp-split-modal')).toBeInTheDocument();
+
+    // Over-split: qty === available (120) violates the strict-< guard → confirm stays disabled.
+    await user.type(screen.getByTestId('lp-split-qty'), '120');
+    await user.type(screen.getByTestId('lp-split-reason'), 'rework');
+    expect(screen.getByTestId('lp-split-validation')).toHaveTextContent(EN.actions.split.validation.lessThanAvailable);
+    expect(screen.getByTestId('lp-split-confirm')).toBeDisabled();
+    expect(splitLpAction).not.toHaveBeenCalled();
+
+    // Valid split (40 < 120): confirm enables and the action is called WITH a clientOpId.
+    await user.clear(screen.getByTestId('lp-split-qty'));
+    await user.type(screen.getByTestId('lp-split-qty'), '40');
+    expect(screen.queryByTestId('lp-split-validation')).not.toBeInTheDocument();
+    const confirm = screen.getByTestId('lp-split-confirm');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() => expect(splitLpAction).toHaveBeenCalledTimes(1));
+    const [calledLpId, calledQty, calledReason, calledOpId] = splitLpAction.mock.calls[0];
+    expect(calledLpId).toBe('lp-1');
+    expect(calledQty).toBe(40);
+    expect(calledReason).toBe('rework');
+    // clientOpId is a fresh, non-empty UUID minted on open.
+    expect(typeof calledOpId).toBe('string');
+    expect(calledOpId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+
+  it('WH-R3: destroy modal requires acknowledgement + reason and submits with a clientOpId', async () => {
+    const user = userEvent.setup();
+    const destroyLpAction = vi.fn(async () => ({ ok: true }) as const);
+    renderDetail({ status: 'available', reservedQty: '0' }, EN, { destroyLpAction });
+
+    await user.click(screen.getByTestId('lp-action-destroy'));
+    expect(await screen.findByTestId('lp-destroy-modal')).toBeInTheDocument();
+    // Gated until BOTH the reason and the acknowledgement checkbox are set.
+    expect(screen.getByTestId('lp-destroy-confirm')).toBeDisabled();
+    await user.type(screen.getByTestId('lp-destroy-reason'), 'spillage');
+    expect(screen.getByTestId('lp-destroy-confirm')).toBeDisabled();
+    await user.click(screen.getByTestId('lp-destroy-ack'));
+    const confirm = screen.getByTestId('lp-destroy-confirm');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() => expect(destroyLpAction).toHaveBeenCalledTimes(1));
+    const [calledLpId, calledReason, calledOpId] = destroyLpAction.mock.calls[0];
+    expect(calledLpId).toBe('lp-1');
+    expect(calledReason).toBe('spillage');
+    expect(calledOpId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+
+  it('WH-R3: split modal maps the backend over-split guard error to localized copy', async () => {
+    const user = userEvent.setup();
+    // Backend rejects after submit even though the client guard passed (race).
+    const splitLpAction = vi.fn(async () => ({ ok: false, error: 'split quantity must be less than available quantity' }) as const);
+    renderDetail({ status: 'available', quantity: '120', reservedQty: '0', availableQty: '120' }, EN, {
+      splitLpAction,
+    });
+    await user.click(screen.getByTestId('lp-action-split'));
+    await user.type(await screen.findByTestId('lp-split-qty'), '40');
+    await user.type(screen.getByTestId('lp-split-reason'), 'rework');
+    await user.click(screen.getByTestId('lp-split-confirm'));
+    expect(await screen.findByTestId('lp-split-error')).toHaveTextContent(EN.actions.split.errors.qtyTooLarge);
+  });
+
+  it('WH-R3 PARITY EVIDENCE: captures split/destroy modal states + gated buttons + a11y report', async () => {
+    const evDir = pathResolveEvidence('WH-R3-lp-split-destroy');
+    mkdirSync(evDir, { recursive: true });
+    const user = userEvent.setup();
+
+    // 1) Action group with split + destroy LIVE (available LP).
+    const live = renderDetail({ status: 'available', quantity: '120', reservedQty: '0', availableQty: '120' });
+    writeFileSync(`${evDir}/state-actions-live.html`, document.body.innerHTML, 'utf8');
+
+    // 2) Split modal — over-split blocked (validation visible, confirm disabled).
+    await user.click(screen.getByTestId('lp-action-split'));
+    await screen.findByTestId('lp-split-modal');
+    await user.type(screen.getByTestId('lp-split-qty'), '120');
+    await user.type(screen.getByTestId('lp-split-reason'), 'rework');
+    const splitDialog = screen.getByRole('dialog');
+    writeFileSync(`${evDir}/state-split-oversplit-blocked.html`, document.body.innerHTML, 'utf8');
+    const splitChecks = {
+      dialogRole: splitDialog.getAttribute('role') === 'dialog',
+      qtyHasAccessibleName: Boolean(screen.getByLabelText(EN.actions.split.qty)),
+      reasonHasAccessibleName: Boolean(screen.getByLabelText(EN.actions.split.reason)),
+      validationVisible: screen.getByTestId('lp-split-validation').textContent ===
+        EN.actions.split.validation.lessThanAvailable,
+      confirmDisabledOnOverSplit: (screen.getByTestId('lp-split-confirm') as HTMLButtonElement).disabled,
+    };
+    live.unmount();
+
+    // 3) Destroy modal — idle (confirm gated until ack + reason).
+    const destroy = renderDetail({ status: 'available', reservedQty: '0' });
+    await user.click(screen.getByTestId('lp-action-destroy'));
+    await screen.findByTestId('lp-destroy-modal');
+    const destroyDialog = screen.getByRole('dialog');
+    writeFileSync(`${evDir}/state-destroy-idle.html`, document.body.innerHTML, 'utf8');
+    const destroyChecks = {
+      dialogRole: destroyDialog.getAttribute('role') === 'dialog',
+      reasonHasAccessibleName: Boolean(screen.getByLabelText(EN.actions.destroy.reason)),
+      hasAcknowledgement: Boolean(screen.getByTestId('lp-destroy-ack')),
+      confirmGated: (screen.getByTestId('lp-destroy-confirm') as HTMLButtonElement).disabled,
+    };
+    destroy.unmount();
+
+    // 4) Gated state — terminal LP: split + destroy disabled with tooltips.
+    const gated = renderDetail({ status: 'consumed' });
+    writeFileSync(`${evDir}/state-gated-terminal.html`, document.body.innerHTML, 'utf8');
+    const gatedChecks = {
+      splitDisabled: (screen.getByTestId('lp-action-split') as HTMLButtonElement).disabled,
+      splitTooltip: screen.getByTestId('lp-action-split').getAttribute('title') === EN.actions.ineligible.split,
+      destroyDisabled: (screen.getByTestId('lp-action-destroy') as HTMLButtonElement).disabled,
+      destroyTooltip: screen.getByTestId('lp-action-destroy').getAttribute('title') === EN.actions.ineligible.destroy,
+      mergeDeferred:
+        screen.getByTestId('lp-action-merge').getAttribute('title') === EN.actions.ineligible.mergeDeferred,
+    };
+    gated.unmount();
+
+    const report = {
+      task: 'WH-R3 — wire LP split / destroy; merge deferred (no candidate source in loader)',
+      prototypeAnchor:
+        'prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx:310-317 (action group)',
+      tool: 'RTL role/accessible-name assertions + HTML snapshots',
+      blocker:
+        'jest-axe/vitest-axe not wired into apps/web vitest; out of STRICT SCOPE. Same documented substitute as the C-R3 / R2 evidence.',
+      clientOpId: 'crypto.randomUUID() minted on each modal open; stable across retries within that open (idempotent double-click).',
+      checks: { split: splitChecks, destroy: destroyChecks, gated: gatedChecks },
+      violations: [],
+    };
+    writeFileSync(`${evDir}/a11y-report.json`, JSON.stringify(report, null, 2), 'utf8');
+
+    expect(Object.values(splitChecks).every(Boolean)).toBe(true);
+    expect(Object.values(destroyChecks).every(Boolean)).toBe(true);
+    expect(Object.values(gatedChecks).every(Boolean)).toBe(true);
+    expect(report.violations).toEqual([]);
   });
 
   it('opens reserve and block modals from the action group', async () => {
@@ -724,7 +943,8 @@ describe('LP detail RSC crash regression (digest 1984471676)', () => {
     expect(Array.isArray(LP_DEFERRED_ACTIONS_SERVER_SAFE)).toBe(true);
     const collected: string[] = [];
     for (const k of LP_DEFERRED_ACTIONS_SERVER_SAFE) collected.push(k);
-    expect(collected).toEqual(['split', 'merge', 'destroy']);
+    // WH-R3: split + destroy are now live; only merge remains deferred.
+    expect(collected).toEqual(['merge']);
   });
 
   it('client module re-exports the same arrays (single source of truth)', () => {

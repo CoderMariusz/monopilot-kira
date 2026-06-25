@@ -60,8 +60,11 @@ import type { WarehouseResult } from '../../../_actions/shared';
 import type { createStockMove } from '../../../_actions/stock-move-actions';
 import type { listLocations } from '../../../_actions/location-read-actions';
 import type { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp, UnblockLpResult } from '../_actions/lp-detail-actions';
+import type { destroyLp, splitLp } from '../_actions/lp-split-merge-destroy-actions';
 import { LpBlockModal, type LpBlockModalLabels } from './lp-block-modal.client';
+import { LpDestroyModal, type LpDestroyModalLabels } from './lp-destroy-modal.client';
 import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
+import { LpSplitModal, type LpSplitModalLabels } from './lp-split-modal.client';
 import {
   LpMetadataEditModal,
   type LpMetadataEditLabels,
@@ -77,6 +80,21 @@ export { LP_DEFERRED_ACTIONS, LP_DETAIL_ACTIONS, type LpDetailAction, type LpDef
 
 /** LP statuses for which the "move" action is NOT allowed (terminal lifecycle). */
 const IMMOVABLE_STATUSES = new Set(['consumed', 'merged', 'shipped', 'returned', 'destroyed']);
+
+/**
+ * WH-R3 — client mirror of the backend split eligibility (SPLIT_MERGE_STATES in
+ * lp-split-merge-destroy-actions.ts): material present, not held, not terminal.
+ * The action re-enforces this + the active-hold check; the gate here only stops a
+ * user clicking into a guaranteed rejection.
+ */
+const SPLIT_ALLOWED_STATUSES = new Set(['received', 'available', 'returned']);
+
+/**
+ * WH-R3 — client mirror of the backend destroy block-list (DESTROY_BLOCKED_STATES):
+ * already-terminal LPs cannot be (re-)destroyed. Reserved stock is also blocked
+ * (the action rejects reserved_qty > 0); the action re-checks both.
+ */
+const DESTROY_BLOCKED_STATUSES = new Set(['consumed', 'shipped', 'merged', 'destroyed']);
 
 /**
  * C-R3 — LP statuses for which metadata (expiry / batch) can NO LONGER be edited:
@@ -196,6 +214,16 @@ export type LpDetailLabels = {
       invalidState: string;
       error: string;
     };
+    /** WH-R3 — Split modal copy. */
+    split: LpSplitModalLabels;
+    /** WH-R3 — Destroy / scrap modal copy. */
+    destroy: LpDestroyModalLabels;
+    /** WH-R3 — tooltips shown on a gated (ineligible) action button. */
+    ineligible: {
+      split: string;
+      destroy: string;
+      mergeDeferred: string;
+    };
   };
   move: LpMoveLabels;
   /** C-R3 — edit-metadata (expiry / batch) modal copy. */
@@ -286,6 +314,8 @@ export function LpDetailClient({
   listOpenWorkOrdersForLpReserveAction,
   listLocationsAction,
   createStockMoveAction,
+  splitLpAction,
+  destroyLpAction,
   updateLpMetadataAction,
   printLabelAction,
   canPrint,
@@ -300,6 +330,10 @@ export function LpDetailClient({
   listOpenWorkOrdersForLpReserveAction: typeof listOpenWorkOrdersForLpReserve;
   listLocationsAction: typeof listLocations;
   createStockMoveAction: typeof createStockMove;
+  /** WH-R3 — split this LP into a child (idempotent; requires clientOpId). */
+  splitLpAction: typeof splitLp;
+  /** WH-R3 — destroy / scrap this LP (idempotent; requires clientOpId). */
+  destroyLpAction: typeof destroyLp;
   /**
    * E1 — print a label for this LP. OWNED by the printers settings actions
    * (settings/infra/printers/_actions/printers.ts → printLabel) and threaded in by
@@ -329,6 +363,8 @@ export function LpDetailClient({
   const [actionToast, setActionToast] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
+  const [splitModalOpen, setSplitModalOpen] = useState(false);
+  const [destroyModalOpen, setDestroyModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   // E1 — label print state for the labels tab.
   const [printPending, setPrintPending] = useState(false);
@@ -344,6 +380,16 @@ export function LpDetailClient({
   const isBlocked = detail.status.toLowerCase() === 'blocked';
   // C-R3: metadata edit is hidden for terminal LPs (consumed/shipped/merged/destroyed).
   const canEditMetadata = !METADATA_LOCKED_STATUSES.has(detail.status.toLowerCase());
+  // WH-R3: split is allowed for material-present, non-terminal LPs WITH positive
+  // available qty (split qty must be strictly < available, so 0 available = no split).
+  const canSplit =
+    SPLIT_ALLOWED_STATUSES.has(detail.status.toLowerCase()) && Number(detail.availableQty) > 0;
+  // WH-R3: destroy is blocked for terminal LPs and for LPs holding reserved stock
+  // (clear the reservation first). The action re-enforces both.
+  const canDestroy =
+    !DESTROY_BLOCKED_STATUSES.has(detail.status.toLowerCase()) &&
+    detail.status.toLowerCase() !== 'reserved' &&
+    Number(detail.reservedQty) === 0;
 
   function closeQaModal() {
     if (isPending) return;
@@ -610,12 +656,47 @@ export function LpDetailClient({
                     {labels.actions.labelByKey[key]}
                   </button>
                 ) : null
+              ) : key === 'split' ? (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!canSplit}
+                  title={canSplit ? undefined : labels.actions.ineligible.split}
+                  data-testid={`lp-action-${key}`}
+                  onClick={() => setSplitModalOpen(true)}
+                  className={[
+                    'rounded-md border px-2.5 py-1 text-xs',
+                    canSplit
+                      ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                      : 'cursor-not-allowed border-slate-200 text-slate-400',
+                  ].join(' ')}
+                >
+                  {labels.actions.labelByKey[key]}
+                </button>
+              ) : key === 'destroy' ? (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!canDestroy}
+                  title={canDestroy ? undefined : labels.actions.ineligible.destroy}
+                  data-testid={`lp-action-${key}`}
+                  onClick={() => setDestroyModalOpen(true)}
+                  className={[
+                    'rounded-md border px-2.5 py-1 text-xs',
+                    canDestroy
+                      ? 'border-red-300 text-red-700 hover:bg-red-50'
+                      : 'cursor-not-allowed border-slate-200 text-slate-400',
+                  ].join(' ')}
+                >
+                  {labels.actions.labelByKey[key]}
+                </button>
               ) : (
+                // Deferred (merge) — no sibling-LP candidate source in this loader.
                 <button
                   key={key}
                   type="button"
                   disabled
-                  title={labels.actions.comingSoon}
+                  title={labels.actions.ineligible.mergeDeferred}
                   data-testid={`lp-action-${key}`}
                   className="cursor-not-allowed rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-400"
                 >
@@ -1075,6 +1156,34 @@ export function LpDetailClient({
             setMetadataModalOpen(false);
             router.refresh();
           }}
+        />
+      ) : null}
+
+      {/* WH-R3 — Split modal. Wires splitLp with a fresh clientOpId per open. */}
+      {canSplit ? (
+        <LpSplitModal
+          open={splitModalOpen}
+          onOpenChange={setSplitModalOpen}
+          lpId={detail.id}
+          lpNumber={detail.lpNumber}
+          availableQty={detail.availableQty}
+          uom={detail.uom}
+          labels={labels.actions.split}
+          splitAction={splitLpAction}
+          onSuccess={() => router.refresh()}
+        />
+      ) : null}
+
+      {/* WH-R3 — Destroy / scrap modal. Wires destroyLp with a fresh clientOpId. */}
+      {canDestroy ? (
+        <LpDestroyModal
+          open={destroyModalOpen}
+          onOpenChange={setDestroyModalOpen}
+          lpId={detail.id}
+          lpNumber={detail.lpNumber}
+          labels={labels.actions.destroy}
+          destroyAction={destroyLpAction}
+          onSuccess={() => router.refresh()}
         />
       ) : null}
     </div>

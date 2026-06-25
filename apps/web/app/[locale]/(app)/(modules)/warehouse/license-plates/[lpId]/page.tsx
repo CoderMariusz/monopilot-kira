@@ -31,6 +31,7 @@ import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { listLocations } from '../../_actions/location-read-actions';
 import { createStockMove } from '../../_actions/stock-move-actions';
 import { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp } from './_actions/lp-detail-actions';
+import { destroyLp, splitLp } from './_actions/lp-split-merge-destroy-actions';
 import { updateLpMetadataAction } from './lp-metadata-adapter';
 // E1 — label printing wired through the printers settings actions (mig 304).
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
@@ -197,6 +198,55 @@ function buildLabels(locale: string): LpDetailLabels {
         denied: t('detail.actions.qaRelease.denied'),
         invalidState: t('detail.actions.qaRelease.invalidState'),
         error: t('detail.actions.qaRelease.error'),
+      },
+      split: {
+        title: t('detail.actions.splitModal.title'),
+        intro: t('detail.actions.splitModal.intro'),
+        qty: t('detail.actions.splitModal.qty'),
+        qtyHint: t('detail.actions.splitModal.qtyHint'),
+        reason: t('detail.actions.splitModal.reason'),
+        reasonPlaceholder: t('detail.actions.splitModal.reasonPlaceholder'),
+        cancel: t('detail.actions.splitModal.cancel'),
+        confirm: t('detail.actions.splitModal.confirm'),
+        submitting: t('detail.actions.splitModal.submitting'),
+        validation: {
+          positive: t('detail.actions.splitModal.validation.positive'),
+          lessThanAvailable: t('detail.actions.splitModal.validation.lessThanAvailable'),
+          reasonRequired: t('detail.actions.splitModal.validation.reasonRequired'),
+        },
+        errors: {
+          forbidden: t('detail.actions.splitModal.errors.forbidden'),
+          notFound: t('detail.actions.splitModal.errors.notFound'),
+          invalidInput: t('detail.actions.splitModal.errors.invalidInput'),
+          invalidState: t('detail.actions.splitModal.errors.invalidState'),
+          onHold: t('detail.actions.splitModal.errors.onHold'),
+          qtyTooLarge: t('detail.actions.splitModal.errors.qtyTooLarge'),
+          generic: t('detail.actions.splitModal.errors.generic'),
+        },
+      },
+      destroy: {
+        title: t('detail.actions.destroyModal.title'),
+        intro: t('detail.actions.destroyModal.intro'),
+        warning: t('detail.actions.destroyModal.warning'),
+        acknowledge: t('detail.actions.destroyModal.acknowledge'),
+        reason: t('detail.actions.destroyModal.reason'),
+        reasonPlaceholder: t('detail.actions.destroyModal.reasonPlaceholder'),
+        cancel: t('detail.actions.destroyModal.cancel'),
+        confirm: t('detail.actions.destroyModal.confirm'),
+        submitting: t('detail.actions.destroyModal.submitting'),
+        errors: {
+          forbidden: t('detail.actions.destroyModal.errors.forbidden'),
+          notFound: t('detail.actions.destroyModal.errors.notFound'),
+          invalidInput: t('detail.actions.destroyModal.errors.invalidInput'),
+          terminal: t('detail.actions.destroyModal.errors.terminal'),
+          reserved: t('detail.actions.destroyModal.errors.reserved'),
+          generic: t('detail.actions.destroyModal.errors.generic'),
+        },
+      },
+      ineligible: {
+        split: t('detail.actions.ineligible.split'),
+        destroy: t('detail.actions.ineligible.destroy'),
+        mergeDeferred: t('detail.actions.ineligible.mergeDeferred'),
       },
     },
     move: {
@@ -429,6 +479,8 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
       listOpenWorkOrdersForLpReserveAction={listOpenWorkOrdersForLpReserve}
       listLocationsAction={listLocations}
       createStockMoveAction={createStockMove}
+      splitLpAction={splitLp}
+      destroyLpAction={destroyLp}
       updateLpMetadataAction={updateLpMetadataAction}
       printLabelAction={printLpLabel}
       canPrint={canPrint}
