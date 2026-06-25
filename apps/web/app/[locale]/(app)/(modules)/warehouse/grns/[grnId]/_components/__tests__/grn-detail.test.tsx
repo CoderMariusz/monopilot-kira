@@ -122,6 +122,7 @@ const GRN: GrnDetail = {
   warehouseCode: 'WH1',
   receiptDate: '2026-06-11T08:00:00.000Z',
   completedAt: '2026-06-11T08:10:00.000Z',
+  itemCount: 1,
   notes: null,
   items: [
     {

@@ -433,6 +433,17 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
              left join public.license_plates lp
                on lp.id = o.lp_id and lp.org_id = o.org_id
             where o.org_id = app.current_org_id() and o.wo_id = $1::uuid
+              -- Hide the synthetic "WO-<id>-PRIMARY" placeholder output that is
+              -- auto-created with the WO (0 kg, no LP, batch ending '-PRIMARY').
+              -- It clutters the Output table with a phantom first row. The three
+              -- conditions together are exact: a genuine 0-kg output carries a
+              -- real batch / LP, and a PRIMARY-batch row that received real output
+              -- (qty<>0 or lp_id present) is kept.
+              and not (
+                o.qty_kg = 0
+                and o.lp_id is null
+                and o.batch_number like 'WO-%-PRIMARY'
+              )
             order by o.output_type asc, o.registered_at asc`,
           [woId],
         ),

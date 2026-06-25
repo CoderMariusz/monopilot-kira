@@ -53,7 +53,11 @@ const NAV_CARDS: NavCard[] = [
   { key: 'workOrders', href: '/production/wos' },
   { key: 'downtime', href: '/production/downtime' },
   { key: 'waste', href: '/production/waste' },
-  { key: 'changeover', href: '/production/changeover' },
+  // Single canonical Changeover entry → the interactive B-2 dual-sign register at
+  // /production/changeovers (the WO-detail allergen gate deep-links here too). The
+  // older read-only /production/changeover register is no longer surfaced in nav
+  // to kill the duplicate "Changeover" / "Changeovers" entries (the i18n key
+  // production.dashboard.nav.changeover is now intentionally unused).
   { key: 'changeovers', href: '/production/changeovers' },
   { key: 'shifts', href: '/production/shifts' },
   { key: 'analytics', href: '/production/analytics' },

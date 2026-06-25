@@ -26,10 +26,12 @@ type GrnRow = {
   warehouse_code: string | null;
   receipt_date: string | Date;
   completed_at: string | Date | null;
+  /** Server-rolled count of live (non-cancelled) receipt lines; null in detail. */
+  item_count?: number | string | null;
   notes?: string | null;
 };
 
-function mapGrn(row: GrnRow): GrnListItem {
+function mapGrn(row: GrnRow, itemCountOverride?: number): GrnListItem {
   return {
     id: row.id,
     grnNumber: row.grn_number,
@@ -41,6 +43,7 @@ function mapGrn(row: GrnRow): GrnListItem {
     warehouseCode: row.warehouse_code,
     receiptDate: toIso(row.receipt_date) ?? '',
     completedAt: toIso(row.completed_at),
+    itemCount: itemCountOverride ?? Number(row.item_count ?? 0),
   };
 }
 
@@ -65,7 +68,12 @@ export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResul
                 g.warehouse_id::text,
                 w.code as warehouse_code,
                 g.receipt_date,
-                g.completed_at
+                g.completed_at,
+                (select count(*)
+                   from public.grn_items gi
+                  where gi.org_id = app.current_org_id()
+                    and gi.grn_id = g.id
+                    and gi.cancelled_at is null) as item_count
            from public.grns g
            left join public.suppliers s on s.org_id = app.current_org_id() and s.id = g.supplier_id
            left join public.warehouses w on w.org_id = app.current_org_id() and w.id = g.warehouse_id
@@ -172,10 +180,12 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
         ),
       ]);
 
+      const liveItemCount = items.rows.filter((item) => item.cancelled_at == null).length;
+
       return {
         ok: true,
         data: {
-          ...mapGrn(row),
+          ...mapGrn(row, liveItemCount),
           notes: row.notes ?? null,
           items: items.rows.map((item) => ({
             id: item.id,

@@ -145,6 +145,12 @@ export type GrnListItem = {
   warehouseCode: string | null;
   receiptDate: string;
   completedAt: string | null;
+  /**
+   * Count of receipt lines (public.grn_items) on this GRN, org-scoped and rolled
+   * up server-side so the list can show a real Items count instead of an em-dash.
+   * Cancelled lines are excluded so the count reflects live receipt lines.
+   */
+  itemCount: number;
 };
 
 export type GrnDetail = GrnListItem & {

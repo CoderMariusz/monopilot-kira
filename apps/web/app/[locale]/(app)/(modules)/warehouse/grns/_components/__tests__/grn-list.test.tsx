@@ -65,6 +65,7 @@ function makeRow(over: Partial<GrnListItem>): GrnListItem {
     warehouseCode: over.warehouseCode ?? 'WH-A',
     receiptDate: over.receiptDate ?? '2026-04-21T00:00:00.000Z',
     completedAt: over.completedAt ?? null,
+    itemCount: over.itemCount ?? 0,
   };
 }
 

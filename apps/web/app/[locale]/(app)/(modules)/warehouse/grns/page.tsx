@@ -103,11 +103,14 @@ async function ListContent({ locale }: { locale: string }) {
   }
 
   const sourceTypes = [...new Set(result.data.map((g) => g.sourceType))].sort();
+  // Real receipt-line rollup computed server-side in listGrns (non-cancelled
+  // grn_items per GRN, org-scoped). The client never recomputes — it only renders.
+  const itemCounts = Object.fromEntries(result.data.map((g) => [g.id, g.itemCount]));
 
   return (
     <GrnListClient
       rows={result.data}
-      itemCounts={{}}
+      itemCounts={itemCounts}
       sourceTypes={sourceTypes}
       labels={buildLabels(t)}
       locale={locale}
