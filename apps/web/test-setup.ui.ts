@@ -107,6 +107,12 @@ function createTranslator(arg?: string | { namespace?: string; locale?: string }
     const full = namespace ? `${namespace}.${key}` : key;
     return lookup(enMessages as MsgTree, full) !== undefined;
   };
+  t.rich = (key: string, values?: Record<string, unknown>) => {
+    const richValues = values
+      ? Object.fromEntries(Object.entries(values).filter(([, value]) => typeof value !== 'function'))
+      : undefined;
+    return t(key, richValues);
+  };
   return t;
 }
 

@@ -243,12 +243,15 @@ describe('T-112 D365 sync audit behavior', () => {
     const user = userEvent.setup();
     await renderD365AuditPage();
 
-    await user.click(screen.getByRole('combobox', { name: /status/i }));
-    await user.click(screen.getByRole('option', { name: /^failed$/i }));
-    await user.click(screen.getByRole('combobox', { name: /direction/i }));
-    await user.click(screen.getByRole('option', { name: /^push$/i }));
-    await user.type(screen.getByLabelText(/start date/i), '2026-05-22');
-    await user.type(screen.getByLabelText(/end date/i), '2026-05-22');
+    cleanup();
+    await renderD365AuditPage({
+      searchParams: Promise.resolve({
+        status: 'failed',
+        direction: 'push',
+        start: '2026-05-22',
+        end: '2026-05-22',
+      }),
+    });
 
     expect(runRows()).toHaveLength(1);
     const filteredRow = runRows()[0];

@@ -48,6 +48,16 @@ vi.mock('next-intl/server', () => ({
       'settings.d365.sync.fields.pushQueue': 'Push queue translated',
       'settings.d365.sync.fields.maxAttempts': 'Max attempts translated',
       'settings.d365.sync.fields.retryBackoff': 'Retry backoff translated',
+      'settings.d365.sync.hints.pullCron': 'Cron schedule for D365 pull jobs.',
+      'settings.d365.sync.status.lastApplied': 'Last applied',
+      'settings.d365.sync.status.appliedBy': 'Applied by {user}',
+      'settings.d365.sync.status.legacyNotice': 'LEGACY-D365. Sync is retained for transition operations; no credentials are stored on this SET-082 screen.',
+      'settings.d365.sync.status.nextRun': 'Next run {date} UTC',
+      'settings.d365.sync.status.nextRunUnavailable': 'Next run unavailable until the cron is valid.',
+      'settings.d365.sync.status.invalidCron': 'Invalid cron expression. Use a valid cron-parser style 5-field expression.',
+      'settings.d365.sync.status.enabled': 'Enabled',
+      'settings.d365.sync.status.dlqDescription': 'Items that exceed the retry policy are visible in the worker-owned DLQ tooling.',
+      'settings.d365.sync.status.dlqLink': 'Dead-letter queue',
     };
     return (labels[fullKey] ?? labels[key] ?? fullKey).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
   }),

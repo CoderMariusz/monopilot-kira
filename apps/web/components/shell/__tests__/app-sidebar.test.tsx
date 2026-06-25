@@ -134,7 +134,7 @@ beforeEach(() => {
 });
 
 describe('UI-129 AppSidebar manifest rendering', () => {
-  it('renders five group headers and sixteen manifest items in UI-128 order, with the cross-shell Scanner link included', async () => {
+  it('renders five group headers and eighteen manifest items in UI-128 order, with the cross-shell Scanner link included', async () => {
     await renderSidebar('/en/dashboard');
 
     const root = screen.getByTestId('app-sidebar');
@@ -146,7 +146,7 @@ describe('UI-129 AppSidebar manifest rendering', () => {
     expect(groupHeaders.map((node) => node.textContent?.trim())).toEqual(expectedGroups.map((group) => group.translatedLabel));
 
     const links = within(root).getAllByRole('link');
-    expect(links, 'AppSidebar must render exactly the 16 sidebar items from APP_NAV_GROUPS').toHaveLength(16);
+    expect(links, 'AppSidebar must render exactly the 18 sidebar items from APP_NAV_GROUPS').toHaveLength(18);
     expect(links.map((link) => link.textContent?.trim())).toEqual(expectedItems.map((item) => item.translatedLabel));
 
     for (const item of expectedItems) {

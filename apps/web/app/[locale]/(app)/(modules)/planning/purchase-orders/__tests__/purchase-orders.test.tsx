@@ -169,6 +169,10 @@ const detailLabels: PoDetailLabels = {
     button: 'Reopen to draft',
     pending: 'Reopening…',
     confirmPrompt: 'Reopen {po} to draft?',
+    confirmTitle: 'Reopen {po} to draft?',
+    confirmBody: 'This returns the cancelled purchase order to draft for corrections.',
+    success: 'Purchase order reopened to draft.',
+    error: 'Could not reopen this purchase order.',
   },
   notesTitle: 'Notes',
   errors,
@@ -593,7 +597,7 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
     expect(screen.queryByTestId('po-detail-transitions')).toBeNull();
   });
 
-  // ── Wave-R reversibility — sent→draft reopen (parity: po-screens.jsx:184-186
+  // ── Wave-R reversibility — cancelled→draft reopen (parity: po-screens.jsx:184-186
   //    header danger/secondary action group; RBAC npd.planning.write + the
   //    no-receipts guard are enforced server-side inside reopenPurchaseOrder). ──
   function renderDetailWithReopen(over: Partial<PoDetail> = {}) {
@@ -611,9 +615,19 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
     return { ...utils, transitionAction, reopenAction };
   }
 
-  it('shows [Reopen to draft] only for a sent PO and hides it for draft', () => {
-    const { rerender } = renderDetailWithReopen({ status: 'sent' });
+  it('shows [Reopen to draft] only for a cancelled PO and hides it for sent/draft', () => {
+    const { rerender } = renderDetailWithReopen({ status: 'cancelled' });
     expect(screen.getByTestId('po-reopen-draft')).toHaveTextContent('Reopen to draft');
+    rerender(
+      <PoDetailView
+        po={{ ...detail, status: 'sent' }}
+        labels={detailLabels}
+        locale="en"
+        transitionPurchaseOrderStatusAction={vi.fn()}
+        reopenPurchaseOrderAction={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('po-reopen-draft')).toBeNull();
     rerender(
       <PoDetailView
         po={{ ...detail, status: 'draft' }}
@@ -628,7 +642,7 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
 
   it('confirms then calls reopenPurchaseOrder(id) and refreshes on success', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { reopenAction } = renderDetailWithReopen({ status: 'sent' });
+    const { reopenAction } = renderDetailWithReopen({ status: 'cancelled' });
     reopenAction.mockResolvedValue({ ok: true, data: {} });
     fireEvent.click(screen.getByTestId('po-reopen-draft'));
     expect(confirmSpy).toHaveBeenCalled();
@@ -638,7 +652,7 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
 
   it('surfaces po_has_receipts honestly inline and does not refresh', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { reopenAction } = renderDetailWithReopen({ status: 'sent' });
+    const { reopenAction } = renderDetailWithReopen({ status: 'cancelled' });
     reopenAction.mockResolvedValue({ ok: false, error: 'po_has_receipts' });
     fireEvent.click(screen.getByTestId('po-reopen-draft'));
     await waitFor(() =>

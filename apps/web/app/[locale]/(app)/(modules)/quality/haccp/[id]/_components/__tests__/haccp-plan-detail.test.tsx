@@ -19,6 +19,8 @@
  * PIN field, action-error verbatim, RBAC, and i18n (en + pl).
  */
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -135,6 +137,17 @@ function renderDetail(
 }
 
 describe('PlanDetailClient (E3 parity)', () => {
+  it('detail loader source reads the plural haccp_plans table', () => {
+    const source = readFileSync(
+      path.resolve(process.cwd(), 'app/[locale]/(app)/(modules)/quality/_actions/haccp-plan-actions.ts'),
+      'utf8',
+    );
+    const detailQuery = source.match(/async function selectPlanWithCcps[\s\S]*?return mapPlanRows/)?.[0] ?? '';
+
+    expect(detailQuery).toContain('from public.haccp_plans p');
+    expect(detailQuery).toContain('and p.id = $1::uuid');
+  });
+
   it('renders the plan header (name, scope, version, status badge, #CCP) — never a UUID', () => {
     renderDetail(
       makePlan({ id: '11111111-2222-4333-8444-555555555555', name: 'Cooked meats', version: 2, status: 'active', scopeType: 'product', scopeRef: 'FG-001', ccps: [makeCcp({ id: 'ccp-a' }), makeCcp({ id: 'ccp-b', ccpCode: 'CCP-02' })] }),

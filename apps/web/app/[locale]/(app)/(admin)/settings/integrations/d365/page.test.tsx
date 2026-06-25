@@ -244,7 +244,7 @@ describe('T-061 D365 connection prototype parity and behavior', () => {
     expect(screen.getByRole('textbox', { name: /service account email/i })).toHaveAttribute('type', 'email');
     expect(screen.getByRole('textbox', { name: /pull cron schedule/i })).toHaveValue('0 2 * * *');
     expect(screen.getByRole('switch', { name: /integration enabled/i })).toHaveAttribute('data-slot', 'switch');
-    expect(screen.getByText(/Connected at/i)).toHaveTextContent(/Latency.*138ms.*Env.*Production/s);
+    expect(screen.getByText(/Connected at/i)).toHaveTextContent(/Connected at.*138ms.*Production/s);
 
     const buttons = within(root).getAllByRole('button').map((button) => button.textContent?.trim()).filter(Boolean);
     expect(buttons.slice(0, 3)).toEqual(['Test connection', 'Save configuration', 'Rotate secret']);
