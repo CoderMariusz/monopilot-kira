@@ -33,6 +33,14 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import type { ShipmentRow } from '../_actions/shipments-data';
 
+const LABEL_WEIGHT = { en: 'Weight', pl: 'Waga' } as const;
+const LABEL_CARRIER = { en: 'Carrier', pl: 'Przewoźnik' } as const;
+const LABEL_REQUIRED_BY = { en: 'Required by', pl: 'Wymagana data' } as const;
+const LABEL_OTIF = 'OTIF';
+const LABEL_OTIF_ON_TIME = { en: 'On time', pl: 'Na czas' } as const;
+const LABEL_OTIF_LATE = { en: 'Late', pl: 'Spóźnione' } as const;
+const LABEL_OTIF_PENDING = { en: 'Pending', pl: 'Oczekuje' } as const;
+
 const STATUS_ORDER = [
   'pending',
   'packing',
@@ -79,9 +87,42 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
     return shipments.filter((sh) => sh.status.toLowerCase() === statusFilter);
   }, [shipments, statusFilter]);
 
+  const localeKey = locale === 'pl' ? 'pl' : 'en';
+
   function weightText(value: string | null): string {
     if (value == null || value === '') return labels.noWeight;
     return `${value} ${labels.weightUnit}`;
+  }
+
+  function shortDateText(value: string | null | undefined): string {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(date);
+  }
+
+  function dateKey(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString().slice(0, 10);
+  }
+
+  function otifBadge(sh: ShipmentRow) {
+    const actualShipDate = dateKey(sh.shippedAt);
+    if (actualShipDate == null) {
+      return {
+        label: LABEL_OTIF_PENDING[localeKey],
+        className: 'border-slate-200 bg-slate-100 text-slate-700',
+      };
+    }
+
+    const promisedShipDate = dateKey(sh.promisedShipDate);
+    const onTime = promisedShipDate != null && actualShipDate <= promisedShipDate;
+
+    return onTime
+      ? { label: LABEL_OTIF_ON_TIME[localeKey], className: 'border-emerald-200 bg-emerald-50 text-emerald-700' }
+      : { label: LABEL_OTIF_LATE[localeKey], className: 'border-red-200 bg-red-50 text-red-700' };
   }
 
   return (
@@ -116,45 +157,60 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
                 <th className="px-3 py-2">{labels.columns.customer}</th>
                 <th className="px-3 py-2">{labels.columns.status}</th>
                 <th className="px-3 py-2 text-right">{labels.columns.boxes}</th>
-                <th className="px-3 py-2 text-right">{labels.columns.weight}</th>
+                <th className="px-3 py-2 text-right">{LABEL_WEIGHT[localeKey]}</th>
+                <th className="px-3 py-2">{LABEL_CARRIER[localeKey]}</th>
+                <th className="px-3 py-2">{LABEL_REQUIRED_BY[localeKey]}</th>
+                <th className="px-3 py-2">{LABEL_OTIF}</th>
                 <th className="px-3 py-2 text-right">{labels.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((sh) => (
-                <tr key={sh.id} data-testid={`shipment-row-${sh.id}`} className="border-b border-slate-100 last:border-0">
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/${locale}/shipping/shipments/${sh.id}`}
-                      prefetch={false}
-                      className="font-mono font-semibold text-blue-700 hover:underline"
-                      data-testid={`shipment-link-${sh.id}`}
-                    >
-                      {sh.shipmentNumber || '—'}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs text-slate-700">{sh.salesOrderNumber ?? '—'}</td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium text-slate-800">{sh.customerName ?? '—'}</div>
-                    <div className="font-mono text-xs text-slate-500">{sh.customerCode ?? '—'}</div>
-                  </td>
-                  <td className="px-3 py-2">
-                    <ShipmentStatusBadge status={sh.status} label={statusLabel(sh.status)} />
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">{sh.boxCount}</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">{weightText(sh.weight)}</td>
-                  <td className="px-3 py-2 text-right">
-                    <Link
-                      href={`/${locale}/shipping/shipments/${sh.id}`}
-                      prefetch={false}
-                      className="text-xs text-blue-700 hover:underline"
-                      data-testid={`shipment-view-${sh.id}`}
-                    >
-                      {labels.view}
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {visible.map((sh) => {
+                const otif = otifBadge(sh);
+                return (
+                  <tr key={sh.id} data-testid={`shipment-row-${sh.id}`} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/${locale}/shipping/shipments/${sh.id}`}
+                        prefetch={false}
+                        className="font-mono font-semibold text-blue-700 hover:underline"
+                        data-testid={`shipment-link-${sh.id}`}
+                      >
+                        {sh.shipmentNumber || '—'}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-slate-700">{sh.salesOrderNumber ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-slate-800">{sh.customerName ?? '—'}</div>
+                      <div className="font-mono text-xs text-slate-500">{sh.customerCode ?? '—'}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <ShipmentStatusBadge status={sh.status} label={statusLabel(sh.status)} />
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{sh.boxCount}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">
+                      {weightText(sh.totalWeightKg ?? sh.weight)}
+                    </td>
+                    <td className="px-3 py-2">{sh.carrier ?? '—'}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-slate-700">{shortDateText(sh.requiredDeliveryDate)}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${otif.className}`}>
+                        {otif.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Link
+                        href={`/${locale}/shipping/shipments/${sh.id}`}
+                        prefetch={false}
+                        className="text-xs text-blue-700 hover:underline"
+                        data-testid={`shipment-view-${sh.id}`}
+                      >
+                        {labels.view}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

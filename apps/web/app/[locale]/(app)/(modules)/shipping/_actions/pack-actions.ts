@@ -38,6 +38,9 @@ export type ShipmentRow = {
   carrier?: string | null;
   serviceLevel?: string | null;
   trackingNumber?: string | null;
+  totalWeightKg?: string | null;
+  promisedShipDate?: string | null;
+  requiredDeliveryDate?: string | null;
 };
 
 export type ShipmentBoxContentDetail = {
@@ -134,6 +137,9 @@ function mapShipmentRow(row: {
   carrier?: string | null;
   service_level?: string | null;
   tracking_number?: string | null;
+  total_weight_kg?: string | number | null;
+  promised_ship_date?: string | Date | null;
+  required_delivery_date?: string | Date | null;
 }): ShipmentRow {
   return {
     id: row.id,
@@ -152,6 +158,9 @@ function mapShipmentRow(row: {
     carrier: toText(row.carrier),
     serviceLevel: toText(row.service_level),
     trackingNumber: toText(row.tracking_number),
+    totalWeightKg: toText(row.total_weight_kg),
+    promisedShipDate: toText(row.promised_ship_date),
+    requiredDeliveryDate: toText(row.required_delivery_date),
   };
 }
 
@@ -173,6 +182,9 @@ async function fetchShipmentRow(ctx: ShippingContext, id: string): Promise<Shipm
     carrier: string | null;
     service_level: string | null;
     tracking_number: string | null;
+    total_weight_kg: string | null;
+    promised_ship_date: string | Date | null;
+    required_delivery_date: string | Date | null;
   }>(
     `select sh.id::text,
             sh.shipment_number,
@@ -195,6 +207,9 @@ async function fetchShipmentRow(ctx: ShippingContext, id: string): Promise<Shipm
             sh.carrier,
             sh.service_level,
             sh.tracking_number,
+            sh.total_weight_kg::text as total_weight_kg,
+            so.promised_ship_date,
+            so.required_delivery_date,
             sh.shipped_at
        from public.shipments sh
        left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()
@@ -363,6 +378,10 @@ export async function listShipments(params: { status?: string } = {}): Promise<L
       created_at: string | Date;
       packed_at: string | Date | null;
       shipped_at: string | Date | null;
+      total_weight_kg: string | null;
+      carrier: string | null;
+      promised_ship_date: string | Date | null;
+      required_delivery_date: string | Date | null;
     }>(
       `select sh.id::text,
               sh.shipment_number,
@@ -373,7 +392,11 @@ export async function listShipments(params: { status?: string } = {}): Promise<L
               count(sb.id)::int as box_count,
               sh.created_at,
               sh.packed_at,
-              sh.shipped_at
+              sh.shipped_at,
+              sh.total_weight_kg::text as total_weight_kg,
+              sh.carrier,
+              so.promised_ship_date,
+              so.required_delivery_date
          from public.shipments sh
          left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()
          left join public.customers c on c.id = coalesce(sh.customer_id, so.customer_id) and c.org_id = app.current_org_id()
@@ -384,7 +407,8 @@ export async function listShipments(params: { status?: string } = {}): Promise<L
           and sh.deleted_at is null
           and ($1::text is null or sh.status = $1)
         group by sh.id, sh.shipment_number, sh.status, so.order_number, c.name, c.customer_code,
-                 sh.created_at, sh.packed_at, sh.shipped_at
+                 sh.created_at, sh.packed_at, sh.shipped_at, sh.total_weight_kg, sh.carrier,
+                 so.promised_ship_date, so.required_delivery_date
         order by sh.created_at desc, sh.shipment_number desc
         limit 200`,
       [status],
