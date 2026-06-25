@@ -345,12 +345,13 @@ export async function getHoldDetail(holdId: string): Promise<ActionResult<HoldDe
            h.disposition,
            h.release_notes,
            h.release_signature_hash,
-           h.released_by::text
+           coalesce(releaser.display_name, releaser.name, releaser.email::text, h.released_by::text) as released_by
          from public.quality_holds h
          left join public.license_plates lp on h.reference_type = 'lp' and lp.id = h.reference_id and lp.org_id = h.org_id
          left join public.items i on i.id = lp.product_id and i.org_id = h.org_id
          left join public.work_orders wo on h.reference_type = 'wo' and wo.id = h.reference_id and wo.org_id = h.org_id
          left join public.grns grn on h.reference_type = 'grn' and grn.id = h.reference_id and grn.org_id = h.org_id
+         left join public.users releaser on releaser.id = h.released_by and releaser.org_id = h.org_id
          left join public.reference_tables rt
            on rt.org_id = h.org_id
           and rt.table_code = 'reference.quality_hold_reasons'

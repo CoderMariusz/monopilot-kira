@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { signEvent } from '@monopilot/e-sign';
 
-import { createHold, listHolds, releaseHold } from '../hold-actions';
+import { createHold, getHoldDetail, listHolds, releaseHold } from '../hold-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -103,7 +103,7 @@ function makeClient(): QueryClient {
         return { rows: [{ released_at: '2026-06-11T12:00:00.000Z' }], rowCount: 1 };
       }
 
-      if (q.includes('from public.quality_hold_items qhi') && q.includes('join public.license_plates lp')) {
+      if (q.startsWith('select lp.id::text') && q.includes('from public.quality_hold_items qhi') && q.includes('join public.license_plates lp')) {
         return {
           rows: [
             { id: LP_ID, status: 'available', qa_status: 'on_hold', site_id: null, wo_id: null, grn_id: null },
@@ -111,6 +111,42 @@ function makeClient(): QueryClient {
           ],
           rowCount: 2,
         };
+      }
+
+      if (q.startsWith('select h.id::text') && q.includes('h.disposition')) {
+        return {
+          rows: [
+            {
+              id: HOLD_ID,
+              hold_number: 'HLD-00001000',
+              reference_type: 'lp',
+              reference_id: LP_ID,
+              reference_display: 'LP-001 / RM-BEEF-80',
+              reason_code_id: REASON_ID,
+              reason_label: 'Foreign object risk',
+              reason_free_text: null,
+              priority: 'critical',
+              hold_status: 'released',
+              item_count: 2,
+              created_at: '2026-06-11T10:00:00.000Z',
+              estimated_release_at: '2026-06-14',
+              released_at: '2026-06-11T12:00:00.000Z',
+              disposition: 'release_as_is',
+              release_notes: 'inspection passed',
+              release_signature_hash: 'a'.repeat(64),
+              released_by: 'QA Releaser',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (q.includes('from public.quality_hold_items qhi') && q.includes('left join public.license_plates lp')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (q.includes('from public.ncr_reports')) {
+        return { rows: [], rowCount: 0 };
       }
 
       if (q.startsWith('select h.id::text')) {
@@ -266,5 +302,25 @@ describe('quality hold server actions', () => {
     );
     const listCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('select h.id::text'));
     expect(listCall?.[1]).toEqual(['active', null, 'LP-001', 25, ['open', 'investigating', 'escalated', 'quarantined']]);
+  });
+
+  it('resolves released_by to a display name for hold detail reads without changing stored release notes', async () => {
+    const result = await getHoldDetail(HOLD_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        releasedBy: 'QA Releaser',
+        releaseNotes: 'inspection passed',
+        releaseSignatureHash: 'a'.repeat(64),
+      }),
+    );
+
+    const detailCall = vi.mocked(client.query).mock.calls.find(
+      ([sql]) => normalize(String(sql)).startsWith('select h.id::text') && normalize(String(sql)).includes('h.disposition'),
+    );
+    expect(normalize(String(detailCall?.[0]))).toContain('left join public.users releaser');
+    expect(normalize(String(detailCall?.[0]))).toContain('coalesce(releaser.display_name, releaser.name, releaser.email::text, h.released_by::text) as released_by');
   });
 });
