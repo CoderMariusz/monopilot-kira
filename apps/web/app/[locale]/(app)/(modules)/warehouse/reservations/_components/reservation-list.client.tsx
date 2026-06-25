@@ -209,7 +209,7 @@ export function ReservationListClient({
                         data-testid={`reservation-wo-link-${r.lpId}`}
                         className="font-mono text-sm font-semibold text-sky-700 hover:underline"
                       >
-                        {r.woNumber ?? r.reservedForWoId}
+                        {r.woNumber ?? dash}
                       </Link>
                     ) : (
                       <span className="text-slate-400">{dash}</span>

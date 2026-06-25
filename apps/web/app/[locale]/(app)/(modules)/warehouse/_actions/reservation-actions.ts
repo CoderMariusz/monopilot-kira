@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
   WAREHOUSE_LP_RESERVE_PERMISSION,
@@ -165,6 +167,8 @@ export async function releaseReservation(input: ReleaseReservationInput): Promis
           [lpId, lp.status, nextStatus, reason, uuidFromSeed(`warehouse.lp.reserve.release:${orgId}:${lpId}:${reason}`), userId],
         );
       }
+
+      revalidatePath('/[locale]/warehouse/reservations', 'page');
 
       return {
         ok: true,

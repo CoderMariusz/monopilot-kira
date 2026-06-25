@@ -86,7 +86,7 @@ function makeRow(over: Partial<ReservationRow>): ReservationRow {
     status: over.status ?? 'reserved',
     reservedQty: over.reservedQty ?? '220.5',
     reservedForWoId: over.reservedForWoId ?? 'wo-1',
-    woNumber: over.woNumber ?? 'WO-2026-0108',
+    woNumber: Object.hasOwn(over, 'woNumber') ? over.woNumber! : 'WO-2026-0108',
     itemCode: over.itemCode ?? 'R-1001',
     itemName: over.itemName ?? 'Wieprzowina',
     quantity: over.quantity ?? '400',
@@ -116,6 +116,19 @@ describe('ReservationListClient (WH-017 parity + release flow)', () => {
       '/en/planning/work-orders/wo-9',
     );
     expect(screen.getByTestId('reservation-wo-link-lp-x')).toHaveTextContent('WO-9');
+  });
+
+  it('does not render a raw WO UUID when the joined work-order number is missing', () => {
+    const woId = 'aaaaaaaa-bbbb-4ccc-add0-eeeeeeeeeeee';
+    renderList([makeRow({ lpId: 'lp-x', reservedForWoId: woId, woNumber: null })], async () => ({
+      ok: true,
+      data: makeRow({}),
+    }));
+
+    const link = screen.getByTestId('reservation-wo-link-lp-x');
+    expect(link).toHaveAttribute('href', `/en/planning/work-orders/${woId}`);
+    expect(link).toHaveTextContent(EN.none);
+    expect(link).not.toHaveTextContent(woId);
   });
 
   it('shows the empty state when there are no reservations', () => {
