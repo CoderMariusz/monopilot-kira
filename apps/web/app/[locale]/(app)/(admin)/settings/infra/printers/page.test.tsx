@@ -24,7 +24,12 @@ vi.mock('./_actions/printers', () => ({
   upsertPrinter: vi.fn(),
 }));
 
-vi.mock('next/navigation', () => ({ redirect: vi.fn(), notFound: vi.fn() }));
+const refreshMock = vi.fn();
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(),
+  notFound: vi.fn(),
+  useRouter: () => ({ refresh: refreshMock, push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+}));
 
 const SITE_A = '11111111-1111-4111-8111-111111111111';
 const PRINTER_PDF = '22222222-2222-4222-8222-222222222222';
@@ -193,6 +198,8 @@ describe('SET-PRN printers screen', () => {
     expect(upsertPrinter).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'New ZPL', printer_type: expect.any(String) }),
     );
+    // Canonical settings round-trip: refresh the server-rendered list after create.
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
   });
 
   it('deactivates an active printer through upsertPrinter with is_active=false', async () => {

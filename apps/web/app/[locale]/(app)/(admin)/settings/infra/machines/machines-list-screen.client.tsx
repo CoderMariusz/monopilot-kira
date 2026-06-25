@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -221,6 +222,7 @@ export default function MachinesListScreen({
   createMachine: (input: CreateMachineInput) => Promise<CreateMachineResult> | CreateMachineResult;
   state?: PageState;
 }) {
+  const router = useRouter();
   const [rows, setRows] = React.useState<MachineRow[]>(() => [...initialMachines]);
   const [statusFilter, setStatusFilter] = React.useState('all');
   const [warehouseFilter, setWarehouseFilter] = React.useState('all');
@@ -230,6 +232,20 @@ export default function MachinesListScreen({
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
+  // Re-hydrate the optimistic table from a server re-render (router.refresh after
+  // a mutation): the canonical settings list pattern reconciles optimistic rows
+  // with the server-of-record so server-normalized fields (computed status,
+  // trimmed code, location breadcrumb) replace the locally-guessed values.
+  const initialKey = React.useMemo(
+    () => initialMachines.map((machine) => `${machine.id}:${machine.deactivated_at ?? ''}`).join('|'),
+    [initialMachines],
+  );
+  React.useEffect(() => {
+    setRows([...initialMachines]);
+    // initialKey is the stable identity of the server payload; initialMachines is
+    // a fresh array each render so it can't be the dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialKey]);
   const binLocations = React.useMemo(
     () => locations.filter((location) => location.level === undefined || location.level === 4),
     [locations],
@@ -294,6 +310,8 @@ export default function MachinesListScreen({
         );
       }
       setSelected(new Set());
+      // Reconcile the optimistic status flips with the server of record.
+      router.refresh();
     } finally {
       setPendingAction(null);
     }
@@ -328,6 +346,9 @@ export default function MachinesListScreen({
       setNewMachine({ code: '', name: '', machineType: '', locationId: binLocations[0]?.id ?? null });
       setCreateStatus(labels.createMachineSuccess);
       setCreateDialogOpen(false);
+      // Pull the canonical row (server-trimmed code, computed status, breadcrumb)
+      // back from the loader so the optimistic insert can't drift from the DB.
+      router.refresh();
     } finally {
       setCreatePending(false);
     }

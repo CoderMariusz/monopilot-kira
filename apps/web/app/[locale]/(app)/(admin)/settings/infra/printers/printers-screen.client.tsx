@@ -17,6 +17,7 @@
  * See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  */
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -143,6 +144,7 @@ export default function PrintersScreen({
   upsertPrinter: (input: UpsertPrinterInput) => Promise<PrinterRow> | PrinterRow;
   state?: PageState;
 }) {
+  const router = useRouter();
   const [rows, setRows] = React.useState<PrinterRow[]>(() => [...initialPrinters]);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<DraftPrinter>(EMPTY_DRAFT);
@@ -197,6 +199,9 @@ export default function PrintersScreen({
       setStatusMessage(labels.createSuccess);
       setDialogOpen(false);
       setDraft(EMPTY_DRAFT);
+      // Reconcile the optimistic upsert with the server of record so a later
+      // navigation/back can't show a stale printers list.
+      router.refresh();
     } catch {
       setActionError(labels.saveFailed);
     } finally {
@@ -222,6 +227,7 @@ export default function PrintersScreen({
       });
       setRows((current) => current.map((row) => (row.id === saved.id ? saved : row)));
       setStatusMessage(nextActive ? labels.activateSuccess : labels.deactivateSuccess);
+      router.refresh();
     } catch {
       setActionError(labels.saveFailed);
     } finally {

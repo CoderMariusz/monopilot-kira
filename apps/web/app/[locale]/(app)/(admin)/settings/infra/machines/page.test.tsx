@@ -100,9 +100,11 @@ vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn(async () => (key: string) => labels[key] ?? key),
 }));
 
+const refreshMock = vi.fn();
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
+  useRouter: () => ({ refresh: refreshMock, push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
 }));
 
 type MachineStatus = 'active' | 'offline' | 'maintenance';
@@ -451,6 +453,8 @@ describe('SET-016 machine list behavior', () => {
       expect(row).toHaveTextContent(/deactivated/i);
       expect(row).toHaveTextContent(/2026-05-24/);
     }
+    // The list reconciles with the server of record after the bulk mutation.
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
   });
 
   it('disables bulk action buttons with an explanatory aria-label when settings.infra.update is missing', async () => {
@@ -487,6 +491,9 @@ describe('SET-016 machine list behavior', () => {
       locationId: locations[3].id,
     }));
     expect(rowFor(/filler 99.*mc-fill-99.*active/i)).toBeInTheDocument();
+    // Canonical settings round-trip: the list refreshes from the server of record
+    // after a create so the optimistic row reconciles with the persisted machine.
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
   });
 
   it('creates an UNPLACED machine on a fresh org with zero locations (the create-line/create-machine bootstrap bug)', async () => {
