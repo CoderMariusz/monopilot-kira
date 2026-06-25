@@ -42,7 +42,10 @@ const PROCESSES_CONFIG: SingleReferenceScreenConfig = {
       formOnly: true,
     },
     { key: 'cost_rate', label: 'Rate', type: 'number', formOnly: true },
-    { key: 'currency', label: 'Currency', type: 'text', formOnly: true },
+    // Currency is a closed pick (ISO-4217) — was free text, which let invalid codes
+    // through; render a dropdown like category/cost_mode (static enumOptions, since
+    // the shared reference screen has no dynamic source).
+    { key: 'currency', label: 'Currency', type: 'badge', enumOptions: ['GBP', 'EUR', 'USD', 'PLN'], formOnly: true },
     // Migration 276 — machine assignment + staffing + setup cost (reference.processes
     // jsonb keys, mirroring how 269 exposed cost_mode/cost_rate/currency).
     // machine_id is a soft text reference to public.machines (code or id): the

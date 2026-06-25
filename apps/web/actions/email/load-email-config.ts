@@ -157,7 +157,10 @@ async function loadProvider(client: QueryClient): Promise<LoadedEmailProvider> {
   if (!tableExists) return { ...DEFAULT_PROVIDER };
 
   const { rows: providerRows } = await client.query<ProviderRow>(
-    `select provider, from_email, from_name
+    // from_email / from_name are stored inside the `config` jsonb on
+    // integration_settings (there are no top-level from_email/from_name columns —
+    // selecting them raw threw 42703 and made the whole screen "Unable to load").
+    `select provider, config->>'from_email' as from_email, config->>'from_name' as from_name
        from public.integration_settings
       where org_id = app.current_org_id()
         and category = 'email'

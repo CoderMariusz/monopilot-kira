@@ -89,7 +89,6 @@ export default async function ShipOverrideReasonsSettingsPage({ params }: PagePr
       reasonCodes={data.reason_codes}
       rmaReasonCodes={data.rma_reason_codes}
       canEdit={canEdit}
-      onAddReason={canEdit ? (() => {}) : undefined}
       labels={labels}
     />
   );
