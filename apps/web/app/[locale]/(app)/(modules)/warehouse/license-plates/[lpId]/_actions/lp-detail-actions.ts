@@ -381,6 +381,7 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
         reserved_qty: string;
         reserved_for_wo_id: string | null;
         uom: string;
+        expiry_date: string | null;
         site_id: string | null;
         wo_id: string | null;
         grn_id: string | null;
@@ -394,6 +395,7 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
                 lp.reserved_qty::text,
                 lp.reserved_for_wo_id::text,
                 lp.uom,
+                to_char(lp.expiry_date, 'YYYY-MM-DD') as expiry_date,
                 lp.site_id::text,
                 lp.wo_id::text,
                 lp.grn_id::text,
@@ -415,6 +417,42 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
         return { ok: false, reason: 'error', message: 'invalid_state' };
       }
       if (lp.qa_status !== 'released') return { ok: false, reason: 'error', message: 'lp_not_released' };
+
+      // Food-safety BLOCK (owner per-rule = HARD BLOCK; mirrors scanner pick
+      // G-WH-01, SO allocation G-QA-07, pack-lp-into-box, shipShipment): a
+      // license plate that is PAST its expiry date or on an ACTIVE quality hold
+      // must not be reserved/allocated to a work order — reserving it would
+      // funnel expired / held material into production. status + qa_status above
+      // do NOT catch this class: an LP can be `available` + `qa_status=released`
+      // yet expired, and a hold can land via v_active_holds without flipping
+      // qa_status. Reads the canonical SECURITY INVOKER, org-scoped
+      // public.v_active_holds view (T-064, migration 197) — NEVER quality_holds
+      // directly — keyed on the polymorphic (reference_type='lp', reference_id)
+      // model. Fail-OPEN only when the view is genuinely ABSENT (42P01
+      // undefined_table: 09-quality not shipped) so a not-yet-built dependency
+      // cannot wedge reservation; any other error surfaces. Expiry and hold both
+      // map to the existing `invalid_state` label ("…cannot be reserved in its
+      // current state."), so no new i18n key is required.
+      if (lp.expiry_date && lp.expiry_date < new Date().toISOString().slice(0, 10)) {
+        return { ok: false, reason: 'error', message: 'invalid_state' };
+      }
+      try {
+        const hold = await ctx.client.query<{ hold_id: string }>(
+          `select hold_id::text
+             from public.v_active_holds
+            where org_id = app.current_org_id()
+              and reference_type = 'lp'
+              and reference_id = $1::uuid
+            limit 1`,
+          [lpId],
+        );
+        if (hold.rows[0]) return { ok: false, reason: 'error', message: 'invalid_state' };
+      } catch (holdErr) {
+        if (typeof holdErr !== 'object' || holdErr === null || (holdErr as { code?: string }).code !== '42P01') {
+          throw holdErr;
+        }
+      }
+
       if (lp.reserved_for_wo_id && lp.reserved_for_wo_id !== woId) {
         return { ok: false, reason: 'error', message: 'reserved_for_other_wo' };
       }

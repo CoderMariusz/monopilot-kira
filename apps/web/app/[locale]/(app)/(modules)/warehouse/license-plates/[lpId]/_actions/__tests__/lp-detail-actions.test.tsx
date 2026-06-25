@@ -14,8 +14,10 @@ let grantedPermissions: Set<string>;
 let lpStatus: string;
 let lpQaStatus: string;
 let lpReservedQty: string;
+let lpExpiryDate: string | null;
 let reserveTooLarge: boolean;
 let activeHold: boolean;
+let activeHoldsViewMissing: boolean;
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -50,6 +52,7 @@ function makeClient(): QueryClient {
               reserved_qty: lpReservedQty,
               reserved_for_wo_id: null,
               uom: 'kg',
+              expiry_date: lpExpiryDate,
               site_id: SITE_ID,
               wo_id: null,
               grn_id: null,
@@ -61,6 +64,11 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.v_active_holds')) {
+        if (activeHoldsViewMissing) {
+          const err = new Error('relation "public.v_active_holds" does not exist') as Error & { code?: string };
+          err.code = '42P01';
+          throw err;
+        }
         return { rows: activeHold ? [{ hold_id: 'hold-existing' }] : [], rowCount: activeHold ? 1 : 0 };
       }
 
@@ -126,8 +134,10 @@ describe('LP detail reserve/block server actions', () => {
     lpStatus = 'available';
     lpQaStatus = 'released';
     lpReservedQty = '0.000000';
+    lpExpiryDate = null;
     reserveTooLarge = false;
     activeHold = false;
+    activeHoldsViewMissing = false;
     client = makeClient();
   });
 
@@ -190,5 +200,55 @@ describe('LP detail reserve/block server actions', () => {
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
     expect(calls.some((sql) => sql.startsWith('update public.license_plates lp') && sql.includes('reserved_qty = reserved_qty +'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('reserveLp BLOCKS a license plate that is past its expiry date (food-safety gate)', async () => {
+    lpExpiryDate = '2020-01-01'; // long expired
+
+    const result = await reserveLp(LP_ID, WO_ID, '5');
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'invalid_state' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    // No reservation write and no active-hold lookup needed once expiry rejects.
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates lp') && sql.includes('reserved_qty = reserved_qty +'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('reserveLp BLOCKS a license plate on an active quality hold (v_active_holds, T-064)', async () => {
+    activeHold = true;
+
+    const result = await reserveLp(LP_ID, WO_ID, '5');
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'invalid_state' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates lp') && sql.includes('reserved_qty = reserved_qty +'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('reserveLp ALLOWS a clean, in-date, hold-free LP (guards do not over-block)', async () => {
+    lpExpiryDate = '2999-12-31'; // far future, in date
+    activeHold = false;
+
+    const result = await reserveLp(LP_ID, WO_ID, '5');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.message ?? result.reason);
+    expect(result.data).toMatchObject({ lpId: LP_ID, status: 'reserved', reservedForWoId: WO_ID });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    // The active-hold lookup ran and the reservation still went through.
+    expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates lp') && sql.includes('reserved_qty = reserved_qty +'))).toBe(true);
+  });
+
+  it('reserveLp FAILS-OPEN when v_active_holds is absent (42P01: 09-quality not shipped)', async () => {
+    activeHoldsViewMissing = true;
+
+    const result = await reserveLp(LP_ID, WO_ID, '5');
+
+    // A missing dependency view must not wedge reservation — the LP reserves.
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.message ?? result.reason);
+    expect(result.data).toMatchObject({ lpId: LP_ID, status: 'reserved' });
   });
 });
