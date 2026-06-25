@@ -74,6 +74,37 @@ const ROUTINGS = {
   },
 };
 
+const ROUTINGS_WITH_EDITABLE_OPERATIONS = {
+  ok: true as const,
+  data: {
+    routings: [
+      {
+        id: 'r-edit',
+        itemId: ITEMS[0].id,
+        version: 4,
+        status: 'draft' as const,
+        effectiveFrom: '2026-06-01',
+        effectiveTo: null,
+        operationCount: 1,
+        operations: [
+          {
+            opNo: 1,
+            opCode: 'MIX-10',
+            opName: 'Mix brine',
+            lineId: 'l1',
+            machineId: null,
+            setupTimeMin: 45,
+            runTimePerUnitSec: '12.50',
+            costPerHour: '80.00',
+            manufacturingOperationName: 'Cutting',
+            isProduction: true,
+          },
+        ],
+      },
+    ],
+  },
+};
+
 const COST_PREVIEW = {
   ok: true as const,
   data: {
@@ -167,6 +198,44 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     expect(arg.itemId).toBe(ITEMS[0].id);
     expect(arg.operations[0].opNo).toBe(1);
     expect(arg.operations[0].opName).toBe('Cutting step');
+  });
+
+  it('edit modal: opens with existing operations pre-filled and preserves numeric setup on save', async () => {
+    const user = userEvent.setup();
+    listRoutings.mockResolvedValue(ROUTINGS_WITH_EDITABLE_OPERATIONS);
+    routingCostPreview.mockResolvedValue(COST_PREVIEW);
+    updateRouting.mockResolvedValue({ ok: true, data: { id: 'r-edit' } });
+    render(
+      <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
+    );
+
+    const table = await screen.findByRole('table', { name: 'Routing versions' });
+    expect(within(table).getByText('v4')).toBeInTheDocument();
+    expect(within(table).getByText('1')).toBeInTheDocument();
+
+    await user.click(within(table).getByRole('button', { name: 'Edit' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Edit routing v4')).toBeInTheDocument();
+    expect(within(dialog).getByText('Operation 1')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Operation name')).toHaveValue('Mix brine');
+    expect(within(dialog).getByLabelText('Op code')).toHaveValue('MIX-10');
+    expect(within(dialog).getByLabelText('Setup (min)')).toHaveValue(45);
+    expect(dialog.querySelector('[aria-label="Operation 1 Line"]')).toHaveTextContent('LINE-A · Line A');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Save routing' }));
+
+    await waitFor(() => expect(updateRouting).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const arg = updateRouting.mock.calls[0][0];
+    expect(arg.routingId).toBe('r-edit');
+    expect(arg.operations[0]).toMatchObject({
+      opNo: 1,
+      opName: 'Mix brine',
+      opCode: 'MIX-10',
+      lineId: 'l1',
+      setupTimeMin: 45,
+    });
   });
 
   it('state: permission-denied hides authoring CTAs and shows the read-only notice', async () => {

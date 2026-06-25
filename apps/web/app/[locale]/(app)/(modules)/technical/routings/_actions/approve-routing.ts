@@ -103,7 +103,7 @@ async function transition(
         afterState: { status: to },
       });
 
-      safeRevalidatePath('/technical/items');
+      safeRevalidatePath('/technical/routings');
       return { ok: true, data: { id: row.id, status: to } };
     });
   } catch (err) {

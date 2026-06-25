@@ -24,6 +24,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import { createChangeOrder } from '../_actions/create-change-order';
 import type { EcoItemOption } from '../_actions/page-data';
@@ -230,35 +231,41 @@ export function CreateEcoModal({
             <div className="ff-inline mt-3" style={{ display: 'flex', gap: 12 }}>
               <div className="ff" style={{ flex: 1 }}>
                 <label htmlFor="eco-change-type">{tt('create.fields.changeType', 'Impact scope')}</label>
-                <select
-                  id="eco-change-type"
-                  className="form-input"
+                <Select
                   value={changeType}
-                  onChange={(e) => setChangeType(e.target.value as (typeof CHANGE_TYPES)[number])}
+                  onValueChange={(value) => setChangeType(value as (typeof CHANGE_TYPES)[number])}
                   disabled={state === 'submitting'}
                 >
-                  {CHANGE_TYPES.map((ct) => (
-                    <option key={ct} value={ct}>
-                      {tt(`changeType.${ct}`, ct)}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="eco-change-type" aria-label={tt('create.fields.changeType', 'Impact scope')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHANGE_TYPES.map((ct) => (
+                      <SelectItem key={ct} value={ct}>
+                        {tt(`changeType.${ct}`, ct)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="ff" style={{ flex: 1 }}>
                 <label htmlFor="eco-priority">{tt('create.fields.priority', 'Priority')}</label>
-                <select
-                  id="eco-priority"
-                  className="form-input"
+                <Select
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value as (typeof PRIORITIES)[number])}
+                  onValueChange={(value) => setPriority(value as (typeof PRIORITIES)[number])}
                   disabled={state === 'submitting'}
                 >
-                  {PRIORITIES.map((p) => (
-                    <option key={p} value={p}>
-                      {tt(`priority.${p}`, p)}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="eco-priority" aria-label={tt('create.fields.priority', 'Priority')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITIES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {tt(`priority.${p}`, p)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -285,19 +292,22 @@ export function CreateEcoModal({
 
               <div className="ff">
                 <label htmlFor="eco-line-action">{tt('create.line.action', 'Change action')}</label>
-                <select
-                  id="eco-line-action"
-                  className="form-input"
+                <Select
                   value={lineAction}
-                  onChange={(e) => setLineAction(e.target.value as (typeof LINE_ACTIONS)[number])}
+                  onValueChange={(value) => setLineAction(value as (typeof LINE_ACTIONS)[number])}
                   disabled={state === 'submitting'}
                 >
-                  {LINE_ACTIONS.map((a) => (
-                    <option key={a} value={a}>
-                      {tt(`lineAction.${a}`, a)}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="eco-line-action" aria-label={tt('create.line.action', 'Change action')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LINE_ACTIONS.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {tt(`lineAction.${a}`, a)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="ff mt-3">
@@ -311,26 +321,28 @@ export function CreateEcoModal({
                   aria-label={tt('create.line.searchPlaceholder', 'Search item code or name')}
                   disabled={state === 'submitting'}
                 />
-                <select
-                  aria-label={tt('create.line.targetItem', 'Target item')}
-                  className="form-input mt-2"
-                  size={Math.min(6, Math.max(2, filteredItems.length))}
+                <Select
                   value={targetItemId}
-                  onChange={(e) => setTargetItemId(e.target.value)}
+                  onValueChange={setTargetItemId}
                   disabled={state === 'submitting'}
                 >
-                  {filteredItems.length === 0 ? (
-                    <option value="" disabled>
-                      {tt('create.line.noItems', 'No matching items')}
-                    </option>
-                  ) : (
-                    filteredItems.map((it) => (
-                      <option key={it.id} value={it.id}>
-                        {it.itemCode} — {it.name}
-                      </option>
-                    ))
-                  )}
-                </select>
+                  <SelectTrigger className="mt-2" aria-label={tt('create.line.targetItem', 'Target item')}>
+                    <SelectValue placeholder={tt('create.line.targetItem', 'Target item')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredItems.length === 0 ? (
+                      <SelectItem value="__none" disabled>
+                        {tt('create.line.noItems', 'No matching items')}
+                      </SelectItem>
+                    ) : (
+                      filteredItems.map((it) => (
+                        <SelectItem key={it.id} value={it.id}>
+                          {it.itemCode} — {it.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="ff mt-3">

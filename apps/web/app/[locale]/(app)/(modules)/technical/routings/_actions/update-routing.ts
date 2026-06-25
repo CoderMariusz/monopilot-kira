@@ -103,7 +103,7 @@ export async function updateRouting(rawInput: unknown): Promise<UpdateRoutingRes
         afterState: { operationCount: input.operations.length },
       });
 
-      safeRevalidatePath('/technical/items');
+      safeRevalidatePath('/technical/routings');
       return { ok: true, data: { id: input.routingId } };
     });
   } catch (err) {
