@@ -135,7 +135,7 @@ export function LocationTreeScreen({
   const [dialogMode, setDialogMode] = React.useState<DialogMode | null>(activeDialog);
   const [deleteCandidate, setDeleteCandidate] = React.useState<LocationRow | null>(null);
   const [editingLocation, setEditingLocation] = React.useState<LocationRow | null>(null);
-  const [form, setForm] = React.useState({ code: '', name: '', parentId: parentLocationId ?? selectedLocation?.id ?? '', locationType: 'storage', active: true, barcode: '' });
+  const [form, setForm] = React.useState({ code: '', name: '', parentId: parentLocationId ?? selectedLocation?.id ?? '', warehouseId: selectedWarehouseId !== 'all' ? selectedWarehouseId : warehouses[0]?.id ?? '', locationType: 'storage', active: true, barcode: '' });
   const [formError, setFormError] = React.useState<string | null>(null);
 
   React.useEffect(() => setRows([...locations]), [locations]);
@@ -154,17 +154,29 @@ export function LocationTreeScreen({
     () => ['storage', 'transit', 'receiving', 'production_line'].map((value) => ({ value, label: value })),
     [],
   );
+  const warehouseSelectOptions = React.useMemo<SelectOption[]>(
+    () => warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
+    [warehouses],
+  );
   const bins = selectedLocation && selectedLocation.level === 2 ? visibleRows.filter((location) => location.parentId === selectedLocation.id) : [];
 
   function openDialog(mode: DialogMode, location?: LocationRow | null) {
     if (!canUpdateInfra) return;
     const target = location ?? selectedLocation;
+    const initialWarehouseId = mode === 'edit' && target
+      ? target.warehouseId
+      : mode === 'child' && target
+        ? target.warehouseId
+        : selectedWarehouseId !== 'all'
+          ? selectedWarehouseId
+          : warehouses[0]?.id ?? '';
     setDialogMode(mode);
     setEditingLocation(mode === 'edit' ? target ?? null : null);
     setForm({
       code: mode === 'edit' && target ? locationCode(target) : '',
       name: mode === 'edit' && target ? target.name : '',
       parentId: mode === 'child' && target ? target.id : mode === 'edit' ? target?.parentId ?? '' : parentLocationId ?? selectedLocation?.id ?? '',
+      warehouseId: initialWarehouseId,
       locationType: mode === 'edit' && target ? target.locationType ?? 'storage' : 'storage',
       active: mode === 'edit' && target ? target.isActive ?? true : true,
       barcode: mode === 'edit' && target ? target.barcode ?? '' : '',
@@ -175,7 +187,7 @@ export function LocationTreeScreen({
   async function submitDialog(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canUpdateInfra || !valid) return;
-    const warehouseId = editingLocation?.warehouseId ?? parentLocation?.warehouseId ?? selectedLocation?.warehouseId ?? warehouses[0]?.id;
+    const warehouseId = form.warehouseId;
     if (!warehouseId) return;
     const input: UpsertLocationInput = {
       id: editingLocation?.id,
@@ -314,6 +326,13 @@ export function LocationTreeScreen({
             <div className="mt-4 grid gap-4">
               <label className="grid gap-1 text-sm font-medium" htmlFor="location-code">{labels.fieldCode}<Input id="location-code" value={form.code} maxLength={20} required onChange={(event) => { const value = event.currentTarget.value.toUpperCase(); setForm((current) => ({ ...current, code: value })); }} className="font-mono" /><span className="text-xs text-slate-500">{labels.fieldCodeHelp}</span></label>
               <label className="grid gap-1 text-sm font-medium" htmlFor="location-name">{labels.fieldName}<Input id="location-name" value={form.name} maxLength={80} required onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, name: value })); }} /></label>
+              <div className="grid gap-1 text-sm font-medium">
+                <span id="location-warehouse-label">{labels.warehouse}</span>
+                <Select value={form.warehouseId} options={warehouseSelectOptions} disabled={dialogMode === 'child' || dialogMode === 'edit'} onValueChange={(value) => { setForm((current) => ({ ...current, warehouseId: value })); }} aria-labelledby="location-warehouse-label" aria-label={labels.warehouse}>
+                  <SelectTrigger className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" aria-label={labels.warehouse}><SelectValue /></SelectTrigger>
+                  <SelectContent>{warehouseSelectOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-1 text-sm font-medium">
                   <span id="location-parent-label">{labels.fieldParent}</span>
