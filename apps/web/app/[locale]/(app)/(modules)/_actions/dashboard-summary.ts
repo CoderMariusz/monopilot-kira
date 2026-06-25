@@ -41,6 +41,13 @@ export type DashboardActivity = {
   action: string;
   resourceType: string;
   resourceId: string;
+  /**
+   * Human reference for the resource (PO/TO/WO number, customer/supplier name,
+   * LP code, NPD project code) resolved by an org-scoped join — `null` when the
+   * resource type has no human reference or the row was not found. The UI falls
+   * back to a truncated UUID in that case (see `shortRef`).
+   */
+  resourceRef: string | null;
   occurredAt: string;
 };
 
@@ -130,17 +137,60 @@ export async function getDashboardData(): Promise<DashboardData> {
         `select count(*)::int as n from public.shipments where status = 'exception'`,
       );
 
+      // Resolve a human reference for the resource (PO/TO/WO number, customer /
+      // supplier / carrier name, LP code, NPD project code) so the feed shows a
+      // friendly id instead of a bare UUID. Every lookup is org-scoped via
+      // app.current_org_id() and only fires when resource_id is a real UUID
+      // (the '*' schema-drift sentinel and any non-UUID are left as null, and
+      // the UI truncates the raw id as a last resort).
       const activityRes = await client.query<{
         id: string;
         action: string;
         resource_type: string;
         resource_id: string;
+        resource_ref: string | null;
         occurred_at: string;
       }>(
-        `select id::text, action, resource_type, resource_id, occurred_at
-           from public.audit_events
-          order by occurred_at desc
-          limit 10`,
+        `with ev as (
+           select id, action, resource_type, resource_id, occurred_at,
+                  case
+                    when resource_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                    then resource_id::uuid
+                  end as rid
+             from public.audit_events
+            order by occurred_at desc
+            limit 10
+         )
+         select ev.id::text, ev.action, ev.resource_type, ev.resource_id,
+                ev.occurred_at,
+                case ev.resource_type
+                  when 'purchase_order' then (
+                    select po.po_number from public.purchase_orders po
+                     where po.org_id = app.current_org_id() and po.id = ev.rid)
+                  when 'transfer_order' then (
+                    select t.to_number from public.transfer_orders t
+                     where t.org_id = app.current_org_id() and t.id = ev.rid)
+                  when 'work_order' then (
+                    select w.wo_number from public.work_orders w
+                     where w.org_id = app.current_org_id() and w.id = ev.rid)
+                  when 'license_plate' then (
+                    select lp.lp_code from public.license_plates lp
+                     where lp.org_id = app.current_org_id() and lp.id = ev.rid)
+                  when 'customer' then (
+                    select c.name from public.customers c
+                     where c.org_id = app.current_org_id() and c.id = ev.rid)
+                  when 'supplier' then (
+                    select s.name from public.suppliers s
+                     where s.org_id = app.current_org_id() and s.id = ev.rid)
+                  when 'carrier' then (
+                    select ca.name from public.carriers ca
+                     where ca.org_id = app.current_org_id() and ca.id = ev.rid)
+                  when 'npd_project' then (
+                    select p.code from public.npd_projects p
+                     where p.org_id = app.current_org_id() and p.id = ev.rid)
+                end as resource_ref
+           from ev
+          order by ev.occurred_at desc`,
       );
 
       const kpis: DashboardKpi[] = [
@@ -164,6 +214,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         action: row.action,
         resourceType: row.resource_type,
         resourceId: row.resource_id,
+        resourceRef: row.resource_ref ?? null,
         occurredAt: row.occurred_at,
       }));
 

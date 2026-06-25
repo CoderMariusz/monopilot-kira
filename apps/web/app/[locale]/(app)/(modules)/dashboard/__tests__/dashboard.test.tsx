@@ -135,12 +135,69 @@ describe("Dashboard activity timeline", () => {
     await renderDashboard(
       dataOf({
         activity: [
-          { id: "1", action: "create", resourceType: "work_order", resourceId: "WO-1", occurredAt: "2026-06-09T10:00:00Z" },
+          {
+            id: "1",
+            action: "create",
+            resourceType: "work_order",
+            resourceId: "WO-1",
+            resourceRef: null,
+            occurredAt: "2026-06-09T10:00:00Z",
+          },
         ],
       }),
     );
     expect(screen.queryByTestId("dashboard-activity-empty")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("dashboard-activity-item")).toHaveLength(1);
+  });
+
+  it("renders a friendly localized headline instead of the raw dotted event code", async () => {
+    await renderDashboard(
+      dataOf({
+        activity: [
+          {
+            id: "1",
+            action: "planning.purchase_order.status_changed",
+            resourceType: "purchase_order",
+            resourceId: "49b4abd3-6a8b-44a2-8347-3fcdc80de770",
+            resourceRef: "PO-202606-0003",
+            occurredAt: "2026-06-09T10:00:00Z",
+          },
+        ],
+      }),
+    );
+    const headline = screen.getByTestId("dashboard-activity-headline");
+    // Friendly label from en.json, never the raw dotted code.
+    expect(headline.textContent).toContain("Purchase order status changed");
+    expect(headline.textContent).toContain("purchase order");
+    expect(headline.textContent).not.toContain("planning.purchase_order.status_changed");
+    // Human reference is shown; the bare UUID is not.
+    const item = screen.getByTestId("dashboard-activity-item");
+    expect(item.textContent).toContain("PO-202606-0003");
+    expect(item.textContent).not.toContain("49b4abd3-6a8b-44a2-8347-3fcdc80de770");
+  });
+
+  it("truncates a bare UUID when no human reference is carried, and humanizes unmapped codes", async () => {
+    await renderDashboard(
+      dataOf({
+        activity: [
+          {
+            id: "2",
+            action: "some.brand_new.thing_happened",
+            resourceType: "mystery_table",
+            resourceId: "d4dc1b32-36e0-4c92-97ff-bfaa628500a6",
+            resourceRef: null,
+            occurredAt: "2026-06-09T10:00:00Z",
+          },
+        ],
+      }),
+    );
+    const headline = screen.getByTestId("dashboard-activity-headline");
+    // Humanized fallback — never the raw dotted code.
+    expect(headline.textContent).toContain("Thing happened");
+    expect(headline.textContent).not.toContain("some.brand_new.thing_happened");
+    const item = screen.getByTestId("dashboard-activity-item");
+    expect(item.textContent).toContain("d4dc1b32…");
+    expect(item.textContent).not.toContain("d4dc1b32-36e0-4c92-97ff-bfaa628500a6");
   });
 });
 

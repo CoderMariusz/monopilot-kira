@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
-import { getDashboardData, type DashboardKpi } from "../_actions/dashboard-summary";
+import { getDashboardData, type DashboardActivity, type DashboardKpi } from "../_actions/dashboard-summary";
+import { eventLabelKey, humanizeCode, resourceLabelKey, shortRef } from "./activity-labels";
 
 // Reads the signed-in user's session + org-scoped DB, so this page must render
 // per-request (never statically prerendered at build time).
@@ -22,6 +23,30 @@ const QUICK_ACTIONS = [
   { key: "createShipment", route: "/shipping", variant: "secondary" as const },
   { key: "runMrp", route: "/scheduler", variant: "secondary" as const },
 ];
+
+/**
+ * Resolve a feed row into a friendly, localized headline + sub-line.
+ *
+ *   - `headline` = mapped event label (`Dashboard.activity.events.*`) or, for an
+ *     unmapped action, a humanized last-segment fallback — never the raw dotted
+ *     code.
+ *   - `resourceLabel` = mapped resource-type label or humanized fallback.
+ *   - `ref` = a human reference (PO/TO/WO number, customer name, …) when the
+ *     query resolved one, otherwise a truncated UUID, otherwise omitted.
+ */
+function describeActivity(
+  event: DashboardActivity,
+  t: (key: string) => string,
+): { headline: string; resourceLabel: string; ref: string | null } {
+  const evKey = eventLabelKey(event.action);
+  const headline = evKey ? t(`activity.events.${evKey}`) : humanizeCode(event.action);
+
+  const resKey = resourceLabelKey(event.resourceType);
+  const resourceLabel = resKey ? t(`activity.resources.${resKey}`) : humanizeCode(event.resourceType);
+
+  const ref = shortRef(event.resourceRef, event.resourceId);
+  return { headline, resourceLabel, ref };
+}
 
 function kpiColorClass(color: DashboardKpi["color"]): string {
   switch (color) {
@@ -117,19 +142,23 @@ export default async function DashboardRoutePage({ params }: DashboardPageProps)
             </div>
           ) : (
             <ul className="space-y-3">
-              {data.activity.map((event) => (
-                <li key={event.id} className="flex items-start gap-3 text-sm" data-testid="dashboard-activity-item">
-                  <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-800">
-                      {event.action} · {event.resourceType}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">
-                      {event.resourceId} — {dateFormatter.format(new Date(event.occurredAt))}
-                    </p>
-                  </div>
-                </li>
-              ))}
+              {data.activity.map((event) => {
+                const { headline, resourceLabel, ref } = describeActivity(event, t);
+                return (
+                  <li key={event.id} className="flex items-start gap-3 text-sm" data-testid="dashboard-activity-item">
+                    <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-800" data-testid="dashboard-activity-headline">
+                        {headline} · {resourceLabel}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {ref ? `${ref} — ` : ""}
+                        {dateFormatter.format(new Date(event.occurredAt))}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
