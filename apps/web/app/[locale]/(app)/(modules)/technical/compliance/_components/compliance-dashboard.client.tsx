@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type {
   ComplianceFlag,
   RegulationCoverage,
@@ -77,6 +78,22 @@ export function ComplianceDashboard({
   flags: ComplianceFlag[];
   copy: ComplianceCopy;
 }) {
+  const exportFlags = () => {
+    downloadCsv(
+      toCsv(
+        [copy.col.fg, copy.col.regulation, copy.col.issue, copy.col.severity, copy.col.action],
+        flags.map((f) => [
+          f.fg,
+          copy.regulationLabel[f.regulation],
+          `${copy.issueLabel[f.issueKey]} - ${copy.remediationLabel[f.issueKey]}`,
+          copy.severityLabel[f.severity],
+          copy.route,
+        ]),
+      ),
+      `technical-compliance-flags-${isoDateStamp()}.csv`,
+    );
+  };
+
   return (
     <div data-screen="technical-compliance" className="flex flex-col gap-4">
       {/* Routing-only notice — this is remediation routing, not legal advice. */}
@@ -137,8 +154,19 @@ export function ComplianceDashboard({
         style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}
       >
         <div className="card-head" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
-          <span className="text-sm font-semibold">{copy.flagsTitle.replace('{count}', String(flags.length))}</span>
-          <span className="muted text-[11px]">{copy.flagsHint}</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-semibold">{copy.flagsTitle.replace('{count}', String(flags.length))}</span>
+            <span className="muted text-[11px]">{copy.flagsHint}</span>
+          </div>
+          <button
+            type="button"
+            data-testid="compliance-export-csv"
+            onClick={exportFlags}
+            className="ml-auto inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            <span aria-hidden="true">⇩</span>
+            <span>Export CSV</span>
+          </button>
         </div>
         {flags.length === 0 ? (
           <div data-testid="compliance-flags-empty" className="empty-state">

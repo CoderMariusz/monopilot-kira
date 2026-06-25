@@ -21,6 +21,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type { LabTestType } from '../../../../../../../lib/technical/lab/read-model';
 import type { LabResultLogRow } from '../_actions/list-lab-results';
 
@@ -70,6 +71,12 @@ function formatWhen(iso: string | null): string {
   return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
 }
 
+function formatReading(r: LabResultLogRow, copy: LabResultsCopy): string {
+  if (r.resultValue == null) return copy.qualitativeLabel;
+  if (r.testType === 'atp_swab') return `${r.resultValue} ${copy.rluUnit}`;
+  return `${r.resultValue} ${r.resultUnit ?? ''}`.trim();
+}
+
 export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: LabResultsCopy }) {
   const [filter, setFilter] = useState<VerdictFilter>('all');
   const [q, setQ] = useState('');
@@ -91,6 +98,35 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
       return hay.includes(needle);
     });
   }, [rows, filter, q]);
+
+  const exportVisible = () => {
+    downloadCsv(
+      toCsv(
+        [
+          copy.col.labId,
+          copy.col.taken,
+          copy.col.fgLot,
+          copy.col.test,
+          copy.col.reading,
+          copy.col.verdict,
+          copy.col.action,
+        ],
+        visible.map((r) => [
+          r.id.slice(0, 12),
+          formatWhen(r.testedAt),
+          [
+            r.itemCode ? `${r.itemCode} ${r.itemName ?? ''}`.trim() : '—',
+            r.workOrderId ? r.workOrderId.slice(0, 12) : '—',
+          ].join(' / '),
+          `${copy.testTypeLabel[r.testType]} / ${r.labProvider ?? '—'}`,
+          formatReading(r, copy),
+          copy.verdictLabel[r.resultStatus as VerdictFilter],
+          copy.openInQa,
+        ]),
+      ),
+      `technical-lab-results-${isoDateStamp()}.csv`,
+    );
+  };
 
   return (
     <div data-screen="technical-lab-results" className="flex flex-col gap-4">
@@ -132,6 +168,18 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
             aria-label={copy.searchPlaceholder}
           />
         </div>
+        <a
+          href="#"
+          data-testid="lab-results-export-csv"
+          onClick={(e) => {
+            e.preventDefault();
+            exportVisible();
+          }}
+          className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+          <span aria-hidden="true">⇩</span>
+          <span>Export CSV</span>
+        </a>
       </div>
 
       <div data-testid="lab-results-table-card" className="card" style={{ padding: 0, overflowX: 'auto' }}>
