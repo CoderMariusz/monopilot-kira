@@ -23,6 +23,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import {
   createMwo,
   getMwoPermissions,
+  getMwoOverviewStats,
   listMachinesForMwo,
   listMwos,
   listPmSchedules,
@@ -88,6 +89,18 @@ function buildLabels(t: MaintenanceTranslator): MwoListLabels {
       calibration_alert: t('source.calibration_alert'),
     },
     overdue: t('actions.overdue'),
+    overview: {
+      backlogTitle: t('overview.backlogTitle'),
+      backlogSubtitle: t('overview.backlogSubtitle'),
+      d0_7: t('overview.d0_7'),
+      d8_30: t('overview.d8_30'),
+      d31_plus: t('overview.d31_plus'),
+      ratioTitle: t('overview.ratioTitle'),
+      ratioSubtitle: t('overview.ratioSubtitle'),
+      planned: t('overview.planned'),
+      unplanned: t('overview.unplanned'),
+      exportCsv: t('overview.exportCsv'),
+    },
     col: {
       mwo: t('col.mwo'),
       machine: t('col.machine'),
@@ -167,7 +180,11 @@ function buildLabels(t: MaintenanceTranslator): MwoListLabels {
 async function ListContent({ locale }: { locale: string }) {
   const t = getMaintenanceTranslator(locale);
 
-  const [mwoResult, permissions] = await Promise.all([listMwos(), getMwoPermissions()]);
+  const [mwoResult, permissions, overviewStats] = await Promise.all([
+    listMwos(),
+    getMwoPermissions(),
+    getMwoOverviewStats(),
+  ]);
 
   if (!mwoResult.ok) {
     if (mwoResult.reason === 'forbidden') {
@@ -212,6 +229,7 @@ async function ListContent({ locale }: { locale: string }) {
     <MwoListScreen
       rows={rows}
       statusCounts={statusCounts}
+      overviewStats={overviewStats}
       pmSchedules={pmSchedules}
       machines={machines}
       labels={labels}

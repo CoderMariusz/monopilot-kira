@@ -79,6 +79,9 @@ const ALL_STATES: MwoState[] = [
   'completed',
   'cancelled',
 ];
+const OPEN_BACKLOG_STATES: readonly MwoState[] = ['requested', 'approved', 'open', 'in_progress'];
+const PLANNED_MWO_SOURCES: readonly MwoSource[] = ['pm_schedule', 'calibration_alert'];
+const UNPLANNED_MWO_SOURCES: readonly MwoSource[] = ['manual_request', 'auto_downtime', 'oee_trigger'];
 
 /**
  * Server-side legal transition map. Key = current state, value = states the
@@ -120,6 +123,11 @@ export type MwoListRow = {
 export type MwoListData = {
   rows: MwoListRow[];
   statusCounts: Record<MwoState, number>;
+};
+
+export type MwoOverviewStats = {
+  backlog: { d0_7: number; d8_30: number; d31_plus: number };
+  ratio: { planned: number; unplanned: number };
 };
 
 export type MachineOption = {
@@ -274,8 +282,66 @@ export async function getMwoPermissions(): Promise<MwoPermissions> {
       ]);
       return { canRead, canCreate, canExecute, canCancel };
     });
-  } catch {
+  } catch (err) {
+    console.error('[maintenance] getMwoPermissions failed', err);
     return { canRead: false, canCreate: false, canExecute: false, canCancel: false };
+  }
+}
+
+export async function getMwoOverviewStats(): Promise<MwoOverviewStats> {
+  const empty: MwoOverviewStats = {
+    backlog: { d0_7: 0, d8_30: 0, d31_plus: 0 },
+    ratio: { planned: 0, unplanned: 0 },
+  };
+
+  try {
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<MwoOverviewStats> => {
+      if (!(await hasPermission(ctx, MNT_READ_PERMISSION))) {
+        return empty;
+      }
+
+      const { rows } = await ctx.client.query<{
+        d0_7: number;
+        d8_30: number;
+        d31_plus: number;
+        planned: number;
+        unplanned: number;
+      }>(
+        `select count(*) filter (
+                  where w.created_at >= pg_catalog.now() - interval '7 days'
+                )::int as d0_7,
+                count(*) filter (
+                  where w.created_at < pg_catalog.now() - interval '7 days'
+                    and w.created_at >= pg_catalog.now() - interval '30 days'
+                )::int as d8_30,
+                count(*) filter (
+                  where w.created_at < pg_catalog.now() - interval '30 days'
+                )::int as d31_plus,
+                count(*) filter (where w.source = any($2::text[]))::int as planned,
+                count(*) filter (where w.source = any($3::text[]))::int as unplanned
+           from public.maintenance_work_orders w
+          where w.org_id = app.current_org_id()
+            and w.state = any($1::text[])`,
+        [OPEN_BACKLOG_STATES, PLANNED_MWO_SOURCES, UNPLANNED_MWO_SOURCES],
+      );
+
+      const row = rows[0];
+      if (!row) return empty;
+      return {
+        backlog: {
+          d0_7: Number(row.d0_7),
+          d8_30: Number(row.d8_30),
+          d31_plus: Number(row.d31_plus),
+        },
+        ratio: {
+          planned: Number(row.planned),
+          unplanned: Number(row.unplanned),
+        },
+      };
+    });
+  } catch (err) {
+    console.error('[maintenance] getMwoOverviewStats failed', err);
+    return empty;
   }
 }
 

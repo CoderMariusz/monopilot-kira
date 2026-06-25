@@ -33,9 +33,11 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../lib/shared/download';
 import type {
   MachineOption,
   MwoListRow,
+  MwoOverviewStats,
   MwoPriority,
   MwoSource,
   MwoState,
@@ -83,6 +85,18 @@ export type MwoListLabels = {
   priority: Record<MwoPriority, string>;
   source: Record<MwoSource, string>;
   overdue: string;
+  overview?: {
+    backlogTitle: string;
+    backlogSubtitle: string;
+    d0_7: string;
+    d8_30: string;
+    d31_plus: string;
+    ratioTitle: string;
+    ratioSubtitle: string;
+    planned: string;
+    unplanned: string;
+    exportCsv: string;
+  };
   col: {
     mwo: string;
     machine: string;
@@ -189,6 +203,7 @@ const OPEN_STATES: ReadonlySet<MwoState> = new Set(['requested', 'approved', 'op
 export function MwoListScreen({
   rows,
   statusCounts,
+  overviewStats,
   pmSchedules,
   machines,
   labels,
@@ -198,6 +213,7 @@ export function MwoListScreen({
 }: {
   rows: MwoListRow[];
   statusCounts: Record<MwoState, number>;
+  overviewStats?: MwoOverviewStats;
   pmSchedules: PmScheduleRow[];
   machines: MachineOption[];
   labels: MwoListLabels;
@@ -214,6 +230,19 @@ export function MwoListScreen({
     row: MwoListRow;
     to: MwoTransition;
   } | null>(null);
+  const overviewLabels = labels.overview ?? {
+    backlogTitle: 'Backlog ageing',
+    backlogSubtitle: 'Open MWOs by age',
+    d0_7: '0-7 days',
+    d8_30: '8-30 days',
+    d31_plus: '31+ days',
+    ratioTitle: 'Planned vs unplanned',
+    ratioSubtitle: 'Open MWO source mix',
+    planned: 'Planned',
+    unplanned: 'Unplanned',
+    exportCsv: 'Export CSV',
+  };
+  const stats = overviewStats ?? buildOverviewStats(rows);
 
   const tabCount = (k: 'all' | MwoState): number =>
     k === 'all' ? rows.length : statusCounts[k] ?? 0;
@@ -232,6 +261,41 @@ export function MwoListScreen({
   }, [rows, tab, search]);
 
   const today = new Date().toISOString().slice(0, 10);
+  const handleExportCsv = () => {
+    const csv = toCsv(
+      [
+        'id',
+        'mwo_number',
+        'title',
+        'state',
+        'priority',
+        'source',
+        'machine_id',
+        'machine_code',
+        'machine_name',
+        'due_date',
+        'created_at',
+        'started_at',
+        'completed_at',
+      ],
+      visible.map((r) => [
+        r.id,
+        r.mwoNumber,
+        r.title,
+        r.state,
+        r.priority,
+        r.source,
+        r.machineId,
+        r.machineCode,
+        r.machineName,
+        r.dueDate,
+        r.createdAt,
+        r.startedAt,
+        r.completedAt,
+      ]),
+    );
+    downloadCsv(csv, `maintenance-mwos-${isoDateStamp()}.csv`);
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -281,6 +345,8 @@ export function MwoListScreen({
             {labels.countLine}
           </p>
 
+          <MwoOverview stats={stats} labels={overviewLabels} />
+
           {/* Status tabs (work-orders.jsx:66-141) */}
           <div role="tablist" aria-label={labels.col.status} className="flex flex-wrap gap-1 border-b border-slate-200">
             {TAB_ORDER.map((k) => {
@@ -323,6 +389,14 @@ export function MwoListScreen({
             <span className="ml-auto text-xs text-slate-500" data-testid="mwo-rows">
               {labels.rowsLabel.replace('{count}', String(visible.length))}
             </span>
+            <button
+              type="button"
+              data-testid="mwo-export-csv"
+              onClick={handleExportCsv}
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              {overviewLabels.exportCsv}
+            </button>
           </Card>
 
           {/* Table / honest empty states */}
@@ -431,6 +505,94 @@ export function MwoListScreen({
           }}
         />
       ) : null}
+    </div>
+  );
+}
+
+function buildOverviewStats(rows: MwoListRow[]): MwoOverviewStats {
+  const now = Date.now();
+  const backlog = { d0_7: 0, d8_30: 0, d31_plus: 0 };
+  const ratio = { planned: 0, unplanned: 0 };
+  for (const row of rows) {
+    if (!OPEN_STATES.has(row.state)) continue;
+    const created = new Date(row.createdAt).getTime();
+    const ageDays = Number.isNaN(created) ? 0 : Math.max(0, Math.floor((now - created) / 86_400_000));
+    if (ageDays <= 7) backlog.d0_7 += 1;
+    else if (ageDays <= 30) backlog.d8_30 += 1;
+    else backlog.d31_plus += 1;
+
+    if (row.source === 'pm_schedule' || row.source === 'calibration_alert') ratio.planned += 1;
+    else ratio.unplanned += 1;
+  }
+  return { backlog, ratio };
+}
+
+function MwoOverview({
+  stats,
+  labels,
+}: {
+  stats: MwoOverviewStats;
+  labels: NonNullable<MwoListLabels['overview']>;
+}) {
+  const backlog = [
+    { label: labels.d0_7, value: stats.backlog.d0_7 },
+    { label: labels.d8_30, value: stats.backlog.d8_30 },
+    { label: labels.d31_plus, value: stats.backlog.d31_plus },
+  ];
+  const backlogMax = Math.max(1, ...backlog.map((b) => b.value));
+  const ratioTotal = Math.max(1, stats.ratio.planned + stats.ratio.unplanned);
+  const plannedPct = Math.round((stats.ratio.planned / ratioTotal) * 100);
+  const unplannedPct = Math.max(0, 100 - plannedPct);
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-[2fr_1fr]" data-testid="mwo-overview">
+      <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-slate-900">{labels.backlogTitle}</h2>
+          <p className="text-xs text-slate-500">{labels.backlogSubtitle}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {backlog.map((bucket) => (
+            <div key={bucket.label} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600">{bucket.label}</span>
+                <span className="font-mono text-lg font-semibold text-slate-900">{bucket.value}</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-slate-200" aria-hidden="true">
+                <div
+                  className="h-2 rounded-full bg-slate-900"
+                  style={{ width: `${Math.max(4, Math.round((bucket.value / backlogMax) * 100))}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-slate-900">{labels.ratioTitle}</h2>
+          <p className="text-xs text-slate-500">{labels.ratioSubtitle}</p>
+        </div>
+        <div className="flex h-2 overflow-hidden rounded-full bg-amber-100" aria-hidden="true">
+          <div className="bg-emerald-600" style={{ width: `${plannedPct}%` }} />
+          <div className="bg-amber-400" style={{ width: `${unplannedPct}%` }} />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-xs text-slate-500">{labels.planned}</p>
+            <p className="font-mono text-lg font-semibold text-slate-900">{stats.ratio.planned}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">{labels.unplanned}</p>
+            <p className="font-mono text-lg font-semibold text-slate-900">{stats.ratio.unplanned}</p>
+          </div>
+        </div>
+        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+          <span>{plannedPct}%</span>
+          <span>{unplannedPct}%</span>
+        </div>
+      </Card>
     </div>
   );
 }

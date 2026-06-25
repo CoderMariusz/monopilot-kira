@@ -55,6 +55,18 @@
       "cancel": "Cancel",
       "overdue": "Overdue"
     },
+    "overview": {
+      "backlogTitle": "Backlog ageing",
+      "backlogSubtitle": "Open MWOs by age",
+      "d0_7": "0-7 days",
+      "d8_30": "8-30 days",
+      "d31_plus": "31+ days",
+      "ratioTitle": "Planned vs unplanned",
+      "ratioSubtitle": "Open MWO source mix",
+      "planned": "Planned",
+      "unplanned": "Unplanned",
+      "exportCsv": "Export CSV"
+    },
     "create": {
       "button": "+ New MWO",
       "title": "Create maintenance work order",
@@ -169,6 +181,18 @@
       "complete": "Zakończ",
       "cancel": "Anuluj",
       "overdue": "Po terminie"
+    },
+    "overview": {
+      "backlogTitle": "Wiek zaległości",
+      "backlogSubtitle": "Otwarte MWO według wieku",
+      "d0_7": "0-7 dni",
+      "d8_30": "8-30 dni",
+      "d31_plus": "31+ dni",
+      "ratioTitle": "Planowane vs nieplanowane",
+      "ratioSubtitle": "Struktura źródeł otwartych MWO",
+      "planned": "Planowane",
+      "unplanned": "Nieplanowane",
+      "exportCsv": "Eksport CSV"
     },
     "create": {
       "button": "+ Nowe MWO",
