@@ -5,6 +5,8 @@
  * process.env in this file and is never exposed to client modules.
  */
 
+import 'server-only';
+
 import { withOrgContext, type OrgContext } from '../../../../lib/auth/with-org-context';
 
 export const runtime = 'nodejs';
