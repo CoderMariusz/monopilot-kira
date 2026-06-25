@@ -304,6 +304,38 @@ describe('T-117 — editing an ingredient propagates to every panel live (AC#2)'
   });
 });
 
+describe('NPD formulation allergen reference source', () => {
+  it('renders DB-provided allergen references instead of the EU-14 fallback', () => {
+    renderWired({
+      data: {
+        ...DATA,
+        ingredients: [
+          {
+            ...DATA.ingredients[0]!,
+            allergen: null,
+            allergens: ['custom_seed'],
+          },
+        ],
+      },
+      allergenReference: [{ code: 'custom_seed', name: 'Custom seed allergen' }],
+    });
+
+    expect(screen.getByTestId('allergen-cell-custom_seed')).toHaveAttribute('data-status', 'present');
+    expect(screen.getByText('Custom seed allergen')).toBeInTheDocument();
+    expect(screen.queryByTestId('allergen-cell-gluten')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['empty', []],
+    ['undefined', undefined],
+  ] as const)('falls back to EU-14 allergen references when the prop is %s', (_case, allergenReference) => {
+    renderWired({ allergenReference });
+
+    expect(screen.getByTestId('allergen-cell-gluten')).toHaveAttribute('data-status', 'present');
+    expect(screen.getByTestId('allergen-cell-milk')).toHaveAttribute('data-status', 'absent');
+  });
+});
+
 describe('T-117 — CostPanel target-price / yield update page state (AC#3)', () => {
   it('recomputes the margin when the target price changes', () => {
     renderWired();

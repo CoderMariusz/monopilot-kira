@@ -52,6 +52,7 @@ import { submitForTrial } from '../../../../../../(npd)/pipeline/[projectId]/for
 import { compareVersions } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/compare-versions';
 // C1 — lock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
 import { lockVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/lock-version';
+import { loadAllergensConfig } from '../../../../(modules)/technical/allergens-config/_actions/load-config';
 // Costing v2 — editable batch size (= pack weight): persist via the brief's
 // updateProjectBrief action (batch = pack weight). Imported, never re-authored.
 import { updateProjectBrief } from '../brief/_actions/update-project-brief';
@@ -408,19 +409,18 @@ async function loadCurrentStage(ctx: OrgContextLike, projectId: string): Promise
   return rows[0]?.current_stage ?? null;
 }
 
-async function loadAllergenReference(ctx: OrgContextLike): Promise<AllergenReference[]> {
-  const { rows } = await ctx.client.query<{ allergen_code: string; allergen_name: string }>(
-    `select allergen_code, allergen_name
-       from "Reference"."Allergens"
-      where org_id = app.current_org_id()
-      order by allergen_name asc`,
-  );
-  return rows.map((row) => ({ code: row.allergen_code, name: row.allergen_name }));
-}
-
 interface VersionRow {
   id: string;
   version_number: number;
+}
+
+async function loadCanonicalAllergenReference(): Promise<AllergenReference[]> {
+  const result = await loadAllergensConfig();
+  if (result.state === 'error') return [];
+  return result.allergens.map((allergen) => ({
+    code: allergen.allergenCode,
+    name: allergen.allergenName,
+  }));
 }
 
 /**
@@ -492,7 +492,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
             loadPackWeightG(ctx, projectId),
             loadVersionHistory(ctx, projectId),
             loadCurrentStage(ctx, projectId),
-            loadAllergenReference(ctx),
+            loadCanonicalAllergenReference(),
           ]);
           return { canEdit, packWeightG, versions, currentStage, allergenReference };
         });
