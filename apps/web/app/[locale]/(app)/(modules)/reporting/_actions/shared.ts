@@ -198,6 +198,30 @@ export type ReceiptsSummary = {
   rows: GrnReceiptRow[];
 };
 
+export type ShipmentReportRow = {
+  shipmentId: string;
+  shipmentNumber: string;
+  salesOrderNumber: string | null;
+  customerName: string | null;
+  status: string;
+  boxCount: number;
+  createdAt: string;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+};
+
+export type ShipmentsSummary = {
+  days: number;
+  totals: {
+    shipmentCount: number;
+    packingCount: number;
+    shippedCount: number;
+    deliveredCount: number;
+  };
+  byStatus: Array<{ status: string; count: number }>;
+  rows: ShipmentReportRow[];
+};
+
 export type QualitySummary = {
   days: number;
   /** Holds currently in open/investigating/quarantined/escalated (not windowed). */

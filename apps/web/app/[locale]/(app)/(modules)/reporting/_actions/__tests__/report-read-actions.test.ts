@@ -20,6 +20,7 @@ import {
   productionSummary,
   qualitySummary,
   receiptsSummary,
+  shipmentsSummary,
 } from '../report-read-actions';
 
 type QueryClient = {
@@ -43,6 +44,8 @@ let wasteRow: Record<string, unknown>;
 let downtimeRow: Record<string, unknown>;
 let lpRows: Array<Record<string, unknown>>;
 let grnRows: Array<Record<string, unknown>>;
+let shipmentRows: Array<Record<string, unknown>>;
+let shipmentStatusRows: Array<Record<string, unknown>>;
 let holdRows: Array<Record<string, unknown>>;
 let inspectionRows: Array<Record<string, unknown>>;
 let ncrRow: Record<string, unknown>;
@@ -86,6 +89,13 @@ function makeClient(): QueryClient {
       if (q.includes('from public.grns') && q.includes('g.grn_number')) {
         capturedParams.grns = [...(params ?? [])];
         return { rows: grnRows };
+      }
+      if (q.includes('from public.shipments') && q.includes('group by sh.status')) {
+        return { rows: shipmentStatusRows };
+      }
+      if (q.includes('from public.shipments')) {
+        capturedParams.shipments = [...(params ?? [])];
+        return { rows: shipmentRows };
       }
       if (q.includes('from public.quality_holds')) return { rows: holdRows };
       if (q.includes('from public.quality_inspections')) {
@@ -202,6 +212,25 @@ beforeEach(() => {
       receipt_date: '2026-06-09T08:00:00Z',
       completed_at: null,
     },
+  ];
+
+  shipmentRows = [
+    {
+      shipment_id: 'sh-1',
+      shipment_number: 'SH-2026-00003',
+      sales_order_number: 'SO-202606-00002',
+      customer_name: 'Acme Foods',
+      status: 'delivered',
+      box_count: 2,
+      created_at: new Date('2026-06-10T09:00:00Z'),
+      shipped_at: '2026-06-10T12:00:00Z',
+      delivered_at: '2026-06-11T08:00:00Z',
+    },
+  ];
+  shipmentStatusRows = [
+    { status: 'packing', count: 1 },
+    { status: 'shipped', count: 1 },
+    { status: 'delivered', count: 1 },
   ];
 
   holdRows = [
@@ -387,6 +416,48 @@ describe('receiptsSummary', () => {
   it('returns forbidden error when caller lacks rpt.dashboard.view permission', async () => {
     grantedPermissions = new Set();
     expect(await receiptsSummary()).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('shipmentsSummary', () => {
+  it('returns mapped shipment rows + accurate by-status totals', async () => {
+    const res = await shipmentsSummary({ days: 7 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.rows).toHaveLength(1);
+    expect(res.data.rows[0]).toEqual({
+      shipmentId: 'sh-1',
+      shipmentNumber: 'SH-2026-00003',
+      salesOrderNumber: 'SO-202606-00002',
+      customerName: 'Acme Foods',
+      status: 'delivered',
+      boxCount: 2,
+      createdAt: '2026-06-10T09:00:00.000Z',
+      shippedAt: '2026-06-10T12:00:00Z',
+      deliveredAt: '2026-06-11T08:00:00Z',
+    });
+    // totals come from the dedicated group-by (accurate beyond the 50-row page)
+    expect(res.data.totals).toEqual({
+      shipmentCount: 3,
+      packingCount: 1,
+      shippedCount: 1,
+      deliveredCount: 1,
+    });
+  });
+
+  it('returns an empty summary when there are no shipments in the window', async () => {
+    shipmentRows = [];
+    shipmentStatusRows = [];
+    const res = await shipmentsSummary({ days: 7 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.rows).toEqual([]);
+    expect(res.data.totals.shipmentCount).toBe(0);
+  });
+
+  it('returns forbidden error when caller lacks rpt.dashboard.view permission', async () => {
+    grantedPermissions = new Set();
+    expect(await shipmentsSummary()).toEqual({ ok: false, reason: 'forbidden' });
   });
 });
 

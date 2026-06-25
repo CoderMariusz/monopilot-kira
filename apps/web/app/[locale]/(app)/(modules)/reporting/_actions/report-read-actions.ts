@@ -39,6 +39,7 @@ import {
   type ReceiptsSummary,
   type ReportingContext,
   type ReportingResult,
+  type ShipmentsSummary,
 } from './shared';
 import { reportingWindowDays, type ReportingLineOption } from '../shared';
 
@@ -611,6 +612,106 @@ export async function receiptsSummary(
     );
   } catch (error) {
     console.error('[reporting] receiptsSummary failed', error);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+export async function shipmentsSummary(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<ShipmentsSummary>> {
+  const window = normalizeWindow(input, 7);
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<ReportingResult<ShipmentsSummary>> => {
+        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+        if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
+          return { ok: false, reason: 'forbidden' };
+        }
+
+        const res = await ctx.client.query<{
+          shipment_id: string;
+          shipment_number: string | null;
+          sales_order_number: string | null;
+          customer_name: string | null;
+          status: string;
+          box_count: string | number | null;
+          created_at: string | Date;
+          shipped_at: string | Date | null;
+          delivered_at: string | Date | null;
+        }>(
+          `select sh.id::text as shipment_id,
+                  sh.shipment_number,
+                  so.order_number as sales_order_number,
+                  c.name as customer_name,
+                  sh.status,
+                  (
+                    select count(*)::int
+                      from public.shipment_boxes sb
+                     where sb.org_id = app.current_org_id()
+                       and sb.shipment_id = sh.id
+                       and sb.deleted_at is null
+                  ) as box_count,
+                  sh.created_at,
+                  sh.shipped_at,
+                  sh.delivered_at
+             from public.shipments sh
+             left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()
+             left join public.customers c on c.id = coalesce(sh.customer_id, so.customer_id) and c.org_id = app.current_org_id()
+            where sh.org_id = app.current_org_id()
+              and sh.deleted_at is null
+              and sh.created_at >= $1::timestamptz
+              and sh.created_at <= $2::timestamptz
+              and ($3::text is null or sh.shipment_number ilike '%' || $3::text || '%')
+            order by sh.created_at desc, sh.shipment_number desc
+            limit 50`,
+          [window.fromIso, window.toIso, window.orderQuery],
+        );
+
+        const statusRes = await ctx.client.query<{ status: string; count: string | number }>(
+          `select sh.status, count(*)::int as count
+             from public.shipments sh
+            where sh.org_id = app.current_org_id()
+              and sh.deleted_at is null
+              and sh.created_at >= $1::timestamptz
+              and sh.created_at <= $2::timestamptz
+            group by sh.status
+            order by sh.status`,
+          [window.fromIso, window.toIso],
+        );
+
+        const rows: ShipmentsSummary['rows'] = res.rows.map((r) => ({
+          shipmentId: r.shipment_id,
+          shipmentNumber: r.shipment_number ?? '',
+          salesOrderNumber: r.sales_order_number,
+          customerName: r.customer_name,
+          status: r.status,
+          boxCount: num(r.box_count),
+          createdAt: toIso(r.created_at) ?? '',
+          shippedAt: toIso(r.shipped_at),
+          deliveredAt: toIso(r.delivered_at),
+        }));
+
+        const byStatus = statusRes.rows.map((r) => ({ status: r.status, count: num(r.count) }));
+        const statusCount = (s: string) => byStatus.find((r) => r.status === s)?.count ?? 0;
+
+        return {
+          ok: true,
+          data: {
+            days: window.days,
+            totals: {
+              shipmentCount: byStatus.reduce((a, r) => a + r.count, 0),
+              packingCount: statusCount('packing'),
+              shippedCount: statusCount('shipped'),
+              deliveredCount: statusCount('delivered'),
+            },
+            byStatus,
+            rows,
+          },
+        };
+      },
+    );
+  } catch (error) {
+    console.error('[reporting] shipmentsSummary failed', error);
     return { ok: false, reason: 'error' };
   }
 }

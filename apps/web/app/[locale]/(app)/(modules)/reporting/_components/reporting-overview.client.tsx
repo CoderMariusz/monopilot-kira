@@ -37,6 +37,7 @@ import type {
   ProductionSummary,
   QualitySummary,
   ReceiptsSummary,
+  ShipmentsSummary,
 } from '../_actions/shared';
 
 export type ReportingLabels = {
@@ -129,6 +130,22 @@ export type ReportingLabels = {
     };
     empty: string;
   };
+  shipments: {
+    title: string;
+    window: string;
+    kpi: { shipmentCount: string; packingCount: string; shippedCount: string; deliveredCount: string };
+    status: Record<string, string>;
+    columns: {
+      shipment: string;
+      salesOrder: string;
+      customer: string;
+      status: string;
+      boxes: string;
+      shippedAt: string;
+      createdAt: string;
+    };
+    empty: string;
+  };
 };
 
 export type ReportingOverviewProps = {
@@ -137,6 +154,7 @@ export type ReportingOverviewProps = {
   quality: QualitySummary;
   procurement: ProcurementSummary;
   receipts: ReceiptsSummary;
+  shipments: ShipmentsSummary;
   productionExportInput: {
     from: string;
     to: string;
@@ -676,6 +694,99 @@ function ReceiptsSection({
   );
 }
 
+// ── Section: shipments ────────────────────────────────────────────────────────
+
+function ShipmentsSection({
+  data,
+  labels,
+  canExportCsv,
+  notAvailable,
+  exportLabel,
+  exportDenied,
+}: {
+  data: ShipmentsSummary;
+  labels: ReportingLabels['shipments'];
+  canExportCsv: boolean;
+  notAvailable: string;
+  exportLabel: string;
+  exportDenied: string;
+}) {
+  const c = labels.columns;
+  const statusLabel = (status: string) => labels.status[status] ?? status;
+  const exportRows = () =>
+    downloadCsv(
+      toCsv(
+        [c.shipment, c.salesOrder, c.customer, c.status, c.boxes, c.shippedAt, c.createdAt],
+        data.rows.map((r) => [
+          r.shipmentNumber,
+          r.salesOrderNumber ?? '',
+          r.customerName ?? '',
+          statusLabel(r.status),
+          r.boxCount,
+          shortDate(r.shippedAt),
+          shortDate(r.createdAt),
+        ]),
+      ),
+      `reporting-shipments-${isoDateStamp()}.csv`,
+    );
+
+  return (
+    <Card data-testid="rpt-section-shipments">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle>{labels.title}</CardTitle>
+          <p className="mt-0.5 text-xs text-slate-500">{labels.window}</p>
+        </div>
+        <ExportButton
+          onExport={exportRows}
+          canExportCsv={canExportCsv}
+          label={exportLabel}
+          deniedTitle={exportDenied}
+          testId="rpt-export-shipments"
+        />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiTile label={labels.kpi.shipmentCount} value={String(data.totals.shipmentCount)} />
+          <KpiTile label={labels.kpi.packingCount} value={String(data.totals.packingCount)} />
+          <KpiTile label={labels.kpi.shippedCount} value={String(data.totals.shippedCount)} />
+          <KpiTile label={labels.kpi.deliveredCount} value={String(data.totals.deliveredCount)} />
+        </div>
+        {data.rows.length === 0 ? (
+          <SectionEmpty message={labels.empty} testId="rpt-empty-shipments" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{c.shipment}</TableHead>
+                <TableHead>{c.salesOrder}</TableHead>
+                <TableHead>{c.customer}</TableHead>
+                <TableHead>{c.status}</TableHead>
+                <TableHead className="text-right">{c.boxes}</TableHead>
+                <TableHead>{c.shippedAt}</TableHead>
+                <TableHead>{c.createdAt}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.rows.map((r) => (
+                <TableRow key={r.shipmentId}>
+                  <TableCell className="font-mono text-xs font-semibold">{r.shipmentNumber}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.salesOrderNumber ?? notAvailable}</TableCell>
+                  <TableCell className="text-xs">{r.customerName ?? notAvailable}</TableCell>
+                  <TableCell className="text-xs">{statusLabel(r.status)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">{r.boxCount}</TableCell>
+                  <TableCell className="font-mono text-xs">{shortDate(r.shippedAt)}</TableCell>
+                  <TableCell className="font-mono text-xs">{shortDate(r.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export function ReportingOverviewClient({
@@ -684,6 +795,7 @@ export function ReportingOverviewClient({
   quality,
   procurement,
   receipts,
+  shipments,
   productionExportInput,
   canExportCsv,
   labels,
@@ -726,6 +838,14 @@ export function ReportingOverviewClient({
       <ReceiptsSection
         data={receipts}
         labels={labels.receipts}
+        canExportCsv={canExportCsv}
+        notAvailable={labels.page.notAvailable}
+        exportLabel={labels.page.exportCsv}
+        exportDenied={labels.page.exportCsvDenied}
+      />
+      <ShipmentsSection
+        data={shipments}
+        labels={labels.shipments}
         canExportCsv={canExportCsv}
         notAvailable={labels.page.notAvailable}
         exportLabel={labels.page.exportCsv}

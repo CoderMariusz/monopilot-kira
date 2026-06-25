@@ -131,6 +131,34 @@
         "posted": "Posted"
       },
       "empty": "No goods receipts were recorded in this window."
+    },
+    "shipments": {
+      "title": "Shipments summary",
+      "kpi": {
+        "shipmentCount": "Shipments (window)",
+        "packingCount": "Packing",
+        "shippedCount": "Shipped",
+        "deliveredCount": "Delivered"
+      },
+      "status": {
+        "pending": "Pending",
+        "packing": "Packing",
+        "packed": "Packed",
+        "manifested": "Manifested",
+        "shipped": "Shipped",
+        "delivered": "Delivered",
+        "exception": "Exception"
+      },
+      "columns": {
+        "shipment": "Shipment",
+        "salesOrder": "Order",
+        "customer": "Customer",
+        "status": "Status",
+        "boxes": "Boxes",
+        "shippedAt": "Shipped",
+        "createdAt": "Created"
+      },
+      "empty": "No shipments were created in this window."
     }
   },
   "pl": {
@@ -265,6 +293,34 @@
         "posted": "Zaksięgowane"
       },
       "empty": "W tym oknie nie zarejestrowano żadnych przyjęć."
+    },
+    "shipments": {
+      "title": "Wysyłki — podsumowanie",
+      "kpi": {
+        "shipmentCount": "Wysyłki (okno)",
+        "packingCount": "Pakowanie",
+        "shippedCount": "Wysłane",
+        "deliveredCount": "Dostarczone"
+      },
+      "status": {
+        "pending": "Oczekuje",
+        "packing": "Pakowanie",
+        "packed": "Spakowane",
+        "manifested": "Zmanifestowane",
+        "shipped": "Wysłane",
+        "delivered": "Dostarczone",
+        "exception": "Wyjątek"
+      },
+      "columns": {
+        "shipment": "Wysyłka",
+        "salesOrder": "Zamówienie",
+        "customer": "Klient",
+        "status": "Status",
+        "boxes": "Kartony",
+        "shippedAt": "Wysłano",
+        "createdAt": "Utworzono"
+      },
+      "empty": "W tym oknie nie utworzono żadnych wysyłek."
     }
   }
 }

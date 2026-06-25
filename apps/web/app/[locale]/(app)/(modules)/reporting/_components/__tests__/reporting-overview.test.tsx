@@ -29,6 +29,7 @@ import type {
   ProductionSummary,
   QualitySummary,
   ReceiptsSummary,
+  ShipmentsSummary,
 } from '../../_actions/shared';
 
 const downloadCsvMock = vi.fn((_content: string, filename: string) => filename);
@@ -188,6 +189,35 @@ function buildLabels(locale: string): ReportingLabels {
       },
       empty: t('receipts.empty'),
     },
+    shipments: {
+      title: t('shipments.title'),
+      window: t('page.windowDays', { days: 7 }),
+      kpi: {
+        shipmentCount: t('shipments.kpi.shipmentCount'),
+        packingCount: t('shipments.kpi.packingCount'),
+        shippedCount: t('shipments.kpi.shippedCount'),
+        deliveredCount: t('shipments.kpi.deliveredCount'),
+      },
+      status: {
+        pending: t('shipments.status.pending'),
+        packing: t('shipments.status.packing'),
+        packed: t('shipments.status.packed'),
+        manifested: t('shipments.status.manifested'),
+        shipped: t('shipments.status.shipped'),
+        delivered: t('shipments.status.delivered'),
+        exception: t('shipments.status.exception'),
+      },
+      columns: {
+        shipment: t('shipments.columns.shipment'),
+        salesOrder: t('shipments.columns.salesOrder'),
+        customer: t('shipments.columns.customer'),
+        status: t('shipments.columns.status'),
+        boxes: t('shipments.columns.boxes'),
+        shippedAt: t('shipments.columns.shippedAt'),
+        createdAt: t('shipments.columns.createdAt'),
+      },
+      empty: t('shipments.empty'),
+    },
   };
 }
 
@@ -313,6 +343,36 @@ const emptyReceipts: ReceiptsSummary = {
   rows: [],
 };
 
+const shipments: ShipmentsSummary = {
+  days: 7,
+  totals: { shipmentCount: 3, packingCount: 1, shippedCount: 1, deliveredCount: 1 },
+  byStatus: [
+    { status: 'packing', count: 1 },
+    { status: 'shipped', count: 1 },
+    { status: 'delivered', count: 1 },
+  ],
+  rows: [
+    {
+      shipmentId: 'sh-1',
+      shipmentNumber: 'SH-2026-00003',
+      salesOrderNumber: 'SO-202606-00002',
+      customerName: 'Acme Foods',
+      status: 'delivered',
+      boxCount: 2,
+      createdAt: '2026-06-10T09:00:00.000Z',
+      shippedAt: '2026-06-10T12:00:00.000Z',
+      deliveredAt: '2026-06-11T08:00:00.000Z',
+    },
+  ],
+};
+
+const emptyShipments: ShipmentsSummary = {
+  days: 7,
+  totals: { shipmentCount: 0, packingCount: 0, shippedCount: 0, deliveredCount: 0 },
+  byStatus: [],
+  rows: [],
+};
+
 const emptyProduction: ProductionSummary = {
   days: 7,
   wosCompleted: 0,
@@ -357,6 +417,7 @@ function renderOverview(overrides: Partial<React.ComponentProps<typeof Reporting
       quality={quality}
       procurement={procurement}
       receipts={receipts}
+      shipments={shipments}
       canExportCsv
       labels={buildLabels('en')}
       {...overrides}
@@ -402,6 +463,12 @@ describe('ReportingOverviewClient', () => {
     expect(rec.getByText('GRN-2026-00002')).toBeInTheDocument();
     expect(rec.getByText('Acme Supplies')).toBeInTheDocument();
     expect(rec.getByText('5.000000 box · 125.250000 kg')).toBeInTheDocument();
+
+    const ship = within(screen.getByTestId('rpt-section-shipments'));
+    expect(ship.getByText('Shipments summary')).toBeInTheDocument();
+    expect(ship.getByText('Shipments (window)')).toBeInTheDocument();
+    expect(ship.getByText('SH-2026-00003')).toBeInTheDocument();
+    expect(ship.getByText('SO-202606-00002')).toBeInTheDocument();
   });
 
   it('renders the honest n/a placeholder for the not-computable confirmed→GRN KPI', () => {
@@ -464,6 +531,8 @@ describe('ReportingOverviewClient', () => {
       inventory: emptyInventory,
       quality: emptyQuality,
       procurement: emptyProcurement,
+      receipts: emptyReceipts,
+      shipments: emptyShipments,
     });
     expect(screen.getByTestId('rpt-empty-production')).toHaveTextContent(
       'No work orders were completed in this window.',
@@ -472,6 +541,12 @@ describe('ReportingOverviewClient', () => {
     expect(screen.getByTestId('rpt-empty-quality')).toHaveTextContent('No quality records in this window.');
     expect(screen.getByTestId('rpt-empty-procurement')).toHaveTextContent(
       'No purchase orders were created in this window.',
+    );
+    expect(screen.getByTestId('rpt-empty-receipts')).toHaveTextContent(
+      'No goods receipts were recorded in this window.',
+    );
+    expect(screen.getByTestId('rpt-empty-shipments')).toHaveTextContent(
+      'No shipments were created in this window.',
     );
   });
 
@@ -483,6 +558,7 @@ describe('ReportingOverviewClient', () => {
         quality={quality}
         procurement={procurement}
         receipts={receipts}
+        shipments={shipments}
         canExportCsv
         labels={buildLabels('pl')}
       />,
@@ -492,15 +568,17 @@ describe('ReportingOverviewClient', () => {
     expect(screen.getByText('Podsumowanie jakości')).toBeInTheDocument();
     expect(screen.getByText('Podsumowanie zaopatrzenia')).toBeInTheDocument();
     expect(screen.getByText('Przyjęcia (GRN) — podsumowanie')).toBeInTheDocument();
+    expect(screen.getByText('Wysyłki — podsumowanie')).toBeInTheDocument();
     const exportButtons = [
       'rpt-export-production',
       'rpt-export-inventory',
       'rpt-export-quality',
       'rpt-export-procurement',
       'rpt-export-receipts',
+      'rpt-export-shipments',
     ].map((id) => screen.getByTestId(id));
     for (const btn of exportButtons) expect(btn).toHaveTextContent('Eksportuj CSV');
     // no raw dotted key anywhere
-    expect(document.body.textContent).not.toMatch(/\b(production|inventory|quality|procurement|receipts)\.kpi\./);
+    expect(document.body.textContent).not.toMatch(/\b(production|inventory|quality|procurement|receipts|shipments)\.kpi\./);
   });
 });

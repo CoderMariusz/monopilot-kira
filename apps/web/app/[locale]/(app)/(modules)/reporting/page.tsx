@@ -39,6 +39,7 @@ import {
   reportingProductionLines,
   productionSummary,
   qualitySummary,
+  shipmentsSummary,
 } from './_actions/report-read-actions';
 import {
   PeriodSelector,
@@ -220,6 +221,35 @@ async function buildLabels(locale: string, window: ReportingWindow): Promise<Rep
       },
       empty: t('receipts.empty'),
     },
+    shipments: {
+      title: t('shipments.title'),
+      window: windowLabel,
+      kpi: {
+        shipmentCount: t('shipments.kpi.shipmentCount'),
+        packingCount: t('shipments.kpi.packingCount'),
+        shippedCount: t('shipments.kpi.shippedCount'),
+        deliveredCount: t('shipments.kpi.deliveredCount'),
+      },
+      status: {
+        pending: t('shipments.status.pending'),
+        packing: t('shipments.status.packing'),
+        packed: t('shipments.status.packed'),
+        manifested: t('shipments.status.manifested'),
+        shipped: t('shipments.status.shipped'),
+        delivered: t('shipments.status.delivered'),
+        exception: t('shipments.status.exception'),
+      },
+      columns: {
+        shipment: t('shipments.columns.shipment'),
+        salesOrder: t('shipments.columns.salesOrder'),
+        customer: t('shipments.columns.customer'),
+        status: t('shipments.columns.status'),
+        boxes: t('shipments.columns.boxes'),
+        shippedAt: t('shipments.columns.shippedAt'),
+        createdAt: t('shipments.columns.createdAt'),
+      },
+      empty: t('shipments.empty'),
+    },
   };
 }
 
@@ -250,16 +280,17 @@ async function loadReportingContent({
 
   // Future follow-up: quality and inventory intentionally receive only the
   // selected date window; line/order filters are scoped to production/procurement.
-  const [production, inventory, quality, procurement, receipts, exportAccess] = await Promise.all([
+  const [production, inventory, quality, procurement, receipts, shipments, exportAccess] = await Promise.all([
     productionSummary({ from, to, lineId: filters.lineId, orderQuery: filters.orderQuery }),
     inventorySnapshot({ from, to }),
     qualitySummary({ from, to }),
     procurementSummary({ from, to, orderQuery: filters.orderQuery }),
     receiptsSummary({ from, to, orderQuery: filters.orderQuery }),
+    shipmentsSummary({ from, to, orderQuery: filters.orderQuery }),
     getReportingExportAccess(),
   ]);
 
-  const results = [production, inventory, quality, procurement, receipts] as const;
+  const results = [production, inventory, quality, procurement, receipts, shipments] as const;
 
   // ── Permission-denied state (server-resolved by the actions) ────────────────
   if (results.some((r) => !r.ok && r.reason === 'forbidden')) {
@@ -275,7 +306,7 @@ async function loadReportingContent({
   }
 
   // ── Error state (failed live read → banner, never a 500) ────────────────────
-  if (!production.ok || !inventory.ok || !quality.ok || !procurement.ok || !receipts.ok) {
+  if (!production.ok || !inventory.ok || !quality.ok || !procurement.ok || !receipts.ok || !shipments.ok) {
     return (
       <div
         role="alert"
@@ -297,6 +328,7 @@ async function loadReportingContent({
       quality={quality.data}
       procurement={procurement.data}
       receipts={receipts.data}
+      shipments={shipments.data}
       productionExportInput={{
         from: from.toISOString(),
         to: to.toISOString(),
