@@ -1586,7 +1586,8 @@
         "allergenCascade": "Allergen cascade",
         "fgDashboard": "FG Dashboard",
         "finishedGoods": "Finished Goods",
-        "briefs": "Briefs"
+        "briefs": "Briefs",
+        "costingRollup": "Costing roll-up"
       },
       "groups": {
         "apex": "Apex"

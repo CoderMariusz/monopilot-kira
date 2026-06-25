@@ -1567,7 +1567,8 @@
         "allergenCascade": "Cascadă alergeni",
         "fgDashboard": "Tablou PF",
         "finishedGoods": "Produse finite",
-        "briefs": "Briefuri"
+        "briefs": "Briefuri",
+        "costingRollup": "Costing roll-up"
       },
       "groups": {
         "apex": "Apex"

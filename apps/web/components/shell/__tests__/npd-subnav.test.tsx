@@ -117,6 +117,7 @@ describe('NpdSubNav', () => {
       ['projects', '/pipeline'],
       ['formulations', '/formulations'],
       ['allergenCascade', '/allergen-cascade'],
+      ['costingRollup', '/costing/rollup'],
     ]);
     expect(NPD_NAV_APEX_GROUP.items.map((t) => [t.key, t.route])).toEqual([
       ['fgDashboard', '/npd'],

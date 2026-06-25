@@ -1567,7 +1567,8 @@
         "allergenCascade": "Каскад алергенів",
         "fgDashboard": "Панель ГП",
         "finishedGoods": "Готова продукція",
-        "briefs": "Брифи"
+        "briefs": "Брифи",
+        "costingRollup": "Costing roll-up"
       },
       "groups": {
         "apex": "Apex"

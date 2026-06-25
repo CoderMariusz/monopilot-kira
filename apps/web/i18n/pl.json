@@ -1567,7 +1567,8 @@
         "allergenCascade": "Kaskada alergenów",
         "fgDashboard": "Pulpit WG",
         "finishedGoods": "Wyroby gotowe",
-        "briefs": "Briefy"
+        "briefs": "Briefy",
+        "costingRollup": "Zbiorcze koszty"
       },
       "groups": {
         "apex": "Apex"
