@@ -135,3 +135,11 @@
   - DB-pool exhaustion (L1/L2 infra) → addressed: prefetch-storm load driver fixed (d4b85a9c) + idle-release tuning (e01ea8f8) + per-request client reuse (#50/d5bff767).
 - 9/9 findings checked across BOTH queues = all fixed. Technical backlog genuinely worked-down (method now rigorous).
 - REMAINING (NOT autonomous): owner-decision feature-gaps (createCustomer UI, PO cancel/Reopen UI, DRAFT-WO Release flow, desktop-PO-receive design); browser-confirm L2/L3 polish (cycle-count list refresh, integrations dead "Przeglądaj katalog", appointment UTC offset, add-machine button); L3 WO-state JSON via API-under-locale-seg. Best next = LIVE browser RE-VERIFY of the 9 fixes + PL i18n (deferred — protecting reserve; recommended for a comfortable-budget window / owner's morning).
+
+## 2026-06-25 (LIVE browser RE-VERIFY — all green + 1 new L3 → fix dispatched)
+- Ran a focused live browser RE-VERIFY (subagent, snapshots stay in its context). Login admin@monopilot.test on prod /pl. Results: ALL PASS —
+  - Sites&Lines lines-list: PASS (Demo Plant renders 11 lines; "Edytuj" opens Edit-line modal). The L1 empty-list bug is GONE live.
+  - PL i18n: PASS on Settings/Security, NPD pipeline kanban, Technical — fully Polish, NO raw key leaks, no English in main content.
+  - Scheduler (+changeover matrix) + Yard (+appointments): PASS, all load clean (no "Coś poszło nie tak", no 42702).
+- The 9 code-verified fixes CONFIRMED working LIVE. PL i18n headline deliverable confirmed live for testers.
+- NEW L3 (the only finding): the sites Add/Edit-line MODAL renders ENGLISH on /pl (DEFAULT_SITES_MODAL_LABELS fallback; page.tsx doesn't pass the optional modalLabels prop). Track-1→Track-2 loop: dispatched lane a7735edc to add settings.sites.modal.* keys ×4 + wire modalLabels in page.tsx. Verify parity+build → push → (re-verify next browser pass).

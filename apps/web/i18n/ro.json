@@ -1109,7 +1109,30 @@
       "haccp": "Certificare HACCP",
       "haccp_valid": "Valid",
       "haccp_disabled": "Necertificat",
-      "haccp_expires": "Expiră la {date}"
+      "haccp_expires": "Expiră la {date}",
+      "modal": {
+        "addSiteTitle": "Add site",
+        "addLineTitle": "Add production line",
+        "editLineTitle": "Edit production line",
+        "fieldSiteCode": "Site code",
+        "fieldName": "Name",
+        "fieldTimezone": "Timezone",
+        "fieldCountry": "Country",
+        "fieldLegalEntity": "Legal entity",
+        "fieldPrimary": "Primary site",
+        "fieldLineCode": "Line code",
+        "fieldStatus": "Status",
+        "statusActive": "Active",
+        "statusMaintenance": "Maintenance",
+        "statusInactive": "Inactive",
+        "required": "required",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…",
+        "errorRequired": "This field is required.",
+        "errorDuplicate": "This code is already used in this site. Please choose another.",
+        "errorGeneric": "Something went wrong. Please try again."
+      }
     },
     "boms": {
       "title": "BOM-uri și rețete",

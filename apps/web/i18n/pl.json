@@ -1144,7 +1144,30 @@
       "haccp": "Certyfikacja HACCP",
       "haccp_valid": "Ważny",
       "haccp_disabled": "Brak certyfikatu",
-      "haccp_expires": "Wygasa {date}"
+      "haccp_expires": "Wygasa {date}",
+      "modal": {
+        "addSiteTitle": "Dodaj zakład",
+        "addLineTitle": "Dodaj linię produkcyjną",
+        "editLineTitle": "Edytuj linię produkcyjną",
+        "fieldSiteCode": "Kod zakładu",
+        "fieldName": "Nazwa",
+        "fieldTimezone": "Strefa czasowa",
+        "fieldCountry": "Kraj",
+        "fieldLegalEntity": "Podmiot prawny",
+        "fieldPrimary": "Zakład główny",
+        "fieldLineCode": "Kod linii",
+        "fieldStatus": "Status",
+        "statusActive": "Aktywna",
+        "statusMaintenance": "Konserwacja",
+        "statusInactive": "Nieaktywna",
+        "required": "wymagane",
+        "cancel": "Anuluj",
+        "save": "Zapisz",
+        "saving": "Zapisywanie…",
+        "errorRequired": "To pole jest wymagane.",
+        "errorDuplicate": "Ten kod jest już używany w tym zakładzie. Wybierz inny.",
+        "errorGeneric": "Coś poszło nie tak. Spróbuj ponownie."
+      }
     },
     "boms": {
       "title": "BOM-y i receptury",

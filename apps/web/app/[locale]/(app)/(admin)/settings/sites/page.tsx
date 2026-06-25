@@ -11,7 +11,7 @@ import {
   type LineRow,
   type UpdateLineInput,
 } from './_actions/sites';
-import SitesScreen, { type SitesScreenLabels } from './sites-screen.client';
+import SitesScreen, { type SitesModalLabels, type SitesScreenLabels } from './sites-screen.client';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +54,33 @@ async function buildLabels(locale: string): Promise<SitesScreenLabels> {
   };
 }
 
+async function buildModalLabels(locale: string): Promise<SitesModalLabels> {
+  const t = await getTranslations({ locale, namespace: LABEL_NAMESPACE });
+  return {
+    addSiteTitle: t('modal.addSiteTitle'),
+    addLineTitle: t('modal.addLineTitle'),
+    editLineTitle: t('modal.editLineTitle'),
+    fieldSiteCode: t('modal.fieldSiteCode'),
+    fieldName: t('modal.fieldName'),
+    fieldTimezone: t('modal.fieldTimezone'),
+    fieldCountry: t('modal.fieldCountry'),
+    fieldLegalEntity: t('modal.fieldLegalEntity'),
+    fieldPrimary: t('modal.fieldPrimary'),
+    fieldLineCode: t('modal.fieldLineCode'),
+    fieldStatus: t('modal.fieldStatus'),
+    statusActive: t('modal.statusActive'),
+    statusMaintenance: t('modal.statusMaintenance'),
+    statusInactive: t('modal.statusInactive'),
+    required: t('modal.required'),
+    cancel: t('modal.cancel'),
+    save: t('modal.save'),
+    saving: t('modal.saving'),
+    errorRequired: t('modal.errorRequired'),
+    errorDuplicate: t('modal.errorDuplicate'),
+    errorGeneric: t('modal.errorGeneric'),
+  };
+}
+
 /**
  * Server boundary for the canonical Sites & production lines screen.
  *
@@ -67,7 +94,11 @@ async function buildLabels(locale: string): Promise<SitesScreenLabels> {
 export default async function SitesSettingsPage({ params }: PageProps = {}) {
   const { locale } = (await params) ?? { locale: 'en' };
 
-  const [labels, data] = await Promise.all([buildLabels(locale), readSitesSettingsData()]);
+  const [labels, modalLabels, data] = await Promise.all([
+    buildLabels(locale),
+    buildModalLabels(locale),
+    readSitesSettingsData(),
+  ]);
 
   async function loadLinesForSelectedSite(siteId: string): Promise<LineRow[]> {
     'use server';
@@ -99,6 +130,7 @@ export default async function SitesSettingsPage({ params }: PageProps = {}) {
       initialLines={data.lines}
       canEdit={data.can_edit}
       labels={labels}
+      modalLabels={modalLabels}
       loadLines={loadLinesForSelectedSite}
       createSiteAction={createSiteAction}
       createLineAction={createLineAction}
