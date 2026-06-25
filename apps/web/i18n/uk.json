@@ -10113,6 +10113,7 @@
       "error": "Unable to load appointments. Try again after the backend is available.",
       "empty": "No appointments in this window.",
       "book": "Book appointment",
+      "noDockDoors": "Add a dock door first to book appointments.",
       "viewDay": "Day",
       "viewWeek": "Week",
       "previous": "Previous",

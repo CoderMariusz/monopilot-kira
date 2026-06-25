@@ -10113,6 +10113,7 @@
       "error": "Nie można wczytać awizacji. Spróbuj ponownie, gdy backend będzie dostępny.",
       "empty": "Brak awizacji w tym oknie.",
       "book": "Zarezerwuj slot",
+      "noDockDoors": "Najpierw dodaj bramę dokową, aby rezerwować sloty.",
       "viewDay": "Dzień",
       "viewWeek": "Tydzień",
       "previous": "Poprzedni",
