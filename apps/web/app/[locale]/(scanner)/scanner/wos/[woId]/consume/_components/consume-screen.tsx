@@ -23,11 +23,13 @@ import {
   Btn,
   BottomActions,
   Content,
+  ScanInputArea,
   ScannerScreen,
   StepsBar,
   Topbar,
   scannerTokens as T,
 } from "../../../../../../../../components/shell/scanner-primitives";
+import { CameraScannerOverlay } from "../../../../../../../../components/shell/camera-scanner-overlay";
 import { QtyKeypadSheet } from "../../../../../_components/scanner-modals";
 import { useScannerSession } from "../../../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../../../_components/scanner-labels";
@@ -82,6 +84,9 @@ export function ConsumeScreen({
   // FEFO LP candidates for the selected material (top = suggested).
   const [lps, setLps] = useState<LpCandidate[]>([]);
   const [lpState, setLpState] = useState<LpState>("loading");
+  const [lpScanVal, setLpScanVal] = useState("");
+  const [lpScanState, setLpScanState] = useState<"idle" | "err" | "ok">("idle");
+  const [lpCameraOpen, setLpCameraOpen] = useState(false);
   const [selectedLp, setSelectedLp] = useState<LpCandidate | null>(null);
   const [qty, setQty] = useState("");
   const [reasonCode, setReasonCode] = useState("");
@@ -158,6 +163,8 @@ export function ConsumeScreen({
     const remaining = remainingQty(m);
     setQty(remaining > 0 ? String(remaining) : "");
     setSelectedLp(null);
+    setLpScanVal("");
+    setLpScanState("idle");
     setReasonCode("");
     setSubmitErr(null);
     setApproval(null);
@@ -189,6 +196,18 @@ export function ConsumeScreen({
     setApproval(null);
     setClientOpId(null);
     setPhase("qty");
+  };
+
+  const scanLpCode = (raw: string) => {
+    const code = raw.trim();
+    setLpScanVal(code);
+    const lp = lps.find((candidate) => candidate.lpNumber.toLowerCase() === code.toLowerCase());
+    if (!lp) {
+      setLpScanState("err");
+      return;
+    }
+    setLpScanState("ok");
+    chooseLp(lp);
   };
 
   const confirm = async (approver?: { email: string; pin: string }) => {
@@ -277,6 +296,16 @@ export function ConsumeScreen({
   return (
     <ScannerScreen>
       <Topbar title={title} onBack={onBack} labels={shellLabels.topbar} />
+      <CameraScannerOverlay
+        open={lpCameraOpen}
+        onDecode={(scanned) => {
+          setLpCameraOpen(false);
+          setLpScanVal(scanned);
+          scanLpCode(scanned);
+        }}
+        onCancel={() => setLpCameraOpen(false)}
+        labels={shellLabels.cameraScanner}
+      />
 
       {phase === "done" ? (
         <>
@@ -377,6 +406,18 @@ export function ConsumeScreen({
                   </div>
                 </div>
                 <div style={{ marginTop: 8 }}>
+                  <ScanInputArea
+                    label={L.lpTitle}
+                    value={lpScanVal}
+                    onChange={(v) => {
+                      setLpScanVal(v);
+                      if (lpScanState === "err") setLpScanState("idle");
+                    }}
+                    onSubmit={scanLpCode}
+                    state={lpScanState}
+                    labels={shellLabels.scanTools}
+                    onOpenCamera={() => setLpCameraOpen(true)}
+                  />
                   {lpState === "loading" && (
                     <div style={{ padding: "16px 24px", textAlign: "center", color: T.mute }}>
                       {L.lpLoading}

@@ -26,6 +26,7 @@ import {
   Topbar,
   scannerTokens as T,
 } from "../../../../../../../../components/shell/scanner-primitives";
+import { CameraScannerOverlay } from "../../../../../../../../components/shell/camera-scanner-overlay";
 import { QtyKeypadSheet } from "../../../../../_components/scanner-modals";
 import { useScannerSession } from "../../../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../../../_components/scanner-labels";
@@ -71,6 +72,7 @@ export function OutputScreen({
   const [qty, setQty] = useState("");
   const [weight, setWeight] = useState("");
   const [batch, setBatch] = useState("");
+  const [batchCameraOpen, setBatchCameraOpen] = useState(false);
   const [showQtyKeypad, setShowQtyKeypad] = useState(false);
   const [showWeightKeypad, setShowWeightKeypad] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -223,6 +225,15 @@ export function OutputScreen({
         onBack={() => router.push(`/${locale}/scanner/wos/${woId}`)}
         labels={shellLabels.topbar}
       />
+      <CameraScannerOverlay
+        open={batchCameraOpen}
+        onDecode={(scanned) => {
+          setBatchCameraOpen(false);
+          setBatch(scanned);
+        }}
+        onCancel={() => setBatchCameraOpen(false)}
+        labels={shellLabels.cameraScanner}
+      />
 
       {phase === "done" ? (
         <>
@@ -339,15 +350,28 @@ export function OutputScreen({
 
                 <div style={{ padding: "12px 16px 0" }}>
                   <div style={fieldLabelStyle}>{L.batchLabel}</div>
-                  <input
-                    aria-label={L.batchLabel}
-                    value={batch}
-                    onChange={(e) => setBatch(e.target.value)}
-                    placeholder={L.batchPlaceholder}
-                    style={textFieldStyle}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
+                  <div style={scanFieldRowStyle}>
+                    <input
+                      aria-label={L.batchLabel}
+                      value={batch}
+                      onChange={(e) => setBatch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setBatch(e.currentTarget.value);
+                      }}
+                      placeholder={L.batchPlaceholder}
+                      style={textFieldStyle}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBatchCameraOpen(true)}
+                      aria-label={shellLabels.scanTools.camera}
+                      style={cameraButtonStyle}
+                    >
+                      <span aria-hidden="true">📷</span>
+                    </button>
+                  </div>
                   <div style={{ marginTop: 6, fontSize: 11, color: T.hint }}>{L.batchHint}</div>
                 </div>
 
@@ -475,8 +499,26 @@ const qtyFieldStyle = {
   cursor: "pointer",
 } as const;
 
+const scanFieldRowStyle = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+} as const;
+
+const cameraButtonStyle = {
+  width: 48,
+  height: 48,
+  borderRadius: 12,
+  border: `1px solid ${T.elev}`,
+  background: "transparent",
+  color: T.txt2,
+  fontSize: 18,
+  cursor: "pointer",
+} as const;
+
 const textFieldStyle = {
-  width: "100%",
+  flex: 1,
+  minWidth: 0,
   height: 48,
   borderRadius: 12,
   border: `1px solid ${T.elev}`,
