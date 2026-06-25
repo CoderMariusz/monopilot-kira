@@ -200,8 +200,11 @@ async function resolveSiteId(
                  from public.warehouses w
                 where w.org_id = app.current_org_id()
                   and w.id = $1::uuid),
-              (select l.site_id
+              (select w.site_id
                  from public.locations l
+                 join public.warehouses w
+                   on w.org_id = l.org_id
+                  and w.id = l.warehouse_id
                 where l.org_id = app.current_org_id()
                   and l.id = $2::uuid)
             )::text as site_id`,

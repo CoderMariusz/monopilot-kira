@@ -176,6 +176,13 @@ describe('applyDirectAdjustment — write paths', () => {
     expect(mintSql).toContain("'available', 'pending'");
     expect(mintSql).toContain("'adjustment'");
 
+    const siteResolver = findCall('select coalesce', 'from public.locations l');
+    expect(siteResolver).toBeDefined();
+    expect(normalize(siteResolver!.sql)).toContain('join public.warehouses w on w.org_id = l.org_id and w.id = l.warehouse_id');
+    expect(normalize(siteResolver!.sql)).not.toContain('select l.site_id');
+
+    expect(findCall('insert into public.stock_adjustments')).toBeDefined();
+
     // increase records no supervisor in the move ext
     const move = findCall('insert into public.stock_moves');
     expect(move).toBeDefined();
