@@ -4240,6 +4240,7 @@
     },
     "faDetail": {
       "eyebrow": "Готовий виріб",
+      "breadcrumbAriaLabel": "Breadcrumb",
       "subtitle": "Робочий простір відділів · закрийте кожен відділ, щоб завершити ГВ",
       "built": "Зібрано",
       "loading": "Завантаження готового виробу…",
@@ -4257,6 +4258,7 @@
         "Built": "Зібрано"
       },
       "tabs": {
+        "tablistLabel": "FA detail departments",
         "core": "Основне",
         "planning": "Планування",
         "commercial": "Комерційне",
@@ -4295,7 +4297,9 @@
       "workflow": {
         "line": "Шаблон процесу: {template} — {type} · {count} відділів",
         "fallbackTemplate": "Стандартний NPD",
-        "fallbackType": "Один компонент"
+        "fallbackType": "Один компонент",
+        "multiComponentType": "Multi component",
+        "singleComponentType": "Single component"
       }
     },
     "dashboard": {

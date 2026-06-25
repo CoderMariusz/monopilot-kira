@@ -4240,6 +4240,7 @@
     },
     "faDetail": {
       "eyebrow": "Produs finit",
+      "breadcrumbAriaLabel": "Breadcrumb",
       "subtitle": "Spațiu de lucru pe departamente · închide fiecare departament pentru a finaliza FG",
       "built": "Construit",
       "loading": "Se încarcă produsul finit…",
@@ -4257,6 +4258,7 @@
         "Built": "Construit"
       },
       "tabs": {
+        "tablistLabel": "FA detail departments",
         "core": "De bază",
         "planning": "Planificare",
         "commercial": "Comercial",
@@ -4295,7 +4297,9 @@
       "workflow": {
         "line": "Șablon flux: {template} — {type} · {count} departamente",
         "fallbackTemplate": "NPD standard",
-        "fallbackType": "Componentă unică"
+        "fallbackType": "Componentă unică",
+        "multiComponentType": "Multi component",
+        "singleComponentType": "Single component"
       }
     },
     "dashboard": {

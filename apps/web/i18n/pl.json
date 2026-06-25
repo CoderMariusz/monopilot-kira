@@ -4240,6 +4240,7 @@
     },
     "faDetail": {
       "eyebrow": "Wyrób gotowy",
+      "breadcrumbAriaLabel": "Okruszki nawigacyjne",
       "subtitle": "Przestrzeń działów · zamknij każdy dział, aby ukończyć wyrób gotowy",
       "built": "Zbudowany",
       "loading": "Wczytywanie wyrobu gotowego…",
@@ -4257,6 +4258,7 @@
         "Built": "Zbudowany"
       },
       "tabs": {
+        "tablistLabel": "Działy szczegółów FA",
         "core": "Podstawowe",
         "planning": "Planowanie",
         "commercial": "Handlowe",
@@ -4295,7 +4297,9 @@
       "workflow": {
         "line": "Szablon przepływu: {template} — {type} · {count} działów",
         "fallbackTemplate": "Standardowy NPD",
-        "fallbackType": "Pojedynczy komponent"
+        "fallbackType": "Pojedynczy komponent",
+        "multiComponentType": "Wielokomponentowy",
+        "singleComponentType": "Pojedynczy komponent"
       }
     },
     "dashboard": {

@@ -2060,6 +2060,7 @@
     },
     "faDetail": {
       "eyebrow": "Finished Good",
+      "breadcrumbAriaLabel": "Breadcrumb",
       "subtitle": "Department workspace · close each department to complete the FG",
       "built": "Built",
       "loading": "Loading Finished Good…",
@@ -2077,6 +2078,7 @@
         "Built": "Built"
       },
       "tabs": {
+        "tablistLabel": "FA detail departments",
         "core": "Core",
         "planning": "Planning",
         "commercial": "Commercial",
@@ -2115,7 +2117,9 @@
       "workflow": {
         "line": "Workflow template: {template} — {type} · {count} departments",
         "fallbackTemplate": "Standard NPD",
-        "fallbackType": "Single component"
+        "fallbackType": "Single component",
+        "multiComponentType": "Multi component",
+        "singleComponentType": "Single component"
       }
     },
     "dashboard": {

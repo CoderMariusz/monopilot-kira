@@ -115,3 +115,8 @@
 - Sites&Lines "edit a created line" (owner-found L1) = VERIFIED ALREADY FIXED: updateLine action (sites.ts:618) + full UI wiring in sites-screen.client.tsx (editLine modal @504, action={updateLineAction} @509, 'Edit production line' label). 4th stale finding (RBAC/locale-href/cold-chain/sites-edit). Audit + owner-found backlog ~cleared.
 - Hardcoded-EN lint: real user-facing debt (excl. test files) concentrated in NPD fa/page.tsx (137), production wos/[id]/page.tsx (119), NPD formulation/page.tsx (92), pipeline/page.tsx (53) — render EN on /pl. BACKLOG for fresh-budget sessions (big pages = careful parity+build+render verify; not safe to batch all unattended at 4am).
 - Dispatched ONE bounded pilot lane: NPD pipeline/page.tsx (53) hardcoded-EN → t() + keys ×4 locale, parity-gated. Will review diff + build + parity before push. Bigger pages (fa 137, wos 119) deferred to fresh budget.
+
+## 2026-06-25 (heartbeat — FA i18n lane mid-flight, sequential by necessity)
+- FA page i18n lane (abcf384173) still running (writes at end). df857037 (pipeline i18n) deploy was BUILDING.
+- Concurrency note: remaining safe autonomous work = i18n page conversions (fa 137 / wos 119 / formulation 92), ALL of which edit the shared 4 locale JSONs → MUST be sequential (one json-editor at a time, the "one pl.json editor" rule). Backend/audit backlog verified-cleared (4 stale findings), config-audit remainders need owner prioritization (not autonomous). So 1 i18n lane = correct max concurrency for this workstream; no safe 2nd parallel lane available.
+- On FA completion: verify (keys ×4 + ICU + build) → push → dispatch next page (wos/[id] 119).

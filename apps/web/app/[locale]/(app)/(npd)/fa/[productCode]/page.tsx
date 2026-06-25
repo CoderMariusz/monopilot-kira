@@ -531,6 +531,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
 
 type FaDetailLabels = {
   eyebrow: string;
+  breadcrumbAriaLabel: string;
   subtitle: string;
   built: string;
   empty: string;
@@ -553,11 +554,14 @@ type FaDetailLabels = {
     line: string;
     fallbackTemplate: string;
     fallbackType: string;
+    multiComponentType: string;
+    singleComponentType: string;
   };
 };
 
 const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
   eyebrow: 'Finished Good',
+  breadcrumbAriaLabel: 'Breadcrumb',
   subtitle: 'Department workspace · close each department to complete the FG',
   built: 'Built',
   empty: 'Finished Good not found',
@@ -616,6 +620,8 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
     line: 'Workflow template: {template} — {type} · {count} departments',
     fallbackTemplate: 'Standard NPD',
     fallbackType: 'Single component',
+    multiComponentType: 'Multi component',
+    singleComponentType: 'Single component',
   },
 };
 
@@ -633,6 +639,7 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
     const d = DEFAULT_FA_DETAIL_LABELS;
     return {
       eyebrow: pick('eyebrow', d.eyebrow),
+      breadcrumbAriaLabel: pick('breadcrumbAriaLabel', d.breadcrumbAriaLabel),
       subtitle: pick('subtitle', d.subtitle),
       built: pick('built', d.built),
       empty: pick('empty', d.empty),
@@ -647,7 +654,7 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
         Built: pick('status.Built', d.status.Built),
       },
       tabs: {
-        tablistLabel: d.tabs.tablistLabel,
+        tablistLabel: pick('tabs.tablistLabel', d.tabs.tablistLabel),
         tabs: {
           core: pick('tabs.core', d.tabs.tabs.core),
           planning: pick('tabs.planning', d.tabs.tabs.planning),
@@ -691,6 +698,8 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
         line: pick('workflow.line', d.workflow.line),
         fallbackTemplate: pick('workflow.fallbackTemplate', d.workflow.fallbackTemplate),
         fallbackType: pick('workflow.fallbackType', d.workflow.fallbackType),
+        multiComponentType: pick('workflow.multiComponentType', d.workflow.multiComponentType),
+        singleComponentType: pick('workflow.singleComponentType', d.workflow.singleComponentType),
       },
     };
   } catch {
@@ -1218,7 +1227,11 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     ? recipeComponents.split(',').filter((s) => s.trim() !== '').length
     : 0;
   const workflowType =
-    componentCount > 1 ? 'Multi component' : componentCount === 1 ? 'Single component' : labels.workflow.fallbackType;
+    componentCount > 1
+      ? labels.workflow.multiComponentType
+      : componentCount === 1
+        ? labels.workflow.singleComponentType
+        : labels.workflow.fallbackType;
   const workflowLine = labels.workflow.line
     .replace('{template}', workflowTemplate)
     .replace('{type}', workflowType)
@@ -1422,7 +1435,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         className="sticky-form-header"
         style={{ padding: '10px 16px', marginBottom: 4, position: 'static' }}
       >
-        <nav aria-label="breadcrumb" className="breadcrumb">
+        <nav aria-label={labels.breadcrumbAriaLabel} className="breadcrumb">
           NPD / <span>{labels.eyebrow}</span>
         </nav>
         <div className="page-head" style={{ marginBottom: 0 }}>
