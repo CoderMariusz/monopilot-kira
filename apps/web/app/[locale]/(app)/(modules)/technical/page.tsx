@@ -41,6 +41,10 @@ export const dynamic = 'force-dynamic';
 
 type NavCard = { key: string; href: string };
 
+type TechnicalDashboardPageProps = {
+  params: Promise<{ locale: string }>;
+};
+
 // Nav cards → the Technical sub-areas. Paths are the canonical module routes;
 // item-detail / bom / allergen / cost / factory-specs / sensory routes are
 // owned by sibling agents — this page only links to them. D365 now lives in
@@ -86,7 +90,7 @@ function DashboardSkeleton() {
   );
 }
 
-async function DashboardContent() {
+async function DashboardContent({ locale }: { locale: string }) {
   const t = await getTranslations('technical.dashboard');
   const result = await getTechnicalDashboardKpis();
 
@@ -184,7 +188,7 @@ async function DashboardContent() {
               {data.d365SyncStatus ? t(`d365Status.${data.d365SyncStatus}`) : t('d365Status.none')}
             </p>
             <Link
-              href="/settings/integrations/d365"
+              href={`/${locale}/settings/integrations/d365`}
               data-testid="technical-d365-health-link"
               style={{ color: 'var(--blue)', fontSize: 13, fontWeight: 500, marginTop: 10, display: 'inline-flex' }}
             >
@@ -199,7 +203,7 @@ async function DashboardContent() {
             <div className="flex flex-col gap-2">
               {data.canCreateItem ? (
                 <Link
-                  href="/technical/items?modal=create"
+                  href={`/${locale}/technical/items?modal=create`}
                   data-testid="technical-quick-create-item"
                   className="btn btn-primary"
                   style={{ justifyContent: 'center' }}
@@ -209,7 +213,7 @@ async function DashboardContent() {
               ) : null}
               {data.canCreateBom ? (
                 <Link
-                  href="/technical/bom?modal=create"
+                  href={`/${locale}/technical/bom?modal=create`}
                   data-testid="technical-quick-create-bom"
                   className="btn btn-secondary"
                   style={{ justifyContent: 'center' }}
@@ -233,7 +237,7 @@ async function DashboardContent() {
           {NAV_CARDS.map((card) => (
             <li key={card.key}>
               <Link
-                href={card.href}
+                href={`/${locale}${card.href}`}
                 data-testid={`technical-nav-${card.key}`}
                 className="card"
                 style={{
@@ -258,7 +262,8 @@ async function DashboardContent() {
   );
 }
 
-export default async function TechnicalDashboardPage() {
+export default async function TechnicalDashboardPage({ params }: TechnicalDashboardPageProps) {
+  const { locale } = await params;
   const t = await getTranslations('technical.dashboard');
 
   return (
@@ -271,7 +276,7 @@ export default async function TechnicalDashboardPage() {
         <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
       </header>
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent />
+        <DashboardContent locale={locale} />
       </Suspense>
     </main>
   );

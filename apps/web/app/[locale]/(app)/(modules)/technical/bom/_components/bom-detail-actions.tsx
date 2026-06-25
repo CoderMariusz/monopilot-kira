@@ -26,7 +26,7 @@
  */
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import {
@@ -76,6 +76,8 @@ export function BomDetailActions({
   const t = useTranslations('technical.bom.actions');
   const tDelete = useTranslations('technical.bomDelete');
   const router = useRouter();
+  const params = useParams<{ locale?: string }>();
+  const locale = typeof params?.locale === 'string' ? params.locale : 'en';
 
   const [addOpen, setAddOpen] = React.useState(false);
   const [saveOpen, setSaveOpen] = React.useState(false);
@@ -159,7 +161,7 @@ export function BomDetailActions({
     startTransition(async () => {
       const res = await deleteBomVersion({ productId, version: currentVersion });
       if (res.ok) {
-        router.push('/technical/bom');
+        router.push(`/${locale}/technical/bom`);
         router.refresh();
         return;
       }

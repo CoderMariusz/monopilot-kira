@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -121,6 +121,8 @@ export default function SettingsNotificationsScreen({
   toggleDigestEmail,
 }: SettingsNotificationsScreenProps) {
   const router = useRouter();
+  const params = useParams<{ locale?: string }>();
+  const locale = typeof params?.locale === 'string' ? params.locale : 'en';
   const [channelEnabled, setChannelEnabled] = React.useState<Record<string, boolean>>(() =>
     Object.fromEntries(channels.map((channel) => [channel.id, channel.enabled])),
   );
@@ -248,11 +250,11 @@ export default function SettingsNotificationsScreen({
               {channel.usageText ? <span className="muted text-xs">{channel.usageText}</span> : null}
               {channel.id === 'slack' ? (
                 <a
-                  href="/settings/integrations?highlight=slack"
+                  href={`/${locale}/settings/integrations?highlight=slack`}
                   className="text-xs font-medium text-[var(--blue)] underline-offset-2 hover:underline"
                   onClick={(event) => {
                     event.preventDefault();
-                    router.push('/settings/integrations?highlight=slack');
+                    router.push(`/${locale}/settings/integrations?highlight=slack`);
                   }}
                 >
                   {labels.configureSlack}
@@ -268,7 +270,7 @@ export default function SettingsNotificationsScreen({
         title={labels.rulesTitle}
         sub={labels.rulesSubtitle}
         action={
-          <Button type="button" className="btn-primary btn-sm" onClick={() => router.push('/settings/rules?new=notification')}>
+          <Button type="button" className="btn-primary btn-sm" onClick={() => router.push(`/${locale}/settings/rules?new=notification`)}>
             {labels.newRule}
           </Button>
         }

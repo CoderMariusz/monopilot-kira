@@ -316,6 +316,7 @@ export default async function TenantVariationsDashboardPage(propsInput: unknown)
 
   return (
     <TenantVariationsDashboardScreen
+      locale={locale}
       labels={labels}
       state={effectiveState}
       deptOverrides={loaded.deptOverrides}
@@ -329,6 +330,7 @@ export default async function TenantVariationsDashboardPage(propsInput: unknown)
 }
 
 function TenantVariationsDashboardScreen({
+  locale,
   labels,
   state,
   deptOverrides,
@@ -338,6 +340,7 @@ function TenantVariationsDashboardScreen({
   authorizationPolicies,
   featureFlags,
 }: {
+  locale: string;
   labels: Labels;
   state: PageState;
   deptOverrides: DeptOverride[];
@@ -376,7 +379,7 @@ function TenantVariationsDashboardScreen({
           <h1 className="page-title">{labels.title}</h1>
           <p className="max-w-3xl text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
-        <a className="btn btn-secondary btn-sm" href="/settings/tenant/history">
+        <a className="btn btn-secondary btn-sm" href={`/${locale}/settings/tenant/history`}>
           {labels.viewUpgradeHistory} →
         </a>
       </header>
@@ -396,7 +399,7 @@ function TenantVariationsDashboardScreen({
       <DashboardSection
         title={labels.deptOverrides}
         count={deptOverrides.length}
-        action={<NavigationButton label={labels.editDeptTaxonomy} href="/settings/tenant/depts" />}
+        action={<NavigationButton label={labels.editDeptTaxonomy} href={`/${locale}/settings/tenant/depts`} />}
       >
         <DeptOverridesTable rows={deptOverrides} labels={labels} />
       </DashboardSection>
@@ -404,14 +407,14 @@ function TenantVariationsDashboardScreen({
       <DashboardSection
         title={labels.ruleVariantOverrides}
         count={ruleVariantOverrides.length}
-        action={<a className="btn btn-secondary btn-sm" href="/settings/tenant/rules">{labels.changeVariants} →</a>}
+        action={<a className="btn btn-secondary btn-sm" href={`/${locale}/settings/tenant/rules`}>{labels.changeVariants} →</a>}
       >
         <RuleVariantsTable rows={ruleVariantOverrides} labels={labels} />
       </DashboardSection>
 
       <DashboardSection
         title={labels.authorizationPolicies}
-        action={<a className="btn btn-secondary btn-sm" href="/settings/authorization">{labels.openAuthorizationPolicies} →</a>}
+        action={<a className="btn btn-secondary btn-sm" href={`/${locale}/settings/authorization`}>{labels.openAuthorizationPolicies} →</a>}
       >
         <div className="grid gap-3 md:grid-cols-2">
           {authorizationPolicies.map((policy) => (
