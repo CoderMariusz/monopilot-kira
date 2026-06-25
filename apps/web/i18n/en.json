@@ -9681,6 +9681,57 @@
         "error": "Could not resolve CAPA action: {message}",
         "success": "CAPA action resolved."
       }
+    },
+    "coldChain": {
+      "title": "Cold-chain monitoring",
+      "subtitle": "Acceptable product temperature ranges and the delivery-condition checks recorded at goods receipt.",
+      "loading": "Loading cold-chain data…",
+      "nav": {
+        "title": "Cold-chain",
+        "desc": "Review per-product temperature limits and the pass/fail delivery-condition checks recorded at receiving."
+      },
+      "breadcrumb": {
+        "quality": "Quality",
+        "coldChain": "Cold-chain"
+      },
+      "ranges": {
+        "heading": "Product temperature ranges",
+        "caption": "Configured acceptable ranges checked against the measured temperature at goods receipt.",
+        "colProduct": "Product",
+        "colSite": "Site",
+        "colMin": "Min temp",
+        "colMax": "Max temp",
+        "colRequiresCheck": "Check required",
+        "requiresCheckYes": "Required",
+        "requiresCheckNo": "Optional",
+        "siteAll": "All sites",
+        "unbounded": "—",
+        "empty": "No product temperature ranges configured yet. Add ranges to enforce cold-chain checks at receiving."
+      },
+      "checks": {
+        "heading": "Recent delivery-condition checks",
+        "caption": "The most recent receiving temperature checks. Out-of-range checks place the license plate on a quality hold.",
+        "colProduct": "Product",
+        "colSite": "Site",
+        "colMeasured": "Measured",
+        "colRange": "Allowed range",
+        "colResult": "Result",
+        "colWhen": "Checked",
+        "pass": "Pass",
+        "fail": "Fail",
+        "hold": "On hold",
+        "unknownSite": "Unknown site",
+        "empty": "No delivery-condition checks recorded yet. Checks are captured when goods are received."
+      },
+      "recordHint": "Temperature checks are recorded at goods receipt (GRN). This page is read-only.",
+      "denied": {
+        "title": "Access denied",
+        "body": "You do not have permission to view cold-chain monitoring."
+      },
+      "error": {
+        "title": "Could not load cold-chain data",
+        "body": "The live read failed. Refresh to try again."
+      }
     }
   },
   "Shipping": {

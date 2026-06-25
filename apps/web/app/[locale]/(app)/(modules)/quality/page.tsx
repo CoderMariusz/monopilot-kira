@@ -47,6 +47,8 @@ export default async function QualityRoutePage({ params }: PageProps) {
   const tRecall = await getTranslations("quality.recallDrills");
   // Complaints + CAPA (Wave E11) nav copy from the LIVE next-intl catalog (quality.complaints.nav).
   const tComplaints = await getTranslations("quality.complaints");
+  // Cold-chain (gaps #9) nav copy from the LIVE next-intl catalog (quality.coldChain.nav).
+  const tColdChain = await getTranslations("quality.coldChain");
   const s = await getTranslations("Skeleton");
   const result = await getModuleCount("quality_event");
 
@@ -179,6 +181,19 @@ export default async function QualityRoutePage({ params }: PageProps) {
             >
               <span className="text-base font-semibold text-slate-950">{tComplaints("nav.title")}</span>
               <span className="mt-1 text-sm text-slate-600">{tComplaints("nav.desc")}</span>
+            </Link>
+          </li>
+
+          {/* Cold-chain (gaps #9) — live → /quality/cold-chain. */}
+          <li key="cold-chain">
+            <Link
+              href={`/${locale}/quality/cold-chain`}
+              prefetch={false}
+              data-testid="quality-nav-cold-chain"
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <span className="text-base font-semibold text-slate-950">{tColdChain("nav.title")}</span>
+              <span className="mt-1 text-sm text-slate-600">{tColdChain("nav.desc")}</span>
             </Link>
           </li>
         </ul>

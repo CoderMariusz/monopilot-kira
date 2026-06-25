@@ -9681,6 +9681,57 @@
         "error": "Nie można rozwiązać działania CAPA: {message}",
         "success": "Działanie CAPA rozwiązane."
       }
+    },
+    "coldChain": {
+      "title": "Monitoring łańcucha chłodniczego",
+      "subtitle": "Dopuszczalne zakresy temperatur produktów oraz kontrole warunków dostawy rejestrowane przy przyjęciu towaru.",
+      "loading": "Wczytywanie danych łańcucha chłodniczego…",
+      "nav": {
+        "title": "Łańcuch chłodniczy",
+        "desc": "Przeglądaj limity temperatur dla produktów oraz wyniki (zaliczone/odrzucone) kontroli warunków dostawy z przyjęcia."
+      },
+      "breadcrumb": {
+        "quality": "Jakość",
+        "coldChain": "Łańcuch chłodniczy"
+      },
+      "ranges": {
+        "heading": "Zakresy temperatur produktów",
+        "caption": "Skonfigurowane dopuszczalne zakresy porównywane z temperaturą zmierzoną przy przyjęciu towaru.",
+        "colProduct": "Produkt",
+        "colSite": "Zakład",
+        "colMin": "Temp. min.",
+        "colMax": "Temp. maks.",
+        "colRequiresCheck": "Kontrola wymagana",
+        "requiresCheckYes": "Wymagana",
+        "requiresCheckNo": "Opcjonalna",
+        "siteAll": "Wszystkie zakłady",
+        "unbounded": "—",
+        "empty": "Nie skonfigurowano jeszcze zakresów temperatur. Dodaj zakresy, aby wymuszać kontrole łańcucha chłodniczego przy przyjęciu."
+      },
+      "checks": {
+        "heading": "Ostatnie kontrole warunków dostawy",
+        "caption": "Najnowsze kontrole temperatury przy przyjęciu. Kontrole poza zakresem blokują nośnik (LP) wstrzymaniem jakościowym.",
+        "colProduct": "Produkt",
+        "colSite": "Zakład",
+        "colMeasured": "Zmierzona",
+        "colRange": "Dozwolony zakres",
+        "colResult": "Wynik",
+        "colWhen": "Sprawdzono",
+        "pass": "Zaliczona",
+        "fail": "Odrzucona",
+        "hold": "Wstrzymane",
+        "unknownSite": "Nieznany zakład",
+        "empty": "Nie zarejestrowano jeszcze kontroli warunków dostawy. Kontrole są zapisywane przy przyjęciu towaru."
+      },
+      "recordHint": "Kontrole temperatury są rejestrowane przy przyjęciu towaru (GRN). Ta strona jest tylko do odczytu.",
+      "denied": {
+        "title": "Brak dostępu",
+        "body": "Nie masz uprawnień do przeglądania monitoringu łańcucha chłodniczego."
+      },
+      "error": {
+        "title": "Nie udało się wczytać danych łańcucha chłodniczego",
+        "body": "Odczyt danych na żywo nie powiódł się. Odśwież, aby spróbować ponownie."
+      }
     }
   },
   "Shipping": {
