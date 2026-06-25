@@ -1,0 +1,101 @@
+import { getInventoryValuation } from './_actions/get-inventory-valuation';
+
+export const dynamic = 'force-dynamic';
+
+function decimal(value: string): string {
+  return value;
+}
+
+export default async function FinanceInventoryValuationPage() {
+  const result = await getInventoryValuation();
+
+  if (!result.ok && result.reason === 'forbidden') {
+    return (
+      <main className="p-6 lg:p-8" aria-labelledby="finance-valuation-title">
+        <h1 id="finance-valuation-title" className="text-3xl font-semibold text-slate-950">
+          Inventory valuation
+        </h1>
+        <div className="mt-6 rounded border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+          You do not have permission to view inventory valuation.
+        </div>
+      </main>
+    );
+  }
+
+  if (!result.ok) {
+    return (
+      <main className="p-6 lg:p-8" aria-labelledby="finance-valuation-title">
+        <h1 id="finance-valuation-title" className="text-3xl font-semibold text-slate-950">
+          Inventory valuation
+        </h1>
+        <div role="alert" className="mt-6 rounded border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+          Unable to load inventory valuation.
+        </div>
+      </main>
+    );
+  }
+
+  const rows = result.data.rows;
+
+  return (
+    <main className="p-6 lg:p-8" aria-labelledby="finance-valuation-title">
+      <div className="mb-6">
+        <h1 id="finance-valuation-title" className="text-3xl font-semibold text-slate-950">
+          Inventory valuation
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Read-only weighted-average valuation of current license plate inventory.
+        </p>
+      </div>
+
+      <section aria-label="Grand total" className="mb-6 rounded border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <p className="text-xs font-medium uppercase text-slate-500">Grand total</p>
+        {result.data.grandTotals.length === 0 ? (
+          <p className="mt-2 text-2xl font-semibold text-slate-950">0</p>
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-4">
+            {result.data.grandTotals.map((total) => (
+              <div key={total.currency}>
+                <p className="text-2xl font-semibold text-slate-950">{decimal(total.totalValue)}</p>
+                <p className="text-xs text-slate-500">{total.currency}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {rows.length === 0 ? (
+        <div className="rounded border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
+          No valued inventory found.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded border border-slate-200 bg-white">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Item code</th>
+                <th className="px-4 py-3">Item name</th>
+                <th className="px-4 py-3 text-right">Qty on hand</th>
+                <th className="px-4 py-3 text-right">WAC</th>
+                <th className="px-4 py-3 text-right">Total value</th>
+                <th className="px-4 py-3">Currency</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <tr key={`${row.itemId}:${row.currency}`} className="text-slate-700">
+                  <td className="px-4 py-3 font-medium text-slate-950">{row.itemCode ?? row.itemId}</td>
+                  <td className="px-4 py-3">{row.itemName ?? 'Unmatched item'}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{decimal(row.qtyOnHand)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{decimal(row.wac)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{decimal(row.totalValue)}</td>
+                  <td className="px-4 py-3">{row.currency}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </main>
+  );
+}
