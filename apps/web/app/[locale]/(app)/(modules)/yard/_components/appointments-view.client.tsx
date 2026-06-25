@@ -41,6 +41,7 @@ export type AppointmentsLabels = {
   error: string;
   empty: string;
   book: string;
+  noDockDoors: string;
   viewDay: string;
   viewWeek: string;
   previous: string;
@@ -220,7 +221,14 @@ export function AppointmentsView({
               {labels.viewWeek}
             </button>
           </div>
-          <Button type="button" className="btn--primary" data-testid="appointments-book" onClick={() => setBookOpen(true)}>
+          <Button
+            type="button"
+            className="btn--primary"
+            data-testid="appointments-book"
+            onClick={() => setBookOpen(true)}
+            disabled={dockDoors.length === 0}
+            title={dockDoors.length === 0 ? labels.noDockDoors : undefined}
+          >
             {labels.book}
           </Button>
         </div>

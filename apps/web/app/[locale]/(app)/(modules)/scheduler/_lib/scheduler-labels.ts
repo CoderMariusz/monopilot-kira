@@ -32,11 +32,15 @@ export async function loadSchedulerAccess(): Promise<SchedulerAccessResult> {
         return { ok: false, error: 'forbidden' };
       }
 
+      // Display-label map only — NOT a picker. Load every org line (any status):
+      // the solver can place a WO on a line that is not 'active' (e.g. a line in
+      // 'maintenance'), and filtering by status here left those lanes labelled
+      // with a truncated UUID (shortId fallback in toProposal) instead of the
+      // line code. Org-scoped via RLS + the explicit org predicate.
       const lines = await ctx.client.query<{ id: string; code: string; name: string }>(
         `select id::text, code, name
            from public.production_lines
           where org_id = app.current_org_id()
-            and status = 'active'
           order by code`,
       );
 

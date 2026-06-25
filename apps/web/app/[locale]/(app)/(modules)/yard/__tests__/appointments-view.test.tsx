@@ -156,6 +156,18 @@ describe('/yard/appointments — AppointmentsView', () => {
     expect(spanDays).toBe(7);
   });
 
+  it('honest-disables Book appointment when no dock doors exist', async () => {
+    renderView({ dockDoors: [], listAppointmentsAction: vi.fn(async () => []) });
+    await waitFor(() => expect(screen.getByTestId('appointments-empty')).toBeInTheDocument());
+
+    const bookButton = screen.getByTestId('appointments-book');
+    expect(bookButton).toBeDisabled();
+    expect(bookButton).toHaveAttribute('title', 'Add a dock door first to book appointments.');
+
+    fireEvent.click(bookButton);
+    expect(screen.queryByTestId('book-appointment-form')).toBeNull();
+  });
+
   it('keeps the within-modal Cancel closing the dialog without booking', async () => {
     const bookAppointmentAction = vi.fn();
     renderView({ bookAppointmentAction });

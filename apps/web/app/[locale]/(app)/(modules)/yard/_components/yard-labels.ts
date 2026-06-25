@@ -87,6 +87,7 @@ export function buildAppointmentsLabels(t: Translator): AppointmentsLabels {
     error: t('appointments.error'),
     empty: t('appointments.empty'),
     book: t('appointments.book'),
+    noDockDoors: t('appointments.noDockDoors'),
     viewDay: t('appointments.viewDay'),
     viewWeek: t('appointments.viewWeek'),
     previous: t('appointments.previous'),
