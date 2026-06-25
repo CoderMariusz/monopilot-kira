@@ -816,8 +816,8 @@ export async function voidWasteEntry(input: VoidWasteEntryInput): Promise<VoidWa
     });
 
     if (result.ok && result.woId) {
-      revalidatePath('/production');
-      revalidatePath(`/production/work-orders/${result.woId}`);
+      revalidatePath('/[locale]/production', 'page');
+      revalidatePath(`/[locale]/production/wos/${result.woId}`, 'page');
     }
 
     return result.ok ? { ok: true } : result;
@@ -936,8 +936,8 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
     });
 
     if (result.ok && result.woId) {
-      revalidatePath('/production');
-      revalidatePath(`/production/work-orders/${result.woId}`);
+      revalidatePath('/[locale]/production', 'page');
+      revalidatePath(`/[locale]/production/wos/${result.woId}`, 'page');
     }
 
     return result.ok ? { ok: true } : result;
@@ -1066,8 +1066,8 @@ export async function reverseConsumption(input: ReverseConsumptionInput): Promis
     });
 
     if (result.ok && result.woId) {
-      revalidatePath('/production');
-      revalidatePath(`/production/work-orders/${result.woId}`);
+      revalidatePath('/[locale]/production', 'page');
+      revalidatePath(`/[locale]/production/wos/${result.woId}`, 'page');
     }
 
     return result.ok ? { ok: true } : result;

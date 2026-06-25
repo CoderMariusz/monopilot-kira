@@ -120,7 +120,7 @@ export async function searchEligibleSupervisors(
               or coalesce(r.permissions, '[]'::jsonb) ? $2
             )
             and ($4::text is null or u.name ilike $4 escape '\\' or u.email::text ilike $4 escape '\\')
-          order by u.name nulls last, u.email
+          order by u.name nulls last, u.email::text
           limit 20`,
         [orgId, WAREHOUSE_STOCK_ADJUST_PERMISSION, userId, like],
       );
