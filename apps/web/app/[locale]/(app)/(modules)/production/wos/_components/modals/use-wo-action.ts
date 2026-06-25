@@ -96,8 +96,22 @@ export function useWoAction(locale: string, woId: string): { run: RunWoAction } 
         (payload && typeof payload === 'object' && 'error' in payload
           ? String((payload as { error: unknown }).error)
           : null) ?? 'persistence_failed';
+      const reason =
+        payload && typeof payload === 'object' && 'reason' in payload
+          ? (payload as { reason: unknown }).reason
+          : null;
+      const message =
+        payload && typeof payload === 'object' && 'message' in payload
+          ? (payload as { message: unknown }).message
+          : null;
 
-      return { ok: false, errorCode, httpStatus: res.status };
+      return {
+        ok: false,
+        errorCode,
+        httpStatus: res.status,
+        ...(typeof reason === 'string' ? { reason } : {}),
+        ...(typeof message === 'string' ? { message } : {}),
+      };
     },
     [locale, woId, router],
   );

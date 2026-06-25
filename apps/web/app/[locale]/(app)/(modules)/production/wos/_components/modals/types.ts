@@ -67,7 +67,7 @@ export type WoActionData = {
  */
 export type WoActionResult =
   | { ok: true; data?: WoActionData }
-  | { ok: false; errorCode: string; httpStatus: number };
+  | { ok: false; errorCode: string; httpStatus: number; reason?: string; message?: string };
 
 /** The runner signature every modal receives. */
 export type RunWoAction = (kind: WoActionKind, body: Record<string, unknown>) => Promise<WoActionResult>;

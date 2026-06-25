@@ -235,8 +235,13 @@ export type WoDetailLabels = {
         lp_locked: string;
         quality_hold_active: string;
         reason_required: string;
+        overconsume_blocked: string;
+        wo_not_consumable: string;
+        invalid_input: string;
+        error: string;
         invalid_material: string;
         invalid_qty: string;
+        unknown: string;
         generic: string;
       };
     };
@@ -1642,7 +1647,10 @@ function RecordConsumptionModal({
   }, [open, woId, materialId, listConsumableLpsAction]);
 
   const mapError = useCallback(
-    (reason: string): string => {
+    (reason: string, message?: string): string => {
+      if (typeof message === 'string' && message.trim().length > 0) {
+        return message;
+      }
       switch (reason) {
         case 'forbidden':
           return labels.errors.forbidden;
@@ -1658,12 +1666,20 @@ function RecordConsumptionModal({
           return labels.errors.quality_hold_active;
         case 'reason_required':
           return labels.errors.reason_required;
+        case 'overconsume_blocked':
+          return labels.errors.overconsume_blocked;
+        case 'wo_not_consumable':
+          return labels.errors.wo_not_consumable;
+        case 'invalid_input':
+          return labels.errors.invalid_input;
+        case 'error':
+          return labels.errors.error;
         case 'invalid_material':
           return labels.errors.invalid_material;
         case 'invalid_qty':
           return labels.errors.invalid_qty;
         default:
-          return labels.errors.generic;
+          return labels.errors.unknown;
       }
     },
     [labels],
@@ -1703,7 +1719,7 @@ function RecordConsumptionModal({
       onRecorded();
       return;
     }
-    setError(mapError(result.reason));
+    setError(mapError(result.reason, result.message));
   }
 
   const materialOptions = components.map((c) => ({

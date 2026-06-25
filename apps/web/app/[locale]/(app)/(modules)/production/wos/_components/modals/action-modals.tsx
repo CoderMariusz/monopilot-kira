@@ -73,8 +73,11 @@ function ErrorBanner({ message, testid }: { message: string; testid: string }) {
   );
 }
 
-function mapError(labels: WoModalLabels, code: string): string {
-  return labels.errors[code] ?? labels.errorFallback;
+function mapError(labels: WoModalLabels, code: string, message?: string): string {
+  if (typeof message === 'string' && message.trim().length > 0) {
+    return message;
+  }
+  return labels.errors[code] ?? labels.errors.unknown ?? labels.errorFallback;
 }
 
 /**
@@ -849,7 +852,7 @@ export function OutputModal({
         onClose();
       }
     } else {
-      setError(mapError(labels, result.errorCode));
+      setError(mapError(labels, result.reason ?? result.errorCode, result.message));
     }
   }
 

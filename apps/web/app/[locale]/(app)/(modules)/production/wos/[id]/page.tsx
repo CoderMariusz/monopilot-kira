@@ -246,6 +246,8 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   // `t.has` + EN fallback so a not-yet-merged key never throws live (mirrors the
   // desktop-consume / catch-weight staging precedent).
   const vc = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
+  const detailError = (code: string, fallback: string): string =>
+    t.has(`errors.${code}`) ? t(`errors.${code}`) : fallback;
 
   const labels: WoDetailLabels = {
     status: {
@@ -354,8 +356,19 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
           lp_locked: rec('errors.lp_locked', 'That license plate is locked by another user.'),
           quality_hold_active: rec('errors.quality_hold_active', 'That license plate is on an active quality hold.'),
           reason_required: rec('errors.reason_required', 'Enter a reason code when recording without an LP.'),
+          overconsume_blocked: detailError(
+            'overconsume_blocked',
+            'Consumption exceeds the configured approval threshold.',
+          ),
+          wo_not_consumable: detailError(
+            'wo_not_consumable',
+            'This work order is not in a state that accepts consumption.',
+          ),
+          invalid_input: detailError('invalid_input', 'Check the fields and try again.'),
+          error: detailError('error', 'Unable to record consumption.'),
           invalid_material: rec('errors.invalid_material', 'This component is no longer valid for this work order.'),
           invalid_qty: rec('errors.invalid_qty', 'Enter a quantity greater than zero.'),
+          unknown: detailError('unknown', 'The action could not be completed.'),
           generic: rec('errors.generic', 'Unable to record consumption.'),
         },
       },
@@ -653,6 +666,42 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   let actions: WoDetailActions | null = null;
   if (actionCtx.ok) {
     const modalLabels = buildWoModalLabels((k) => at(k));
+    const detailErrors = {
+      invalid_input: detailError('invalid_input', 'Check the fields and try again.'),
+      forbidden: detailError('forbidden', 'You do not have permission to perform this action.'),
+      not_found: detailError('not_found', 'This work order or record no longer exists.'),
+      wo_not_recordable: detailError(
+        'wo_not_recordable',
+        'The work order is not in a state that accepts this record.',
+      ),
+      quality_hold_active: detailError('quality_hold_active', 'Blocked by an active quality hold.'),
+      already_recorded: detailError('already_recorded', 'This entry was already recorded.'),
+      uom_conversion_unavailable: detailError(
+        'uom_conversion_unavailable',
+        'This product is missing the pack data needed to convert units.',
+      ),
+      invalid_reference: detailError('invalid_reference', 'An invalid reference was supplied.'),
+      insufficient_input_for_output: detailError(
+        'insufficient_input_for_output',
+        'There is not enough posted input to register this output.',
+      ),
+      insufficient_lp_quantity: detailError(
+        'insufficient_lp_quantity',
+        'The selected license plate does not have enough quantity.',
+      ),
+      warehouse_not_configured: detailError(
+        'warehouse_not_configured',
+        'No warehouse is configured for output registration.',
+      ),
+      no_warehouse_for_site: detailError(
+        'no_warehouse_for_site',
+        'No warehouse is configured for your site.',
+      ),
+      persistence_failed: detailError('persistence_failed', 'Something went wrong saving the action. Please retry.'),
+      network_error: detailError('network_error', 'Network error — please check your connection and retry.'),
+      unknown: detailError('unknown', 'The action could not be completed.'),
+    };
+    modalLabels.errors = { ...modalLabels.errors, ...detailErrors };
 
     // P0-UOM — inject the staged output-unit labels + the conversion-unavailable
     // error onto the server-resolved labels object (keys live in
