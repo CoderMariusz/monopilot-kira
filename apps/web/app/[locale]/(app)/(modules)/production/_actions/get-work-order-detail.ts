@@ -12,7 +12,7 @@
  *
  * Tab → source mapping (prototype wo-detail.jsx anchors):
  *   Overview     :4-101   header KPIs / status / line / schedule  → work_orders + wo_executions
- *   QA results   :181     linked QA inspections                   → (read-model not yet built → empty)
+ *   QA results   :181     linked QA inspections / holds            → quality_inspections + quality_holds
  *   Consumption  :257     wo_materials vs wo_material_consumption  → per-component required/consumed
  *   Output       :347     registered output rows                  → wo_outputs
  *   Waste        :409     waste events on this WO                  → wo_waste_log ⨝ waste_categories
@@ -171,12 +171,28 @@ export type WoDetailHistoryEvent = {
   reason: string | null;
 };
 
-/** QA tab placeholder until the linked-inspection read-model lands. */
+/** QA tab: inspection rows linked through wo_outputs plus direct WO holds. */
+export type WoDetailQaInspection = {
+  id: string;
+  inspectionNumber: string;
+  status: string;
+  inspectedAt: string | null;
+};
+
+export type WoDetailQaHold = {
+  id: string;
+  holdNumber: string;
+  status: string;
+  reason: string | null;
+};
+
 export type WoDetailQa = {
   total: number;
   pass: number;
   hold: number;
   fail: number;
+  inspections?: WoDetailQaInspection[];
+  holds?: WoDetailQaHold[];
 };
 
 /**
@@ -379,6 +395,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         genealogyRes,
         statusRes,
         eventsRes,
+        qaInspectionsRes,
+        qaHoldsRes,
       ] = await Promise.all([
         c.query<{
           id: string;
@@ -534,6 +552,43 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
             order by occurred_at asc`,
           [woId],
         ),
+        c.query<{
+          id: string;
+          inspection_number: string;
+          status: string;
+          inspected_at: string | Date | null;
+        }>(
+          `select qi.id::text as id,
+                  qi.inspection_number,
+                  qi.status,
+                  coalesce(qi.decided_at, qi.created_at) as inspected_at
+             from public.quality_inspections qi
+             join public.wo_outputs woo
+               on qi.reference_type = 'wo_output'
+              and woo.id = qi.reference_id
+              and woo.org_id = qi.org_id
+            where qi.org_id = app.current_org_id()
+              and woo.wo_id = $1::uuid
+            order by coalesce(qi.decided_at, qi.created_at) desc`,
+          [woId],
+        ),
+        c.query<{
+          id: string;
+          hold_number: string;
+          hold_status: string;
+          reason: string | null;
+        }>(
+          `select h.id::text as id,
+                  h.hold_number,
+                  h.hold_status,
+                  h.reason_free_text as reason
+             from public.quality_holds h
+            where h.org_id = app.current_org_id()
+              and h.reference_type = 'wo'
+              and h.reference_id = $1::uuid
+            order by h.created_at desc`,
+          [woId],
+        ),
       ]);
 
       const components: WoDetailComponent[] = componentsRes.rows.map((r) => {
@@ -675,8 +730,26 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         bomType: h.bom_type === 'disassembly' ? 'disassembly' : 'forward',
       };
 
-      // QA read-model not yet built — render an honest empty/zero summary.
-      const qa: WoDetailQa = { total: 0, pass: 0, hold: 0, fail: 0 };
+      const inspections: WoDetailQaInspection[] = qaInspectionsRes.rows.map((r) => ({
+        id: r.id,
+        inspectionNumber: r.inspection_number,
+        status: r.status,
+        inspectedAt: toIso(r.inspected_at),
+      }));
+      const holds: WoDetailQaHold[] = qaHoldsRes.rows.map((r) => ({
+        id: r.id,
+        holdNumber: r.hold_number,
+        status: r.hold_status,
+        reason: r.reason,
+      }));
+      const qa: WoDetailQa = {
+        total: inspections.length + holds.length,
+        pass: inspections.filter((r) => r.status === 'passed').length,
+        hold: inspections.filter((r) => r.status === 'on_hold').length + holds.length,
+        fail: inspections.filter((r) => r.status === 'failed').length,
+        inspections,
+        holds,
+      };
 
       // Start-gate preview: only meaningful before the WO is running/done.
       const openChangeoverId =
