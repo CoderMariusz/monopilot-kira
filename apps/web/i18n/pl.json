@@ -1568,7 +1568,8 @@
         "fgDashboard": "Pulpit WG",
         "finishedGoods": "Wyroby gotowe",
         "briefs": "Briefy",
-        "costingRollup": "Zbiorcze koszty"
+        "costingRollup": "Zbiorcze koszty",
+        "workload": "Obciążenie właścicieli"
       },
       "groups": {
         "apex": "Apex"

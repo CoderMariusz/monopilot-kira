@@ -1568,7 +1568,8 @@
         "fgDashboard": "Панель ГП",
         "finishedGoods": "Готова продукція",
         "briefs": "Брифи",
-        "costingRollup": "Costing roll-up"
+        "costingRollup": "Costing roll-up",
+        "workload": "Owner workload"
       },
       "groups": {
         "apex": "Apex"

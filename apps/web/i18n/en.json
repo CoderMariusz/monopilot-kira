@@ -1587,7 +1587,8 @@
         "fgDashboard": "FG Dashboard",
         "finishedGoods": "Finished Goods",
         "briefs": "Briefs",
-        "costingRollup": "Costing roll-up"
+        "costingRollup": "Costing roll-up",
+        "workload": "Owner workload"
       },
       "groups": {
         "apex": "Apex"

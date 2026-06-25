@@ -44,6 +44,7 @@ export const NPD_NAV_TOP_TABS: NpdNavTopTab[] = [
   { key: "formulations", i18nKey: "tabs.formulations", route: "/formulations" },
   { key: "allergenCascade", i18nKey: "tabs.allergenCascade", route: "/allergen-cascade" },
   { key: "costingRollup", i18nKey: "tabs.costingRollup", route: "/costing/rollup" },
+  { key: "workload", i18nKey: "tabs.workload", route: "/pipeline/workload" },
 ];
 
 /** The collapsible Apex group (default open), rendered after the flat tabs. */

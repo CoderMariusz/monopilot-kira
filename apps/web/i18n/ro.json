@@ -1568,7 +1568,8 @@
         "fgDashboard": "Tablou PF",
         "finishedGoods": "Produse finite",
         "briefs": "Briefuri",
-        "costingRollup": "Costing roll-up"
+        "costingRollup": "Costing roll-up",
+        "workload": "Owner workload"
       },
       "groups": {
         "apex": "Apex"
