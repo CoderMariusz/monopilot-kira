@@ -9,11 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeReportingWindow } from '../shared';
 
 const actionMocks = vi.hoisted(() => ({
-  productionSummary: vi.fn(),
-  inventorySnapshot: vi.fn(),
-  qualitySummary: vi.fn(),
-  procurementSummary: vi.fn(),
-  getReportingExportAccess: vi.fn(),
+  reportingBundle: vi.fn(),
   reportingProductionLines: vi.fn(),
 }));
 
@@ -95,13 +91,38 @@ const procurementData = {
   openToCount: 0,
 };
 
+const emptyReceiptsData = {
+  days: 7,
+  totals: {
+    grnCount: 0,
+    completedGrnCount: 0,
+    cancelledGrnCount: 0,
+    itemLineCount: 0,
+    receivedQtyByUom: [],
+  },
+  rows: [],
+};
+
+const emptyShipmentsData = {
+  days: 7,
+  totals: { shipmentCount: 0, packingCount: 0, shippedCount: 0, deliveredCount: 0 },
+  byStatus: [],
+  rows: [],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
-  actionMocks.productionSummary.mockResolvedValue({ ok: true, data: productionData });
-  actionMocks.inventorySnapshot.mockResolvedValue({ ok: true, data: inventoryData });
-  actionMocks.qualitySummary.mockResolvedValue({ ok: true, data: qualityData });
-  actionMocks.procurementSummary.mockResolvedValue({ ok: true, data: procurementData });
-  actionMocks.getReportingExportAccess.mockResolvedValue({ ok: true, data: { canExportCsv: true } });
+  // The page now loads everything via a SINGLE reportingBundle call (one pooled
+  // connection) instead of fanning out 7 concurrent loaders.
+  actionMocks.reportingBundle.mockResolvedValue({
+    production: { ok: true, data: productionData },
+    inventory: { ok: true, data: inventoryData },
+    quality: { ok: true, data: qualityData },
+    procurement: { ok: true, data: procurementData },
+    receipts: { ok: true, data: emptyReceiptsData },
+    shipments: { ok: true, data: emptyShipmentsData },
+    exportAccess: { ok: true, data: { canExportCsv: true } },
+  });
   actionMocks.reportingProductionLines.mockResolvedValue({ ok: true, data: [] });
 });
 
@@ -123,28 +144,24 @@ describe('reporting period and filters', () => {
     expect(window.to.getTime() - window.from.getTime()).toBe(7 * 86_400_000);
   });
 
-  it('passes the current month window from searchParams to the loaders', async () => {
+  it('passes the current month window from searchParams to the bundle loader', async () => {
     await renderReportingPage({ period: 'month' });
 
-    await waitFor(() => expect(actionMocks.productionSummary).toHaveBeenCalled());
+    await waitFor(() => expect(actionMocks.reportingBundle).toHaveBeenCalled());
+    // ONE bundle call drives the whole page (single pooled connection).
+    expect(actionMocks.reportingBundle).toHaveBeenCalledTimes(1);
     const expected = computeReportingWindow('month', { now: new Date() });
-    const productionInput = actionMocks.productionSummary.mock.calls[0][0];
-    const qualityInput = actionMocks.qualitySummary.mock.calls[0][0];
-    const procurementInput = actionMocks.procurementSummary.mock.calls[0][0];
+    const bundleInput = actionMocks.reportingBundle.mock.calls[0][0];
 
-    expect(productionInput.from.toISOString()).toBe(expected.from.toISOString());
-    expect(productionInput.to.toISOString()).toBe(expected.to.toISOString());
-    expect(qualityInput.from.toISOString()).toBe(expected.from.toISOString());
-    expect(qualityInput.to.toISOString()).toBe(expected.to.toISOString());
-    expect(procurementInput.from.toISOString()).toBe(expected.from.toISOString());
-    expect(procurementInput.to.toISOString()).toBe(expected.to.toISOString());
+    expect(bundleInput.from.toISOString()).toBe(expected.from.toISOString());
+    expect(bundleInput.to.toISOString()).toBe(expected.to.toISOString());
   });
 
-  it('forwards lineId from searchParams to the production loader', async () => {
+  it('forwards lineId from searchParams to the bundle loader', async () => {
     await renderReportingPage({ period: '7d', line: 'line-1' });
 
     await waitFor(() =>
-      expect(actionMocks.productionSummary).toHaveBeenCalledWith(
+      expect(actionMocks.reportingBundle).toHaveBeenCalledWith(
         expect.objectContaining({ lineId: 'line-1' }),
       ),
     );

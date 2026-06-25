@@ -20,8 +20,10 @@ import {
   productionSummary,
   qualitySummary,
   receiptsSummary,
+  reportingBundle,
   shipmentsSummary,
 } from '../report-read-actions';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -571,5 +573,40 @@ describe('exportProductionSummaryCsv', () => {
     grantedPermissions = new Set(['rpt.dashboard.view']);
 
     await expect(exportProductionSummaryCsv()).rejects.toThrow('REPORTING_EXPORT_FORBIDDEN');
+  });
+});
+
+describe('reportingBundle (single-connection page load)', () => {
+  it('returns every summary from ONE withOrgContext (single pooled connection)', async () => {
+    vi.mocked(withOrgContext).mockClear();
+
+    const res = await reportingBundle({ days: 7 });
+
+    // The whole page load opens exactly ONE org context = 1 app-pool connection,
+    // instead of the previous 7-way Promise.all fan-out.
+    expect(withOrgContext).toHaveBeenCalledTimes(1);
+
+    // Each slot carries the same ReportingResult the individual action returns.
+    expect(res.production.ok).toBe(true);
+    expect(res.inventory.ok).toBe(true);
+    expect(res.quality.ok).toBe(true);
+    expect(res.procurement.ok).toBe(true);
+    expect(res.receipts.ok).toBe(true);
+    expect(res.shipments.ok).toBe(true);
+    expect(res.exportAccess).toEqual({ ok: true, data: { canExportCsv: true } });
+
+    if (res.production.ok) expect(res.production.data.wosCompleted).toBe(3);
+    if (res.inventory.ok) expect(res.inventory.data.totals.lpCount).toBe(15);
+    if (res.shipments.ok) expect(res.shipments.data.totals.shipmentCount).toBe(3);
+  });
+
+  it('propagates forbidden per-slot when rpt.dashboard.view is absent', async () => {
+    grantedPermissions = new Set();
+
+    const res = await reportingBundle({ days: 7 });
+
+    expect(res.production).toEqual({ ok: false, reason: 'forbidden' });
+    expect(res.inventory).toEqual({ ok: false, reason: 'forbidden' });
+    expect(res.exportAccess).toEqual({ ok: false, reason: 'forbidden' });
   });
 });

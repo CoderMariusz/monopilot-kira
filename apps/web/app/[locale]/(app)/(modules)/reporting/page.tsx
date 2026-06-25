@@ -32,14 +32,8 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import {
-  getReportingExportAccess,
-  inventorySnapshot,
-  procurementSummary,
-  receiptsSummary,
+  reportingBundle,
   reportingProductionLines,
-  productionSummary,
-  qualitySummary,
-  shipmentsSummary,
 } from './_actions/report-read-actions';
 import {
   PeriodSelector,
@@ -278,17 +272,15 @@ async function loadReportingContent({
   const t = getRptTranslator(locale);
   const { from, to } = filters.window;
 
-  // Future follow-up: quality and inventory intentionally receive only the
-  // selected date window; line/order filters are scoped to production/procurement.
-  const [production, inventory, quality, procurement, receipts, shipments, exportAccess] = await Promise.all([
-    productionSummary({ from, to, lineId: filters.lineId, orderQuery: filters.orderQuery }),
-    inventorySnapshot({ from, to }),
-    qualitySummary({ from, to }),
-    procurementSummary({ from, to, orderQuery: filters.orderQuery }),
-    receiptsSummary({ from, to, orderQuery: filters.orderQuery }),
-    shipmentsSummary({ from, to, orderQuery: filters.orderQuery }),
-    getReportingExportAccess(),
-  ]);
+  // Pool-pressure fix (2026-06-25): a single bundle action opens ONE
+  // withOrgContext (1 app-pool connection) and runs all six summary cores +
+  // export-access core SEQUENTIALLY on that shared connection, instead of the
+  // previous 7-way Promise.all (which fanned out 7 concurrent withOrgContext
+  // calls = 7 connections and exhausted the Supavisor pool under load). Same
+  // line/order-vs-date-window scoping as before; line/order filters apply to
+  // production/procurement/receipts, inventory + quality take only the window.
+  const { production, inventory, quality, procurement, receipts, shipments, exportAccess } =
+    await reportingBundle({ from, to, lineId: filters.lineId, orderQuery: filters.orderQuery });
 
   const results = [production, inventory, quality, procurement, receipts, shipments] as const;
 

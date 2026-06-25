@@ -134,20 +134,37 @@ function dateStamp(now = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
 
+/**
+ * Connection-pool note (2026-06-25 pool-pressure fix): each public action below
+ * opens its own `withOrgContext` (= 1 app-pool connection). A `/reporting` load
+ * historically fired ~7 of them CONCURRENTLY, which under modest traffic
+ * exhausted the Supavisor pool (pool_size=15) → EMAXCONNSESSION. To fix that,
+ * the inner body of every read is now an exported `XCore(ctx, input)` helper
+ * that takes an already-open org-scoped ctx and does NOT open its own
+ * connection. The public `X(input)` actions stay thin `withOrgContext` wrappers
+ * (so existing tests + CSV-export call sites are unchanged), and the new
+ * `reportingBundle` action runs all the cores SEQUENTIALLY on ONE shared
+ * connection — turning ~7 connections into 1 per page load.
+ */
+
+/** rpt.export.csv probe so the page can render the CSV buttons honestly. */
+export async function getReportingExportAccessCore(
+  ctx: ReportingContext,
+): Promise<ReportingResult<{ canExportCsv: boolean }>> {
+  if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
+    return { ok: false, reason: 'forbidden' };
+  }
+  const canExportCsv = await hasReportingPermission(ctx, RPT_EXPORT_CSV_PERMISSION);
+  return { ok: true, data: { canExportCsv } };
+}
+
 /** rpt.export.csv probe so the page can render the CSV buttons honestly. */
 export async function getReportingExportAccess(): Promise<
   ReportingResult<{ canExportCsv: boolean }>
 > {
   try {
-    return await withOrgContext(
-      async ({ userId, orgId, client }): Promise<ReportingResult<{ canExportCsv: boolean }>> => {
-        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
-        if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
-          return { ok: false, reason: 'forbidden' };
-        }
-        const canExportCsv = await hasReportingPermission(ctx, RPT_EXPORT_CSV_PERMISSION);
-        return { ok: true, data: { canExportCsv } };
-      },
+    return await withOrgContext(({ userId, orgId, client }) =>
+      getReportingExportAccessCore({ userId, orgId, client: client as QueryClient }),
     );
   } catch (error) {
     console.error('[reporting] getReportingExportAccess failed', error);
@@ -183,14 +200,13 @@ export async function reportingProductionLines(): Promise<
   }
 }
 
-export async function productionSummary(
+export async function productionSummaryCore(
+  ctx: ReportingContext,
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ProductionSummary>> {
   const window = normalizeWindow(input, 7);
-  try {
-    return await withOrgContext(
-      async ({ userId, orgId, client }): Promise<ReportingResult<ProductionSummary>> => {
-        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+  {
+    {
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
@@ -317,7 +333,16 @@ export async function productionSummary(
             })),
           },
         };
-      },
+    }
+  }
+}
+
+export async function productionSummary(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<ProductionSummary>> {
+  try {
+    return await withOrgContext(({ userId, orgId, client }) =>
+      productionSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
     console.error('[reporting] productionSummary failed', error);
@@ -381,14 +406,13 @@ export async function exportProductionSummaryCsv(
   }
 }
 
-export async function inventorySnapshot(
+export async function inventorySnapshotCore(
+  ctx: ReportingContext,
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<InventorySnapshot>> {
   const window = normalizeWindow(input, 7);
-  try {
-    return await withOrgContext(
-      async ({ userId, orgId, client }): Promise<ReportingResult<InventorySnapshot>> => {
-        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+  {
+    {
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
@@ -482,7 +506,16 @@ export async function inventorySnapshot(
             rows,
           },
         };
-      },
+    }
+  }
+}
+
+export async function inventorySnapshot(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<InventorySnapshot>> {
+  try {
+    return await withOrgContext(({ userId, orgId, client }) =>
+      inventorySnapshotCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
     console.error('[reporting] inventorySnapshot failed', error);
@@ -490,14 +523,13 @@ export async function inventorySnapshot(
   }
 }
 
-export async function receiptsSummary(
+export async function receiptsSummaryCore(
+  ctx: ReportingContext,
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ReceiptsSummary>> {
   const window = normalizeWindow(input, 7);
-  try {
-    return await withOrgContext(
-      async ({ userId, orgId, client }): Promise<ReportingResult<ReceiptsSummary>> => {
-        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+  {
+    {
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
@@ -608,7 +640,16 @@ export async function receiptsSummary(
             rows,
           },
         };
-      },
+    }
+  }
+}
+
+export async function receiptsSummary(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<ReceiptsSummary>> {
+  try {
+    return await withOrgContext(({ userId, orgId, client }) =>
+      receiptsSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
     console.error('[reporting] receiptsSummary failed', error);
@@ -616,14 +657,13 @@ export async function receiptsSummary(
   }
 }
 
-export async function shipmentsSummary(
+export async function shipmentsSummaryCore(
+  ctx: ReportingContext,
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ShipmentsSummary>> {
   const window = normalizeWindow(input, 7);
-  try {
-    return await withOrgContext(
-      async ({ userId, orgId, client }): Promise<ReportingResult<ShipmentsSummary>> => {
-        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+  {
+    {
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
@@ -708,7 +748,16 @@ export async function shipmentsSummary(
             rows,
           },
         };
-      },
+    }
+  }
+}
+
+export async function shipmentsSummary(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<ShipmentsSummary>> {
+  try {
+    return await withOrgContext(({ userId, orgId, client }) =>
+      shipmentsSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
     console.error('[reporting] shipmentsSummary failed', error);
@@ -716,14 +765,13 @@ export async function shipmentsSummary(
   }
 }
 
-export async function qualitySummary(
+export async function qualitySummaryCore(
+  ctx: ReportingContext,
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<QualitySummary>> {
   const window = normalizeWindow(input, 30);
-  try {
-    return await withOrgContext(
-      async ({ userId, orgId, client }): Promise<ReportingResult<QualitySummary>> => {
-        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+  {
+    {
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
@@ -793,7 +841,16 @@ export async function qualitySummary(
             ],
           },
         };
-      },
+    }
+  }
+}
+
+export async function qualitySummary(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<QualitySummary>> {
+  try {
+    return await withOrgContext(({ userId, orgId, client }) =>
+      qualitySummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
     console.error('[reporting] qualitySummary failed', error);
@@ -801,14 +858,13 @@ export async function qualitySummary(
   }
 }
 
-export async function procurementSummary(
+export async function procurementSummaryCore(
+  ctx: ReportingContext,
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ProcurementSummary>> {
   const window = normalizeWindow(input, 30);
-  try {
-    return await withOrgContext(
-      async ({ userId, orgId, client }): Promise<ReportingResult<ProcurementSummary>> => {
-        const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+  {
+    {
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
@@ -878,10 +934,84 @@ export async function procurementSummary(
             openToCount: num(tos.rows[0]?.open_count),
           },
         };
-      },
+    }
+  }
+}
+
+export async function procurementSummary(
+  input: ReportingLoaderInput = {},
+): Promise<ReportingResult<ProcurementSummary>> {
+  try {
+    return await withOrgContext(({ userId, orgId, client }) =>
+      procurementSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
     console.error('[reporting] procurementSummary failed', error);
     return { ok: false, reason: 'error' };
+  }
+}
+
+/**
+ * Single-connection bundle for the `/reporting` page. Opens ONE `withOrgContext`
+ * (= 1 app-pool connection) and runs every read-action core on that shared
+ * `ctx.client` SEQUENTIALLY.
+ *
+ * Why sequentially: `ctx.client` is one `pg.PoolClient`. A PoolClient cannot run
+ * queries concurrently — issuing a second `query()` before the first resolves
+ * throws "another command is already in progress" (the pg protocol is one
+ * in-flight statement per connection, and these cores fire multiple queries
+ * each). So we await each core in series. This trades a little latency for going
+ * from ~7 pooled connections per page load down to 1 — the connection-pool
+ * exhaustion fix (EMAXCONNSESSION under load).
+ *
+ * The page consumes the same `ReportingResult` shapes the individual actions
+ * return, so the forbidden / error handling in `loadReportingContent` is
+ * unchanged. The individual public actions stay for the CSV exports + tests.
+ */
+export async function reportingBundle(input: ReportingLoaderInput = {}): Promise<{
+  production: ReportingResult<ProductionSummary>;
+  inventory: ReportingResult<InventorySnapshot>;
+  quality: ReportingResult<QualitySummary>;
+  procurement: ReportingResult<ProcurementSummary>;
+  receipts: ReportingResult<ReceiptsSummary>;
+  shipments: ReportingResult<ShipmentsSummary>;
+  exportAccess: ReportingResult<{ canExportCsv: boolean }>;
+}> {
+  // Production/procurement/receipts honour the line+order filters; inventory and
+  // quality intentionally take only the date window (same scoping the page used
+  // when it called the actions individually).
+  const dateWindow: ReportingLoaderInput = { days: input.days, from: input.from, to: input.to };
+  const withOrder: ReportingLoaderInput = { ...dateWindow, orderQuery: input.orderQuery };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
+      const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
+
+      // SEQUENTIAL on the shared single PoolClient — see jsdoc above.
+      const production = await productionSummaryCore(ctx, {
+        ...withOrder,
+        lineId: input.lineId,
+      });
+      const inventory = await inventorySnapshotCore(ctx, dateWindow);
+      const quality = await qualitySummaryCore(ctx, dateWindow);
+      const procurement = await procurementSummaryCore(ctx, withOrder);
+      const receipts = await receiptsSummaryCore(ctx, withOrder);
+      const shipments = await shipmentsSummaryCore(ctx, withOrder);
+      const exportAccess = await getReportingExportAccessCore(ctx);
+
+      return { production, inventory, quality, procurement, receipts, shipments, exportAccess };
+    });
+  } catch (error) {
+    console.error('[reporting] reportingBundle failed', error);
+    const err = { ok: false, reason: 'error' } as const;
+    return {
+      production: err,
+      inventory: err,
+      quality: err,
+      procurement: err,
+      receipts: err,
+      shipments: err,
+      exportAccess: err,
+    };
   }
 }
