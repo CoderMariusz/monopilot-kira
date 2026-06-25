@@ -19,10 +19,10 @@
  *
  * DEVIATIONS (red-lines, honest):
  *   - The prototype's Forward/Backward/Full-trace pills + depth slider + FSMA-204
- *     export + scan button (other-screens.jsx:296-313,363-369) are DEFERRED:
+ *     scan button (other-screens.jsx:296-313,363-369) is DEFERRED:
  *     traceGenealogy returns BOTH directions cycle-safe in one call (ancestors +
  *     self + descendants), so we render the full bidirectional trace and label the
- *     directions instead of toggling. Export/scan have no backing action.
+ *     directions instead of toggling. Scan has no backing action.
  *   - The summary bar's batch / query-time / FEFO-compliance fields
  *     (other-screens.jsx:329-344) are OMITTED: traceGenealogy nodes carry
  *     lpNumber/itemCode/qty/status/createdAt only — no batch, timing or FEFO data
@@ -36,6 +36,7 @@ import Link from 'next/link';
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 
+import { downloadCsv, fileSafe, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type { GenealogyNode } from '../../_actions/shared';
 import type { LicensePlateListItem } from '../../_actions/shared';
 
@@ -87,6 +88,33 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
       {label}
     </Badge>
   );
+}
+
+const CSV_HEADER = [
+  'LP Number',
+  'Parent LP',
+  'Relationship',
+  'Depth',
+  'Item Code',
+  'Quantity',
+  'UOM',
+  'Status',
+  'Created At',
+] as const;
+
+function genealogyRows(nodes: GenealogyNode[]): ReadonlyArray<ReadonlyArray<string | number | null | undefined>> {
+  const lpNumberById = new Map(nodes.map((node) => [node.lpId, node.lpNumber]));
+  return nodes.map((node) => [
+    node.lpNumber,
+    node.parentLpId ? (lpNumberById.get(node.parentLpId) ?? node.parentLpId) : '',
+    node.direction,
+    node.depth,
+    node.itemCode,
+    node.quantity,
+    node.uom,
+    node.status,
+    node.createdAt,
+  ]);
 }
 
 function GenNode({
@@ -166,20 +194,40 @@ export function GenealogyTreeClient({
   const focal = nodes?.find((n) => n.direction === 'self') ?? null;
   const descendants = nodes?.filter((n) => n.direction === 'descendant') ?? [];
   const total = nodes?.length ?? 0;
+  const exportLabel = locale === 'pl' ? 'Eksportuj CSV' : 'Export CSV';
+
+  function exportCsv() {
+    if (!nodes || nodes.length === 0) return;
+    const rootLpNumber = focal?.lpNumber ?? 'tree';
+    downloadCsv(
+      toCsv(CSV_HEADER, genealogyRows(nodes)),
+      `genealogy-${fileSafe(rootLpNumber)}-${isoDateStamp()}.csv`,
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
       {/* Search box (parity other-screens.jsx:302). */}
       <Card className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={labels.searchPlaceholder}
-          aria-label={labels.searchLabel}
-          data-testid="gen-search"
-          className="w-full max-w-md rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={labels.searchPlaceholder}
+            aria-label={labels.searchLabel}
+            data-testid="gen-search"
+            className="w-full max-w-md rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={!nodes || nodes.length === 0}
+            className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exportLabel}
+          </button>
+        </div>
         {search.trim() !== '' ? (
           matches.length === 0 ? (
             <p data-testid="gen-search-empty" className="px-1 text-xs text-slate-500">

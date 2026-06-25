@@ -15,9 +15,20 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const pushSpy = vi.fn();
+const downloadCsvMock = vi.hoisted(() => vi.fn());
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushSpy }),
 }));
+vi.mock('../../../../../../../../lib/shared/download', async () => {
+  const actual = await vi.importActual<typeof import('../../../../../../../../lib/shared/download')>(
+    '../../../../../../../../lib/shared/download',
+  );
+  return {
+    ...actual,
+    downloadCsv: downloadCsvMock,
+    isoDateStamp: () => '2026-06-26',
+  };
+});
 
 import { GenealogyTreeClient, type GenealogyLabels } from '../genealogy-tree.client';
 import { getWhFacilityTranslator } from '../../../wh-facility-labels';
@@ -68,9 +79,9 @@ function node(over: Partial<GenealogyNode> & Pick<GenealogyNode, 'lpId' | 'direc
 
 const NODES: GenealogyNode[] = [
   node({ lpId: 'anc-2', direction: 'ancestor', depth: 2, lpNumber: 'LP-ANC-2' }),
-  node({ lpId: 'anc-1', direction: 'ancestor', depth: 1, lpNumber: 'LP-ANC-1' }),
-  node({ lpId: 'focal', direction: 'self', depth: 0, lpNumber: 'LP-FOCAL', status: 'reserved' }),
-  node({ lpId: 'desc-1', direction: 'descendant', depth: 1, lpNumber: 'LP-DESC-1' }),
+  node({ lpId: 'anc-1', direction: 'ancestor', depth: 1, lpNumber: 'LP-ANC-1', parentLpId: 'anc-2' }),
+  node({ lpId: 'focal', direction: 'self', depth: 0, lpNumber: 'LP-FOCAL', parentLpId: 'anc-1', status: 'reserved' }),
+  node({ lpId: 'desc-1', direction: 'descendant', depth: 1, lpNumber: 'LP-DESC-1', parentLpId: 'focal' }),
 ];
 
 const POOL: LicensePlateListItem[] = [
@@ -152,6 +163,24 @@ describe('GenealogyTreeClient (WH-014)', () => {
     expect(result).toBeInTheDocument();
     fireEvent.click(result);
     expect(pushSpy).toHaveBeenCalledWith('/en/warehouse/genealogy?lp=focal');
+  });
+
+  it('exports the rendered genealogy nodes as CSV', () => {
+    downloadCsvMock.mockClear();
+    renderGen();
+    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+    expect(downloadCsvMock).toHaveBeenCalledTimes(1);
+    expect(downloadCsvMock).toHaveBeenCalledWith(
+      [
+        'LP Number,Parent LP,Relationship,Depth,Item Code,Quantity,UOM,Status,Created At',
+        'LP-ANC-2,,ancestor,2,R-1001,100,kg,available,2026-01-01T00:00:00.000Z',
+        'LP-ANC-1,LP-ANC-2,ancestor,1,R-1001,100,kg,available,2026-01-01T00:00:00.000Z',
+        'LP-FOCAL,LP-ANC-1,self,0,R-1001,100,kg,reserved,2026-01-01T00:00:00.000Z',
+        'LP-DESC-1,LP-FOCAL,descendant,1,R-1001,100,kg,available,2026-01-01T00:00:00.000Z',
+      ].join('\r\n'),
+      'genealogy-LP-FOCAL-2026-06-26.csv',
+    );
   });
 
   it('shows no-results when the search matches nothing', () => {
