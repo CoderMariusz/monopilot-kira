@@ -23,7 +23,7 @@
  * fallback) — never client-trusted.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import Link from 'next/link';
 
@@ -699,11 +699,19 @@ export function OutputModal({
   const [catchText, setCatchText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const transactionIdRef = useRef(freshTransactionId());
   // SOFT-warning acknowledgement (owner decision — warn, never block). When the
   // WO has no recorded material consumption we surface a non-blocking notice; the
   // operator clicks [Continue anyway] to acknowledge before submitting. Submit is
   // never disabled by anything other than the normal field validity.
   const [noConsumptionAck, setNoConsumptionAck] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    submittingRef.current = false;
+    transactionIdRef.current = freshTransactionId();
+  }, [open]);
 
   // Product id is FIXED to the WO's FG product — never an editable textbox. We
   // surface the read-only code + name and keep the id in the payload.
@@ -825,9 +833,11 @@ export function OutputModal({
   }
 
   async function handleConfirm() {
-    if (!canConfirm) return;
+    if (submittingRef.current || !canConfirm) return;
+    submittingRef.current = true;
     setBusy(true);
     setError(null);
+    const transactionId = transactionIdRef.current;
 
     // For base, post the legacy { qty_kg } shape. For each/box, post units +
     // unitsUom + the OPTIONAL actualWeightKg; if the conversion factors are
@@ -835,7 +845,7 @@ export function OutputModal({
     let body: Record<string, unknown>;
     if (isBase) {
       body = {
-        transaction_id: freshTransactionId(),
+        transaction_id: transactionId,
         output_type: outputType,
         product_id: productId,
         qty_kg: qty.trim(),
@@ -852,6 +862,7 @@ export function OutputModal({
       try {
         toBaseQty(snap, Number(qty.trim()), outputUom);
       } catch (e) {
+        submittingRef.current = false;
         setBusy(false);
         if (e instanceof TypedError) {
           setError(mapError(labels, e.code));
@@ -861,7 +872,7 @@ export function OutputModal({
         return;
       }
       body = {
-        transaction_id: freshTransactionId(),
+        transaction_id: transactionId,
         output_type: outputType,
         product_id: productId,
         // REGULATED QUANTITIES: decimal STRINGS (DecimalString schema).
@@ -875,6 +886,7 @@ export function OutputModal({
     }
 
     const result = await run('output', body);
+    submittingRef.current = false;
     setBusy(false);
     if (result.ok) {
       setQty('');
