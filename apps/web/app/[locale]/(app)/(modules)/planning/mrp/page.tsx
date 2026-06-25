@@ -72,6 +72,7 @@ export default async function PlanningMrpPage({ params }: MrpPageProps) {
     actionTypes: {
       buy: t('mrp.actionTypes.buy'),
       make: t('mrp.actionTypes.make'),
+      transfer: t('mrp.actionTypes.transfer'),
       none: t('mrp.actionTypes.none'),
     },
     itemTypes: {
@@ -86,6 +87,29 @@ export default async function PlanningMrpPage({ params }: MrpPageProps) {
       cancelled: t('mrp.status.cancelled'),
       completed: t('mrp.status.completed'),
       failed: t('mrp.status.failed'),
+    },
+    plannedOrders: {
+      title: t('mrp.plannedOrders.title'),
+      columns: {
+        select: t('mrp.plannedOrders.columns.select'),
+        item: t('mrp.plannedOrders.columns.item'),
+        type: t('mrp.plannedOrders.columns.type'),
+        qty: t('mrp.plannedOrders.columns.qty'),
+        needBy: t('mrp.plannedOrders.columns.needBy'),
+        status: t('mrp.plannedOrders.columns.status'),
+      },
+      statuses: {
+        pending: t('mrp.plannedOrders.statuses.pending'),
+        suggested: t('mrp.plannedOrders.statuses.suggested'),
+        firm: t('mrp.plannedOrders.statuses.firm'),
+        released: t('mrp.plannedOrders.statuses.released'),
+        draft: t('mrp.plannedOrders.statuses.draft'),
+        cancelled: t('mrp.plannedOrders.statuses.cancelled'),
+        received: t('mrp.plannedOrders.statuses.received'),
+        partially_received: t('mrp.plannedOrders.statuses.partiallyReceived'),
+        completed: t('mrp.plannedOrders.statuses.completed'),
+        closed: t('mrp.plannedOrders.statuses.closed'),
+      },
     },
     previousRuns: {
       title: t('mrp.previousRuns.title'),

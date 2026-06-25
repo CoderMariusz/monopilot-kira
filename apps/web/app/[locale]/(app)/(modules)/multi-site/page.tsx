@@ -44,22 +44,23 @@ async function listSitesOverview(): Promise<SitesOverviewResult> {
 }
 
 export default async function MultiSiteRoutePage() {
-  const t = await getTranslations("Navigation.app.items");
+  const nav = await getTranslations("Navigation.app.items");
+  const t = await getTranslations("MultiSite");
   const result = await listSitesOverview();
 
   return (
     <section data-testid="module-landing-multi-site" className="p-8" aria-labelledby="module-landing-multi-site-title">
       <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 id="module-landing-multi-site-title" className="text-3xl font-semibold tracking-tight text-slate-950">
-          {t("multiSite")}
+          {nav("multiSite")}
         </h1>
         {!result.ok ? (
           <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            Sites could not be loaded. Try again later.
+            {t("errorLoad")}
           </div>
         ) : result.sites.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-600">
-            No active sites are configured for this organization yet.
+            {t("empty")}
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -67,16 +68,16 @@ export default async function MultiSiteRoutePage() {
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th scope="col" className="px-4 py-3">
-                    Site
+                    {t("columns.site")}
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Code
+                    {t("columns.code")}
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Timezone
+                    {t("columns.timezone")}
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Country
+                    {t("columns.country")}
                   </th>
                 </tr>
               </thead>
@@ -87,13 +88,13 @@ export default async function MultiSiteRoutePage() {
                       {site.name}
                       {site.is_default ? (
                         <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          Default
+                          {t("default")}
                         </span>
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{site.site_code}</td>
                     <td className="px-4 py-3 text-slate-600">{site.timezone}</td>
-                    <td className="px-4 py-3 text-slate-600">{site.country ?? "Not set"}</td>
+                    <td className="px-4 py-3 text-slate-600">{site.country ?? t("notSet")}</td>
                   </tr>
                 ))}
               </tbody>

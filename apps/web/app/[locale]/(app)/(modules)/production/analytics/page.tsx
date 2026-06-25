@@ -69,6 +69,11 @@ async function buildSelectorLabels(locale: string): Promise<PeriodSelectorLabels
     custom: t('period.custom'),
     line: t('filter.line'),
     search: t('filter.search'),
+    allLines: t('filter.allLines'),
+    from: t('filter.from'),
+    to: t('filter.to'),
+    ariaLabel: t('filter.ariaLabel'),
+    periodGroupLabel: t('period.groupLabel'),
   };
 }
 

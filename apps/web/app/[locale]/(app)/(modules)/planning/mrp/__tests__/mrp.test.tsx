@@ -70,7 +70,7 @@ const LABELS = {
     at_risk: 'Covered by incoming supply',
     covered: 'Covered',
   },
-  actionTypes: { buy: 'BUY', make: 'MAKE', none: '—' },
+  actionTypes: { buy: 'BUY', make: 'MAKE', transfer: 'TRANSFER', none: '—' },
   itemTypes: { rm: 'Raw material', ingredient: 'Ingredient', intermediate: 'Intermediate', packaging: 'Packaging' },
   status: {
     suggested: 'Suggested',
@@ -78,6 +78,22 @@ const LABELS = {
     cancelled: 'Cancelled',
     completed: 'Completed',
     failed: 'Failed',
+  },
+  plannedOrders: {
+    title: 'Planned orders',
+    columns: { select: 'Select', item: 'Item', type: 'Type', qty: 'Qty', needBy: 'Need by', status: 'Status' },
+    statuses: {
+      pending: 'Pending',
+      suggested: 'Suggested',
+      firm: 'Firm',
+      released: 'Released',
+      draft: 'Draft',
+      cancelled: 'Cancelled',
+      received: 'Received',
+      partially_received: 'Partially received',
+      completed: 'Completed',
+      closed: 'Closed',
+    },
   },
   previousRuns: {
     title: 'Previous runs',

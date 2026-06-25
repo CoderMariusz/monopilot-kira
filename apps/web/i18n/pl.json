@@ -6976,7 +6976,8 @@
       "actionTypes": {
         "buy": "KUP",
         "make": "WYPRODUKUJ",
-        "none": "—"
+        "none": "—",
+        "transfer": "PRZESUŃ"
       },
       "itemTypes": {
         "rm": "Surowiec",
@@ -7017,6 +7018,29 @@
           "projected": "Prognozowany stan",
           "net": "Zapotrzebowanie netto",
           "empty": "Brak zapisanych zapotrzebowań dla tego uruchomienia."
+        }
+      },
+      "plannedOrders": {
+        "title": "Zaplanowane zlecenia",
+        "columns": {
+          "select": "Wybierz",
+          "item": "Pozycja",
+          "type": "Typ",
+          "qty": "Ilość",
+          "needBy": "Termin",
+          "status": "Status"
+        },
+        "statuses": {
+          "pending": "Oczekujące",
+          "suggested": "Sugerowane",
+          "firm": "Zatwierdzone",
+          "released": "Wydane",
+          "draft": "Szkic",
+          "cancelled": "Anulowane",
+          "received": "Przyjęte",
+          "partiallyReceived": "Częściowo przyjęte",
+          "completed": "Zakończone",
+          "closed": "Zamknięte"
         }
       }
     },
@@ -10103,11 +10127,16 @@
       "quarter": "Ten kwartał",
       "last7d": "Ostatnie 7 dni",
       "last30d": "Ostatnie 30 dni",
-      "custom": "Zakres niestandardowy"
+      "custom": "Zakres niestandardowy",
+      "groupLabel": "Okres raportowania"
     },
     "filter": {
       "line": "Linia produkcyjna",
-      "search": "Nr ZP/ZZ"
+      "search": "Nr ZP/ZZ",
+      "allLines": "Wszystkie linie",
+      "from": "Od",
+      "to": "Do",
+      "ariaLabel": "Filtry raportów"
     },
     "inventory": {
       "columns": {
@@ -10377,6 +10406,18 @@
         "not_found": "Nie znaleziono tej pozycji macierzy.",
         "persistence_failed": "Coś poszło nie tak. Spróbuj ponownie."
       }
+    }
+  },
+  "MultiSite": {
+    "errorLoad": "Nie udało się załadować zakładów. Spróbuj ponownie później.",
+    "empty": "Dla tej organizacji nie skonfigurowano jeszcze aktywnych zakładów.",
+    "notSet": "Nie ustawiono",
+    "default": "Domyślny",
+    "columns": {
+      "site": "Zakład",
+      "code": "Kod",
+      "timezone": "Strefa czasowa",
+      "country": "Kraj"
     }
   }
 }

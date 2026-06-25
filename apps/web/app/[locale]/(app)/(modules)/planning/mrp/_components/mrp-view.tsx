@@ -72,9 +72,15 @@ export type MrpLabels = {
     action: string;
   };
   severity: Record<MrpSeverity, string>;
-  actionTypes: { buy: string; make: string; none: string };
+  actionTypes: { buy: string; make: string; transfer: string; none: string };
   itemTypes: Record<string, string>;
   status: Record<string, string>;
+  plannedOrders: {
+    title: string;
+    columns: { select: string; item: string; type: string; qty: string; needBy: string; status: string };
+    /** Release-status labels for planned PO/TO/WO rows (draft/firm/released/…). */
+    statuses: Record<string, string>;
+  };
   previousRuns: {
     title: string;
     empty: string;
@@ -220,35 +226,43 @@ function PlannedOrdersTable({
   rows,
   selectedIds,
   onToggle,
-  statusLabels,
+  labels,
 }: {
   rows: MrpPlannedOrder[];
   selectedIds: Set<string>;
   onToggle: (id: string) => void;
-  statusLabels: Record<string, string>;
+  labels: MrpLabels;
 }) {
   if (rows.length === 0) return null;
+
+  const planned = labels.plannedOrders;
 
   return (
     <div className="card" data-testid="mrp-planned-orders">
       <div className="card-head">
-        <div className="card-title">Planned orders</div>
+        <div className="card-title">{planned.title}</div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm" data-testid="mrp-planned-orders-table">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-3 py-2">Select</th>
-              <th className="px-3 py-2">Item</th>
-              <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2 text-right">Qty</th>
-              <th className="px-3 py-2">Need by</th>
-              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">{planned.columns.select}</th>
+              <th className="px-3 py-2">{planned.columns.item}</th>
+              <th className="px-3 py-2">{planned.columns.type}</th>
+              <th className="px-3 py-2 text-right">{planned.columns.qty}</th>
+              <th className="px-3 py-2">{planned.columns.needBy}</th>
+              <th className="px-3 py-2">{planned.columns.status}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => {
               const selectable = row.status !== 'cancelled';
+              const typeLabel =
+                row.type === 'make'
+                  ? labels.actionTypes.make
+                  : row.type === 'buy'
+                    ? labels.actionTypes.buy
+                    : labels.actionTypes.transfer;
               return (
                 <tr key={row.id} data-testid={`mrp-planned-order-${row.id}`}>
                   <td className="px-3 py-2">
@@ -257,7 +271,7 @@ function PlannedOrdersTable({
                       checked={selectable && selectedIds.has(row.id)}
                       disabled={!selectable}
                       onChange={() => onToggle(row.id)}
-                      aria-label={`Select ${row.itemCode ?? row.id}`}
+                      aria-label={`${planned.columns.select} ${row.itemCode ?? row.id}`}
                       data-testid={`mrp-planned-select-${row.id}`}
                     />
                   </td>
@@ -267,7 +281,7 @@ function PlannedOrdersTable({
                   </td>
                   <td className="px-3 py-2">
                     <span className={row.type === 'make' ? 'badge badge-blue' : row.type === 'buy' ? 'badge badge-amber' : 'badge badge-gray'}>
-                      {row.type}
+                      {typeLabel}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right font-mono">
@@ -275,7 +289,7 @@ function PlannedOrdersTable({
                   </td>
                   <td className="px-3 py-2">{row.needBy}</td>
                   <td className="px-3 py-2">
-                    <span className="badge badge-gray">{statusLabels[row.status] ?? row.status}</span>
+                    <span className="badge badge-gray">{planned.statuses[row.status] ?? row.status}</span>
                   </td>
                 </tr>
               );
@@ -706,7 +720,7 @@ export function MrpView({
               <ResultsTable rows={result.data.rows} labels={labels} />
             )}
           </div>
-          <PlannedOrdersTable rows={result.data.plannedOrders} selectedIds={selectedPlannedIds} onToggle={togglePlanned} statusLabels={labels.status} />
+          <PlannedOrdersTable rows={result.data.plannedOrders} selectedIds={selectedPlannedIds} onToggle={togglePlanned} labels={labels} />
         </>
       ) : null}
 

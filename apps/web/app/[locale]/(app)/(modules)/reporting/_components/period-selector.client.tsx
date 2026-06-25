@@ -17,6 +17,11 @@ export type PeriodSelectorLabels = {
   custom: string;
   line: string;
   search: string;
+  allLines: string;
+  from: string;
+  to: string;
+  ariaLabel: string;
+  periodGroupLabel: string;
 };
 
 export type PeriodSelectorProps = {
@@ -57,7 +62,7 @@ export function PeriodSelector({
   labels,
   showLineFilter = true,
   showSearchFilter = true,
-  ariaLabel = 'Reporting filters',
+  ariaLabel,
   testId = 'reporting-period-selector',
 }: PeriodSelectorProps) {
   const router = useRouter();
@@ -92,20 +97,20 @@ export function PeriodSelector({
 
   const lineOptions = React.useMemo(
     () => [
-      { value: 'all', label: `All ${labels.line.toLowerCase()}` },
+      { value: 'all', label: labels.allLines },
       ...lines.map((line) => ({ value: line.id, label: lineOptionLabel(line) })),
     ],
-    [labels.line, lines],
+    [labels.allLines, lines],
   );
 
   return (
     <section
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? labels.ariaLabel}
       data-testid={testId}
       className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Reporting period">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={labels.periodGroupLabel}>
           {PERIOD_BUTTONS.map((item) => {
             const active = period === item.value;
             return (
@@ -130,7 +135,7 @@ export function PeriodSelector({
         {period === 'custom' ? (
           <div className="grid gap-3 md:grid-cols-2">
             <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              From
+              {labels.from}
               <input
                 type="date"
                 value={fromDate}
@@ -139,7 +144,7 @@ export function PeriodSelector({
               />
             </label>
             <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              To
+              {labels.to}
               <input
                 type="date"
                 value={toDate}

@@ -6976,7 +6976,8 @@
       "actionTypes": {
         "buy": "BUY",
         "make": "MAKE",
-        "none": "—"
+        "none": "—",
+        "transfer": "TRANSFER"
       },
       "itemTypes": {
         "rm": "Raw material",
@@ -7017,6 +7018,29 @@
           "projected": "Projected on hand",
           "net": "Net requirement",
           "empty": "No requirements stored for this run."
+        }
+      },
+      "plannedOrders": {
+        "title": "Planned orders",
+        "columns": {
+          "select": "Select",
+          "item": "Item",
+          "type": "Type",
+          "qty": "Qty",
+          "needBy": "Need by",
+          "status": "Status"
+        },
+        "statuses": {
+          "pending": "Pending",
+          "suggested": "Suggested",
+          "firm": "Firm",
+          "released": "Released",
+          "draft": "Draft",
+          "cancelled": "Cancelled",
+          "received": "Received",
+          "partiallyReceived": "Partially received",
+          "completed": "Completed",
+          "closed": "Closed"
         }
       }
     },
@@ -10103,11 +10127,16 @@
       "quarter": "This Quarter",
       "last7d": "Last 7d",
       "last30d": "Last 30d",
-      "custom": "Custom range"
+      "custom": "Custom range",
+      "groupLabel": "Reporting period"
     },
     "filter": {
       "line": "Production line",
-      "search": "WO/PO number"
+      "search": "WO/PO number",
+      "allLines": "All lines",
+      "from": "From",
+      "to": "To",
+      "ariaLabel": "Reporting filters"
     },
     "inventory": {
       "columns": {
@@ -10377,6 +10406,18 @@
         "not_found": "This matrix entry could not be found.",
         "persistence_failed": "Something went wrong. Please try again."
       }
+    }
+  },
+  "MultiSite": {
+    "errorLoad": "Sites could not be loaded. Try again later.",
+    "empty": "No active sites are configured for this organization yet.",
+    "notSet": "Not set",
+    "default": "Default",
+    "columns": {
+      "site": "Site",
+      "code": "Code",
+      "timezone": "Timezone",
+      "country": "Country"
     }
   }
 }
