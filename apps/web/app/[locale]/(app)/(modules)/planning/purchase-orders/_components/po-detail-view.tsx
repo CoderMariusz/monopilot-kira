@@ -107,6 +107,10 @@ export type PoDetailLabels = {
     cancel: string;
     pending: string;
     confirmPrompt: string;
+    cancelConfirmTitle: string;
+    cancelConfirmBody: string;
+    cancelSuccess: string;
+    cancelPoHasReceipts: string;
   };
   /** Wave-R reversibility — sent→draft reopen affordance. */
   reopen: {
@@ -116,6 +120,10 @@ export type PoDetailLabels = {
     pending: string;
     /** window.confirm prompt; `{po}` interpolated. */
     confirmPrompt: string;
+    confirmTitle: string;
+    confirmBody: string;
+    success: string;
+    error: string;
   };
   notesTitle: string;
   errors: Record<string, string>;
@@ -153,7 +161,10 @@ const TRANSITIONS: Record<string, Array<{ to: string; labelKey: keyof PoDetailLa
     { to: 'received', labelKey: 'receive', variant: 'primary' },
     { to: 'cancelled', labelKey: 'cancel', variant: 'danger' },
   ],
-  partially_received: [{ to: 'received', labelKey: 'receive', variant: 'primary' }],
+  partially_received: [
+    { to: 'received', labelKey: 'receive', variant: 'primary' },
+    { to: 'cancelled', labelKey: 'cancel', variant: 'danger' },
+  ],
   received: [],
   cancelled: [],
 };
@@ -221,6 +232,7 @@ export function PoDetailView({
   const [pending, setPending] = React.useState<string | null>(null);
   const [reopening, setReopening] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<string | null>(null);
 
   // Wave R1 — DRAFT edit affordances. Gated on status===draft AND the seams being
   // wired (the page only passes them when editable). Never client-trusts permission;
@@ -228,12 +240,13 @@ export function PoDetailView({
   const isDraft = po.status.toLowerCase() === 'draft';
   const canEdit = isDraft && !!updatePurchaseOrderAction;
 
-  // Wave-R reversibility — sent→draft reopen. Offered ONLY for `sent` POs and only
+  // Wave-R reversibility affordance. Offered ONLY for `cancelled` POs per the
+  // route contract and only
   // when the seam is wired (the page passes it). Never client-trusts the
   // npd.planning.write permission nor the no-receipts guard — reopenPurchaseOrder
   // re-checks both server-side and returns 'po_has_receipts' when receipts exist.
-  const isSent = po.status.toLowerCase() === 'sent';
-  const canReopen = isSent && !!reopenPurchaseOrderAction;
+  const isCancelled = po.status.toLowerCase() === 'cancelled';
+  const canReopen = isCancelled && !!reopenPurchaseOrderAction;
   const [editOpen, setEditOpen] = React.useState(false);
   const [lineModalOpen, setLineModalOpen] = React.useState(false);
   const [editLine, setEditLine] = React.useState<EditLineSeed | null>(null);
@@ -297,39 +310,48 @@ export function PoDetailView({
 
   async function onReopen() {
     if (!reopenPurchaseOrderAction || reopening || pending) return;
-    if (!window.confirm(labels.reopen.confirmPrompt.replace('{po}', po.poNumber))) return;
+    const title = labels.reopen.confirmTitle.replace('{po}', po.poNumber);
+    const body = labels.reopen.confirmBody.replace('{po}', po.poNumber);
+    if (!window.confirm(`${title}\n\n${body}`)) return;
     setReopening(true);
     setError(null);
+    setSuccess(null);
     try {
       const result = await reopenPurchaseOrderAction(po.id);
       if (!result.ok) {
         // Surface po_has_receipts honestly (its own copy); fall back to generic.
-        setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        setError(result.error === 'po_has_receipts' ? labels.errors.po_has_receipts : labels.reopen.error);
         setReopening(false);
         return;
       }
+      setSuccess(labels.reopen.success);
       router.refresh();
     } catch {
-      setError(labels.errors.persistence_failed);
+      setError(labels.reopen.error);
       setReopening(false);
     }
   }
 
   async function onTransition(to: string) {
     if (pending || reopening) return;
-    const prompt = labels.transitions.confirmPrompt
-      .replace('{po}', po.poNumber)
-      .replace('{status}', statusLabel(to));
+    const prompt =
+      to === 'cancelled'
+        ? `${labels.transitions.cancelConfirmTitle.replace('{po}', po.poNumber)}\n\n${labels.transitions.cancelConfirmBody.replace('{po}', po.poNumber)}`
+        : labels.transitions.confirmPrompt
+            .replace('{po}', po.poNumber)
+            .replace('{status}', statusLabel(to));
     if (!window.confirm(prompt)) return;
     setPending(to);
     setError(null);
+    setSuccess(null);
     try {
       const result = await transitionPurchaseOrderStatusAction(po.id, to);
       if (!result.ok) {
-        setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        setError(result.error === 'po_has_receipts' && to === 'cancelled' ? labels.transitions.cancelPoHasReceipts : labels.errors[result.error] ?? labels.errors.persistence_failed);
         setPending(null);
         return;
       }
+      if (to === 'cancelled') setSuccess(labels.transitions.cancelSuccess);
       router.refresh();
     } catch {
       setError(labels.errors.persistence_failed);
@@ -372,6 +394,11 @@ export function PoDetailView({
       {error ? (
         <div role="alert" data-testid="po-detail-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
+        </div>
+      ) : null}
+      {success ? (
+        <div role="status" data-testid="po-detail-success" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {success}
         </div>
       ) : null}
 
