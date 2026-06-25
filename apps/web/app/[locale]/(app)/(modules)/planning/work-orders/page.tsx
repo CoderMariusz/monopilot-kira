@@ -134,6 +134,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       invalid_state: t('errors.invalid_state'),
       invalid_input: t('errors.invalid_input'),
       persistence_failed: t('errors.persistence_failed'),
+      pack_hierarchy_incomplete: opt(
+        'errors.pack_hierarchy_incomplete',
+        'This product is packed in boxes/eaches but the pack factors (net weight per each, eaches per box) are not set — fix the item master in Technical before releasing.',
+      ),
     },
     factoryReleaseIncomplete: {
       title: optTpl(

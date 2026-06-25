@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { fromBaseQty, snapshotFromItemRow, toBaseQty, TypedError, type UomSnapshot } from './convert';
+import {
+  fromBaseQty,
+  packHierarchyComplete,
+  snapshotFromItemRow,
+  toBaseQty,
+  TypedError,
+  type UomSnapshot,
+} from './convert';
 
 describe('uom conversion', () => {
   const meat: UomSnapshot = {
@@ -57,5 +64,51 @@ describe('uom conversion', () => {
       boxesPerPallet: 48,
       weightMode: 'catch',
     });
+  });
+});
+
+describe('packHierarchyComplete', () => {
+  function snap(partial: Partial<UomSnapshot>): UomSnapshot {
+    return {
+      outputUom: 'base',
+      uomBase: 'kg',
+      netQtyPerEach: null,
+      eachPerBox: null,
+      boxesPerPallet: null,
+      weightMode: 'fixed',
+      ...partial,
+    };
+  }
+
+  it('base output is always complete regardless of factors (bulk FG never blocked)', () => {
+    expect(packHierarchyComplete(snap({ outputUom: 'base' }))).toBe(true);
+    expect(
+      packHierarchyComplete(snap({ outputUom: 'base', netQtyPerEach: null, eachPerBox: null })),
+    ).toBe(true);
+  });
+
+  it('each output requires a positive net_qty_per_each', () => {
+    expect(packHierarchyComplete(snap({ outputUom: 'each', netQtyPerEach: 0.25 }))).toBe(true);
+    expect(packHierarchyComplete(snap({ outputUom: 'each', netQtyPerEach: null }))).toBe(false);
+    expect(packHierarchyComplete(snap({ outputUom: 'each', netQtyPerEach: 0 }))).toBe(false);
+    expect(packHierarchyComplete(snap({ outputUom: 'each', netQtyPerEach: -1 }))).toBe(false);
+    expect(packHierarchyComplete(snap({ outputUom: 'each', netQtyPerEach: NaN }))).toBe(false);
+  });
+
+  it('box output requires positive net_qty_per_each AND each_per_box', () => {
+    expect(packHierarchyComplete(snap({ outputUom: 'box', netQtyPerEach: 0.5, eachPerBox: 3 }))).toBe(true);
+    // the canonical "1 box = 3 breads never set" gap: net set, each_per_box missing
+    expect(packHierarchyComplete(snap({ outputUom: 'box', netQtyPerEach: 0.5, eachPerBox: null }))).toBe(false);
+    expect(packHierarchyComplete(snap({ outputUom: 'box', netQtyPerEach: null, eachPerBox: 3 }))).toBe(false);
+    expect(packHierarchyComplete(snap({ outputUom: 'box', netQtyPerEach: 0.5, eachPerBox: 0 }))).toBe(false);
+    expect(packHierarchyComplete(snap({ outputUom: 'box', netQtyPerEach: null, eachPerBox: null }))).toBe(false);
+  });
+
+  it('works against a snapshot built from a raw item row (string numerics)', () => {
+    const complete = snapshotFromItemRow({ output_uom: 'box', net_qty_per_each: '0.3000', each_per_box: '3' });
+    expect(packHierarchyComplete(complete)).toBe(true);
+
+    const incomplete = snapshotFromItemRow({ output_uom: 'box', net_qty_per_each: '0.3000', each_per_box: null });
+    expect(packHierarchyComplete(incomplete)).toBe(false);
   });
 });

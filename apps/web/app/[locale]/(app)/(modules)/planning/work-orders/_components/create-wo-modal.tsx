@@ -102,6 +102,13 @@ export type CreateWoLabels = {
     persistence_failed: string;
     /** P0-UOM — the product lacks pack data needed to convert to base kg. */
     uom_conversion_unavailable?: string;
+    /**
+     * O-2 — release-only pack-hierarchy gate code. createWorkOrder never returns
+     * it, but it is part of the shared PlanningWorkOrderError union, so the index
+     * type must cover it (the `?? persistence_failed` fallback handles the unset
+     * case here).
+     */
+    pack_hierarchy_incomplete?: string;
   };
   noBomWarning: string;
   /** P0-UOM — surfaced when createWorkOrder warns the FG has no approved factory spec. */

@@ -18,6 +18,7 @@ export type PlanningWorkOrderError =
   | 'not_found'
   | 'invalid_state'
   | 'uom_conversion_unavailable'
+  | 'pack_hierarchy_incomplete'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';

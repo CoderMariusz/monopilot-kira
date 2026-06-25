@@ -6222,7 +6222,8 @@
         "not_found": "The work order could not be found.",
         "invalid_state": "The work order is not in a state that allows this action.",
         "persistence_failed": "Something went wrong saving. Please retry shortly.",
-        "uom_conversion_unavailable": "This product is missing the pack data needed to convert units — set it in Technical."
+        "uom_conversion_unavailable": "This product is missing the pack data needed to convert units — set it in Technical.",
+        "pack_hierarchy_incomplete": "This product is packed in boxes/eaches but the pack factors (net weight per each, eaches per box) are not set — fix the item master in Technical before releasing."
       }
     },
     "suppliers": {

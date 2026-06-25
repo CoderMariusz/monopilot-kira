@@ -13,6 +13,10 @@ let allowPermission = true;
 let currentStatus: string | null = 'DRAFT';
 let healedBomId: string | null = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 let healedSpecId: string | null = '99999999-9999-4999-8999-999999999999';
+// Item pack-hierarchy snapshot resolved by the healing preflight (O-2 gate).
+let outputUom: string | null = 'base';
+let netQtyPerEach: string | null = null;
+let eachPerBox: string | null = null;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -32,7 +36,15 @@ function makeClient(): QueryClient {
       }
       if (normalized.startsWith('update public.work_orders') && normalized.includes('returning active_bom_header_id')) {
         return {
-          rows: [{ active_bom_header_id: healedBomId, active_factory_spec_id: healedSpecId }],
+          rows: [
+            {
+              active_bom_header_id: healedBomId,
+              active_factory_spec_id: healedSpecId,
+              output_uom: outputUom,
+              net_qty_per_each: netQtyPerEach,
+              each_per_box: eachPerBox,
+            },
+          ],
           rowCount: 1,
         };
       }
@@ -78,6 +90,9 @@ describe('releaseWorkOrder', () => {
     currentStatus = 'DRAFT';
     healedBomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     healedSpecId = '99999999-9999-4999-8999-999999999999';
+    outputUom = 'base';
+    netQtyPerEach = null;
+    eachPerBox = null;
     client = makeClient();
   });
 
@@ -108,6 +123,50 @@ describe('releaseWorkOrder', () => {
       expect.stringContaining("set status = 'RELEASED'"),
       expect.anything(),
     );
+  });
+
+  it('blocks release with pack_hierarchy_incomplete when a box FG has no each_per_box', async () => {
+    outputUom = 'box';
+    netQtyPerEach = '0.3000';
+    eachPerBox = null;
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'pack_hierarchy_incomplete' });
+    expect(client.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("set status = 'RELEASED'"),
+      expect.anything(),
+    );
+  });
+
+  it('blocks release with pack_hierarchy_incomplete when an each FG has no net_qty_per_each', async () => {
+    outputUom = 'each';
+    netQtyPerEach = null;
+    eachPerBox = null;
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'pack_hierarchy_incomplete' });
+  });
+
+  it('NEVER blocks a base (bulk) FG even with no pack factors', async () => {
+    outputUom = 'base';
+    netQtyPerEach = null;
+    eachPerBox = null;
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('releases a complete box FG (all pack factors present)', async () => {
+    outputUom = 'box';
+    netQtyPerEach = '0.3000';
+    eachPerBox = '3';
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result.ok).toBe(true);
   });
 
   it('stamps the UOM snapshot during the self-heal preflight', async () => {

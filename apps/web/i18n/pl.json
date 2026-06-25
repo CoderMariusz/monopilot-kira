@@ -6222,7 +6222,8 @@
         "not_found": "Nie znaleziono zlecenia produkcyjnego.",
         "invalid_state": "Zlecenie nie jest w stanie umożliwiającym tę akcję.",
         "persistence_failed": "Wystąpił błąd podczas zapisu. Spróbuj ponownie za chwilę.",
-        "uom_conversion_unavailable": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym."
+        "uom_conversion_unavailable": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym.",
+        "pack_hierarchy_incomplete": "Ten produkt jest pakowany w kartony/sztuki, ale współczynniki opakowania (waga netto na sztukę, sztuki w kartonie) nie są ustawione — uzupełnij kartotekę pozycji w module Technicznym przed wydaniem."
       }
     },
     "suppliers": {

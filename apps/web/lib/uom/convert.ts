@@ -59,6 +59,33 @@ export function snapshotFromItemRow(row: ItemLike): UomSnapshot {
   };
 }
 
+/**
+ * Pre-production pack-hierarchy completeness gate.
+ *
+ * A Finished-Good item that is physically packed in `each` or `box` units must
+ * have the factors needed to convert that pack unit to its base (kg/liquid)
+ * quantity, otherwise output/consumption conversion fails later at production
+ * time (`uom_conversion_unavailable`). This pure check lets callers (e.g. WO
+ * release) fail fast with an actionable message instead.
+ *
+ * Rules:
+ *  - `base`  → always complete (bulk FG is legitimate, never blocked).
+ *  - `each`  → requires net_qty_per_each > 0.
+ *  - `box`   → requires net_qty_per_each > 0 AND each_per_box > 0.
+ */
+export function packHierarchyComplete(snap: UomSnapshot): boolean {
+  if (snap.outputUom === 'base') return true;
+  if (snap.outputUom === 'each') return positiveFactor(snap.netQtyPerEach);
+  if (snap.outputUom === 'box') {
+    return positiveFactor(snap.netQtyPerEach) && positiveFactor(snap.eachPerBox);
+  }
+  return false;
+}
+
+function positiveFactor(value: number | null): boolean {
+  return value !== null && Number.isFinite(value) && value > 0;
+}
+
 function nullableNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null;
   return Number(value);

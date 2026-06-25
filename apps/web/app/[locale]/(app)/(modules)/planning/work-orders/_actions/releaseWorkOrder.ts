@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { packHierarchyComplete, snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
 import {
   APP_VERSION,
   PLANNING_WO_WRITE_PERMISSION,
@@ -13,6 +14,9 @@ import {
 type ReleasePreflightRow = {
   active_bom_header_id: string | null;
   active_factory_spec_id: string | null;
+  output_uom: string | null;
+  net_qty_per_each: string | null;
+  each_per_box: string | null;
 };
 
 export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseWorkOrderResult> {
@@ -75,11 +79,32 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
           where wo.org_id = app.current_org_id()
             and wo.id = $1::uuid
             and wo.status = 'DRAFT'
-          returning active_bom_header_id, active_factory_spec_id`,
+          returning active_bom_header_id, active_factory_spec_id,
+                    (select i.output_uom from public.items i
+                      where i.id = wo.product_id and i.org_id = app.current_org_id()) as output_uom,
+                    (select i.net_qty_per_each::text from public.items i
+                      where i.id = wo.product_id and i.org_id = app.current_org_id()) as net_qty_per_each,
+                    (select i.each_per_box::text from public.items i
+                      where i.id = wo.product_id and i.org_id = app.current_org_id()) as each_per_box`,
         [params.id, ctx.userId],
       );
       const preflight = healed.rows[0];
       if (!preflight) return { ok: false, error: 'invalid_state' };
+
+      // O-2 pack-hierarchy gate — a FG packed in each/box must carry the factors
+      // needed to convert that pack unit to base, or output/consume conversion
+      // fails later at production time. Bulk FG (output_uom='base') is legitimate
+      // and is NEVER blocked here.
+      if (preflight.output_uom === 'each' || preflight.output_uom === 'box') {
+        const snap = snapshotFromItemRow({
+          output_uom: preflight.output_uom,
+          net_qty_per_each: preflight.net_qty_per_each,
+          each_per_box: preflight.each_per_box,
+        });
+        if (!packHierarchyComplete(snap)) {
+          return { ok: false, error: 'pack_hierarchy_incomplete' };
+        }
+      }
 
       const missing: Array<'active_bom' | 'factory_spec'> = [];
       if (!preflight.active_bom_header_id) missing.push('active_bom');
