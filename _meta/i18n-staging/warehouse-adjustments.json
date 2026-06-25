@@ -73,17 +73,17 @@
         "uomRequired": "Enter a unit of measure.",
         "reasonRequired": "Select a reason code.",
         "reasonTextRequired": "A reason note is required for \"Other\".",
-        "passwordRequired": "Enter your password to sign.",
+        "passwordRequired": "Enter your password or PIN to sign.",
         "supervisorRequired": "Select a supervisor for the decrease.",
         "supervisorPinRequired": "Enter the supervisor's PIN."
       }
     },
     "esign": {
       "block": "Your electronic signature",
-      "meaning": "Entering your password applies this adjustment under your name and is recorded in the audit trail.",
-      "password": "Account password",
-      "passwordPlaceholder": "Your password",
-      "passwordHelp": "Re-enter your account password (or PIN) to sign."
+      "meaning": "Entering your password or e-sign PIN applies this adjustment under your name and is recorded in the audit trail.",
+      "password": "Account password or e-sign PIN",
+      "passwordPlaceholder": "Password or PIN",
+      "passwordHelp": "Re-enter your account password or e-sign PIN to sign."
     },
     "supervisor": {
       "block": "Supervisor countersignature",
@@ -123,7 +123,7 @@
       "invalid_quantity": "Quantity must be greater than zero.",
       "invalid_expiry_date": "Enter a valid expiry date.",
       "invalid_input": "Check the entered values and try again.",
-      "esign_failed": "Signature failed — check your password and try again.",
+      "esign_failed": "Invalid password or PIN",
       "error": "Could not apply the adjustment. Please try again."
     }
   },
@@ -200,17 +200,17 @@
         "uomRequired": "Podaj jednostkę miary.",
         "reasonRequired": "Wybierz kod przyczyny.",
         "reasonTextRequired": "Uzasadnienie jest wymagane przy „Inne”.",
-        "passwordRequired": "Podaj hasło, aby podpisać.",
+        "passwordRequired": "Podaj hasło lub PIN, aby podpisać.",
         "supervisorRequired": "Wybierz przełożonego dla zmniejszenia.",
         "supervisorPinRequired": "Podaj PIN przełożonego."
       }
     },
     "esign": {
       "block": "Twój podpis elektroniczny",
-      "meaning": "Podanie hasła zatwierdza tę korektę pod Twoim nazwiskiem i jest zapisywane w dzienniku audytu.",
-      "password": "Hasło konta",
-      "passwordPlaceholder": "Twoje hasło",
-      "passwordHelp": "Wpisz ponownie hasło do konta (lub PIN), aby podpisać."
+      "meaning": "Podanie hasła lub PIN-u e-podpisu zatwierdza tę korektę pod Twoim nazwiskiem i jest zapisywane w dzienniku audytu.",
+      "password": "Hasło konta lub PIN e-podpisu",
+      "passwordPlaceholder": "Hasło lub PIN",
+      "passwordHelp": "Wpisz ponownie hasło do konta lub PIN e-podpisu, aby podpisać."
     },
     "supervisor": {
       "block": "Kontrasygnata przełożonego",
@@ -250,7 +250,7 @@
       "invalid_quantity": "Ilość musi być większa od zera.",
       "invalid_expiry_date": "Podaj poprawną datę ważności.",
       "invalid_input": "Sprawdź wprowadzone wartości i spróbuj ponownie.",
-      "esign_failed": "Podpis nie powiódł się — sprawdź hasło i spróbuj ponownie.",
+      "esign_failed": "Nieprawidłowe hasło lub PIN",
       "error": "Nie udało się zastosować korekty. Spróbuj ponownie."
     }
   }

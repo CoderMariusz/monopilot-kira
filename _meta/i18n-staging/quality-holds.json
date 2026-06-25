@@ -207,9 +207,9 @@
       "esign": {
         "title": "Electronic signature (21 CFR Part 11)",
         "meaning": "Meaning: released",
-        "password": "Password",
-        "passwordHelp": "Your password verifies your identity. A signed, immutable record is stored. This action is permanent.",
-        "passwordPlaceholder": "Your account password"
+        "password": "Account password or e-sign PIN",
+        "passwordHelp": "Your password or e-sign PIN verifies your identity. A signed, immutable record is stored. This action is permanent.",
+        "passwordPlaceholder": "Account password or e-sign PIN"
       },
       "cancel": "Cancel",
       "submit": "Release hold",
@@ -217,7 +217,7 @@
       "validation": {
         "dispositionRequired": "A disposition is required.",
         "reasonRequired": "Release notes are required.",
-        "passwordRequired": "Your password is required to sign."
+        "passwordRequired": "Your password or PIN is required to sign."
       },
       "error": "Release failed: {message}",
       "success": "Hold {holdNumber} released."
@@ -430,9 +430,9 @@
       "esign": {
         "title": "Podpis elektroniczny (21 CFR Part 11)",
         "meaning": "Znaczenie: zwolnienie",
-        "password": "Hasło",
-        "passwordHelp": "Twoje hasło potwierdza tożsamość. Zapisywany jest podpisany, niezmienny rekord. Ta akcja jest nieodwracalna.",
-        "passwordPlaceholder": "Hasło do twojego konta"
+        "password": "Hasło konta lub PIN e-podpisu",
+        "passwordHelp": "Hasło lub PIN e-podpisu potwierdza tożsamość. Zapisywany jest podpisany, niezmienny rekord. Ta akcja jest nieodwracalna.",
+        "passwordPlaceholder": "Hasło konta lub PIN e-podpisu"
       },
       "cancel": "Anuluj",
       "submit": "Zwolnij blokadę",
@@ -440,7 +440,7 @@
       "validation": {
         "dispositionRequired": "Decyzja jest wymagana.",
         "reasonRequired": "Uwagi do zwolnienia są wymagane.",
-        "passwordRequired": "Twoje hasło jest wymagane do podpisu."
+        "passwordRequired": "Hasło lub PIN są wymagane do podpisu."
       },
       "error": "Zwolnienie nie powiodło się: {message}",
       "success": "Zwolniono blokadę {holdNumber}."

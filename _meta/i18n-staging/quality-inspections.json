@@ -142,15 +142,15 @@
       "esign": {
         "title": "Electronic signature (21 CFR Part 11)",
         "meaning": "By signing you confirm this {decision} decision as your own act.",
-        "password": "Account password",
-        "passwordHelp": "Re-enter your account password to sign. The signature is verified server-side.",
-        "passwordPlaceholder": "••••••••",
+        "password": "Account password or e-sign PIN",
+        "passwordHelp": "Re-enter your account password or e-sign PIN to sign. The signature is verified server-side.",
+        "passwordPlaceholder": "Password or PIN",
         "note": "Decision note",
         "notePlaceholder": "Optional note recorded with the decision…",
         "cancel": "Cancel",
         "submit": "Sign & submit",
         "submitting": "Submitting…",
-        "validation": { "passwordRequired": "Your account password is required to sign." },
+        "validation": { "passwordRequired": "Your password or PIN is required to sign." },
         "error": "Could not submit decision: {message}",
         "success": "Decision recorded."
       }
@@ -298,15 +298,15 @@
       "esign": {
         "title": "Podpis elektroniczny (21 CFR Part 11)",
         "meaning": "Podpisując potwierdzasz decyzję {decision} jako własne działanie.",
-        "password": "Hasło konta",
-        "passwordHelp": "Wpisz ponownie hasło konta, aby podpisać. Podpis jest weryfikowany po stronie serwera.",
-        "passwordPlaceholder": "••••••••",
+        "password": "Hasło konta lub PIN e-podpisu",
+        "passwordHelp": "Wpisz ponownie hasło konta lub PIN e-podpisu, aby podpisać. Podpis jest weryfikowany po stronie serwera.",
+        "passwordPlaceholder": "Hasło lub PIN",
         "note": "Notatka decyzji",
         "notePlaceholder": "Opcjonalna notatka zapisana z decyzją…",
         "cancel": "Anuluj",
         "submit": "Podpisz i wyślij",
         "submitting": "Wysyłanie…",
-        "validation": { "passwordRequired": "Hasło konta jest wymagane do podpisu." },
+        "validation": { "passwordRequired": "Hasło lub PIN są wymagane do podpisu." },
         "error": "Nie udało się wysłać decyzji: {message}",
         "success": "Decyzja zapisana."
       }

@@ -96,6 +96,7 @@
       "deferredMultiSelect": "Bulk select / actions are deferred to a later lane."
     },
     "status": {
+      "received": "Received",
       "available": "Available",
       "reserved": "Reserved",
       "blocked": "Blocked",
@@ -443,6 +444,7 @@
       "deferredMultiSelect": "Zaznaczanie zbiorcze / akcje są odłożone na późniejszy etap."
     },
     "status": {
+      "received": "Przyjęty",
       "available": "Dostępny",
       "reserved": "Zarezerwowany",
       "blocked": "Zablokowany",

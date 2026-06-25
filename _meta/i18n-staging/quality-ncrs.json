@@ -162,17 +162,17 @@
       "dualSignWarning": "Critical NCR — dual signature required (V-QA-NCR-006). Both Quality Lead and Production Manager must sign at close.",
       "esign": {
         "title": "Electronic signature (21 CFR Part 11)",
-        "meaning": "Entering your account password applies your electronic signature to this NCR closure.",
-        "password": "Password",
-        "passwordHelp": "Your account password — verified server-side; never stored in plain text.",
-        "passwordPlaceholder": "Enter your password"
+        "meaning": "Entering your account password or e-sign PIN applies your electronic signature to this NCR closure.",
+        "password": "Account password or e-sign PIN",
+        "passwordHelp": "Your account password or e-sign PIN is verified server-side and never stored in plain text.",
+        "passwordPlaceholder": "Enter your password or PIN"
       },
       "cancel": "Cancel",
       "submit": "Close NCR",
       "submitting": "Closing…",
       "validation": {
         "resolutionRequired": "Closure notes are required (min 10 characters).",
-        "passwordRequired": "A signature password is required to close a critical NCR."
+        "passwordRequired": "A password or PIN is required to close a critical NCR."
       },
       "error": "Could not close the NCR: {message}",
       "success": "NCR closed."
@@ -380,17 +380,17 @@
       "dualSignWarning": "Krytyczny NCR — wymagany podwójny podpis (V-QA-NCR-006). Przy zamknięciu muszą podpisać się Kierownik Jakości i Kierownik Produkcji.",
       "esign": {
         "title": "Podpis elektroniczny (21 CFR Part 11)",
-        "meaning": "Wpisanie hasła do konta nanosi Twój podpis elektroniczny na zamknięcie tego NCR.",
-        "password": "Hasło",
-        "passwordHelp": "Twoje hasło do konta — weryfikowane po stronie serwera; nigdy nie przechowywane jawnie.",
-        "passwordPlaceholder": "Wpisz hasło"
+        "meaning": "Wpisanie hasła konta lub PIN-u e-podpisu składa podpis elektroniczny pod zamknięciem tego NCR.",
+        "password": "Hasło konta lub PIN e-podpisu",
+        "passwordHelp": "Hasło konta lub PIN e-podpisu jest weryfikowane po stronie serwera i nigdy nie jest przechowywane jawnie.",
+        "passwordPlaceholder": "Wpisz hasło lub PIN"
       },
       "cancel": "Anuluj",
       "submit": "Zamknij NCR",
       "submitting": "Zamykanie…",
       "validation": {
         "resolutionRequired": "Uwagi do zamknięcia są wymagane (min. 10 znaków).",
-        "passwordRequired": "Aby zamknąć krytyczny NCR, wymagane jest hasło podpisu."
+        "passwordRequired": "Aby zamknąć krytyczny NCR, wymagane jest hasło lub PIN."
       },
       "error": "Nie udało się zamknąć NCR: {message}",
       "success": "NCR zamknięty."

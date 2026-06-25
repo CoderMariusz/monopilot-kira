@@ -67,6 +67,14 @@
         "inspection": "Inspection",
         "ncr": "NCR"
       },
+      "status": {
+        "open": "Open",
+        "pending": "Pending",
+        "passed": "Passed",
+        "failed": "Failed",
+        "on_hold": "On hold",
+        "closed_in_window": "Closed in window"
+      },
       "columns": {
         "entity": "Record",
         "status": "Status",
@@ -84,6 +92,14 @@
       },
       "confirmedToGrnNote": "Not computable — purchase orders do not record a confirmation timestamp",
       "createdToGrnNote": "Proxy metric: PO creation to earliest GRN receipt",
+      "status": {
+        "cancelled": "Cancelled",
+        "draft": "Draft",
+        "partially_received": "Partially received",
+        "received": "Received",
+        "sent": "Sent",
+        "confirmed": "Confirmed"
+      },
       "columns": {
         "status": "PO status",
         "count": "Count"
@@ -159,6 +175,14 @@
         "inspection": "Inspekcja",
         "ncr": "NCR"
       },
+      "status": {
+        "open": "Otwarte",
+        "pending": "Oczekujące",
+        "passed": "Zaliczone",
+        "failed": "Niezaliczone",
+        "on_hold": "Wstrzymane",
+        "closed_in_window": "Zamknięte w okresie"
+      },
       "columns": {
         "entity": "Rekord",
         "status": "Status",
@@ -176,6 +200,14 @@
       },
       "confirmedToGrnNote": "Nieobliczalne — zamówienia zakupu nie zapisują znacznika czasu potwierdzenia",
       "createdToGrnNote": "Miernik zastępczy: od utworzenia ZZ do najwcześniejszego przyjęcia PZ",
+      "status": {
+        "cancelled": "Anulowane",
+        "draft": "Wersja robocza",
+        "partially_received": "Częściowo przyjęte",
+        "received": "Przyjęte",
+        "sent": "Wysłane",
+        "confirmed": "Potwierdzone"
+      },
       "columns": {
         "status": "Status ZZ",
         "count": "Liczba"
