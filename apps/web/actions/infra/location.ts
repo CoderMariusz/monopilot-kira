@@ -46,7 +46,17 @@ type ParsedDeleteLocationInput = {
 
 export type UpsertLocationResult =
   | { ok: true; data: { id: string; path: string; level: number } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'invalid_parent_location' | 'invalid_parent_level' | 'persistence_failed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'invalid_parent_location'
+        | 'invalid_parent_level'
+        | 'depth_exceeded'
+        | 'duplicate_code'
+        | 'persistence_failed';
+    };
 
 export type DeleteLocationResult =
   | { ok: true; data: { locationId: string; warehouseId: string } }
@@ -56,6 +66,14 @@ const EDIT_PERMISSION = 'settings.infra.update';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const uuidSchema = z.string().trim().regex(UUID_RE);
 const locationCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/);
+// location_type is a lowercase taxonomy (storage/transit/receiving/production_line/zone/
+// aisle/rack/bin/…), NOT a code. The old schema reused locationCodeSchema and UPPERCASED
+// it, so a saved 'STORAGE' never matched the lowercase dropdown option → the type looked
+// un-editable. Preserve the value lowercase to match the seed/import convention.
+const locationTypeSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+  z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]*$/),
+);
 const locationTextSchema = (max: number) => z.string().trim().min(1).max(max);
 const optionalUuidSchema = z.preprocess((value) => (value === undefined || value === null || value === '' ? null : value), uuidSchema.nullable());
 const optionalTextSchema = (max: number) => z.preprocess((value) => (value === undefined || value === null || value === '' ? null : value), locationTextSchema(max).nullable());
@@ -67,7 +85,7 @@ const locationInputSchema = z.object({
   code: locationCodeSchema,
   name: locationTextSchema(128),
   level: z.coerce.number().int().min(1).max(4),
-  locationType: locationCodeSchema,
+  locationType: locationTypeSchema,
   active: z.boolean().default(true),
   barcode: optionalTextSchema(128),
 });
@@ -85,16 +103,26 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<UpsertLocationResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
+      const existing = input.id ? await getLocation(client, input.id) : null;
+
       let parent: LocationRow | null = null;
       if (input.parentId) {
         parent = await getLocation(client, input.parentId);
         if (!parent || parent.warehouse_id !== input.warehouseId) return { ok: false, error: 'invalid_parent_location' };
-        if (input.level !== parent.level + 1) return { ok: false, error: 'invalid_parent_level' };
-      } else if (input.level !== 1) {
-        return { ok: false, error: 'invalid_parent_level' };
+        // Cycle guard: a node cannot be parented to itself or to one of its own descendants.
+        if (existing && (parent.id === existing.id || parent.path === existing.path || parent.path.startsWith(`${existing.path}.`))) {
+          return { ok: false, error: 'invalid_parent_location' };
+        }
       }
 
+      // Level + path are DERIVED from the parent — the client no longer has to send a
+      // correct level. The old contract rejected a parent move whenever the client level
+      // was stale (e.g. moving a level-2 node back to root kept level=2 → invalid_parent_level
+      // → the generic "Location save failed" the owner hit). Depth cap = 3 (warehouse → zone → bin).
+      const level = parent ? parent.level + 1 : 1;
+      if (level > 3) return { ok: false, error: 'depth_exceeded' };
       const path = parent ? `${parent.path}.${input.code}` : input.code;
+
       const { rows } = await client.query<LocationRow>(
         `insert into public.locations
            (id, org_id, warehouse_id, parent_id, code, name, location_type, level, path, barcode, is_active)
@@ -110,10 +138,24 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
            barcode = excluded.barcode,
            is_active = excluded.is_active
          returning id, warehouse_id, parent_id, code, name, location_type, level, path, barcode, is_active`,
-        [input.id, input.warehouseId, input.parentId, input.code, input.name, input.locationType, input.level, path, input.barcode, input.active],
+        [input.id, input.warehouseId, input.parentId, input.code, input.name, input.locationType, level, path, input.barcode, input.active],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
+
+      // Keep descendant path/level consistent when an existing node was moved or its code
+      // renamed — otherwise children keep the stale path prefix and the tree de-syncs.
+      if (existing && existing.path !== path) {
+        await client.query(
+          `update public.locations
+              set path = $1 || substring(path from char_length($2) + 1),
+                  level = level + $3::int
+            where org_id = app.current_org_id()
+              and warehouse_id = $4::uuid
+              and path like $2 || '.%'`,
+          [path, existing.path, level - existing.level, input.warehouseId],
+        );
+      }
 
       await writeOutbox(client, {
         orgId,
@@ -127,7 +169,9 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
 
       return { ok: true, data: { id: row.id, path: row.path, level: row.level } };
     });
-  } catch {
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
+    console.error('[settings/infra/locations] upsert_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ok: false, error: 'persistence_failed' };
   }
 }
@@ -202,6 +246,10 @@ function parseDeleteLocationInput(raw: unknown): ParsedDeleteLocationInput | nul
   const parsed = deleteLocationInputSchema.safeParse(raw);
   if (!parsed.success) return null;
   return parsed.data;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === '23505';
 }
 
 async function getLocation(client: QueryClient, id: string): Promise<LocationRow | null> {

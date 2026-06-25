@@ -296,9 +296,12 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     await expect(
       upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: WRONG_WAREHOUSE_PARENT_ID, code: 'AISLE-X', name: 'Wrong warehouse', level: 2, locationType: 'aisle' }),
     ).resolves.toMatchObject({ ok: false, error: 'invalid_parent_location' });
-    await expect(upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: ZONE_ID, code: 'BIN-BAD', name: 'Wrong level', level: 4, locationType: 'bin' })).resolves.toMatchObject({
+    // Level is now DERIVED from the parent (client-sent level is ignored), so a stale/wrong
+    // level no longer rejects on its own. Depth is capped at 3: a parent already at/over the
+    // cap is rejected before any write (this BIN parent is level 4 → child would be level 5).
+    await expect(upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: BIN_ID, code: 'BIN-DEEP', name: 'Too deep', level: 4, locationType: 'bin' })).resolves.toMatchObject({
       ok: false,
-      error: 'invalid_parent_level',
+      error: 'depth_exceeded',
     });
 
     const created = await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-02', name: 'Rack 02', level: 3, locationType: 'rack' });

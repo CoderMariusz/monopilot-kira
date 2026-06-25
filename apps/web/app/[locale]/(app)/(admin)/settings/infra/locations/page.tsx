@@ -363,8 +363,7 @@ async function postLocationImport(input: CreateLocationInput): Promise<CreateLoc
       await queryClient.query(
         `insert into public.locations (org_id, warehouse_id, parent_id, code, name, location_type, level, path)
          values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, 'storage', $5::integer, $6)
-         on conflict (org_id, code) do update set
-           warehouse_id = excluded.warehouse_id,
+         on conflict (org_id, warehouse_id, code) do update set
            parent_id = excluded.parent_id,
            name = excluded.name,
            level = excluded.level,
