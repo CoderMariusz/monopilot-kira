@@ -121,6 +121,7 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
         already_cancelled: t('grnDetail.cancelLine.errors.already_cancelled'),
         invalid_input: t('grnDetail.cancelLine.errors.invalid_input'),
         persistence_failed: t('grnDetail.cancelLine.errors.persistence_failed'),
+        session_expired: 'Your session expired. Please log in again.',
         generic: t('grnDetail.cancelLine.errors.generic'),
       },
     },
