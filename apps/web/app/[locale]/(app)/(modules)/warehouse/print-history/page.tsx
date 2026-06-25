@@ -156,7 +156,7 @@ async function defaultReprint(jobId: string): Promise<PrintJobRow> {
     id: created.id,
     status: created.status,
     entity_type: created.entity_type,
-    entity_display: created.entity_type,
+    entity_display: (created.payload?.entity_display as string | undefined) ?? created.entity_type,
     lp_code: (created.payload?.lp_code as string | undefined) ?? null,
     copies: created.copies,
     printer_name: null,

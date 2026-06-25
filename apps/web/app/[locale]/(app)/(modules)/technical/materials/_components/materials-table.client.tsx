@@ -14,6 +14,7 @@
  */
 
 import React from 'react';
+import { useParams } from 'next/navigation';
 
 import { type ItemListItem, type ItemStatus, type ItemType } from '../../items/_actions/shared';
 
@@ -66,6 +67,8 @@ export function MaterialsTableClient({
   typeTabs: Array<{ key: 'all' | ItemType; label: string }>;
   labels: MaterialsTableLabels;
 }) {
+  const params = useParams<{ locale?: string }>();
+  const locale = typeof params?.locale === 'string' ? params.locale : 'en';
   const [tab, setTab] = React.useState<'all' | ItemType>('all');
   const [query, setQuery] = React.useState('');
 
@@ -140,7 +143,7 @@ export function MaterialsTableClient({
                 <tr key={item.id}>
                   <td className="mono">
                     <a
-                      href={`/technical/items/${encodeURIComponent(item.itemCode)}`}
+                      href={`/${locale}/technical/items/${encodeURIComponent(item.itemCode)}`}
                       className="underline-offset-4 hover:underline"
                       style={{ color: 'var(--blue)' }}
                     >

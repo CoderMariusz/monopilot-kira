@@ -16,7 +16,7 @@
  */
 
 import Link from 'next/link';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 import { listItems } from '../items/_actions/list-items';
 import type { ItemType } from '../items/_actions/shared';
@@ -32,6 +32,7 @@ export const dynamic = 'force-dynamic';
 const MATERIAL_TYPES: readonly ItemType[] = ['rm', 'ingredient', 'intermediate', 'packaging'];
 
 export default async function TechnicalMaterialsPage() {
+  const locale = await getLocale();
   const t = await getTranslations('technical.materials');
   const { items, canCreate, state } = await listItems({ itemTypes: MATERIAL_TYPES });
 
@@ -85,7 +86,7 @@ export default async function TechnicalMaterialsPage() {
         {canCreate ? (
           // Absolute locale-less href — relative `../items` resolved against
           // /technical/materials to /<locale>/items → 404 (same class as the BOM CTA).
-          <Link href="/technical/items" prefetch={false} className="btn btn-secondary">
+          <Link href={`/${locale}/technical/items`} prefetch={false} className="btn btn-secondary">
             {t('manageInItems')}
           </Link>
         ) : null}

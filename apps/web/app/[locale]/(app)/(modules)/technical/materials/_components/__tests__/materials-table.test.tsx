@@ -60,7 +60,7 @@ describe('MaterialsTableClient (TEC-003)', () => {
   it('renders mono code lead cells linking to the item-detail route + NUMERIC cost', () => {
     render(<MaterialsTableClient items={items} typeTabs={typeTabs} labels={labels} />);
     const link = screen.getByRole('link', { name: 'RM-1001' });
-    expect(link).toHaveAttribute('href', '/technical/items/RM-1001');
+    expect(link).toHaveAttribute('href', '/en/technical/items/RM-1001');
     expect(screen.getByText('12.50')).toBeInTheDocument();
     const activeBadge = screen.getByText((_, el) => el?.classList.contains('badge-green') ?? false);
     expect(activeBadge).toHaveTextContent('Active');
