@@ -509,6 +509,42 @@ describe('ReportingOverviewClient', () => {
     expect(downloadCsvMock.mock.calls[3][0]).toContain('Confirmed,2');
   });
 
+  it('uses warehouse names instead of raw UUIDs in inventory and receipts CSV exports when codes are missing', () => {
+    const warehouseId = '33333333-3333-4333-8333-333333333333';
+    renderOverview({
+      inventory: {
+        ...inventory,
+        rows: [
+          {
+            ...inventory.rows[0],
+            warehouseId,
+            warehouseCode: null,
+            warehouseName: 'Main Warehouse',
+          },
+        ],
+      },
+      receipts: {
+        ...receipts,
+        rows: [
+          {
+            ...receipts.rows[0],
+            warehouseId,
+            warehouseCode: null,
+            warehouseName: 'Main Warehouse',
+          },
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('rpt-export-inventory'));
+    fireEvent.click(screen.getByTestId('rpt-export-receipts'));
+
+    expect(downloadCsvMock.mock.calls[0][0]).toContain('Main Warehouse,15,13,2');
+    expect(downloadCsvMock.mock.calls[0][0]).not.toContain(warehouseId);
+    expect(downloadCsvMock.mock.calls[1][0]).toContain('GRN-2026-00002,Acme Supplies,Main Warehouse,Completed');
+    expect(downloadCsvMock.mock.calls[1][0]).not.toContain(warehouseId);
+  });
+
   it('disables CSV buttons (with explanatory title) without rpt.export.csv', () => {
     renderOverview({ canExportCsv: false });
     for (const id of [

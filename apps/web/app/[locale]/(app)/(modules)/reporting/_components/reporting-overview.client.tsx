@@ -226,6 +226,10 @@ function shortDate(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
+function warehouseExportLabel(row: { warehouseCode: string | null; warehouseName: string | null }): string {
+  return row.warehouseCode ?? row.warehouseName ?? '';
+}
+
 // ── Section: production ───────────────────────────────────────────────────────
 
 function ProductionSection({
@@ -348,7 +352,7 @@ function InventorySection({
       toCsv(
         [c.warehouse, c.lps, c.active, c.blocked, c.qtyKg, c.qtyByUom, c.expired, c.expiring7d],
         data.rows.map((r) => [
-          r.warehouseCode ?? r.warehouseId,
+          warehouseExportLabel(r),
           r.lpCount,
           r.activeLpCount,
           r.blockedLpCount,
@@ -618,7 +622,7 @@ function ReceiptsSection({
         data.rows.map((r) => [
           r.grnNumber,
           r.supplierName ?? '',
-          r.warehouseCode ?? r.warehouseId,
+          warehouseExportLabel(r),
           statusLabel(r.status),
           r.itemLineCount,
           formatQtyByUom(r.receivedQtyByUom),
