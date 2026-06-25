@@ -59,3 +59,48 @@
 - Committed paused #49 test-contract fixes (19 files, all verified green: 78 node + 111 UI): stale route/migration/lint-mode refs aligned to real code state.
 - Pushed: 52de67c8 (i18n settings PL + parity) + df8576fd (test contracts). Verifying deploy READY.
 - Lesson re-applied: `ls`/glob unreliable under rtk proxy in this env — use `test -f`/`git ls-files`/`grep -rl` for existence checks.
+
+## 2026-06-25 (deep-night tick, cont.)
+- Pushed 56cc6578 chain total: 52de67c8 (settings PL+parity) · df8576fd (#49 19 test contracts) · f5903ea7 (docs) · 331a53b1 (remaining 129 i18n PL) · 370d05ad (#37 company test) · 56cc6578 (posthog server-only). Deploy 370d05ad = READY → FULL Polish i18n is LIVE for testers. 56cc6578 BUILDING.
+- i18n: ALL multiword EN-mirror values now translated (settings 463 + tail 129); 4 locales parity-locked at 7850 keys; 0 real ICU mismatches (7 plural keys verified: {count} preserved, PL one/few/many added correctly).
+- Full web suite run: node 1664 pass / 2 fail (3 fail files), all PRE-EXISTING + not touched this tick: (a) sw.test.ts ENOENT public/sw.js = Serwist BUILD ARTIFACT, not in repo → environmental; (b) csv.integration.test.ts = DB-gated; (c) posthog server-only-guard = REAL gap → FIXED (56cc6578). UI run was &&-short-circuited; the 20 tests I touched are individually green.
+- Codex lane #37 (company test) DONE+verified: 7/7, test-only, no hack, no source change.
+- Dispatched lane ae92c70: route HARDCODED English in settings components (invitations/roles/schema-new/tenant/d365/gallery) through t() + new keys ×4 locales. WILL gate on parity test + build + diff review before push (touches source — higher risk).
+- Owner-blocked still held: logic-gap Wave-A, mass-balance S4-S6, e-sign policy, site-scoping reads, IDLE-2.
+
+## 2026-06-25 (hourly tick — 2 lanes running)
+- 56cc6578 pushed last tick (posthog server-only); HEAD=56cc6578. 2 Codex lanes running, non-overlapping: ae92c70 (settings hardcoded-EN → t() + 4-locale keys, gated on parity test) + a94bcaa1 (config #6: NPD formulation allergens read canonical "Reference"."Allergens" w/ EU14 fallback, gated on typecheck+unit test).
+- Backlog triage: #26 stock-adjust = owner-decision-blocked (5 pending); site-scoping reads S4-S6 = HELD (would hide null-site rows); #36 = DB-gated; #57 NPD-DYN in-flight. Picked config-audit quick-win #6 as the safe verifiable slice.
+- Lean on owner tokens: NO browser this tick (keeping Codex maxed instead). Will verify both lanes on completion (build + diff review + their gates) before push.
+
+## 2026-06-25 (heartbeat — 3 lanes, no build/browser)
+- 3 Codex lanes running, non-overlapping: ae92c70 (settings hardcoded-EN→t()), a94bcaa1 (NPD formulation allergens→Reference.Allergens+EU14 fallback), a7432279 (RBAC enum drift: add seeded+consumed-but-missing production.*.correct / wo.cancel / scheduler.* to ALL_PERMISSIONS, verify-each gate). RBAC lane → kira-codex-review before push.
+- No build this tick (lanes mid-flight, write at end). No browser (winding down MY spend / late; Codex maxed instead).
+- Tracks-plan FIX QUEUE still open for later lanes: cold-chain gi.item_id (DB view/func, MCP-investigate→migration), render-then-403 scheduler gating (L2), L3 polish (andon OEE/href locale, cold-chain 404 back-link /en). Sites&Lines edit-line (L1) + dock-doors confirm.
+
+## 2026-06-25 (heartbeat cont. — a94bcaa1 done, ae92c70 watch)
+- a94bcaa1 (NPD formulation allergens) DONE + CLEAN: reuses technical loadAllergensConfig, EU14 fallback, 14/14 UI tests. Its typecheck "exit 2" = SHARED-TREE pollution only (ae92c70's in-progress roles-screen.client.tsx references undefined `closeLabel` @134 vs prop @156) — NPD files themselves clean.
+- WATCH: ae92c70 (settings hardcoded-EN) still running; verify roles-screen.client.tsx closeLabel is resolved before any build/commit. Lesson reinforced: concurrent source-editing lanes cross-pollute each other's typecheck — batch-build only after ALL settle.
+- Holding integration: no build/commit while ae92c70 mid-edit (broken tree). 2 lanes still running (ae92c70 + a7432279 RBAC enum). Will batch-integrate on their completion.
+
+## 2026-06-25 (heartbeat cont. — ae92c70 forward-flaked → detached job bqnalxqia)
+- ae92c70 wrapper hit the codex-rescue FORWARDING FLAKE (ran 10.5min then forwarded remainder to DETACHED job bqnalxqia, untracked — no completion notification will come). Settings hardcoded-EN work continues in bqnalxqia.
+- Tree progressing healthily: the 2 earlier type errors are being resolved (roles-screen closeLabel now a defined prop @115; D365SyncLabels updated; +d365-sync/schema-new/tenant files now modified). Job is MID-FLIGHT.
+- HOLD integration until bqnalxqia stabilizes (git status stable + typecheck clean) — must not build/commit while a detached job writes. At next re-invocation (cron / ad08bca9 doc-lane notification): re-poll tree → if stable+clean, batch-build NPD-allergens + settings-i18n → parity test (settings added ×4 keys) → commit groups → push → deploy. If bqnalxqia appears STALLED+broken, take over the concrete residual fixes myself (closeLabel/D365 were concrete).
+- RBAC lane = no-op (false-positive, nothing to commit). NPD-allergens lane = clean (held for batch build). ad08bca9 (Purchasing guide, docs-only) running.
+
+## 2026-06-25 (integration — 3 lanes landed, pushed a092fbc6)
+- bqnalxqia (detached settings job) FINISHED CLEAN (idle 4min + typecheck 0). Verified the 185 new keys: 0 ICU mismatches, real Polish (8 same-word EN kept), uk/ro 185/185 EN-mirrored, 4-locale parity 8035. Build 0.
+- Committed+pushed 3 groups: ec14a7d5 (settings hardcoded-EN→t(), 8 components +185 keys ×4 locale) · e0e31c43 (NPD formulation allergens→Reference.Allergens+EU14 fallback, 14/14) · a092fbc6 (Purchasing module guide, 45 functions). Lesson-check clean.
+- RBAC enum lane = verified no-op (all 8 perms already in enum). Verifying deploy a092fbc6 READY.
+
+## 2026-06-25 (deploy READY + 2 doc lanes)
+- a092fbc6 deploy = READY (settings PL + NPD allergens + purchasing guide LIVE, prod alias). Lesson loop closed.
+- locale-href lane (ae080407) = verified NO-OP: andon link already locale-aware, cold-chain /en/dashboard hardcode doesn't exist. 2nd stale-audit false-positive (after RBAC) → tracks-plan fix queue is largely already-fixed.
+- STILL genuinely open (need MCP/browser = my tokens, deferred while protecting reserve): cold-chain `gi.item_id` DB view/func bug (concrete: `column gi.item_id does not exist` on grns cold-chain temp save; grn_items col = product_id; hunt pg_views/pg_proc → migration); sites&lines "edit a created line" affordance; dock-doors confirm post-mig323.
+- Codex kept busy on zero-risk Track-3 docs: a7e1fafd (Warehouse guide) + a6b17b59 (Production guide) running. Will skim+commit on completion.
+
+## 2026-06-25 (heartbeat — cold-chain L1 verified FIXED + Scanner guide ready)
+- Cold-chain `gi.item_id` L1 (tracks-plan fix queue #3) = CONFIRMED ALREADY FIXED. MCP: no DB view/func references gi.item_id; grn_items has product_id+site_id (no item_id); current quality/_actions/cold-chain-actions.ts uses gi.site_id only; PREPARE-tested resolveConditionSiteId + loadRangeConfig queries on live = both prepare OK. Stale audit finding (3rd: after RBAC-enum + locale-href). Tracks-plan fix queue is largely already-done; remaining reliable open = owner-found sites&lines "edit a created line".
+- Scanner guide (08-scanner.md, 28 fn, no unverified) ready, uncommitted — batching with Quality (acc16018) + NPD (ae74af8) doc lanes still running. 2 Codex lanes active.
+- Pushed earlier this run: 89a026dc (warehouse+production guides). a092fbc6 deploy READY.
