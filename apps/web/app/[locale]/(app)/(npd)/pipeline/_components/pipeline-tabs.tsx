@@ -42,6 +42,8 @@ import { KanbanView } from './kanban-view';
 import { TableView, type BulkActions, type TableLabels, type TableProject } from './table-view';
 import { SplitView } from './split-view';
 import type { SplitLabels } from './split-labels';
+import { getPipelineAnalytics } from '../_actions/get-pipeline-analytics';
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../lib/shared/download';
 import {
   normalizeStage,
   type AdvanceAction,
@@ -51,12 +53,24 @@ import {
   type ProjectStage,
 } from './kanban-types';
 
-export type PipelineView = 'kanban' | 'table' | 'split';
+export type PipelineView = 'kanban' | 'table' | 'split' | 'analytics';
 
-const VIEWS: PipelineView[] = ['kanban', 'table', 'split'];
+const VIEWS: PipelineView[] = ['kanban', 'table', 'split', 'analytics'];
 
 /** View-mode glyphs mirror the prototype's ▦ / ≡ / ⊟ affordances (pipeline.jsx:197-201). */
-const VIEW_GLYPH: Record<PipelineView, string> = { kanban: '▦', table: '≡', split: '⊟' };
+const VIEW_GLYPH: Record<PipelineView, string> = { kanban: '▦', table: '≡', split: '⊟', analytics: '▤' };
+
+type PipelineAnalyticsRow = {
+  stage: string;
+  gate: string | null;
+  count: number;
+  conversionPct: number | null;
+};
+
+type PipelineAnalyticsState =
+  | { status: 'idle' | 'loading'; rows: PipelineAnalyticsRow[] }
+  | { status: 'ready'; rows: PipelineAnalyticsRow[] }
+  | { status: 'error' | 'permission_denied'; rows: PipelineAnalyticsRow[] };
 
 /** KPI strip copy — keyed under the NEW npd.pipelineKpi namespace. */
 export type PipelineKpiLabels = {
@@ -91,6 +105,7 @@ export type PipelineTabsLabels = {
   tabKanban: string;
   tabTable: string;
   tabSplit: string;
+  tabAnalytics?: string;
   filtersLabel: string;
   filterAll: string;
   filterMine: string;
@@ -107,6 +122,10 @@ export type PipelineTabsLabels = {
   pageSubtitle: string;
   breadcrumbRoot: string;
   breadcrumbCurrent: string;
+  exportCsv?: string;
+  analyticsStage?: string;
+  analyticsCount?: string;
+  analyticsConversion?: string;
 };
 
 function parseView(raw: string | null): PipelineView {
@@ -123,6 +142,8 @@ function viewLabel(view: PipelineView, labels: PipelineTabsLabels): string {
       return labels.tabTable;
     case 'split':
       return labels.tabSplit;
+    case 'analytics':
+      return labels.tabAnalytics ?? 'Analytics';
     default:
       return labels.tabKanban;
   }
@@ -187,6 +208,10 @@ export function PipelineTabs({
   const activeView = parseView(searchParams.get('view'));
   const activeFilter = parseFilter(searchParams.get('filter'));
   const searchValue = searchParams.get('search') ?? '';
+  const [analytics, setAnalytics] = React.useState<PipelineAnalyticsState>({
+    status: 'idle',
+    rows: [],
+  });
 
   // Resolve the active locale from the [locale] route param so the "+ New project"
   // link target (full-page wizard at /{locale}/pipeline/new) is correct in BOTH the
@@ -248,6 +273,57 @@ export function PipelineTabs({
   // TableProject and KanbanProject are structurally identical projections of the
   // merged ProjectSummary — the same shared list feeds every view (AC2).
   const tableProjects = visibleProjects as unknown as TableProject[];
+
+  React.useEffect(() => {
+    if (activeView !== 'analytics' || analytics.status !== 'idle') return;
+    let cancelled = false;
+    setAnalytics({ status: 'loading', rows: [] });
+    void getPipelineAnalytics().then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setAnalytics({ status: 'ready', rows: result.data?.funnel ?? [] });
+      } else if (result.error === 'FORBIDDEN') {
+        setAnalytics({ status: 'permission_denied', rows: [] });
+      } else {
+        setAnalytics({ status: 'error', rows: [] });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, analytics.status]);
+
+  const handleExportCsv = React.useCallback(() => {
+    const csv = toCsv(
+      [
+        'id',
+        'code',
+        'name',
+        'type',
+        'current_gate',
+        'current_stage',
+        'prio',
+        'owner',
+        'target_launch',
+        'notes',
+        'created_at',
+      ],
+      projects.map((project) => [
+        project.id,
+        project.code,
+        project.name,
+        project.type,
+        project.currentGate,
+        project.currentStage ?? '',
+        project.prio,
+        project.owner,
+        project.targetLaunch,
+        (project as { notes?: string | null }).notes ?? '',
+        project.createdAt,
+      ]),
+    );
+    downloadCsv(csv, `npd-pipeline-${isoDateStamp()}.csv`);
+  }, [projects]);
 
   // ── KPI counters (real, org-scoped data — no hard-coded numbers) ──
   // KPIs reflect the WHOLE org pipeline, not the current stage filter.
@@ -334,6 +410,15 @@ export function PipelineTabs({
               + {switcherLabels.newProject}
             </button>
           )}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-testid="pipeline-export-csv"
+            onClick={handleExportCsv}
+            disabled={projects.length === 0}
+          >
+            {switcherLabels.exportCsv ?? 'Export CSV'}
+          </button>
         </div>
       </header>
 
@@ -471,9 +556,91 @@ export function PipelineTabs({
         {activeView === 'split' ? (
           <SplitView projects={visibleProjects} labels={splitLabels} state={state} />
         ) : null}
+
+        {activeView === 'analytics' ? (
+          <PipelineAnalyticsPanel
+            analytics={analytics}
+            labels={{
+              stage: switcherLabels.analyticsStage ?? 'Stage',
+              count: switcherLabels.analyticsCount ?? 'Count',
+              conversion: switcherLabels.analyticsConversion ?? 'Conversion',
+              loading: kanbanLabels.loading,
+              empty: kanbanLabels.empty,
+              error: kanbanLabels.error,
+              forbidden: kanbanLabels.forbidden,
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );
 }
 
 export default PipelineTabs;
+
+function PipelineAnalyticsPanel({
+  analytics,
+  labels,
+}: {
+  analytics: PipelineAnalyticsState;
+  labels: {
+    stage: string;
+    count: string;
+    conversion: string;
+    loading: string;
+    empty: string;
+    error: string;
+    forbidden: string;
+  };
+}) {
+  if (analytics.status === 'loading' || analytics.status === 'idle') {
+    return <div className="rounded-md border border-dashed p-6 text-sm text-[var(--muted)]">{labels.loading}</div>;
+  }
+  if (analytics.status === 'permission_denied') {
+    return <div role="alert" className="rounded-md border border-red-200 p-6 text-sm text-red-700">{labels.forbidden}</div>;
+  }
+  if (analytics.status === 'error') {
+    return <div role="alert" className="rounded-md border border-red-200 p-6 text-sm text-red-700">{labels.error}</div>;
+  }
+  if (analytics.rows.length === 0) {
+    return <div className="rounded-md border border-dashed p-6 text-sm text-[var(--muted)]">{labels.empty}</div>;
+  }
+
+  const maxCount = Math.max(...analytics.rows.map((row) => row.count), 1);
+
+  return (
+    <div className="space-y-3" data-testid="pipeline-analytics-panel">
+      <div className="grid grid-cols-[minmax(0,1fr)_80px_110px] gap-3 text-xs font-semibold uppercase text-[var(--muted)]">
+        <div>{labels.stage}</div>
+        <div className="text-right">{labels.count}</div>
+        <div className="text-right">{labels.conversion}</div>
+      </div>
+      <div className="space-y-2">
+        {analytics.rows.map((row) => {
+          const widthPct = Math.max(4, Math.round((row.count / maxCount) * 100));
+          return (
+            <div
+              key={`${row.stage}-${row.gate ?? 'none'}`}
+              className="grid grid-cols-[minmax(0,1fr)_80px_110px] items-center gap-3"
+              data-testid="pipeline-analytics-row"
+            >
+              <div className="min-w-0">
+                <div className="mb-1 truncate text-sm font-medium text-slate-900">
+                  {row.stage}
+                  {row.gate ? <span className="text-[var(--muted)]"> · {row.gate}</span> : null}
+                </div>
+                <div className="h-2 rounded bg-slate-100">
+                  <div className="h-2 rounded bg-[var(--blue)]" style={{ width: `${widthPct}%` }} />
+                </div>
+              </div>
+              <div className="text-right font-mono text-sm">{row.count}</div>
+              <div className="text-right font-mono text-sm">
+                {row.conversionPct == null ? '—' : `${row.conversionPct}%`}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

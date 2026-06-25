@@ -230,6 +230,11 @@ const DEFAULT_SWITCHER_LABELS: PipelineTabsLabels = {
   pageSubtitle: 'Pipeline oversight — projects across the Stage-Gate flow.',
   breadcrumbRoot: 'NPD',
   breadcrumbCurrent: 'Pipeline',
+  tabAnalytics: 'Analytics',
+  exportCsv: 'Export CSV',
+  analyticsStage: 'Stage',
+  analyticsCount: 'Count',
+  analyticsConversion: 'Conversion',
 };
 
 const DEFAULT_KPI_LABELS: PipelineKpiLabels = {
@@ -276,6 +281,23 @@ async function buildLabelSet<T extends Record<string, string>>(
 
 function buildLabels(locale: string): Promise<KanbanLabels> {
   return buildLabelSet(locale, 'kanban', DEFAULT_LABELS);
+}
+
+async function buildSwitcherLabels(locale: string): Promise<PipelineTabsLabels> {
+  const labels = await buildLabelSet(locale, 'switcher', DEFAULT_SWITCHER_LABELS);
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.pipeline' });
+    return {
+      ...labels,
+      tabAnalytics: t('tabs.analytics'),
+      exportCsv: t('exportCsv'),
+      analyticsStage: t('analytics.stage'),
+      analyticsCount: t('analytics.count'),
+      analyticsConversion: t('analytics.conversion'),
+    };
+  } catch {
+    return labels;
+  }
 }
 
 function toKanbanProject(summary: ProjectSummary): KanbanProject {
@@ -410,7 +432,7 @@ export default async function PipelinePage(propsInput: unknown = {}) {
       buildLabels(locale),
       buildLabelSet(locale, 'table', DEFAULT_TABLE_LABELS),
       buildLabelSet(locale, 'split', DEFAULT_SPLIT_LABELS),
-      buildLabelSet(locale, 'switcher', DEFAULT_SWITCHER_LABELS),
+      buildSwitcherLabels(locale),
       buildLabelSet(locale, 'kpi', DEFAULT_KPI_LABELS),
     ]);
 
