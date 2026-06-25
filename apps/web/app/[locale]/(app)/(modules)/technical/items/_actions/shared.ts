@@ -146,6 +146,8 @@ export type ItemListItem = {
   name: string;
   itemType: ItemType;
   status: ItemStatus;
+  description: string | null;
+  productGroup: string | null;
   uomBase: string;
   uomSecondary: string | null;
   gs1Gtin: string | null;
