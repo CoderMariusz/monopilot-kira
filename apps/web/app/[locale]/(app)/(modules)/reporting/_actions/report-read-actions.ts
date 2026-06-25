@@ -47,6 +47,13 @@ const MS_PER_DAY = 86_400_000;
 
 type QtyByUomRow = { uom: string; qty: string };
 
+export type SpendBySupplierRow = {
+  supplierId: string;
+  supplierName: string;
+  totalSpend: number;
+  lineCount: number;
+};
+
 type ReportingLoaderInput = {
   days?: number;
   from?: Date;
@@ -951,6 +958,58 @@ export async function procurementSummary(
   }
 }
 
+export async function getSpendBySupplierCore(
+  ctx: ReportingContext,
+): Promise<ReportingResult<SpendBySupplierRow[]>> {
+  if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
+    return { ok: false, reason: 'forbidden' };
+  }
+
+  const res = await ctx.client.query<{
+    supplier_id: string;
+    supplier_name: string | null;
+    total_spend: string | null;
+    line_count: string;
+  }>(
+    `select po.supplier_id::text as supplier_id,
+            s.name as supplier_name,
+            coalesce(sum(pol.qty * pol.unit_price), 0)::text as total_spend,
+            count(pol.id)::text as line_count
+       from public.purchase_orders po
+       join public.purchase_order_lines pol
+         on pol.org_id = app.current_org_id()
+        and pol.po_id = po.id
+       join public.suppliers s
+         on s.org_id = app.current_org_id()
+        and s.id = po.supplier_id
+      where po.org_id = app.current_org_id()
+      group by po.supplier_id, s.name
+      order by coalesce(sum(pol.qty * pol.unit_price), 0) desc, s.name asc`,
+  );
+
+  return {
+    ok: true,
+    data: res.rows.map((row) => ({
+      supplierId: row.supplier_id,
+      supplierName: row.supplier_name ?? '',
+      totalSpend: num(row.total_spend),
+      lineCount: num(row.line_count),
+    })),
+  };
+}
+
+export async function getSpendBySupplier(): Promise<SpendBySupplierRow[]> {
+  try {
+    const result = await withOrgContext(({ userId, orgId, client }) =>
+      getSpendBySupplierCore({ userId, orgId, client: client as QueryClient }),
+    );
+    return result.ok ? result.data : [];
+  } catch (error) {
+    console.error('[reporting] getSpendBySupplier failed', error);
+    return [];
+  }
+}
+
 /**
  * Single-connection bundle for the `/reporting` page. Opens ONE `withOrgContext`
  * (= 1 app-pool connection) and runs every read-action core on that shared
@@ -975,6 +1034,7 @@ export async function reportingBundle(input: ReportingLoaderInput = {}): Promise
   procurement: ReportingResult<ProcurementSummary>;
   receipts: ReportingResult<ReceiptsSummary>;
   shipments: ReportingResult<ShipmentsSummary>;
+  spendBySupplier: ReportingResult<SpendBySupplierRow[]>;
   exportAccess: ReportingResult<{ canExportCsv: boolean }>;
 }> {
   // Production/procurement/receipts honour the line+order filters; inventory and
@@ -997,9 +1057,10 @@ export async function reportingBundle(input: ReportingLoaderInput = {}): Promise
       const procurement = await procurementSummaryCore(ctx, withOrder);
       const receipts = await receiptsSummaryCore(ctx, withOrder);
       const shipments = await shipmentsSummaryCore(ctx, withOrder);
+      const spendBySupplier = await getSpendBySupplierCore(ctx);
       const exportAccess = await getReportingExportAccessCore(ctx);
 
-      return { production, inventory, quality, procurement, receipts, shipments, exportAccess };
+      return { production, inventory, quality, procurement, receipts, shipments, spendBySupplier, exportAccess };
     });
   } catch (error) {
     console.error('[reporting] reportingBundle failed', error);
@@ -1011,6 +1072,7 @@ export async function reportingBundle(input: ReportingLoaderInput = {}): Promise
       procurement: err,
       receipts: err,
       shipments: err,
+      spendBySupplier: err,
       exportAccess: err,
     };
   }

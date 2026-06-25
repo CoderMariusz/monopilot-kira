@@ -284,10 +284,19 @@ async function loadReportingContent({
   // calls = 7 connections and exhausted the Supavisor pool under load). Same
   // line/order-vs-date-window scoping as before; line/order filters apply to
   // production/procurement/receipts, inventory + quality take only the window.
-  const { production, inventory, quality, procurement, receipts, shipments, exportAccess } =
+  const {
+    production,
+    inventory,
+    quality,
+    procurement,
+    receipts,
+    shipments,
+    spendBySupplier = { ok: true, data: [] },
+    exportAccess,
+  } =
     await reportingBundle({ from, to, lineId: filters.lineId, orderQuery: filters.orderQuery });
 
-  const results = [production, inventory, quality, procurement, receipts, shipments] as const;
+  const results = [production, inventory, quality, procurement, receipts, shipments, spendBySupplier] as const;
 
   // ── Permission-denied state (server-resolved by the actions) ────────────────
   if (results.some((r) => !r.ok && r.reason === 'forbidden')) {
@@ -303,7 +312,15 @@ async function loadReportingContent({
   }
 
   // ── Error state (failed live read → banner, never a 500) ────────────────────
-  if (!production.ok || !inventory.ok || !quality.ok || !procurement.ok || !receipts.ok || !shipments.ok) {
+  if (
+    !production.ok ||
+    !inventory.ok ||
+    !quality.ok ||
+    !procurement.ok ||
+    !receipts.ok ||
+    !shipments.ok ||
+    !spendBySupplier.ok
+  ) {
     return (
       <div
         role="alert"
@@ -326,6 +343,7 @@ async function loadReportingContent({
       procurement={procurement.data}
       receipts={receipts.data}
       shipments={shipments.data}
+      spendBySupplier={spendBySupplier.data}
       productionExportInput={{
         from: from.toISOString(),
         to: to.toISOString(),

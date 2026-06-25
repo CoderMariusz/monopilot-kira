@@ -39,6 +39,7 @@ import type {
   ReceiptsSummary,
   ShipmentsSummary,
 } from '../_actions/shared';
+import type { SpendBySupplierRow } from '../_actions/report-read-actions';
 
 export type ReportingLabels = {
   page: {
@@ -155,6 +156,7 @@ export type ReportingOverviewProps = {
   procurement: ProcurementSummary;
   receipts: ReceiptsSummary;
   shipments: ShipmentsSummary;
+  spendBySupplier?: SpendBySupplierRow[];
   productionExportInput: {
     from: string;
     to: string;
@@ -228,6 +230,12 @@ function shortDate(iso: string | null): string {
 
 function warehouseExportLabel(row: { warehouseCode: string | null; warehouseName: string | null }): string {
   return row.warehouseCode ?? row.warehouseName ?? '';
+}
+
+const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+function formatUsd(value: number): string {
+  return usdFormatter.format(value);
 }
 
 // ── Section: production ───────────────────────────────────────────────────────
@@ -791,6 +799,42 @@ function ShipmentsSection({
   );
 }
 
+// ── Section: spend by supplier ────────────────────────────────────────────────
+
+function SpendBySupplierSection({ data }: { data: SpendBySupplierRow[] }) {
+  return (
+    <Card data-testid="rpt-section-spend-by-supplier">
+      <CardHeader>
+        <CardTitle>Spend by supplier</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <SectionEmpty message="No supplier spend found." testId="rpt-empty-spend-by-supplier" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Supplier</TableHead>
+                <TableHead className="text-right">Total Spend</TableHead>
+                <TableHead className="text-right">Lines</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((row) => (
+                <TableRow key={row.supplierId}>
+                  <TableCell className="text-xs font-medium">{row.supplierName || row.supplierId}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">{formatUsd(row.totalSpend)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">{row.lineCount}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export function ReportingOverviewClient({
@@ -800,6 +844,7 @@ export function ReportingOverviewClient({
   procurement,
   receipts,
   shipments,
+  spendBySupplier = [],
   productionExportInput,
   canExportCsv,
   labels,
@@ -855,6 +900,7 @@ export function ReportingOverviewClient({
         exportLabel={labels.page.exportCsv}
         exportDenied={labels.page.exportCsvDenied}
       />
+      <SpendBySupplierSection data={spendBySupplier} />
     </div>
   );
 }

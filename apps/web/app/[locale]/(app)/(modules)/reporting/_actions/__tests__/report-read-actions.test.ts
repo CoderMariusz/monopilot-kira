@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   exportProductionSummaryCsv,
+  getSpendBySupplier,
   getReportingExportAccess,
   inventorySnapshot,
   procurementSummary,
@@ -54,6 +55,7 @@ let ncrRow: Record<string, unknown>;
 let poStatusRows: Array<Record<string, unknown>>;
 let poCycleRows: Array<Record<string, unknown>>;
 let toRow: Record<string, unknown>;
+let spendBySupplierRows: Array<Record<string, unknown>>;
 
 let capturedParams: Record<string, unknown[]>;
 
@@ -107,6 +109,9 @@ function makeClient(): QueryClient {
       if (q.includes('from public.ncr_reports')) return { rows: [ncrRow] };
       if (q.includes('from public.purchase_orders') && q.includes('group by po.status')) {
         return { rows: poStatusRows };
+      }
+      if (q.includes('from public.purchase_orders po') && q.includes('sum(pol.qty * pol.unit_price)')) {
+        return { rows: spendBySupplierRows };
       }
       if (q.includes('min(g.receipt_date)')) return { rows: poCycleRows };
       if (q.includes('from public.transfer_orders')) return { rows: [toRow] };
@@ -255,6 +260,14 @@ beforeEach(() => {
     { created_at: '2026-06-02T00:00:00Z', first_grn_at: '2026-06-06T00:00:00Z' },
   ];
   toRow = { open_count: '4' };
+  spendBySupplierRows = [
+    {
+      supplier_id: '77777777-7777-4777-8777-777777777777',
+      supplier_name: 'Acme Supplies',
+      total_spend: '1234.5600',
+      line_count: '3',
+    },
+  ];
 
   client = makeClient();
 });
@@ -554,6 +567,26 @@ describe('getReportingExportAccess', () => {
   });
 });
 
+describe('getSpendBySupplier', () => {
+  it('returns mapped supplier spend rows', async () => {
+    const res = await getSpendBySupplier();
+
+    expect(res).toEqual([
+      {
+        supplierId: '77777777-7777-4777-8777-777777777777',
+        supplierName: 'Acme Supplies',
+        totalSpend: 1234.56,
+        lineCount: 3,
+      },
+    ]);
+  });
+
+  it('returns an empty array when caller lacks rpt.dashboard.view permission', async () => {
+    grantedPermissions = new Set();
+    await expect(getSpendBySupplier()).resolves.toEqual([]);
+  });
+});
+
 describe('exportProductionSummaryCsv', () => {
   it('returns a CSV payload and filename for the current production rows', async () => {
     const res = await exportProductionSummaryCsv({
@@ -593,11 +626,13 @@ describe('reportingBundle (single-connection page load)', () => {
     expect(res.procurement.ok).toBe(true);
     expect(res.receipts.ok).toBe(true);
     expect(res.shipments.ok).toBe(true);
+    expect(res.spendBySupplier.ok).toBe(true);
     expect(res.exportAccess).toEqual({ ok: true, data: { canExportCsv: true } });
 
     if (res.production.ok) expect(res.production.data.wosCompleted).toBe(3);
     if (res.inventory.ok) expect(res.inventory.data.totals.lpCount).toBe(15);
     if (res.shipments.ok) expect(res.shipments.data.totals.shipmentCount).toBe(3);
+    if (res.spendBySupplier.ok) expect(res.spendBySupplier.data).toHaveLength(1);
   });
 
   it('propagates forbidden per-slot when rpt.dashboard.view is absent', async () => {
@@ -607,6 +642,7 @@ describe('reportingBundle (single-connection page load)', () => {
 
     expect(res.production).toEqual({ ok: false, reason: 'forbidden' });
     expect(res.inventory).toEqual({ ok: false, reason: 'forbidden' });
+    expect(res.spendBySupplier).toEqual({ ok: false, reason: 'forbidden' });
     expect(res.exportAccess).toEqual({ ok: false, reason: 'forbidden' });
   });
 });
