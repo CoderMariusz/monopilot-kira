@@ -16,6 +16,8 @@
 import { getTranslations } from 'next-intl/server';
 
 import { createProject } from '../../../../../(npd)/pipeline/_actions/create-project';
+import { cloneProject } from '../../../../../(npd)/pipeline/_actions/clone-project';
+import { listProjects } from '../../../../../(npd)/pipeline/_actions/list-projects';
 import {
   PROJECT_CREATE_PERMISSION,
   hasPermission,
@@ -24,6 +26,8 @@ import {
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
   CreateProjectWizard,
+  type WizardCloneAction,
+  type WizardCloneSource,
   type WizardCreateAction,
   type WizardLabels,
 } from '../_components/create-project-wizard';
@@ -64,13 +68,16 @@ const DEFAULT_LABELS: WizardLabels = {
   startingSubtitle: 'How should we bootstrap the first recipe draft?',
   startBlankTitle: 'Blank recipe',
   startBlankDesc: 'Start from scratch — build ingredients from the library.',
-  startCloneTitle: 'Clone existing recipe',
-  startCloneDesc: 'Fork a production recipe and modify. Suggested: Sliced Ham Standard (BOM-214).',
+  startCloneTitle: 'Clone existing project',
+  startCloneDesc: 'Copy an existing project header and checklist into a fresh draft, then modify.',
   startTemplateTitle: 'Category template',
-  startTemplateDesc: 'Pre-filled skeleton for Meat · Cold cut with typical ingredients.',
+  startTemplateDesc: 'Pre-filled skeleton for a category with typical ingredients.',
   startUnavailableHint: 'Not available yet',
+  cloneNoSourceHint: 'No project to clone yet',
+  cloneSourceLabel: 'Project to clone',
+  cloneSourcePlaceholder: 'Select a source project…',
   cloneAlert:
-    'Will clone BOM-214 · Sliced Ham Standard (10 ingredients, last updated 2025-09-12). You can edit every value after creation.',
+    'A new project will be created copying the chosen project’s header and checklist items. It starts at G0 / Brief and you can edit every value after creation.',
   reviewTitle: 'Review & create',
   reviewReady:
     'Ready to create the project. A new project ID will be assigned, a first recipe draft generated, and your brief saved.',
@@ -82,8 +89,8 @@ const DEFAULT_LABELS: WizardLabels = {
   reviewClaims: 'Claims',
   reviewStarting: 'Starting point',
   reviewStartBlank: 'Blank recipe',
-  reviewStartClone: 'Clone of BOM-214 Sliced Ham Standard',
-  reviewStartTemplate: 'Category template: Meat · Cold cut',
+  reviewStartClone: 'Clone of an existing project',
+  reviewStartTemplate: 'Category template',
   empty: '—',
   cancel: 'Cancel',
   back: 'Back',
@@ -128,6 +135,31 @@ const createProjectAdapter: WizardCreateAction = async (input) => {
   return { ok: false, error: result.error };
 };
 
+/**
+ * Clone-project Server Action adapter (the wizard's "Clone existing project" path).
+ * RBAC is enforced inside cloneProject AND the page injects it only when canCreate.
+ */
+const cloneProjectAdapter: WizardCloneAction = async (input) => {
+  'use server';
+  const result = await cloneProject(input);
+  if (result.ok) {
+    return { ok: true, data: { id: result.data.id, code: result.data.code } };
+  }
+  return { ok: false, error: result.error };
+};
+
+/** Org-scoped source projects for the clone picker (view-gated inside listProjects). */
+async function loadCloneSources(): Promise<WizardCloneSource[]> {
+  try {
+    const result = await listProjects({});
+    if (!result.ok) return [];
+    return result.data.projects.map((p) => ({ id: p.id, code: p.code, name: p.name }));
+  } catch (error) {
+    console.error('[pipeline/new] clone-source load failed:', error);
+    return [];
+  }
+}
+
 async function resolveCanCreate(): Promise<boolean> {
   try {
     return await withOrgContext(async (rawCtx): Promise<boolean> => {
@@ -152,12 +184,17 @@ export default async function NewProjectPage(propsInput: unknown = {}) {
 
   const labels = await buildLabels(locale);
   const canCreate = props.canCreate ?? (await resolveCanCreate());
+  // Clone sources are loaded only when the user may create — the Clone card stays
+  // disabled (no sources) when forbidden, so we never query needlessly.
+  const cloneSources = canCreate ? await loadCloneSources() : [];
 
   return (
     <CreateProjectWizard
       locale={locale}
       labels={labels}
       createAction={canCreate ? createProjectAdapter : undefined}
+      cloneAction={canCreate ? cloneProjectAdapter : undefined}
+      cloneSources={cloneSources}
     />
   );
 }

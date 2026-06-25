@@ -18,9 +18,13 @@
  *     AdvanceGateModal flow via the shared query-trigger host (?modal=advanceGate).
  *     This island NEVER queries the DB and NEVER authors the advance action — the
  *     advanceProjectGate Server Action is injected from the page (Server boundary).
- *   - "⚑ Watch" / "Duplicate" → NO backend exists yet (no watch/duplicate Server
- *     Action). Rendered per prototype but disabled with a tooltip rather than
- *     faking the behaviour (see report).
+ *   - "Duplicate" → REAL cloneProject Server Action (injected from the layout when
+ *     npd.project.create is granted): creates a fresh G0/brief draft copying this
+ *     project's header + checklist items, then navigates to the new project. When the
+ *     user lacks the permission the button is honestly disabled with a tooltip.
+ *   - "⚑ Watch" → per-user project follow. NO backing table exists yet (a watchers
+ *     table needs a migration), so the affordance is honestly disabled with a tooltip
+ *     rather than faking the behaviour (see report — deferred, needs migration).
  *
  * Next 16 RSC contract: the page passes a Server Action (advanceProjectGate), not a
  * raw client function. This island owns its own button callbacks; the modal host is
@@ -56,6 +60,8 @@ export type ProjectHeaderLabels = {
   watchDisabledHint: string;
   duplicate: string;
   duplicateDisabledHint: string;
+  duplicating: string;
+  duplicateError: string;
   advanceStage: string;
   advanceDisabledHint: string;
   /** Shown on the (disabled) Advance control once the project is Launched (terminal). */
@@ -70,6 +76,10 @@ export type ProjectHeaderLabels = {
 export type DeleteProjectAction = (
   input: { projectId: string },
 ) => Promise<{ ok: true } | { ok: false; error: string }>;
+
+export type CloneProjectAction = (
+  input: { sourceProjectId: string },
+) => Promise<{ ok: true; data: { id: string; code: string } } | { ok: false; error: string }>;
 
 export type ProjectHeaderView = {
   id: string;
@@ -111,6 +121,10 @@ export type ProjectHeaderProps = {
   canDelete?: boolean;
   /** Injected only when the user may delete (RBAC resolved server-side). */
   deleteProject?: DeleteProjectAction;
+  /** Server-resolved permission to duplicate the project (= npd.project.create). */
+  canClone?: boolean;
+  /** Injected only when the user may create projects (RBAC resolved server-side). */
+  cloneProject?: CloneProjectAction;
 };
 
 export function ProjectHeader({
@@ -122,11 +136,14 @@ export function ProjectHeader({
   advanceProjectGate,
   canDelete,
   deleteProject,
+  canClone,
+  cloneProject,
 }: ProjectHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [deleting, setDeleting] = React.useState(false);
+  const [duplicating, setDuplicating] = React.useState(false);
 
   const openAdvance = React.useCallback(() => {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
@@ -152,6 +169,26 @@ export function ProjectHeader({
       setDeleting(false);
     }
   }, [deleteProject, deleting, labels.deleteConfirm, labels.deleteError, labels.deleteHasDependents, pathname, project.id, router]);
+
+  const onDuplicate = React.useCallback(async () => {
+    if (!cloneProject || duplicating) return;
+    setDuplicating(true);
+    try {
+      const result = await cloneProject({ sourceProjectId: project.id });
+      if (result.ok) {
+        const locale = pathname?.split('/').filter(Boolean)[0] ?? 'en';
+        router.push(`/${locale}/pipeline/${result.data.id}`);
+        return;
+      }
+      window.alert(labels.duplicateError);
+      setDuplicating(false);
+    } catch {
+      window.alert(labels.duplicateError);
+      setDuplicating(false);
+    }
+  }, [cloneProject, duplicating, labels.duplicateError, pathname, project.id, router]);
+
+  const canDuplicate = Boolean(canClone && cloneProject);
 
   return (
     <section aria-label={project.name} data-testid="project-header">
@@ -181,7 +218,8 @@ export function ProjectHeader({
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          {/* Watch / Duplicate: no backend yet — disabled per prototype, never faked. */}
+          {/* Watch: per-user follow needs a watchers table (migration) — honestly
+              disabled with a tooltip until that lands. Never faked. */}
           <button
             type="button"
             className="btn btn-secondary"
@@ -192,15 +230,18 @@ export function ProjectHeader({
           >
             ⚑ {labels.watch}
           </button>
+          {/* Duplicate: real cloneProject Server Action when the user may create
+              projects; otherwise an honest disabled affordance (RBAC, never faked). */}
           <button
             type="button"
             className="btn btn-secondary"
-            disabled
-            title={labels.duplicateDisabledHint}
-            aria-label={labels.duplicateDisabledHint}
+            onClick={canDuplicate ? onDuplicate : undefined}
+            disabled={!canDuplicate || duplicating}
+            title={canDuplicate ? undefined : labels.duplicateDisabledHint}
+            aria-label={canDuplicate ? labels.duplicate : labels.duplicateDisabledHint}
             data-testid="project-header-duplicate"
           >
-            {labels.duplicate}
+            {duplicating ? labels.duplicating : labels.duplicate}
           </button>
           {canDelete && deleteProject ? (
             <button

@@ -21,9 +21,18 @@
  * disabled and a forbidden alert is shown — the client can never create what the
  * server would reject (mirrors project-create-modal's injection pattern).
  *
- * NO raw <select> — uses the @monopilot/ui <Select>. The Server Action is owned by
- * the pipeline T2 task (create-project.ts) and imported by the page, never authored
- * here.
+ * Starting point (map dead-end #3):
+ *   - "Blank recipe"  → createProject (a fresh project).
+ *   - "Clone existing recipe" → REAL cloneProject: the user picks a source project
+ *     (cloneSources, injected by the page), and the wizard's edited brief fields are
+ *     passed as overrides. Enabled only when there is ≥1 source AND cloneAction is
+ *     injected; otherwise the card stays honestly disabled.
+ *   - "Category template" → NO project-template concept exists in the schema yet (a
+ *     templates table needs a migration). Honestly disabled with a tooltip until then.
+ *
+ * NO raw <select> — uses the @monopilot/ui <Select>. The Server Actions are owned by
+ * the pipeline T2 tasks (create-project.ts / clone-project.ts) and imported by the
+ * page, never authored here.
  */
 
 import React from 'react';
@@ -32,6 +41,36 @@ import { useRouter } from 'next/navigation';
 import { Select } from '@monopilot/ui/Select';
 
 export type WizardStartFrom = 'blank' | 'clone' | 'template';
+
+/** A project the user may clone from (the wizard's "Clone existing recipe" picker). */
+export type WizardCloneSource = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+/**
+ * Clone Server Action signature (owned by clone-project.ts — injected by the page).
+ * Seeds a new project from `sourceProjectId`, applying the wizard's brief overrides.
+ */
+export type WizardCloneAction = (input: {
+  sourceProjectId: string;
+  overrides: {
+    name: string;
+    type: string;
+    targetLaunch: string | null;
+    packFormat: string | null;
+    packWeightG: number | null;
+    salesChannel: string | null;
+    expectedVolume: string | null;
+    targetRetailPriceEur: number | null;
+    targetAudience: string | null;
+    marketingClaims: string | null;
+    constraints: string | null;
+    notes: string | null;
+    prio: 'high' | 'normal' | 'low';
+  };
+}) => Promise<{ ok: true; data: { id: string; code: string } } | { ok: false; error: string }>;
 
 /** Server Action signature (owned by the pipeline T2 task — injected by the page). */
 export type WizardCreateAction = (input: {
@@ -92,8 +131,13 @@ export type WizardLabels = {
   startCloneDesc: string;
   startTemplateTitle: string;
   startTemplateDesc: string;
-  /** Tooltip + a11y hint on the disabled Clone/Template cards (no backend yet). */
+  /** Tooltip + a11y hint on the disabled Template card (no template schema yet). */
   startUnavailableHint: string;
+  /** Shown on the Clone card when there is no source project to clone from. */
+  cloneNoSourceHint: string;
+  /** Label for the source-project picker shown once Clone is selected. */
+  cloneSourceLabel: string;
+  cloneSourcePlaceholder: string;
   cloneAlert: string;
   reviewTitle: string;
   reviewReady: string;
@@ -143,6 +187,8 @@ type FormState = {
   constraints: string;
   notes: string;
   startFrom: WizardStartFrom;
+  /** Selected source project id when startFrom === 'clone'. */
+  cloneSourceId: string;
 };
 
 const INITIAL_FORM: FormState = {
@@ -159,6 +205,7 @@ const INITIAL_FORM: FormState = {
   constraints: '',
   notes: '',
   startFrom: 'blank',
+  cloneSourceId: '',
 };
 
 /** Trim → null for optional free-text fields. */
@@ -179,11 +226,17 @@ export function CreateProjectWizard({
   locale,
   labels,
   createAction,
+  cloneAction,
+  cloneSources = [],
 }: {
   locale: string;
   labels: WizardLabels;
   /** Injected by the page ONLY when npd.project.create is granted (RBAC). */
   createAction?: WizardCreateAction;
+  /** Injected by the page ONLY when npd.project.create is granted (RBAC). */
+  cloneAction?: WizardCloneAction;
+  /** Source projects the user may clone from (org-scoped, from listProjects). */
+  cloneSources?: WizardCloneSource[];
 }) {
   const router = useRouter();
   const [step, setStep] = React.useState(1);
@@ -201,6 +254,8 @@ export function CreateProjectWizard({
 
   const nameEmpty = form.name.trim().length === 0;
   const canCreate = Boolean(createAction);
+  // Clone is offered only when the clone action is injected AND there is ≥1 source.
+  const cloneEnabled = Boolean(cloneAction) && cloneSources.length > 0;
 
   const categoryOptions = React.useMemo(
     () => CATEGORY_VALUES.map((value) => ({ value, label: value })),
@@ -210,6 +265,10 @@ export function CreateProjectWizard({
     () => SALES_CHANNEL_VALUES.map((value) => ({ value, label: value })),
     [],
   );
+  const cloneSourceOptions = React.useMemo(
+    () => cloneSources.map((s) => ({ value: s.id, label: `${s.code} · ${s.name}` })),
+    [cloneSources],
+  );
 
   const cancel = React.useCallback(() => {
     router.push(`/${locale}/pipeline`);
@@ -217,6 +276,47 @@ export function CreateProjectWizard({
 
   const onCreate = React.useCallback(async () => {
     setServerError(null);
+
+    // Clone path: seed a new project from the picked source, applying the brief edits.
+    if (form.startFrom === 'clone') {
+      if (!cloneAction || form.cloneSourceId.trim().length === 0) {
+        setServerError(labels.errorForbidden);
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const result = await cloneAction({
+          sourceProjectId: form.cloneSourceId,
+          overrides: {
+            name: form.name.trim(),
+            type: form.type,
+            targetLaunch: nullable(form.targetLaunch),
+            packFormat: nullable(form.packFormat),
+            packWeightG: parseEur(form.packWeightG),
+            salesChannel: form.salesChannel,
+            expectedVolume: nullable(form.expectedVolume),
+            targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
+            targetAudience: nullable(form.targetAudience),
+            marketingClaims: nullable(form.marketingClaims),
+            constraints: nullable(form.constraints),
+            notes: nullable(form.notes),
+            prio: 'normal',
+          },
+        });
+        if (result.ok) {
+          router.push(`/${locale}/pipeline/${result.data.id}`);
+          return;
+        }
+        setServerError(result.error === 'FORBIDDEN' ? labels.errorForbidden : labels.errorGeneric);
+        setSubmitting(false);
+      } catch {
+        setServerError(labels.errorGeneric);
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Blank path (Template is disabled, so startFrom is 'blank' or 'clone' here).
     if (!createAction) {
       setServerError(labels.errorForbidden);
       return;
@@ -236,9 +336,7 @@ export function CreateProjectWizard({
         marketingClaims: nullable(form.marketingClaims),
         constraints: nullable(form.constraints),
         notes: nullable(form.notes),
-        startFrom: form.startFrom,
-        // Clone has no backend yet — the card is disabled, so startFrom is always
-        // 'blank' here. Never send a hardcoded clone source (was 'BOM-214').
+        startFrom: 'blank',
         cloneSource: null,
         prio: 'normal',
         templateId: 'APEX_DEFAULT',
@@ -253,23 +351,40 @@ export function CreateProjectWizard({
       setServerError(labels.errorGeneric);
       setSubmitting(false);
     }
-  }, [createAction, form, labels, locale, router]);
+  }, [createAction, cloneAction, form, labels, locale, router]);
 
-  // Clone + Template have NO backend yet (clone forking / template seeding are not
-  // implemented). They are rendered as visibly DISABLED cards — Blank is the only
-  // selectable start and the default. Removing them entirely would diverge from the
-  // prototype's three-card layout, so we keep the cards but make their unavailability
-  // explicit (disabled + "Not available yet" title/aria).
+  // Clone is REAL now (cloneProject) — enabled whenever the action is injected and
+  // there is ≥1 source project to clone from (else honestly disabled with a "nothing
+  // to clone" hint). Template has NO schema yet (a templates table needs a migration),
+  // so it stays disabled with a tooltip. Blank is always available + the default.
+  // The three-card layout matches the prototype; unavailability is made explicit
+  // (disabled + hint) rather than rendering a dead button.
   const startingOptions: Array<{
     key: WizardStartFrom;
     title: string;
     desc: string;
     icon: string;
     disabled: boolean;
+    /** The reason shown when the card is disabled (distinct per card). */
+    disabledHint?: string;
   }> = [
     { key: 'blank', title: labels.startBlankTitle, desc: labels.startBlankDesc, icon: '◇', disabled: false },
-    { key: 'clone', title: labels.startCloneTitle, desc: labels.startCloneDesc, icon: '⎘', disabled: true },
-    { key: 'template', title: labels.startTemplateTitle, desc: labels.startTemplateDesc, icon: '▦', disabled: true },
+    {
+      key: 'clone',
+      title: labels.startCloneTitle,
+      desc: labels.startCloneDesc,
+      icon: '⎘',
+      disabled: !cloneEnabled,
+      disabledHint: labels.cloneNoSourceHint,
+    },
+    {
+      key: 'template',
+      title: labels.startTemplateTitle,
+      desc: labels.startTemplateDesc,
+      icon: '▦',
+      disabled: true,
+      disabledHint: labels.startUnavailableHint,
+    },
   ];
 
   const startingReviewLabel =
@@ -278,6 +393,15 @@ export function CreateProjectWizard({
       : form.startFrom === 'template'
         ? labels.reviewStartTemplate
         : labels.reviewStartBlank;
+
+  // In clone mode the Create button additionally requires a chosen source project.
+  const cloneSourceMissing = form.startFrom === 'clone' && form.cloneSourceId.trim().length === 0;
+  // The Create CTA is available when blank-create is permitted OR (clone mode) the
+  // clone action is injected. It stays disabled until a clone source is picked.
+  const createDisabled =
+    submitting ||
+    cloneSourceMissing ||
+    (form.startFrom === 'clone' ? !cloneAction : !canCreate);
 
   return (
     <div className="page-pad" data-testid="create-project-wizard">
@@ -495,10 +619,13 @@ export function CreateProjectWizard({
                   disabled={opt.disabled}
                   data-testid={`wizard-start-${opt.key}`}
                   data-disabled={opt.disabled || undefined}
-                  title={opt.disabled ? labels.startUnavailableHint : undefined}
+                  title={opt.disabled ? opt.disabledHint : undefined}
                   onClick={() => {
                     if (opt.disabled) return;
                     update('startFrom', opt.key);
+                    // Leaving the Clone card clears any picked source so a stale id
+                    // never travels with a non-clone create.
+                    if (opt.key !== 'clone') update('cloneSourceId', '');
                   }}
                   style={{
                     textAlign: 'left',
@@ -521,7 +648,7 @@ export function CreateProjectWizard({
                         data-testid={`wizard-start-${opt.key}-unavailable`}
                         style={{ marginLeft: 6, fontSize: 11, fontWeight: 400 }}
                       >
-                        · {labels.startUnavailableHint}
+                        · {opt.disabledHint}
                       </span>
                     ) : null}
                   </div>
@@ -533,8 +660,21 @@ export function CreateProjectWizard({
             })}
           </div>
           {form.startFrom === 'clone' && (
-            <div className="alert alert-blue" style={{ marginTop: 14 }} data-testid="wizard-clone-alert">
-              {labels.cloneAlert}
+            <div style={{ marginTop: 14 }}>
+              <div className="ff">
+                <label htmlFor="wiz-clone-source">{labels.cloneSourceLabel}</label>
+                <Select
+                  id="wiz-clone-source"
+                  aria-label={labels.cloneSourceLabel}
+                  placeholder={labels.cloneSourcePlaceholder}
+                  value={form.cloneSourceId}
+                  options={cloneSourceOptions}
+                  onValueChange={(v) => update('cloneSourceId', v)}
+                />
+              </div>
+              <div className="alert alert-blue" style={{ marginTop: 10 }} data-testid="wizard-clone-alert">
+                {labels.cloneAlert}
+              </div>
             </div>
           )}
         </div>
@@ -625,7 +765,7 @@ export function CreateProjectWizard({
               type="button"
               className="btn btn-primary"
               onClick={onCreate}
-              disabled={!canCreate || submitting}
+              disabled={createDisabled}
               data-testid="wizard-create"
             >
               {submitting ? labels.creating : `✓ ${labels.create}`}

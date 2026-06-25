@@ -15,7 +15,7 @@ import {
 const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
 
 /** Permissions the project-detail header needs — resolved in the SAME withOrgContext. */
-export type ProjectPermissions = { canAdvance: boolean; canDelete: boolean };
+export type ProjectPermissions = { canAdvance: boolean; canDelete: boolean; canClone: boolean };
 
 export type ChecklistItem = {
   id: string;
@@ -98,11 +98,12 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
 
       // Header permissions on the SAME connection (perf: the layout used to open a
       // second withOrgContext just for these — that doubled the org-context cycle).
-      const [mayAdvance, mayDelete] = [
+      const [mayAdvance, mayCreate] = [
         await hasPermission(context, GATE_ADVANCE_PERMISSION),
         await hasPermission(context, PROJECT_CREATE_PERMISSION),
       ];
-      const permissions: ProjectPermissions = { canAdvance: mayAdvance, canDelete: mayDelete };
+      // Delete and clone (Duplicate) both gate on npd.project.create.
+      const permissions: ProjectPermissions = { canAdvance: mayAdvance, canDelete: mayCreate, canClone: mayCreate };
 
       const projectRows = await context.client.query<ProjectRow & { recipe_ingredient_count: number }>(
         `select p.id,

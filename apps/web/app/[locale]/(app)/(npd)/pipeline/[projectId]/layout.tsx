@@ -39,6 +39,7 @@ import { getTranslations } from 'next-intl/server';
 import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { deleteProject as deleteProjectAction } from '../../../../../(npd)/pipeline/_actions/delete-project';
+import { cloneProject as cloneProjectAction } from '../../../../../(npd)/pipeline/_actions/clone-project';
 import {
   advanceTransitionForStage,
   nextStage,
@@ -116,7 +117,9 @@ const HEADER_DEFAULTS: ProjectHeaderLabels = {
   watch: 'Watch',
   watchDisabledHint: 'Watching projects is not available yet.',
   duplicate: 'Duplicate',
-  duplicateDisabledHint: 'Duplicating projects is not available yet.',
+  duplicateDisabledHint: 'You do not have permission to duplicate projects.',
+  duplicating: 'Duplicating…',
+  duplicateError: 'Could not duplicate the project. Try again.',
   advanceStage: 'Advance stage →',
   advanceDisabledHint: 'You do not have permission to advance this gate.',
   advanceTerminalHint: 'Launched — fully advanced',
@@ -225,6 +228,16 @@ async function deleteAdapter(input: { projectId: string }) {
   return { ok: false as const, error: result.error };
 }
 
+// Clone-project Server Action adapter (RBAC enforced inside cloneProject + only
+// injected when canClone). Powers the header "Duplicate" button — creates a fresh
+// G0/brief draft copying the project header + checklist items.
+async function cloneAdapter(input: { sourceProjectId: string }) {
+  'use server';
+  const result = await cloneProjectAction({ sourceProjectId: input.sourceProjectId });
+  if (result.ok) return { ok: true as const, data: { id: result.data.id, code: result.data.code } };
+  return { ok: false as const, error: result.error };
+}
+
 export default async function ProjectWorkbenchLayout({ children, params }: ProjectLayoutProps) {
   const { locale, projectId } = await params;
 
@@ -250,11 +263,13 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   let result: Awaited<ReturnType<typeof getProject>>;
   let canAdvance = false;
   let canDelete = false;
+  let canClone = false;
   try {
     result = await getProject({ projectId });
     if (result.ok) {
       canAdvance = result.data.permissions.canAdvance;
       canDelete = result.data.permissions.canDelete;
+      canClone = result.data.permissions.canClone;
     }
   } catch (error) {
     console.error('[project-layout] header load failed:', error);
@@ -281,6 +296,8 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     watchDisabledHint: p('header.watchDisabledHint', HEADER_DEFAULTS.watchDisabledHint),
     duplicate: p('header.duplicate', HEADER_DEFAULTS.duplicate),
     duplicateDisabledHint: p('header.duplicateDisabledHint', HEADER_DEFAULTS.duplicateDisabledHint),
+    duplicating: p('header.duplicating', HEADER_DEFAULTS.duplicating),
+    duplicateError: p('header.duplicateError', HEADER_DEFAULTS.duplicateError),
     advanceStage: p('header.advanceStage', HEADER_DEFAULTS.advanceStage),
     advanceDisabledHint: p('header.advanceDisabledHint', HEADER_DEFAULTS.advanceDisabledHint),
     advanceTerminalHint: p('header.advanceTerminalHint', HEADER_DEFAULTS.advanceTerminalHint),
@@ -418,6 +435,8 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
         advanceProjectGate={advanceAdapter}
         canDelete={canDelete}
         deleteProject={deleteAdapter}
+        canClone={canClone}
+        cloneProject={canClone ? cloneAdapter : undefined}
       />
 
       {/* PERSISTENT 8-stage operational rail (prototype project.jsx:4-20). */}

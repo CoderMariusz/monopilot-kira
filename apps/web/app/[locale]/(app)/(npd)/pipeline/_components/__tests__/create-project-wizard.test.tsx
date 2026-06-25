@@ -93,6 +93,9 @@ const LABELS: WizardLabels = {
   startTemplateTitle: 'lbl.startTemplateTitle',
   startTemplateDesc: 'lbl.startTemplateDesc',
   startUnavailableHint: 'lbl.startUnavailableHint',
+  cloneNoSourceHint: 'lbl.cloneNoSourceHint',
+  cloneSourceLabel: 'lbl.cloneSourceLabel',
+  cloneSourcePlaceholder: 'lbl.cloneSourcePlaceholder',
   cloneAlert: 'lbl.cloneAlert',
   reviewTitle: 'lbl.reviewTitle',
   reviewReady: 'lbl.reviewReady',
@@ -146,7 +149,7 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
     expect(cont).not.toBeDisabled();
   });
 
-  it('navigates Basics → Brief → Starting point; Clone + Template cards are disabled (no backend), Blank stays selected', () => {
+  it('navigates Basics → Brief → Starting point; Clone (no source) + Template are disabled, Blank stays selected', () => {
     renderWizard();
     fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham 200g' } });
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
@@ -157,12 +160,13 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
     // Blank is the default selected start.
     expect(screen.getByTestId('wizard-start-blank')).toHaveAttribute('aria-checked', 'true');
 
-    // Clone + Template are visibly disabled with the "Not available yet" hint.
+    // With no clone sources injected, Clone is disabled with its "no source" hint;
+    // Template is disabled with the "Not available yet" hint (no template schema).
     const clone = screen.getByTestId('wizard-start-clone');
     const template = screen.getByTestId('wizard-start-template');
     expect(clone).toBeDisabled();
     expect(template).toBeDisabled();
-    expect(clone).toHaveAttribute('title', 'lbl.startUnavailableHint');
+    expect(clone).toHaveAttribute('title', 'lbl.cloneNoSourceHint');
     expect(template).toHaveAttribute('title', 'lbl.startUnavailableHint');
     expect(screen.getByTestId('wizard-start-clone-unavailable')).toBeInTheDocument();
     expect(screen.getByTestId('wizard-start-template-unavailable')).toBeInTheDocument();
@@ -172,6 +176,53 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
     expect(clone).toHaveAttribute('aria-checked', 'false');
     expect(screen.getByTestId('wizard-start-blank')).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByTestId('wizard-clone-alert')).not.toBeInTheDocument();
+  });
+
+  it('enables Clone when sources are injected: picking a source + Create calls cloneAction with brief overrides', async () => {
+    const createAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-blank', code: 'NPD-009' } }));
+    const cloneAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-clone', code: 'NPD-010' } }));
+    renderWizard({
+      createAction,
+      cloneAction,
+      cloneSources: [
+        { id: 'src-1', code: 'NPD-001', name: 'Sliced Ham Standard' },
+        { id: 'src-2', code: 'NPD-002', name: 'Smoked Bacon' },
+      ],
+    });
+
+    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham v2' } });
+    fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
+    fireEvent.click(screen.getByTestId('wizard-continue')); // → Starting point
+
+    // Clone is now selectable.
+    const clone = screen.getByTestId('wizard-start-clone');
+    expect(clone).not.toBeDisabled();
+    fireEvent.click(clone);
+    expect(clone).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('wizard-clone-alert')).toBeInTheDocument();
+
+    // Pick the second source via the design-system Select. Its trigger is a
+    // role="combobox" (accessible name = displayed value); the clone-source Select is
+    // the only combobox on the Starting-point step.
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: /NPD-002/ }));
+
+    // Create is blocked until a source is chosen — now that one is picked, continue.
+    fireEvent.click(screen.getByTestId('wizard-continue')); // → Review
+
+    const createBtn = screen.getByTestId('wizard-create');
+    await waitFor(() => expect(createBtn).not.toBeDisabled());
+    await act(async () => {
+      fireEvent.click(createBtn);
+    });
+
+    await waitFor(() => expect(cloneAction).toHaveBeenCalledTimes(1));
+    expect(createAction).not.toHaveBeenCalled();
+    expect(cloneAction.mock.calls[0]![0]).toMatchObject({
+      sourceProjectId: 'src-2',
+      overrides: expect.objectContaining({ name: 'Sliced Ham v2', prio: 'normal' }),
+    });
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline/pid-clone'));
   });
 
   it('Back returns to the previous step', () => {
