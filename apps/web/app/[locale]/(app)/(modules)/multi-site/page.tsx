@@ -16,12 +16,33 @@ type SiteRow = {
   country: string | null;
 };
 
-type SitesOverviewResult = { ok: true; sites: SiteRow[] } | { ok: false; sites: SiteRow[] };
+type NetworkKpis = {
+  siteCount: number | null;
+  inTransitTransferOrders: number | null;
+  inventoryTotalQty: string | null;
+};
+
+type SitesOverviewResult =
+  | { ok: true; sites: SiteRow[]; kpis: NetworkKpis }
+  | { ok: false; sites: SiteRow[]; kpis: NetworkKpis };
+
+const EMPTY_NETWORK_KPIS: NetworkKpis = {
+  siteCount: null,
+  inTransitTransferOrders: null,
+  inventoryTotalQty: null,
+};
+
+function countFromRow(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const count = Number(value);
+  return Number.isFinite(count) ? count : null;
+}
 
 async function listSitesOverview(): Promise<SitesOverviewResult> {
   try {
-    const sites = await withOrgContext(async ({ client }): Promise<SiteRow[]> => {
-      const { rows } = await (client as QueryClient).query<SiteRow>(
+    const result = await withOrgContext(async ({ client }): Promise<{ sites: SiteRow[]; kpis: NetworkKpis }> => {
+      const queryClient = client as QueryClient;
+      const sitesPromise = queryClient.query<SiteRow>(
         `select id::text,
                 site_code,
                 name,
@@ -34,12 +55,66 @@ async function listSitesOverview(): Promise<SitesOverviewResult> {
           order by is_default desc, lower(name), lower(site_code)
           limit 100`,
       );
-      return rows;
+
+      const siteCountPromise = queryClient
+        .query<{ site_count: string | number }>(
+          `select count(*) as site_count
+             from public.sites
+            where org_id = app.current_org_id()
+              and is_active = true`,
+        )
+        .then(({ rows }) => countFromRow(rows[0]?.site_count))
+        .catch((error) => {
+          console.error("[multi-site] failed to load network site count", error);
+          return null;
+        });
+
+      const inTransitTransferOrdersPromise = queryClient
+        .query<{ in_transit_count: string | number }>(
+          `select count(*) as in_transit_count
+             from public.transfer_orders
+            where org_id = app.current_org_id()
+              and status = 'in_transit'`,
+        )
+        .then(({ rows }) => countFromRow(rows[0]?.in_transit_count))
+        .catch((error) => {
+          console.error("[multi-site] failed to load in-transit transfer order count", error);
+          return null;
+        });
+
+      const inventoryTotalQtyPromise = queryClient
+        .query<{ inventory_total_qty: string | null }>(
+          `select coalesce(sum(lp.quantity), 0)::text as inventory_total_qty
+             from public.license_plates lp
+            where lp.org_id = app.current_org_id()
+              and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')`,
+        )
+        .then(({ rows }) => rows[0]?.inventory_total_qty ?? null)
+        .catch((error) => {
+          console.error("[multi-site] failed to load inventory aggregate", error);
+          return null;
+        });
+
+      const [sitesResult, siteCount, inTransitTransferOrders, inventoryTotalQty] = await Promise.all([
+        sitesPromise,
+        siteCountPromise,
+        inTransitTransferOrdersPromise,
+        inventoryTotalQtyPromise,
+      ]);
+
+      return {
+        sites: sitesResult.rows,
+        kpis: {
+          siteCount,
+          inTransitTransferOrders,
+          inventoryTotalQty,
+        },
+      };
     });
-    return { ok: true, sites };
+    return { ok: true, ...result };
   } catch (error) {
     console.error("[multi-site] failed to load sites overview", error);
-    return { ok: false, sites: [] };
+    return { ok: false, sites: [], kpis: EMPTY_NETWORK_KPIS };
   }
 }
 
@@ -54,6 +129,22 @@ export default async function MultiSiteRoutePage() {
         <h1 id="module-landing-multi-site-title" className="text-3xl font-semibold tracking-tight text-slate-950">
           {nav("multiSite")}
         </h1>
+        <div className="grid gap-3 sm:grid-cols-3" aria-label="Network KPIs">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Number of sites</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-950">{result.kpis.siteCount ?? "—"}</div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Transfer orders in-transit</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-950">
+              {result.kpis.inTransitTransferOrders ?? "—"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Aggregated inventory</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-950">{result.kpis.inventoryTotalQty ?? "—"}</div>
+          </div>
+        </div>
         {!result.ok ? (
           <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {t("errorLoad")}
