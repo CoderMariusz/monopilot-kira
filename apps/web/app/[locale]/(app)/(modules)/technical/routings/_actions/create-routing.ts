@@ -127,7 +127,7 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
         afterState: { itemId: input.itemId, version, operationCount: input.operations.length },
       });
 
-      safeRevalidatePath('/technical/items');
+      safeRevalidatePath('/technical/routings');
       return { ok: true, data: { id: routing.id, itemId: input.itemId, version: version!, status: 'draft' } };
     });
   } catch (err) {

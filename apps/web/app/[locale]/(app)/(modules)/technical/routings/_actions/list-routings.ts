@@ -28,6 +28,17 @@ type RoutingRow = {
   effective_from: string;
   effective_to: string | null;
   operation_count: string | number;
+  operations: Array<{
+    op_no: number;
+    op_code: string;
+    op_name: string;
+    line_id: string | null;
+    machine_id: string | null;
+    setup_time_min: number;
+    run_time_per_unit_sec: string | null;
+    cost_per_hour: string | null;
+    manufacturing_operation_name: string;
+  }> | null;
 };
 
 const STATUS_SET = new Set<RoutingStatus>(['draft', 'approved', 'active', 'superseded']);
@@ -41,6 +52,17 @@ function mapRow(row: RoutingRow): RoutingSummary {
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
     operationCount: Number(row.operation_count),
+    operations: (row.operations ?? []).map((op) => ({
+      opNo: Number(op.op_no),
+      opCode: op.op_code,
+      opName: op.op_name,
+      lineId: op.line_id,
+      machineId: op.machine_id,
+      setupTimeMin: Number(op.setup_time_min),
+      runTimePerUnitSec: op.run_time_per_unit_sec,
+      costPerHour: op.cost_per_hour,
+      manufacturingOperationName: op.manufacturing_operation_name,
+    })),
   };
 }
 
@@ -63,7 +85,27 @@ export async function listRoutings(rawInput: unknown): Promise<ListRoutingsResul
                 r.effective_from::text as effective_from,
                 r.effective_to::text as effective_to,
                 (select count(*) from public.routing_operations o
-                  where o.org_id = app.current_org_id() and o.routing_id = r.id) as operation_count
+                  where o.org_id = app.current_org_id() and o.routing_id = r.id) as operation_count,
+                coalesce(
+                  (select jsonb_agg(
+                            jsonb_build_object(
+                              'op_no', o.op_no,
+                              'op_code', o.op_code,
+                              'op_name', o.op_name,
+                              'line_id', o.line_id,
+                              'machine_id', o.machine_id,
+                              'setup_time_min', o.setup_time_min,
+                              'run_time_per_unit_sec', o.run_time_per_unit_sec::text,
+                              'cost_per_hour', o.cost_per_hour::text,
+                              'manufacturing_operation_name', o.manufacturing_operation_name
+                            )
+                            order by o.op_no
+                          )
+                     from public.routing_operations o
+                    where o.org_id = app.current_org_id()
+                      and o.routing_id = r.id),
+                  '[]'::jsonb
+                ) as operations
            from public.routings r
           where r.org_id = app.current_org_id()
             and r.item_id = $1::uuid

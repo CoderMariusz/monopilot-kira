@@ -131,6 +131,17 @@ export type RoutingSummary = {
   effectiveFrom: string;
   effectiveTo: string | null;
   operationCount: number;
+  operations: Array<{
+    opNo: number;
+    opCode: string;
+    opName: string;
+    lineId: string | null;
+    machineId: string | null;
+    setupTimeMin: number;
+    runTimePerUnitSec: string | null;
+    costPerHour: string | null;
+    manufacturingOperationName: string;
+  }>;
 };
 
 export type ListRoutingsResult =

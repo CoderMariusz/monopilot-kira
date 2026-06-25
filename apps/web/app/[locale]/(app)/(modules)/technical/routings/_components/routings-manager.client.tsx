@@ -211,6 +211,20 @@ function emptyOp(): OpForm {
   };
 }
 
+function opFormFromRouting(op: RoutingSummary['operations'][number]): OpForm {
+  const resourceKind = op.machineId ? 'machine' : 'line';
+  return {
+    opName: op.opName,
+    opCode: op.opCode,
+    resourceKind,
+    resourceId: resourceKind === 'machine' ? (op.machineId ?? '') : (op.lineId ?? ''),
+    setupTimeMin: String(op.setupTimeMin),
+    runTimePerUnitSec: op.runTimePerUnitSec ?? '',
+    costPerHour: op.costPerHour ?? '',
+    manufacturingOperationName: op.manufacturingOperationName,
+  };
+}
+
 function RoutingEditModal({
   itemId,
   lines,
@@ -230,7 +244,10 @@ function RoutingEditModal({
   existing: RoutingSummary | null;
   labels: RoutingsLabels;
 }) {
-  const [ops, setOps] = React.useState<OpForm[]>([emptyOp()]);
+  const [ops, setOps] = React.useState<OpForm[]>(() => {
+    const persistedOps = existing?.operations ?? [];
+    return persistedOps.length > 0 ? persistedOps.map(opFormFromRouting) : [emptyOp()];
+  });
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
