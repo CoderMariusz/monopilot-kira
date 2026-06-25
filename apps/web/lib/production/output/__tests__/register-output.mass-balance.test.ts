@@ -51,7 +51,10 @@ class MockClient implements QueryClient {
           : Number(postedConsumptionKg);
       const postedConsumptionText =
         materialConsumptionRows.length > 0 ? decimalText(postedConsumption) : postedConsumptionKg;
-      const expectedInput = yieldPct > 0 ? runningOutput / (yieldPct / 100) : null;
+      const yieldFactor = yieldPct / 100;
+      const expectedInput = yieldPct > 0 ? runningOutput / yieldFactor : null;
+      const warnThresholdOutput = postedConsumption * yieldFactor * (1 + warnPct);
+      const blockThresholdOutput = postedConsumption * yieldFactor * (1 + Number(blockPct) / 100);
       return {
         rows: [
           {
@@ -59,12 +62,17 @@ class MockClient implements QueryClient {
             posted_consumption_kg: postedConsumptionText,
             effective_yield_pct: effectiveYieldPct,
             block_pct: blockPct,
-            warn: postedConsumption > 0 && expectedInput !== null && expectedInput > postedConsumption * (1 + warnPct),
+            warn:
+              postedConsumption > 0 &&
+              expectedInput !== null &&
+              runningOutput > postedConsumption &&
+              runningOutput > warnThresholdOutput,
             block:
               postedConsumption > 0 &&
               expectedInput !== null &&
               Number(blockPct) > 0 &&
-              expectedInput > postedConsumption * (1 + Number(blockPct) / 100),
+              runningOutput > postedConsumption &&
+              runningOutput > blockThresholdOutput,
           },
         ] as T[],
         rowCount: 1,
@@ -185,18 +193,37 @@ describe('registerOutput mass-balance advisory warning', () => {
     materialConsumptionRows = [];
   });
 
-  it('warns when expected input exceeds posted consumption by more than 2%', async () => {
-    postedConsumptionKg = '50';
+  it('flags when output exceeds consumed input by more than 2%', async () => {
+    postedConsumptionKg = '100';
 
-    const result = await register('100');
+    const result = await register('103');
 
     expect(result.mass_balance_warning).toEqual({
-      expected_input_kg: '100',
-      posted_consumption_kg: '50',
+      expected_input_kg: '103',
+      posted_consumption_kg: '100',
       effective_yield_pct: '100',
       warn_pct: 0.02,
     });
     expect(client.outboxPayload?.mass_balance_warning).toEqual(result.mass_balance_warning);
+  });
+
+  it('does not flag normal yield loss when output is below consumed input', async () => {
+    postedConsumptionKg = '1000';
+    effectiveYieldPct = '10';
+
+    const result = await register('130');
+
+    expect(result.mass_balance_warning).toBeUndefined();
+    expect(client.outboxPayload?.mass_balance_warning).toBeNull();
+  });
+
+  it('does not flag output within the 2% mass-balance tolerance', async () => {
+    postedConsumptionKg = '100';
+
+    const result = await register('101.99');
+
+    expect(result.mass_balance_warning).toBeUndefined();
+    expect(client.outboxPayload?.mass_balance_warning).toBeNull();
   });
 
   it('skips the guard when posted consumption is zero', async () => {
@@ -206,18 +233,18 @@ describe('registerOutput mass-balance advisory warning', () => {
     expect(client.outboxPayload?.mass_balance_warning).toBeNull();
   });
 
-  it('warns at 95% yield when 100 kg output requires about 105 kg input against 95 kg consumed', async () => {
+  it('warns at 95% yield when output still exceeds posted input by more than 2%', async () => {
     postedConsumptionKg = '95';
     effectiveYieldPct = '95';
 
-    const result = await register('100');
+    const result = await register('100.1');
 
     expect(result.mass_balance_warning).toMatchObject({
       posted_consumption_kg: '95',
       effective_yield_pct: '95',
       warn_pct: 0.02,
     });
-    expect(result.mass_balance_warning?.expected_input_kg).toBe(String(100 / 0.95));
+    expect(result.mass_balance_warning?.expected_input_kg).toBe(String(100.1 / 0.95));
   });
 
   it('blocks when the tenant mass-balance threshold flag is active and exceeded', async () => {

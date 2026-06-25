@@ -332,6 +332,7 @@ async function evaluateMassBalanceGate(
                    limit 1
                 ),
                 bh.yield_pct,
+                -- Missing yield data falls back to factor 1.0.
                 100::numeric
               ) as effective_yield_pct
          from public.work_orders wo
@@ -369,13 +370,15 @@ async function evaluateMassBalanceGate(
             coalesce((select block_pct from cfg), 0)::text as block_pct,
             t.posted_consumption_kg > 0
               and y.effective_yield_pct > 0
-              and (t.running_output_kg / (y.effective_yield_pct / 100.0))
-                    > (t.posted_consumption_kg * (1 + $3::numeric)) as warn,
+              and t.running_output_kg > t.posted_consumption_kg
+              and t.running_output_kg
+                    > (t.posted_consumption_kg * (y.effective_yield_pct / 100.0) * (1 + $3::numeric)) as warn,
             t.posted_consumption_kg > 0
               and y.effective_yield_pct > 0
               and coalesce((select block_pct from cfg), 0) > 0
-              and (t.running_output_kg / (y.effective_yield_pct / 100.0))
-                    > (t.posted_consumption_kg * (1 + coalesce((select block_pct from cfg), 0) / 100)) as block
+              and t.running_output_kg > t.posted_consumption_kg
+              and t.running_output_kg
+                    > (t.posted_consumption_kg * (y.effective_yield_pct / 100.0) * (1 + coalesce((select block_pct from cfg), 0) / 100)) as block
        from yield_ctx y
        cross join totals t`,
     [woId, qtyKg, MASS_BALANCE_WARN_PCT],
