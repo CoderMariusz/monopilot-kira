@@ -37,7 +37,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 // apps/web/app/api/internal/cron/catch-weight-variance/__tests__ → repo root packages/db/migrations
 const migrationsDir = resolve(here, '../../../../../../../../packages/db/migrations');
 const migration188 = resolve(migrationsDir, '188-catch-weight-variance-daily.sql');
-const migration189 = resolve(migrationsDir, '189-outbox-atp-catchweight-events.sql');
+// Stale test contract: migration 189 was consolidated into the full outbox event union filename.
+const migration189 = resolve(migrationsDir, '189-outbox-events-full-union.sql');
 const libSrc = resolve(here, '../../../../../../lib/cron/catch-weight-variance.ts');
 
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';

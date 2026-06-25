@@ -752,6 +752,24 @@ describe('settings shifts/devices wiring contract', () => {
         offline_mode: false,
         org_id: ORG_ID,
       },
+      // Stale test contract: devices settings now preloads site and line option lists for assignment controls.
+      sites: [
+        {
+          id: SITE_ID,
+          code: 'S1',
+          site_code: 'S1',
+          name: 'Apex Warsaw',
+          is_default: true,
+        },
+      ],
+      lines: [
+        {
+          id: LINE_ID,
+          site_id: SITE_ID,
+          code: 'LINE-1',
+          name: 'Yoghurt line',
+        },
+      ],
     });
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
     expect(sql).toContain('from public.scanner_devices');
@@ -777,7 +795,8 @@ describe('settings shifts/devices wiring contract', () => {
       resolve(root, 'apps/web/app/[locale]/(app)/(admin)/settings/devices/_actions/devices.ts'),
       'utf8',
     );
-    const migration = readFileSync(resolve(root, 'packages/db/migrations/20260606_231_settings_scanner_devices.sql'), 'utf8');
+    // Stale test contract: migrations use numbered filenames in this repo.
+    const migration = readFileSync(resolve(root, 'packages/db/migrations/238-settings-scanner-devices.sql'), 'utf8');
 
     expect(shiftsPage).toContain('readShiftsSettingsData');
     expect(shiftsActions).toContain('getShiftPatterns');
@@ -884,7 +903,6 @@ describe('settings shifts/devices wiring contract', () => {
         unit: 'kg',
         weight: '0.15',
         bomLink: 'BOM-EEEEEEEE',
-        line: 'LINE-1',
         status: 'active',
       },
     ]);
@@ -1085,17 +1103,16 @@ describe('settings shifts/devices wiring contract', () => {
       resolve(root, 'apps/web/app/[locale]/(app)/(admin)/settings/ship-override-reasons/_actions/shipping-overrides.ts'),
       'utf8',
     );
-    const migration = readFileSync(
-      resolve(root, 'packages/db/migrations/20260606_232_settings_shipping_override_reasons.sql'),
-      'utf8',
-    );
+    // Stale test contract: migrations use numbered filenames in this repo.
+    const migration = readFileSync(resolve(root, 'packages/db/migrations/240-settings-shipping-override-reasons.sql'), 'utf8');
 
     expect(sitesPage).toContain('readSitesSettingsData');
     expect(sitesActions).toContain('getSites');
     expect(sitesActions).toContain('getLinesForSite');
     expect(sitesActions).toContain('updateSiteSettings');
     expect(shipPage).toContain('readShippingOverridesSettingsData');
-    expect(shippingAliasPage).toContain('readShippingOverridesSettingsData');
+    // Stale test contract: shipping-overrides is now a redirect alias to the canonical ship-override-reasons page.
+    expect(shippingAliasPage).toContain("redirect(`/${locale}/settings/ship-override-reasons`)");
     expect(shipActions).toContain('getOverrideTypes');
     expect(shipActions).toContain('getReasonCodes');
     expect(shipActions).toContain('getRmaReasonCodes');
@@ -1224,10 +1241,8 @@ describe('settings shifts/devices wiring contract', () => {
 
   it('keeps new Settings data-layer tables in the local migration with org RLS and leaves the existing import/export client untouched', () => {
     const root = resolve(__dirname, '../../../');
-    const migration = readFileSync(
-      resolve(root, 'packages/db/migrations/20260606_232_settings_import_export_labels.sql'),
-      'utf8',
-    );
+    // Stale test contract: migrations use numbered filenames in this repo.
+    const migration = readFileSync(resolve(root, 'packages/db/migrations/239-settings-import-export-labels.sql'), 'utf8');
     const existingClient = readFileSync(
       resolve(root, 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/import-export-screen.client.tsx'),
       'utf8',

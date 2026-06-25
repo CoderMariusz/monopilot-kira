@@ -33,6 +33,67 @@ type ManufacturingOperationsPageProps = {
   onDeactivateOperation: ReturnType<typeof vi.fn>;
 };
 
+const labels = {
+  breadcrumbSettings: 'Settings',
+  breadcrumbReferenceTables: 'Reference Tables',
+  breadcrumbManufacturingOperations: 'Manufacturing Operations',
+  setReference: 'SET-055 / PRD §8.9.4',
+  title: 'Manufacturing Operations',
+  subtitle: 'Configure tenant-specific operation names, process suffixes, industry seed sets, active state, and recipe sequence order.',
+  notice: 'Operations are referenced by routings, line assignments, and WIP code generators.',
+  loading: 'Loading manufacturing operations...',
+  error: 'Unable to load manufacturing operations.',
+  permissionDenied: 'You do not have permission to manage manufacturing operations.',
+  addNewOperation: 'Add New Operation',
+  resetToSeedData: 'Reset to seed data',
+  deleteInactiveRows: 'Delete inactive rows',
+  industryLabel: 'Industry',
+  showInactive: 'Show inactive',
+  industryAll: 'All industries',
+  industryBakery: 'Bakery',
+  industryPharma: 'Pharma',
+  industryFmcg: 'FMCG',
+  industryGeneric: 'Generic',
+  industryCustom: 'Custom',
+  columnOperationName: 'Operation Name',
+  columnProcessSuffix: 'Process Suffix',
+  columnSequence: 'Sequence',
+  columnIndustryCode: 'Industry Code',
+  columnStatus: 'Status',
+  columnActions: 'Actions',
+  statusActive: 'Active',
+  statusInactive: 'Inactive',
+  editOperation: 'Edit {operation}',
+  deleteOperation: 'Delete {operation}',
+  empty: 'No manufacturing operations match the current filters.',
+  resetDialogTitle: 'Reset to industry seed data',
+  resetDialogBody: 'This will replace all current operations with the selected industry seed data.',
+  addDialogTitle: 'Add manufacturing operation',
+  fieldOperationName: 'Operation name',
+  fieldProcessSuffix: 'Process suffix',
+  fieldDescription: 'Description',
+  fieldSequence: 'Sequence',
+  fieldActive: 'Active',
+  fieldIndustry: 'Industry',
+  create: 'Create',
+  creating: 'Creating...',
+  duplicateOperationName: 'An operation with this name already exists.',
+  duplicateProcessSuffix: 'An operation with this suffix already exists for this industry.',
+  createFailed: 'Unable to create manufacturing operation.',
+  cancel: 'Cancel',
+  reset: 'Reset',
+  editDialogTitle: 'Edit manufacturing operation',
+  save: 'Save',
+  saving: 'Saving...',
+  updateFailed: 'Unable to update manufacturing operation.',
+  immutableField: 'Operation name and process suffix are immutable after creation.',
+  deleteDialogTitle: 'Deactivate manufacturing operation',
+  deleteDialogBody: 'Deactivate "{operation}"?',
+  confirmDelete: 'Deactivate',
+  deleting: 'Deactivating...',
+  deleteFailed: 'Unable to deactivate manufacturing operation.',
+};
+
 const operations: ManufacturingOperation[] = [
   {
     id: 'op-mix',
@@ -70,7 +131,8 @@ const operations: ManufacturingOperation[] = [
 ];
 
 async function loadManufacturingOperationsPage() {
-  const target = './page';
+  // Stale route contract: legacy non-localized page redirects; behavior lives in the localized client screen.
+  const target = '../../../../[locale]/(app)/(admin)/settings/reference/manufacturing-operations/manufacturing-operations-screen.client';
   const module = await import(/* @vite-ignore */ target).catch(() => null);
   expect(
     module,
@@ -86,6 +148,7 @@ async function renderManufacturingOperations(overrides?: Partial<ManufacturingOp
   const ManufacturingOperationsPage = await loadManufacturingOperationsPage();
   const props: ManufacturingOperationsPageProps = {
     operations,
+    labels,
     industryFilter: 'all',
     showInactive: false,
     reorderOperations: vi.fn().mockResolvedValue({ ok: true }),
@@ -133,7 +196,9 @@ describe('SET-055 Manufacturing Operations list view', () => {
     const user = userEvent.setup();
     await renderManufacturingOperations({ industryFilter: 'all', showInactive: true });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: /industry/i }), 'bakery');
+    // Stale test interaction: production now uses the shared Select primitive rather than a native <select>.
+    await user.click(screen.getByRole('combobox', { name: /industry/i }));
+    await user.click(screen.getByRole('option', { name: /^bakery$/i }));
 
     const grid = screen.getByRole('table', { name: /manufacturing operations/i });
     expect(within(grid).getByRole('row', { name: /mix mx 1 bakery active/i })).toBeInTheDocument();

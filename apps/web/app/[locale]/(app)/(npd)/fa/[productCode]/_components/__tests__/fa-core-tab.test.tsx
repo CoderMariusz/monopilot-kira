@@ -241,9 +241,9 @@ describe('FaCoreTab — AC3 chain1 (pack_size → Line + equipment_setup cleared
   it('Save calls updateFaCell for pack_size when it is changed', async () => {
     const user = userEvent.setup();
     renderReady();
-    // Open the pack_size Select and pick a new value via its options.
-    const option = screen.getAllByRole('option', { name: '400g' })[0];
-    await user.click(option);
+    // Stale Select assertion: options mount only after opening the shared Select primitive.
+    await user.click(screen.getByRole('combobox', { name: /pack size/i }));
+    await user.click(await screen.findByRole('option', { name: '400g' }));
     await user.click(screen.getByRole('button', { name: LABELS.save }));
 
     expect(updateFaCellMock).toHaveBeenCalledWith('FA-1001', 'pack_size', '400g');

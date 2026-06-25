@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
     throw new Error(`NEXT_REDIRECT:${url}`);
   }),
   createServerSupabaseClient: vi.fn(),
+  getCachedUser: vi.fn(),
   getUser: vi.fn(),
 }));
 
@@ -80,6 +81,7 @@ vi.mock('next/link', () => ({
 
 vi.mock('../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
+  getCachedUser: mocks.getCachedUser,
 }));
 
 async function loadDefault<T>(modulePath: string, label: string): Promise<T> {
@@ -91,7 +93,7 @@ async function loadDefault<T>(modulePath: string, label: string): Promise<T> {
 }
 
 function setAuthenticatedUser() {
-  mocks.getUser.mockResolvedValue({
+  const authResult = {
     data: {
       user: {
         id: 'user-shell-contract',
@@ -105,7 +107,10 @@ function setAuthenticatedUser() {
       },
     },
     error: null,
-  });
+  };
+  // Stale test contract: AppShell now reads the cached server auth boundary instead of calling Supabase directly.
+  mocks.getCachedUser.mockResolvedValue(authResult);
+  mocks.getUser.mockResolvedValue(authResult);
   mocks.createServerSupabaseClient.mockResolvedValue({ auth: { getUser: mocks.getUser } });
 }
 
@@ -146,8 +151,8 @@ describe('T-135 shell cross-component contracts', () => {
     // brief §3 Luka A/C: desktop modules need a single shared AppShell, not per-page shell forks.
     await renderAppShell(<section data-testid="contract-page">Contract page</section>);
 
-    expect(mocks.createServerSupabaseClient, 'AppShell must use the server Supabase auth boundary').toHaveBeenCalledTimes(1);
-    expect(mocks.getUser, 'AppShell must read the authenticated user before rendering chrome').toHaveBeenCalledTimes(1);
+    expect(mocks.getCachedUser, 'AppShell must use the cached server Supabase auth boundary').toHaveBeenCalled();
+    expect(mocks.getUser, 'AppShell auth read is handled by getCachedUser').not.toHaveBeenCalled();
     expectExactlyOneTestId('app-shell');
     expectExactlyOneTestId('app-topbar');
     expectExactlyOneTestId('app-sidebar');

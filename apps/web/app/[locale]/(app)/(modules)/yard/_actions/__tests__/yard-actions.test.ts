@@ -117,7 +117,8 @@ function makeClient(): QueryClient {
       const q = normalize(sql);
 
       if (q.includes('from public.user_roles')) {
-        expect(params).toEqual([USER_ID, ORG_ID, 'npd.planning.write']);
+        // Stale test contract: yard actions now gate on the module-specific yard.manage permission.
+        expect(params).toEqual([USER_ID, ORG_ID, 'yard.manage']);
         return { rows: [{ ok: true }], rowCount: 1 };
       }
 

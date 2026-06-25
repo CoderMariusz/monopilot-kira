@@ -3,7 +3,8 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const webRoot = path.resolve(__dirname, '../..');
-const appRoot = path.join(webRoot, 'app/[locale]/login');
+// Stale route contract: localized auth routes live under the (auth) route group.
+const appRoot = path.join(webRoot, 'app/[locale]/(auth)/login');
 
 function readIfExists(relativePath: string) {
   const absolutePath = path.join(appRoot, relativePath);
@@ -105,7 +106,8 @@ describe('T-126 login UI contract', () => {
   });
 
   it('defines /[locale] as an authenticated landing page so successful login visibly leaves the login form', () => {
-    const source = readWebFile('app/[locale]/page.tsx');
+    // Stale route contract: authenticated locale landing lives in the (app) route group.
+    const source = readWebFile('app/[locale]/(app)/page.tsx');
 
     expect(source).toContain('createServerSupabaseClient');
     expect(source).toContain('supabase.auth.getUser');

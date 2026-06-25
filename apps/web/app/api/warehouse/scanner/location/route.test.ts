@@ -111,7 +111,8 @@ describe('warehouse scanner location route', () => {
     expect(q).toContain('loc.id = $2::uuid');
     expect(q).toContain('when loc.code = $1 then 1');
     expect(q).toContain('when lower(loc.code) = lower($1) then 2');
-    expect(q).toContain('when $2::uuid is not null and loc.id = $2::uuid then 3');
+    // Stale test contract: barcode matches now rank before UUID fallback.
+    expect(q).toContain('when $2::uuid is not null and loc.id = $2::uuid then 4');
     expect(params).toEqual(['A-01', null]);
   });
 

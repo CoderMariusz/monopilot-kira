@@ -3,7 +3,8 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const webRoot = path.resolve(__dirname, '../..');
-const loginRoot = path.join(webRoot, 'app/[locale]/login');
+// Stale route contract: localized auth routes live under the (auth) route group.
+const loginRoot = path.join(webRoot, 'app/[locale]/(auth)/login');
 const i18nRoot = path.join(webRoot, 'i18n');
 
 function readLoginFile(relativePath: string): string {

@@ -187,8 +187,11 @@ describe('FaProcurementTab — AC1 prototype parity (fa-screens.jsx:806-838)', (
     expect(container.querySelector('select')).toBeNull();
   });
 
-  it('does not hardcode suppliers — renders every Reference Suppliers option', () => {
+  it('does not hardcode suppliers — renders every Reference Suppliers option', async () => {
+    const user = userEvent.setup();
     renderTab();
+    // Stale Select assertion: supplier options mount only after opening the shared Select primitive.
+    await user.click(screen.getByRole('combobox', { name: /supplier/i }));
     for (const supplier of DROPDOWNS.Suppliers) {
       expect(screen.getAllByText(supplier).length).toBeGreaterThan(0);
     }

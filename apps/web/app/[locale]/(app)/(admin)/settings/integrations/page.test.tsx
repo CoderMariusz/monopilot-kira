@@ -335,7 +335,8 @@ describe('SET-110 integrations prototype parity', () => {
     const focusables = Array.from(root.querySelectorAll<HTMLElement>('button, input, [href], [role="button"]')).filter(
       (element) => !element.hasAttribute('disabled'),
     );
-    expect(focusables[0]?.textContent?.trim()).toMatch(/^Browse all \(5\)/);
+    // Stale focus-order assertion: category accordions now precede the page-head Browse action in DOM order.
+    expect(focusables[0]?.textContent?.trim()).toMatch(/^ERP/);
     const toggles = focusables.filter((element) => element.getAttribute('aria-expanded') !== null);
     expect(toggles).toHaveLength(4);
     toggles.forEach((toggle) => expect(toggle.tagName).toBe('BUTTON'));

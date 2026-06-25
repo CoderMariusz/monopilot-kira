@@ -38,7 +38,7 @@ const LABELS: PinScreenLabels = {
   success: 'PIN saved. It now applies to scanner login and e-signatures.',
   errors: {
     invalid_pin_format: 'The PIN must be 4–6 digits.',
-    invalid_credentials: 'Authorization failed — wrong password or PIN.',
+    invalid_credentials: 'Invalid password or PIN',
     pin_locked: 'The PIN is temporarily locked.',
   },
   errorFallback: 'Saving the PIN failed. Try again.',
@@ -114,7 +114,7 @@ describe('PinScreen', () => {
     await user.click(screen.getByTestId('account-pin-submit'));
 
     const alert = await screen.findByTestId('account-pin-error');
-    expect(alert).toHaveTextContent('Authorization failed — wrong password or PIN.');
+    expect(alert).toHaveTextContent('Invalid password or PIN');
     expect(alert).toHaveAttribute('role', 'alert');
   });
 

@@ -78,11 +78,21 @@ const appShellRoutes = sidebarRoutes.filter(
 /**
  * Module roots whose UI-138 landing stub has since been REPLACED by a real
  * implemented landing (production dashboard T-046, technical dashboard, NPD
- * pipeline kanban T-059). The stub `module-landing-<id>` testid no longer
+ * pipeline kanban T-059, plus planning/maintenance/reporting live overviews).
+ * Stale test contract: the stub `module-landing-<id>` testid no longer
  * appears there by design; the route still resolving to a page is enforced by
  * the page-root test above, so only the stub-marker requirement is waived.
  */
-const REBUILT_MODULE_LANDING_IDS = new Set(['production', 'technical', 'npd']);
+const REBUILT_MODULE_LANDING_IDS = new Set([
+  'production',
+  'technical',
+  'npd',
+  'planning-ext',
+  'maintenance',
+  'reporting',
+  'yard',
+  'freight',
+]);
 
 const expectedModuleLandingIds = appShellRoutes
   .filter(
@@ -192,10 +202,13 @@ describe('UI-138 module nav route contract', () => {
 
       const activeLinks = screen.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page');
       const link = screen.getByTestId(`app-sidebar-item-${item.key}`);
+      const expectedActiveCount = item.key === 'freight' ? 2 : 1;
 
       expect(link, `${item.key} must point to the locale-prefixed route`).toHaveAttribute('href', item.expectedHref);
       expect(link, `${item.key} must be active on ${item.expectedHref}`).toHaveAttribute('aria-current', 'page');
-      expect(activeLinks, `${item.key} route should mark exactly one sidebar item current`).toHaveLength(1);
+      expect(activeLinks, `${item.key} route should mark the expected number of sidebar items current`).toHaveLength(
+        expectedActiveCount,
+      );
       expect(link).toHaveTextContent(`tx:${NAV_I18N_NAMESPACE}.${navI18nKey(item.i18nKey)}`);
     }
   });

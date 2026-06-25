@@ -7,8 +7,9 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { DashboardPipelinePreview } from '../dashboard-pipeline-preview';
-import type { DashboardPipelinePreviewProps } from '../dashboard-pipeline-preview';
+// Stale route contract: the compact preview implementation moved under the localized NPD route tree.
+import { DashboardPipelinePreview } from '../../../[locale]/(app)/(npd)/_components/dashboard-pipeline-preview';
+import type { DashboardPipelinePreviewProps } from '../../../[locale]/(app)/(npd)/_components/dashboard-pipeline-preview';
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string | { pathname?: string }; children: React.ReactNode }) => {

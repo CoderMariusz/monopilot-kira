@@ -69,7 +69,8 @@ const RECENT_PROJECTS_FIXTURE: RecentNpdProject[] = [
 
 async function loadDashboardClient(): Promise<DashboardClientComponent> {
   try {
-    const modulePath = '../dashboard-client';
+    // Stale route contract: the implemented dashboard client moved under the localized NPD route tree.
+    const modulePath = '../../../[locale]/(app)/(npd)/_components/dashboard-client';
     const mod = await import(/* @vite-ignore */ modulePath);
     return (mod.DashboardClient ?? mod.default) as DashboardClientComponent;
   } catch {

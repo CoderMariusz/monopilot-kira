@@ -79,7 +79,8 @@ const invitations: PendingInvitation[] = [
 
 async function loadInvitationsPage(): Promise<InvitationsPage> {
   try {
-    const pageModulePath = './page';
+    // Stale route contract: legacy non-localized invitations route is a redirect shim; behavior lives in the localized page.
+    const pageModulePath = '../../../[locale]/(app)/(admin)/settings/invitations/page';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-010 invitations page must default-export a renderable React component').toEqual(
       expect.any(Function),

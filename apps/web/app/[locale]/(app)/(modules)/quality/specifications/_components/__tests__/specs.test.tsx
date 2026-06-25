@@ -23,6 +23,11 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshMock }),
+}));
+
 import { SpecListClient } from '../spec-list.client';
 import { SpecCreateModal, minGtMax } from '../spec-create-modal.client';
 import { SpecDetailClient } from '../../[specId]/_components/spec-detail.client';
@@ -152,6 +157,32 @@ describe('SpecListClient — QA-003 parity + filters + states', () => {
       />,
     );
     expect(screen.getByTestId('spec-list-empty')).toHaveAttribute('data-state', 'empty');
+  });
+
+  it('refreshes the list after create succeeds', async () => {
+    refreshMock.mockClear();
+    const createSpecAction = vi.fn(async () => ({ ok: true as const, data: { id: 'new-spec' } }));
+    render(
+      <SpecListClient
+        rows={[]}
+        labels={LIST_LABELS}
+        createLabels={CREATE_LABELS}
+        locale="en"
+        createSpecAction={createSpecAction}
+        searchItemsAction={searchItemsStub}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('spec-create-open'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getByTestId('item-picker-option')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('item-picker-option'));
+    fireEvent.change(screen.getByTestId('spec-create-code'), { target: { value: 'SPEC-FA5100-F' } });
+    fireEvent.change(screen.getByTestId('spec-param-name'), { target: { value: 'pH' } });
+    fireEvent.click(screen.getByTestId('spec-create-submit'));
+
+    await waitFor(() => expect(createSpecAction).toHaveBeenCalledTimes(1));
+    expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 });
 

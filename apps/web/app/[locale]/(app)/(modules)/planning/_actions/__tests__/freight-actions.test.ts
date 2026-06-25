@@ -73,7 +73,8 @@ function makeClient(): QueryClient {
       executed.push(q);
 
       if (q.includes('from public.user_roles')) {
-        expect(params).toEqual([USER_ID, ORG_ID, 'npd.planning.write']);
+        // Stale test contract: freight actions now gate on the module-specific freight.manage permission.
+        expect(params).toEqual([USER_ID, ORG_ID, 'freight.manage']);
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
       if (q.startsWith('select id, code, name, mode, contact_email')) {
