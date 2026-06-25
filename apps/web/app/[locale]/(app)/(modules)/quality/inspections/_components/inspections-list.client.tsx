@@ -120,6 +120,11 @@ function productLabel(row: InspectionListRow, fallback: string): string {
   return row.productName ?? row.productCode ?? fallback;
 }
 
+function passRate(total: number, passed: number): string {
+  if (total === 0) return '0%';
+  return `${Math.round((passed / total) * 100)}%`;
+}
+
 export function InspectionsListClient({
   rows,
   labels,
@@ -145,6 +150,8 @@ export function InspectionsListClient({
   const [tab, setTab] = useState<InspectionStatusTab>('all');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const totalInspections = rows.length;
+  const passedInspections = rows.filter((r) => r.status === 'passed').length;
 
   const tabCount = (k: InspectionStatusTab): number => rows.filter((r) => matchesTab(r, k)).length;
 
@@ -173,6 +180,23 @@ export function InspectionsListClient({
         >
           + {labels.createInspection}
         </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3" aria-label="Inspection summary">
+        {[
+          { label: 'Total Inspections', value: String(totalInspections), testId: 'inspections-summary-total' },
+          { label: 'Passed', value: String(passedInspections), testId: 'inspections-summary-passed' },
+          { label: 'Pass Rate', value: passRate(totalInspections, passedInspections), testId: 'inspections-summary-pass-rate' },
+        ].map((tile) => (
+          <Card
+            key={tile.testId}
+            data-testid={tile.testId}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+          >
+            <div className="text-xs font-medium uppercase text-slate-500">{tile.label}</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{tile.value}</div>
+          </Card>
+        ))}
       </div>
 
       {/* Status tabs with counts (parity inspection-screens.jsx:37-48). */}

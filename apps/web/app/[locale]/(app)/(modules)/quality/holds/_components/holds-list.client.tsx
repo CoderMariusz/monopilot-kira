@@ -39,6 +39,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import { HoldCreateModal, type HoldCreateLabels } from './hold-create-modal.client';
 import type { createHold } from '../../_actions/hold-actions';
 import type {
@@ -123,6 +124,23 @@ function reasonText(row: HoldRow, noReason: string): string {
   return row.reasonLabel ?? row.reasonText ?? noReason;
 }
 
+function exportHoldsCsv(rows: HoldRow[]): void {
+  downloadCsv(
+    toCsv(
+      ['hold_number', 'status', 'reference_type', 'priority', 'created_at', 'released_at'],
+      rows.map((row) => [
+        row.holdNumber,
+        row.status,
+        row.referenceType,
+        row.priority,
+        row.createdAt,
+        row.releasedAt,
+      ]),
+    ),
+    `quality-holds-${isoDateStamp()}.csv`,
+  );
+}
+
 export function HoldsListClient({
   rows,
   labels,
@@ -168,7 +186,15 @@ export function HoldsListClient({
   return (
     <div className="flex flex-col gap-4">
       {/* Header action — opens the create modal (parity holds-screens.jsx:45). */}
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          data-testid="holds-export-csv"
+          onClick={() => exportHoldsCsv(rows)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        >
+          Export CSV
+        </button>
         <button
           type="button"
           data-testid="holds-create-open"
