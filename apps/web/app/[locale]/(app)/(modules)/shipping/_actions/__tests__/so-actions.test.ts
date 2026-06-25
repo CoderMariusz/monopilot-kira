@@ -391,6 +391,18 @@ describe('allocateSalesOrder', () => {
       }),
     ).toBe(false);
   });
+
+  it('excludes expired LPs in the allocation candidate query', async () => {
+    status = 'confirmed';
+    candidateRows = [{ lp_id: LP_1, available_qty: '10' }];
+
+    await allocateSalesOrder(SO_ID);
+
+    const candidateQuery = queryLog.find(({ sql }) => normalize(sql).startsWith('select lp.id::text as lp_id'))?.sql;
+    expect(normalize(String(candidateQuery))).toContain(
+      'and (lp.expiry_date is null or lp.expiry_date >= current_date)',
+    );
+  });
 });
 
 describe('deallocateSalesOrder', () => {

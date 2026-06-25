@@ -30,6 +30,7 @@ let lpRows: Array<{
   prior_status: string;
   prior_reserved_qty: string;
 }> = [];
+let blockedLpRows: Array<{ lp_number: string; reason: string }> = [];
 let packedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedLpIds: string[] = [];
@@ -111,6 +112,10 @@ function makeClient(): QueryClient {
         return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
+      if (q.startsWith('select lp.lp_number') && q.includes('from public.shipment_box_contents') && q.includes('v_active_holds')) {
+        return { rows: blockedLpRows, rowCount: blockedLpRows.length };
+      }
+
       if (q.startsWith('with shipment_lps') && q.includes('update public.license_plates lp')) {
         shippedLpIds = lpRows.map((row) => row.lp_id);
         return {
@@ -190,6 +195,7 @@ beforeEach(() => {
     { lp_id: LP_1, lp_number: 'LP-0001', shipped_qty: '3.000', prior_status: 'available', prior_reserved_qty: '3.000' },
     { lp_id: LP_2, lp_number: 'LP-0002', shipped_qty: '2.000', prior_status: 'available', prior_reserved_qty: '2.000' },
   ];
+  blockedLpRows = [];
   packedShipmentUpdate = null;
   shippedShipmentUpdate = null;
   shippedLpIds = [];
@@ -233,6 +239,34 @@ describe('shipShipment', () => {
       { lp_id: LP_1, shipment_id: SHIPMENT_ID, so_id: SO_ID, org_id: ORG_ID },
       { lp_id: LP_2, shipment_id: SHIPMENT_ID, so_id: SO_ID, org_id: ORG_ID },
     ]);
+    expect(salesOrderUpdate).toMatchObject({
+      sales_order_id: SO_ID,
+      status: 'shipped',
+      updated_by: USER_ID,
+    });
+  });
+
+  it('returns lp_blocked_for_ship and does not update LPs when a shipment LP is blocked', async () => {
+    blockedLpRows = [{ lp_number: 'LP-0001', reason: 'hold' }];
+
+    const result = await shipShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'lp_blocked_for_ship' });
+    expect(queryLog.some(({ sql }) => normalize(sql).includes('v_active_holds'))).toBe(true);
+    expect(queryLog.some(({ sql }) => normalize(sql).includes('update public.license_plates lp'))).toBe(false);
+    expect(shippedLpIds).toEqual([]);
+    expect(outboxEvents).toEqual([]);
+    expect(salesOrderUpdate).toBeNull();
+  });
+
+  it('ships successfully when the food-safety LP guard returns no blocked rows', async () => {
+    blockedLpRows = [];
+
+    const result = await shipShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: true });
+    expect(queryLog.some(({ sql }) => normalize(sql).includes('v_active_holds'))).toBe(true);
+    expect(shippedLpIds).toEqual([LP_1, LP_2]);
     expect(salesOrderUpdate).toMatchObject({
       sales_order_id: SO_ID,
       status: 'shipped',
