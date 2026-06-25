@@ -141,7 +141,7 @@ export function EditToModal({
         fromWarehouseId,
         toWarehouseId,
         expectedDate: expectedDate || undefined,
-        notes: notes.trim() || undefined,
+        notes: notes.trim(),
       });
       if (!result.ok) {
         const map = labels.errors as Record<string, string>;

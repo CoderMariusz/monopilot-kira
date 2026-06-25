@@ -237,6 +237,25 @@ describe('TO DRAFT edit affordances (Wave R1)', () => {
     });
   });
 
+  it('submits an explicitly empty notes string when the operator clears notes', async () => {
+    const { update } = renderDetail();
+    fireEvent.click(screen.getByTestId('to-edit-order'));
+    const form = await screen.findByTestId('edit-to-form');
+    const notesInput = within(form).getByTestId('edit-to-notes');
+
+    fireEvent.change(notesInput, { target: { value: '' } });
+    fireEvent.click(screen.getByTestId('edit-to-submit'));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update).toHaveBeenCalledWith({
+      id: 'to-1',
+      fromWarehouseId: 'wh-1',
+      toWarehouseId: 'wh-2',
+      expectedDate: '2026-07-02',
+      notes: '',
+    });
+  });
+
   it('surfaces the distinct-warehouse client hint when To === From', async () => {
     renderDetail();
     fireEvent.click(screen.getByTestId('to-edit-order'));
