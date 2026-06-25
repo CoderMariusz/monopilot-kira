@@ -660,6 +660,41 @@ describe('GenerateBolModal — carrier/service/tracking → generateBol', () => 
     fireEvent.click(screen.getByTestId('shipment-bol-submit'));
     expect(await screen.findByTestId('shipment-bol-error')).toHaveTextContent('That shipment no longer exists.');
   });
+
+  // ── Regression: "BOL reference: BOL reference" placeholder. getShipment surfaces the
+  // serialized BOL payload in bolPdfUrl (NOT a browsable URL, NOT the SHA hash). On
+  // first paint after a reload bolRef is null, so the rail must render an honest em-dash
+  // as the value — NEVER the label text ("BOL reference") as its own value.
+  it('renders an em-dash (not the label as its value) when a non-URL BOL payload is persisted and no in-session ref exists', () => {
+    renderPack(
+      makeDetail({
+        shipment: {
+          ...rows[0],
+          status: 'shipped',
+          shippedAt: '2026-06-21T14:00:00Z',
+          // Persisted bol_pdf_url is the serialized JSON payload, not a URL.
+          bolPdfUrl: '{"shipmentId":"…","generatedAt":"2026-06-21T14:00:00Z"}',
+        },
+      }),
+    );
+    const ref = screen.getByTestId('shipment-bol-ref');
+    expect(ref).toHaveTextContent('—');
+    // The value node must NOT echo the field label.
+    expect(ref).not.toHaveTextContent('BOL reference');
+    // No clickable BOL link is rendered for a non-URL payload.
+    expect(screen.queryByTestId('shipment-bol-link')).not.toBeInTheDocument();
+  });
+
+  // ── Hydration stability (React #418): the shipped/delivered timestamps are formatted
+  // with an explicit UTC timeZone so SSR (server tz = UTC) and client (browser tz) agree.
+  // We assert the rendered stamp is the UTC wall-clock time regardless of the test
+  // runner's local timezone (14:00Z must read "2:00 PM", never shifted by the host tz).
+  it('formats the shipped-at stamp in UTC (hydration-stable, not host-tz shifted)', () => {
+    renderPack(
+      makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }),
+    );
+    expect(screen.getByTestId('shipment-shipped-at')).toHaveTextContent('2:00');
+  });
 });
 
 describe('RecordPodModal — signed POD url → recordPod', () => {

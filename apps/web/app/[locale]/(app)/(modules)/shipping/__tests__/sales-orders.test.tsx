@@ -246,6 +246,18 @@ describe('SoListView — list states + parity', () => {
     expect(document.body.textContent).not.toContain(SO_ID_2);
   });
 
+  // ── Bug-3 honesty: the SO money model is GBP-denominated at the schema level
+  // (sales_orders.total_amount_gbp / sales_order_lines.*_gbp). A genuine 0 total — when
+  // the SO lines carry no unit price — formats as £0.00, which is the honest number, not
+  // a placeholder or a faked value. The £ symbol is correct for the stored GBP amount.
+  it('formats a genuine zero total as £0.00 (honest GBP, not a placeholder)', () => {
+    renderList({
+      salesOrders: [{ ...rows[0], total: '0' }],
+    });
+    const table = screen.getByTestId('so-list-table');
+    expect(within(table).getByText('£0.00')).toBeInTheDocument();
+  });
+
   it('deep-links each row to /<locale>/shipping/<soId>', () => {
     renderList();
     const link = screen.getByTestId(`so-link-${SO_ID}`);

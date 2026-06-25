@@ -124,11 +124,23 @@ function fmtDate(iso: string | null, locale: string): string {
   );
 }
 
-/** Money string from the action's decimal `total` (GBP, the reviewed currency). */
+/**
+ * The sales-order money model is GBP-denominated at the schema level: the backing
+ * columns are literally `sales_orders.total_amount_gbp`, `sales_order_lines.line_total_gbp`
+ * and `sales_order_lines.unit_price_gbp` (211-shipping-schema-foundation.sql). There is
+ * no per-org / per-SO currency column to switch on, so the displayed unit MUST match the
+ * stored unit — GBP. This constant ties the formatter to that schema fact instead of
+ * being a free-floating magic literal. (A multi-currency model would need a schema
+ * `currency_code` column + a backfill migration — out of scope here.)
+ */
+const SO_CURRENCY = 'GBP';
+
+/** Money string from the action's decimal `total` (GBP — see SO_CURRENCY). A genuine
+ *  0 total (no line prices) formats as £0.00, which is honest, not a placeholder. */
 function money(value: string, locale: string): string {
   const n = Number(value);
   if (!Number.isFinite(n)) return value;
-  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'GBP' }).format(n);
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: SO_CURRENCY }).format(n);
 }
 
 export function SoListView({

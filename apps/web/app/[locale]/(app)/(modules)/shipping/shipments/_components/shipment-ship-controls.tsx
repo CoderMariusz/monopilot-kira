@@ -177,9 +177,14 @@ export function ShipmentShipControls({
     (iso: string) => {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return iso;
+      // timeZone is pinned to UTC so the server-rendered string (server tz = UTC) and
+      // the client-rendered string (browser tz) agree byte-for-byte — otherwise the
+      // shipped/delivered timestamps mismatch on hydration → React #418. The stamps are
+      // ISO instants persisted by ship-actions; UTC is the honest canonical display tz.
       return new Intl.DateTimeFormat(LOCALE_MAP[locale] ?? 'en-US', {
         dateStyle: 'medium',
         timeStyle: 'short',
+        timeZone: 'UTC',
       }).format(d);
     },
     [locale],
@@ -332,9 +337,20 @@ export function ShipmentShipControls({
                   >
                     {labels.lifecycle.bolLink}
                   </a>
-                ) : (
+                ) : bolRef ? (
+                  // In-session generate returns the SHA-256 BOL reference; show the
+                  // (truncated) hash as the value.
                   <span className="font-mono text-blue-700" data-testid="shipment-bol-ref">
-                    {bolRef ? bolRef.slice(0, 12) : labels.lifecycle.bolLink}
+                    {bolRef.slice(0, 12)}
+                  </span>
+                ) : (
+                  // A BOL has been persisted (bol_pdf_url is set) but it is NOT a
+                  // browsable URL — getShipment surfaces the serialized BOL payload,
+                  // not the SHA reference — and no in-session hash is available after a
+                  // reload. Render an honest em-dash, NEVER the label text as its own
+                  // value (the "BOL reference: BOL reference" bug).
+                  <span className="font-mono text-slate-400" data-testid="shipment-bol-ref">
+                    —
                   </span>
                 )}
               </dd>
