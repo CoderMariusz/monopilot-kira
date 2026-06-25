@@ -69,11 +69,10 @@ function makeRow(over: Partial<GrnListItem>): GrnListItem {
   };
 }
 
-function renderList(rows: GrnListItem[], opts?: { itemCounts?: Record<string, number>; sourceTypes?: string[] }) {
+function renderList(rows: GrnListItem[], opts?: { sourceTypes?: string[] }) {
   return render(
     <GrnListClient
       rows={rows}
-      itemCounts={opts?.itemCounts ?? {}}
       sourceTypes={opts?.sourceTypes ?? [...new Set(rows.map((r) => r.sourceType))]}
       labels={EN}
       locale="en"
@@ -132,11 +131,15 @@ describe('GrnListClient (WH-010 parity)', () => {
     expect(screen.getByTestId('grn-source-grn-x')).toHaveTextContent('TO');
   });
 
-  it('renders the items-count column from the server-provided map (em-dash when unknown)', () => {
-    renderList([makeRow({ id: 'grn-c' })], { itemCounts: { 'grn-c': 7 } });
-    expect(screen.getByTestId('grn-items-grn-c')).toHaveTextContent('7');
-    renderList([makeRow({ id: 'grn-u' })]);
-    expect(screen.getByTestId('grn-items-grn-u')).toHaveTextContent('—');
+  it('renders the items-count column from each row itemCount, not the row index', () => {
+    renderList([
+      makeRow({ id: 'grn-a', itemCount: 3 }),
+      makeRow({ id: 'grn-b', itemCount: 1 }),
+    ]);
+
+    expect(screen.getByTestId('grn-items-grn-a')).toHaveTextContent('3');
+    expect(screen.getByTestId('grn-items-grn-a')).not.toHaveTextContent('0');
+    expect(screen.getByTestId('grn-items-grn-b')).toHaveTextContent('1');
   });
 
   it('shows the empty-all state when there are no rows', () => {

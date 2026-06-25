@@ -72,14 +72,11 @@ function matchesTab(row: GrnListItem, tab: GrnListTab): boolean {
 
 export function GrnListClient({
   rows,
-  itemCounts,
   sourceTypes,
   labels,
   locale,
 }: {
   rows: GrnListItem[];
-  /** grnId → number of receipt lines (computed server-side; UI never recomputes). */
-  itemCounts: Record<string, number>;
   /** distinct source_type values present in the data, for the filter select. */
   sourceTypes: string[];
   labels: GrnListLabels;
@@ -217,10 +214,7 @@ export function GrnListClient({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums" data-testid={`grn-items-${r.id}`}>
-                    {/* Line count is only known for GRNs whose detail has been
-                        resolved server-side; show an em-dash rather than a fake 0
-                        when the list action did not surface a count. */}
-                    {itemCounts[r.id] === undefined ? '—' : itemCounts[r.id]}
+                    {r.itemCount}
                   </TableCell>
                 </TableRow>
               ))}
