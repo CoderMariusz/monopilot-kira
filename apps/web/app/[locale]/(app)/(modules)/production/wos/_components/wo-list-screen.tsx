@@ -149,6 +149,7 @@ export function WoListScreen({
 }) {
   const [tab, setTab] = useState<'all' | WoListStatus>('all');
   const [search, setSearch] = useState('');
+  const [overProducedOnly, setOverProducedOnly] = useState(false);
 
   const tabCount = (k: 'all' | WoListStatus): number =>
     k === 'all'
@@ -160,13 +161,14 @@ export function WoListScreen({
     return rows.filter(
       (r) =>
         (tab === 'all' || r.status === tab) &&
+        (!overProducedOnly || r.overProductionFlagged) &&
         (q === '' ||
           r.woNumber.toLowerCase().includes(q) ||
           r.productId.toLowerCase().includes(q) ||
           (r.itemCode ?? '').toLowerCase().includes(q) ||
           (r.productName ?? '').toLowerCase().includes(q)),
     );
-  }, [rows, tab, search]);
+  }, [rows, tab, search, overProducedOnly]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -216,6 +218,20 @@ export function WoListScreen({
         <span className="ml-auto text-xs text-slate-500" data-testid="wo-list-rows">
           {labels.rowsLabel.replace('{count}', String(visible.length))}
         </span>
+        <button
+          type="button"
+          aria-pressed={overProducedOnly}
+          data-testid="wo-filter-over-produced"
+          onClick={() => setOverProducedOnly((v) => !v)}
+          className={[
+            'rounded-full border px-2.5 py-1 text-xs font-medium transition',
+            overProducedOnly
+              ? 'border-amber-300 bg-amber-50 text-amber-800'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+          ].join(' ')}
+        >
+          Over-produced
+        </button>
       </Card>
 
       {/* Table / empty states */}
@@ -239,6 +255,7 @@ export function WoListScreen({
                 <TableHead scope="col">{labels.col.product}</TableHead>
                 <TableHead scope="col">{labels.col.line}</TableHead>
                 <TableHead scope="col">{labels.col.status}</TableHead>
+                <TableHead scope="col">Over-produced</TableHead>
                 <TableHead scope="col" className="text-right">{labels.col.planned}</TableHead>
                 <TableHead scope="col">{labels.col.progress}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.col.output}</TableHead>
@@ -295,6 +312,17 @@ export function WoListScreen({
                   </TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[r.status]}>{labels.status[r.status]}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {r.overProductionFlagged ? (
+                      <Badge
+                        variant="warning"
+                        data-testid={`wo-over-produced-column-${r.id}`}
+                        className="text-[10px]"
+                      >
+                        Over-produced
+                      </Badge>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">
                     {fmtQty(r.plannedQty)} {r.uom}

@@ -150,6 +150,13 @@ async function DashboardContent({ locale }: { locale: string }) {
       sub: t('kpi.downtime.sub'),
       tone: data.openDowntime > 0 ? 'danger' : 'default',
     },
+    {
+      key: 'over-produced',
+      label: 'Over-produced WOs',
+      value: String(data.overProducedCount),
+      sub: 'Flagged work orders',
+      tone: data.overProducedCount > 0 ? 'warning' : 'default',
+    },
   ];
 
   // ── WO list rows (view models; i18n + formatting owned here) ─────────────────

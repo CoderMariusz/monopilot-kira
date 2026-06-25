@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * T-046 — 08-Production Dashboard (SCR-08-01): org-scoped live KPI + WO-list reads.
  *
@@ -16,10 +18,9 @@
  * read permission seeded to the org-admin + operator + supervisor role families in
  * migration 185). The client never re-queries and never trusts a client-side flag.
  *
- * NOT a `"use server"` module: these helpers are invoked directly from the
- * Production dashboard Server Component during render (not as client-callable
- * actions). The import of `withOrgContext` (Node-only pg pools) keeps the module
- * server-only in practice.
+ * This `'use server'` module exports only the async dashboard read plus
+ * serializable types; it is invoked directly from the Production dashboard Server
+ * Component during render.
  */
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
@@ -63,6 +64,8 @@ export type ProductionDashboardKpis = {
   woInProgress: number;
   /** count(wo_executions WHERE status IN ('planned','in_progress','paused')) — the denominator. */
   woActiveTotal: number;
+  /** count(work_orders WHERE over_production_flagged = true) */
+  overProducedCount: number;
   /** sum(wo_outputs.qty_kg WHERE registered_at::date = current_date), in kg. */
   outputTodayKg: number;
   /** Latest oee_snapshots.oee_pct (most recent snapshot_minute); null = no snapshot yet. */
@@ -189,6 +192,14 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
            from public.downtime_events
           where org_id = app.current_org_id()
             and ended_at is null`,
+      );
+
+      // KPI 5 — Over-produced WOs: planning rows flagged by 08-production output capture.
+      const overProducedCount = await countOf(
+        `select count(*)::int as n
+           from public.work_orders
+          where org_id = app.current_org_id()
+            and over_production_flagged = true`,
       );
 
       // Status-tab counts from work_orders so released-but-unstarted WOs are
@@ -322,6 +333,7 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
         data: {
           woInProgress,
           woActiveTotal,
+          overProducedCount,
           outputTodayKg,
           oeeCurrentPct,
           openDowntime,
