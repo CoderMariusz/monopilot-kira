@@ -491,13 +491,23 @@ async function transitionSalesOrderStatusInContext(
   id: string,
   newStatus: TransitionTarget,
 ): Promise<SalesOrder | IllegalTransitionError | null> {
+  // `for update` locks the SO row for the whole withOrgContext txn so two
+  // concurrent transitions serialize: the loser blocks here, then re-reads the
+  // committed status and its LEGAL_TRANSITIONS check rejects the now-illegal move.
+  // Without it, two requests could both read the same status, both pass the JS
+  // check, and the last writer wins (e.g. a `cancelled` race deallocates LP
+  // reserved_qty while another path advances the SO). NOTE: we deliberately do
+  // NOT add `and status = $current` to the final UPDATE — deallocate (cancel
+  // path) sets status='confirmed' mid-function, so a status-guarded UPDATE would
+  // match 0 rows there. The row lock is the correctness guarantee.
   const { rows } = await ctx.client.query<{ status: string }>(
     `select status
        from public.sales_orders
       where org_id = app.current_org_id()
         and id = $1::uuid
         and deleted_at is null
-      limit 1`,
+      limit 1
+      for update`,
     [id],
   );
   const current = rows[0]?.status;
