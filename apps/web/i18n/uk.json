@@ -1097,6 +1097,41 @@
       "saved": "Scanner sign-off policy saved.",
       "readOnly": "You need admin rights to change scanner sign-off policies.",
       "errorGeneric": "Could not save. Try again."
+    },
+    "npdFields": {
+      "title": "NPD fields",
+      "subtitle": "Manage department-specific fields for the NPD workflow.",
+      "departments_title": "Departments",
+      "departments_subtitle": "Choose the NPD department whose schema should be configured.",
+      "selected_department": "Department",
+      "assigned_fields_title": "{department} fields",
+      "assigned_fields_subtitle": "Visible fields assigned to this department.",
+      "assign_field": "Catalog field",
+      "assign_field_placeholder": "Choose a field to assign",
+      "assign": "Assign field",
+      "empty_departments": "No NPD departments are configured.",
+      "empty_fields": "No fields are assigned to this department.",
+      "read_only_notice": "You need npd.schema.edit to change NPD field settings.",
+      "active": "Active",
+      "inactive": "Inactive",
+      "remove": "Remove",
+      "saving": "Saving…",
+      "error": "Unable to save NPD field settings.",
+      "column_field": "Field",
+      "column_data_type": "Data type",
+      "column_required": "Required",
+      "column_visible": "Visible",
+      "column_stage": "Stage",
+      "column_order": "Order",
+      "column_actions": "Actions",
+      "stage_brief": "Brief",
+      "stage_recipe": "Recipe",
+      "stage_packaging": "Packaging",
+      "stage_trial": "Trial",
+      "stage_sensory": "Sensory",
+      "stage_pilot": "Pilot",
+      "stage_approval": "Approval",
+      "stage_handoff": "Handoff"
     }
   },
   "navigation": {
@@ -4366,7 +4401,9 @@
       "empty": "Поки немає пунктів контрольного списку",
       "emptyBody": "У цьому проєкті ще не налаштовано пунктів контрольного списку етапу.",
       "error": "Не вдалося завантажити контрольний список етапу. Спробуйте ще раз.",
-      "forbidden": "У вас немає дозволу переглядати цей контрольний список етапу."
+      "forbidden": "У вас немає дозволу переглядати цей контрольний список етапу.",
+      "faDerivedHint": "Closed in FA →",
+      "faDerivedLocked": "FA-derived"
     },
     "advanceGateModal": {
       "title": "Перехід до наступного етапу",
@@ -7042,7 +7079,8 @@
           "start": "Start",
           "resume": "Resume",
           "cancel": "Cancel",
-          "close": "Close"
+          "close": "Close",
+          "startReleaseHint": "Release this work order in Planning first."
         },
         "tabs": {
           "overview": "Overview",
