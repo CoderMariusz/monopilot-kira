@@ -4433,7 +4433,10 @@
       "refreshD365": "Odśwież cache D365",
       "showBuilt": "Pokaż zbudowane FG (domyślnie ukryte)",
       "subtitle": "Przegląd potoku w 7 działach",
-      "title": "Pulpit NPD"
+      "title": "Pulpit NPD",
+      "expandBlockedFas": "Pokaż zablokowane FA",
+      "collapseBlockedFas": "Ukryj zablokowane FA",
+      "blockedFaListTitle": "Zablokowane FA"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",

@@ -101,6 +101,9 @@ const DEFAULT_LABELS: DashboardScreenLabels = {
   colPending: 'Pending',
   colBlocked: 'Blocked',
   colProgress: 'Progress',
+  expandBlockedFas: 'Show blocked FAs',
+  collapseBlockedFas: 'Hide blocked FAs',
+  blockedFaListTitle: 'Blocked FAs',
   legendTitle: 'Launch alert legend',
   legendRed: 'Launch ≤ 10 days, or missing required fields',
   legendAmber: 'Launch ≤ 21 days and missing data',
@@ -139,9 +142,9 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof DashboardScreenLab
 function translateLabel(t: (key: string) => string, key: keyof DashboardScreenLabels): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    return value === key ? (DEFAULT_LABELS[key] ?? value) : value;
   } catch {
-    return DEFAULT_LABELS[key];
+    return DEFAULT_LABELS[key] ?? key;
   }
 }
 
@@ -292,6 +295,7 @@ async function readDashboard(): Promise<DashboardData> {
       done: row.done,
       pending: row.pending,
       blocked: row.blocked,
+      blockedFas: row.blockedFas,
     }));
 
     const alerts: LaunchAlert[] = alertsResult.alerts.map((row) => ({

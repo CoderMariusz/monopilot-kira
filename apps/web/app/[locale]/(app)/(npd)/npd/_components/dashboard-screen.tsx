@@ -70,6 +70,13 @@ export type DeptProgress = {
   done: number;
   pending: number;
   blocked: number;
+  blockedFas?: BlockedFa[];
+};
+
+export type BlockedFa = {
+  productCode: string;
+  productName: string | null;
+  missingData: string | null;
 };
 
 export type LaunchAlert = {
@@ -104,6 +111,9 @@ export type DashboardScreenLabels = {
   colPending: string;
   colBlocked: string;
   colProgress: string;
+  expandBlockedFas?: string;
+  collapseBlockedFas?: string;
+  blockedFaListTitle?: string;
   legendTitle: string;
   legendRed: string;
   legendAmber: string;
@@ -196,6 +206,18 @@ function deptLabel(dept: Dept, labels: DashboardScreenLabels): string {
     default:
       return dept;
   }
+}
+
+function dashboardLabel(
+  labels: DashboardScreenLabels,
+  key: 'expandBlockedFas' | 'collapseBlockedFas' | 'blockedFaListTitle',
+): string {
+  const fallback: Record<'expandBlockedFas' | 'collapseBlockedFas' | 'blockedFaListTitle', string> = {
+    expandBlockedFas: 'Show blocked FAs',
+    collapseBlockedFas: 'Hide blocked FAs',
+    blockedFaListTitle: 'Blocked FAs',
+  };
+  return labels[key] ?? fallback[key];
 }
 
 function DaysLeftCell({ days, noDate }: { days: number | null; noDate: string }) {
@@ -312,6 +334,7 @@ export function DashboardScreen({
   const pathname = usePathname();
 
   const [showBuilt, setShowBuilt] = React.useState(false);
+  const [expandedDepts, setExpandedDepts] = React.useState<Set<Dept>>(() => new Set());
 
   // Robust open mechanism (mirrors fa-list-table.tsx): the modal open state lives
   // HERE, in the same client island as the button. The button's onClick flips
@@ -333,6 +356,18 @@ export function DashboardScreen({
     // Canonical FA detail route: /[locale]/fa/[productCode].
     const localePrefix = localePrefixFrom(pathname);
     router.push(`${localePrefix}/fa/${productCode}`);
+  }
+
+  function toggleDept(dept: Dept) {
+    setExpandedDepts((current) => {
+      const next = new Set(current);
+      if (next.has(dept)) {
+        next.delete(dept);
+      } else {
+        next.add(dept);
+      }
+      return next;
+    });
   }
 
   const rows = React.useMemo(() => {
@@ -446,34 +481,83 @@ export function DashboardScreen({
                   const pct = total ? Math.round((row.done / total) * 100) : 0;
                   const barColor =
                     pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
+                  const blockedFas = row.blockedFas ?? [];
+                  const isExpanded = expandedDepts.has(row.dept);
+                  const rowLabel = deptLabel(row.dept, labels);
                   return (
-                    <TableRow key={row.dept}>
-                      <TableCell className="font-medium">
-                        {deptLabel(row.dept, labels)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{row.done}</TableCell>
-                      <TableCell className="text-right font-mono">{row.pending}</TableCell>
-                      <TableCell
-                        className={`text-right font-mono ${row.blocked ? 'text-red-600' : ''}`}
-                      >
-                        {row.blocked}
-                      </TableCell>
-                      <TableCell className="min-w-[160px]">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="h-1.5 flex-1 overflow-hidden rounded bg-slate-100"
-                            role="progressbar"
-                            aria-valuenow={pct}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`${deptLabel(row.dept, labels)} ${pct}%`}
-                          >
-                            <div className={`h-full ${barColor}`} style={{ width: `${pct}%` }} />
+                    <React.Fragment key={row.dept}>
+                      <TableRow>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {blockedFas.length > 0 ? (
+                              <button
+                                type="button"
+                                data-slot="button"
+                                className="btn btn-secondary btn-sm"
+                                aria-expanded={isExpanded}
+                                aria-controls={`blocked-fas-${row.dept}`}
+                                aria-label={`${dashboardLabel(labels, isExpanded ? 'collapseBlockedFas' : 'expandBlockedFas')}: ${rowLabel}`}
+                                onClick={() => toggleDept(row.dept)}
+                              >
+                                {isExpanded ? '⌄' : '›'}
+                              </button>
+                            ) : null}
+                            <span>{rowLabel}</span>
                           </div>
-                          <span className="min-w-[32px] font-mono text-[11px]">{pct}%</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{row.done}</TableCell>
+                        <TableCell className="text-right font-mono">{row.pending}</TableCell>
+                        <TableCell
+                          className={`text-right font-mono ${row.blocked ? 'text-red-600' : ''}`}
+                        >
+                          {row.blocked}
+                        </TableCell>
+                        <TableCell className="min-w-[160px]">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-1.5 flex-1 overflow-hidden rounded bg-slate-100"
+                              role="progressbar"
+                              aria-valuenow={pct}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label={`${rowLabel} ${pct}%`}
+                            >
+                              <div className={`h-full ${barColor}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="min-w-[32px] font-mono text-[11px]">{pct}%</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded ? (
+                        <TableRow>
+                          <TableCell colSpan={5}>
+                            <div
+                              id={`blocked-fas-${row.dept}`}
+                              className="rounded border border-red-100 bg-red-50 px-3 py-2"
+                            >
+                              <div className="mb-1 text-[11px] font-semibold uppercase text-red-700">
+                                {dashboardLabel(labels, 'blockedFaListTitle')}
+                              </div>
+                              <ul className="space-y-1">
+                                {blockedFas.map((fa) => (
+                                  <li key={fa.productCode} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+                                    <a
+                                      className="mono font-semibold"
+                                      style={{ color: 'var(--blue)' }}
+                                      href={`/fa/${encodeURIComponent(fa.productCode)}`}
+                                    >
+                                      {fa.productCode}
+                                    </a>
+                                    <span>{fa.productName ?? '—'}</span>
+                                    <span className="muted">{fa.missingData ?? '—'}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>

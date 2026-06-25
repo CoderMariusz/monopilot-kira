@@ -4433,7 +4433,10 @@
       "refreshD365": "Оновити кеш D365",
       "showBuilt": "Показати зібрані FG (приховані за замовчуванням)",
       "subtitle": "Огляд потоку по 7 відділах",
-      "title": "Панель NPD"
+      "title": "Панель NPD",
+      "expandBlockedFas": "Show blocked FAs",
+      "collapseBlockedFas": "Hide blocked FAs",
+      "blockedFaListTitle": "Blocked FAs"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",

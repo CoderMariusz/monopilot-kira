@@ -4433,7 +4433,10 @@
       "refreshD365": "Reîmprospătează cache-ul D365",
       "showBuilt": "Arată FG construite (ascunse implicit)",
       "subtitle": "Prezentare generală a fluxului pe 7 departamente",
-      "title": "Tablou de bord NPD"
+      "title": "Tablou de bord NPD",
+      "expandBlockedFas": "Show blocked FAs",
+      "collapseBlockedFas": "Hide blocked FAs",
+      "blockedFaListTitle": "Blocked FAs"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",

@@ -61,6 +61,9 @@ const LABELS: DashboardScreenLabels = {
   colPending: 'Pending',
   colBlocked: 'Blocked',
   colProgress: 'Progress',
+  expandBlockedFas: 'Show blocked FAs',
+  collapseBlockedFas: 'Hide blocked FAs',
+  blockedFaListTitle: 'Blocked FAs',
   legendTitle: 'Launch alert legend',
   legendRed: 'days_left ≤ 10, or missing required fields',
   legendAmber: 'days_left ≤ 21 AND missing data',
@@ -101,8 +104,20 @@ const READY_PROPS: DashboardScreenProps = {
   canRefresh: true,
   summary: { totalActive: 23, fullyComplete: 5, inProgress: 15, totalBuilt: 3 },
   perDept: [
-    { dept: 'core', done: 8, pending: 12, blocked: 3 },
-    { dept: 'planning', done: 5, pending: 10, blocked: 8 },
+    {
+      dept: 'core',
+      done: 8,
+      pending: 12,
+      blocked: 3,
+      blockedFas: [
+        {
+          productCode: 'FA0043',
+          productName: 'Smoked Almond Yoghurt',
+          missingData: 'Core: Product Name.',
+        },
+      ],
+    },
+    { dept: 'planning', done: 5, pending: 10, blocked: 8, blockedFas: [] },
   ],
   alerts: [
     {
@@ -169,6 +184,23 @@ describe('T-052 DashboardScreen — structural parity (fa-screens.jsx:32-174)', 
     expect(within(coreRow).getByText('8')).toBeInTheDocument();
     expect(within(coreRow).getByText('12')).toBeInTheDocument();
     expect(within(deptTable).getByText(LABELS.deptPlanning)).toBeInTheDocument();
+  });
+
+  it('expands a department row to show that dept blocked FA list', () => {
+    renderScreen();
+    const deptTable = screen.getByRole('table', { name: /department progress/i });
+
+    expect(within(deptTable).queryByText(/smoked almond yoghurt/i)).not.toBeInTheDocument();
+
+    fireEvent.click(within(deptTable).getByRole('button', { name: /show blocked fas: core/i }));
+
+    expect(within(deptTable).getByText(LABELS.blockedFaListTitle)).toBeInTheDocument();
+    expect(within(deptTable).getByRole('link', { name: 'FA0043' })).toHaveAttribute(
+      'href',
+      '/fa/FA0043',
+    );
+    expect(within(deptTable).getByText(/smoked almond yoghurt/i)).toBeInTheDocument();
+    expect(within(deptTable).getByText('Core: Product Name.')).toBeInTheDocument();
   });
 
   it('renders the launch alerts table sorted with RAG badges and FA links', () => {

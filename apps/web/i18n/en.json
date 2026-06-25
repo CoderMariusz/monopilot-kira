@@ -2201,7 +2201,10 @@
       "refreshD365": "Refresh D365 cache",
       "showBuilt": "Show built FGs (hidden by default)",
       "subtitle": "Pipeline overview across 7 departments",
-      "title": "NPD Dashboard"
+      "title": "NPD Dashboard",
+      "expandBlockedFas": "Show blocked FAs",
+      "collapseBlockedFas": "Hide blocked FAs",
+      "blockedFaListTitle": "Blocked FAs"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",

@@ -27,6 +27,12 @@ type DeptRow = {
   done: string | number;
   pending: string | number;
   blocked: string | number;
+  blocked_fas: string | BlockedFaRow[];
+};
+type BlockedFaRow = {
+  productCode: string;
+  productName: string | null;
+  missingData: string | null;
 };
 type CallerAccess = {
   roleCodes: string[];
@@ -46,6 +52,7 @@ export type DashboardSummaryResult = {
     done: number;
     pending: number;
     blocked: number;
+    blockedFas: BlockedFaRow[];
   }>;
 };
 
@@ -142,6 +149,8 @@ async function readPerDept(client: QueryClient, deptFilter: Dept | null): Promis
      ),
      product_dept as (
        select d.dept::text as dept,
+              p.product_code,
+              p.product_name,
               case d.done_column
                 when 'done_core' then coalesce(p.done_core, false)
                 when 'done_planning' then coalesce(p.done_planning, false)
@@ -152,15 +161,14 @@ async function readPerDept(client: QueryClient, deptFilter: Dept | null): Promis
                 when 'done_procurement' then coalesce(p.done_procurement, false)
                 else false
               end as is_done,
-              exists (
-                select 1
-                from public.missing_required_cols m
-                where m.org_id = p.org_id
-                  and m.product_code = p.product_code
-                  and m.missing_data ilike '%' || d.dept || ':%'
-              ) as is_blocked
+              m.missing_data,
+              m.missing_data is not null as is_blocked
          from public.product p
          cross join dept_rows d
+         left join public.missing_required_cols m
+           on m.org_id = p.org_id
+          and m.product_code = p.product_code
+          and m.missing_data ilike '%' || d.dept || ':%'
         where p.org_id = app.current_org_id()
           and p.product_code is not null
           and ($1::text is null or d.dept = $1)
@@ -168,7 +176,18 @@ async function readPerDept(client: QueryClient, deptFilter: Dept | null): Promis
      select dept,
             count(*) filter (where is_done)::text as done,
             count(*) filter (where not is_done)::text as pending,
-            count(*) filter (where is_blocked)::text as blocked
+            count(*) filter (where is_blocked)::text as blocked,
+            coalesce(
+              jsonb_agg(
+                jsonb_build_object(
+                  'productCode', product_code,
+                  'productName', product_name,
+                  'missingData', missing_data
+                )
+                order by product_code
+              ) filter (where is_blocked),
+              '[]'::jsonb
+            )::text as blocked_fas
        from product_dept
       group by dept
       order by array_position(array['core','planning','commercial','production','technical','mrp','procurement'], dept)`,
@@ -180,6 +199,7 @@ async function readPerDept(client: QueryClient, deptFilter: Dept | null): Promis
     done: toNumber(row.done),
     pending: toNumber(row.pending),
     blocked: toNumber(row.blocked),
+    blockedFas: parseBlockedFas(row.blocked_fas),
   }));
 }
 
@@ -187,4 +207,30 @@ function toNumber(value: string | number | null | undefined): number {
   if (typeof value === 'number') return value;
   if (!value) return 0;
   return Number(value);
+}
+
+function parseBlockedFas(value: string | BlockedFaRow[] | null | undefined): BlockedFaRow[] {
+  if (Array.isArray(value)) return value.map(normalizeBlockedFa).filter(Boolean) as BlockedFaRow[];
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.map(normalizeBlockedFa).filter(Boolean) as BlockedFaRow[]
+      : [];
+  } catch (error) {
+    console.error('[npd-dashboard] failed to parse blocked FA rows:', error);
+    return [];
+  }
+}
+
+function normalizeBlockedFa(value: unknown): BlockedFaRow | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const productCode = typeof row.productCode === 'string' ? row.productCode : '';
+  if (!productCode) return null;
+  return {
+    productCode,
+    productName: typeof row.productName === 'string' ? row.productName : null,
+    missingData: typeof row.missingData === 'string' ? row.missingData : null,
+  };
 }
