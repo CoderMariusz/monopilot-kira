@@ -27,6 +27,26 @@ export type CountSession = {
   varianceQty: DecimalString;
 };
 
+/**
+ * Soft, non-blocking cycle-count variance signal. Emitted by `recordCount` when
+ * the absolute variance between the counted and the system on-hand qty exceeds
+ * the org's configured `count_variance_warn_pct` (a `tenant_variations`
+ * feature-flag, percent). It NEVER blocks the count from being recorded — it
+ * just lets the UI surface "this count is off by N% — recheck before applying"
+ * to the counter/supervisor. Mirrors the production over-consume / mass-balance
+ * WARN tier (a flag + reason code + the over-amount/variance for the caller).
+ */
+export type CountVarianceWarning = {
+  /** Always true when present; lets the consumer narrow on `if (warning)`. */
+  varianceExceedsThreshold: true;
+  /** Machine-readable reason code for logs / audit. */
+  reasonCode: 'count_variance_over_threshold';
+  /** Absolute variance percent vs. system on-hand, 4dp decimal string. */
+  variancePct: DecimalString;
+  /** The configured warn threshold percent (decimal string). */
+  warnPct: DecimalString;
+};
+
 export type CountLine = {
   id: string;
   sessionId: string;
@@ -41,6 +61,13 @@ export type CountLine = {
   varianceQty: DecimalString | null;
   status: CountLineStatus;
   uom: string | null;
+  /**
+   * Present only when the recorded count's variance exceeded the org's
+   * `count_variance_warn_pct`. Additive + optional — existing consumers that
+   * ignore it keep compiling. Absent on reads (`getCountSession`/list) where no
+   * single counted-vs-system delta is being evaluated.
+   */
+  varianceWarning?: CountVarianceWarning;
 };
 
 export type CountSessionDetail = CountSession & {

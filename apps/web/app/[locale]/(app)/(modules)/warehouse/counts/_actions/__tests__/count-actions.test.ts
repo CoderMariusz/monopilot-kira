@@ -60,6 +60,8 @@ let shrinkageLps: Array<{
   uom: string;
 }>;
 let stockAdjustmentIds: string[];
+/** Configurable count-variance WARN threshold (percent) the mock returns. */
+let countVarianceWarnPct: string;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -126,6 +128,10 @@ function makeClient(): QueryClient {
 
       if (n.startsWith('select coalesce(sum(inv.available_qty)')) {
         return { rows: [{ system_qty: systemQty, uom: 'kg' }], rowCount: 1 };
+      }
+
+      if (n.includes("feature_flags->>'count_variance_warn_pct'")) {
+        return { rows: [{ warn_pct: countVarianceWarnPct }], rowCount: 1 };
       }
 
       if (n.startsWith('select id::text from public.count_lines')) {
@@ -237,6 +243,9 @@ beforeEach(async () => {
     uom: 'kg',
   }];
   stockAdjustmentIds = [ADJUSTMENT_ID, ADJUSTMENT_ID_2];
+  // High default so pre-existing recordCount cases never trip the soft warning;
+  // the variance-warning tests set this explicitly.
+  countVarianceWarnPct = '100';
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -273,6 +282,80 @@ describe('stock count actions', () => {
 
     const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_lines'));
     expect(insert?.params).toEqual([SESSION_ID, LOCATION_ID, ITEM_ID, null, '5', '8', '3', USER_ID]);
+  });
+
+  it('emits a soft variance warning when |variance%| exceeds the configured threshold', async () => {
+    // system 10, counted 13 → variance +3 → 30% > 10% threshold → WARN fires.
+    systemQty = '10';
+    countVarianceWarnPct = '10';
+
+    const result = await recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty: '13',
+    });
+
+    expect(result.varianceQty).toBe('3');
+    expect(result.varianceWarning).toEqual({
+      varianceExceedsThreshold: true,
+      reasonCode: 'count_variance_over_threshold',
+      variancePct: '30',
+      warnPct: '10',
+    });
+    // It is a WARN, not a block: the count line was still recorded.
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.count_lines'))).toBe(true);
+  });
+
+  it('fires the warning the same way for an under-count (negative variance) past threshold', async () => {
+    // system 10, counted 8 → variance -2 → 20% > 10% threshold → WARN fires.
+    systemQty = '10';
+    countVarianceWarnPct = '10';
+
+    const result = await recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty: '8',
+    });
+
+    expect(result.varianceQty).toBe('-2');
+    expect(result.varianceWarning).toMatchObject({
+      varianceExceedsThreshold: true,
+      reasonCode: 'count_variance_over_threshold',
+      variancePct: '20',
+    });
+  });
+
+  it('does NOT emit a variance warning when |variance%| is at or under the threshold', async () => {
+    // system 10, counted 11 → variance +1 → 10% == 10% threshold → no WARN.
+    systemQty = '10';
+    countVarianceWarnPct = '10';
+
+    const result = await recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty: '11',
+    });
+
+    expect(result.varianceQty).toBe('1');
+    expect(result.varianceWarning).toBeUndefined();
+  });
+
+  it('disables the variance warning entirely when the threshold is configured to 0', async () => {
+    // Huge variance but threshold 0 → opt-out → no WARN.
+    systemQty = '10';
+    countVarianceWarnPct = '0';
+
+    const result = await recordCount({
+      sessionId: SESSION_ID,
+      locationId: LOCATION_ID,
+      itemId: ITEM_ID,
+      countedQty: '50',
+    });
+
+    expect(result.varianceWarning).toBeUndefined();
   });
 
   it('approveAndApplyVariance with positive variance mints a new adjustment LP', async () => {

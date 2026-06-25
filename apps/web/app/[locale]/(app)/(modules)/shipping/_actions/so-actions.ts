@@ -89,14 +89,49 @@ export type InsufficientStockError = {
   available: string;
 };
 
+/**
+ * Soft, non-blocking allocation signal: at least one LP allocated to this order
+ * is within `near_expiry_warn_days` of its expiry (but NOT yet expired — expired
+ * LPs are hard-filtered out at allocation per G-QA-03). Lets the picker/CSR see
+ * "you're shipping stock that expires soon — confirm it'll clear the customer's
+ * shelf-life requirement" without blocking the allocation. Mirrors the
+ * mass-balance / over-consume WARN tier: a flag + reason code + the measured
+ * margin (the soonest expiry + how many days out it is). Carried as a SIBLING of
+ * the success result — never mutates the shared SalesOrder shape.
+ */
+export type NearExpiryAllocationWarning = {
+  /** Always true when present; lets the consumer narrow on `if (warning)`. */
+  nearExpiry: true;
+  reasonCode: 'allocated_lp_near_expiry';
+  /** ISO date (YYYY-MM-DD) of the SOONEST-expiring LP that was allocated. */
+  soonestExpiry: string;
+  /** Whole days from today to that soonest expiry (>= 0; 0 = expires today). */
+  daysToExpiry: number;
+  /** The configured near-expiry warn window in days. */
+  warnDays: number;
+  /** How many of the allocated LP legs fall inside the warn window. */
+  affectedLpCount: number;
+};
+
+/**
+ * Allocation success carries the SalesOrder plus an OPTIONAL near-expiry warning.
+ * Additive: callers that only read `data` are unaffected.
+ */
+export type AllocateSalesOrderSuccess = {
+  ok: true;
+  data: SalesOrder | null;
+  nearExpiryWarning?: NearExpiryAllocationWarning;
+};
+
 export type ListSalesOrdersResult = ActionResult<SalesOrderListRow[]>;
 export type GetSalesOrderResult = ActionResult<SalesOrder | null>;
 export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure>;
 export type TransitionSalesOrderStatusResult = ActionResult<SalesOrder | null, ForbiddenFailure | IllegalTransitionError>;
-export type AllocateSalesOrderResult = ActionResult<
-  SalesOrder | null,
-  ForbiddenFailure | IllegalTransitionError | InsufficientStockError
->;
+export type AllocateSalesOrderResult =
+  | AllocateSalesOrderSuccess
+  | ForbiddenFailure
+  | IllegalTransitionError
+  | InsufficientStockError;
 export type DeallocateSalesOrderResult = ActionResult<null>;
 
 type CreateSalesOrderInput = {
@@ -112,6 +147,14 @@ const SHIP_SO_CONFIRM = 'ship.so.confirm';
 const SHIP_SO_CANCEL = 'ship.so.cancel';
 // Migration 212 seeds no granular ship.so.allocate/deallocate permission; keep create for those ops.
 const SHIP_SO_ALLOCATE = 'ship.so.create';
+
+/**
+ * Default near-expiry WARN window (days) when the org has not configured
+ * `near_expiry_warn_days`. An allocated LP whose expiry is within this many days
+ * (but not yet expired — expired is a hard filter) gets a soft warning. Set the
+ * flag to 0 to opt out of the warning entirely.
+ */
+const NEAR_EXPIRY_DEFAULT_WARN_DAYS = 7;
 
 const LEGAL_TRANSITIONS: Record<SalesOrderStatus, readonly TransitionTarget[]> = {
   draft: ['confirmed', 'cancelled'],
@@ -161,6 +204,32 @@ async function requirePermission(ctx: ShippingContext, permission: string): Prom
     return { ok: false, error: 'forbidden' };
   }
   return null;
+}
+
+/**
+ * Read the org's near-expiry WARN window (days) from
+ * `tenant_variations.feature_flags->>'near_expiry_warn_days'`, falling back to
+ * NEAR_EXPIRY_DEFAULT_WARN_DAYS. An explicit 0 disables the warning. Mirrors the
+ * over-consume / mass-balance feature-flag read pattern (integer days here).
+ */
+async function readNearExpiryWarnDays(client: QueryClient): Promise<number> {
+  const { rows } = await client.query<{ warn_days: string }>(
+    `select coalesce(
+              case
+                when (tv.feature_flags->>'near_expiry_warn_days') ~ '^[0-9]+$'
+                  then (tv.feature_flags->>'near_expiry_warn_days')::int
+                else $1::int
+              end,
+              $1::int
+            )::text as warn_days
+       from public.tenant_variations tv
+      where tv.org_id = app.current_org_id()
+      limit 1`,
+    [String(NEAR_EXPIRY_DEFAULT_WARN_DAYS)],
+  );
+  if (rows.length === 0) return NEAR_EXPIRY_DEFAULT_WARN_DAYS;
+  const parsed = Number(rows[0]?.warn_days);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : NEAR_EXPIRY_DEFAULT_WARN_DAYS;
 }
 
 function toText(value: unknown): string | null {
@@ -632,12 +701,18 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
       [id],
     );
 
+    const warnDays = await readNearExpiryWarnDays(ctx.client);
+
     const planned: Array<{
       lineId: string;
       siteId: string | null;
       allocated: string;
       allocations: Array<{ lpId: string; qty: string }>;
     }> = [];
+
+    // Soft near-expiry tracking across every LP actually allocated to this order.
+    let nearExpiryCount = 0;
+    let soonestNearExpiry: { date: string; days: number } | null = null;
 
     for (const line of lines) {
       let needed = decimalToUnits(line.quantity_ordered);
@@ -647,9 +722,13 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
       const { rows: candidates } = await ctx.client.query<{
         lp_id: string;
         available_qty: string;
+        expiry_date: string | null;
+        days_to_expiry: number | string | null;
       }>(
         `select lp.id::text as lp_id,
-                (lp.quantity - lp.reserved_qty)::text as available_qty
+                (lp.quantity - lp.reserved_qty)::text as available_qty,
+                to_char(lp.expiry_date, 'YYYY-MM-DD') as expiry_date,
+                (lp.expiry_date - current_date) as days_to_expiry
            from public.license_plates lp
           where lp.org_id = app.current_org_id()
             and lp.product_id = $1::uuid
@@ -687,6 +766,19 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
         if (take <= 0n) continue;
         allocations.push({ lpId: lp.lp_id, qty: unitsToDecimal(take) });
         needed -= take;
+
+        // Near-expiry WARN (G-QA-03 sibling): this LP is being ALLOCATED (the
+        // expired ones were already filtered out above), but it falls inside the
+        // org's near-expiry window. Record the soonest one for the soft warning.
+        if (warnDays > 0 && lp.expiry_date != null && lp.days_to_expiry != null) {
+          const days = Number(lp.days_to_expiry);
+          if (Number.isFinite(days) && days >= 0 && days <= warnDays) {
+            nearExpiryCount += 1;
+            if (soonestNearExpiry === null || days < soonestNearExpiry.days) {
+              soonestNearExpiry = { date: lp.expiry_date, days };
+            }
+          }
+        }
       }
 
       if (needed > 0n) {
@@ -736,7 +828,21 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
 
     const result = await transitionSalesOrderStatusInContext(ctx, id, 'allocated');
     if (result && 'error' in result) return result;
-    return { ok: true, data: result };
+
+    const nearExpiryWarning: NearExpiryAllocationWarning | undefined =
+      soonestNearExpiry !== null
+        ? {
+            nearExpiry: true,
+            reasonCode: 'allocated_lp_near_expiry',
+            soonestExpiry: soonestNearExpiry.date,
+            daysToExpiry: soonestNearExpiry.days,
+            warnDays,
+            affectedLpCount: nearExpiryCount,
+          }
+        : undefined;
+
+    // Soft + additive: only spread the warning when it actually fired.
+    return nearExpiryWarning ? { ok: true, data: result, nearExpiryWarning } : { ok: true, data: result };
   });
 }
 

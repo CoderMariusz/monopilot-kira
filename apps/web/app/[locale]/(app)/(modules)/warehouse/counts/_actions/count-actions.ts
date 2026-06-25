@@ -22,6 +22,7 @@ import {
   type CountSession,
   type CountSessionDetail,
   type CountType,
+  type CountVarianceWarning,
   type CreateCountSessionInput,
   type RecordCountInput,
 } from './count-types';
@@ -30,6 +31,13 @@ const WAREHOUSE_STOCK_ADJUST_PERMISSION = 'warehouse.stock.adjust';
 const STOCK_COUNT_ADJUST_INTENT = 'warehouse.stock.adjust';
 const STOCK_COUNT_REASON = 'stock_count_variance';
 const DESTROYED_STATUS = 'destroyed';
+/**
+ * Hard floor when the org has not configured `count_variance_warn_pct`. A count
+ * that disagrees with the system on-hand by more than this (percent of system
+ * qty) gets a soft WARN — never a block. Mirrors the mass-balance/over-consume
+ * default-WARN tier. Set to 0 in feature_flags to opt OUT entirely.
+ */
+const COUNT_VARIANCE_DEFAULT_WARN_PCT = 5;
 
 type SessionRow = {
   id: string;
@@ -276,6 +284,59 @@ async function readCurrentOnHand(
     [input.locationId, input.itemId, input.lpId],
   );
   return { systemQty: rows[0]?.system_qty ?? '0', uom: rows[0]?.uom ?? null };
+}
+
+/**
+ * Read the org's configured cycle-count variance WARN threshold (percent) from
+ * `tenant_variations.feature_flags->>'count_variance_warn_pct'`. Falls back to
+ * COUNT_VARIANCE_DEFAULT_WARN_PCT when unset/non-numeric. An explicit 0 disables
+ * the warning. Mirrors the over-consume/mass-balance feature-flag read pattern.
+ */
+async function readCountVarianceWarnPct(client: QueryClient): Promise<bigint> {
+  const { rows } = await client.query<{ warn_pct: string }>(
+    `select coalesce(
+              case
+                when (tv.feature_flags->>'count_variance_warn_pct') ~ '^[0-9]+(\\.[0-9]+)?$'
+                  then (tv.feature_flags->>'count_variance_warn_pct')::numeric
+                else $1::numeric
+              end,
+              $1::numeric
+            )::text as warn_pct
+       from public.tenant_variations tv
+      where tv.org_id = app.current_org_id()
+      limit 1`,
+    [String(COUNT_VARIANCE_DEFAULT_WARN_PCT)],
+  );
+  // No tenant_variations row → use the default.
+  if (rows.length === 0) return toMicro(String(COUNT_VARIANCE_DEFAULT_WARN_PCT));
+  return toMicro(rows[0]?.warn_pct ?? String(COUNT_VARIANCE_DEFAULT_WARN_PCT));
+}
+
+/**
+ * Compute the soft variance warning for a just-recorded count. Returns undefined
+ * when there is no system baseline (system qty 0 → percent undefined), when the
+ * threshold is disabled (0), or when |variance%| is at/under the threshold.
+ * Never throws and never blocks — purely a structured signal for the UI.
+ */
+function buildCountVarianceWarning(input: {
+  systemQty: string;
+  varianceQty: string;
+  warnPctMicro: bigint;
+}): CountVarianceWarning | undefined {
+  if (input.warnPctMicro <= 0n) return undefined;
+  const systemMicro = toMicro(input.systemQty);
+  if (systemMicro <= 0n) return undefined; // no baseline to measure a percent against
+  const varianceMicro = toMicro(input.varianceQty);
+  const absVarianceMicro = varianceMicro < 0n ? -varianceMicro : varianceMicro;
+  // variancePctMicro = |variance| / system * 100, kept in micro units throughout.
+  const variancePctMicro = (absVarianceMicro * 100_000_000n) / systemMicro;
+  if (variancePctMicro <= input.warnPctMicro) return undefined;
+  return {
+    varianceExceedsThreshold: true,
+    reasonCode: 'count_variance_over_threshold',
+    variancePct: microToDecimal(variancePctMicro),
+    warnPct: microToDecimal(input.warnPctMicro),
+  };
 }
 
 async function readLineForApply(client: QueryClient, countLineId: string): Promise<CountLineForApply | null> {
@@ -817,6 +878,8 @@ export async function recordCount(input: RecordCountInput): Promise<CountLine> {
     const onHand = await readCurrentOnHand(ctx.client, { locationId, itemId, lpId });
     const { systemQty } = onHand;
     const varianceQty = microToDecimal(toMicro(countedQty) - toMicro(systemQty));
+    const warnPctMicro = await readCountVarianceWarnPct(ctx.client);
+    const varianceWarning = buildCountVarianceWarning({ systemQty, varianceQty, warnPctMicro });
 
     const existing = await ctx.client.query<{ id: string }>(
       `select id::text
@@ -892,7 +955,9 @@ export async function recordCount(input: RecordCountInput): Promise<CountLine> {
     );
     const line = rows[0];
     if (!line) throw new Error('count_line_not_found');
-    return mapCountLine(line);
+    const mapped = mapCountLine(line);
+    // Soft, non-blocking: attach the variance WARN only when over threshold.
+    return varianceWarning ? { ...mapped, varianceWarning } : mapped;
   });
 }
 

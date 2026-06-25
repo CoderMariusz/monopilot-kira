@@ -35,7 +35,13 @@ let listPriceGbp: string | null = '7.2500';
 let allocationRows: Array<{ sales_order_line_id: string; lp_id: string; qty: string; status: string }> = [];
 let lpReserved: Record<string, string> = {};
 let lineAllocatedQty = '0';
-let candidateRows: Array<{ lp_id: string; available_qty: string }> = [];
+let candidateRows: Array<{
+  lp_id: string;
+  available_qty: string;
+  expiry_date?: string | null;
+  days_to_expiry?: number | null;
+}> = [];
+let nearExpiryWarnDays: string = '7';
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -176,6 +182,9 @@ function makeClient(): QueryClient {
       if (q.startsWith('select id::text, site_id::text')) {
         return { rows: [{ id: LINE_ID, site_id: null, product_id: ITEM_ID, quantity_ordered: '10' }], rowCount: 1 };
       }
+      if (q.includes("feature_flags->>'near_expiry_warn_days'")) {
+        return { rows: [{ warn_days: nearExpiryWarnDays }], rowCount: 1 };
+      }
       if (q.startsWith('select lp.id::text as lp_id')) {
         return { rows: candidateRows, rowCount: candidateRows.length };
       }
@@ -219,6 +228,7 @@ beforeEach(() => {
   lpReserved = {};
   lineAllocatedQty = '0';
   candidateRows = [];
+  nearExpiryWarnDays = '7';
   queryLog = [];
   client = makeClient();
 });
@@ -436,6 +446,82 @@ describe('allocateSalesOrder', () => {
     expect(
       queryLog.some((entry) => normalize(entry.sql).startsWith('insert into public.inventory_allocations')),
     ).toBe(false);
+  });
+
+  it('emits a soft near-expiry warning when an allocated LP expires within the warn window', async () => {
+    // warn window 7 days; LP expires in 3 days → WARN fires but allocation still happens.
+    status = 'confirmed';
+    nearExpiryWarnDays = '7';
+    candidateRows = [{ lp_id: LP_1, available_qty: '10', expiry_date: '2026-06-21', days_to_expiry: 3 }];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'allocated' } });
+    // It is a WARN, not a block: the allocation was written.
+    expect(allocationRows).toEqual([
+      { sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '10', status: 'allocated' },
+    ]);
+    expect((result as { nearExpiryWarning?: unknown }).nearExpiryWarning).toEqual({
+      nearExpiry: true,
+      reasonCode: 'allocated_lp_near_expiry',
+      soonestExpiry: '2026-06-21',
+      daysToExpiry: 3,
+      warnDays: 7,
+      affectedLpCount: 1,
+    });
+  });
+
+  it('reports the SOONEST expiry and counts every affected leg across multiple near-expiry LPs', async () => {
+    status = 'confirmed';
+    nearExpiryWarnDays = '7';
+    candidateRows = [
+      { lp_id: LP_1, available_qty: '6', expiry_date: '2026-06-24', days_to_expiry: 6 },
+      { lp_id: LP_2, available_qty: '10', expiry_date: '2026-06-22', days_to_expiry: 4 },
+    ];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: true });
+    expect((result as { nearExpiryWarning?: unknown }).nearExpiryWarning).toMatchObject({
+      nearExpiry: true,
+      // 6 (LP_1) is taken first, then 4 (LP_2) — soonest is 4 days / 2026-06-22.
+      soonestExpiry: '2026-06-22',
+      daysToExpiry: 4,
+      affectedLpCount: 2,
+    });
+  });
+
+  it('does NOT warn when the allocated LP expiry is beyond the warn window', async () => {
+    status = 'confirmed';
+    nearExpiryWarnDays = '7';
+    candidateRows = [{ lp_id: LP_1, available_qty: '10', expiry_date: '2026-07-30', days_to_expiry: 42 }];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'allocated' } });
+    expect('nearExpiryWarning' in (result as object)).toBe(false);
+  });
+
+  it('does NOT warn for an LP with no expiry date (non-perishable)', async () => {
+    status = 'confirmed';
+    nearExpiryWarnDays = '7';
+    candidateRows = [{ lp_id: LP_1, available_qty: '10', expiry_date: null, days_to_expiry: null }];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: true });
+    expect('nearExpiryWarning' in (result as object)).toBe(false);
+  });
+
+  it('suppresses the near-expiry warning entirely when the window is configured to 0', async () => {
+    status = 'confirmed';
+    nearExpiryWarnDays = '0';
+    candidateRows = [{ lp_id: LP_1, available_qty: '10', expiry_date: '2026-06-21', days_to_expiry: 3 }];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: true });
+    expect('nearExpiryWarning' in (result as object)).toBe(false);
   });
 });
 
