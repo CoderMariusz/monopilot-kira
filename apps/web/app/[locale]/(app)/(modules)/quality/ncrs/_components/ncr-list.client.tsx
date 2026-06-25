@@ -39,6 +39,7 @@ import { Card } from '@monopilot/ui/Card';
 import { Select } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import { NcrCreateModal, type NcrCreateLabels } from './ncr-create-modal.client';
 import {
   NCR_FILTER_STATUSES,
@@ -132,6 +133,8 @@ export function NcrListClient({
   const [severity, setSeverity] = useState<NcrSeverity | 'all'>('all');
   const [ncrType, setNcrType] = useState<NcrType | 'all'>('all');
   const [search, setSearch] = useState('');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   const [calmExpanded, setCalmExpanded] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -142,11 +145,13 @@ export function NcrListClient({
         (status === 'all' || r.status === status) &&
         (severity === 'all' || r.severity === severity) &&
         (ncrType === 'all' || r.ncrType === ncrType) &&
+        (createdFrom === '' || r.createdAt.slice(0, 10) >= createdFrom) &&
+        (createdTo === '' || r.createdAt.slice(0, 10) <= createdTo) &&
         (q === '' ||
           r.ncrNumber.toLowerCase().includes(q) ||
           (r.title ?? '').toLowerCase().includes(q)),
     );
-  }, [rows, status, severity, ncrType, search]);
+  }, [rows, status, severity, ncrType, createdFrom, createdTo, search]);
 
   // Partition: attention rows (auto-expanded on top) vs calm rows (collapsed).
   const attentionRows = useMemo(() => visible.filter(isAttention), [visible]);
@@ -157,6 +162,36 @@ export function NcrListClient({
     setSeverity('all');
     setNcrType('all');
     setSearch('');
+    setCreatedFrom('');
+    setCreatedTo('');
+  }
+
+  function exportCsv() {
+    const csv = toCsv(
+      [
+        'NCR #',
+        'Type',
+        'Severity',
+        'Title',
+        'Product',
+        'Linked hold',
+        'Status',
+        'Created',
+        'Response due',
+      ],
+      visible.map((r) => [
+        r.ncrNumber,
+        labels.typeValues[r.ncrType] ?? r.ncrType,
+        labels.severityValues[r.severity] ?? r.severity,
+        r.title,
+        r.productCode ?? '',
+        r.linkedHoldNumber ?? r.linkedHoldId ?? '',
+        labels.statusValues[r.status] ?? r.status,
+        r.createdAt.slice(0, 10),
+        r.responseDueAt ? r.responseDueAt.slice(0, 16).replace('T', ' ') : '',
+      ]),
+    );
+    downloadCsv(csv, `ncrs-${isoDateStamp()}.csv`);
   }
 
   function renderRow(r: NcrListRow, attention: boolean) {
@@ -226,6 +261,14 @@ export function NcrListClient({
       <div className="flex items-center justify-end">
         <button
           type="button"
+          data-testid="ncr-export-csv"
+          onClick={exportCsv}
+          className="mr-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        >
+          Export CSV
+        </button>
+        <button
+          type="button"
           data-testid="ncr-create-open"
           onClick={() => setCreateOpen(true)}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-800"
@@ -245,6 +288,30 @@ export function NcrListClient({
           data-testid="ncr-list-search"
           className="w-full max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
         />
+
+        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          Created from
+          <input
+            type="date"
+            value={createdFrom}
+            onChange={(e) => setCreatedFrom(e.target.value)}
+            aria-label="Created from"
+            data-testid="ncr-created-from"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm font-normal text-slate-700 focus:border-slate-400 focus:outline-none"
+          />
+        </label>
+
+        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          Created to
+          <input
+            type="date"
+            value={createdTo}
+            onChange={(e) => setCreatedTo(e.target.value)}
+            aria-label="Created to"
+            data-testid="ncr-created-to"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm font-normal text-slate-700 focus:border-slate-400 focus:outline-none"
+          />
+        </label>
 
         {/* Status filter — shadcn Select (NO raw <select>). */}
         <div data-testid="ncr-filter-status" className="min-w-[150px]">

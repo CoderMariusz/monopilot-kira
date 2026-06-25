@@ -16,7 +16,7 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NcrListClient } from '../ncr-list.client';
 import { NcrCloseModal } from '../../[ncrId]/_components/ncr-close-modal.client';
@@ -34,6 +34,11 @@ const tEn = getQaNcrsTranslator('en');
 const LIST_LABELS = buildNcrListLabels(tEn);
 const CLOSE_LABELS = buildNcrCloseLabels(tEn);
 const DETAIL_LABELS = buildNcrDetailLabels(tEn);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 function makeRow(over: Partial<NcrListRow>): NcrListRow {
   return {
@@ -110,6 +115,76 @@ describe('NcrListClient (QA-009 §3.3 attention partition)', () => {
     fireEvent.change(screen.getByTestId('ncr-list-search'), { target: { value: 'beta' } });
     expect(screen.queryByTestId('ncr-row-a')).not.toBeInTheDocument();
     expect(screen.getByTestId('ncr-row-b')).toBeInTheDocument();
+  });
+
+  it('filters loaded rows by created date range without calling a loader', () => {
+    renderList([
+      makeRow({ id: 'early', severity: 'critical', status: 'investigating', createdAt: '2026-04-20T09:00:00.000Z' }),
+      makeRow({ id: 'middle', severity: 'critical', status: 'investigating', createdAt: '2026-04-21T09:00:00.000Z' }),
+      makeRow({ id: 'late', severity: 'critical', status: 'investigating', createdAt: '2026-04-22T09:00:00.000Z' }),
+    ]);
+
+    fireEvent.change(screen.getByTestId('ncr-created-from'), { target: { value: '2026-04-21' } });
+    fireEvent.change(screen.getByTestId('ncr-created-to'), { target: { value: '2026-04-21' } });
+
+    expect(screen.queryByTestId('ncr-row-early')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ncr-row-middle')).toBeInTheDocument();
+    expect(screen.queryByTestId('ncr-row-late')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ncr-list-rows')).toHaveTextContent('1');
+  });
+
+  it('exports the currently visible NCR list columns as CSV', () => {
+    const createObjectURL = vi.fn(() => 'blob:ncr-csv');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    class TestBlob {
+      readonly parts: BlobPart[];
+      readonly options?: BlobPropertyBag;
+
+      constructor(parts: BlobPart[], options?: BlobPropertyBag) {
+        this.parts = parts;
+        this.options = options;
+      }
+    }
+    vi.stubGlobal('Blob', TestBlob as unknown as typeof Blob);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    renderList([
+      makeRow({
+        id: 'exported',
+        ncrNumber: 'NCR-EXPORT',
+        ncrType: 'supplier',
+        severity: 'critical',
+        status: 'investigating',
+        title: 'Supplier label mismatch',
+        productCode: 'RM-42',
+        linkedHoldId: 'hold-uuid',
+        linkedHoldNumber: 'HOLD-42',
+        createdAt: '2026-04-21T09:00:00.000Z',
+        responseDueAt: '2026-04-23T12:30:00.000Z',
+      }),
+      makeRow({
+        id: 'filtered-out',
+        ncrNumber: 'NCR-HIDDEN',
+        severity: 'critical',
+        status: 'investigating',
+        title: 'Other row',
+        createdAt: '2026-04-22T09:00:00.000Z',
+      }),
+    ]);
+    fireEvent.change(screen.getByTestId('ncr-list-search'), { target: { value: 'supplier' } });
+
+    fireEvent.click(screen.getByTestId('ncr-export-csv'));
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const blob = createObjectURL.mock.calls[0]?.[0] as TestBlob;
+    const csv = blob.parts.join('');
+    expect(csv).toContain(
+      'NCR #,Type,Severity,Title,Product,Linked hold,Status,Created,Response due\r\n' +
+        'NCR-EXPORT,Supplier,Critical,Supplier label mismatch,RM-42,HOLD-42,Investigating,2026-04-21,2026-04-23 12:30',
+    );
+    expect(csv).not.toContain('NCR-HIDDEN');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:ncr-csv');
   });
 
   it('renders the NCR number as a mono link and a linked-hold link to the hold detail route', () => {
