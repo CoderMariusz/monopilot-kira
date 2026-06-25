@@ -337,7 +337,7 @@ flowchart TB
   1) Klik tworzenie nowego projektu.
   2) **Podstawy:** **Nazwa** = np. „Chleb pszenny 500g" (wymagane); **Kategoria** = z listy (UWAGA: lista twarda/angielska, brak „Pieczywo"); opcjonalnie **Docelowa data startu**, **Format opakowania**, **Kanał sprzedaży**, **Wolumen**, **Waga opakowania (g)** = waga netto 1 sztuki (batch-size receptury / dzielnik kosztu na kg).
   3) **Kontynuuj →**. **Brief:** cena detaliczna docelowa (€), grupa docelowa, claimy, ograniczenia, notatki (opcjonalne).
-  4) **Punkt startowy:** dostępny tylko **Pusty** (kafelki **Klonuj** i **Z szablonu** wyłączone).
+  4) **Punkt wyjścia:** dostępne **Pusta receptura** ORAZ **Sklonuj istniejący projekt** (klonowanie DZIAŁA — #3/#4); po wybraniu „Sklonuj" pojawia się picker **„Projekt do sklonowania"** (kopiuje nagłówek + listę kontrolną źródła, nowy projekt startuje na G0/Brief, wszystko edytowalne). Kafelek **Szablon kategorii** zostaje uczciwie WYŁĄCZONY („· Jeszcze niedostępne" — brak schematu szablonów). *Gdzie patrzeć:* `screenshots/npd-wizard-clone-step.png`.
   5) **Podsumowanie:** sprawdź tabelkę, klik **✓ Utwórz**.
 - **Checklist:**
   - **Kontynuuj →** zablokowany dopóki Nazwa pusta.
@@ -345,7 +345,9 @@ flowchart TB
   - Waga sztuki tylko w **Waga opakowania (g)**; sprzedaż-w-sztukach jako jednostka NIE jest tu ustawiana.
   - Projekt startuje na etapie **Brief** / bramce **G0 (Idea)**.
 - **Cofnięcie:** **Anuluj** wraca do `/pl/pipeline` bez zapisu. Po utworzeniu projekt można **usunąć** (przycisk **Usuń projekt**) — blokowane gdy ma zależności (`HAS_DEPENDENTS`).
-- **Luki:** Lista Kategorii na sztywno i po angielsku (brak „pieczywo/chleb"). Sprzedaż w SZTUKACH nie deklarowana w kreatorze. **Klonuj / Z szablonu** widoczne, ale wyłączone (brak backendu).
+- **Luki:** Lista Kategorii na sztywno i po angielsku (brak „pieczywo/chleb"). Sprzedaż w SZTUKACH nie deklarowana w kreatorze. **Sklonuj istniejący projekt** DZIAŁA (#3/#4 `8f2209a0`, `cloneProject`); pozostaje wyłączony tylko kafelek **Szablon kategorii** (brak schematu szablonów — uczciwie disabled).
+
+![Kreator NPD, krok „Punkt wyjścia": kafel „Sklonuj istniejący projekt" aktywny z pickerem źródła; „Szablon kategorii" wyłączony](screenshots/npd-wizard-clone-step.png)
 
 ---
 
@@ -1038,13 +1040,14 @@ flowchart TB
 #### Krok 53 — Utwórz i zwolnij WO w Planowaniu (warunek wstępny)
 - **Cel:** Doprowadzić WO do `RELEASED`, by pojawiło się w Produkcji jako `planned`.
 - **Gdzie:** `/pl/planning/work-orders` (Desktop). **„+ Utwórz WO"**, w wierszu DRAFT akcja **„Zwolnij"**.
-- **Warunki:** Produkt (FG) z **aktywnym BOM** (`status='active'`) i **zatwierdzoną/zwolnioną specyfikacją** (`approved_for_factory`/`released_to_factory`) — z Części B/D. Bez tego release zwróci `factory_release_incomplete`.
+- **Warunki:** Produkt (FG) z **aktywnym BOM** (`status='active'`) i **zatwierdzoną/zwolnioną specyfikacją** (`approved_for_factory`/`released_to_factory`) — z Części B/D. Bez tego release zwróci `factory_release_incomplete`. **NOWE (O-2 2026-06-25):** jeśli wyrób jest pakowany w **sztuki/kartony** (`output_uom` = `each`/`box`), MUSI mieć komplet współczynników opakowania w kartotece pozycji (**waga netto na sztukę** `net_qty_per_each` + **sztuki w kartonie** `each_per_box`) — inaczej release zwróci `pack_hierarchy_incomplete`.
 - **Kroki:** 1) **„+ Utwórz WO"**, wybierz produkt, podaj ilość planowaną (w `szt./karton/kg` — przeliczy się na bazowe UoM), opcjonalnie linię/maszynę/termin → zapisz (DRAFT). 2) W wierszu DRAFT **„Zwolnij"**, potwierdź. 3) DRAFT → RELEASED; `releaseWorkOrder` „samonaprawia" snapshot (`active_bom_header_id`, `active_factory_spec_id`, `uom_snapshot`).
 - **Checklist:**
   1. Status w Planowaniu = **RELEASED**.
   2. WO widoczne w `/pl/production/wos` jako `planned` (badge „Zaplanowane").
   3. Brak BOM/spec → `factory_release_incomplete` z listą braków — poprawne.
-  4. Numer WO zgodny z numeracją org (`nextDocumentNumber`).
+  4. **Niekompletna pack-hierarchy FG (szt./karton bez współczynników)** → release ZABLOKOWANY z `pack_hierarchy_incomplete` i komunikatem PL: „Ten produkt jest pakowany w kartony/sztuki, ale współczynniki opakowania (waga netto na sztukę, sztuki w kartonie) nie są ustawione — uzupełnij kartotekę pozycji w module Technicznym przed wydaniem." Uzupełnij `net_qty_per_each`/`each_per_box` w **Technical** (kartoteka pozycji) i ponów. (Wcześniej brakujące współczynniki cicho przepuszczały release i psuły przeliczenia — Aneks, Finding 3.)
+  5. Numer WO zgodny z numeracją org (`nextDocumentNumber`).
 - **Cofnięcie:** W DRAFT edytuj/usuń szkic. Po RELEASED jedyne „cofnięcie" to `Anuluj` w Produkcji (→ `cancelled`).
 - **Luki:** —
 
@@ -1355,6 +1358,7 @@ flowchart TB
   4. Picker tylko FG; JM dropdown (nie free-text).
   5. Po „Rezerwuj" każda pozycja **Zarezerwowano = Zamówiono**; rezerwacja FEFO podbija `reserved_qty` na LP.
   6. **Niedobór** przy rezerwacji → „Brak wystarczającego zwolnionego zapasu…" (atomowo).
+  7. **Brama bezpieczeństwa żywności (G-QA-07, NOWE 2026-06-25 `246e8851`):** rezerwacja SO **pomija LP wstrzymane (hold) / QA-niezwolnione / przeterminowane** — taki zapas nie jest alokowany. Jeśli cały dostępny zapas jest wstrzymany/przeterminowany, rezerwacja zachowa się jak niedobór.
 - **Cofnięcie:** **„Zwolnij rezerwację"** (deallocate, cofa do Potwierdzone). **„Anuluj"** też zwalnia rezerwację. SO w Wersji roboczej → **„Anuluj"** (brak twardego „usuń szkic").
 - **Luki:** Modal „+ Nowy klient" tworzy klienta **tylko z nazwą** (kategoria Detal); pełne pola (NIP/limit/e-mail) tylko w `/pl/shipping/customers`. **Brak edycji pozycji SO po utworzeniu** — błędna pozycja = anuluj i utwórz nowe SO. UI **nie ma osobnego kroku „Pick"** — `allocateSalesOrder` od razu ustawia `allocated`; statusy `picked`/`partially_picked` bez przycisku.
 
@@ -1367,6 +1371,7 @@ flowchart TB
 - **Kroki:**
   1) **„Utwórz wysyłkę"** (jeśli zablokowane: „Zaalokuj zamówienie sprzedaży przed utworzeniem wysyłki").
   2) W **„Spakuj nośnik"** zeskanuj kod palety LP (lub wpisz + Enter); pozostaw **„Karton" = „Nowy karton"**. **„Spakuj"** — paleta w kartonie, generowany **SSCC** (`generate_sscc`).
+  2b) **ALTERNATYWA — SKANER (#13, NOWE 2026-06-25):** na skanerze wejdź w kafelek **„Pakuj dla SO"** (`/pl/scanner/ship`), wybierz otwartą wysyłkę („packing"), zeskanuj nośnik LP wyrobu → trafia do kartonu wysyłki (`POST /api/warehouse/scanner/ship`, ta sama logika `packLpIntoBoxCore`). LP `held`/QA-niezwolniony/przeterminowany jest ZABLOKOWANY przy pakowaniu (`lp_blocked_for_pack`).
   3) Aby spakować **część**: dodaj tylko wybrane palety (np. 1 z 2). Kolejne → istniejący „Karton N" lub nowy.
   4) **„Zamknij pakowanie wysyłki"** (packing → packed).
   5) **„Wyślij wysyłkę"** (status → Wysłano; SO → Wysłane; LP → `shipped`; event `warehouse.lp.shipped`).
@@ -1381,64 +1386,78 @@ flowchart TB
   6. „Wyślij" zablokowany bez kartonu / przed zamknięciem pakowania (tooltipy).
   7. BOL: dostępny w oknie `packed`/`shipped`; POD: tylko dla `shipped`.
 - **Cofnięcie:** Przed wysyłką: **„Cofnij/Anuluj wysyłkę"** (e-sign, `ship.so.cancel`) — odblokowuje palety. Po wysyłce brak cofnięcia w UI. POD terminalny. (Reverse pakowania: `unpackShipment`; void POD: `voidPod` — patrz Aneks zapomniane funkcje.)
-- **Luki:** **Nie ma ścieżki skanera dla SO/pakowania.** Skaner **„Kompletacja"** (`/pl/scanner/pick`) to kompletacja materiałów pod WO/BOM — NIE skanowanie wyrobu do SO. „Skanowanie do SO" = DESKTOPowy ekran pakowania. **BOL/POD to metadane + hash, bez realnego PDF** — POD = ręcznie wklejony URL. Waluta SO/BOL = GBP (niespójność). Brak statusu `manifested` w UI (packed → shipped bezpośrednio).
+- **Luki:** **✅ Ścieżka skanera do SO ISTNIEJE od 2026-06-25 (#13 `082f919e`):** kafelek **„Pakuj dla SO"** (`/pl/scanner/ship`) skanuje wyrób LP do kartonu wysyłki (z bramą food-safety). Skaner **„Kompletacja"** (`/pl/scanner/pick`) nadal dotyczy WYŁĄCZNIE kompletacji materiałów pod WO/BOM — to osobny przepływ. **BOL/POD to metadane + hash, bez realnego PDF** — POD = ręcznie wklejony URL. Waluta SO/BOL = GBP (niespójność). Brak statusu `manifested` w UI (packed → shipped bezpośrednio).
 
 ---
 
 ### Część J — Raporty + dashboardy + widoki TV
 
-> **NAJWAŻNIEJSZE OSTRZEŻENIE:** zamówione 5 osobnych raportów (produkcja, wysyłki, przyjęcia, bilans masy, finanse) w produkcie NIE ISTNIEJE w komplecie. Strona `/reporting` to JEDEN ekran z czterema sekcjami: **Produkcja / Magazyn (stan) / Jakość / Zakupy (PO+TO)**. Raport finansowy to osobny moduł `/finance`. Brakuje całkowicie osobnego raportu **wysyłek**, **przyjęć (receipts/GRN)** i **bilansu masy / rekoncyliacji**. (`reporting/page.tsx` — deviation note: „no catalog, no presets, no schedules".)
+> **AKTUALIZACJA 2026-06-25 — strona Reporting ROZBUDOWANA.** Strona `/reporting` to nadal JEDEN ekran (brak katalogu/presetów/harmonogramów), ale ma teraz **SZEŚĆ sekcji**: **Produkcja / Stan zapasów / Jakość / Zaopatrzenie (PO+TO) / Przyjęcia (GRN) / Wysyłki**. Tym samym dawne „brakujące raporty" wysyłek i przyjęć są **już dostępne jako sekcje** (kroki 74/75 poniżej zaktualizowane). Dodatkowo sekcja **Stan zapasów** ma nową kolumnę **Ilość wg JM** z rozbiciem na jednostki (np. „648.150000 kg · 3545.000000 pcs") — sztuki/kartony NIE są już ukryte. Raport finansowy to wciąż osobny moduł `/finance`. Wciąż BRAK osobnego raportu **bilansu masy / rekoncyliacji** (wejście–wyjście–odpad–stan w jednym zestawieniu). Cała strona ładuje się teraz z **jednego połączenia DB** (`reportingBundle` — sekwencyjnie, jeden `withOrgContext`, #64) — koniec z wyczerpywaniem puli Supabase pod obciążeniem. (commity #9 `036e3f85`, #8 `f874d1fb`, #7 `15b363ef`, #64 `d3ba289a`; `reporting/_actions/report-read-actions.ts`)
 
 ---
 
-#### Krok 73 — Raporty na ekranie Reporting (Produkcja / Magazyn / Jakość / Zakupy) + Finanse + OEE
+![Raportowanie — strona z 6 sekcjami: Produkcja, Stan zapasów (kolumna „Ilość wg JM"), Jakość, Zaopatrzenie, Przyjęcia (GRN), Wysyłki](screenshots/reporting-overview-sections.png)
+
+#### Krok 73 — Raporty na ekranie Reporting (Produkcja / Stan zapasów / Jakość / Zaopatrzenie / Przyjęcia / Wysyłki) + Finanse + OEE
 - **Cel:** Obejrzeć skondensowane sekcje raportowe całej ścieżki oraz raport kosztów WO i OEE.
-- **Gdzie:** `/pl/reporting` (Desktop) — sekcje **Produkcja / Magazyn / Jakość / Zakupy**; `/pl/finance` (koszty WO); `/pl/oee` (dashboard) + `/pl/oee/andon` (TV).
+- **Gdzie:** `/pl/reporting` (Desktop) — **6 sekcji: Produkcja / Stan zapasów / Jakość / Zaopatrzenie / Przyjęcia (GRN) / Wysyłki**; `/pl/finance` (koszty WO); `/pl/oee` (dashboard) + `/pl/oee/andon` (TV). *Gdzie patrzeć:* zrzut całej strony niżej — `screenshots/reporting-overview-sections.png`.
 - **Warunki:** Przeszedłeś kroki 53–65 (WO COMPLETED/CLOSED), istnieje wyjście (`wo_outputs`), LP, holdy/inspekcje/NCR (Część H). Uprawnienia `rpt.dashboard.view`, `fin.costs.read`, `oee.dashboard.read`.
 - **Kroki:**
   1) **Reporting** (grupa Analityka). Ustaw okres (**Dziś/Tydzień/Miesiąc/Kwartał/Ostatnie 7/30 dni/Własny**) + filtr **Linia** + **Szukaj** (numer WO). Sekcja **Produkcja**: **Ukończone WO / Wyjście (kg) / Odpad (kg) / % odpadu / Średni yield % / Minuty przestoju** + tabela 20 ostatnich WO.
-  2) Sekcja **Magazyn**: **Liczba LP / Ilość (kg) / Zablokowane LP / Przeterminowane / Wygasające w 7 dni** + tabela per-magazyn.
+  2) Sekcja **Stan zapasów**: **Nośniki (LP) na stanie / Ilość (LP w kg) / Zablokowane LP / Przeterminowane / Wygasa ≤ 7 dni** + tabela per-magazyn. **NOWA kolumna „Ilość wg JM"** (#9) pokazuje rozbicie na jednostki, np. „648.150000 kg · 3545.000000 pcs" — sztuki/kartony NIE są już ukryte (kolumna „Ilość (kg)" sumuje TYLKO kg, „Ilość wg JM" pokazuje wszystkie JM osobno).
   3) Sekcja **Jakość**: **Otwarte holdy / Inspekcje / NCR otwarte / NCR zamknięte w oknie**.
-  4) **Finance** (grupa Premium): tabela kosztów WO (do 25, okno 30 dni): **WO / Produkt / Wyjście (kg) / Materiały / Robocizna / Razem / Koszt/kg**; rozwiń wiersz dla rozbicia.
-  5) **OEE**: kafle **OEE / Dostępność / Jakość / Liczba snapshotów** + **OEE wg linii** + **Ostatnie snapshoty**; kafelek **Andon** → siatka linii (TV) → kafel linii = żywa karta (auto-odświeżanie).
+  4) **NOWA** sekcja **Przyjęcia (GRN) — podsumowanie** (#8): kafle **Przyjęcia GRN (okno) / Zakończone / Przyjęte pozycje / Przyjęta ilość** + tabela GRN (**GRN / Dostawca / Magazyn / Status / Pozycje / Przyjęta ilość / Przyjęto**), gdzie „Przyjęta ilość" jest sumowana **wg jednostki przyjęcia** (np. „25.000000 kg").
+  5) **NOWA** sekcja **Wysyłki — podsumowanie** (#7): kafle **Wysyłki (okno) / Pakowanie / Wysłane / Dostarczone** + tabela wysyłek (**Wysyłka / Zamówienie / Klient / Status / Kartony / Wysłano / Utworzono**).
+  6) **Finance** (grupa Premium): tabela kosztów WO (do 25, okno 30 dni): **WO / Produkt / Wyjście (kg) / Materiały / Robocizna / Razem / Koszt/kg**; rozwiń wiersz dla rozbicia.
+  7) **OEE**: kafle **OEE / Dostępność / Jakość / Liczba snapshotów** + **OEE wg linii** + **Ostatnie snapshoty**; kafelek **Andon** → siatka linii (TV) → kafel linii = żywa karta (auto-odświeżanie).
 - **Checklist:**
   1. **Ukończone WO** = liczbie WO zamkniętych w oknie (COMPLETED/CLOSED). Jeśli WO zamknięte wcześniej, kliknij Ostatnie 30 dni / Własny (produkcja domyślnie ostatnie 7 dni).
   2. **Wyjście (kg)** = sumie outputów — liczone TYLKO w kg (`sum(wo_outputs.qty_kg)`); produkt w sztukach ma wyjście w kg z wagi netto, NIE w sztukach.
-  3. Liczba LP per-magazyn zgadza się z krokiem 48 (LP 100→120) i ruchami; **Ilość (kg)** liczy TYLKO LP w `uom='kg'` (sztuki pominięte).
-  4. Otwarte holdy/NCR zgadzają się z modułem Jakość po Części H.
+  3. Liczba LP per-magazyn zgadza się z krokiem 48 (LP 100→120) i ruchami; kafel/kolumna **Ilość (kg)** liczy TYLKO LP w `uom='kg'`, ale nowa kolumna **„Ilość wg JM"** pokazuje też sztuki/kartony (np. „… kg · … pcs") — sprawdź, że dla magazynu z FG w sztukach widać niezerową wartość pcs.
+  4. **Przyjęcia (GRN):** liczba i suma „Przyjęta ilość" zgadzają się z przyjęciami z Części E; suma jest grupowana per JM (kg osobno od szt).
+  5. **Wysyłki:** liczba/statusy zgadzają się z wysyłkami z Części I (`/pl/shipping`); kolumna „Klient" = nazwa odbiorcy, „Kartony" = liczba kartonów wysyłki.
+  6. Otwarte holdy/NCR zgadzają się z modułem Jakość po Części H.
   5. **Finance Materiały** = suma(`qty_consumed` × `cost_per_kg`) — zgadza się z krokiem 55; **Robocizna/Maszyna** wypełnia się tylko gdy operacja dopasuje wiersz `processes` (inaczej honest null/0).
   6. **OEE Liczba snapshotów** > 0 po zamknięciu WO (snapshot powstaje tylko przy zamknięciu); kafle bez danych pokazują **„—"**, nie 0.
   7. Andon: status linii (Running/Paused/Idle/Down) zgodny z runtime WO; karta linii sama się odświeża.
-- **Cofnięcie:** Brak (raporty read-only). Zmiana liczb = korekta źródeł (void output, reverse consume, koszt/kg w Technical). Eksport: tylko sekcja Produkcja ma **Eksportuj CSV** (gated `rpt.export.csv`).
+- **Cofnięcie:** Brak (raporty read-only). Zmiana liczb = korekta źródeł (void output, reverse consume, koszt/kg w Technical). Eksport: **każda z 6 sekcji** ma teraz przycisk **⇪ Eksportuj CSV** (wspólnie gated `rpt.export.csv` — bez uprawnienia przycisk wyszarzony z tooltipem).
 - **Luki:**
   - **Przestoje liczone niepełnie** — `downtime_events.duration_min` jest GENERATED i NULL dopóki przestój otwarty.
   - **OEE:** andon ma TODO kiosk-token (działa na sesji usera); tabele Six Big Losses/heatmapa/eksport niezbudowane.
   - **Finance:** read-only; brak wyceny zapasów (FIFO/WAC), wariancji, P&L, eksportu; robocizna zależy od ręcznych wierszy `processes`.
-  - Sekcja Zakupy: tylko proxy „PO→pierwsze GRN" (brak `confirmed_at` → metryka „potwierdzenie → GRN" zwraca null).
+  - Sekcja Zaopatrzenie: tylko proxy „PO→pierwsze GRN" (brak `confirmed_at` → metryka „potwierdzenie → GRN" zwraca null).
+  - Wciąż BRAK osobnego **raportu bilansu masy / rekoncyliacji** (wejście–wyjście–odpad–stan w jednym zestawieniu) — patrz krok 75.
 
 ---
 
-#### Krok 74 — Raport WYSYŁEK (krok właściciela 31) — ⚠️ NIE ISTNIEJE
-- **Cel:** Zobaczyć wysłane SO/transporty z Części I jako raport.
-- **Gdzie:** Brak dedykowanego ekranu raportu wysyłek.
-- **Warunki:** —
-- **Kroki:** Brak — funkcja nie istnieje jako raport.
-- **Checklist:** N/d.
-- **Cofnięcie:** N/d.
-- **Luki:** ⚠️ **FUNKCJA NIE ISTNIEJE.** `/reporting` nie odpytuje `sales_orders`/`shipments`/`bol`/`pod`. Tester może oglądać wysyłki tylko w module `/pl/shipping` (lista SO + modale BOL/POD), ale to nie jest raport. **Zgłoś jako brakujący raport.**
+#### Krok 74 — Raport WYSYŁEK — ✅ DOSTĘPNY (#7, commit `15b363ef`)
+- **Cel:** Zobaczyć wysłane SO/transporty z Części I jako sekcję raportu.
+- **Gdzie:** `/pl/reporting` → sekcja **Wysyłki — podsumowanie** (na dole strony, pod „Przyjęcia"). *Gdzie patrzeć:* `screenshots/reporting-overview-sections.png`.
+- **Warunki:** Istnieją wysyłki (`shipments`) z Części I (krok 72). Uprawnienie `rpt.dashboard.view`.
+- **Kroki:** 1) Wejdź w **Reporting**. 2) Przewiń do sekcji **Wysyłki — podsumowanie**. 3) Sprawdź kafle **Wysyłki (okno) / Pakowanie / Wysłane / Dostarczone** i tabelę (**Wysyłka / Zamówienie / Klient / Status / Kartony / Wysłano / Utworzono**).
+- **Checklist:**
+  1. Liczba wysyłek i statusy zgadzają się z modułem `/pl/shipping`.
+  2. Kolumna **Klient** = nazwa odbiorcy (z `customers`); **Kartony** = liczba kartonów wysyłki.
+  3. Filtr okresu działa na `created_at` wysyłki; **Eksportuj CSV** dostępny (gated `rpt.export.csv`).
+- **Cofnięcie:** Brak (read-only).
+- **Luki:** ✅ **RESOLVED 2026-06-25** — sekcja istnieje. Pozostaje: nadal jest to sekcja na wspólnym ekranie (brak osobnego ekranu raportu z presetami/harmonogramem); brak rozbicia per linia/przewoźnik. BOL/POD nadal oglądasz w module `/pl/shipping`.
 
 ---
 
-#### Krok 75 — Raport PRZYJĘĆ (krok 32) i BILANSU MASY (krok 33) — ⚠️ BRAK
-- **Cel:** Zobaczyć przyjęcia (GRN) i zbilansować wejście vs wyjście vs odpad vs stan na LP.
-- **Gdzie:** Brak dedykowanych ekranów raportów.
-- **Warunki:** —
-- **Kroki:** Brak.
-- **Checklist:** N/d.
-- **Cofnięcie:** N/d.
+#### Krok 75 — Raport PRZYJĘĆ — ✅ DOSTĘPNY (#8, commit `f874d1fb`) · BILANS MASY — ⚠️ wciąż BRAK
+- **Cel:** Zobaczyć przyjęcia (GRN) jako sekcję raportu oraz (docelowo) zbilansować wejście vs wyjście vs odpad vs stan na LP.
+- **Gdzie:** `/pl/reporting` → sekcja **Przyjęcia (GRN) — podsumowanie** (nad sekcją „Wysyłki"). *Gdzie patrzeć:* `screenshots/reporting-overview-sections.png`. Bilansu masy nadal BRAK jako osobnego ekranu.
+- **Warunki:** Istnieją przyjęcia (`grns`/`grn_items`) z Części E. Uprawnienie `rpt.dashboard.view`.
+- **Kroki:** 1) Wejdź w **Reporting**. 2) Przewiń do sekcji **Przyjęcia (GRN) — podsumowanie**. 3) Sprawdź kafle **Przyjęcia GRN (okno) / Zakończone / Przyjęte pozycje / Przyjęta ilość** i tabelę (**GRN / Dostawca / Magazyn / Status / Pozycje / Przyjęta ilość / Przyjęto**).
+- **Checklist:**
+  1. Liczba GRN i suma „Przyjęta ilość" zgadzają się z przyjęciami z kroku 39+.
+  2. **Przyjęta ilość** jest sumowana **per jednostka przyjęcia** (kafel + kolumna pokazują np. „25.000000 kg"); różnych JM nie miesza.
+  3. Kolumna **Dostawca** = nazwa dostawcy GRN; **Eksportuj CSV** dostępny (gated `rpt.export.csv`).
+- **Cofnięcie:** Brak (read-only).
 - **Luki:**
-  - ⚠️ **Raport PRZYJĘĆ** — brak osobnego raportu; tylko proxy „PO→pierwsze GRN" w sekcji Zakupy (krok 73) z jawnym honest-gap (brak timestampów potwierdzenia PO). GRN-y z anulowanymi liniami wykluczane z cyklu. Surowe GRN-y oglądasz w module magazynu.
-  - ⚠️ **Raport BILANSU MASY / rekoncyliacji NIE ISTNIEJE.** Dane rozproszone (sekcje Magazyn/Produkcja), `inventorySnapshot` sumuje kg TYLKO dla LP w `uom='kg'` → produkt w sztukach pominięty nawet w cząstkowym stanie. Brak ekranu zestawiającego wejście–wyjście–odpad–stan w jeden bilans. **Najważniejsza luka raportowa do zbudowania — zgłoś.**
+  - ✅ **Raport PRZYJĘĆ — RESOLVED 2026-06-25.** Sekcja „Przyjęcia (GRN)" pokazuje dostawcę + przyjętą ilość per-JM. (Sekcja Zaopatrzenie nadal ma osobny proxy „PO→pierwsze GRN" z honest-gap braku `confirmed_at` — to inna metryka.)
+  - ✅ **Per-JM w stanie zapasów — RESOLVED 2026-06-25 (#9).** Kafel/kolumna „Ilość (kg)" wciąż liczy tylko `uom='kg'`, ALE nowa kolumna „Ilość wg JM" pokazuje pełne rozbicie (kg + szt + kartony), więc produkt w sztukach nie jest już niewidoczny.
+  - ⚠️ **Raport BILANSU MASY / rekoncyliacji NADAL NIE ISTNIEJE.** Brak jednego ekranu zestawiającego wejście (przyjęcia) – wyjście (produkcja/wysyłki) – odpad – stan w jeden bilans z różnicą. Dane są dostępne w 6 sekcjach, ale tester musi je zsumować ręcznie. **Pozostaje do zbudowania — zgłoś.**
 
 ---
 
@@ -1466,6 +1485,12 @@ flowchart TB
 ### Wariant 1 — Wstrzymanie → Zwolnienie (hold + brama T-064 + e-podpis)
 
 **Opis.** Quality może założyć *hold* na LP / partii / WO / PO / GRN. Aktywny hold blokuje konsumpcję w produkcji (i pośrednio wysyłkę), dopóki nie zostanie zwolniony z **e-podpisem**. Mechanizm: `createHold` → brama `holdsGuard` w `assertLpConsumableForProduction` → `releaseHold` (`signEvent`, intent `qa.hold.release`).
+
+> **ROZSZERZONE BRAMY BEZPIECZEŃSTWA ŻYWNOŚCI (2026-06-25).** LP **wstrzymane / QA-niezwolnione / przeterminowane** są teraz blokowane na WIELU powierzchniach, nie tylko przy konsumpcji desktop:
+> - **kompletacja na skanerze** i **alokacja SO** (G-WH-01 / G-QA-07, `246e8851`),
+> - **ręczna rezerwacja LP → WO** (G-WH-02, `8267c0fe`),
+> - **pakowanie** (desktop i skanerowy „Pakuj dla SO" → `lp_blocked_for_pack`) ORAZ **wysyłka** (`b36089f7`, `082f919e`).
+> Tester może to sprawdzić: załóż hold (lub poczekaj na LP przeterminowany), a następnie spróbuj go zeskanować do kompletacji, zarezerwować do SO, dodać ręcznie do rezerwacji WO oraz spakować do wysyłki — wszystkie ścieżki muszą odmówić (nie „udało się").
 
 **Kroki.**
 1. `/quality/holds` → utworzenie holdu (`createHold`, `quality.hold.create`). `referenceType` = `lp` (lub `batch`/`wo`/`po`/`grn`), wskaż LP, priorytet, powód. Hold w `quality_holds` status `open`, w widoku `v_active_holds`.
@@ -1609,8 +1634,8 @@ Część B (NPD, kroki 10–18) jest opisana przed Częścią C (kroki 19–27),
 **Finding 2 (WYSOKIE, pochodna 1) — krok 17 (Promote to factory BOM) wymaga niepustej zablokowanej formulacji.**
 Bramki release `ACTIVE_SHARED_BOM_REQUIRED` + `FACTORY_SPEC_REQUIRED` materializują się z zablokowanej formulacji. Jeśli przez Finding 1 formulacja jest pusta, krok 17 zwróci `release_blocked`. **Fix:** zapewnij niepustą zablokowaną formulację (rozwiązuje Finding 1).
 
-**Finding 3 (WYSOKIE) — pack-hierarchy FG (box=3) nigdy nie ustawiona przez krok obowiązkowy.**
-Krok 57 (output w box/each) i przeliczenie „1 karton = 3 chleby" zależą od `output_uom`/`each_per_box`/`net_qty_per_each`, które po wydaniu NPD są **puste**. Ustawia je tylko krok 31, oznaczony jako „pojęcie/luka". **Fix:** uczyń **krok 31 obowiązkowym przed Częścią G** — inaczej output w box/each się nie policzy.
+**Finding 3 (WYSOKIE) — pack-hierarchy FG (box=3) nigdy nie ustawiona przez krok obowiązkowy. → ✅ CZĘŚCIOWO RESOLVED 2026-06-25 (O-2 `e390748e`).**
+Krok 57 (output w box/each) i przeliczenie „1 karton = 3 chleby" zależą od `output_uom`/`each_per_box`/`net_qty_per_each`, które po wydaniu NPD są **puste**. Ustawia je tylko krok 31, oznaczony jako „pojęcie/luka". **Teraz jednak release WO (krok 53) BLOKUJE** wydanie FG pakowanego w szt./karton z niekompletną pack-hierarchy (`pack_hierarchy_incomplete`) — tester nie przejdzie dalej z dziurą w danych, dostaje jasny komunikat „uzupełnij kartotekę pozycji w module Technicznym". Pozostała część findingu (uczyń ustawianie współczynników jawnym krokiem PRZED Częścią G) nadal aktualna jako wygoda — bramka łapie błąd, ale dopiero przy release.
 
 **Finding 4 (KRYTYCZNE) — żaden krok nie wiąże site skanera z magazynem.**
 Krok 43 (skaner receive) i krok 57 (output LP) wymagają, by site skanera miał magazyn (`no_warehouse_for_site`). Część A nigdy tego nie tworzy — formularz magazynu (krok 2) nie ma pola „site", krok 5 (site) nie ma pola magazynu. **Fix:** dodaj w Części A jawny krok ustanawiający powiązanie site↔magazyn (lub polegaj na `is_default`/pierwszy-magazyn fallback) i zweryfikuj, że site skanera rozwiązuje się do magazynu.
@@ -1660,22 +1685,22 @@ Tylko kroki, które zatrzymają testera (funkcja niezbudowana, znany bug, rozjaz
 #### Dead-endy twarde (tester nie ukończy kroku przez UI)
 
 1. **Krok 38 — „Sprawdź wysyłkę e-maila do dostawcy" → FUNKCJA NIE ISTNIEJE.** „Wyślij" zmienia tylko status w bazie. Brak jakiejkolwiek logiki e-mail w module PO. **SKIP** „sprawdź e-mail", zgłoś.
-2. **Krok 41 — „Anuluj + ponowne otwarcie PO" → BUG rozjazdu UI/serwer.** Przycisk „Przywróć do wersji roboczej" renderuje się tylko dla `cancelled` (`po-detail-view.tsx:248-249`), ale `reopenPurchaseOrder` akceptuje tylko `sent` (`actions.ts:741`). Cyklu nie da się przejść przez UI. Zgłoś rozjazd.
-3. **Krok 11 — kafelki „Klonuj"/„Z szablonu" → MARTWE** (brak backendu). **EXPECT-DISABLED**, używaj „Pusty".
-4. **Krok 12/B2 — przyciski „Obserwuj"/„Duplikuj" → MARTWE.** **EXPECT-DISABLED.**
+2. **Krok 41 — „Anuluj + ponowne otwarcie PO" → ✅ RESOLVED 2026-06-25 (`2b9027ed`).** `reopenPurchaseOrder` obsługuje teraz status `cancelled`, więc cykl „anuluj → przywróć do wersji roboczej" przechodzi przez UI. **EXPECT-WORKS.**
+3. **Krok 11 — kafelki „Klonuj"/„Z szablonu" → CZĘŚCIOWO RESOLVED 2026-06-25 (#3/#4 `8f2209a0`).** **„Sklonuj istniejący projekt" DZIAŁA** (real `cloneProject` + picker źródła). Tylko **„Szablon kategorii"** zostaje uczciwie WYŁĄCZONY (brak schematu szablonów). **EXPECT-CLONE-WORKS / TEMPLATE-DISABLED.**
+4. **Krok 12/B2 — przyciski „Obserwuj"/„Duplikuj" → CZĘŚCIOWO RESOLVED 2026-06-25 (#3/#4 `8f2209a0`).** **„Duplikuj" DZIAŁA** (real `cloneProject` z poziomu nagłówka projektu; zob. `screenshots/npd-project-duplicate-button.png`). Tylko **„⚑ Obserwuj"** zostaje uczciwie WYŁĄCZONY (brak tabeli watcherów — wymaga migracji). **EXPECT-DUPLICATE-WORKS / WATCH-DISABLED.**
 5. **Kroki 14+15 — „Settings-driven dynamic dept fields" → NIEPODŁĄCZONE.** `getDepartmentFieldConfig` nie czytane przez żaden ekran projektu/bramki/FA (zadanie #57 in_progress). Edycja w `/settings/npd-fields` NIE daje efektu na projekcie. **EXPECT-NO-EFFECT**, zgłoś (najważniejsza luka do decyzji właściciela).
 6. **Krok 48/46 — „Zmień 100 → 120 na palecie" → BRAK edycji w miejscu.** LP-metadata edytuje tylko datę/partię. Zwiększenie ZAWSZE tworzy NOWĄ paletę (+20). Zadanie #26 FEAT-1 pending. **WORKAROUND** = korekta-zwiększenie (łączny stan 120); edycji liczby na tej samej palecie NIE ma.
-7. **Krok 74 — raport WYSYŁEK → RAPORT NIE ISTNIEJE.** `/reporting` nie odpytuje SO/shipments. **SKIP**, zgłoś.
-8. **Krok 75 — raport PRZYJĘĆ/GRN → BRAK osobnego raportu.** Tylko proxy „PO→pierwsze GRN" z honest-gap (brak `confirmed_at`). **EXPECT-PARTIAL.**
-9. **Krok 75 — raport BILANSU MASY → FUNKCJA NIE ISTNIEJE.** `inventorySnapshot` sumuje kg tylko dla LP `uom='kg'` → produkt w sztukach pominięty. **SKIP**, zgłoś (najważniejsza luka raportowa).
+7. **Krok 74 — raport WYSYŁEK → ✅ RESOLVED 2026-06-25 (#7 `15b363ef`).** `/reporting` ma teraz sekcję **Wysyłki — podsumowanie** (SO/shipments/klient/status/kartony). **EXPECT-SECTION-EXISTS.**
+8. **Krok 75 — raport PRZYJĘĆ/GRN → ✅ RESOLVED 2026-06-25 (#8 `f874d1fb`).** `/reporting` ma teraz sekcję **Przyjęcia (GRN) — podsumowanie** (dostawca + przyjęta ilość per-JM). (Osobny proxy „PO→pierwsze GRN" w sekcji Zaopatrzenie wciąż ma honest-gap braku `confirmed_at` — to inna metryka.) **EXPECT-SECTION-EXISTS.**
+9. **Krok 75 — produkt w sztukach niewidoczny w stanie → ✅ RESOLVED 2026-06-25 (#9 `036e3f85`).** Sekcja **Stan zapasów** ma nową kolumnę **„Ilość wg JM"** (np. „… kg · … pcs"), więc sztuki/kartony są pokazane. Kafel „Ilość (kg)" wciąż sumuje tylko kg — to świadome (różnych JM nie sumuje się). **Raport BILANSU MASY (jedno zestawienie wejście–wyjście–odpad–stan z różnicą) NADAL NIE ISTNIEJE — zgłoś.**
 
 #### Dead-endy warunkowe (utkną przy braku seed/konfiguracji — nie bug, ale zatrzymają test)
 
 10. **Kroki 43 + 57 — `no_warehouse_for_site` (409).** Jeśli site nie ma magazynu, przyjęcie/wyjście nie przejdzie. **PREREKWIZYT:** skonfiguruj magazyn dla site w Części A (patrz Finding 4).
 11. **Krok 4/57 — „domyślna lokalizacja WYJŚCIA per magazyn" → BRAK pola.** Resolver bierze *pierwszą* lokalizację magazynu. **EXPECT-MISSING**, wskaż lokalizację ręcznie, zgłoś brak konfiguratora.
 12. **Krok 50 — „Podziel/Scal/Zniszcz" na palecie → MARTWE („Wkrótce").** **EXPECT-DISABLED.** Tylko „Przesuń" działa (cała paleta).
-13. **Krok 72 — „Zeskanuj część wyrobu do SO" przez SKANER → BRAK ścieżki skanera.** `/scanner/pick` to WO/BOM. **WORKAROUND** = pakuj na desktopie; jeśli owner oczekiwał HHT do SO — zgłoś.
-14. **Krok 70 — częściowe przyjęcie TO per pozycja → BRAK przycisku; brak i18n statusu.** „Przyjmij" przyjmuje wszystkie naraz; `partially_received` bez etykiety PL. Skaner nie obsługuje przyjęcia TO. **EXPECT-NO-PARTIAL-UI.**
+13. **Krok 72 — „Zeskanuj część wyrobu do SO" przez SKANER → ✅ RESOLVED 2026-06-25 (#13 `082f919e`).** Skaner ma teraz kafelek **„Pakuj dla SO"** (`/pl/scanner/ship`): zeskanuj nośnik LP wyrobu do kartonu wysyłki SO (`POST /api/warehouse/scanner/ship`). Pakowanie używa tej samej logiki co desktop (`packLpIntoBoxCore`) + **bramy bezpieczeństwa żywności** (LP w `held`/QA-niezwolniony/przeterminowany → `lp_blocked_for_pack` 409). **EXPECT-SCANNER-PACK-WORKS.**
+14. **Krok 70 — częściowe przyjęcie TO per pozycja → CZĘŚCIOWO RESOLVED 2026-06-25 (`956e0278`).** Status `partially_received` ma teraz etykietę PL + komunikat błędu. Nadal BRAK przycisku „przyjmij część per pozycja" w UI — „Przyjmij" przyjmuje wszystkie naraz; skaner nie obsługuje przyjęcia TO. **EXPECT-NO-PARTIAL-RECEIVE-UI (ale status czytelny).**
 
 #### Pułapki, które wyglądają jak błąd, ale są oczekiwane
 
@@ -1689,7 +1714,7 @@ Tylko kroki, które zatrzymają testera (funkcja niezbudowana, znany bug, rozjaz
 #### Uwaga środowiskowa (przed całym testem)
 Vercel deploy bywał cicho zepsuty (Hobby crony, checksum migracji, brak `GRANT TO app_user`). **Przed testem potwierdź, że żywy deploy to bieżący commit** (Vercel dashboard/MCP) — „green push ≠ green deploy". Login: `admin@monopilot.test` / `Admin2026!!!`.
 
-**Pliki load-bearing:** `planning/purchase-orders/_actions/actions.ts:741` (reopen gate), `po-detail-view.tsx:248-249` (reopen UI), `create-project-wizard.tsx:271` (clone disabled), `settings/npd-fields/_actions/get-department-field-config.ts` (0 konsumentów), `warehouse/_actions/receipt-corrections-actions.ts` (updateLpMetadata bez qty), `reporting/_actions/report-read-actions.ts` (brak SO/mass-balance), `lib/production/output/register-output.ts` (no_warehouse_for_site + resolver pierwszej lokalizacji), `actions/infra/line.ts` (brak default_location_id), `api/warehouse/scanner/pick/` (WO-only).
+**Pliki load-bearing:** `pipeline/_actions/clone-project.ts` (real cloneProject — #3/#4), `create-project-wizard.tsx` (krok „Punkt wyjścia" z klonem), `settings/npd-fields/_actions/get-department-field-config.ts` (0 konsumentów), `warehouse/_actions/receipt-corrections-actions.ts` (updateLpMetadata bez qty), `reporting/_actions/report-read-actions.ts` (`reportingBundle` + `inventorySnapshot` qty_by_uom + `receiptsSummary` + `shipmentsSummary` — #9/#8/#7/#64; wciąż BRAK mass-balance), `lib/shipping/pack-lp-into-box.ts` (`packLpIntoBoxCore` + brama food-safety przy pakowaniu), `api/warehouse/scanner/ship/route.ts` (skaner „Pakuj dla SO" — #13), `planning/work-orders/_actions/releaseWorkOrder.ts` (brama pack-hierarchy O-2), `lib/production/output/register-output.ts` (no_warehouse_for_site + resolver pierwszej lokalizacji), `actions/infra/line.ts` (brak default_location_id).
 
 ---
 

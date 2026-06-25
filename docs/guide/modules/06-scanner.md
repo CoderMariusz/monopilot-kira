@@ -36,7 +36,7 @@ hardware wedge, or — now — captured by the **device camera** via the
 in with **email + numeric PIN** (not a Supabase cookie session), picks a
 **site / line / shift** context, and then drives the shop floor from a tile grid:
 **Production** (work orders → consume / register output / waste / reverse), 
-**Warehouse** (receive against a PO, putaway, move LP, pick to a WO, LP info),
+**Warehouse** (receive against a PO, putaway, move LP, pick to a WO, **Pack for SO** — scan a finished-good LP into a Sales-Order shipment box, #13, with a pack-time food-safety guard, LP info),
 and **Quality** (QC inspect an LP pass/fail/hold). Every mutating tap is a single
 JSON POST carrying a client-generated **`clientOpId`** so a double-tap or a retry
 is an idempotent no-op.
@@ -138,6 +138,8 @@ can add the handheld-only PIN approval branches — but mirror the desktop SQL.
 | `POST …/scanner/move` (`moveScannerLp` transfer) | Pure location move (no promotion). | scanner session **+ `warehouse.stock.move`** |
 | `POST …/scanner/pick` (`pickScannerLp`) | FEFO pick → WO staging (`move_type='issue'`, no qty deduction; QA-released only). | scanner session **+ `warehouse.stock.move`** |
 | `GET …/scanner/pick/wos` + `…/pick/lps` | Pickable WOs + FEFO LP candidates for a material. | scanner session (`warehouse.scanner.pick.wos` / `.pick.lps`) |
+| `GET …/scanner/ship/shipments` (`ship/shipments/route.ts`) | **Pack for SO (#13, 2026-06-25):** lists OPEN (`packing`) shipments so the handheld can pick which one to pack into. | scanner session **+ `ship.pack.close`** |
+| `POST …/scanner/ship` (`ship/route.ts`) | **Pack one FG LP into a Sales-Order shipment box** — reuses `packLpIntoBoxCore` (the exact allocation + **food-safety** validation desktop pack uses): a held / QA-unreleased / expired LP is refused with `lp_blocked_for_pack` (409); reverse via desktop `unpackShipment`. | scanner session **+ `ship.pack.close`** |
 
 ### Quality — scanner QC inspect — `…/api/quality/scanner/inspect`
 

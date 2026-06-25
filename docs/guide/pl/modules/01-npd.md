@@ -93,6 +93,7 @@ zwolnienia fabrycznego to
 | `listProjects({status?,search?,…})` (`list-projects.ts`) | Lista potoku: projekty + postęp listy kontrolnej na projekt + kod ostrzeżenia o zamknięciu wdrożenia. | reads `npd_projects`, `gate_checklist_items`, `npd_legacy_closeout` | `npd.project.view` | — (odczyt) |
 | `getProject({projectId})` (`get-project.ts`) | Nagłówek szczegółów projektu + wyliczony etap/gate + flagi możliwości (canAdvance/canCreate). | reads `npd_projects`, `gate_checklist_items` | `npd.project.view` (+ sonduje `npd.gate.advance`, `npd.project.create` dla flag UI) | — (odczyt) |
 | `createProject(input)` (`create-project.ts`) | Wstawia projekt na `stage='brief', gate='G0'`; przydziela per-org kod `NPD-NNN`; wbudowuje pola briefu (format opakowania/waga, kanał, twierdzenia…); zaszczepia listę kontrolną gate'u z `GateChecklistTemplates`. Emituje `npd.project.created`. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads `org_sequences`, `"Reference"."GateChecklistTemplates"` | `npd.project.create` | `deleteProject` (brak zależności) |
+| `cloneProject({ sourceProjectId, …overrides })` (`clone-project.ts`) | **#3/#4 (2026-06-25):** tworzy nowy projekt `brief`/`G0` na bazie istniejącego — kopiuje nagłówek + listę kontrolną gate'u, nakłada nadpisania briefu z kreatora, nowy `NPD-NNN`. Zasila kafelek **Sklonuj istniejący projekt** w kreatorze oraz przycisk **Duplikuj** w nagłówku projektu. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads źródłowy `npd_projects` | `npd.project.create` | `deleteProject` (brak zależności) |
 | `deleteProject({projectId})` (`delete-project.ts`) | Trwale usuwa projekt bez zależności (`HAS_DEPENDENTS` przy naruszeniu FK). Emituje `npd.project.deleted`. | deletes `npd_projects`; writes `outbox_events` | `npd.project.create` | — (terminalne) |
 | `advanceProjectGate({projectId,targetStage,productCode?})` (`advance-project-gate.ts`) | **Główny mechanizm przesuwania do przodu.** Przesuwa dokładnie JEDEN sąsiadujący etap (`assertAdjacentStage`). Efekty uboczne powiązane z wchodzonym etapem: wejście `packaging` → `createFgCandidate`; `approval→handoff` → weryfikacja ważnego podpisu G4 + zaszczepienie listy kontrolnej handoff; wejście `launched` → `closeOutLegacyStagesForLaunch`. Emituje `npd.gate.advanced`. | writes `npd_projects`, `product`, `formulations`, `handoff_checklists*`, `npd_legacy_closeout`, `outbox_events` | `npd.gate.advance` | `revertGate` (administrator, przestrzeń gate'ów) |
 | `approveProjectGate({projectId,gateCode:G3\|G4,decision,notes,password?})` (`approve-project-gate.ts`) | Rejestruje **punkt kontrolny zatwierdzenia** gate'u. Zatwierdzenie = **podpis elektroniczny CFR-21** (`signEvent` intent `npd.gate.approved`) → `gate_approvals` z `esigned_at`+`esign_hash`. Odrzucenie = tylko powód, bez hasła, bez podpisu. **Nie przesuwa automatycznie** (przesunięcie to osobny krok). Emituje `npd.gate.approved`. | writes `gate_approvals`, `e_sign_log` (zatwierdzenie), `outbox_events` | `npd.gate.approve` | — (zarejestrowany punkt kontrolny; odrzucenie to osobny rekord) |
@@ -305,6 +306,10 @@ Otwórz konkretny projekt, aby zobaczyć jego szczegóły i nawigować przez eta
 
 ![Szczegóły projektu NPD — zakładka Brief (krótki opis, opakowanie, kanał, priorytet) z nawigacją po bramkach](screenshots/npd-project-gate-brief.png)
 
+Nagłówek projektu ma przycisk **Duplikuj** (real `cloneProject`, #3/#4) oraz uczciwie wyłączony **⚑ Obserwuj** (do czasu dodania tabeli watcherów):
+
+![Nagłówek projektu NPD — aktywny przycisk „Duplikuj" (cloneProject) i wyłączony „⚑ Obserwuj"](screenshots/npd-project-duplicate-button.png)
+
 ### (i) Utwórz projekt NPD
 
 1. Przejdź do **NPD → Projekty** (`/pipeline`).
@@ -315,9 +320,18 @@ Otwórz konkretny projekt, aby zobaczyć jego szczegóły i nawigować przez eta
    Uwagi**, oraz blok briefu (format opakowania, **waga netto opakowania (g)** =
    rozmiar partii przepisu, kanał sprzedaży, oczekiwany wolumen, docelowa cena
    detaliczna, grupa docelowa, twierdzenia marketingowe, ograniczenia).
-4. Wybierz **Punkt startowy** — pusty / klon / szablon (domyślnie `APEX_DEFAULT`).
-5. **Zatwierdź** → `createProject`. Projekt jest tworzony na **etapie `brief`,
-   gate `G0`**, z kodem `NPD-NNN` i zaszczepioną listą kontrolną gate'ów.
+4. Wybierz **Punkt wyjścia** — **Pusta receptura** albo **Sklonuj istniejący projekt**
+   (to drugie jest podłączone do realnej akcji `cloneProject` od 2026-06-25, #3/#4 —
+   po wybraniu pojawia się picker *projektu źródłowego*, który kopiuje nagłówek +
+   listę kontrolną do nowego szkicu `brief`/`G0`). Kafelek **Szablon kategorii**
+   zostaje **uczciwie wyłączony** („jeszcze niedostępne" — brak schematu szablonów).
+5. **Zatwierdź** → `createProject` (lub `cloneProject` przy klonowaniu). Projekt jest
+   tworzony na **etapie `brief`, gate `G0`**, z kodem `NPD-NNN` i zaszczepioną listą
+   kontrolną gate'ów.
+
+> Nagłówek projektu (`/pipeline/[id]`) ma też przycisk **Duplikuj** podłączony do tej
+> samej akcji `cloneProject` (#3/#4); sąsiedni **⚑ Obserwuj** zostaje uczciwie
+> wyłączony do czasu dodania tabeli watcherów (wymaga migracji).
 
 ### (ii) Przesuwanie przez gate'y (z zatwierdzeniami)
 

@@ -86,6 +86,7 @@ factory-release engine is `builder/_actions/release-npd-project-to-factory.ts` +
 | `listProjects({status?,search?,…})` (`list-projects.ts`) | Pipeline list: projects + per-project checklist progress + launch closeout warning code. | reads `npd_projects`, `gate_checklist_items`, `npd_legacy_closeout` | `npd.project.view` | — (read) |
 | `getProject({projectId})` (`get-project.ts`) | Project detail header + derived stage/gate + capability flags (canAdvance/canCreate). | reads `npd_projects`, `gate_checklist_items` | `npd.project.view` (+ probes `npd.gate.advance`, `npd.project.create` for UI flags) | — (read) |
 | `createProject(input)` (`create-project.ts`) | Insert project at `stage='brief', gate='G0'`; allocate per-org `NPD-NNN` code; fold-in brief fields (pack format/weight, channel, claims…); seed the gate checklist from `GateChecklistTemplates`. Emits `npd.project.created`. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads `org_sequences`, `"Reference"."GateChecklistTemplates"` | `npd.project.create` | `deleteProject` (no dependents) |
+| `cloneProject({ sourceProjectId, …overrides })` (`clone-project.ts`) | **#3/#4 (2026-06-25):** seed a new `brief`/`G0` project from an existing one — copy header + gate checklist, apply wizard brief overrides, fresh `NPD-NNN`. Backs both the wizard **Clone existing project** card and the project-header **Duplicate** button. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads source `npd_projects` | `npd.project.create` | `deleteProject` (no dependents) |
 | `deleteProject({projectId})` (`delete-project.ts`) | Hard-delete a project that has no dependents (`HAS_DEPENDENTS` on FK violation). Emits `npd.project.deleted`. | deletes `npd_projects`; writes `outbox_events` | `npd.project.create` | — (terminal) |
 | `advanceProjectGate({projectId,targetStage,productCode?})` (`advance-project-gate.ts`) | **The forward driver.** Advances exactly ONE adjacent stage (`assertAdjacentStage`). Side effects keyed to the stage entered: entering `packaging` → `createFgCandidate`; `approval→handoff` → assert a valid G4 e-sign + seed handoff checklist; entering `launched` → `closeOutLegacyStagesForLaunch`. Emits `npd.gate.advanced`. | writes `npd_projects`, `product`, `formulations`, `handoff_checklists*`, `npd_legacy_closeout`, `outbox_events` | `npd.gate.advance` | `revertGate` (admin, gate-space) |
 | `approveProjectGate({projectId,gateCode:G3\|G4,decision,notes,password?})` (`approve-project-gate.ts`) | Records a gate **approval checkpoint**. Approve = **CFR-21 e-sign** (`signEvent` intent `npd.gate.approved`) → `gate_approvals` with `esigned_at`+`esign_hash`. Reject = reason only, no password, no signature. **Does NOT auto-advance** (advance is the separate stage step). Emits `npd.gate.approved`. | writes `gate_approvals`, `e_sign_log` (approve), `outbox_events` | `npd.gate.approve` | — (the recorded checkpoint; reject is a separate record) |
@@ -289,9 +290,18 @@ The e-sign approval is a **recorded checkpoint that no longer auto-advances**
    normal), optional **Owner / Target launch / Notes**, and the brief block (pack
    format, **pack net weight (g)** = recipe batch size, sales channel, expected
    volume, target retail price, audience, marketing claims, constraints).
-4. Pick the **Starting point** — blank / clone / template (default `APEX_DEFAULT`).
-5. **Submit** → `createProject`. The project is created at **stage `brief`, gate
-   `G0`**, with a `NPD-NNN` code and a seeded gate checklist.
+4. Pick the **Starting point** — **Blank recipe** or **Clone existing project**
+   (the latter is wired to the real `cloneProject` Server Action since 2026-06-25,
+   #3/#4 — selecting it reveals a *source-project* picker that copies the header +
+   gate checklist into a fresh `brief`/`G0` draft). The **Category template** card
+   stays **honestly disabled** ("not available yet" — no template schema exists).
+5. **Submit** → `createProject` (or `cloneProject` when cloning). The project is
+   created at **stage `brief`, gate `G0`**, with a `NPD-NNN` code and a seeded gate
+   checklist.
+
+> Project header (`/pipeline/[id]`) also exposes a **Duplicate** button wired to the
+> same `cloneProject` action (#3/#4); the **⚑ Watch** button next to it stays
+> honestly disabled until a watchers table lands (needs a migration).
 
 ### (ii) Advance through the gates (with approvals)
 

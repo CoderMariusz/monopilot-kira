@@ -6,8 +6,9 @@ zalogowany jako `admin@monopilot.test`) dnia 2026-06-25.
 Każdy wpis: **plik** · **URL** · **moduł / ekran** · **sugerowana sekcja przewodnika**
 (plik `docs/guide/pl/...` + nagłówek, pod którym orkiestrator ma osadzić obraz).
 
-> Uwaga: TYLKO ten plik manifestu został utworzony — pliki `.md` przewodnika NIE były edytowane.
-> Osadzanie obrazów w przewodniku wykonuje orkiestrator.
+> Uwaga: sekcje 1–8 to pierwsza partia (orkiestrator osadzał obrazy osobno).
+> **Sekcja 9 (2026-06-25)** została dodana RAZEM z osadzeniem obrazów w przewodniku
+> (`PRZEPLYW-E2E-TESTOWY.md` + `modules/01-npd.md`) — patrz kolumna „Sekcja przewodnika".
 
 ---
 
@@ -65,6 +66,16 @@ Każdy wpis: **plik** · **URL** · **moduł / ekran** · **sugerowana sekcja pr
 | Plik | URL | Moduł / ekran | Sekcja przewodnika |
 |------|-----|---------------|--------------------|
 | `settings-npd-fields.png` | `/pl/settings/npd-fields` | Ustawienia — Pola NPD: wybór działu (Core/Planning/Commercial/Production/Technical/MRP/Procurement) + tabela schematu pól (typ danych, wymagane, widoczne, kolejność) | `docs/guide/pl/modules/02-settings.md` → „Pola NPD (schemat działów)" |
+
+## 9. Raportowanie (moduł — funkcje 2026-06-25) i NPD klon
+
+Zrzuty dodane 2026-06-25 po wdrożeniu funkcji raportowania (#9/#8/#7/#64) i klonowania NPD (#3/#4).
+
+| Plik | URL | Moduł / ekran | Sekcja przewodnika |
+|------|-----|---------------|--------------------|
+| `reporting-overview-sections.png` | `/pl/reporting` | Raportowanie — pełna strona z 6 sekcjami: Produkcja / **Stan zapasów (kolumna „Ilość wg JM" = „648.15 kg · 3545 pcs", #9)** / Jakość / Zaopatrzenie / **Przyjęcia (GRN), #8** / **Wysyłki, #7** | `PRZEPLYW-E2E-TESTOWY.md` → Część J, kroki 73/74/75 („gdzie patrzeć") |
+| `npd-wizard-clone-step.png` | `/pl/pipeline/new` (krok „Punkt wyjścia") | NPD — kreator nowego projektu, krok 3: kafel **„Sklonuj istniejący projekt"** aktywny + picker „Projekt do sklonowania"; **„Szablon kategorii"** wyłączony (#3/#4) | `PRZEPLYW-E2E-TESTOWY.md` → krok 11; `modules/01-npd.md` → tworzenie projektu |
+| `npd-project-duplicate-button.png` | `/pl/pipeline/{id}` (Night Proof Sausage) | NPD — nagłówek projektu: przycisk **„Duplikuj"** AKTYWNY (real `cloneProject`), **„⚑ Obserwuj"** wyłączony (#3/#4) | `PRZEPLYW-E2E-TESTOWY.md` → Aneks dead-end #4; `modules/01-npd.md` → nagłówek projektu |
 
 ---
 

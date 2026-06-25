@@ -40,7 +40,7 @@ za pomocą **adresu e-mail + numerycznego kodu PIN** (nie sesji ciasteczka Supab
 wybiera kontekst **zakładu / linii / zmiany**, a następnie obsługuje halę produkcyjną
 z siatki kafelków: **Produkcja** (zlecenia produkcyjne → rozchód / rejestracja
 wyjścia / odpad / rewersja), **Magazyn** (przyjęcie na podstawie ZZ, odłożenie,
-przesunięcie LP, pobranie do ZP, informacje o LP) oraz **Jakość** (inspekcja QC
+przesunięcie LP, pobranie do ZP, **Pakuj dla SO** — skanowanie nośnika LP wyrobu do kartonu wysyłki zamówienia sprzedaży, #13, z bramą bezpieczeństwa żywności przy pakowaniu, informacje o LP) oraz **Jakość** (inspekcja QC
 LP — akceptacja/odrzucenie/wstrzymanie). Każde mutujące dotknięcie to pojedynczy
 POST JSON zawierający wygenerowany po stronie klienta **`clientOpId`**, dzięki
 czemu podwójne dotknięcie lub ponowna próba jest idempotentną operacją bez efektu.
@@ -149,6 +149,8 @@ zachowaniu lustrzanego SQL pulpitu.
 | `POST …/scanner/move` (`moveScannerLp` transfer) | Czyste przesunięcie do lokalizacji (bez promocji). | sesja skanera **+ `warehouse.stock.move`** |
 | `POST …/scanner/pick` (`pickScannerLp`) | Pobranie FEFO → staging ZP (`move_type='issue'`, bez odjęcia ilości; tylko towar zwolniony przez QA). | sesja skanera **+ `warehouse.stock.move`** |
 | `GET …/scanner/pick/wos` + `…/pick/lps` | Dostępne ZP + kandydaci LP FEFO dla materiału. | sesja skanera (`warehouse.scanner.pick.wos` / `.pick.lps`) |
+| `GET …/scanner/ship/shipments` (`ship/shipments/route.ts`) | **Pakuj dla SO (#13, 2026-06-25):** lista OTWARTYCH wysyłek (`packing`), aby skaner wybrał, do której pakować. | sesja skanera **+ `ship.pack.close`** |
+| `POST …/scanner/ship` (`ship/route.ts`) | **Pakuje jeden nośnik LP wyrobu do kartonu wysyłki SO** — używa `packLpIntoBoxCore` (ta sama alokacja + walidacja **bezpieczeństwa żywności** co pakowanie desktop): LP wstrzymany / QA-niezwolniony / przeterminowany jest odrzucany z `lp_blocked_for_pack` (409); rewersja przez desktop `unpackShipment`. | sesja skanera **+ `ship.pack.close`** |
 
 ### Jakość — inspekcja QC skanera — `…/api/quality/scanner/inspect`
 
