@@ -13,10 +13,13 @@ const WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
 const LOCATION_ID = '88888888-8888-4888-8888-888888888888';
 const PRODUCT_ID = '99999999-9999-4999-8999-999999999999';
 const OTHER_PRODUCT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const SPLIT_CLIENT_OP_ID = 'split-op-001';
+const DESTROY_CLIENT_OP_ID = 'destroy-op-001';
 
 let client: QueryClient;
 let grantedPermissions: Set<string>;
 let heldLpIds: Set<string>;
+let splitReplayChildId: string | null;
 let splitFits: boolean;
 let primaryReservedQty: string;
 let secondaryReservedQty: string;
@@ -63,10 +66,18 @@ function makeClient(): QueryClient {
     query: vi.fn(async (sql: string, params?: unknown[]) => {
       const q = normalize(sql);
 
+      if (q.startsWith('select pg_advisory_xact_lock')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.includes('from public.user_roles')) {
         const permission = String(params?.[2] ?? '');
         const ok = grantedPermissions.has(permission);
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
+      }
+
+      if (q.startsWith('with deterministic_child as') && q.includes('replay_child as')) {
+        return { rows: splitReplayChildId ? [{ id: splitReplayChildId }] : [], rowCount: splitReplayChildId ? 1 : 0 };
       }
 
       if (q.includes('from public.license_plates lp') && q.includes('lp.id = $1::uuid') && q.includes('for update')) {
@@ -86,7 +97,8 @@ function makeClient(): QueryClient {
         return { rows, rowCount: rows.length };
       }
 
-      if (q.startsWith('with new_child as')) {
+      if (q.startsWith('with deterministic_child as') && q.includes('insert into public.license_plates')) {
+        splitReplayChildId = CHILD_LP_ID;
         return { rows: [{ id: CHILD_LP_ID }], rowCount: 1 };
       }
 
@@ -121,6 +133,7 @@ describe('LP split/merge/destroy server actions', () => {
   beforeEach(() => {
     grantedPermissions = new Set(['warehouse.lp.split', 'warehouse.lp.merge', 'warehouse.lp.destroy']);
     heldLpIds = new Set();
+    splitReplayChildId = null;
     splitFits = true;
     primaryReservedQty = '0.000000';
     secondaryReservedQty = '0.000000';
@@ -132,12 +145,13 @@ describe('LP split/merge/destroy server actions', () => {
   });
 
   it('splitLp reduces the source, creates a child LP, genealogy, history, and stock moves', async () => {
-    const result = await splitLp(PRIMARY_LP_ID, 4, 'split for line staging');
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID);
 
     expect(result).toEqual({ ok: true });
     const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
+    expect(calls.find((call) => call.sql.startsWith('select pg_advisory_xact_lock'))?.params?.[0]).toBe(`${ORG_ID}:lp-split:${SPLIT_CLIENT_OP_ID}`);
     expect(calls.find((call) => call.sql.includes('from public.user_roles'))?.params?.[2]).toBe('warehouse.lp.split');
-    expect(calls.some((call) => call.sql.startsWith('with new_child as'))).toBe(true);
+    expect(calls.some((call) => call.sql.startsWith('with deterministic_child as') && call.sql.includes('insert into public.license_plates'))).toBe(true);
     expect(calls.some((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes('quantity = quantity -'))).toBe(true);
     expect(calls.some((call) => call.sql.startsWith('insert into public.lp_genealogy') && call.params?.[0] === CHILD_LP_ID)).toBe(true);
     const moves = calls.filter((call) => call.sql.startsWith('insert into public.stock_moves'));
@@ -146,14 +160,23 @@ describe('LP split/merge/destroy server actions', () => {
     expect(moves.map((call) => call.params?.[6])).toEqual(['-4', '4']);
   });
 
+  it('splitLp replays the same clientOpId without double-decrementing or minting another child LP', async () => {
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
+    await expect(splitLp(PRIMARY_LP_ID, 4, 'split for line staging', SPLIT_CLIENT_OP_ID)).resolves.toEqual({ ok: true });
+
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.filter((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toHaveLength(1);
+    expect(calls.filter((sql) => sql.startsWith('update public.license_plates') && sql.includes('quantity = quantity -'))).toHaveLength(1);
+  });
+
   it('splitLp rejects split quantity greater than available quantity before writes', async () => {
     splitFits = false;
 
-    const result = await splitLp(PRIMARY_LP_ID, 11, 'too much');
+    const result = await splitLp(PRIMARY_LP_ID, 11, 'too much', SPLIT_CLIENT_OP_ID);
 
     expect(result).toEqual({ ok: false, error: 'split quantity must be less than available quantity' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
-    expect(calls.some((sql) => sql.startsWith('with new_child as'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
   });
@@ -187,12 +210,20 @@ describe('LP split/merge/destroy server actions', () => {
   });
 
   it('destroyLp marks the LP destroyed and writes audit history plus a negative adjustment', async () => {
-    const result = await destroyLp(PRIMARY_LP_ID, 'damaged packaging');
+    const result = await destroyLp(PRIMARY_LP_ID, 'damaged packaging', DESTROY_CLIENT_OP_ID);
 
     expect(result).toEqual({ ok: true });
     const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
+    expect(calls.find((call) => call.sql.startsWith('select pg_advisory_xact_lock'))?.params?.[0]).toBe(`${ORG_ID}:lp-destroy:${DESTROY_CLIENT_OP_ID}`);
     expect(calls.find((call) => call.sql.includes('from public.user_roles'))?.params?.[2]).toBe('warehouse.lp.destroy');
-    expect(calls.some((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes("status = 'destroyed'"))).toBe(true);
+    expect(
+      calls.some(
+        (call) =>
+          call.sql.startsWith('update public.license_plates') &&
+          call.sql.includes("status = 'destroyed'") &&
+          call.sql.includes("and status <> 'destroyed'"),
+      ),
+    ).toBe(true);
     const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
     expect(history?.params?.[3]).toBe('destroyed');
     const move = calls.find((call) => call.sql.startsWith('insert into public.stock_moves'));
@@ -203,7 +234,7 @@ describe('LP split/merge/destroy server actions', () => {
   it('destroyLp rejects LPs with reserved quantity before writes', async () => {
     primaryReservedQty = '1.000000';
 
-    const result = await destroyLp(PRIMARY_LP_ID, 'reserved');
+    const result = await destroyLp(PRIMARY_LP_ID, 'reserved', DESTROY_CLIENT_OP_ID);
 
     expect(result).toEqual({ ok: false, error: 'LP has reserved stock; clear reservation before destroying' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
@@ -215,22 +246,22 @@ describe('LP split/merge/destroy server actions', () => {
   it('splitLp rejects a non-operable LP status before writes', async () => {
     primaryStatus = 'quarantine';
 
-    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock');
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock', SPLIT_CLIENT_OP_ID);
 
     expect(result).toEqual({ ok: false, error: 'LP status does not allow split' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
-    expect(calls.some((sql) => sql.startsWith('with new_child as'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
   });
 
   it('splitLp rejects an LP under an active quality hold before writes', async () => {
     heldLpIds = new Set([PRIMARY_LP_ID]);
 
-    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock');
+    const result = await splitLp(PRIMARY_LP_ID, 4, 'split held stock', SPLIT_CLIENT_OP_ID);
 
     expect(result).toEqual({ ok: false, error: 'LP is under an active quality hold' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
-    expect(calls.some((sql) => sql.startsWith('with new_child as'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
   });
 
@@ -259,7 +290,7 @@ describe('LP split/merge/destroy server actions', () => {
   it('destroyLp rejects an already-terminal LP status before writes', async () => {
     primaryStatus = 'consumed';
 
-    const result = await destroyLp(PRIMARY_LP_ID, 'destroy consumed');
+    const result = await destroyLp(PRIMARY_LP_ID, 'destroy consumed', DESTROY_CLIENT_OP_ID);
 
     expect(result).toEqual({ ok: false, error: 'LP is already consumed/shipped/merged/destroyed and cannot be destroyed' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));

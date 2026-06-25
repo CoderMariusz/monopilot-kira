@@ -133,6 +133,10 @@ async function activeHeldLpIds(ctx: WarehouseContext, lpIds: string[]): Promise<
   return new Set(rows.map((row) => row.id));
 }
 
+async function lockClientOperation(ctx: WarehouseContext, operation: 'lp-split' | 'lp-destroy', clientOpId: string): Promise<void> {
+  await ctx.client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [`${ctx.orgId}:${operation}:${clientOpId}`]);
+}
+
 async function insertLpStateHistory(
   ctx: WarehouseContext,
   input: {
@@ -223,16 +227,60 @@ async function insertStockMove(
   );
 }
 
-export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonInput: string): Promise<LpMutationResult> {
+async function findSplitReplay(ctx: WarehouseContext, childSeed: string, childMoveTransactionId: string, childHistoryTransactionId: string): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `with deterministic_child as (
+       select (
+         substr(md5($1), 1, 8) || '-' ||
+         substr(md5($1), 9, 4) || '-4' ||
+         substr(md5($1), 14, 3) || '-a' ||
+         substr(md5($1), 18, 3) || '-' ||
+         substr(md5($1), 21, 12)
+       )::uuid as id
+     ),
+     replay_child as (
+       select lp.id::text as id
+         from public.license_plates lp
+         join deterministic_child child on child.id = lp.id
+        where lp.org_id = app.current_org_id()
+       union all
+       select sm.lp_id::text as id
+         from public.stock_moves sm
+        where sm.org_id = app.current_org_id()
+          and sm.transaction_id = $2::uuid
+       union all
+       select history.lp_id::text as id
+         from public.lp_state_history history
+        where history.org_id = app.current_org_id()
+          and history.transaction_id = $3::uuid
+     )
+     select replay_child.id
+       from replay_child
+      limit 1`,
+    [childSeed, childMoveTransactionId, childHistoryTransactionId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonInput: string, clientOpIdInput: string): Promise<LpMutationResult> {
   const lpId = asTrimmed(lpIdInput);
   const splitQty = asPositiveQuantity(splitQtyInput);
   const reason = asTrimmed(reasonInput);
-  if (!lpId || !splitQty || !reason) return failure('invalid_input');
+  const clientOpId = asTrimmed(clientOpIdInput);
+  if (!lpId || !splitQty || !reason || !clientOpId) return failure('invalid_input');
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<LpMutationResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
+      await lockClientOperation(ctx, 'lp-split', clientOpId);
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_SPLIT_PERMISSION))) return failure('forbidden');
+
+      const splitTransactionId = uuidFromSeed(`warehouse.lp.split:${clientOpId}`);
+      const childHistoryTransactionId = uuidFromSeed(`${splitTransactionId}:child-history`);
+      const childMoveTransactionId = uuidFromSeed(`${splitTransactionId}:child-move`);
+      const childSeed = `${orgId}:lp-split:${clientOpId}`;
+      const replayChildId = await findSplitReplay(ctx, childSeed, childMoveTransactionId, childHistoryTransactionId);
+      if (replayChildId) return { ok: true };
 
       const source = await lockLp(ctx, lpId);
       if (!source) return failure('not_found');
@@ -253,10 +301,15 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
       const available = availability.rows[0];
       if (available?.fits !== true) return failure('split quantity must be less than available quantity');
 
-      const splitTransactionId = uuidFromSeed(`warehouse.lp.split:${orgId}:${lpId}:${splitQty}:${reason}`);
       const child = await ctx.client.query<{ id: string }>(
-        `with new_child as (
-           select gen_random_uuid() as id
+        `with deterministic_child as (
+           select (
+             substr(md5($12), 1, 8) || '-' ||
+             substr(md5($12), 9, 4) || '-4' ||
+             substr(md5($12), 14, 3) || '-a' ||
+             substr(md5($12), 18, 3) || '-' ||
+             substr(md5($12), 21, 12)
+           )::uuid as id
          )
          insert into public.license_plates (
            id, org_id, site_id, warehouse_id, location_id, lp_number, product_id,
@@ -281,7 +334,8 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
                 $10,
                 $11::uuid,
                 $11::uuid
-           from new_child
+           from deterministic_child
+        on conflict (id) do nothing
         returning id::text`,
         [
           source.site_id,
@@ -295,9 +349,10 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
           source.expiry_date,
           source.qa_status,
           userId,
+          childSeed,
         ],
       );
-      const childId = child.rows[0]?.id;
+      const childId = child.rows[0]?.id ?? (await findSplitReplay(ctx, childSeed, childMoveTransactionId, childHistoryTransactionId));
       if (!childId) return failure('child_lp_insert_failed');
 
       await ctx.client.query(
@@ -536,18 +591,21 @@ export async function mergeLps(primaryLpIdInput: string, secondaryLpIdsInput: st
   }
 }
 
-export async function destroyLp(lpIdInput: string, reasonInput: string): Promise<LpMutationResult> {
+export async function destroyLp(lpIdInput: string, reasonInput: string, clientOpIdInput: string): Promise<LpMutationResult> {
   const lpId = asTrimmed(lpIdInput);
   const reason = asTrimmed(reasonInput);
-  if (!lpId || !reason) return failure('invalid_input');
+  const clientOpId = asTrimmed(clientOpIdInput);
+  if (!lpId || !reason || !clientOpId) return failure('invalid_input');
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<LpMutationResult> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
+      await lockClientOperation(ctx, 'lp-destroy', clientOpId);
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_DESTROY_PERMISSION))) return failure('forbidden');
 
       const lp = await lockLp(ctx, lpId);
       if (!lp) return failure('not_found');
+      if (lp.status === 'destroyed') return { ok: true };
       if (DESTROY_BLOCKED_STATES.has(lp.status)) {
         return failure('LP is already consumed/shipped/merged/destroyed and cannot be destroyed');
       }
@@ -560,11 +618,12 @@ export async function destroyLp(lpIdInput: string, reasonInput: string): Promise
             set status = 'destroyed',
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
-            and id = $1::uuid`,
+            and id = $1::uuid
+            and status <> 'destroyed'`,
         [lp.id, userId],
       );
 
-      const destroyTransactionId = uuidFromSeed(`warehouse.lp.destroy:${orgId}:${lp.id}:${reason}`);
+      const destroyTransactionId = uuidFromSeed(`warehouse.lp.destroy:${clientOpId}`);
       await insertLpStateHistory(ctx, {
         lpId: lp.id,
         siteId: lp.site_id,
