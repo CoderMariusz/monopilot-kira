@@ -325,6 +325,7 @@ export function CreateEcoModal({
                   value={targetItemId}
                   onValueChange={setTargetItemId}
                   disabled={state === 'submitting'}
+                  options={filteredItems.map((it) => ({ value: it.id, label: `${it.itemCode} — ${it.name}` }))}
                 >
                   <SelectTrigger className="mt-2" aria-label={tt('create.line.targetItem', 'Target item')}>
                     <SelectValue placeholder={tt('create.line.targetItem', 'Target item')} />
