@@ -738,7 +738,14 @@ export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderRe
 
       const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, parsed.data);
       if (!before) return { ok: false, error: 'not_found' };
-      if (before.status !== 'sent') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+      // Reopen un-sends a SENT po OR un-cancels a CANCELLED po, both back to
+      // draft (the detail UI shows "Przywróć do wersji roboczej" for cancelled).
+      // PO_TRANSITIONS treats cancelled as terminal, so this is the dedicated
+      // reopen path; the po_has_receipts guard below still blocks reopening a po
+      // that has receipts.
+      if (before.status !== 'sent' && before.status !== 'cancelled') {
+        return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+      }
 
       const receiptState = await getPurchaseOrderReceiptState(ctx.client, parsed.data);
       if (receiptState.activeReceivedCount > 0 || receiptState.grnLineCount > 0) {
@@ -751,7 +758,7 @@ export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderRe
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and status = 'sent'
+            and status in ('sent', 'cancelled')
             and not exists (
               select 1
                 from public.grn_items gi
