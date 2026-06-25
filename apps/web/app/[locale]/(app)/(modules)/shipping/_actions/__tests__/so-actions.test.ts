@@ -403,6 +403,40 @@ describe('allocateSalesOrder', () => {
       'and (lp.expiry_date is null or lp.expiry_date >= current_date)',
     );
   });
+
+  it('excludes LPs on an active quality hold via v_active_holds (G-QA-07)', async () => {
+    status = 'confirmed';
+    candidateRows = [{ lp_id: LP_1, available_qty: '10' }];
+
+    await allocateSalesOrder(SO_ID);
+
+    const candidateQuery = queryLog.find(({ sql }) => normalize(sql).startsWith('select lp.id::text as lp_id'))?.sql;
+    const normalized = normalize(String(candidateQuery));
+    // reads the canonical SECURITY INVOKER v_active_holds view (T-064), keyed on
+    // the polymorphic (reference_type='lp', reference_id) model — NOT quality_holds
+    expect(normalized).toContain('not exists');
+    expect(normalized).toContain('from public.v_active_holds h');
+    expect(normalized).toContain("h.reference_type = 'lp'");
+    expect(normalized).toContain('h.reference_id = lp.id');
+    // never read the underlying quality_holds table directly — T-064 mandates
+    // the v_active_holds seam (comments may mention the name; queries must not).
+    expect(normalized).not.toContain('from public.quality_holds');
+  });
+
+  it('does NOT allocate when the only candidate LP is held (held LP never returned) — G-QA-07', async () => {
+    // The DB excludes held LPs at the query level, so a held-only product
+    // surfaces ZERO candidates → INSUFFICIENT_STOCK, never an allocation.
+    status = 'confirmed';
+    candidateRows = [];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: false, error: 'INSUFFICIENT_STOCK' });
+    expect(allocationRows).toEqual([]);
+    expect(
+      queryLog.some((entry) => normalize(entry.sql).startsWith('insert into public.inventory_allocations')),
+    ).toBe(false);
+  });
 });
 
 describe('deallocateSalesOrder', () => {

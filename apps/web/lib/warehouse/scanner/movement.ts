@@ -525,12 +525,22 @@ export async function pickScannerLp(
     const lp = await loadMovableLpForUpdate(client, session, input.lpId);
     if (!lp) throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found. Scan the barcode again or contact a supervisor.');
     assertLpMovable(lp);
-    // PICK-ONLY QA gate (review fix F3): staging to production is a consume
-    // precursor, so only QA-released stock may be picked. Putaway/move of held
-    // LPs stays allowed — relocating quarantined stock is a legit warehouse op.
+    // PICK-ONLY food-safety gate (G-WH-01 / owner per-rule = HARD BLOCK):
+    // staging to production is a consume precursor, so picked stock must be
+    // QA-released, not expired, and not on an active quality hold. Putaway/move
+    // of held/expired LPs stays allowed — relocating quarantined stock is a
+    // legit warehouse op — so these checks live HERE, not in assertLpMovable.
+    //
+    // Mirrors the egress guards in shipShipment + pack-lp-into-box (v_active_holds
+    // T-064 + qa_status + expiry_date): QA-released (review fix F3) → expiry →
+    // active hold, surfaced as distinct 409 codes the route maps verbatim.
     if (lp.qa_status !== 'released') {
       throw new WarehouseScannerError('lp_not_released', 409, 'This pallet cannot be picked until QA releases it.');
     }
+    if (lp.expired) {
+      throw new WarehouseScannerError('lp_expired', 409, 'This pallet is past its expiry date and cannot be picked.');
+    }
+    await assertLpNotOnActiveHold(client, input.lpId);
     if (lp.product_id !== material.product_id || lp.uom !== material.uom) {
       throw new WarehouseScannerError('lp_not_movable', 409, 'This pallet does not match the selected work order material.');
     }
@@ -647,6 +657,7 @@ type MovableLpRow = {
   uom: string;
   status: string;
   qa_status: string;
+  expired: boolean;
   location_id: string | null;
   locked_by: string | null;
   lock_is_active_for_other_user: boolean;
@@ -666,6 +677,7 @@ async function loadMovableLpForUpdate(
             lp.uom,
             lp.status,
             lp.qa_status,
+            (lp.expiry_date is not null and lp.expiry_date::date < current_date) as expired,
             lp.location_id::text,
             lp.locked_by::text,
             (
@@ -688,6 +700,35 @@ function assertLpMovable(lp: MovableLpRow): void {
   }
   if (lp.lock_is_active_for_other_user) {
     throw new WarehouseScannerError('lp_not_movable', 409, 'This pallet is currently locked by another scanner session.');
+  }
+}
+
+// G-WH-01 active-hold gate (T-064). Reads the canonical SECURITY INVOKER,
+// org-scoped public.v_active_holds view — NEVER quality_holds directly — keyed
+// on the polymorphic (reference_type='lp', reference_id) model (migration 197).
+// Fail-OPEN only when the view is genuinely ABSENT (42P01 undefined_table:
+// 09-quality not shipped) so a not-yet-built dependency cannot wedge picking;
+// 42703 (column drift) deliberately surfaces. Mirrors holds-guard.ts.
+async function assertLpNotOnActiveHold(client: QueryClient, lpId: string): Promise<void> {
+  try {
+    const { rows } = await client.query<{ hold_id: string }>(
+      `select hold_id
+         from public.v_active_holds
+        where org_id = app.current_org_id()
+          and reference_type = 'lp'
+          and reference_id = $1::uuid
+        limit 1`,
+      [lpId],
+    );
+    if (rows[0]) {
+      throw new WarehouseScannerError('lp_on_hold', 409, 'This pallet is on an active quality hold and cannot be picked.');
+    }
+  } catch (err) {
+    if (err instanceof WarehouseScannerError) throw err;
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '42P01') {
+      return;
+    }
+    throw err;
   }
 }
 

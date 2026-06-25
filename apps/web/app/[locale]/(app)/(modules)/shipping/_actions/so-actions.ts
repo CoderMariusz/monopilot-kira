@@ -659,6 +659,20 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
             -- already-expired LP. The order-by still prefers earliest expiry
             -- (FEFO); this only drops LPs that are past their expiry date.
             and (lp.expiry_date is null or lp.expiry_date >= current_date)
+            -- Food-safety (G-QA-07 / owner per-rule BLOCK): never allocate an LP
+            -- on an active quality hold. status='available' + qa_status='released'
+            -- does NOT cover holds — they are a separate polymorphic layer (T-064,
+            -- migration 197). Read the canonical SECURITY INVOKER, org-scoped
+            -- v_active_holds view (reference_type='lp') — never quality_holds
+            -- directly — mirroring shipShipment's egress guard so held stock is
+            -- excluded at allocation as well as at ship.
+            and not exists (
+              select 1
+                from public.v_active_holds h
+               where h.org_id = app.current_org_id()
+                 and h.reference_type = 'lp'
+                 and h.reference_id = lp.id
+            )
             and (lp.quantity - lp.reserved_qty) > 0
           order by lp.expiry_date asc nulls last, lp.created_at asc
           for update of lp`,

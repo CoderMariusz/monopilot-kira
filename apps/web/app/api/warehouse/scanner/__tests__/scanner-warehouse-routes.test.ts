@@ -81,6 +81,9 @@ function mockMoveQueries(options: {
   isPick?: boolean;
   qaStatus?: string;
   status?: string;
+  expired?: boolean;
+  onHold?: boolean;
+  holdsViewMissing?: boolean;
 }) {
   fakeClient.query.mockImplementation(async (sql: string, params?: unknown[]) => {
     if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
@@ -98,6 +101,16 @@ function mockMoveQueries(options: {
         }],
       };
     }
+    // G-WH-01 active-hold gate reads v_active_holds (T-064). Simulate the view
+    // being absent (42P01 → fail-open) or returning an active hold row.
+    if (sql.includes('from public.v_active_holds')) {
+      if (options.holdsViewMissing) {
+        const err = new Error('relation "public.v_active_holds" does not exist') as Error & { code?: string };
+        err.code = '42P01';
+        throw err;
+      }
+      return options.onHold ? { rows: [{ hold_id: 'f0000000-0000-4000-8000-000000000001' }] } : { rows: [] };
+    }
     if (sql.includes('from public.license_plates lp') && sql.includes('for update')) {
       return {
         rows: [{
@@ -109,6 +122,7 @@ function mockMoveQueries(options: {
           uom: 'kg',
           status: options.status ?? 'available',
           qa_status: options.qaStatus ?? 'released',
+          expired: options.expired === true,
           location_id: '71000000-0000-4000-8000-000000000001',
           locked_by: options.locked ? '99999999-0000-4000-8000-000000000001' : null,
           lock_is_active_for_other_user: options.locked === true,
@@ -430,6 +444,96 @@ describe('warehouse scanner routes', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ ok: true, moveId: ids.move });
+  });
+
+  it('pick rejects an expired LP with 409 lp_expired (G-WH-01) and writes no stock move', async () => {
+    const { POST } = await import('../pick/route');
+    mockMoveQueries({ isPick: true, expired: true });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/pick', {
+        clientOpId: 'op-pick-expired-lp',
+        woId: ids.wo,
+        materialId: ids.material,
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_expired' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.stock_moves'))).toBe(
+      false,
+    );
+    expect(fakeClient.query.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining(['rollback']));
+  });
+
+  it('pick rejects an LP on an active quality hold with 409 lp_on_hold (G-WH-01) and writes no stock move', async () => {
+    const { POST } = await import('../pick/route');
+    mockMoveQueries({ isPick: true, onHold: true });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/pick', {
+        clientOpId: 'op-pick-held-active-hold',
+        woId: ids.wo,
+        materialId: ids.material,
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_on_hold' });
+    // the active-hold gate read the canonical v_active_holds view, not quality_holds
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('from public.v_active_holds'))).toBe(true);
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('quality_holds'))).toBe(false);
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.stock_moves'))).toBe(
+      false,
+    );
+  });
+
+  it('pick ALLOWS a clean QA-released, in-date, hold-free LP (G-WH-01 happy path)', async () => {
+    const { POST } = await import('../pick/route');
+    mockMoveQueries({ isPick: true });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/pick', {
+        clientOpId: 'op-pick-clean-lp',
+        woId: ids.wo,
+        materialId: ids.material,
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, moveId: ids.move });
+    // the active-hold gate ran (and found nothing), so the move proceeded
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('from public.v_active_holds'))).toBe(true);
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.stock_moves'))).toBe(
+      true,
+    );
+  });
+
+  it('pick fails OPEN when v_active_holds is absent (42P01) — clean LP still picks', async () => {
+    const { POST } = await import('../pick/route');
+    mockMoveQueries({ isPick: true, holdsViewMissing: true });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/pick', {
+        clientOpId: 'op-pick-holds-view-missing',
+        woId: ids.wo,
+        materialId: ids.material,
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, moveId: ids.move });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.stock_moves'))).toBe(
+      true,
+    );
   });
 
   const writeRouteLoaders = {
