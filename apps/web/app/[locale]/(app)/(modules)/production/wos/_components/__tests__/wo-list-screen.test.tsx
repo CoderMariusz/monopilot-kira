@@ -13,10 +13,23 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WoListScreen, type WoListLabels } from '../wo-list-screen';
 import type { WoListStatus, WorkOrderListItem } from '../../../_actions/list-work-orders';
+
+const downloadCsvMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../../../../../../lib/shared/download', async () => {
+  const actual = await vi.importActual<typeof import('../../../../../../../../lib/shared/download')>(
+    '../../../../../../../../lib/shared/download',
+  );
+  return {
+    ...actual,
+    downloadCsv: downloadCsvMock,
+    isoDateStamp: () => '2026-06-26',
+  };
+});
 
 const LABELS: WoListLabels = {
   title: 'Work orders',
@@ -76,6 +89,7 @@ const ROWS: WorkOrderListItem[] = [
     outputKg: 600,
     progressPct: 50,
     allergenGate: true,
+    overProductionFlagged: true,
     scheduledStart: '2026-06-10T06:00:00.000Z',
     scheduledEnd: '2026-06-10T14:00:00.000Z',
   },
@@ -93,6 +107,7 @@ const ROWS: WorkOrderListItem[] = [
     outputKg: null,
     progressPct: null,
     allergenGate: false,
+    overProductionFlagged: false,
     scheduledStart: null,
     scheduledEnd: null,
   },
@@ -122,6 +137,10 @@ function renderScreen(rows = ROWS) {
 }
 
 describe('WoListScreen (parity: wo-list.jsx:4-106)', () => {
+  beforeEach(() => {
+    downloadCsvMock.mockClear();
+  });
+
   it('renders status tabs with counts (all + the live states)', () => {
     renderScreen();
     expect(screen.getByTestId('wo-tab-all')).toHaveTextContent('All2');
@@ -160,6 +179,21 @@ describe('WoListScreen (parity: wo-list.jsx:4-106)', () => {
     fireEvent.change(screen.getByTestId('wo-list-search'), { target: { value: '0002' } });
     expect(screen.queryByTestId(`wo-row-${ROWS[0]!.id}`)).not.toBeInTheDocument();
     expect(screen.getByTestId(`wo-row-${ROWS[1]!.id}`)).toBeInTheDocument();
+  });
+
+  it('exports the currently visible WO rows to CSV', () => {
+    renderScreen();
+    fireEvent.change(screen.getByTestId('wo-list-search'), { target: { value: '0001' } });
+    fireEvent.click(screen.getByTestId('wo-list-export-csv'));
+
+    expect(downloadCsvMock).toHaveBeenCalledTimes(1);
+    expect(downloadCsvMock).toHaveBeenCalledWith(
+      [
+        'WO Number,Product,Status,Qty,Line,Planned Start,Planned End,Over-Produced',
+        'WO-2026-0001,Test Product A (FG-TEST-01),In progress,"1,200 kg",LINE-1,2026-06-10 06:00,2026-06-10 14:00,Yes',
+      ].join('\r\n'),
+      'production-wos-2026-06-26.csv',
+    );
   });
 
   it('renders the per-row action DISABLED (deferred mutation slot)', () => {

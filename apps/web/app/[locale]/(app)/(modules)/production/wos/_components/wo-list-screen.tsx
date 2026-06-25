@@ -30,6 +30,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type { WoListStatus, WorkOrderListItem } from '../../_actions/list-work-orders';
 import { WoRowActions } from './modals/wo-row-actions';
 import type {
@@ -133,6 +134,26 @@ function detailHref(locale: string, id: string): string {
   return `/${locale}/production/wos/${id}`;
 }
 
+const WO_CSV_HEADERS = [
+  'WO Number',
+  'Product',
+  'Status',
+  'Qty',
+  'Line',
+  'Planned Start',
+  'Planned End',
+  'Over-Produced',
+] as const;
+
+function productCsvValue(row: WorkOrderListItem): string {
+  if (row.productName && row.itemCode) return `${row.productName} (${row.itemCode})`;
+  return row.productName ?? row.itemCode ?? '';
+}
+
+function lineCsvValue(row: WorkOrderListItem): string {
+  return row.lineCode ?? (row.lineId ? row.lineId.slice(0, 8) : '');
+}
+
 export function WoListScreen({
   rows,
   statusCounts,
@@ -169,6 +190,20 @@ export function WoListScreen({
           (r.productName ?? '').toLowerCase().includes(q)),
     );
   }, [rows, tab, search, overProducedOnly]);
+
+  function exportCsv() {
+    const csvRows = visible.map((row) => [
+      row.woNumber,
+      productCsvValue(row),
+      labels.status[row.status],
+      `${fmtQty(row.plannedQty)} ${row.uom}`,
+      lineCsvValue(row),
+      fmtDate(row.scheduledStart),
+      fmtDate(row.scheduledEnd),
+      row.overProductionFlagged ? 'Yes' : 'No',
+    ]);
+    downloadCsv(toCsv(WO_CSV_HEADERS, csvRows), `production-wos-${isoDateStamp()}.csv`);
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -218,6 +253,14 @@ export function WoListScreen({
         <span className="ml-auto text-xs text-slate-500" data-testid="wo-list-rows">
           {labels.rowsLabel.replace('{count}', String(visible.length))}
         </span>
+        <button
+          type="button"
+          data-testid="wo-list-export-csv"
+          onClick={exportCsv}
+          className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Export CSV
+        </button>
         <button
           type="button"
           aria-pressed={overProducedOnly}
