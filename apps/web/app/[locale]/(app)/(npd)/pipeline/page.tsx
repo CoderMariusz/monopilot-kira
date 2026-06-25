@@ -253,16 +253,17 @@ const DEFAULT_KPI_LABELS: PipelineKpiLabels = {
  */
 async function buildLabelSet<T extends Record<string, string>>(
   locale: string,
-  namespace: string,
+  group: string,
   defaults: T,
 ): Promise<T> {
   try {
-    const t = await getTranslations({ locale, namespace });
+    const t = await getTranslations({ locale, namespace: 'npd.pipeline' });
     const keys = Object.keys(defaults) as Array<keyof T>;
     return keys.reduce((acc, key) => {
       try {
-        const value = t(key as string);
-        acc[key] = (value === (key as string) ? defaults[key] : (value as T[keyof T]));
+        const keyPath = `${group}.${String(key)}`;
+        const value = t(keyPath);
+        acc[key] = (value === keyPath ? defaults[key] : (value as T[keyof T]));
       } catch {
         acc[key] = defaults[key];
       }
@@ -274,7 +275,7 @@ async function buildLabelSet<T extends Record<string, string>>(
 }
 
 function buildLabels(locale: string): Promise<KanbanLabels> {
-  return buildLabelSet(locale, 'npd.pipelineKanban', DEFAULT_LABELS);
+  return buildLabelSet(locale, 'kanban', DEFAULT_LABELS);
 }
 
 function toKanbanProject(summary: ProjectSummary): KanbanProject {
@@ -407,10 +408,10 @@ export default async function PipelinePage(propsInput: unknown = {}) {
   const [kanbanLabels, tableLabels, splitLabels, switcherLabels, kpiLabels] =
     await Promise.all([
       buildLabels(locale),
-      buildLabelSet(locale, 'npd.pipelineTable', DEFAULT_TABLE_LABELS),
-      buildLabelSet(locale, 'npd.pipelineSplit', DEFAULT_SPLIT_LABELS),
-      buildLabelSet(locale, 'npd.pipelineSwitcher', DEFAULT_SWITCHER_LABELS),
-      buildLabelSet(locale, 'npd.pipelineKpi', DEFAULT_KPI_LABELS),
+      buildLabelSet(locale, 'table', DEFAULT_TABLE_LABELS),
+      buildLabelSet(locale, 'split', DEFAULT_SPLIT_LABELS),
+      buildLabelSet(locale, 'switcher', DEFAULT_SWITCHER_LABELS),
+      buildLabelSet(locale, 'kpi', DEFAULT_KPI_LABELS),
     ]);
 
   const injected = Array.isArray(props.projects);
