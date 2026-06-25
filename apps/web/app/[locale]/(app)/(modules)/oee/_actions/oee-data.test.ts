@@ -43,11 +43,13 @@ beforeEach(() => {
 });
 
 describe('getOeeScreen site filter (14-multi-site CL4)', () => {
-  it('binds NULL site and a default window in all three snapshot queries when called with no input', async () => {
+  it('binds NULL site and a default window in all snapshot queries when called with no input', async () => {
     const result = await getOeeScreen();
     expect(result.ok).toBe(true);
-    expect(calls).toHaveLength(3); // kpis + lines + recent
-    for (const call of calls) {
+    expect(calls).toHaveLength(5); // kpis + thresholds + trend + lines + recent
+    const snapshotCalls = calls.filter((call) => call.sql.includes('from public.oee_snapshots'));
+    expect(snapshotCalls).toHaveLength(4);
+    for (const call of snapshotCalls) {
       expect(call.sql).toContain('site_id = $1::uuid');
       expect(call.sql).toContain('snapshot_minute >= $2::timestamptz');
       expect(call.sql).toContain('snapshot_minute <= $3::timestamptz');
@@ -56,12 +58,16 @@ describe('getOeeScreen site filter (14-multi-site CL4)', () => {
       expect(call.params[1]).toBeInstanceOf(Date);
       expect(call.params[2]).toBeInstanceOf(Date);
     }
+    const thresholdCall = calls.find((call) => call.sql.includes('from public.oee_alert_thresholds'));
+    expect(thresholdCall?.sql).toContain('org_id = app.current_org_id()');
+    expect(thresholdCall?.sql).toContain('line_id is null');
+    expect(thresholdCall?.params).toEqual([null]);
   });
 
-  it('binds the site uuid in all three snapshot queries when siteId is set', async () => {
+  it('binds the site uuid in all OEE data queries when siteId is set', async () => {
     const result = await getOeeScreen({ siteId: SITE_ID });
     expect(result.ok).toBe(true);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(5);
     for (const call of calls) {
       expect(call.params[0]).toBe(SITE_ID);
     }
@@ -78,8 +84,10 @@ describe('getOeeScreen site filter (14-multi-site CL4)', () => {
   it('uses a custom from/to window instead of the default 7-day interval', async () => {
     const result = await getOeeScreen({ window: { from: FROM, to: TO } });
     expect(result.ok).toBe(true);
-    expect(calls).toHaveLength(3);
-    for (const call of calls) {
+    expect(calls).toHaveLength(5);
+    const snapshotCalls = calls.filter((call) => call.sql.includes('from public.oee_snapshots'));
+    expect(snapshotCalls).toHaveLength(4);
+    for (const call of snapshotCalls) {
       expect(call.sql).not.toContain("interval '7 days'");
       expect(call.params).toEqual([null, FROM, TO]);
     }

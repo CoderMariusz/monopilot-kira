@@ -65,8 +65,25 @@ export type OeeSnapshotRow = {
   wasteKg: string | null;
 };
 
+export type OeeAlertThresholds = {
+  targetOee: string | null;
+  minAvailability: string | null;
+  minPerformance: string | null;
+  minQuality: string | null;
+};
+
+export type OeeTrendPoint = {
+  snapshotMinute: string;
+  availability: string | null;
+  performance: string | null;
+  quality: string | null;
+  oee: string | null;
+};
+
 export type OeeScreenData = {
   kpis: OeeKpis;
+  thresholds: OeeAlertThresholds;
+  trend: OeeTrendPoint[];
   lines: OeeLineRow[];
   recent: OeeSnapshotRow[];
 };
@@ -170,6 +187,76 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
         avgPerformance: k?.avg_p ?? null,
         avgQuality: k?.avg_q ?? null,
       };
+
+      // Org/site default thresholds. line_id NULL = org/site default; when a site
+      // is selected, prefer its threshold row and fall back to the org default.
+      const thresholdsRes = await c.query<{
+        oee_target_pct: string | null;
+        availability_min_pct: string | null;
+        performance_min_pct: string | null;
+        quality_min_pct: string | null;
+      }>(
+        `select oee_target_pct::text,
+                availability_min_pct::text,
+                performance_min_pct::text,
+                quality_min_pct::text
+           from public.oee_alert_thresholds
+          where org_id = app.current_org_id()
+            and line_id is null
+            and is_active = true
+            and (
+              ($1::uuid is null and site_id is null)
+              or ($1::uuid is not null and (site_id = $1::uuid or site_id is null))
+            )
+          order by case when site_id = $1::uuid then 0 else 1 end,
+                   updated_at desc
+          limit 1`,
+        [siteId],
+      );
+      const thresholdRow = thresholdsRes.rows[0];
+      const thresholds: OeeAlertThresholds = {
+        targetOee: thresholdRow?.oee_target_pct ?? null,
+        minAvailability: thresholdRow?.availability_min_pct ?? null,
+        minPerformance: thresholdRow?.performance_min_pct ?? null,
+        minQuality: thresholdRow?.quality_min_pct ?? null,
+      };
+
+      // Bounded trend series — oldest to newest, averaged per snapshot minute
+      // across the selected site/all-site scope.
+      const trendRes = await c.query<{
+        snapshot_minute: string;
+        a: string | null;
+        p: string | null;
+        q: string | null;
+        oee: string | null;
+      }>(
+        `with latest as (
+           select s.snapshot_minute,
+                  round(avg(s.availability_pct), 1)::text as a,
+                  round(avg(s.performance_pct), 1)::text as p,
+                  round(avg(s.quality_pct), 1)::text as q,
+                  round(avg(s.oee_pct), 1)::text as oee
+             from public.oee_snapshots s
+            where s.org_id = app.current_org_id()
+              and s.snapshot_minute >= $2::timestamptz
+              and s.snapshot_minute <= $3::timestamptz
+              and ($1::uuid is null or s.site_id = $1::uuid)
+            group by s.snapshot_minute
+            order by s.snapshot_minute desc
+            limit 60
+         )
+         select snapshot_minute, a, p, q, oee
+           from latest
+          order by snapshot_minute asc`,
+        [siteId, window.from, window.to],
+      );
+      const trend: OeeTrendPoint[] = trendRes.rows.map((r) => ({
+        snapshotMinute: r.snapshot_minute,
+        availability: r.a,
+        performance: r.p,
+        quality: r.q,
+        oee: r.oee,
+      }));
 
       // Per-line aggregates — selected date window. line_id stores the production line
       // uuid as text ('unassigned' fallback); resolve code/name where it matches.
@@ -277,7 +364,7 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
         wasteKg: r.waste_kg,
       }));
 
-      return { ok: true, data: { kpis, lines, recent } };
+      return { ok: true, data: { kpis, thresholds, trend, lines, recent } };
     });
   } catch (error) {
     console.error('[oee] read failed:', error);

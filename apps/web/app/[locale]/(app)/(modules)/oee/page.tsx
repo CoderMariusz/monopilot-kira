@@ -34,6 +34,7 @@ import {
   type ReportingSearchParams,
   type ReportingWindow,
 } from '../reporting/_lib/period';
+import { Sparkline, type SparklinePoint } from '../production/_components/sparkline';
 import { getOeeScreen } from './_actions/oee-data';
 import {
   OeeLinesTable,
@@ -69,19 +70,81 @@ function KpiTile({
   label,
   value,
   sub,
+  badge,
+  trend,
+  trendLabel,
 }: {
   testid: string;
   label: string;
   value: string;
   sub?: string;
+  badge?: { label: string; className: string };
+  trend?: SparklinePoint[];
+  trendLabel?: string;
 }) {
   return (
     <Card data-testid={testid} className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+        {badge ? (
+          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
+            {badge.label}
+          </span>
+        ) : null}
+      </div>
       <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{value}</div>
       {sub ? <div className="mt-1 text-xs text-slate-500">{sub}</div> : null}
+      {trend?.length ? (
+        <div className="mt-3 h-12 overflow-hidden rounded-md bg-slate-50">
+          <Sparkline points={trend} color="#0f172a" ariaLabel={trendLabel ?? label} />
+        </div>
+      ) : null}
     </Card>
   );
+}
+
+function parsePct(value: string | null): number | null {
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function ragBadge(actual: string | null, target: string | null) {
+  const actualPct = parsePct(actual);
+  const targetPct = parsePct(target);
+  if (actualPct == null || targetPct == null) {
+    return {
+      label: '—',
+      className: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+    };
+  }
+  if (actualPct >= targetPct) {
+    return {
+      label: `≥${targetPct}%`,
+      className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    };
+  }
+  // Mirrors the production dashboard's 85→60 amber band as a target-relative
+  // 25 point warning band, with red below that floor.
+  if (actualPct >= Math.max(0, targetPct - 25)) {
+    return {
+      label: `≥${targetPct}%`,
+      className: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    };
+  }
+  return {
+    label: `≥${targetPct}%`,
+    className: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+  };
+}
+
+function trendPoints(
+  rows: { snapshotMinute: string; value: string | null }[],
+): SparklinePoint[] {
+  return rows.flatMap((row) => {
+    const value = parsePct(row.value);
+    return value == null ? [] : [{ value, label: row.snapshotMinute }];
+  });
 }
 
 function AndonHubCard({
@@ -162,7 +225,7 @@ async function OeeContent({ window }: { window: ReportingWindow }) {
     );
   }
 
-  const { kpis, lines, recent } = result.data;
+  const { kpis, thresholds, trend, lines, recent } = result.data;
 
   // Honest empty state — no snapshots have ever been produced for this org.
   if (kpis.snapshotCount === 0 && recent.length === 0) {
@@ -178,6 +241,17 @@ async function OeeContent({ window }: { window: ReportingWindow }) {
   }
 
   const pct = (v: string | null) => (v == null ? '—' : `${v}%`);
+  const sub = `${t('kpi.window')} · ${t('kpi.snapshots')}: ${kpis.snapshotCount}`;
+  const oeeTrend = trendPoints(trend.map((row) => ({ snapshotMinute: row.snapshotMinute, value: row.oee })));
+  const availabilityTrend = trendPoints(
+    trend.map((row) => ({ snapshotMinute: row.snapshotMinute, value: row.availability })),
+  );
+  const performanceTrend = trendPoints(
+    trend.map((row) => ({ snapshotMinute: row.snapshotMinute, value: row.performance })),
+  );
+  const qualityTrend = trendPoints(
+    trend.map((row) => ({ snapshotMinute: row.snapshotMinute, value: row.quality })),
+  );
 
   const dtf = new Intl.DateTimeFormat(locale, {
     month: 'short',
@@ -224,24 +298,41 @@ async function OeeContent({ window }: { window: ReportingWindow }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiTile testid="oee-kpi-oee" label={t('kpi.oee')} value={pct(kpis.avgOee)} sub={t('kpi.window')} />
+        <KpiTile
+          testid="oee-kpi-oee"
+          label={t('kpi.oee')}
+          value={pct(kpis.avgOee)}
+          sub={sub}
+          badge={ragBadge(kpis.avgOee, thresholds.targetOee)}
+          trend={oeeTrend}
+          trendLabel={t('col.oee')}
+        />
         <KpiTile
           testid="oee-kpi-availability"
           label={t('kpi.availability')}
           value={pct(kpis.avgAvailability)}
-          sub={t('kpi.window')}
+          sub={sub}
+          badge={ragBadge(kpis.avgAvailability, thresholds.minAvailability)}
+          trend={availabilityTrend}
+          trendLabel={t('col.availability')}
+        />
+        <KpiTile
+          testid="oee-kpi-performance"
+          label={t('col.performance')}
+          value={pct(kpis.avgPerformance)}
+          sub={sub}
+          badge={ragBadge(kpis.avgPerformance, thresholds.minPerformance)}
+          trend={performanceTrend}
+          trendLabel={t('col.performance')}
         />
         <KpiTile
           testid="oee-kpi-quality"
           label={t('kpi.quality')}
           value={pct(kpis.avgQuality)}
-          sub={t('kpi.window')}
-        />
-        <KpiTile
-          testid="oee-kpi-snapshots"
-          label={t('kpi.snapshots')}
-          value={String(kpis.snapshotCount)}
-          sub={t('kpi.window')}
+          sub={sub}
+          badge={ragBadge(kpis.avgQuality, thresholds.minQuality)}
+          trend={qualityTrend}
+          trendLabel={t('col.quality')}
         />
       </div>
 
