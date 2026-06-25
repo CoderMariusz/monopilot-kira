@@ -46,7 +46,8 @@ function formatShelfLife(days: number | null): string {
   return days === null ? '—' : `${days} d`;
 }
 
-export default async function FactorySpecsPage() {
+export default async function FactorySpecsPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
   const t = await getTranslations('Technical.factorySpecs');
   const tTechnical = await getTranslations('technical.dashboard.breadcrumb');
   const { specs, canApprove, canRecall, state } = await listFactorySpecs();
@@ -56,7 +57,7 @@ export default async function FactorySpecsPage() {
   return (
     <main data-screen="technical-factory-specs" className="flex w-full flex-col gap-4 px-6 py-6">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/technical">{tTechnical('technical')}</Link> / {t('title')}
+        <Link href={`/${locale}/technical`}>{tTechnical('technical')}</Link> / {t('title')}
       </nav>
 
       <header className="flex items-start justify-between gap-4">

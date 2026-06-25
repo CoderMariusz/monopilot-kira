@@ -53,7 +53,8 @@ function buildLabels(t: Translator): RoutingsLabels {
   }, {} as RoutingsLabels);
 }
 
-export default async function TechnicalRoutingsPage() {
+export default async function TechnicalRoutingsPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
   const { items, lines, machines, operationNames, canWrite, canApprove, state } = await listRoutingItems();
   const t = await getTranslations('technical.routings');
   const labels = buildLabels(t);
@@ -61,7 +62,7 @@ export default async function TechnicalRoutingsPage() {
   return (
     <main data-screen="technical-routings" className="flex w-full flex-col gap-4 px-6 py-6">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/technical">{t('breadcrumbRoot')}</Link> / {t('title')}
+        <Link href={`/${locale}/technical`}>{t('breadcrumbRoot')}</Link> / {t('title')}
       </nav>
 
       <header className="flex items-start justify-between gap-4">

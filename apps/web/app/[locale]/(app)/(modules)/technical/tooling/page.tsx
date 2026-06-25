@@ -50,7 +50,8 @@ function buildLabels(t: Translator): ToolingListLabels {
   };
 }
 
-export default async function TechnicalToolingPage() {
+export default async function TechnicalToolingPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
   const { setups, canWrite, state } = await listToolingSetups();
   const t = await getTranslations('technical.tooling');
   const labels = buildLabels(t);
@@ -58,7 +59,7 @@ export default async function TechnicalToolingPage() {
   return (
     <main data-screen="technical-tooling" className="flex w-full flex-col gap-4 px-6 py-6">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/technical">Technical</Link> / {t('title')}
+        <Link href={`/${locale}/technical`}>Technical</Link> / {t('title')}
       </nav>
 
       <header className="flex items-start justify-between gap-4">

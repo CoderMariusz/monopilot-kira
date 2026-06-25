@@ -56,10 +56,13 @@ function asFilter(value: string | string[] | undefined): EcoFilter {
 }
 
 export default async function EcoPage({
+  params = Promise.resolve({ locale: 'en' }),
   searchParams,
 }: {
+  params?: Promise<{ locale: string }>;
   searchParams: Promise<{ status?: string | string[] }>;
 }) {
+  const { locale } = await params;
   const t = await getTranslations('Technical.eco');
   const sp = await searchParams;
   const filter = asFilter(sp.status);
@@ -72,7 +75,7 @@ export default async function EcoPage({
   return (
     <main data-screen="technical-eco" className="flex w-full flex-col gap-4 px-6 py-6">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/technical">Technical</Link> / {tl('breadcrumb', 'Change control')}
+        <Link href={`/${locale}/technical`}>Technical</Link> / {tl('breadcrumb', 'Change control')}
       </nav>
 
       <header className="flex items-start justify-between gap-4">
