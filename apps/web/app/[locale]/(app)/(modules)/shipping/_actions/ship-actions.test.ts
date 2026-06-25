@@ -21,11 +21,19 @@ const FIXED_NOW = '2026-06-23T12:34:56.000Z';
 let client: QueryClient;
 let allowPermission = true;
 let shipmentStatus = 'packed';
+let shipmentShipCasSucceeds = true;
 let boxCount = 1;
-let lpRows: Array<{ lp_id: string; lp_number: string | null }> = [];
+let lpRows: Array<{
+  lp_id: string;
+  lp_number: string | null;
+  shipped_qty: string;
+  prior_status: string;
+  prior_reserved_qty: string;
+}> = [];
 let packedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedLpIds: string[] = [];
+let shippedLpSnapshot: Array<Record<string, unknown>> = [];
 let salesOrderUpdate: Record<string, unknown> | null = null;
 let bolUpdate: Record<string, unknown> | null = null;
 let podUpdate: Record<string, unknown> | null = null;
@@ -78,7 +86,7 @@ function makeClient(): QueryClient {
         return { rows: [{ id: SHIPMENT_ID, status: shipmentStatus }], rowCount: 1 };
       }
 
-      if (q.startsWith('select distinct lp.id::text as lp_id')) {
+      if (q.startsWith('select lp.id::text as lp_id')) {
         return { rows: lpRows, rowCount: lpRows.length };
       }
 
@@ -92,6 +100,9 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.shipments') && q.includes("set status = 'shipped'")) {
+        if (!shipmentShipCasSucceeds) {
+          return { rows: [], rowCount: 0 };
+        }
         shippedShipmentUpdate = {
           shipment_id: params[0],
           shipped_by: params[1],
@@ -100,9 +111,23 @@ function makeClient(): QueryClient {
         return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
-      if (q.startsWith('update public.license_plates')) {
-        shippedLpIds = [...((params[0] as string[]) ?? [])];
-        return { rows: shippedLpIds.map((id) => ({ id })), rowCount: shippedLpIds.length };
+      if (q.startsWith('with shipment_lps') && q.includes('update public.license_plates lp')) {
+        shippedLpIds = lpRows.map((row) => row.lp_id);
+        return {
+          rows: lpRows.map((row) => ({
+            id: row.lp_id,
+            shipped_qty: row.shipped_qty,
+            prior_status: row.prior_status,
+            prior_reserved_qty: row.prior_reserved_qty,
+          })),
+          rowCount: lpRows.length,
+        };
+      }
+
+      if (q.startsWith('update public.shipments') && q.includes('ext_data = coalesce') && q.includes("and status = 'shipped'")) {
+        shippedLpSnapshot = (JSON.parse(params[1] as string) as { shipped_license_plates: Array<Record<string, unknown>> })
+          .shipped_license_plates;
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('insert into public.outbox_events')) {
@@ -159,14 +184,16 @@ beforeEach(() => {
   vi.setSystemTime(new Date(FIXED_NOW));
   allowPermission = true;
   shipmentStatus = 'packed';
+  shipmentShipCasSucceeds = true;
   boxCount = 1;
   lpRows = [
-    { lp_id: LP_1, lp_number: 'LP-0001' },
-    { lp_id: LP_2, lp_number: 'LP-0002' },
+    { lp_id: LP_1, lp_number: 'LP-0001', shipped_qty: '3.000', prior_status: 'available', prior_reserved_qty: '3.000' },
+    { lp_id: LP_2, lp_number: 'LP-0002', shipped_qty: '2.000', prior_status: 'available', prior_reserved_qty: '2.000' },
   ];
   packedShipmentUpdate = null;
   shippedShipmentUpdate = null;
   shippedLpIds = [];
+  shippedLpSnapshot = [];
   salesOrderUpdate = null;
   bolUpdate = null;
   podUpdate = null;
@@ -191,6 +218,13 @@ describe('shipShipment', () => {
     expect(normalize(String(shippedShipmentUpdate?.sql))).toContain("status = 'shipped'");
     expect(normalize(String(shippedShipmentUpdate?.sql))).toContain('shipped_at = now()');
     expect(shippedLpIds).toEqual([LP_1, LP_2]);
+    const lpUpdateSql = queryLog.find(({ sql }) => normalize(sql).includes('update public.license_plates lp'))?.sql;
+    expect(normalize(String(lpUpdateSql))).toContain('quantity = lp.quantity - shipment_lps.shipped_qty');
+    expect(normalize(String(lpUpdateSql))).toContain('reserved_qty = greatest(0, lp.reserved_qty - shipment_lps.shipped_qty)');
+    expect(shippedLpSnapshot).toEqual([
+      { lp_id: LP_1, shipped_qty: '3.000', prior_status: 'available', prior_reserved_qty: '3.000' },
+      { lp_id: LP_2, shipped_qty: '2.000', prior_status: 'available', prior_reserved_qty: '2.000' },
+    ]);
     expect(outboxEvents).toHaveLength(2);
     expect(outboxEvents.map((event) => event.eventType)).toEqual(['warehouse.lp.shipped', 'warehouse.lp.shipped']);
     expect(outboxEvents.map((event) => event.aggregateType)).toEqual(['license_plate', 'license_plate']);
@@ -217,6 +251,15 @@ describe('shipShipment', () => {
     expect(shippedLpIds).toEqual([]);
     expect(outboxEvents).toEqual([]);
     expect(salesOrderUpdate).toBeNull();
+  });
+
+  it('double-ship is rejected and LP is decremented exactly once', async () => {
+    await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: true });
+
+    shipmentShipCasSucceeds = false;
+
+    await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: false, error: 'persistence_failed' });
+    expect(queryLog.filter(({ sql }) => normalize(sql).includes('update public.license_plates lp'))).toHaveLength(1);
   });
 });
 

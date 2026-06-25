@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { signEvent } from '@monopilot/e-sign';
 import { cancelShipment, unpackShipment, voidPod } from './cancelShipment';
+import { shipShipment } from './ship-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -33,6 +34,9 @@ let client: QueryClient;
 let permissions: Set<string>;
 let shipment: ShipmentState;
 let lpStatus = 'shipped';
+let lpQuantity = '4.000';
+let lpReservedQty = '0.000';
+let lpShipSnapshot: Array<Record<string, unknown>> = [];
 let allocations: Array<{ id: string; lp_id: string; qty: string; status: string }>;
 let recomputeAllocationCount = 0;
 let financialRows: Array<{ table_name: string; has_shipment_id: boolean; has_sales_order_id: boolean; has_so_id: boolean }>;
@@ -41,7 +45,7 @@ let auditId = 9001;
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 let releasedAllocations: string[] = [];
 let reservedQtyUpdates: Array<{ lpId: unknown; qty: unknown }> = [];
-let lpStatusUpdates: Array<{ lpId: unknown; toStatus: unknown; fromStatus: unknown }> = [];
+let lpRestoreUpdates: Array<{ lpId: unknown; shippedQty: unknown; reservedQty: unknown; toStatus: unknown }> = [];
 let lpTransitions: Array<{ fromStatus: unknown; toStatus: unknown }> = [];
 let shipmentStatusUpdates: string[] = [];
 let salesOrderStatusUpdates: string[] = [];
@@ -86,13 +90,55 @@ function makeClient(): QueryClient {
         return shipment ? { rows: [shipment], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
 
+      if (q.startsWith('select sh.id::text') && q.includes('box_count')) {
+        return shipment
+          ? {
+              rows: [{ id: shipment.id, status: shipment.status, sales_order_id: shipment.sales_order_id, box_count: 1 }],
+              rowCount: 1,
+            }
+          : { rows: [], rowCount: 0 };
+      }
+
       if (q.startsWith('select status from public.sales_orders')) {
         return shipment.sales_order_status ? { rows: [{ status: shipment.sales_order_status }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
 
       if (q.startsWith('select lp.id::text as lp_id')) {
         return {
-          rows: [{ lp_id: LP_ID, site_id: SITE_ID, from_status: lpStatus, reserved_qty: '12.000' }],
+          rows: [
+            {
+              lp_id: LP_ID,
+              lp_number: 'LP-1',
+              site_id: SITE_ID,
+              shipped_qty: '6.000',
+              prior_status: 'available',
+              from_status: lpStatus,
+              reserved_qty: lpReservedQty,
+              prior_reserved_qty: '6.000',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('with shipment_lps') && q.includes('shipment_lp_snapshots')) {
+        const snapshot = lpShipSnapshot[0] ?? {
+          lp_id: LP_ID,
+          shipped_qty: '6.000',
+          prior_status: 'available',
+          prior_reserved_qty: '6.000',
+        };
+        return {
+          rows: [
+            {
+              lp_id: LP_ID,
+              site_id: SITE_ID,
+              from_status: snapshot.prior_status,
+              shipped_qty: snapshot.shipped_qty,
+              reserved_qty: lpReservedQty,
+              prior_reserved_qty: snapshot.prior_reserved_qty,
+            },
+          ],
           rowCount: 1,
         };
       }
@@ -114,9 +160,21 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
-      if (q.startsWith('update public.license_plates') && q.includes('set status = $2')) {
-        lpStatusUpdates.push({ lpId: params[0], toStatus: params[1], fromStatus: params[3] });
-        lpStatus = String(params[1]);
+      if (q.startsWith('with shipment_lps') && q.includes('update public.license_plates lp')) {
+        lpQuantity = '4.000';
+        lpReservedQty = '0.000';
+        lpStatus = 'shipped';
+        return {
+          rows: [{ id: LP_ID, shipped_qty: '6.000', prior_status: 'available', prior_reserved_qty: '6.000' }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('update public.license_plates') && q.includes('quantity = quantity +')) {
+        lpRestoreUpdates.push({ lpId: params[0], shippedQty: params[1], reservedQty: params[2], toStatus: params[3] });
+        lpQuantity = '10.000';
+        lpReservedQty = String(params[2]);
+        lpStatus = String(params[3]);
         return { rows: [], rowCount: 1 };
       }
 
@@ -141,6 +199,18 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (q.startsWith('update public.shipments') && q.includes("set status = 'shipped'")) {
+        shipmentStatusUpdates.push('shipped');
+        shipment = { ...shipment, status: 'shipped' };
+        return { rows: [{ id: shipment.id }], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.shipments') && q.includes('ext_data = coalesce') && q.includes("and status = 'shipped'")) {
+        lpShipSnapshot = (JSON.parse(params[1] as string) as { shipped_license_plates: Array<Record<string, unknown>> })
+          .shipped_license_plates;
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.startsWith('with remaining_shipments')) {
         return {
           rows: [
@@ -162,7 +232,7 @@ function makeClient(): QueryClient {
         const nextStatus = q.includes("status = 'shipped'") ? 'shipped' : String(params[1]);
         salesOrderStatusUpdates.push(nextStatus);
         shipment = { ...shipment, sales_order_status: nextStatus };
-        return { rows: [], rowCount: 1 };
+        return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
       if (q.startsWith('insert into public.audit_events')) {
@@ -210,6 +280,9 @@ beforeEach(() => {
     bol_signed_pdf_url: 'https://example.test/pod.pdf',
   };
   lpStatus = 'shipped';
+  lpQuantity = '4.000';
+  lpReservedQty = '0.000';
+  lpShipSnapshot = [];
   allocations = [{ id: ALLOCATION_ID, lp_id: LP_ID, qty: '5.000', status: 'allocated' }];
   recomputeAllocationCount = 0;
   financialRows = [];
@@ -218,7 +291,7 @@ beforeEach(() => {
   queryLog = [];
   releasedAllocations = [];
   reservedQtyUpdates = [];
-  lpStatusUpdates = [];
+  lpRestoreUpdates = [];
   lpTransitions = [];
   shipmentStatusUpdates = [];
   salesOrderStatusUpdates = [];
@@ -236,10 +309,34 @@ describe('cancelShipment', () => {
     expect(result).toEqual({ ok: true });
     expect(releasedAllocations).toEqual([ALLOCATION_ID]);
     expect(reservedQtyUpdates).toEqual([{ lpId: LP_ID, qty: '5.000' }]);
-    expect(lpStatusUpdates).toEqual([{ lpId: LP_ID, toStatus: 'available', fromStatus: 'shipped' }]);
+    expect(lpRestoreUpdates).toEqual([{ lpId: LP_ID, shippedQty: '6.000', reservedQty: '6.000', toStatus: 'available' }]);
     expect(lpTransitions).toEqual([{ fromStatus: 'shipped', toStatus: 'available' }]);
     expect(shipmentStatusUpdates).toContain('cancelled');
     expect(salesOrderStatusUpdates).toEqual(['confirmed']);
+  });
+
+  it('ships by decrementing the LP quantity and cancel restores only that shipped delta once', async () => {
+    shipment = { ...shipment, status: 'packed', sales_order_status: 'packed' };
+    lpQuantity = '10.000';
+    lpReservedQty = '6.000';
+    allocations = [{ id: ALLOCATION_ID, lp_id: LP_ID, qty: '6.000', status: 'allocated' }];
+
+    await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: true });
+    expect(lpQuantity).toBe('4.000');
+    expect(lpReservedQty).toBe('0.000');
+    expect(lpStatus).toBe('shipped');
+    expect(lpShipSnapshot).toEqual([
+      { lp_id: LP_ID, shipped_qty: '6.000', prior_status: 'available', prior_reserved_qty: '6.000' },
+    ]);
+
+    await expect(cancelShipment(input())).resolves.toEqual({ ok: true });
+    expect(lpQuantity).toBe('10.000');
+    expect(lpReservedQty).toBe('6.000');
+    expect(lpStatus).toBe('available');
+
+    await expect(cancelShipment(input())).resolves.toEqual({ ok: true });
+    expect(lpRestoreUpdates).toHaveLength(1);
+    expect(lpQuantity).toBe('10.000');
   });
 
   it("rejects cancellation when the shipment is 'delivered'", async () => {
@@ -260,7 +357,7 @@ describe('cancelShipment', () => {
     expect(result).toEqual({ ok: false, error: 'esign_failed' });
     expect(releasedAllocations).toEqual([]);
     expect(reservedQtyUpdates).toEqual([]);
-    expect(lpStatusUpdates).toEqual([]);
+    expect(lpRestoreUpdates).toEqual([]);
     expect(shipmentStatusUpdates).toEqual([]);
     expect(salesOrderStatusUpdates).toEqual([]);
   });
@@ -328,7 +425,7 @@ describe('unpackShipment', () => {
     expect(boxContentsVoided).toBe(1);
     expect(boxesVoided).toBe(1);
     expect(shipmentStatusUpdates).toContain('packing');
-    expect(lpStatusUpdates).toEqual([]);
+    expect(lpRestoreUpdates).toEqual([]);
     expect(lpTransitions).toEqual([]);
     expect(queryLog.some(({ sql }) => normalize(sql).includes("status = 'picked'"))).toBe(false);
   });

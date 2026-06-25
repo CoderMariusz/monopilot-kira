@@ -53,7 +53,9 @@ type ShipmentLpRow = {
   lp_id: string;
   site_id: string | null;
   from_status: string;
+  shipped_qty: string;
   reserved_qty: string;
+  prior_reserved_qty: string;
 };
 
 type AllocationRow = {
@@ -182,19 +184,42 @@ async function lockShipment(ctx: ShippingContext, shipmentId: string): Promise<S
 
 async function lockShipmentLps(ctx: ShippingContext, shipmentId: string): Promise<ShipmentLpRow[]> {
   const { rows } = await ctx.client.query<ShipmentLpRow>(
-    `select lp.id::text as lp_id,
-            lp.site_id::text,
-            lp.status as from_status,
-            lp.reserved_qty::text
+    `with shipment_lps as (
+       select sbc.license_plate_id,
+              sum(sbc.quantity)::numeric as shipped_qty
        from public.shipment_box_contents sbc
        join public.shipment_boxes sb on sb.id = sbc.shipment_box_id
         and sb.org_id = app.current_org_id()
         and sb.deleted_at is null
-       join public.license_plates lp on lp.id = sbc.license_plate_id
-        and lp.org_id = app.current_org_id()
       where sbc.org_id = app.current_org_id()
         and sbc.deleted_at is null
+        and sbc.quantity is not null
+        and sbc.quantity > 0
         and sb.shipment_id = $1::uuid
+      group by sbc.license_plate_id
+     ),
+     shipment_lp_snapshots as (
+       select snapshot.lp_id::uuid as lp_id,
+              snapshot.shipped_qty::numeric as shipped_qty,
+              snapshot.prior_status,
+              snapshot.prior_reserved_qty::numeric as prior_reserved_qty
+         from public.shipments sh
+        cross join lateral jsonb_to_recordset(coalesce(sh.ext_data->'shipped_license_plates', '[]'::jsonb))
+          as snapshot(lp_id text, shipped_qty text, prior_status text, prior_reserved_qty text)
+        where sh.org_id = app.current_org_id()
+          and sh.id = $1::uuid
+          and sh.deleted_at is null
+     )
+     select lp.id::text as lp_id,
+            lp.site_id::text,
+            coalesce(snapshot.prior_status, case when lp.status = 'shipped' then 'available' else lp.status end) as from_status,
+            coalesce(snapshot.shipped_qty, shipment_lps.shipped_qty)::text as shipped_qty,
+            lp.reserved_qty::text,
+            coalesce(snapshot.prior_reserved_qty, lp.reserved_qty)::text as prior_reserved_qty
+       from shipment_lps
+       join public.license_plates lp on lp.id = shipment_lps.license_plate_id
+        and lp.org_id = app.current_org_id()
+       left join shipment_lp_snapshots snapshot on snapshot.lp_id = lp.id
       for update of lp`,
     [shipmentId],
   );
@@ -531,6 +556,7 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
       if (!shipment) return { ok: false, error: 'not_found' };
       if (shipment.status === 'cancelled') return { ok: true };
       if (
+        shipment.status !== 'shipped' ||
         TERMINAL_SHIPMENT_STATUSES.has(shipment.status) ||
         CANCEL_BLOCKED_SO_STATUSES.has(shipment.sales_order_status ?? '')
       ) {
@@ -578,22 +604,21 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
       }
 
       for (const lp of lps) {
-        const toStatus = lp.from_status === 'shipped' ? 'available' : lp.from_status;
-        if (lp.from_status !== toStatus) {
-          const { rowCount } = await ctx.client.query(
-            `update public.license_plates
-                set status = $2,
-                    source_so_id = null,
-                    updated_at = now(),
-                    updated_by = $3::uuid
-              where org_id = app.current_org_id()
-                and id = $1::uuid
-                and status = $4`,
-            [lp.lp_id, toStatus, userId, lp.from_status],
-          );
-          if (rowCount !== 1) throw new ActionError('persistence_failed');
-          await writeLpTransition(ctx, shipment, lp, toStatus, parsed.reasonCode ?? null, parsed.note ?? null);
-        }
+        const { rowCount } = await ctx.client.query(
+          `update public.license_plates
+              set quantity = quantity + $2::numeric,
+                  reserved_qty = $3::numeric,
+                  status = $4,
+                  source_so_id = null,
+                  updated_at = now(),
+                  updated_by = $5::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and status = 'shipped'`,
+          [lp.lp_id, lp.shipped_qty, lp.prior_reserved_qty, lp.from_status, userId],
+        );
+        if (rowCount !== 1) throw new ActionError('persistence_failed');
+        await writeLpTransition(ctx, shipment, { ...lp, from_status: 'shipped' }, lp.from_status, parsed.reasonCode ?? null, parsed.note ?? null);
       }
 
       const { rowCount } = await ctx.client.query(
@@ -604,6 +629,7 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
+            and status = 'shipped'
             and deleted_at is null`,
         [
           shipment.id,

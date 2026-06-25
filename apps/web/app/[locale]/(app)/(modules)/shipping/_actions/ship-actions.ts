@@ -77,10 +77,21 @@ function toNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
-async function fetchShipmentLps(ctx: ShippingContext, shipmentId: string): Promise<Array<{ lp_id: string; lp_number: string | null }>> {
-  const { rows } = await ctx.client.query<{ lp_id: string; lp_number: string | null }>(
-    `select distinct lp.id::text as lp_id,
-            coalesce(lp.lp_code, lp.lp_number) as lp_number
+type ShipmentLpRow = {
+  lp_id: string;
+  lp_number: string | null;
+  shipped_qty: string;
+  prior_status: string;
+  prior_reserved_qty: string;
+};
+
+async function fetchShipmentLps(ctx: ShippingContext, shipmentId: string): Promise<ShipmentLpRow[]> {
+  const { rows } = await ctx.client.query<ShipmentLpRow>(
+    `select lp.id::text as lp_id,
+            coalesce(lp.lp_code, lp.lp_number) as lp_number,
+            sum(sbc.quantity)::text as shipped_qty,
+            lp.status as prior_status,
+            lp.reserved_qty::text as prior_reserved_qty
        from public.shipment_box_contents sbc
        join public.shipment_boxes sb on sb.id = sbc.shipment_box_id
         and sb.org_id = app.current_org_id()
@@ -89,7 +100,10 @@ async function fetchShipmentLps(ctx: ShippingContext, shipmentId: string): Promi
         and lp.org_id = app.current_org_id()
       where sbc.org_id = app.current_org_id()
         and sbc.deleted_at is null
+        and sbc.quantity is not null
+        and sbc.quantity > 0
         and sb.shipment_id = $1::uuid
+      group by lp.id, lp.lp_code, lp.lp_number, lp.status, lp.reserved_qty
       order by lp.id::text`,
     [shipmentId],
   );
@@ -213,18 +227,71 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
       );
       if (!updatedShipmentRows[0]) throw new ActionError('persistence_failed');
 
-      const { rows: updatedLpRows } = await ctx.client.query<{ id: string }>(
-        `update public.license_plates
-            set status = 'shipped',
-                reserved_qty = 0,
+      const { rows: updatedLpRows } = await ctx.client.query<{
+        id: string;
+        shipped_qty: string;
+        prior_status: string;
+        prior_reserved_qty: string;
+      }>(
+        `with shipment_lps as (
+           select sbc.license_plate_id as lp_id,
+                  sum(sbc.quantity)::numeric as shipped_qty,
+                  lp.status as prior_status,
+                  lp.reserved_qty as prior_reserved_qty
+             from public.shipment_box_contents sbc
+             join public.shipment_boxes sb on sb.id = sbc.shipment_box_id
+              and sb.org_id = app.current_org_id()
+              and sb.deleted_at is null
+             join public.license_plates lp on lp.id = sbc.license_plate_id
+              and lp.org_id = app.current_org_id()
+            where sbc.org_id = app.current_org_id()
+              and sbc.deleted_at is null
+              and sbc.quantity is not null
+              and sbc.quantity > 0
+              and sb.shipment_id = $1::uuid
+            group by sbc.license_plate_id, lp.status, lp.reserved_qty
+         )
+         update public.license_plates lp
+            set quantity = lp.quantity - shipment_lps.shipped_qty,
+                reserved_qty = greatest(0, lp.reserved_qty - shipment_lps.shipped_qty),
+                status = 'shipped',
                 updated_at = now(),
                 updated_by = $2::uuid
-          where org_id = app.current_org_id()
-            and id = any($1::uuid[])
-          returning id::text`,
-        [lpIds, userId],
+           from shipment_lps
+          where lp.org_id = app.current_org_id()
+            and lp.id = shipment_lps.lp_id
+            and lp.quantity >= shipment_lps.shipped_qty
+          returning lp.id::text,
+                    shipment_lps.shipped_qty::text,
+                    shipment_lps.prior_status,
+                    shipment_lps.prior_reserved_qty::text`,
+        [shipmentId, userId],
       );
       if (updatedLpRows.length !== lpIds.length) throw new ActionError('persistence_failed');
+
+      const { rowCount: snapshotRowCount } = await ctx.client.query(
+        `update public.shipments
+            set ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
+                updated_at = now(),
+                updated_by = $3::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'shipped'
+            and deleted_at is null`,
+        [
+          shipmentId,
+          JSON.stringify({
+            shipped_license_plates: updatedLpRows.map((row) => ({
+              lp_id: row.id,
+              shipped_qty: row.shipped_qty,
+              prior_status: row.prior_status,
+              prior_reserved_qty: row.prior_reserved_qty,
+            })),
+          }),
+          userId,
+        ],
+      );
+      if (snapshotRowCount !== 1) throw new ActionError('persistence_failed');
 
       for (const lpId of lpIds) {
         await ctx.client.query(
