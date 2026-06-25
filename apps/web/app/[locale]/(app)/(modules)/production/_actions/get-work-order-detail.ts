@@ -174,13 +174,12 @@ export type WoDetailHistoryEvent = {
 /** QA tab: inspection rows linked through wo_outputs plus direct WO holds. */
 export type WoDetailQaInspection = {
   id: string;
-  inspectionNumber: string;
   status: string;
-  inspectedAt: string | null;
+  result: string | null;
+  createdAt: string | null;
 };
 
 export type WoDetailQaHold = {
-  id: string;
   holdNumber: string;
   status: string;
   reason: string | null;
@@ -237,6 +236,8 @@ export type WorkOrderDetailData = {
   genealogyInputs: WoDetailGenealogyInput[];
   history: WoDetailHistoryEvent[];
   qa: WoDetailQa;
+  qaInspections?: WoDetailQaInspection[];
+  qaHolds?: WoDetailQaHold[];
   /**
    * E7 — the disassembly BOM's expected co-product OUTPUTS (bom_co_products).
    * Non-empty ONLY when the WO's active BOM has bom_type='disassembly'; empty for
@@ -554,40 +555,42 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         ),
         c.query<{
           id: string;
-          inspection_number: string;
           status: string;
-          inspected_at: string | Date | null;
+          result: string | null;
+          created_at: string | Date | null;
         }>(
           `select qi.id::text as id,
-                  qi.inspection_number,
                   qi.status,
-                  coalesce(qi.decided_at, qi.created_at) as inspected_at
+                  qi.result_notes as result,
+                  qi.created_at
              from public.quality_inspections qi
              join public.wo_outputs woo
                on qi.reference_type = 'wo_output'
               and woo.id = qi.reference_id
               and woo.org_id = qi.org_id
             where qi.org_id = app.current_org_id()
+              and qi.org_id = $2::uuid
               and woo.wo_id = $1::uuid
-            order by coalesce(qi.decided_at, qi.created_at) desc`,
-          [woId],
+            order by qi.created_at desc`,
+          [woId, ctx.orgId],
         ),
         c.query<{
-          id: string;
           hold_number: string;
           hold_status: string;
           reason: string | null;
         }>(
-          `select h.id::text as id,
-                  h.hold_number,
+          `select h.hold_number,
                   h.hold_status,
                   h.reason_free_text as reason
              from public.quality_holds h
             where h.org_id = app.current_org_id()
+              and h.org_id = $2::uuid
               and h.reference_type = 'wo'
               and h.reference_id = $1::uuid
+              and h.hold_status in ('open', 'investigating', 'escalated', 'quarantined')
+              and h.released_at is null
             order by h.created_at desc`,
-          [woId],
+          [woId, ctx.orgId],
         ),
       ]);
 
@@ -732,12 +735,11 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
 
       const inspections: WoDetailQaInspection[] = qaInspectionsRes.rows.map((r) => ({
         id: r.id,
-        inspectionNumber: r.inspection_number,
         status: r.status,
-        inspectedAt: toIso(r.inspected_at),
+        result: r.result,
+        createdAt: toIso(r.created_at),
       }));
       const holds: WoDetailQaHold[] = qaHoldsRes.rows.map((r) => ({
-        id: r.id,
         holdNumber: r.hold_number,
         status: r.hold_status,
         reason: r.reason,
@@ -836,6 +838,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           genealogyInputs,
           history,
           qa,
+          qaInspections: inspections,
+          qaHolds: holds,
           disassemblyOutputs,
           disassemblyInputLps,
           openChangeoverId,

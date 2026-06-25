@@ -614,8 +614,8 @@ export function WoDetailScreen({
   };
 
   const wasteTotalKg = data.waste.reduce((a, w) => a + w.qtyKg, 0);
-  const qaInspections = data.qa.inspections ?? [];
-  const qaHolds = data.qa.holds ?? [];
+  const qaInspections = data.qaInspections ?? data.qa.inspections ?? [];
+  const qaHolds = data.qaHolds ?? data.qa.holds ?? [];
 
   function releaseOutputQa(outputId: string, decision: ReleaseWoOutputQaDecision) {
     setBusyOutputId(outputId);
@@ -1227,69 +1227,84 @@ export function WoDetailScreen({
               <Kpi label={labels.qa.hold} value={String(data.qa.hold)} />
               <Kpi label={labels.qa.fail} value={String(data.qa.fail)} />
             </div>
-            {data.qa.total === 0 ? (
-              <p className="mt-4 text-center text-sm text-slate-500" data-testid="wo-qa-empty">
-                {labels.qa.empty}
-              </p>
-            ) : (
-              <div className="mt-4 space-y-4">
-                {qaInspections.length > 0 ? (
-                  <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Inspections ({qaInspections.length})
-                    </p>
-                    <Table aria-label="QA inspections">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead scope="col">Inspection</TableHead>
-                          <TableHead scope="col">Status</TableHead>
-                          <TableHead scope="col">Inspected</TableHead>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Inspections ({qaInspections.length})
+                </p>
+                <Table aria-label="QA inspections">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">Status</TableHead>
+                      <TableHead scope="col">Result</TableHead>
+                      <TableHead scope="col">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {qaInspections.length === 0 ? (
+                      <TableRow data-testid="wo-qa-empty">
+                        <TableCell colSpan={3} className="text-center text-sm text-slate-500">
+                          No inspections linked to this work order yet.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      qaInspections.map((inspection) => (
+                        <TableRow key={inspection.id} data-testid="wo-qa-inspection-row">
+                          <TableCell>
+                            <Badge variant="muted" className="text-[10px]">
+                              {inspection.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {inspection.result ?? 'No result recorded'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-500">
+                            {fmtDate(inspection.createdAt)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {qaInspections.map((inspection) => (
-                          <TableRow key={inspection.id} data-testid="wo-qa-inspection-row">
-                            <TableCell className="font-mono text-xs text-slate-700">
-                              {inspection.inspectionNumber}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="muted" className="text-[10px]">
-                                {inspection.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-slate-500">
-                              {fmtDate(inspection.inspectedAt)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : null}
-                {qaHolds.length > 0 ? (
-                  <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Holds ({qaHolds.length})
-                    </p>
-                    <ul className="flex flex-col gap-2">
-                      {qaHolds.map((hold) => (
-                        <li
-                          key={hold.id}
-                          data-testid="wo-qa-hold-row"
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2"
-                        >
-                          <span className="font-mono text-xs text-slate-700">{hold.holdNumber}</span>
-                          <span className="min-w-0 flex-1 text-sm text-slate-600">{hold.reason ?? 'No reason recorded'}</span>
-                          <Badge variant="warning" className="text-[10px]">
-                            {hold.status}
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-            )}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Active holds ({qaHolds.length})
+                </p>
+                <Table aria-label="QA active holds">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">Hold #</TableHead>
+                      <TableHead scope="col">Status</TableHead>
+                      <TableHead scope="col">Reason</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {qaHolds.length === 0 ? (
+                      <TableRow data-testid="wo-qa-holds-empty">
+                        <TableCell colSpan={3} className="text-center text-sm text-slate-500">
+                          No active holds linked to this work order.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      qaHolds.map((hold) => (
+                        <TableRow key={hold.holdNumber} data-testid="wo-qa-hold-row">
+                          <TableCell className="font-mono text-xs text-slate-700">{hold.holdNumber}</TableCell>
+                          <TableCell>
+                            <Badge variant="warning" className="text-[10px]">
+                              {hold.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {hold.reason ?? 'No reason recorded'}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </Card>
         </TabsContent>
 
