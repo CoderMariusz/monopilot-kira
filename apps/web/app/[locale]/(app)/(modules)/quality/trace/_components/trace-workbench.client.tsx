@@ -31,6 +31,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Select } from '@monopilot/ui/Select';
 
+import { downloadCsv, fileSafe, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type {
   RunTraceReportAction,
   StartRecallDrillAction,
@@ -42,6 +43,21 @@ import type {
   TraceReportView,
 } from './trace-contracts';
 import { DIRECTIONS, INPUT_TYPES, toDetailHref, type TraceLabels } from './labels';
+
+type TraceNodeCsvView = TraceNodeView & {
+  expiryDate?: string | null;
+  bestBeforeDate?: string | null;
+  qaStatus?: string | null;
+};
+
+type TraceReportCsvView = Omit<TraceReportView, 'nodes'> & {
+  nodes: TraceNodeCsvView[];
+  affectedCustomers?: Array<{
+    customerId: string;
+    customerName: string;
+    customerCode: string | null;
+  }>;
+};
 
 const NODE_VARIANT: Record<TraceNodeType, BadgeVariant> = {
   supplier: 'info',
@@ -129,7 +145,8 @@ export function TraceWorkbench({
       try {
         const raw = await runTraceReportAction({ inputType, inputRef: trimmedRef, direction });
         setReport(enrich(raw as TraceReportView));
-      } catch {
+      } catch (error) {
+        console.error('Trace report failed', error);
         setReport(null);
         setError(labels.states.errorTitle);
       }
@@ -153,10 +170,17 @@ export function TraceWorkbench({
         await completeRecallDrillAction(drillId, persisted as never);
         setReport(enrich(rawReport as TraceReportView));
         setDrillSaved(true);
-      } catch {
+      } catch (error) {
+        console.error('Recall drill save failed', error);
         setError(labels.drillSaveError);
       }
     });
+  }
+
+  function exportCsv() {
+    if (!report) return;
+    const csv = buildTraceReportCsv(report as TraceReportCsvView);
+    downloadCsv(csv, `quality-trace-${fileSafe(trimmedRef)}-${isoDateStamp()}.csv`);
   }
 
   const groupedNodes = useMemo(() => groupByChain(report?.nodes ?? []), [report]);
@@ -246,15 +270,25 @@ export function TraceWorkbench({
               {running ? labels.form.running : labels.form.run}
             </button>
             {report && (
-              <button
-                type="button"
-                data-testid="trace-save-drill"
-                disabled={savingDrill}
-                onClick={saveDrill}
-                className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition enabled:hover:bg-slate-50 disabled:opacity-50"
-              >
-                {savingDrill ? labels.form.savingDrill : labels.form.saveDrill}
-              </button>
+              <>
+                <button
+                  type="button"
+                  data-testid="trace-save-drill"
+                  disabled={savingDrill}
+                  onClick={saveDrill}
+                  className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition enabled:hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {savingDrill ? labels.form.savingDrill : labels.form.saveDrill}
+                </button>
+                <button
+                  type="button"
+                  data-testid="trace-export-csv"
+                  onClick={exportCsv}
+                  className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Export CSV
+                </button>
+              </>
             )}
           </div>
         </fieldset>
@@ -412,6 +446,47 @@ function NodeRow({ node, labels }: { node: TraceNodeView; labels: TraceLabels })
       {inner}
     </div>
   );
+}
+
+export function buildTraceReportCsv(report: TraceReportCsvView): string {
+  const header = ['section', 'node_id', 'type', 'ref', 'label', 'qty', 'uom', 'expiry_date', 'best_before_date', 'qa_status', 'customer_code', 'customer_name'];
+  const rows: Array<ReadonlyArray<string | number | null | undefined>> = [];
+
+  for (const node of report.nodes) {
+    rows.push([
+      'node',
+      node.nodeId,
+      node.type,
+      node.ref,
+      node.label,
+      node.qty,
+      node.uom,
+      node.expiryDate,
+      node.bestBeforeDate,
+      node.qaStatus,
+      null,
+      null,
+    ]);
+  }
+
+  for (const customer of report.affectedCustomers ?? []) {
+    rows.push([
+      'affected_customer',
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      customer.customerCode,
+      customer.customerName,
+    ]);
+  }
+
+  return toCsv(header, rows);
 }
 
 /** Groups nodes by their chain stage in CHAIN_ORDER (only non-empty stages). */

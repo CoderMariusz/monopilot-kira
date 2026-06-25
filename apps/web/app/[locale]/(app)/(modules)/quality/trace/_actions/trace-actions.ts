@@ -45,6 +45,9 @@ export type TraceNode = {
   label: string;
   qty: string | null;
   uom: string | null;
+  expiryDate?: string | null;
+  bestBeforeDate?: string | null;
+  qaStatus?: string | null;
 };
 
 export type TraceEdge = {
@@ -62,6 +65,7 @@ export type TraceReport = {
   nodes: TraceNode[];
   edges: TraceEdge[];
   flat: TraceFlatRow[];
+  affectedCustomers: TraceAffectedCustomer[];
   summary: {
     lpCount: number;
     woCount: number;
@@ -69,6 +73,12 @@ export type TraceReport = {
     customersAffected: number;
     totalKg: string;
   };
+};
+
+export type TraceAffectedCustomer = {
+  customerId: string;
+  customerName: string;
+  customerCode: string | null;
 };
 
 export type RecallDrill = {
@@ -104,7 +114,16 @@ type LpRow = {
   wo_id: string | null;
   consumed_by_wo_id: string | null;
   source_so_id: string | null;
+  expiry_date: string | null;
+  best_before_date: string | null;
+  qa_status: string | null;
   created_at: string;
+};
+
+type AffectedCustomerRow = {
+  customer_id: string;
+  customer_name: string;
+  customer_code: string | null;
 };
 
 type UpstreamRow = {
@@ -322,6 +341,9 @@ async function fetchLpRows(client: QueryClient, lpIds: string[]): Promise<Map<st
             lp.wo_id::text,
             lp.consumed_by_wo_id::text,
             lp.source_so_id::text,
+            to_char(lp.expiry_date, 'YYYY-MM-DD') as expiry_date,
+            to_char(lp.best_before_date, 'YYYY-MM-DD') as best_before_date,
+            lp.qa_status,
             lp.created_at::text
        from public.license_plates lp
        left join public.items i on i.org_id = app.current_org_id() and i.id = lp.product_id
@@ -331,6 +353,30 @@ async function fetchLpRows(client: QueryClient, lpIds: string[]): Promise<Map<st
     [lpIds],
   );
   return new Map(rows.map((row) => [row.id, row]));
+}
+
+async function fetchAffectedCustomers(client: QueryClient, sourceSoIds: string[]): Promise<TraceAffectedCustomer[]> {
+  if (sourceSoIds.length === 0) return [];
+  const { rows } = await client.query<AffectedCustomerRow>(
+    `select distinct
+            c.id::text as customer_id,
+            c.name as customer_name,
+            c.customer_code
+       from public.sales_orders so
+       join public.customers c
+         on c.org_id = app.current_org_id()
+        and c.id = so.customer_id
+      where so.org_id = app.current_org_id()
+        and so.id = any($1::uuid[])
+        and so.deleted_at is null
+      order by c.name asc, c.customer_code asc`,
+    [sourceSoIds],
+  );
+  return rows.map((row) => ({
+    customerId: row.customer_id,
+    customerName: row.customer_name,
+    customerCode: row.customer_code,
+  }));
 }
 
 async function fetchUpstreamRows(client: QueryClient, lpIds: string[]): Promise<Map<string, UpstreamRow>> {
@@ -529,6 +575,9 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
       label: lp?.item_code ? `${ref} / ${lp.item_code}` : ref,
       qty: lp?.quantity ?? genealogy?.quantity ?? null,
       uom: lp?.uom ?? genealogy?.uom ?? null,
+      expiryDate: lp?.expiry_date ?? null,
+      bestBeforeDate: lp?.best_before_date ?? null,
+      qaStatus: lp?.qa_status ?? null,
     });
     return nodeId;
   }
@@ -664,16 +713,18 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
     .map((lpId) => lpRows.get(lpId))
     .filter((lp): lp is LpRow => lp !== undefined && isKg(lp.uom))
     .map((lp) => lp.quantity);
+  const affectedCustomers = await fetchAffectedCustomers(ctx.client, unique([...lpRows.values()].map((lp) => lp.source_so_id)));
 
   return {
     nodes: nodeList,
     edges: edgeList,
     flat: nodeList.map(nodeFlat),
+    affectedCustomers,
     summary: {
       lpCount: lpNodeIds.length,
       woCount: nodeList.filter((node) => node.type === 'work_order').length,
       shipmentCount: nodeList.filter((node) => node.type === 'shipment_placeholder').length,
-      customersAffected: 0,
+      customersAffected: affectedCustomers.length,
       totalKg: addDecimalStrings(kgQuantities),
     },
   };
