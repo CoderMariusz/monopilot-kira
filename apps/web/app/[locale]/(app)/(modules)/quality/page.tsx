@@ -16,6 +16,7 @@ import { getTranslations } from "next-intl/server";
 
 import { getModuleCount } from "../_actions/skeleton-data";
 import { ModuleDataPanel } from "../_components/module-data-panel";
+import { getQualityDashboard } from "./_actions/get-quality-dashboard";
 import { getQaHoldsTranslator } from "./qa-holds-labels";
 
 // Org-scoped DB read per request — never statically prerendered.
@@ -49,8 +50,36 @@ export default async function QualityRoutePage({ params }: PageProps) {
   const tComplaints = await getTranslations("quality.complaints");
   // Cold-chain (gaps #9) nav copy from the LIVE next-intl catalog (quality.coldChain.nav).
   const tColdChain = await getTranslations("quality.coldChain");
+  const tDashboard = await getTranslations("quality.dashboardKpis");
   const s = await getTranslations("Skeleton");
+  const dashboard = await getQualityDashboard();
   const result = await getModuleCount("quality_event");
+  const kpis = [
+    {
+      key: "openHolds",
+      value: dashboard.openHolds.toLocaleString(locale),
+      title: tDashboard("openHolds.title"),
+      desc: tDashboard("openHolds.desc"),
+    },
+    {
+      key: "openNcrs",
+      value: dashboard.openNcrs.toLocaleString(locale),
+      title: tDashboard("openNcrs.title"),
+      desc: tDashboard("openNcrs.desc", { overdue: dashboard.overdueNcrs.toLocaleString(locale) }),
+    },
+    {
+      key: "passRate30d",
+      value: dashboard.passRate30d === null ? tDashboard("noData") : tDashboard("percent", { value: dashboard.passRate30d }),
+      title: tDashboard("passRate30d.title"),
+      desc: tDashboard("passRate30d.desc"),
+    },
+    {
+      key: "openCcpDeviations",
+      value: dashboard.openCcpDeviations.toLocaleString(locale),
+      title: tDashboard("openCcpDeviations.title"),
+      desc: tDashboard("openCcpDeviations.desc"),
+    },
+  ] as const;
 
   return (
     <section
@@ -66,6 +95,22 @@ export default async function QualityRoutePage({ params }: PageProps) {
         </h1>
         <p className="mt-1 text-sm text-slate-500">{tq("landing.subtitle")}</p>
       </div>
+
+      <section aria-label={tDashboard("label")}>
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {kpis.map((kpi) => (
+            <li
+              key={kpi.key}
+              data-testid={`quality-kpi-${kpi.key}`}
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <span className="text-sm font-medium text-slate-500">{kpi.title}</span>
+              <span className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{kpi.value}</span>
+              <span className="mt-1 text-sm text-slate-600">{kpi.desc}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <nav aria-label={tq("landing.nav.label")}>
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
