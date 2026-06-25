@@ -54,6 +54,8 @@ export type TransferOrderLine = {
   receivedDestLpId: string | null;
   receivedDestLpNumber: string | null;
   receivedQty: string | null;
+  canReverse: boolean;
+  reverseBlockReason: string | null;
 };
 
 export type TransferOrderDetail = {
@@ -207,7 +209,7 @@ export function ToDetailView({
   const [reverseTarget, setReverseTarget] = React.useState<ReverseReceiptTarget | null>(null);
 
   function openReverse(line: TransferOrderLine) {
-    if (!line.receivedDestLpId || line.receivedQty == null || line.receivedDestLpNumber == null) return;
+    if (!line.canReverse || !line.receivedDestLpId || line.receivedQty == null || line.receivedDestLpNumber == null) return;
     setReverseTarget({
       toId: transferOrder.id,
       toNumber: transferOrder.toNumber,
@@ -394,6 +396,12 @@ export function ToDetailView({
               <tbody>
                 {transferOrder.lines.map((l) => {
                   const isReceivedLine = !!l.receivedDestLpId && l.receivedQty != null;
+                  const showReverseButton = isReceivedLine && reverseSeamWired;
+                  const reverseDisabled = showReverseButton && (!canReverseReceipt || !l.canReverse);
+                  const reverseTooltip =
+                    showReverseButton && !canReverseReceipt
+                      ? labels.reverseReceipt.permissionTooltip
+                      : l.reverseBlockReason ?? labels.reverseReceipt?.notReceivableTooltip;
                   return (
                   <tr key={l.id} data-testid={`to-detail-line-${l.lineNo}`} className="border-b border-slate-100 last:border-0">
                     <td className="px-3 py-2 font-mono text-xs text-slate-500">{l.lineNo}</td>
@@ -436,14 +444,14 @@ export function ToDetailView({
                             </button>
                           </>
                         ) : null}
-                        {isReceivedLine && reverseSeamWired ? (
+                        {showReverseButton ? (
                           <button
                             type="button"
                             data-testid={`to-line-reverse-${l.id}`}
                             className="rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            disabled={!canReverseReceipt}
-                            title={canReverseReceipt ? undefined : labels.reverseReceipt.permissionTooltip}
-                            aria-disabled={!canReverseReceipt}
+                            disabled={reverseDisabled}
+                            title={reverseDisabled ? reverseTooltip : undefined}
+                            aria-disabled={reverseDisabled}
                             onClick={() => openReverse(l)}
                           >
                             {labels.reverseReceipt.action}

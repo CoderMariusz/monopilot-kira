@@ -123,6 +123,8 @@ function makeReceivedTo(over: Partial<TransferOrderDetail> = {}): TransferOrderD
         receivedDestLpId: '44444444-4444-4444-8444-444444444444',
         receivedDestLpNumber: 'LP-000123',
         receivedQty: '50',
+        canReverse: true,
+        reverseBlockReason: null,
       },
       // A not-yet-received line: must NOT get a reverse affordance.
       {
@@ -137,19 +139,23 @@ function makeReceivedTo(over: Partial<TransferOrderDetail> = {}): TransferOrderD
         receivedDestLpId: null,
         receivedDestLpNumber: null,
         receivedQty: null,
+        canReverse: false,
+        reverseBlockReason: null,
       },
     ],
     ...over,
   };
 }
 
-function renderDetail(opts: { canReverseReceipt?: boolean; reverse?: ReturnType<typeof vi.fn> } = {}) {
+function renderDetail(
+  opts: { canReverseReceipt?: boolean; reverse?: ReturnType<typeof vi.fn>; transferOrder?: TransferOrderDetail } = {},
+) {
   const reverse = opts.reverse ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
   const transition = vi.fn().mockResolvedValue({ ok: true, data: {} });
   const utils = render(
     <ToDetailView
       locale="en"
-      transferOrder={makeReceivedTo()}
+      transferOrder={opts.transferOrder ?? makeReceivedTo()}
       warehouses={warehouses}
       labels={labels}
       transitionTransferOrderStatusAction={transition}
@@ -181,6 +187,26 @@ describe('R4-CL1 — TO reverse received line', () => {
     const btn = screen.getByTestId('to-line-reverse-22222222-2222-4222-8222-222222222222');
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute('title', labels.reverseReceipt.permissionTooltip);
+  });
+
+  it('disables the reverse button with the loader blocker reason when the received line is not reversible', () => {
+    const transferOrder = makeReceivedTo({
+      lines: [
+        {
+          ...makeReceivedTo().lines[0],
+          canReverse: false,
+          reverseBlockReason: 'Destination pallet has reserved quantity and cannot be reversed.',
+        },
+      ],
+    });
+    const reverse = vi.fn().mockResolvedValue({ ok: true, data: {} });
+    renderDetail({ transferOrder, reverse });
+
+    const btn = screen.getByTestId('to-line-reverse-22222222-2222-4222-8222-222222222222');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Destination pallet has reserved quantity and cannot be reversed.');
+    fireEvent.click(btn);
+    expect(reverse).not.toHaveBeenCalled();
   });
 
   it('opens the modal with the human-readable target summary and a reason + e-sign field', () => {

@@ -160,8 +160,8 @@ function makeTo(over: Partial<TransferOrderDetail> = {}): TransferOrderDetail {
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-02T00:00:00.000Z',
     lines: [
-      { id: 'line-1', toId: 'to-1', itemId: 'item-1', itemCode: 'RM-001', itemName: 'Pork', qty: '50', uom: 'kg', lineNo: 1, receivedDestLpId: null, receivedDestLpNumber: null, receivedQty: null },
-      { id: 'line-2', toId: 'to-1', itemId: 'item-2', itemCode: 'RM-002', itemName: 'Casing', qty: '10', uom: 'm', lineNo: 2, receivedDestLpId: null, receivedDestLpNumber: null, receivedQty: null },
+      { id: 'line-1', toId: 'to-1', itemId: 'item-1', itemCode: 'RM-001', itemName: 'Pork', qty: '50', uom: 'kg', lineNo: 1, receivedDestLpId: null, receivedDestLpNumber: null, receivedQty: null, canReverse: false, reverseBlockReason: null },
+      { id: 'line-2', toId: 'to-1', itemId: 'item-2', itemCode: 'RM-002', itemName: 'Casing', qty: '10', uom: 'm', lineNo: 2, receivedDestLpId: null, receivedDestLpNumber: null, receivedQty: null, canReverse: false, reverseBlockReason: null },
     ],
     ...over,
   };

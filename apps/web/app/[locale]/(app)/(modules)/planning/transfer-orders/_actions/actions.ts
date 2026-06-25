@@ -55,6 +55,8 @@ type TransferOrderLineRow = {
   received_dest_lp_id: string | null;
   received_dest_lp_number: string | null;
   received_qty: string | null;
+  can_reverse: boolean;
+  reverse_block_reason: string | null;
 };
 
 type TransferOrderLine = {
@@ -72,6 +74,8 @@ type TransferOrderLine = {
   receivedDestLpNumber: string | null;
   /** R4-CL1: the received destination LP quantity, as a decimal string. */
   receivedQty: string | null;
+  canReverse: boolean;
+  reverseBlockReason: string | null;
 };
 
 type TransferOrder = {
@@ -149,6 +153,8 @@ function mapLine(row: TransferOrderLineRow): TransferOrderLine {
     receivedDestLpId: row.received_dest_lp_id ?? null,
     receivedDestLpNumber: row.received_dest_lp_number ?? null,
     receivedQty: row.received_qty == null ? null : String(row.received_qty),
+    canReverse: row.can_reverse === true,
+    reverseBlockReason: row.reverse_block_reason ?? null,
   };
 }
 
@@ -163,17 +169,70 @@ async function fetchLines(client: QueryClient, toId: string): Promise<TransferOr
             l.qty::text as qty, l.uom, l.line_no,
             tll.dest_lp_id::text as received_dest_lp_id,
             dst.lp_number as received_dest_lp_number,
-            dst.quantity::text as received_qty
+            dst.quantity::text as received_qty,
+            coalesce((
+              t.status in ('received', 'partially_received', 'in_transit')
+              and tll.dest_lp_id is not null
+              and src.id is not null
+              and dst.id is not null
+              and tll.qty = dst.quantity
+              and dst.reserved_qty = 0::numeric
+              and cardinality(coalesce(lp_blockers.blockers, array[]::text[])) = 0
+            ), false) as can_reverse,
+            case
+              when tll.dest_lp_id is null then null
+              when t.status not in ('received', 'partially_received', 'in_transit')
+                then 'Transfer order status does not allow reversal.'
+              when src.id is null or dst.id is null
+                then 'Received pallet link is no longer reversible.'
+              when tll.qty <> dst.quantity
+                then 'Reverse quantity must equal the received destination pallet quantity.'
+              when dst.reserved_qty <> 0::numeric
+                then 'Destination pallet has reserved quantity and cannot be reversed.'
+              when cardinality(coalesce(lp_blockers.blockers, array[]::text[])) > 0
+                then 'Destination pallet cannot be reversed because it has ' || array_to_string(lp_blockers.blockers, ', ') || '.'
+              else null
+            end as reverse_block_reason
        from public.transfer_order_lines l
+       join public.transfer_orders t
+         on t.org_id = app.current_org_id()
+        and t.id = l.to_id
        left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
        left join public.transfer_order_line_lps tll
          on tll.org_id = app.current_org_id()
         and tll.to_id = l.to_id
         and tll.to_line_id = l.id
         and tll.dest_lp_id is not null
+       left join public.license_plates src
+         on src.org_id = app.current_org_id()
+        and src.id = tll.source_lp_id
        left join public.license_plates dst
          on dst.org_id = app.current_org_id()
         and dst.id = tll.dest_lp_id
+       left join lateral (
+         select array_remove(array[
+           case when exists (
+             select 1
+               from public.inventory_allocations ia
+              where ia.org_id = app.current_org_id()
+                and ia.license_plate_id = tll.dest_lp_id
+           ) then 'allocations'::text end,
+           case when exists (
+             select 1
+               from public.shipment_box_contents sbc
+              where sbc.org_id = app.current_org_id()
+                and sbc.license_plate_id = tll.dest_lp_id
+           ) or (dst.status = 'shipped' or dst.source_so_id is not null)
+           then 'outbound_shipments'::text end,
+           case when exists (
+             select 1
+               from public.wo_material_consumption wmc
+              where wmc.org_id = app.current_org_id()
+                and wmc.lp_id = tll.dest_lp_id
+                and wmc.correction_of_id is null
+           ) then 'consumed_wo_inputs'::text end
+         ], null) as blockers
+       ) lp_blockers on tll.dest_lp_id is not null
       where l.org_id = app.current_org_id()
         and l.to_id = $1::uuid
       order by l.line_no asc`,
