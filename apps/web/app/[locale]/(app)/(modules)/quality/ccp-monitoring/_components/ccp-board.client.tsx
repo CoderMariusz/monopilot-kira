@@ -127,6 +127,8 @@ export function CcpBoardClient({
           <button
             type="button"
             disabled
+            title={labels.empty.title}
+            aria-label={`${labels.recordReading} — ${labels.empty.title}`}
             data-testid="ccp-record-open"
             className="cursor-not-allowed rounded-md bg-slate-300 px-3 py-1.5 text-sm font-medium text-white"
           >

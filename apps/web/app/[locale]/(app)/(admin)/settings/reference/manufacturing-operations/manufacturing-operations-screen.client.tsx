@@ -407,7 +407,13 @@ export default function ManufacturingOperationsScreen({
         <Button type="button" className="btn-secondary btn-sm" onClick={() => setResetDialogOpen(true)} disabled={!canManage || !resetToSeed}>
           {labels.resetToSeedData}
         </Button>
-        <Button type="button" className="btn-secondary btn-sm" disabled>
+        <Button
+          type="button"
+          className="btn-secondary btn-sm"
+          disabled
+          title={labels.notice}
+          aria-label={`${labels.deleteInactiveRows} — ${labels.notice}`}
+        >
           {labels.deleteInactiveRows}
         </Button>
 
