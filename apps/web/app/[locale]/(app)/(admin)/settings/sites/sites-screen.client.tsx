@@ -7,15 +7,23 @@ import Modal from '@monopilot/ui/Modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import { PageHead, Section, SRow, Toggle } from '../_components';
-import type {
-  CreateLineInput,
-  CreateSiteInput,
-  CreateSiteResult,
-  LineMutationResult,
-  LineRow,
-  SiteMutationError,
-  SiteRow,
-  UpdateLineInput,
+import {
+  DEFAULT_LINES_LABELS,
+  LineCreateFields,
+  type CreateLineInput as InfraCreateLineInput,
+  type LinesLabels,
+} from '../infra/lines/lines-screen.client';
+import {
+  getLineFormOptions,
+  type CreateLineInput,
+  type CreateSiteInput,
+  type CreateSiteResult,
+  type LineFormOptions,
+  type LineMutationResult,
+  type LineRow,
+  type SiteMutationError,
+  type SiteRow,
+  type UpdateLineInput,
 } from './_actions/sites';
 
 /**
@@ -194,6 +202,13 @@ export default function SitesScreen({
     initialSelectedSiteId ? { [initialSelectedSiteId]: initialLines } : {},
   );
   const [loadingLines, setLoadingLines] = React.useState(false);
+  const [lineFormOptions, setLineFormOptions] = React.useState<LineFormOptions>({
+    sites: sites.map((site) => ({ id: site.id, code: site.code, name: site.name, isDefault: site.settings.primary })),
+    warehouses: [],
+    locations: [],
+    machines: [],
+  });
+  const [lineFormOptionsLoaded, setLineFormOptionsLoaded] = React.useState(false);
 
   const selectedSite = React.useMemo(
     () => sites.find((site) => site.id === selectedSiteId) ?? null,
@@ -246,6 +261,24 @@ export default function SitesScreen({
     },
     [router, loadLines],
   );
+
+  React.useEffect(() => {
+    if (activeModal?.kind !== 'addLine' || lineFormOptionsLoaded) return;
+    let cancelled = false;
+    void getLineFormOptions()
+      .then((options) => {
+        if (!cancelled) {
+          setLineFormOptions(options);
+          setLineFormOptionsLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLineFormOptionsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeModal, lineFormOptionsLoaded]);
 
   return (
     <main
@@ -496,6 +529,7 @@ export default function SitesScreen({
           labels={modalLabels}
           siteId={activeModal.siteId}
           siteLabel={selectedSite?.name ?? activeModal.siteId}
+          options={lineFormOptions}
           action={createLineAction}
           onClose={() => setActiveModal(null)}
           onSuccess={() => handleMutated(activeModal.siteId)}
@@ -563,6 +597,20 @@ const STATUS_OPTIONS = (labels: SitesModalLabels) => [
   { value: 'maintenance', label: labels.statusMaintenance },
   { value: 'inactive', label: labels.statusInactive },
 ];
+
+function toLineLabels(labels: SitesModalLabels): LinesLabels {
+  return {
+    ...DEFAULT_LINES_LABELS,
+    fieldCode: labels.fieldLineCode,
+    fieldName: labels.fieldName,
+    fieldSite: 'Site',
+    fieldStatus: labels.fieldStatus,
+    statusActive: labels.statusActive,
+    createLine: labels.save,
+    createLinePending: labels.saving,
+    cancel: labels.cancel,
+  };
+}
 
 function AddSiteModal({
   labels,
@@ -807,6 +855,7 @@ function AddLineModal({
   labels,
   siteId,
   siteLabel,
+  options,
   action,
   onClose,
   onSuccess,
@@ -814,25 +863,99 @@ function AddLineModal({
   labels: SitesModalLabels;
   siteId: string;
   siteLabel: string;
+  options: LineFormOptions;
   action?: CreateLineAction;
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const lineLabels = React.useMemo(() => toLineLabels(labels), [labels]);
+  const [line, setLine] = React.useState<InfraCreateLineInput>({
+    siteId,
+    warehouseId: null,
+    defaultOutputLocationId: null,
+    code: '',
+    name: '',
+    status: 'active',
+    machineIds: [],
+  });
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const valid = line.code.trim().length > 0 && line.name.trim().length > 0;
+
+  React.useEffect(() => {
+    setLine((current) => ({ ...current, siteId }));
+  }, [siteId]);
+
+  const toggleMachine = (machineId: string, checked: boolean) => {
+    setLine((current) => ({
+      ...current,
+      machineIds: checked ? [...current.machineIds, machineId] : current.machineIds.filter((id) => id !== machineId),
+    }));
+  };
+
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!valid || !action) return;
+    setError(null);
+    setPending(true);
+    try {
+      const result = await action({
+        site_id: siteId,
+        siteId,
+        warehouseId: line.warehouseId ?? null,
+        defaultOutputLocationId: line.defaultOutputLocationId ?? null,
+        code: line.code.trim(),
+        name: line.name.trim(),
+        status: line.status,
+        machineIds: line.machineIds,
+      });
+      if (result.ok) {
+        onSuccess();
+      } else {
+        setError(mapError(result.error, labels));
+      }
+    } catch {
+      setError(labels.errorGeneric);
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
-    <LineFormModal
-      title={labels.addLineTitle}
-      labels={labels}
-      modalId="sitesAddLine"
-      testId="sites-add-line-form"
-      initial={{ code: '', name: '', status: 'active' }}
-      siteLabel={siteLabel}
-      onClose={onClose}
-      onSuccess={onSuccess}
-      submit={async (values) => {
-        if (!action) return { ok: false, error: 'persistence_failed' };
-        return action({ site_id: siteId, code: values.code, name: values.name, status: values.status });
-      }}
-    />
+    <Modal open onOpenChange={(next) => (next ? undefined : onClose())} size="md" modalId="sitesAddLine">
+      <Modal.Header title={labels.addLineTitle} />
+      <form onSubmit={onSubmit} noValidate data-testid="sites-add-line-form">
+        <Modal.Body>
+          <div className="mt-4 space-y-4">
+            <LineCreateFields
+              labels={lineLabels}
+              value={line}
+              sites={options.sites}
+              warehouses={options.warehouses}
+              locations={options.locations}
+              machines={options.machines}
+              pending={pending}
+              siteReadOnlyLabel={siteLabel}
+              onChange={setLine}
+              onMachineToggle={toggleMachine}
+            />
+          </div>
+          {error ? (
+            <div role="alert" className="alert alert-red" data-testid="sites-modal-error">
+              {error}
+            </div>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={pending}>
+            {labels.cancel}
+          </button>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!valid || pending || !action}>
+            {pending ? labels.saving : labels.save}
+          </button>
+        </Modal.Footer>
+      </form>
+    </Modal>
   );
 }
 

@@ -257,6 +257,167 @@ function SelectField({
   );
 }
 
+export function LineCreateFields({
+  labels,
+  value,
+  sites,
+  warehouses,
+  locations,
+  machines,
+  pending,
+  siteReadOnlyLabel,
+  onChange,
+  onMachineToggle,
+}: {
+  labels: LinesLabels;
+  value: CreateLineInput;
+  sites: SiteOption[];
+  warehouses: WarehouseOption[];
+  locations: LocationOption[];
+  machines: MachineOption[];
+  pending: boolean;
+  siteReadOnlyLabel?: string;
+  onChange: (next: CreateLineInput) => void;
+  onMachineToggle: (machineId: string, checked: boolean) => void;
+}) {
+  const createWarehouseOptions = React.useMemo<SelectOption[]>(() => [
+    { value: 'none', label: labels.unavailable },
+    ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
+  ], [labels.unavailable, warehouses]);
+
+  const outputLocationOptions = React.useMemo<SelectOption[]>(() => {
+    const matchingLocations = value.warehouseId
+      ? locations.filter((location) => location.warehouseId === value.warehouseId)
+      : [];
+    return [
+      { value: 'none', label: '— none —' },
+      ...matchingLocations.map((location) => ({
+        value: location.id,
+        label: `${location.code} - ${location.name}${location.path ? ` (${location.path})` : ''}`,
+      })),
+    ];
+  }, [locations, value.warehouseId]);
+
+  return (
+    <>
+      {/* Modal field set: code, name, site, warehouse, default output location, status, machine sequence. */}
+      <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-code">
+        {labels.fieldCode}
+        <Input
+          id="new-line-code"
+          aria-label={labels.fieldCode}
+          value={value.code}
+          onChange={(event) => onChange({ ...value, code: event.currentTarget.value })}
+          required
+          disabled={pending}
+        />
+      </label>
+      <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-name">
+        {labels.fieldName}
+        <Input
+          id="new-line-name"
+          aria-label={labels.fieldName}
+          value={value.name}
+          onChange={(event) => onChange({ ...value, name: event.currentTarget.value })}
+          required
+          disabled={pending}
+        />
+      </label>
+      {siteReadOnlyLabel ? (
+        <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-site">
+          {labels.fieldSite}
+          <Input id="new-line-site" aria-label={labels.fieldSite} value={siteReadOnlyLabel} readOnly disabled={pending} />
+        </label>
+      ) : sites.length > 0 ? (
+        <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <span id="new-line-site-label">{labels.fieldSite}</span>
+          <Select
+            value={value.siteId ?? ''}
+            onValueChange={(next) => onChange({ ...value, siteId: next || null })}
+            disabled={pending}
+          >
+            <SelectTrigger aria-label={labels.fieldSite}>
+              <SelectValue placeholder={labels.fieldSite} />
+            </SelectTrigger>
+            <SelectContent>
+              {sites.map((site) => (
+                <SelectItem key={site.id} value={site.id}>
+                  {site.code} - {site.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <span id="new-line-warehouse-label">{labels.warehouseFilter}</span>
+        <Select
+          value={value.warehouseId ?? 'none'}
+          onValueChange={(next) => onChange({
+            ...value,
+            warehouseId: next === 'none' ? null : next,
+            defaultOutputLocationId: null,
+          })}
+          options={createWarehouseOptions}
+          disabled={pending}
+        >
+          <SelectTrigger aria-label={labels.warehouseFilter}>
+            <SelectValue placeholder={labels.warehouseFilter} />
+          </SelectTrigger>
+          <SelectContent>
+            {createWarehouseOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <span id="new-line-default-output-location-label">Default output location</span>
+        <Select
+          value={value.defaultOutputLocationId ?? 'none'}
+          onValueChange={(next) => onChange({ ...value, defaultOutputLocationId: next === 'none' ? null : next })}
+          options={outputLocationOptions}
+          disabled={pending || !value.warehouseId}
+        >
+          <SelectTrigger aria-label="Default output location">
+            <SelectValue placeholder="Default output location" />
+          </SelectTrigger>
+          <SelectContent>
+            {outputLocationOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <span id="new-line-status-label">{labels.fieldStatus}</span>
+        <Select value={value.status} onValueChange={(next) => onChange({ ...value, status: next === 'active' ? 'active' : 'draft' })}>
+          <SelectTrigger aria-label={labels.fieldStatus}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="draft">{labels.statusDraft}</SelectItem>
+            <SelectItem value="active">{labels.statusActive}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.fieldMachines}</legend>
+        {machines.length > 0 ? machines.map((machine) => (
+          <label key={machine.id} className="flex items-center gap-2 text-sm text-slate-800">
+            <Checkbox checked={value.machineIds.includes(machine.id)} onCheckedChange={(checked) => onMachineToggle(machine.id, checked)} disabled={pending} />
+            <span><span className="font-mono text-xs text-slate-500">{machine.code}</span> {machine.name}</span>
+          </label>
+        )) : <p className="text-sm text-slate-600">{labels.noMachinesAvailable}</p>}
+      </fieldset>
+    </>
+  );
+}
+
 export default function LinesScreen({ labels: labelsProp, lines, machines, sites = [], warehouses = [], locations = [], canUpdateInfra, activateLine, deactivateLine, createLine, state }: LinesScreenProps) {
   const labels = labelsProp ?? DEFAULT_LINES_LABELS;
   const [rows, setRows] = React.useState<ProductionLine[]>(() => [...lines]);
@@ -312,24 +473,6 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
       ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
     ];
   }, [labels.allWarehouses, warehouses]);
-
-  const createWarehouseOptions = React.useMemo<SelectOption[]>(() => [
-    { value: 'none', label: labels.unavailable },
-    ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
-  ], [labels.unavailable, warehouses]);
-
-  const outputLocationOptions = React.useMemo<SelectOption[]>(() => {
-    const matchingLocations = newLine.warehouseId
-      ? locations.filter((location) => location.warehouseId === newLine.warehouseId)
-      : [];
-    return [
-      { value: 'none', label: '— none —' },
-      ...matchingLocations.map((location) => ({
-        value: location.id,
-        label: `${location.code} - ${location.name}${location.path ? ` (${location.path})` : ''}`,
-      })),
-    ];
-  }, [locations, newLine.warehouseId]);
 
   const visibleLines = React.useMemo(() => {
     return rows.filter((line) => {
@@ -620,120 +763,17 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
               <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setCreateDialogOpen(false)} disabled={createPending}>x</Button>
             </div>
             <form onSubmit={(event) => void submitCreateLine(event)} className="mt-4 space-y-4">
-              {/* Modal field set: code, name, site, warehouse, default output location, status, machine sequence. */}
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-code">
-                {labels.fieldCode}
-                <Input
-                  id="new-line-code"
-                  aria-label={labels.fieldCode}
-                  value={newLine.code}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    setNewLine((current) => ({ ...current, code: value }));
-                  }}
-                  required
-                  disabled={createPending}
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-name">
-                {labels.fieldName}
-                <Input
-                  id="new-line-name"
-                  aria-label={labels.fieldName}
-                  value={newLine.name}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    setNewLine((current) => ({ ...current, name: value }));
-                  }}
-                  required
-                  disabled={createPending}
-                />
-              </label>
-              {sites.length > 0 ? (
-                <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <span id="new-line-site-label">{labels.fieldSite}</span>
-                  <Select
-                    value={newLine.siteId ?? ''}
-                    onValueChange={(value) => setNewLine((current) => ({ ...current, siteId: value || null }))}
-                  >
-                    <SelectTrigger aria-label={labels.fieldSite}>
-                      <SelectValue placeholder={labels.fieldSite} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sites.map((site) => (
-                        <SelectItem key={site.id} value={site.id}>
-                          {site.code} - {site.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <span id="new-line-warehouse-label">{labels.warehouseFilter}</span>
-                <Select
-                  value={newLine.warehouseId ?? 'none'}
-                  onValueChange={(value) => setNewLine((current) => ({
-                    ...current,
-                    warehouseId: value === 'none' ? null : value,
-                    defaultOutputLocationId: null,
-                  }))}
-                  options={createWarehouseOptions}
-                  disabled={createPending}
-                >
-                  <SelectTrigger aria-label={labels.warehouseFilter}>
-                    <SelectValue placeholder={labels.warehouseFilter} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {createWarehouseOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <span id="new-line-default-output-location-label">Default output location</span>
-                <Select
-                  value={newLine.defaultOutputLocationId ?? 'none'}
-                  onValueChange={(value) => setNewLine((current) => ({ ...current, defaultOutputLocationId: value === 'none' ? null : value }))}
-                  options={outputLocationOptions}
-                  disabled={createPending || !newLine.warehouseId}
-                >
-                  <SelectTrigger aria-label="Default output location">
-                    <SelectValue placeholder="Default output location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {outputLocationOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <span id="new-line-status-label">{labels.fieldStatus}</span>
-                <Select value={newLine.status} onValueChange={(value) => setNewLine((current) => ({ ...current, status: value === 'active' ? 'active' : 'draft' }))}>
-                  <SelectTrigger aria-label={labels.fieldStatus}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">{labels.statusDraft}</SelectItem>
-                    <SelectItem value="active">{labels.statusActive}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3">
-                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.fieldMachines}</legend>
-                {machines.length > 0 ? machines.map((machine) => (
-                  <label key={machine.id} className="flex items-center gap-2 text-sm text-slate-800">
-                    <Checkbox checked={newLine.machineIds.includes(machine.id)} onCheckedChange={(checked) => toggleCreateMachine(machine.id, checked)} disabled={createPending} />
-                    <span><span className="font-mono text-xs text-slate-500">{machine.code}</span> {machine.name}</span>
-                  </label>
-                )) : <p className="text-sm text-slate-600">{labels.noMachinesAvailable}</p>}
-              </fieldset>
+              <LineCreateFields
+                labels={labels}
+                value={newLine}
+                sites={sites}
+                warehouses={warehouses}
+                locations={locations}
+                machines={machines}
+                pending={createPending}
+                onChange={setNewLine}
+                onMachineToggle={toggleCreateMachine}
+              />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
                 <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createLine : `${labels.createLine} — ${labels.insufficientPermission}`}>

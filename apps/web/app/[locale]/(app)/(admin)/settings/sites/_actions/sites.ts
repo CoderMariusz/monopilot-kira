@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { upsertLine } from '../../../../../../../actions/infra/line';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 const SETTINGS_UPDATE_PERMISSION = 'settings.org.update';
@@ -85,10 +86,14 @@ export type CreateSiteInput = {
 
 /** Input for {@link createLine}. A line is associated to a site (see below). */
 export type CreateLineInput = {
-  site_id: string;
+  site_id?: string;
+  siteId?: string | null;
+  warehouseId?: string | null;
+  defaultOutputLocationId?: string | null;
   code: string;
   name: string;
-  status?: string;
+  status?: 'draft' | 'active';
+  machineIds?: string[];
 };
 
 /** Input for {@link updateLine}. */
@@ -112,6 +117,18 @@ export type SitesSettingsData = {
    * caller's real DB permission rather than a hardcoded default.
    */
   can_edit: boolean;
+};
+
+export type LineFormSiteOption = { id: string; code: string; name: string; isDefault?: boolean };
+export type LineFormWarehouseOption = { id: string; name: string };
+export type LineFormLocationOption = { id: string; code: string; name: string; warehouseId: string | null; path: string | null };
+export type LineFormMachineOption = { id: string; code: string; name: string };
+
+export type LineFormOptions = {
+  sites: LineFormSiteOption[];
+  warehouses: LineFormWarehouseOption[];
+  locations: LineFormLocationOption[];
+  machines: LineFormMachineOption[];
 };
 
 type SiteDbRow = {
@@ -163,6 +180,7 @@ const SiteSettingsInput = z
   .strict();
 
 const LINE_STATUSES = ['active', 'maintenance', 'inactive'] as const;
+const CREATE_LINE_STATUSES = ['draft', 'active'] as const;
 
 const CodeInput = z.string().trim().min(1).max(64);
 const NameInput = z.string().trim().min(1).max(200);
@@ -180,10 +198,14 @@ const CreateSiteSchema = z
 
 const CreateLineSchema = z
   .object({
-    site_id: UuidInput,
+    site_id: UuidInput.optional(),
+    siteId: UuidInput.nullish(),
+    warehouseId: UuidInput.nullish(),
+    defaultOutputLocationId: UuidInput.nullish(),
     code: CodeInput,
     name: NameInput,
-    status: z.enum(LINE_STATUSES).optional(),
+    status: z.enum(CREATE_LINE_STATUSES).optional(),
+    machineIds: z.array(UuidInput).optional(),
   })
   .strict();
 
@@ -208,8 +230,6 @@ const PG_UNIQUE_VIOLATION = '23505';
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: string }).code === PG_UNIQUE_VIOLATION;
 }
-
-const SETTINGS_LINE_EVENT = 'settings.line.upserted';
 
 function revalidateSitesRoute() {
   try {
@@ -383,6 +403,52 @@ export async function readSitesSettingsData(): Promise<SitesSettingsData> {
   });
 }
 
+export async function getLineFormOptions(): Promise<LineFormOptions> {
+  return withOrgContext<LineFormOptions>(async (ctx): Promise<LineFormOptions> => {
+    const context = ctx as OrgContextLike;
+    const [sitesResult, warehousesResult, locationsResult, machinesResult] = await Promise.all([
+      context.client.query<{ id: string; site_code: string; name: string; is_default: boolean }>(
+        `select id::text, site_code, name, is_default
+           from public.sites
+          where org_id = app.current_org_id()
+            and is_active = true
+          order by is_default desc, lower(name), lower(site_code)`,
+      ),
+      context.client.query<{ id: string; name: string }>(
+        `select id::text, name
+           from public.warehouses
+          where org_id = app.current_org_id()
+          order by lower(name), id`,
+      ),
+      context.client.query<{ id: string; code: string; name: string; warehouse_id: string | null; path: string | null }>(
+        `select id::text, code, name, warehouse_id::text, path
+           from public.locations
+          where org_id = app.current_org_id()
+          order by lower(code), lower(name), id`,
+      ),
+      context.client.query<{ id: string; code: string; name: string }>(
+        `select id::text, code, name
+           from public.machines
+          where org_id = app.current_org_id()
+          order by lower(name), lower(code)`,
+      ),
+    ]);
+
+    return {
+      sites: sitesResult.rows.map((row) => ({ id: row.id, code: row.site_code, name: row.name, isDefault: row.is_default })),
+      warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name })),
+      locations: locationsResult.rows.map((row) => ({
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        warehouseId: row.warehouse_id,
+        path: row.path,
+      })),
+      machines: machinesResult.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
+    };
+  });
+}
+
 export async function updateSiteSettings(
   orgId: string,
   siteId: string,
@@ -530,126 +596,85 @@ export async function createSite(input: unknown): Promise<CreateSiteResult> {
   }
 }
 
-/**
- * Ensure the target site belongs to this org, and optionally that no sibling
- * line at the same site already uses the requested code.
- */
-async function siteExists(context: OrgContextLike, siteId: string): Promise<boolean> {
-  const { rows } = await context.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.sites
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-        and is_active = true
-      limit 1`,
-    [siteId],
-  );
-  return rows.length > 0;
-}
-
-async function lineCodeExistsAtSite(context: OrgContextLike, siteId: string, code: string, exceptLineId?: string): Promise<boolean> {
-  const { rows } = await context.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.production_lines
-      where org_id = app.current_org_id()
-        and site_id = $1::uuid
-        and lower(code) = lower($2)
-        and ($3::uuid is null or id <> $3::uuid)
-      limit 1`,
-    [siteId, code, exceptLineId ?? null],
-  );
-  return rows.length > 0;
-}
-
-function emitLineUpserted(context: OrgContextLike, lineId: string, action: 'created' | 'updated'): Promise<unknown> {
-  // `settings.line.upserted` is an allowed event_type in
-  // outbox_events_event_type_check — safe to emit (do NOT invent new ones).
-  return context.client.query(
-    `insert into public.outbox_events (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values (app.current_org_id(), $1, 'production_line', $2, $3::jsonb, coalesce(current_setting('app.app_version', true), 'dev'))`,
-    [SETTINGS_LINE_EVENT, lineId, JSON.stringify({ line_id: lineId, action })],
-  );
-}
-
-/**
- * Create a production line at the selected site. Org-context wrapped,
- * admin-gated, RLS-scoped, duplicate `code` at the same site →
- * `'duplicate_code'`.
- */
+/** Create a production line through the canonical settings/infra upsertLine action. */
 export async function createLine(input: unknown): Promise<LineMutationResult> {
   const parsed = CreateLineSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
   const data = parsed.data;
+  const siteId = data.siteId ?? data.site_id ?? null;
+  if (!siteId) return { ok: false, error: 'invalid_input' };
 
-  try {
-    return await withOrgContext<LineMutationResult>(async (ctx): Promise<LineMutationResult> => {
-      const context = ctx as OrgContextLike;
-      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
-      if (!(await siteExists(context, data.site_id))) return { ok: false, error: 'not_found' };
-      if (await lineCodeExistsAtSite(context, data.site_id, data.code)) return { ok: false, error: 'duplicate_code' };
+  const result = await upsertLine({
+    siteId,
+    warehouseId: data.warehouseId ?? null,
+    defaultOutputLocationId: data.defaultOutputLocationId ?? null,
+    code: data.code,
+    name: data.name,
+    status: data.status ?? 'draft',
+    machineIds: data.machineIds ?? [],
+  });
 
-      const { rows } = await context.client.query<{ id: string; code: string; name: string; status: string }>(
-        `insert into public.production_lines (org_id, site_id, code, name, status)
-         values (app.current_org_id(), $1::uuid, $2, $3, coalesce($4, 'active'))
-         returning id::text, code, name, status`,
-        [data.site_id, data.code, data.name, data.status ?? null],
-      );
-
-      const row = rows[0];
-      if (!row) return { ok: false, error: 'persistence_failed' };
-
-      await emitLineUpserted(context, row.id, 'created');
-
-      revalidateSitesRoute();
-      return { ok: true, data: row };
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
-    console.error('[settings/sites] create_line_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { ok: false, error: 'persistence_failed' };
+  if (result.ok) {
+    revalidateSitesRoute();
+    return { ok: true, data: { id: result.data.id, code: data.code, name: data.name, status: result.data.status } };
   }
+
+  if (result.error === 'forbidden') return { ok: false, error: 'forbidden' };
+  if (result.error === 'invalid_input') return { ok: false, error: 'invalid_input' };
+  return { ok: false, error: 'persistence_failed' };
 }
 
-/**
- * Update an existing production line (site/code/name/status) and re-affirm its site
- * association. Org-context wrapped, admin-gated, RLS-scoped, duplicate `code`
- * → `'duplicate_code'`, missing row → `'not_found'`.
- */
+type ExistingLineForUpsert = {
+  warehouse_id: string | null;
+  default_output_location_id: string | null;
+  machine_ids: string[] | null;
+};
+
+async function getExistingLineForUpsert(lineId: string): Promise<ExistingLineForUpsert | null> {
+  return withOrgContext<ExistingLineForUpsert | null>(async (ctx): Promise<ExistingLineForUpsert | null> => {
+    const context = ctx as OrgContextLike;
+    const { rows } = await context.client.query<ExistingLineForUpsert>(
+      `select pl.warehouse_id::text,
+              pl.default_output_location_id::text,
+              coalesce(array_agg(lm.machine_id::text order by lm.sequence) filter (where lm.machine_id is not null), array[]::text[]) as machine_ids
+         from public.production_lines pl
+         left join public.line_machines lm on lm.line_id = pl.id
+        where pl.org_id = app.current_org_id()
+          and pl.id = $1::uuid
+        group by pl.id, pl.warehouse_id, pl.default_output_location_id
+        limit 1`,
+      [lineId],
+    );
+    return rows[0] ?? null;
+  });
+}
+
+/** Update a production line through the canonical settings/infra upsertLine action. */
 export async function updateLine(input: unknown): Promise<LineMutationResult> {
   const parsed = UpdateLineSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'invalid_input' };
   const data = parsed.data;
 
-  try {
-    return await withOrgContext<LineMutationResult>(async (ctx): Promise<LineMutationResult> => {
-      const context = ctx as OrgContextLike;
-      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
-      if (!(await siteExists(context, data.site_id))) return { ok: false, error: 'not_found' };
-      if (await lineCodeExistsAtSite(context, data.site_id, data.code, data.id)) return { ok: false, error: 'duplicate_code' };
+  const existing = await getExistingLineForUpsert(data.id);
+  if (!existing) return { ok: false, error: 'not_found' };
 
-      const { rows } = await context.client.query<{ id: string; code: string; name: string; status: string }>(
-        `update public.production_lines
-            set site_id = $2::uuid,
-                code = $3,
-                name = $4,
-                status = coalesce($5, status)
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          returning id::text, code, name, status`,
-        [data.id, data.site_id, data.code, data.name, data.status ?? null],
-      );
+  const result = await upsertLine({
+    id: data.id,
+    siteId: data.site_id,
+    warehouseId: existing.warehouse_id,
+    defaultOutputLocationId: existing.default_output_location_id,
+    code: data.code,
+    name: data.name,
+    status: data.status === 'active' ? 'active' : 'draft',
+    machineIds: existing.machine_ids ?? [],
+  });
 
-      const row = rows[0];
-      if (!row) return { ok: false, error: 'not_found' };
-
-      await emitLineUpserted(context, row.id, 'updated');
-
-      revalidateSitesRoute();
-      return { ok: true, data: row };
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
-    console.error('[settings/sites] update_line_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { ok: false, error: 'persistence_failed' };
+  if (result.ok) {
+    revalidateSitesRoute();
+    return { ok: true, data: { id: result.data.id, code: data.code, name: data.name, status: result.data.status } };
   }
+
+  if (result.error === 'forbidden') return { ok: false, error: 'forbidden' };
+  if (result.error === 'invalid_input') return { ok: false, error: 'invalid_input' };
+  return { ok: false, error: 'persistence_failed' };
 }
