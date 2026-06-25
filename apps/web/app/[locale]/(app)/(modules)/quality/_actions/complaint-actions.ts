@@ -285,9 +285,25 @@ export async function createComplaint(input: {
       if (!(await hasPermission(ctx, WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const inserted = await ctx.client.query<ComplaintDbRow>(
-        `with inserted as (
+        `with org_lock as (
+           select pg_advisory_xact_lock(
+             hashtextextended('public.complaints.complaint_number:' || app.current_org_id()::text, 0)
+           )
+         ),
+         next_number as (
+           select 'CMP-' || lpad(
+             (coalesce(max(substring(complaint_number from '^CMP-([0-9]+)$')::int), 0) + 1)::text,
+             8,
+             '0'
+           ) as complaint_number
+           from public.complaints, org_lock
+          where org_id = app.current_org_id()
+            and complaint_number ~ '^CMP-[0-9]+$'
+         ),
+         inserted as (
            insert into public.complaints (
              org_id,
+             complaint_number,
              customer_id,
              lp_id,
              batch_ref,
@@ -298,6 +314,7 @@ export async function createComplaint(input: {
            )
            values (
              app.current_org_id(),
+             (select complaint_number from next_number),
              $1::uuid,
              $2::uuid,
              $3,

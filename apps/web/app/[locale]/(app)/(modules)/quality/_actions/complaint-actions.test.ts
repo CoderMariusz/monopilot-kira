@@ -105,10 +105,11 @@ function makeClient(): QueryClient {
         return { rows: allowed ? [{ ok: true }] : [], rowCount: allowed ? 1 : 0 };
       }
 
-      if (q.startsWith('with inserted as ( insert into public.complaints')) {
+      if (q.includes('insert into public.complaints')) {
         return {
           rows: [
             complaintDbRow({
+              complaint_number: 'CMP-00000001',
               customer_id: params[0],
               lp_id: params[1],
               batch_ref: params[2],
@@ -243,8 +244,9 @@ describe('quality complaint and CAPA actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected complaint creation');
     expect(result.data.status).toBe('open');
+    expect(result.data.complaintNumber).toMatch(/^CMP-\d{8}$/);
     const insert = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      normalize(String(sql)).startsWith('with inserted as ( insert into public.complaints'),
+      normalize(String(sql)).includes('insert into public.complaints'),
     );
     expect(insert).toBeTruthy();
     expect(insert?.[1]).toEqual([
@@ -255,6 +257,9 @@ describe('quality complaint and CAPA actions', () => {
       'high',
       USER_ID,
     ]);
+    expect(normalize(String(insert?.[0]))).toContain('complaint_number');
+    expect(normalize(String(insert?.[0]))).toContain('app.current_org_id()');
+    expect(normalize(String(insert?.[0]))).toContain("'cmp-'");
     expect(normalize(String(insert?.[0]))).toContain("'open'");
   });
 
