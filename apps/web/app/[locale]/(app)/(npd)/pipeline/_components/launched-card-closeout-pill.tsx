@@ -19,14 +19,37 @@ export type LegacyCloseoutStatus = {
   warningCode?: LegacyCloseoutWarningCode | null;
 };
 
-const INDICATORS: Array<{ key: keyof Pick<LegacyCloseoutStatus, 'trial' | 'pilot' | 'handoff' | 'packaging'>; label: string }> = [
-  { key: 'trial', label: 'Trial' },
-  { key: 'pilot', label: 'Pilot' },
-  { key: 'handoff', label: 'Handoff' },
-  { key: 'packaging', label: 'Packaging' },
-];
+/**
+ * Localized chip labels. Reuses the existing Kanban stage labels (stageTrial /
+ * stagePilot / stageHandoff / stagePackaging) so no new i18n keys are needed.
+ * Defaults to English so test/legacy callers without labels still render.
+ */
+export type CloseoutPillLabels = {
+  trial: string;
+  pilot: string;
+  handoff: string;
+  packaging: string;
+};
 
-export function LaunchedCardCloseoutPill({ status }: { status: LegacyCloseoutStatus }) {
+const DEFAULT_LABELS: CloseoutPillLabels = {
+  trial: 'Trial',
+  pilot: 'Pilot',
+  handoff: 'Handoff',
+  packaging: 'Packaging',
+};
+
+const INDICATOR_KEYS: Array<keyof CloseoutPillLabels> = ['trial', 'pilot', 'handoff', 'packaging'];
+
+export function LaunchedCardCloseoutPill({
+  status,
+  labels = DEFAULT_LABELS,
+}: {
+  status: LegacyCloseoutStatus;
+  labels?: CloseoutPillLabels;
+}) {
+  // The aria-label trails the (localized) chip names with a short, untranslated
+  // role suffix so the group still reads as a status region to assistive tech.
+  const ariaSuffix = 'closeout status';
   // Net-new element: the prototype has no Launched-card closeout pill. Closest
   // context is the Kanban card (npd/pipeline.jsx:19-52, @deprecated BL-NPD-02);
   // this 4-indicator pill is a documented extension, not a 1:1 parity port.
@@ -35,14 +58,14 @@ export function LaunchedCardCloseoutPill({ status }: { status: LegacyCloseoutSta
       data-testid="launched-closeout-pill"
       data-prototype-anchor="net-new:no-prototype-precedent (context: npd/pipeline.jsx:19-52)"
       className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1"
-      aria-label="Trial Pilot Handoff Packaging closeout status"
+      aria-label={`${labels.trial} ${labels.pilot} ${labels.handoff} ${labels.packaging} ${ariaSuffix}`}
     >
-      {INDICATORS.map((indicator) => {
-        const complete = status[indicator.key];
+      {INDICATOR_KEYS.map((key) => {
+        const complete = status[key];
         return (
           <span
-            key={indicator.key}
-            data-testid={`closeout-dot-${indicator.key}`}
+            key={key}
+            data-testid={`closeout-dot-${key}`}
             className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600"
           >
             <span
@@ -52,7 +75,7 @@ export function LaunchedCardCloseoutPill({ status }: { status: LegacyCloseoutSta
                 complete ? 'bg-emerald-500' : 'bg-amber-500',
               ].join(' ')}
             />
-            {indicator.label}
+            {labels[key]}
           </span>
         );
       })}

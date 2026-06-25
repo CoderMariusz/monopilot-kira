@@ -36,7 +36,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 
 import { KanbanView } from './kanban-view';
 import { TableView, type BulkActions, type TableLabels, type TableProject } from './table-view';
@@ -188,12 +188,14 @@ export function PipelineTabs({
   const activeFilter = parseFilter(searchParams.get('filter'));
   const searchValue = searchParams.get('search') ?? '';
 
-  // Resolve the locale from the first path segment (e.g. /en/pipeline) for the
-  // "+ New project" link target (full-page wizard at /{locale}/pipeline/new).
+  // Resolve the active locale from the [locale] route param so the "+ New project"
+  // link target (full-page wizard at /{locale}/pipeline/new) is correct in BOTH the
+  // server render and on the client. Reading window.location here was wrong: it is
+  // undefined during SSR, so the first paint always emitted /en/pipeline/new — which
+  // dropped /pl users into the English app. useParams() is stable across SSR/CSR.
+  const routeParams = useParams<{ locale?: string }>();
   const locale =
-    (typeof window !== 'undefined' ? window.location.pathname : '/en/pipeline')
-      .split('/')
-      .filter(Boolean)[0] ?? 'en';
+    typeof routeParams?.locale === 'string' && routeParams.locale ? routeParams.locale : 'en';
   const newProjectHref = `/${locale}/pipeline/new`;
 
   /** Mutate one URL param while preserving every other shared param (?sort/?dir/?selected/…). */

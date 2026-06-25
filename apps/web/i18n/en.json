@@ -3113,7 +3113,12 @@
         "duplicateError": "Could not duplicate the project. Try again.",
         "advanceStage": "Advance stage →",
         "advanceDisabledHint": "You do not have permission to advance this gate.",
-        "advanceTerminalHint": "Launched — fully advanced"
+        "advanceTerminalHint": "Launched — fully advanced",
+        "deleteProject": "Delete",
+        "deleting": "Deleting…",
+        "deleteConfirm": "Delete this project? This cannot be undone.",
+        "deleteError": "Could not delete the project. Try again.",
+        "deleteHasDependents": "This project has downstream work (recipe/trial/…) and cannot be deleted."
       },
       "prio": {
         "high": "High priority",

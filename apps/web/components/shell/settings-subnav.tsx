@@ -4,7 +4,6 @@ import type { CSSProperties, JSX } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
-import { Badge } from "@monopilot/ui/Badge";
 
 import { SETTINGS_NAV_GROUPS } from "../../lib/navigation/settings-nav";
 import type { SettingsNavItem } from "../../lib/navigation/types";
@@ -112,10 +111,16 @@ export function SettingsSubNav({ locale, pathnameOverride }: SettingsSubNavProps
                       style={iconStyle(item.icon_token)}
                     />
                     <span className="min-w-0 flex-1 truncate">{t(navI18nKey(item.i18n_key))}</span>
+                    {/* `highlight` flags the recommended ("hero") screen of a group.
+                        The marker is a small dot, NOT the literal English word "Hero"
+                        — that placeholder string was leaking into the nav label (e.g.
+                        "Procesy Hero") and is meaningless/untranslated to users. */}
                     {item.highlight ? (
-                      <Badge variant="info" className="ml-auto shrink-0 px-1.5 py-0 text-[0.62rem] leading-4">
-                        Hero
-                      </Badge>
+                      <span
+                        aria-hidden="true"
+                        data-testid="settings-subnav-highlight"
+                        className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-shell-active-fg/60"
+                      />
                     ) : null}
                   </Link>
                 );

@@ -32,6 +32,7 @@ let currentParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/en/pipeline',
+  useParams: () => ({ locale: 'en' }),
   useSearchParams: () => currentParams,
 }));
 

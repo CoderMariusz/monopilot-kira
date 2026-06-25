@@ -5250,7 +5250,12 @@
         "duplicateError": "Could not duplicate the project. Try again.",
         "advanceStage": "Avansează etapa →",
         "advanceDisabledHint": "Nu aveți permisiunea de a avansa această poartă.",
-        "advanceTerminalHint": "Lansat — complet avansat"
+        "advanceTerminalHint": "Lansat — complet avansat",
+        "deleteProject": "Delete",
+        "deleting": "Deleting…",
+        "deleteConfirm": "Delete this project? This cannot be undone.",
+        "deleteError": "Could not delete the project. Try again.",
+        "deleteHasDependents": "This project has downstream work (recipe/trial/…) and cannot be deleted."
       },
       "prio": {
         "high": "Prioritate ridicată",

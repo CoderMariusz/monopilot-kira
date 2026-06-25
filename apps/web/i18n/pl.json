@@ -5250,7 +5250,12 @@
         "duplicateError": "Nie udało się zduplikować projektu. Spróbuj ponownie.",
         "advanceStage": "Następny etap →",
         "advanceDisabledHint": "Nie masz uprawnień do przejścia tej bramki.",
-        "advanceTerminalHint": "Wdrożony — w pełni zakończony"
+        "advanceTerminalHint": "Wdrożony — w pełni zakończony",
+        "deleteProject": "Usuń",
+        "deleting": "Usuwanie…",
+        "deleteConfirm": "Usunąć ten projekt? Tej operacji nie można cofnąć.",
+        "deleteError": "Nie udało się usunąć projektu. Spróbuj ponownie.",
+        "deleteHasDependents": "Ten projekt ma powiązaną pracę (receptura/próba/…) i nie może zostać usunięty."
       },
       "prio": {
         "high": "Wysoki priorytet",

@@ -88,6 +88,18 @@ function buildLabels(locale: string): LpDetailLabels {
       merged: t('status.merged'),
       destroyed: t('status.destroyed'),
     },
+    // QA-status badge dict (raw lowercase qa_status → localized label). The raw
+    // value (e.g. "pending") was leaking next to the translated LP-status badge.
+    qaStatusLabel: {
+      pending: t('qaStatus.pending'),
+      released: t('qaStatus.released'),
+      on_hold: t('qaStatus.on_hold'),
+      rejected: t('qaStatus.rejected'),
+      quarantined: t('qaStatus.quarantined'),
+      passed: t('qaStatus.passed'),
+      failed: t('qaStatus.failed'),
+      hold: t('qaStatus.hold'),
+    },
     identity: {
       title: t('detail.identity.title'),
       product: t('detail.identity.product'),

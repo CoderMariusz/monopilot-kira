@@ -57,6 +57,16 @@ function buildLabels(locale: string): LpDetailLabels {
       merged: t('status.merged'),
       destroyed: t('status.destroyed'),
     },
+    qaStatusLabel: {
+      pending: t('qaStatus.pending'),
+      released: t('qaStatus.released'),
+      on_hold: t('qaStatus.on_hold'),
+      rejected: t('qaStatus.rejected'),
+      quarantined: t('qaStatus.quarantined'),
+      passed: t('qaStatus.passed'),
+      failed: t('qaStatus.failed'),
+      hold: t('qaStatus.hold'),
+    },
     identity: {
       title: t('detail.identity.title'),
       product: t('detail.identity.product'),
@@ -549,7 +559,9 @@ describe('LpDetailClient (WH-003 parity)', () => {
   it('renders header status + QA badges and UoM from data', () => {
     renderDetail({ status: 'available', qaStatus: 'PASSED', quantity: '120', uom: 'kg' });
     expect(screen.getByTestId('lp-detail-status')).toHaveTextContent(EN.statusLabel.available);
-    expect(screen.getByTestId('lp-detail-qa')).toHaveTextContent('PASSED');
+    // QA badge maps the raw qa_status through qaStatusLabel (no raw value leak).
+    expect(screen.getByTestId('lp-detail-qa')).toHaveTextContent(EN.qaStatusLabel.passed);
+    expect(screen.getByTestId('lp-detail-qa')).not.toHaveTextContent('PASSED');
     expect(screen.getByTestId('lp-detail-subline')).toHaveTextContent('120 kg');
   });
 
@@ -558,6 +570,13 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-detail-status')).toHaveTextContent(EN.statusLabel.destroyed);
     expect(screen.getByTestId('lp-detail-status')).not.toHaveTextContent('status.destroyed');
     expect(screen.getByTestId('lp-action-move')).toBeDisabled();
+  });
+
+  it('maps a raw qa_status (e.g. "pending") through qaStatusLabel — no raw value leak', () => {
+    renderDetail({ status: 'available', qaStatus: 'pending' });
+    const qa = screen.getByTestId('lp-detail-qa');
+    expect(qa).toHaveTextContent(EN.qaStatusLabel.pending);
+    expect(qa).not.toHaveTextContent('pending');
   });
 
   it('resolves every staged detail i18n key in en and pl (no leaked dotted keys)', () => {

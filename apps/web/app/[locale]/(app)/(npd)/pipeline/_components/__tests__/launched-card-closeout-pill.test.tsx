@@ -39,6 +39,23 @@ describe('LaunchedCardCloseoutPill — prototype closeout extension', () => {
     expect(container).toMatchSnapshot();
   });
 
+  it('renders localized chip labels when provided (no hard-coded English)', () => {
+    render(
+      <LaunchedCardCloseoutPill
+        status={{ trial: true, pilot: true, handoff: true, packaging: true }}
+        labels={{ trial: 'Próba', pilot: 'Pilotaż', handoff: 'Przekazanie', packaging: 'Opakowanie' }}
+      />,
+    );
+
+    const pill = screen.getByTestId('launched-closeout-pill');
+    expect(within(pill).getByText('Próba')).toBeInTheDocument();
+    expect(within(pill).getByText('Pilotaż')).toBeInTheDocument();
+    expect(within(pill).getByText('Przekazanie')).toBeInTheDocument();
+    expect(within(pill).getByText('Opakowanie')).toBeInTheDocument();
+    // The English placeholders must not leak when localized labels are supplied.
+    expect(within(pill).queryByText('Trial')).not.toBeInTheDocument();
+  });
+
   it('renders missing anchors as amber dots and surfaces the typed warning code', () => {
     render(
       <LaunchedCardCloseoutPill

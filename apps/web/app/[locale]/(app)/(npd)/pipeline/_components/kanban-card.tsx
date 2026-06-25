@@ -176,7 +176,15 @@ export function KanbanCard({
             </div>
 
             {project.currentGate === 'Launched' && project.closeoutStatus ? (
-              <LaunchedCardCloseoutPill status={project.closeoutStatus} />
+              <LaunchedCardCloseoutPill
+                status={project.closeoutStatus}
+                labels={{
+                  trial: labels.stageTrial,
+                  pilot: labels.stagePilot,
+                  handoff: labels.stageHandoff,
+                  packaging: labels.stagePackaging,
+                }}
+              />
             ) : null}
           </Link>
 

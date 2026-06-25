@@ -125,10 +125,22 @@ function qaVariant(qa: string): BadgeVariant {
   return 'muted';
 }
 
+/** Last-resort display for an unmapped qa_status value: "on_hold" → "On hold".
+ *  Never leak a raw snake_case DB token into the UI. */
+function humanizeQaStatus(qa: string): string {
+  return qa
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
 export type LpDetailLabels = {
   back: string;
   qtyLine: string;
   statusLabel: Record<string, string>;
+  /** QA-status display dict (pending / released / on_hold / …) — keyed by the raw
+   *  lowercase qa_status so the badge never leaks an untranslated DB value. */
+  qaStatusLabel: Record<string, string>;
   identity: {
     title: string;
     product: string;
@@ -451,7 +463,7 @@ export function LpDetailClient({
             {labels.statusLabel[detail.status] ?? detail.status}
           </Badge>
           <Badge variant={qaVariant(detail.qaStatus)} data-testid="lp-detail-qa">
-            {detail.qaStatus}
+            {labels.qaStatusLabel[detail.qaStatus.toLowerCase()] ?? humanizeQaStatus(detail.qaStatus)}
           </Badge>
         </div>
       </div>

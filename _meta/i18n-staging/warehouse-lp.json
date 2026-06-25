@@ -105,6 +105,16 @@
       "merged": "Merged",
       "destroyed": "Destroyed"
     },
+    "qaStatus": {
+      "pending": "Pending QA",
+      "released": "Released",
+      "on_hold": "On hold",
+      "rejected": "Rejected",
+      "quarantined": "Quarantined",
+      "passed": "Passed",
+      "failed": "Failed",
+      "hold": "On hold"
+    },
     "detail": {
       "breadcrumb": {
         "warehouse": "Warehouse",
@@ -452,6 +462,16 @@
       "shipped": "Wysłany",
       "merged": "Scalony",
       "destroyed": "Zniszczona"
+    },
+    "qaStatus": {
+      "pending": "Oczekuje na QA",
+      "released": "Zwolniony",
+      "on_hold": "Wstrzymany",
+      "rejected": "Odrzucony",
+      "quarantined": "Kwarantanna",
+      "passed": "Zaliczony",
+      "failed": "Niezaliczony",
+      "hold": "Wstrzymany"
     },
     "detail": {
       "breadcrumb": {
