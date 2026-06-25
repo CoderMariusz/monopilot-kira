@@ -502,6 +502,7 @@ export function GrnDetailClient({
           open
           target={cancelTarget}
           labels={labels.cancelLine}
+          sessionExpiredLoginHref={`/${locale}/login?reason=idle`}
           cancelGrnLineAction={cancelGrnLineAction}
           onClose={() => setCancelTarget(null)}
           onCancelled={() => {

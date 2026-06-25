@@ -31,6 +31,7 @@
  */
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
@@ -83,6 +84,7 @@ export type GrnLineCancelLabels = {
     already_cancelled: string;
     invalid_input: string;
     persistence_failed: string;
+    session_expired: string;
     generic: string;
   };
 };
@@ -93,6 +95,7 @@ export function GrnLineCancelModal({
   open,
   target,
   labels,
+  sessionExpiredLoginHref,
   cancelGrnLineAction,
   onClose,
   onCancelled,
@@ -100,10 +103,12 @@ export function GrnLineCancelModal({
   open: boolean;
   target: GrnLineCancelTarget | null;
   labels: GrnLineCancelLabels;
+  sessionExpiredLoginHref: string;
   cancelGrnLineAction: (input: CancelGrnLineInput) => Promise<CancelGrnLineResult>;
   onClose: () => void;
   onCancelled: () => void;
 }) {
+  const router = useRouter();
   const [reasonCode, setReasonCode] = useState<GrnCancelReasonCode | ''>('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +147,14 @@ export function GrnLineCancelModal({
     setError(null);
     startTransition(async () => {
       const note_ = note.trim() ? note.trim() : undefined;
-      const result = await cancelGrnLineAction({ grnItemId: target.grnItemId, reasonCode, note: note_ });
+      let result: CancelGrnLineResult;
+      try {
+        result = await cancelGrnLineAction({ grnItemId: target.grnItemId, reasonCode, note: note_ });
+      } catch {
+        setError(labels.errors.session_expired);
+        window.setTimeout(() => router.push(sessionExpiredLoginHref), 0);
+        return;
+      }
       if (!result.ok) {
         setError(mapError(result.error));
         return;

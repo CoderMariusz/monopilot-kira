@@ -5,15 +5,18 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const EVIDENCE_DIR = path.resolve(__dirname, '../../../../../../../../../e2e/artifacts/C-R3-grn-line-cancel');
 
 import { GrnDetailClient, type GrnDetailLabels } from '../grn-detail.client';
 import type { GrnDetail } from '../../../../_actions/shared';
 
+const routerPushMock = vi.fn();
+const routerRefreshMock = vi.fn();
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ push: routerPushMock, refresh: routerRefreshMock }),
 }));
 
 const LABELS: GrnDetailLabels = {
@@ -89,6 +92,7 @@ const LABELS: GrnDetailLabels = {
       already_cancelled: 'This receipt line has already been cancelled.',
       invalid_input: 'Check the fields and try again.',
       persistence_failed: 'We could not cancel this receipt line. Try again.',
+      session_expired: 'Your session expired. Please log in again.',
       generic: 'We could not cancel this receipt line. Try again.',
     },
   },
@@ -230,6 +234,11 @@ describe('GrnDetailClient — print labels (E1)', () => {
 });
 
 describe('GrnDetailClient — cancel receipt line (C-R3)', () => {
+  beforeEach(() => {
+    routerPushMock.mockClear();
+    routerRefreshMock.mockClear();
+  });
+
   it('offers "Cancel receipt…" on every non-cancelled line when canCancelLines', () => {
     renderGrn();
     expect(screen.getByTestId('grn-cancel-line-line-1')).toHaveTextContent('Cancel receipt…');
@@ -301,6 +310,20 @@ describe('GrnDetailClient — cancel receipt line (C-R3)', () => {
     expect(await screen.findByTestId('grn-cancel-error')).toHaveTextContent(
       'This receipt line has already been cancelled.',
     );
+  });
+
+  it('shows a session-expired message and redirects to locale login when the Server Action transport rejects', async () => {
+    const user = userEvent.setup();
+    renderGrn({ cancelGrnLineAction: vi.fn(async () => { throw new Error('Server Action 401'); }) as any });
+    await user.click(screen.getByTestId('grn-cancel-line-line-1'));
+    await user.click(await screen.findByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Entry error' }));
+    await user.click(screen.getByTestId('grn-cancel-submit'));
+
+    expect(await screen.findByTestId('grn-cancel-error')).toHaveTextContent(
+      'Your session expired. Please log in again.',
+    );
+    await waitFor(() => expect(routerPushMock).toHaveBeenCalledWith('/en/login?reason=idle'));
   });
 
   it('DEFENSIVE: a line with cancelled=true is struck + badged + offers no cancel affordance', () => {

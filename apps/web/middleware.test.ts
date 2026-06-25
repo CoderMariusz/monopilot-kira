@@ -74,6 +74,8 @@ interface TestRequestOptions {
   authorization?: string;
   cookie?: string;
   forwardedFor?: string;
+  headers?: Record<string, string>;
+  method?: string;
 }
 
 function makeRequest(pathname: string, opts: TestRequestOptions = {}): TestNextRequest {
@@ -82,8 +84,9 @@ function makeRequest(pathname: string, opts: TestRequestOptions = {}): TestNextR
   if (opts.authorization) headers.set('authorization', opts.authorization);
   if (opts.cookie) headers.set('cookie', opts.cookie);
   if (opts.forwardedFor) headers.set('x-forwarded-for', opts.forwardedFor);
+  for (const [key, value] of Object.entries(opts.headers ?? {})) headers.set(key, value);
 
-  return new TestNextRequest(`http://localhost:3000${pathname}`, { headers });
+  return new TestNextRequest(`http://localhost:3000${pathname}`, { headers, method: opts.method });
 }
 
 async function loadMiddleware() {
@@ -311,6 +314,27 @@ describe('T-035 edge middleware security composition', () => {
       idleTimeoutMin: 60,
       path: '/admin/users',
     });
+    expect(establishOrgContextMock).not.toHaveBeenCalled();
+    expect(intlHandlerMock).not.toHaveBeenCalled();
+  });
+
+  it('returns a typed 401 instead of a 307 redirect for idle Server Action requests', async () => {
+    checkIdleTimeoutMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }));
+    const { default: middleware } = await loadMiddleware();
+
+    const response = await middleware(
+      makeRequest('/pl/warehouse/grns/grn-1', {
+        cookie: 'sb-access-token=stale-cookie-value',
+        headers: { 'next-action': 'abc123' },
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get('location')).toBeNull();
+    expect(response.headers.get('x-monopilot-auth')).toBe('session_expired');
+    expect(response.headers.get('set-cookie')).toMatch(/sb-access-token=;/);
+    await expect(response.json()).resolves.toEqual({ ok: false, reason: 'session_expired' });
     expect(establishOrgContextMock).not.toHaveBeenCalled();
     expect(intlHandlerMock).not.toHaveBeenCalled();
   });

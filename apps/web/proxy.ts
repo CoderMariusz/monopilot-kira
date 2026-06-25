@@ -115,6 +115,22 @@ function redirectToIdleLogin(req: NextRequest): NextResponse {
   });
 }
 
+function isServerActionRequest(req: NextRequest): boolean {
+  return req.method === 'POST' && req.headers.has('next-action');
+}
+
+function idleServerActionResponse(): NextResponse {
+  return new Response(JSON.stringify({ ok: false, reason: 'session_expired' }), {
+    status: 401,
+    headers: {
+      'content-type': 'application/json',
+      'set-cookie': 'sb-access-token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+      'x-monopilot-auth': 'session_expired',
+      'WWW-Authenticate': 'Bearer',
+    },
+  }) as NextResponse;
+}
+
 function forbiddenIpResponse(): NextResponse {
   return new Response(JSON.stringify({ error: 'IP_NOT_ALLOWED' }), {
     status: 403,
@@ -190,6 +206,9 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   if (idleResponse.status === 401) {
     if (req.headers.get('authorization')) {
       return idleResponse as NextResponse;
+    }
+    if (isServerActionRequest(req)) {
+      return idleServerActionResponse();
     }
     return redirectToIdleLogin(req);
   }
