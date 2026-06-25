@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FinanceWoCostTable, type FinanceWoCostLabels } from '../wo-cost-table.client';
 
 const refreshMock = vi.fn();
+const pushMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: refreshMock }),
+  usePathname: () => '/en/finance',
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+  useSearchParams: () => new URLSearchParams(''),
 }));
 
 const labels: FinanceWoCostLabels = {
@@ -75,6 +78,7 @@ const readyResult = {
 describe('FinanceWoCostTable', () => {
   beforeEach(() => {
     refreshMock.mockClear();
+    pushMock.mockClear();
   });
 
   it('renders permission-denied, error, loading, and empty states', () => {

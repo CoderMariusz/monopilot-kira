@@ -9,10 +9,16 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ days?: string }>;
 };
 
 function FinanceSkeleton({ labels }: { labels: FinanceWoCostLabels }) {
   return <FinanceWoCostTable result={{ state: 'loading' }} labels={labels} />;
+}
+
+function parseWindowDays(value: string | undefined): 30 | 90 | 365 {
+  const days = Number(value);
+  return days === 90 || days === 365 ? days : 30;
 }
 
 async function buildLabels(): Promise<FinanceWoCostLabels> {
@@ -50,8 +56,8 @@ async function buildLabels(): Promise<FinanceWoCostLabels> {
   };
 }
 
-async function FinanceContent({ labels }: { labels: FinanceWoCostLabels }) {
-  const result = await listCompletedWoCosts({ days: 30 });
+async function FinanceContent({ labels, windowDays }: { labels: FinanceWoCostLabels; windowDays: 30 | 90 | 365 }) {
+  const result = await listCompletedWoCosts({ days: windowDays });
   if (result.ok) {
     return <FinanceWoCostTable result={{ state: 'ready', summary: result.data }} labels={labels} />;
   }
@@ -61,7 +67,9 @@ async function FinanceContent({ labels }: { labels: FinanceWoCostLabels }) {
   return <FinanceWoCostTable result={{ state: 'error' }} labels={labels} />;
 }
 
-export default async function FinanceRoutePage(_props: PageProps) {
+export default async function FinanceRoutePage({ searchParams }: PageProps) {
+  const sp: { days?: string } = searchParams ? await searchParams : {};
+  const windowDays = parseWindowDays(sp.days);
   const labels = await buildLabels();
 
   return (
@@ -72,8 +80,8 @@ export default async function FinanceRoutePage(_props: PageProps) {
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">{labels.subtitle}</p>
       </div>
-      <Suspense fallback={<FinanceSkeleton labels={labels} />}>
-        <FinanceContent labels={labels} />
+      <Suspense key={windowDays} fallback={<FinanceSkeleton labels={labels} />}>
+        <FinanceContent labels={labels} windowDays={windowDays} />
       </Suspense>
     </main>
   );

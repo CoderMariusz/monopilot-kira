@@ -1,9 +1,11 @@
 'use client';
 
 import { useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import type { CompletedWoCostsSummary } from '../_actions/wo-cost-actions';
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../lib/shared/download';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 export type FinanceWoCostLabels = {
   title: string;
@@ -46,12 +48,25 @@ export type FinanceWoCostTableProps = {
   labels: FinanceWoCostLabels;
 };
 
+const PERIOD_OPTIONS = [
+  { value: '30', label: 'Last 30 days' },
+  { value: '90', label: 'Last 90 days' },
+  { value: '365', label: 'Last 365 days' },
+];
+
+const CONTROL_LABELS = {
+  periodAriaLabel: 'WO cost period',
+  exportCsv: 'Export CSV',
+};
+
 function money(value: string | null, fallback: string): string {
   return value == null ? fallback : value;
 }
 
 export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
   if (result.state === 'loading') {
@@ -80,6 +95,57 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
   }
 
   const rows = result.summary.rows;
+  const currentWindow = String(result.summary.days);
+
+  const setWindow = (nextValue: string) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (nextValue === '30') next.delete('days');
+    else next.set('days', nextValue);
+    const query = next.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
+
+  const handleExportCsv = () => {
+    try {
+      const csv = toCsv(
+        [
+          'completedAt',
+          'woId',
+          'woNumber',
+          'product',
+          'outputKg',
+          'materials',
+          'materialsTotal',
+          'labor',
+          'machineCost',
+          'setupCost',
+          'wasteCost',
+          'totalCost',
+          'costPerKgOutput',
+          'processResolution',
+        ],
+        rows.map((row) => [
+          row.completedAt,
+          row.woId,
+          row.woNumber,
+          JSON.stringify(row.product),
+          row.outputKg,
+          JSON.stringify(row.materials),
+          row.materialsTotal,
+          row.labor == null ? null : JSON.stringify(row.labor),
+          row.machineCost,
+          row.setupCost,
+          row.wasteCost,
+          row.totalCost,
+          row.costPerKgOutput,
+          JSON.stringify(row.processResolution),
+        ]),
+      );
+      downloadCsv(csv, `finance-wo-costs-${result.summary.days}d-${isoDateStamp()}.csv`);
+    } catch (error) {
+      console.error('[finance] export WO costs CSV failed', error);
+    }
+  };
 
   return (
     <section data-testid="finance-wo-costs" className="space-y-4">
@@ -88,15 +154,43 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
           <h2 className="text-xl font-semibold text-slate-950">{labels.title}</h2>
           <p className="mt-1 text-sm text-slate-500">{labels.subtitle}</p>
         </div>
-        <button
-          type="button"
-          data-testid="finance-refresh"
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm disabled:opacity-60"
-          disabled={isPending}
-          onClick={() => startTransition(() => router.refresh())}
-        >
-          {isPending ? labels.refreshing : labels.refresh}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={currentWindow}
+            onValueChange={setWindow}
+            options={PERIOD_OPTIONS}
+            className="min-w-40"
+          >
+            <SelectTrigger aria-label={CONTROL_LABELS.periodAriaLabel}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIOD_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <button
+            type="button"
+            data-testid="finance-export-csv"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm disabled:opacity-60"
+            disabled={rows.length === 0}
+            onClick={handleExportCsv}
+          >
+            {CONTROL_LABELS.exportCsv}
+          </button>
+          <button
+            type="button"
+            data-testid="finance-refresh"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm disabled:opacity-60"
+            disabled={isPending}
+            onClick={() => startTransition(() => router.refresh())}
+          >
+            {isPending ? labels.refreshing : labels.refresh}
+          </button>
+        </div>
       </div>
 
       {isPending ? (
