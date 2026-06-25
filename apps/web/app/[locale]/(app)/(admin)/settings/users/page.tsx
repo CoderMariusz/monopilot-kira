@@ -5,8 +5,10 @@ import { createUserWithPassword } from '../../../../../../actions/users/create-u
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { ALL_PERMISSIONS } from '../../../../../../../../packages/rbac/src/permissions.enum';
 import SettingsUsersScreen, {
   type PermissionCell,
+  type PermissionModuleSummary,
   type RoleCategory,
   type RoleFilter,
   type RoleSummary,
@@ -32,6 +34,8 @@ type RoleRow = {
   id: string;
   code: string;
   name: string;
+  permissions: string[] | null;
+  permissions_json: unknown;
 };
 
 type UserRow = {
@@ -53,19 +57,6 @@ type KpiRow = {
   invited_users: string | number;
   disabled_users: string | number;
   seat_limit: number | null;
-};
-
-type ModuleRow = {
-  code: string;
-  name: string;
-};
-
-type PermissionRow = {
-  module_code: string;
-  module_name: string;
-  role_code: string;
-  permission: string | null;
-  permissions_json: unknown;
 };
 
 type PermissionCheckRow = { ok: boolean };
@@ -92,7 +83,6 @@ const ROLE_CATEGORY_FALLBACKS: Record<string, RoleCategory> = {
   auditor: 'Viewer',
 };
 const PERMISSION_STRENGTH: Record<PermissionCell, number> = { none: 0, r: 1, rw: 2, admin: 3 };
-const DEFAULT_MODULES = ['NPD', 'Planning', 'Quality'];
 
 function asSingle(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -136,17 +126,34 @@ function permissionsFromJson(value: unknown): string[] {
   return [];
 }
 
-function classifyPermission(moduleCode: string, moduleName: string, permission: string): PermissionCell {
-  const normalizedPermission = permission.toLowerCase();
-  const normalizedModuleCode = moduleCode.toLowerCase();
-  const normalizedModuleName = moduleName.toLowerCase();
-  if (!normalizedPermission.includes(normalizedModuleCode) && !normalizedPermission.includes(normalizedModuleName)) {
-    return 'none';
+function permissionGroupId(permission: string): string {
+  return permission.split('.')[0] ?? permission;
+}
+
+function permissionGroupLabel(groupId: string): string {
+  return groupId
+    .split('_')
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function buildPermissionModules(): Array<PermissionModuleSummary & { permissions: string[] }> {
+  const groups = new Map<string, string[]>();
+  for (const permission of ALL_PERMISSIONS) {
+    const groupId = permissionGroupId(permission);
+    const permissions = groups.get(groupId) ?? [];
+    permissions.push(permission);
+    groups.set(groupId, permissions);
   }
+  return Array.from(groups, ([id, permissions]) => ({ id, label: permissionGroupLabel(id), permissions }));
+}
+
+function classifyPermission(permission: string): PermissionCell {
+  const normalizedPermission = permission.toLowerCase();
   if (/admin|manage|owner|all/.test(normalizedPermission)) return 'admin';
   if (/write|create|update|delete|edit|assign|invite|deactivate|toggle/.test(normalizedPermission)) return 'rw';
   if (/read|view|list/.test(normalizedPermission)) return 'r';
-  return 'none';
+  return 'r';
 }
 
 function strongestPermission(current: PermissionCell, next: PermissionCell): PermissionCell {
@@ -189,10 +196,14 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         queryClient.query<RoleRow>(
           `select r.id,
                   r.code,
-                  r.name
+                  coalesce(r.name, r.code) as name,
+                  r.permissions as permissions_json,
+                  coalesce(array_remove(array_agg(distinct rp.permission), null), '{}'::text[]) as permissions
              from public.roles r
+             left join public.role_permissions rp on rp.role_id = r.id
             where r.org_id = $1::uuid or r.org_id is null
-            order by r.display_order nulls last, r.name asc`,
+            group by r.id, r.code, r.name, r.permissions, r.display_order
+            order by r.display_order nulls last, coalesce(r.name, r.code) asc`,
           [orgId],
         ),
         queryClient.query<UserRow>(
@@ -225,37 +236,6 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         ),
       ]);
 
-      let moduleRows: ModuleRow[] = DEFAULT_MODULES.map((name) => ({ code: name.toLowerCase(), name }));
-      try {
-        const moduleResult = await queryClient.query<ModuleRow>(
-          `select code, name
-             from public.modules
-            order by display_order nulls last, name asc`,
-        );
-        if (moduleResult.rows.length > 0) moduleRows = moduleResult.rows;
-      } catch (error) {
-        console.error('[settings/users] modules_optional_load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-      }
-
-      let permissionRows: PermissionRow[] = [];
-      try {
-        const permissionResult = await queryClient.query<PermissionRow>(
-          `select m.code as module_code,
-                  m.name as module_name,
-                  r.code as role_code,
-                  rp.permission,
-                  r.permissions as permissions_json
-             from public.modules m
-             cross join public.roles r
-             left join public.role_permissions rp on rp.role_id = r.id
-            where r.org_id = $1::uuid or r.org_id is null`,
-          [orgId],
-        );
-        permissionRows = permissionResult.rows;
-      } catch (error) {
-        console.error('[settings/users] permissions_optional_load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-      }
-
       const roles: RoleSummary[] = roleResult.rows.map((role) => ({
         id: role.id,
         code: role.code,
@@ -280,25 +260,33 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         };
       });
 
-      const modules = moduleRows.map((module) => module.name);
-      const moduleNameByCode = new Map(moduleRows.map((module) => [module.code, module.name]));
+      const modules = buildPermissionModules();
       const matrix = Object.fromEntries(
         modules.map((module) => [
-          module,
-          { Admin: 'none', Manager: 'none', Operator: 'none', Viewer: 'none' } satisfies Record<RoleCategory, PermissionCell>,
+          module.id,
+          Object.fromEntries(roles.map((role) => [role.id, 'none' satisfies PermissionCell])),
         ]),
-      ) as Record<string, Record<RoleCategory, PermissionCell>>;
+      ) as Record<string, Record<string, PermissionCell>>;
 
-      for (const row of permissionRows) {
-        const moduleName = moduleNameByCode.get(row.module_code);
-        if (!moduleName) continue;
-        const category = toCategory(undefined, row.role_code);
-        const permissionStrings = [row.permission, ...permissionsFromJson(row.permissions_json)].filter((value): value is string => Boolean(value));
-        for (const permission of permissionStrings) {
-          const cell = classifyPermission(row.module_code, moduleName, permission);
-          matrix[moduleName][category] = strongestPermission(matrix[moduleName][category], cell);
+      for (const role of roleResult.rows) {
+        const permissionStrings = [
+          ...(role.permissions ?? []),
+          ...permissionsFromJson(role.permissions_json),
+        ];
+        const grantedPermissions = new Set(permissionStrings);
+        const roleMatrix = roles.find((summary) => summary.id === role.id);
+        if (!roleMatrix) continue;
+        for (const module of modules) {
+          let strongest: PermissionCell = 'none';
+          for (const permission of module.permissions) {
+            if (!grantedPermissions.has(permission)) continue;
+            strongest = strongestPermission(strongest, classifyPermission(permission));
+          }
+          matrix[module.id][roleMatrix.id] = strongest;
         }
       }
+
+      const visibleModules: PermissionModuleSummary[] = modules.map(({ id, label }) => ({ id, label }));
 
       const kpi = kpiResult.rows[0];
       return {
@@ -306,7 +294,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         data: {
           users,
           roles,
-          modules,
+          modules: visibleModules,
           permissions: matrix,
           kpis: {
             activeUsers: Number(kpi?.active_users ?? 0),

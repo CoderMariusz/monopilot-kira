@@ -15,6 +15,10 @@ export type UserStatus = 'active' | 'invited' | 'disabled';
 export type PermissionCell = 'admin' | 'rw' | 'r' | 'none';
 export type RoleFilter = 'all' | 'admin' | 'manager' | 'operator' | 'viewer';
 export type UsersView = 'table' | 'cards';
+export type PermissionModuleSummary = {
+  id: string;
+  label: string;
+};
 
 export type SettingsUser = {
   id: string;
@@ -47,8 +51,8 @@ export type UsersKpis = {
 export type UsersScreenData = {
   users: SettingsUser[];
   roles: RoleSummary[];
-  modules: string[];
-  permissions: Record<string, Record<RoleCategory, PermissionCell>>;
+  modules: PermissionModuleSummary[];
+  permissions: Record<string, Record<string, PermissionCell>>;
   kpis: UsersKpis;
   canInviteUsers: boolean;
   canAssignRoles: boolean;
@@ -190,7 +194,6 @@ export type SettingsUsersScreenProps = {
 };
 
 const roleFilters: RoleFilter[] = ['all', 'admin', 'manager', 'operator', 'viewer'];
-const permissionColumns: RoleCategory[] = ['Admin', 'Manager', 'Operator', 'Viewer'];
 const permissionGlyphs: Record<PermissionCell, string> = {
   admin: '◉',
   rw: '✎',
@@ -694,7 +697,7 @@ export default function SettingsUsersScreen({
         <div>
           <h1 className="text-2xl font-semibold">{labels.title}</h1>
           <p className="text-sm text-muted-foreground">
-            {interpolate(labels.summary, { users: data.users.length, roles: permissionColumns.length })}
+            {interpolate(labels.summary, { users: data.users.length, roles: data.roles.length })}
           </p>
         </div>
         <div className="flex gap-2">
@@ -889,19 +892,19 @@ export default function SettingsUsersScreen({
             <thead>
               <tr>
                 <th scope="col" className="p-2 text-left">{labels.module}</th>
-                {permissionColumns.map((role) => (
-                  <th key={role} scope="col" className="p-2 text-left">{labels.roleCategoryLabels[role]}</th>
+                {data.roles.map((role) => (
+                  <th key={role.id} scope="col" className="p-2 text-left">{role.label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.modules.map((module) => (
-                <tr key={module} className="border-t">
-                  <td className="p-2 font-medium">{module}</td>
-                  {permissionColumns.map((role) => {
-                    const permission = data.permissions[module]?.[role] ?? 'none';
+                <tr key={module.id} className="border-t">
+                  <td className="p-2 font-medium">{module.label}</td>
+                  {data.roles.map((role) => {
+                    const permission = data.permissions[module.id]?.[role.id] ?? 'none';
                     return (
-                      <td key={role} className="p-2">
+                      <td key={role.id} className="p-2">
                         <span className={`perm-cell ${permission}`} title={permissionTitle(permission, labels)} aria-label={permissionTitle(permission, labels)}>
                           {permissionGlyphs[permission]}
                         </span>

@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { ALL_PERMISSIONS } from '../../../../../../../../packages/rbac/src/permissions.enum';
+
 const productionModalCalls = vi.hoisted(() => ({
   passwordReset: [] as Array<{ open: boolean; user: { id: string; email: string } | null }>,
 }));
@@ -65,6 +67,8 @@ vi.mock('../../../../../../components/settings/modals/password-reset-modal', () 
 }));
 
 import SettingsUsersScreen, {
+  type PermissionCell,
+  type PermissionModuleSummary,
   type SettingsUsersScreenProps,
   type UsersScreenData,
   type UsersScreenLabels,
@@ -128,6 +132,28 @@ const labels: UsersScreenLabels = {
   exportStatus: 'Export prepared',
 };
 
+function permissionGroupId(permission: string): string {
+  return permission.split('.')[0] ?? permission;
+}
+
+function permissionGroupLabel(groupId: string): string {
+  return groupId
+    .split('_')
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function permissionGroups(): Array<PermissionModuleSummary & { permissions: string[] }> {
+  const groups = new Map<string, string[]>();
+  for (const permission of ALL_PERMISSIONS) {
+    const groupId = permissionGroupId(permission);
+    const permissions = groups.get(groupId) ?? [];
+    permissions.push(permission);
+    groups.set(groupId, permissions);
+  }
+  return Array.from(groups, ([id, permissions]) => ({ id, label: permissionGroupLabel(id), permissions }));
+}
+
 const data: UsersScreenData = {
   roles: [
     { id: 'role-admin', code: 'admin', label: 'Admin', category: 'Admin' },
@@ -163,11 +189,15 @@ const data: UsersScreenData = {
       status: 'active',
     },
   ],
-  modules: ['NPD', 'Planning', 'Quality'],
+  modules: [
+    { id: 'npd', label: 'NPD' },
+    { id: 'planning', label: 'Planning' },
+    { id: 'quality', label: 'Quality' },
+  ],
   permissions: {
-    NPD: { Admin: 'admin', Manager: 'rw', Operator: 'r', Viewer: 'none' },
-    Planning: { Admin: 'admin', Manager: 'rw', Operator: 'r', Viewer: 'none' },
-    Quality: { Admin: 'admin', Manager: 'rw', Operator: 'r', Viewer: 'none' },
+    npd: { 'role-admin': 'admin', 'role-manager': 'rw', 'role-operator': 'r', 'role-viewer': 'none' },
+    planning: { 'role-admin': 'admin', 'role-manager': 'rw', 'role-operator': 'r', 'role-viewer': 'none' },
+    quality: { 'role-admin': 'admin', 'role-manager': 'rw', 'role-operator': 'r', 'role-viewer': 'none' },
   },
   kpis: { activeUsers: 2, invitedUsers: 0, disabledUsers: 0, seatLimit: 50 },
   canInviteUsers: true,
@@ -448,5 +478,47 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     // Must show the specific forbidden-role message, NOT "invalid_input"
     expect(alert).toHaveTextContent(/system role.*cannot be assigned/i);
     expect(alert).not.toHaveTextContent(/invalid_input/i);
+  });
+
+  it('renders every permission module group with real role columns and denied cells for a minimal role', () => {
+    const groups = permissionGroups();
+    const modules = groups.map(({ id, label }) => ({ id, label }));
+    const permissions = Object.fromEntries(
+      groups.map((group) => [
+        group.id,
+        {
+          'role-admin': 'admin' satisfies PermissionCell,
+          'role-viewer': 'none' satisfies PermissionCell,
+        },
+      ]),
+    );
+
+    renderScreen({
+      data: {
+        ...data,
+        roles: [
+          { id: 'role-admin', code: 'admin', label: 'Admin', category: 'Admin' },
+          { id: 'role-viewer', code: 'viewer', label: 'Viewer', category: 'Viewer' },
+        ],
+        modules,
+        permissions,
+      },
+    });
+
+    const matrix = screen.getByRole('table', { name: /role permissions/i });
+    const rows = within(matrix).getAllByRole('row').slice(1);
+    expect(groups).toHaveLength(24);
+    expect(rows).toHaveLength(groups.length);
+    expect(within(matrix).getByRole('columnheader', { name: 'Admin' })).toBeVisible();
+    expect(within(matrix).getByRole('columnheader', { name: 'Viewer' })).toBeVisible();
+
+    for (const row of rows) {
+      const cells = within(row).getAllByRole('cell');
+      expect(cells).toHaveLength(3);
+      expect(cells[1]).not.toHaveTextContent('–');
+      expect(within(cells[1]).queryByLabelText('No access')).not.toBeInTheDocument();
+      expect(cells[2]).toHaveTextContent('–');
+      expect(within(cells[2]).getByLabelText('No access')).toBeVisible();
+    }
   });
 });
