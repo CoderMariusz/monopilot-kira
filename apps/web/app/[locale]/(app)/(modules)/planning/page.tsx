@@ -57,6 +57,7 @@ import { PlanningKpiStrip, type PlanningKpiTile } from "./_components/kpi-strip"
 import { PlanningAlertPanels, type PlanningAlertRow } from "./_components/alert-panels";
 import { UpcomingSchedule, type ScheduleDayView } from "./_components/upcoming-schedule";
 import { PlanningHeaderActions } from "./_components/header-actions";
+import { PoAgingReport } from "./components/PoAgingReport";
 
 // Org-scoped DB read per request — never statically prerendered.
 export const dynamic = "force-dynamic";
@@ -210,6 +211,8 @@ async function DashboardContent({ locale }: { locale: string }) {
           view: t("alerts.view"),
         }}
       />
+
+      <PoAgingReport />
 
       <UpcomingSchedule
         days={scheduleView}
