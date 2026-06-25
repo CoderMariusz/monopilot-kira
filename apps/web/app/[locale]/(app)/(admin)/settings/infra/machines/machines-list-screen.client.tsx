@@ -494,6 +494,10 @@ export default function MachinesListScreen({
                 <Select
                   value={newMachine.locationId ?? UNPLACED_LOCATION}
                   onValueChange={(value) => setNewMachine((current) => ({ ...current, locationId: value === UNPLACED_LOCATION ? null : value }))}
+                  options={[
+                    { value: UNPLACED_LOCATION, label: labels.locationUnplaced },
+                    ...binLocations.map((location) => ({ value: location.id, label: location.path || location.name })),
+                  ]}
                 >
                   <SelectTrigger aria-label={labels.fieldLocation}>
                     <SelectValue />

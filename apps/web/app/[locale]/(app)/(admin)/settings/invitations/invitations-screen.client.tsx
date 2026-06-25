@@ -317,7 +317,12 @@ function InviteDialog({
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1 text-sm font-medium">
                 <span>{t('role')}</span>
-                <Select value={roleId} onValueChange={setRoleId} disabled={roles.length === 0}>
+                <Select
+                  value={roleId}
+                  onValueChange={setRoleId}
+                  options={roles.map((role) => ({ value: role.id, label: role.label }))}
+                  disabled={roles.length === 0}
+                >
                   <SelectTrigger aria-label={t('role')}>
                     <SelectValue placeholder={t('select_role')} />
                   </SelectTrigger>

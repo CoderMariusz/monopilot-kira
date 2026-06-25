@@ -334,6 +334,7 @@ export function LineCreateFields({
           <Select
             value={value.siteId ?? ''}
             onValueChange={(next) => onChange({ ...value, siteId: next || null })}
+            options={sites.map((site) => ({ value: site.id, label: `${site.code} - ${site.name}` }))}
             disabled={pending}
           >
             <SelectTrigger aria-label={labels.fieldSite}>
