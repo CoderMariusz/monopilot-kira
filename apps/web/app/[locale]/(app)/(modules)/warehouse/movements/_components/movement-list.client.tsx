@@ -30,6 +30,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, toCsv } from '../../../../../../../lib/shared/download';
 import type { StockMoveListItem } from '../../_actions/shared';
 
 export type MovementTab = 'all' | 'receipts' | 'consume' | 'transfers' | 'adjustments';
@@ -87,6 +88,20 @@ function matchesTab(row: StockMoveListItem, tab: MovementTab): boolean {
   }
 }
 
+function CsvExportIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+      <path
+        d="M10 3v8m0 0 3-3m-3 3L7 8m-3 5.5V15a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
 export function MovementListClient({
   rows,
   labels,
@@ -113,6 +128,30 @@ export function MovementListClient({
           (r.lpNumber ?? '').toLowerCase().includes(q)),
     );
   }, [rows, tab, search]);
+
+  function handleExportCsv() {
+    const header = [
+      labels.col.move,
+      labels.col.lp,
+      labels.col.type,
+      labels.col.from,
+      labels.col.to,
+      labels.col.qty,
+      labels.col.date,
+      labels.col.reason,
+    ];
+    const csvRows = visible.map((r) => [
+      r.moveNumber,
+      r.lpNumber ?? dash,
+      `${labels.moveType[r.moveType] ?? r.moveType} (${labels.source[r.source]})`,
+      r.fromLocationCode ?? dash,
+      r.toLocationCode ?? dash,
+      `${r.quantity}${r.uom ? ` ${r.uom}` : ''}`,
+      r.moveDate ? r.moveDate.slice(0, 10) : dash,
+      r.reasonText ?? dash,
+    ]);
+    downloadCsv(toCsv(header, csvRows), `warehouse-movements-${tab}.csv`);
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -155,7 +194,15 @@ export function MovementListClient({
           data-testid="movement-search"
           className="w-full max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
         />
-        <span className="ml-auto text-xs text-slate-500" data-testid="movement-rows">
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          <CsvExportIcon />
+          Export CSV
+        </button>
+        <span className="text-xs text-slate-500" data-testid="movement-rows">
           {labels.rowsLabel.replace('{count}', String(visible.length))}
         </span>
       </Card>

@@ -29,6 +29,7 @@ import { useMemo, useState } from 'react';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, toCsv } from '../../../../../../../lib/shared/download';
 import type {
   InventoryByBatchRow,
   InventoryByLocationRow,
@@ -55,6 +56,20 @@ export type InventoryBrowserLabels = {
 
 function formatQty(qty: string, uom?: string | null): string {
   return uom ? `${qty} ${uom}` : qty;
+}
+
+function CsvExportIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+      <path
+        d="M10 3v8m0 0 3-3m-3 3L7 8m-3 5.5V15a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
 }
 
 export function InventoryBrowserClient({
@@ -119,6 +134,53 @@ export function InventoryBrowserClient({
         ? visibleLocation.length
         : visibleBatch.length;
 
+  function handleExportCsv() {
+    if (pivot === 'product') {
+      const header = [
+        labels.product.item,
+        labels.product.total,
+        labels.product.lps,
+        labels.product.earliestExpiry,
+      ];
+      const rows = visibleProduct.map((r) => [
+        [r.itemName ?? dash, r.itemCode ?? ''].filter(Boolean).join(' '),
+        `${formatQty(r.totalQty, r.uom)} (${formatQty(r.pickableQty, r.uom)} ${labels.pickable})`,
+        r.lpCount,
+        r.earliestExpiryDate ? r.earliestExpiryDate.slice(0, 10) : dash,
+      ]);
+      downloadCsv(toCsv(header, rows), 'warehouse-inventory-product.csv');
+      return;
+    }
+
+    if (pivot === 'location') {
+      const header = [labels.location.location, labels.location.warehouse, labels.location.total, labels.location.lps];
+      const rows = visibleLocation.map((r) => [
+        r.locationCode ?? dash,
+        r.warehouseCode ?? dash,
+        `${r.totalQty} (${r.pickableQty} ${labels.pickable})`,
+        r.lpCount,
+      ]);
+      downloadCsv(toCsv(header, rows), 'warehouse-inventory-location.csv');
+      return;
+    }
+
+    const header = [
+      labels.batch.batch,
+      labels.batch.item,
+      labels.batch.total,
+      labels.batch.lps,
+      labels.batch.earliestExpiry,
+    ];
+    const rows = visibleBatch.map((r) => [
+      r.batchNumber ?? dash,
+      r.itemCode ?? dash,
+      `${r.totalQty} (${r.pickableQty} ${labels.pickable})`,
+      r.lpCount,
+      r.earliestExpiryDate ? r.earliestExpiryDate.slice(0, 10) : dash,
+    ]);
+    downloadCsv(toCsv(header, rows), 'warehouse-inventory-batch.csv');
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Pivot pills (parity other-screens.jsx:24-28). */}
@@ -165,7 +227,15 @@ export function InventoryBrowserClient({
           data-testid="inventory-search"
           className="w-full max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
         />
-        <span className="ml-auto text-xs text-slate-500" data-testid="inventory-rows">
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          <CsvExportIcon />
+          Export CSV
+        </button>
+        <span className="text-xs text-slate-500" data-testid="inventory-rows">
           {labels.rowsLabel.replace('{count}', String(visibleCount))}
         </span>
       </Card>

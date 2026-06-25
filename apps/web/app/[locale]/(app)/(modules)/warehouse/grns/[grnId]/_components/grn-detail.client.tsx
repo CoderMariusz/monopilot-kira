@@ -38,6 +38,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { downloadCsv, toCsv } from '../../../../../../../../lib/shared/download';
 import type { ReleaseLpQaInput, ReleaseLpQaResult } from '../../../_actions/lp-qa-actions';
 import type { GrnDetail } from '../../../_actions/shared';
 import type { WarehouseResult } from '../../../_actions/shared';
@@ -140,6 +141,20 @@ function copiesFromReceived(received: string): number {
   return Number.isFinite(n) && n >= 1 ? n : 1;
 }
 
+function CsvExportIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+      <path
+        d="M10 3v8m0 0 3-3m-3 3L7 8m-3 5.5V15a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
 export function GrnDetailClient({
   grn,
   labels,
@@ -198,6 +213,32 @@ export function GrnDetailClient({
   const [printResult, setPrintResult] = useState<{ itemId: string; result: GrnPrintLabelResult } | null>(null);
   const [printError, setPrintError] = useState<{ itemId: string; message: string } | null>(null);
 
+  function handleExportCsv() {
+    const header = [
+      labels.col.line,
+      labels.col.item,
+      labels.col.ordered,
+      labels.col.received,
+      labels.col.batch,
+      labels.col.supplierBatch,
+      labels.col.expiry,
+      labels.col.lp,
+      labels.col.qa,
+    ];
+    const rows = grn.items.map((it) => [
+      it.lineNumber,
+      [it.itemName ?? dash, it.itemCode ?? ''].filter(Boolean).join(' '),
+      it.orderedQty == null ? dash : `${it.orderedQty} ${it.uom}`,
+      `${it.receivedQty} ${it.uom}`,
+      it.batchNumber ?? dash,
+      dash,
+      it.expiryDate ? it.expiryDate.slice(0, 10) : dash,
+      it.lpNumber ?? dash,
+      it.lpQaStatus ?? dash,
+    ]);
+    downloadCsv(toCsv(header, rows), `warehouse-grn-${grn.grnNumber}.csv`);
+  }
+
   async function printRow(itemId: string, lpId: string, received: string) {
     if (!canPrint || printBusyItemId !== null) return;
     setPrintBusyItemId(itemId);
@@ -210,7 +251,8 @@ export function GrnDetailClient({
         copies: copiesFromReceived(received),
       });
       setPrintResult({ itemId, result });
-    } catch {
+    } catch (error) {
+      console.error('Failed to print GRN line label', error);
       setPrintError({ itemId, message: labels.printLabel.error });
     } finally {
       setPrintBusyItemId(null);
@@ -278,10 +320,18 @@ export function GrnDetailClient({
         data-testid="grn-detail-items-card"
         className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
       >
-        <div className="border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-900">
             {labels.itemsTitle.replace('{count}', String(grn.items.length))}
           </h2>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <CsvExportIcon />
+            Export CSV
+          </button>
         </div>
         {grn.items.length === 0 ? (
           <p data-testid="grn-detail-items-empty" className="px-4 py-10 text-center text-sm text-slate-500">
