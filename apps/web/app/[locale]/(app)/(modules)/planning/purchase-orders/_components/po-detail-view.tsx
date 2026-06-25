@@ -240,12 +240,12 @@ export function PoDetailView({
   const isDraft = po.status.toLowerCase() === 'draft';
   const canEdit = isDraft && !!updatePurchaseOrderAction;
 
-  // Wave-R reversibility affordance. Offered ONLY for `cancelled` POs per the
+  // Wave-R reversibility affordance. Offered for `sent` and `cancelled` POs per the
   // route contract and only
   // when the seam is wired (the page passes it). Never client-trusts the
   // npd.planning.write permission nor the no-receipts guard — reopenPurchaseOrder
   // re-checks both server-side and returns 'po_has_receipts' when receipts exist.
-  const isCancelled = po.status.toLowerCase() === 'cancelled';
+  const isCancelled = po.status.toLowerCase() === 'cancelled' || po.status.toLowerCase() === 'sent';
   const canReopen = isCancelled && !!reopenPurchaseOrderAction;
   const [editOpen, setEditOpen] = React.useState(false);
   const [lineModalOpen, setLineModalOpen] = React.useState(false);
