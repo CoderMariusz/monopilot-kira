@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@monopilot/ui/Button';
 import { Select } from '@monopilot/ui/Select';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import { setShelfLifeOverride } from '../_actions/set-shelf-life-override';
 import {
   DATE_CODE_FORMATS,
@@ -357,51 +358,76 @@ export function ShelfLifeTable({
   labels: ShelfLifeLabels;
   canEdit: boolean;
 }) {
+  const exportLabel = 'Export CSV';
+  const exportAriaLabel = 'Export shelf-life configuration to CSV';
+
+  function onExportCsv() {
+    downloadCsv(
+      toCsv(
+        [labels.colProduct, labels.colMode, labels.colDuration, labels.colDateCode],
+        rows.map((row) => [
+          `${row.name} (${row.itemCode})`,
+          modeLabel(row.shelfLifeMode, labels),
+          row.shelfLifeDays != null ? `${row.shelfLifeDays} ${labels.days}` : labels.dash,
+          row.dateCodeFormat ?? labels.dash,
+        ]),
+      ),
+      `technical-shelf-life-${isoDateStamp()}.csv`,
+    );
+  }
+
   return (
-    <table aria-label="Shelf-life configuration">
-      <thead>
-        <tr>
-          <th scope="col">{labels.colProduct}</th>
-          <th scope="col" style={{ width: 130 }}>
-            {labels.colMode}
-          </th>
-          <th scope="col" style={{ width: 120, textAlign: 'right' }}>
-            {labels.colDuration}
-          </th>
-          <th scope="col" style={{ width: 140 }}>
-            {labels.colDateCode}
-          </th>
-          <th scope="col" style={{ width: 110, textAlign: 'right' }}>
-            {labels.colActions}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.id}>
-            <td>
-              <span style={{ fontWeight: 500 }}>{row.name}</span>
-              <div className="mono text-xs" style={{ color: 'var(--muted)' }}>
-                {row.itemCode}
-              </div>
-            </td>
-            <td>
-              {row.shelfLifeMode ? (
-                <span className={`badge ${MODE_BADGE[row.shelfLifeMode]}`}>{modeLabel(row.shelfLifeMode, labels)}</span>
-              ) : (
-                <span className="badge badge-gray">{labels.notConfigured}</span>
-              )}
-            </td>
-            <td className="num mono" style={{ textAlign: 'right' }}>
-              {row.shelfLifeDays != null ? `${row.shelfLifeDays} ${labels.days}` : labels.dash}
-            </td>
-            <td className="mono text-xs">{row.dateCodeFormat ?? labels.dash}</td>
-            <td style={{ textAlign: 'right' }}>
-              <ShelfLifeRowActions row={row} labels={labels} canEdit={canEdit} />
-            </td>
+    <>
+      <div className="flex justify-end border-b px-3 py-2">
+        <Button type="button" className="btn-secondary btn-sm" aria-label={exportAriaLabel} onClick={onExportCsv}>
+          {exportLabel}
+        </Button>
+      </div>
+      <table aria-label="Shelf-life configuration">
+        <thead>
+          <tr>
+            <th scope="col">{labels.colProduct}</th>
+            <th scope="col" style={{ width: 130 }}>
+              {labels.colMode}
+            </th>
+            <th scope="col" style={{ width: 120, textAlign: 'right' }}>
+              {labels.colDuration}
+            </th>
+            <th scope="col" style={{ width: 140 }}>
+              {labels.colDateCode}
+            </th>
+            <th scope="col" style={{ width: 110, textAlign: 'right' }}>
+              {labels.colActions}
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <span style={{ fontWeight: 500 }}>{row.name}</span>
+                <div className="mono text-xs" style={{ color: 'var(--muted)' }}>
+                  {row.itemCode}
+                </div>
+              </td>
+              <td>
+                {row.shelfLifeMode ? (
+                  <span className={`badge ${MODE_BADGE[row.shelfLifeMode]}`}>{modeLabel(row.shelfLifeMode, labels)}</span>
+                ) : (
+                  <span className="badge badge-gray">{labels.notConfigured}</span>
+                )}
+              </td>
+              <td className="num mono" style={{ textAlign: 'right' }}>
+                {row.shelfLifeDays != null ? `${row.shelfLifeDays} ${labels.days}` : labels.dash}
+              </td>
+              <td className="mono text-xs">{row.dateCodeFormat ?? labels.dash}</td>
+              <td style={{ textAlign: 'right' }}>
+                <ShelfLifeRowActions row={row} labels={labels} canEdit={canEdit} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }

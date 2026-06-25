@@ -20,6 +20,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type { BomDiff, NumericChange } from '../_actions/diff';
 
 function isEmptyDiff(diff: BomDiff): boolean {
@@ -57,6 +58,8 @@ export function BomVersionDiff({
   toVersion: number;
 }) {
   const t = useTranslations('technical.bom.diff');
+  const exportLabel = 'Export CSV';
+  const exportAriaLabel = 'Export BOM version diff to CSV';
 
   if (isEmptyDiff(diff)) {
     return (
@@ -69,10 +72,70 @@ export function BomVersionDiff({
     );
   }
 
+  function onExportCsv() {
+    const rows: (string | number | null | undefined)[][] = [];
+    const addChange = (
+      section: string,
+      change: string,
+      item: string,
+      attribute: string,
+      before: string | null | undefined,
+      after: string | null | undefined,
+    ) => {
+      rows.push([section, change, item, attribute, before, after]);
+    };
+    const addNumericChange = (
+      section: string,
+      change: string,
+      item: string,
+      attribute: string,
+      numeric: NumericChange,
+    ) => {
+      addChange(section, change, item, attribute, numeric.from, numeric.to);
+    };
+
+    for (const h of diff.header) {
+      addChange(t('headerChanges'), t('changed'), h.field, h.field, h.from, h.to);
+    }
+    for (const line of diff.lines.added) {
+      addChange(t('lines'), t('added'), line.componentCode, t('quantity'), null, `${line.quantity} ${line.uom}`);
+    }
+    for (const line of diff.lines.removed) {
+      addChange(t('lines'), t('removed'), line.componentCode, t('quantity'), `${line.quantity} ${line.uom}`, null);
+    }
+    for (const line of diff.lines.changed) {
+      if (line.quantity) addNumericChange(t('lines'), t('changed'), line.componentCode, t('quantity'), line.quantity);
+      if (line.scrapPct) addNumericChange(t('lines'), t('changed'), line.componentCode, t('scrap'), line.scrapPct);
+      if (line.uom) addChange(t('lines'), t('changed'), line.componentCode, t('uom'), line.uom.from, line.uom.to);
+      if (line.componentType) {
+        addChange(t('lines'), t('changed'), line.componentCode, t('type'), line.componentType.from ?? '—', line.componentType.to ?? '—');
+      }
+    }
+    for (const coProduct of diff.co_products.added) {
+      addChange(t('coProducts'), t('added'), coProduct.coProductItemId, t('quantity'), null, `${coProduct.quantity} ${coProduct.uom}`);
+    }
+    for (const coProduct of diff.co_products.removed) {
+      addChange(t('coProducts'), t('removed'), coProduct.coProductItemId, t('quantity'), `${coProduct.quantity} ${coProduct.uom}`, null);
+    }
+    for (const coProduct of diff.co_products.changed) {
+      if (coProduct.quantity) addNumericChange(t('coProducts'), t('changed'), coProduct.key, t('quantity'), coProduct.quantity);
+      if (coProduct.allocationPct) addNumericChange(t('coProducts'), t('changed'), coProduct.key, t('allocation'), coProduct.allocationPct);
+      if (coProduct.uom) addChange(t('coProducts'), t('changed'), coProduct.key, t('uom'), coProduct.uom.from, coProduct.uom.to);
+    }
+
+    downloadCsv(
+      toCsv(['Section', 'Change', 'Item / field', 'Attribute', 'Before', 'After'], rows),
+      `technical-bom-version-diff-v${fromVersion}-to-v${toVersion}-${isoDateStamp()}.csv`,
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <header className="text-xs uppercase tracking-wide text-slate-500" role="status">
-        {t('subtitle', { from: fromVersion, to: toVersion })}
+      <header className="flex flex-wrap items-center justify-between gap-2 text-xs uppercase tracking-wide text-slate-500" role="status">
+        <span>{t('subtitle', { from: fromVersion, to: toVersion })}</span>
+        <button type="button" className="btn btn-secondary btn-sm normal-case tracking-normal" aria-label={exportAriaLabel} onClick={onExportCsv}>
+          {exportLabel}
+        </button>
       </header>
 
       {/* Header field changes */}

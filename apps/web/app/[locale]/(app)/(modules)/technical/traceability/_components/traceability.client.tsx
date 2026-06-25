@@ -26,6 +26,8 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
+
 export type TraceDirection = 'backward' | 'forward' | 'both';
 
 export type TraceNodeKind =
@@ -124,6 +126,8 @@ export function TraceabilityClient({ labels, searchAction }: TraceabilityClientP
   const [state, setState] = useState<TraceabilityState>('prompt');
   const [nodes, setNodes] = useState<TraceNode[]>([]);
   const [edges, setEdges] = useState<TraceEdge[]>([]);
+  const exportLabel = 'Export CSV';
+  const exportAriaLabel = 'Export traceability results to CSV';
 
   function runSearch(dir?: TraceDirection) {
     const q = query.trim();
@@ -171,6 +175,35 @@ export function TraceabilityClient({ labels, searchAction }: TraceabilityClientP
       items: byKind.get(k) as TraceNode[],
     }));
   }, [nodes]);
+
+  function onExportCsv() {
+    downloadCsv(
+      toCsv(
+        ['Kind', 'Label', 'Item code', labels.lotLabel, labels.qtyLabel, labels.statusLabel, 'Links'],
+        grouped.flatMap((group) =>
+          group.items.map((node) => {
+            const out = edgesByFrom.get(`${node.nodeType}::${node.id}`) ?? [];
+            return [
+              labels.kind[node.nodeType],
+              node.label,
+              node.itemCode ?? '',
+              node.lotOrBatch ?? '',
+              node.quantity ? `${node.quantity}${node.uom ? ` ${node.uom}` : ''}` : '',
+              node.status ?? '',
+              out
+                .map((edge) => {
+                  const targetKind = labels.kind[edge.toType as TraceNodeKind] ?? edge.toType;
+                  const quantity = edge.quantity ? ` (${edge.quantity}${edge.uom ? ` ${edge.uom}` : ''})` : '';
+                  return `${labels.relation[edge.relation]} -> ${targetKind}${quantity}`;
+                })
+                .join('; '),
+            ];
+          }),
+        ),
+      ),
+      `technical-traceability-${isoDateStamp()}.csv`,
+    );
+  }
 
   if (state === 'denied') {
     return (
@@ -284,6 +317,11 @@ export function TraceabilityClient({ labels, searchAction }: TraceabilityClientP
         >
           <div className="text-xs text-muted-foreground" data-testid="traceability-count" aria-live="polite">
             {labels.resultCount.replace('{count}', String(nodes.length))}
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" className="btn-secondary btn-sm" aria-label={exportAriaLabel} onClick={onExportCsv}>
+              {exportLabel}
+            </Button>
           </div>
 
           {grouped.map((group) => (
