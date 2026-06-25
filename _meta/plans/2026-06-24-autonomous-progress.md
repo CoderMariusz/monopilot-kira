@@ -164,3 +164,37 @@ Dispatched: PO cancel/reopen UI + customer-create. Browser production-flow audit
 - DATA fix (MCP): set "Finished Goods" warehouse is_default=true for org 0002 → output now lands there sensibly.
 - Audit also confirmed (owner-decision-aligned): over-production guard shipped OFF (massbalance_threshold_pct NULL → block never fires; WARN tier 2% exists) — matches owner's WARN+FLAG choice, leave block off. NEW: L2 generic error toasts swallow server reason (output/consume); L2 stale "Brak konsumpcji" gate contradicts 122% data; L3 no over-consume warn (126%). Queued.
 - PO cancel/reopen lane (ae8f77ad) DONE: 8 keys (8211), typecheck 0, PO tests 11/11. Customer lane (a6ccabba) still running. PO keys pre-captured to /tmp/po_i18n_keys.json (clobber insurance). HOLD build until a6ccabba finishes → reconcile json → build → commit groups (output-fix/PO/customer) → push.
+
+## 2026-06-25 (build program — 4 shipments live/building from owner mandate)
+- b57356d9 deploy READY: CRITICAL output-409 fix + PO cancel/reopen + customer-create all LIVE (testers can register FG output now). Customer passed kira-codex-review (RBAC/RLS/param/schema all sound; fixed its 1 HIGH = missing already_exists key).
+- Error-reason surfacing (24 codes → production.wos.detail.errors.* clear PL) committed+pushed (owner "clear why-blocked"). UI-only.
+- json-collision discipline holding: ONE json editor at a time (PO+customer coexisted 8216 by fresh-read luck; now sequencing).
+- Dispatched: stale "Brak konsumpcji" gate fix (a0a41c0e — gate reads wrong source, claims no-consumption despite 122%; diagnose+fix read-only).
+- Remaining owner-mandate program: mass-balance over-production FLAG (warn+persist, design carefully — touches register-output/money + migration); DRAFT-WO Release verb+button; desktop PO real-receive GRN/LP (biggest→review); WO-close auto-release FEFO; logic-gap Wave-A per-rule.
+
+## 2026-06-25 (mass-balance over-production FLAG — owner #1 decision, backend shipped)
+- mig 336 applied live (work_orders.over_production_flagged + _at) + register-output sets it in-txn when the warn tier fires (idempotent, org-scoped, not cleared on void). PREPARE-tested; build 0; pushed. Owner policy: WARN+FLAG, block tier stays OFF.
+- Phase 2 (a667c452 running): surface the flag on WO detail header badge + list indicator + i18n. Sole json lane.
+- no-consumption gate fix (a0a41c0e) shipped: gate now reads wo_materials.consumed_qty (same as KPI) instead of empty wo_material_consumption ledger.
+- Owner-mandate program tally — SHIPPED: output-409 fix (critical, LIVE) · PO cancel/reopen · customer-create · error-reason surfacing · no-consumption gate · mass-balance flag backend. REMAINING: mass-balance UI (running) · DRAFT-WO Release · desktop PO real-receive (GRN/LP, review) · WO-close auto-release FEFO · logic-gap Wave-A per-rule.
+
+## 2026-06-25 (heartbeat — mass-balance UI + live RE-VERIFY of critical fixes)
+- 2 lanes (json-constraint respected): a667c452 (mass-balance flag UI surface — WO detail badge + list indicator + i18n, sole json editor) + aac8edcb (browser RE-VERIFY: confirm the CRITICAL desktop-output-409 fix WORKS live + specific error msgs + no-consumption gate + PO cancel/reopen + customer-create). Browser = no code collision, Track-1.
+- HEAD 13da38f4 (mass-balance flag backend) pushed. Will integrate Phase-2 UI on completion (build+commit+push), act on any browser-found bugs → Track-2.
+
+## 2026-06-25 (browser RE-VERIFY all-PASS + mass-balance complete + E2E map workflow)
+- Live RE-VERIFY (aac8edcb): ALL 5 PASS. CRITICAL desktop FG output 409 fix CONFIRMED WORKING live (output registered + FG LPs created on Demo Plant + AUDIT2). Mass-balance warn fires live with clear numbers (255kg output vs 5kg consumed, yield 98.5%). No-consumption gate fixed. PO cancel/reopen + customer-create work. No new functional bugs. Minor obs: intermittent /outputs 409 (clean single=200; idle-logout + likely client double-submit, NOT the old bug) + aggressive idle-timeout (IDLE-2/#62).
+- Mass-balance over-production FLAG COMPLETE end-to-end (backend mig 336 + UI badge/indicators) — owner decision #1 fully shipped.
+- Owner asked for an E2E tester process map → launched Workflow wn9923dnf (16 agents: 10 segments from real code + Mermaid + variants → 3 completeness critics → synthesis to docs/guide/pl/PRZEPLYW-E2E-TESTOWY.md, printable PL + per-step checklists).
+- Dispatched DRAFT-WO Release lane (a5207f49, sole json editor) — journey step 20 dead-end (only Start, needs RELEASED).
+- Follow-ups noted (minor): output double-submit guard; IDLE-2 global handler.
+
+## 2026-06-25 (hourly tick — map workflow + DRAFT-WO release in flight)
+- 2 concurrent: Workflow wn9923dnf (E2E tester map, doc not written yet — synthesis pending) + DRAFT-WO Release lane a5207f49 (wrote release context/button/tests + 4 i18n keys → 8248, no completion notification yet → may be finalizing).
+- HEAD bfbf77ee (mass-balance UI). Holding build until a5207f49 confirms done (concurrent-edit rule) + the Workflow doc lands. On a5207f49 completion: if it created a NEW releaseWorkOrder action (state-change write) → kira-codex-review before push.
+- Browser RE-VERIFY earlier = all 5 PASS (critical output fix confirmed live). Mass-balance flag complete e2e.
+
+## 2026-06-25 (heartbeat — map workflow + 2 Codex lanes)
+- In flight: Workflow wn9923dnf (E2E map, synthesis pending — doc not written yet) + afbbf2f6 (output double-submit guard, sole json editor, diagnose+fix) + a7deacbc (READ-ONLY logic-gap triage: verify which of the 71 audited gaps are STILL open in current code + classify per owner's per-rule decision → backlog).
+- DRAFT-WO Release shipped+reviewed-SHIP last tick (7 owner-mandate items done; mass-balance flag complete e2e).
+- Big remaining (desktop GRN-receive / WO-close FEFO / logic-gap builds) held for post-map + the triage's verified backlog + owner walkthrough.
