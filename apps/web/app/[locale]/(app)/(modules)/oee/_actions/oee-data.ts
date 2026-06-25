@@ -237,7 +237,7 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
                 s.snapshot_minute,
                 s.line_id,
                 coalesce(pl.code, pl.name, case when s.line_id = 'unassigned' then null else 'Unknown line' end) as line_code,
-                s.shift_id,
+                coalesce(sc.shift_label, s.shift_id) as shift_id,
                 w.wo_number,
                 round(s.availability_pct, 1)::text as a,
                 round(s.performance_pct, 1)::text as p,
@@ -249,6 +249,8 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
            from public.oee_snapshots s
            left join public.production_lines pl
              on pl.org_id = s.org_id and pl.id::text = s.line_id
+          left join public.shift_configs sc
+            on sc.org_id = s.org_id and sc.shift_id = s.shift_id
           left join public.work_orders w
             on w.org_id = s.org_id and w.id = s.active_wo_id
           where s.org_id = app.current_org_id()

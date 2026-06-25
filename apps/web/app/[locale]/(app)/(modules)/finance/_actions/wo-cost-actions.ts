@@ -144,6 +144,10 @@ function asDays(value: unknown, fallback: number): number {
     : fallback;
 }
 
+function hasComputedCostInputs(row: WoActualCost): boolean {
+  return toMicro(row.totalCost) !== 0n;
+}
+
 async function hasFinancePermission(
   ctx: FinanceContext,
   permission: string,
@@ -371,7 +375,7 @@ export async function listCompletedWoCosts(
         const costRows: WoCostSummaryRow[] = [];
         for (const row of rows.rows) {
           const result = await computeWoActualCostInContext(ctx, row.wo_id);
-          if (result.ok) {
+          if (result.ok && hasComputedCostInputs(result.data)) {
             costRows.push({ ...result.data, completedAt: iso(row.completed_at) });
           }
         }
