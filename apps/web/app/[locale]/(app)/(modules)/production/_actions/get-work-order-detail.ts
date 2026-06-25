@@ -243,13 +243,12 @@ export type WorkOrderDetailData = {
   /**
    * Owner-decision SOFT-warning state (no stored flag, no migration): TRUE when
    * the WO has ≥1 registered output (wo_outputs) but ZERO *real* material
-   * consumption rows. "Real" excludes (a) the nil-UUID LP sentinel
-   * (00000000-0000-0000-0000-000000000000) that no-LP consumes write and
-   * (b) signed correction counter-entries (correction_of_id IS NOT NULL). When
-   * TRUE the output LP has no genealogy/traceability parent — the detail screen
-   * surfaces a non-blocking ⚠ badge + tooltip, and the register-output modal
-   * shows a non-blocking "continue anyway" warning. Derived from the already-
-   * loaded outputs + consumption rows — no extra round-trip.
+   * consumption according to the same wo_materials.consumed_qty read-model that
+   * drives the header "consumption %" KPI and the Consumption tab. When TRUE the
+   * output LP has no genealogy/traceability parent — the detail screen surfaces a
+   * non-blocking ⚠ badge + tooltip, and the register-output modal shows a
+   * non-blocking "continue anyway" warning. Derived from the already-loaded
+   * outputs + component rows — no extra round-trip.
    */
   hasOutputWithoutConsumption: boolean;
 };
@@ -586,14 +585,12 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
       }));
 
       // SOFT-warning derivation (owner decision — warn, never block; no stored
-      // flag). Count only *real* consumption rows: drop the nil-UUID LP sentinel
-      // that LP-less consumes write, and drop signed correction counter-entries.
-      // Reuses the already-loaded genealogy rows + outputs — no extra round-trip.
-      const realConsumptionCount = genealogyRes.rows.filter(
-        (r) => r.lp_id !== NIL_LP_SENTINEL && r.correction_of_id == null,
-      ).length;
+      // flag). Use the SAME read model as the displayed consumption KPI/table:
+      // wo_materials.consumed_qty. The ledger rows remain useful for genealogy,
+      // but LP-less consumes can legitimately carry the nil LP sentinel there.
+      const hasDisplayedConsumption = components.some((r) => r.consumedQty > 0);
       const hasOutputWithoutConsumption =
-        outputs.length > 0 && realConsumptionCount === 0;
+        outputs.length > 0 && !hasDisplayedConsumption;
 
       // Merge status-history + execution events into one chronological log.
       const history: WoDetailHistoryEvent[] = [
