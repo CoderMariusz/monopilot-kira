@@ -9,6 +9,7 @@ import {
   hasPlanningWritePermission,
   pgErrorToResult,
   toIso,
+  uuidSchema,
   writeProcurementAudit,
   type OrgActionContext,
   type ProcurementError,
@@ -42,6 +43,10 @@ type Supplier = {
 };
 
 type SupplierResult<T> = { ok: true; data: T } | { ok: false; error: ProcurementError; message?: string };
+
+const SupplierUpdateInput = SupplierCreateInput.extend({
+  id: uuidSchema,
+});
 
 // Family-(a) round-trip fix: the create/transition mutations had NO server-cache
 // revalidation, so the supplier list (and the detail header) could re-render stale
@@ -163,6 +168,92 @@ export async function createSupplier(rawInput: unknown): Promise<SupplierResult<
     const error = pgErrorToResult(err);
     if (error !== 'persistence_failed') return { ok: false, error };
     console.error('[planning/suppliers] createSupplier failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function updateSupplier(rawInput: unknown): Promise<SupplierResult<Supplier>> {
+  const parsed = SupplierUpdateInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const before = await ctx.client.query<SupplierRow>(
+        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+           from public.suppliers
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1
+          for update`,
+        [input.id],
+      );
+      const previous = before.rows[0];
+      if (!previous) return { ok: false, error: 'not_found' };
+
+      const { rows, rowCount } = await ctx.client.query<SupplierRow>(
+        // `code` is the supplier natural key and is referenced by loose text
+        // soft-refs (supplier_specs.supplier_code, npd_packaging_components.supplier_code)
+        // that have NO FK cascade — editing it would silently desync them, so it is
+        // intentionally immutable here (renames would be a separate, cascade-aware op).
+        `update public.suppliers
+            set name = $2,
+                contact_jsonb = $3::jsonb,
+                currency = $4,
+                lead_time_days = $5::integer,
+                status = $6,
+                notes = $7,
+                updated_by = $8::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+        returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+        [
+          input.id,
+          input.name,
+          JSON.stringify(input.contact ?? {}),
+          input.currency,
+          input.leadTimeDays,
+          input.status,
+          input.notes ?? null,
+          userId,
+        ],
+      );
+      const row = rows[0];
+      if (rowCount === 0 || !row) return { ok: false, error: 'not_found' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.supplier.updated',
+        resourceType: 'supplier',
+        resourceId: row.id,
+        beforeState: {
+          code: previous.code,
+          name: previous.name,
+          contact: previous.contact_jsonb,
+          currency: previous.currency,
+          leadTimeDays: Number(previous.lead_time_days),
+          status: previous.status,
+          notes: previous.notes,
+        },
+        afterState: {
+          code: row.code,
+          name: row.name,
+          contact: row.contact_jsonb,
+          currency: row.currency,
+          leadTimeDays: Number(row.lead_time_days),
+          status: row.status,
+          notes: row.notes,
+        },
+      });
+      revalidateSupplierPaths(row.id);
+      return { ok: true, data: mapSupplier(row) };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/suppliers] updateSupplier failed', err);
     return { ok: false, error };
   }
 }

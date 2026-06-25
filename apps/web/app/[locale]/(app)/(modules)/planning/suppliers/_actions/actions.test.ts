@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createSupplier, getSupplier, listSuppliers, transitionSupplierStatus } from './actions';
+import { createSupplier, getSupplier, listSuppliers, transitionSupplierStatus, updateSupplier } from './actions';
 import type { QueryClient } from '../../_actions/procurement-shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -53,6 +53,9 @@ function makeClient(): QueryClient {
       }
       if (normalized.startsWith('select status from public.suppliers')) {
         return { rows: supplierExists ? [{ status: 'active' }] : [], rowCount: supplierExists ? 1 : 0 };
+      }
+      if (normalized.startsWith('update public.suppliers') && normalized.includes('set name =')) {
+        return { rows: supplierExists ? [row({ code: 'SUP-TEST-02', name: 'Updated Supplier', lead_time_days: 7, notes: 'Updated notes' })] : [], rowCount: supplierExists ? 1 : 0 };
       }
       if (normalized.startsWith('update public.suppliers')) {
         return { rows: supplierExists ? [row({ status: 'blocked' })] : [], rowCount: supplierExists ? 1 : 0 };
@@ -114,6 +117,50 @@ describe('planning suppliers actions', () => {
   it('rejects create when caller lacks planning write permission', async () => {
     allowPermission = false;
     await expect(createSupplier({ code: 'SUP-TEST-01', name: 'Test Supplier' })).resolves.toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('updates suppliers with planning write permission and audit before/after payload', async () => {
+    const result = await updateSupplier({
+      id: SUPPLIER_ID,
+      code: 'SUP-TEST-02',
+      name: 'Updated Supplier',
+      contact: { email: 'updated@example.test' },
+      currency: 'EUR',
+      leadTimeDays: 7,
+      status: 'active',
+      notes: 'Updated notes',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data).toEqual(expect.objectContaining({ code: 'SUP-TEST-02', name: 'Updated Supplier', leadTimeDays: 7 }));
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql, params]) => (
+        sql.includes('insert into public.audit_events') && params?.[2] === 'planning.supplier.updated'
+      )),
+    ).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/planning/suppliers', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/planning/suppliers/${SUPPLIER_ID}`, 'page');
+  });
+
+  it('rejects update when caller lacks planning write permission', async () => {
+    allowPermission = false;
+    await expect(updateSupplier({
+      id: SUPPLIER_ID,
+      code: 'SUP-TEST-02',
+      name: 'Updated Supplier',
+      leadTimeDays: 7,
+    })).resolves.toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('returns not_found when updating a missing supplier', async () => {
+    supplierExists = false;
+    await expect(updateSupplier({
+      id: SUPPLIER_ID,
+      code: 'SUP-TEST-02',
+      name: 'Updated Supplier',
+      leadTimeDays: 7,
+    })).resolves.toEqual({ ok: false, error: 'not_found' });
   });
 
   it('transitions supplier status with an audit before/after payload', async () => {
