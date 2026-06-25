@@ -496,7 +496,8 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
           ]);
           return { canEdit, packWeightG, versions, currentStage, allergenReference };
         });
-      } catch {
+      } catch (e) {
+        console.error('formulation loader error:', e);
         return { canEdit: false, packWeightG: null, versions: [], currentStage: null, allergenReference: [] };
       }
     })(),

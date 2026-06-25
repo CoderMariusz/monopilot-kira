@@ -19,8 +19,10 @@ type ReleasePreflightRow = {
   each_per_box: string | null;
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseWorkOrderResult> {
-  if (!params.id || !/^[0-9a-fA-F-]{36}$/.test(params.id)) return { ok: false, error: 'invalid_input' };
+  if (!params.id || !UUID_RE.test(params.id)) return { ok: false, error: 'invalid_input' };
 
   try {
     return await withOrgContext(async (ctx): Promise<ReleaseWorkOrderResult> => {
