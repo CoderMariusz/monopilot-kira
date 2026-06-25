@@ -250,17 +250,20 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
           : 'D365 integration is disabled — local Technical approval still unlocks factory use.',
       });
 
-      // Approval / rejection history from the audit_log (real evidence).
+      // Approval / rejection history (real evidence). The factory-spec lifecycle
+      // writers (create-factory-spec / recall-spec / factory-spec-flow) all log to
+      // public.audit_events, so the history panel must read the SAME table — it
+      // previously read public.audit_log and was therefore always empty.
       const historyResult = await db.query<AuditRow>(
-        `select al.occurred_at,
+        `select ae.occurred_at,
                 u.email as actor,
-                al.action
-           from public.audit_log al
-           left join public.users u on u.id = al.actor_user_id
-          where al.org_id = app.current_org_id()
-            and al.resource_type = 'factory_spec'
-            and al.resource_id = $1
-          order by al.occurred_at desc
+                ae.action
+           from public.audit_events ae
+           left join public.users u on u.id = ae.actor_user_id
+          where ae.org_id = app.current_org_id()
+            and ae.resource_type = 'factory_spec'
+            and ae.resource_id = $1
+          order by ae.occurred_at desc
           limit 20`,
         [factorySpecId],
       );
