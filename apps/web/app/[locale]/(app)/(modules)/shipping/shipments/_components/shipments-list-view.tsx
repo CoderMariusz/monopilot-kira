@@ -27,11 +27,13 @@
 import React from 'react';
 import Link from 'next/link';
 
+import { Button } from '@monopilot/ui/Button';
 import { Select } from '@monopilot/ui/Select';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import type { ShipmentRow } from '../_actions/shipments-data';
+import { downloadCsv, toCsv } from '../../../../../../../lib/shared/download';
 
 const LABEL_WEIGHT = { en: 'Weight', pl: 'Waga' } as const;
 const LABEL_CARRIER = { en: 'Carrier', pl: 'Przewoźnik' } as const;
@@ -79,6 +81,7 @@ export type ShipmentsListViewProps = {
 
 export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListViewProps) {
   const [statusFilter, setStatusFilter] = React.useState('');
+  const [exportError, setExportError] = React.useState<string | null>(null);
 
   const statusLabel = (s: string) => labels.status[s.toLowerCase()] ?? s;
 
@@ -92,6 +95,11 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
   function weightText(value: string | null): string {
     if (value == null || value === '') return labels.noWeight;
     return `${value} ${labels.weightUnit}`;
+  }
+
+  function customerText(name: string | null | undefined, code: string | null | undefined): string {
+    if (name && code) return `${name} (${code})`;
+    return name ?? code ?? '—';
   }
 
   function shortDateText(value: string | null | undefined): string {
@@ -125,6 +133,40 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
       : { label: LABEL_OTIF_LATE[localeKey], className: 'border-red-200 bg-red-50 text-red-700' };
   }
 
+  function exportCsv() {
+    setExportError(null);
+    try {
+      const headers = [
+        labels.columns.shipment,
+        labels.columns.salesOrder,
+        labels.columns.customer,
+        labels.columns.status,
+        labels.columns.boxes,
+        LABEL_WEIGHT[localeKey],
+        LABEL_CARRIER[localeKey],
+        LABEL_REQUIRED_BY[localeKey],
+        LABEL_OTIF,
+        labels.columns.actions,
+      ];
+      const rows = visible.map((sh) => [
+        sh.shipmentNumber || '—',
+        sh.salesOrderNumber ?? '—',
+        customerText(sh.customerName, sh.customerCode),
+        statusLabel(sh.status),
+        sh.boxCount,
+        weightText(sh.totalWeightKg ?? sh.weight),
+        sh.carrier ?? '—',
+        shortDateText(sh.requiredDeliveryDate),
+        otifBadge(sh).label,
+        labels.view,
+      ]);
+      downloadCsv(toCsv(headers, rows), 'shipments.csv');
+    } catch (error) {
+      console.error('Failed to export shipments CSV', error);
+      setExportError('CSV export failed.');
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4" data-testid="shipments-list-view">
       {/* Filter bar */}
@@ -140,10 +182,20 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
             ]}
           />
         </div>
-        <span className="ml-auto text-xs text-slate-500" data-testid="shipments-rows-count">
-          {labels.rowsCount.replace('{n}', String(visible.length))}
-        </span>
+        <div className="ml-auto flex items-center gap-3">
+          <Button type="button" data-testid="shipments-export-csv" onClick={exportCsv}>
+            Export CSV
+          </Button>
+          <span className="text-xs text-slate-500" data-testid="shipments-rows-count">
+            {labels.rowsCount.replace('{n}', String(visible.length))}
+          </span>
+        </div>
       </div>
+      {exportError ? (
+        <p className="text-xs text-red-700" role="alert" data-testid="shipments-export-error">
+          {exportError}
+        </p>
+      ) : null}
 
       {visible.length === 0 ? (
         <EmptyState icon="🚚" title={labels.empty.title} body={labels.empty.body} action={<span />} />

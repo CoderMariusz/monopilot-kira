@@ -47,6 +47,7 @@ import { SoStatusBadge } from './so-status-badge';
 import { CreateSoModal, type CreateCustomerResult, type CreateSoLabels, type CreateSoResult } from './create-so-modal';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items';
 import type { SoCustomerOption } from '../_actions/so-form-data';
+import { downloadCsv, toCsv } from '../../../../../../lib/shared/download';
 
 export type SoRow = {
   id: string;
@@ -143,6 +144,11 @@ function money(value: string, locale: string): string {
   return new Intl.NumberFormat(locale, { style: 'currency', currency: SO_CURRENCY }).format(n);
 }
 
+function customerText(name: string | null, code: string | null): string {
+  if (name && code) return `${name} (${code})`;
+  return name ?? code ?? '—';
+}
+
 export function SoListView({
   locale,
   salesOrders,
@@ -158,6 +164,7 @@ export function SoListView({
   const [search, setSearch] = React.useState('');
   const [customerFilter, setCustomerFilter] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
+  const [exportError, setExportError] = React.useState<string | null>(null);
 
   const counts = React.useMemo(() => {
     const c = Object.fromEntries(TAB_ORDER.map((k) => [k, 0])) as Record<TabKey, number>;
@@ -196,6 +203,34 @@ export function SoListView({
     setCustomerFilter('');
   }
 
+  function exportCsv() {
+    setExportError(null);
+    try {
+      const headers = [
+        labels.columns.so,
+        labels.columns.customer,
+        labels.columns.status,
+        labels.columns.expected,
+        labels.columns.lines,
+        labels.columns.total,
+        labels.columns.actions,
+      ];
+      const rows = visible.map((so) => [
+        so.soNumber,
+        customerText(so.customerName, so.customerCode),
+        statusLabel(so.status),
+        fmtDate(so.expectedShipDate, locale),
+        so.lineCount,
+        money(so.total, locale),
+        labels.view,
+      ]);
+      downloadCsv(toCsv(headers, rows), 'sales-orders.csv');
+    } catch (error) {
+      console.error('Failed to export sales orders CSV', error);
+      setExportError('CSV export failed.');
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4" data-testid="so-list-view">
       {/* Header action */}
@@ -208,10 +243,20 @@ export function SoListView({
           onChange={(e) => setSearch(e.target.value)}
           className="w-72"
         />
-        <Button type="button" className="btn--primary" data-testid="so-list-create" onClick={() => setCreateOpen(true)}>
-          + {labels.createSo}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" data-testid="so-list-export-csv" onClick={exportCsv}>
+            Export CSV
+          </Button>
+          <Button type="button" className="btn--primary" data-testid="so-list-create" onClick={() => setCreateOpen(true)}>
+            + {labels.createSo}
+          </Button>
+        </div>
       </div>
+      {exportError ? (
+        <p className="text-xs text-red-700" role="alert" data-testid="so-list-export-error">
+          {exportError}
+        </p>
+      ) : null}
 
       {/* Status tabs (client-side filters over the org-scoped dataset). */}
       <div role="tablist" aria-label={labels.tabsAll} data-testid="so-list-tabs" className="flex flex-wrap gap-2">
