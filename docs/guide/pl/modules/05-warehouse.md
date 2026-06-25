@@ -271,9 +271,25 @@ status `received|available`, `qa pending|released`, rezerwacja 0, ilość niezmi
 podrzędnych/konsumpcji; zastosowanie wariancji wymaga sesji `open|review` i niezmienionego
 bieżącego stanu.
 
-<!-- screenshot: warehouse/license-plates list (status/qa filters + search) -->
-<!-- screenshot: warehouse/license-plates/[lpId] detail (header + state history + moves + genealogy) -->
-<!-- screenshot: scanner warehouse hub (Receive / Putaway / Move LP / Pick / LP info tiles) -->
+### Magazyn — wprowadzenie / nawigacja
+
+Magazyn to centrum operacyjne zarządzania zapasami. Strona główna modułu pokazuje kafelki nawigacyjne do głównych funkcji.
+
+![Magazyn — hub główny z kafelkami nawigacyjnymi (Tablica Palet, Przyjęcie, Lokalizacje itd.)](screenshots/warehouse-hub.png)
+
+### Lista nośników LP (License Plates)
+
+Przejdź do **Magazyn → Tablica Palet** (`/warehouse/license-plates`), aby wyświetlić listę wszystkich palet. Ekran pokazuje 14 LP z możliwością filtrowania po statusie (Dostępne / Zarezerwowane / Blokada QC) i wyszukiwania.
+
+![Lista nośników LP z kolumnami: Towar, Ilość, Partia, Termin, Status, QA, Lokalizacja](screenshots/warehouse-lp-list.png)
+
+Każdy wiersz pokazuje aktualny stan zapasów, datę ważności i status kontroli jakości.
+
+### Szczegóły nośnika LP
+
+Kliknij na konkretną LP, aby zobaczyć pełne szczegóły, historię zmian i genealogię.
+
+![Szczegóły pojedynczego nośnika LP z historią stanów i ruchami](screenshots/warehouse-lp-detail.png)
 
 ---
 

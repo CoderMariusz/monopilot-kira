@@ -21,6 +21,20 @@
 
 ---
 
+## Logowanie / Pierwsze kroki
+
+Aby uzyskać dostęp do systemu MonoPilot Kira, zaloguj się na stronie logowania.
+
+![Strona logowania e-mail i hasło](screenshots/auth-login.png)
+
+Zaloguj się jako `admin@monopilot.test` / `Admin2026!!!` — pojawi się pulpit operacyjny.
+
+![Pulpit — przegląd KPI (aktywne WO, oczekujące ZZ, blokady jakościowe)](screenshots/dashboard-overview.png)
+
+Na pulpicie widzisz bieżący stan produkcji: liczbę aktywnych zleceń produkcyjnych (WO), oczekujących zamówień zakupu (ZZ), oraz wstrzymań jakościowych (QA holds).
+
+---
+
 ## 0. Dwa światy produktów (przeczytaj najpierw)
 
 Istnieją **dwie** tabele master i NIE są tym samym:

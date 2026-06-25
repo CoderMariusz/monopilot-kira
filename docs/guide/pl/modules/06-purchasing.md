@@ -151,6 +151,12 @@ niezmienioną ilość i brak konsumpcji/elementów potomnych.
 > `Planning.purchaseOrders.*` / magazynowych `grnDetail.*`. Identyfikatory `data-testid`
 > w nawiasach to stabilne kotwice w kodzie komponentu.
 
+### Zamówienia zakupu (PO) — lista
+
+Przejdź do **Planowanie → Zamówienia Zakupu** (`/planning/purchase-orders`), aby wyświetlić listę wszystkich zamówień. Ekran pokazuje 8 ZZ z zakładkami statusów (Wersja robocza / Wysłane / Częściowo przyjęte / Przyjęte / Anulowane) oraz możliwością filtrowania i wyszukiwania.
+
+![Lista zamówień zakupu — zakładki statusów, przycisk Importuj/Eksportuj/Utwórz, kolumny: ZZ, Dostawca, Data dostawy, Status, Wartość](screenshots/planning-po-list.png)
+
 ### (i) Tworzenie ZZ i dodawanie linii
 
 1. Przejdź do **Planowanie → Zamówienia Zakupu** (`/planning/purchase-orders`).

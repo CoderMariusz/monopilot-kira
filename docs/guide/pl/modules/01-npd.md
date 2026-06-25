@@ -293,6 +293,18 @@ której dołączony BOM odpowiada aktywnemu BOM) oraz **`V18_OPEN_HIGH_RISK`**
 > dostarczają anglojęzyczne teksty). Trasy są względne do lokalizacji
 > (`/pipeline`, `/fa`, …).
 
+### Pipeline NPD (Stage-Gate / Kanban)
+
+Przejdź do **NPD → Projekty** (`/pipeline`), aby zobaczyć widok Kanban wszystkich projektów. Ekran pokazuje bramki (kolumny) od Brief do Wdrożonego, z kartami projektów pokazującymi kod NPD, nazwę i postęp.
+
+![Pipeline NPD — widok Kanban bramek (Stage-Gate), KPI projektów](screenshots/npd-pipeline-kanban.png)
+
+### Szczegóły projektu i bramki etapów (gate tabs)
+
+Otwórz konkretny projekt, aby zobaczyć jego szczegóły i nawigować przez etapy. Ekran pokazuje wiele zakładek odpowiadających etapom (Brief, Receptura, Opakowanie, Próba, Sensoryka, Pilotaż, Zatwierdzenie, Przekazanie).
+
+![Szczegóły projektu NPD — zakładka Brief (krótki opis, opakowanie, kanał, priorytet) z nawigacją po bramkach](screenshots/npd-project-gate-brief.png)
+
 ### (i) Utwórz projekt NPD
 
 1. Przejdź do **NPD → Projekty** (`/pipeline`).

@@ -315,6 +315,14 @@ zdegradowany (`assignRole` blokuje wiersze + `last_owner_violation`).
 - **Dane referencyjne** (`/settings/reference/[code]`): edycja + import CSV tabel
   słownikowych (`commitImportAction`).
 
+### (viii) Pola NPD (schemat działów)
+
+Przejdź do **Ustawienia → Schemat → Pola NPD** (`/settings/npd-fields`), aby zarządzać polami schematu NPD dla każdego działu (Core / Planning / Commercial / Production / Technical / MRP / Procurement).
+
+![Ekran Pola NPD — wybór działu (dropdown), tabela schematu pól (kolumny: Pole, Typ danych, Wymagane, Widoczne, Kolejność)](screenshots/settings-npd-fields.png)
+
+Dla każdego wybranego działu widzisz tabelę definicji pól, gdzie możesz edytować typ danych, flagę wymagalności, widoczność i kolejność wyświetlania.
+
 ---
 
 ## e. Źródła danych (tabele Supabase)

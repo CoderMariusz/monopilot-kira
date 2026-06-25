@@ -271,6 +271,18 @@ blokady / decyzja kontrolna nie jest odwracalna w miejscu — ponownie blokujesz
 > live next-intl (`apps/web/i18n/en.json`). `data-testid` w nawiasach to trwałe
 > kotwice w kodzie komponentów.
 
+### Blokady jakościowe (Holds)
+
+Przejdź do **Jakość → Blokady** (`/quality/holds`), aby wyświetlić listę wszystkich wstrzymań. Ekran pokazuje blokady z zakładkami (Aktywne / Zwolnione / Wszystkie) i możliwością filtrowania po typie referencji (LP / Partia / ZP / ZZ / GRN).
+
+![Lista blokad jakościowych — zakładki statusów, kolumny: Blokada, Typ, Referencja, LP, Partia, Status, Zwolnienie](screenshots/quality-holds-list.png)
+
+### Szczegóły blokady i zwolnienie z e-podpisem
+
+Otwórz konkretną blokadę (np. HLD-00001000), aby zobaczyć jej szczegóły, historię i panel zwolnienia. Panel pokazuje kontekst blokady, zablokowane pozycje oraz formularz zwolnienia z e-podpisem (CFR Part 11).
+
+![Szczegóły blokady jakościowej (HLD-00001000) — zablokowane pozycje, wybór dyspozycji (Release as-is/Scrap/Rework/Partial), pole e-podpisu](screenshots/quality-hold-detail.png)
+
 ### (i) Zakładanie blokady + zwalnianie jej (z podpisem elektronicznym)
 
 1. Przejdź do **Jakość → Blokady** (`/quality/holds`). Kliknij **"Create hold"**

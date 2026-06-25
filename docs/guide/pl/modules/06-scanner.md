@@ -242,9 +242,11 @@ tego mechanizmu, więc skaner rejestruje to explicite:
   rozwiązały organizację *wewnątrz transakcji*. Czyszczenie po commit; janitor mig-031
   usuwa wycieki.
 
-<!-- screenshot: logowanie skanera (e-mail + klawiatura PIN) -->
-<!-- screenshot: ekran główny skanera (siatka kafelków Produkcja / Magazyn / Jakość) -->
-<!-- screenshot: centrum wykonania ZP skanera (kafelki Rozchód / Wyjście / Odpad + lista materiałów) -->
+### Logowanie na skanerze / wejście do powłoki urządzenia
+
+Aby zalogować się do skanera, wejdź na `/pl/scanner/login` (lub `/pl/scanner/home`, które automatycznie przekierowuje do logowania). Zaloguj się za pomocą adresu e-mail i kodu PIN.
+
+![Ekran logowania skanera — pola e-mail i PIN (4–6 cyfr), status ONLINE](screenshots/scanner-device-login.png)
 
 ---
 

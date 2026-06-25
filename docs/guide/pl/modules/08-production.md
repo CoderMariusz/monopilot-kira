@@ -233,6 +233,18 @@ zużycia) → QA `releaseWoOutputQa` awansuje go do `qa_status='released'`
 > `data-testid`y w nawiasach to stabilne kotwice w kodzie komponentu
 > (`wos/[id]/_components/wo-detail-screen.tsx`).
 
+### Lista zleceń produkcyjnych (WO)
+
+Przejdź do **Produkcja → Zlecenia produkcyjne** (`/production/wos`), aby wyświetlić listę wszystkich zleceń. Ekran pokazuje 14 WO z możliwością filtrowania po statusie (W toku / Wstrzymane / Zaplanowane / Zakończone / Zamknięte).
+
+![Lista zleceń produkcyjnych z zakładkami statusów](screenshots/production-wo-list.png)
+
+Wybierz zlecenie, aby otworzyć jego szczegóły i wykonać operacje (Wznowienie, Zużycie, Rejestracja wyrobu, Odpady, Zamknięcie).
+
+![Szczegóły zlecenia produkcyjnego z zakładkami Przegląd/Zużycie/Wyjście/QA/Genealogia](screenshots/production-wo-detail.png)
+
+Panel szczegółów pokazuje paski postępu (Zużycie / Wyjście), akcje (Wstrzymaj, Odpad, Waga zmienna, Zakończ) oraz 8 zakładek do zarządzania materiałami, wyrobami i jakością.
+
 ### (i) Uruchomienie ZP
 
 1. Przejdź do **Produkcja → Zlecenia produkcyjne** (`/production/wos`) i otwórz
@@ -268,6 +280,14 @@ zużycia) → QA `releaseWoOutputQa` awansuje go do `qa_status='released'`
 zeskanuj LP, podaj ilość, **Odbierz**. Powyżej progu zatwierdzenia nadmiernego
 zużycia skaner prosi o **adres e-mail i PIN supervisora** (inny użytkownik tej
 samej organizacji posiadający `production.consumption.override_approve`).
+
+### Rejestrowanie wyjścia (wyrobu) — modal
+
+Gdy otwierasz formularz rejestracji wyrobu, pojawia się modal z polami do wypełnienia.
+
+![Modal rejestracji wyrobu z polami: typ wyrobu, ilość kg, waga rzeczywista, numer partii](screenshots/production-register-output-modal.png)
+
+Wypełnij wymagane pola i zatwierdź, aby zapisać wyrób.
 
 ### (iii) Rejestracja wyrobu gotowego (stała waga + waga zmienna)
 
