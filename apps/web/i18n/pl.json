@@ -5950,6 +5950,15 @@
         "avgTimeHint": "Cel: 90 dni",
         "avgTimeUnit": "dni",
         "empty": "—"
+      },
+      "tabs": {
+        "analytics": "Analityka"
+      },
+      "exportCsv": "Eksport CSV",
+      "analytics": {
+        "stage": "Etap",
+        "count": "Liczba",
+        "conversion": "Konwersja"
       }
     }
   },
@@ -8915,6 +8924,9 @@
         "pin_locked": "PIN jest tymczasowo zablokowany po zbyt wielu nieudanych próbach. Spróbuj później lub autoryzuj się hasłem konta.",
         "persistence_failed": "Zapis PIN-u nie powiódł się. Spróbuj ponownie."
       }
+    },
+    "profile": {
+      "roleLabel": "Rola"
     }
   },
   "Finance": {
@@ -9731,6 +9743,27 @@
       "error": {
         "title": "Nie udało się wczytać danych łańcucha chłodniczego",
         "body": "Odczyt danych na żywo nie powiódł się. Odśwież, aby spróbować ponownie."
+      }
+    },
+    "dashboardKpis": {
+      "label": "KPI jakości",
+      "noData": "—",
+      "percent": "{value}%",
+      "openHolds": {
+        "title": "Aktywne wstrzymania",
+        "desc": "Otwarte wstrzymania jakości oczekujące na zwolnienie"
+      },
+      "openNcrs": {
+        "title": "Otwarte NCR",
+        "desc": "{overdue} po terminie odpowiedzi"
+      },
+      "passRate30d": {
+        "title": "Zdawalność inspekcji",
+        "desc": "Zdane inspekcje, ostatnie 30 dni"
+      },
+      "openCcpDeviations": {
+        "title": "Otwarte odchylenia CCP",
+        "desc": "Naruszenia CCP oczekujące na rozwiązanie"
       }
     }
   },

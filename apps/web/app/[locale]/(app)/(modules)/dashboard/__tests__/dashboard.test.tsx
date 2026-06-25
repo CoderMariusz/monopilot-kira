@@ -25,12 +25,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardData } from "../../_actions/dashboard-summary";
 
-const { getDashboardDataMock } = vi.hoisted(() => ({
+const { getDashboardDataMock, getQuickActionPermissionsMock } = vi.hoisted(() => ({
   getDashboardDataMock: vi.fn(),
+  getQuickActionPermissionsMock: vi.fn(),
 }));
 
 vi.mock("../../_actions/dashboard-summary", () => ({
   getDashboardData: getDashboardDataMock,
+}));
+
+vi.mock("../quick-action-permissions", () => ({
+  getQuickActionPermissions: getQuickActionPermissionsMock,
 }));
 
 vi.mock("next/link", () => ({
@@ -73,14 +78,25 @@ function dataOf(overrides: Partial<DashboardData> = {}): DashboardData {
   };
 }
 
-async function renderDashboard(data: DashboardData) {
+type QuickActionPerms = { canPlanningWrite: boolean; canRunMrp: boolean };
+
+async function renderDashboard(
+  data: DashboardData,
+  perms: QuickActionPerms = { canPlanningWrite: true, canRunMrp: true },
+) {
   getDashboardDataMock.mockResolvedValue(data);
+  getQuickActionPermissionsMock.mockResolvedValue(perms);
   const ui = await DashboardRoutePage({ params: Promise.resolve({ locale: "en" }) });
   return render(ui);
 }
 
 afterEach(() => cleanup());
-beforeEach(() => getDashboardDataMock.mockReset());
+beforeEach(() => {
+  getDashboardDataMock.mockReset();
+  getQuickActionPermissionsMock.mockReset();
+  // Default: full permissions so the prototype-parity assertions see all 6.
+  getQuickActionPermissionsMock.mockResolvedValue({ canPlanningWrite: true, canRunMrp: true });
+});
 
 describe("Dashboard KPI cards (prototype parity)", () => {
   it("renders exactly the 5 prototype KPI cards in order", async () => {
@@ -114,7 +130,7 @@ describe("Dashboard KPI cards (prototype parity)", () => {
 });
 
 describe("Dashboard quick-actions bar", () => {
-  it("renders 6 action buttons linking to module routes", async () => {
+  it("renders 6 action buttons linking to module routes when the role has every write permission", async () => {
     await renderDashboard(dataOf());
     const bar = screen.getByTestId("dashboard-quick-actions");
     const links = within(bar).getAllByRole("link");
@@ -122,6 +138,29 @@ describe("Dashboard quick-actions bar", () => {
     expect(screen.getByTestId("dashboard-quick-action-createWo")).toHaveAttribute("href", "/en/planning");
     expect(screen.getByTestId("dashboard-quick-action-receive")).toHaveAttribute("href", "/en/warehouse");
     expect(screen.getByTestId("dashboard-quick-action-runMrp")).toHaveAttribute("href", "/en/scheduler");
+  });
+});
+
+describe("Dashboard quick-actions RBAC filter", () => {
+  it("hides Create WO / Create PO / Run MRP for a role without the write permissions", async () => {
+    await renderDashboard(dataOf(), { canPlanningWrite: false, canRunMrp: false });
+    const bar = screen.getByTestId("dashboard-quick-actions");
+    const links = within(bar).getAllByRole("link");
+    // Only the three read-only actions remain.
+    expect(links).toHaveLength(3);
+    expect(screen.queryByTestId("dashboard-quick-action-createWo")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-quick-action-createPo")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-quick-action-runMrp")).not.toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-quick-action-receive")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-quick-action-qualityCheck")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-quick-action-createShipment")).toBeInTheDocument();
+  });
+
+  it("shows Create WO / Create PO but not Run MRP for a planning-writer without MRP-run", async () => {
+    await renderDashboard(dataOf(), { canPlanningWrite: true, canRunMrp: false });
+    expect(screen.getByTestId("dashboard-quick-action-createWo")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-quick-action-createPo")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-quick-action-runMrp")).not.toBeInTheDocument();
   });
 });
 

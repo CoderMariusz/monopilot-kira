@@ -3761,6 +3761,15 @@
         "avgTimeHint": "Target: 90 days",
         "avgTimeUnit": "days",
         "empty": "—"
+      },
+      "tabs": {
+        "analytics": "Analytics"
+      },
+      "exportCsv": "Export CSV",
+      "analytics": {
+        "stage": "Stage",
+        "count": "Count",
+        "conversion": "Conversion"
       }
     }
   },
@@ -8915,6 +8924,9 @@
         "pin_locked": "The PIN is temporarily locked after too many failed attempts. Try again later or authorize with your account password.",
         "persistence_failed": "Saving the PIN failed. Try again."
       }
+    },
+    "profile": {
+      "roleLabel": "Role"
     }
   },
   "Finance": {
@@ -9731,6 +9743,27 @@
       "error": {
         "title": "Could not load cold-chain data",
         "body": "The live read failed. Refresh to try again."
+      }
+    },
+    "dashboardKpis": {
+      "label": "Quality KPIs",
+      "noData": "—",
+      "percent": "{value}%",
+      "openHolds": {
+        "title": "Active holds",
+        "desc": "Open quality holds awaiting release"
+      },
+      "openNcrs": {
+        "title": "Open NCRs",
+        "desc": "{overdue} past response due"
+      },
+      "passRate30d": {
+        "title": "Inspection pass rate",
+        "desc": "Passed inspections, last 30 days"
+      },
+      "openCcpDeviations": {
+        "title": "Open CCP deviations",
+        "desc": "CCP breaches awaiting resolution"
       }
     }
   },

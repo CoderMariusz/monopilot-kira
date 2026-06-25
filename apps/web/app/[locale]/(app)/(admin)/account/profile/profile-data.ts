@@ -43,6 +43,11 @@ export type MyProfileUser = {
   phone: string;
 };
 
+export type MyProfileRole = {
+  code: string;
+  name: string;
+};
+
 export type UserPreferences = {
   language: ProfileLanguage;
   timezone: ProfileTimezone;
@@ -63,6 +68,8 @@ export type SaveProfileInput = Pick<MyProfileUser, 'fullName' | 'displayName' | 
 export type MyProfileData = {
   state: 'ready' | 'empty' | 'error';
   user: MyProfileUser | null;
+  /** Role code(s)/name(s) assigned to the signed-in user in the active org. */
+  roles: MyProfileRole[];
   preferences: UserPreferences;
   sessions: UserSession[];
   mfa: { enabled: boolean; deviceLabel: string; addedAt: string };
@@ -80,6 +87,11 @@ type UserRow = {
   name: string | null;
   display_name: string | null;
   language: string | null;
+};
+
+type RoleRow = {
+  code: string;
+  name: string;
 };
 
 const SUPPORTED_LANGUAGES: ProfileLanguage[] = ['en', 'pl', 'de'];
@@ -104,7 +116,7 @@ function deriveInitials(name: string, email: string): string {
  */
 export async function readMyProfile(): Promise<MyProfileData> {
   try {
-    return await withOrgContext(async ({ userId, client }) => {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
       const result = await queryClient.query<UserRow>(
         `select id, email::text as email, name, display_name, language
@@ -117,6 +129,22 @@ export async function readMyProfile(): Promise<MyProfileData> {
       if (!row) {
         return emptyProfileData();
       }
+
+      // Role(s) for the signed-in user in the active org. Mirrors the verified
+      // settings/users loader join (user_roles ur → roles r on r.id = ur.role_id
+      // and r.org_id = ur.org_id) — RLS already scopes both tables to the active
+      // org, and the explicit org filter is belt-and-braces against the user
+      // holding roles in more than one org row.
+      const rolesResult = await queryClient.query<RoleRow>(
+        `select r.code, coalesce(r.name, r.code) as name
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+          order by r.display_order nulls last, coalesce(r.name, r.code) asc`,
+        [userId, orgId],
+      );
+      const roles: MyProfileRole[] = rolesResult.rows.map((r) => ({ code: r.code, name: r.name }));
 
       const email = row.email ?? '';
       const fullName = row.name ?? '';
@@ -136,6 +164,7 @@ export async function readMyProfile(): Promise<MyProfileData> {
       return {
         state: 'ready',
         user,
+        roles,
         preferences: { language, timezone: 'Europe/Warsaw' },
         sessions: buildCurrentSessionRow(email),
         mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' },
@@ -171,6 +200,7 @@ function emptyProfileData(): MyProfileData {
   return {
     state: 'empty',
     user: null,
+    roles: [],
     preferences: { language: 'en', timezone: 'Europe/Warsaw' },
     sessions: [],
     mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' },
@@ -182,6 +212,7 @@ function errorProfileData(): MyProfileData {
   return {
     state: 'error',
     user: null,
+    roles: [],
     preferences: { language: 'en', timezone: 'Europe/Warsaw' },
     sessions: [],
     mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' },

@@ -105,14 +105,19 @@ describe('T-126 login UI contract', () => {
     expect(source).toContain('NEXT_PUBLIC_SITE_URL');
   });
 
-  it('defines /[locale] as an authenticated landing page so successful login visibly leaves the login form', () => {
-    // Stale route contract: authenticated locale landing lives in the (app) route group.
+  it('redirects /[locale] to the role-aware dashboard so successful login lands on real content, not a placeholder', () => {
+    // Authenticated locale landing lives in the (app) route group. It no longer
+    // renders a "you are signed in" placeholder — every role is forwarded to the
+    // dashboard via a server-side redirect (the (app) group is already behind the
+    // proxy/auth gate, so reaching this page means the session is valid).
     const source = readWebFile('app/[locale]/(app)/page.tsx');
 
-    expect(source).toContain('createServerSupabaseClient');
-    expect(source).toContain('supabase.auth.getUser');
-    expect(source).toMatch(/Jesteś zalogowany|You are signed in/);
-    expect(source).toMatch(/Redirect po logowaniu działa|redirect/i);
+    expect(source).toMatch(/from ['"]next\/navigation['"]/);
+    expect(source).toContain('redirect');
+    // Forwards to /${locale}/dashboard (template literal or equivalent).
+    expect(source).toMatch(/redirect\(`\/\$\{locale\}\/dashboard`\)/);
+    // The dead Polish placeholder copy is gone.
+    expect(source).not.toMatch(/Jesteś zalogowany/);
   });
 });
 

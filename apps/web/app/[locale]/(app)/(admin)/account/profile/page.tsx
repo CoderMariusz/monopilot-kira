@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 
 import MyProfileClient from '../../../../../(admin)/account/profile/page';
 import {
@@ -9,6 +10,7 @@ import {
   updateLanguagePreferenceAction,
   updatePasswordAction,
   type MyProfileData,
+  type MyProfileRole,
   type MyProfileUser,
   type SaveProfileInput,
   type UserPreferences,
@@ -23,6 +25,7 @@ type MyProfilePageProps = {
   // Component via readMyProfile(). These typed overrides keep RTL parity tests
   // focused without reintroducing an unsafe unknown prop bag.
   user?: MyProfileUser;
+  roles?: MyProfileRole[];
   preferences?: UserPreferences;
   sessions?: UserSession[];
   mfa?: { enabled: boolean; deviceLabel: string; addedAt: string };
@@ -65,6 +68,12 @@ function nonInteractiveShell(state: 'loading' | 'empty' | 'error' | 'permission-
 }
 
 export default async function MyProfilePage(props: MyProfilePageProps = {}) {
+  // Localized "Role" row label (real i18n key, PL+EN; ro/uk mirror EN). Resolved
+  // server-side so the prototype-faithful client component stays string-prop
+  // driven rather than being refactored into a next-intl consumer.
+  const t = await getTranslations('account.profile');
+  const roleLabel = t('roleLabel');
+
   // Test seam: when a `user` is injected we render exactly that (parity tests),
   // delegating ALL state handling (loading/empty/error/permission-denied) to
   // the client which owns the prototype-faithful per-state shells.
@@ -73,6 +82,8 @@ export default async function MyProfilePage(props: MyProfilePageProps = {}) {
     return (
       <MyProfileClient
         user={props.user}
+        roles={props.roles ?? []}
+        roleLabel={roleLabel}
         preferences={props.preferences ?? { language: 'en', timezone: 'Europe/Warsaw' }}
         sessions={props.sessions ?? []}
         mfa={props.mfa ?? { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' }}
@@ -102,6 +113,8 @@ export default async function MyProfilePage(props: MyProfilePageProps = {}) {
   return (
     <MyProfileClient
       user={data.user}
+      roles={data.roles}
+      roleLabel={roleLabel}
       preferences={data.preferences}
       sessions={data.sessions}
       mfa={data.mfa}

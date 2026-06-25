@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 
 import { getDashboardData, type DashboardActivity, type DashboardKpi } from "../_actions/dashboard-summary";
 import { eventLabelKey, humanizeCode, resourceLabelKey, shortRef } from "./activity-labels";
+import { getQuickActionPermissions } from "./quick-action-permissions";
 
 // Reads the signed-in user's session + org-scoped DB, so this page must render
 // per-request (never statically prerendered at build time).
@@ -15,13 +16,25 @@ type DashboardPageProps = {
 // Quick-action bar — maps to the prototype's 6 buttons (sitemap line 123).
 // Some routes land on a module landing page rather than a pre-opened modal;
 // that is honest and acceptable per the shell gap brief.
-const QUICK_ACTIONS = [
-  { key: "createWo", route: "/planning", variant: "primary" as const },
-  { key: "createPo", route: "/planning", variant: "primary" as const },
-  { key: "receive", route: "/warehouse", variant: "secondary" as const },
-  { key: "qualityCheck", route: "/quality", variant: "secondary" as const },
-  { key: "createShipment", route: "/shipping", variant: "secondary" as const },
-  { key: "runMrp", route: "/scheduler", variant: "secondary" as const },
+//
+// `requires` names the permission gate the action's deep-linked WRITE flow
+// enforces server-side. A user without it would hit a `forbidden` 403, so the
+// button is hidden rather than dangled as a dead-end (RBAC parity). Read-only
+// actions (receive/qualityCheck/createShipment) carry no `requires` — they
+// route to module landing pages, not pre-authorized write modals.
+type QuickActionGate = "planningWrite" | "runMrp";
+const QUICK_ACTIONS: Array<{
+  key: string;
+  route: string;
+  variant: "primary" | "secondary";
+  requires?: QuickActionGate;
+}> = [
+  { key: "createWo", route: "/planning", variant: "primary", requires: "planningWrite" },
+  { key: "createPo", route: "/planning", variant: "primary", requires: "planningWrite" },
+  { key: "receive", route: "/warehouse", variant: "secondary" },
+  { key: "qualityCheck", route: "/quality", variant: "secondary" },
+  { key: "createShipment", route: "/shipping", variant: "secondary" },
+  { key: "runMrp", route: "/scheduler", variant: "secondary", requires: "runMrp" },
 ];
 
 /**
@@ -65,6 +78,16 @@ export default async function DashboardRoutePage({ params }: DashboardPageProps)
   const { locale } = await params;
   const t = await getTranslations("Dashboard");
   const data = await getDashboardData();
+  const quickActionPerms = await getQuickActionPermissions();
+
+  // Hide write quick-actions the signed-in role cannot perform (their server
+  // action would 403). The authoritative gate is still server-side in each
+  // action — this only removes the dead-end button.
+  const visibleQuickActions = QUICK_ACTIONS.filter((action) => {
+    if (action.requires === "planningWrite") return quickActionPerms.canPlanningWrite;
+    if (action.requires === "runMrp") return quickActionPerms.canRunMrp;
+    return true;
+  });
 
   const dateFormatter = new Intl.DateTimeFormat(locale, {
     month: "short",
@@ -112,7 +135,7 @@ export default async function DashboardRoutePage({ params }: DashboardPageProps)
           <h2 className="card-title">{t("quickActions.title")}</h2>
         </div>
         <div className="flex flex-wrap gap-2" data-testid="dashboard-quick-actions">
-          {QUICK_ACTIONS.map((action) => (
+          {visibleQuickActions.map((action) => (
             <Link
               key={action.key}
               href={`/${locale}${action.route}`}

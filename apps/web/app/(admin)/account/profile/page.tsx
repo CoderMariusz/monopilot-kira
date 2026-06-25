@@ -35,10 +35,19 @@ type UserSession = {
   current: boolean;
 };
 
+type MyProfileRole = {
+  code: string;
+  name: string;
+};
+
 type SaveProfileInput = Pick<MyProfileUser, "fullName" | "displayName" | "phone"> & UserPreferences;
 
 type MyProfilePageProps = {
   user?: MyProfileUser;
+  /** Role(s) assigned to the signed-in user; rendered read-only in Profile. */
+  roles?: MyProfileRole[];
+  /** Localized label for the role row (resolved server-side via next-intl). */
+  roleLabel?: string;
   preferences?: UserPreferences;
   sessions?: UserSession[];
   mfa?: { enabled: boolean; deviceLabel: string; addedAt: string };
@@ -197,6 +206,8 @@ function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP
 
 export default function MyProfilePage({
   user = fallbackUser,
+  roles = [],
+  roleLabel = "Role",
   preferences = fallbackPreferences,
   sessions = [],
   mfa = { enabled: false, deviceLabel: "Authenticator app", addedAt: "" },
@@ -384,6 +395,21 @@ export default function MyProfilePage({
               </div>
             </div>
           </div>
+        </SRow>
+        <SRow label={roleLabel}>
+          {roles.length > 0 ? (
+            <div className="flex flex-wrap gap-2" data-testid="my-profile-roles">
+              {roles.map((role) => (
+                <span key={role.code} className="badge badge-blue" data-role-code={role.code}>
+                  {role.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="muted" data-testid="my-profile-roles-empty">
+              —
+            </span>
+          )}
         </SRow>
         <SettingField
           id="my-profile-full-name"

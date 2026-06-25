@@ -46,17 +46,30 @@ beforeEach(() => {
 });
 
 describe('readMyProfile — real signed-in user fetch', () => {
-  it('reads the real public.users row scoped by the signed-in user id', async () => {
-    queryMock.mockResolvedValue({
-      rows: [{ id: 'real-user-uuid', email: 'k.nowak@apex.pl', name: 'Krzysztof Nowak', display_name: 'K. Nowak', language: 'pl' }],
-    });
+  it('reads the real public.users row + the user roles scoped by the signed-in user id and org', async () => {
+    // First query → user row; second query → the user's role(s) in the active org.
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{ id: 'real-user-uuid', email: 'k.nowak@apex.pl', name: 'Krzysztof Nowak', display_name: 'K. Nowak', language: 'pl' }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ code: 'production_manager', name: 'Production Manager' }],
+      });
 
     const data = await readMyProfile();
 
-    expect(queryMock).toHaveBeenCalledTimes(1);
-    const [sql, params] = queryMock.mock.calls[0];
-    expect(sql).toContain('from public.users');
-    expect(params).toEqual(['real-user-uuid']);
+    expect(queryMock).toHaveBeenCalledTimes(2);
+    const [userSql, userParams] = queryMock.mock.calls[0];
+    expect(userSql).toContain('from public.users');
+    expect(userParams).toEqual(['real-user-uuid']);
+
+    // The roles read mirrors the verified user_roles → roles join, scoped by the
+    // context user id + org (never client-trusted).
+    const [rolesSql, rolesParams] = queryMock.mock.calls[1];
+    expect(rolesSql).toContain('from public.user_roles ur');
+    expect(rolesSql).toContain('join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id');
+    expect(rolesParams).toEqual(['real-user-uuid', 'real-org-uuid']);
+
     expect(data.state).toBe('ready');
     expect(data.user).toMatchObject({
       id: 'real-user-uuid',
@@ -65,6 +78,7 @@ describe('readMyProfile — real signed-in user fetch', () => {
       email: 'k.nowak@apex.pl',
       initials: 'KN',
     });
+    expect(data.roles).toEqual([{ code: 'production_manager', name: 'Production Manager' }]);
     expect(data.preferences.language).toBe('pl');
     expect(data.canEditProfile).toBe(true);
   });
@@ -74,6 +88,7 @@ describe('readMyProfile — real signed-in user fetch', () => {
     const data = await readMyProfile();
     expect(data.state).toBe('empty');
     expect(data.user).toBeNull();
+    expect(data.roles).toEqual([]);
   });
 
   it('degrades to the error state (logged, not thrown) when the read fails', async () => {
@@ -81,6 +96,7 @@ describe('readMyProfile — real signed-in user fetch', () => {
     queryMock.mockRejectedValue(new Error('connection refused'));
     const data = await readMyProfile();
     expect(data.state).toBe('error');
+    expect(data.roles).toEqual([]);
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
