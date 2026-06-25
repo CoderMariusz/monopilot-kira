@@ -184,8 +184,11 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
         avg_oee: string | null;
       }>(
         `select s.line_id,
-                pl.code as line_code,
-                pl.name as line_name,
+                coalesce(pl.code, pl.name, case when s.line_id = 'unassigned' then null else 'Unknown line' end) as line_code,
+                case
+                  when pl.code is not null then pl.name
+                  else null
+                end as line_name,
                 count(distinct s.active_wo_id) filter (where s.active_wo_id is not null)::int as wo_count,
                 round(avg(s.availability_pct), 1)::text as avg_a,
                 round(avg(s.performance_pct), 1)::text as avg_p,
@@ -233,7 +236,7 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
         `select s.id::text as id,
                 s.snapshot_minute,
                 s.line_id,
-                pl.code as line_code,
+                coalesce(pl.code, pl.name, case when s.line_id = 'unassigned' then null else 'Unknown line' end) as line_code,
                 s.shift_id,
                 w.wo_number,
                 round(s.availability_pct, 1)::text as a,

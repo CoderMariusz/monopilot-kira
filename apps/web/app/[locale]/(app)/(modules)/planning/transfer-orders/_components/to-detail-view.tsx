@@ -262,7 +262,7 @@ export function ToDetailView({
 
   function whLabel(id: string | null): string {
     if (!id) return labels.summary.none;
-    return warehouseNames[id] ?? id.slice(0, 8);
+    return warehouseNames[id] ?? labels.summary.none;
   }
   function statusLabel(status: string): string {
     return labels.status[status.toLowerCase()] ?? status;

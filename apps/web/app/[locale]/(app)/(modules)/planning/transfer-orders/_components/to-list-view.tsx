@@ -170,7 +170,7 @@ export function ToListView({
   }
   function warehouseLabel(id: string | null): string {
     if (!id) return '—';
-    return warehouseNames[id] ?? id.slice(0, 8);
+    return warehouseNames[id] ?? '—';
   }
 
   return (

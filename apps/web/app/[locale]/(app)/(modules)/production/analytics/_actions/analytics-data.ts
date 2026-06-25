@@ -171,47 +171,56 @@ export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<
         .map((r) => ({ bucket: r.bucket, oeePct: Number(r.oee_pct) }));
 
       // Yield by line — avg(quality_pct) over the selected/default 7 days, sorted desc.
-      const yieldRes = await c.query<{ line_id: string; yield_pct: string | number | null }>(
-        `select line_id,
-                avg(quality_pct) as yield_pct
-          from public.oee_snapshots
-          where org_id = app.current_org_id()
-            and snapshot_minute >= $1::timestamptz
-            and snapshot_minute <= $2::timestamptz
-          group by line_id
+      const yieldRes = await c.query<{ line_id: string; line_label: string; yield_pct: string | number | null }>(
+        `select s.line_id,
+                coalesce(pl.code, pl.name, 'Unassigned') as line_label,
+                avg(s.quality_pct) as yield_pct
+          from public.oee_snapshots s
+          left join public.production_lines pl
+            on pl.org_id = app.current_org_id()
+           and pl.id::text = s.line_id
+          where s.org_id = app.current_org_id()
+            and s.snapshot_minute >= $1::timestamptz
+            and s.snapshot_minute <= $2::timestamptz
+          group by s.line_id, pl.code, pl.name
           order by yield_pct desc
           limit 12`,
         [analyticsWindow.from, analyticsWindow.to],
       );
       const yieldByLine: YieldByLineRow[] = yieldRes.rows
         .filter((r) => r.yield_pct !== null)
-        .map((r) => ({ lineId: r.line_id, yieldPct: Number(r.yield_pct) }));
+        .map((r) => ({ lineId: r.line_label, yieldPct: Number(r.yield_pct) }));
 
       // Top downtime drivers over the selected/default 30 days.
       const topRes = await c.query<{
         category_name: string | null;
         line_id: string;
+        line_label: string;
         events: number;
         minutes: number;
       }>(
         `select dc.name as category_name,
                 de.line_id,
+                coalesce(pl.code, pl.name, 'Unassigned') as line_label,
                 count(*)::int as events,
                 coalesce(sum(de.duration_min), 0)::int as minutes
            from public.downtime_events de
           left join public.downtime_categories dc
              on dc.id = de.category_id and dc.org_id = de.org_id
+          left join public.production_lines pl
+             on pl.org_id = app.current_org_id()
+            and pl.id::text = de.line_id
           where de.org_id = app.current_org_id()
             and de.started_at >= $1::timestamptz
             and de.started_at <= $2::timestamptz
-          group by dc.name, de.line_id
+          group by dc.name, de.line_id, pl.code, pl.name
           order by minutes desc, events desc
           limit 10`,
         [downtimeWindow.from, downtimeWindow.to],
       );
       const topDowntime: TopDowntimeRow[] = topRes.rows.map((r) => ({
         categoryName: r.category_name,
-        lineId: r.line_id,
+        lineId: r.line_label,
         events: Number(r.events ?? 0),
         minutes: Number(r.minutes ?? 0),
       }));
