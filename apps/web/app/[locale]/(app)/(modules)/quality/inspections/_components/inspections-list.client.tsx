@@ -33,6 +33,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -114,6 +115,11 @@ function personLabel(p?: InspectionListRow['assignedTo']): string | null {
   return p.name ?? p.email ?? p.id;
 }
 
+function productLabel(row: InspectionListRow, fallback: string): string {
+  if (row.productCode && row.productName) return `${row.productCode} · ${row.productName}`;
+  return row.productName ?? row.productCode ?? fallback;
+}
+
 export function InspectionsListClient({
   rows,
   labels,
@@ -135,6 +141,7 @@ export function InspectionsListClient({
   resolveWoOutputAction: ResolveInspectionWoOutputAction;
   searchAssigneesAction: SearchInspectionAssigneesAction;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<InspectionStatusTab>('all');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -149,7 +156,8 @@ export function InspectionsListClient({
         (q === '' ||
           r.inspectionNumber.toLowerCase().includes(q) ||
           (r.referenceDisplay ?? '').toLowerCase().includes(q) ||
-          (r.productCode ?? '').toLowerCase().includes(q)),
+          (r.productCode ?? '').toLowerCase().includes(q) ||
+          (r.productName ?? '').toLowerCase().includes(q)),
     );
   }, [rows, tab, search]);
 
@@ -270,7 +278,7 @@ export function InspectionsListClient({
                     {r.referenceDisplay ?? r.referenceId ?? '—'}
                   </TableCell>
                   <TableCell className="text-xs text-slate-700">
-                    {r.productCode ?? labels.noProduct}
+                    {productLabel(r, labels.noProduct)}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -303,6 +311,7 @@ export function InspectionsListClient({
         resolveGrnAction={resolveGrnAction}
         resolveWoOutputAction={resolveWoOutputAction}
         searchAssigneesAction={searchAssigneesAction}
+        onCreated={() => router.refresh()}
       />
     </div>
   );

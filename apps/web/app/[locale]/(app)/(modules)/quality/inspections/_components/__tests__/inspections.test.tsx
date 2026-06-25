@@ -29,6 +29,9 @@ import {
 import { getQaInspectionsTranslator } from '../../../qa-inspections-labels';
 import type { InspectionDetail, InspectionListRow } from '../inspection-contracts';
 
+const navigationMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: navigationMocks.refresh }) }));
+
 const tEn = getQaInspectionsTranslator('en');
 const tPl = getQaInspectionsTranslator('pl');
 const LIST_LABELS = buildInspectionsListLabels(tEn);
@@ -116,6 +119,18 @@ describe('InspectionsListClient (QA-005 parity)', () => {
     expect(screen.queryByTestId('inspection-row-b')).not.toBeInTheDocument();
   });
 
+  it('renders product names in the list and searches by product name', () => {
+    renderList([
+      makeRow({ id: 'a', productCode: 'RM-1001', productName: 'Beef trim' }),
+      makeRow({ id: 'b', productCode: 'RM-2002', productName: 'Pork shoulder' }),
+    ]);
+    expect(screen.getByTestId('inspection-row-a')).toHaveTextContent('RM-1001 · Beef trim');
+
+    fireEvent.change(screen.getByTestId('inspections-list-search'), { target: { value: 'shoulder' } });
+    expect(screen.queryByTestId('inspection-row-a')).not.toBeInTheDocument();
+    expect(screen.getByTestId('inspection-row-b')).toBeInTheDocument();
+  });
+
   it('shows the empty state when there are no inspections', () => {
     renderList([]);
     expect(screen.getByTestId('inspections-list-empty')).toHaveAttribute('data-state', 'empty');
@@ -168,6 +183,20 @@ describe('InspectionsListClient (QA-005 parity)', () => {
     expect(createInspectionAction).toHaveBeenCalledWith(
       expect.objectContaining({ referenceType: 'lp', referenceId: LP_ID, assignedTo: USER_ID }),
     );
+  });
+
+  it('create modal refreshes the list after a successful create', async () => {
+    navigationMocks.refresh.mockClear();
+    const { createInspectionAction, searchLps } = renderList([makeRow({ id: 'a' })]);
+    fireEvent.click(screen.getByTestId('inspection-create-open'));
+
+    fireEvent.change(screen.getByTestId('inspection-create-lp-search'), { target: { value: 'LP-0001' } });
+    await waitFor(() => expect(searchLps).toHaveBeenCalled());
+    fireEvent.click(await screen.findByTestId(`inspection-create-lp-result-${LP_ID}`));
+
+    fireEvent.click(screen.getByTestId('inspection-create-submit'));
+    await waitFor(() => expect(createInspectionAction).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(navigationMocks.refresh).toHaveBeenCalledTimes(1));
   });
 
   it('create modal: grn reference resolves the typed NUMBER to a uuid on submit', async () => {
@@ -346,6 +375,11 @@ describe('InspectionDetailClient (QA-005a parity)', () => {
     );
     const link = screen.getByTestId('inspection-decision-hold-link');
     expect(link).toHaveAttribute('href', '/en/quality/holds');
+  });
+
+  it('shows product code and name in the reference context', () => {
+    renderDetail(makeDetail({ productCode: 'RM-1001', productName: 'Beef trim' }));
+    expect(screen.getByTestId('inspection-detail-context')).toHaveTextContent('RM-1001 · Beef trim');
   });
 
   it('permission-denied: canDecide=false hides editable inputs and decision buttons', () => {

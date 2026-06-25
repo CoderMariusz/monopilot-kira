@@ -150,6 +150,13 @@ function personLabel(p?: InspectionDetail['decidedBy']): string {
   return p.name ?? p.email ?? p.id;
 }
 
+function productLabel(inspection: InspectionDetail): string {
+  if (inspection.productCode && inspection.productName) {
+    return `${inspection.productCode} · ${inspection.productName}`;
+  }
+  return inspection.productName ?? inspection.productCode ?? '—';
+}
+
 export function InspectionDetailClient({
   inspection,
   canDecide,
@@ -433,7 +440,7 @@ export function InspectionDetailClient({
                 {inspection.referenceDisplay ?? inspection.referenceId ?? '—'}
               </dd>
               <dt className="text-slate-500">{labels.header.product}</dt>
-              <dd className="text-slate-800">{inspection.productCode ?? '—'}</dd>
+              <dd className="text-slate-800">{productLabel(inspection)}</dd>
               <dt className="text-slate-500">{labels.header.assigned}</dt>
               <dd className="text-slate-800">
                 {inspection.assignedTo ? personLabel(inspection.assignedTo) : labels.header.unassigned}
