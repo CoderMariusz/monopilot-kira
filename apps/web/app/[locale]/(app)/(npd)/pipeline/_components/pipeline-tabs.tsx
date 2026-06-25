@@ -291,7 +291,13 @@ export function PipelineTabs({
     return () => {
       cancelled = true;
     };
-  }, [activeView, analytics.status]);
+    // Depend ONLY on activeView. Including analytics.status would make this effect's
+    // own setAnalytics('loading') re-run the effect, firing the cleanup (cancelled=true)
+    // before getPipelineAnalytics() resolves — so the .then early-returns and the panel
+    // hangs on "Loading…" forever (caught live; vitest's mock resolves too eagerly to see it).
+    // The `analytics.status !== 'idle'` guard above still prevents a re-fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView]);
 
   const handleExportCsv = React.useCallback(() => {
     const csv = toCsv(
