@@ -120,3 +120,8 @@
 - FA page i18n lane (abcf384173) still running (writes at end). df857037 (pipeline i18n) deploy was BUILDING.
 - Concurrency note: remaining safe autonomous work = i18n page conversions (fa 137 / wos 119 / formulation 92), ALL of which edit the shared 4 locale JSONs → MUST be sequential (one json-editor at a time, the "one pl.json editor" rule). Backend/audit backlog verified-cleared (4 stale findings), config-audit remainders need owner prioritization (not autonomous). So 1 i18n lane = correct max concurrency for this workstream; no safe 2nd parallel lane available.
 - On FA completion: verify (keys ×4 + ICU + build) → push → dispatch next page (wos/[id] 119).
+
+## 2026-06-25 (i18n sweep COMPLETE — autonomous backlog exhausted)
+- Pushed a7caa190 (FA 4 strings) + 41be7d97 (WO-detail 3 strings). formulation/page.tsx lane = 0 genuine (138 fallback dicts, fully t()'d already) → confirms the lint over-counts; real i18n debt is EXHAUSTED (pipeline 140 was the only outlier; FA 4, WO 3, formulation 0).
+- HONEST STATE: autonomous-clearable backlog is exhausted. i18n done (high-value pages PL-live). Backend/audit = 4 findings verified-stale. Docs = comprehensive set intact. Remaining work is owner-blocked (mass-balance S4-6, logic-gap Wave-A, site-scoping reads, IDLE-2, config-audit remainders) or token-heavy browser RE-VERIFY.
+- Memory updated (active-resume-state 2026-06-25 + MEMORY.md index). NOT dispatching further lanes — no genuine non-redundant work left; more lanes would be busywork (per the doc-dup lesson). Winding down; awaiting owner steer / fresh budget / browser session.
