@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import React from 'react';
 
 import { Badge } from '@monopilot/ui/Badge';
@@ -238,6 +239,7 @@ export function ReferenceDataScreen({
   onReferenceDataChanged,
   e2eHarnessOpenModals = false,
 }: ReferenceDataScreenProps) {
+  const router = useRouter();
   const initialTable = tables.some((table) => table.code === selectedTableCode) ? selectedTableCode : tables[0]?.code ?? '';
   const [activeTableCode, setActiveTableCode] = React.useState(initialTable);
   const [dialog, setDialog] = React.useState<DialogState>(null);
@@ -249,6 +251,7 @@ export function ReferenceDataScreen({
 
   function notifyChanged() {
     onReferenceDataChanged?.();
+    router.refresh();
   }
 
   async function handleModalUpsert(input: { tableCode: string; rowKey: string; values: Record<string, string | number | boolean | null> }) {

@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 const EDIT_PERMISSION = 'settings.reference.edit';
@@ -101,6 +103,7 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
           aggregateId: orgId,
           payload: { tableCode: updated.table_code, rowKey: updated.row_key, version: updated.version, action: 'update' },
         });
+        revalidateReferenceSettingsPaths(input.tableCode);
         return { ok: true, data: mapReferenceRow(updated) };
       }
 
@@ -133,10 +136,21 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
         aggregateId: orgId,
         payload: { tableCode: inserted.table_code, rowKey: inserted.row_key, version: inserted.version, action: 'insert' },
       });
+      revalidateReferenceSettingsPaths(input.tableCode);
       return { ok: true, data: mapReferenceRow(inserted) };
     });
   } catch {
     return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+function revalidateReferenceSettingsPaths(tableCode: string): void {
+  try {
+    revalidatePath('/[locale]/settings/reference', 'page');
+    if (tableCode === 'processes') revalidatePath('/[locale]/settings/processes', 'page');
+    if (tableCode === 'partners') revalidatePath('/[locale]/settings/partners', 'page');
+  } catch (error) {
+    console.warn('[settings/reference] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
   }
 }
 
