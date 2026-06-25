@@ -3262,7 +3262,7 @@
   },
   "Technical": {
     "factorySpecs": {
-      "title": "Factory specifications",
+      "title": "Specyfikacje fabryczne",
       "subtitle": "Technical-owned production specifications (factory_spec / internal_product_spec) per finished good — versioned, released on Technical approval.",
       "newSpec": "+ New specification",
       "col": {

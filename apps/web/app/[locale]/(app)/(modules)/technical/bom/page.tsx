@@ -32,54 +32,51 @@ export const dynamic = 'force-dynamic';
 
 const DETAIL_HREF_BASE = '/technical/bom';
 
-const DEFAULT_LABELS: BomListLabels = {
-  breadcrumbRoot: 'Technical',
-  title: 'BOMs & recipes',
-  subtitle:
-    'Bills of materials for finished goods — components, co-products, versions, approval and where-used, sourced from the shared BOM SSOT.',
-  newBom: '+ New BOM',
-  generateBoms: 'Generate BOMs',
-  kpiActive: 'Active BOMs',
-  kpiTotalSuffix: 'of {n} total',
-  kpiDraft: 'Draft',
-  kpiInReview: 'In review',
-  tabAll: 'All',
-  tabDraft: 'Draft',
-  tabActive: 'Active',
-  tabInReview: 'In review',
-  tabArchived: 'Archived',
-  colCode: 'FG code',
-  colProduct: 'Product',
-  colCategory: 'Category',
-  colVersion: 'Ver.',
-  colYield: 'Yield',
-  colUpdated: 'Updated',
-  colStatus: 'Status',
-  componentsMeta: '{n} components',
-  statusDraft: 'Draft',
-  statusInReview: 'In review',
-  statusApproved: 'Approved',
-  statusActive: 'Active',
-  statusSuperseded: 'Superseded',
-  statusArchived: 'Archived',
-  searchPlaceholder: 'Filter by name or FG code…',
-  emptyTitle: 'No BOMs yet',
-  emptyBody: 'Create a BOM or generate one from a completed NPD product to get started.',
-  noMatchTitle: 'No BOMs match this filter',
-  noMatchBody: 'Clear the search or try a different status tab.',
-  loading: 'Loading BOMs…',
-  error: 'Unable to load BOMs. Please try again.',
-  forbidden: 'You do not have permission to view BOMs.',
-};
-
-const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof BomListLabels>;
+const LABEL_KEYS = [
+  'breadcrumbRoot',
+  'title',
+  'subtitle',
+  'newBom',
+  'generateBoms',
+  'kpiActive',
+  'kpiTotalSuffix',
+  'kpiDraft',
+  'kpiInReview',
+  'tabAll',
+  'tabDraft',
+  'tabActive',
+  'tabInReview',
+  'tabArchived',
+  'colCode',
+  'colProduct',
+  'colCategory',
+  'colVersion',
+  'colYield',
+  'colUpdated',
+  'colStatus',
+  'componentsMeta',
+  'statusDraft',
+  'statusInReview',
+  'statusApproved',
+  'statusActive',
+  'statusSuperseded',
+  'statusArchived',
+  'searchPlaceholder',
+  'emptyTitle',
+  'emptyBody',
+  'noMatchTitle',
+  'noMatchBody',
+  'loading',
+  'error',
+  'forbidden',
+] satisfies Array<keyof BomListLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof BomListLabels): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    return value === key ? key : value;
   } catch {
-    return DEFAULT_LABELS[key];
+    return key;
   }
 }
 
@@ -91,7 +88,10 @@ async function buildLabels(locale: string): Promise<BomListLabels> {
       return labels;
     }, {} as BomListLabels);
   } catch {
-    return { ...DEFAULT_LABELS };
+    return LABEL_KEYS.reduce((labels, key) => {
+      labels[key] = key;
+      return labels;
+    }, {} as BomListLabels);
   }
 }
 

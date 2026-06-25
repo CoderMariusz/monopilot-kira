@@ -46,17 +46,9 @@ function formatShelfLife(days: number | null): string {
   return days === null ? '—' : `${days} d`;
 }
 
-function safeLabel(t: Awaited<ReturnType<typeof getTranslations>>, key: string, fallback: string): string {
-  try {
-    const value = t(key);
-    return value === key || value.endsWith(`.${key}`) ? fallback : value;
-  } catch {
-    return fallback;
-  }
-}
-
 export default async function FactorySpecsPage() {
   const t = await getTranslations('Technical.factorySpecs');
+  const tTechnical = await getTranslations('technical.dashboard.breadcrumb');
   const { specs, canApprove, canRecall, state } = await listFactorySpecs();
 
   const statusLabel = (status: FactorySpecStatus): string => t(`status.${status}`);
@@ -64,7 +56,7 @@ export default async function FactorySpecsPage() {
   return (
     <main data-screen="technical-factory-specs" className="flex w-full flex-col gap-4 px-6 py-6">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/technical">Technical</Link> / {t('title')}
+        <Link href="/technical">{tTechnical('technical')}</Link> / {t('title')}
       </nav>
 
       <header className="flex items-start justify-between gap-4">
@@ -72,7 +64,7 @@ export default async function FactorySpecsPage() {
           <h1 className="page-title">{t('title')}</h1>
           <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
         </div>
-        {canApprove ? <CreateFactorySpecButton label={safeLabel(t, 'create.open', '+ New specification')} /> : null}
+        {canApprove ? <CreateFactorySpecButton label={t('create.open')} /> : null}
       </header>
 
       {state === 'error' ? (
@@ -95,6 +87,7 @@ export default async function FactorySpecsPage() {
           statusLabel={statusLabel}
           shelfLifeLabel={formatShelfLife}
           reviewLabel={t('review')}
+          tableLabel={t('title')}
           columns={{
             spec: t('col.spec'),
             product: t('col.product'),
@@ -123,6 +116,7 @@ function FactorySpecsTable({
   statusLabel,
   shelfLifeLabel,
   reviewLabel,
+  tableLabel,
   columns,
 }: {
   specs: FactorySpecListItem[];
@@ -131,6 +125,7 @@ function FactorySpecsTable({
   statusLabel: (status: FactorySpecStatus) => string;
   shelfLifeLabel: (days: number | null) => string;
   reviewLabel: string;
+  tableLabel: string;
   columns: {
     spec: string;
     product: string;
@@ -143,7 +138,7 @@ function FactorySpecsTable({
 }) {
   return (
     <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-      <table aria-label="Factory specifications">
+      <table aria-label={tableLabel}>
         <thead>
           <tr>
             <th scope="col">{columns.spec}</th>
