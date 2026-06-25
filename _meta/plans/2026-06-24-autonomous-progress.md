@@ -143,3 +143,24 @@
   - Scheduler (+changeover matrix) + Yard (+appointments): PASS, all load clean (no "Coś poszło nie tak", no 42702).
 - The 9 code-verified fixes CONFIRMED working LIVE. PL i18n headline deliverable confirmed live for testers.
 - NEW L3 (the only finding): the sites Add/Edit-line MODAL renders ENGLISH on /pl (DEFAULT_SITES_MODAL_LABELS fallback; page.tsx doesn't pass the optional modalLabels prop). Track-1→Track-2 loop: dispatched lane a7735edc to add settings.sites.modal.* keys ×4 + wire modalLabels in page.tsx. Verify parity+build → push → (re-verify next browser pass).
+
+## 2026-06-25 (OWNER DECISIONS LOCKED — build program unblocked)
+Owner answered (token surplus, Codex spark available @0%, reset 17:30 = ~11h):
+- **Logic-gap default = PER-RULE**: hard-block safety/compliance (holds/allergens/expiry/qa); WARN + supervisor-override (PIN+audit) for the rest.
+- **Over-production = WARN + persistent FLAG on the WO** (NOT block). Significant warning + WO flagged/visible in lists+detail. (Auto-reweigh model is for the REMAINDER, separate.)
+- **WO close = AUTO-RELEASE good stock (FEFO) + suspect → reweigh.**
+- **Feature-gaps = BUILD ALL 4**: customer-create UI · PO cancel+reopen UI · DRAFT-WO Release button · desktop PO real-receive (GRN/LP). Use codex-spark for trivial/rewriting parts.
+SCOPE: PO cancel/reopen backend EXISTS (actions.ts reopenPurchaseOrder:730 + po_has_receipts guards) → UI-only. customers table exists, no createCustomer action. WO Release needs a 'release' verb (gating.ts lacks it). Desktop PO receive = biggest/riskiest → review.
+Dispatched: PO cancel/reopen UI + customer-create. Browser production-flow audit (ac0ca4ec) running (will confirm over-production behaviour for the flag work). Reversal/money/RBAC backend → kira-codex-review before push.
+
+## 2026-06-25 (hourly tick — feature lanes mid-flight, json-collision watch)
+- 3 lanes running: ac0ca4ec (browser production audit), ae8f77ad (PO cancel/reopen UI), a6ccabba (customer-create). Neither feature lane has written yet (key counts still 8203×4).
+- RISK I introduced: both feature lanes add i18n keys to the SAME 4 locale JSONs → will clobber each other's keys on write (the "one json editor" rule, slipped). Source files (PO vs customer) don't collide. RECOVERY at completion: confirm BOTH key namespaces present in en.json; re-merge any clobbered set from the lane's reported keys; then build+commit+push. NOT dispatching a 3rd json-editor.
+- Next: integrate on completion → kira-codex-review (customer = new write path; PO = state-change) → build-gate → push → browser re-verify.
+
+## 2026-06-25 (CRITICAL L1 fixed — desktop FG output was 100% broken)
+- Browser production audit (ac0ca4ec) found: desktop output registration 409s 'no_warehouse_for_site' on EVERY output (both WOs, all qtys). Root cause: resolveWarehouseForSessionSite filtered strictly w.site_id=ctx.siteId AND returned null when siteId null; live data = all 4 warehouses site_id NULL + none is_default + WOs site_id NULL → never resolves. Core production output flow blocked for testers.
+- FIXED (code, both register-output.ts + register-disassembly-output.ts): resilient resolver — order by (site-match, is_default, name, id) limit 1, no siteId early-return; null only if org has ZERO warehouses. PREPARE-tested live (returns a warehouse).
+- DATA fix (MCP): set "Finished Goods" warehouse is_default=true for org 0002 → output now lands there sensibly.
+- Audit also confirmed (owner-decision-aligned): over-production guard shipped OFF (massbalance_threshold_pct NULL → block never fires; WARN tier 2% exists) — matches owner's WARN+FLAG choice, leave block off. NEW: L2 generic error toasts swallow server reason (output/consume); L2 stale "Brak konsumpcji" gate contradicts 122% data; L3 no over-consume warn (126%). Queued.
+- PO cancel/reopen lane (ae8f77ad) DONE: 8 keys (8211), typecheck 0, PO tests 11/11. Customer lane (a6ccabba) still running. PO keys pre-captured to /tmp/po_i18n_keys.json (clobber insurance). HOLD build until a6ccabba finishes → reconcile json → build → commit groups (output-fix/PO/customer) → push.

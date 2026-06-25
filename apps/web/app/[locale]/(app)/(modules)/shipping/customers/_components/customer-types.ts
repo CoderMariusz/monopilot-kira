@@ -35,7 +35,9 @@ export type Customer = {
   updatedAt: string;
 };
 
-export type CustomerResult<T> = { ok: true; data: T } | { ok: false; error: CustomerError; message?: string };
+export type CustomerResult<T> =
+  | ({ ok: true; data: T } & (T extends Customer ? { id: string } : object))
+  | { ok: false; error: CustomerError; message?: string };
 
 export type ListCustomersResult = CustomerResult<Customer[]>;
 export type CreateCustomerResult = CustomerResult<Customer>;

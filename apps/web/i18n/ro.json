@@ -6490,7 +6490,11 @@
           "receive": "Mark received",
           "cancel": "Cancel PO",
           "pending": "Updating…",
-          "confirmPrompt": "Change status of {po} to {status}?"
+          "confirmPrompt": "Change status of {po} to {status}?",
+          "cancelConfirmTitle": "Cancel {po}?",
+          "cancelConfirmBody": "This will cancel the purchase order. It cannot be cancelled if receipts already exist.",
+          "cancelSuccess": "Purchase order cancelled.",
+          "cancelPoHasReceipts": "Cannot cancel — the purchase order has receipts."
         },
         "receivedSummary": {
           "title": "Receipt progress",
@@ -6499,7 +6503,11 @@
         "reopen": {
           "button": "Reopen to draft",
           "pending": "Reopening…",
-          "confirmPrompt": "Reopen {po} to draft? This returns the purchase order to an editable draft."
+          "confirmPrompt": "Reopen {po} to draft? This returns the purchase order to an editable draft.",
+          "confirmTitle": "Reopen {po}?",
+          "confirmBody": "This will reopen the purchase order for further work.",
+          "success": "Purchase order reopened.",
+          "error": "Could not reopen this purchase order. Please retry."
         }
       },
       "notes": {
@@ -9509,6 +9517,11 @@
         "title": "New sales order",
         "customerLabel": "Customer",
         "customerPlaceholder": "Select a customer",
+        "newCustomer": "New customer",
+        "newCustomerNamePlaceholder": "Customer name",
+        "createCustomerSubmit": "Create",
+        "creatingCustomer": "Creating…",
+        "cancelCustomerCreate": "Cancel",
         "requestedLabel": "Requested ship date",
         "notesLabel": "Notes",
         "notesPlaceholder": "Optional notes",
@@ -9580,7 +9593,8 @@
         "forbidden": "You don't have permission to do that.",
         "illegalTransition": "That status change isn't allowed from the current status.",
         "insufficientStock": "There is not enough released stock to allocate this order.",
-        "persistence_failed": "Something went wrong saving. Please retry."
+        "persistence_failed": "Something went wrong saving. Please retry.",
+        "already_exists": "A customer with that code already exists."
       }
     },
     "shipments": {

@@ -28,6 +28,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -48,8 +49,6 @@ export type CustomerError =
   | 'already_exists'
   | 'persistence_failed';
 
-export type CustomerResult<T> = { ok: true; data: T } | { ok: false; error: CustomerError; message?: string };
-
 type Customer = {
   id: string;
   code: string;
@@ -63,6 +62,8 @@ type Customer = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type CustomerResult<T> = ({ ok: true; data: T } & (T extends Customer ? { id: string } : object)) | { ok: false; error: CustomerError; message?: string };
 
 const SHIP_CUSTOMER_WRITE = 'ship.so.create';
 
@@ -257,7 +258,10 @@ export async function createCustomer(rawInput: unknown): Promise<CustomerResult<
         afterState: { code: row.customer_code, name: row.name, category: row.category, is_active: row.is_active },
       });
 
-      return { ok: true, data: mapCustomer(row) };
+      revalidatePath('/shipping');
+      revalidatePath('/shipping/customers');
+
+      return { ok: true, id: row.id, data: mapCustomer(row) };
     });
   } catch (err) {
     const error = pgErrorToResult(err);

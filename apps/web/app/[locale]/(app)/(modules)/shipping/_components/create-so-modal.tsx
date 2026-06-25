@@ -46,6 +46,11 @@ export type CreateSoLabels = {
   title: string;
   customerLabel: string;
   customerPlaceholder: string;
+  newCustomer: string;
+  newCustomerNamePlaceholder: string;
+  createCustomerSubmit: string;
+  creatingCustomer: string;
+  cancelCustomerCreate: string;
   requestedLabel: string;
   notesLabel: string;
   notesPlaceholder: string;
@@ -67,6 +72,7 @@ export type CreateSoLabels = {
     linesRequired: string;
     invalid_input: string;
     forbidden: string;
+    already_exists: string;
     persistence_failed: string;
   };
   picker: {
@@ -91,6 +97,10 @@ export type CreateSoResult =
   | { ok: true; data: unknown }
   | { ok: false; error: string; message?: string };
 
+export type CreateCustomerResult =
+  | { ok: true; id: string; data: SoCustomerOption & Record<string, unknown> }
+  | { ok: false; error: string; message?: string };
+
 export type CreateSoModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -98,6 +108,7 @@ export type CreateSoModalProps = {
   customers: SoCustomerOption[];
   /** Server Action seams (passed from the RSC; never authored here). */
   searchSoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
+  createCustomerAction: (input: { name: string; category: 'retail'; isActive: true }) => Promise<CreateCustomerResult>;
   createSalesOrderAction: (input: {
     customer_id: string;
     requested_date?: string;
@@ -120,10 +131,15 @@ export function CreateSoModal({
   labels,
   customers,
   searchSoItemsAction,
+  createCustomerAction,
   createSalesOrderAction,
   onCreated,
 }: CreateSoModalProps) {
+  const [customerOptions, setCustomerOptions] = React.useState(customers);
   const [customerId, setCustomerId] = React.useState('');
+  const [creatingCustomer, setCreatingCustomer] = React.useState(false);
+  const [newCustomerName, setNewCustomerName] = React.useState('');
+  const [customerPending, setCustomerPending] = React.useState(false);
   const [requested, setRequested] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [lines, setLines] = React.useState<CreateSoLine[]>(() => [makeLine()]);
@@ -131,10 +147,17 @@ export function CreateSoModal({
   const [pending, setPending] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    setCustomerOptions(customers);
+  }, [customers]);
+
   // Reset all field + status state whenever the modal is closed.
   React.useEffect(() => {
     if (!open) {
       setCustomerId('');
+      setCreatingCustomer(false);
+      setNewCustomerName('');
+      setCustomerPending(false);
       setRequested('');
       setNotes('');
       setLines([makeLine()]);
@@ -142,6 +165,35 @@ export function CreateSoModal({
       setFormError(null);
     }
   }, [open]);
+
+  async function onCreateCustomer() {
+    const name = newCustomerName.trim();
+    if (name.length < 2) {
+      setFormError(labels.errors.customerRequired);
+      return;
+    }
+
+    setCustomerPending(true);
+    setFormError(null);
+    try {
+      const result = await createCustomerAction({ name, category: 'retail', isActive: true });
+      if (!result.ok) {
+        const map = labels.errors as Record<string, string>;
+        setFormError(map[result.error] ?? labels.errors.persistence_failed);
+        setCustomerPending(false);
+        return;
+      }
+      const created = { id: result.id, code: result.data.code, name: result.data.name };
+      setCustomerOptions((prev) => [...prev.filter((c) => c.id !== created.id), created]);
+      setCustomerId(created.id);
+      setNewCustomerName('');
+      setCreatingCustomer(false);
+      setCustomerPending(false);
+    } catch {
+      setFormError(labels.errors.persistence_failed);
+      setCustomerPending(false);
+    }
+  }
 
   function updateLine(key: string, patch: Partial<CreateSoLine>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -216,8 +268,49 @@ export function CreateSoModal({
                 onValueChange={setCustomerId}
                 aria-label={labels.customerLabel}
                 placeholder={labels.customerPlaceholder}
-                options={customers.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }))}
+                options={customerOptions.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }))}
               />
+              {creatingCustomer ? (
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    type="text"
+                    value={newCustomerName}
+                    data-testid="create-so-new-customer-name"
+                    placeholder={labels.newCustomerNamePlaceholder}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    className="btn--secondary btn-sm"
+                    data-testid="create-so-new-customer-submit"
+                    disabled={customerPending}
+                    aria-busy={customerPending}
+                    onClick={onCreateCustomer}
+                  >
+                    {customerPending ? labels.creatingCustomer : labels.createCustomerSubmit}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="btn--ghost btn-sm"
+                    data-testid="create-so-new-customer-cancel"
+                    onClick={() => {
+                      setCreatingCustomer(false);
+                      setNewCustomerName('');
+                    }}
+                  >
+                    {labels.cancelCustomerCreate}
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-medium text-blue-700 hover:underline"
+                  data-testid="create-so-new-customer"
+                  onClick={() => setCreatingCustomer(true)}
+                >
+                  + {labels.newCustomer}
+                </button>
+              )}
             </label>
 
             {/* Requested ship date */}

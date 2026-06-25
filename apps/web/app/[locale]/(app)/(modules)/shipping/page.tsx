@@ -30,6 +30,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listSalesOrders, createSalesOrder } from './_actions/so-actions';
 import { listSoCustomers, searchSoItems } from './_actions/so-form-data';
+import { createCustomer } from './customers/_actions/customer-actions';
 import { SoListView, type SoListLabels } from './_components/so-list-view';
 import { ShippingTabs } from './shipments/_components/shipping-tabs';
 
@@ -99,6 +100,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       title: t('create.title'),
       customerLabel: t('create.customerLabel'),
       customerPlaceholder: t('create.customerPlaceholder'),
+      newCustomer: t('create.newCustomer'),
+      newCustomerNamePlaceholder: t('create.newCustomerNamePlaceholder'),
+      createCustomerSubmit: t('create.createCustomerSubmit'),
+      creatingCustomer: t('create.creatingCustomer'),
+      cancelCustomerCreate: t('create.cancelCustomerCreate'),
       requestedLabel: t('create.requestedLabel'),
       notesLabel: t('create.notesLabel'),
       notesPlaceholder: t('create.notesPlaceholder'),
@@ -119,6 +125,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         linesRequired: t('create.errors.linesRequired'),
         invalid_input: t('errors.invalid_input'),
         forbidden: t('errors.forbidden'),
+        already_exists: t('errors.already_exists'),
         persistence_failed: t('errors.persistence_failed'),
       },
       picker: {
@@ -171,6 +178,7 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale)}
       searchSoItemsAction={searchSoItems}
+      createCustomerAction={createCustomer}
       createSalesOrderAction={createSalesOrder}
     />
   );

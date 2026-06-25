@@ -44,7 +44,7 @@ import { Select } from '@monopilot/ui/Select';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { SoStatusBadge } from './so-status-badge';
-import { CreateSoModal, type CreateSoLabels, type CreateSoResult } from './create-so-modal';
+import { CreateSoModal, type CreateCustomerResult, type CreateSoLabels, type CreateSoResult } from './create-so-modal';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items';
 import type { SoCustomerOption } from '../_actions/so-form-data';
 
@@ -108,6 +108,7 @@ export type SoListViewProps = {
   /** Open the create modal immediately on mount (?new=1 deep-link). */
   autoOpenCreate?: boolean;
   searchSoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
+  createCustomerAction?: (input: { name: string; category: 'retail'; isActive: true }) => Promise<CreateCustomerResult>;
   createSalesOrderAction: (input: {
     customer_id: string;
     requested_date?: string;
@@ -137,6 +138,7 @@ export function SoListView({
   labels,
   autoOpenCreate = false,
   searchSoItemsAction,
+  createCustomerAction = async () => ({ ok: false, error: 'forbidden' }),
   createSalesOrderAction,
 }: SoListViewProps) {
   const router = useRouter();
@@ -311,6 +313,7 @@ export function SoListView({
         labels={labels.create}
         customers={customers}
         searchSoItemsAction={searchSoItemsAction}
+        createCustomerAction={createCustomerAction}
         createSalesOrderAction={createSalesOrderAction}
         onCreated={() => router.refresh()}
       />

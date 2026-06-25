@@ -6490,7 +6490,11 @@
           "receive": "Oznacz jako przyjęte",
           "cancel": "Anuluj zamówienie",
           "pending": "Aktualizowanie…",
-          "confirmPrompt": "Zmienić status {po} na {status}?"
+          "confirmPrompt": "Zmienić status {po} na {status}?",
+          "cancelConfirmTitle": "Anulować {po}?",
+          "cancelConfirmBody": "To anuluje zamówienie zakupu. Nie można go anulować, jeśli istnieją już przyjęcia.",
+          "cancelSuccess": "Zamówienie zakupu anulowane.",
+          "cancelPoHasReceipts": "Nie można anulować — zamówienie ma przyjęcia."
         },
         "receivedSummary": {
           "title": "Postęp przyjęcia",
@@ -6499,7 +6503,11 @@
         "reopen": {
           "button": "Przywróć do wersji roboczej",
           "pending": "Przywracanie…",
-          "confirmPrompt": "Przywrócić {po} do wersji roboczej? Zamówienie wróci do edytowalnej wersji roboczej."
+          "confirmPrompt": "Przywrócić {po} do wersji roboczej? Zamówienie wróci do edytowalnej wersji roboczej.",
+          "confirmTitle": "Przywrócić {po}?",
+          "confirmBody": "To ponownie otworzy zamówienie zakupu do dalszej pracy.",
+          "success": "Zamówienie zakupu ponownie otwarte.",
+          "error": "Nie udało się ponownie otworzyć tego zamówienia. Spróbuj ponownie."
         }
       },
       "notes": {
@@ -9509,6 +9517,11 @@
         "title": "Nowe zamówienie sprzedaży",
         "customerLabel": "Klient",
         "customerPlaceholder": "Wybierz klienta",
+        "newCustomer": "Nowy klient",
+        "newCustomerNamePlaceholder": "Nazwa klienta",
+        "createCustomerSubmit": "Utwórz",
+        "creatingCustomer": "Tworzenie…",
+        "cancelCustomerCreate": "Anuluj",
         "requestedLabel": "Żądana data wysyłki",
         "notesLabel": "Uwagi",
         "notesPlaceholder": "Uwagi (opcjonalnie)",
@@ -9580,7 +9593,8 @@
         "forbidden": "Nie masz uprawnień, aby to zrobić.",
         "illegalTransition": "Ta zmiana statusu jest niedozwolona z bieżącego statusu.",
         "insufficientStock": "Brak wystarczającego zwolnionego zapasu, aby zarezerwować to zamówienie.",
-        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
+        "already_exists": "Klient z tym kodem już istnieje."
       }
     },
     "shipments": {
