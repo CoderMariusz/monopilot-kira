@@ -36,6 +36,14 @@ export type WarehouseOption = {
   name: string;
 };
 
+export type LocationOption = {
+  id: string;
+  code: string;
+  name: string;
+  warehouseId: string | null;
+  path: string | null;
+};
+
 export type ProductionLine = {
   id: string;
   code: string;
@@ -50,7 +58,15 @@ export type ProductionLine = {
 
 export type ActivateLineInput = { lineId: string };
 export type DeactivateLineInput = { lineId: string };
-export type CreateLineInput = { siteId?: string | null; warehouseId?: string | null; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] };
+export type CreateLineInput = {
+  siteId?: string | null;
+  warehouseId?: string | null;
+  defaultOutputLocationId?: string | null;
+  code: string;
+  name: string;
+  status: 'draft' | 'active';
+  machineIds: string[];
+};
 export type CreateLineResult =
   | { ok: true; data: { id: string; status: 'draft' | 'active' } }
   | { ok: false; error?: string };
@@ -167,6 +183,7 @@ export type LinesScreenProps = {
   machines: MachineOption[];
   sites?: SiteOption[];
   warehouses?: WarehouseOption[];
+  locations?: LocationOption[];
   canUpdateInfra: boolean;
   activateLine: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
   deactivateLine?: (input: DeactivateLineInput) => Promise<DeactivateLineResult> | DeactivateLineResult;
@@ -240,7 +257,7 @@ function SelectField({
   );
 }
 
-export default function LinesScreen({ labels: labelsProp, lines, machines, sites = [], warehouses = [], canUpdateInfra, activateLine, deactivateLine, createLine, state }: LinesScreenProps) {
+export default function LinesScreen({ labels: labelsProp, lines, machines, sites = [], warehouses = [], locations = [], canUpdateInfra, activateLine, deactivateLine, createLine, state }: LinesScreenProps) {
   const labels = labelsProp ?? DEFAULT_LINES_LABELS;
   const [rows, setRows] = React.useState<ProductionLine[]>(() => [...lines]);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -259,6 +276,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
   const [newLine, setNewLine] = React.useState<CreateLineInput>(() => ({
     siteId: defaultSiteId(sites),
     warehouseId: defaultWarehouseId(warehouses, 'all'),
+    defaultOutputLocationId: null,
     code: '',
     name: '',
     status: 'draft',
@@ -276,8 +294,11 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
       warehouseId: current.warehouseId && warehouses.some((warehouse) => warehouse.id === current.warehouseId)
         ? current.warehouseId
         : defaultWarehouseId(warehouses, warehouseFilter),
+      defaultOutputLocationId: current.defaultOutputLocationId && locations.some((location) => location.id === current.defaultOutputLocationId && location.warehouseId === current.warehouseId)
+        ? current.defaultOutputLocationId
+        : null,
     }));
-  }, [sites, warehouseFilter, warehouses]);
+  }, [locations, sites, warehouseFilter, warehouses]);
 
   React.useEffect(() => {
     setStatusById(Object.fromEntries(rows.map((line) => [line.id, line.status])));
@@ -296,6 +317,19 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
     { value: 'none', label: labels.unavailable },
     ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
   ], [labels.unavailable, warehouses]);
+
+  const outputLocationOptions = React.useMemo<SelectOption[]>(() => {
+    const matchingLocations = newLine.warehouseId
+      ? locations.filter((location) => location.warehouseId === newLine.warehouseId)
+      : [];
+    return [
+      { value: 'none', label: '— none —' },
+      ...matchingLocations.map((location) => ({
+        value: location.id,
+        label: `${location.code} - ${location.name}${location.path ? ` (${location.path})` : ''}`,
+      })),
+    ];
+  }, [locations, newLine.warehouseId]);
 
   const visibleLines = React.useMemo(() => {
     return rows.filter((line) => {
@@ -364,7 +398,17 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
     setCreateError(null);
     setCreateStatus(null);
     try {
-      const result = await createLine(newLine);
+      const createInput: CreateLineInput = newLine.defaultOutputLocationId
+        ? newLine
+        : {
+            siteId: newLine.siteId,
+            warehouseId: newLine.warehouseId,
+            code: newLine.code,
+            name: newLine.name,
+            status: newLine.status,
+            machineIds: newLine.machineIds,
+          };
+      const result = await createLine(createInput);
       if (!result.ok) {
         setCreateError(labels.createLineFailed);
         return;
@@ -384,6 +428,12 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
           status: result.data.status,
           warehouseId: newLine.warehouseId ?? null,
           warehouseName: selectedWarehouse?.name ?? null,
+          defaultLocationId: newLine.defaultOutputLocationId ?? null,
+          defaultLocationBreadcrumb: newLine.defaultOutputLocationId
+            ? locations.find((location) => location.id === newLine.defaultOutputLocationId)?.path
+              ?? locations.find((location) => location.id === newLine.defaultOutputLocationId)?.name
+              ?? null
+            : null,
           machines: selectedMachines,
         },
         ...current.filter((line) => line.id !== result.data.id),
@@ -391,6 +441,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
       setNewLine({
         siteId: defaultSiteId(sites),
         warehouseId: defaultWarehouseId(warehouses, warehouseFilter),
+        defaultOutputLocationId: null,
         code: '',
         name: '',
         status: 'draft',
@@ -409,6 +460,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
       ...current,
       siteId: current.siteId ?? defaultSiteId(sites),
       warehouseId: defaultWarehouseId(warehouses, warehouseFilter) ?? current.warehouseId ?? null,
+      defaultOutputLocationId: null,
     }));
     setCreateDialogOpen(true);
   };
@@ -568,6 +620,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
               <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setCreateDialogOpen(false)} disabled={createPending}>x</Button>
             </div>
             <form onSubmit={(event) => void submitCreateLine(event)} className="mt-4 space-y-4">
+              {/* Modal field set: code, name, site, warehouse, default output location, status, machine sequence. */}
               <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-code">
                 {labels.fieldCode}
                 <Input
@@ -604,7 +657,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
                     onValueChange={(value) => setNewLine((current) => ({ ...current, siteId: value || null }))}
                   >
                     <SelectTrigger aria-label={labels.fieldSite}>
-                      <SelectValue />
+                      <SelectValue placeholder={labels.fieldSite} />
                     </SelectTrigger>
                     <SelectContent>
                       {sites.map((site) => (
@@ -620,15 +673,39 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
                 <span id="new-line-warehouse-label">{labels.warehouseFilter}</span>
                 <Select
                   value={newLine.warehouseId ?? 'none'}
-                  onValueChange={(value) => setNewLine((current) => ({ ...current, warehouseId: value === 'none' ? null : value }))}
+                  onValueChange={(value) => setNewLine((current) => ({
+                    ...current,
+                    warehouseId: value === 'none' ? null : value,
+                    defaultOutputLocationId: null,
+                  }))}
                   options={createWarehouseOptions}
                   disabled={createPending}
                 >
                   <SelectTrigger aria-label={labels.warehouseFilter}>
-                    <SelectValue />
+                    <SelectValue placeholder={labels.warehouseFilter} />
                   </SelectTrigger>
                   <SelectContent>
                     {createWarehouseOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <span id="new-line-default-output-location-label">Default output location</span>
+                <Select
+                  value={newLine.defaultOutputLocationId ?? 'none'}
+                  onValueChange={(value) => setNewLine((current) => ({ ...current, defaultOutputLocationId: value === 'none' ? null : value }))}
+                  options={outputLocationOptions}
+                  disabled={createPending || !newLine.warehouseId}
+                >
+                  <SelectTrigger aria-label="Default output location">
+                    <SelectValue placeholder="Default output location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {outputLocationOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>

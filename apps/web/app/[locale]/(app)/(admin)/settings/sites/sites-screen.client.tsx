@@ -495,6 +495,7 @@ export default function SitesScreen({
         <AddLineModal
           labels={modalLabels}
           siteId={activeModal.siteId}
+          siteLabel={selectedSite?.name ?? activeModal.siteId}
           action={createLineAction}
           onClose={() => setActiveModal(null)}
           onSuccess={() => handleMutated(activeModal.siteId)}
@@ -505,6 +506,7 @@ export default function SitesScreen({
         <EditLineModal
           labels={modalLabels}
           siteId={activeModal.siteId}
+          siteLabel={selectedSite?.name ?? activeModal.siteId}
           line={activeModal.line}
           action={updateLineAction}
           onClose={() => setActiveModal(null)}
@@ -691,6 +693,7 @@ function LineFormModal({
   modalId,
   testId,
   initial,
+  siteLabel,
   onClose,
   onSuccess,
   submit,
@@ -700,6 +703,7 @@ function LineFormModal({
   modalId: string;
   testId: string;
   initial: { code: string; name: string; status: string };
+  siteLabel: string;
   onClose: () => void;
   onSuccess: () => void;
   submit: (values: { code: string; name: string; status: string }) => Promise<LineMutationResult>;
@@ -736,6 +740,11 @@ function LineFormModal({
       <Modal.Header title={title} />
       <form onSubmit={onSubmit} noValidate data-testid={testId}>
         <Modal.Body>
+          {/*
+            Sites line modal field set: code, name, site (read-only selected site), status.
+            Warehouse is not exposed here because this screen's allowed create/update line
+            actions only accept site_id/code/name/status.
+          */}
           <Field id="line-code" label={labels.fieldLineCode} required requiredLabel={labels.required}>
             <input
               id="line-code"
@@ -750,6 +759,15 @@ function LineFormModal({
               className="form-input"
               value={name}
               onChange={(e) => setName(e.currentTarget.value)}
+            />
+          </Field>
+          <Field id="line-site" label="Site" requiredLabel={labels.required}>
+            <input
+              id="line-site"
+              className="form-input"
+              value={siteLabel}
+              readOnly
+              aria-readonly="true"
             />
           </Field>
           <Field id="line-status" label={labels.fieldStatus} requiredLabel={labels.required}>
@@ -788,12 +806,14 @@ function LineFormModal({
 function AddLineModal({
   labels,
   siteId,
+  siteLabel,
   action,
   onClose,
   onSuccess,
 }: {
   labels: SitesModalLabels;
   siteId: string;
+  siteLabel: string;
   action?: CreateLineAction;
   onClose: () => void;
   onSuccess: () => void;
@@ -805,6 +825,7 @@ function AddLineModal({
       modalId="sitesAddLine"
       testId="sites-add-line-form"
       initial={{ code: '', name: '', status: 'active' }}
+      siteLabel={siteLabel}
       onClose={onClose}
       onSuccess={onSuccess}
       submit={async (values) => {
@@ -818,6 +839,7 @@ function AddLineModal({
 function EditLineModal({
   labels,
   siteId,
+  siteLabel,
   line,
   action,
   onClose,
@@ -825,6 +847,7 @@ function EditLineModal({
 }: {
   labels: SitesModalLabels;
   siteId: string;
+  siteLabel: string;
   line: LineRow;
   action?: UpdateLineAction;
   onClose: () => void;
@@ -837,6 +860,7 @@ function EditLineModal({
       modalId="sitesEditLine"
       testId="sites-edit-line-form"
       initial={{ code: line.code, name: line.name, status: line.status }}
+      siteLabel={siteLabel}
       onClose={onClose}
       onSuccess={onSuccess}
       submit={async (values) => {

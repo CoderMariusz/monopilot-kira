@@ -12,6 +12,7 @@ import LinesScreen, {
   type LinesLabels,
   type LinesPageState,
   type LineStatus,
+  type LocationOption,
   type MachineOption,
   type ProductionLine,
   type SiteOption,
@@ -114,6 +115,14 @@ type WarehouseOptionRow = {
   name: string;
 };
 
+type LocationOptionRow = {
+  id: string;
+  code: string;
+  name: string;
+  warehouse_id: string | null;
+  path: string | null;
+};
+
 type LineActivationRow = {
   id: string;
   code: string;
@@ -134,6 +143,7 @@ type LinesPageProps = {
   machines?: MachineOption[];
   sites?: SiteOption[];
   warehouses?: WarehouseOption[];
+  locations?: LocationOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
   deactivateLine?: (input: DeactivateLineInput) => Promise<DeactivateLineResult> | DeactivateLineResult;
@@ -213,15 +223,46 @@ function toProductionLines(rows: LineRow[]): ProductionLine[] {
   }));
 }
 
-async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; warehouses: WarehouseOption[]; canUpdateInfra: boolean }> {
+async function loadLocationOptions(context: OrgContextLike): Promise<LocationOption[]> {
   try {
-    return await withOrgContext(async (ctx): Promise<{ state: LinesPageState; lines: ProductionLine[]; machines: MachineOption[]; sites: SiteOption[]; warehouses: WarehouseOption[]; canUpdateInfra: boolean }> => {
+    const { rows } = await context.client.query<LocationOptionRow>(
+      `select id::text, code, name, warehouse_id::text, path
+         from public.locations
+        where org_id = app.current_org_id()
+        order by lower(code), lower(name), id`,
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      warehouseId: row.warehouse_id,
+      path: row.path,
+    }));
+  } catch (error) {
+    console.error('[settings/infra/lines] locations_load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return [];
+  }
+}
+
+type LinesRuntime = {
+  state: LinesPageState;
+  lines: ProductionLine[];
+  machines: MachineOption[];
+  sites: SiteOption[];
+  warehouses: WarehouseOption[];
+  locations: LocationOption[];
+  canUpdateInfra: boolean;
+};
+
+async function loadLines(): Promise<LinesRuntime> {
+  try {
+    return await withOrgContext(async (ctx): Promise<LinesRuntime> => {
       const context = ctx as OrgContextLike;
       const [canRead, canUpdateInfra] = await Promise.all([
         hasPermission(context, READ_PERMISSION),
         hasPermission(context, UPDATE_PERMISSION),
       ]);
-      if (!canRead) return { state: 'permission_denied', lines: [], machines: [], sites: [], warehouses: [], canUpdateInfra: false };
+      if (!canRead) return { state: 'permission_denied', lines: [], machines: [], sites: [], warehouses: [], locations: [], canUpdateInfra: false };
 
       const [linesResult, machinesResult, sitesResult, warehousesResult] = await Promise.all([
         context.client.query<LineRow>(
@@ -279,6 +320,7 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
             order by lower(name), id`,
         ),
       ]);
+      const locations = await loadLocationOptions(context);
       const lines = toProductionLines(linesResult.rows);
       return {
         state: lines.length === 0 ? 'empty' : 'ready',
@@ -286,12 +328,13 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
         machines: machinesResult.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
         sites: sitesResult.rows.map((row) => ({ id: row.id, code: row.site_code, name: row.name, isDefault: row.is_default })),
         warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name })),
+        locations,
         canUpdateInfra,
       };
     });
   } catch (error) {
     console.error('[settings/infra/lines] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { state: 'error', lines: [], machines: [], sites: [], warehouses: [], canUpdateInfra: false };
+    return { state: 'error', lines: [], machines: [], sites: [], warehouses: [], locations: [], canUpdateInfra: false };
   }
 }
 
@@ -410,6 +453,7 @@ export default async function LinesPage(propsInput: unknown = {}) {
         machines: props.machines ?? [],
         sites: props.sites ?? [],
         warehouses: props.warehouses ?? [],
+        locations: props.locations ?? [],
         canUpdateInfra: props.canUpdateInfra ?? false,
       }
     : await loadLines();
@@ -431,6 +475,7 @@ export default async function LinesPage(propsInput: unknown = {}) {
     machines: runtime.machines,
     sites: runtime.sites,
     warehouses: runtime.warehouses,
+    locations: runtime.locations,
     canUpdateInfra: runtime.canUpdateInfra,
     activateLine: activateLineForClient,
     deactivateLine: deactivateLineForClient,
