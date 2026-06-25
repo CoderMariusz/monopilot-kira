@@ -16,7 +16,7 @@ const LINE_ID = '99999999-9999-4999-8999-999999999999';
 type QueryCall = { sql: string; params: readonly unknown[] };
 type InfraLocation = { id: string; warehouse_id: string; parent_id: string | null; code: string; level: number; path: string };
 type InfraMachine = { id: string; location_id: string | null; status: string };
-type InfraLine = { id: string; status: string; machine_ids: string[] };
+type InfraLine = { id: string; status: string; machine_ids: string[]; default_output_location_id: string | null };
 type InfraWarehouse = { id: string; is_active: boolean };
 
 type FakeClient = {
@@ -60,7 +60,7 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       [WRONG_WAREHOUSE_PARENT_ID, { id: WRONG_WAREHOUSE_PARENT_ID, warehouse_id: OTHER_WAREHOUSE_ID, parent_id: null, code: 'ZONE-B', level: 1, path: 'ZONE-B' }],
     ]),
     machines: new Map<string, InfraMachine>([[MACHINE_ID, { id: MACHINE_ID, location_id: BIN_ID, status: 'active' }]]),
-    lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [] }]]),
+    lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [], default_output_location_id: null }]]),
     warehouses: new Map<string, InfraWarehouse>([[WAREHOUSE_ID, { id: WAREHOUSE_ID, is_active: true }]]),
     activeWorkOrders: new Set<string>([WAREHOUSE_ID]),
     outboxEntries: [],
@@ -167,7 +167,8 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       if (normalized.startsWith('insert into public.production_lines') || normalized.startsWith('update public.production_lines')) {
         const id = params.map(String).find((value) => client.lines.has(value)) ?? LINE_ID;
         const status = paramsText.includes('active') ? 'active' : 'draft';
-        const row = { id, status, machine_ids: [] };
+        const defaultOutputLocationId = normalized.includes('default_output_location_id') && typeof params[3] === 'string' ? String(params[3]) : null;
+        const row = { id, status, machine_ids: [], default_output_location_id: defaultOutputLocationId };
         client.lines.set(id, row);
         return { rows: [row] as never[], rowCount: 1 };
       }
@@ -361,7 +362,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
 
   it('V-SET-62/V-SET-63 block empty line activation and require force to deactivate warehouses with active WOs', async () => {
     const upsertLine = await loadAction<
-      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
+      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[]; defaultOutputLocationId?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
     const deactivateWarehouse = await loadAction<
       (input: { warehouseId: string; force?: boolean }) => Promise<{ ok: boolean; error?: string; warning?: { code: string; activeWorkOrders?: number }; data?: { isActive: boolean } }>
@@ -390,15 +391,39 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
 
   it('creates a DRAFT line with zero machines and writes line_machines (delete-then-insert with sequence) when machines are assigned', async () => {
     const upsertLine = await loadAction<
-      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
+      (input: {
+        id?: string;
+        code: string;
+        name: string;
+        status: 'draft' | 'active';
+        machineIds: string[];
+        warehouseId?: string | null;
+        defaultOutputLocationId?: string | null;
+      }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
 
     // Draft line with no machines is allowed (machine is only required at activation, V-SET-62).
-    const draft = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', machineIds: [] });
+    const draft = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', machineIds: [], warehouseId: WAREHOUSE_ID, defaultOutputLocationId: BIN_ID });
     expect(draft).toMatchObject({ ok: true, data: { status: 'draft' } });
     expect(currentClient.lines.get(LINE_ID)?.machine_ids).toEqual([]);
+    expect(currentClient.lines.get(LINE_ID)?.default_output_location_id).toBe(BIN_ID);
+    const lineUpsertCall = currentClient.calls.find((call) => call.sql.toLowerCase().startsWith('insert into public.production_lines'));
+    expect(lineUpsertCall?.sql.toLowerCase()).toContain('default_output_location_id');
+    expect(lineUpsertCall?.params).toContain(BIN_ID);
     // delete-then-insert: line_machines cleared even with zero machines.
     expect(currentClient.calls.some((call) => call.sql.toLowerCase().startsWith('delete from public.line_machines'))).toBe(true);
+
+    await expect(
+      upsertLine({
+        id: LINE_ID,
+        code: 'LINE-DRAFT',
+        name: 'Draft line',
+        status: 'draft',
+        machineIds: [],
+        warehouseId: WAREHOUSE_ID,
+        defaultOutputLocationId: WRONG_WAREHOUSE_PARENT_ID,
+      }),
+    ).resolves.toMatchObject({ ok: false, error: 'invalid_location_reference' });
 
     // Assigning a machine writes line_machines with a sequence.
     const assigned = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', machineIds: [MACHINE_ID] });

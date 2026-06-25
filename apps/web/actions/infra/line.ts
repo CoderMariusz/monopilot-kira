@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
@@ -15,14 +16,16 @@ type OrgActionContext = {
 };
 
 type LineStatus = 'draft' | 'active';
-type LineRow = { id: string; code: string; name: string; status: LineStatus };
+type LineRow = { id: string; code: string; name: string; status: LineStatus; default_output_location_id: string | null };
 type MachineRow = { id: string; status: string };
 type WarehouseRow = { id: string };
+type LocationWarehouseRow = { warehouse_id: string | null };
 
 type ParsedLineInput = {
   id: string | null;
   siteId: string | null;
   warehouseId: string | null;
+  defaultOutputLocationId: string | null;
   code: string;
   name: string;
   status: LineStatus;
@@ -31,7 +34,17 @@ type ParsedLineInput = {
 
 export type UpsertLineResult =
   | { ok: true; data: { id: string; status: LineStatus } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'line_requires_machine' | 'invalid_machine_reference' | 'invalid_warehouse_reference' | 'persistence_failed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'line_requires_machine'
+        | 'invalid_machine_reference'
+        | 'invalid_warehouse_reference'
+        | 'invalid_location_reference'
+        | 'persistence_failed';
+    };
 
 const EDIT_PERMISSION = 'settings.infra.update';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -40,6 +53,7 @@ const LineInput = z.object({
   id: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
   siteId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
   warehouseId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
+  defaultOutputLocationId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
   code: z.string().trim().min(1).max(64).transform((value) => value.toUpperCase()).pipe(z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/)),
   name: z.string().trim().min(1).max(128),
   status: z.enum(['draft', 'active']),
@@ -63,19 +77,24 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
         const warehouse = await getWarehouse(client, input.warehouseId);
         if (!warehouse) return { ok: false, error: 'invalid_warehouse_reference' };
       }
+      if (input.defaultOutputLocationId && input.warehouseId) {
+        const location = await getLocationWarehouse(client, input.defaultOutputLocationId);
+        if (!location || location.warehouse_id !== input.warehouseId) return { ok: false, error: 'invalid_location_reference' };
+      }
 
       const { rows } = await client.query<LineRow>(
         `insert into public.production_lines
-           (id, org_id, site_id, warehouse_id, code, name, status)
-         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3::uuid, $4, $5, $6)
+           (id, org_id, site_id, warehouse_id, default_output_location_id, code, name, status)
+         values (coalesce($1::uuid, gen_random_uuid()), app.current_org_id(), $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
          on conflict (id) do update set
            site_id = excluded.site_id,
            warehouse_id = excluded.warehouse_id,
+           default_output_location_id = excluded.default_output_location_id,
            code = excluded.code,
            name = excluded.name,
            status = excluded.status
-         returning id, code, name, status, $7::uuid[] as machine_ids`,
-        [input.id, input.siteId, input.warehouseId, input.code, input.name, input.status, input.machineIds],
+         returning id, code, name, status, default_output_location_id, $8::uuid[] as machine_ids`,
+        [input.id, input.siteId, input.warehouseId, input.defaultOutputLocationId, input.code, input.name, input.status, input.machineIds],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
@@ -99,8 +118,17 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
         eventType: 'settings.line.upserted',
         aggregateType: 'production_line',
         aggregateId: row.id,
-        payload: { line_id: row.id, status: row.status, warehouse_id: input.warehouseId, machine_ids: input.machineIds, actor_user_id: userId },
+        payload: {
+          line_id: row.id,
+          status: row.status,
+          warehouse_id: input.warehouseId,
+          default_output_location_id: input.defaultOutputLocationId,
+          machine_ids: input.machineIds,
+          actor_user_id: userId,
+        },
       });
+
+      revalidateLinesPath();
 
       return { ok: true, data: { id: row.id, status: row.status } };
     });
@@ -116,6 +144,7 @@ function parseLineInput(raw: unknown): ParsedLineInput | null {
     id: parsed.data.id ?? null,
     siteId: parsed.data.siteId ?? null,
     warehouseId: parsed.data.warehouseId ?? null,
+    defaultOutputLocationId: parsed.data.defaultOutputLocationId ?? null,
     code: parsed.data.code,
     name: parsed.data.name,
     status: parsed.data.status,
@@ -146,6 +175,18 @@ async function getWarehouse(client: QueryClient, warehouseId: string): Promise<W
   return rows[0] ?? null;
 }
 
+async function getLocationWarehouse(client: QueryClient, locationId: string): Promise<LocationWarehouseRow | null> {
+  const { rows } = await client.query<LocationWarehouseRow>(
+    `select warehouse_id
+       from public.locations
+      where id = $1::uuid
+        and org_id = (select app.current_org_id())
+      limit 1`,
+    [locationId],
+  );
+  return rows[0] ?? null;
+}
+
 async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
@@ -171,4 +212,12 @@ async function writeOutbox(
      values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-infra-v1')`,
     [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
   );
+}
+
+function revalidateLinesPath(): void {
+  try {
+    revalidatePath('/[locale]/settings/infra/lines', 'page');
+  } catch (e) {
+    console.warn('revalidateLinesPath failed', e);
+  }
 }
