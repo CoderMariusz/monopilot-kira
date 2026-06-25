@@ -515,6 +515,7 @@ export default function ShiftsScreen({
                 <span>{labels.fieldSite}</span>
                 <Select
                   value={draft.site_id || '__all__'}
+                  options={[{ value: '__all__', label: labels.allSites }, ...sites.map((site) => ({ value: site.id, label: `${site.code} - ${site.name}` }))]}
                   onValueChange={(value) => setDraft((current) => ({ ...current, site_id: value === '__all__' ? '' : value, line_id: '' }))}
                 >
                   <SelectTrigger aria-label={labels.fieldSite}>
@@ -532,7 +533,7 @@ export default function ShiftsScreen({
               </div>
               <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <span>{labels.fieldLine}</span>
-                <Select value={draft.line_id || '__none__'} onValueChange={(value) => setDraft((current) => ({ ...current, line_id: value === '__none__' ? '' : value }))}>
+                <Select value={draft.line_id || '__none__'} options={[{ value: '__none__', label: labels.noLine }, ...lineOptions.map((line) => ({ value: line.id, label: `${line.code} - ${line.name}` }))]} onValueChange={(value) => setDraft((current) => ({ ...current, line_id: value === '__none__' ? '' : value }))}>
                   <SelectTrigger aria-label={labels.fieldLine}>
                     <SelectValue />
                   </SelectTrigger>
