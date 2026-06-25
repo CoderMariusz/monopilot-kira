@@ -7804,7 +7804,7 @@
             "invalid_input": "Sprawdź pola i spróbuj ponownie.",
             "lp_not_voidable": "Nośnik tego wyjścia został już zwolniony lub przydzielony — nie można go już bezpośrednio anulować.",
             "already_corrected": "Ten wpis został już anulowany.",
-            "esign_failed": "Podpis nie powiódł się — sprawdź hasło i spróbuj ponownie.",
+            "esign_failed": "Podpis elektroniczny nieudany — PIN lub hasło do konta nie zostało zaakceptowane. Sprawdź i spróbuj ponownie.",
             "persistence_failed": "Nie udało się anulować tego wpisu.",
             "generic": "Nie udało się anulować tego wpisu."
           },
@@ -7894,7 +7894,7 @@
             "lp_not_restorable": "Zużyta paleta została już wysłana lub zniszczona — tego wpisu nie można już cofnąć.",
             "inconsistent_ledger": "Rejestr stanów tej palety jest niespójny — cofnięcie zostało zablokowane, aby chronić zapasy. Poproś przełożonego o weryfikację przed ponowną próbą.",
             "invalid_input": "Sprawdź pola i spróbuj ponownie.",
-            "esign_failed": "Podpis nie powiódł się — sprawdź hasło i spróbuj ponownie.",
+            "esign_failed": "Podpis elektroniczny nieudany — PIN lub hasło do konta nie zostało zaakceptowane. Sprawdź i spróbuj ponownie.",
             "persistence_failed": "Nie udało się cofnąć tego zużycia.",
             "generic": "Nie udało się cofnąć tego zużycia."
           }

@@ -6305,7 +6305,7 @@
             "invalid_input": "Check the fields and try again.",
             "lp_not_voidable": "This output's pallet has already been released or allocated — it can no longer be voided directly.",
             "already_corrected": "This record has already been voided.",
-            "esign_failed": "Signature failed — check your password and retry.",
+            "esign_failed": "Electronic signature failed — your PIN or account password was not accepted. Check it and try again.",
             "persistence_failed": "Unable to void this record.",
             "generic": "Unable to void this record."
           },
@@ -6395,7 +6395,7 @@
             "lp_not_restorable": "The consumed pallet has already been shipped or destroyed — this entry can no longer be reversed.",
             "inconsistent_ledger": "The stock ledger for this pallet is inconsistent — reversing was blocked to protect inventory. Ask a supervisor to review before retrying.",
             "invalid_input": "Check the fields and try again.",
-            "esign_failed": "Signature failed — check your password and retry.",
+            "esign_failed": "Electronic signature failed — your PIN or account password was not accepted. Check it and try again.",
             "persistence_failed": "Unable to reverse this consumption.",
             "generic": "Unable to reverse this consumption."
           }
