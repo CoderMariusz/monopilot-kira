@@ -204,6 +204,32 @@ describe('getHandoff — RBAC + ready derivation', () => {
     expect(r.data.releaseGates.find((g) => g.code === 'FG_CANDIDATE_REQUIRED')?.met).toBe(false);
   });
 
+  it('qualifies the checklist select-list with hc. (guards 42702 ambiguous-column vs joined bom_headers)', async () => {
+    // REGRESSION: the checklist query LEFT JOINs bom_headers, which shares columns
+    // (id, org_id, created_at, notes, updated_at) with handoff_checklists. A bare
+    // `select id, …` is `42702: column reference "id" is ambiguous` — a PLAN-time
+    // error that dead-ended the handoff tab for EVERY at/past-handoff project. Mocked
+    // clients return canned rows regardless of column ambiguity, so we assert on the
+    // emitted SQL text instead (the live SQL was the real proof).
+    let checklistSql = '';
+    handlerHolder.handler = permHandler(['npd.handoff.read'], (sql) => {
+      if (/from public\.handoff_checklists/.test(sql) && /left join public\.bom_headers/.test(sql)) {
+        checklistSql = sql;
+        return {
+          rows: [
+            { id: CHECKLIST, bom_verification_status: null, destination_bom_code: null, promote_to_production_date: null, destination_warehouse_id: null },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    await getHandoff({ projectId: PROJECT });
+    expect(checklistSql).not.toBe('');
+    // The shared columns must be table-qualified in the SELECT list, never bare.
+    expect(checklistSql).toMatch(/select\s+hc\.id\b/);
+    expect(checklistSql).not.toMatch(/select\s+id\b/);
+  });
+
   it('derives ready=false when an item is unchecked', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.read'], (sql) => {
       if (/from public.handoff_checklists/.test(sql)) {

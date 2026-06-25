@@ -156,16 +156,21 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
       }
 
       const checklistRes = await ctx.client.query<ChecklistRow>(
-        `select id,
-                bom_verification_status,
-                destination_bom_code,
+        // NB: qualify EVERY select-list column with `hc.` — handoff_checklists and
+        // bom_headers share columns (id, created_at, notes, org_id, updated_at), so a
+        // bare `id`/`org_id` here is `42702: column reference "id" is ambiguous`. This is
+        // a PLAN-time error (fires for any project, even zero rows), which is why the
+        // handoff tab dead-ended ("Unable to load…") for every at/past-handoff project.
+        `select hc.id,
+                hc.bom_verification_status,
+                hc.destination_bom_code,
                 case
-                  when destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                  when hc.destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
                     then coalesce(bh.fa_code, bh.product_id) || ' v' || bh.version::text
-                  else destination_bom_code
+                  else hc.destination_bom_code
                 end as destination_bom_display_code,
-                promote_to_production_date::text as promote_to_production_date,
-                destination_warehouse_id
+                hc.promote_to_production_date::text as promote_to_production_date,
+                hc.destination_warehouse_id
            from public.handoff_checklists hc
            left join public.bom_headers bh
              on bh.org_id = hc.org_id
@@ -199,16 +204,18 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           { id: projectId },
         );
         const reread = await ctx.client.query<ChecklistRow>(
-          `select id,
-                  bom_verification_status,
-                  destination_bom_code,
+          // Qualify select-list columns with `hc.` (see note on the first query above):
+          // bare `id`/`org_id` are ambiguous against the joined bom_headers (42702).
+          `select hc.id,
+                  hc.bom_verification_status,
+                  hc.destination_bom_code,
                   case
-                    when destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                    when hc.destination_bom_code ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
                       then coalesce(bh.fa_code, bh.product_id) || ' v' || bh.version::text
-                    else destination_bom_code
+                    else hc.destination_bom_code
                   end as destination_bom_display_code,
-                  promote_to_production_date::text as promote_to_production_date,
-                  destination_warehouse_id
+                  hc.promote_to_production_date::text as promote_to_production_date,
+                  hc.destination_warehouse_id
              from public.handoff_checklists hc
              left join public.bom_headers bh
                on bh.org_id = hc.org_id
@@ -324,7 +331,18 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
       };
     });
   } catch (error) {
-    console.error('[getHandoff] org-scoped read failed:', error);
+    // Surface the STRUCTURED pg error (code/detail/where) so a future failure of this
+    // class (e.g. 42702 ambiguous column, 42P01 missing relation, 22P02 bad cast) is
+    // root-causable from the logs instead of being flattened to a generic message.
+    const pg = error as { code?: string; detail?: string; hint?: string; where?: string };
+    console.error('[getHandoff] org-scoped read failed:', {
+      projectId,
+      code: pg.code,
+      detail: pg.detail,
+      hint: pg.hint,
+      where: pg.where,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return { ok: false, error: 'persistence_failed' };
   }
 }
