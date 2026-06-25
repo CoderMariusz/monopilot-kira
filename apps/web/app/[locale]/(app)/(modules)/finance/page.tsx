@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 
 import { getTranslations } from 'next-intl/server';
 
@@ -67,7 +68,8 @@ async function FinanceContent({ labels, windowDays }: { labels: FinanceWoCostLab
   return <FinanceWoCostTable result={{ state: 'error' }} labels={labels} />;
 }
 
-export default async function FinanceRoutePage({ searchParams }: PageProps) {
+export default async function FinanceRoutePage({ params, searchParams }: PageProps) {
+  const { locale } = await params;
   const sp: { days?: string } = searchParams ? await searchParams : {};
   const windowDays = parseWindowDays(sp.days);
   const labels = await buildLabels();
@@ -79,6 +81,13 @@ export default async function FinanceRoutePage({ searchParams }: PageProps) {
           {labels.title}
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">{labels.subtitle}</p>
+        <Link
+          href={`/${locale}/finance/valuation`}
+          prefetch={false}
+          className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Inventory valuation
+        </Link>
       </div>
       <Suspense key={windowDays} fallback={<FinanceSkeleton labels={labels} />}>
         <FinanceContent labels={labels} windowDays={windowDays} />

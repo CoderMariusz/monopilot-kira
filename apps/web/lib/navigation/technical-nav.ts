@@ -66,6 +66,8 @@ export const TECHNICAL_NAV_GROUPS: TechnicalNavGroup[] = [
     navItem('costing', 'Recipe costing', '/technical/cost', '$'),
     navItem('costhist', 'Cost history', '/technical/cost/history', '∿'),
     navItem('traceability', 'Traceability search', '/technical/traceability', '⌕'),
+    navItem('where-used', 'Where-used', '/technical/where-used', '↤'),
+    navItem('portfolio-cost', 'Portfolio cost', '/technical/cost/portfolio', '▣'),
   ]),
   navGroup('process', 'Process', [
     navItem('routings', 'Routings', '/technical/routings', '→'),

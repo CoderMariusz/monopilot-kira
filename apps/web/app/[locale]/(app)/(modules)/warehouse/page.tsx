@@ -301,6 +301,7 @@ export default async function WarehouseRoutePage({ params }: WarehouseRoutePageP
                 <li key={card.key}>
                   <Link
                     href={`/${locale}${card.href}`}
+                    prefetch={false}
                     data-testid={`warehouse-nav-${card.key}`}
                     className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
                   >
@@ -310,6 +311,15 @@ export default async function WarehouseRoutePage({ params }: WarehouseRoutePageP
                 </li>
               );
             })}
+            <li>
+              <Link
+                href={`/${locale}/warehouse/adjustments`}
+                prefetch={false}
+                className="flex h-full flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+              >
+                <span className="text-base font-semibold text-slate-950">Stock adjustments</span>
+              </Link>
+            </li>
           </ul>
         </nav>
       </div>

@@ -1607,7 +1607,9 @@
         "lab_results": "Wyniki badań",
         "compliance": "Zgodność",
         "eco": "Kontrola zmian (ECO)",
-        "revisions": "Historia rewizji"
+        "revisions": "Historia rewizji",
+        "where_used": "Gdzie użyte",
+        "portfolio_cost": "Koszt portfela"
       }
     }
   },

@@ -17,6 +17,7 @@
  * error (banner, never a 500), permission-denied (panel).
  */
 import { Suspense } from 'react';
+import Link from 'next/link';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
@@ -263,6 +264,15 @@ export default async function MaintenancePage({ params }: PageProps) {
           { label: t('list.title') },
         ]}
       />
+      <nav aria-label="Maintenance navigation">
+        <Link
+          href={`/${locale}/maintenance/calibration`}
+          prefetch={false}
+          className="inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Calibration
+        </Link>
+      </nav>
       <Suspense fallback={<ListSkeleton />}>
         <ListContent locale={locale} />
       </Suspense>

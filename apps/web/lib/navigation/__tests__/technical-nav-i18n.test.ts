@@ -49,6 +49,9 @@ function valueAt(root: Json, path: string): string | undefined {
 }
 
 const LOCALES: Record<string, Json> = { pl: pl as Json, ro: ro as Json, uk: uk as Json };
+// where_used / portfolio_cost i18n keys are now present in all locales (added with
+// the technical-subnav adoption), so there are no pending keys to exempt.
+const PENDING_TECHNICAL_NAV_ITEM_I18N_KEYS: string[] = [];
 
 describe('Technical i18n — Navigation.technical four-locale coverage', () => {
   const enSubtree = subtree(en as Json, 'Navigation.technical');
@@ -72,6 +75,13 @@ describe('Technical i18n — Navigation.technical four-locale coverage', () => {
       }
       for (const item of group.items) {
         for (const [locale, root] of roots) {
+          if (PENDING_TECHNICAL_NAV_ITEM_I18N_KEYS.includes(item.i18nKey)) {
+            expect(
+              valueAt(root, `Navigation.technical.${item.i18nKey}`),
+              `${locale}: pending item label for i18nKey ${item.i18nKey}`,
+            ).toBeUndefined();
+            continue;
+          }
           expect(
             valueAt(root, `Navigation.technical.${item.i18nKey}`),
             `${locale}: missing item label for i18nKey ${item.i18nKey}`,

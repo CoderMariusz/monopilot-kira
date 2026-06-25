@@ -1607,7 +1607,9 @@
         "lab_results": "Lab results",
         "compliance": "Compliance",
         "eco": "Change control (ECO)",
-        "revisions": "Revision history"
+        "revisions": "Revision history",
+        "where_used": "Where-used",
+        "portfolio_cost": "Portfolio cost"
       }
     }
   },
