@@ -99,6 +99,7 @@ async function WoListContent({ locale }: { locale: string }) {
     emptyAll: t('emptyAll'),
     emptyFiltered: t('emptyFiltered'),
     allergenBadge: t('allergenBadge'),
+    overProductionListBadge: t('overProduction.listBadge'),
     deferredActionTitle: t('deferredActionTitle'),
     pauseAction: t('action.pause'),
     resumeAction: t('action.resume'),

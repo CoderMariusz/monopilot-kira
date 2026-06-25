@@ -7433,6 +7433,11 @@
       "emptyAll": "Brak zleceń produkcyjnych — wydane zlecenia z Planowania pojawią się tutaj.",
       "emptyFiltered": "Żadne zlecenie nie pasuje do tego filtra.",
       "allergenBadge": "Alergen",
+      "overProduction": {
+        "badge": "Nadprodukcja",
+        "tooltip": "Zarejestrowana produkcja przekroczyła ilość możliwą z uwzględnieniem uzysku.",
+        "listBadge": "Nadprodukcja"
+      },
       "deferredActionTitle": "Zostanie podłączone w kolejnym kroku",
       "tab": {
         "all": "Wszystkie",

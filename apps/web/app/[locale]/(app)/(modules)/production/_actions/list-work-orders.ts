@@ -69,6 +69,7 @@ export type WorkOrderListItem = {
   /** 0..100 = output/planned, clamped; null when planned is 0. */
   progressPct: number | null;
   allergenGate: boolean;
+  overProductionFlagged: boolean;
   scheduledStart: string | null;
   scheduledEnd: string | null;
 };
@@ -171,6 +172,7 @@ export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOr
         output_kg: string | number | null;
         progress_pct: string | number | null;
         has_allergen: boolean;
+        over_production_flagged: boolean | null;
         scheduled_start_time: string | Date | null;
         scheduled_end_time: string | Date | null;
       }>(
@@ -202,6 +204,7 @@ export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOr
                   else null
                 end as progress_pct,
                 (w.allergen_profile_snapshot is not null) as has_allergen,
+                w.over_production_flagged,
                 w.scheduled_start_time,
                 w.scheduled_end_time
            from public.work_orders w
@@ -246,6 +249,7 @@ export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOr
           progressPct:
             r.progress_pct === null || r.progress_pct === undefined ? null : Number(r.progress_pct),
           allergenGate: Boolean(r.has_allergen),
+          overProductionFlagged: Boolean(r.over_production_flagged),
           scheduledStart: toIso(r.scheduled_start_time),
           scheduledEnd: toIso(r.scheduled_end_time),
         };

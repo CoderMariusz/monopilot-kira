@@ -55,6 +55,7 @@ export type WoListRow = {
   progressPct: number | null;
   /** True when the WO carries an allergen profile snapshot (changeover gate may apply). */
   allergenGate: boolean;
+  overProductionFlagged: boolean;
 };
 
 export type ProductionDashboardKpis = {
@@ -241,6 +242,7 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
         produced_quantity: string | number | null;
         progress_pct: string | number | null;
         has_allergen: boolean;
+        over_production_flagged: boolean | null;
       }>(
         `select w.id::text as id,
                 w.wo_number,
@@ -268,7 +270,8 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
                     then least(100::numeric, round(produced.qty_kg / w.planned_quantity * 100, 0))
                   else null
                 end as progress_pct,
-                (w.allergen_profile_snapshot is not null) as has_allergen
+                (w.allergen_profile_snapshot is not null) as has_allergen,
+                w.over_production_flagged
            from public.work_orders w
            left join public.wo_executions e
              on e.wo_id = w.id and e.org_id = w.org_id
@@ -310,6 +313,7 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
           producedKg,
           progressPct,
           allergenGate: Boolean(r.has_allergen),
+          overProductionFlagged: Boolean(r.over_production_flagged),
         };
       });
 

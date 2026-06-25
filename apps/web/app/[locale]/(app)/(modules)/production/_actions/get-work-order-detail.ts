@@ -251,6 +251,8 @@ export type WorkOrderDetailData = {
    * outputs + component rows — no extra round-trip.
    */
   hasOutputWithoutConsumption: boolean;
+  overProductionFlagged: boolean;
+  overProductionFlaggedAt: string | null;
 };
 
 export type WorkOrderDetailResult =
@@ -298,6 +300,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         weight_mode: string | null;
         bom_type: string | null;
         bom_header_id: string | null;
+        over_production_flagged: boolean | null;
+        over_production_flagged_at: string | Date | null;
       }>(
         `select w.id::text as id,
                 w.wo_number,
@@ -345,7 +349,9 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                    from public.wo_outputs o
                   where o.wo_id = w.id and o.org_id = app.current_org_id()) as output_pct,
                 coalesce(bh.bom_type, 'forward') as bom_type,
-                coalesce(w.active_bom_header_id, w.bom_id)::text as bom_header_id
+                coalesce(w.active_bom_header_id, w.bom_id)::text as bom_header_id,
+                w.over_production_flagged,
+                w.over_production_flagged_at
            from public.work_orders w
            left join public.wo_executions e
              on e.org_id = w.org_id and e.wo_id = w.id
@@ -750,6 +756,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           disassemblyInputLps,
           openChangeoverId,
           hasOutputWithoutConsumption,
+          overProductionFlagged: Boolean(h.over_production_flagged),
+          overProductionFlaggedAt: toIso(h.over_production_flagged_at),
         },
       };
     });

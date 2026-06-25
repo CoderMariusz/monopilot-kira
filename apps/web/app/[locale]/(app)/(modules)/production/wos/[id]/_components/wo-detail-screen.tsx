@@ -165,6 +165,7 @@ export type WoDetailLabels = {
    * register filtered to this WO's line.
    */
   changeoverGate: { title: string; body: string; link: string };
+  overProduction: { badge: string; tooltip: string };
   headerActions: {
     start: string;
     startReleaseHint: string;
@@ -721,6 +722,16 @@ export function WoDetailScreen({
                   title={labels.output.noConsumptionTooltip}
                 >
                   ⚠ {labels.output.noConsumptionBadge}
+                </Badge>
+              ) : null}
+              {data.overProductionFlagged ? (
+                <Badge
+                  variant="warning"
+                  className="text-[10px]"
+                  data-testid="wo-over-production-badge"
+                  title={labels.overProduction.tooltip}
+                >
+                  ⚠ {labels.overProduction.badge}
                 </Badge>
               ) : null}
             </div>

@@ -6027,6 +6027,11 @@
       "emptyAll": "No work orders yet — released work orders from Planning appear here.",
       "emptyFiltered": "No work orders match this filter.",
       "allergenBadge": "Allergen",
+      "overProduction": {
+        "badge": "Over-production",
+        "tooltip": "Registered output exceeded the yield-adjusted input quantity.",
+        "listBadge": "Over-prod"
+      },
       "deferredActionTitle": "Wired in the next step",
       "tab": {
         "all": "All",

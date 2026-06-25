@@ -69,6 +69,7 @@ export type WoListLabels = {
   emptyAll: string;
   emptyFiltered: string;
   allergenBadge: string;
+  overProductionListBadge: string;
   deferredActionTitle: string;
   pauseAction: string;
   resumeAction: string;
@@ -262,6 +263,15 @@ export function WoListScreen({
                           className="text-[10px]"
                         >
                           {labels.allergenBadge}
+                        </Badge>
+                      ) : null}
+                      {r.overProductionFlagged ? (
+                        <Badge
+                          variant="warning"
+                          data-testid={`wo-over-production-${r.id}`}
+                          className="text-[10px]"
+                        >
+                          {labels.overProductionListBadge}
                         </Badge>
                       ) : null}
                     </Link>

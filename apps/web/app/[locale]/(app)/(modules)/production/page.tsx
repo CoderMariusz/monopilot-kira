@@ -82,6 +82,7 @@ function DashboardSkeleton() {
 
 async function DashboardContent({ locale }: { locale: string }) {
   const t = await getTranslations('production.dashboard');
+  const wosT = await getTranslations('production.wos');
   const result = await getProductionDashboard();
 
   // ── Permission-denied state (server-resolved; action hidden, not disabled) ───
@@ -153,6 +154,7 @@ async function DashboardContent({ locale }: { locale: string }) {
     title: t('woList.title', { count: data.woRows.length }),
     emptyCopy: t('woList.empty'),
     allergenBadge: t('woList.allergenBadge'),
+    overProductionListBadge: wosT('overProduction.listBadge'),
     planningLink: t('woList.planningLink'),
     col: {
       wo: t('woList.col.wo'),
@@ -177,6 +179,7 @@ async function DashboardContent({ locale }: { locale: string }) {
     producedLabel: r.producedKg === null ? '—' : `${KG_FMT.format(Math.round(r.producedKg))} kg`,
     progressPct: r.progressPct,
     allergenGate: r.allergenGate,
+    overProductionFlagged: r.overProductionFlagged,
     planningHref: `/${locale}/planning/work-orders`,
     detailHref: `/${locale}/production/wos/${r.id}`,
   }));

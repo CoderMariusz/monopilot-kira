@@ -33,6 +33,7 @@ export type WoRowView = {
   producedLabel: string;
   progressPct: number | null;
   allergenGate: boolean;
+  overProductionFlagged: boolean;
   /** Deep-link to the Planning release queue for not-yet-startable (planned) WOs. */
   planningHref: string | null;
   /** Deep-link to the WO Execution detail (`/production/wos/<id>`). */
@@ -52,6 +53,7 @@ export type WoListLabels = {
   title: string;
   emptyCopy: string;
   allergenBadge: string;
+  overProductionListBadge: string;
   planningLink: string;
   col: {
     wo: string;
@@ -124,6 +126,15 @@ export function WoListTable({ rows, labels }: { rows: WoRowView[]; labels: WoLis
                           {labels.allergenBadge}
                         </Badge>
                       ) : null}
+                      {row.overProductionFlagged ? (
+                        <Badge
+                          variant="warning"
+                          data-testid={`production-wo-over-production-${row.id}`}
+                          className="text-[10px]"
+                        >
+                          {labels.overProductionListBadge}
+                        </Badge>
+                      ) : null}
                     </Link>
                   ) : (
                     <span className="inline-flex items-center gap-2">
@@ -135,6 +146,15 @@ export function WoListTable({ rows, labels }: { rows: WoRowView[]; labels: WoLis
                           className="text-[10px]"
                         >
                           {labels.allergenBadge}
+                        </Badge>
+                      ) : null}
+                      {row.overProductionFlagged ? (
+                        <Badge
+                          variant="warning"
+                          data-testid={`production-wo-over-production-${row.id}`}
+                          className="text-[10px]"
+                        >
+                          {labels.overProductionListBadge}
                         </Badge>
                       ) : null}
                     </span>

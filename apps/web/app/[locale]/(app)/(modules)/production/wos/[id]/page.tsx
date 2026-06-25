@@ -202,6 +202,7 @@ async function registerDisassemblyOutputDesktop(input: {
 
 async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
   const t = await getTranslations('production.wos.detail');
+  const wosT = await getTranslations('production.wos');
   const result = await getWorkOrderDetail(id);
 
   if (!result.ok && result.reason === 'not_found') {
@@ -263,6 +264,10 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       title: t('changeoverGate.title'),
       body: t('changeoverGate.body'),
       link: t('changeoverGate.link'),
+    },
+    overProduction: {
+      badge: wosT('overProduction.badge'),
+      tooltip: wosT('overProduction.tooltip'),
     },
     headerActions: {
       start: t('headerActions.start'),
