@@ -678,6 +678,23 @@ export async function registerOutput(
     throw err;
   }
 
+  // Owner policy (mig 336): mass-balance over-production is WARN + FLAG, never a hard
+  // block. When the warn tier fired (registered output exceeds what the yield-adjusted
+  // consumed input could yield), persist a flag on the WO — in the SAME transaction as
+  // the output — so over-produced orders are visible on the list/detail. Idempotent:
+  // keeps the FIRST flag timestamp; not cleared when an output is later voided (the
+  // over-production event still happened and stays on the record).
+  if (massBalanceWarning) {
+    await ctx.client.query(
+      `update public.work_orders
+          set over_production_flagged = true,
+              over_production_flagged_at = coalesce(over_production_flagged_at, now())
+        where id = $1::uuid
+          and org_id = app.current_org_id()`,
+      [woId],
+    );
+  }
+
   // 8b. Output → LP (F-A04/F-B08): when the caller did not hand us an existing
   // LP, create the output LP atomically in this same txn and back-link it.
   let lpNumber: string | null = null;
