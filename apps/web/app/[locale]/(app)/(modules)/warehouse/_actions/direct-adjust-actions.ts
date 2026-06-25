@@ -280,6 +280,7 @@ async function reduceLicensePlate(
 async function insertStockAdjustment(
   ctx: WarehouseContext,
   input: {
+    siteId: string | null;
     warehouseId: string;
     locationId: string;
     itemId: string;
@@ -292,18 +293,19 @@ async function insertStockAdjustment(
 ): Promise<string> {
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.stock_adjustments (
-       org_id, count_line_id, item_id, location_id, warehouse_id, lp_id,
+       org_id, count_line_id, item_id, location_id, warehouse_id, site_id, lp_id,
        adjustment_qty, direction, reason, esign_ref, applied_by
      )
      values (
-       app.current_org_id(), null, $1::uuid, $2::uuid, $3::uuid, $4::uuid,
-       $5::numeric, $6, $7, $8, $9::uuid
+       app.current_org_id(), null, $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+       $6::numeric, $7, $8, $9, $10::uuid
      )
      returning id::text`,
     [
       input.itemId,
       input.locationId,
       input.warehouseId,
+      input.siteId,
       input.lpId,
       input.adjustmentQty,
       input.direction,
@@ -533,6 +535,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           expiryDate,
         });
         const adjustmentId = await insertStockAdjustment(ctx, {
+          siteId,
           warehouseId: parsed.data.warehouseId,
           locationId: parsed.data.locationId,
           itemId: parsed.data.itemId,
@@ -590,6 +593,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           reasonText,
         });
         const adjustmentId = await insertStockAdjustment(ctx, {
+          siteId: leg.lp.site_id,
           warehouseId: parsed.data.warehouseId,
           locationId: parsed.data.locationId,
           itemId: parsed.data.itemId,

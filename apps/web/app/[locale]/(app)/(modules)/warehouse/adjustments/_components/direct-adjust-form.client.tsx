@@ -560,10 +560,13 @@ export function DirectAdjustForm({
             <span className="font-medium text-slate-700">{labels.batch}</span>
             <input
               type="text"
+              id="adjust-batch-number"
+              name="batch_number"
               data-testid="adjust-batch"
               value={batchNumber}
               onChange={(e) => setBatchNumber(e.target.value)}
               placeholder={labels.batchPlaceholder}
+              autoComplete="batch-number"
               className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
             />
             <span className="text-xs text-slate-400">{labels.batchHelp}</span>
@@ -631,7 +634,7 @@ export function DirectAdjustForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={labels.esign.passwordPlaceholder}
-            autoComplete="current-password"
+            autoComplete="off"
             className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
           />
         </label>
