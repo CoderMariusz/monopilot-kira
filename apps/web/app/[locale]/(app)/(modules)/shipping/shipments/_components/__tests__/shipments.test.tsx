@@ -795,37 +795,49 @@ describe('RecordPodModal — signed POD url → recordPod', () => {
  * (shipping/pack-screens.jsx:211-216, V-SHIP-SHIP) + the per-status danger button
  * pattern; the e-sign confirm is spec-driven off the in-repo void-output precedent
  * (production/wos/[id]/_components/void-correction-modal.tsx). Asserts: parity
- * (trigger present in the ship action group for non-terminal shipments / hidden when
- * terminal), all 5 states (idle form, optimistic submit, error, permission-denied via
+ * (trigger present in the ship action group only for shipped shipments / hidden when
+ * the loaded status would be rejected), all 5 states (idle form, optimistic submit, error, permission-denied via
  * disabled+tooltip, success→refresh), the exact e-sign payload shape, and NO raw UUID.
  */
 describe('CancelShipmentModal — ship.so.cancel e-sign reverse', () => {
+  function shippedDetail(): ShipmentDetail {
+    return makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } });
+  }
+
   async function pickReason(label: string) {
     fireEvent.click(within(screen.getByTestId('shipment-cancel-reason')).getByRole('combobox'));
     fireEvent.click(await screen.findByRole('option', { name: label }));
   }
 
-  it('renders the [Cancel shipment] trigger for a non-terminal (packing) shipment, no raw UUID', () => {
-    renderPack();
+  it('renders the [Cancel shipment] trigger for a shipped shipment, no raw UUID', () => {
+    renderPack(shippedDetail());
     const trigger = screen.getByTestId('shipment-cancel-trigger');
     expect(trigger).toHaveTextContent('Cancel shipment');
     expect(document.body.textContent).not.toContain(SHIPMENT_ID);
   });
 
-  it('hides the [Cancel shipment] trigger when the shipment is already delivered (terminal)', () => {
+  it.each(['packing', 'packed', 'manifested'] as const)(
+    'hides the [Cancel shipment] trigger when the loaded shipment status is %s',
+    (status) => {
+      renderPack(makeDetail({ shipment: { ...rows[0], status } }));
+      expect(screen.queryByTestId('shipment-cancel-trigger')).not.toBeInTheDocument();
+    },
+  );
+
+  it('hides the [Cancel shipment] trigger when the shipment is already delivered', () => {
     renderPack(makeDetail({ shipment: { ...rows[0], status: 'delivered', deliveredAt: '2026-06-21T14:00:00Z' } }));
     expect(screen.queryByTestId('shipment-cancel-trigger')).not.toBeInTheDocument();
   });
 
   it('disables the trigger with a permission tooltip when the user lacks ship.so.cancel', () => {
-    renderPack(makeDetail(), { canPack: true, canCancel: false });
+    renderPack(shippedDetail(), { canPack: true, canCancel: false });
     const trigger = screen.getByTestId('shipment-cancel-trigger');
     expect(trigger).toBeDisabled();
     expect(trigger).toHaveAttribute('title', 'You do not have permission to cancel this shipment.');
   });
 
   it('requires a reason + password (e-sign) before submit is enabled', async () => {
-    renderPack();
+    renderPack(shippedDetail());
     fireEvent.click(screen.getByTestId('shipment-cancel-trigger'));
     await screen.findByTestId('shipment-cancel-form');
     // e-sign block present (mirrors the void-output precedent).
@@ -839,7 +851,7 @@ describe('CancelShipmentModal — ship.so.cancel e-sign reverse', () => {
   });
 
   it('submits the exact { shipmentId, reasonCode, note, signature:{ password } } payload and refreshes on success', async () => {
-    const { cancelShipmentAction } = renderPack();
+    const { cancelShipmentAction } = renderPack(shippedDetail());
     fireEvent.click(screen.getByTestId('shipment-cancel-trigger'));
     await screen.findByTestId('shipment-cancel-form');
     await pickReason('Customer request');
@@ -858,7 +870,7 @@ describe('CancelShipmentModal — ship.so.cancel e-sign reverse', () => {
   });
 
   it('surfaces the invalid_state error inline (delivered blocked server-side) without crashing', async () => {
-    renderPack(makeDetail(), { canPack: true }, undefined, {
+    renderPack(shippedDetail(), { canPack: true }, undefined, {
       cancel: async () => ({ ok: false, error: 'invalid_state' }),
     });
     fireEvent.click(screen.getByTestId('shipment-cancel-trigger'));

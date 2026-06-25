@@ -116,13 +116,12 @@ export type ShipmentShipControlsProps = {
   recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
   /** Reviewed cancelShipment seam (imported by the page, never authored here). */
   cancelShipmentAction: (input: CancelShipmentInput) => Promise<CancelShipmentResult>;
+  /** Loaded-status gate mirroring cancelShipment's accepted shipment state. */
+  canCancelCurrentShipment?: boolean;
 };
 
 const SHIPPED_STATES = new Set(['shipped', 'delivered']);
 const DELIVERED_STATES = new Set(['delivered']);
-/** Cancel is offered only for non-terminal shipments — the reviewed cancelShipment
- *  blocks delivered/cancelled server-side; this hides the affordance to match. */
-const CANCEL_TERMINAL_STATES = new Set(['delivered', 'cancelled']);
 /**
  * State-machine gates mirroring the server guards in ship-actions.ts:
  *   - recordPod requires shipment.status === 'shipped' (ship-actions.ts).
@@ -169,9 +168,10 @@ export function ShipmentShipControls({
   generateBolAction,
   recordPodAction,
   cancelShipmentAction,
+  canCancelCurrentShipment,
 }: ShipmentShipControlsProps) {
   const normalized = status.toLowerCase();
-  const cancellable = !CANCEL_TERMINAL_STATES.has(normalized);
+  const cancelStatusReady = canCancelCurrentShipment ?? normalized === 'shipped';
 
   const formatDateTime = React.useCallback(
     (iso: string) => {
@@ -453,10 +453,10 @@ export function ShipmentShipControls({
             }}
           />
 
-          {/* Cancel-shipment (e-sign reverse) — shown only for non-terminal
-              shipments; the reviewed cancelShipment blocks delivered/cancelled
-              server-side and re-checks ship.so.cancel. */}
-          {cancellable ? (
+          {/* Cancel-shipment (e-sign reverse) — shown only when the loaded shipment
+              state matches the reviewed cancelShipment guard; the action still
+              re-checks status, SO state, RBAC and e-sign server-side. */}
+          {cancelStatusReady ? (
             <div className="border-t border-slate-200 pt-2" data-testid="shipment-cancel-region">
               <CancelShipmentModal
                 shipmentNumber={shipmentNumber}

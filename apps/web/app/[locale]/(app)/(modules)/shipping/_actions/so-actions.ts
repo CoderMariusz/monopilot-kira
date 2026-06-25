@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { resolveSalesLinePrice } from './sales-line-price';
 
@@ -646,7 +648,9 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       );
     }
 
-    return { ok: true, data: await fetchSalesOrder(ctx, soId) };
+    const created = await fetchSalesOrder(ctx, soId);
+    revalidatePath('/shipping');
+    return { ok: true, data: created };
   });
 }
 
