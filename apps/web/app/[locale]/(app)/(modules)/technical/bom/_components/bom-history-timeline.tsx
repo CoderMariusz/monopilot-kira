@@ -114,6 +114,10 @@ export function BomHistoryTimeline({
               value={actorFilter}
               onValueChange={setActorFilter}
               aria-labelledby="bom-history-actor-label"
+              options={[
+                { value: 'all', label: labels.filterAllActors },
+                ...actors.map((a) => ({ value: a.id, label: a.name })),
+              ]}
             >
               <SelectTrigger aria-label={labels.filterActorLabel}>
                 <SelectValue />
