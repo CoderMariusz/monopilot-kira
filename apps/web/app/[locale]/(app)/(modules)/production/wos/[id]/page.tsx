@@ -53,6 +53,11 @@ import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions
 import { registerDisassemblyOutput } from '../../../../../../../lib/production/output/register-disassembly-output';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import {
+  ProductionActionError,
+  QualityHoldError,
+  emitConsumeBlocked,
+} from '../../../../../../../lib/production/shared';
 import type {
   OutputPrintLabelInput,
   OutputPrintLabelResult,
@@ -190,14 +195,37 @@ async function registerDisassemblyOutputDesktop(input: {
   outputs: Array<{ coProductItemId: string; qtyKg: string }>;
 }): Promise<{ ok: true } | { ok: false; errorCode: string }> {
   'use server';
-  return withOrgContext(async ({ userId, orgId, client }) => {
-    const siteId = await getActiveSiteId();
-    const result = await registerDisassemblyOutput(
-      { userId, orgId, siteId, client: client as unknown as DisassemblyQueryClient },
-      input,
-    );
-    return result.ok ? { ok: true } : { ok: false, errorCode: 'error' in result ? result.error : result.reason };
-  });
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
+      const siteId = await getActiveSiteId();
+      const result = await registerDisassemblyOutput(
+        { userId, orgId, siteId, client: client as unknown as DisassemblyQueryClient },
+        input,
+      );
+      return result.ok ? { ok: true } : { ok: false, errorCode: 'error' in result ? result.error : result.reason };
+    });
+  } catch (err) {
+    if (err instanceof QualityHoldError) {
+      try {
+        await withOrgContext(async ({ userId, orgId, client }) => {
+          await emitConsumeBlocked(
+            { userId, orgId, client: client as unknown as DisassemblyQueryClient },
+            err,
+          );
+        });
+      } catch (emitErr) {
+        console.error('[production/wos] disassembly_consume_blocked_emit_failed', {
+          woId: input.woId,
+          err: emitErr instanceof Error ? emitErr.message : String(emitErr),
+        });
+      }
+      return { ok: false, errorCode: 'quality_hold_active' };
+    }
+    if (err instanceof ProductionActionError) {
+      return { ok: false, errorCode: err.code };
+    }
+    throw err;
+  }
 }
 
 async function WoDetailContent({ id, locale }: { id: string; locale: string }) {

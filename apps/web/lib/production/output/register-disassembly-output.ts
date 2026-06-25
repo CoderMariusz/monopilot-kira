@@ -2,12 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { writeItemCostLedger } from '../../../app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger';
+import { holdsGuard } from '../holds-guard';
 import { makeLpNumber } from '../../warehouse/lp-create';
 import {
   emitOutbox,
   hasPermission,
+  OUTPUT_RECORDABLE_STATES,
   PRODUCTION_OUTPUT_RECORDED_EVENT,
   PRODUCTION_OUTPUT_WRITE_PERMISSION,
+  ProductionActionError,
+  QualityHoldError,
+  readWoExecutionStatus,
   type OrgContextLike,
 } from '../shared';
 
@@ -348,6 +353,23 @@ export async function registerDisassemblyOutput(
     const inputCostPerKg = decimalToFixed(inputLp.cost_per_kg);
     if (inputQty <= 0n || inputCostPerKg < 0n) return { ok: false, error: 'input-cost-invalid' };
 
+    const status = await readWoExecutionStatus(ctx, input.woId);
+    if (status === null || !OUTPUT_RECORDABLE_STATES.has(status)) {
+      throw new ProductionActionError('wo_not_recordable', 409, { status });
+    }
+
+    const hold = await holdsGuard(ctx, { lpId: input.inputLpId, lotId: null });
+    if (hold) {
+      throw new QualityHoldError({
+        hold,
+        woId: input.woId,
+        blockedPath: 'output',
+        transactionId: randomUUID(),
+        lpId: input.inputLpId,
+        lotId: null,
+      });
+    }
+
     const totalInputCost = multiplyFixed(inputQty, inputCostPerKg);
     const firstSequence = await nextOutputSequence(ctx, input.woId);
     const results: Array<{ lpId: string; lpCode: string }> = [];
@@ -445,6 +467,7 @@ export async function registerDisassemblyOutput(
     if (error instanceof Error && error.message === 'warehouse_not_configured') {
       return { ok: false, error: 'warehouse-not-configured' };
     }
+    if (error instanceof ProductionActionError) throw error;
     return { ok: false, error: 'persistence-failed' };
   }
 }

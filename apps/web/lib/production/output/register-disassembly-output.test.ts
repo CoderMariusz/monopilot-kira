@@ -30,6 +30,8 @@ type CoProductFixture = {
 
 let client: MockClient;
 let bomType: 'forward' | 'disassembly';
+let woExecutionStatus: 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled' | null;
+let activeHold: { hold_id: string; reference_type: string; reference_id: string } | null;
 let coProducts: CoProductFixture[];
 
 class MockClient implements QueryClient {
@@ -61,6 +63,20 @@ class MockClient implements QueryClient {
           },
         ] as T[],
         rowCount: 1,
+      };
+    }
+
+    if (normalized.includes('from public.wo_executions')) {
+      return {
+        rows: woExecutionStatus ? ([{ status: woExecutionStatus }] as T[]) : ([] as T[]),
+        rowCount: woExecutionStatus ? 1 : 0,
+      };
+    }
+
+    if (normalized.includes('from public.v_active_holds')) {
+      return {
+        rows: activeHold ? ([activeHold] as T[]) : ([] as T[]),
+        rowCount: activeHold ? 1 : 0,
       };
     }
 
@@ -142,6 +158,8 @@ describe('registerDisassemblyOutput', () => {
   beforeEach(() => {
     client = new MockClient();
     bomType = 'disassembly';
+    woExecutionStatus = 'in_progress';
+    activeHold = null;
     coProducts = [
       { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
       { co_product_item_id: ITEM_B, allocation_pct: '30.000', is_byproduct: false },
@@ -229,6 +247,48 @@ describe('registerDisassemblyOutput', () => {
     });
 
     expect(result).toEqual({ ok: false, error: 'not-disassembly' });
+    expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
+    expect(writeItemCostLedgerMock).not.toHaveBeenCalled();
+  });
+
+  it('throws wo_not_recordable and does not insert LPs when WO status is not recordable', async () => {
+    woExecutionStatus = 'planned';
+
+    await expect(
+      registerDisassemblyOutput(makeCtx(), {
+        woId: WO_ID,
+        inputLpId: INPUT_LP_ID,
+        outputs: [
+          { coProductItemId: ITEM_A, qtyKg: '10.000' },
+          { coProductItemId: ITEM_B, qtyKg: '20.000' },
+          { coProductItemId: ITEM_C, qtyKg: '20.000' },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'wo_not_recordable' });
+
+    expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
+    expect(writeItemCostLedgerMock).not.toHaveBeenCalled();
+  });
+
+  it('throws quality_hold_active and does not insert LPs when an active hold exists', async () => {
+    activeHold = {
+      hold_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      reference_type: 'lp',
+      reference_id: INPUT_LP_ID,
+    };
+
+    await expect(
+      registerDisassemblyOutput(makeCtx(), {
+        woId: WO_ID,
+        inputLpId: INPUT_LP_ID,
+        outputs: [
+          { coProductItemId: ITEM_A, qtyKg: '10.000' },
+          { coProductItemId: ITEM_B, qtyKg: '20.000' },
+          { coProductItemId: ITEM_C, qtyKg: '20.000' },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'quality_hold_active' });
+
     expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
     expect(writeItemCostLedgerMock).not.toHaveBeenCalled();
   });

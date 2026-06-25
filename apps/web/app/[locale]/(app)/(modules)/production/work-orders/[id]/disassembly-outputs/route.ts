@@ -16,13 +16,15 @@
  * never trusted). bom_type='disassembly' is re-validated against the WO's active
  * BOM inside the service — a forward WO ⇒ { ok:false, error:'not-disassembly' }.
  *
- * Response: the service returns a result union (no thrown typed errors), so this
- * handler maps it to an HTTP status: ok → 200 { data }, the permission error →
- * 403, validation/shape errors → 422, everything else → 409.
+ * Response: the service returns a result union for validation/state checks and
+ * throws typed errors for safety gates that must roll back the transaction.
  */
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
 import {
+  ProductionActionError,
+  QualityHoldError,
+  emitConsumeBlocked,
   type OrgContextLike,
   type QueryClient,
 } from '../../../../../../../../lib/production/shared';
@@ -84,6 +86,25 @@ export async function POST(
       return json({ error: result.error }, statusForError(result.error));
     });
   } catch (err) {
+    if (err instanceof QualityHoldError) {
+      try {
+        await withOrgContext(async ({ userId, orgId, client }) => {
+          await emitConsumeBlocked(
+            { userId, orgId, client: client as unknown as QueryClient },
+            err,
+          );
+        });
+      } catch (emitErr) {
+        console.error('[production/disassembly-outputs] consume_blocked_emit_failed', {
+          woId,
+          err: emitErr instanceof Error ? emitErr.message : String(emitErr),
+        });
+      }
+      return json({ error: err.code }, err.status);
+    }
+    if (err instanceof ProductionActionError) {
+      return json({ error: err.code }, err.status);
+    }
     console.error('[production/disassembly-outputs] POST persistence_failed', {
       woId,
       err: err instanceof Error ? err.message : String(err),
