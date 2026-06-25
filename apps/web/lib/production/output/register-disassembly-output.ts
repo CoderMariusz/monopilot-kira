@@ -166,7 +166,11 @@ async function nextOutputSequence(ctx: OrgContextLike, woId: string): Promise<nu
 }
 
 async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
-  if (!ctx.siteId) return null;
+  // Resilient resolution (see register-output.ts): prefer a site-linked
+  // warehouse, then the org default, then the org's first warehouse — so
+  // disassembly output never 409s 'no_warehouse_for_site' just because the
+  // WO/session has no site or no warehouse is site-linked. Null only when the
+  // org has zero warehouses.
   const { rows } = await ctx.client.query<SiteWarehouseTarget>(
     `select w.id,
             (select l.id
@@ -177,10 +181,12 @@ async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<Site
               limit 1) as default_location_id
        from public.warehouses w
       where w.org_id = app.current_org_id()
-        and w.site_id = $1::uuid
-      order by w.is_default desc nulls last
+      order by (case when $1::uuid is not null and w.site_id = $1::uuid then 0 else 1 end) asc,
+               w.is_default desc nulls last,
+               w.name asc,
+               w.id asc
       limit 1`,
-    [ctx.siteId],
+    [ctx.siteId ?? null],
   );
   return rows[0] ?? null;
 }

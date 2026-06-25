@@ -403,7 +403,13 @@ async function evaluateMassBalanceGate(
 }
 
 async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
-  if (!ctx.siteId) return null;
+  // Resilient resolution for the output LP's warehouse: prefer a warehouse
+  // linked to the active site, then the org default, then the org's first
+  // warehouse. The previous version filtered strictly on `w.site_id = ctx.siteId`
+  // AND returned null when the WO/session had no site — so every desktop output
+  // 409'd 'no_warehouse_for_site' in orgs that hadn't wired site↔warehouse yet
+  // (the common state: warehouses with site_id NULL + no default). Now returns
+  // null only when the org genuinely has zero warehouses.
   const { rows } = await ctx.client.query<SiteWarehouseTarget>(
     `select w.id,
             (select l.id
@@ -414,10 +420,12 @@ async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<Site
               limit 1) as default_location_id
        from public.warehouses w
       where w.org_id = app.current_org_id()
-        and w.site_id = $1::uuid
-      order by w.is_default desc nulls last
+      order by (case when $1::uuid is not null and w.site_id = $1::uuid then 0 else 1 end) asc,
+               w.is_default desc nulls last,
+               w.name asc,
+               w.id asc
       limit 1`,
-    [ctx.siteId],
+    [ctx.siteId ?? null],
   );
   return rows[0] ?? null;
 }
