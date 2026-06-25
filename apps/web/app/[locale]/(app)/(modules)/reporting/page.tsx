@@ -80,8 +80,9 @@ function formatWindowLabel(window: ReportingWindow): string {
   return `${window.from.toISOString().slice(0, 10)} - ${window.to.toISOString().slice(0, 10)}`;
 }
 
-function buildLabels(locale: string, window: ReportingWindow): ReportingLabels {
+async function buildLabels(locale: string, window: ReportingWindow): Promise<ReportingLabels> {
   const t = getRptTranslator(locale);
+  const liveT = await getTranslations({ locale, namespace: 'reporting' });
   const windowLabel = formatWindowLabel(window);
   return {
     page: {
@@ -131,6 +132,7 @@ function buildLabels(locale: string, window: ReportingWindow): ReportingLabels {
         active: t('inventory.columns.active'),
         blocked: t('inventory.columns.blocked'),
         qtyKg: t('inventory.columns.qtyKg'),
+        qtyByUom: liveT('inventory.columns.qtyByUom'),
         expired: t('inventory.columns.expired'),
         expiring7d: t('inventory.columns.expiring7d'),
       },
@@ -257,6 +259,7 @@ async function loadReportingContent({
   }
 
   const canExportCsv = exportAccess.ok && exportAccess.data.canExportCsv;
+  const labels = await buildLabels(locale, filters.window);
 
   return (
     <ReportingOverviewClient
@@ -271,7 +274,7 @@ async function loadReportingContent({
         orderQuery: filters.orderQuery,
       }}
       canExportCsv={canExportCsv}
-      labels={buildLabels(locale, filters.window)}
+      labels={labels}
     />
   );
 }

@@ -9953,6 +9953,11 @@
     "filter": {
       "line": "Linia produkcyjna",
       "search": "Nr ZP/ZZ"
+    },
+    "inventory": {
+      "columns": {
+        "qtyByUom": "Ilość wg JM"
+      }
     }
   },
   "Yard": {

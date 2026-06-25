@@ -159,6 +159,8 @@ export type InventorySnapshot = {
      * this column (they still count in lpCount).
      */
     qtyKg: string;
+    /** On-hand quantity totals grouped by original license plate UoM. */
+    qtyByUom: Array<{ uom: string; qty: string }>;
     expiredCount: number;
     expiring7dCount: number;
   }>;

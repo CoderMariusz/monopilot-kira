@@ -42,6 +42,8 @@ import { reportingWindowDays, type ReportingLineOption } from '../shared';
 
 const MS_PER_DAY = 86_400_000;
 
+type QtyByUomRow = { uom: string; qty: string };
+
 type ReportingLoaderInput = {
   days?: number;
   from?: Date;
@@ -89,6 +91,22 @@ function normalizeWindow(input: ReportingLoaderInput, fallbackDays: number) {
     lineId: cleanText(input.lineId),
     orderQuery: cleanText(input.orderQuery),
   };
+}
+
+function parseQtyByUom(value: unknown): QtyByUomRow[] {
+  const parsed = typeof value === 'string' ? (JSON.parse(value) as unknown) : value;
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((row) => {
+    if (
+      row &&
+      typeof row === 'object' &&
+      typeof (row as { uom?: unknown }).uom === 'string' &&
+      typeof (row as { qty?: unknown }).qty === 'string'
+    ) {
+      return [{ uom: (row as { uom: string }).uom, qty: (row as { qty: string }).qty }];
+    }
+    return [];
+  });
 }
 
 function parseExportDate(value: string | undefined): Date | undefined {
@@ -385,6 +403,7 @@ export async function inventorySnapshot(
           active_lp_count: string;
           blocked_lp_count: string;
           qty_kg: string | null;
+          qty_by_uom: QtyByUomRow[] | string | null;
           expired_count: string;
           expiring_7d_count: string;
         }>(
@@ -399,6 +418,20 @@ export async function inventorySnapshot(
                     where lp.status in ('blocked', 'quarantine')
                   )::text as blocked_lp_count,
                   sum(lp.quantity) filter (where lp.uom = 'kg')::text as qty_kg,
+                  coalesce((
+                    select jsonb_agg(
+                             jsonb_build_object('uom', lp2.uom, 'qty', lp2.total_qty::text)
+                             order by lp2.uom
+                           )
+                      from (
+                        select lp_uom.uom, sum(lp_uom.quantity) as total_qty
+                          from public.license_plates lp_uom
+                         where lp_uom.org_id = app.current_org_id()
+                           and lp_uom.warehouse_id = lp.warehouse_id
+                           and lp_uom.status in ('received', 'available', 'reserved', 'allocated', 'blocked', 'quarantine')
+                         group by lp_uom.uom
+                      ) lp2
+                  ), '[]'::jsonb) as qty_by_uom,
                   count(*) filter (
                     where lp.expiry_date is not null
                       and lp.expiry_date < $1::timestamptz
@@ -427,6 +460,7 @@ export async function inventorySnapshot(
           activeLpCount: num(r.active_lp_count),
           blockedLpCount: num(r.blocked_lp_count),
           qtyKg: num(r.qty_kg).toFixed(3),
+          qtyByUom: parseQtyByUom(r.qty_by_uom),
           expiredCount: num(r.expired_count),
           expiring7dCount: num(r.expiring_7d_count),
         }));

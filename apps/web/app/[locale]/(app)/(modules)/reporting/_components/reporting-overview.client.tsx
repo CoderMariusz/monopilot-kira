@@ -86,6 +86,7 @@ export type ReportingLabels = {
       active: string;
       blocked: string;
       qtyKg: string;
+      qtyByUom: string;
       expired: string;
       expiring7d: string;
     };
@@ -303,16 +304,19 @@ function InventorySection({
   notAvailable: string;
 }) {
   const c = labels.columns;
+  const formatQtyByUom = (rows: InventorySnapshot['rows'][number]['qtyByUom']) =>
+    rows.map((row) => `${row.qty} ${row.uom}`).join(' · ');
   const exportRows = () =>
     downloadCsv(
       toCsv(
-        [c.warehouse, c.lps, c.active, c.blocked, c.qtyKg, c.expired, c.expiring7d],
+        [c.warehouse, c.lps, c.active, c.blocked, c.qtyKg, c.qtyByUom, c.expired, c.expiring7d],
         data.rows.map((r) => [
           r.warehouseCode ?? r.warehouseId,
           r.lpCount,
           r.activeLpCount,
           r.blockedLpCount,
           r.qtyKg,
+          formatQtyByUom(r.qtyByUom),
           r.expiredCount,
           r.expiring7dCount,
         ]),
@@ -354,6 +358,7 @@ function InventorySection({
                 <TableHead className="text-right">{c.active}</TableHead>
                 <TableHead className="text-right">{c.blocked}</TableHead>
                 <TableHead className="text-right">{c.qtyKg}</TableHead>
+                <TableHead className="text-right">{c.qtyByUom}</TableHead>
                 <TableHead className="text-right">{c.expired}</TableHead>
                 <TableHead className="text-right">{c.expiring7d}</TableHead>
               </TableRow>
@@ -369,6 +374,9 @@ function InventorySection({
                   <TableCell className="text-right font-mono text-xs">{r.activeLpCount}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{r.blockedLpCount}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{r.qtyKg}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">
+                    {r.qtyByUom.length > 0 ? formatQtyByUom(r.qtyByUom) : null}
+                  </TableCell>
                   <TableCell className="text-right font-mono text-xs">{r.expiredCount}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{r.expiring7dCount}</TableCell>
                 </TableRow>

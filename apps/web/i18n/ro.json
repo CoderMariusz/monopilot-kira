@@ -9953,6 +9953,11 @@
     "filter": {
       "line": "Production line",
       "search": "WO/PO number"
+    },
+    "inventory": {
+      "columns": {
+        "qtyByUom": "Qty by UoM"
+      }
     }
   },
   "Yard": {

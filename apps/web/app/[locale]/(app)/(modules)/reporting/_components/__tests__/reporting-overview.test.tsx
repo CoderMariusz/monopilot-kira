@@ -100,6 +100,7 @@ function buildLabels(locale: string): ReportingLabels {
         active: t('inventory.columns.active'),
         blocked: t('inventory.columns.blocked'),
         qtyKg: t('inventory.columns.qtyKg'),
+        qtyByUom: t('inventory.columns.qtyByUom'),
         expired: t('inventory.columns.expired'),
         expiring7d: t('inventory.columns.expiring7d'),
       },
@@ -202,6 +203,10 @@ const inventory: InventorySnapshot = {
       activeLpCount: 13,
       blockedLpCount: 2,
       qtyKg: '120.500',
+      qtyByUom: [
+        { uom: 'box', qty: '20.000' },
+        { uom: 'kg', qty: '120.500' },
+      ],
       expiredCount: 1,
       expiring7dCount: 3,
     },

@@ -137,6 +137,10 @@ beforeEach(() => {
       active_lp_count: '8',
       blocked_lp_count: '2',
       qty_kg: '120.500',
+      qty_by_uom: [
+        { uom: 'box', qty: '20.000' },
+        { uom: 'kg', qty: '120.500' },
+      ],
       expired_count: '1',
       expiring_7d_count: '3',
     },
@@ -148,6 +152,7 @@ beforeEach(() => {
       active_lp_count: '5',
       blocked_lp_count: '0',
       qty_kg: null,
+      qty_by_uom: [{ uom: 'each', qty: '50.000' }],
       expired_count: '0',
       expiring_7d_count: '0',
     },
@@ -256,11 +261,17 @@ describe('inventorySnapshot', () => {
       activeLpCount: 8,
       blockedLpCount: 2,
       qtyKg: '120.500',
+      qtyByUom: [
+        { uom: 'box', qty: '20.000' },
+        { uom: 'kg', qty: '120.500' },
+      ],
       expiredCount: 1,
       expiring7dCount: 3,
     });
-    // honest: warehouse with no kg-UoM LPs sums to 0.000 (non-kg LPs excluded by design)
+    // Back-compat: warehouse with no kg-UoM LPs still reports qtyKg as 0.000,
+    // while the per-UoM breakdown preserves non-kg on-hand stock.
     expect(res.data.rows[1].qtyKg).toBe('0.000');
+    expect(res.data.rows[1].qtyByUom).toEqual([{ uom: 'each', qty: '50.000' }]);
     expect(res.data.totals).toEqual({
       lpCount: 15,
       activeLpCount: 13,
