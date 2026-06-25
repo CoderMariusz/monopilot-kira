@@ -24,10 +24,10 @@ import { getMessages } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
-import { getSupplier, transitionSupplierStatus } from '../_actions/actions';
+import { getSupplier, transitionSupplierStatus, updateSupplier } from '../_actions/actions';
 import { SupplierDetailView } from '../_components/supplier-detail-view';
 import { resolveSupplierMessages, msg, buildDetailLabels } from '../_components/supplier-labels';
-import type { Supplier, SupplierStatus, TransitionSupplierResult } from '../_components/supplier-types';
+import type { Supplier, SupplierStatus, TransitionSupplierResult, UpdateSupplierResult } from '../_components/supplier-types';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +76,18 @@ async function DetailContent({ locale, id, m }: { locale: string; id: string; m:
       labels={buildDetailLabels(m)}
       transitionSupplierStatusAction={
         transitionSupplierStatus as (id: string, status: SupplierStatus) => Promise<TransitionSupplierResult>
+      }
+      updateSupplierAction={
+        updateSupplier as (input: {
+          id: string;
+          code: string;
+          name: string;
+          currency: string;
+          leadTimeDays: number;
+          status: SupplierStatus;
+          contact?: Record<string, unknown>;
+          notes?: string;
+        }) => Promise<UpdateSupplierResult>
       }
       scorecardHref={`/${locale}/planning/suppliers/${id}/scorecard`}
     />

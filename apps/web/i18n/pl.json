@@ -6457,6 +6457,13 @@
           "countryInvalid": "Użyj kodu ISO-3166 alpha-2 (np. GB, PL)."
         }
       },
+      "edit": {
+        "title": "Edytuj dostawcę",
+        "subtitle": "Zmiany obowiązują natychmiast i są zapisywane w dzienniku audytu. Kodu dostawcy nie można zmienić.",
+        "codeHint": "Kod dostawcy jest stały — to klucz naturalny używany w zamówieniach zakupu.",
+        "submit": "Zapisz zmiany",
+        "submitting": "Zapisywanie…"
+      },
       "detail": {
         "title": "Dostawca",
         "notFound": "Ten dostawca nie istnieje lub nie należy do Twojej organizacji.",

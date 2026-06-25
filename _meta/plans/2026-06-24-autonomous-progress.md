@@ -216,3 +216,7 @@ Dispatched: PO cancel/reopen UI + customer-create. Browser production-flow audit
 ## 2026-06-25 (post-audit backlog tick — Codex resuming for backlog-clear; mig 340 disassembly fix LIVE)
 - Audit phase complete → resumed modest backlog-clearing (the "pozniej" the owner scoped Codex to). Running LEAN on my tokens; migration-class work done by me (Codex dies on migrations).
 - ✅ mig 340 LIVE + recorded: `bom_co_products.expected_yield_pct numeric` — disassembly BOM create+detail were 42703-broken (column never migrated though createDisassemblyBomDraft writes it + getDisassemblyBom reads it; latent, swallowed). Additive/idempotent. PREPARE-verified both INSERT col-list + SELECT live. Next free mig = 341.
+
+## 2026-06-25 (supplier-edit feature COMPLETE — Codex action + kira-ui modal, reviewed)
+- ✅ updateSupplier action (Codex) → kira-codex-review FIX-FIRST → applied fixes (code immutable: it's a natural key with no-FK soft-refs in supplier_specs/npd_packaging; audit namespaced planning.supplier.updated). vitest 10/10, PREPARE-verified, pushed 0dbaf4b2.
+- ✅ Edit modal (kira-ui) → mirrors prototype SupplierFormModal edit-mode (suppliers.jsx:409-515), Edit btn on detail header, code read-only, status pass-through, full PL i18n. Verified MYSELF: build 0, suppliers RTL 19/19, i18n parity 20/20, PL native, scope clean. Suppliers are now editable end-to-end (was write-once-at-create, audit Sev2). Codex still otherwise idle (measured resume).

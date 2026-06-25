@@ -6457,6 +6457,13 @@
           "countryInvalid": "Use an ISO-3166 alpha-2 code (e.g. GB, PL)."
         }
       },
+      "edit": {
+        "title": "Edit supplier",
+        "subtitle": "Changes take effect immediately and are recorded in the audit log. The supplier code cannot be changed.",
+        "codeHint": "Supplier code is permanent — it is the natural key referenced by purchase orders.",
+        "submit": "Save changes",
+        "submitting": "Saving…"
+      },
       "detail": {
         "title": "Supplier",
         "notFound": "This supplier does not exist or is not in your organisation.",

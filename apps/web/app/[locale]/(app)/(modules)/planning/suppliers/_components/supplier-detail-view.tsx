@@ -37,7 +37,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@monopilot/ui/Button';
 
 import { SupplierStatusBadge } from './supplier-status-badge';
-import { contactField, type Supplier, type TransitionSupplierResult, type SupplierStatus } from './supplier-types';
+import { EditSupplierModal, type EditSupplierLabels } from './edit-supplier-modal';
+import { contactField, type Supplier, type TransitionSupplierResult, type UpdateSupplierResult, type SupplierStatus } from './supplier-types';
 
 export type SupplierDetailLabels = {
   edit: string;
@@ -74,6 +75,8 @@ export type SupplierDetailLabels = {
   };
   /** Wave E9 — supplier scorecard deep link (on-time %, qty variance, NCRs). */
   scorecard?: string;
+  /** Edit modal label bag (mirrors the create modal's form fields + error keys). */
+  edit_modal: EditSupplierLabels;
   errors: Record<string, string>;
 };
 
@@ -81,6 +84,17 @@ export type SupplierDetailViewProps = {
   supplier: Supplier;
   labels: SupplierDetailLabels;
   transitionSupplierStatusAction: (id: string, status: SupplierStatus) => Promise<TransitionSupplierResult>;
+  /** Server Action seam for the Edit modal (passed from the RSC; never authored here). */
+  updateSupplierAction: (input: {
+    id: string;
+    code: string;
+    name: string;
+    currency: string;
+    leadTimeDays: number;
+    status: SupplierStatus;
+    contact?: Record<string, unknown>;
+    notes?: string;
+  }) => Promise<UpdateSupplierResult>;
   /** Wave E9 — href to /planning/suppliers/[id]/scorecard (locale-prefixed by the page). */
   scorecardHref?: string;
 };
@@ -89,11 +103,13 @@ export function SupplierDetailView({
   supplier,
   labels,
   transitionSupplierStatusAction,
+  updateSupplierAction,
   scorecardHref,
 }: SupplierDetailViewProps) {
   const router = useRouter();
   const [pendingStatus, setPendingStatus] = React.useState<SupplierStatus | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
 
   const current = supplier.status.toLowerCase() as SupplierStatus;
   const email = contactField(supplier.contact, 'email');
@@ -140,6 +156,19 @@ export function SupplierDetailView({
           <div className="text-xs text-slate-500">
             {supplier.currency} · {labels.info.leadTime} <span className="font-mono">{supplier.leadTimeDays} {labels.info.days}</span>
           </div>
+        </div>
+        {/* Header actions (parity: suppliers.jsx:196-201 — the "Edit" button). The
+            deactivate/reactivate buttons live in the status-transitions card below. */}
+        <div className="flex items-center gap-2" data-testid="supplier-detail-head-actions">
+          <Button
+            type="button"
+            className="btn--secondary btn-sm"
+            data-testid="supplier-edit-open"
+            disabled={busy}
+            onClick={() => setEditOpen(true)}
+          >
+            {labels.edit}
+          </Button>
         </div>
       </div>
 
@@ -265,6 +294,15 @@ export function SupplierDetailView({
           ) : null}
         </div>
       </div>
+
+      <EditSupplierModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        supplier={supplier}
+        labels={labels.edit_modal}
+        updateSupplierAction={updateSupplierAction}
+        onUpdated={() => router.refresh()}
+      />
     </div>
   );
 }

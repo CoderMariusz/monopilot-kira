@@ -27,7 +27,7 @@ import staging from '../../../../../../../../../_meta/i18n-staging/suppliers.jso
 import { SupplierListView } from '../_components/supplier-list-view';
 import { SupplierDetailView } from '../_components/supplier-detail-view';
 import { buildListLabels, buildDetailLabels } from '../_components/supplier-labels';
-import type { Supplier, CreateSupplierResult, TransitionSupplierResult } from '../_components/supplier-types';
+import type { Supplier, CreateSupplierResult, TransitionSupplierResult, UpdateSupplierResult } from '../_components/supplier-types';
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -187,10 +187,17 @@ describe('SupplierDetailView — status transitions + RBAC (parity: suppliers.js
   function renderDetail(supplier: Supplier) {
     const transitionSupplierStatusAction =
       vi.fn<[string, 'active' | 'inactive' | 'blocked'], Promise<TransitionSupplierResult>>();
+    const updateSupplierAction =
+      vi.fn<Parameters<React.ComponentProps<typeof SupplierDetailView>['updateSupplierAction']>, Promise<UpdateSupplierResult>>();
     const utils = render(
-      <SupplierDetailView supplier={supplier} labels={detailLabels} transitionSupplierStatusAction={transitionSupplierStatusAction} />,
+      <SupplierDetailView
+        supplier={supplier}
+        labels={detailLabels}
+        transitionSupplierStatusAction={transitionSupplierStatusAction}
+        updateSupplierAction={updateSupplierAction}
+      />,
     );
-    return { ...utils, transitionSupplierStatusAction };
+    return { ...utils, transitionSupplierStatusAction, updateSupplierAction };
   }
 
   it('renders the header + info card and only the non-current transitions', () => {
@@ -233,6 +240,104 @@ describe('SupplierDetailView — status transitions + RBAC (parity: suppliers.js
   });
 });
 
+describe('SupplierDetailView — edit modal (parity: suppliers.jsx:197 + SupplierFormModal mode=edit)', () => {
+  function renderEditable(supplier: Supplier) {
+    const transitionSupplierStatusAction =
+      vi.fn<[string, 'active' | 'inactive' | 'blocked'], Promise<TransitionSupplierResult>>();
+    const updateSupplierAction =
+      vi.fn<Parameters<React.ComponentProps<typeof SupplierDetailView>['updateSupplierAction']>, Promise<UpdateSupplierResult>>();
+    const utils = render(
+      <SupplierDetailView
+        supplier={supplier}
+        labels={detailLabels}
+        transitionSupplierStatusAction={transitionSupplierStatusAction}
+        updateSupplierAction={updateSupplierAction}
+      />,
+    );
+    return { ...utils, updateSupplierAction };
+  }
+
+  it('opens the edit modal pre-filled and shows the code read-only', () => {
+    renderEditable(
+      makeSupplier({
+        id: 'sup-9',
+        code: 'SUP-0009',
+        name: 'Acme Meats',
+        currency: 'GBP',
+        leadTimeDays: 12,
+        notes: 'preferred vendor',
+        contact: { email: 'orders@acme.test', phone: '+44 20 7946 0891', country: 'GB' },
+      }),
+    );
+    fireEvent.click(screen.getByTestId('supplier-edit-open'));
+    expect(screen.getByTestId('edit-supplier-form')).toBeInTheDocument();
+    // Pre-filled from the supplier.
+    expect(screen.getByTestId('edit-supplier-name')).toHaveValue('Acme Meats');
+    expect(screen.getByTestId('edit-supplier-lead-time')).toHaveValue(12);
+    expect(screen.getByTestId('edit-supplier-email')).toHaveValue('orders@acme.test');
+    expect(screen.getByTestId('edit-supplier-phone')).toHaveValue('+44 20 7946 0891');
+    expect(screen.getByTestId('edit-supplier-country')).toHaveValue('GB');
+    expect(screen.getByTestId('edit-supplier-notes')).toHaveValue('preferred vendor');
+    // Code is immutable: shown disabled with the supplier's code.
+    const codeInput = screen.getByTestId('edit-supplier-code') as HTMLInputElement;
+    expect(codeInput).toHaveValue('SUP-0009');
+    expect(codeInput).toBeDisabled();
+  });
+
+  it('submits updateSupplier with the id, immutable code and pass-through current status, then refreshes', async () => {
+    const { updateSupplierAction } = renderEditable(
+      makeSupplier({ id: 'sup-9', code: 'SUP-0009', status: 'blocked', contact: { email: 'orders@acme.test' } }),
+    );
+    updateSupplierAction.mockResolvedValue({ ok: true, data: makeSupplier({ id: 'sup-9' }) });
+
+    fireEvent.click(screen.getByTestId('supplier-edit-open'));
+    fireEvent.change(screen.getByTestId('edit-supplier-name'), { target: { value: 'Acme Meats Renamed' } });
+    fireEvent.change(screen.getByTestId('edit-supplier-lead-time'), { target: { value: '21' } });
+    fireEvent.click(screen.getByTestId('edit-supplier-submit'));
+
+    await waitFor(() =>
+      expect(updateSupplierAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'sup-9',
+          code: 'SUP-0009',
+          name: 'Acme Meats Renamed',
+          leadTimeDays: 21,
+          // Status threaded through unchanged from the loaded supplier (not edited here).
+          status: 'blocked',
+          contact: { email: 'orders@acme.test' },
+        }),
+      ),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('blocks submit and shows a validation error when the name is cleared', async () => {
+    const { updateSupplierAction } = renderEditable(makeSupplier({ id: 'sup-9', name: 'Acme Meats' }));
+    fireEvent.click(screen.getByTestId('supplier-edit-open'));
+    fireEvent.change(screen.getByTestId('edit-supplier-name'), { target: { value: 'X' } });
+    fireEvent.click(screen.getByTestId('edit-supplier-submit'));
+    await waitFor(() => expect(screen.getByTestId('edit-supplier-error')).toHaveTextContent(detailLabels.edit_modal.errors.nameRequired));
+    expect(updateSupplierAction).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a forbidden RBAC result inline (server-enforced, not client-trusted) and does not refresh', async () => {
+    const { updateSupplierAction } = renderEditable(makeSupplier({ id: 'sup-9' }));
+    updateSupplierAction.mockResolvedValue({ ok: false, error: 'forbidden' });
+    fireEvent.click(screen.getByTestId('supplier-edit-open'));
+    fireEvent.click(screen.getByTestId('edit-supplier-submit'));
+    await waitFor(() => expect(screen.getByTestId('edit-supplier-error')).toHaveTextContent(detailLabels.edit_modal.errors.forbidden));
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('maps an already_exists server error to the duplicate message', async () => {
+    const { updateSupplierAction } = renderEditable(makeSupplier({ id: 'sup-9' }));
+    updateSupplierAction.mockResolvedValue({ ok: false, error: 'already_exists' });
+    fireEvent.click(screen.getByTestId('supplier-edit-open'));
+    fireEvent.click(screen.getByTestId('edit-supplier-submit'));
+    await waitFor(() => expect(screen.getByTestId('edit-supplier-error')).toHaveTextContent(detailLabels.edit_modal.errors.already_exists));
+  });
+});
+
 describe('Planning.suppliers i18n coverage (en + pl real)', () => {
   const locales = { en: EN, pl: PL } as Record<string, Record<string, unknown>>;
   it('defines every consumed key in both real locales', () => {
@@ -248,6 +353,11 @@ describe('Planning.suppliers i18n coverage (en + pl real)', () => {
       expect(list.create.errors.already_exists, `errors.already_exists missing in ${loc}`).not.toBe('errors.already_exists');
       expect(detail.transitions.confirmDeactivate, `confirmDeactivate missing in ${loc}`).toContain('{code}');
       expect(detail.errors.forbidden, `errors.forbidden missing in ${loc}`).not.toBe('errors.forbidden');
+      // Edit modal keys present (new edit.* + reused create.*/errors.* keys).
+      expect(detail.edit_modal.title, `edit.title missing in ${loc}`).not.toBe('edit.title');
+      expect(detail.edit_modal.submit, `edit.submit missing in ${loc}`).not.toBe('edit.submit');
+      expect(detail.edit_modal.codeHint, `edit.codeHint missing in ${loc}`).not.toBe('edit.codeHint');
+      expect(detail.edit_modal.errors.already_exists, `errors.already_exists missing in ${loc}`).not.toBe('errors.already_exists');
     }
   });
 });

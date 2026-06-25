@@ -40,6 +40,7 @@ export type SupplierResult<T> = { ok: true; data: T } | { ok: false; error: Supp
 
 export type ListSuppliersResult = SupplierResult<Supplier[]>;
 export type CreateSupplierResult = SupplierResult<Supplier>;
+export type UpdateSupplierResult = SupplierResult<Supplier>;
 export type TransitionSupplierResult = SupplierResult<Supplier>;
 
 /** Best-effort read of the optional contact jsonb fields the create modal writes. */
