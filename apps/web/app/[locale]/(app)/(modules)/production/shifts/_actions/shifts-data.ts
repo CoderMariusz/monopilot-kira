@@ -2,9 +2,9 @@
  * 08-Production — Shifts screen (read-only): shift roll-up.
  *
  * Prototype: prototypes/design/Monopilot Design System/production/other-screens.jsx:218-297
- * (ShiftsScreen). IMPORTANT — no shifts master table exists (per the audit). The
- * prototype's SHIFT_CREW / handover-notes / targets are not data-backed; instead we
- * aggregate by the `shift_id` text carried on the operational rows that do exist:
+ * (ShiftsScreen). IMPORTANT — prototype SHIFT_CREW / handover-notes / targets are
+ * not data-backed; instead we aggregate by the `shift_id` text carried on the
+ * operational rows that do exist:
  *   - downtime_events.shift_id   (nullable)
  *   - wo_waste_log.shift_id      (NOT NULL)
  *   - oee_snapshots.shift_id     (NOT NULL)
@@ -28,6 +28,7 @@ const PRODUCTION_VIEW_PERMISSION = 'production.oee.read';
 
 export type ShiftRollupRow = {
   shiftId: string;
+  shiftLabel: string;
   downtimeMin: number;
   downtimeEvents: number;
   wasteKg: number;
@@ -89,11 +90,12 @@ export async function getShiftsScreen(windowDays = 1): Promise<ShiftsScreenResul
       }
 
       // Roll up downtime + waste + latest-OEE by the shift_id text across the three
-      // shift-tagged operational tables (no shifts master exists). Each source is
-      // pre-aggregated by shift_id, then full-outer-joined so a shift present in any
-      // one source appears in the result.
+      // shift-tagged operational tables, then label from shift_configs when present.
+      // Each source is pre-aggregated by shift_id, then full-outer-joined so a shift
+      // present in any one source appears in the result.
       const res = await c.query<{
         shift_id: string;
+        shift_label: string | null;
         downtime_min: number;
         downtime_events: number;
         waste_kg: string | number | null;
@@ -131,6 +133,7 @@ export async function getShiftsScreen(windowDays = 1): Promise<ShiftsScreenResul
            union select shift_id from oe
          )
          select k.shift_id,
+                sc.shift_label,
                 coalesce(dt.downtime_min, 0) as downtime_min,
                 coalesce(dt.downtime_events, 0) as downtime_events,
                 coalesce(ws.waste_kg, 0) as waste_kg,
@@ -140,11 +143,14 @@ export async function getShiftsScreen(windowDays = 1): Promise<ShiftsScreenResul
            left join dt on dt.shift_id = k.shift_id
            left join ws on ws.shift_id = k.shift_id
            left join oe on oe.shift_id = k.shift_id
-          order by k.shift_id`,
+           left join public.shift_configs sc
+             on sc.org_id = app.current_org_id() and sc.shift_id = k.shift_id
+          order by coalesce(sc.sort_order, 2147483647), coalesce(sc.shift_label, k.shift_id)`,
       );
 
       const shifts: ShiftRollupRow[] = res.rows.map((r) => ({
         shiftId: r.shift_id,
+        shiftLabel: r.shift_label?.trim() || `Shift ${r.shift_id.slice(0, 8)}`,
         downtimeMin: Number(r.downtime_min ?? 0),
         downtimeEvents: Number(r.downtime_events ?? 0),
         wasteKg: Number(r.waste_kg ?? 0),

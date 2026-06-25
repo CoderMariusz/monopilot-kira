@@ -7,11 +7,11 @@
  *     shift roll-up table (line assignments in prototype) → other-screens.jsx:234-263
  *     shift targets vs actual (per-shift metrics)         → other-screens.jsx:282-290
  *
- * DEVIATION (logged): there is NO shifts master table (per the audit), so the
- * prototype's crew assignments / handover notes are not data-backed. Instead the page
- * aggregates the operational `shift_id` text carried on downtime_events / wo_waste_log /
- * oee_snapshots into a per-shift roll-up (downtime · waste · latest OEE). When nothing
- * references a shift, an honest empty-state is shown. No mocks.
+ * DEVIATION (logged): crew assignments / handover notes are not data-backed. Instead
+ * the page aggregates the operational `shift_id` text carried on downtime_events /
+ * wo_waste_log / oee_snapshots into a per-shift roll-up (downtime · waste · latest OEE)
+ * and labels rows from shift_configs when available. When nothing references a shift,
+ * an honest empty-state is shown. No mocks.
  *
  * UI states: loading / empty / error / permission-denied / optimistic (N/A read-only).
  */
@@ -108,7 +108,7 @@ async function ShiftsContent({ windowDays }: { windowDays: number }) {
           <tbody>
             {data.shifts.map((s) => (
               <tr key={s.shiftId} data-testid={`production-shifts-row-${s.shiftId}`} className="border-b border-slate-100 last:border-0">
-                <td className="px-3 py-2 font-mono font-semibold text-slate-900">{s.shiftId}</td>
+                <td className="px-3 py-2 font-semibold text-slate-900">{s.shiftLabel}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-700">{t('minutes', { min: s.downtimeMin })}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-700">{s.downtimeEvents}</td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-700">{t('kg', { kg: numFmt.format(s.wasteKg) })}</td>
