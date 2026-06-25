@@ -212,3 +212,26 @@ describe('WO DRAFT edit affordance (Wave R1)', () => {
     expect(await screen.findByTestId('edit-wo-error')).toHaveTextContent('no longer a draft');
   });
 });
+
+describe('WO detail summary — line resolves to a human label, never a raw UUID (parity: wo-detail.jsx:60 {w.lineCode})', () => {
+  it('renders the production line CODE in the summary, not the productionLineId UUID', () => {
+    renderDetail();
+    const summary = screen.getByTestId('wo-detail-summary');
+    // resources.lines = [{ id: 'line-1', code: 'L1', name: 'Line One' }]; makeWo().productionLineId === 'line-1'.
+    expect(within(summary).getByText('L1')).toBeInTheDocument();
+    // The raw UUID must NOT leak into the rendered Line cell.
+    expect(within(summary).queryByText('line-1')).not.toBeInTheDocument();
+  });
+
+  it('falls back to em-dash when the WO has no production line', () => {
+    renderDetail({ wo: makeWo({ productionLineId: null }) });
+    const summary = screen.getByTestId('wo-detail-summary');
+    expect(within(summary).getAllByText('—').length).toBeGreaterThan(0);
+  });
+
+  it('shows the raw id only when the line is not in the loaded resources (honest fallback)', () => {
+    renderDetail({ wo: makeWo({ productionLineId: 'unknown-line-xyz' }) });
+    const summary = screen.getByTestId('wo-detail-summary');
+    expect(within(summary).getByText('unknown-line-xyz')).toBeInTheDocument();
+  });
+});

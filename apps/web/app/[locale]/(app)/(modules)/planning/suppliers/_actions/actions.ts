@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   SupplierCreateInput,
@@ -40,6 +42,22 @@ type Supplier = {
 };
 
 type SupplierResult<T> = { ok: true; data: T } | { ok: false; error: ProcurementError; message?: string };
+
+// Family-(a) round-trip fix: the create/transition mutations had NO server-cache
+// revalidation, so the supplier list (and the detail header) could re-render stale
+// after a write — only the client's router.refresh() saved it, and a fresh server
+// navigation showed the pre-write rows. Mirror the shipped location.ts / PO / TO
+// revalidate pattern. The action has no locale in scope, so revalidate the dynamic
+// [locale] page segment (covers en/pl/ro/uk) plus the per-id detail when known.
+function revalidateSupplierPaths(supplierId?: string): void {
+  try {
+    revalidatePath('/[locale]/planning/suppliers', 'page');
+    if (supplierId) revalidatePath(`/[locale]/planning/suppliers/${supplierId}`, 'page');
+  } catch (err) {
+    if (process.env.VITEST) return;
+    console.warn('[planning/suppliers] revalidate_skipped', err instanceof Error ? { message: err.message } : { message: String(err) });
+  }
+}
 
 function mapSupplier(row: SupplierRow): Supplier {
   return {
@@ -138,6 +156,7 @@ export async function createSupplier(rawInput: unknown): Promise<SupplierResult<
         resourceId: row.id,
         afterState: { code: row.code, name: row.name, status: row.status },
       });
+      revalidateSupplierPaths(row.id);
       return { ok: true, data: mapSupplier(row) };
     });
   } catch (err) {
@@ -182,6 +201,7 @@ export async function transitionSupplierStatus(id: string, status: string): Prom
         beforeState: { status: previous.status },
         afterState: { status: row.status },
       });
+      revalidateSupplierPaths(row.id);
       return { ok: true, data: mapSupplier(row) };
     });
   } catch (err) {

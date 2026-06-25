@@ -11,6 +11,11 @@ let client: QueryClient;
 let allowPermission = true;
 let supplierExists = true;
 
+const revalidatePath = vi.fn();
+vi.mock('next/cache', () => ({
+  revalidatePath: (...args: unknown[]) => revalidatePath(...args),
+}));
+
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
@@ -65,6 +70,7 @@ describe('planning suppliers actions', () => {
     allowPermission = true;
     supplierExists = true;
     client = makeClient();
+    revalidatePath.mockClear();
   });
 
   it('lists suppliers under app.current_org_id scope', async () => {
@@ -87,6 +93,22 @@ describe('planning suppliers actions', () => {
 
     expect(result.ok).toBe(true);
     expect(vi.mocked(client.query).mock.calls.some(([sql]) => sql.includes('insert into public.audit_events'))).toBe(true);
+  });
+
+  it('revalidates the supplier list + detail paths after a create (family-a round-trip)', async () => {
+    const result = await createSupplier({ code: 'SUP-TEST-01', name: 'Test Supplier', leadTimeDays: 5 });
+
+    expect(result.ok).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/planning/suppliers', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/planning/suppliers/${SUPPLIER_ID}`, 'page');
+  });
+
+  it('revalidates the supplier paths after a status transition (family-a round-trip)', async () => {
+    const result = await transitionSupplierStatus(SUPPLIER_ID, 'blocked');
+
+    expect(result.ok).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/planning/suppliers', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/planning/suppliers/${SUPPLIER_ID}`, 'page');
   });
 
   it('rejects create when caller lacks planning write permission', async () => {
