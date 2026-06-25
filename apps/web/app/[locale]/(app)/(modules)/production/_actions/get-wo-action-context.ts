@@ -55,28 +55,43 @@ export type WoReasonCategory = { id: string; code: string; name: string };
 export type WoWasteCategory = { code: string; name: string };
 
 /**
- * Shift option for the Waste-modal shift dropdown. Sourced from the SAME fixed
- * enum the scanner site-login uses (morning/afternoon/night → scanner_sessions.shift
- * text column). `code` is the value submitted as `shift_id`; `name` is the i18n
- * label resolved on the page (the loader returns the stable code, the modal labels
- * carry the localized name).
+ * Shift option for the Waste-modal shift dropdown. `code` is the value submitted
+ * as `shift_id`; `name` is the display label from the org shift catalog.
  */
 export type WoShiftOption = { code: string; name: string };
 /** Production line option for the Pause-modal line dropdown (public.production_lines). */
 export type WoLineOption = { id: string; code: string };
 
 /**
- * The fixed shift enum — the scanner site-select screen (the canonical place a
- * shift is chosen and persisted to scanner_sessions.shift) offers exactly these
- * three codes. The desktop dropdown reuses the SAME set so a WO paused/wasted from
- * the desk records a shift identical to one captured on the floor. Labels are NOT
- * hard-coded here — the page maps each code to its localized name via the modal
- * labels bundle.
+ * Fallback shift enum used only when the org has not configured shift_configs yet.
  */
 // Module-local (NOT exported): this is a `'use server'` file, which may only
 // export async functions — a const export here breaks the production build.
 // The shift options reach the client via the returned `shifts` list, not this const.
 const WO_SHIFT_CODES = ['morning', 'afternoon', 'night'] as const;
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
+};
+
+async function readWoShiftOptions(client: QueryClient, orgId: string): Promise<WoShiftOption[]> {
+  const shiftRes = await client.query<WoShiftOption>(
+    `select shift_id as code, shift_label as name
+       from public.shift_configs
+      where org_id = $1::uuid
+        and is_active = true
+      order by sort_order asc nulls last, shift_label asc`,
+    [orgId],
+  );
+
+  if (shiftRes.rows.length > 0) return shiftRes.rows.map((r) => ({ code: r.code, name: r.name }));
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[production/wos] no active shift_configs found; falling back to default WO shifts');
+  }
+
+  return WO_SHIFT_CODES.map((code) => ({ code, name: code }));
+}
 
 export type WoActionContextData = {
   /** Runtime lifecycle status — null when the WO has no execution row yet. */
@@ -159,7 +174,7 @@ export async function getWoListActionContext(): Promise<WoListActionContextResul
         return acc;
       }, {} as WoActionPermissions);
 
-      const [downtimeRes, linesRes] = await Promise.all([
+      const [downtimeRes, linesRes, shifts] = await Promise.all([
         c.query<{ id: string; code: string; name: string }>(
           `select id::text as id, code, name from public.downtime_categories
             where org_id = app.current_org_id() and is_active = true
@@ -173,6 +188,7 @@ export async function getWoListActionContext(): Promise<WoListActionContextResul
             order by pl.code asc
             limit 200`,
         ),
+        readWoShiftOptions(c, ctx.orgId),
       ]);
 
       return {
@@ -180,7 +196,7 @@ export async function getWoListActionContext(): Promise<WoListActionContextResul
         data: {
           permissions,
           downtimeCategories: downtimeRes.rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
-          shifts: WO_SHIFT_CODES.map((code) => ({ code, name: code })),
+          shifts,
           lines: linesRes.rows.map((r) => ({ id: r.id, code: r.code })),
         },
       };
@@ -232,7 +248,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
 
       const executionStatus = await readWoExecutionStatus(pctx, woId);
 
-      const [downtimeRes, wasteRes, linesRes] = await Promise.all([
+      const [downtimeRes, wasteRes, linesRes, shifts] = await Promise.all([
         c.query<{ id: string; code: string; name: string }>(
           `select id::text as id, code, name from public.downtime_categories
             where org_id = app.current_org_id() and is_active = true
@@ -251,6 +267,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
             order by pl.code asc
             limit 200`,
         ),
+        readWoShiftOptions(c, ctx.orgId),
       ]);
 
       return {
@@ -261,9 +278,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
           currentUserId: ctx.userId,
           downtimeCategories: downtimeRes.rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
           wasteCategories: wasteRes.rows.map((r) => ({ code: r.code, name: r.name })),
-          // Fixed enum — the page maps each code to its localized label; the value
-          // submitted as shift_id stays the stable code (scanner-parity).
-          shifts: WO_SHIFT_CODES.map((code) => ({ code, name: code })),
+          shifts,
           lines: linesRes.rows.map((r) => ({ id: r.id, code: r.code })),
           lineId: woRow.line_id,
           lineCode: woRow.line_code,
