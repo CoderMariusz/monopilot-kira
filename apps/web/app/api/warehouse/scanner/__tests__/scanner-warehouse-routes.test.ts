@@ -214,6 +214,51 @@ describe('warehouse scanner routes', () => {
     await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_not_found' });
   });
 
+  it('pick LP list only returns LPs the pick POST can accept', async () => {
+    const { GET } = await import('../pick/lps/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('from public.v_inventory_available inv')) {
+        return {
+          rows: [{
+            lp_id: ids.lp,
+            lp_number: 'LP-001',
+            available_qty: '8.000',
+            uom: 'kg',
+            expiry_date: '2026-07-01T00:00:00.000Z',
+            location_code: 'A-01',
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await GET(
+      getRequest(`/api/warehouse/scanner/pick/lps?productId=${ids.product}&uom=kg`) as never,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      lps: [{
+        id: ids.lp,
+        lpNumber: 'LP-001',
+        availableQty: '8.000',
+        uom: 'kg',
+        expiryDate: '2026-07-01',
+        locationCode: 'A-01',
+      }],
+    });
+
+    const pickListSql = String(
+      fakeClient.query.mock.calls.find((call) => String(call[0]).includes('from public.v_inventory_available inv'))?.[0],
+    );
+    expect(pickListSql).toContain("lp.qa_status = 'released'");
+    expect(pickListSql).toContain("lp.expiry_date::date >= current_date");
+    expect(pickListSql).toContain('from public.v_active_holds h');
+    expect(pickListSql).toContain('h.reference_type = ');
+    expect(pickListSql).toContain('h.reference_id = inv.lp_id');
+  });
+
   it('putaway writes a putaway stock move, updates LP location, and audits idempotency', async () => {
     const { POST } = await import('../putaway/route');
     mockMoveQueries({});
