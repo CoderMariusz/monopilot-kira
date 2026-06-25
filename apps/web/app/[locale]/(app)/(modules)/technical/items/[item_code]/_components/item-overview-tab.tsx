@@ -41,6 +41,11 @@ export type ItemOverviewLabels = {
   boxesPerPallet: string;
   packHierarchy: string;
   outputUomLabels: { base: string; each: string; box: string };
+  // Localized item-type / status value labels (create.typeLabels.* /
+  // create.statusLabels.*). Optional so the component stays self-sufficient
+  // (English fallback maps below) when a caller omits them.
+  typeLabels?: Record<ItemDetail['itemType'], string>;
+  statusLabels?: Record<ItemDetail['status'], string>;
 };
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
@@ -57,7 +62,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   );
 }
 
-const TYPE_LABEL: Record<ItemDetail['itemType'], string> = {
+const TYPE_LABEL_FALLBACK: Record<ItemDetail['itemType'], string> = {
   rm: 'Raw material',
   ingredient: 'Ingredient',
   intermediate: 'Intermediate',
@@ -67,7 +72,7 @@ const TYPE_LABEL: Record<ItemDetail['itemType'], string> = {
   packaging: 'Packaging',
 };
 
-const STATUS_LABEL: Record<ItemDetail['status'], string> = {
+const STATUS_LABEL_FALLBACK: Record<ItemDetail['status'], string> = {
   draft: 'Draft',
   active: 'Active',
   deprecated: 'Deprecated',
@@ -94,6 +99,8 @@ function fmtQty(value: string | null): string {
 
 export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: ItemOverviewLabels }) {
   const none = labels.none;
+  const typeLabel = labels.typeLabels?.[item.itemType] ?? TYPE_LABEL_FALLBACK[item.itemType];
+  const statusLabel = labels.statusLabels?.[item.status] ?? STATUS_LABEL_FALLBACK[item.status];
   const shelf =
     item.shelfLifeDays === null
       ? none
@@ -122,8 +129,8 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
         <dl className="mt-2">
           <Row label={labels.code} value={item.itemCode} mono />
           <Row label={labels.name} value={item.name} />
-          <Row label={labels.type} value={TYPE_LABEL[item.itemType]} />
-          <Row label={labels.status} value={STATUS_LABEL[item.status]} />
+          <Row label={labels.type} value={typeLabel} />
+          <Row label={labels.status} value={statusLabel} />
           <Row label={labels.productGroup} value={item.productGroup ?? none} />
           <Row label={labels.description} value={item.description ?? none} />
           <Row label={labels.gs1Gtin} value={item.gs1Gtin ?? none} mono />

@@ -64,6 +64,8 @@ const STATUS_VARIANT: Record<ItemStatus, BadgeVariant> = {
   blocked: 'danger',
 };
 
+// English fallbacks for the type/status labels — the localized maps come from the
+// wizard label bundle (create.typeLabels.* / create.statusLabels.*), see below.
 const TYPE_LABEL: Record<ItemType, string> = {
   rm: 'Raw material',
   ingredient: 'Ingredient',
@@ -220,6 +222,11 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   wizardLabels.fields.listPriceGbp = tItems('list_price_gbp_label');
   const transitionLabels = buildTransitionLabels(t);
 
+  // Localized type/status value labels for the Overview Identification card —
+  // reuse the wizard bundle (create.typeLabels.* / create.statusLabels.*).
+  overviewLabels.typeLabels = wizardLabels.typeLabels;
+  overviewLabels.statusLabels = wizardLabels.statusLabels;
+
   const deactivateLabels: DeactivateLabels = {
     title: t('deactivate.title'),
     // {code}/{name} placeholders interpolated client-side — t.raw avoids next-intl FORMATTING_ERROR.
@@ -370,10 +377,12 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
             <span className="mono text-shell-muted">{item.itemCode}</span>
             <span className="text-slate-400">·</span>
             <span>{item.name}</span>
-            <Badge variant={STATUS_VARIANT[item.status]}>{item.status}</Badge>
+            <Badge variant={STATUS_VARIANT[item.status]}>
+              {wizardLabels.statusLabels[item.status] ?? item.status}
+            </Badge>
           </h1>
           <p className="helper mt-1 max-w-3xl">
-            {t('detail.subtitle', { type: TYPE_LABEL[item.itemType] })}
+            {t('detail.subtitle', { type: wizardLabels.typeLabels[item.itemType] ?? TYPE_LABEL[item.itemType] })}
           </p>
         </div>
         <ItemDetailActions

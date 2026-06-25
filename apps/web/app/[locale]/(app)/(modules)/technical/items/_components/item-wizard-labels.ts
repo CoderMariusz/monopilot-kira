@@ -7,7 +7,13 @@
  * reference proxy under the Vercel turbopack build (live crash digests
  * 2219404667 / 1606090766 — local builds and jsdom tests never catch it).
  */
-import { CANONICAL_UOMS, type ItemsActionError, type ItemType, type OutputUom } from '../_actions/shared';
+import {
+  CANONICAL_UOMS,
+  type ItemsActionError,
+  type ItemStatus,
+  type ItemType,
+  type OutputUom,
+} from '../_actions/shared';
 
 export type ItemWizardLabels = {
   title: string;
@@ -46,6 +52,8 @@ export type ItemWizardLabels = {
   };
   /** Localized labels for the item-type select (rm/ingredient/…/co_product/byproduct/packaging). */
   typeLabels: Record<ItemType, string>;
+  /** Localized labels for the item lifecycle status (draft/active/deprecated/blocked). */
+  statusLabels: Record<ItemStatus, string>;
   /** Localized labels for the canonical base-UoM list (kg/g/l/ml/szt). */
   uomLabels: Record<(typeof CANONICAL_UOMS)[number], string>;
   /** Empty-option label for the optional secondary UoM select. */
@@ -110,6 +118,12 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     co_product: 'Co-product',
     byproduct: 'By-product',
     packaging: 'Packaging',
+  },
+  statusLabels: {
+    draft: 'Draft',
+    active: 'Active',
+    deprecated: 'Deprecated',
+    blocked: 'Blocked',
   },
   uomLabels: {
     kg: 'kg',
@@ -214,6 +228,12 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       co_product: get('create.typeLabels.co_product', D.typeLabels.co_product),
       byproduct: get('create.typeLabels.byproduct', D.typeLabels.byproduct),
       packaging: get('create.typeLabels.packaging', D.typeLabels.packaging),
+    },
+    statusLabels: {
+      draft: get('create.statusLabels.draft', D.statusLabels.draft),
+      active: get('create.statusLabels.active', D.statusLabels.active),
+      deprecated: get('create.statusLabels.deprecated', D.statusLabels.deprecated),
+      blocked: get('create.statusLabels.blocked', D.statusLabels.blocked),
     },
     uomLabels: {
       kg: get('create.uomLabels.kg', D.uomLabels.kg),

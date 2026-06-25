@@ -4190,7 +4190,22 @@
           "each": "Each (piece)",
           "box": "Box"
         },
-        "packagingHelp": "How Planning orders WOs and production registers output for this item."
+        "packagingHelp": "How Planning orders WOs and production registers output for this item.",
+        "typeLabels": {
+          "rm": "Raw material",
+          "ingredient": "Ingredient",
+          "intermediate": "Intermediate",
+          "fg": "Finished good",
+          "co_product": "Co-product",
+          "byproduct": "By-product",
+          "packaging": "Packaging"
+        },
+        "statusLabels": {
+          "draft": "Draft",
+          "active": "Active",
+          "deprecated": "Deprecated",
+          "blocked": "Blocked"
+        }
       },
       "deactivate": {
         "title": "Deactivate item",
@@ -4232,7 +4247,44 @@
         "truncated": "Showing the first {limit} of {total} items. Refine your search to narrow the list.",
         "viewerOnly": "You have view-only access to items.",
         "filterEmptyTitle": "No items match your filters",
-        "filterEmptyBody": "Adjust the type tab, status, or search to see more items."
+        "filterEmptyBody": "Adjust the type tab, status, or search to see more items.",
+        "searchPlaceholder": "Search by code or name…",
+        "footer": "{shown} of {total} items",
+        "tabs": {
+          "all": "All",
+          "rm": "Raw materials",
+          "ingredient": "Ingredients",
+          "intermediate": "Intermediate",
+          "fg": "Finished goods",
+          "co_product": "Co-products",
+          "byproduct": "By-products",
+          "packaging": "Packaging"
+        },
+        "statusFilters": {
+          "all": "All status",
+          "active": "Active",
+          "draft": "Draft",
+          "deprecated": "Deprecated",
+          "blocked": "Blocked"
+        },
+        "d365Filters": {
+          "all": "D365: all",
+          "synced": "Synced",
+          "drift": "Drift",
+          "unsynced": "Not synced"
+        },
+        "columns": {
+          "code": "Code",
+          "name": "Name",
+          "type": "Type",
+          "uom": "UoM",
+          "costPerKg": "Cost / kg (zł)",
+          "allergens": "Allergens",
+          "boms": "BOMs",
+          "updated": "Updated",
+          "status": "Status",
+          "actions": "Actions"
+        }
       },
       "transition": {
         "activate": "Activate",

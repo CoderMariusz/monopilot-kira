@@ -25,7 +25,7 @@ import type { DeactivateLabels } from './_components/deactivate-modal';
 import { buildTransitionLabels } from './_components/item-transition-labels';
 import { buildWizardLabels } from './_components/item-wizard-labels';
 import { NewItemButton } from './_components/items-manager.client';
-import { ItemsTableClient } from './_components/items-table.client';
+import { ItemsTableClient, type ItemsTableLabels } from './_components/items-table.client';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +75,60 @@ export default async function TechnicalItemsPage() {
   const newItemLabel = t('create.open');
   const editLabel = t('detail.edit');
   const deactivateLabel = t('detail.deactivate');
+
+  // Items master-list chrome — localized tabs / filter pills / column headers /
+  // search placeholder / footer + the type & status badge maps (reused from the
+  // wizard bundle). has()-guarded so any not-yet-merged key falls back to English.
+  const has = (key: string) => {
+    try {
+      return t.has(key);
+    } catch {
+      return false;
+    }
+  };
+  const gt = (key: string, fallback: string) => (has(key) ? t(key) : fallback);
+  const tableLabels: ItemsTableLabels = {
+    typeLabels: wizardLabels.typeLabels,
+    statusLabels: wizardLabels.statusLabels,
+    tabLabels: {
+      all: gt('list.tabs.all', 'All'),
+      rm: gt('list.tabs.rm', 'Raw materials'),
+      ingredient: gt('list.tabs.ingredient', 'Ingredients'),
+      intermediate: gt('list.tabs.intermediate', 'Intermediate'),
+      fg: gt('list.tabs.fg', 'Finished goods'),
+      co_product: gt('list.tabs.co_product', 'Co-products'),
+      byproduct: gt('list.tabs.byproduct', 'By-products'),
+      packaging: gt('list.tabs.packaging', 'Packaging'),
+    },
+    statusFilterLabels: {
+      all: gt('list.statusFilters.all', 'All status'),
+      active: gt('list.statusFilters.active', 'Active'),
+      draft: gt('list.statusFilters.draft', 'Draft'),
+      deprecated: gt('list.statusFilters.deprecated', 'Deprecated'),
+      blocked: gt('list.statusFilters.blocked', 'Blocked'),
+    },
+    d365FilterLabels: {
+      all: gt('list.d365Filters.all', 'D365: all'),
+      synced: gt('list.d365Filters.synced', 'Synced'),
+      drift: gt('list.d365Filters.drift', 'Drift'),
+      unsynced: gt('list.d365Filters.unsynced', 'Not synced'),
+    },
+    columns: {
+      code: gt('list.columns.code', 'Code'),
+      name: gt('list.columns.name', 'Name'),
+      type: gt('list.columns.type', 'Type'),
+      uom: gt('list.columns.uom', 'UoM'),
+      costPerKg: gt('list.columns.costPerKg', 'Cost / kg (zł)'),
+      allergens: gt('list.columns.allergens', 'Allergens'),
+      boms: gt('list.columns.boms', 'BOMs'),
+      updated: gt('list.columns.updated', 'Updated'),
+      status: gt('list.columns.status', 'Status'),
+      actions: gt('list.columns.actions', 'Actions'),
+    },
+    searchPlaceholder: gt('list.searchPlaceholder', 'Search by code or name…'),
+    // {shown}/{total} are interpolated client-side — t.raw avoids next-intl FORMATTING_ERROR.
+    footer: has('list.footer') ? (t.raw('list.footer') as string) : '{shown} of {total} items',
+  };
 
   return (
     <main data-screen="technical-items" className="flex w-full flex-col gap-4 px-6 py-6">
@@ -126,6 +180,7 @@ export default async function TechnicalItemsPage() {
             allergensLabel={t('detail.allergens')}
             filterEmptyTitle={t('list.filterEmptyTitle')}
             filterEmptyBody={t('list.filterEmptyBody')}
+            labels={tableLabels}
             wizardLabels={wizardLabels}
             deactivateLabels={deactivateLabels}
             transitionLabels={transitionLabels}

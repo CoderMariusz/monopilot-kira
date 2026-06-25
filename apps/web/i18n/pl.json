@@ -2067,7 +2067,22 @@
           "each": "Sztuka",
           "box": "Karton"
         },
-        "packagingHelp": "W jakiej jednostce planowanie zleca ZP, a produkcja rejestruje wyrób dla tej pozycji."
+        "packagingHelp": "W jakiej jednostce planowanie zleca ZP, a produkcja rejestruje wyrób dla tej pozycji.",
+        "typeLabels": {
+          "rm": "Surowiec",
+          "ingredient": "Składnik",
+          "intermediate": "Półprodukt",
+          "fg": "Wyrób gotowy",
+          "co_product": "Produkt uboczny",
+          "byproduct": "Produkt odpadowy",
+          "packaging": "Opakowanie"
+        },
+        "statusLabels": {
+          "draft": "Wersja robocza",
+          "active": "Aktywny",
+          "deprecated": "Wycofany",
+          "blocked": "Zablokowany"
+        }
       },
       "deactivate": {
         "title": "Dezaktywuj pozycję",
@@ -2109,7 +2124,44 @@
         "truncated": "Pokazano pierwsze {limit} z {total} pozycji. Doprecyzuj wyszukiwanie, aby zawęzić listę.",
         "viewerOnly": "Masz dostęp tylko do podglądu pozycji.",
         "filterEmptyTitle": "Żadne pozycje nie pasują do filtrów",
-        "filterEmptyBody": "Zmień zakładkę typu, status lub wyszukiwanie, aby zobaczyć więcej pozycji."
+        "filterEmptyBody": "Zmień zakładkę typu, status lub wyszukiwanie, aby zobaczyć więcej pozycji.",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+        "footer": "{shown} z {total} pozycji",
+        "tabs": {
+          "all": "Wszystkie",
+          "rm": "Surowce",
+          "ingredient": "Składniki",
+          "intermediate": "Półprodukty",
+          "fg": "Wyroby gotowe",
+          "co_product": "Produkty uboczne",
+          "byproduct": "Produkty odpadowe",
+          "packaging": "Opakowania"
+        },
+        "statusFilters": {
+          "all": "Wszystkie statusy",
+          "active": "Aktywny",
+          "draft": "Wersja robocza",
+          "deprecated": "Wycofany",
+          "blocked": "Zablokowany"
+        },
+        "d365Filters": {
+          "all": "D365: wszystkie",
+          "synced": "Zsynchronizowane",
+          "drift": "Rozbieżność",
+          "unsynced": "Niezsynchronizowane"
+        },
+        "columns": {
+          "code": "Kod",
+          "name": "Nazwa",
+          "type": "Typ",
+          "uom": "JM",
+          "costPerKg": "Koszt / kg (zł)",
+          "allergens": "Alergeny",
+          "boms": "BOM-y",
+          "updated": "Aktualizacja",
+          "status": "Status",
+          "actions": "Akcje"
+        }
       },
       "transition": {
         "activate": "Aktywuj",

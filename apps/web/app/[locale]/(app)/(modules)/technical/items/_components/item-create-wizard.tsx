@@ -368,10 +368,16 @@ export function ItemWizard({
     () => ITEM_TYPES.map((value) => ({ value, label: labels.typeLabels[value] ?? ITEM_TYPE_LABELS[value] })),
     [labels.typeLabels],
   );
+  // Status select — LOCALIZED labels (draft/active/deprecated/blocked) resolved
+  // from the wizard label bundle (create.statusLabels.*), English fallback kept.
+  const statusOptions: SelectOption[] = React.useMemo(
+    () => ITEM_STATUSES.map((value) => ({ value, label: labels.statusLabels[value] ?? STATUS_LABELS[value] })),
+    [labels.statusLabels],
+  );
   const filteredStatusOptions: SelectOption[] = React.useMemo(() => {
-    if (!isEdit || initialForm?.status === 'blocked') return STATUS_OPTIONS;
-    return STATUS_OPTIONS.filter((option) => option.value !== 'blocked');
-  }, [initialForm?.status, isEdit]);
+    if (!isEdit || initialForm?.status === 'blocked') return statusOptions;
+    return statusOptions.filter((option) => option.value !== 'blocked');
+  }, [initialForm?.status, isEdit, statusOptions]);
 
   const basicValid =
     form.itemCode.trim().length >= 1 && form.name.trim().length >= 1 && form.uomBase.trim().length >= 1;
@@ -873,7 +879,7 @@ export function ItemWizard({
                 [labels.fields.itemCode, form.itemCode, true],
                 [labels.fields.name, form.name, false],
                 [labels.fields.itemType, labels.typeLabels[form.itemType] ?? ITEM_TYPE_LABELS[form.itemType], false],
-                [labels.fields.status, STATUS_LABELS[form.status], false],
+                [labels.fields.status, labels.statusLabels[form.status] ?? STATUS_LABELS[form.status], false],
                 [labels.fields.uomBase, labels.uomLabels[form.uomBase as keyof typeof labels.uomLabels] ?? form.uomBase, true],
                 [labels.review.packaging, packagingReview, false],
                 [labels.fields.weightMode, WEIGHT_MODE_LABELS[form.weightMode], false],
