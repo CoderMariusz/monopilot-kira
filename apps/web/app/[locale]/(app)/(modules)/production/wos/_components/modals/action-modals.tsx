@@ -282,7 +282,12 @@ export function PauseModal({
                 {labels.pause.noCategories}
               </p>
             ) : (
-              <Select value={reasonCategoryId} onValueChange={setReasonCategoryId} aria-label={labels.pause.reason}>
+              <Select
+                value={reasonCategoryId}
+                onValueChange={setReasonCategoryId}
+                options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                aria-label={labels.pause.reason}
+              >
                 <SelectTrigger id="wo-pause-reason" data-testid="wo-pause-reason">
                   <SelectValue placeholder={labels.pause.reasonPlaceholder} />
                 </SelectTrigger>
@@ -302,7 +307,12 @@ export function PauseModal({
                 {labels.pause.noLines}
               </p>
             ) : (
-              <Select value={lineId} onValueChange={setLineId} aria-label={labels.pause.line}>
+              <Select
+                value={lineId}
+                onValueChange={setLineId}
+                options={lines.map((l) => ({ value: l.id, label: l.code }))}
+                aria-label={labels.pause.line}
+              >
                 <SelectTrigger id="wo-pause-line" data-testid="wo-pause-line">
                   <SelectValue placeholder={labels.pause.linePlaceholder} />
                 </SelectTrigger>
@@ -317,7 +327,12 @@ export function PauseModal({
             )}
           </FieldRow>
           <FieldRow id="wo-pause-shift" label={labels.pause.shift}>
-            <Select value={shiftId} onValueChange={setShiftId} aria-label={labels.pause.shift}>
+            <Select
+              value={shiftId}
+              onValueChange={setShiftId}
+              options={shifts.map((s) => ({ value: s.code, label: shiftLabel(labels, s) }))}
+              aria-label={labels.pause.shift}
+            >
               <SelectTrigger id="wo-pause-shift" data-testid="wo-pause-shift">
                 <SelectValue placeholder={labels.pause.shiftPlaceholder} />
               </SelectTrigger>
@@ -1044,9 +1059,14 @@ export function OutputModal({
         ) : null}
         <div className="space-y-3">
           <FieldRow id="wo-output-type" label={labels.output.type}>
-            <Select value={outputType} onValueChange={(v) => setOutputType(v as (typeof OUTPUT_TYPES)[number])} aria-label={labels.output.type}>
+            <Select
+              value={outputType}
+              onValueChange={(v) => setOutputType(v as (typeof OUTPUT_TYPES)[number])}
+              options={OUTPUT_TYPES.map((t) => ({ value: t, label: labels.output.types[t] }))}
+              aria-label={labels.output.type}
+            >
               <SelectTrigger id="wo-output-type" data-testid="wo-output-type">
-                <SelectValue />
+                <SelectValue placeholder={labels.output.type} />
               </SelectTrigger>
               <SelectContent>
                 {OUTPUT_TYPES.map((t) => (
@@ -1241,7 +1261,12 @@ export function WasteModal({
                 {labels.waste.noCategories}
               </p>
             ) : (
-              <Select value={categoryCode} onValueChange={setCategoryCode} aria-label={labels.waste.category}>
+              <Select
+                value={categoryCode}
+                onValueChange={setCategoryCode}
+                options={categories.map((c) => ({ value: c.code, label: c.name }))}
+                aria-label={labels.waste.category}
+              >
                 <SelectTrigger id="wo-waste-category" data-testid="wo-waste-category">
                   <SelectValue placeholder={labels.waste.categoryPlaceholder} />
                 </SelectTrigger>
@@ -1259,7 +1284,12 @@ export function WasteModal({
             <Input id="wo-waste-qty" inputMode="decimal" value={qty} disabled={busy} onChange={(e) => setQty(e.target.value)} data-testid="wo-waste-qty" />
           </FieldRow>
           <FieldRow id="wo-waste-shift" label={labels.waste.shift}>
-            <Select value={shiftId} onValueChange={setShiftId} aria-label={labels.waste.shift}>
+            <Select
+              value={shiftId}
+              onValueChange={setShiftId}
+              options={shifts.map((s) => ({ value: s.code, label: shiftLabel(labels, s) }))}
+              aria-label={labels.waste.shift}
+            >
               <SelectTrigger id="wo-waste-shift" data-testid="wo-waste-shift">
                 <SelectValue placeholder={labels.waste.shiftPlaceholder} />
               </SelectTrigger>

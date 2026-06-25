@@ -355,7 +355,7 @@ export function GrnDetailClient({
                         data-testid={`grn-item-lp-link-${it.id}`}
                         className="hover:underline"
                       >
-                        {it.lpNumber ?? it.lpId}
+                        {it.lpNumber ?? dash}
                       </Link>
                     ) : (
                       <span className="text-slate-400">{dash}</span>

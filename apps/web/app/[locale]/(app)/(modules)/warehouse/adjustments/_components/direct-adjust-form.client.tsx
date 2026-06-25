@@ -209,6 +209,9 @@ export function DirectAdjustForm({
   const [pending, startTransition] = useTransition();
 
   const selectedLocation = locations.find((l) => l.id === locationId) ?? null;
+  const selectedWarehouseLabel = selectedLocation
+    ? (selectedLocation.warehouseCode ?? selectedLocation.warehouseName ?? '—')
+    : null;
 
   // ── Specific-LP picker (decrease only) ───────────────────────────────────────
   const [lps, setLps] = useState<DecreaseLpOption[]>([]);
@@ -399,9 +402,9 @@ export function DirectAdjustForm({
           <span data-testid="adjust-warehouse-resolved" className="mt-1 text-xs text-slate-500">
             {labels.warehouseResolved}:{' '}
             <span className="font-mono text-slate-700">
-              {selectedLocation.warehouseCode ?? selectedLocation.warehouseId}
+              {selectedWarehouseLabel}
             </span>
-            {selectedLocation.warehouseName ? ` — ${selectedLocation.warehouseName}` : ''}
+            {selectedLocation.warehouseCode && selectedLocation.warehouseName ? ` — ${selectedLocation.warehouseName}` : ''}
           </span>
         ) : null}
       </label>

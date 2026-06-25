@@ -933,7 +933,7 @@ export function LpDetailClient({
               ]}
             >
               <SelectTrigger data-testid="lp-qa-decision">
-                <SelectValue />
+                <SelectValue placeholder={labels.actions.qaRelease.decision} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="released">{labels.actions.qaRelease.released}</SelectItem>
