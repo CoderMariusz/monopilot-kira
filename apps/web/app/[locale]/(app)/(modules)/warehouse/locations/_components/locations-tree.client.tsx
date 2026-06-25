@@ -212,6 +212,9 @@ export function LocationsTreeClient({
                         {loc.code}
                       </span>
                       <span className="text-[11px] text-slate-500">{loc.name}</span>
+                      <span className="rounded-full border border-slate-200 px-1.5 font-mono text-[11px] text-slate-500" data-testid={`locations-warehouse-${loc.id}`}>
+                        {loc.warehouseCode ?? loc.warehouseName ?? loc.warehouseId}
+                      </span>
                       <span className="ml-auto rounded-full bg-slate-100 px-1.5 text-[11px] tabular-nums text-slate-600" data-testid={`locations-count-${loc.id}`}>
                         {lpCountLabel(count)}
                       </span>

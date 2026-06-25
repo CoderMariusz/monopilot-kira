@@ -64,6 +64,13 @@ describe('LocationsTreeClient (WH-018)', () => {
     expect(within(whB).getByTestId('locations-node-l-dry')).toBeInTheDocument();
   });
 
+  it('shows each location row warehouse code when multiple warehouses are listed', () => {
+    renderTree();
+    expect(screen.getByTestId('locations-warehouse-l-cold')).toHaveTextContent('WH-A');
+    expect(screen.getByTestId('locations-warehouse-l-b3')).toHaveTextContent('WH-A');
+    expect(screen.getByTestId('locations-warehouse-l-dry')).toHaveTextContent('WH-B');
+  });
+
   it('derives per-location LP counts from the passed map (singular vs plural)', () => {
     renderTree();
     expect(screen.getByTestId('locations-count-l-cold')).toHaveTextContent('1 LP');

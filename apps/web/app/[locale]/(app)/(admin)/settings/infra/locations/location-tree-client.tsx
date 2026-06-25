@@ -8,7 +8,7 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 
 export type Warehouse = { id: string; code: string; name: string };
-export type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
+export type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean; warehouseCode?: string | null; warehouseName?: string | null };
 export type UpsertLocationInput = { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string; active?: boolean; barcode?: string | null };
 export type UpsertLocationResult = { ok: true; data: { id: string; path: string; level: number } } | { ok: false; error: string };
 export type DeleteLocationInput = { locationId: string; warehouseId: string };
@@ -145,6 +145,7 @@ export function LocationTreeScreen({
   const nextLevel = parentLocation ? parentLocation.level + 1 : 1;
   const valid = form.code.trim().length > 0 && form.name.trim().length > 0 && !depthExceeded;
   const warehouseOptions = [{ value: 'all', label: labels.allWarehouses }, ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))];
+  const warehouseById = React.useMemo(() => new Map(warehouses.map((warehouse) => [warehouse.id, warehouse])), [warehouses]);
   const parentOptions = React.useMemo<SelectOption[]>(
     () => [{ value: 'root', label: '—' }, ...visibleRows.filter((location) => location.id !== editingLocation?.id).map((location) => ({ value: location.id, label: location.path.replace(/\./g, ' › ') }))],
     [editingLocation?.id, visibleRows],
@@ -262,7 +263,7 @@ export function LocationTreeScreen({
         {state === 'ready' ? (
           <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.4fr)]">
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div role="tree" aria-label={labels.title} className="space-y-2">{tree.map((location) => renderLocationNode(location, labels, selected, setSelected))}</div>
+              <div role="tree" aria-label={labels.title} className="space-y-2">{tree.map((location) => renderLocationNode(location, labels, selected, setSelected, warehouseById))}</div>
             </section>
             <section role="region" aria-label={labels.selectedLocation} className="space-y-3">
               {selectedLocation ? (
@@ -280,7 +281,8 @@ export function LocationTreeScreen({
                       {canUpdateInfra ? <><Button type="button" onClick={() => openDialog('edit', selectedLocation)}>{labels.editLocation}</Button><Button type="button" onClick={() => openDialog('child', selectedLocation)}>{labels.addChild}</Button><Button type="button" className="border border-red-200 bg-red-50 text-red-700" onClick={() => { setDeleteCandidate(selectedLocation); setFormError(null); }}>{labels.deleteLocation}</Button></> : null}
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-4">
+                  <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-5">
+                    <SummaryItem label={labels.warehouse} value={warehouseLabelFor(selectedLocation, warehouseById)} mono />
                     <SummaryItem label={labels.lpsHere} value="0" />
                     <SummaryItem label={labels.selectedParent} value={parentPathFor(selectedLocation, visibleRows)} mono />
                     <SummaryItem label={labels.selectedDepth} value={`L${selectedLocation.level}`} />
@@ -394,14 +396,21 @@ function parentPathFor(location: LocationRow, rows: LocationRow[]) {
   return rows.find((candidate) => candidate.id === location.parentId)?.path ?? location.parentId;
 }
 
-function renderLocationNode(location: TreeNode, labels: LocationTreeLabels, selectedLocationId: string | null, onSelect: (id: string) => void): React.ReactNode {
+function warehouseLabelFor(location: LocationRow, warehouseById: Map<string, Warehouse>) {
+  const warehouse = warehouseById.get(location.warehouseId);
+  const code = location.warehouseCode ?? warehouse?.code ?? location.warehouseId;
+  const name = location.warehouseName ?? warehouse?.name ?? null;
+  return name && name !== code ? `${code} — ${name}` : code;
+}
+
+function renderLocationNode(location: TreeNode, labels: LocationTreeLabels, selectedLocationId: string | null, onSelect: (id: string) => void, warehouseById: Map<string, Warehouse>): React.ReactNode {
   const selected = selectedLocationId === location.id;
   const inactive = location.isActive === false;
-  const content = <div className={`flex items-center gap-2${inactive ? ' opacity-60' : ''}`}><span aria-hidden="true" className="w-6 text-center text-xs font-medium text-slate-500">{location.children.length > 0 ? '▸' : '•'}</span><span aria-hidden="true" className="text-sm">{locationTypeIcon(location.locationType)}</span><span className={`font-mono text-xs font-semibold${inactive ? ' line-through' : ''}`}>{locationCode(location)}</span><span className="text-xs text-slate-500">{location.name}</span><Badge variant={location.level === 1 ? 'info' : 'secondary'}>{formatLabel(labels.level, { level: location.level })}</Badge>{inactive ? <Badge variant="secondary">{labels.inactive}</Badge> : null}</div>;
+  const content = <div className={`flex flex-wrap items-center gap-2${inactive ? ' opacity-60' : ''}`}><span aria-hidden="true" className="w-6 text-center text-xs font-medium text-slate-500">{location.children.length > 0 ? '▸' : '•'}</span><span aria-hidden="true" className="text-sm">{locationTypeIcon(location.locationType)}</span><span className={`font-mono text-xs font-semibold${inactive ? ' line-through' : ''}`}>{locationCode(location)}</span><span className="text-xs text-slate-500">{location.name}</span><Badge variant="outline">{warehouseLabelFor(location, warehouseById)}</Badge><Badge variant={location.level === 1 ? 'info' : 'secondary'}>{formatLabel(labels.level, { level: location.level })}</Badge>{inactive ? <Badge variant="secondary">{labels.inactive}</Badge> : null}</div>;
   if (location.children.length === 0) {
     return <div key={location.id} role="treeitem" aria-level={location.level} aria-selected={selected} data-location-id={location.id} data-parent-id={location.parentId ?? undefined} data-warehouse-id={location.warehouseId} onClick={() => onSelect(location.id)} className={`rounded-lg border px-3 py-2 text-sm ${selected ? 'border-blue-300 bg-blue-50' : 'border-slate-100 bg-slate-50'}`} style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}>{content}</div>;
   }
-  return <details key={location.id} role="treeitem" aria-level={location.level} aria-selected={selected} data-location-id={location.id} data-parent-id={location.parentId ?? undefined} data-warehouse-id={location.warehouseId} className={`rounded-lg border px-3 py-2 text-sm ${selected ? 'border-blue-300 bg-blue-50' : 'border-slate-100 bg-slate-50'}`} style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}><summary aria-label={formatLabel(labels.expand, { name: location.name })} onClick={() => onSelect(location.id)} className="cursor-pointer list-none">{content}</summary><div role="group" className="mt-2 space-y-2">{location.children.map((child) => renderLocationNode(child, labels, selectedLocationId, onSelect))}</div></details>;
+  return <details key={location.id} role="treeitem" aria-level={location.level} aria-selected={selected} data-location-id={location.id} data-parent-id={location.parentId ?? undefined} data-warehouse-id={location.warehouseId} className={`rounded-lg border px-3 py-2 text-sm ${selected ? 'border-blue-300 bg-blue-50' : 'border-slate-100 bg-slate-50'}`} style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}><summary aria-label={formatLabel(labels.expand, { name: location.name })} onClick={() => onSelect(location.id)} className="cursor-pointer list-none">{content}</summary><div role="group" className="mt-2 space-y-2">{location.children.map((child) => renderLocationNode(child, labels, selectedLocationId, onSelect, warehouseById))}</div></details>;
 }
 
 function locationTypeIcon(type?: string | null) {

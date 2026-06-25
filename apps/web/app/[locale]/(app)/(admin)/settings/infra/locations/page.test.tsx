@@ -81,6 +81,8 @@ type Warehouse = {
 type LocationRow = {
   id: string;
   warehouseId: string;
+  warehouseCode?: string | null;
+  warehouseName?: string | null;
   parentId: string | null;
   name: string;
   level: number;
@@ -98,7 +100,7 @@ type CreateLocationInput = {
 
 type LocationTreePageProps = {
   params?: Promise<{ locale: string }>;
-  searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string };
+  searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string; selectedLocationId?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string; selectedLocationId?: string };
   warehouses: Warehouse[];
   locations: LocationRow[];
   selectedWarehouseId?: string;
@@ -124,14 +126,14 @@ const warehouses: Warehouse[] = [
 
 const locations: LocationRow[] = [
   // Intentionally unsorted: the page must render by ltree path order, not input order.
-  { id: 'bin-a10-02', warehouseId: 'wh-apex', parentId: 'zone-a10', name: 'A10 Bin 02', level: 3, path: 'apex.z10.b02' },
-  { id: 'zone-a02', warehouseId: 'wh-apex', parentId: 'root-apex', name: 'A02 Chilled Zone', level: 2, path: 'apex.z02' },
-  { id: 'root-north', warehouseId: 'wh-north', parentId: null, name: 'North Warehouse', level: 1, path: 'north' },
-  { id: 'bin-a02-02', warehouseId: 'wh-apex', parentId: 'zone-a02', name: 'A02 Bin 02', level: 3, path: 'apex.z02.b02' },
-  { id: 'zone-a10', warehouseId: 'wh-apex', parentId: 'root-apex', name: 'A10 Ambient Zone', level: 2, path: 'apex.z10' },
-  { id: 'bin-a02-01', warehouseId: 'wh-apex', parentId: 'zone-a02', name: 'A02 Bin 01', level: 3, path: 'apex.z02.b01' },
-  { id: 'root-apex', warehouseId: 'wh-apex', parentId: null, name: 'Apex Dairy Warehouse', level: 1, path: 'apex' },
-  { id: 'bin-a10-01', warehouseId: 'wh-apex', parentId: 'zone-a10', name: 'A10 Bin 01', level: 3, path: 'apex.z10.b01' },
+  { id: 'bin-a10-02', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'zone-a10', name: 'A10 Bin 02', level: 3, path: 'apex.z10.b02' },
+  { id: 'zone-a02', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'root-apex', name: 'A02 Chilled Zone', level: 2, path: 'apex.z02' },
+  { id: 'root-north', warehouseId: 'wh-north', warehouseCode: 'NORTH', warehouseName: 'North Warehouse', parentId: null, name: 'North Warehouse', level: 1, path: 'north' },
+  { id: 'bin-a02-02', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'zone-a02', name: 'A02 Bin 02', level: 3, path: 'apex.z02.b02' },
+  { id: 'zone-a10', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'root-apex', name: 'A10 Ambient Zone', level: 2, path: 'apex.z10' },
+  { id: 'bin-a02-01', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'zone-a02', name: 'A02 Bin 01', level: 3, path: 'apex.z02.b01' },
+  { id: 'root-apex', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: null, name: 'Apex Dairy Warehouse', level: 1, path: 'apex' },
+  { id: 'bin-a10-01', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'zone-a10', name: 'A10 Bin 01', level: 3, path: 'apex.z10.b01' },
 ];
 
 async function loadLocationTreeModule(): Promise<LocationTreeModule> {
@@ -223,6 +225,19 @@ describe('SET-014 Location Tree screen', () => {
       'bin-a10-02',
       'root-north',
     ]);
+  });
+
+  it('shows the warehouse code/name on location rows and the selected-location detail', async () => {
+    await renderLocationTree({ searchParams: { selectedLocationId: 'bin-a02-01' } });
+
+    const tree = screen.getByRole('tree', { name: /location tree/i });
+    const bin = within(tree).getByText('A02 Bin 01').closest('[role="treeitem"]');
+    expect(bin).toHaveTextContent('APEX');
+    expect(bin).toHaveTextContent('Apex Dairy Warehouse');
+
+    const selectedRegion = screen.getByRole('region', { name: /selected location/i });
+    expect(within(selectedRegion).getByText('Warehouse')).toBeInTheDocument();
+    expect(within(selectedRegion).getByText('APEX — Apex Dairy Warehouse')).toBeInTheDocument();
   });
 
   it('server-renders the selected warehouse filter so rerendered trees only expose that warehouse', async () => {
