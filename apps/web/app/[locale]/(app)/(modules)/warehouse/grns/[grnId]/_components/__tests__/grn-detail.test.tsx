@@ -140,6 +140,8 @@ const GRN: GrnDetail = {
       lpId: 'lp-1',
       lpNumber: 'LP-001',
       lpQaStatus: 'pending',
+      canCancel: true,
+      cancelBlockReason: '',
     },
     {
       id: 'line-2',
@@ -156,6 +158,8 @@ const GRN: GrnDetail = {
       lpId: 'lp-2',
       lpNumber: 'LP-002',
       lpQaStatus: 'released',
+      canCancel: true,
+      cancelBlockReason: '',
     },
   ],
   licensePlates: [],
@@ -244,6 +248,33 @@ describe('GrnDetailClient — cancel receipt line (C-R3)', () => {
     renderGrn();
     expect(screen.getByTestId('grn-cancel-line-line-1')).toHaveTextContent('Cancel receipt…');
     expect(screen.getByTestId('grn-cancel-line-line-2')).toBeInTheDocument();
+  });
+
+  it('disables per-line cancel with the localized block reason when the loader says it is not cancellable', async () => {
+    const user = userEvent.setup();
+    const cancelGrnLineAction = vi.fn(async () => ({ ok: true }) as const);
+    renderGrn({
+      grn: {
+        ...GRN,
+        items: [
+          {
+            ...GRN.items[0],
+            canCancel: false,
+            cancelBlockReason: 'lp_not_cancellable',
+          },
+        ],
+      },
+      cancelGrnLineAction,
+    });
+    const button = screen.getByTestId('grn-cancel-line-line-1');
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute(
+      'title',
+      'This pallet has already been moved, reserved or consumed — cancel is not possible; correct via stock adjustment instead.',
+    );
+    await user.click(button);
+    expect(screen.queryByText('Cancel receipt line 1')).not.toBeInTheDocument();
+    expect(cancelGrnLineAction).not.toHaveBeenCalled();
   });
 
   it('hides the cancel affordances entirely when canCancelLines is false', () => {

@@ -143,6 +143,8 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
           lp_id: string | null;
           lp_number: string | null;
           lp_qa_status: string | null;
+          can_cancel: boolean;
+          cancel_block_reason: string;
           cancelled_at: string | Date | null;
           cancellation_reason_code: string | null;
         }>(
@@ -160,6 +162,48 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
                   gi.lp_id::text,
                   lp.lp_number,
                   lp.qa_status as lp_qa_status,
+                  coalesce((
+                    gi.cancelled_at is null
+                    and gi.lp_id is not null
+                    and lp.status in ('received', 'available')
+                    and lp.qa_status in ('pending', 'released')
+                    and lp.reserved_qty = 0::numeric
+                    and lp.quantity = gi.received_qty
+                    and not exists (
+                      select 1
+                        from public.license_plates child
+                       where child.org_id = app.current_org_id()
+                         and child.parent_lp_id = gi.lp_id
+                    )
+                    and not exists (
+                      select 1
+                        from public.wo_material_consumption wmc
+                       where wmc.org_id = app.current_org_id()
+                         and wmc.lp_id = gi.lp_id
+                    )
+                  ), false) as can_cancel,
+                  case
+                    when gi.cancelled_at is not null then 'already_cancelled'
+                    when gi.lp_id is null then 'lp_not_cancellable'
+                    when lp.id is null then 'lp_not_cancellable'
+                    when lp.status is null or lp.status not in ('received', 'available') then 'lp_not_cancellable'
+                    when lp.qa_status is null or lp.qa_status not in ('pending', 'released') then 'lp_not_cancellable'
+                    when lp.reserved_qty is null or lp.reserved_qty <> 0::numeric then 'lp_not_cancellable'
+                    when lp.quantity is null or lp.quantity <> gi.received_qty then 'lp_not_cancellable'
+                    when exists (
+                      select 1
+                        from public.license_plates child
+                       where child.org_id = app.current_org_id()
+                         and child.parent_lp_id = gi.lp_id
+                    ) then 'lp_not_cancellable'
+                    when exists (
+                      select 1
+                        from public.wo_material_consumption wmc
+                       where wmc.org_id = app.current_org_id()
+                         and wmc.lp_id = gi.lp_id
+                    ) then 'lp_not_cancellable'
+                    else ''
+                  end as cancel_block_reason,
                   gi.cancelled_at,
                   gi.cancellation_reason_code
              from public.grn_items gi
@@ -202,6 +246,8 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
             lpId: item.lp_id,
             lpNumber: item.lp_number,
             lpQaStatus: item.lp_qa_status,
+            canCancel: item.can_cancel === true,
+            cancelBlockReason: item.cancel_block_reason,
             // R3 F6 — field name matches the C-R3 client's defensive cast
             // (`cancelled?: boolean`): cancelled rows strike through + hide
             // Release-QC and Cancel affordances.

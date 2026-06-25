@@ -314,6 +314,10 @@ export function GrnDetailClient({
                 // flag (mig-298 cancelled_at). Cancelled lines are struck/badged
                 // and BOTH the Release-QC and Cancel affordances are hidden.
                 const isCancelled = it.cancelled === true;
+                const cancelBlockedMessage =
+                  it.cancelBlockReason === 'already_cancelled'
+                    ? labels.cancelLine.errors.already_cancelled
+                    : labels.cancelLine.errors.lp_not_cancellable;
                 return (
                 <TableRow
                   key={it.id}
@@ -475,10 +479,22 @@ export function GrnDetailClient({
                         <button
                           type="button"
                           data-testid={`grn-cancel-line-${it.id}`}
-                          onClick={() =>
-                            setCancelTarget({ grnItemId: it.id, lineLabel: String(it.lineNumber) })
+                          disabled={!it.canCancel}
+                          title={it.canCancel ? undefined : cancelBlockedMessage}
+                          aria-label={
+                            it.canCancel
+                              ? labels.cancelLine.rowAction
+                              : `${labels.cancelLine.rowAction} — ${cancelBlockedMessage}`
                           }
-                          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            if (!it.canCancel) return;
+                            setCancelTarget({ grnItemId: it.id, lineLabel: String(it.lineNumber) });
+                          }}
+                          className={
+                            it.canCancel
+                              ? 'rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50'
+                              : 'cursor-not-allowed rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-400'
+                          }
                         >
                           {labels.cancelLine.rowAction}
                         </button>
