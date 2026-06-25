@@ -125,3 +125,13 @@
 - Pushed a7caa190 (FA 4 strings) + 41be7d97 (WO-detail 3 strings). formulation/page.tsx lane = 0 genuine (138 fallback dicts, fully t()'d already) → confirms the lint over-counts; real i18n debt is EXHAUSTED (pipeline 140 was the only outlier; FA 4, WO 3, formulation 0).
 - HONEST STATE: autonomous-clearable backlog is exhausted. i18n done (high-value pages PL-live). Backend/audit = 4 findings verified-stale. Docs = comprehensive set intact. Remaining work is owner-blocked (mass-balance S4-6, logic-gap Wave-A, site-scoping reads, IDLE-2, config-audit remainders) or token-heavy browser RE-VERIFY.
 - Memory updated (active-resume-state 2026-06-25 + MEMORY.md index). NOT dispatching further lanes — no genuine non-redundant work left; more lanes would be busywork (per the doc-dup lesson). Winding down; awaiting owner steer / fresh budget / browser session.
+
+## 2026-06-25 (heartbeat — DEEPER tracks-plan queue verified, correcting earlier "exhausted" claim)
+- I was too hasty last tick: only verified the top LIVE-AUDIT queue. Mined the deeper RE-VERIFY-2 + AUDIT core-flows + infra queues this tick. ALL verified-fixed in current code (root-cause lanes from 2026-06-24 landed):
+  - queryLinesForSite [] under withOrgContext (L1, the REAL sites&lines bug) → FIXED: strict RFC-4122 UUID regex rejected seed org UUIDs (00000000-…, version=0) at the guard; now format-only check (sites.ts:147-153).
+  - recordDesktopConsumption silent-fail (L1 #6) → FIXED: 42P18 dangling $1 orgId (cc9e8db9→fafbda65→f03ec09d→a8888231).
+  - void-output e-sign mislabel (L2) → FIXED: labels now "E-sign PIN or account password" (page.tsx:484/490).
+  - warehouse.receipt.correct enum drift → FIXED (permissions.enum.ts:263).
+  - DB-pool exhaustion (L1/L2 infra) → addressed: prefetch-storm load driver fixed (d4b85a9c) + idle-release tuning (e01ea8f8) + per-request client reuse (#50/d5bff767).
+- 9/9 findings checked across BOTH queues = all fixed. Technical backlog genuinely worked-down (method now rigorous).
+- REMAINING (NOT autonomous): owner-decision feature-gaps (createCustomer UI, PO cancel/Reopen UI, DRAFT-WO Release flow, desktop-PO-receive design); browser-confirm L2/L3 polish (cycle-count list refresh, integrations dead "Przeglądaj katalog", appointment UTC offset, add-machine button); L3 WO-state JSON via API-under-locale-seg. Best next = LIVE browser RE-VERIFY of the 9 fixes + PL i18n (deferred — protecting reserve; recommended for a comfortable-budget window / owner's morning).
