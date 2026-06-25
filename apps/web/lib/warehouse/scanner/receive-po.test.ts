@@ -80,6 +80,58 @@ describe('scanner receive PO service', () => {
     expect(findCall(client, 'insert into public.quality_inspections')).toBeUndefined();
   });
 
+  it('flips the open draft GRN to completed once the PO rolls up to fully received', async () => {
+    const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000', isReceived: true });
+
+    const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-complete' });
+
+    expect(result).toMatchObject({ ok: true, poStatus: 'received' });
+
+    // the GRN completion is org-scoped, PO-scoped, po-source-typed, and only
+    // touches still-draft rows (idempotent), stamping completed_at
+    const grnComplete = findCall(client, "update public.grns set status = 'completed'");
+    expect(grnComplete).toBeTruthy();
+    expect(grnComplete?.sql).toContain('completed_at = now()');
+    expect(grnComplete?.sql).toContain("source_type = 'po'");
+    expect(grnComplete?.sql).toContain("status = 'draft'");
+    expect(grnComplete?.params).toEqual([ORG_A, PO_ID, USER_A]);
+
+    // the completion runs after the grn_item insert (so the freeze trigger on
+    // grn_items never sees a completed parent) and before commit
+    const sqls = client.calls.map((call) => call.sql);
+    const grnItemIdx = sqls.findIndex((sql) => sql.includes('insert into public.grn_items'));
+    const completeIdx = sqls.findIndex((sql) => sql.includes("update public.grns set status = 'completed'"));
+    const commitIdx = sqls.indexOf('commit');
+    expect(completeIdx).toBeGreaterThan(grnItemIdx);
+    expect(completeIdx).toBeLessThan(commitIdx);
+  });
+
+  it('leaves the GRN as draft on a partial receipt (PO still partially_received)', async () => {
+    const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000', isReceived: false });
+
+    const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-partial', qty: '2.000' });
+
+    expect(result).toMatchObject({ ok: true, poStatus: 'partially_received' });
+    // no completion update is issued while the PO is only partially received
+    expect(client.calls.some((call) => call.sql.includes("update public.grns set status = 'completed'"))).toBe(false);
+    expect(client.statements).toContain('commit');
+  });
+
+  it('completes only draft GRNs (idempotent — a second receive re-runs the no-op-safe flip)', async () => {
+    const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000', isReceived: true });
+
+    await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-idem' });
+
+    // the flip is scoped to status = 'draft', so re-issuing it after the GRN is
+    // already completed matches zero rows — no double-completion, no error
+    const grnComplete = findCall(client, "update public.grns set status = 'completed'");
+    expect(grnComplete?.sql).toContain("and status = 'draft'");
+    // exactly one completion statement per receive that finalises the PO
+    expect(client.calls.filter((call) => call.sql.includes("update public.grns set status = 'completed'"))).toHaveLength(
+      1,
+    );
+  });
+
   it('emits warehouse.lp.received with the LP aggregate in the receive transaction', async () => {
     const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000' });
 

@@ -832,7 +832,43 @@ async function rollupPurchaseOrderStatus(
         and id = $2::uuid`,
     [session.org_id, poId, status, session.user_id],
   );
+
+  // Receipt finalisation (the missing status flip): the ONLY honest
+  // "fully received" signal in this flow is the PO rolling up to 'received'
+  // (every line's summed received_qty >= ordered qty — see is_received above).
+  // At that moment the open draft GRN(s) for this PO represent the finalised
+  // receipt, so flip them to 'completed' + stamp completed_at. A partial
+  // receipt leaves the PO 'partially_received' and the GRN stays 'draft' by
+  // design. The update is idempotent (only 'draft' rows flip), org-scoped, and
+  // runs inside the receive txn after the grn_item insert, so the
+  // grn_items_block_completed_grn freeze (mig 193/299) never sees a conflict.
+  // getOrCreateOpenGrn only reuses *same-day* drafts, so a multi-day receipt
+  // can leave several draft GRNs for one PO — completing them all is correct
+  // because the PO is now fully received.
+  if (status === 'received') {
+    await completeFullyReceivedGrns(client, session, poId);
+  }
+
   return status;
+}
+
+async function completeFullyReceivedGrns(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  poId: string,
+): Promise<void> {
+  await client.query(
+    `update public.grns
+        set status = 'completed',
+            completed_at = now(),
+            updated_by = $3::uuid,
+            updated_at = now()
+      where org_id = $1::uuid
+        and po_id = $2::uuid
+        and source_type = 'po'
+        and status = 'draft'`,
+    [session.org_id, poId, session.user_id],
+  );
 }
 
 async function insertAudit(
