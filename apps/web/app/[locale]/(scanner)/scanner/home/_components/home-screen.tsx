@@ -44,6 +44,7 @@ const SECTIONS: Section[] = [
       { key: "receive", icon: "📦", to: "scanner/receive-po" },
       { key: "putaway", icon: "📍", to: "scanner/putaway" },
       { key: "move", icon: "🚚", to: "scanner/move" },
+      { key: "ship", icon: "🚢", to: "scanner/ship" },
     ],
   },
   {

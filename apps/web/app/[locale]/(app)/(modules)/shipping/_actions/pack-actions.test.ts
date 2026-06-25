@@ -31,6 +31,7 @@ let insertedBoxes: Array<Record<string, unknown>> = [];
 let insertedContents: Array<Record<string, unknown>> = [];
 let existingPackedContent = false;
 let allocationExists = true;
+let lpBlocked = false;
 let lpCodeLookupId: string | null = LP_ID;
 let detailBoxes: Array<{ id: string; box_number: number; sscc: string | null }> = [];
 let detailContents: Array<{
@@ -147,6 +148,13 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.startsWith('select case when h.hold_id')) {
+        return {
+          rows: lpBlocked ? [{ reason: 'hold' }] : [],
+          rowCount: lpBlocked ? 1 : 0,
+        };
+      }
+
       if (q.includes('public.generate_sscc')) {
         return { rows: [{ sscc: generatedSscc }], rowCount: 1 };
       }
@@ -228,6 +236,7 @@ beforeEach(() => {
   insertedContents = [];
   existingPackedContent = false;
   allocationExists = true;
+  lpBlocked = false;
   lpCodeLookupId = LP_ID;
   detailBoxes = [{ id: BOX_ID, box_number: 1, sscc: generatedSscc }];
   detailContents = [
@@ -321,6 +330,16 @@ describe('packLpIntoBox', () => {
           entry.params[0] === LP_ID,
       ),
     ).toBe(true);
+  });
+
+  it('refuses to pack an LP that is on hold / QA-unreleased / expired (food-safety guard)', async () => {
+    lpBlocked = true;
+
+    const result = await packLpIntoBox({ shipmentId: SHIPMENT_ID, lpId: LP_ID });
+
+    expect(result).toEqual({ ok: false, error: 'lp_blocked_for_pack' });
+    expect(insertedBoxes).toEqual([]);
+    expect(insertedContents).toEqual([]);
   });
 
   it('returns lp_not_found for an unknown scanned LP code without throwing a UUID cast error', async () => {

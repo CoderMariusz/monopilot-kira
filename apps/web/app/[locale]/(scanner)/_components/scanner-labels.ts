@@ -124,6 +124,7 @@ interface ScannerLabelsShape {
       move: TileLabel;
       putaway: TileLabel;
       pick: TileLabel;
+      ship: TileLabel;
       qa: TileLabel;
       inquiry: TileLabel;
       settings: TileLabel;
@@ -401,6 +402,35 @@ interface ScannerLabelsShape {
     errGeneric: string;
     statusValues: Record<string, string>;
   };
+  shipScreen: {
+    title: string;
+    listTitle: string;
+    selectPrompt: string;
+    loadingList: string;
+    emptyTitle: string;
+    emptyBody: string;
+    errorLoad: string;
+    permissionDenied: string;
+    retry: string;
+    soLabel: string;
+    customerLabel: string;
+    noCustomer: string;
+    boxes: string;
+    packedSoFar: string;
+    scanLabel: string;
+    scanPlaceholder: string;
+    scanHint: string;
+    packed: string;
+    packedCountLabel: string;
+    errBlocked: string;
+    errNotAllocated: string;
+    errLpNotFound: string;
+    errAlreadyPacked: string;
+    errInvalidState: string;
+    errGeneric: string;
+    backToList: string;
+    backToMenu: string;
+  };
   loading: string;
 }
 
@@ -544,6 +574,7 @@ const en: ScannerLabelsShape = {
       move: { title: "Move LP", desc: "Relocate a pallet" },
       putaway: { title: "Putaway", desc: "Put away LP (FEFO)" },
       pick: { title: "Pick for WO", desc: "Collect materials" },
+      ship: { title: "Pack for SO", desc: "Scan FG into a shipment" },
       qa: { title: "QC Inspection", desc: "PASS / FAIL / HOLD" },
       inquiry: { title: "LP info", desc: "Look up a License Plate" },
       settings: { title: "Settings", desc: "Scanner preferences" },
@@ -855,6 +886,35 @@ const en: ScannerLabelsShape = {
       none: "—",
     },
   },
+  shipScreen: {
+    title: "Pack for SO",
+    listTitle: "Open shipments",
+    selectPrompt: "Pick a shipment to pack into",
+    loadingList: "Loading shipments…",
+    emptyTitle: "Nothing to pack",
+    emptyBody: "There are no open (packing) shipments. Create one from a Sales Order first.",
+    errorLoad: "Could not load shipments.",
+    permissionDenied: "Session expired or permission denied.",
+    retry: "Try again",
+    soLabel: "Order",
+    customerLabel: "Customer",
+    noCustomer: "—",
+    boxes: "Boxes",
+    packedSoFar: "Packed",
+    scanLabel: "Scan FG license plate",
+    scanPlaceholder: "LP-XXXXX or type…",
+    scanHint: "Scan a finished-good LP allocated to this order",
+    packed: "Packed",
+    packedCountLabel: "Packed this session",
+    errBlocked: "Blocked — LP is on a quality hold, not QA-released, or expired.",
+    errNotAllocated: "This LP is not allocated to this sales order.",
+    errLpNotFound: "License plate not found.",
+    errAlreadyPacked: "This LP is already packed into a shipment.",
+    errInvalidState: "This shipment can no longer be packed.",
+    errGeneric: "Could not pack the LP. Try again.",
+    backToList: "Back to shipments",
+    backToMenu: "Back to menu",
+  },
   loading: "Loading…",
 } as const;
 
@@ -995,6 +1055,7 @@ const pl: ScannerLabelsShape = {
       move: { title: "Przesuń LP", desc: "Przenieś paletę" },
       putaway: { title: "Putaway", desc: "Odłóż LP (FEFO)" },
       pick: { title: "Pick dla WO", desc: "Zbierz materiały" },
+      ship: { title: "Pakuj dla SO", desc: "Skanuj wyrób do wysyłki" },
       qa: { title: "Inspekcja QC", desc: "PASS / FAIL / HOLD" },
       inquiry: { title: "LP info", desc: "Wyszukaj License Plate" },
       settings: { title: "Ustawienia", desc: "Preferencje skanera" },
@@ -1304,6 +1365,35 @@ const pl: ScannerLabelsShape = {
       released: "Zwolniony",
       none: "—",
     },
+  },
+  shipScreen: {
+    title: "Pakuj dla SO",
+    listTitle: "Otwarte wysyłki",
+    selectPrompt: "Wybierz wysyłkę do pakowania",
+    loadingList: "Ładowanie wysyłek…",
+    emptyTitle: "Brak wysyłek do pakowania",
+    emptyBody: "Nie ma otwartych (pakowanych) wysyłek. Najpierw utwórz wysyłkę z Zamówienia sprzedaży.",
+    errorLoad: "Nie udało się załadować wysyłek.",
+    permissionDenied: "Sesja wygasła lub brak uprawnień.",
+    retry: "Spróbuj ponownie",
+    soLabel: "Zamówienie",
+    customerLabel: "Klient",
+    noCustomer: "—",
+    boxes: "Kartony",
+    packedSoFar: "Spakowano",
+    scanLabel: "Zeskanuj LP wyrobu gotowego",
+    scanPlaceholder: "LP-XXXXX lub wpisz…",
+    scanHint: "Zeskanuj LP wyrobu przypisany do tego zamówienia",
+    packed: "Spakowano",
+    packedCountLabel: "Spakowano w tej sesji",
+    errBlocked: "Zablokowane — LP na wstrzymaniu jakości, niezwolniony przez QA lub przeterminowany.",
+    errNotAllocated: "Ten LP nie jest przypisany do tego zamówienia sprzedaży.",
+    errLpNotFound: "Nie znaleziono License Plate.",
+    errAlreadyPacked: "Ten LP jest już spakowany do wysyłki.",
+    errInvalidState: "Tej wysyłki nie można już pakować.",
+    errGeneric: "Nie udało się spakować LP. Spróbuj ponownie.",
+    backToList: "Wróć do wysyłek",
+    backToMenu: "Wróć do menu",
   },
   loading: "Ładowanie…",
 };
