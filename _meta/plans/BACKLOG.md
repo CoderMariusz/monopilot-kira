@@ -2,6 +2,10 @@
 
 The single entry point for "what's left to build". Start here.
 
+## 🌙 ACTIVE: Night Build (2026-06-25 → 05:00)
+Live dispatch tracker → **[2026-06-25-night-build-dispatch.md](./2026-06-25-night-build-dispatch.md)**.
+Building the union of both gaps reports (no-owner items), per-role-unlock first. Owner-locked: RBAC writes deferred · print-HTML docs · Sparkline/HTML charts. Wave-by-wave status + 05:00 decision list live in the tracker.
+
 ## ⭐ The ~100-task gaps backlog (2026-06-25, 20-agent ultracode analysis)
 
 Two evidence-grounded reports (every item cites real file/route/migration evidence):
