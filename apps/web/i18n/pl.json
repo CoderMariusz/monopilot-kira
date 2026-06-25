@@ -9766,7 +9766,8 @@
         "alreadyShipped": "Ta wysyłka została już wysłana.",
         "errors": {
           "invalid_state": "Tej wysyłki nie można wysłać w bieżącym statusie.",
-          "not_found": "Ta wysyłka już nie istnieje."
+          "not_found": "Ta wysyłka już nie istnieje.",
+          "lp_blocked_for_ship": "Nie można wysłać — nośnik (LP) jest na wstrzymaniu jakości, niezwolniony przez QA lub przeterminowany."
         },
         "bolNotAvailable": "List przewozowy (BOL) można wygenerować dopiero po spakowaniu wysyłki, do momentu jej dostarczenia.",
         "podNotShipped": "Potwierdzenie dostawy (POD) można zarejestrować tylko dla wysłanej wysyłki."

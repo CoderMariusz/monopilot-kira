@@ -227,6 +227,41 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
       );
       if (!updatedShipmentRows[0]) throw new ActionError('persistence_failed');
 
+      // Food-safety re-assert (G-QA-01 / G-SHIP-06 / owner per-rule = BLOCK): a
+      // quality hold, a QA-status reversion, or an expiry can land AFTER
+      // allocation but BEFORE ship. Re-check every LP in the shipment and REFUSE
+      // to ship if any is on an active hold (v_active_holds, T-064), not
+      // QA-released, or past its expiry date — held/expired goods must not leave
+      // the building. Same transaction → throwing here rolls back the
+      // packing→packed flip too, so the shipment can be re-shipped after the
+      // hold/expiry is resolved.
+      const { rows: blockedLps } = await ctx.client.query<{ lp_number: string; reason: string }>(
+        `select lp.lp_number,
+                case when h.hold_id is not null then 'hold'
+                     when lp.qa_status is distinct from 'released' then 'qa'
+                     else 'expired' end as reason
+           from public.shipment_box_contents sbc
+           join public.shipment_boxes sb on sb.id = sbc.shipment_box_id
+            and sb.org_id = app.current_org_id() and sb.deleted_at is null
+           join public.license_plates lp on lp.id = sbc.license_plate_id
+            and lp.org_id = app.current_org_id()
+           left join lateral (
+             select hold_id from public.v_active_holds h
+              where h.org_id = app.current_org_id()
+                and h.reference_type = 'lp' and h.reference_id = lp.id
+              limit 1
+           ) h on true
+          where sbc.org_id = app.current_org_id() and sbc.deleted_at is null
+            and sb.shipment_id = $1::uuid
+            and sbc.quantity is not null and sbc.quantity > 0
+            and ( h.hold_id is not null
+                  or lp.qa_status is distinct from 'released'
+                  or (lp.expiry_date is not null and lp.expiry_date < current_date) )
+          limit 5`,
+        [shipmentId],
+      );
+      if (blockedLps.length > 0) throw new ActionError('lp_blocked_for_ship');
+
       const { rows: updatedLpRows } = await ctx.client.query<{
         id: string;
         shipped_qty: string;

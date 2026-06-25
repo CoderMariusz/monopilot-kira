@@ -210,6 +210,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
           forbidden: t('errors.forbidden'),
           invalid_state: t('ship.errors.invalid_state'),
           not_found: t('ship.errors.not_found'),
+          lp_blocked_for_ship: t('ship.errors.lp_blocked_for_ship'),
           persistence_failed: t('errors.persistence_failed'),
         },
       },

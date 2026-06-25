@@ -655,6 +655,10 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
             and lp.product_id = $1::uuid
             and lp.status = 'available'
             and lp.qa_status = 'released'
+            -- Food-safety (G-QA-03 / owner per-rule BLOCK): never allocate an
+            -- already-expired LP. The order-by still prefers earliest expiry
+            -- (FEFO); this only drops LPs that are past their expiry date.
+            and (lp.expiry_date is null or lp.expiry_date >= current_date)
             and (lp.quantity - lp.reserved_qty) > 0
           order by lp.expiry_date asc nulls last, lp.created_at asc
           for update of lp`,

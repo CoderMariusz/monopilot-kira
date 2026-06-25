@@ -9766,7 +9766,8 @@
         "alreadyShipped": "This shipment has already been shipped.",
         "errors": {
           "invalid_state": "This shipment cannot be shipped in its current status.",
-          "not_found": "That shipment no longer exists."
+          "not_found": "That shipment no longer exists.",
+          "lp_blocked_for_ship": "Cannot ship — a license plate is on a quality hold, not QA-released, or expired."
         },
         "bolNotAvailable": "A bill of lading can only be generated once the shipment is packed, until it is delivered.",
         "podNotShipped": "Proof of delivery can only be recorded for a shipment that has been shipped."
