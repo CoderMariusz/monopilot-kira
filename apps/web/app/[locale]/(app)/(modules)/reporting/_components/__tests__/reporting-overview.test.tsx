@@ -351,7 +351,9 @@ describe('ReportingOverviewClient', () => {
 
     fireEvent.click(screen.getByTestId('rpt-export-inventory'));
     expect(downloadCsvMock.mock.calls[1][1]).toMatch(/^reporting-inventory-/);
-    expect(downloadCsvMock.mock.calls[1][0]).toContain('WH1,15,13,2,120.500,1,3');
+    expect(downloadCsvMock.mock.calls[1][0]).toContain(
+      'WH1,15,13,2,120.500,20.000 box · 120.500 kg,1,3',
+    );
 
     fireEvent.click(screen.getByTestId('rpt-export-quality'));
     expect(downloadCsvMock.mock.calls[2][1]).toMatch(/^reporting-quality-/);
