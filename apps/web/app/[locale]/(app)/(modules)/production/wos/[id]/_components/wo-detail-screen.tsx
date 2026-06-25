@@ -167,6 +167,7 @@ export type WoDetailLabels = {
   changeoverGate: { title: string; body: string; link: string };
   overProduction: { badge: string; tooltip: string };
   headerActions: {
+    release: string;
     start: string;
     startReleaseHint: string;
     pause: string;
@@ -365,6 +366,7 @@ function ProgressBar({ pct, label }: { pct: number; label: string }) {
 export type WoDetailActions = {
   locale: string;
   status: WoState | null;
+  workOrderStatus: string;
   permissions: WoActionPermissions;
   currentUserId: string;
   downtimeCategories: WoReasonCategory[];
@@ -760,6 +762,7 @@ export function WoDetailScreen({
                   {labels.headerActions.start}
                 </button>
               ) : null}
+              <WoActionTrigger kind="release" label={labels.headerActions.release} />
               <WoActionTrigger kind="start" label={labels.headerActions.start} />
               <WoActionTrigger kind="pause" label={labels.headerActions.pause} />
               <WoActionTrigger kind="resume" label={labels.headerActions.resume} />
@@ -1546,6 +1549,7 @@ export function WoDetailScreen({
       locale={actions.locale}
       woId={h.id}
       status={actions.status}
+      workOrderStatus={actions.workOrderStatus}
       permissions={actions.permissions}
       labels={actions.modalLabels}
       currentUserId={actions.currentUserId}

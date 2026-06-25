@@ -27,6 +27,7 @@ import type { OutputUomContext } from '../action-modals';
 import type { WoActionPermissions, WoModalLabels } from '../types';
 
 const ALL_PERMS: WoActionPermissions = {
+  release: true,
   start: true,
   pause: true,
   resume: true,
@@ -47,6 +48,7 @@ const LABELS: WoModalLabels = {
     invalid_state_transition: 'Not valid for the current state.',
     uom_conversion_unavailable: 'Missing pack data — set it in Technical.',
   },
+  release: { title: 'Release', subtitle: '.' },
   start: { title: 'Start', subtitle: '.', line: 'Line', shift: 'Shift', optional: 'optional' },
   pause: { title: 'Pause', subtitle: '.', reason: 'Reason', reasonPlaceholder: 'Select…', line: 'Line', linePlaceholder: 'Select a line…', noLines: 'No lines.', shift: 'Shift', shiftPlaceholder: 'Select a shift…', notes: 'Notes', noCategories: 'None' },
   resume: { title: 'Resume', subtitle: '.', duration: 'Duration', durationHint: 'Optional' },
@@ -125,6 +127,7 @@ function Harness({ uom }: { uom: OutputUomContext | null }) {
       locale="en"
       woId={WO_ID}
       status="in_progress"
+      workOrderStatus="RELEASED"
       permissions={ALL_PERMS}
       labels={LABELS}
       currentUserId="22222222-2222-2222-2222-222222222222"

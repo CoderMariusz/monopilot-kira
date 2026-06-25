@@ -30,6 +30,7 @@ import { WoActionsProvider, WoActionTrigger } from '../wo-actions';
 import type { WoActionPermissions, WoModalLabels, WoState } from '../types';
 
 const ALL_PERMS: WoActionPermissions = {
+  release: true,
   start: true,
   pause: true,
   resume: true,
@@ -53,6 +54,7 @@ const LABELS: WoModalLabels = {
     closed_production_strict_failed: 'Output yield gate not met.',
     esign_failed: 'E-signature failed — check your password and try again.',
   },
+  release: { title: 'Release to production', subtitle: 'Release this work order.' },
   start: { title: 'Start work order', subtitle: 'Begin execution.', line: 'Line', shift: 'Shift', optional: 'optional' },
   pause: { title: 'Pause work order', subtitle: 'Open downtime.', reason: 'Downtime reason', reasonPlaceholder: 'Select…', line: 'Line', linePlaceholder: 'Select a line…', noLines: 'No lines configured.', shift: 'Shift', shiftPlaceholder: 'Select a shift…', notes: 'Notes', noCategories: 'No categories' },
   resume: { title: 'Resume work order', subtitle: 'Resume.', duration: 'Actual downtime (minutes)', durationHint: 'Optional' },
@@ -88,6 +90,7 @@ function Harness({
       locale="en"
       woId="11111111-1111-1111-1111-111111111111"
       status={status}
+      workOrderStatus={status === null ? 'DRAFT' : 'RELEASED'}
       permissions={permissions}
       labels={LABELS}
       currentUserId="22222222-2222-2222-2222-222222222222"
@@ -98,6 +101,7 @@ function Harness({
       defaultLineId="LINE-1"
       defaultProductId="33333333-3333-3333-3333-333333333333"
     >
+      <WoActionTrigger kind="release" label="Release to production" />
       <WoActionTrigger kind="start" label="Start" />
       <WoActionTrigger kind="pause" label="Pause" />
       <WoActionTrigger kind="resume" label="Resume" />
@@ -180,9 +184,35 @@ describe('WO action gating (state + RBAC)', () => {
     // complete still allowed → visible
     expect(screen.getByTestId('wo-action-complete')).toBeInTheDocument();
   });
+
+  it('draft work orders offer Release when npd.planning.write is granted', () => {
+    render(<Harness status={null} />);
+    expect(screen.getByTestId('wo-action-release')).toBeInTheDocument();
+    expect(screen.queryByTestId('wo-action-start')).not.toBeInTheDocument();
+  });
+
+  it('release permission=false hides the Release trigger', () => {
+    render(<Harness status={null} permissions={{ ...ALL_PERMS, release: false }} />);
+    expect(screen.queryByTestId('wo-action-release')).not.toBeInTheDocument();
+  });
 });
 
 describe('WO action payloads (mock fetch)', () => {
+  it('Release posts to the Planning-backed release adapter with the locale prefix', async () => {
+    const captured: { url?: string; body?: any } = {};
+    vi.stubGlobal('fetch', mockFetchOk(captured));
+    const user = userEvent.setup();
+    render(<Harness status={null} />);
+
+    await user.click(screen.getByTestId('wo-action-release'));
+    await user.click(screen.getByTestId('wo-release-confirm'));
+
+    await waitFor(() => expect(captured.url).toBeDefined());
+    expect(captured.url).toBe('/en/production/work-orders/11111111-1111-1111-1111-111111111111/release');
+    expect(captured.body).toEqual({});
+    expect(refresh).toHaveBeenCalled();
+  });
+
   it('Start posts { transactionId, lineId, shiftId } to the start route with the locale prefix', async () => {
     const captured: { url?: string; body?: any } = {};
     vi.stubGlobal('fetch', mockFetchOk(captured));

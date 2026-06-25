@@ -38,6 +38,7 @@ const EVIDENCE_DIR = path.resolve(
 );
 
 const ALL_PERMS: WoActionPermissions = {
+  release: true,
   start: true, pause: true, resume: true, cancel: true,
   complete: true, close: true, outputWrite: true, wasteWrite: true,
 };
@@ -46,6 +47,7 @@ const LABELS: WoModalLabels = {
   cancel: 'Cancel', confirm: 'Confirm', submitting: 'Submitting…',
   errorFallback: 'The action could not be completed.',
   errors: { invalid_input: 'Check the values you entered.' },
+  release: { title: 'Release', subtitle: '.' },
   start: { title: 'Start', subtitle: '.', line: 'Line', shift: 'Shift', optional: 'optional' },
   pause: {
     title: 'Pause work order', subtitle: 'Open a categorized downtime.',
@@ -100,7 +102,7 @@ function Harness({
 }) {
   return (
     <WoActionsProvider
-      locale="en" woId={WO_ID} status="in_progress" permissions={permissions} labels={LABELS}
+      locale="en" woId={WO_ID} status="in_progress" workOrderStatus="RELEASED" permissions={permissions} labels={LABELS}
       currentUserId="22222222-2222-2222-2222-222222222222"
       downtimeCategories={DOWNTIME_CATS} wasteCategories={WASTE_CATS}
       shifts={shifts} lines={lines} defaultLineId={defaultLineId}

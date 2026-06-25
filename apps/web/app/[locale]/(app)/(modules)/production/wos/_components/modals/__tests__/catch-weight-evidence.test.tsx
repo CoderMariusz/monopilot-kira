@@ -32,6 +32,7 @@ const EVIDENCE_DIR = path.resolve(
 );
 
 const ALL_PERMS: WoActionPermissions = {
+  release: true,
   start: true, pause: true, resume: true, cancel: true,
   complete: true, close: true, outputWrite: true, wasteWrite: true,
 };
@@ -43,6 +44,7 @@ const LABELS: WoModalLabels = {
     invalid_input: 'Check the values you entered.',
     uom_conversion_unavailable: 'Missing pack data — set it in Technical.',
   },
+  release: { title: 'Release', subtitle: '.' },
   start: { title: 'Start', subtitle: '.', line: 'Line', shift: 'Shift', optional: 'optional' },
   pause: { title: 'Pause', subtitle: '.', reason: 'Reason', reasonPlaceholder: 'Select…', line: 'Line', linePlaceholder: 'Select a line…', noLines: 'No lines.', shift: 'Shift', shiftPlaceholder: 'Select a shift…', notes: 'Notes', noCategories: 'None' },
   resume: { title: 'Resume', subtitle: '.', duration: 'Duration', durationHint: 'Optional' },
@@ -83,7 +85,7 @@ const CATCH_EACH: OutputUomContext = {
 function Harness({ uom }: { uom: OutputUomContext | null }) {
   return (
     <WoActionsProvider
-      locale="en" woId={WO_ID} status="in_progress" permissions={ALL_PERMS} labels={LABELS}
+      locale="en" woId={WO_ID} status="in_progress" workOrderStatus="RELEASED" permissions={ALL_PERMS} labels={LABELS}
       currentUserId="22222222-2222-2222-2222-222222222222"
       downtimeCategories={[]} wasteCategories={[]} shifts={[]} lines={[]} defaultLineId={null}
       defaultProductId={PRODUCT_ID} outputUom={uom}

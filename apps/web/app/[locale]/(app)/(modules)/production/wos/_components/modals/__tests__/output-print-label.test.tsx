@@ -25,6 +25,7 @@ import type { OutputPrintLabelInput, OutputPrintLabelResult, OutputUomContext } 
 import type { WoActionPermissions, WoModalLabels } from '../types';
 
 const ALL_PERMS: WoActionPermissions = {
+  release: true,
   start: true,
   pause: true,
   resume: true,
@@ -41,6 +42,7 @@ const LABELS: WoModalLabels = {
   submitting: 'Submitting…',
   errorFallback: 'The action could not be completed.',
   errors: { invalid_input: 'Check the values you entered.' },
+  release: { title: 'Release', subtitle: '.' },
   start: { title: 'Start', subtitle: '.', line: 'Line', shift: 'Shift', optional: 'optional' },
   pause: { title: 'Pause', subtitle: '.', reason: 'Reason', reasonPlaceholder: 'Select…', line: 'Line', linePlaceholder: 'Select a line…', noLines: 'No lines.', shift: 'Shift', shiftPlaceholder: 'Select a shift…', notes: 'Notes', noCategories: 'None' },
   resume: { title: 'Resume', subtitle: '.', duration: 'Duration', durationHint: 'Optional' },
@@ -104,6 +106,7 @@ function Harness({
       locale="en"
       woId={WO_ID}
       status="in_progress"
+      workOrderStatus="RELEASED"
       permissions={ALL_PERMS}
       labels={LABELS}
       currentUserId="22222222-2222-2222-2222-222222222222"

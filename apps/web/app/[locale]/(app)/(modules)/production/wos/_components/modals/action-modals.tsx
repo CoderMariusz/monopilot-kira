@@ -8,6 +8,7 @@
  * error code to inline i18n copy (role=alert), close + refresh on success.
  *
  * Payload shapes are the EXACT handler zod/parse contracts:
+ *   release { }  (Planning-owned releaseWorkOrder adapter route)
  *   start   { transactionId, lineId?, shiftId? }
  *   pause   { transactionId, reasonCategoryId, lineId, shiftId?, notes? }
  *   resume  { transactionId, actualDurationMin? }
@@ -121,6 +122,44 @@ type BaseModalProps = {
   run: RunWoAction;
   onClose: () => void;
 };
+
+// ── Release ───────────────────────────────────────────────────────────────────
+
+export function ReleaseModal({ open, labels, run, onClose }: BaseModalProps) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleConfirm() {
+    setBusy(true);
+    setError(null);
+    const result = await run('release', {});
+    setBusy(false);
+    if (result.ok) {
+      setError(null);
+      onClose();
+    } else {
+      setError(mapError(labels, result.errorCode, result.message));
+    }
+  }
+
+  return (
+    <Modal open={open} onOpenChange={(n) => (n ? undefined : onClose())} modalId="wo-release" size="sm">
+      <Modal.Header title={labels.release.title} />
+      <Modal.Body>
+        <p className="mb-3 text-sm text-slate-600">{labels.release.subtitle}</p>
+        {error ? <ErrorBanner message={error} testid="wo-release-error" /> : null}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button type="button" data-testid="wo-release-cancel" disabled={busy} onClick={onClose}>
+          {labels.cancel}
+        </Button>
+        <Button type="button" data-testid="wo-release-confirm" disabled={busy} onClick={handleConfirm}>
+          {busy ? labels.submitting : labels.confirm}
+        </Button>
+      </Modal.Footer>
+    </Modal>
+  );
+}
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

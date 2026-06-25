@@ -11,7 +11,8 @@
  *
  *   1. RBAC — the same permission strings the route handlers + services check
  *      (production.wo.start / pause / resume / cancel / complete / close,
- *      production.output.write, production.waste.write). Resolved here under RLS
+ *      production.output.write, production.waste.write) plus Planning-owned
+ *      WO release (`npd.planning.write`). Resolved here under RLS
  *      via the canonical `hasPermission` helper; the client receives a flat
  *      boolean bag and renders accordingly (the route re-checks server-side, so a
  *      tampered client can never actually mutate — this only governs affordance).
@@ -41,6 +42,7 @@ import {
 } from '../../../../../../lib/production/shared';
 
 export type WoActionPermissions = {
+  release: boolean;
   start: boolean;
   pause: boolean;
   resume: boolean;
@@ -96,6 +98,8 @@ async function readWoShiftOptions(client: QueryClient, orgId: string): Promise<W
 export type WoActionContextData = {
   /** Runtime lifecycle status — null when the WO has no execution row yet. */
   executionStatus: WoState | null;
+  /** Planning header status from work_orders.status (DRAFT/RELEASED/...). */
+  workOrderStatus: string;
   permissions: WoActionPermissions;
   /** Supervisor e-sign signer (current user) for the CLOSE flow. */
   currentUserId: string;
@@ -125,6 +129,7 @@ export type WoActionContextResult =
   | { ok: false; reason: 'not_found' | 'error' };
 
 const PERMISSION_STRINGS: Record<keyof WoActionPermissions, string> = {
+  release: 'npd.planning.write',
   start: 'production.wo.start',
   pause: 'production.wo.pause',
   resume: 'production.wo.resume',
@@ -220,10 +225,12 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
       // the Pause-modal line dropdown can preselect it.
       const woRes = await c.query<{
         id: string;
+        work_order_status: string;
         line_id: string | null;
         line_code: string | null;
       }>(
         `select w.id::text as id,
+                w.status as work_order_status,
                 w.production_line_id::text as line_id,
                 pl.code as line_code
            from public.work_orders w
@@ -274,6 +281,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
         ok: true,
         data: {
           executionStatus,
+          workOrderStatus: woRow.work_order_status,
           permissions,
           currentUserId: ctx.userId,
           downtimeCategories: downtimeRes.rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),

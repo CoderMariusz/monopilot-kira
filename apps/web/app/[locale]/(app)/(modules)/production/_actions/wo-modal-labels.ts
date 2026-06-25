@@ -26,6 +26,7 @@ const ERROR_CODES = [
   'wo_not_recordable',
   'already_recorded',
   'invalid_reference',
+  'factory_release_incomplete',
   'persistence_failed',
   'network_error',
 ] as const;
@@ -87,6 +88,10 @@ export function buildWoModalLabels(t: Translator): WoModalLabels {
       reason: t('close.reason'),
       legal: t('close.legal'),
       pinHint: t('close.pinHint'),
+    },
+    release: {
+      title: t('release.title'),
+      subtitle: t('release.subtitle'),
     },
     output: {
       title: t('output.title'),

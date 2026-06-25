@@ -143,7 +143,7 @@ function makeData(overrides: Partial<WorkOrderDetailData> & { bomType: 'forward'
 }
 
 const ACTIONS = {
-  locale: 'en', status: 'in_progress',
+  locale: 'en', status: 'in_progress', workOrderStatus: 'RELEASED',
   permissions: {} as never, currentUserId: 'u1', downtimeCategories: [], wasteCategories: [], shifts: [], lines: [],
   modalLabels: buildWoModalLabels((k: string) => k),
 } as unknown as WoDetailActions;

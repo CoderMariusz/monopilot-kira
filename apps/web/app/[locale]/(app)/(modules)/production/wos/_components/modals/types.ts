@@ -25,6 +25,7 @@ export type { WoState } from '../../../../../../../../lib/production/shared';
 
 /** The lifecycle verbs + the two recording actions wired by this lane. */
 export type WoActionKind =
+  | 'release'
   | 'start'
   | 'pause'
   | 'resume'
@@ -116,6 +117,7 @@ export type WoModalLabels = {
      */
     pinHint?: string;
   };
+  release: { title: string; subtitle: string };
   output: {
     title: string;
     subtitle: string;

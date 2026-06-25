@@ -270,6 +270,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       tooltip: wosT('overProduction.tooltip'),
     },
     headerActions: {
+      release: t('headerActions.release'),
       start: t('headerActions.start'),
       startReleaseHint: t('headerActions.startReleaseHint'),
       pause: t('headerActions.pause'),
@@ -778,6 +779,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
     actions = {
       locale,
       status: actionCtx.data.executionStatus,
+      workOrderStatus: actionCtx.data.workOrderStatus,
       permissions: actionCtx.data.permissions,
       currentUserId: actionCtx.data.currentUserId,
       downtimeCategories: actionCtx.data.downtimeCategories,

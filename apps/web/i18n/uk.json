@@ -7509,6 +7509,7 @@
         },
         "deferredActionTitle": "Wired in the next step",
         "headerActions": {
+          "release": "Release to production",
           "pause": "Pause",
           "waste": "Waste",
           "catchWeight": "Catch-weight",
@@ -7841,6 +7842,7 @@
           "wo_not_recordable": "The work order is not in a state that accepts this record.",
           "already_recorded": "This entry was already recorded.",
           "invalid_reference": "An invalid reference was supplied.",
+          "factory_release_incomplete": "This work order needs an active BOM and factory-approved spec before it can be released.",
           "persistence_failed": "Something went wrong saving the action. Please retry.",
           "network_error": "Network error — please check your connection and retry.",
           "fallback": "The action could not be completed.",
@@ -7851,6 +7853,10 @@
           "subtitle": "Begin execution. Optionally record the line and shift.",
           "line": "Line",
           "shift": "Shift"
+        },
+        "release": {
+          "title": "Release to production",
+          "subtitle": "Release this work order so production can start execution."
         },
         "pause": {
           "title": "Pause work order",

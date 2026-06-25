@@ -116,7 +116,7 @@ const DATA = {
 // consume modal does NOT depend on the WoActionsProvider internals — the header
 // bar / per-tab triggers it powers are not under test here.
 const ACTIONS = {
-  locale: 'en', status: 'in_progress',
+  locale: 'en', status: 'in_progress', workOrderStatus: 'RELEASED',
   permissions: {} as any, currentUserId: 'u1', downtimeCategories: [], wasteCategories: [],
   // Real-shaped modal labels (passthrough translator) so the WoActionsProvider's
   // header/per-tab modals render without crashing — they are NOT under test here.

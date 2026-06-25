@@ -212,10 +212,11 @@ const SCREEN_LABELS: WoDetailLabels = {
   history: { title: 'Event log', empty: 'none', sourceStatus: 'Status', sourceExecution: 'Execution', col: { time: 'Time', source: 'Source', action: 'Action', transition: 'Transition', reason: 'Reason' } },
 };
 
-const PERMS: WoActionPermissions = { start: true, pause: true, resume: true, cancel: true, complete: true, close: true, outputWrite: true, wasteWrite: true };
+const PERMS: WoActionPermissions = { release: true, start: true, pause: true, resume: true, cancel: true, complete: true, close: true, outputWrite: true, wasteWrite: true };
 const MODAL_LABELS = {
   cancel: 'Cancel', confirm: 'Confirm', submitting: 'Submitting…', errorFallback: 'fail',
   errors: { invalid_state_transition: 'x', quality_hold_active: 'x', forbidden: 'x', wo_not_recordable: 'x', closed_production_strict_failed: 'x', esign_failed: 'x' },
+  release: { title: 'Release', subtitle: '.' },
   start: { title: 't', subtitle: 's', line: 'Line', shift: 'Shift', optional: 'opt' },
   pause: { title: 't', subtitle: 's', reason: 'r', reasonPlaceholder: 'p', line: 'Line', shift: 'Shift', notes: 'n', noCategories: 'nc' },
   resume: { title: 't', subtitle: 's', duration: 'd', durationHint: 'h' },
@@ -229,6 +230,7 @@ const MODAL_LABELS = {
 const ACTIONS: WoDetailActions = {
   locale: 'en',
   status: 'in_progress',
+  workOrderStatus: 'RELEASED',
   permissions: PERMS,
   currentUserId: '22222222-2222-2222-2222-222222222222',
   downtimeCategories: [],

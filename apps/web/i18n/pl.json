@@ -7509,6 +7509,7 @@
         },
         "deferredActionTitle": "Zostanie podłączone w kolejnym kroku",
         "headerActions": {
+          "release": "Zwolnij do produkcji",
           "pause": "Wstrzymaj",
           "waste": "Odpad",
           "catchWeight": "Waga zmienna",
@@ -7841,6 +7842,7 @@
           "wo_not_recordable": "Zlecenie nie jest w stanie pozwalającym na ten zapis.",
           "already_recorded": "Ten wpis został już zarejestrowany.",
           "invalid_reference": "Podano nieprawidłowe odniesienie.",
+          "factory_release_incomplete": "To zlecenie wymaga aktywnego BOM-u i specyfikacji zatwierdzonej do produkcji przed zwolnieniem.",
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
           "network_error": "Błąd sieci — sprawdź połączenie i spróbuj ponownie.",
           "fallback": "Nie udało się wykonać akcji.",
@@ -7851,6 +7853,10 @@
           "subtitle": "Rozpocznij realizację. Opcjonalnie podaj linię i zmianę.",
           "line": "Linia",
           "shift": "Zmiana"
+        },
+        "release": {
+          "title": "Zwolnij do produkcji",
+          "subtitle": "Zwolnij to zlecenie, aby produkcja mogła rozpocząć realizację."
         },
         "pause": {
           "title": "Wstrzymaj zlecenie",

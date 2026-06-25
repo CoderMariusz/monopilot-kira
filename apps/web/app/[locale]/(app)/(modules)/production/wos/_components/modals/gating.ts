@@ -6,6 +6,7 @@
  * so the UI only ever OFFERS an action the handler can actually accept. This is
  * an affordance gate; the route re-validates server-side regardless.
  *
+ *   draft        → release
  *   planned      → start, cancel
  *   in_progress  → pause, complete, cancel, output, waste
  *   paused       → resume, cancel, output, waste
@@ -24,9 +25,12 @@ const RECORDABLE: ReadonlySet<WoState> = new Set<WoState>(['in_progress', 'pause
 export function isActionAvailable(
   kind: WoActionKind,
   status: WoState | null,
+  workOrderStatus?: string | null,
 ): boolean {
   const s: WoState = status ?? 'planned';
   switch (kind) {
+    case 'release':
+      return normalizeWorkOrderStatus(workOrderStatus) === 'DRAFT';
     case 'start':
       return status !== null && s === 'planned';
     case 'pause':
@@ -48,6 +52,7 @@ export function isActionAvailable(
 }
 
 const PERMISSION_FOR: Record<WoActionKind, keyof WoActionPermissions> = {
+  release: 'release',
   start: 'start',
   pause: 'pause',
   resume: 'resume',
@@ -63,6 +68,11 @@ export function canOfferAction(
   kind: WoActionKind,
   status: WoState | null,
   permissions: WoActionPermissions,
+  workOrderStatus?: string | null,
 ): boolean {
-  return isActionAvailable(kind, status) && permissions[PERMISSION_FOR[kind]];
+  return isActionAvailable(kind, status, workOrderStatus) && permissions[PERMISSION_FOR[kind]];
+}
+
+function normalizeWorkOrderStatus(status?: string | null): string {
+  return typeof status === 'string' ? status.trim().toUpperCase() : '';
 }

@@ -32,6 +32,7 @@ import type { RunWoAction, WoActionData, WoActionKind, WoActionResult } from './
 
 /** action verb → route-handler path segment. */
 const ROUTE_SEGMENT: Record<WoActionKind, string> = {
+  release: 'release',
   start: 'start',
   pause: 'pause',
   resume: 'resume',

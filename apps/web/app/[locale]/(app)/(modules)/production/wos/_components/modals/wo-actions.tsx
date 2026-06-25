@@ -22,6 +22,7 @@ import { canOfferAction } from './gating';
 import { useWoAction } from './use-wo-action';
 import {
   StartModal,
+  ReleaseModal,
   PauseModal,
   ResumeModal,
   CancelModal,
@@ -45,6 +46,7 @@ import type {
 
 type WoActionsContextValue = {
   status: WoState | null;
+  workOrderStatus: string | null;
   permissions: WoActionPermissions;
   labels: WoModalLabels;
   open: WoActionKind | null;
@@ -63,6 +65,7 @@ export type WoActionsProviderProps = {
   locale: string;
   woId: string;
   status: WoState | null;
+  workOrderStatus: string | null;
   permissions: WoActionPermissions;
   labels: WoModalLabels;
   currentUserId: string;
@@ -96,8 +99,15 @@ export type WoActionsProviderProps = {
 export function WoActionsProvider(props: WoActionsProviderProps) {
   const [open, setOpen] = useState<WoActionKind | null>(null);
   const value = useMemo<WoActionsContextValue>(
-    () => ({ status: props.status, permissions: props.permissions, labels: props.labels, open, setOpen }),
-    [props.status, props.permissions, props.labels, open],
+    () => ({
+      status: props.status,
+      workOrderStatus: props.workOrderStatus,
+      permissions: props.permissions,
+      labels: props.labels,
+      open,
+      setOpen,
+    }),
+    [props.status, props.workOrderStatus, props.permissions, props.labels, open],
   );
 
   // The modal renderer + runner live here so they mount once.
@@ -139,8 +149,8 @@ export function WoActionTrigger({
   variant?: 'header' | 'tab';
   testid?: string;
 }) {
-  const { status, permissions, setOpen } = useWoActionsCtx();
-  if (!canOfferAction(kind, status, permissions)) return null;
+  const { status, workOrderStatus, permissions, setOpen } = useWoActionsCtx();
+  if (!canOfferAction(kind, status, permissions, workOrderStatus)) return null;
 
   const className =
     variant === 'header'
@@ -196,6 +206,7 @@ function WoActionModals({
   return (
     <>
       <StartModal open={open === 'start'} {...base} />
+      <ReleaseModal open={open === 'release'} {...base} />
       <PauseModal
         open={open === 'pause'}
         {...base}
