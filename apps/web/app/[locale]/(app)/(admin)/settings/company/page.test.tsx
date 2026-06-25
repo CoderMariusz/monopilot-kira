@@ -62,9 +62,25 @@ vi.mock('next-intl', () => ({
   useTranslations: (namespace?: string) => (key: string) => messages[key] ?? `${namespace}.${key}`,
 }));
 
+vi.mock('next-intl/server', () => ({
+  getTranslations: async ({ namespace }: { locale?: string; namespace?: string }) => {
+    return (key: string) => messages[key] ?? `${namespace}.${key}`;
+  },
+}));
+
 const routerRefresh = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: routerRefresh, push: vi.fn(), replace: vi.fn() }),
+}));
+
+const { readCompanyProfileMock, saveCompanyProfileMock } = vi.hoisted(() => ({
+  readCompanyProfileMock: vi.fn(),
+  saveCompanyProfileMock: vi.fn(),
+}));
+
+vi.mock('./_actions/company-profile', () => ({
+  readCompanyProfile: readCompanyProfileMock,
+  saveCompanyProfile: saveCompanyProfileMock,
 }));
 
 type CompanyProfile = {
@@ -98,7 +114,7 @@ type CompanyProfilePageProps = {
   uploadLogo: ReturnType<typeof vi.fn>;
 };
 
-type CompanyProfilePage = (props: CompanyProfilePageProps) => React.ReactNode | Promise<React.ReactNode>;
+type CompanyProfilePage = (props?: { params?: Promise<{ locale: string }> }) => React.ReactNode | Promise<React.ReactNode>;
 
 const organization: CompanyProfile = {
   id: 'org-apex',
@@ -123,9 +139,9 @@ const organization: CompanyProfile = {
 
 async function loadCompanyProfilePage(): Promise<CompanyProfilePage> {
   try {
-    const pageModulePath = './company-profile-screen.client';
+    const pageModulePath = './page.tsx';
     const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-010 page must default-export a renderable React component').toEqual(
+    expect(mod.default, 'SET-010 page must default-export a renderable React Server Component').toEqual(
       expect.any(Function),
     );
     return mod.default as CompanyProfilePage;
@@ -151,12 +167,22 @@ async function renderCompanyProfile(overrides: Partial<CompanyProfilePageProps> 
     ...overrides,
   };
 
-  if (Page.constructor.name === 'AsyncFunction') {
-    const node = await Page(props);
-    return { props, ...render(React.createElement(React.Fragment, null, node)) };
+  saveCompanyProfileMock.mockImplementation(props.saveCompanyProfile);
+  if (props.state === 'ready') {
+    readCompanyProfileMock.mockResolvedValue({
+      state: 'ready',
+      organization: props.organization,
+      canEdit: props.canEdit,
+    });
+  } else {
+    readCompanyProfileMock.mockResolvedValue({
+      state: props.state,
+      canEdit: props.canEdit,
+    });
   }
 
-  return { props, ...render(React.createElement(Page as React.ComponentType<CompanyProfilePageProps>, props)) };
+  const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+  return { props, ...render(React.createElement(React.Fragment, null, node)) };
 }
 
 function sectionTitles() {
