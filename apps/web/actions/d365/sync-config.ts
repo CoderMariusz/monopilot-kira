@@ -37,6 +37,7 @@ import {
   type UpdateD365SyncConfigInput,
   type UpdateD365SyncConfigResult,
 } from './sync-config-types';
+import { D365_ENABLED_FLAG } from '../../lib/integrations/d365/gate';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -119,7 +120,19 @@ async function hasManagePermission(ctx: OrgActionContext): Promise<boolean> {
   return rows.length > 0;
 }
 
-function coerceConfig(blob: Record<string, unknown> | null | undefined): Omit<D365SyncConfig, 'dlq_href'> {
+async function isD365GloballyEnabled(ctx: OrgActionContext): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ is_enabled: boolean }>(
+    `select is_enabled
+       from public.feature_flags_core
+      where org_id = app.current_org_id()
+        and flag_code = $1
+      limit 1`,
+    [D365_ENABLED_FLAG],
+  );
+  return rows[0]?.is_enabled === true;
+}
+
+function coerceConfig(blob: Record<string, unknown> | null | undefined, d365Enabled: boolean): Omit<D365SyncConfig, 'dlq_href'> {
   const b = blob ?? {};
   const num = (v: unknown, fallback: number): number => {
     const n = Number(v);
@@ -130,7 +143,8 @@ function coerceConfig(blob: Record<string, unknown> | null | undefined): Omit<D3
     batch_size: num(b.batch_size, D365_SYNC_DEFAULTS.batch_size),
     max_attempts: num(b.max_attempts, D365_SYNC_DEFAULTS.max_attempts),
     retry_backoff_minutes: num(b.retry_backoff_minutes, D365_SYNC_DEFAULTS.retry_backoff_minutes),
-    push_queue_enabled: b.push_queue_enabled == null ? D365_SYNC_DEFAULTS.push_queue_enabled : Boolean(b.push_queue_enabled),
+    push_queue_enabled:
+      d365Enabled && (b.push_queue_enabled == null ? D365_SYNC_DEFAULTS.push_queue_enabled : Boolean(b.push_queue_enabled)),
     last_applied_at: typeof b.last_applied_at === 'string' ? b.last_applied_at : null,
     applied_by_user: typeof b.applied_by_user === 'string' ? b.applied_by_user : null,
   };
@@ -158,7 +172,8 @@ export async function loadD365SyncConfig(locale = 'en'): Promise<LoadD365SyncCon
         [D365_SYNC_CATEGORY],
       );
 
-      const base = coerceConfig(rows[0]?.config);
+      const d365Enabled = await isD365GloballyEnabled(ctx);
+      const base = coerceConfig(rows[0]?.config, d365Enabled);
       const config: D365SyncConfig = { ...base, dlq_href: dlqHrefForLocale(locale) };
       return { ok: true as const, canEdit, config };
     });
@@ -200,12 +215,13 @@ export async function updateD365SyncConfig(rawInput: unknown): Promise<UpdateD36
       );
       const appliedByUser = userRows[0]?.label ?? null;
 
+      const d365Enabled = await isD365GloballyEnabled(ctx);
       const blob = {
         pull_cron: input.pull_cron,
         batch_size: input.batch_size,
         max_attempts: input.max_attempts,
         retry_backoff_minutes: input.retry_backoff_minutes,
-        push_queue_enabled: input.push_queue_enabled,
+        push_queue_enabled: d365Enabled && input.push_queue_enabled,
         last_applied_at: new Date().toISOString(),
         applied_by_user: appliedByUser,
       };

@@ -30,6 +30,7 @@ type FakeClient = {
   auditRows: Array<{ action: string; resource_type: string; after_state: unknown }>;
   outboxRows: Array<{ event_type: string; aggregate_type: string; payload: unknown }>;
   hasManage: boolean;
+  d365Enabled: boolean;
   query: <T = Record<string, unknown>>(sql: string, params?: readonly unknown[]) => Promise<{ rows: T[]; rowCount: number }>;
 };
 
@@ -46,10 +47,11 @@ function makeClient(options: { hasManage?: boolean } = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     integrationRows: [],
-    auditRows: [],
-    outboxRows: [],
-    hasManage: options.hasManage ?? true,
-    async query(sql, params = []) {
+      auditRows: [],
+      outboxRows: [],
+      hasManage: options.hasManage ?? true,
+      d365Enabled: false,
+      async query(sql, params = []) {
       client.calls.push({ sql, params });
       const n = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       const paramsText = params.map(String).join(' ').toLowerCase();
@@ -64,6 +66,11 @@ function makeClient(options: { hasManage?: boolean } = {}): FakeClient {
       // applied_by label lookup
       if (n.startsWith('select') && n.includes('from public.users')) {
         return { rows: [{ label: 'Marta Owner' }] as never[], rowCount: 1 };
+      }
+
+      // Canonical D365 gate flag
+      if (n.startsWith('select is_enabled') && n.includes('from public.feature_flags_core')) {
+        return { rows: [{ is_enabled: client.d365Enabled }] as never[], rowCount: 1 };
       }
 
       // Load config
@@ -176,6 +183,7 @@ describe('D365 sync config Server Actions (T-111 / SET-082)', () => {
     expect(persisted, 'd365_sync config must be persisted to integration_settings').toBeDefined();
     expect(persisted!.config.pull_cron).toBe('0 * * * *');
     expect(persisted!.config.batch_size).toBe(100);
+    expect(persisted!.config.push_queue_enabled).toBe(false);
     expect(persisted!.config.applied_by_user).toBe('Marta Owner');
     expect(typeof persisted!.config.last_applied_at).toBe('string');
 
@@ -185,8 +193,27 @@ describe('D365 sync config Server Actions (T-111 / SET-082)', () => {
     if (!reload.ok) return;
     expect(reload.config.pull_cron).toBe('0 * * * *');
     expect(reload.config.batch_size).toBe(100);
+    expect(reload.config.push_queue_enabled).toBe(false);
     expect(reload.config.applied_by_user).toBe('Marta Owner');
     expect(reload.config.last_applied_at).not.toBeNull();
+  });
+
+  it('keeps the editor push queue disabled when integration.d365.enabled is false', async () => {
+    const { loadD365SyncConfig, updateD365SyncConfig } = await loadModule();
+
+    const saved = await updateD365SyncConfig({ ...validInput, push_queue_enabled: true });
+    expect(saved).toEqual({ ok: true });
+    expect(currentClient.integrationRows[0]!.config.push_queue_enabled).toBe(false);
+
+    const loaded = await loadD365SyncConfig('en');
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.config.push_queue_enabled).toBe(false);
+    expect(
+      currentClient.calls.some(
+        (call) => /from public\.feature_flags_core/i.test(call.sql) && call.params.includes('integration.d365.enabled'),
+      ),
+    ).toBe(true);
   });
 
   it('updateD365SyncConfig emits a settings.d365_sync.updated outbox event in the same txn', async () => {

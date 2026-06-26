@@ -5,7 +5,8 @@
  *
  * Cost-source inspection and resolution decisions:
  * - Materials: public.wo_material_consumption.qty_consumed joined to public.items by
- *   component_id; `items.cost_per_kg` is the technical/finance dual-owned master.
+ *   component_id; active `item_cost_history.cost_per_kg` is preferred, falling
+ *   back to the denormalized `items.cost_per_kg`.
  * - Process costing: process rows are JSON-backed reference rows in
  *   public.reference_tables where table_code='processes' (migrations 269/276),
  *   not a physical processes table. Today the WO has no process FK, so resolution
@@ -245,11 +246,20 @@ async function computeWoActualCostInContext(
   const materials = await ctx.client.query<MaterialRow>(
     `select coalesce(i.item_code, c.component_id::text) as item_code,
             sum(c.qty_consumed)::text as qty_kg,
-            max(i.cost_per_kg)::text as cost_per_kg
+            max(coalesce(ch.cost_per_kg, i.cost_per_kg))::text as cost_per_kg
        from public.wo_material_consumption c
        left join public.items i
          on i.org_id = app.current_org_id()
         and i.id = c.component_id
+       left join lateral (
+         select cost_per_kg
+           from public.item_cost_history
+          where org_id = app.current_org_id()
+            and item_id = c.component_id
+            and effective_to is null
+          order by effective_from desc
+          limit 1
+       ) ch on true
       where c.org_id = app.current_org_id()
         and c.wo_id = $1::uuid
       group by coalesce(i.item_code, c.component_id::text)

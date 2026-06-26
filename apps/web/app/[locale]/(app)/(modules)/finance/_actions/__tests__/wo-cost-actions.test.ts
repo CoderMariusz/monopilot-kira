@@ -124,4 +124,23 @@ describe('listCompletedWoCosts', () => {
     expect(result.data.rows[0]?.totalCost).toBe('17.0000');
     expect(calls.some((call) => call.sql.includes('where wo.org_id = app.current_org_id()'))).toBe(true);
   });
+
+  it('costs consumed materials from the active item_cost_history fallback', async () => {
+    const result = await listCompletedWoCosts({ days: 30 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const row = result.data.rows[0];
+    expect(row?.materials).toEqual([
+      { itemCode: 'RM-A', qtyKg: '2.000', costPerKg: '3.500000', cost: '7.0000' },
+    ]);
+    expect(row?.materialsTotal).toBe('7.0000');
+    expect(row?.totalCost).toBe('17.0000');
+
+    const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
+    expect(materialsQuery?.sql).toContain('left join lateral');
+    expect(materialsQuery?.sql).toContain('from public.item_cost_history');
+    expect(materialsQuery?.sql).toContain('max(coalesce(ch.cost_per_kg, i.cost_per_kg))::text as cost_per_kg');
+  });
 });
