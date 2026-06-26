@@ -42,6 +42,7 @@ function buildApprovalQueryHandler(opts: {
   marginPct?: string;
   thresholdRow?: { value_int: number | null; value_text: string | null };
   cascadeAudited?: boolean;
+  declarationAccepted?: boolean;
   projectId?: string | null;
 } = {}): QueryHandler {
   return (sql) => {
@@ -51,6 +52,7 @@ function buildApprovalQueryHandler(opts: {
           product_code: productA,
           allergens: ['gluten'],
           may_contain: [],
+          allergens_declaration_accepted: opts.declarationAccepted ?? false,
         }],
       };
     }
@@ -178,6 +180,17 @@ describe('evaluateApprovalCriteria Server Action — input wiring', () => {
   it('passes C5 when a processed allergen cascade row exists', async () => {
     const { evaluateApprovalCriteria } = await importEvaluateWithMocks({
       handler: buildApprovalQueryHandler({ cascadeAudited: true }),
+    });
+
+    const result = await evaluateApprovalCriteria(productA);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.data.C5 : null).toBe('pass');
+  });
+
+  it('passes C5 when the allergen declaration was manually accepted', async () => {
+    const { evaluateApprovalCriteria } = await importEvaluateWithMocks({
+      handler: buildApprovalQueryHandler({ cascadeAudited: false, declarationAccepted: true }),
     });
 
     const result = await evaluateApprovalCriteria(productA);

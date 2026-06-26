@@ -36,6 +36,7 @@ type ProductRow = {
   product_code: string;
   allergens: string[] | null;
   may_contain: string[] | null;
+  allergens_declaration_accepted: boolean;
 };
 
 type ProjectRow = {
@@ -69,7 +70,7 @@ export async function evaluateApprovalCriteria(
   try {
     return await withOrgContext(async ({ client }) => {
       const product = await client.query<ProductRow>(
-        `select product_code, allergens, may_contain
+        `select product_code, allergens, may_contain, allergens_declaration_accepted
            from public.product
           where product_code = $1
             and org_id = app.current_org_id()
@@ -197,7 +198,7 @@ export async function evaluateApprovalCriteria(
           },
           sensory: sensoryInput,
           allergens: {
-            audited: allergenAudit.rows[0]?.audited === true,
+            audited: allergenAudit.rows[0]?.audited === true || productRow.allergens_declaration_accepted === true,
             passed: publishedAllergens.every((code) => code.trim().length > 0),
           },
           risks: {
