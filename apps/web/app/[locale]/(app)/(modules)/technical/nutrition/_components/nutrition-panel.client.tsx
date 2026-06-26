@@ -16,6 +16,7 @@
  */
 
 import React from 'react';
+import { flushSync } from 'react-dom';
 import Link from 'next/link';
 
 import { Select } from '@monopilot/ui/Select';
@@ -173,6 +174,100 @@ function PanelView({ panel, copy }: { panel: NutritionPanel; copy: NutritionCopy
   );
 }
 
+function PrintLabelView({ panel, copy }: { panel: NutritionPanel; copy: NutritionCopy }) {
+  return (
+    <section className="hidden print:block print:p-8 print:text-black" aria-label={copy.macrosTitle}>
+      <div className="print:mx-auto print:max-w-[720px] print:font-sans">
+        <div className="print:mb-4 print:border-b print:border-black print:pb-3">
+          <div className="print:text-sm print:font-semibold print:uppercase print:tracking-normal">
+            {panel.productCode}
+          </div>
+          <h1 className="print:mt-1 print:text-2xl print:font-bold">
+            {panel.productName ?? panel.productCode}
+          </h1>
+          <div className="print:mt-2 print:text-sm">
+            {panel.computedAt
+              ? copy.computedNote.replace('{when}', panel.computedAt.slice(0, 10))
+              : copy.computedNoteNoDate}
+          </div>
+        </div>
+
+        <div className="print:mb-5">
+          <h2 className="print:mb-2 print:text-xl print:font-bold">{copy.macrosTitle}</h2>
+          <table className="print:w-full print:border-collapse print:text-sm" aria-label={copy.macrosTitle}>
+            <thead>
+              <tr>
+                <th className="print:border print:border-black print:p-2 print:text-left" scope="col">
+                  {copy.nutrient}
+                </th>
+                <th className="print:border print:border-black print:p-2 print:text-right" scope="col">
+                  {copy.per100g}
+                </th>
+                <th className="print:border print:border-black print:p-2 print:text-right" scope="col">
+                  {copy.perPortion}
+                </th>
+                <th className="print:border print:border-black print:p-2 print:text-left" scope="col">
+                  {copy.regulation}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {panel.macros.map((m) => (
+                <tr key={m.nutrientCode}>
+                  <td className="print:border print:border-black print:p-2 print:font-semibold">
+                    {m.displayName}
+                  </td>
+                  <td className="print:border print:border-black print:p-2 print:text-right print:font-semibold">
+                    {m.per100g} {m.unit}
+                  </td>
+                  <td className="print:border print:border-black print:p-2 print:text-right">
+                    {m.perPortion ? `${m.perPortion} ${m.unit}` : '-'}
+                  </td>
+                  <td className="print:border print:border-black print:p-2">{m.regulation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <h2 className="print:mb-2 print:text-xl print:font-bold">{copy.allergensTitle}</h2>
+          {panel.allergens.length === 0 ? (
+            <div className="print:border print:border-black print:p-3 print:text-sm">
+              {copy.noAllergens}
+            </div>
+          ) : (
+            <table className="print:w-full print:border-collapse print:text-sm" aria-label={copy.allergensTitle}>
+              <thead>
+                <tr>
+                  <th className="print:border print:border-black print:p-2 print:text-left" scope="col">
+                    {copy.allergen}
+                  </th>
+                  <th className="print:border print:border-black print:p-2 print:text-left" scope="col">
+                    {copy.presenceCol}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {panel.allergens.map((a) => (
+                  <tr key={a.allergenCode}>
+                    <td className="print:border print:border-black print:p-2 print:font-semibold">
+                      {a.name}
+                    </td>
+                    <td className="print:border print:border-black print:p-2">
+                      {copy.presence[a.presence]}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function NutritionPanelClient({
   products,
   copy,
@@ -184,6 +279,7 @@ export function NutritionPanelClient({
   const [panel, setPanel] = React.useState<NutritionPanel | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [loadError, setLoadError] = React.useState(false);
+  const [printReady, setPrintReady] = React.useState(false);
 
   const load = React.useCallback((productCode: string) => {
     if (!productCode) {
@@ -205,6 +301,17 @@ export function NutritionPanelClient({
     load(selected);
   }, [selected, load]);
 
+  React.useEffect(() => {
+    const preparePrint = () => setPrintReady(true);
+    const resetPrint = () => setPrintReady(false);
+    window.addEventListener('beforeprint', preparePrint);
+    window.addEventListener('afterprint', resetPrint);
+    return () => {
+      window.removeEventListener('beforeprint', preparePrint);
+      window.removeEventListener('afterprint', resetPrint);
+    };
+  }, []);
+
   const options = products.map((p) => ({
     value: p.productCode,
     label: p.productName ? `${p.productCode} · ${p.productName}` : p.productCode,
@@ -216,62 +323,76 @@ export function NutritionPanelClient({
     products.find((p) => p.productCode === selected)?.npdProjectId ?? null;
 
   return (
-    <div className="flex flex-col gap-4" data-screen="technical-nutrition">
-      <div className="card">
-        <div className="flex flex-wrap items-end gap-4 p-4">
-          <label className="label block">
-            {copy.selectLabel}
-            <div className="mt-1 w-80">
-              <Select
-                value={selected}
-                onValueChange={setSelected}
-                options={options}
-                placeholder={copy.selectPlaceholder}
-                aria-label={copy.selectLabel}
-              />
-            </div>
-          </label>
-          {/* Phase-3 NPD↔Technical shortcut — read-level link to the source NPD
+    <>
+      <div className="flex flex-col gap-4 print:hidden" data-screen="technical-nutrition">
+        <div className="card">
+          <div className="flex flex-wrap items-end gap-4 p-4">
+            <label className="label block">
+              {copy.selectLabel}
+              <div className="mt-1 w-80">
+                <Select
+                  value={selected}
+                  onValueChange={setSelected}
+                  options={options}
+                  placeholder={copy.selectPlaceholder}
+                  aria-label={copy.selectLabel}
+                />
+              </div>
+            </label>
+            {/* Phase-3 NPD↔Technical shortcut — read-level link to the source NPD
               project. Rendered ONLY when the selected product maps to an
               npd_projects row; omitted gracefully otherwise. prefetch={false}. */}
-          {selectedNpdProjectId ? (
-            <Link
-              href={`/pipeline/${selectedNpdProjectId}`}
-              prefetch={false}
-              data-testid="technical-nutrition-npd-link"
-              className="btn btn-ghost btn-sm"
-              style={{ color: 'var(--text-muted)' }}
+            {selectedNpdProjectId ? (
+              <Link
+                href={`/pipeline/${selectedNpdProjectId}`}
+                prefetch={false}
+                data-testid="technical-nutrition-npd-link"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {copy.openNpdProject}
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm ml-auto"
+              onClick={() => {
+                flushSync(() => setPrintReady(true));
+                window.print();
+              }}
+              disabled={!panel}
             >
-              {copy.openNpdProject}
-            </Link>
-          ) : null}
+              Print label
+            </button>
+          </div>
         </div>
-      </div>
 
-      {!selected ? (
-        <div className="card">
-          <div className="empty-state">
-            <div className="empty-state-icon">🥗</div>
-            <div className="empty-state-body">{copy.selectPrompt}</div>
+        {!selected ? (
+          <div className="card">
+            <div className="empty-state">
+              <div className="empty-state-icon">🥗</div>
+              <div className="empty-state-body">{copy.selectPrompt}</div>
+            </div>
           </div>
-        </div>
-      ) : loading ? (
-        <div className="card">
-          <div className="px-6 py-8">
-            <div
-              className="h-32 animate-pulse rounded-md"
-              style={{ background: 'var(--gray-100)' }}
-              aria-label={copy.loading}
-            />
+        ) : loading ? (
+          <div className="card">
+            <div className="px-6 py-8">
+              <div
+                className="h-32 animate-pulse rounded-md"
+                style={{ background: 'var(--gray-100)' }}
+                aria-label={copy.loading}
+              />
+            </div>
           </div>
-        </div>
-      ) : loadError ? (
-        <div role="alert" className="alert alert-red">
-          <div className="alert-title">{copy.loadError}</div>
-        </div>
-      ) : panel ? (
-        <PanelView panel={panel} copy={copy} />
-      ) : null}
-    </div>
+        ) : loadError ? (
+          <div role="alert" className="alert alert-red">
+            <div className="alert-title">{copy.loadError}</div>
+          </div>
+        ) : panel ? (
+          <PanelView panel={panel} copy={copy} />
+        ) : null}
+      </div>
+      {panel && printReady ? <PrintLabelView panel={panel} copy={copy} /> : null}
+    </>
   );
 }
