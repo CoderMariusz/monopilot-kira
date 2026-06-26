@@ -34,6 +34,7 @@ import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@monopilot/ui/Tabs';
 
 import { BomLineRowActions } from './bom-line-row-actions';
+import { BomCoProductRowActions } from './bom-coproduct-row-actions.client';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied' | 'not_found';
 
@@ -64,6 +65,8 @@ export type BomCoProductView = {
   uom: string;
   allocationPct: string;
   isByproduct: boolean;
+  /** Optional expected yield % — prefills the co-product edit modal. Null when unset. */
+  expectedYieldPct?: string | null;
 };
 
 export type BomVersionView = {
@@ -450,6 +453,9 @@ export function BomDetailScreen({
                     <th scope="col">{labels.colUom}</th>
                     <th scope="col" style={{ textAlign: 'right' }}>{labels.colAllocation}</th>
                     <th scope="col">{labels.colType}</th>
+                    {data.canEditLines ? (
+                      <th scope="col" style={{ textAlign: 'right' }}>{labels.colActions}</th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -464,6 +470,24 @@ export function BomDetailScreen({
                           {cp.isByproduct ? labels.byproductBadge : labels.coProductBadge}
                         </span>
                       </td>
+                      {data.canEditLines && data.selectedHeaderId ? (
+                        <td style={{ textAlign: 'right' }}>
+                          <BomCoProductRowActions
+                            target={{
+                              bomHeaderId: data.selectedHeaderId,
+                              coProductId: cp.id,
+                              coProductItemId: cp.coProductItemId,
+                              quantity: cp.quantity,
+                              uom: cp.uom,
+                              allocationPct: cp.allocationPct,
+                              expectedYieldPct: cp.expectedYieldPct ?? null,
+                              isByproduct: cp.isByproduct,
+                            }}
+                            editable={data.isEditable ?? false}
+                            canEdit={data.canEditLines}
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

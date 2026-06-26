@@ -44,12 +44,15 @@ import { Select } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { SpecSignModal, type SpecSignLabels } from './spec-sign-modal.client';
+import { SpecParamRowActions, type SpecParamRowActionsLabels } from './spec-param-row-actions.client';
 import type {
   ApproveSpecFn,
+  DeleteSpecParameterFn,
   SpecDetail,
   SpecStatus,
   SubmitSpecForReviewFn,
   SupersedeSpecFn,
+  UpdateSpecParameterFn,
 } from '../../_components/spec-actions-contract';
 
 const STATUS_VARIANT: Record<SpecStatus, BadgeVariant> = {
@@ -94,7 +97,9 @@ export type SpecDetailLabels = {
     critical: string;
     criticalBadge: string;
     empty: string;
+    actionsColumn: string;
   };
+  paramActions: SpecParamRowActionsLabels;
   actions: {
     title: string;
     submitForReview: string;
@@ -121,23 +126,29 @@ export function SpecDetailClient({
   canApprove,
   canSubmit,
   canSupersede,
+  canEdit,
   supersedeCandidates,
   labels,
   locale,
   submitForReviewAction,
   approveSpecAction,
   supersedeSpecAction,
+  updateSpecParameterAction,
+  deleteSpecParameterAction,
 }: {
   spec: SpecDetail;
   canApprove: boolean;
   canSubmit: boolean;
   canSupersede: boolean;
+  canEdit: boolean;
   supersedeCandidates: SupersedeCandidate[];
   labels: SpecDetailLabels;
   locale: string;
   submitForReviewAction: SubmitSpecForReviewFn;
   approveSpecAction: ApproveSpecFn;
   supersedeSpecAction: SupersedeSpecFn;
+  updateSpecParameterAction: UpdateSpecParameterFn;
+  deleteSpecParameterAction: DeleteSpecParameterFn;
 }) {
   const router = useRouter();
   const [signOpen, setSignOpen] = useState(false);
@@ -146,6 +157,13 @@ export function SpecDetailClient({
   const [pending, startTransition] = useTransition();
 
   const criticalCount = spec.parameters.filter((p) => p.isCritical).length;
+
+  // Per-row Edit/Delete affordance: ONLY for a DRAFT spec AND a server-resolved
+  // edit grant. Mirrors the server contract — updateSpecParameter/deleteSpecParameter
+  // only mutate draft specs (requireDraftSpec) and gate quality.spec.approve. The
+  // column/buttons are affordances only; the actions re-check authoritatively.
+  const isDraft = spec.status === 'draft';
+  const showParamActions = isDraft && canEdit;
 
   function submitForReview() {
     setError(null);
@@ -274,6 +292,12 @@ export function SpecDetailClient({
                     <TableHead scope="col">{labels.parameters.max}</TableHead>
                     <TableHead scope="col">{labels.parameters.unit}</TableHead>
                     <TableHead scope="col">{labels.parameters.critical}</TableHead>
+                    {showParamActions ? (
+                      <TableHead scope="col" data-testid="spec-param-actions-col">
+                        <span className="sr-only">{labels.parameters.actionsColumn}</span>
+                        <span aria-hidden>{labels.parameters.actionsColumn}</span>
+                      </TableHead>
+                    ) : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -302,6 +326,18 @@ export function SpecDetailClient({
                           <span className="text-slate-400">—</span>
                         )}
                       </TableCell>
+                      {showParamActions ? (
+                        <TableCell>
+                          <SpecParamRowActions
+                            specId={spec.id}
+                            parameter={p}
+                            index={i}
+                            labels={labels.paramActions}
+                            updateSpecParameter={updateSpecParameterAction}
+                            deleteSpecParameter={deleteSpecParameterAction}
+                          />
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>

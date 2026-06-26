@@ -32,14 +32,21 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 
 import type {
   ActivatePlanAction,
+  DeactivateCcpAction,
   HaccpPlan,
   HaccpPlanStatus,
   HazardType,
   UpsertCcpAction,
 } from '../../_components/haccp-contracts';
-import type { PlanDetailLabels, PlanActivateLabels, CcpAddLabels } from '../../_components/labels';
+import type {
+  PlanDetailLabels,
+  PlanActivateLabels,
+  CcpAddLabels,
+  CcpRowActionsLabels,
+} from '../../_components/labels';
 import { formatLimit, type Translator } from '../../_components/labels';
 import { CcpAddModal } from './ccp-add-modal.client';
+import { CcpRowActions } from './ccp-row-actions.client';
 import { PlanActivateModal } from '../../_components/plan-activate-modal.client';
 
 const STATUS_VARIANT: Record<HaccpPlanStatus, BadgeVariant> = {
@@ -59,9 +66,11 @@ export function PlanDetailClient({
   plan,
   labels,
   ccpAddLabels,
+  ccpRowActionsLabels,
   activateLabels,
   canEdit,
   upsertCcpAction,
+  deactivateCcpAction,
   activatePlanAction,
   t,
 }: {
@@ -69,10 +78,13 @@ export function PlanDetailClient({
   labels: PlanDetailLabels;
   /** labels for the MODAL-CCP-ADD island (built once on the page). */
   ccpAddLabels: CcpAddLabels;
+  /** labels for the per-row Edit/Deactivate island (built once on the page). */
+  ccpRowActionsLabels: CcpRowActionsLabels;
   activateLabels: PlanActivateLabels;
   /** holds quality.haccp.plan_edit (resolved SERVER-side; the actions re-check). */
   canEdit: boolean;
   upsertCcpAction: UpsertCcpAction;
+  deactivateCcpAction: DeactivateCcpAction;
   activatePlanAction: ActivatePlanAction;
   /** the same translator the labels were built from — used for {min}/{max} limit interpolation. */
   t: Translator;
@@ -82,8 +94,11 @@ export function PlanDetailClient({
   const [activateOpen, setActivateOpen] = useState(false);
 
   const isDraft = plan.status === 'draft';
-  // Editing CCP limits (adding a CCP) is allowed ONLY while the plan is a draft.
+  // Editing CCP limits (adding / editing / deactivating a CCP) is allowed ONLY
+  // while the plan is a draft AND the user holds quality.haccp.plan_edit.
   const canAddCcp = canEdit && isDraft;
+  // Per-row Edit/Deactivate actions render under the SAME gate as add (rule 0.13c).
+  const showRowActions = canEdit && isDraft;
   const addDisabledReason = !canEdit ? labels.addCcpDisabled : labels.lockedHint;
 
   const scopeLabel = labels.scopeValue
@@ -214,6 +229,15 @@ export function PlanDetailClient({
                 <th scope="col" className="px-4 py-2 font-medium">{labels.table.hazard}</th>
                 <th scope="col" className="px-4 py-2 font-medium">{labels.table.limits}</th>
                 <th scope="col" className="px-4 py-2 font-medium">{labels.table.frequency}</th>
+                {showRowActions && (
+                  <th
+                    scope="col"
+                    data-testid="haccp-ccp-actions-header"
+                    className="px-4 py-2 text-right font-medium"
+                  >
+                    {labels.table.actions}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -233,6 +257,17 @@ export function PlanDetailClient({
                     {formatLimit(t, ccp.criticalLimitMin, ccp.criticalLimitMax, ccp.unit)}
                   </td>
                   <td className="px-4 py-3 text-slate-700">{ccp.monitoringFrequency || '—'}</td>
+                  {showRowActions && (
+                    <td className="px-4 py-3 text-right" data-testid={`haccp-ccp-actions-${ccp.id}`}>
+                      <CcpRowActions
+                        ccp={ccp}
+                        labels={ccpRowActionsLabels}
+                        ccpAddLabels={ccpAddLabels}
+                        upsertCcpAction={upsertCcpAction}
+                        deactivateCcpAction={deactivateCcpAction}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

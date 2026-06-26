@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
@@ -95,6 +96,8 @@ const recordMonitoringSchema = z.object({
   note: z.string().trim().max(2000).optional(),
 });
 
+const deactivateCcpSchema = uuidSchema;
+
 async function hasPermission(ctx: QualityContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
@@ -111,6 +114,35 @@ async function hasPermission(ctx: QualityContext, permission: string): Promise<b
     [ctx.userId, ctx.orgId, permission],
   );
   return rows.length > 0;
+}
+
+async function writeAuditEvent(
+  ctx: QualityContext,
+  params: {
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    beforeState: unknown;
+    afterState: unknown;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.audit_events
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+        before_state, after_state, request_id, retention_class)
+     values
+       (app.current_org_id(), $1::uuid, 'user', $2, $3, $4,
+        $5::jsonb, $6::jsonb, $7::uuid, 'standard')`,
+    [
+      ctx.userId,
+      params.action,
+      params.resourceType,
+      params.resourceId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify(params.afterState),
+      randomUUID(),
+    ],
+  );
 }
 
 /**
@@ -486,6 +518,49 @@ export async function upsertCcp(data: {
       if (!row) throw new Error('CCP upsert did not return a row');
 
       return { ok: true, data: mapCcpRow(row) };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function deactivateCcp(ccpId: string): Promise<ActionResult<{ id: string; isActive: false }>> {
+  try {
+    const parsedCcpId = deactivateCcpSchema.parse(ccpId);
+    return await withOrgContext(async (ctx): Promise<ActionResult<{ id: string; isActive: false }>> => {
+      if (!(await hasPermission(ctx, 'quality.haccp.plan_edit'))) return { ok: false, reason: 'forbidden' };
+
+      const before = await ctx.client.query<{ id: string; is_active: boolean }>(
+        `select id::text, is_active
+           from public.haccp_ccps
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [parsedCcpId],
+      );
+      const beforeRow = before.rows[0];
+      if (!beforeRow) throw new Error('CCP not found');
+
+      const updated = await ctx.client.query<{ id: string; is_active: false }>(
+        `update public.haccp_ccps
+            set is_active = false
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          returning id::text, is_active`,
+        [parsedCcpId],
+      );
+      const row = updated.rows[0];
+      if (!row) throw new Error('CCP deactivate did not return a row');
+
+      await writeAuditEvent(ctx, {
+        action: 'haccp.ccp.deactivated',
+        resourceType: 'haccp_ccp',
+        resourceId: row.id,
+        beforeState: { id: beforeRow.id, isActive: beforeRow.is_active },
+        afterState: { id: row.id, isActive: row.is_active },
+      });
+
+      return { ok: true, data: { id: row.id, isActive: false } };
     });
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };

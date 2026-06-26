@@ -47,3 +47,14 @@ export function canApproveSpec(): Promise<boolean> {
 export function canManageSpecLifecycle(): Promise<boolean> {
   return hasPermission('quality.spec.approve');
 }
+
+/**
+ * Per-row Edit/Delete of DRAFT spec parameters. The reviewed updateSpecParameter /
+ * deleteSpecParameter actions gate quality.spec.approve and re-check draft status
+ * (requireDraftSpec) authoritatively; this resolver only decides whether to render
+ * the affordance. The spec-detail UI ANDs this with status==='draft' before showing
+ * the Actions column.
+ */
+export function canEditSpecParameters(): Promise<boolean> {
+  return hasPermission('quality.spec.approve');
+}

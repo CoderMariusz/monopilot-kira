@@ -236,7 +236,7 @@ export async function getBomDetailPage(
           [selectedId],
         ),
         c.query(
-          `select id, co_product_item_id, quantity, uom, allocation_pct, is_byproduct
+          `select id, co_product_item_id, quantity, uom, allocation_pct, is_byproduct, expected_yield_pct
              from public.bom_co_products
             where org_id = app.current_org_id() and bom_header_id = $1
             order by created_at asc`,

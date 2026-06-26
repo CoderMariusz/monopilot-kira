@@ -338,6 +338,7 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
       uom: cp.uom,
       allocationPct: cp.allocationPct,
       isByproduct: cp.isByproduct,
+      expectedYieldPct: cp.expectedYieldPct ?? null,
     })),
     versions: d.versions.map((v) => ({
       id: v.id,

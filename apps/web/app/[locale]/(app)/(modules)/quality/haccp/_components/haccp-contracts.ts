@@ -20,6 +20,8 @@
  *     → { ok: true; data: HaccpPlan } | { ok: false; ... }
  *   upsertCcp({ ...ccpFields, plan_id }) (haccp-actions.ts)
  *     → { ok: true; data: HaccpCcpRow } | { ok: false; ... }
+ *   deactivateCcp(ccpId) (haccp-actions.ts)
+ *     → { ok: true; data: { id, isActive: false } } | { ok: false; ... }
  */
 
 export type HaccpPlanScopeType = 'product' | 'category' | 'line';
@@ -128,6 +130,7 @@ export type UpsertCcpInput = {
   is_active?: boolean;
 };
 export type UpsertCcpAction = (data: UpsertCcpInput) => Promise<ActionResult<HaccpCcpRow>>;
+export type DeactivateCcpAction = (ccpId: string) => Promise<ActionResult<{ id: string; isActive: false }>>;
 
 /**
  * A plan list row shaped for the table: scope-type/status are surfaced as

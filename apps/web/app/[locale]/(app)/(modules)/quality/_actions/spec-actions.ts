@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
@@ -90,6 +91,18 @@ const signatureSchema = z.object({
 
 const specIdSchema = z.object({ specId: uuidSchema });
 const supersedeSchema = z.object({ specId: uuidSchema, bySpecId: uuidSchema });
+const updateSpecParameterSchema = z.object({
+  specId: uuidSchema,
+  parameterId: uuidSchema,
+  parameterName: z.string().trim().min(1).max(160),
+  parameterType: parameterTypeSchema,
+  targetValue: decimalStringSchema.optional(),
+  minValue: decimalStringSchema.optional(),
+  maxValue: decimalStringSchema.optional(),
+  unit: z.string().trim().max(40).optional(),
+  isCritical: z.boolean(),
+});
+const deleteSpecParameterSchema = z.object({ specId: uuidSchema, parameterId: uuidSchema });
 
 async function hasPermission(ctx: QualityContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
@@ -107,6 +120,49 @@ async function hasPermission(ctx: QualityContext, permission: string): Promise<b
     [ctx.userId, ctx.orgId, permission],
   );
   return rows.length > 0;
+}
+
+async function writeAuditEvent(
+  ctx: QualityContext,
+  params: {
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    beforeState: unknown;
+    afterState: unknown;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.audit_events
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+        before_state, after_state, request_id, retention_class)
+     values
+       (app.current_org_id(), $1::uuid, 'user', $2, $3, $4,
+        $5::jsonb, $6::jsonb, $7::uuid, 'standard')`,
+    [
+      ctx.userId,
+      params.action,
+      params.resourceType,
+      params.resourceId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify(params.afterState),
+      randomUUID(),
+    ],
+  );
+}
+
+async function requireDraftSpec(ctx: QualityContext, specId: string): Promise<void> {
+  const { rows } = await ctx.client.query<{ id: string; status: SpecStatus }>(
+    `select id::text, status
+       from public.quality_specifications
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [specId],
+  );
+  const spec = rows[0];
+  if (!spec) throw new Error('spec not found');
+  if (spec.status !== 'draft') throw new Error('spec must be draft');
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -365,6 +421,235 @@ export async function createSpec(input: {
       }
 
       return { ok: true, data: { id: created.id, specCode: created.spec_code, version: Number(created.version), status: 'draft' } };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateSpecParameter(input: {
+  specId: string;
+  parameterId: string;
+  parameterName: string;
+  parameterType: ParameterType;
+  targetValue?: string;
+  minValue?: string;
+  maxValue?: string;
+  unit?: string;
+  isCritical: boolean;
+}): Promise<ActionResult<SpecParameter>> {
+  try {
+    const parsed = updateSpecParameterSchema.parse(input);
+    return await withOrgContext(async (ctx): Promise<ActionResult<SpecParameter>> => {
+      if (!(await hasPermission(ctx, 'quality.spec.approve'))) return { ok: false, reason: 'forbidden' };
+      await requireDraftSpec(ctx, parsed.specId);
+
+      const before = await ctx.client.query<{
+        id: string;
+        parameter_name: string;
+        parameter_type: ParameterType;
+        target_value: string | null;
+        min_value: string | null;
+        max_value: string | null;
+        unit: string | null;
+        is_critical: boolean;
+        sort_order: number | string;
+      }>(
+        `select id::text,
+                parameter_name,
+                parameter_type,
+                target_value::text,
+                min_value::text,
+                max_value::text,
+                unit,
+                is_critical,
+                sort_order
+           from public.quality_spec_parameters
+          where org_id = app.current_org_id()
+            and specification_id = $1::uuid
+            and id = $2::uuid
+          limit 1`,
+        [parsed.specId, parsed.parameterId],
+      );
+      const beforeRow = before.rows[0];
+      if (!beforeRow) throw new Error('spec parameter not found');
+
+      const updated = await ctx.client.query<{
+        id: string;
+        parameter_name: string;
+        parameter_type: ParameterType;
+        target_value: string | null;
+        min_value: string | null;
+        max_value: string | null;
+        unit: string | null;
+        is_critical: boolean;
+        sort_order: number | string;
+      }>(
+        `update public.quality_spec_parameters
+            set parameter_name = $3,
+                parameter_type = $4,
+                target_value = $5::numeric,
+                min_value = $6::numeric,
+                max_value = $7::numeric,
+                unit = $8,
+                is_critical = $9::boolean
+          where org_id = app.current_org_id()
+            and specification_id = $1::uuid
+            and id = $2::uuid
+          returning id::text,
+                    parameter_name,
+                    parameter_type,
+                    target_value::text,
+                    min_value::text,
+                    max_value::text,
+                    unit,
+                    is_critical,
+                    sort_order`,
+        [
+          parsed.specId,
+          parsed.parameterId,
+          parsed.parameterName,
+          parsed.parameterType,
+          parsed.targetValue ?? null,
+          parsed.minValue ?? null,
+          parsed.maxValue ?? null,
+          parsed.unit ?? null,
+          parsed.isCritical,
+        ],
+      );
+      const row = updated.rows[0];
+      if (!row) throw new Error('spec parameter update did not return a row');
+
+      await writeAuditEvent(ctx, {
+        action: 'quality_spec.parameter_updated',
+        resourceType: 'quality_specification',
+        resourceId: parsed.specId,
+        beforeState: {
+          parameterId: beforeRow.id,
+          parameterName: beforeRow.parameter_name,
+          parameterType: beforeRow.parameter_type,
+          targetValue: beforeRow.target_value,
+          minValue: beforeRow.min_value,
+          maxValue: beforeRow.max_value,
+          unit: beforeRow.unit,
+          isCritical: beforeRow.is_critical,
+          sortOrder: Number(beforeRow.sort_order),
+        },
+        afterState: {
+          parameterId: row.id,
+          parameterName: row.parameter_name,
+          parameterType: row.parameter_type,
+          targetValue: row.target_value,
+          minValue: row.min_value,
+          maxValue: row.max_value,
+          unit: row.unit,
+          isCritical: row.is_critical,
+          sortOrder: Number(row.sort_order),
+        },
+      });
+
+      return {
+        ok: true,
+        data: {
+          id: row.id,
+          parameterName: row.parameter_name,
+          parameterType: row.parameter_type,
+          targetValue: row.target_value,
+          minValue: row.min_value,
+          maxValue: row.max_value,
+          unit: row.unit,
+          isCritical: row.is_critical,
+          sortOrder: Number(row.sort_order),
+        },
+      };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function deleteSpecParameter(input: { specId: string; parameterId: string }): Promise<ActionResult<{ specId: string; parameterId: string }>> {
+  try {
+    const parsed = deleteSpecParameterSchema.parse(input);
+    return await withOrgContext(async (ctx): Promise<ActionResult<{ specId: string; parameterId: string }>> => {
+      if (!(await hasPermission(ctx, 'quality.spec.approve'))) return { ok: false, reason: 'forbidden' };
+      await requireDraftSpec(ctx, parsed.specId);
+
+      const before = await ctx.client.query<{
+        id: string;
+        parameter_name: string;
+        parameter_type: ParameterType;
+        target_value: string | null;
+        min_value: string | null;
+        max_value: string | null;
+        unit: string | null;
+        is_critical: boolean;
+        sort_order: number | string;
+      }>(
+        `select id::text,
+                parameter_name,
+                parameter_type,
+                target_value::text,
+                min_value::text,
+                max_value::text,
+                unit,
+                is_critical,
+                sort_order
+           from public.quality_spec_parameters
+          where org_id = app.current_org_id()
+            and specification_id = $1::uuid
+            and id = $2::uuid
+          limit 1`,
+        [parsed.specId, parsed.parameterId],
+      );
+      const beforeRow = before.rows[0];
+      if (!beforeRow) throw new Error('spec parameter not found');
+
+      const { rowCount } = await ctx.client.query(
+        `delete from public.quality_spec_parameters
+          where org_id = app.current_org_id()
+            and specification_id = $1::uuid
+            and id = $2::uuid`,
+        [parsed.specId, parsed.parameterId],
+      );
+      if (rowCount !== 1) throw new Error('spec parameter delete did not affect one row');
+
+      await ctx.client.query(
+        `with ranked as (
+           select id, row_number() over (order by sort_order asc, id asc) as rn
+             from public.quality_spec_parameters
+            where org_id = app.current_org_id()
+              and specification_id = $1::uuid
+         )
+         update public.quality_spec_parameters p
+            set sort_order = ranked.rn
+           from ranked
+          where p.id = ranked.id
+            and p.org_id = app.current_org_id()
+            and p.specification_id = $1::uuid
+            and p.sort_order <> ranked.rn`,
+        [parsed.specId],
+      );
+
+      await writeAuditEvent(ctx, {
+        action: 'quality_spec.parameter_deleted',
+        resourceType: 'quality_specification',
+        resourceId: parsed.specId,
+        beforeState: {
+          parameterId: beforeRow.id,
+          parameterName: beforeRow.parameter_name,
+          parameterType: beforeRow.parameter_type,
+          targetValue: beforeRow.target_value,
+          minValue: beforeRow.min_value,
+          maxValue: beforeRow.max_value,
+          unit: beforeRow.unit,
+          isCritical: beforeRow.is_critical,
+          sortOrder: Number(beforeRow.sort_order),
+        },
+        afterState: null,
+      });
+
+      return { ok: true, data: { specId: parsed.specId, parameterId: parsed.parameterId } };
     });
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };

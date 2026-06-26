@@ -11,6 +11,7 @@ import type { SpecListLabels } from './spec-list.client';
 import type { SpecAppliesTo, SpecCreateLabels } from './spec-create-modal.client';
 import type { SpecParameterType, SpecStatus } from './spec-actions-contract';
 import type { SpecDetailLabels } from '../[specId]/_components/spec-detail.client';
+import type { SpecParamRowActionsLabels } from '../[specId]/_components/spec-param-row-actions.client';
 import type { SpecSignLabels } from '../[specId]/_components/spec-sign-modal.client';
 
 const STATUSES: SpecStatus[] = ['draft', 'under_review', 'active', 'expired', 'superseded'];
@@ -151,6 +152,39 @@ export function buildSpecSignLabels(t: QaSpecsTranslator): SpecSignLabels {
   };
 }
 
+export function buildSpecParamActionsLabels(t: QaSpecsTranslator): SpecParamRowActionsLabels {
+  return {
+    edit: t('detail.paramActions.edit'),
+    delete: t('detail.paramActions.delete'),
+    editTitle: t('detail.paramActions.editTitle'),
+    editSubtitle: t('detail.paramActions.editSubtitle'),
+    name: t('detail.paramActions.name'),
+    namePlaceholder: t('detail.paramActions.namePlaceholder'),
+    type: t('detail.paramActions.type'),
+    target: t('detail.paramActions.target'),
+    min: t('detail.paramActions.min'),
+    max: t('detail.paramActions.max'),
+    unit: t('detail.paramActions.unit'),
+    unitPlaceholder: t('detail.paramActions.unitPlaceholder'),
+    critical: t('detail.paramActions.critical'),
+    minLeMax: t('detail.paramActions.minLeMax'),
+    nameRequired: t('detail.paramActions.nameRequired'),
+    submit: t('detail.paramActions.submit'),
+    submitting: t('detail.paramActions.submitting'),
+    cancel: t('detail.paramActions.cancel'),
+    success: t('detail.paramActions.success'),
+    updateError: t('detail.paramActions.updateError'),
+    typeOptions: typeValues(t),
+    deleteTitle: t('detail.paramActions.deleteTitle'),
+    deleteBody: t('detail.paramActions.deleteBody'),
+    deleteWarnCritical: t('detail.paramActions.deleteWarnCritical'),
+    deleteConfirm: t('detail.paramActions.deleteConfirm'),
+    deleteCancel: t('detail.paramActions.deleteCancel'),
+    deleteSuccess: t('detail.paramActions.deleteSuccess'),
+    deleteError: t('detail.paramActions.deleteError'),
+  };
+}
+
 export function buildSpecDetailLabels(t: QaSpecsTranslator): SpecDetailLabels {
   return {
     backToSpecs: t('detail.backToSpecs'),
@@ -183,7 +217,9 @@ export function buildSpecDetailLabels(t: QaSpecsTranslator): SpecDetailLabels {
       critical: t('detail.parameters.critical'),
       criticalBadge: t('detail.parameters.criticalBadge'),
       empty: t('detail.parameters.empty'),
+      actionsColumn: t('detail.parameters.actionsColumn'),
     },
+    paramActions: buildSpecParamActionsLabels(t),
     actions: {
       title: t('detail.actions.title'),
       submitForReview: t('detail.actions.submitForReview'),

@@ -314,19 +314,36 @@ describe('SpecSignModal — MODAL-SPEC-SIGN: password required + verbatim e-sign
 });
 
 describe('SpecDetailClient — QA-003b status banner + actions + immutability', () => {
-  function renderDetail(spec: SpecDetail, perms?: Partial<{ canApprove: boolean; canSubmit: boolean; canSupersede: boolean }>, candidates: { id: string; version: number }[] = []) {
+  function renderDetail(
+    spec: SpecDetail,
+    perms?: Partial<{ canApprove: boolean; canSubmit: boolean; canSupersede: boolean; canEdit: boolean }>,
+    candidates: { id: string; version: number }[] = [],
+    actions?: Partial<{ updateSpecParameterAction: ReturnType<typeof vi.fn>; deleteSpecParameterAction: ReturnType<typeof vi.fn> }>,
+  ) {
     return render(
       <SpecDetailClient
         spec={spec}
         canApprove={perms?.canApprove ?? true}
         canSubmit={perms?.canSubmit ?? true}
         canSupersede={perms?.canSupersede ?? true}
+        canEdit={perms?.canEdit ?? true}
         supersedeCandidates={candidates}
         labels={DETAIL_LABELS}
         locale="en"
         submitForReviewAction={vi.fn(async () => ({ ok: true as const, data: { id: 's-1' } }))}
         approveSpecAction={vi.fn(async () => ({ ok: true as const, data: { id: 's-1' } }))}
         supersedeSpecAction={vi.fn(async () => ({ ok: true as const, data: { id: 's-1' } }))}
+        updateSpecParameterAction={
+          actions?.updateSpecParameterAction ??
+          vi.fn(async () => ({
+            ok: true as const,
+            data: { id: 'p-0', parameterName: 'pH', parameterType: 'measurement', targetValue: null, minValue: null, maxValue: null, unit: null, isCritical: false, sortOrder: 0 },
+          }))
+        }
+        deleteSpecParameterAction={
+          actions?.deleteSpecParameterAction ??
+          vi.fn(async () => ({ ok: true as const, data: { specId: 's-1', parameterId: 'p-0' } }))
+        }
       />,
     );
   }
@@ -376,6 +393,88 @@ describe('SpecDetailClient — QA-003b status banner + actions + immutability', 
     renderDetail(makeDetail({ status: 'active', approvedBy: 'X', approvedAt: '2026-01-01T00:00:00.000Z' }));
     expect(screen.getByTestId('spec-param-critical-0')).toBeInTheDocument();
     expect(screen.getByTestId('spec-param-row-0')).toHaveTextContent('72.50');
+  });
+
+  it('draft + canEdit shows the Actions column and per-row Edit/Delete', () => {
+    renderDetail(makeDetail({ status: 'draft' }), { canEdit: true });
+    expect(screen.getByTestId('spec-param-actions-col')).toBeInTheDocument();
+    expect(screen.getByTestId('spec-param-edit-0')).toBeInTheDocument();
+    expect(screen.getByTestId('spec-param-delete-0')).toBeInTheDocument();
+  });
+
+  it('draft WITHOUT canEdit hides the Actions column + row buttons', () => {
+    renderDetail(makeDetail({ status: 'draft' }), { canEdit: false });
+    expect(screen.queryByTestId('spec-param-actions-col')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('spec-param-edit-0')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('spec-param-delete-0')).not.toBeInTheDocument();
+  });
+
+  it('NON-draft (under_review) hides the Actions column even with canEdit', () => {
+    renderDetail(makeDetail({ status: 'under_review' }), { canEdit: true });
+    expect(screen.queryByTestId('spec-param-actions-col')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('spec-param-edit-0')).not.toBeInTheDocument();
+  });
+
+  it('active spec never shows the Actions column (immutable once approved)', () => {
+    renderDetail(makeDetail({ status: 'active', approvedBy: 'X', approvedAt: '2026-01-01T00:00:00.000Z' }), { canEdit: true });
+    expect(screen.queryByTestId('spec-param-actions-col')).not.toBeInTheDocument();
+  });
+
+  it('Edit modal submits updateSpecParameter with the trimmed/typed payload + refreshes', async () => {
+    refreshMock.mockClear();
+    const updateSpecParameterAction = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'p-0', parameterName: 'Moisture content', parameterType: 'measurement', targetValue: '73.00', minValue: '70.00', maxValue: '75.00', unit: '%', isCritical: true, sortOrder: 0 },
+    }));
+    renderDetail(makeDetail({ status: 'draft' }), { canEdit: true }, [], { updateSpecParameterAction });
+
+    fireEvent.click(screen.getByTestId('spec-param-edit-0'));
+    const modal = screen.getByTestId('spec-param-edit-modal');
+    fireEvent.change(within(modal).getByTestId('spec-param-edit-target'), { target: { value: '73.00' } });
+    fireEvent.click(within(modal).getByTestId('spec-param-edit-submit'));
+
+    await waitFor(() => expect(updateSpecParameterAction).toHaveBeenCalledTimes(1));
+    expect(updateSpecParameterAction).toHaveBeenCalledWith({
+      specId: 's-1',
+      parameterId: 'p-0',
+      parameterName: 'Moisture content',
+      parameterType: 'measurement',
+      targetValue: '73.00',
+      minValue: '70.00',
+      maxValue: '75.00',
+      unit: '%',
+      isCritical: true,
+    });
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+  });
+
+  it('Edit modal surfaces an inline alert on failure and never throws', async () => {
+    const updateSpecParameterAction = vi.fn(async () => ({ ok: false as const, reason: 'error' as const, message: 'boom' }));
+    renderDetail(makeDetail({ status: 'draft' }), { canEdit: true }, [], { updateSpecParameterAction });
+
+    fireEvent.click(screen.getByTestId('spec-param-edit-0'));
+    const modal = screen.getByTestId('spec-param-edit-modal');
+    fireEvent.click(within(modal).getByTestId('spec-param-edit-submit'));
+
+    // Inline role="alert" surfaced (resolved updateError label, {message}=boom once
+    // the staged key is applied). The action returning ok:false must NOT throw.
+    await waitFor(() => {
+      const alert = within(modal).getByTestId('spec-param-edit-error');
+      expect(alert).toHaveAttribute('role', 'alert');
+      expect(alert).toHaveTextContent(DETAIL_LABELS.paramActions.updateError.replace('{message}', 'boom'));
+    });
+  });
+
+  it('Delete confirm calls deleteSpecParameter with the parameter id + refreshes', async () => {
+    refreshMock.mockClear();
+    const deleteSpecParameterAction = vi.fn(async () => ({ ok: true as const, data: { specId: 's-1', parameterId: 'p-0' } }));
+    renderDetail(makeDetail({ status: 'draft' }), { canEdit: true }, [], { deleteSpecParameterAction });
+
+    fireEvent.click(screen.getByTestId('spec-param-delete-0'));
+    fireEvent.click(within(screen.getByTestId('spec-param-delete-modal')).getByTestId('spec-param-delete-submit'));
+
+    await waitFor(() => expect(deleteSpecParameterAction).toHaveBeenCalledWith({ specId: 's-1', parameterId: 'p-0' }));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
   });
 });
 

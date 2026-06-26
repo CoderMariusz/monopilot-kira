@@ -27,9 +27,17 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 
-import { getSpecDetail, listSpecs, submitSpecForReview, approveSpec, supersedeSpec } from '../../_actions/spec-actions';
+import {
+  getSpecDetail,
+  listSpecs,
+  submitSpecForReview,
+  approveSpec,
+  supersedeSpec,
+  updateSpecParameter,
+  deleteSpecParameter,
+} from '../../_actions/spec-actions';
 import { getQaSpecsTranslator } from '../../qa-specs-labels';
-import { canApproveSpec, canManageSpecLifecycle } from '../_components/can-spec';
+import { canApproveSpec, canManageSpecLifecycle, canEditSpecParameters } from '../_components/can-spec';
 import { buildSpecDetailLabels } from '../_components/labels';
 import { SpecDetailClient, type SupersedeCandidate } from './_components/spec-detail.client';
 
@@ -87,7 +95,11 @@ async function DetailContent({ locale, specId }: { locale: string; specId: strin
     notFound();
   }
 
-  const [canApprove, canManage] = await Promise.all([canApproveSpec(), canManageSpecLifecycle()]);
+  const [canApprove, canManage, canEdit] = await Promise.all([
+    canApproveSpec(),
+    canManageSpecLifecycle(),
+    canEditSpecParameters(),
+  ]);
 
   // Supersede candidates: newer versions of the SAME product + spec code.
   let supersedeCandidates: SupersedeCandidate[] = [];
@@ -107,12 +119,15 @@ async function DetailContent({ locale, specId }: { locale: string; specId: strin
       canApprove={canApprove}
       canSubmit={canManage}
       canSupersede={canManage}
+      canEdit={canEdit}
       supersedeCandidates={supersedeCandidates}
       labels={buildSpecDetailLabels(t)}
       locale={locale}
       submitForReviewAction={submitSpecForReview}
       approveSpecAction={approveSpec}
       supersedeSpecAction={supersedeSpec}
+      updateSpecParameterAction={updateSpecParameter}
+      deleteSpecParameterAction={deleteSpecParameter}
     />
   );
 }

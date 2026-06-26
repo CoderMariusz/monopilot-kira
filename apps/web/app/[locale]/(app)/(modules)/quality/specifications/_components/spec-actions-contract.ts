@@ -20,6 +20,7 @@
  *     from array index). createSpec always inserts applies_to='all', status='draft'.
  *   - getSpecDetail returns the list row + appliesTo + approvalSignatureHash +
  *     parameters[] (each with id; numeric values are DECIMAL STRINGS or null).
+ *   - updateSpecParameter/deleteSpecParameter only mutate draft specifications.
  */
 
 export type SpecStatus = 'draft' | 'under_review' | 'active' | 'expired' | 'superseded';
@@ -99,6 +100,22 @@ export type UpdatedSpecStatus = { id: string; status: SpecStatus; approvalSignat
 export type SupersededSpec = { id: string; status: 'superseded'; supersededBy: string };
 
 export type CreateSpecFn = (input: CreateSpecInput) => Promise<SpecActionResult<CreatedSpec>>;
+export type UpdateSpecParameterInput = {
+  specId: string;
+  parameterId: string;
+  parameterName: string;
+  parameterType: SpecParameterType;
+  targetValue?: string;
+  minValue?: string;
+  maxValue?: string;
+  unit?: string;
+  isCritical: boolean;
+};
+export type UpdateSpecParameterFn = (input: UpdateSpecParameterInput) => Promise<SpecActionResult<SpecParameterDetail>>;
+export type DeleteSpecParameterFn = (input: {
+  specId: string;
+  parameterId: string;
+}) => Promise<SpecActionResult<{ specId: string; parameterId: string }>>;
 export type SubmitSpecForReviewFn = (input: { specId: string }) => Promise<SpecActionResult<UpdatedSpecStatus>>;
 export type ApproveSpecFn = (input: {
   specId: string;

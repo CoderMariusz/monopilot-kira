@@ -28,17 +28,19 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 // Owned by the reviewed HACCP backend. Imported, never authored here.
 import { activateHaccpPlan, getHaccpPlan } from '../../_actions/haccp-plan-actions';
-import { upsertCcp } from '../../_actions/haccp-actions';
+import { deactivateCcp, upsertCcp } from '../../_actions/haccp-actions';
 // Read-only RBAC probe (additive read confined to haccp/**) — gates the mutating
 // controls on quality.haccp.plan_edit (rule 0.13c).
 import { canEditHaccpPlan } from '../_actions/can-edit-plan';
 import { PlanDetailClient } from './_components/plan-detail.client';
 import type {
   ActivatePlanAction,
+  DeactivateCcpAction,
   UpsertCcpAction,
 } from '../_components/haccp-contracts';
 import {
   buildCcpAddLabels,
+  buildCcpRowActionsLabels,
   buildPlanActivateLabels,
   buildPlanDetailLabels,
   type Translator,
@@ -70,6 +72,7 @@ function DetailSkeleton({ loadingLabel }: { loadingLabel: string }) {
 async function DetailContent({ locale, id, t }: { locale: string; id: string; t: Translator }) {
   const labels = buildPlanDetailLabels(t);
   const ccpAddLabels = buildCcpAddLabels(t);
+  const ccpRowActionsLabels = buildCcpRowActionsLabels(t);
   const activateLabels = buildPlanActivateLabels(t);
 
   const planResult = await getHaccpPlan(id);
@@ -128,9 +131,11 @@ async function DetailContent({ locale, id, t }: { locale: string; id: string; t:
       plan={planResult.data}
       labels={labels}
       ccpAddLabels={ccpAddLabels}
+      ccpRowActionsLabels={ccpRowActionsLabels}
       activateLabels={activateLabels}
       canEdit={canEdit}
       upsertCcpAction={upsertCcp as unknown as UpsertCcpAction}
+      deactivateCcpAction={deactivateCcp as unknown as DeactivateCcpAction}
       activatePlanAction={activateHaccpPlan as unknown as ActivatePlanAction}
       t={t}
     />

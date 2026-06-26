@@ -9439,7 +9439,8 @@
           "step": "Etap procesu",
           "hazard": "Zagrożenie",
           "limits": "Limity krytyczne",
-          "frequency": "Częstotliwość"
+          "frequency": "Częstotliwość",
+          "actions": "Akcje"
         },
         "limitRange": "{min} – {max} {unit}",
         "limitMinOnly": "≥ {min} {unit}",
@@ -9500,6 +9501,22 @@
       "nav": {
         "title": "Plany HACCP",
         "desc": "Definiuj plany bezpieczeństwa żywności i ich krytyczne punkty kontroli; aktywuj podpisem elektronicznym."
+      },
+      "ccpRowActions": {
+        "edit": "Edytuj",
+        "deactivate": "Dezaktywuj",
+        "editTitle": "Edytuj krytyczny punkt kontroli",
+        "editSubtitle": "Zaktualizuj ten CCP. Limity krytyczne wpisuje się jako liczby; pozostaw granicę pustą dla limitu jednostronnego.",
+        "editSubmit": "Zapisz zmiany",
+        "editSubmitting": "Zapisywanie…",
+        "editError": "Nie udało się zapisać CCP: {message}",
+        "deactivateTitle": "Dezaktywuj CCP",
+        "deactivateBody": "Dezaktywować {code} — {name}? Zostanie ukryty w tym planie i w monitorowaniu.",
+        "deactivateWarn": "Istniejące zapisy monitorowania są zachowywane. CCP można później dodać ponownie, nie jest trwale usuwany.",
+        "deactivateConfirm": "Dezaktywuj CCP",
+        "deactivateCancel": "Anuluj",
+        "deactivateSubmitting": "Dezaktywowanie…",
+        "deactivateError": "Nie udało się dezaktywować CCP: {message}"
       }
     },
     "trace": {

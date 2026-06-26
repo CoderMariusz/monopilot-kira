@@ -137,6 +137,8 @@ export type BomCoProductView = {
   uom: string;
   allocationPct: string;
   isByproduct: boolean;
+  /** Optional expected yield % (bom_co_products.expected_yield_pct); null when unset. */
+  expectedYieldPct: string | null;
 };
 
 export type BomDetailView = {
@@ -555,6 +557,7 @@ type CoProductRow = {
   uom: string;
   allocation_pct: string;
   is_byproduct: boolean;
+  expected_yield_pct?: string | null;
 };
 
 export function mapCoProduct(row: CoProductRow): BomCoProductView {
@@ -565,5 +568,6 @@ export function mapCoProduct(row: CoProductRow): BomCoProductView {
     uom: row.uom,
     allocationPct: String(row.allocation_pct),
     isByproduct: Boolean(row.is_byproduct),
+    expectedYieldPct: row.expected_yield_pct == null ? null : String(row.expected_yield_pct),
   };
 }

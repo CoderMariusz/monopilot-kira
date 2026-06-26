@@ -31,6 +31,7 @@ import pl from '../../../../../../../../../i18n/pl.json';
 import { PlanDetailClient } from '../plan-detail.client';
 import {
   buildCcpAddLabels,
+  buildCcpRowActionsLabels,
   buildPlanActivateLabels,
   buildPlanDetailLabels,
   type Translator,
@@ -56,6 +57,7 @@ const tEn = makeT('en');
 const tPl = makeT('pl');
 const DETAIL_LABELS = buildPlanDetailLabels(tEn);
 const CCP_ADD_LABELS = buildCcpAddLabels(tEn);
+const CCP_ROW_ACTIONS_LABELS = buildCcpRowActionsLabels(tEn);
 const ACTIVATE_LABELS = buildPlanActivateLabels(tEn);
 
 function makeCcp(over: Partial<HaccpPlanCcp> = {}): HaccpPlanCcp {
@@ -116,24 +118,33 @@ function makeCcpRow(): HaccpCcpRow {
 
 function renderDetail(
   plan: HaccpPlan,
-  opts: { canEdit?: boolean; upsertCcp?: ReturnType<typeof vi.fn>; activate?: ReturnType<typeof vi.fn> } = {},
+  opts: {
+    canEdit?: boolean;
+    upsertCcp?: ReturnType<typeof vi.fn>;
+    deactivateCcp?: ReturnType<typeof vi.fn>;
+    activate?: ReturnType<typeof vi.fn>;
+  } = {},
 ) {
   const canEdit = opts.canEdit ?? true;
   const upsertCcp = opts.upsertCcp ?? vi.fn(async () => ({ ok: true as const, data: makeCcpRow() }));
+  const deactivateCcp =
+    opts.deactivateCcp ?? vi.fn(async () => ({ ok: true as const, data: { id: 'ccp-1', isActive: false as const } }));
   const activate = opts.activate ?? vi.fn(async () => ({ ok: true as const, data: { ...plan, status: 'active' as const } }));
   render(
     <PlanDetailClient
       plan={plan}
       labels={DETAIL_LABELS}
       ccpAddLabels={CCP_ADD_LABELS}
+      ccpRowActionsLabels={CCP_ROW_ACTIONS_LABELS}
       activateLabels={ACTIVATE_LABELS}
       canEdit={canEdit}
       upsertCcpAction={upsertCcp as never}
+      deactivateCcpAction={deactivateCcp as never}
       activatePlanAction={activate as never}
       t={tEn}
     />,
   );
-  return { upsertCcp, activate };
+  return { upsertCcp, deactivateCcp, activate };
 }
 
 describe('PlanDetailClient (E3 parity)', () => {

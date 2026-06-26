@@ -104,6 +104,7 @@ export type PlanDetailLabels = {
     hazard: string;
     limits: string;
     frequency: string;
+    actions: string;
   };
   hazardType: Record<HazardType, string>;
   limitRange: string;
@@ -115,6 +116,30 @@ export type PlanDetailLabels = {
   error: { title: string; body: string };
   denied: { title: string; body: string };
   lockedHint: string;
+};
+
+/**
+ * Labels for the per-row CCP Edit/Deactivate island (MODAL-CCP-EDIT +
+ * deactivate confirm) on the plan detail screen. The Edit modal REUSES the
+ * `CcpAddLabels` field set (it is the same CCP form); these labels only cover
+ * the row triggers, the edit modal title/subtitle override, and the deactivate
+ * confirm copy.
+ */
+export type CcpRowActionsLabels = {
+  edit: string;
+  deactivate: string;
+  editTitle: string;
+  editSubtitle: string;
+  editSubmit: string;
+  editSubmitting: string;
+  editError: string;
+  deactivateTitle: string;
+  deactivateBody: string;
+  deactivateWarn: string;
+  deactivateConfirm: string;
+  deactivateCancel: string;
+  deactivateSubmitting: string;
+  deactivateError: string;
 };
 
 /** Labels for MODAL-CCP-ADD on the plan detail screen (wired to upsertCcp with plan_id). */
@@ -291,6 +316,7 @@ export function buildPlanDetailLabels(t: Translator): PlanDetailLabels {
       hazard: t('detail.table.hazard'),
       limits: t('detail.table.limits'),
       frequency: t('detail.table.frequency'),
+      actions: t('detail.table.actions'),
     },
     hazardType: hazardMap(t),
     limitRange: t('detail.limitRange'),
@@ -351,6 +377,25 @@ export function buildCcpAddLabels(t: Translator): CcpAddLabels {
       limitOrder: t('ccpAdd.validation.limitOrder'),
     },
     error: t('ccpAdd.error'),
+  };
+}
+
+export function buildCcpRowActionsLabels(t: Translator): CcpRowActionsLabels {
+  return {
+    edit: t('ccpRowActions.edit'),
+    deactivate: t('ccpRowActions.deactivate'),
+    editTitle: t('ccpRowActions.editTitle'),
+    editSubtitle: t('ccpRowActions.editSubtitle'),
+    editSubmit: t('ccpRowActions.editSubmit'),
+    editSubmitting: t('ccpRowActions.editSubmitting'),
+    editError: t('ccpRowActions.editError'),
+    deactivateTitle: t('ccpRowActions.deactivateTitle'),
+    deactivateBody: t('ccpRowActions.deactivateBody'),
+    deactivateWarn: t('ccpRowActions.deactivateWarn'),
+    deactivateConfirm: t('ccpRowActions.deactivateConfirm'),
+    deactivateCancel: t('ccpRowActions.deactivateCancel'),
+    deactivateSubmitting: t('ccpRowActions.deactivateSubmitting'),
+    deactivateError: t('ccpRowActions.deactivateError'),
   };
 }
 

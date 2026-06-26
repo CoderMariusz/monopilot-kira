@@ -9439,7 +9439,8 @@
           "step": "Process step",
           "hazard": "Hazard",
           "limits": "Critical limits",
-          "frequency": "Frequency"
+          "frequency": "Frequency",
+          "actions": "Actions"
         },
         "limitRange": "{min} – {max} {unit}",
         "limitMinOnly": "≥ {min} {unit}",
@@ -9500,6 +9501,22 @@
       "nav": {
         "title": "HACCP plans",
         "desc": "Define food-safety plans and their critical control points; activate with e-sign."
+      },
+      "ccpRowActions": {
+        "edit": "Edit",
+        "deactivate": "Deactivate",
+        "editTitle": "Edit critical control point",
+        "editSubtitle": "Update this CCP. Critical limits are entered as numbers; leave a bound blank for a one-sided limit.",
+        "editSubmit": "Save changes",
+        "editSubmitting": "Saving…",
+        "editError": "Could not save the CCP: {message}",
+        "deactivateTitle": "Deactivate CCP",
+        "deactivateBody": "Deactivate {code} — {name}? It will be hidden from this plan and from monitoring.",
+        "deactivateWarn": "Existing monitoring records are kept. The CCP can be re-added later but is not hard-deleted.",
+        "deactivateConfirm": "Deactivate CCP",
+        "deactivateCancel": "Cancel",
+        "deactivateSubmitting": "Deactivating…",
+        "deactivateError": "Could not deactivate the CCP: {message}"
       }
     },
     "trace": {
