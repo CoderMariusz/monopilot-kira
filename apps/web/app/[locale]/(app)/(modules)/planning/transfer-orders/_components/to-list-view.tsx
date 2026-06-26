@@ -65,6 +65,8 @@ type TabKey = (typeof TAB_ORDER)[number];
 
 export type ToListLabels = {
   createTo: string;
+  /** Bulk TO import (CSV) → /planning/transfer-orders/import (preview + confirm). */
+  bulkImportLabel: string;
   searchPlaceholder: string;
   rowsCount: string;
   tabs: Record<TabKey, string>;
@@ -184,9 +186,20 @@ export function ToListView({
           onChange={(e) => setSearch(e.target.value)}
           className="w-72"
         />
-        <Button type="button" className="btn--primary" data-testid="to-list-create" onClick={() => setCreateOpen(true)}>
-          + {labels.createTo}
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Bulk TO import (CSV) preview → confirm screen. */}
+          <Link
+            href={`${basePath}/import`}
+            prefetch={false}
+            data-testid="to-list-bulk-import"
+            className="btn btn--secondary"
+          >
+            {labels.bulkImportLabel}
+          </Link>
+          <Button type="button" className="btn--primary" data-testid="to-list-create" onClick={() => setCreateOpen(true)}>
+            + {labels.createTo}
+          </Button>
+        </div>
       </div>
 
       {/* Status tabs + Archive tab.

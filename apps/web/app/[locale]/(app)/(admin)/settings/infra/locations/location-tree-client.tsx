@@ -87,6 +87,7 @@ export type LocationTreeLabels = {
   inactive: string;
   barcodeLabel: string;
   noBarcode: string;
+  warehouseUnassigned: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -294,7 +295,7 @@ export function LocationTreeScreen({
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-5">
-                    <SummaryItem label={labels.warehouse} value={warehouseLabelFor(selectedLocation, warehouseById)} mono />
+                    <SummaryItem label={labels.warehouse} value={warehouseLabelFor(selectedLocation, warehouseById, labels.warehouseUnassigned)} mono />
                     <SummaryItem label={labels.lpsHere} value="0" />
                     <SummaryItem label={labels.selectedParent} value={parentPathFor(selectedLocation, visibleRows)} mono />
                     <SummaryItem label={labels.selectedDepth} value={`L${selectedLocation.level}`} />
@@ -415,17 +416,19 @@ function parentPathFor(location: LocationRow, rows: LocationRow[]) {
   return rows.find((candidate) => candidate.id === location.parentId)?.path ?? location.parentId;
 }
 
-function warehouseLabelFor(location: LocationRow, warehouseById: Map<string, Warehouse>) {
-  const warehouse = warehouseById.get(location.warehouseId);
-  const code = location.warehouseCode ?? warehouse?.code ?? location.warehouseId;
+function warehouseLabelFor(location: LocationRow, warehouseById: Map<string, Warehouse>, unassigned: string) {
+  const warehouse = location.warehouseId ? warehouseById.get(location.warehouseId) : undefined;
+  const code = location.warehouseCode ?? warehouse?.code ?? null;
   const name = location.warehouseName ?? warehouse?.name ?? null;
-  return name && name !== code ? `${code} — ${name}` : code;
+  if (!code && !name) return unassigned;
+  if (name && name !== code) return code ? `${code} — ${name}` : name;
+  return code ?? name ?? unassigned;
 }
 
 function renderLocationNode(location: TreeNode, labels: LocationTreeLabels, selectedLocationId: string | null, onSelect: (id: string) => void, warehouseById: Map<string, Warehouse>): React.ReactNode {
   const selected = selectedLocationId === location.id;
   const inactive = location.isActive === false;
-  const content = <div className={`flex flex-wrap items-center gap-2${inactive ? ' opacity-60' : ''}`}><span aria-hidden="true" className="w-6 text-center text-xs font-medium text-slate-500">{location.children.length > 0 ? '▸' : '•'}</span><span aria-hidden="true" className="text-sm">{locationTypeIcon(location.locationType)}</span><span className={`font-mono text-xs font-semibold${inactive ? ' line-through' : ''}`}>{locationCode(location)}</span><span className="text-xs text-slate-500">{location.name}</span><Badge variant="outline">{warehouseLabelFor(location, warehouseById)}</Badge><Badge variant={location.level === 1 ? 'info' : 'secondary'}>{formatLabel(labels.level, { level: location.level })}</Badge>{inactive ? <Badge variant="secondary">{labels.inactive}</Badge> : null}</div>;
+  const content = <div className={`flex flex-wrap items-center gap-2${inactive ? ' opacity-60' : ''}`}><span aria-hidden="true" className="w-6 text-center text-xs font-medium text-slate-500">{location.children.length > 0 ? '▸' : '•'}</span><span aria-hidden="true" className="text-sm">{locationTypeIcon(location.locationType)}</span><span className={`font-mono text-xs font-semibold${inactive ? ' line-through' : ''}`}>{locationCode(location)}</span><span className="text-xs text-slate-500">{location.name}</span><Badge variant="outline">{warehouseLabelFor(location, warehouseById, labels.warehouseUnassigned)}</Badge><Badge variant={location.level === 1 ? 'info' : 'secondary'}>{formatLabel(labels.level, { level: location.level })}</Badge>{inactive ? <Badge variant="secondary">{labels.inactive}</Badge> : null}</div>;
   if (location.children.length === 0) {
     return <div key={location.id} role="treeitem" aria-level={location.level} aria-selected={selected} data-location-id={location.id} data-parent-id={location.parentId ?? undefined} data-warehouse-id={location.warehouseId} onClick={() => onSelect(location.id)} className={`rounded-lg border px-3 py-2 text-sm ${selected ? 'border-blue-300 bg-blue-50' : 'border-slate-100 bg-slate-50'}`} style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}>{content}</div>;
   }

@@ -35,23 +35,6 @@ import {
 } from './item-transition-labels';
 import { StatusTransitionModal } from './status-transition-modal';
 
-const ITEM_TYPE_LABELS: Record<ItemListItem['itemType'], string> = {
-  rm: 'Raw material',
-  ingredient: 'Ingredient',
-  intermediate: 'Intermediate',
-  fg: 'Finished good',
-  co_product: 'Co-product',
-  byproduct: 'By-product',
-  packaging: 'Packaging',
-};
-
-const STATUS_LABELS: Record<ItemListItem['status'], string> = {
-  draft: 'Draft',
-  active: 'Active',
-  deprecated: 'Deprecated',
-  blocked: 'Blocked',
-};
-
 function rowToForm(item: ItemListItem): WizardFormState {
   return {
     itemCode: item.itemCode,
@@ -80,10 +63,10 @@ function rowToForm(item: ItemListItem): WizardFormState {
 }
 
 export function NewItemButton({
-  label = '+ New item',
+  label,
   wizardLabels,
 }: {
-  label?: string;
+  label: string;
   wizardLabels?: ItemWizardLabels;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -106,9 +89,9 @@ export function ItemRowActions({
   item,
   canEdit,
   canDeactivate,
-  editLabel = 'Edit',
-  deactivateLabel = 'Deactivate',
-  allergensLabel = 'Allergens',
+  editLabel,
+  deactivateLabel,
+  allergensLabel,
   wizardLabels,
   deactivateLabels,
   transitionLabels = DEFAULT_TRANSITION_LABELS,
@@ -116,9 +99,9 @@ export function ItemRowActions({
   item: ItemListItem;
   canEdit: boolean;
   canDeactivate: boolean;
-  editLabel?: string;
-  deactivateLabel?: string;
-  allergensLabel?: string;
+  editLabel: string;
+  deactivateLabel: string;
+  allergensLabel: string;
   wizardLabels?: ItemWizardLabels;
   deactivateLabels?: DeactivateLabels;
   transitionLabels?: StatusTransitionLabels;
@@ -213,5 +196,3 @@ export function ItemRowActions({
     </span>
   );
 }
-
-export { ITEM_TYPE_LABELS, STATUS_LABELS };

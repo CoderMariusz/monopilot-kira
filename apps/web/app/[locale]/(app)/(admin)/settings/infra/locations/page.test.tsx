@@ -55,6 +55,7 @@ vi.mock('next-intl/server', () => ({
       empty: 'No locations are available for the selected warehouse.',
       error: 'Unable to load the location tree. Try again after the backend is available.',
       forbidden: 'You do not have permission to view location infrastructure settings.',
+      warehouseUnassigned: '—',
       provenance: 'Data source: live loader props; empty fallback is used only when the runtime loader has no rows.',
       expand: 'Expand {name}',
       leaf: 'Leaf location',
@@ -238,6 +239,29 @@ describe('SET-014 Location Tree screen', () => {
     const selectedRegion = screen.getByRole('region', { name: /selected location/i });
     expect(within(selectedRegion).getByText('Warehouse')).toBeInTheDocument();
     expect(within(selectedRegion).getByText('APEX — Apex Dairy Warehouse')).toBeInTheDocument();
+  });
+
+  it('shows a neutral placeholder on the row and detail when a location has no warehouse', async () => {
+    const orphanLocations: LocationRow[] = [
+      { id: 'orphan-bin', warehouseId: '', warehouseCode: null, warehouseName: null, parentId: null, name: 'Unassigned Bin', level: 1, path: 'orphan' },
+    ];
+    await renderLocationTree({
+      warehouses: [],
+      locations: orphanLocations,
+      selectedWarehouseId: 'all',
+      searchParams: { selectedLocationId: 'orphan-bin' },
+    });
+
+    const tree = screen.getByRole('tree', { name: /location tree/i });
+    const node = within(tree).getByText('Unassigned Bin').closest('[role="treeitem"]');
+    // The warehouse badge must render a neutral placeholder, never a blank cell or a raw UUID.
+    expect(node).toHaveTextContent('—');
+    expect(node?.textContent ?? '').not.toMatch(/orphan-bin/);
+
+    const selectedRegion = screen.getByRole('region', { name: /selected location/i });
+    expect(within(selectedRegion).getByText('Warehouse')).toBeInTheDocument();
+    const warehouseField = within(selectedRegion).getByText('Warehouse').nextElementSibling;
+    expect(warehouseField).toHaveTextContent('—');
   });
 
   it('server-renders the selected warehouse filter so rerendered trees only expose that warehouse', async () => {

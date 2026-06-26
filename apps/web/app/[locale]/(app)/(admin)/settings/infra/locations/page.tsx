@@ -9,7 +9,7 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
 type Warehouse = { id: string; code: string; name: string };
-type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
+type LocationRow = { id: string; warehouseId: string; warehouseCode?: string | null; warehouseName?: string | null; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
 type CreateLocationInput = { csvRowNumber: number; warehouseId: string; parentPath: string | null; name: string; level: number; path: string };
 type CreateLocationResult =
   | { ok: true; data?: unknown }
@@ -120,6 +120,7 @@ type LocationTreeLabels = {
   inactive: string;
   barcodeLabel: string;
   noBarcode: string;
+  warehouseUnassigned: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -198,6 +199,7 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   inactive: 'Inactive',
   barcodeLabel: 'Barcode',
   noBarcode: 'No barcode',
+  warehouseUnassigned: '—',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;
@@ -271,19 +273,24 @@ async function readLocationData(): Promise<{
             order by code asc`,
         ),
         queryClient.query<LocationRow>(
-          `select id,
-                  warehouse_id as "warehouseId",
-                  parent_id as "parentId",
-                  code,
-                  name,
-                  level,
-                  path,
-                  location_type as "locationType",
-                  barcode,
-                  is_active as "isActive"
-             from public.locations
-            where org_id = app.current_org_id()
-            order by path asc`,
+          `select l.id,
+                  l.warehouse_id as "warehouseId",
+                  w.code as "warehouseCode",
+                  w.name as "warehouseName",
+                  l.parent_id as "parentId",
+                  l.code,
+                  l.name,
+                  l.level,
+                  l.path,
+                  l.location_type as "locationType",
+                  l.barcode,
+                  l.is_active as "isActive"
+             from public.locations l
+             left join public.warehouses w
+               on w.id = l.warehouse_id
+              and w.org_id = app.current_org_id()
+            where l.org_id = app.current_org_id()
+            order by l.path asc`,
         ),
       ]);
       return {

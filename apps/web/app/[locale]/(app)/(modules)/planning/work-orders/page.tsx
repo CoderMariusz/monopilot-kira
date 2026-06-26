@@ -30,6 +30,7 @@ import { createWorkOrder } from './_actions/createWorkOrder';
 import { releaseWorkOrder } from './_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from './_actions/wo-form-data';
 import { WoListView, type WoListLabels } from './_components/wo-list-view';
+import { makeImportLabel } from '../../../../../../lib/import/import-i18n-staging';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
   const optTpl = (key: string, fallback: string): string => (t.has(key) ? tpl(key) : fallback);
   return {
     createWo: t('actions.createWo'),
+    bulkImportLabel: makeImportLabel(t, 'wo', locale)('actions.bulkImport'),
     searchPlaceholder: t('list.searchPlaceholder'),
     rowsCount: tpl('list.rowsCount'),
     tabs: {

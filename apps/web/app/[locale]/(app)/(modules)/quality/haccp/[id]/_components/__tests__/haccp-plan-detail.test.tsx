@@ -59,6 +59,7 @@ const DETAIL_LABELS = buildPlanDetailLabels(tEn);
 const CCP_ADD_LABELS = buildCcpAddLabels(tEn);
 const CCP_ROW_ACTIONS_LABELS = buildCcpRowActionsLabels(tEn);
 const ACTIVATE_LABELS = buildPlanActivateLabels(tEn);
+const PLAN_ID = '11111111-2222-4333-8444-555555555555';
 
 function makeCcp(over: Partial<HaccpPlanCcp> = {}): HaccpPlanCcp {
   return {
@@ -195,7 +196,7 @@ describe('PlanDetailClient (E3 parity)', () => {
 
   it('ADD CCP modal exposes ALL fields and submits the exact upsertCcp payload INCLUDING this plan_id', async () => {
     const upsertCcp = vi.fn(async () => ({ ok: true as const, data: makeCcpRow() }));
-    renderDetail(makePlan({ id: 'plan-77', status: 'draft', ccps: [makeCcp()] }), { upsertCcp });
+    renderDetail(makePlan({ id: PLAN_ID, status: 'draft', ccps: [makeCcp()] }), { upsertCcp });
     fireEvent.click(screen.getByTestId('haccp-detail-add-ccp'));
 
     // every field present.
@@ -236,10 +237,25 @@ describe('PlanDetailClient (E3 parity)', () => {
       critical_limit_max: '4',
       unit: '°C',
       monitoring_frequency: 'Each batch',
-      plan_id: 'plan-77',
+      plan_id: PLAN_ID,
       is_active: true,
     });
     await waitFor(() => expect(screen.queryByTestId('haccp-ccp-add-form')).not.toBeInTheDocument());
+  });
+
+  it('ADD CCP affordance reopens the create modal with an empty reset form', () => {
+    renderDetail(makePlan({ id: PLAN_ID, status: 'draft', ccps: [makeCcp()] }));
+
+    fireEvent.click(screen.getByTestId('haccp-detail-add-ccp'));
+    const code = screen.getByTestId('haccp-ccp-add-code') as HTMLInputElement;
+    fireEvent.change(code, { target: { value: 'CCP-DRAFT' } });
+    expect(code.value).toBe('CCP-DRAFT');
+
+    fireEvent.click(screen.getByTestId('haccp-ccp-add-cancel'));
+    fireEvent.click(screen.getByTestId('haccp-detail-add-ccp'));
+
+    expect((screen.getByTestId('haccp-ccp-add-code') as HTMLInputElement).value).toBe('');
+    expect(screen.getByTestId('haccp-ccp-add-submit')).toBeDisabled();
   });
 
   it('ADD CCP validation: min>max rejected inline', async () => {

@@ -78,56 +78,55 @@ export default async function TechnicalItemsPage() {
 
   // Items master-list chrome — localized tabs / filter pills / column headers /
   // search placeholder / footer + the type & status badge maps (reused from the
-  // wizard bundle). has()-guarded so any not-yet-merged key falls back to English.
-  const has = (key: string) => {
-    try {
-      return t.has(key);
-    } catch {
-      return false;
-    }
-  };
-  const gt = (key: string, fallback: string) => (has(key) ? t(key) : fallback);
+  // wizard bundle).
   const tableLabels: ItemsTableLabels = {
     typeLabels: wizardLabels.typeLabels,
     statusLabels: wizardLabels.statusLabels,
     tabLabels: {
-      all: gt('list.tabs.all', 'All'),
-      rm: gt('list.tabs.rm', 'Raw materials'),
-      ingredient: gt('list.tabs.ingredient', 'Ingredients'),
-      intermediate: gt('list.tabs.intermediate', 'Intermediate'),
-      fg: gt('list.tabs.fg', 'Finished goods'),
-      co_product: gt('list.tabs.co_product', 'Co-products'),
-      byproduct: gt('list.tabs.byproduct', 'By-products'),
-      packaging: gt('list.tabs.packaging', 'Packaging'),
+      all: t('list.tabs.all'),
+      rm: t('list.tabs.rm'),
+      ingredient: t('list.tabs.ingredient'),
+      intermediate: t('list.tabs.intermediate'),
+      fg: t('list.tabs.fg'),
+      co_product: t('list.tabs.co_product'),
+      byproduct: t('list.tabs.byproduct'),
+      packaging: t('list.tabs.packaging'),
     },
     statusFilterLabels: {
-      all: gt('list.statusFilters.all', 'All status'),
-      active: gt('list.statusFilters.active', 'Active'),
-      draft: gt('list.statusFilters.draft', 'Draft'),
-      deprecated: gt('list.statusFilters.deprecated', 'Deprecated'),
-      blocked: gt('list.statusFilters.blocked', 'Blocked'),
+      all: t('list.statusFilters.all'),
+      active: t('list.statusFilters.active'),
+      draft: t('list.statusFilters.draft'),
+      deprecated: t('list.statusFilters.deprecated'),
+      blocked: t('list.statusFilters.blocked'),
     },
     d365FilterLabels: {
-      all: gt('list.d365Filters.all', 'D365: all'),
-      synced: gt('list.d365Filters.synced', 'Synced'),
-      drift: gt('list.d365Filters.drift', 'Drift'),
-      unsynced: gt('list.d365Filters.unsynced', 'Not synced'),
+      all: t('list.d365Filters.all'),
+      synced: t('list.d365Filters.synced'),
+      drift: t('list.d365Filters.drift'),
+      unsynced: t('list.d365Filters.unsynced'),
     },
     columns: {
-      code: gt('list.columns.code', 'Code'),
-      name: gt('list.columns.name', 'Name'),
-      type: gt('list.columns.type', 'Type'),
-      uom: gt('list.columns.uom', 'UoM'),
-      costPerKg: gt('list.columns.costPerKg', 'Cost / kg (zł)'),
-      allergens: gt('list.columns.allergens', 'Allergens'),
-      boms: gt('list.columns.boms', 'BOMs'),
-      updated: gt('list.columns.updated', 'Updated'),
-      status: gt('list.columns.status', 'Status'),
-      actions: gt('list.columns.actions', 'Actions'),
+      code: t('list.columns.code'),
+      name: t('list.columns.name'),
+      type: t('list.columns.type'),
+      uom: t('list.columns.uom'),
+      costPerKg: t('list.columns.costPerKg'),
+      allergens: t('list.columns.allergens'),
+      boms: t('list.columns.boms'),
+      updated: t('list.columns.updated'),
+      status: t('list.columns.status'),
+      actions: t('list.columns.actions'),
     },
-    searchPlaceholder: gt('list.searchPlaceholder', 'Search by code or name…'),
+    searchPlaceholder: t('list.searchPlaceholder'),
     // {shown}/{total} are interpolated client-side — t.raw avoids next-intl FORMATTING_ERROR.
-    footer: has('list.footer') ? (t.raw('list.footer') as string) : '{shown} of {total} items',
+    footer: t.raw('list.footer') as string,
+    aria: {
+      itemType: t('create.fields.itemType'),
+      search: t('list.searchPlaceholder'),
+      statusFilter: t('create.fields.status'),
+      d365Filter: t('detail.tabs.d365'),
+      table: t('list.title'),
+    },
   };
 
   return (

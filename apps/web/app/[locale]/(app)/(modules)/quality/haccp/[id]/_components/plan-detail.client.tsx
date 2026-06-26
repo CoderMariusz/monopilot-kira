@@ -91,6 +91,7 @@ export function PlanDetailClient({
 }) {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
+  const [addFormKey, setAddFormKey] = useState(0);
   const [activateOpen, setActivateOpen] = useState(false);
 
   const isDraft = plan.status === 'draft';
@@ -132,6 +133,16 @@ export function PlanDetailClient({
     router.refresh();
   }
 
+  function openAddCcp() {
+    if (!canAddCcp) return;
+    setAddFormKey((key) => key + 1);
+    setAddOpen(true);
+  }
+
+  function handleAddOpenChange(open: boolean) {
+    setAddOpen(open);
+  }
+
   function handleActivated() {
     setActivateOpen(false);
     router.refresh();
@@ -163,7 +174,7 @@ export function PlanDetailClient({
           data-testid="haccp-detail-add-ccp"
           disabled={!canAddCcp}
           title={canAddCcp ? undefined : addDisabledReason}
-          onClick={() => setAddOpen(true)}
+          onClick={openAddCcp}
           className={[
             'rounded-md px-3 py-1.5 text-sm font-medium transition',
             canAddCcp ? 'bg-slate-900 text-white hover:bg-slate-800' : 'cursor-not-allowed bg-slate-300 text-white',
@@ -204,7 +215,7 @@ export function PlanDetailClient({
             data-testid="haccp-detail-empty-cta"
             disabled={!canAddCcp}
             title={canAddCcp ? undefined : addDisabledReason}
-            onClick={() => setAddOpen(true)}
+            onClick={openAddCcp}
             className={[
               'rounded-md px-3 py-1.5 text-sm font-medium text-white transition',
               canAddCcp ? 'bg-slate-900 hover:bg-slate-800' : 'cursor-not-allowed bg-slate-300',
@@ -275,10 +286,11 @@ export function PlanDetailClient({
         </div>
       )}
 
-      {canEdit && (
+      {canAddCcp && (
         <CcpAddModal
+          key={addFormKey}
           open={addOpen}
-          onOpenChange={setAddOpen}
+          onOpenChange={handleAddOpenChange}
           planId={plan.id}
           labels={ccpAddLabels}
           upsertCcpAction={upsertCcpAction}

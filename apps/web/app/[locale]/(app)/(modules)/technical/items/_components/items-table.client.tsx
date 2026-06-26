@@ -18,7 +18,7 @@ import { type ItemListItem, type ItemStatus, type ItemType } from '../_actions/s
 import { type DeactivateLabels } from './deactivate-modal';
 import { type ItemWizardLabels } from './item-create-wizard';
 import { type StatusTransitionLabels } from './item-transition-labels';
-import { ItemRowActions, ITEM_TYPE_LABELS, STATUS_LABELS } from './items-manager.client';
+import { ItemRowActions } from './items-manager.client';
 
 /**
  * Localized chrome for the items master list — type tabs, status/D365 filter
@@ -54,43 +54,14 @@ export type ItemsTableLabels = {
   searchPlaceholder: string;
   /** Footer counter — carries {shown}/{total} placeholders (list.footer). */
   footer: string;
-};
-
-const DEFAULT_TABLE_LABELS: ItemsTableLabels = {
-  typeLabels: ITEM_TYPE_LABELS,
-  statusLabels: STATUS_LABELS,
-  tabLabels: {
-    all: 'All',
-    rm: 'Raw materials',
-    ingredient: 'Ingredients',
-    intermediate: 'Intermediate',
-    fg: 'Finished goods',
-    co_product: 'Co-products',
-    byproduct: 'By-products',
-    packaging: 'Packaging',
-  },
-  statusFilterLabels: {
-    all: 'All status',
-    active: 'Active',
-    draft: 'Draft',
-    deprecated: 'Deprecated',
-    blocked: 'Blocked',
-  },
-  d365FilterLabels: { all: 'D365: all', synced: 'Synced', drift: 'Drift', unsynced: 'Not synced' },
-  columns: {
-    code: 'Code',
-    name: 'Name',
-    type: 'Type',
-    uom: 'UoM',
-    costPerKg: 'Cost / kg (zł)',
-    allergens: 'Allergens',
-    boms: 'BOMs',
-    updated: 'Updated',
-    status: 'Status',
-    actions: 'Actions',
-  },
-  searchPlaceholder: 'Search by code or name…',
-  footer: '{shown} of {total} items',
+  /** Accessible labels sourced from the same technical.items namespace. */
+  aria: {
+    itemType: string;
+    search: string;
+    statusFilter: string;
+    d365Filter: string;
+    table: string;
+  };
 };
 
 const TYPE_TAB_KEYS: Array<'all' | ItemType> = [
@@ -162,10 +133,10 @@ export function ItemsTableClient({
   canDeactivate,
   editLabel,
   deactivateLabel,
-  allergensLabel = 'Allergens',
-  filterEmptyTitle = 'No items match your filters',
-  filterEmptyBody = 'Adjust the type tab, status, or search to see more items.',
-  labels = DEFAULT_TABLE_LABELS,
+  allergensLabel,
+  filterEmptyTitle,
+  filterEmptyBody,
+  labels,
   wizardLabels,
   deactivateLabels,
   transitionLabels,
@@ -175,11 +146,11 @@ export function ItemsTableClient({
   canDeactivate: boolean;
   editLabel: string;
   deactivateLabel: string;
-  allergensLabel?: string;
-  filterEmptyTitle?: string;
-  filterEmptyBody?: string;
+  allergensLabel: string;
+  filterEmptyTitle: string;
+  filterEmptyBody: string;
   /** Localized type/status badge maps + table chrome (defaults to English). */
-  labels?: ItemsTableLabels;
+  labels: ItemsTableLabels;
   wizardLabels: ItemWizardLabels;
   deactivateLabels: DeactivateLabels;
   transitionLabels?: StatusTransitionLabels;
@@ -207,25 +178,18 @@ export function ItemsTableClient({
     });
   }, [items, tab, status, d365, query]);
 
-  // Localized label resolvers — fall back to the English defaults when a key is
-  // absent so the island never leaks a raw key or renders blank.
-  const D = DEFAULT_TABLE_LABELS;
-  const tabLabel = (key: 'all' | ItemType) => labels.tabLabels?.[key] ?? D.tabLabels[key] ?? key;
-  const statusFilterLabel = (key: 'all' | ItemStatus) =>
-    labels.statusFilterLabels?.[key] ?? D.statusFilterLabels[key] ?? key;
-  const d365FilterLabel = (key: 'all' | 'synced' | 'drift' | 'unsynced') =>
-    labels.d365FilterLabels?.[key] ?? D.d365FilterLabels[key] ?? key;
-  const typeLabel = (t: ItemType) => labels.typeLabels?.[t] ?? D.typeLabels[t] ?? t;
-  const statusLabel = (s: ItemStatus) => labels.statusLabels?.[s] ?? D.statusLabels[s] ?? s;
-  const col = labels.columns ?? D.columns;
-  const footerText = (labels.footer ?? D.footer)
-    .replace('{shown}', String(filtered.length))
-    .replace('{total}', String(items.length));
+  const tabLabel = (key: 'all' | ItemType) => labels.tabLabels[key] ?? key;
+  const statusFilterLabel = (key: 'all' | ItemStatus) => labels.statusFilterLabels[key] ?? key;
+  const d365FilterLabel = (key: 'all' | 'synced' | 'drift' | 'unsynced') => labels.d365FilterLabels[key] ?? key;
+  const typeLabel = (t: ItemType) => labels.typeLabels[t] ?? t;
+  const statusLabel = (s: ItemStatus) => labels.statusLabels[s] ?? s;
+  const col = labels.columns;
+  const footerText = labels.footer.replace('{shown}', String(filtered.length)).replace('{total}', String(items.length));
 
   return (
     <div className="space-y-3">
       {/* F1 — TabsCounted by item type */}
-      <div className="tabs-counted" role="tablist" aria-label="Item type">
+      <div className="tabs-counted" role="tablist" aria-label={labels.aria.itemType}>
         {TYPE_TAB_KEYS.map((key) => (
           <button
             key={key}
@@ -246,12 +210,12 @@ export function ItemsTableClient({
         <input
           type="search"
           className="form-input max-w-xs"
-          placeholder={labels.searchPlaceholder ?? D.searchPlaceholder}
-          aria-label="Search items"
+          placeholder={labels.searchPlaceholder}
+          aria-label={labels.aria.search}
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
         />
-        <div className="pills" role="group" aria-label="Status filter">
+        <div className="pills" role="group" aria-label={labels.aria.statusFilter}>
           {STATUS_FILTER_KEYS.map((key) => (
             <button
               key={key}
@@ -264,7 +228,7 @@ export function ItemsTableClient({
             </button>
           ))}
         </div>
-        <div className="pills" role="group" aria-label="D365 filter">
+        <div className="pills" role="group" aria-label={labels.aria.d365Filter}>
           {D365_FILTERS.map((f) => (
             <button
               key={f.key}
@@ -288,7 +252,7 @@ export function ItemsTableClient({
             <div className="empty-state-body">{filterEmptyBody}</div>
           </div>
         ) : (
-          <table aria-label="Items master">
+          <table aria-label={labels.aria.table}>
             <thead>
               <tr>
                 <th scope="col">{col.code}</th>

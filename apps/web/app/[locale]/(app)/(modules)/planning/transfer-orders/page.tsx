@@ -34,6 +34,7 @@ import {
 } from './_actions/to-form-data';
 import { buildUomDropdown, type UomDropdown } from '../_actions/uom-dropdown';
 import { ToListView, type ToListLabels } from './_components/to-list-view';
+import { makeImportLabel } from '../../../../../../lib/import/import-i18n-staging';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
 export const dynamic = 'force-dynamic';
@@ -99,6 +100,7 @@ function uomFallbackLabels(locale: string): {
 function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string, uom: UomDropdown): ToListLabels {
   return {
     createTo: t('actions.createTo'),
+    bulkImportLabel: makeImportLabel(t, 'to', locale)('actions.bulkImport'),
     searchPlaceholder: t('list.searchPlaceholder'),
     rowsCount: t('list.rowsCount'),
     tabs: {
