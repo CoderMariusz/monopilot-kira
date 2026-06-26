@@ -32,6 +32,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -89,6 +90,9 @@ export type ComplianceDocsLabels = {
   error: string;
   forbidden: string;
   fileTypesNote: string;
+  // Approval criterion C7 wayfinding (links this docs screen back to the gate it satisfies).
+  approvalC7Note: string;
+  backToApproval: string;
   docTypeCoA: string;
   docTypeSDS: string;
   docTypeSpec: string;
@@ -246,6 +250,8 @@ export function ComplianceDocsScreen({
   labels,
   canWrite,
   state = 'ready',
+  projectId = null,
+  locale = 'en',
   uploadDocAction,
   getSignedUrlAction,
   softDeleteDocAction,
@@ -255,6 +261,10 @@ export function ComplianceDocsScreen({
   labels: ComplianceDocsLabels;
   canWrite: boolean;
   state?: PageState;
+  /** Resolved NPD project id this FA belongs to — drives the "Back to Approval" link. Null when no project resolves. */
+  projectId?: string | null;
+  /** Active locale, for the locale-prefixed approval href. */
+  locale?: string;
   uploadDocAction?: UploadDocAction;
   getSignedUrlAction?: GetSignedUrlAction;
   softDeleteDocAction?: SoftDeleteDocAction;
@@ -346,6 +356,30 @@ export function ComplianceDocsScreen({
       {actionError ? (
         <div role="alert" className="alert alert-red">
           {actionError}
+        </div>
+      ) : null}
+
+      {/* Approval criterion C7 wayfinding — explains the gate requirement these docs
+          satisfy and (when the FA resolves to an NPD project) links back to the
+          approval screen so a failing C7 is actionable. Shown only in the data-loaded
+          states (ready / empty); suppressed in loading / error / permission_denied. */}
+      {dataLoaded ? (
+        <div
+          className="alert alert-blue"
+          data-testid="compliance-docs-c7-banner"
+          style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
+        >
+          <span>{labels.approvalC7Note}</span>
+          {projectId ? (
+            <Link
+              href={`/${locale}/pipeline/${projectId}/approval`}
+              prefetch={false}
+              className="btn btn-ghost btn-sm"
+              data-testid="compliance-docs-back-to-approval"
+            >
+              ← {labels.backToApproval}
+            </Link>
+          ) : null}
         </div>
       ) : null}
 

@@ -124,6 +124,20 @@ export type HandoffLabels = {
   promote: string;
   promoting: string;
   promoteError: string;
+  // Post-promote success panel (auto-built production BOM result).
+  promoteSuccessTitle: string;
+  /** Body with the {code} placeholder for the generated production FG code. */
+  promoteSuccessBody: string;
+  promoteSuccessViewBom: string;
+  // Inline yield/waste prompt (shown when the recipe had no target yield).
+  yieldPromptTitle: string;
+  yieldPromptBody: string;
+  yieldLabel: string;
+  yieldSave: string;
+  yieldSkip: string;
+  yieldSaving: string;
+  yieldSaved: string;
+  yieldError: string;
   loading: string;
   empty: string;
   emptyBody: string;
@@ -149,9 +163,20 @@ export type HandoffHrefs = {
 };
 
 export type PromoteCall = { projectId: string };
-export type PromoteOutcome = { ok: boolean; error?: string };
+export type PromoteOutcome = {
+  ok: boolean;
+  error?: string;
+  /** On success, the auto-built production-BOM result (contract from promoteToProduction). */
+  productionCode?: string | null;
+  bomHeaderId?: string | null;
+  yieldPromptRequired?: boolean;
+  /** Locale-prefixed Technical BOM-detail href for `productionCode` (resolved server-side). */
+  bomHref?: string | null;
+};
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
+export type UpdateBomYieldCall = { bomHeaderId: string; yieldPct: number };
+export type UpdateBomYieldOutcome = { ok: boolean; error?: string };
 
 /**
  * Build the machine-readable handoff packet from data the screen already holds
@@ -234,6 +259,14 @@ function StateNotice({ state, labels }: { state: PageState; labels: HandoffLabel
   return null;
 }
 
+/** Post-promote auto-built BOM result, held in client state to drive the success panel. */
+type PromoteSuccess = {
+  productionCode: string | null;
+  bomHeaderId: string | null;
+  bomHref: string | null;
+  yieldPromptRequired: boolean;
+};
+
 export function HandoffScreen({
   state = 'ready',
   data,
@@ -241,6 +274,7 @@ export function HandoffScreen({
   hrefs,
   onPromote,
   onToggleChecklistItem,
+  onUpdateBomYield,
 }: {
   state?: PageState;
   data: HandoffScreenData | null;
@@ -248,15 +282,29 @@ export function HandoffScreen({
   hrefs?: HandoffHrefs;
   onPromote?: (call: PromoteCall) => Promise<PromoteOutcome>;
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
+  onUpdateBomYield?: (call: UpdateBomYieldCall) => Promise<UpdateBomYieldOutcome>;
 }) {
   const router = useRouter();
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
   const [promoting, setPromoting] = React.useState(false);
   const [promoteError, setPromoteError] = React.useState<string | null>(null);
+  // Auto-built production-BOM result + the inline yield-prompt sub-state.
+  const [promoteSuccess, setPromoteSuccess] = React.useState<PromoteSuccess | null>(null);
+  const [yieldInput, setYieldInput] = React.useState('');
+  const [yieldSaving, setYieldSaving] = React.useState(false);
+  const [yieldSaved, setYieldSaved] = React.useState(false);
+  const [yieldDismissed, setYieldDismissed] = React.useState(false);
+  const [yieldError, setYieldError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setOptimistic({});
     setPromoteError(null);
+    setPromoteSuccess(null);
+    setYieldInput('');
+    setYieldSaving(false);
+    setYieldSaved(false);
+    setYieldDismissed(false);
+    setYieldError(null);
   }, [data?.checklistId]);
 
   if (state !== 'ready' || !data) {
@@ -333,6 +381,18 @@ export function HandoffScreen({
       if (!result.ok) {
         setPromoteError(result.error ?? 'error');
       } else {
+        // Surface the auto-built production-BOM result (FG code + BOM link) and,
+        // when the recipe had no target yield, the inline yield prompt. Held in
+        // client state so it survives the router.refresh() below.
+        setPromoteSuccess({
+          productionCode: result.productionCode ?? null,
+          bomHeaderId: result.bomHeaderId ?? null,
+          bomHref: result.bomHref ?? null,
+          yieldPromptRequired: result.yieldPromptRequired === true,
+        });
+        setYieldDismissed(false);
+        setYieldSaved(false);
+        setYieldError(null);
         // Re-fetch the RSC tree so the "Promoted" bar + next-step CTA appear
         // immediately (kills the "promote does nothing visible" symptom).
         router.refresh();
@@ -342,6 +402,37 @@ export function HandoffScreen({
     } finally {
       setPromoting(false);
     }
+  }
+
+  async function handleYieldSave() {
+    if (!onUpdateBomYield || yieldSaving) return;
+    const bomHeaderId = promoteSuccess?.bomHeaderId;
+    if (!bomHeaderId) return;
+    const yieldPct = Number(yieldInput);
+    if (!Number.isFinite(yieldPct) || yieldPct < 0.001 || yieldPct > 100) {
+      setYieldError('invalid_input');
+      return;
+    }
+    setYieldSaving(true);
+    setYieldError(null);
+    try {
+      const result = await onUpdateBomYield({ bomHeaderId, yieldPct });
+      if (result.ok) {
+        setYieldSaved(true);
+      } else {
+        setYieldError(result.error ?? 'error');
+      }
+    } catch {
+      setYieldError('error');
+    } finally {
+      setYieldSaving(false);
+    }
+  }
+
+  function handleYieldSkip() {
+    // BOM keeps its default yield; just dismiss the prompt.
+    setYieldDismissed(true);
+    setYieldError(null);
   }
 
   function handleExportPacket() {
@@ -389,6 +480,109 @@ export function HandoffScreen({
           <strong>{labels.blockedTitle}</strong> <span>{labels.blockedBody}</span>
         </div>
       )}
+
+      {/*
+        Post-promote success panel — the production BOM is auto-built by the
+        backend (promoteToProduction). Surface the generated production FG code +
+        a link into the Technical BOM detail. When the recipe had no target yield
+        (yieldPromptRequired), offer an inline yield/waste prompt. Held in client
+        state so it survives the router.refresh() that re-renders the promoted bar.
+      */}
+      {promoteSuccess && (promoteSuccess.productionCode || promoteSuccess.bomHeaderId) ? (
+        <Card data-testid="handoff-promote-success">
+          <CardHeader>
+            <CardTitle>{labels.promoteSuccessTitle}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm" data-testid="handoff-promote-success-body">
+              {labels.promoteSuccessBody.replace(
+                '{code}',
+                promoteSuccess.productionCode ?? labels.notSet,
+              )}
+            </p>
+            {promoteSuccess.productionCode && promoteSuccess.bomHref ? (
+              <div>
+                <a
+                  href={promoteSuccess.bomHref}
+                  className="btn btn-secondary"
+                  data-testid="handoff-promote-success-bom-link"
+                >
+                  {labels.promoteSuccessViewBom}
+                </a>
+              </div>
+            ) : null}
+
+            {/* Inline yield/waste prompt — only when the recipe had no target yield. */}
+            {promoteSuccess.yieldPromptRequired &&
+            promoteSuccess.bomHeaderId &&
+            !yieldDismissed ? (
+              yieldSaved ? (
+                <div
+                  role="status"
+                  data-testid="handoff-yield-saved"
+                  className="alert alert-green"
+                >
+                  <div className="alert-title">{labels.yieldSaved}</div>
+                </div>
+              ) : (
+                <div
+                  data-testid="handoff-yield-prompt"
+                  className="rounded-md border p-3 space-y-2"
+                >
+                  <div className="text-sm font-medium">{labels.yieldPromptTitle}</div>
+                  <p className="muted text-xs">{labels.yieldPromptBody}</p>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="flex flex-col gap-1 text-xs">
+                      <span>{labels.yieldLabel}</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0.001}
+                        max={100}
+                        step={0.001}
+                        value={yieldInput}
+                        onChange={(e) => setYieldInput(e.target.value)}
+                        disabled={yieldSaving}
+                        className="input w-32"
+                        data-testid="handoff-yield-input"
+                        aria-label={labels.yieldLabel}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      data-testid="handoff-yield-save-btn"
+                      disabled={yieldSaving || !onUpdateBomYield}
+                      aria-disabled={yieldSaving || !onUpdateBomYield}
+                      onClick={handleYieldSave}
+                    >
+                      {yieldSaving ? labels.yieldSaving : labels.yieldSave}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      data-testid="handoff-yield-skip-btn"
+                      disabled={yieldSaving}
+                      onClick={handleYieldSkip}
+                    >
+                      {labels.yieldSkip}
+                    </button>
+                  </div>
+                  {yieldError ? (
+                    <div
+                      role="alert"
+                      data-testid="handoff-yield-error"
+                      className="alert alert-red"
+                    >
+                      <div className="alert-title">{labels.yieldError}</div>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/*
         Post-promote next-step CTA — kills the dead end the user reported (after a

@@ -30,10 +30,13 @@ import {
   type PromoteOutcome,
   type ToggleChecklistCall,
   type ToggleChecklistOutcome,
+  type UpdateBomYieldCall,
+  type UpdateBomYieldOutcome,
 } from './_components/handoff-screen';
 import { getHandoff } from './_actions/get-handoff';
 import { toggleHandoffChecklistItem } from './_actions/toggle-handoff-checklist-item';
 import { promoteToProduction } from './_actions/promote-to-production';
+import { updateBomYield } from './_actions/update-bom-yield';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +95,18 @@ const DEFAULT_LABELS: HandoffLabels = {
   promote: '✓ Promote to production BOM',
   promoting: 'Promoting…',
   promoteError: 'Promotion failed. Check the gates and try again.',
+  promoteSuccessTitle: 'Production BOM created',
+  promoteSuccessBody: 'Production FG {code} was created and its BOM auto-built.',
+  promoteSuccessViewBom: 'Open production BOM',
+  yieldPromptTitle: 'Set the actual yield',
+  yieldPromptBody:
+    'This recipe had no target yield. Enter the actual yield % for this product, or skip to keep the default.',
+  yieldLabel: 'Actual yield % for this product',
+  yieldSave: 'Save yield',
+  yieldSkip: 'Skip',
+  yieldSaving: 'Saving…',
+  yieldSaved: 'Yield saved.',
+  yieldError: 'Could not save the yield. Enter a value between 0.001 and 100 and try again.',
   loading: 'Loading handoff data…',
   empty: 'No handoff checklist yet',
   emptyBody: 'A handoff checklist is created once the project reaches the handoff stage.',
@@ -163,7 +178,30 @@ export default async function HandoffPage(propsInput: unknown = {}) {
   async function promoteAction(_call: PromoteCall): Promise<PromoteOutcome> {
     'use server';
     const result = await promoteToProduction({ projectId });
-    return result.ok ? { ok: true } : { ok: false, error: result.error };
+    if (!result.ok) return { ok: false, error: result.error };
+    const { productionCode, bomHeaderId, yieldPromptRequired } = result.data;
+    // Technical BOM detail route: /[locale]/technical/bom/[itemCode] where
+    // [itemCode] resolves to bom_headers.product_id (the FG product_code) — which
+    // IS the derived productionCode the contract returns.
+    const bomHref = productionCode
+      ? `/${locale}/technical/bom/${encodeURIComponent(productionCode)}`
+      : null;
+    return {
+      ok: true,
+      productionCode,
+      bomHeaderId,
+      yieldPromptRequired,
+      bomHref,
+    };
+  }
+
+  async function updateYieldAction(call: UpdateBomYieldCall): Promise<UpdateBomYieldOutcome> {
+    'use server';
+    const result = await updateBomYield({
+      bomHeaderId: call.bomHeaderId,
+      yieldPct: call.yieldPct,
+    });
+    return result.ok ? { ok: true } : { ok: false, error: result.code };
   }
 
   const injected = props.data !== undefined || props.state !== undefined;
@@ -189,6 +227,7 @@ export default async function HandoffPage(propsInput: unknown = {}) {
       hrefs={hrefs}
       onPromote={promoteAction}
       onToggleChecklistItem={toggleChecklistAction}
+      onUpdateBomYield={updateYieldAction}
     />
   );
 }

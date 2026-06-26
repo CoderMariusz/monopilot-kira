@@ -32,6 +32,15 @@ import {
 } from '../compliance-docs-screen';
 import { DocUploadModal } from '../doc-upload-modal';
 
+// next/link → plain anchor so the back-link href is assertable in jsdom.
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 afterEach(() => cleanup());
 
 // Distinct sentinel strings prove the component renders LABELS (i18n message
@@ -59,6 +68,8 @@ const LABELS: ComplianceDocsLabels = {
   error: 'lbl.error',
   forbidden: 'lbl.forbidden',
   fileTypesNote: 'lbl.fileTypesNote',
+  approvalC7Note: 'lbl.approvalC7Note',
+  backToApproval: 'lbl.backToApproval',
   // doc type labels
   docTypeCoA: 'lbl.docTypeCoA',
   docTypeSDS: 'lbl.docTypeSDS',
@@ -232,6 +243,44 @@ describe('ComplianceDocsScreen — required UI states', () => {
   it('permission_denied: alert with the forbidden label', () => {
     renderScreen({ state: 'permission_denied' });
     expect(screen.getByRole('alert')).toHaveTextContent(LABELS.forbidden);
+  });
+});
+
+describe('ComplianceDocsScreen — approval criterion C7 wayfinding', () => {
+  it('ready: renders the C7 banner note and a locale-prefixed "Back to Approval" link when projectId is set', () => {
+    renderScreen({ projectId: 'proj-123', locale: 'pl', state: 'ready' });
+    const banner = screen.getByTestId('compliance-docs-c7-banner');
+    expect(banner).toHaveTextContent(LABELS.approvalC7Note);
+    const back = screen.getByTestId('compliance-docs-back-to-approval');
+    expect(back).toHaveTextContent(LABELS.backToApproval);
+    expect(back).toHaveAttribute('href', '/pl/pipeline/proj-123/approval');
+  });
+
+  it('empty: still renders the C7 banner (so a failing C7 with no docs is actionable)', () => {
+    renderScreen({ rows: [], state: 'empty', projectId: 'proj-9', locale: 'en' });
+    const banner = screen.getByTestId('compliance-docs-c7-banner');
+    expect(banner).toHaveTextContent(LABELS.approvalC7Note);
+    expect(screen.getByTestId('compliance-docs-back-to-approval')).toHaveAttribute(
+      'href',
+      '/en/pipeline/proj-9/approval',
+    );
+  });
+
+  it('omits the back-link (banner note only) when projectId is null', () => {
+    renderScreen({ projectId: null, state: 'ready' });
+    expect(screen.getByTestId('compliance-docs-c7-banner')).toHaveTextContent(LABELS.approvalC7Note);
+    expect(screen.queryByTestId('compliance-docs-back-to-approval')).toBeNull();
+  });
+
+  it('suppresses the C7 banner in non-data-loaded states (error / permission_denied / loading)', () => {
+    renderScreen({ state: 'error', projectId: 'proj-123' });
+    expect(screen.queryByTestId('compliance-docs-c7-banner')).toBeNull();
+    cleanup();
+    renderScreen({ state: 'permission_denied', projectId: 'proj-123' });
+    expect(screen.queryByTestId('compliance-docs-c7-banner')).toBeNull();
+    cleanup();
+    renderScreen({ state: 'loading', projectId: 'proj-123' });
+    expect(screen.queryByTestId('compliance-docs-c7-banner')).toBeNull();
   });
 });
 

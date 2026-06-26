@@ -30,6 +30,15 @@ import {
 } from '../compliance-docs-screen';
 import { DocUploadModal } from '../doc-upload-modal';
 
+// next/link → plain anchor (the C7 back-link import is evaluated even when not rendered).
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 afterEach(() => cleanup());
 
 const THIS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -58,6 +67,9 @@ const LABELS: ComplianceDocsLabels = {
   error: 'Unable to load compliance documents. Try again after the backend is available.',
   forbidden: 'You do not have permission to view compliance documents for this FA.',
   fileTypesNote: 'File types: PDF, XLSX, DOCX. Max 20 MB per upload. Documents nearing expiry are flagged automatically.',
+  approvalC7Note:
+    'Approval criterion C7 requires at least one valid, in-date compliance document; any expired or invalid document blocks gate submission.',
+  backToApproval: 'Back to Approval',
   docTypeCoA: 'CoA',
   docTypeSDS: 'SDS',
   docTypeSpec: 'Spec',

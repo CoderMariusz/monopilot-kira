@@ -82,6 +82,17 @@ const LABELS: HandoffLabels = {
   promote: 'L_PROMOTE',
   promoting: 'L_PROMOTING',
   promoteError: 'L_PROMOTE_ERR',
+  promoteSuccessTitle: 'L_PROMOTE_OK_TITLE',
+  promoteSuccessBody: 'Created FG {code}',
+  promoteSuccessViewBom: 'L_PROMOTE_OK_VIEW_BOM',
+  yieldPromptTitle: 'L_YIELD_TITLE',
+  yieldPromptBody: 'L_YIELD_BODY',
+  yieldLabel: 'L_YIELD_LABEL',
+  yieldSave: 'L_YIELD_SAVE',
+  yieldSkip: 'L_YIELD_SKIP',
+  yieldSaving: 'L_YIELD_SAVING',
+  yieldSaved: 'L_YIELD_SAVED',
+  yieldError: 'L_YIELD_ERR',
   loading: 'L_LOADING',
   empty: 'L_EMPTY',
   emptyBody: 'L_EMPTY_BODY',
@@ -282,6 +293,154 @@ describe('HandoffScreen — interactions', () => {
     await waitFor(() =>
       expect(screen.getByTestId('handoff-promote-error')).toHaveTextContent('L_PROMOTE_ERR'),
     );
+  });
+});
+
+describe('HandoffScreen — auto-built production BOM result + yield prompt', () => {
+  const BOM_ID = '07300000-0000-4000-8000-0000000000b0';
+
+  it('renders the success panel (production FG code + BOM link) after a successful promote', async () => {
+    const onPromote = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: false,
+      bomHref: '/en/technical/bom/FG-002',
+    });
+    render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} onPromote={onPromote} />);
+    fireEvent.click(screen.getByTestId('handoff-promote-btn'));
+    const panel = await screen.findByTestId('handoff-promote-success');
+    expect(within(panel).getByTestId('handoff-promote-success-body')).toHaveTextContent('Created FG FG-002');
+    expect(within(panel).getByTestId('handoff-promote-success-bom-link')).toHaveAttribute(
+      'href',
+      '/en/technical/bom/FG-002',
+    );
+    // No yield prompt when yieldPromptRequired is false.
+    expect(screen.queryByTestId('handoff-yield-prompt')).not.toBeInTheDocument();
+  });
+
+  it('does NOT render the success panel when productionCode + bomHeaderId are null', async () => {
+    const onPromote = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: null,
+      bomHeaderId: null,
+      yieldPromptRequired: false,
+      bomHref: null,
+    });
+    render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} onPromote={onPromote} />);
+    fireEvent.click(screen.getByTestId('handoff-promote-btn'));
+    await waitFor(() => expect(onPromote).toHaveBeenCalled());
+    expect(screen.queryByTestId('handoff-promote-success')).not.toBeInTheDocument();
+  });
+
+  it('shows the yield prompt when yieldPromptRequired, saves via onUpdateBomYield, then shows "Yield saved"', async () => {
+    const onPromote = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: true,
+      bomHref: '/en/technical/bom/FG-002',
+    });
+    const onUpdateBomYield = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true)}
+        labels={LABELS}
+        onPromote={onPromote}
+        onUpdateBomYield={onUpdateBomYield}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-promote-btn'));
+    const input = await screen.findByTestId('handoff-yield-input');
+    fireEvent.change(input, { target: { value: '92.5' } });
+    fireEvent.click(screen.getByTestId('handoff-yield-save-btn'));
+    await waitFor(() =>
+      expect(onUpdateBomYield).toHaveBeenCalledWith({ bomHeaderId: BOM_ID, yieldPct: 92.5 }),
+    );
+    expect(await screen.findByTestId('handoff-yield-saved')).toHaveTextContent('L_YIELD_SAVED');
+    expect(screen.queryByTestId('handoff-yield-prompt')).not.toBeInTheDocument();
+  });
+
+  it('dismisses the yield prompt on Skip without calling onUpdateBomYield', async () => {
+    const onPromote = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: true,
+      bomHref: '/en/technical/bom/FG-002',
+    });
+    const onUpdateBomYield = vi.fn();
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true)}
+        labels={LABELS}
+        onPromote={onPromote}
+        onUpdateBomYield={onUpdateBomYield}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-promote-btn'));
+    await screen.findByTestId('handoff-yield-prompt');
+    fireEvent.click(screen.getByTestId('handoff-yield-skip-btn'));
+    await waitFor(() => expect(screen.queryByTestId('handoff-yield-prompt')).not.toBeInTheDocument());
+    expect(onUpdateBomYield).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('handoff-yield-saved')).not.toBeInTheDocument();
+  });
+
+  it('surfaces an inline role=alert on yield-save failure (never throws)', async () => {
+    const onPromote = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: true,
+      bomHref: '/en/technical/bom/FG-002',
+    });
+    const onUpdateBomYield = vi.fn().mockResolvedValue({ ok: false, error: 'persistence_failed' });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true)}
+        labels={LABELS}
+        onPromote={onPromote}
+        onUpdateBomYield={onUpdateBomYield}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-promote-btn'));
+    const input = await screen.findByTestId('handoff-yield-input');
+    fireEvent.change(input, { target: { value: '80' } });
+    fireEvent.click(screen.getByTestId('handoff-yield-save-btn'));
+    const err = await screen.findByTestId('handoff-yield-error');
+    expect(err).toHaveAttribute('role', 'alert');
+    expect(err).toHaveTextContent('L_YIELD_ERR');
+    // Prompt stays so the user can correct + retry.
+    expect(screen.getByTestId('handoff-yield-prompt')).toBeInTheDocument();
+  });
+
+  it('rejects an out-of-range yield client-side without calling onUpdateBomYield', async () => {
+    const onPromote = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: true,
+      bomHref: '/en/technical/bom/FG-002',
+    });
+    const onUpdateBomYield = vi.fn();
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true)}
+        labels={LABELS}
+        onPromote={onPromote}
+        onUpdateBomYield={onUpdateBomYield}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-promote-btn'));
+    const input = await screen.findByTestId('handoff-yield-input');
+    fireEvent.change(input, { target: { value: '150' } });
+    fireEvent.click(screen.getByTestId('handoff-yield-save-btn'));
+    expect(await screen.findByTestId('handoff-yield-error')).toBeInTheDocument();
+    expect(onUpdateBomYield).not.toHaveBeenCalled();
   });
 });
 

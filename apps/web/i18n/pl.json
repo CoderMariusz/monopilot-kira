@@ -4180,7 +4180,8 @@
       "computeErrorNotFound": "Brak receptury do obliczenia kalkulacji.",
       "computeErrorNoCosts": "Każdy składnik musi mieć koszt, aby obliczyć kalkulację.",
       "computeErrorHardFail": "Marża docelowa jest ujemna, więc kalkulacji nie można zapisać.",
-      "computeErrorFgNotMapped": "Receptura istnieje, ale nie powiązano jeszcze wyrobu gotowego — najpierw przenieś projekt do etapu Pakowanie."
+      "computeErrorFgNotMapped": "Receptura istnieje, ale nie powiązano jeszcze wyrobu gotowego — najpierw przenieś projekt do etapu Pakowanie.",
+      "recomputeCosting": "Przelicz ponownie"
     },
     "risks": {
       "title": "Rejestr ryzyk",
@@ -4286,7 +4287,9 @@
       "errorFileRequired": "Plik jest wymagany.",
       "errorFileTooLarge": "Plik przekracza limit 20 MB.",
       "errorFileType": "Nieobsługiwany typ pliku. Użyj PDF, XLSX lub DOCX.",
-      "errorUpload": "Przesyłanie nie powiodło się. Spróbuj ponownie."
+      "errorUpload": "Przesyłanie nie powiodło się. Spróbuj ponownie.",
+      "approvalC7Note": "Kryterium zatwierdzenia C7 wymaga co najmniej jednego ważnego, aktualnego dokumentu zgodności; każdy przeterminowany lub nieprawidłowy dokument blokuje zgłoszenie do bramki.",
+      "backToApproval": "Powrót do zatwierdzenia"
     },
     "faCreate": {
       "title": "Utwórz wyrób gotowy",
@@ -5388,7 +5391,8 @@
         "G2": "Uzasadnienie biznesowe",
         "G3": "Rozwój",
         "G4": "Testowanie",
-        "Launched": "Wprowadzony"
+        "Launched": "Wprowadzony",
+        "g0MergeHint": "G1 (Ocena wykonalności) jest częścią etapu Brief — jest tu uwzględniona, a nie pominięta. Następny krok prowadzi do G2."
       },
       "stageRailAriaLabel": "Postęp etapów (Stage-Gate)",
       "deptStrip": {
@@ -5712,16 +5716,29 @@
       "gateMet": "Spełniona",
       "gateUnmet": "Niespełniona",
       "gateRemediation": "Rozwiąż",
-      "gate.G4_REQUIRED": "Projekt na bramce G4",
-      "gate.FG_CANDIDATE_REQUIRED": "Przypisany kandydat wyrobu gotowego",
-      "gate.ACTIVE_SHARED_BOM_REQUIRED": "Aktywny współdzielony BOM z pozycjami",
-      "gate.FACTORY_SPEC_REQUIRED": "Zatwierdzona specyfikacja fabryczna",
-      "gate.V18_OPEN_HIGH_RISK": "Brak otwartych wysokich ryzyk",
       "promotedNextTitle": "Następny krok",
       "promotedNextBody": "Wyrób gotowy i BOM zostały przekazane do fabryki. Przejdź projekt do statusu Uruchomiony lub otwórz wydany BOM w module Technicznym.",
       "advanceToLaunched": "Przejdź do Uruchomiony →",
       "viewBom": "Pokaż wydany BOM",
-      "viewProject": "Wróć do projektu"
+      "viewProject": "Wróć do projektu",
+      "promoteSuccessTitle": "Utworzono BOM produkcyjny",
+      "promoteSuccessBody": "Utworzono wyrób gotowy {code}, a jego BOM został zbudowany automatycznie.",
+      "promoteSuccessViewBom": "Otwórz BOM produkcyjny",
+      "yieldPromptTitle": "Ustaw rzeczywistą wydajność",
+      "yieldPromptBody": "Ta receptura nie miała docelowej wydajności. Podaj rzeczywistą wydajność % dla tego produktu lub pomiń, aby zachować wartość domyślną.",
+      "yieldLabel": "Rzeczywista wydajność % dla tego produktu",
+      "yieldSave": "Zapisz wydajność",
+      "yieldSkip": "Pomiń",
+      "yieldSaving": "Zapisywanie…",
+      "yieldSaved": "Wydajność zapisana.",
+      "yieldError": "Nie udało się zapisać wydajności. Podaj wartość od 0,001 do 100 i spróbuj ponownie.",
+      "gate": {
+        "G4_REQUIRED": "Projekt na bramce G4",
+        "FG_CANDIDATE_REQUIRED": "Przypisany kandydat wyrobu gotowego",
+        "ACTIVE_SHARED_BOM_REQUIRED": "Aktywny współdzielony BOM z pozycjami",
+        "FACTORY_SPEC_REQUIRED": "Zatwierdzona specyfikacja fabryczna",
+        "V18_OPEN_HIGH_RISK": "Brak otwartych wysokich ryzyk"
+      }
     },
     "pipelineCreate": {
       "title": "Utwórz projekt NPD",

@@ -18,6 +18,7 @@
 
 import { getTranslations } from 'next-intl/server';
 
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   ComplianceDocsScreen,
   type ComplianceDocRow,
@@ -38,6 +39,7 @@ type DocsPageProps = {
   rows?: ComplianceDocRow[];
   canWrite?: boolean;
   state?: PageState;
+  projectId?: string | null;
 };
 
 const DEFAULT_LABELS: ComplianceDocsLabels = {
@@ -65,6 +67,9 @@ const DEFAULT_LABELS: ComplianceDocsLabels = {
   forbidden: 'You do not have permission to view compliance documents for this FA.',
   fileTypesNote:
     'File types: PDF, XLSX, DOCX. Max 20 MB per upload. Documents nearing expiry are flagged automatically.',
+  approvalC7Note:
+    'Approval criterion C7 requires at least one valid, in-date compliance document; any expired or invalid document blocks gate submission.',
+  backToApproval: 'Back to Approval',
   docTypeCoA: 'CoA',
   docTypeSDS: 'SDS',
   docTypeSpec: 'Spec',
@@ -112,14 +117,49 @@ async function buildLabels(locale: string): Promise<ComplianceDocsLabels> {
   }
 }
 
-type LoaderResult = { state: PageState; rows: ComplianceDocRow[]; canWrite: boolean };
+type LoaderResult = {
+  state: PageState;
+  rows: ComplianceDocRow[];
+  canWrite: boolean;
+  projectId: string | null;
+};
+
+/**
+ * Resolve the NPD project this FA belongs to so the docs screen can link back to
+ * the approval criterion (C7 "Compliance docs reviewed") it satisfies. Org-scoped
+ * read via withOrgContext (RLS as app_user, app.current_org_id()); the most recent
+ * project for the product_code wins. Returns null when no project resolves or the
+ * read fails — the screen then renders the C7 note without the back-link.
+ */
+async function resolveProjectId(productCode: string): Promise<string | null> {
+  try {
+    return await withOrgContext<string | null>(async ({ client }) => {
+      const res = await client.query<{ id: string }>(
+        `select id::text as id
+           from public.npd_projects
+          where product_code = $1
+            and org_id = app.current_org_id()
+          order by created_at desc
+          limit 1`,
+        [productCode],
+      );
+      return res.rows[0]?.id ?? null;
+    });
+  } catch (error) {
+    console.error('[compliance-docs] projectId resolve failed:', error);
+    return null;
+  }
+}
 
 async function readPageData(productCode: string): Promise<LoaderResult> {
   try {
-    const result = await listDocs({ productCode });
+    const [result, projectId] = await Promise.all([
+      listDocs({ productCode }),
+      resolveProjectId(productCode),
+    ]);
     if (!result.ok) {
       const state: PageState = result.code === 'FORBIDDEN' ? 'permission_denied' : 'error';
-      return { state, rows: [], canWrite: false };
+      return { state, rows: [], canWrite: false, projectId };
     }
     const rows: ComplianceDocRow[] = result.docs.map((doc) => ({
       id: doc.id,
@@ -131,10 +171,10 @@ async function readPageData(productCode: string): Promise<LoaderResult> {
       expiresAt: doc.expiresAt,
     }));
     // listDocs is gated on the write permission, so a successful read implies write access.
-    return { state: rows.length === 0 ? 'empty' : 'ready', rows, canWrite: true };
+    return { state: rows.length === 0 ? 'empty' : 'ready', rows, canWrite: true, projectId };
   } catch (error) {
     console.error('[compliance-docs] org-scoped read failed:', error);
-    return { state: 'error', rows: [], canWrite: false };
+    return { state: 'error', rows: [], canWrite: false, projectId: null };
   }
 }
 
@@ -152,6 +192,7 @@ export default async function ComplianceDocsPage(propsInput: unknown = {}) {
         state: props.state ?? ((props.rows?.length ?? 0) === 0 ? 'empty' : 'ready'),
         rows: props.rows ?? [],
         canWrite: props.canWrite ?? true,
+        projectId: props.projectId ?? null,
       }
     : await readPageData(productCode);
 
@@ -162,6 +203,8 @@ export default async function ComplianceDocsPage(propsInput: unknown = {}) {
       labels={labels}
       canWrite={props.canWrite ?? loaded.canWrite}
       state={props.state ?? loaded.state}
+      projectId={props.projectId ?? loaded.projectId}
+      locale={locale}
       uploadDocAction={uploadDoc}
       getSignedUrlAction={getSignedUrl}
       softDeleteDocAction={softDeleteDoc}

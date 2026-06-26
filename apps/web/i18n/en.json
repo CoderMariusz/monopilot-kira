@@ -1899,7 +1899,8 @@
       "computeErrorNotFound": "No formulation is available to compute costing from yet.",
       "computeErrorNoCosts": "Every ingredient needs a cost before costing can be computed.",
       "computeErrorHardFail": "The target margin is negative, so the breakdown cannot be saved.",
-      "computeErrorFgNotMapped": "The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first."
+      "computeErrorFgNotMapped": "The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first.",
+      "recomputeCosting": "Recompute"
     },
     "risks": {
       "title": "Risk register",
@@ -2005,7 +2006,9 @@
       "errorFileRequired": "A file is required.",
       "errorFileTooLarge": "File exceeds the 20 MB limit.",
       "errorFileType": "Unsupported file type. Use PDF, XLSX or DOCX.",
-      "errorUpload": "Upload failed. Please try again."
+      "errorUpload": "Upload failed. Please try again.",
+      "approvalC7Note": "Approval criterion C7 requires at least one valid, in-date compliance document; any expired or invalid document blocks gate submission.",
+      "backToApproval": "Back to Approval"
     },
     "faCreate": {
       "title": "Create finished good",
@@ -3150,7 +3153,8 @@
         "G2": "Business Case",
         "G3": "Development",
         "G4": "Testing",
-        "Launched": "Launched"
+        "Launched": "Launched",
+        "g0MergeHint": "G1 Feasibility is part of the Brief stage — it is covered here, not skipped. The next advance goes to G2."
       },
       "stageRailAriaLabel": "Stage-Gate progress",
       "deptStrip": {
@@ -3474,16 +3478,29 @@
       "gateMet": "Met",
       "gateUnmet": "Not met",
       "gateRemediation": "Resolve",
-      "gate.G4_REQUIRED": "Project at gate G4",
-      "gate.FG_CANDIDATE_REQUIRED": "FG product candidate mapped",
-      "gate.ACTIVE_SHARED_BOM_REQUIRED": "Active shared BOM with lines",
-      "gate.FACTORY_SPEC_REQUIRED": "Factory spec approved",
-      "gate.V18_OPEN_HIGH_RISK": "No open high risks",
       "promotedNextTitle": "Next step",
       "promotedNextBody": "The FG + BOM are released to the factory. Advance the project to Launched, or open the released BOM in Technical.",
       "advanceToLaunched": "Advance to Launched →",
       "viewBom": "View released BOM",
-      "viewProject": "Back to project"
+      "viewProject": "Back to project",
+      "promoteSuccessTitle": "Production BOM created",
+      "promoteSuccessBody": "Production FG {code} was created and its BOM auto-built.",
+      "promoteSuccessViewBom": "Open production BOM",
+      "yieldPromptTitle": "Set the actual yield",
+      "yieldPromptBody": "This recipe had no target yield. Enter the actual yield % for this product, or skip to keep the default.",
+      "yieldLabel": "Actual yield % for this product",
+      "yieldSave": "Save yield",
+      "yieldSkip": "Skip",
+      "yieldSaving": "Saving…",
+      "yieldSaved": "Yield saved.",
+      "yieldError": "Could not save the yield. Enter a value between 0.001 and 100 and try again.",
+      "gate": {
+        "G4_REQUIRED": "Project at gate G4",
+        "FG_CANDIDATE_REQUIRED": "FG product candidate mapped",
+        "ACTIVE_SHARED_BOM_REQUIRED": "Active shared BOM with lines",
+        "FACTORY_SPEC_REQUIRED": "Factory spec approved",
+        "V18_OPEN_HIGH_RISK": "No open high risks"
+      }
     },
     "pipelineCreate": {
       "title": "Create NPD project",
