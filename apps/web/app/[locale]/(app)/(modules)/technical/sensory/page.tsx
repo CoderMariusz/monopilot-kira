@@ -25,6 +25,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 import { SENSORIAL_BLOCKED, type SensoryStatus } from '../../../../../../lib/technical/sensory';
 import { listSensory } from './_actions/list-sensory';
+import {
+  SENSORY_STATUSES,
+  SENSORY_SUBJECT_TYPES,
+} from './_actions/record-sensory-constants';
+import {
+  SensoryRecordControls,
+  SensoryEditButton,
+} from './_components/sensory-record-controls.client';
+import type { RecordSensoryLabels } from './_components/record-sensory-modal.client';
 import { type SensoryStatusLabels, SensoryStatusBadge } from './_components/sensory-status-badge';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +46,8 @@ function formatDate(iso: string | null): string {
 
 export default async function TechnicalSensoryPage() {
   const t = await getTranslations('technical.sensory');
-  const { rows, state, counts } = await listSensory();
+  const tr = await getTranslations('technical.sensory.record');
+  const { rows, state, counts, canWrite } = await listSensory();
 
   const statusLabels: SensoryStatusLabels = {
     required: t('status.required'),
@@ -47,6 +57,54 @@ export default async function TechnicalSensoryPage() {
     hold: t('status.hold'),
     not_required: t('status.notRequired'),
   };
+
+  const recordLabels: RecordSensoryLabels = {
+    titleCreate: tr('titleCreate'),
+    titleEdit: tr('titleEdit'),
+    subjectType: tr('subjectType'),
+    subjectRef: tr('subjectRef'),
+    subjectItemId: tr('subjectItemId'),
+    panelDate: tr('panelDate'),
+    panelistCount: tr('panelistCount'),
+    benchmark: tr('benchmark'),
+    overallScore: tr('overallScore'),
+    status: tr('status'),
+    statusReason: tr('statusReason'),
+    attributesTitle: tr('attributesTitle'),
+    attributeName: tr('attributeName'),
+    score: tr('score'),
+    vsBenchmark: tr('vsBenchmark'),
+    addAttribute: tr('addAttribute'),
+    removeRow: tr('removeRow'),
+    commentsTitle: tr('commentsTitle'),
+    panelistCode: tr('panelistCode'),
+    comment: tr('comment'),
+    addComment: tr('addComment'),
+    cancel: tr('cancel'),
+    save: tr('save'),
+    saving: tr('saving'),
+    errorInvalid: tr('errorInvalid'),
+    errorForbidden: tr('errorForbidden'),
+    errorNotFound: tr('errorNotFound'),
+    errorPersist: tr('errorPersist'),
+    required: tr('required'),
+    subjectTypes: SENSORY_SUBJECT_TYPES.reduce(
+      (acc, key) => {
+        acc[key] = tr(`subjectTypes.${key}`);
+        return acc;
+      },
+      {} as RecordSensoryLabels['subjectTypes'],
+    ),
+    statuses: SENSORY_STATUSES.reduce(
+      (acc, key) => {
+        acc[key] = tr(`statuses.${key}`);
+        return acc;
+      },
+      {} as RecordSensoryLabels['statuses'],
+    ),
+  };
+
+  const editableRows = rows.map((r) => ({ id: r.id, subjectRef: r.subjectRef }));
 
   const subjectTypeLabel = (type: string): string => {
     switch (type) {
@@ -87,6 +145,17 @@ export default async function TechnicalSensoryPage() {
       <div role="note" data-testid="sensory-readonly-note" className="alert alert-amber">
         <span aria-hidden="true">△</span> {t('readOnlyNote')}
       </div>
+
+      {/* Write affordances — rendered server-side ONLY when the caller holds
+          technical.sensory.write (no render-then-disable). The action re-checks. */}
+      {canWrite ? (
+        <SensoryRecordControls
+          labels={recordLabels}
+          editLabel={tr('editRow')}
+          loadErrorLabel={tr('errorLoad')}
+          editableRows={editableRows}
+        />
+      ) : null}
 
       {/* KPI strip — real counts, 3px bottom accent per tone. */}
       <div className="kpi-row" aria-label={t('kpi.region')} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
@@ -139,6 +208,7 @@ export default async function TechnicalSensoryPage() {
                 <TableHead scope="col">{t('col.evaluated')}</TableHead>
                 <TableHead scope="col">{t('col.status')}</TableHead>
                 <TableHead scope="col">{t('col.blockedReason')}</TableHead>
+                {canWrite ? <TableHead scope="col">{tr('colActions')}</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -179,6 +249,11 @@ export default async function TechnicalSensoryPage() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    {canWrite ? (
+                      <TableCell className="text-sm">
+                        <SensoryEditButton panelId={row.id} label={tr('editRow')} />
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })}

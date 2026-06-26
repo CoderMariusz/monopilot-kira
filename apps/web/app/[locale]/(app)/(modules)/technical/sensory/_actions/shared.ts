@@ -59,3 +59,25 @@ export async function hasAnyTechnicalAccess(ctx: OrgActionContext): Promise<bool
   );
   return rows.length > 0;
 }
+
+/**
+ * Write-gate: a caller may RECORD a sensory panel only with the
+ * `technical.sensory.write` grant (mig 347). Dual-store, org-scoped under RLS:
+ * resolved against BOTH the normalized role_permissions table AND the legacy
+ * roles.permissions jsonb cache. Server-resolved only — never trusted from the
+ * client. The authoritative check is repeated inside the write action.
+ */
+export async function hasSensoryWriteAccess(ctx: OrgActionContext): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
+      limit 1`,
+    [ctx.userId, ctx.orgId, 'technical.sensory.write'],
+  );
+  return rows.length > 0;
+}

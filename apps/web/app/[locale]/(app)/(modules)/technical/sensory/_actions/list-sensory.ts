@@ -27,6 +27,7 @@ import {
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   hasAnyTechnicalAccess,
+  hasSensoryWriteAccess,
   type OrgActionContext,
   type QueryClient,
   type SensorySubjectType,
@@ -49,6 +50,8 @@ export type ListSensoryState = 'ready' | 'empty' | 'error' | 'denied';
 export type ListSensoryResult = {
   rows: SensoryListItem[];
   state: ListSensoryState;
+  /** Server-resolved write gate (technical.sensory.write). Never client-trusted. */
+  canWrite: boolean;
   counts: {
     total: number;
     blocked: number;
@@ -107,8 +110,10 @@ export async function listSensory(): Promise<ListSensoryResult> {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
 
       if (!(await hasAnyTechnicalAccess(ctx))) {
-        return { rows: [], state: 'denied', counts: emptyCounts() };
+        return { rows: [], state: 'denied', canWrite: false, counts: emptyCounts() };
       }
+
+      const canWrite = await hasSensoryWriteAccess(ctx);
 
       const result = await (client as QueryClient).query<SensoryRow>(
         `select se.id,
@@ -155,6 +160,7 @@ export async function listSensory(): Promise<ListSensoryResult> {
       return {
         rows,
         state: rows.length ? 'ready' : 'empty',
+        canWrite,
         counts,
       };
     });
@@ -162,6 +168,6 @@ export async function listSensory(): Promise<ListSensoryResult> {
     console.error('[technical/sensory] listSensory load_failed', {
       err: error instanceof Error ? error.message : String(error),
     });
-    return { rows: [], state: 'error', counts: emptyCounts() };
+    return { rows: [], state: 'error', canWrite: false, counts: emptyCounts() };
   }
 }
