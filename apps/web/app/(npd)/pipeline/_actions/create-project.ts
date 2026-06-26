@@ -126,7 +126,11 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
         },
       };
     });
-  } catch {
+  } catch (err) {
+    // Never swallow silently — a bare catch here once hid the real cause of
+    // create failures (the only signal the user got was a generic "try again").
+    // Surface it to the server logs so future regressions are diagnosable.
+    console.error('[createProject] persistence failed', err);
     return { ok: false, error: 'PERSISTENCE_FAILED' };
   }
 }

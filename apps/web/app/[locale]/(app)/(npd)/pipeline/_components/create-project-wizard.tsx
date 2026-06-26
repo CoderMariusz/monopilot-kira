@@ -472,10 +472,13 @@ export function CreateProjectWizard({
           <div className="ff-inline">
             <div className="ff">
               <label htmlFor="wiz-target">{labels.fieldTargetLaunch}</label>
+              {/* Native date picker — the value is always '' or YYYY-MM-DD, so a
+                  hand-typed format like "12/2026" can never reach the server and
+                  silently fail parseTargetLaunch (→ INVALID_INPUT). Matches the
+                  app-wide type="date" convention (planning/shipping/brief). */}
               <input
                 id="wiz-target"
-                type="text"
-                placeholder="YYYY-MM-DD"
+                type="date"
                 value={form.targetLaunch}
                 onChange={(e) => update('targetLaunch', e.target.value)}
               />
