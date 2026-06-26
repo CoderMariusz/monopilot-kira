@@ -1,0 +1,12 @@
+-- Migration 348: grant UPDATE on public.product to app_user.
+-- public.product had app_user grants SELECT, INSERT, DELETE — but NOT UPDATE, while
+-- RLS policy product_org_context is cmd=ALL (USING + WITH CHECK org_id=app.current_org_id()).
+-- Every app_user UPDATE of public.product therefore failed at the privilege layer (42501
+-- permission denied) BEFORE RLS even applied. This broke:
+--   * accept-declaration.ts  (mig 346 allergens_declaration_accepted — owner stuck at NPD
+--     approval C5: "Could not update the declaration. Try again."), and
+--   * update-fa-cell.ts:261   (direct UPDATE public.product for every FA/FG cell edit).
+-- The app clearly intends app_user to update product (update-fa-cell is a deliberate editor
+-- with its own column-whitelist + per-dept RBAC); the missing GRANT is an oversight. RLS keeps
+-- updates org-scoped. GRANT is idempotent. Wave0 lock: org_id scope; RLS via app.current_org_id().
+grant update on public.product to app_user;
