@@ -4626,6 +4626,7 @@
       "submitErrorNotDraft": "Do próby można przekazać tylko wersję roboczą.",
       "submitErrorLocked": "Ta wersja jest zablokowana i nie można jej przekazać.",
       "submitErrorForbidden": "Nie masz uprawnień do przekazania do próby.",
+      "addVersion": "Dodaj wersję",
       "compareTitle": "Porównaj wersje",
       "compareVersionA": "Wersja A",
       "compareVersionB": "Wersja B",

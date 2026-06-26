@@ -2397,6 +2397,7 @@
       "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
       "submitErrorLocked": "This version is locked and cannot be submitted.",
       "submitErrorForbidden": "You do not have permission to submit for trial.",
+      "addVersion": "Add version",
       "compareTitle": "Compare versions",
       "compareVersionA": "Version A",
       "compareVersionB": "Version B",

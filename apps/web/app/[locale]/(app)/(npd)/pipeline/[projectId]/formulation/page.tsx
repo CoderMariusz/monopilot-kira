@@ -44,6 +44,7 @@ import { getFormulation } from '../../../../../../(npd)/pipeline/[projectId]/for
 import { saveDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/save-draft';
 import { recomputeAndCache } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/recompute';
 import { createFormulationDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/create-draft';
+import { createFormulationVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/create-version';
 // Ghost-button wiring: import the two legacy-tree actions DIRECTLY (relative path).
 // They are the actions library; the App-Router page is the only re-export-free seam
 // that may thread them down as Server Action props. NEVER wrap them in a local
@@ -96,6 +97,7 @@ const DEFAULT_LABELS: FormulationLabels = {
   submitErrorNotDraft: 'Only a draft version can be submitted for trial.',
   submitErrorLocked: 'This version is locked and cannot be submitted.',
   submitErrorForbidden: 'You do not have permission to submit for trial.',
+  addVersion: 'Add version',
   compareVersions: 'Compare versions',
   lockRecipe: 'Lock recipe',
   locking: 'Locking…',
@@ -183,9 +185,9 @@ const LABEL_KEYS = (Object.keys(DEFAULT_LABELS) as Array<keyof FormulationLabels
 function translateLabel(t: (key: string) => string, key: ScalarLabelKey): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    return value === key ? (DEFAULT_LABELS[key] ?? '') : value;
   } catch {
-    return DEFAULT_LABELS[key];
+    return DEFAULT_LABELS[key] ?? '';
   }
 }
 
@@ -612,6 +614,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       updatePackWeightAction={loaded.canEdit ? updatePackWeightAdapter : undefined}
       projectId={projectId}
       createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
+      createVersionAction={loaded.canEdit ? createVersionAdapter : undefined}
     />
   );
 }
@@ -621,6 +624,15 @@ export default async function FormulationPage(propsInput: unknown = {}) {
 async function createDraftAdapter(input: { projectId: string }): Promise<{ ok: boolean }> {
   'use server';
   const result = await createFormulationDraft(input);
+  return { ok: result.ok };
+}
+
+async function createVersionAdapter(input: {
+  projectId: string;
+  sourceVersionId: string;
+}): Promise<{ ok: boolean }> {
+  'use server';
+  const result = await createFormulationVersion(input);
   return { ok: result.ok };
 }
 

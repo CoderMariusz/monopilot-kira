@@ -148,6 +148,7 @@ export type FormulationLabels = {
   submitErrorNotDraft: string;
   submitErrorLocked: string;
   submitErrorForbidden: string;
+  addVersion?: string;
   compareVersions: string;
   /** Lock-recipe toolbar action + confirm dialog (C1). */
   lockRecipe: string;
@@ -242,6 +243,11 @@ export type RecomputeAction = (input: {
   projectId: string;
   versionId: string;
 }) => Promise<unknown>;
+
+export type CreateVersionAction = (input: {
+  projectId: string;
+  sourceVersionId: string;
+}) => Promise<{ ok: boolean }>;
 
 /**
  * Persist the project's pack weight (g) — Costing v2 batch size. The editor edits
@@ -537,6 +543,7 @@ export function FormulationEditor({
   recomputeAction,
   submitForTrialAction,
   compareVersionsAction,
+  createVersionAction,
   lockVersionAction,
   updatePackWeightAction,
   searchItemsAction,
@@ -551,6 +558,8 @@ export function FormulationEditor({
   projectId?: string;
   /** Injected create-draft Server Action (empty-state "Create draft" button). */
   createDraftAction?: (input: { projectId: string }) => Promise<{ ok: boolean }>;
+  /** Create a new draft version copied from the current version. */
+  createVersionAction?: CreateVersionAction;
   /** Pre-resolved i18n bundles for the four live panels (T-113-116). */
   panelLabels?: FormulationPanelLabels;
   /** Per-nutrient amber/red thresholds (reference data, NUMERIC strings). */
@@ -588,6 +597,7 @@ export function FormulationEditor({
     else router.refresh();
   }, [onRefresh, router]);
   const [creatingDraft, setCreatingDraft] = React.useState(false);
+  const [creatingVersion, setCreatingVersion] = React.useState(false);
   const onCreateDraft = React.useCallback(async () => {
     if (!createDraftAction || !projectId || creatingDraft) return;
     setCreatingDraft(true);
@@ -624,6 +634,20 @@ export function FormulationEditor({
   const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
   const [versionId, setVersionId] = React.useState<string>(data?.versionId ?? '');
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
+  const onCreateVersion = React.useCallback(async () => {
+    if (!createVersionAction || !data || creatingVersion) return;
+    setCreatingVersion(true);
+    try {
+      const result = await createVersionAction({ projectId: data.projectId, sourceVersionId: versionId });
+      if (result.ok) {
+        window.location.reload();
+        return;
+      }
+      setCreatingVersion(false);
+    } catch {
+      setCreatingVersion(false);
+    }
+  }, [createVersionAction, data, versionId, creatingVersion]);
 
   // ── Submit for trial (gated server-side; editor only mirrors the result) ──────
   type SubmitStatus = 'idle' | 'submitting' | 'submitted' | 'error';
@@ -705,16 +729,28 @@ export function FormulationEditor({
     const current = rowsRef.current;
     const validation = validate(current);
     setErrors(validation);
-    if (Object.keys(validation).length > 0) return; // blocked by Zod (AC#3)
+    const blocking = Object.fromEntries(
+      Object.entries(validation)
+        .map(([id, rowErr]) => {
+          const row = current.find((r) => r.id === id);
+          if (!row || row.rmCode.trim().length > 0) return [id, rowErr] as const;
+          const rest = { ...rowErr };
+          delete rest.rmCode;
+          return [id, rest] as const;
+        })
+        .filter(([, rowErr]) => Object.keys(rowErr).length > 0),
+    );
+    if (Object.keys(blocking).length > 0) return; // qtyKg still gates draft saves.
 
     setSaveStatus('saving');
     void (async () => {
       try {
+        const completeRows = current.filter((r) => r.rmCode.trim().length > 0);
         const result = await saveDraftAction({
           projectId: data.projectId,
           versionId,
-          ingredients: current.map((r, i) => ({
-            rmCode: r.rmCode,
+          ingredients: completeRows.map((r, i) => ({
+            rmCode: r.rmCode.trim(),
             itemId: r.itemId,
             // Costing v2: persist the entered qty (kg/pack); pct is no longer authored.
             qtyKg: isDecimalString(r.qtyKg) ? r.qtyKg : null,
@@ -860,6 +896,13 @@ export function FormulationEditor({
    */
   const onSubmitForTrial = React.useCallback(() => {
     if (!submitForTrialAction || !data || submitStatus === 'submitting') return;
+    const validation = validate(rowsRef.current);
+    setErrors(validation);
+    if (Object.keys(validation).length > 0) {
+      setSubmitStatus('error');
+      setSubmitError(labels.rmCodeRequired);
+      return;
+    }
     setSubmitStatus('submitting');
     setSubmitError('');
     void (async () => {
@@ -877,7 +920,17 @@ export function FormulationEditor({
         setSubmitError(labels.submitError);
       }
     })();
-  }, [submitForTrialAction, data, versionId, submitStatus, refresh, submitErrorMessage, labels.submitError]);
+  }, [
+    submitForTrialAction,
+    data,
+    versionId,
+    submitStatus,
+    refresh,
+    submitErrorMessage,
+    validate,
+    labels.rmCodeRequired,
+    labels.submitError,
+  ]);
 
   /** Open the Compare modal — seed A = current version, B = the previous one (if any). */
   const onOpenCompare = React.useCallback(() => {
@@ -1123,6 +1176,15 @@ export function FormulationEditor({
         </div>
 
         <div className="flex gap-2">
+          <Button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!data || !canEdit || !createVersionAction || creatingVersion}
+            onClick={onCreateVersion}
+            data-testid="add-version-trigger"
+          >
+            {labels.addVersion ?? 'Add version'}
+          </Button>
           <Button
             type="button"
             className="btn-ghost"
