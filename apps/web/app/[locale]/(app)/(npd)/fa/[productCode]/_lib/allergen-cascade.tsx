@@ -33,6 +33,11 @@ import {
 import { readAllergenCascade } from '../../../../../../(npd)/fa/[productCode]/allergens/_actions/read-allergen-cascade';
 import { refreshAllergenCascade } from '../../../../../../(npd)/fa/[productCode]/allergens/_actions/refresh-allergen-cascade';
 import { submitAllergenOverride } from '../../../../../../(npd)/fa/[productCode]/allergens/_actions/submit-allergen-override';
+import {
+  acceptAllergenDeclaration,
+  revokeAllergenDeclaration,
+} from '../allergens/_actions/accept-declaration';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export type { AllergenCascadeData, AllergenCascadeLabels, WidgetState };
 
@@ -82,6 +87,17 @@ const DEFAULT_LABELS: AllergenCascadeLabels = {
   save: 'Save override',
   statusContains: 'Contains',
   statusAbsent: 'Not present',
+  // declaration accept control
+  declarationTitle: 'Declaration sign-off',
+  declarationDescription:
+    'The published FG declaration below (Contains + May contain) is the regulatory output. Accept it to satisfy approval criterion C5 “Allergens declared”.',
+  declarationAcceptLabel:
+    'I confirm the allergen declaration above is complete and accurate (Declaration accepted).',
+  declarationAcceptedBadge: 'Declaration accepted',
+  declarationNotAccepted: 'Declaration not yet accepted — approval is blocked until you accept it.',
+  declarationAcceptedBy: 'by {name} on {date}',
+  declarationPending: 'Saving…',
+  declarationError: 'Could not update the declaration. Try again.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof AllergenCascadeLabels>;
@@ -114,6 +130,51 @@ export type AllergenLoad = {
   displayNames: Record<string, string>;
 };
 
+type DeclarationStateRow = {
+  accepted: boolean;
+  accepted_by: string | null;
+  accepted_at: string | null;
+};
+
+/**
+ * UI-owned read of the FG-final declaration sign-off (criterion C5). The T2 cascade
+ * reader does NOT return this column, so this small org-scoped SELECT mirrors
+ * product.allergens_declaration_accepted (+ accepted_by display name / accepted_at)
+ * for the accept control. RLS-enforced as app_user via app.current_org_id(). NO mocks.
+ */
+async function readDeclarationState(
+  productCode: string,
+): Promise<{ accepted: boolean; acceptedBy: string | null; acceptedAt: string | null }> {
+  try {
+    return await withOrgContext(async ({ client }) => {
+      const queryClient = client as {
+        query<T>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
+      };
+      const res = await queryClient.query<DeclarationStateRow>(
+        `select p.allergens_declaration_accepted as accepted,
+                coalesce(u.display_name, u.name, p.allergens_declaration_accepted_by::text) as accepted_by,
+                p.allergens_declaration_accepted_at::text as accepted_at
+           from public.product p
+           left join public.users u on u.id = p.allergens_declaration_accepted_by
+          where p.product_code = $1
+            and p.org_id = app.current_org_id()
+            and p.deleted_at is null
+          limit 1`,
+        [productCode],
+      );
+      const row = res.rows[0];
+      return {
+        accepted: row?.accepted === true,
+        acceptedBy: row?.accepted_by ?? null,
+        acceptedAt: row?.accepted_at ?? null,
+      };
+    });
+  } catch (error) {
+    console.error('[allergen-cascade] declaration-state read failed:', error);
+    return { accepted: false, acceptedBy: null, acceptedAt: null };
+  }
+}
+
 /**
  * Org-scoped allergen cascade read (REAL data). Reuses the T-040 readAllergenCascade
  * which runs inside withOrgContext (app_user + RLS app.current_org_id()). Maps the
@@ -134,12 +195,16 @@ export async function loadAllergenCascade(
             : 'error';
       return { state, data: null, canWrite: false, displayNames: {} };
     }
+    const declaration = await readDeclarationState(result.data.productCode);
     const data: AllergenCascadeData = {
       productCode: result.data.productCode,
       derivedAllergens: result.data.derivedAllergens,
       publishedAllergens: result.data.publishedAllergens,
       mayContainAllergens: result.data.mayContainAllergens,
       conditionalProcessAllergens: result.data.conditionalProcessAllergens,
+      declarationAccepted: declaration.accepted,
+      declarationAcceptedBy: declaration.acceptedBy,
+      declarationAcceptedAt: declaration.acceptedAt,
     };
     const isEmpty =
       data.derivedAllergens.length === 0 &&
@@ -178,6 +243,8 @@ export function AllergenCascadeSection({
       refreshAction={refreshAllergenCascade}
       setAllergenOverrideAction={submitAllergenOverride}
       allergenDisplayNames={load.displayNames}
+      acceptDeclarationAction={acceptAllergenDeclaration}
+      revokeDeclarationAction={revokeAllergenDeclaration}
     />
   );
 }

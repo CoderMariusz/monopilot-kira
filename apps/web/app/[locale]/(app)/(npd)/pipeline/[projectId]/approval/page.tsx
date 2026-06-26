@@ -96,7 +96,7 @@ const DEFAULT_LABELS: ApprovalLabels = {
   c2Hint: 'Compute a passing NutriScore (A–C) on the Nutrition stage.',
   c3Hint: 'Reach the target-scenario margin on the Costing stage.',
   c4Hint: 'Sensory sign-off is owned by Technical — no action needed here.',
-  c5Hint: 'Audit and declare every allergen on the Allergens screen.',
+  c5Hint: 'Open the Allergens screen, then check “Declaration accepted” to satisfy this criterion.',
   c6Hint: 'Close or downgrade every open high-severity risk on the Risks screen.',
   c7Hint: 'Add valid, in-date compliance documents on the Docs screen.',
   fixLink: 'Go fix →',

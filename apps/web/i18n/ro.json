@@ -4828,7 +4828,15 @@
       "cancel": "Anulează",
       "save": "Salvează suprascrierea",
       "statusContains": "Conține",
-      "statusAbsent": "Absent"
+      "statusAbsent": "Absent",
+      "declarationTitle": "Declaration sign-off",
+      "declarationDescription": "The published FG declaration below (Contains + May contain) is the regulatory output. Accept it to satisfy approval criterion C5 “Allergens declared”.",
+      "declarationAcceptLabel": "I confirm the allergen declaration above is complete and accurate (Declaration accepted).",
+      "declarationAcceptedBadge": "Declaration accepted",
+      "declarationNotAccepted": "Declaration not yet accepted — approval is blocked until you accept it.",
+      "declarationAcceptedBy": "by {name} on {date}",
+      "declarationPending": "Saving…",
+      "declarationError": "Could not update the declaration. Try again."
     },
     "approvalScreen": {
       "title": "Porți de aprobare",
@@ -4880,7 +4888,7 @@
       "c2Hint": "Calculează un NutriScore admis (A–C) în etapa Nutrition.",
       "c3Hint": "Atinge marja scenariului țintă în etapa Costing.",
       "c4Hint": "Aprobarea senzorială aparține Technical — nicio acțiune aici.",
-      "c5Hint": "Auditează şi declară toți alergenii pe ecranul Allergens.",
+      "c5Hint": "Open the Allergens screen, then check “Declaration accepted” to satisfy this criterion.",
       "c6Hint": "Închide sau retrogradează toate riscurile majore deschise pe ecranul Risks.",
       "c7Hint": "Adaugă documente de conformitate valide şi în termen pe ecranul Docs.",
       "fixLink": "Rezolvă →"

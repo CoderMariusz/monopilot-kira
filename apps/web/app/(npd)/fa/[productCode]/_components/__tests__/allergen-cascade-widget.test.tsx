@@ -62,7 +62,15 @@ const LABELS: AllergenCascadeLabels = {
   sourceRm: 'lbl.sourceRm',
   sourceProcess: 'lbl.sourceProcess',
   sourceOverride: 'lbl.sourceOverride',
-};
+  declarationTitle: 'lbl.declarationTitle',
+  declarationDescription: 'lbl.declarationDescription',
+  declarationAcceptLabel: 'lbl.declarationAcceptLabel',
+  declarationAcceptedBadge: 'lbl.declarationAcceptedBadge',
+  declarationNotAccepted: 'lbl.declarationNotAccepted',
+  declarationAcceptedBy: 'lbl.declarationAcceptedBy {name} {date}',
+  declarationPending: 'lbl.declarationPending',
+  declarationError: 'lbl.declarationError',
+} as AllergenCascadeLabels;
 
 const DATA: AllergenCascadeData = {
   productCode: 'FG-001',
@@ -198,5 +206,137 @@ describe('AllergenCascadeWidget — parity + states', () => {
     fireEvent.click(btn);
     await waitFor(() => expect(refreshAction).toHaveBeenCalledTimes(1));
     expect(refreshAction).toHaveBeenCalledWith('FG-001');
+  });
+});
+
+describe('AllergenCascadeWidget — declaration accept control (criterion C5)', () => {
+  it('renders the unchecked accept control when canWrite + not yet accepted', () => {
+    render(
+      <AllergenCascadeWidget
+        data={{ ...DATA, declarationAccepted: false }}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        acceptDeclarationAction={vi.fn()}
+        revokeDeclarationAction={vi.fn()}
+      />,
+    );
+    const checkbox = screen.getByTestId('allergen-declaration-accept') as HTMLInputElement;
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox.checked).toBe(false);
+    // Blocking-state copy is visible so the path-to-unblock reads clearly.
+    expect(screen.getByText(LABELS.declarationNotAccepted)).toBeInTheDocument();
+  });
+
+  it('checking the box calls acceptDeclarationAction with the product code', async () => {
+    const acceptDeclarationAction = vi.fn().mockResolvedValue({ ok: true, productCode: 'FG-001' });
+    const revokeDeclarationAction = vi.fn();
+    render(
+      <AllergenCascadeWidget
+        data={{ ...DATA, declarationAccepted: false }}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        acceptDeclarationAction={acceptDeclarationAction}
+        revokeDeclarationAction={revokeDeclarationAction}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('allergen-declaration-accept'));
+    await waitFor(() => expect(acceptDeclarationAction).toHaveBeenCalledTimes(1));
+    expect(acceptDeclarationAction).toHaveBeenCalledWith({ productCode: 'FG-001' });
+    expect(revokeDeclarationAction).not.toHaveBeenCalled();
+  });
+
+  it('unchecking the box calls revokeDeclarationAction + shows who/when when accepted', async () => {
+    const acceptDeclarationAction = vi.fn();
+    const revokeDeclarationAction = vi.fn().mockResolvedValue({ ok: true, productCode: 'FG-001' });
+    render(
+      <AllergenCascadeWidget
+        data={{
+          ...DATA,
+          declarationAccepted: true,
+          declarationAcceptedBy: 'Jane Approver',
+          declarationAcceptedAt: '2026-06-20T10:00:00.000Z',
+        }}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        acceptDeclarationAction={acceptDeclarationAction}
+        revokeDeclarationAction={revokeDeclarationAction}
+      />,
+    );
+    const checkbox = screen.getByTestId('allergen-declaration-accept') as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    // Accepted confirmation surfaces who/when.
+    const confirmation = screen.getByTestId('allergen-declaration-confirmation');
+    expect(confirmation).toHaveTextContent(LABELS.declarationAcceptedBadge);
+    expect(confirmation).toHaveTextContent('Jane Approver');
+
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(revokeDeclarationAction).toHaveBeenCalledTimes(1));
+    expect(revokeDeclarationAction).toHaveBeenCalledWith({ productCode: 'FG-001' });
+    expect(acceptDeclarationAction).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an inline error (role=alert) and rolls back when the action fails', async () => {
+    const acceptDeclarationAction = vi.fn().mockResolvedValue({ ok: false, code: 'FORBIDDEN' });
+    render(
+      <AllergenCascadeWidget
+        data={{ ...DATA, declarationAccepted: false }}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        acceptDeclarationAction={acceptDeclarationAction}
+        revokeDeclarationAction={vi.fn()}
+      />,
+    );
+    const checkbox = screen.getByTestId('allergen-declaration-accept') as HTMLInputElement;
+    fireEvent.click(checkbox);
+    const alert = await screen.findByTestId('allergen-declaration-error');
+    expect(alert).toHaveAttribute('role', 'alert');
+    expect(alert).toHaveTextContent(LABELS.declarationError);
+    // Optimistic check rolled back to unchecked after the failure.
+    await waitFor(() => expect(checkbox.checked).toBe(false));
+  });
+
+  it('disables the control while the action is pending', async () => {
+    let resolveAction: (value: { ok: true; productCode: string }) => void = () => {};
+    const acceptDeclarationAction = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ ok: true; productCode: string }>((resolve) => {
+          resolveAction = resolve;
+        }),
+    );
+    render(
+      <AllergenCascadeWidget
+        data={{ ...DATA, declarationAccepted: false }}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        acceptDeclarationAction={acceptDeclarationAction}
+        revokeDeclarationAction={vi.fn()}
+      />,
+    );
+    const checkbox = screen.getByTestId('allergen-declaration-accept') as HTMLInputElement;
+    fireEvent.click(checkbox);
+    // Pending notice shown + control disabled until the action settles.
+    expect(await screen.findByTestId('allergen-declaration-pending')).toBeInTheDocument();
+    expect(checkbox.disabled).toBe(true);
+    resolveAction({ ok: true, productCode: 'FG-001' });
+    await waitFor(() => expect(checkbox.disabled).toBe(false));
+  });
+
+  it('omits the accept checkbox when canWrite=false (RBAC — no render-then-disable)', () => {
+    render(
+      <AllergenCascadeWidget
+        data={{ ...DATA, declarationAccepted: true, declarationAcceptedBy: 'Jane Approver' }}
+        labels={LABELS}
+        canWrite={false}
+        state="ready"
+      />,
+    );
+    expect(screen.queryByTestId('allergen-declaration-accept')).not.toBeInTheDocument();
+    // Read-only viewers still see the accepted status text.
+    expect(screen.getByTestId('allergen-declaration')).toHaveAttribute('data-accepted', 'true');
   });
 });

@@ -2596,7 +2596,15 @@
       "cancel": "Cancel",
       "save": "Save override",
       "statusContains": "Contains",
-      "statusAbsent": "Not present"
+      "statusAbsent": "Not present",
+      "declarationTitle": "Declaration sign-off",
+      "declarationDescription": "The published FG declaration below (Contains + May contain) is the regulatory output. Accept it to satisfy approval criterion C5 “Allergens declared”.",
+      "declarationAcceptLabel": "I confirm the allergen declaration above is complete and accurate (Declaration accepted).",
+      "declarationAcceptedBadge": "Declaration accepted",
+      "declarationNotAccepted": "Declaration not yet accepted — approval is blocked until you accept it.",
+      "declarationAcceptedBy": "by {name} on {date}",
+      "declarationPending": "Saving…",
+      "declarationError": "Could not update the declaration. Try again."
     },
     "approvalScreen": {
       "title": "Approval gates",
@@ -2648,7 +2656,7 @@
       "c2Hint": "Compute a passing NutriScore (A–C) on the Nutrition stage.",
       "c3Hint": "Reach the target-scenario margin on the Costing stage.",
       "c4Hint": "Sensory sign-off is owned by Technical — no action needed here.",
-      "c5Hint": "Audit and declare every allergen on the Allergens screen.",
+      "c5Hint": "Open the Allergens screen, then check “Declaration accepted” to satisfy this criterion.",
       "c6Hint": "Close or downgrade every open high-severity risk on the Risks screen.",
       "c7Hint": "Add valid, in-date compliance documents on the Docs screen.",
       "fixLink": "Go fix →"

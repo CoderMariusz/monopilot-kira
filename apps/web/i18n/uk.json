@@ -4828,7 +4828,15 @@
       "cancel": "Скасувати",
       "save": "Зберегти перевизначення",
       "statusContains": "Містить",
-      "statusAbsent": "Відсутній"
+      "statusAbsent": "Відсутній",
+      "declarationTitle": "Declaration sign-off",
+      "declarationDescription": "The published FG declaration below (Contains + May contain) is the regulatory output. Accept it to satisfy approval criterion C5 “Allergens declared”.",
+      "declarationAcceptLabel": "I confirm the allergen declaration above is complete and accurate (Declaration accepted).",
+      "declarationAcceptedBadge": "Declaration accepted",
+      "declarationNotAccepted": "Declaration not yet accepted — approval is blocked until you accept it.",
+      "declarationAcceptedBy": "by {name} on {date}",
+      "declarationPending": "Saving…",
+      "declarationError": "Could not update the declaration. Try again."
     },
     "approvalScreen": {
       "title": "Ворота затвердження",
@@ -4880,7 +4888,7 @@
       "c2Hint": "Розрахуйте прохідний NutriScore (A–C) на етапі Nutrition.",
       "c3Hint": "Досягніть цільової маржі сценарію на етапі Costing.",
       "c4Hint": "Сенсорне затвердження належить Technical — дій не потрібно.",
-      "c5Hint": "Перевірте та задекларуйте всі алергени на екрані Allergens.",
+      "c5Hint": "Open the Allergens screen, then check “Declaration accepted” to satisfy this criterion.",
       "c6Hint": "Закрийте або знизьте всі відкриті ризики високої ваги на екрані Risks.",
       "c7Hint": "Додайте чинні, актуальні документи відповідності на екрані Docs.",
       "fixLink": "Виправити →"

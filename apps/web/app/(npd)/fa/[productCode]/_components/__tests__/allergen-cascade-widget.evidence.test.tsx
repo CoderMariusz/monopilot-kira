@@ -75,6 +75,14 @@ const LABELS: AllergenCascadeLabels = {
   save: 'Save override',
   statusContains: 'Contains',
   statusAbsent: 'Not present',
+  declarationTitle: 'Declaration sign-off',
+  declarationDescription: 'Accept the published declaration to satisfy criterion C5.',
+  declarationAcceptLabel: 'I confirm the allergen declaration is complete and accurate.',
+  declarationAcceptedBadge: 'Declaration accepted',
+  declarationNotAccepted: 'Declaration not yet accepted — approval is blocked.',
+  declarationAcceptedBy: 'by {name} on {date}',
+  declarationPending: 'Saving…',
+  declarationError: 'Could not update the declaration. Try again.',
 };
 
 const DATA: AllergenCascadeData = {
@@ -142,6 +150,60 @@ describe('T-040 parity evidence — per-state DOM snapshots', () => {
     );
     writeEvidence('T-040-override-modal.html', document.body.innerHTML);
     expect(container).toBeTruthy();
+  });
+});
+
+describe('Declaration accept control — per-state parity evidence (criterion C5)', () => {
+  it('captures the not-accepted state (write user, checkbox unchecked + blocking copy)', () => {
+    const { container } = render(
+      <AllergenCascadeWidget
+        data={{ ...DATA, declarationAccepted: false }}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        acceptDeclarationAction={vi.fn()}
+        revokeDeclarationAction={vi.fn()}
+      />,
+    );
+    writeEvidence('T-040-declaration-not-accepted.html', container.innerHTML);
+    const block = container.querySelector('[data-testid="allergen-declaration"]');
+    expect(block).not.toBeNull();
+    expect(block?.getAttribute('data-accepted')).toBe('false');
+    expect(container.querySelector('[data-testid="allergen-declaration-accept"]')).not.toBeNull();
+  });
+
+  it('captures the accepted state with who/when confirmation', () => {
+    const { container } = render(
+      <AllergenCascadeWidget
+        data={{
+          ...DATA,
+          declarationAccepted: true,
+          declarationAcceptedBy: 'Jane Approver',
+          declarationAcceptedAt: '2026-06-20T10:00:00.000Z',
+        }}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        acceptDeclarationAction={vi.fn()}
+        revokeDeclarationAction={vi.fn()}
+      />,
+    );
+    writeEvidence('T-040-declaration-accepted.html', container.innerHTML);
+    expect(container.querySelector('[data-testid="allergen-declaration-confirmation"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="allergen-declaration"]')?.getAttribute('data-accepted')).toBe('true');
+  });
+
+  it('captures the read-only (permission-denied write) state — status text, no checkbox', () => {
+    const { container } = render(
+      <AllergenCascadeWidget
+        data={{ ...DATA, declarationAccepted: true, declarationAcceptedBy: 'Jane Approver' }}
+        labels={LABELS}
+        canWrite={false}
+        state="ready"
+      />,
+    );
+    writeEvidence('T-040-declaration-readonly.html', container.innerHTML);
+    expect(container.querySelector('[data-testid="allergen-declaration-accept"]')).toBeNull();
   });
 });
 

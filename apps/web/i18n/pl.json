@@ -4829,7 +4829,15 @@
       "cancel": "Anuluj",
       "save": "Zapisz nadpisanie",
       "statusContains": "Zawiera",
-      "statusAbsent": "Nieobecny"
+      "statusAbsent": "Nieobecny",
+      "declarationTitle": "Zatwierdzenie deklaracji",
+      "declarationDescription": "Opublikowana deklaracja FG poniżej (Zawiera + Może zawierać) jest wynikiem regulacyjnym. Zaakceptuj ją, aby spełnić kryterium akceptacji C5 „Alergeny zadeklarowane”.",
+      "declarationAcceptLabel": "Potwierdzam, że powyższa deklaracja alergenów jest kompletna i prawidłowa (Deklaracja zaakceptowana).",
+      "declarationAcceptedBadge": "Deklaracja zaakceptowana",
+      "declarationNotAccepted": "Deklaracja nie została jeszcze zaakceptowana — akceptacja jest zablokowana, dopóki jej nie zaakceptujesz.",
+      "declarationAcceptedBy": "przez {name} dnia {date}",
+      "declarationPending": "Zapisywanie…",
+      "declarationError": "Nie udało się zaktualizować deklaracji. Spróbuj ponownie."
     },
     "approvalScreen": {
       "title": "Bramki zatwierdzania",
@@ -4881,7 +4889,7 @@
       "c2Hint": "Oblicz zaliczający NutriScore (A–C) na etapie Nutrition.",
       "c3Hint": "Osiągnij docelową marżę scenariusza na etapie Costing.",
       "c4Hint": "Zatwierdzenie sensoryczne należy do Technical — tu nic nie robisz.",
-      "c5Hint": "Zaudytuj i zadeklaruj wszystkie alergeny na ekranie Allergens.",
+      "c5Hint": "Otwórz ekran Alergeny, a następnie zaznacz „Deklaracja zaakceptowana”, aby spełnić to kryterium.",
       "c6Hint": "Zamknij lub obniż wszystkie otwarte ryzyka wysokiej wagi na ekranie Risks.",
       "c7Hint": "Dodaj ważne, aktualne dokumenty zgodności na ekranie Docs.",
       "fixLink": "Napraw →"

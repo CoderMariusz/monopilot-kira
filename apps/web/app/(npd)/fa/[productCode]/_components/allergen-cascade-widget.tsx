@@ -53,6 +53,15 @@ export type AllergenCascadeData = {
   mayContainAllergens: string[];
   /** conditional process allergens surfaced separately (recipe_condition unevaluated). */
   conditionalProcessAllergens: string[];
+  /**
+   * product.allergens_declaration_accepted — the sign-off that satisfies approval
+   * criterion C5 "Allergens declared". Authored server-side; the client only mirrors it.
+   */
+  declarationAccepted?: boolean;
+  /** product.allergens_declaration_accepted_by (display name or user id), when accepted. */
+  declarationAcceptedBy?: string | null;
+  /** product.allergens_declaration_accepted_at (ISO string), when accepted. */
+  declarationAcceptedAt?: string | null;
 };
 
 export type AllergenCascadeLabels = AllergenOverrideLabels & {
@@ -83,6 +92,15 @@ export type AllergenCascadeLabels = AllergenOverrideLabels & {
   sourceRm: string;
   sourceProcess: string;
   sourceOverride: string;
+  // Declaration accept control (FG-final sign-off — satisfies approval criterion C5).
+  declarationTitle: string;
+  declarationDescription: string;
+  declarationAcceptLabel: string;
+  declarationAcceptedBadge: string;
+  declarationNotAccepted: string;
+  declarationAcceptedBy: string;
+  declarationPending: string;
+  declarationError: string;
 };
 
 /** EU FIC 1169/2011 — 14 mandatory allergens (codes match Reference."Allergens" EU14 seed). */
@@ -105,7 +123,23 @@ export const EU14_ALLERGEN_CODES = [
 
 export type RefreshAction = (productCode: string) => Promise<unknown> | void;
 
+/**
+ * Accept / revoke the FG-final allergen declaration. Owned server-side
+ * (accept-declaration.ts): returns `{ ok: true; productCode } | { ok: false; code }`.
+ * Injected across the RSC boundary as a function prop (Next16 sibling-modal pattern).
+ */
+export type DeclarationAction = (input: {
+  productCode: string;
+}) => Promise<{ ok: true; productCode: string } | { ok: false; code: string }>;
+
 const REFRESH_DEBOUNCE_MS = 600;
+
+/** Render the accepted-at timestamp as a short date; falls back to the raw value. */
+function formatAcceptedAt(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+}
 
 function StateNotice({
   state,
@@ -159,6 +193,8 @@ export function AllergenCascadeWidget({
   refreshAction,
   setAllergenOverrideAction,
   allergenDisplayNames,
+  acceptDeclarationAction,
+  revokeDeclarationAction,
 }: {
   data: AllergenCascadeData | null;
   labels: AllergenCascadeLabels;
@@ -168,10 +204,24 @@ export function AllergenCascadeWidget({
   setAllergenOverrideAction?: SetAllergenOverrideAction;
   /** Optional code→display-name map (locale-resolved server-side). Falls back to code. */
   allergenDisplayNames?: Record<string, string>;
+  /** Sets product.allergens_declaration_accepted = true (satisfies C5). */
+  acceptDeclarationAction?: DeclarationAction;
+  /** Clears product.allergens_declaration_accepted. */
+  revokeDeclarationAction?: DeclarationAction;
 }) {
   const [refreshing, setRefreshing] = React.useState(false);
   const [override, setOverride] = React.useState<OverrideIntent | null>(null);
   const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // FG-final declaration sign-off (criterion C5). Optimistic local mirror so the
+  // checkbox reflects the click immediately; reconciled from the Server Action result.
+  const [accepted, setAccepted] = React.useState<boolean>(data?.declarationAccepted ?? false);
+  const [declPending, setDeclPending] = React.useState(false);
+  const [declError, setDeclError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setAccepted(data?.declarationAccepted ?? false);
+  }, [data?.declarationAccepted, data?.productCode]);
 
   React.useEffect(() => {
     return () => {
@@ -210,6 +260,34 @@ export function AllergenCascadeWidget({
     }, REFRESH_DEBOUNCE_MS);
     setRefreshing(true);
   }, [data, refreshAction]);
+
+  // Accept (checked) / revoke (unchecked) the FG-final declaration. Disabled while
+  // pending; failures surface inline (role="alert") and roll the checkbox back —
+  // the Server Action never throws (returns { ok:false, code }).
+  const handleToggleDeclaration = React.useCallback(
+    (next: boolean) => {
+      if (!data || declPending) return;
+      const action = next ? acceptDeclarationAction : revokeDeclarationAction;
+      if (!action) return;
+      const previous = accepted;
+      setAccepted(next);
+      setDeclError(null);
+      setDeclPending(true);
+      void Promise.resolve(action({ productCode: data.productCode }))
+        .then((result) => {
+          if (!result || result.ok !== true) {
+            setAccepted(previous);
+            setDeclError(labels.declarationError);
+          }
+        })
+        .catch(() => {
+          setAccepted(previous);
+          setDeclError(labels.declarationError);
+        })
+        .finally(() => setDeclPending(false));
+    },
+    [data, declPending, accepted, acceptDeclarationAction, revokeDeclarationAction, labels.declarationError],
+  );
 
   if (state !== 'ready' || !data) {
     return (
@@ -344,12 +422,13 @@ export function AllergenCascadeWidget({
           </CardContent>
         </Card>
 
-        {/* ③ FA Final — Contains + May contain. */}
+        {/* ③ FA Final — Contains + May contain + declaration sign-off (C5). */}
         <Card data-testid="allergen-section-final" className="border-2 border-blue-300">
           <CardHeader>
             <CardTitle>
               {labels.sectionFinal} — {data.productCode}
             </CardTitle>
+            <p className="text-xs text-slate-500">{labels.declarationDescription}</p>
           </CardHeader>
           <CardContent>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{labels.contains}</p>
@@ -406,6 +485,77 @@ export function AllergenCascadeWidget({
             )}
 
             <div className="alert alert-blue" style={{ marginTop: 12 }}>{labels.derivationNote}</div>
+
+            {/* Declaration sign-off — satisfies approval criterion C5 "Allergens declared". */}
+            <div
+              data-testid="allergen-declaration"
+              data-accepted={accepted ? 'true' : 'false'}
+              className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+            >
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                {labels.declarationTitle}
+              </p>
+              {canWrite ? (
+                <label
+                  className="mt-2 flex items-start gap-2 text-sm"
+                  style={{ cursor: declPending ? 'progress' : 'pointer' }}
+                >
+                  <input
+                    type="checkbox"
+                    data-testid="allergen-declaration-accept"
+                    className="mt-0.5"
+                    checked={accepted}
+                    disabled={declPending}
+                    onChange={(event) => handleToggleDeclaration(event.target.checked)}
+                  />
+                  <span>{labels.declarationAcceptLabel}</span>
+                </label>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">
+                  {accepted ? labels.declarationAcceptedBadge : labels.declarationNotAccepted}
+                </p>
+              )}
+
+              {accepted ? (
+                <p
+                  data-testid="allergen-declaration-confirmation"
+                  className="mt-2 flex flex-wrap items-baseline gap-1 text-xs text-green-700"
+                >
+                  <span aria-hidden="true">✓</span>
+                  <span className="font-medium">{labels.declarationAcceptedBadge}</span>
+                  {data.declarationAcceptedBy ? (
+                    <span className="text-slate-500">
+                      {labels.declarationAcceptedBy
+                        .replace('{name}', data.declarationAcceptedBy)
+                        .replace('{date}', formatAcceptedAt(data.declarationAcceptedAt))}
+                    </span>
+                  ) : null}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-amber-700">{labels.declarationNotAccepted}</p>
+              )}
+
+              {declPending ? (
+                <p
+                  data-testid="allergen-declaration-pending"
+                  role="status"
+                  aria-live="polite"
+                  className="mt-1 text-xs text-slate-500"
+                >
+                  {labels.declarationPending}
+                </p>
+              ) : null}
+
+              {declError ? (
+                <p
+                  data-testid="allergen-declaration-error"
+                  role="alert"
+                  className="mt-1 text-xs text-red-700"
+                >
+                  {declError}
+                </p>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       </div>
