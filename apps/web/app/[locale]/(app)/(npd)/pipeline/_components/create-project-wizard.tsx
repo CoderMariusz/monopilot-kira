@@ -520,9 +520,13 @@ export function CreateProjectWizard({
           <div className="ff-inline">
             <div className="ff">
               <label htmlFor="wiz-pack-weight">{labels.fieldPackWeight}</label>
+              {/* number input (not text) so a unit like "800g" can't be typed and
+                  then silently dropped by parseEur — owner-reported pack-weight loss. */}
               <input
                 id="wiz-pack-weight"
-                type="text"
+                type="number"
+                min="0"
+                step="any"
                 inputMode="decimal"
                 placeholder={labels.fieldPackWeightPlaceholder}
                 value={form.packWeightG}

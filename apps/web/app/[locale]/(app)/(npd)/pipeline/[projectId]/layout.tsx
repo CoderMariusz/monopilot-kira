@@ -128,6 +128,7 @@ const HEADER_DEFAULTS: ProjectHeaderLabels = {
   deleteConfirm: 'Delete this project? This cannot be undone.',
   deleteError: 'Could not delete the project. Try again.',
   deleteHasDependents: 'This project has downstream work (recipe/trial/…) and cannot be deleted.',
+  gateChecklist: 'Gate checklist',
 };
 
 const GATE_LABEL_DEFAULTS: Record<GateKey | 'Launched', string> = {
@@ -306,6 +307,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     deleteConfirm: p('header.deleteConfirm', HEADER_DEFAULTS.deleteConfirm),
     deleteError: p('header.deleteError', HEADER_DEFAULTS.deleteError),
     deleteHasDependents: p('header.deleteHasDependents', HEADER_DEFAULTS.deleteHasDependents),
+    gateChecklist: p('header.gateChecklist', HEADER_DEFAULTS.gateChecklist),
   };
 
   const currentGate = project.currentGate;

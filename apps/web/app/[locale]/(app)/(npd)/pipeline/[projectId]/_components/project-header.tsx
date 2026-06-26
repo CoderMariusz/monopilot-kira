@@ -32,6 +32,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 import {
@@ -71,6 +72,8 @@ export type ProjectHeaderLabels = {
   deleteConfirm: string;
   deleteError: string;
   deleteHasDependents: string;
+  /** Label for the link to the gate checklist page (where items are ticked). */
+  gateChecklist: string;
 };
 
 export type DeleteProjectAction = (
@@ -142,6 +145,7 @@ export function ProjectHeader({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const locale = pathname?.split('/').filter(Boolean)[0] ?? 'en';
   const [deleting, setDeleting] = React.useState(false);
   const [duplicating, setDuplicating] = React.useState(false);
 
@@ -254,6 +258,18 @@ export function ProjectHeader({
               {deleting ? labels.deleting : labels.deleteProject}
             </button>
           ) : null}
+          {/* Gate checklist: the tickable G0-G4 checklist lives on its own page
+              (/pipeline/[id]/gate) and was previously unreachable from any rendered
+              surface — the "Advance stage" modal only shows a READ-ONLY summary. This
+              link makes the place you actually tick items reachable, next to Advance. */}
+          <Link
+            href={`/${locale}/pipeline/${project.id}/gate`}
+            prefetch={false}
+            className="btn btn-secondary"
+            data-testid="project-header-gate-checklist"
+          >
+            {labels.gateChecklist}
+          </Link>
           {/* Launched is terminal: there is no next gate, so the Advance
               affordance is hidden entirely (no stale "advance to G4: Testing"
               modal on a launched project). */}

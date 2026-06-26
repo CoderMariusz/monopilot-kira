@@ -3125,7 +3125,8 @@
         "deleting": "Deleting…",
         "deleteConfirm": "Delete this project? This cannot be undone.",
         "deleteError": "Could not delete the project. Try again.",
-        "deleteHasDependents": "This project has downstream work (recipe/trial/…) and cannot be deleted."
+        "deleteHasDependents": "This project has downstream work (recipe/trial/…) and cannot be deleted.",
+        "gateChecklist": "Gate checklist"
       },
       "prio": {
         "high": "High priority",

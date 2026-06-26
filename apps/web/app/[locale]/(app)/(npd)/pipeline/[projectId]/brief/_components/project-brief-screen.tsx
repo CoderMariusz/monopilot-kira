@@ -447,6 +447,9 @@ function EditBriefCard({
             <label className="field">
               <span className="field__label" style={{ textTransform: 'uppercase' }}>{labels.fieldPackWeight}</span>
               <Input
+                type="number"
+                min="0"
+                step="any"
                 inputMode="decimal"
                 value={form.packWeightG}
                 onChange={(e) => set('packWeightG', e.target.value)}

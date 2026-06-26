@@ -5315,7 +5315,8 @@
         "deleting": "Usuwanie…",
         "deleteConfirm": "Usunąć ten projekt? Tej operacji nie można cofnąć.",
         "deleteError": "Nie udało się usunąć projektu. Spróbuj ponownie.",
-        "deleteHasDependents": "Ten projekt ma powiązaną pracę (receptura/próba/…) i nie może zostać usunięty."
+        "deleteHasDependents": "Ten projekt ma powiązaną pracę (receptura/próba/…) i nie może zostać usunięty.",
+        "gateChecklist": "Lista kontrolna bramy"
       },
       "prio": {
         "high": "Wysoki priorytet",
