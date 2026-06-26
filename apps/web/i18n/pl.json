@@ -5317,7 +5317,9 @@
         "deleteConfirm": "Usunąć ten projekt? Tej operacji nie można cofnąć.",
         "deleteError": "Nie udało się usunąć projektu. Spróbuj ponownie.",
         "deleteHasDependents": "Ten projekt ma powiązaną pracę (receptura/próba/…) i nie może zostać usunięty.",
-        "gateChecklist": "Lista kontrolna bramy"
+        "gateChecklist": "Lista kontrolna bramy",
+        "createFg": "Utwórz / powiąż wyrób",
+        "openFg": "Otwórz wyrób"
       },
       "prio": {
         "high": "Wysoki priorytet",
@@ -5363,7 +5365,27 @@
       "empty": "Nie znaleziono projektu",
       "emptyBody": "Żaden projekt nie pasuje do tego id w Twojej organizacji.",
       "forbidden": "Nie masz uprawnień do wyświetlenia tego projektu.",
-      "error": "Nie można załadować tego projektu."
+      "error": "Nie można załadować tego projektu.",
+      "fgCandidateModal": {
+        "title": "Utwórz lub powiąż wyrób gotowy",
+        "subtitle": "Ten projekt nie ma jeszcze wyrobu gotowego. Utwórz nowy lub powiąż istniejący kod dla projektu",
+        "modeCreate": "Utwórz nowy wyrób",
+        "modeMap": "Powiąż istniejący wyrób",
+        "fieldCreateCode": "Kod nowego wyrobu",
+        "fieldCreateCodeHint": "Zasugerowany na podstawie kodu projektu — zmień go przed utworzeniem, jeśli potrzebujesz innego kodu.",
+        "fieldMapCode": "Istniejący kod wyrobu / produktu",
+        "fieldMapCodeHint": "Wpisz kod istniejącego wyrobu gotowego, aby powiązać go z tym projektem.",
+        "cancel": "Anuluj",
+        "submitCreate": "Utwórz wyrób",
+        "submitMap": "Powiąż wyrób",
+        "submitting": "Zapisywanie…",
+        "errorInvalidInput": "Wprowadź prawidłowy kod wyrobu gotowego.",
+        "errorG3Only": "Wyrób gotowy można utworzyć dopiero, gdy projekt osiągnie bramkę Uzasadnienie biznesowe (G2) lub Rozwój (G3).",
+        "errorFgAlreadyLinked": "Ten kod wyrobu gotowego jest już powiązany z innym aktywnym projektem NPD.",
+        "errorForbidden": "Nie masz uprawnień do utworzenia wyrobu gotowego dla tego projektu.",
+        "errorNotFound": "Nie znaleziono tego projektu. Mógł zostać usunięty.",
+        "errorGeneric": "Nie udało się utworzyć wyrobu gotowego. Spróbuj ponownie."
+      }
     },
     "briefStage": {
       "cardTitle": "Brief projektu",

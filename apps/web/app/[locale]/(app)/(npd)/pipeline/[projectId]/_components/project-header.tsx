@@ -46,8 +46,17 @@ import type {
   AdvanceGateProject,
   AdvanceProjectGateAction,
 } from '../../../../../../(npd)/_modals/advance-gate-modal';
+import {
+  FgCandidateModal,
+  type CreateOrMapFgCandidateAction,
+  type FgCandidateLabels,
+} from './fg-candidate-modal';
+
+/** Query value that opens the FG-candidate modal (trigger + modal share this island). */
+const FG_CANDIDATE_MODAL_PARAM = 'fgCandidate';
 
 export type ProjectHeaderBadgeTone = 'green' | 'blue' | 'amber' | 'red' | 'gray';
+export type ProjectGate = 'G0' | 'G1' | 'G2' | 'G3' | 'G4' | 'Launched';
 
 export type ProjectHeaderLabels = {
   breadcrumbNpd: string;
@@ -74,6 +83,10 @@ export type ProjectHeaderLabels = {
   deleteHasDependents: string;
   /** Label for the link to the gate checklist page (where items are ticked). */
   gateChecklist: string;
+  /** "Create / Link FG" header button (shown at G2/G3 when no FG is linked yet). */
+  createFg: string;
+  /** "Open FG" link label (shown once the project has a linked product_code). */
+  openFg: string;
 };
 
 export type DeleteProjectAction = (
@@ -97,6 +110,10 @@ export type ProjectHeaderView = {
   /** Already-localized priority badge label. */
   prioLabel: string;
   prioTone: ProjectHeaderBadgeTone;
+  /** Raw current gate (drives the G2/G3 FG-candidate affordance — never client-trusted for writes). */
+  currentGate: ProjectGate;
+  /** Linked FG/product code, or null until an FG candidate is created/mapped. */
+  productCode: string | null;
 };
 
 export type ProjectHeaderProps = {
@@ -128,6 +145,20 @@ export type ProjectHeaderProps = {
   canClone?: boolean;
   /** Injected only when the user may create projects (RBAC resolved server-side). */
   cloneProject?: CloneProjectAction;
+  /**
+   * FG-candidate affordance bundle. Fixes the "Finished Good not found" dead-end:
+   * at gate G2/G3 with no linked product_code, the user can create/link the FG via
+   * createOrMapFgCandidateAtG3. Once linked, the header instead offers "Open FG".
+   */
+  fgCandidate: {
+    labels: FgCandidateLabels;
+    /** Suggested FG code `FG-{code}` pre-filled in Create mode (owner decision). */
+    suggestedCode: string;
+    /** Server-resolved permission to create/map the FG candidate (= npd.gate.advance). */
+    canCreate: boolean;
+    /** Injected only when the user may advance the gate (RBAC resolved server-side). */
+    action?: CreateOrMapFgCandidateAction;
+  };
 };
 
 export function ProjectHeader({
@@ -141,6 +172,7 @@ export function ProjectHeader({
   deleteProject,
   canClone,
   cloneProject,
+  fgCandidate,
 }: ProjectHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -154,6 +186,34 @@ export function ProjectHeader({
     params.set('modal', ADVANCE_GATE_MODAL_PARAM);
     router.push(`${pathname}?${params.toString()}`);
   }, [pathname, router, searchParams]);
+
+  // ── FG-candidate affordance (dead-end fix). The button + modal live in the SAME
+  // island so the button is robust on a fresh hard load (no cross-island race —
+  // see fa-create-host.tsx). Shown only at gate G2/G3 with no FG linked yet. ──
+  const fgModalOpen = searchParams?.get('modal') === FG_CANDIDATE_MODAL_PARAM;
+  const showFgCreate =
+    (project.currentGate === 'G2' || project.currentGate === 'G3') && !project.productCode;
+
+  const openFgModal = React.useCallback(() => {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('modal', FG_CANDIDATE_MODAL_PARAM);
+    router.push(`${pathname}?${params.toString()}`);
+  }, [pathname, router, searchParams]);
+
+  const closeFgModal = React.useCallback(() => {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.delete('modal');
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : (pathname ?? '/'));
+  }, [pathname, router, searchParams]);
+
+  const onFgCreated = React.useCallback(
+    (productCode: string) => {
+      router.push(`/${locale}/fa/${productCode}`);
+      router.refresh();
+    },
+    [locale, router],
+  );
 
   const onDelete = React.useCallback(async () => {
     if (!deleteProject || deleting) return;
@@ -270,6 +330,28 @@ export function ProjectHeader({
           >
             {labels.gateChecklist}
           </Link>
+          {/* FG-candidate affordance (dead-end fix): once an FG is linked, jump to
+              its detail page; at G2/G3 with no FG yet, open the create/link modal.
+              Hidden entirely on other gates (the FG candidate only exists at G2/G3). */}
+          {project.productCode ? (
+            <Link
+              href={`/${locale}/fa/${project.productCode}`}
+              prefetch={false}
+              className="btn btn-secondary"
+              data-testid="project-header-open-fg"
+            >
+              {labels.openFg}
+            </Link>
+          ) : showFgCreate ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={openFgModal}
+              data-testid="project-header-create-fg"
+            >
+              {labels.createFg}
+            </button>
+          ) : null}
           {/* Launched is terminal: there is no next gate, so the Advance
               affordance is hidden entirely (no stale "advance to G4: Testing"
               modal on a launched project). */}
@@ -308,6 +390,21 @@ export function ProjectHeader({
           advanceProjectGate={advanceProjectGate}
         />
       )}
+
+      {/* FG-candidate create/link modal — same island as its trigger (dead-end fix).
+          Only mounted while the affordance is relevant (G2/G3, no FG linked). */}
+      {showFgCreate ? (
+        <FgCandidateModal
+          open={fgModalOpen}
+          projectId={project.id}
+          projectCode={project.code}
+          suggestedCode={fgCandidate.suggestedCode}
+          labels={fgCandidate.labels}
+          action={fgCandidate.canCreate ? fgCandidate.action : undefined}
+          onCreated={onFgCreated}
+          onClose={closeFgModal}
+        />
+      ) : null}
     </section>
   );
 }

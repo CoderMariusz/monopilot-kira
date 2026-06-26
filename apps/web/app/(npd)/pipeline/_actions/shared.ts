@@ -105,6 +105,9 @@ export function mapProjectRow(row: ProjectRow): ProjectSummary {
     owner: row.owner,
     targetLaunch: row.target_launch,
     notes: row.notes,
+    // FG candidate linkage: null until createOrMapFgCandidateAtG3 maps/creates the
+    // FG. Drives the header "Create / Link FG" vs "Open FG" affordance.
+    productCode: row.product_code ?? null,
     createdAt: row.created_at,
     progressPercent: total > 0 ? Math.round((completed / total) * 100) : 0,
     closeoutStatus: mapCloseoutStatus(row),
@@ -151,6 +154,7 @@ export type ProjectRow = {
   owner: string | null;
   target_launch: string | null;
   notes: string | null;
+  product_code: string | null;
   created_at: string;
   checklist_total: string | number;
   checklist_completed: string | number;
@@ -174,6 +178,8 @@ export type ProjectSummary = {
   owner: string | null;
   targetLaunch: string | null;
   notes: string | null;
+  /** Linked FG/product code, or null until an FG candidate is created/mapped (G2/G3). */
+  productCode: string | null;
   createdAt: string;
   progressPercent: number;
   closeoutStatus: {

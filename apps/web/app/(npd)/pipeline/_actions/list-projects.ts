@@ -49,6 +49,7 @@ export async function listProjects(rawInput: unknown = {}): Promise<ListProjects
                 p.owner,
                 p.target_launch::text as target_launch,
                 p.notes,
+                p.product_code,
                 p.created_at::text as created_at,
                 count(gci.id)::text as checklist_total,
                 count(gci.id) filter (

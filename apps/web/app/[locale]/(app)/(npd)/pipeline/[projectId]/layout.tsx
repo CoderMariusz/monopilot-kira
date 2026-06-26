@@ -40,6 +40,7 @@ import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { deleteProject as deleteProjectAction } from '../../../../../(npd)/pipeline/_actions/delete-project';
 import { cloneProject as cloneProjectAction } from '../../../../../(npd)/pipeline/_actions/clone-project';
+import { createOrMapFgCandidateAtG3 as createOrMapFgCandidateAtG3Action } from '../../../../../(npd)/pipeline/_actions/create-or-map-fg-candidate-at-g3';
 import {
   advanceTransitionForStage,
   nextStage,
@@ -57,6 +58,7 @@ import {
   type ProjectHeaderLabels,
   type ProjectHeaderView,
 } from './_components/project-header';
+import type { FgCandidateLabels } from './_components/fg-candidate-modal';
 import { PROJECT_STAGES, type ProjectStageKey } from './_components/project-stages';
 
 type ProjectLayoutProps = {
@@ -129,7 +131,35 @@ const HEADER_DEFAULTS: ProjectHeaderLabels = {
   deleteError: 'Could not delete the project. Try again.',
   deleteHasDependents: 'This project has downstream work (recipe/trial/…) and cannot be deleted.',
   gateChecklist: 'Gate checklist',
+  createFg: 'Create / Link FG',
+  openFg: 'Open FG',
 };
+
+// FG-candidate create/link modal defaults (mirrors the next-intl fallback pattern
+// used for the header + advance modal). Friendly per-code error text — the modal
+// never surfaces the raw action error code.
+const FG_MODAL_DEFAULTS: FgCandidateLabels = {
+  title: 'Create or link the Finished Good',
+  subtitle: 'This project has no Finished Good yet. Create one or link an existing code for project',
+  modeCreate: 'Create new FG',
+  modeMap: 'Link existing FG',
+  fieldCreateCode: 'New FG code',
+  fieldCreateCodeHint: 'Suggested from the project code — edit it before creating if you need a different code.',
+  fieldMapCode: 'Existing FG / product code',
+  fieldMapCodeHint: 'Enter the code of an existing Finished Good to link to this project.',
+  cancel: 'Cancel',
+  submitCreate: 'Create FG',
+  submitMap: 'Link FG',
+  submitting: 'Saving…',
+  errorInvalidInput: 'Enter a valid Finished Good code.',
+  errorG3Only: 'A Finished Good can only be created once the project reaches the Business Case (G2) or Development (G3) gate.',
+  errorFgAlreadyLinked: 'That Finished Good code is already linked to another active NPD project.',
+  errorForbidden: 'You do not have permission to create a Finished Good for this project.',
+  errorNotFound: 'This project could not be found. It may have been deleted.',
+  errorGeneric: 'Could not create the Finished Good. Try again.',
+};
+
+const FG_MODAL_LABEL_KEYS = Object.keys(FG_MODAL_DEFAULTS) as Array<keyof FgCandidateLabels>;
 
 const GATE_LABEL_DEFAULTS: Record<GateKey | 'Launched', string> = {
   G0: 'Idea',
@@ -239,6 +269,20 @@ async function cloneAdapter(input: { sourceProjectId: string }) {
   return { ok: false as const, error: result.error };
 }
 
+// FG-candidate create/link Server Action adapter (RBAC enforced inside the action
+// via npd.gate.advance + only injected when canAdvance). The action validates the
+// G2/G3 gate and auto-generates FG-{code} when no productCode is given; its return
+// envelope already matches the modal's CreateOrMapFgCandidateAction shape, so this
+// is a thin 'use server' boundary wrapper.
+async function fgCandidateAdapter(input: {
+  projectId: string;
+  mode: 'create' | 'map';
+  productCode?: string | null;
+}) {
+  'use server';
+  return createOrMapFgCandidateAtG3Action(input);
+}
+
 export default async function ProjectWorkbenchLayout({ children, params }: ProjectLayoutProps) {
   const { locale, projectId } = await params;
 
@@ -308,7 +352,16 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     deleteError: p('header.deleteError', HEADER_DEFAULTS.deleteError),
     deleteHasDependents: p('header.deleteHasDependents', HEADER_DEFAULTS.deleteHasDependents),
     gateChecklist: p('header.gateChecklist', HEADER_DEFAULTS.gateChecklist),
+    createFg: p('header.createFg', HEADER_DEFAULTS.createFg),
+    openFg: p('header.openFg', HEADER_DEFAULTS.openFg),
   };
+
+  // FG-candidate modal labels (next-intl with graceful fallback, all four locales).
+  const fgPick = await pickerFor(locale, 'npd.projectDetail.fgCandidateModal');
+  const fgCandidateLabels = FG_MODAL_LABEL_KEYS.reduce((acc, key) => {
+    acc[key] = fgPick(key, FG_MODAL_DEFAULTS[key]);
+    return acc;
+  }, {} as FgCandidateLabels);
 
   const currentGate = project.currentGate;
   const currentKey: GateKey = isGateKey(currentGate) ? currentGate : 'G4';
@@ -354,6 +407,8 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     gateTone,
     prioLabel: p(`prio.${project.prio}`, PRIO_LABEL_DEFAULTS[project.prio]),
     prioTone: PRIO_TONE[project.prio],
+    currentGate: project.currentGate,
+    productCode: project.productCode,
   };
 
   // Advance-modal props (resolved from the real getProject checklist).
@@ -439,6 +494,16 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
         deleteProject={deleteAdapter}
         canClone={canClone}
         cloneProject={canClone ? cloneAdapter : undefined}
+        fgCandidate={{
+          labels: fgCandidateLabels,
+          // Suggested FG code (owner ASK-with-suggestion decision). The action
+          // normalizes/uppercases; mirror its FG-{code} convention here so the
+          // pre-filled value matches what an empty submit would generate.
+          suggestedCode: `FG-${project.code}`,
+          // The action gates on npd.gate.advance (same permission as Advance).
+          canCreate: canAdvance,
+          action: canAdvance ? fgCandidateAdapter : undefined,
+        }}
       />
 
       {/* PERSISTENT 8-stage operational rail (prototype project.jsx:4-20). */}

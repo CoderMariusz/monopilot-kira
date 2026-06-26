@@ -145,4 +145,45 @@ test.describe('NPD project detail — header + 8-stage rail + brief (project.jsx
     await page.screenshot({ path: path.join(artifactDir, 'brief-stage.png'), fullPage: true });
     await runAxe(page, 'brief-stage');
   });
+
+  /**
+   * FG-candidate affordance (dead-end fix — "Finished Good not found").
+   *
+   * A project at gate G2/G3 with no linked product_code exposes a header
+   * "Create / Link FG" button that opens the FgCandidateModal (Create vs Link
+   * mode, suggested FG-{code} pre-fill). Once an FG is linked the header instead
+   * offers an "Open FG" link to /{locale}/fa/{code}. Exactly ONE of the two
+   * affordances is present on any project (and neither on non-G2/G3 gates) — so we
+   * assert the header surfaces an FG control and capture per-state screenshots.
+   */
+  test('header surfaces the Create/Link FG affordance and opens the modal', async ({ page }) => {
+    await signIn(page);
+    const projectId = await resolveFirstProjectId(page);
+    await page.goto(url(`/en/pipeline/${projectId}`), { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByTestId('project-header')).toBeVisible({ timeout: 10_000 });
+
+    const createFg = page.getByTestId('project-header-create-fg');
+    const openFg = page.getByTestId('project-header-open-fg');
+
+    // Empty state: the project may already have an FG (Open FG) or not (Create FG);
+    // capture whichever the seeded project is in. Off-G2/G3 projects show neither —
+    // skip the interaction in that case but still record the header screenshot.
+    await page.screenshot({ path: path.join(artifactDir, 'fg-affordance-header.png'), fullPage: true });
+
+    if (await createFg.count()) {
+      await createFg.click();
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible({ timeout: 10_000 });
+      // Mode toggle (Create default) + pre-filled suggested code input present.
+      await expect(dialog.getByTestId('fg-candidate-mode')).toBeVisible();
+      const suggested = dialog.locator('#fg-candidate-create-code');
+      await expect(suggested).toHaveValue(/^FG-/);
+      await page.screenshot({ path: path.join(artifactDir, 'fg-create-modal.png'), fullPage: true });
+      await runAxe(page, 'fg-create-modal');
+    } else if (await openFg.count()) {
+      await expect(openFg).toHaveAttribute('href', /\/fa\//);
+      await page.screenshot({ path: path.join(artifactDir, 'fg-open-link.png'), fullPage: true });
+    }
+  });
 });

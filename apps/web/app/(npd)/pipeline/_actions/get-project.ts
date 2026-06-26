@@ -116,6 +116,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                 p.owner,
                 p.target_launch::text as target_launch,
                 p.notes,
+                p.product_code,
                 p.created_at::text as created_at,
                 count(gci.id)::text as checklist_total,
                 count(gci.id) filter (

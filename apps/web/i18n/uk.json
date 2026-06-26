@@ -5316,7 +5316,9 @@
         "deleteConfirm": "Delete this project? This cannot be undone.",
         "deleteError": "Could not delete the project. Try again.",
         "deleteHasDependents": "This project has downstream work (recipe/trial/…) and cannot be deleted.",
-        "gateChecklist": "Gate checklist"
+        "gateChecklist": "Gate checklist",
+        "createFg": "Create / Link FG",
+        "openFg": "Open FG"
       },
       "prio": {
         "high": "Високий пріоритет",
@@ -5362,7 +5364,27 @@
       "empty": "Проєкт не знайдено",
       "emptyBody": "Жоден проєкт не відповідає цьому id у вашій організації.",
       "forbidden": "Ви не маєте дозволу переглядати цей проєкт.",
-      "error": "Не вдалося завантажити цей проєкт."
+      "error": "Не вдалося завантажити цей проєкт.",
+      "fgCandidateModal": {
+        "title": "Create or link the Finished Good",
+        "subtitle": "This project has no Finished Good yet. Create one or link an existing code for project",
+        "modeCreate": "Create new FG",
+        "modeMap": "Link existing FG",
+        "fieldCreateCode": "New FG code",
+        "fieldCreateCodeHint": "Suggested from the project code — edit it before creating if you need a different code.",
+        "fieldMapCode": "Existing FG / product code",
+        "fieldMapCodeHint": "Enter the code of an existing Finished Good to link to this project.",
+        "cancel": "Cancel",
+        "submitCreate": "Create FG",
+        "submitMap": "Link FG",
+        "submitting": "Saving…",
+        "errorInvalidInput": "Enter a valid Finished Good code.",
+        "errorG3Only": "A Finished Good can only be created once the project reaches the Business Case (G2) or Development (G3) gate.",
+        "errorFgAlreadyLinked": "That Finished Good code is already linked to another active NPD project.",
+        "errorForbidden": "You do not have permission to create a Finished Good for this project.",
+        "errorNotFound": "This project could not be found. It may have been deleted.",
+        "errorGeneric": "Could not create the Finished Good. Try again."
+      }
     },
     "briefStage": {
       "cardTitle": "Бриф проєкту",

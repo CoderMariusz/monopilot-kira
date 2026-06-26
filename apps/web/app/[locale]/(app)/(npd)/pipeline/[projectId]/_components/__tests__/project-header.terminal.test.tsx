@@ -48,11 +48,16 @@ const LABELS: ProjectHeaderLabels = {
   advanceStage: 'Advance stage →',
   advanceDisabledHint: 'no permission',
   advanceTerminalHint: 'lbl.terminal',
+  duplicating: 'Duplicating…',
+  duplicateError: 'dup err',
   deleteProject: 'Delete',
   deleting: 'Deleting…',
   deleteConfirm: 'sure?',
   deleteError: 'err',
   deleteHasDependents: 'deps',
+  gateChecklist: 'Gate checklist',
+  createFg: 'Create / Link FG',
+  openFg: 'Open FG',
 };
 
 const VIEW: ProjectHeaderView = {
@@ -66,6 +71,15 @@ const VIEW: ProjectHeaderView = {
   gateTone: 'green',
   prioLabel: 'Normal',
   prioTone: 'amber',
+  currentGate: 'Launched',
+  productCode: null,
+};
+
+const FG_CANDIDATE = {
+  labels: {} as never,
+  suggestedCode: 'FG-DEV-088',
+  canCreate: true,
+  action: undefined,
 };
 
 const ADVANCE_MODAL = {
@@ -84,6 +98,7 @@ function renderHeader(isTerminal: boolean) {
       canAdvance
       isTerminal={isTerminal}
       advanceProjectGate={vi.fn(async () => ({ ok: true as const, data: { currentGate: 'Launched' as const } }))}
+      fgCandidate={FG_CANDIDATE}
     />,
   );
 }
