@@ -173,7 +173,10 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                     else coalesce(done.closed_value, '') = 'Yes'
                   end as done,
                   gci.completed_at::text as completed_at,
-                  gci.completed_by_user::text as completed_by_user,
+                  -- Show the completer's NAME, not the raw UUID (mirrors the
+                  -- approvals query's approver_name join). Falls back to the UUID
+                  -- only when no user row resolves.
+                  coalesce(u.display_name, u.name, gci.completed_by_user::text) as completed_by_user,
                   gci.evidence_file,
                   done.dept as fa_dept,
                   case when done.dept is null then null else p.product_code end as fa_product_code
@@ -181,6 +184,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
              join public.npd_projects p
                on p.id = gci.project_id
               and p.org_id = gci.org_id
+             left join public.users u on u.id = gci.completed_by_user
              left join lateral (
                select closure.dept, closure.closed_value
                  from public.product pfa
