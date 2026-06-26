@@ -24,7 +24,7 @@ import type {
   LabTabData,
   D365TabData,
 } from '../_actions/tab-data';
-import type { SupplierSpecsData } from '../_actions/list-supplier-specs';
+import type { SupplierSpecRow, SupplierSpecsData } from '../_actions/list-supplier-specs';
 
 // ── shared label bundles ──────────────────────────────────────────────────────
 export type TabStateLabels = { loading: string; empty: string; emptyBody: string; error: string };
@@ -500,11 +500,8 @@ export function SupplierSpecsTab({
   data,
   labels,
   addAction,
-}: {
-  data: SupplierSpecsData;
-  labels: SupplierTabLabels;
-  addAction?: ReactNode;
-}) {
+  rowActions,
+}: SupplierSpecsTabProps) {
   if (data.state === 'error') return <ErrorCard message={labels.error} />;
   if (data.state === 'empty')
     return <EmptyCard icon="📄" title={labels.empty} body={labels.emptyBody} action={addAction} />;
@@ -526,6 +523,7 @@ export function SupplierSpecsTab({
             <th scope="col">{labels.effectiveFrom}</th>
             <th scope="col">{labels.expiryDate}</th>
             <th scope="col">{labels.documents}</th>
+            {rowActions ? <th scope="col" style={{ width: 96 }} /> : null}
           </tr>
         </thead>
         <tbody>
@@ -565,6 +563,7 @@ export function SupplierSpecsTab({
                   {!spec.specDocumentUrl && spec.certificateRefs.length === 0 ? labels.none : null}
                 </div>
               </td>
+              {rowActions ? <td style={{ textAlign: 'right' }}>{rowActions(spec)}</td> : null}
             </tr>
           ))}
         </tbody>
@@ -572,3 +571,10 @@ export function SupplierSpecsTab({
     </div>
   );
 }
+
+export type SupplierSpecsTabProps = {
+  data: SupplierSpecsData;
+  labels: SupplierTabLabels;
+  addAction?: ReactNode;
+  rowActions?: (spec: SupplierSpecRow) => ReactNode;
+};

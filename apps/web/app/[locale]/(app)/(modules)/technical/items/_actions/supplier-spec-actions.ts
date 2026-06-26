@@ -106,6 +106,33 @@ export type CreateItemSupplierSpecResult =
   | { ok: true; data: { id: string; supplierCode: string; updated: boolean } }
   | { ok: false; error: SupplierSpecActionError; message?: string };
 
+const UpdateItemSupplierSpecInput = z
+  .object({
+    specId: z.string().uuid(),
+    specVersion: z.string().trim().min(1).max(64).optional(),
+    issuedDate: OptionalIsoDate,
+    effectiveFrom: OptionalIsoDate,
+    expiryDate: OptionalIsoDate,
+    approveNow: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.effectiveFrom && value.expiryDate && value.expiryDate < value.effectiveFrom) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['expiryDate'],
+        message: 'expiry_date must be on or after effective_from',
+      });
+    }
+  });
+
+export type UpdateItemSupplierSpecResult =
+  | { ok: true; data: { id: string } }
+  | { ok: false; error: SupplierSpecActionError; message?: string };
+
+export type DeactivateItemSupplierSpecResult =
+  | { ok: true; data: { id: string; alreadyInactive: boolean } }
+  | { ok: false; error: SupplierSpecActionError };
+
 export async function createItemSupplierSpec(
   rawInput: unknown,
 ): Promise<CreateItemSupplierSpecResult> {
@@ -233,6 +260,185 @@ export async function createItemSupplierSpec(
     if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
     if (isPgError(err) && err.code === '23503') return { ok: false, error: 'item_not_found' };
     console.error('[technical/items] createItemSupplierSpec persistence_failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function updateItemSupplierSpec(
+  rawInput: unknown,
+): Promise<UpdateItemSupplierSpecResult> {
+  const parsed = UpdateItemSupplierSpecInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<UpdateItemSupplierSpecResult> => {
+        const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+        if (!(await hasPermission(ctx, ITEMS_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+        const existingRes = await ctx.client.query<{
+          id: string;
+          item_id: string;
+          spec_version: string;
+          issued_date: string | null;
+          effective_from: string | null;
+          expiry_date: string | null;
+          lifecycle_status: string;
+          review_status: string;
+          supplier_status: string;
+        }>(
+          `select id,
+                  item_id::text,
+                  spec_version,
+                  issued_date::text,
+                  effective_from::text,
+                  expiry_date::text,
+                  lifecycle_status,
+                  review_status,
+                  supplier_status
+             from public.supplier_specs
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+            limit 1`,
+          [input.specId],
+        );
+        const existing = existingRes.rows[0];
+        if (!existing) return { ok: false, error: 'item_not_found' };
+
+        const approveNow = input.approveNow === true;
+        const { rows } = await ctx.client.query<{
+          id: string;
+          spec_version: string;
+          issued_date: string | null;
+          effective_from: string | null;
+          expiry_date: string | null;
+          lifecycle_status: string;
+          review_status: string;
+          supplier_status: string;
+        }>(
+          `update public.supplier_specs
+              set spec_version = coalesce($2, spec_version),
+                  issued_date = $3::date,
+                  effective_from = coalesce($4::date, effective_from),
+                  expiry_date = $5::date,
+                  supplier_status = case when $6::boolean then 'approved' else supplier_status end,
+                  lifecycle_status = case when $6::boolean then 'active' else lifecycle_status end,
+                  review_status = case when $6::boolean then 'approved' else review_status end,
+                  approved_by = case when $6::boolean then $7::uuid else approved_by end,
+                  approved_at = case when $6::boolean then pg_catalog.now() else approved_at end,
+                  updated_at = pg_catalog.now()
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+            returning id,
+                      spec_version,
+                      issued_date::text,
+                      effective_from::text,
+                      expiry_date::text,
+                      lifecycle_status,
+                      review_status,
+                      supplier_status`,
+          [
+            input.specId,
+            input.specVersion ?? null,
+            input.issuedDate ?? null,
+            input.effectiveFrom ?? null,
+            input.expiryDate ?? null,
+            approveNow,
+            userId,
+          ],
+        );
+        const updated = rows[0];
+        if (!updated) return { ok: false, error: 'persistence_failed' };
+
+        await writeAudit(client as QueryClient, {
+          orgId,
+          actorUserId: userId,
+          action: 'item.supplier_spec.updated',
+          resourceId: existing.item_id,
+          beforeState: existing,
+          afterState: {
+            specVersion: updated.spec_version,
+            issuedDate: updated.issued_date,
+            effectiveFrom: updated.effective_from,
+            expiryDate: updated.expiry_date,
+            lifecycleStatus: updated.lifecycle_status,
+            reviewStatus: updated.review_status,
+            supplierStatus: updated.supplier_status,
+          },
+        });
+
+        safeRevalidatePath('/technical/items');
+        return { ok: true, data: { id: updated.id } };
+      },
+    );
+  } catch (err) {
+    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
+    console.error('[technical/items] updateItemSupplierSpec persistence_failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function deactivateItemSupplierSpec(
+  rawSpecId: unknown,
+): Promise<DeactivateItemSupplierSpecResult> {
+  const parsed = z.string().uuid().safeParse(rawSpecId);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  const specId = parsed.data;
+
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<DeactivateItemSupplierSpecResult> => {
+        const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+        if (!(await hasPermission(ctx, ITEMS_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+        const existingRes = await ctx.client.query<{
+          id: string;
+          item_id: string;
+          lifecycle_status: string;
+        }>(
+          `select id, item_id::text, lifecycle_status
+             from public.supplier_specs
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+            limit 1`,
+          [specId],
+        );
+        const existing = existingRes.rows[0];
+        if (!existing) return { ok: false, error: 'item_not_found' };
+
+        if (['superseded', 'blocked', 'expired'].includes(existing.lifecycle_status)) {
+          return { ok: true, data: { id: existing.id, alreadyInactive: true } };
+        }
+
+        await ctx.client.query(
+          `update public.supplier_specs
+              set lifecycle_status = 'superseded',
+                  updated_at = pg_catalog.now()
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [specId],
+        );
+
+        await writeAudit(client as QueryClient, {
+          orgId,
+          actorUserId: userId,
+          action: 'item.supplier_spec.deactivated',
+          resourceId: existing.item_id,
+          beforeState: { lifecycleStatus: existing.lifecycle_status },
+          afterState: { lifecycleStatus: 'superseded' },
+        });
+
+        safeRevalidatePath('/technical/items');
+        return { ok: true, data: { id: existing.id, alreadyInactive: false } };
+      },
+    );
+  } catch (err) {
+    console.error('[technical/items] deactivateItemSupplierSpec persistence_failed', {
       err: err instanceof Error ? err.message : String(err),
     });
     return { ok: false, error: 'persistence_failed' };

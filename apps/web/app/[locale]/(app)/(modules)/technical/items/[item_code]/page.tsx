@@ -49,7 +49,15 @@ import {
   type SupplierOption,
   type SupplierSpecAddLabels,
 } from './_components/supplier-spec-add.client';
-import { createItemSupplierSpec } from '../_actions/supplier-spec-actions';
+import {
+  createItemSupplierSpec,
+  deactivateItemSupplierSpec,
+  updateItemSupplierSpec,
+} from '../_actions/supplier-spec-actions';
+import {
+  SupplierSpecRowActions,
+  type SupplierSpecRowActionsLabels,
+} from './_components/supplier-spec-row-actions.client';
 import { listSuppliers } from '../../../planning/suppliers/_actions/actions';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
 import { buildTransitionLabels } from '../_components/item-transition-labels';
@@ -293,8 +301,8 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     ? suppliersResult.data.map((s) => ({ id: s.id, code: s.code, name: s.name }))
     : [];
 
-  const a = (key: string, fallback: string): string => {
-    const dotted = `detail.dataTabs.supplier.add.${key}`;
+  const a = (key: string, fallback: string, namespace = 'add'): string => {
+    const dotted = `detail.dataTabs.supplier.${namespace}.${key}`;
     try {
       return t.has(dotted) ? t(dotted) : fallback;
     } catch {
@@ -327,6 +335,40 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       already_exists: a('errors.already_exists', 'An approved supplier spec already exists for this supplier and item.'),
       persistence_failed: a('errors.persistence_failed', 'Could not save the supplier specification. Please try again.'),
       load_failed: a('errors.load_failed', 'Could not load suppliers. Please try again.'),
+    },
+  };
+
+  const supplierRowActionsLabels: SupplierSpecRowActionsLabels = {
+    edit: a('edit', 'Edit', 'rowActions'),
+    deactivate: a('deactivate', 'Deactivate', 'rowActions'),
+    editTitle: a('editTitle', 'Edit supplier specification', 'rowActions'),
+    editSubtitle: a('editSubtitle', 'Update supplier spec dates, version, and approval state.', 'rowActions'),
+    specVersion: a('specVersion', 'Spec version', 'rowActions'),
+    issuedDate: a('issuedDate', 'Issued date', 'rowActions'),
+    effectiveFrom: a('effectiveFrom', 'Effective from', 'rowActions'),
+    expiryDate: a('expiryDate', 'Expiry date', 'rowActions'),
+    approveNow: a('approveNow', 'Approve now (sets active and approved)', 'rowActions'),
+    submit: a('submit', 'Save changes', 'rowActions'),
+    submitting: a('submitting', 'Saving…', 'rowActions'),
+    cancel: a('cancel', 'Cancel', 'rowActions'),
+    success: a('success', 'Supplier specification updated.', 'rowActions'),
+    deactivateTitle: a('deactivateTitle', 'Deactivate supplier specification', 'rowActions'),
+    deactivateBody: a('deactivateBody', 'This will supersede the supplier specification for this item.', 'rowActions'),
+    deactivateWarnActive: a(
+      'deactivateWarnActive',
+      'This spec is currently active and approved. Deactivating it may reintroduce supplier-readiness warnings.',
+      'rowActions',
+    ),
+    deactivateConfirm: a('deactivateConfirm', 'Deactivate', 'rowActions'),
+    deactivateCancel: a('deactivateCancel', 'Cancel', 'rowActions'),
+    deactivateSuccess: a('deactivateSuccess', 'Supplier specification deactivated.', 'rowActions'),
+    errors: {
+      invalid_input: a('errors.invalid_input', 'Please check the supplier and dates and try again.'),
+      forbidden: a('forbidden', 'You do not have permission to add a supplier to this item.'),
+      item_not_found: a('errors.item_not_found', 'This item no longer exists.'),
+      supplier_not_found: a('errors.supplier_not_found', 'The selected supplier could not be found.'),
+      already_exists: a('errors.already_exists', 'An approved supplier spec already exists for this supplier and item.'),
+      persistence_failed: a('errors.persistence_failed', 'Could not save the supplier specification. Please try again.'),
     },
   };
 
@@ -431,6 +473,18 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
               data={supplierSpecsData}
               labels={dataTabLabels.supplier}
               addAction={supplierAddAction}
+              rowActions={
+                canEdit
+                  ? (spec) => (
+                      <SupplierSpecRowActions
+                        spec={spec}
+                        labels={supplierRowActionsLabels}
+                        updateSpec={updateItemSupplierSpec}
+                        deactivateSpec={deactivateItemSupplierSpec}
+                      />
+                    )
+                  : undefined
+              }
             />
           ),
         }}
