@@ -104,6 +104,10 @@ export type NcrListLabels = {
 };
 
 const TERMINAL_STATUSES = new Set<NcrStatus>(['closed', 'cancelled']);
+type NcrAnalyticsRow = NcrListRow & {
+  rootCauseCategory?: string | null;
+  closedAt?: string | null;
+};
 
 /**
  * §3.3 GHA attention partition: overdue OR (critical AND non-terminal). Mirrors
@@ -156,6 +160,39 @@ export function NcrListClient({
   // Partition: attention rows (auto-expanded on top) vs calm rows (collapsed).
   const attentionRows = useMemo(() => visible.filter(isAttention), [visible]);
   const calmRows = useMemo(() => visible.filter((r) => !isAttention(r)), [visible]);
+  const analyticsRows = visible as NcrAnalyticsRow[];
+  const hasRootCauseCategory = (rows as NcrAnalyticsRow[]).some((r) => 'rootCauseCategory' in r);
+
+  const rootCauseCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (!hasRootCauseCategory) return [];
+
+    for (const row of analyticsRows) {
+      const category = row.rootCauseCategory?.trim();
+      if (!category) continue;
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
+
+    return Array.from(counts, ([category, count]) => ({ category, count })).sort(
+      (a, b) => b.count - a.count || a.category.localeCompare(b.category),
+    );
+  }, [analyticsRows, hasRootCauseCategory]);
+
+  const averageClosureDays = useMemo(() => {
+    const closedDurations = analyticsRows
+      .filter((row) => row.status === 'closed' && row.closedAt)
+      .map((row) => {
+        const created = Date.parse(row.createdAt);
+        const closed = Date.parse(row.closedAt ?? '');
+        if (!Number.isFinite(created) || !Number.isFinite(closed) || closed < created) return null;
+        return Math.floor((closed - created) / 86_400_000);
+      })
+      .filter((days): days is number => days !== null);
+
+    if (closedDurations.length === 0) return null;
+    return Math.round(closedDurations.reduce((sum, days) => sum + days, 0) / closedDurations.length);
+  }, [analyticsRows]);
+  const maxRootCauseCount = rootCauseCounts[0]?.count ?? 0;
 
   function clearFilters() {
     setStatus('all');
@@ -385,6 +422,46 @@ export function NcrListClient({
         <span className="ml-auto text-xs text-slate-500" data-testid="ncr-list-rows">
           {labels.rowsLabel.replace('{count}', String(visible.length))}
         </span>
+      </Card>
+
+      <Card className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+          {hasRootCauseCategory && (
+            <section aria-labelledby="ncr-root-cause-heading" className="min-w-0">
+              <h2 id="ncr-root-cause-heading" className="mb-3 text-sm font-semibold text-slate-900">
+                NCRs by Root Cause
+              </h2>
+              <div className="space-y-2">
+                {rootCauseCounts.map(({ category, count }) => (
+                  <div
+                    key={category}
+                    className="grid items-center gap-2 text-xs text-slate-600 sm:grid-cols-[minmax(8rem,1fr)_2rem_minmax(6rem,20rem)]"
+                  >
+                    <span className="truncate" title={category}>
+                      {category}
+                    </span>
+                    <span className="text-right font-mono text-slate-900">{count}</span>
+                    <div className="h-2 max-w-xs rounded bg-slate-100">
+                      <div
+                        className="h-2 rounded bg-blue-500"
+                        style={{ width: `${maxRootCauseCount > 0 ? (count / maxRootCauseCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+          <section
+            aria-label="Avg Closure Time"
+            className="rounded border border-slate-200 p-4 text-sm md:ml-auto md:w-[220px]"
+          >
+            <div className="text-xs font-medium text-slate-500">Avg Closure Time</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-900">
+              {averageClosureDays === null ? '—' : averageClosureDays} days
+            </div>
+          </section>
+        </div>
       </Card>
 
       {/* Table / empty states (parity ncr-screens.jsx:99-181). */}

@@ -36,6 +36,8 @@ type NcrListRow = {
   linkedHoldNumber: string | null;
   responseDueAt: string | null;
   createdAt: string;
+  rootCauseCategory: string | null;
+  closedAt: string | null;
 };
 
 /**
@@ -185,6 +187,8 @@ function mapListRow(row: {
   linked_hold_number: string | null;
   response_due_at: Date | string | null;
   created_at: Date | string;
+  root_cause_category: string | null;
+  closed_at: Date | string | null;
 }): NcrListRow {
   return {
     id: row.id,
@@ -200,6 +204,8 @@ function mapListRow(row: {
     linkedHoldNumber: row.linked_hold_number,
     responseDueAt: toIso(row.response_due_at),
     createdAt: toIso(row.created_at) ?? '',
+    rootCauseCategory: row.root_cause_category,
+    closedAt: toIso(row.closed_at),
   };
 }
 
@@ -229,7 +235,9 @@ export async function listNcrs(input: {
            n.linked_hold_id::text,
            h.hold_number as linked_hold_number,
            n.response_due_at,
-           n.created_at
+           n.created_at,
+           n.root_cause_category,
+           n.closed_at
          from public.ncr_reports n
          left join public.items i on i.id = n.product_id and i.org_id = n.org_id
          left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
