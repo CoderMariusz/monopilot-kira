@@ -40,7 +40,14 @@ import { useRouter } from 'next/navigation';
 import { PoStatusBadge } from './po-status-badge';
 import { EditPoModal, type EditPoLabels, type EditPoResult } from './edit-po-modal';
 import { PoLineModal, type PoLineModalLabels, type PoLineMutationResult, type EditLineSeed } from './po-line-modal';
+import {
+  ReceivePoLineModal,
+  type ReceivePoLineLabels,
+  type ReceiveLineSeed,
+  type ReceiveLocationOption,
+} from './receive-po-line-modal';
 import type { PoSupplierOption } from '../_actions/po-form-data';
+import type { DesktopReceiveInput, DesktopReceiveResult } from '../_actions/receive-po-line.types';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 
 export type PoDetailLine = {
@@ -140,6 +147,12 @@ export type PoDetailLabels = {
     modal: EditPoLabels;
     lineModal: PoLineModalLabels;
   };
+  /** Desktop "Receive" affordance — present only when the receive seam is wired. */
+  receive?: {
+    /** Per-line "Receive" button copy. */
+    button: string;
+    modal: ReceivePoLineLabels;
+  };
 };
 
 export type PoTransitionResult =
@@ -192,6 +205,8 @@ export function PoDetailView({
   addPurchaseOrderLineAction,
   updatePurchaseOrderLineAction,
   deletePurchaseOrderLineAction,
+  receivePoLineAction,
+  receiveLocations = [],
 }: {
   po: PoDetail;
   labels: PoDetailLabels;
@@ -227,6 +242,12 @@ export function PoDetailView({
     unitPrice?: string;
   }) => Promise<PoLineMutationResult>;
   deletePurchaseOrderLineAction?: (input: { poId: string; lineId: string }) => Promise<PoLineMutationResult>;
+  /** Desktop receive seam. RBAC (warehouse.grn.receive) enforced server-side inside
+   *  receivePoLineDesktop; never client-trusted. Optional so legacy callers / older
+   *  tests keep type-checking. */
+  receivePoLineAction?: (input: DesktopReceiveInput) => Promise<DesktopReceiveResult>;
+  /** Optional org-scoped, warehouse-grouped locations for the destination picker. */
+  receiveLocations?: ReceiveLocationOption[];
 }) {
   const router = useRouter();
   const [pending, setPending] = React.useState<string | null>(null);
@@ -251,6 +272,15 @@ export function PoDetailView({
   const [lineModalOpen, setLineModalOpen] = React.useState(false);
   const [editLine, setEditLine] = React.useState<EditLineSeed | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  // Desktop receive affordance. Offered per-line ONLY when the PO is in a
+  // receivable status AND the seam is wired (the page passes it when the action
+  // is available). RBAC (warehouse.grn.receive) is re-checked server-side inside
+  // receivePoLineDesktop — never client-trusted.
+  const receivableStatus = po.status.toLowerCase();
+  const canReceive = (receivableStatus === 'confirmed' || receivableStatus === 'partially_received') && !!receivePoLineAction && !!labels.receive;
+  const [receiveLine, setReceiveLine] = React.useState<ReceiveLineSeed | null>(null);
+  const [receiveOpen, setReceiveOpen] = React.useState(false);
 
   const statusLabel = (s: string) => labels.status[s.toLowerCase()] ?? s;
   const actions = TRANSITIONS[po.status.toLowerCase()] ?? [];
@@ -294,6 +324,17 @@ export function PoDetailView({
       unitPrice: line.unitPrice,
     });
     setLineModalOpen(true);
+  }
+  function openReceive(line: PoDetailLine) {
+    setReceiveLine({
+      id: line.id,
+      itemCode: line.itemCode,
+      itemName: line.itemName,
+      qty: line.qty,
+      uom: line.uom,
+      receivedQty: line.receivedQty,
+    });
+    setReceiveOpen(true);
   }
 
   const orderTotal = po.lines.reduce((sum, l) => sum + Number(l.qty) * Number(l.unitPrice), 0);
@@ -436,7 +477,7 @@ export function PoDetailView({
                     <th className="px-3 py-2 text-right">{labels.lines.unitPrice}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.lineTotal}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.received}</th>
-                    {canEdit ? <th className="px-3 py-2 text-right" /> : null}
+                    {canEdit || canReceive ? <th className="px-3 py-2 text-right" /> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -489,6 +530,19 @@ export function PoDetailView({
                           >
                             {labels.edit.deleteLine}
                           </button>
+                        </td>
+                      ) : canReceive ? (
+                        <td className="px-3 py-2 text-right whitespace-nowrap" data-testid={`po-line-actions-${l.id}`}>
+                          {receiptOf(l) === 'full' ? null : (
+                            <button
+                              type="button"
+                              data-testid={`po-line-receive-${l.id}`}
+                              className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                              onClick={() => openReceive(l)}
+                            >
+                              {labels.receive!.button}
+                            </button>
+                          )}
                         </td>
                       ) : null}
                     </tr>
@@ -616,6 +670,18 @@ export function PoDetailView({
           addPurchaseOrderLineAction={addPurchaseOrderLineAction}
           updatePurchaseOrderLineAction={updatePurchaseOrderLineAction}
           onSaved={() => router.refresh()}
+        />
+      ) : null}
+
+      {canReceive && receivePoLineAction != null && labels.receive != null ? (
+        <ReceivePoLineModal
+          open={receiveOpen}
+          onOpenChange={setReceiveOpen}
+          labels={labels.receive.modal}
+          line={receiveLine}
+          locations={receiveLocations}
+          receivePoLineAction={receivePoLineAction}
+          onReceived={() => router.refresh()}
         />
       ) : null}
     </div>

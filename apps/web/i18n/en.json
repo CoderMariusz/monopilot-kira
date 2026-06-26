@@ -7785,6 +7785,38 @@
           "submitEdit": "Save line",
           "qtyRequired": "Enter a quantity greater than zero and pick a unit."
         }
+      },
+      "receive": {
+        "button": "Receive",
+        "modal": {
+          "title": "Receive PO line",
+          "forLine": "Ordered {item}",
+          "qtyLabel": "Qty received",
+          "qtyHelp": "Ordered {ordered}, already received {received}.",
+          "qtyPlaceholder": "0",
+          "batchLabel": "Batch / Lot",
+          "batchPlaceholder": "Optional",
+          "bestBeforeLabel": "Best before",
+          "locationLabel": "Destination location",
+          "locationPlaceholder": "Default warehouse",
+          "submit": "Receive into stock",
+          "submitting": "Receiving…",
+          "cancel": "Cancel",
+          "success": "Received {qty} {uom} — GRN {grn}, LP {lp}.",
+          "overReceivedNote": "Over-received vs the ordered quantity.",
+          "qcRaisedNote": "A QC inspection was raised.",
+          "errors": {
+            "qtyRequired": "Enter a quantity greater than zero.",
+            "forbidden": "You don't have permission to receive into stock.",
+            "not_found": "That purchase order line no longer exists.",
+            "invalid_qty": "That quantity isn't valid.",
+            "over_receive_cap": "Cannot exceed 110% of the ordered quantity.",
+            "no_warehouse": "No warehouse is configured — set one up in Settings before receiving.",
+            "invalid_location": "That destination location is invalid.",
+            "invalid_state": "This purchase order can't be received in its current status.",
+            "error": "Something went wrong receiving. Please retry."
+          }
+        }
       }
     },
     "transferOrders": {

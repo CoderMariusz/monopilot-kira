@@ -6825,6 +6825,38 @@
           "submitEdit": "Zapisz pozycję",
           "qtyRequired": "Podaj ilość większą od zera i wybierz jednostkę."
         }
+      },
+      "receive": {
+        "button": "Przyjmij",
+        "modal": {
+          "title": "Przyjęcie pozycji zamówienia",
+          "forLine": "Zamówiono {item}",
+          "qtyLabel": "Przyjęta ilość",
+          "qtyHelp": "Zamówiono {ordered}, już przyjęto {received}.",
+          "qtyPlaceholder": "0",
+          "batchLabel": "Partia / Lot",
+          "batchPlaceholder": "Opcjonalnie",
+          "bestBeforeLabel": "Najlepiej spożyć przed",
+          "locationLabel": "Lokalizacja docelowa",
+          "locationPlaceholder": "Magazyn domyślny",
+          "submit": "Przyjmij do magazynu",
+          "submitting": "Przyjmowanie…",
+          "cancel": "Anuluj",
+          "success": "Przyjęto {qty} {uom} — WZ {grn}, LP {lp}.",
+          "overReceivedNote": "Przyjęto więcej niż zamówiono.",
+          "qcRaisedNote": "Utworzono kontrolę jakości.",
+          "errors": {
+            "qtyRequired": "Podaj ilość większą od zera.",
+            "forbidden": "Nie masz uprawnień do przyjmowania do magazynu.",
+            "not_found": "Ta pozycja zamówienia już nie istnieje.",
+            "invalid_qty": "Ta ilość jest nieprawidłowa.",
+            "over_receive_cap": "Nie można przekroczyć 110% zamówionej ilości.",
+            "no_warehouse": "Brak skonfigurowanego magazynu — skonfiguruj go w Ustawieniach przed przyjęciem.",
+            "invalid_location": "Ta lokalizacja docelowa jest nieprawidłowa.",
+            "invalid_state": "Tego zamówienia nie można przyjąć w obecnym statusie.",
+            "error": "Coś poszło nie tak podczas przyjmowania. Spróbuj ponownie."
+          }
+        }
       }
     },
     "transferOrders": {

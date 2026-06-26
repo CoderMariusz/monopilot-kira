@@ -34,8 +34,12 @@ import {
   deletePurchaseOrderLine,
 } from '../_actions/actions';
 import { listPoSuppliers, listPoUnits, searchPoItems } from '../_actions/po-form-data';
+import { receivePoLineDesktop } from '../_actions/receive-po-line';
+import type { DesktopReceiveInput } from '../_actions/receive-po-line.types';
+import { listLocations } from '../../../warehouse/_actions/location-read-actions';
 import { buildUomDropdown, type UomDropdown } from '../../_actions/uom-dropdown';
 import { PoDetailView, type PoDetailLabels } from '../_components/po-detail-view';
+import type { ReceiveLocationOption } from '../_components/receive-po-line-modal';
 
 /** Thin client-facing adapters around the reviewed actions so the client view's
  *  narrow `{ ok; error: string }` seam type lines up with the server result union. */
@@ -67,6 +71,13 @@ async function deletePurchaseOrderLineAction(input: { poId: string; lineId: stri
 async function reopenPurchaseOrderAction(id: string) {
   'use server';
   return reopenPurchaseOrder(id);
+}
+/** Desktop receive seam. RBAC (warehouse.grn.receive) is enforced server-side
+ *  inside receivePoLineDesktop; this adapter just narrows it to the client view's
+ *  seam type. The action never throws — it returns the discriminated result. */
+async function receivePoLineAction(input: DesktopReceiveInput) {
+  'use server';
+  return receivePoLineDesktop(input);
 }
 
 export const dynamic = 'force-dynamic';
@@ -241,6 +252,38 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         },
       },
     },
+    receive: {
+      button: t('receive.button'),
+      modal: {
+        title: t('receive.modal.title'),
+        forLine: t('receive.modal.forLine'),
+        qtyLabel: t('receive.modal.qtyLabel'),
+        qtyHelp: t('receive.modal.qtyHelp'),
+        qtyPlaceholder: t('receive.modal.qtyPlaceholder'),
+        batchLabel: t('receive.modal.batchLabel'),
+        batchPlaceholder: t('receive.modal.batchPlaceholder'),
+        bestBeforeLabel: t('receive.modal.bestBeforeLabel'),
+        locationLabel: t('receive.modal.locationLabel'),
+        locationPlaceholder: t('receive.modal.locationPlaceholder'),
+        submit: t('receive.modal.submit'),
+        submitting: t('receive.modal.submitting'),
+        cancel: t('receive.modal.cancel'),
+        success: t('receive.modal.success'),
+        overReceivedNote: t('receive.modal.overReceivedNote'),
+        qcRaisedNote: t('receive.modal.qcRaisedNote'),
+        errors: {
+          qtyRequired: t('receive.modal.errors.qtyRequired'),
+          forbidden: t('receive.modal.errors.forbidden'),
+          not_found: t('receive.modal.errors.not_found'),
+          invalid_qty: t('receive.modal.errors.invalid_qty'),
+          over_receive_cap: t('receive.modal.errors.over_receive_cap'),
+          no_warehouse: t('receive.modal.errors.no_warehouse'),
+          invalid_location: t('receive.modal.errors.invalid_location'),
+          invalid_state: t('receive.modal.errors.invalid_state'),
+          error: t('receive.modal.errors.error'),
+        },
+      },
+    },
   };
 }
 
@@ -268,6 +311,27 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
   }
 
   const po = result.data;
+
+  // Destination-location picker source. Only fetched for a receivable PO; the
+  // listLocations read is gated on warehouse.inventory.read, so a user without it
+  // (or an org with no locations) gets an empty list → the picker is omitted and
+  // receivePoLineDesktop falls back to the org-default warehouse server-side.
+  const isReceivable = po.status === 'confirmed' || po.status === 'partially_received';
+  let receiveLocations: ReceiveLocationOption[] = [];
+  if (isReceivable) {
+    const loc = await listLocations({ limit: 200 });
+    if (loc.ok) {
+      receiveLocations = loc.data.map((l) => ({
+        id: l.id,
+        code: l.code,
+        name: l.name,
+        warehouseId: l.warehouseId,
+        warehouseCode: l.warehouseCode,
+        warehouseName: l.warehouseName,
+      }));
+    }
+  }
+
   return (
     <PoDetailView
       locale={locale}
@@ -302,6 +366,8 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       addPurchaseOrderLineAction={addPurchaseOrderLineAction}
       updatePurchaseOrderLineAction={updatePurchaseOrderLineAction}
       deletePurchaseOrderLineAction={deletePurchaseOrderLineAction}
+      receivePoLineAction={receivePoLineAction}
+      receiveLocations={receiveLocations}
     />
   );
 }
