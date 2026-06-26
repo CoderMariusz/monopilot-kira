@@ -5761,7 +5761,11 @@
         "ACTIVE_SHARED_BOM_REQUIRED": "Aktywny współdzielony BOM z pozycjami",
         "FACTORY_SPEC_REQUIRED": "Zatwierdzona specyfikacja fabryczna",
         "V18_OPEN_HIGH_RISK": "Brak otwartych wysokich ryzyk"
-      }
+      },
+      "yieldErrorInvalidInput": "Nie udało się zapisać wydajności. Podaj wartość od 0,001 do 100 i spróbuj ponownie.",
+      "yieldErrorForbidden": "Nie masz uprawnień do aktualizacji tej wydajności.",
+      "yieldErrorNotFound": "Nie znaleziono aktywnej BOM. Odśwież i spróbuj ponownie.",
+      "yieldErrorPersistenceFailed": "Nie udało się zapisać wydajności. Spróbuj ponownie."
     },
     "pipelineCreate": {
       "title": "Utwórz projekt NPD",

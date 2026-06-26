@@ -116,6 +116,10 @@ const DEFAULT_LABELS: HandoffLabels = {
   yieldSaving: 'Saving…',
   yieldSaved: 'Yield saved.',
   yieldError: 'Could not save the yield. Enter a value between 0.001 and 100 and try again.',
+  yieldErrorInvalidInput: 'Could not save the yield. Enter a value between 0.001 and 100 and try again.',
+  yieldErrorForbidden: 'You do not have permission to update this yield.',
+  yieldErrorNotFound: 'The active BOM was not found. Refresh and try again.',
+  yieldErrorPersistenceFailed: 'Could not save the yield. Try again.',
   loading: 'Loading handoff data…',
   empty: 'No handoff checklist yet',
   emptyBody: 'A handoff checklist is created once the project reaches the handoff stage.',
@@ -129,9 +133,9 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof HandoffLabels>;
 function translateLabel(t: (key: string) => string, key: keyof HandoffLabels): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    return value === key ? (DEFAULT_LABELS[key] ?? value) : value;
   } catch {
-    return DEFAULT_LABELS[key];
+    return DEFAULT_LABELS[key] ?? key;
   }
 }
 

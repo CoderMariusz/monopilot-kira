@@ -98,6 +98,10 @@ const LABELS: HandoffLabels = {
   yieldSaving: 'L_YIELD_SAVING',
   yieldSaved: 'L_YIELD_SAVED',
   yieldError: 'L_YIELD_ERR',
+  yieldErrorInvalidInput: 'Enter a value between 0.001 and 100',
+  yieldErrorForbidden: 'No permission to update yield',
+  yieldErrorNotFound: 'Active BOM no longer found',
+  yieldErrorPersistenceFailed: 'Could not save the yield. Try again.',
   loading: 'L_LOADING',
   empty: 'L_EMPTY',
   emptyBody: 'L_EMPTY_BODY',
@@ -565,7 +569,8 @@ describe('HandoffScreen — auto-built production BOM result + yield prompt', ()
     fireEvent.click(screen.getByTestId('handoff-yield-save-btn'));
     const err = await screen.findByTestId('handoff-yield-error');
     expect(err).toHaveAttribute('role', 'alert');
-    expect(err).toHaveTextContent('L_YIELD_ERR');
+    expect(err).toHaveTextContent('Could not save the yield. Try again.');
+    expect(err).not.toHaveTextContent('Enter a value between 0.001 and 100');
     // Prompt stays so the user can correct + retry.
     expect(screen.getByTestId('handoff-yield-prompt')).toBeInTheDocument();
   });
@@ -592,7 +597,9 @@ describe('HandoffScreen — auto-built production BOM result + yield prompt', ()
     const input = await screen.findByTestId('handoff-yield-input');
     fireEvent.change(input, { target: { value: '150' } });
     fireEvent.click(screen.getByTestId('handoff-yield-save-btn'));
-    expect(await screen.findByTestId('handoff-yield-error')).toBeInTheDocument();
+    expect(await screen.findByTestId('handoff-yield-error')).toHaveTextContent(
+      'Enter a value between 0.001 and 100',
+    );
     expect(onUpdateBomYield).not.toHaveBeenCalled();
   });
 });

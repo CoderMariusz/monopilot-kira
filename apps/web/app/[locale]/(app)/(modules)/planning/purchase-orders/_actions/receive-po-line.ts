@@ -256,12 +256,12 @@ async function resolveWarehouse(client: QueryClient, input: DesktopReceiveInput)
                   and l.warehouse_id = w.id
                 order by l.level asc, l.code asc
                 limit 1) as default_location_id
-         from public.warehouse_locations wl
+         from public.locations requested
          join public.warehouses w
-           on w.id = wl.warehouse_id
-          and w.org_id = wl.org_id
-        where wl.org_id = app.current_org_id()
-          and wl.id = $1::uuid
+           on w.id = requested.warehouse_id
+          and w.org_id = requested.org_id
+        where requested.org_id = app.current_org_id()
+          and requested.id = $1::uuid
         limit 1`,
       [input.toLocationId],
     );
@@ -279,7 +279,9 @@ async function resolveWarehouse(client: QueryClient, input: DesktopReceiveInput)
               limit 1) as default_location_id
        from public.warehouses w
       where w.org_id = app.current_org_id()
-        and w.is_default = true
+      order by w.is_default desc,
+               w.created_at asc,
+               w.id asc
       limit 1`,
   );
   return rows[0] ?? null;

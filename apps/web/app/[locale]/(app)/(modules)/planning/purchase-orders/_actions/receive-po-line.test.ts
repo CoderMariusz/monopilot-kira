@@ -85,6 +85,23 @@ describe('receivePoLineDesktop', () => {
     expect(findCall('update public.purchase_orders')?.params).toEqual([ORG_ID, PO_ID, 'received', USER_ID]);
   });
 
+  it('falls back to a deterministic org warehouse when no default warehouse exists', async () => {
+    currentClient = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      warehouse: { id: WAREHOUSE_ID, site_id: null, default_location_id: LOCATION_ID },
+    });
+
+    const result = await receivePoLineDesktop(baseInput);
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
+    const warehouseLookup = findCall('from public.warehouses w');
+    expect(warehouseLookup?.sql).toContain('order by w.is_default desc');
+    expect(warehouseLookup?.sql).not.toContain('and w.is_default = true');
+    expect(findCall('insert into public.license_plates')?.params[1]).toBeNull();
+    expect(findCall('insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
+  });
+
   it('returns no_warehouse when no desktop warehouse can be resolved', async () => {
     currentClient = makeClient({ warehouse: null });
 

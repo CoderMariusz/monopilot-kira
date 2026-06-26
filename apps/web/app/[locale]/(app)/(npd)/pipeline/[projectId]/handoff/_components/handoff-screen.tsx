@@ -148,6 +148,10 @@ export type HandoffLabels = {
   yieldSaving: string;
   yieldSaved: string;
   yieldError: string;
+  yieldErrorInvalidInput?: string;
+  yieldErrorForbidden?: string;
+  yieldErrorNotFound?: string;
+  yieldErrorPersistenceFailed?: string;
   loading: string;
   empty: string;
   emptyBody: string;
@@ -196,6 +200,21 @@ export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
 export type UpdateBomYieldCall = { bomHeaderId: string; yieldPct: number };
 export type UpdateBomYieldOutcome = { ok: boolean; error?: string };
+
+function yieldErrorMessage(labels: HandoffLabels, code: string): string {
+  switch (code) {
+    case 'invalid_input':
+      return labels.yieldErrorInvalidInput ?? labels.yieldError;
+    case 'forbidden':
+      return labels.yieldErrorForbidden ?? labels.yieldError;
+    case 'not_found':
+      return labels.yieldErrorNotFound ?? labels.yieldError;
+    case 'persistence_failed':
+      return labels.yieldErrorPersistenceFailed ?? labels.yieldError;
+    default:
+      return labels.yieldErrorPersistenceFailed ?? labels.yieldError;
+  }
+}
 
 /**
  * Build the machine-readable handoff packet from data the screen already holds
@@ -637,7 +656,7 @@ export function HandoffScreen({
                       data-testid="handoff-yield-error"
                       className="alert alert-red"
                     >
-                      <div className="alert-title">{labels.yieldError}</div>
+                      <div className="alert-title">{yieldErrorMessage(labels, yieldError)}</div>
                     </div>
                   ) : null}
                 </div>

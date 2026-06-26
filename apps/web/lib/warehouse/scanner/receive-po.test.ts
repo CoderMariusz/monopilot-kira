@@ -405,10 +405,25 @@ describe('scanner receive PO service', () => {
     expect(grnItemInsert?.params[10]).toBe(LOCATION_ID);
   });
 
-  it('returns no_warehouse_for_site when the session site has no configured warehouse', async () => {
-    const client = makeReceiveClient({ orderedQty: '20.000000', receivedQty: '0.000000', noWarehouse: true });
+  it('falls back to an org warehouse when the session site has no linked/default warehouse', async () => {
+    const client = makeReceiveClient({
+      orderedQty: '20.000000',
+      receivedQty: '0.000000',
+      warehouse: { id: WAREHOUSE_ID, default_location_id: LOCATION_ID },
+    });
 
     const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-no-site-warehouse' });
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
+    expect(findCall(client, 'insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
+    expect(auditResult(client)).toBe('ok');
+    expect(client.statements).toContain('commit');
+  });
+
+  it('returns no_warehouse_for_site only when the org has no warehouses', async () => {
+    const client = makeReceiveClient({ orderedQty: '20.000000', receivedQty: '0.000000', noWarehouse: true });
+
+    const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-no-org-warehouse' });
 
     expect(result).toEqual({
       ok: false,
@@ -463,6 +478,7 @@ function makeReceiveClient(options: {
   shelfLifeDays?: number | null;
   shelfLifeMode?: string | null;
   requestedLocation?: { id: string; warehouse_id: string };
+  warehouse?: { id: string; default_location_id: string | null };
   noWarehouse?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
@@ -519,7 +535,10 @@ function makeReceiveClient(options: {
       }
       if (normalized.includes('from public.warehouses w')) {
         if (options.noWarehouse) return { rows: [] as T[], rowCount: 0 };
-        return { rows: [{ id: WAREHOUSE_ID, default_location_id: LOCATION_ID }] as T[], rowCount: 1 };
+        return {
+          rows: [options.warehouse ?? { id: WAREHOUSE_ID, default_location_id: LOCATION_ID }] as T[],
+          rowCount: 1,
+        };
       }
       if (normalized.includes('from public.grns') && normalized.includes('status =')) {
         return { rows: [] as T[], rowCount: 0 };

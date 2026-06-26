@@ -5760,7 +5760,11 @@
         "ACTIVE_SHARED_BOM_REQUIRED": "Active shared BOM with lines",
         "FACTORY_SPEC_REQUIRED": "Factory spec approved",
         "V18_OPEN_HIGH_RISK": "No open high risks"
-      }
+      },
+      "yieldErrorInvalidInput": "Could not save the yield. Enter a value between 0.001 and 100 and try again.",
+      "yieldErrorForbidden": "You do not have permission to update this yield.",
+      "yieldErrorNotFound": "The active BOM was not found. Refresh and try again.",
+      "yieldErrorPersistenceFailed": "Could not save the yield. Try again."
     },
     "pipelineCreate": {
       "title": "Creează proiect NPD",
