@@ -204,6 +204,9 @@ export type ShipmentReportRow = {
   salesOrderNumber: string | null;
   customerName: string | null;
   status: string;
+  carrier: string | null;
+  trackingNumber: string | null;
+  totalWeightKg: number | null;
   boxCount: number;
   createdAt: string;
   shippedAt: string | null;

@@ -681,6 +681,9 @@ export async function shipmentsSummaryCore(
           sales_order_number: string | null;
           customer_name: string | null;
           status: string;
+          carrier: string | null;
+          tracking_number: string | null;
+          total_weight_kg: string | number | null;
           box_count: string | number | null;
           created_at: string | Date;
           shipped_at: string | Date | null;
@@ -691,6 +694,9 @@ export async function shipmentsSummaryCore(
                   so.order_number as sales_order_number,
                   c.name as customer_name,
                   sh.status,
+                  sh.carrier,
+                  sh.tracking_number,
+                  sh.total_weight_kg,
                   (
                     select count(*)::int
                       from public.shipment_boxes sb
@@ -732,6 +738,9 @@ export async function shipmentsSummaryCore(
           salesOrderNumber: r.sales_order_number,
           customerName: r.customer_name,
           status: r.status,
+          carrier: r.carrier,
+          trackingNumber: r.tracking_number,
+          totalWeightKg: r.total_weight_kg == null ? null : num(r.total_weight_kg),
           boxCount: num(r.box_count),
           createdAt: toIso(r.created_at) ?? '',
           shippedAt: toIso(r.shipped_at),

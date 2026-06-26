@@ -728,12 +728,26 @@ function ShipmentsSection({
   const exportRows = () =>
     downloadCsv(
       toCsv(
-        [c.shipment, c.salesOrder, c.customer, c.status, c.boxes, c.shippedAt, c.createdAt],
+        [
+          c.shipment,
+          c.salesOrder,
+          c.customer,
+          c.status,
+          'Carrier',
+          'Tracking number',
+          'Total weight (kg)',
+          c.boxes,
+          c.shippedAt,
+          c.createdAt,
+        ],
         data.rows.map((r) => [
           r.shipmentNumber,
           r.salesOrderNumber ?? '',
           r.customerName ?? '',
           statusLabel(r.status),
+          r.carrier ?? '',
+          r.trackingNumber ?? '',
+          r.totalWeightKg ?? '',
           r.boxCount,
           shortDate(r.shippedAt),
           shortDate(r.createdAt),
