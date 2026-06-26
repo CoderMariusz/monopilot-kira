@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import { getTranslations } from 'next-intl/server';
 
-import { listCompletedWoCosts } from './_actions/wo-cost-actions';
+import { listCompletedWoCosts, summarizeCompletedWoWasteCost } from './_actions/wo-cost-actions';
 import { FinanceWoCostTable, type FinanceWoCostLabels } from './_components/wo-cost-table.client';
 
 export const dynamic = 'force-dynamic';
@@ -58,9 +58,30 @@ async function buildLabels(): Promise<FinanceWoCostLabels> {
 }
 
 async function FinanceContent({ labels, windowDays }: { labels: FinanceWoCostLabels; windowDays: 30 | 90 | 365 }) {
-  const result = await listCompletedWoCosts({ days: windowDays });
+  const [result, wasteSummary] = await Promise.all([
+    listCompletedWoCosts({ days: windowDays }),
+    summarizeCompletedWoWasteCost({ days: windowDays }),
+  ]);
+  const wasteCost =
+    wasteSummary.ok
+      ? wasteSummary.data.wasteCost
+      : 'reason' in wasteSummary && wasteSummary.reason === 'forbidden'
+        ? 'Permission denied'
+        : 'Not available';
+
   if (result.ok) {
-    return <FinanceWoCostTable result={{ state: 'ready', summary: result.data }} labels={labels} />;
+    return (
+      <section className="space-y-4">
+        <div className="rounded border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase text-slate-500">Scrap / waste cost</p>
+          <p className="mt-2 font-mono text-2xl font-semibold text-slate-950" data-testid="finance-waste-cost-summary">
+            {wasteCost}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">Completed WOs in selected period</p>
+        </div>
+        <FinanceWoCostTable result={{ state: 'ready', summary: result.data }} labels={labels} />
+      </section>
+    );
   }
   if ('reason' in result && result.reason === 'forbidden') {
     return <FinanceWoCostTable result={{ state: 'permission-denied' }} labels={labels} />;

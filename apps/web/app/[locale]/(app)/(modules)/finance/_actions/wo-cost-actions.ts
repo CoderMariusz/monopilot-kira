@@ -84,6 +84,12 @@ export type CompletedWoCostsSummary = {
   rows: WoCostSummaryRow[];
 };
 
+export type CompletedWoWasteCostSummary = {
+  days: number;
+  woCount: number;
+  wasteCost: string;
+};
+
 type MaterialRow = {
   item_code: string | null;
   qty_kg: string;
@@ -405,6 +411,54 @@ export async function listCompletedWoCosts(
     );
   } catch (error) {
     console.error('[finance] listCompletedWoCosts failed', error);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+export async function summarizeCompletedWoWasteCost(
+  input: { days?: number } = {},
+): Promise<FinanceActionResult<CompletedWoWasteCostSummary>> {
+  const days = asDays(input.days, 30);
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<FinanceActionResult<CompletedWoWasteCostSummary>> => {
+        const ctx: FinanceContext = { userId, orgId, client: client as QueryClient };
+        if (!(await hasFinancePermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
+          return { ok: false, reason: 'forbidden' };
+        }
+
+        const rows = await ctx.client.query<{ wo_id: string }>(
+          `select wo.id::text as wo_id
+             from public.work_orders wo
+             left join public.wo_executions x
+               on x.org_id = app.current_org_id()
+              and x.wo_id = wo.id
+            where wo.org_id = app.current_org_id()
+              and (
+                wo.status in ('COMPLETED', 'CLOSED')
+                or x.status in ('completed', 'closed')
+              )
+              and coalesce(x.completed_at, wo.completed_at) >= pg_catalog.now() - ($1::int * interval '1 day')
+            order by coalesce(x.completed_at, wo.completed_at) desc nulls last, wo.wo_number desc
+            limit 25`,
+          [days],
+        );
+
+        let wasteCost = 0n;
+        let woCount = 0;
+        for (const row of rows.rows) {
+          const result = await computeWoActualCostInContext(ctx, row.wo_id);
+          if (result.ok && hasComputedCostInputs(result.data)) {
+            wasteCost += toMicro(result.data.wasteCost);
+            woCount += 1;
+          }
+        }
+
+        return { ok: true, data: { days, woCount, wasteCost: microToFixed(wasteCost, 4) } };
+      },
+    );
+  } catch (error) {
+    console.error('[finance] summarizeCompletedWoWasteCost failed', error);
     return { ok: false, reason: 'error' };
   }
 }
