@@ -243,5 +243,28 @@ architectural cleanup that now provably requires touching the regulatory allerge
 supervised session** (do §8d steps 1-2 as their own reviewed allergen-fn change first), and proceed with the other approved
 lower-risk work (RBAC seed, bulk-import, NPD-revert, D365). Override available if owner wants the cut now.
 
+### 8f. Cut BUILT + Codex cross-review = NO-GO (2026-06-26) — fix-list for the next iteration
+The cut was authored (migs `355`/`356`/`357` + `__verify__/verify-merge-cut.sql`, **NOT applied**, untracked) and adversarially
+cross-reviewed by Codex. **Verdict: NO-GO** — 6 findings (2 BLOCKERs the build missed). Fix ALL before any supervised apply:
+1. **[BLOCKER] More `FOR UPDATE` on `product` than the allergen fn** — `apps/web/app/(npd)/fa/actions/update-fa-cell.ts:255`
+   AND `packages/cascade-engine/src/chain1-pack-size.ts:47` also `SELECT … FROM public.product … FOR UPDATE` → break
+   post-cut ("cannot lock rows in a view"). Must repoint these to lock `items`/`fg_npd_ext`/`product_legacy` (app-code change,
+   so the cut is NOT a pure-migration step — it must bundle these TS edits).
+2. **[BLOCKER] Mig 356 breaks the pre-cut window** — existing FA-create (`(npd)/fa/actions/create-fa.ts:90`) inserts only
+   `product`; its insert trigger calls `update_fa_allergen_set`, which after 356 needs the items/ext twin → "product not found".
+   Fix: apply 356+357 ATOMICALLY (one txn), or make the fn dual-mode (lock product while it is a table, items/ext after).
+3. **[HIGH] INSTEAD-OF INSERT `fg_npd_ext` `ON CONFLICT (item_id) DO UPDATE` is partial** (357:~272) — updates ~8 cols,
+   silently drops supplier/app_version/close-done flags/process-yield/declaration/volume/weight. Expand to ALL ext cols.
+4. **[HIGH] Built-reset event uses `old.product_code`** (357:~357) vs the original's `new.product_code` (mig 223:134).
+5. **[MED] `shelf_life` write narrows text→int** in the INSTEAD-OF write (357:215,370) though the view projects it text.
+   Store raw text in ext, or enforce+document integer-only before cutover.
+6. **[LOW] verifier omits type-diff** — CHECK1 compares name/ordinal only; add `format_type` assertions.
+**Draft migs RELOCATED:** the built cut migs + verify were moved OUT of `packages/db/migrations/` to
+`_meta/merge-cut-draft/` (so they can't be accidentally applied and don't collide on numbering). The number **355 is now
+taken by the live yield-fix migration** (`355-bom-yield-editable-on-active.sql`). Next step (when prioritized): a Claude
+lane patches findings 1-6 (incl. the 2 TS FOR-UPDATE callsites) → Codex re-review → orchestrator RENUMBERS to the next free
+≥ live HEAD and applies the gap-cols + allergen-fn + cut ATOMICALLY under the verify harness + rollback-on-fail.
+Live mig HEAD is now **355** (yield fix applied 2026-06-26).
+
 ## Doc path
 `_meta/plans/2026-06-26-product-items-merge-design.md`
