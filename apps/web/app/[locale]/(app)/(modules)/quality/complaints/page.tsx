@@ -36,6 +36,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import { listComplaints, createComplaint } from '../_actions/complaint-actions';
 // Read-only RBAC probe (additive read confined to complaints/**) — gates the
 // [+ New complaint] button on quality.ncr.create.
+import { getComplaintAnalytics } from './_actions/complaint-analytics-action';
 import { canManageComplaints } from './_actions/can-manage-complaints';
 import { ComplaintsListClient } from './_components/complaints-list.client';
 import type { ComplaintRow, CreateComplaintAction } from './_components/complaints-contracts';
@@ -93,11 +94,13 @@ async function ListContent({ locale, t }: { locale: string; t: Translator }) {
   }
 
   const canManage = await canManageComplaints();
+  const analytics = await getComplaintAnalytics();
   const rows: ComplaintRow[] = result.data;
 
   return (
     <ComplaintsListClient
       rows={rows}
+      analytics={analytics}
       labels={labels}
       locale={locale}
       canManage={canManage}

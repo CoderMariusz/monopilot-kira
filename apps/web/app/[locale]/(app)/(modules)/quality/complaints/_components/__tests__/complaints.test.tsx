@@ -60,6 +60,11 @@ const tPl = makeT('pl');
 const LIST_LABELS = buildComplaintListLabels(tEn);
 const DETAIL_LABELS = buildComplaintDetailLabels(tEn);
 const CAPA_LABELS = buildCapaPanelLabels(tEn);
+const ANALYTICS = {
+  bySeverity: { high: 1, low: 1 },
+  byRootCause: {},
+  capaClosureRate: 50,
+};
 
 function makeComplaint(over: Partial<ComplaintRow> = {}): ComplaintRow {
   return {
@@ -113,6 +118,7 @@ function renderList(
   render(
     <ComplaintsListClient
       rows={rows}
+      analytics={ANALYTICS}
       labels={LIST_LABELS}
       locale="en"
       canManage={canManage}
@@ -167,6 +173,7 @@ describe('ComplaintsListClient (E11 parity)', () => {
     const { container } = render(
       <ComplaintsListClient
         rows={[makeComplaint({ id: '11111111-2222-4333-8444-555555555555', complaintNumber: 'CMP-1' })]}
+        analytics={ANALYTICS}
         labels={LIST_LABELS}
         locale="en"
         canManage
@@ -174,6 +181,13 @@ describe('ComplaintsListClient (E11 parity)', () => {
       />,
     );
     expect(container.textContent ?? '').not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  });
+
+  it('renders read-only analytics above the table', () => {
+    renderList([makeComplaint({ id: 'a' })]);
+    expect(screen.getByTestId('complaints-analytics-panel')).toHaveTextContent('Complaints by Severity');
+    expect(screen.getByTestId('complaints-analytics-panel')).toHaveTextContent('Complaints by Root Cause');
+    expect(screen.getByTestId('complaints-capa-rate')).toHaveTextContent('50%');
   });
 });
 

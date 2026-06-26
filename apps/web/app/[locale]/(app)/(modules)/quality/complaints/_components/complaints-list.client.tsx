@@ -29,6 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ComplaintCreateModal } from './complaint-create-modal.client';
 import {
   COMPLAINT_FILTER_STATUSES,
+  type ComplaintAnalyticsSummary,
   type ComplaintRow,
   type ComplaintSeverity,
   type ComplaintStatus,
@@ -53,14 +54,65 @@ function refDisplay(r: ComplaintRow): string | null {
   return r.batchDisplay ?? r.batchRef ?? r.lpCode ?? null;
 }
 
+function AnalyticsBars({ title, values }: { title: string; values: Record<string, number> }) {
+  const entries = Object.entries(values).sort(([a], [b]) => a.localeCompare(b));
+  const max = Math.max(...entries.map(([, count]) => count), 0);
+
+  return (
+    <section className="min-w-0">
+      <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+      <div className="mt-3 flex flex-col gap-2">
+        {entries.length === 0 ? (
+          <p className="text-xs text-slate-500">No confirmed column in schema</p>
+        ) : (
+          entries.map(([key, count]) => (
+            <div key={key} className="grid grid-cols-[minmax(5rem,8rem)_1fr_2rem] items-center gap-2 text-xs">
+              <span className="truncate font-medium text-slate-700">{key}</span>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-sky-600"
+                  style={{ width: `${max === 0 ? 0 : Math.max(8, (count / max) * 100)}%` }}
+                />
+              </div>
+              <span className="text-right font-mono text-slate-600">{count}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ComplaintAnalyticsPanel({ analytics }: { analytics: ComplaintAnalyticsSummary }) {
+  return (
+    <Card
+      data-testid="complaints-analytics-panel"
+      className="grid gap-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_11rem]"
+    >
+      <AnalyticsBars title="Complaints by Severity" values={analytics.bySeverity} />
+      <AnalyticsBars title="Complaints by Root Cause" values={analytics.byRootCause} />
+      <section>
+        <h2 className="text-sm font-semibold text-slate-900">CAPA Closure Rate</h2>
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-4">
+          <p className="font-mono text-3xl font-semibold text-slate-900" data-testid="complaints-capa-rate">
+            {analytics.capaClosureRate}%
+          </p>
+        </div>
+      </section>
+    </Card>
+  );
+}
+
 export function ComplaintsListClient({
   rows,
+  analytics,
   labels,
   locale,
   canManage,
   createComplaintAction,
 }: {
   rows: ComplaintRow[];
+  analytics: ComplaintAnalyticsSummary;
   labels: ComplaintListLabels;
   locale: string;
   canManage: boolean;
@@ -98,6 +150,8 @@ export function ComplaintsListClient({
           + {labels.newComplaint}
         </button>
       </div>
+
+      <ComplaintAnalyticsPanel analytics={analytics} />
 
       {/* Filter bar. */}
       <Card className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">

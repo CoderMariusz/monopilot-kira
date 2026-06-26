@@ -65,6 +65,12 @@ export type ComplaintRow = {
   updatedAt: string;
 };
 
+export type ComplaintAnalyticsSummary = {
+  bySeverity: Record<string, number>;
+  byRootCause: Record<string, number>;
+  capaClosureRate: number;
+};
+
 /** Mirrors complaint-actions.ts CapaActionRow 1:1. */
 export type CapaActionRow = {
   id: string;
