@@ -433,7 +433,7 @@
       "update_failed": "Unable to update manufacturing operation.",
       "immutable_field": "Operation name and process suffix are immutable after creation.",
       "delete_dialog_title": "Deactivate manufacturing operation",
-      "delete_dialog_body": "Deactivate \"{operation}\"? It will no longer be available for new FA assignments. Existing FAs keep working.",
+      "delete_dialog_body": "Deactivate \"{operation}\"? It will no longer be available for new FG assignments. Existing FGs keep working.",
       "confirm_delete": "Deactivate",
       "deleting": "Deactivating...",
       "delete_failed": "Unable to deactivate manufacturing operation."
@@ -4338,7 +4338,7 @@
         "Built": "Зібрано"
       },
       "tabs": {
-        "tablistLabel": "FA detail departments",
+        "tablistLabel": "FG detail departments",
         "core": "Основне",
         "planning": "Планування",
         "commercial": "Комерційне",
@@ -4435,9 +4435,9 @@
       "showBuilt": "Показати зібрані FG (приховані за замовчуванням)",
       "subtitle": "Огляд потоку по 7 відділах",
       "title": "Панель NPD",
-      "expandBlockedFas": "Show blocked FAs",
-      "collapseBlockedFas": "Hide blocked FAs",
-      "blockedFaListTitle": "Blocked FAs"
+      "expandBlockedFas": "Show blocked FGs",
+      "collapseBlockedFas": "Hide blocked FGs",
+      "blockedFaListTitle": "Blocked FGs"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",
@@ -4709,7 +4709,7 @@
       "error": "Не вдалося завантажити контрольний список етапу. Спробуйте ще раз.",
       "forbidden": "У вас немає дозволу переглядати цей контрольний список етапу.",
       "faDerivedHint": "Closed in FA →",
-      "faDerivedLocked": "FA-derived"
+      "faDerivedLocked": "FG-derived"
     },
     "advanceGateModal": {
       "title": "Перехід до наступного етапу",

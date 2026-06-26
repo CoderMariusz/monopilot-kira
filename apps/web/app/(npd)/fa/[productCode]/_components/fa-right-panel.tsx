@@ -100,7 +100,7 @@ function statusVariant(status: FaStatus): BadgeVariant {
 
 export function FaRightPanel({ fa, gateProgress, onOpenModal }: FaRightPanelProps) {
   const faCode = fa.fa_code ?? fa.code ?? 'FA';
-  const productName = fa.product_name ?? fa.name ?? 'Factory article';
+  const productName = fa.product_name ?? fa.name ?? 'Finished good';
   const status = fa.status_overall ?? fa.status ?? (fa.built ? 'Built' : 'Pending');
   const builtLabel = fa.built ? 'Built' : 'Not built';
 

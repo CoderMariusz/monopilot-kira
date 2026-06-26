@@ -139,7 +139,7 @@ describe('ProjectBriefScreen — inline edit form (write grant)', () => {
     expect(screen.getByTestId('brief-field-targetLaunchDate')).toHaveValue('2026-09-01');
     expect(screen.getByTestId('brief-field-targetRetailPriceEur')).toHaveValue('19.90');
     expect(screen.getByTestId('brief-field-packFormat')).toHaveValue('200g sliced pack');
-    expect(screen.getByTestId('brief-field-packWeightG')).toHaveValue('200');
+    expect(screen.getByTestId('brief-field-packWeightG')).toHaveValue(200);
     expect(screen.getByTestId('brief-field-expectedVolume')).toHaveValue('1200');
     expect(screen.getByTestId('brief-field-targetAudience')).toHaveValue('Premium retail');
     expect(screen.getByTestId('brief-field-marketingClaims')).toHaveValue('High protein');

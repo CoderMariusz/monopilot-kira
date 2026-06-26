@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * T-019 — FA list table (Factory Articles).
+ * T-019 — FA list table (Finished Goods).
  *
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:177-297 (FAList)

@@ -32,7 +32,7 @@ import {
 
 const LABELS: FaHistoryLabels = {
   title: 'History',
-  subtitle: 'Read-only timeline of every change to this Factory Article.',
+  subtitle: 'Read-only timeline of every change to this Finished Good.',
   filterLabel: 'Event type',
   filterAll: 'All events',
   colWhen: 'When',
@@ -44,7 +44,7 @@ const LABELS: FaHistoryLabels = {
   unknownActor: 'Unknown',
   loading: 'Loading FA history…',
   empty: 'No history yet',
-  emptyBody: 'Changes to this Factory Article will appear here as they happen.',
+  emptyBody: 'Changes to this Finished Good will appear here as they happen.',
   emptyFiltered: 'No events match this filter',
   emptyFilteredBody: 'Try a different event type or clear the filter.',
   clearFilter: 'Clear filter',

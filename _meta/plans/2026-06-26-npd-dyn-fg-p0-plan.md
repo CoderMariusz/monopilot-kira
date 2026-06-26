@@ -44,11 +44,29 @@ Kill the **duplicated data-entry ideology**. Today the SAME data is entered in T
 - **Dead-end HIGHs** — BOM co-products (no edit/delete), HACCP CCP (no per-row edit), Quality spec parameters (no per-row edit).
 - **Pack weight** overview display (get-project.ts omits pack_weight_g; brief shows it).
 
-## Open owner decisions (still pending)
-- FG: auto-create FG on advance-to-packaging silently vs pause-to-confirm? Retroactively map an existing standalone FA to a project (map-mode UI)?
-- Allergen cascade: rewrite to item_allergen_profiles+recipe (clean) vs bridge-populate the legacy reference tables?
-- Code formats: confirm token grammar (`xxxx`, `[DATE]`, others like `[YY]`, `[SITE]`?).
-- Bulk Excel import proposal (`_meta/plans/2026-06-26-bulk-excel-import-proposal.md`) — which targets/phase to build first.
+## Owner decisions — LOCKED 2026-06-26 (PM)
+1. **FG code on advance-to-packaging** → **ASK with a suggested code** (pre-fill the suggested FG code per the org mask; user confirms / can edit). NOT silent auto-create.
+2. **FA→FG rename = APP-WIDE user-facing**, not just the /fa core tab. Owner: "Fa nie istnieje — musimy wszędzie zmienić nazwy." Change EVERY user-visible "FA"/"Fa"/"Finished Article" → "FG"/"Fg"/"Finished Good" (i18n string VALUES + hard-coded JSX + nav/titles/buttons). KEEP internal `public.product` table + `(npd)/fa` route segment unchanged. **No retroactive FA→project map-mode needed** (FA isn't a concept users keep — it's just being renamed away).
+3. **Allergen cascade = part of a broader DUPLICATE-SYSTEMS unification.** Owner: app has many double systems / double tables / data stored in several places — run a **2–3-track audit to find ALL of them**, then unify (allergen cascade is one instance). Single-source-of-truth rewrite, not legacy-table bridging.
+4. **Code-format tokens CONFIRMED**: `xxxx` = zero-padded sequence, `[DATE]` = yyyymmdd, `[YY]` = 2-digit year, `[SITE]` = site code. Literals pass through.
+5. **Bulk Excel import order**: **Phase 1 = PO, WO, TO** (build first). Phase 2 = supplier products (template depends on product type). Then WIP / FG / RM / ING + other definable entity types.
+
+## Structural decisions — LOCKED 2026-06-26 (PM, post-audit)
+The 5-agent read-only audit (see memory `duplicate-systems-audit-2026-06-26`) drove these:
+6. **FG↔Item = FULL MERGE NOW.** `public.items` becomes the single FG master (UUID PK, typed, RLS, used by WO/BOM/warehouse). `public.product` becomes a VIEW/extension over items. Owner accepted the big-migration / live-risk. Phased, Claude-owned migration; INSTEAD-OF triggers or repointed writers to keep readers working; repoint `bom_headers.product_id` (text) + `work_orders.product_id` (uuid) onto items (folds in DUP-2). Design + review BEFORE applying to live.
+7. **FA/FG detail = 3 sections:** (1) **Core** = most fields, pre-filled from the project; (2) **Commercial & Planning** = commercial+planning+mrp+procurement; (3) **Production & Technical** = production+technical. BOM + History stay as separate views.
+8. **Field catalog = adopt the NEW `npd_field_catalog`** (mig 333, normalized). Migrate the FA page reads + the P0-A Settings UI + `update-fa-cell` whitelist onto it; **add `data_type='auto'` + `auto_source_field_id`** (the read-only-derived-from-another-dept feature); then retire `Reference.DeptColumns`.
+9. **One primary FG per project now** (matches `npd_projects.product_code` single). Design the FG link so multiple variants can be added in a later wave without rework.
+
+## Build queue (sequenced — Codex codes backend, Claude migrates + UI + build-gates + verifies live)
+1. **P0-C FA→FG rename** (kira-mechanical) — ~82-97 user-facing strings, 4 locales + 14 TSX. Keep literal `FA` code prefix (codes start FA, regex `^FA…`); rename only the TYPE label. Zero migration. **← FIRST, in progress.**
+2. **P0-D code-mask engine** — mig: extend `org_document_settings` (add `code_mask` text + doc_types fg/wip/lp/rm/grn); one parser for tokens `xxxx`/`[DATE]`/`[YY]`/`[SITE]`; repoint FG (`gate-helpers.ts:531`), LP (`lp-create.ts:38`), WIP (`manufacturing-ops-lookup.ts:51`), GRN generators + add RM/ING. Settings UI extends `/settings/documents`.
+3. **Allergen cascade rewrite** — mig: rewrite `fa_allergen_cascade` to derive from `item_allergen_profiles` + `formulation_ingredients` (SSoT); fix the broken `public.allergens`(A01..A14) vs `Reference.Allergens`(word) join in `list-nutrition.ts:200` + `list-items.ts:152`. Fixes FG-NPD-002 "No allergen data".
+4. **FG Create/Link button** — wire the complete-but-unwired `createOrMapFgCandidateAtG3` to an "Utwórz/Połącz FG" modal with an **ASK-with-suggested-code** UX (decision #1, PM AM list). Fixes "Finished Good not found".
+5. **product→items FULL MERGE** (foundation, decision #6) — phased Claude migration, reviewed before live. THE big one.
+6. **P0-A field catalog** (decision #8) — Settings/Departments delete+merge-fix + `npd_field_catalog` CRUD UI + `auto`/`auto_source_field_id`; migrate FA reads off `Reference.DeptColumns`.
+7. **P0-B dynamic 3-section FA + pre-fill** (decisions #7, #8) — sections from the catalog, pre-fill from project, `auto` fields read-only.
+8. Carried-over: recipe unlock-PIN (mig 343), gate consolidation + evidence note, dead-end HIGHs (BOM co-products / HACCP CCP / spec params), bulk-import **Phase 1 = PO/WO/TO** then supplier-products then WIP/FG/RM/ING.
 
 ## Migrations I (Claude) will apply (Codex never touches migrations)
 - 342 ✅ applied: formulation_versions.processing_overhead_pct.

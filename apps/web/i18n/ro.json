@@ -433,7 +433,7 @@
       "update_failed": "Unable to update manufacturing operation.",
       "immutable_field": "Operation name and process suffix are immutable after creation.",
       "delete_dialog_title": "Deactivate manufacturing operation",
-      "delete_dialog_body": "Deactivate \"{operation}\"? It will no longer be available for new FA assignments. Existing FAs keep working.",
+      "delete_dialog_body": "Deactivate \"{operation}\"? It will no longer be available for new FG assignments. Existing FGs keep working.",
       "confirm_delete": "Deactivate",
       "deleting": "Deactivating...",
       "delete_failed": "Unable to deactivate manufacturing operation."
@@ -4338,7 +4338,7 @@
         "Built": "Construit"
       },
       "tabs": {
-        "tablistLabel": "FA detail departments",
+        "tablistLabel": "FG detail departments",
         "core": "De bază",
         "planning": "Planificare",
         "commercial": "Comercial",
@@ -4435,9 +4435,9 @@
       "showBuilt": "Arată FG construite (ascunse implicit)",
       "subtitle": "Prezentare generală a fluxului pe 7 departamente",
       "title": "Tablou de bord NPD",
-      "expandBlockedFas": "Show blocked FAs",
-      "collapseBlockedFas": "Hide blocked FAs",
-      "blockedFaListTitle": "Blocked FAs"
+      "expandBlockedFas": "Show blocked FGs",
+      "collapseBlockedFas": "Hide blocked FGs",
+      "blockedFaListTitle": "Blocked FGs"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",
@@ -4709,7 +4709,7 @@
       "error": "Nu se poate încărca lista de verificare a porții. Încercați din nou.",
       "forbidden": "Nu aveți permisiunea de a vizualiza această listă de verificare a porții.",
       "faDerivedHint": "Closed in FA →",
-      "faDerivedLocked": "FA-derived"
+      "faDerivedLocked": "FG-derived"
     },
     "advanceGateModal": {
       "title": "Avansare poartă",

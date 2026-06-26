@@ -61,18 +61,18 @@ const LABELS: DashboardScreenLabels = {
   colPending: 'Pending',
   colBlocked: 'Blocked',
   colProgress: 'Progress',
-  expandBlockedFas: 'Show blocked FAs',
-  collapseBlockedFas: 'Hide blocked FAs',
-  blockedFaListTitle: 'Blocked FAs',
+  expandBlockedFas: 'Show blocked FGs',
+  collapseBlockedFas: 'Hide blocked FGs',
+  blockedFaListTitle: 'Blocked FGs',
   legendTitle: 'Launch alert legend',
   legendRed: 'days_left ≤ 10, or missing required fields',
   legendAmber: 'days_left ≤ 21 AND missing data',
   legendGreen: 'on track · no data gaps',
   legendNote: 'Row-level alert badge recalculates on load.',
-  showBuilt: 'Show built FAs (hidden by default)',
+  showBuilt: 'Show built FGs (hidden by default)',
   alertsTitle: 'Launch alerts',
   alertsSubtitle: 'Sort: days_left ASC',
-  colFaCode: 'FA Code',
+  colFaCode: 'FG Code',
   colProduct: 'Product',
   colLaunch: 'Launch date',
   colDaysLeft: 'Days left',
@@ -81,7 +81,7 @@ const LABELS: DashboardScreenLabels = {
   alertRed: 'Red',
   alertAmber: 'Amber',
   alertGreen: 'Green',
-  openFa: 'Open FA',
+  openFa: 'Open FG',
   noDate: 'No date set',
   deptCore: 'Core',
   deptPlanning: 'Planning',
@@ -91,8 +91,8 @@ const LABELS: DashboardScreenLabels = {
   deptMrp: 'MRP',
   deptProcurement: 'Procurement',
   loading: 'Loading dashboard…',
-  empty: 'No active Factory Articles yet',
-  emptyBody: 'Launch alerts appear once Factory Articles exist.',
+  empty: 'No active Finished Goods yet',
+  emptyBody: 'Launch alerts appear once Finished Goods exist.',
   error: 'Unable to load the dashboard.',
   forbidden: 'You do not have permission to view the dashboard.',
 };
@@ -192,7 +192,7 @@ describe('T-052 DashboardScreen — structural parity (fa-screens.jsx:32-174)', 
 
     expect(within(deptTable).queryByText(/smoked almond yoghurt/i)).not.toBeInTheDocument();
 
-    fireEvent.click(within(deptTable).getByRole('button', { name: /show blocked fas: core/i }));
+    fireEvent.click(within(deptTable).getByRole('button', { name: /show blocked f(?:a|g)s: core/i }));
 
     expect(within(deptTable).getByText(LABELS.blockedFaListTitle)).toBeInTheDocument();
     expect(within(deptTable).getByRole('link', { name: 'FA0043' })).toHaveAttribute(

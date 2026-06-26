@@ -102,7 +102,7 @@ export async function addProdDetailComponent(
       [productCode],
     );
     if (productExists.rows.length === 0) {
-      throw new ValidationError('PRODUCT_NOT_FOUND', 'Factory Article is not visible in this organisation');
+      throw new ValidationError('PRODUCT_NOT_FOUND', 'Finished Good is not visible in this organisation');
     }
 
     // Re-resolve the item org-scoped — never trust the client's item label/code.

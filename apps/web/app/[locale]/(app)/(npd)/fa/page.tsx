@@ -1,5 +1,5 @@
 /**
- * T-019 — FA list page (Factory Articles).
+ * T-019 — FA list page (Finished Goods).
  *
  * Server Component. Reads REAL, org-scoped data from public.product via
  * `withOrgContext` (RLS-enforced as app_user with app.current_org_id()). No

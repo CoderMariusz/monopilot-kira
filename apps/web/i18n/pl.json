@@ -433,7 +433,7 @@
       "update_failed": "Nie udało się zaktualizować operacji produkcyjnej.",
       "immutable_field": "Nazwa operacji i sufiks procesu są niezmienne po utworzeniu.",
       "delete_dialog_title": "Dezaktywuj operację produkcyjną",
-      "delete_dialog_body": "Dezaktywować \"{operation}\"? Nie będzie już dostępna dla nowych przypisań FA. Istniejące FA działają dalej.",
+      "delete_dialog_body": "Dezaktywować \"{operation}\"? Nie będzie już dostępna dla nowych przypisań FG. Istniejące FG działają dalej.",
       "confirm_delete": "Dezaktywuj",
       "deleting": "Dezaktywowanie...",
       "delete_failed": "Nie udało się dezaktywować operacji produkcyjnej."
@@ -4251,7 +4251,7 @@
       "cancel": "Anuluj",
       "create": "Utwórz FG",
       "creating": "Tworzenie…",
-      "errorV01": "Kod FA musi zaczynać się od 'FA', a następnie wielkie litery/cyfry (np. FA5609).",
+      "errorV01": "Kod FG musi zaczynać się od 'FA', a następnie wielkie litery/cyfry (np. FA5609).",
       "errorV02": "Nazwa produktu jest wymagana (maks. 200 znaków).",
       "errorDuplicate": "Taki kod FG już istnieje. Wybierz inny kod.",
       "errorGeneric": "Nie udało się utworzyć wyrobu gotowego. Spróbuj ponownie."
@@ -4338,7 +4338,7 @@
         "Built": "Zbudowany"
       },
       "tabs": {
-        "tablistLabel": "Działy szczegółów FA",
+        "tablistLabel": "Działy szczegółów FG",
         "core": "Podstawowe",
         "planning": "Planowanie",
         "commercial": "Handlowe",
@@ -4435,9 +4435,9 @@
       "showBuilt": "Pokaż zbudowane FG (domyślnie ukryte)",
       "subtitle": "Przegląd potoku w 7 działach",
       "title": "Pulpit NPD",
-      "expandBlockedFas": "Pokaż zablokowane FA",
-      "collapseBlockedFas": "Ukryj zablokowane FA",
-      "blockedFaListTitle": "Zablokowane FA"
+      "expandBlockedFas": "Pokaż zablokowane FG",
+      "collapseBlockedFas": "Ukryj zablokowane FG",
+      "blockedFaListTitle": "Zablokowane FG"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",

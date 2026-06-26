@@ -42,7 +42,7 @@ type DocsPageProps = {
 
 const DEFAULT_LABELS: ComplianceDocsLabels = {
   title: 'Compliance documents',
-  subtitle: 'Read-only attachments tied to this Factory Article.',
+  subtitle: 'Read-only attachments tied to this Finished Good.',
   upload: '+ Upload document',
   colType: 'Type',
   colTitle: 'Title',

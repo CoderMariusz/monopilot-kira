@@ -33,20 +33,20 @@ afterEach(() => cleanup());
 const EVIDENCE_DIR = path.resolve(__dirname, '../../../../../../../../../_meta/parity-evidence/T-021');
 
 const LABELS: FaCreateLabels = {
-  title: 'Create factory article',
-  subtitle: 'V01 · FA Code format validated as you type. V02 · Product Name is required.',
-  fieldProductCode: 'FA Code',
+  title: 'Create Finished Good',
+  subtitle: 'V01 · FG Code format validated as you type. V02 · Product Name is required.',
+  fieldProductCode: 'FG Code',
   fieldProductCodeHint: "Must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
   fieldProductName: 'Product Name',
   fieldProductNameHint: 'Max 200 characters',
-  rangeHint: 'On success you will be taken to the new FA. Codes FA5600+ are reserved for the 2026 NPD pipeline.',
+  rangeHint: 'On success you will be taken to the new FG. Codes FA5600+ are reserved for the 2026 NPD pipeline.',
   cancel: 'Cancel',
-  create: 'Create FA',
+  create: 'Create FG',
   creating: 'Creating…',
-  errorV01: "FA Code must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
+  errorV01: "FG Code must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
   errorV02: 'Product Name is required (max 200 characters).',
-  errorDuplicate: 'That FA Code already exists. Choose a different code.',
-  errorGeneric: 'Could not create the factory article. Try again.',
+  errorDuplicate: 'That FG Code already exists. Choose a different code.',
+  errorGeneric: 'Could not create the Finished Good. Try again.',
 };
 
 function capture(name: string) {

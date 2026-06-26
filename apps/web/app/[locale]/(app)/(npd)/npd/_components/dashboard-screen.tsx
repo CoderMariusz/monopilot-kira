@@ -213,9 +213,9 @@ function dashboardLabel(
   key: 'expandBlockedFas' | 'collapseBlockedFas' | 'blockedFaListTitle',
 ): string {
   const fallback: Record<'expandBlockedFas' | 'collapseBlockedFas' | 'blockedFaListTitle', string> = {
-    expandBlockedFas: 'Show blocked FAs',
-    collapseBlockedFas: 'Hide blocked FAs',
-    blockedFaListTitle: 'Blocked FAs',
+    expandBlockedFas: 'Show blocked FGs',
+    collapseBlockedFas: 'Hide blocked FGs',
+    blockedFaListTitle: 'Blocked FGs',
   };
   return labels[key] ?? fallback[key];
 }

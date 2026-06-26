@@ -452,7 +452,7 @@
       "update_failed": "Unable to update manufacturing operation.",
       "immutable_field": "Operation name and process suffix are immutable after creation.",
       "delete_dialog_title": "Deactivate manufacturing operation",
-      "delete_dialog_body": "Deactivate \"{operation}\"? It will no longer be available for new FA assignments. Existing FAs keep working.",
+      "delete_dialog_body": "Deactivate \"{operation}\"? It will no longer be available for new FG assignments. Existing FGs keep working.",
       "confirm_delete": "Deactivate",
       "deleting": "Deactivating...",
       "delete_failed": "Unable to deactivate manufacturing operation."
@@ -2009,12 +2009,12 @@
     },
     "faCreate": {
       "title": "Create finished good",
-      "subtitle": "V01 · FA Code format validated as you type. V02 · Product Name is required.",
+      "subtitle": "V01 · FG Code format validated as you type. V02 · Product Name is required.",
       "fieldProductCode": "FG Code",
       "fieldProductCodeHint": "Must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
       "fieldProductName": "Product Name",
       "fieldProductNameHint": "Max 200 characters",
-      "rangeHint": "On success you will be taken to the new FA. Codes FA5600+ are reserved for the 2026 NPD pipeline.",
+      "rangeHint": "On success you will be taken to the new FG. Codes FA5600+ are reserved for the 2026 NPD pipeline.",
       "cancel": "Cancel",
       "create": "Create FG",
       "creating": "Creating…",
@@ -2105,7 +2105,7 @@
         "Built": "Built"
       },
       "tabs": {
-        "tablistLabel": "FA detail departments",
+        "tablistLabel": "FG detail departments",
         "core": "Core",
         "planning": "Planning",
         "commercial": "Commercial",
@@ -2136,10 +2136,10 @@
         }
       },
       "actions": {
-        "deleteFa": "Delete FA",
+        "deleteFa": "Delete FG",
         "d365Build": "Build D365 →",
         "deleteDisabledHint": "You do not have permission to delete finished goods.",
-        "d365DisabledHint": "FA must be Complete first (all 7 departments closed)."
+        "d365DisabledHint": "FG must be Complete first (all 7 departments closed)."
       },
       "workflow": {
         "line": "Workflow template: {template} — {type} · {count} departments",
@@ -2202,9 +2202,9 @@
       "showBuilt": "Show built FGs (hidden by default)",
       "subtitle": "Pipeline overview across 7 departments",
       "title": "NPD Dashboard",
-      "expandBlockedFas": "Show blocked FAs",
-      "collapseBlockedFas": "Hide blocked FAs",
-      "blockedFaListTitle": "Blocked FAs"
+      "expandBlockedFas": "Show blocked FGs",
+      "collapseBlockedFas": "Hide blocked FGs",
+      "blockedFaListTitle": "Blocked FGs"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",
@@ -2477,7 +2477,7 @@
       "error": "Unable to load the gate checklist. Try again.",
       "forbidden": "You do not have permission to view this gate checklist.",
       "faDerivedHint": "Closed in FA →",
-      "faDerivedLocked": "FA-derived"
+      "faDerivedLocked": "FG-derived"
     },
     "advanceGateModal": {
       "title": "Advance gate",
@@ -2847,7 +2847,7 @@
       "d365Build": "D365 Build",
       "actionsDeferred": "Available once the action workflow ships.",
       "deptCloseDisabledHint": "You do not have permission to close departments.",
-      "d365DisabledHint": "FA must be Complete first (all 7 departments closed).",
+      "d365DisabledHint": "FG must be Complete first (all 7 departments closed).",
       "loading": "Loading summary…",
       "empty": "No summary",
       "emptyBody": "No Finished Good matches this code in your organisation.",
@@ -2863,7 +2863,7 @@
       "deleteFa": "Delete FG",
       "validationTitle": "Validation status",
       "validationRules": {
-        "V01": "FA Code format",
+        "V01": "FG Code format",
         "V02": "Product Name required",
         "V03": "Pack Size in reference",
         "V04": "D365 material codes",

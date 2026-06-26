@@ -85,7 +85,7 @@ async function assertProductVisible(ctx: OrgContextLike, productCode: string): P
     [productCode],
   );
   if (res.rows.length === 0) {
-    throw new ValidationError('PRODUCT_NOT_FOUND', 'Factory Article is not visible in this organisation');
+    throw new ValidationError('PRODUCT_NOT_FOUND', 'Finished Good is not visible in this organisation');
   }
 }
 

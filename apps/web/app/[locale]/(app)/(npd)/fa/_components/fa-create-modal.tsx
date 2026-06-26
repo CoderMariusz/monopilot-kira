@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * T-021 — FACreateModal (MODAL-01, Create Factory Article).
+ * T-021 — FACreateModal (MODAL-01, Create Finished Good).
  *
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/modals.jsx:9-43 (FACreateModal)

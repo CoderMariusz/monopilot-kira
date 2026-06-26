@@ -182,7 +182,7 @@ export function FaTabs({
   }
 
   return (
-    <section aria-label={`Factory Article ${productCode} departments`} className="space-y-3">
+    <section aria-label={`Finished Good ${productCode} departments`} className="space-y-3">
       <div data-slot="tabs" data-value={activeTab} className="w-full">
         <div
           aria-label={labels.tablistLabel}

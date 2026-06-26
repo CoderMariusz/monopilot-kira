@@ -80,7 +80,7 @@ const LABELS: FaCoreTabLabels = {
     ingredient_codes: 'Ingredient codes (auto)',
     template: 'Template',
     closed_core: 'Closed Core',
-    product_code: 'FA Code',
+    product_code: 'FG Code',
   },
 };
 

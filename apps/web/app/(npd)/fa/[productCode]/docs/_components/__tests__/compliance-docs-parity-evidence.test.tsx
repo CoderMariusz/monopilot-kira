@@ -37,7 +37,7 @@ const evidenceDir = resolve(THIS_DIR, '../../../../../../../e2e/artifacts/T-086'
 
 const LABELS: ComplianceDocsLabels = {
   title: 'Compliance documents',
-  subtitle: 'Read-only attachments tied to this Factory Article.',
+  subtitle: 'Read-only attachments tied to this Finished Good.',
   upload: '+ Upload document',
   colType: 'Type',
   colTitle: 'Title',

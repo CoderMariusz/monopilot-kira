@@ -156,7 +156,7 @@ describe('T-136 FA detail page — parity + real-data header', () => {
 
   it('mounts the tabs container with the 8 dept tabs + read-only BOM in prototype order', async () => {
     await renderPage();
-    const tablist = screen.getByRole('tablist', { name: /fa detail departments|factory article departments|fa tabs/i });
+    const tablist = screen.getByRole('tablist', { name: /fg detail departments|finished good .* departments|fa detail departments|factory article departments|fa tabs/i });
     const tabs = within(tablist).getAllByRole('tab');
     expect(tabs.map((t) => t.textContent?.trim())).toEqual([
       'Core',

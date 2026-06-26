@@ -64,10 +64,10 @@ export function FaTabs({ productCode }: FaTabsProps) {
   }
 
   return (
-    <section aria-label={`Factory Article ${productCode} departments`} className="space-y-3">
+    <section aria-label={`Finished Good ${productCode} departments`} className="space-y-3">
       <div data-slot="tabs" data-value={activeTab} className="w-full">
         <div
-          aria-label="FA detail departments"
+          aria-label="FG detail departments"
           className="flex flex-wrap gap-2 border-b border-slate-200 pb-2"
           data-slot="tabs-list"
           role="tablist"

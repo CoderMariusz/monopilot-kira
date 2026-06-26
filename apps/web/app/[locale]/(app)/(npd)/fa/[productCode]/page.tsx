@@ -611,10 +611,10 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
     },
   },
   actions: {
-    deleteFa: 'Delete FA',
+    deleteFa: 'Delete FG',
     d365Build: 'Build D365 →',
     deleteDisabledHint: 'You do not have permission to delete finished goods.',
-    d365DisabledHint: 'FA must be Complete first (all 7 departments closed).',
+    d365DisabledHint: 'FG must be Complete first (all 7 departments closed).',
   },
   workflow: {
     line: 'Workflow template: {template} — {type} · {count} departments',
@@ -710,7 +710,7 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
 // History tab labels (npd.faHistory) — unchanged contract from T-027.
 const DEFAULT_HISTORY_LABELS: FaHistoryLabels = {
   title: 'History',
-  subtitle: 'Read-only timeline of every change to this Factory Article.',
+  subtitle: 'Read-only timeline of every change to this Finished Good.',
   filterLabel: 'Event type',
   filterAll: 'All events',
   colWhen: 'When',
@@ -722,7 +722,7 @@ const DEFAULT_HISTORY_LABELS: FaHistoryLabels = {
   unknownActor: 'Unknown',
   loading: 'Loading FA history…',
   empty: 'No history yet',
-  emptyBody: 'Changes to this Factory Article will appear here as they happen.',
+  emptyBody: 'Changes to this Finished Good will appear here as they happen.',
   emptyFiltered: 'No events match this filter',
   emptyFilteredBody: 'Try a different event type or clear the filter.',
   clearFilter: 'Clear filter',

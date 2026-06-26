@@ -266,7 +266,7 @@ type FaRightPanelLabels = {
 };
 
 const DEFAULT_VALIDATION_RULES: Record<string, string> = {
-  V01: 'FA Code format',
+  V01: 'FG Code format',
   V02: 'Product Name required',
   V03: 'Pack Size in reference',
   V04: 'D365 material codes',

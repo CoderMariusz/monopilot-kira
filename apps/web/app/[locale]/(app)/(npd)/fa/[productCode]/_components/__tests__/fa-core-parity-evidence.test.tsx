@@ -65,7 +65,7 @@ const LABELS: FaCoreTabLabels = {
   error: 'Unable to load the Core section.',
   forbidden: 'You do not have permission to edit the Core section.',
   fields: {
-    product_code: 'FA Code',
+    product_code: 'FG Code',
     product_name: 'Product Name',
     pack_size: 'Pack Size',
     number_of_cases: 'Number of cases',
