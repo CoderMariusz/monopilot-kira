@@ -63,6 +63,11 @@ export const dynamic = 'force-dynamic';
 
 type FormulationPageProps = {
   params?: Promise<{ locale: string; projectId: string }>;
+  // ?version=<versionId> — load + edit THAT version (must belong to this
+  // formulation; else the loader falls back to the current version). Threaded so
+  // the version selector navigates to load the chosen version's real ingredients
+  // (display === save target). Next 16 hands searchParams as a Promise.
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
   // Test-only injection seam (mirrors nutrition/page.tsx convention).
   data?: FormulationEditorData | null;
   state?: PageState;
@@ -473,12 +478,14 @@ type LoaderResult = {
   allergenReference: AllergenReference[];
 };
 
-async function readPageData(projectId: string): Promise<LoaderResult> {
+async function readPageData(projectId: string, versionId?: string): Promise<LoaderResult> {
   // Perf (#1 + #3): editability (RBAC) + pack weight do NOT depend on the
   // formulation, so resolve them CONCURRENTLY with getFormulation. Per-request
   // context caching (#1) means the JWT/org resolution is shared across both.
   const [result, basics] = await Promise.all([
-    getFormulation({ projectId }),
+    // Thread the optional ?version=<id>; the loader org-scopes it to this
+    // formulation and falls back to current_version_id when absent/foreign.
+    getFormulation({ projectId, versionId }),
     (async (): Promise<{
       canEdit: boolean;
       packWeightG: string | null;
@@ -521,11 +528,20 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     return { state: 'empty', data: null, canEdit, submitAllowed, allergenReference };
   }
 
+  // Per-version lock: the editor's read-only/locked affordance follows the
+  // CURRENTLY-LOADED version's OWN state, NOT the formulation header. Locking v1
+  // sets only v1's `state = 'locked'` (lock-version.ts) and the header
+  // `locked_at`, so when a still-draft v2 is loaded its own state is 'draft' and
+  // it stays editable even though an older version is frozen. The loaded
+  // version's state is therefore the single authoritative lock signal (it is
+  // always set to 'locked' by lock-version.ts whenever a version is frozen).
+  const versionLocked = currentVersion.state === 'locked';
+
   const data: FormulationEditorData = {
     projectId: formulation.projectId,
     versionId: currentVersion.id,
     versionNumber: currentVersion.versionNumber,
-    state: formulation.lockedAt ? 'locked' : currentVersion.state,
+    state: versionLocked ? 'locked' : currentVersion.state,
     productCode: formulation.productCode,
     batchSizeKg: currentVersion.batchSizeKg,
     // Costing v2: pack weight (g) from the project — the read-only batch size.
@@ -579,6 +595,15 @@ export default async function FormulationPage(propsInput: unknown = {}) {
     buildAllergenNames(locale),
   ]);
 
+  // ?version=<versionId> — the selector navigates here to load THAT version, so
+  // the displayed ingredients and the saveDraft target are always the SAME
+  // version. Coerce string[] → first, ignore non-strings; the loader org-scopes
+  // and validates it (a foreign/unknown id falls back to the current version).
+  const search = props.searchParams ? await props.searchParams : undefined;
+  const rawVersion = search?.version;
+  const versionParam = Array.isArray(rawVersion) ? rawVersion[0] : rawVersion;
+  const requestedVersionId = typeof versionParam === 'string' && versionParam.length > 0 ? versionParam : undefined;
+
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
     ? {
@@ -588,7 +613,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
         submitAllowed: true,
         allergenReference: [],
       }
-    : await readPageData(projectId);
+    : await readPageData(projectId, requestedVersionId);
 
   return (
     <FormulationEditor
@@ -631,10 +656,12 @@ async function createDraftAdapter(input: { projectId: string }): Promise<{ ok: b
 async function createVersionAdapter(input: {
   projectId: string;
   sourceVersionId: string;
-}): Promise<{ ok: boolean }> {
+}): Promise<{ ok: boolean; versionId?: string }> {
   'use server';
   const result = await createFormulationVersion(input);
-  return { ok: result.ok };
+  // Surface the new draft's id so the editor can navigate to ?version=<newId>
+  // and land ON the new (editable) version instead of a bare reload.
+  return result.ok ? { ok: true, versionId: result.data.versionId } : { ok: false };
 }
 
 // Costing v2 — batch size (= pack weight, grams) commit adapter. Narrow shim over

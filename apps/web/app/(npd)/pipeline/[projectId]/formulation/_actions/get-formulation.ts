@@ -78,9 +78,27 @@ export type GetFormulationResult =
     }
   | { ok: false; error: 'invalid_input' | 'not_found' | 'persistence_failed' };
 
-export async function getFormulation(input: { projectId?: unknown }): Promise<GetFormulationResult> {
+export async function getFormulation(input: {
+  projectId?: unknown;
+  /**
+   * Optional: load THIS specific version's ingredients + state instead of the
+   * formulation's `current_version_id`. When provided it must be a valid UUID
+   * that belongs to the project's formulation (enforced in SQL via the join +
+   * the org predicate); an unknown/foreign id falls back to the current version
+   * (the join below only matches it when fv.formulation_id = f.id, otherwise
+   * `current_version_id` is used). This keeps the DISPLAYED version and the
+   * save target identical — picking v1 actually loads v1's rows, so saveDraft
+   * can never overwrite the wrong version.
+   */
+  versionId?: unknown;
+}): Promise<GetFormulationResult> {
   const projectId = parseUuid(input?.projectId);
   if (!projectId) return { ok: false, error: 'invalid_input' };
+  // Optional explicit version. A non-UUID is ignored (→ current version);
+  // a syntactically valid id that does not belong to this formulation also
+  // falls back, because the SQL only resolves it when it joins to f.
+  const requestedVersionId =
+    input?.versionId === undefined || input?.versionId === null ? null : parseUuid(input.versionId);
 
   try {
     return await withOrgContext(async ({ client }) => {
@@ -103,12 +121,27 @@ export async function getFormulation(input: { projectId?: unknown }): Promise<Ge
            fcc.allergen_json,
            fcc.computed_at::text
          from public.formulations f
-         left join public.formulation_versions fv on fv.id = f.current_version_id
+         -- When a specific (org-scoped, in-formulation) versionId is requested,
+         -- load THAT version; otherwise fall back to the formulation's current
+         -- version. The id is matched only against versions of THIS formulation
+         -- (fv.formulation_id = f.id), so a foreign/unknown id silently resolves
+         -- to the current version rather than leaking another project's rows.
+         left join public.formulation_versions fv
+           on fv.id = coalesce(
+                (
+                  select rfv.id
+                    from public.formulation_versions rfv
+                   where rfv.formulation_id = f.id
+                     and rfv.id = $2::uuid
+                   limit 1
+                ),
+                f.current_version_id
+              )
          left join public.formulation_calc_cache fcc on fcc.version_id = fv.id
         where f.project_id = $1::uuid
           and f.org_id = app.current_org_id()
         limit 1`,
-        [projectId],
+        [projectId, requestedVersionId],
       );
 
       const row = formulation.rows[0];

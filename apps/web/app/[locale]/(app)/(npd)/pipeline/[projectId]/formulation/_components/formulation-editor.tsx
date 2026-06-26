@@ -251,7 +251,7 @@ export type RecomputeAction = (input: {
 export type CreateVersionAction = (input: {
   projectId: string;
   sourceVersionId: string;
-}) => Promise<{ ok: boolean }>;
+}) => Promise<{ ok: boolean; versionId?: string }>;
 
 /**
  * Persist the project's pack weight (g) — Costing v2 batch size. The editor edits
@@ -637,22 +637,72 @@ export function FormulationEditor({
   const [targetPrice, setTargetPrice] = React.useState<string>(data?.targetPriceEur ?? '');
   const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
   const [processingPct, setProcessingPct] = React.useState<string>(data?.processingOverheadPct ?? DEFAULT_OVERHEAD_PCT);
-  const [versionId, setVersionId] = React.useState<string>(data?.versionId ?? '');
+  // The loaded version is ALWAYS the server-resolved one (page reads ?version=).
+  // Keeping versionId pinned to data.versionId means the save target and the
+  // displayed rows are the same version — picking a version navigates (below),
+  // it never just swaps a local label while the editor keeps the old rows.
+  const versionId = data?.versionId ?? '';
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
+
+  /**
+   * Navigate the RSC to load a specific version. The page reads `?version=<id>`
+   * and re-runs getFormulation for THAT version (org-scoped), so after this the
+   * editor re-renders with the chosen version's REAL ingredients + its own lock
+   * state — the displayed data and the saveDraft target stay identical. Uses
+   * router.replace (no extra history entry for a pure view switch). Falls back to
+   * a same-origin URL mutation when no Next router is present (defensive).
+   */
+  const navigateToVersion = React.useCallback(
+    (nextVersionId: string) => {
+      if (!nextVersionId) return;
+      try {
+        const params = new URLSearchParams(
+          typeof window !== 'undefined' ? window.location.search : '',
+        );
+        params.set('version', nextVersionId);
+        router.replace(`?${params.toString()}`, { scroll: false });
+      } catch {
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('version', nextVersionId);
+          window.location.assign(url.toString());
+        }
+      }
+    },
+    [router],
+  );
+
+  /** Version picker change → navigate so the chosen version actually loads. */
+  const onSelectVersion = React.useCallback(
+    (nextVersionId: string) => {
+      if (!nextVersionId || nextVersionId === versionId) return;
+      navigateToVersion(nextVersionId);
+    },
+    [navigateToVersion, versionId],
+  );
+
   const onCreateVersion = React.useCallback(async () => {
     if (!createVersionAction || !data || creatingVersion) return;
     setCreatingVersion(true);
     try {
       const result = await createVersionAction({ projectId: data.projectId, sourceVersionId: versionId });
       if (result.ok) {
-        window.location.reload();
+        // Land on the NEW draft version (editable + selected). When the action
+        // returns the new id we navigate to ?version=<newId>; otherwise the RSC
+        // loader still picks up the just-created version because create-version
+        // repoints current_version_id, so a refresh re-reads it.
+        if (result.versionId) {
+          navigateToVersion(result.versionId);
+        } else {
+          refresh();
+        }
         return;
       }
       setCreatingVersion(false);
     } catch {
       setCreatingVersion(false);
     }
-  }, [createVersionAction, data, versionId, creatingVersion]);
+  }, [createVersionAction, data, versionId, creatingVersion, navigateToVersion, refresh]);
 
   // ── Submit for trial (gated server-side; editor only mirrors the result) ──────
   type SubmitStatus = 'idle' | 'submitting' | 'submitted' | 'error';
@@ -710,6 +760,30 @@ export function FormulationEditor({
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  // Re-seed the editable state when the LOADED version changes. The selector
+  // navigates to ?version=<id>; a soft navigation re-renders the RSC with the new
+  // version's data but does NOT remount this client island, so the `useState`
+  // initializers above do not re-run. Without this the editor would keep the
+  // previous version's rows on screen while saveDraft writes to the
+  // newly-loaded version — the exact display≠save-target corruption this fix
+  // closes. Keyed on the loaded versionId, so an ordinary save (same version,
+  // refreshed data) never clobbers in-flight edits — only a real version switch
+  // re-seeds.
+  const seededVersionRef = React.useRef<string>(data?.versionId ?? '');
+  React.useEffect(() => {
+    const loadedVersionId = data?.versionId ?? '';
+    if (loadedVersionId === seededVersionRef.current) return;
+    seededVersionRef.current = loadedVersionId;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setRows(data ? toEditable(data) : []);
+    setErrors({});
+    setTargetPrice(data?.targetPriceEur ?? '');
+    setYieldPct(parseYield(data?.targetYieldPct));
+    setProcessingPct(data?.processingOverheadPct ?? DEFAULT_OVERHEAD_PCT);
+    setSaveStatus('idle');
+    setCreatingVersion(false);
+  }, [data]);
 
   /** Validate every row; returns the error map (empty → all valid). */
   const validate = React.useCallback(
@@ -1162,8 +1236,14 @@ export function FormulationEditor({
             <span className="block text-[10px] uppercase tracking-wide muted">{labels.version}</span>
             <Select
               value={versionId}
-              onValueChange={setVersionId}
-              disabled={!editable}
+              // Picking a version NAVIGATES (router.replace ?version=<id>) so the
+              // RSC reloads THAT version's real ingredients + lock state — it no
+              // longer just swaps a local label while the editor keeps showing
+              // (and would save over) the previously-loaded version. Enabled
+              // whenever there is more than one version to switch between, even
+              // on a locked version, so the user can navigate back to a draft.
+              onValueChange={onSelectVersion}
+              disabled={versionOptions.length < 2}
               aria-label={labels.version}
               // SelectValue resolves the trigger label from `options` (value→label);
               // without this it falls back to the raw value (the version UUID). The
