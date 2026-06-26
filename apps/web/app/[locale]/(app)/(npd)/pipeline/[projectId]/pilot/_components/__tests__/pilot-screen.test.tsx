@@ -13,6 +13,17 @@
  * checked). Plus the five UI states (loading / empty / ready / error /
  * permission-denied), the optimistic toggle, and that all visible strings come
  * from injected i18n labels (no default leak), and there is NO legacy banner.
+ *
+ * REWORK (this task): the user no longer types derived data. Asserts the new
+ * contract:
+ *   - the "Line" field in the run-plan modal is a Select (combobox), NOT a
+ *     free-text <input>;
+ *   - the ingredient rows come from the recipe loader (recipeMaterials prop),
+ *     one row per recipe ingredient — NOT manually-added rows;
+ *   - Required / Available / Reserved are READ-ONLY display cells (no inputs
+ *     anywhere in the materials table);
+ *   - there is NO "+ Add material" / per-row "Edit material" affordance;
+ *   - changing the line re-calls onLoadRecipeMaterials and re-renders the table.
  */
 
 import React from 'react';
@@ -23,7 +34,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   PilotScreen,
   type PilotLabels,
+  type PilotRecipeMaterialView,
   type PilotScreenData,
+  type ProductionLineOption,
 } from '../pilot-screen';
 
 afterEach(() => cleanup());
@@ -61,31 +74,58 @@ const LABELS: PilotLabels = {
   notSet: '—',
   planPilotRun: '+ Plan pilot run',
   editPlan: 'Edit plan',
-  addMaterial: '+ Add material',
-  editMaterial: 'Edit material',
-  editAction: 'Edit',
   fieldPlannedDate: 'Planned date',
   fieldLine: 'Line',
+  linePlaceholder: 'Select a line…',
+  noLines: 'No production lines configured.',
+  selectLineHint: 'Select a line to see ingredient availability.',
   fieldBatchSize: 'Batch size (kg)',
   fieldExpectedYield: 'Expected yield (%)',
   fieldDuration: 'Duration (hours)',
   fieldSupervisor: 'Supervisor',
-  fieldIngredient: 'Ingredient',
-  fieldRequired: 'Required (kg)',
-  fieldAvailable: 'Available (kg)',
-  fieldReserved: 'Reserved (kg)',
+  fieldStatus: 'Status',
+  statusPlanned: 'Planned',
+  statusInProgress: 'In progress',
+  statusCompleted: 'Completed',
   save: 'Save',
   saving: 'Saving…',
   cancel: 'Cancel',
   saveError: 'Could not save. Check the values and try again.',
 };
 
+const LINES: ProductionLineOption[] = [
+  { id: 'l1', code: 'LINE2', name: 'Slicing/MAP', warehouseId: 'wh-2' },
+  { id: 'l2', code: 'LINE3', name: 'Cooking', warehouseId: 'wh-3' },
+];
+
+// Two recipe ingredients (mirrors a 2-ingredient formulation): one fully
+// reserved (green), one short (amber). These come from the recipe loader, NOT
+// from manually-entered rows.
+const RECIPE_MATERIALS: PilotRecipeMaterialView[] = [
+  {
+    ingredientCode: 'RM-PORK',
+    ingredientName: 'Pork Ham, trimmed',
+    requiredKg: '410.0000',
+    availableKg: '850.0000',
+    reservedKg: '410.0000',
+    status: 'reserved',
+  },
+  {
+    ingredientCode: 'RM-SPICE',
+    ingredientName: 'Spice Mix (Ham blend)',
+    requiredKg: '4.5000',
+    availableKg: '3.2000',
+    reservedKg: '3.2000',
+    status: 'short',
+  },
+];
+
 const DATA: PilotScreenData = {
   run: {
     id: 'run-1',
     projectId: 'project-1',
     plannedDate: '2025-12-20',
-    line: 'Line 2 — Slicing/MAP',
+    line: 'LINE2',
     batchSizeKg: '500.0000',
     expectedYieldPct: '78.00',
     durationHours: '6.00',
@@ -93,36 +133,17 @@ const DATA: PilotScreenData = {
     supervisorName: 'M. Johnson',
     status: 'planned',
   },
-  materials: [
-    {
-      id: 'm1',
-      ingredientCode: 'Pork Ham, trimmed',
-      requiredKg: '410.0000',
-      availableKg: '850.0000',
-      reservedKg: '410.0000',
-      status: 'reserved',
-      shortByKg: null,
-    },
-    {
-      id: 'm2',
-      ingredientCode: 'Spice Mix (Ham blend)',
-      requiredKg: '4.5000',
-      availableKg: '3.2000',
-      reservedKg: '3.2000',
-      status: 'short',
-      shortByKg: '1.3000',
-    },
-  ],
   checklist: [
     { id: 'c1', label: 'Recipe approved (v0.3)', isChecked: true, displayOrder: 1 },
     { id: 'c2', label: 'Materials reserved', isChecked: false, displayOrder: 2 },
   ],
-  totalShortKg: '1.3000',
   supervisors: [
     { id: 'u-1', name: 'M. Johnson' },
     { id: 'u-2', name: 'A. Smith' },
   ],
   canWrite: true,
+  lines: LINES,
+  recipeMaterials: RECIPE_MATERIALS,
 };
 
 function renderReady(extra?: Partial<React.ComponentProps<typeof PilotScreen>>) {
@@ -136,7 +157,8 @@ describe('PilotScreen — parity', () => {
     expect(bar).toHaveTextContent('Scheduled pilot:');
     const body = within(bar).getByTestId('pilot-info-body').textContent ?? '';
     expect(body).toContain('2025-12-20');
-    expect(body).toContain('Line 2 — Slicing/MAP');
+    // Line CODE is resolved to "code — name" for display.
+    expect(body).toContain('LINE2 — Slicing/MAP');
     expect(body).toContain('500 kg');
     expect(body).toContain('M. Johnson');
   });
@@ -145,7 +167,7 @@ describe('PilotScreen — parity', () => {
     renderReady();
     const card = screen.getByTestId('pilot-plan-card');
     expect(within(card).getByText(LABELS.colLine)).toBeInTheDocument();
-    expect(within(card).getByText('Line 2 — Slicing/MAP')).toBeInTheDocument();
+    expect(within(card).getByTestId('pilot-plan-line')).toHaveTextContent('LINE2 — Slicing/MAP');
     expect(within(card).getByText('500 kg')).toBeInTheDocument();
     expect(within(card).getByText('78 %')).toBeInTheDocument();
     expect(within(card).getByText('6 h')).toBeInTheDocument();
@@ -193,6 +215,75 @@ describe('PilotScreen — parity', () => {
     renderReady();
     expect(screen.queryByText(/legacy/i)).toBeNull();
     expect(screen.queryByText(/deprecation/i)).toBeNull();
+  });
+});
+
+describe('PilotScreen — recipe-driven materials (no manual entry)', () => {
+  it('drives ingredient rows from the recipe loader — one row per recipe ingredient', () => {
+    renderReady();
+    const rows = screen.getAllByTestId('pilot-material-row');
+    expect(rows).toHaveLength(RECIPE_MATERIALS.length); // 2 in the recipe → 2 rows
+    expect(within(rows[0]!).getByText('RM-PORK')).toBeInTheDocument();
+    expect(within(rows[0]!).getByText('Pork Ham, trimmed')).toBeInTheDocument();
+    expect(within(rows[1]!).getByText('RM-SPICE')).toBeInTheDocument();
+  });
+
+  it('prefers the explicit recipeMaterials prop over data.recipeMaterials', () => {
+    renderReady({
+      recipeMaterials: [
+        {
+          ingredientCode: 'RM-ONLY',
+          ingredientName: 'Single ingredient',
+          requiredKg: '1.0000',
+          availableKg: '5.0000',
+          reservedKg: '1.0000',
+          status: 'reserved',
+        },
+      ],
+    });
+    const rows = screen.getAllByTestId('pilot-material-row');
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]!).getByText('RM-ONLY')).toBeInTheDocument();
+  });
+
+  it('renders Required / Available / Reserved as READ-ONLY cells — NO inputs in the table', () => {
+    renderReady();
+    const table = screen.getByTestId('pilot-material-table');
+    // Read-only display: no text/number inputs and no editable controls.
+    expect(table.querySelector('input')).toBeNull();
+    expect(table.querySelector('textarea')).toBeNull();
+    expect(table.querySelector('[contenteditable="true"]')).toBeNull();
+    // The qty cells are plain text.
+    const required = within(table).getAllByTestId('pilot-material-required');
+    expect(required[0]).toHaveTextContent('410 kg');
+    const available = within(table).getAllByTestId('pilot-material-available');
+    expect(available[0]).toHaveTextContent('850 kg');
+    const reserved = within(table).getAllByTestId('pilot-material-reserved');
+    expect(reserved[0]).toHaveTextContent('410 kg');
+  });
+
+  it('NEVER renders a "+ Add material" or per-row "Edit material" affordance', () => {
+    renderReady();
+    expect(screen.queryByTestId('add-pilot-material-button')).toBeNull();
+    expect(screen.queryByTestId('edit-pilot-material-button')).toBeNull();
+    expect(screen.queryByTestId('pilot-material-form')).toBeNull();
+  });
+
+  it('shows Available/Reserved as "—" and a "select a line" hint when no line is selected', () => {
+    const noLine: PilotScreenData = {
+      ...DATA,
+      run: { ...DATA.run, line: null },
+      recipeMaterials: RECIPE_MATERIALS.map((m) => ({ ...m, availableKg: '0', reservedKg: '0' })),
+    };
+    render(<PilotScreen state="ready" data={noLine} labels={LABELS} />);
+    expect(screen.getByTestId('pilot-select-line-hint')).toHaveTextContent(LABELS.selectLineHint);
+    // Required (from the recipe) is still shown.
+    expect(within(screen.getByTestId('pilot-material-table')).getAllByTestId('pilot-material-required')[0]).toHaveTextContent('410 kg');
+    // Available / Reserved fall back to the "—" placeholder.
+    expect(screen.getAllByTestId('pilot-material-available')[0]).toHaveTextContent('—');
+    expect(screen.getAllByTestId('pilot-material-reserved')[0]).toHaveTextContent('—');
+    // No short callout when no line is chosen (availability is unknown).
+    expect(screen.queryByTestId('pilot-short-callout')).toBeNull();
   });
 });
 
@@ -260,6 +351,7 @@ describe('PilotScreen — run-plan edit affordance', () => {
         labels={LABELS}
         canWrite
         supervisors={DATA.supervisors}
+        lines={LINES}
         onUpsertRun={onUpsertRun}
       />,
     );
@@ -274,93 +366,64 @@ describe('PilotScreen — run-plan edit affordance', () => {
     expect(screen.queryByTestId('plan-pilot-run-button')).toBeNull();
   });
 
-  it('opens the pre-filled "Edit plan" modal and submits to onUpsertRun with the run id', async () => {
+  it('renders the modal "Line" field as a Select (combobox) — NOT a free-text input', () => {
     const onUpsertRun = vi.fn().mockResolvedValue({ ok: true });
     renderReady({ onUpsertRun });
 
     fireEvent.click(screen.getByTestId('edit-pilot-plan-button'));
     const form = screen.getByTestId('pilot-run-form');
-    expect(within(form).getByLabelText(LABELS.fieldLine)).toHaveValue('Line 2 — Slicing/MAP');
+    const lineField = within(form).getByTestId('pilot-line-field');
+    // The "Line" control is a Select trigger (combobox), not an <input>.
+    expect(within(lineField).getByRole('combobox')).toBeInTheDocument();
+    expect(lineField.querySelector('input')).toBeNull();
+    // The trigger shows the resolved "code — name" for the persisted CODE.
+    expect(within(lineField).getByRole('combobox')).toHaveTextContent('LINE2 — Slicing/MAP');
+  });
 
+  it('submits the line CODE (not free text) to onUpsertRun', async () => {
+    const onUpsertRun = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onUpsertRun });
+
+    fireEvent.click(screen.getByTestId('edit-pilot-plan-button'));
+    const form = screen.getByTestId('pilot-run-form');
     fireEvent.submit(form);
     await waitFor(() => expect(onUpsertRun).toHaveBeenCalledTimes(1));
     expect(onUpsertRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pilotRunId: 'run-1',
-        line: 'Line 2 — Slicing/MAP',
-        batchSizeKg: '500.0000',
-        supervisorUserId: 'u-1',
-      }),
+      expect.objectContaining({ pilotRunId: 'run-1', line: 'LINE2', supervisorUserId: 'u-1' }),
     );
+  });
+
+  it('re-derives the materials via onLoadRecipeMaterials when the line changes', async () => {
+    const onUpsertRun = vi.fn().mockResolvedValue({ ok: true });
+    const onLoad = vi.fn().mockResolvedValue([
+      {
+        ingredientCode: 'RM-PORK',
+        ingredientName: 'Pork Ham, trimmed',
+        requiredKg: '410.0000',
+        availableKg: '12.0000',
+        reservedKg: '12.0000',
+        status: 'short',
+      },
+    ]);
+    renderReady({ onUpsertRun, onLoadRecipeMaterials: onLoad });
+
+    fireEvent.click(screen.getByTestId('edit-pilot-plan-button'));
+    const form = screen.getByTestId('pilot-run-form');
+    const lineField = within(form).getByTestId('pilot-line-field');
+    // Open the Line dropdown and pick LINE3.
+    fireEvent.click(within(lineField).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: 'LINE3 — Cooking' }));
+
+    await waitFor(() => expect(onLoad).toHaveBeenCalledWith({ lineCode: 'LINE3' }));
+    // Table re-rendered with the recomputed availability for the new line.
+    await waitFor(() => {
+      const reserved = screen.getAllByTestId('pilot-material-reserved');
+      expect(reserved[0]).toHaveTextContent('12 kg');
+    });
   });
 
   it('hides the edit-plan button when the caller cannot write', () => {
     render(<PilotScreen state="ready" data={{ ...DATA, canWrite: false }} labels={LABELS} />);
     expect(screen.queryByTestId('edit-pilot-plan-button')).toBeNull();
-  });
-});
-
-describe('PilotScreen — material add/edit affordance (no delete)', () => {
-  it('opens the "+ Add material" modal and submits a new material to onUpsertMaterial', async () => {
-    const onUpsertMaterial = vi.fn().mockResolvedValue({ ok: true });
-    renderReady({ onUpsertMaterial });
-
-    fireEvent.click(screen.getByTestId('add-pilot-material-button'));
-    const form = screen.getByTestId('pilot-material-form');
-    fireEvent.change(within(form).getByLabelText(LABELS.fieldIngredient), {
-      target: { value: 'Carrageenan' },
-    });
-    fireEvent.change(within(form).getByLabelText(LABELS.fieldRequired), { target: { value: '1.75' } });
-    fireEvent.change(within(form).getByLabelText(LABELS.fieldAvailable), { target: { value: '12' } });
-    fireEvent.change(within(form).getByLabelText(LABELS.fieldReserved), { target: { value: '1.75' } });
-    fireEvent.submit(form);
-
-    await waitFor(() => expect(onUpsertMaterial).toHaveBeenCalledTimes(1));
-    expect(onUpsertMaterial).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pilotRunId: 'run-1',
-        materialId: null,
-        ingredientCode: 'Carrageenan',
-        requiredKg: '1.75',
-        availableKg: '12',
-        reservedKg: '1.75',
-      }),
-    );
-  });
-
-  it('opens the pre-filled per-row Edit modal and submits with the material id', async () => {
-    const onUpsertMaterial = vi.fn().mockResolvedValue({ ok: true });
-    renderReady({ onUpsertMaterial });
-
-    const editButtons = screen.getAllByTestId('edit-pilot-material-button');
-    expect(editButtons).toHaveLength(2);
-    fireEvent.click(editButtons[0]!);
-
-    const form = screen.getByTestId('pilot-material-form');
-    expect(within(form).getByLabelText(LABELS.fieldIngredient)).toHaveValue('Pork Ham, trimmed');
-    fireEvent.submit(form);
-
-    await waitFor(() => expect(onUpsertMaterial).toHaveBeenCalledTimes(1));
-    expect(onUpsertMaterial).toHaveBeenCalledWith(
-      expect.objectContaining({ materialId: 'm1', ingredientCode: 'Pork Ham, trimmed' }),
-    );
-  });
-
-  it('never renders a delete affordance for materials (no delete backend)', () => {
-    renderReady({ onUpsertMaterial: vi.fn() });
-    expect(screen.queryByTestId('delete-pilot-material-button')).toBeNull();
-  });
-
-  it('hides material add/edit affordances when the caller cannot write', () => {
-    render(
-      <PilotScreen
-        state="ready"
-        data={{ ...DATA, canWrite: false }}
-        labels={LABELS}
-        onUpsertMaterial={vi.fn()}
-      />,
-    );
-    expect(screen.queryByTestId('add-pilot-material-button')).toBeNull();
-    expect(screen.queryByTestId('edit-pilot-material-button')).toBeNull();
   });
 });

@@ -32,23 +32,38 @@ import { Checkbox } from '@monopilot/ui/Checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { PilotRunModal, type PilotRunFormValues } from './pilot-run-modal';
-import { PilotMaterialModal, type PilotMaterialFormValues } from './pilot-material-modal';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
 export type PilotMaterialStatus = 'reserved' | 'short';
 
-export type PilotMaterialView = {
+/**
+ * A production line option offered in the run-plan "Line" dropdown. Mirrors the
+ * `ProductionLineOption` returned by the `listProductionLines()` Server Action;
+ * the selected line's CODE is what persists into `pilot_runs.line`.
+ */
+export type ProductionLineOption = {
   id: string;
+  code: string;
+  name: string;
+  warehouseId: string | null;
+};
+
+/**
+ * One recipe ingredient row, auto-derived from the latest non-draft formulation
+ * version via `getPilotRecipeMaterials`. Required comes from the recipe;
+ * Available/Reserved are stock at the chosen line's warehouse (0 / "—" until a
+ * line is picked). These fields are DISPLAY-ONLY — the user never types them.
+ */
+export type PilotRecipeMaterialView = {
   ingredientCode: string;
+  ingredientName: string;
   /** All qty fields are decimal STRINGS (bound straight from NUMERIC). */
-  requiredKg: string | null;
-  availableKg: string | null;
-  reservedKg: string | null;
-  /** Computed server-side: reserved >= required → 'reserved', else 'short'. */
+  requiredKg: string;
+  availableKg: string;
+  reservedKg: string;
+  /** Server-computed: reserved >= required → 'reserved', else 'short'. */
   status: PilotMaterialStatus;
-  /** Decimal STRING shortfall (required - reserved) when status === 'short'. */
-  shortByKg: string | null;
 };
 
 export type PilotChecklistItemView = {
@@ -77,14 +92,19 @@ export type SupervisorOption = { id: string; name: string };
 
 export type PilotScreenData = {
   run: PilotRunView;
-  materials: PilotMaterialView[];
   checklist: PilotChecklistItemView[];
-  /** Total short across materials (decimal STRING) for the callout; null = none short. */
-  totalShortKg: string | null;
   /** Org users selectable as supervisor in the run-plan modal. */
   supervisors: SupervisorOption[];
   /** True when the caller holds npd.pilot.write (server-resolved, never client-trusted). */
   canWrite: boolean;
+  /**
+   * Recipe ingredients (auto from the latest non-draft formulation), already
+   * resolved against the persisted line's warehouse on the server. The screen
+   * re-derives these client-side whenever the line changes.
+   */
+  recipeMaterials?: PilotRecipeMaterialView[];
+  /** Production-line options for the run-plan "Line" dropdown. */
+  lines?: ProductionLineOption[];
 };
 
 export type PilotLabels = {
@@ -124,12 +144,15 @@ export type PilotLabels = {
   // Edit affordances (additive over the static prototype).
   planPilotRun: string;
   editPlan: string;
-  addMaterial: string;
-  editMaterial: string;
-  editAction: string;
   // Modal fields.
   fieldPlannedDate: string;
   fieldLine: string;
+  /** Placeholder for the "Line" dropdown when nothing is selected. */
+  linePlaceholder: string;
+  /** Empty-state copy when the org has no production lines configured. */
+  noLines: string;
+  /** Hint shown above the materials table until a line is chosen. */
+  selectLineHint: string;
   fieldBatchSize: string;
   fieldExpectedYield: string;
   fieldDuration: string;
@@ -141,10 +164,6 @@ export type PilotLabels = {
   statusPlanned: string;
   statusInProgress: string;
   statusCompleted: string;
-  fieldIngredient: string;
-  fieldRequired: string;
-  fieldAvailable: string;
-  fieldReserved: string;
   save: string;
   saving: string;
   cancel: string;
@@ -161,6 +180,7 @@ export type PilotRunStatus = 'planned' | 'in_progress' | 'completed';
 export type UpsertRunCall = {
   pilotRunId: string | null;
   plannedDate: string | null;
+  /** The selected production line's CODE (persisted into pilot_runs.line). */
   line: string | null;
   batchSizeKg: string | null;
   expectedYieldPct: string | null;
@@ -169,14 +189,13 @@ export type UpsertRunCall = {
   status: PilotRunStatus;
 };
 
-export type UpsertMaterialCall = {
-  pilotRunId: string;
-  materialId: string | null;
-  ingredientCode: string;
-  requiredKg: string;
-  availableKg: string;
-  reservedKg: string;
-};
+/**
+ * Re-derive the recipe ingredients (+ availability for the chosen line's
+ * warehouse) without a full RSC reload. Wired to `getPilotRecipeMaterials`
+ * through an inline 'use server' adapter in page.tsx; the screen calls it when
+ * the line changes so Available/Reserved track the new warehouse.
+ */
+export type LoadRecipeMaterialsCall = { lineCode: string | null };
 
 /** Replace `{token}` placeholders in an i18n string (no inline strings). */
 function interpolate(template: string, vars: Record<string, string>): string {
@@ -193,6 +212,39 @@ function formatQty(value: string | null, unit: string, fallback: string): string
   const frac = fracRaw.replace(/0+$/, '');
   const body = frac ? `${intPart}.${frac}` : intPart;
   return `${negative ? '-' : ''}${body} ${unit}`;
+}
+
+// ─── Exact decimal-string compare/subtract (no float coercion) ────────────────
+// Mirrors getPilotRun's helpers: shortBy / totalShort are now derived on the
+// client from the recipe-loader strings, so the same 4-dp scaled-bigint math is
+// used to keep money/qty exact (never JS floats).
+const DEC_SCALE = 4n;
+const DEC_FACTOR = 10n ** DEC_SCALE;
+
+function parseDec(value: string | null): bigint {
+  const trimmed = (value ?? '0').trim();
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return 0n;
+  const negative = trimmed.startsWith('-');
+  const unsigned = negative ? trimmed.slice(1) : trimmed;
+  const [int, fracRaw = ''] = unsigned.split('.');
+  const frac = fracRaw.slice(0, Number(DEC_SCALE)).padEnd(Number(DEC_SCALE), '0');
+  const scaled = BigInt(int + frac);
+  return negative ? -scaled : scaled;
+}
+
+function formatDec(scaled: bigint): string {
+  const negative = scaled < 0n;
+  const abs = negative ? -scaled : scaled;
+  const int = abs / DEC_FACTOR;
+  const frac = (abs % DEC_FACTOR).toString().padStart(Number(DEC_SCALE), '0');
+  return `${negative && scaled !== 0n ? '-' : ''}${int}.${frac}`;
+}
+
+/** Shortfall (required - reserved) when short, else null — decimal STRING. */
+function shortByOf(m: PilotRecipeMaterialView): string | null {
+  if (m.status !== 'short') return null;
+  const diff = parseDec(m.requiredKg) - parseDec(m.reservedKg);
+  return diff > 0n ? formatDec(diff) : null;
 }
 
 function statusVariant(status: PilotMaterialStatus): BadgeVariant {
@@ -243,9 +295,11 @@ export function PilotScreen({
   labels,
   canWrite = false,
   supervisors = [],
+  lines = [],
+  recipeMaterials,
   onToggleChecklistItem,
   onUpsertRun,
-  onUpsertMaterial,
+  onLoadRecipeMaterials,
 }: {
   state?: PageState;
   data: PilotScreenData | null;
@@ -254,53 +308,76 @@ export function PilotScreen({
   canWrite?: boolean;
   /** Org users selectable as supervisor (also used in the empty-state planner). */
   supervisors?: SupervisorOption[];
+  /** Production-line options for the run-plan "Line" dropdown. */
+  lines?: ProductionLineOption[];
+  /**
+   * Recipe ingredients pre-resolved on the server for the persisted line.
+   * Overrides `data.recipeMaterials` when provided (test seam / explicit prop).
+   */
+  recipeMaterials?: PilotRecipeMaterialView[];
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
   onUpsertRun?: (call: UpsertRunCall) => Promise<PilotActionOutcome>;
-  onUpsertMaterial?: (call: UpsertMaterialCall) => Promise<PilotActionOutcome>;
+  /**
+   * Re-derive recipe ingredients + availability for a line. Called when the
+   * line changes so Available/Reserved track the new warehouse without a full
+   * RSC reload.
+   */
+  onLoadRecipeMaterials?: (call: LoadRecipeMaterialsCall) => Promise<PilotRecipeMaterialView[]>;
 }) {
   // Optimistic checklist state keyed by item id (server is the source of truth).
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
   // Run-plan modal (planning a new run OR editing the existing one).
   const [runModalOpen, setRunModalOpen] = React.useState(false);
-  // Material modal: the row being edited, or `null` for a brand-new "+ Add".
-  const [materialModalOpen, setMaterialModalOpen] = React.useState(false);
-  const [editingMaterial, setEditingMaterial] = React.useState<PilotMaterialView | null>(null);
+
+  // Recipe materials are auto-derived (NOT typed by the user). Seed from the
+  // server-resolved prop, then re-derive client-side when the line changes.
+  const initialMaterials = recipeMaterials ?? data?.recipeMaterials ?? [];
+  const [materials, setMaterials] = React.useState<PilotRecipeMaterialView[]>(initialMaterials);
 
   React.useEffect(() => {
     setOptimistic({});
   }, [data?.run.id]);
 
+  // Re-seed materials whenever the server prop (or run) changes.
+  React.useEffect(() => {
+    setMaterials(recipeMaterials ?? data?.recipeMaterials ?? []);
+  }, [recipeMaterials, data?.recipeMaterials, data?.run.id]);
+
   const supervisorList = data?.supervisors ?? supervisors;
+  const lineList = data?.lines ?? lines;
   // Server-resolved write capability. Each affordance is additionally gated on
   // the presence of its own action callback (so a screen wired with only one
   // action still renders correctly).
   const canEdit = data?.canWrite ?? canWrite;
   const canEditRun = canEdit && Boolean(onUpsertRun);
-  const canEditMaterial = canEdit && Boolean(onUpsertMaterial);
+
+  /**
+   * Re-derive recipe availability for a newly-chosen line. Invoked from the
+   * run-plan modal's Line dropdown so the table reflects the new warehouse's
+   * stock the moment the line changes (no manual entry, no full reload).
+   */
+  async function handleLineChange(lineCode: string | null) {
+    if (!onLoadRecipeMaterials) return;
+    try {
+      const next = await onLoadRecipeMaterials({ lineCode: lineCode || null });
+      setMaterials(next);
+    } catch {
+      // Leave the prior materials in place on a transient failure.
+    }
+  }
 
   async function handleRunSubmit(values: PilotRunFormValues): Promise<PilotActionOutcome> {
     if (!onUpsertRun) return { ok: false, error: 'persistence_failed' };
     return onUpsertRun({
       pilotRunId: data?.run.id ?? null,
       plannedDate: values.plannedDate.trim() || null,
+      // The dropdown already yields the line CODE (or '' = unset).
       line: values.line.trim() || null,
       batchSizeKg: values.batchSizeKg.trim() || null,
       expectedYieldPct: values.expectedYieldPct.trim() || null,
       durationHours: values.durationHours.trim() || null,
       supervisorUserId: values.supervisorUserId || null,
       status: values.status,
-    });
-  }
-
-  async function handleMaterialSubmit(values: PilotMaterialFormValues): Promise<PilotActionOutcome> {
-    if (!onUpsertMaterial || !data) return { ok: false, error: 'persistence_failed' };
-    return onUpsertMaterial({
-      pilotRunId: data.run.id,
-      materialId: editingMaterial?.id ?? null,
-      ingredientCode: values.ingredientCode.trim(),
-      requiredKg: values.requiredKg.trim(),
-      availableKg: values.availableKg.trim(),
-      reservedKg: values.reservedKg.trim(),
     });
   }
 
@@ -336,20 +413,41 @@ export function PilotScreen({
             labels={labels}
             run={null}
             supervisors={supervisorList}
+            lines={lineList}
             onSubmit={handleRunSubmit}
+            onLineChange={handleLineChange}
           />
         ) : null}
       </main>
     );
   }
 
-  const { run, materials, checklist, totalShortKg } = data;
+  const { run, checklist } = data;
+
+  // Total shortfall + "line picked?" derived client-side from the recipe rows
+  // (no float math). The callout only appears when a line is selected (otherwise
+  // Available/Reserved are 0 and every row would falsely read "short").
+  const lineSelected = Boolean(run.line);
+  const totalShortScaled = lineSelected
+    ? materials.reduce((acc, m) => {
+        const sb = shortByOf(m);
+        return sb ? acc + parseDec(sb) : acc;
+      }, 0n)
+    : 0n;
+  const totalShortKg = totalShortScaled > 0n ? formatDec(totalShortScaled) : null;
 
   const supervisor = run.supervisorName ?? labels.noSupervisor;
   const infoBatch = formatQty(run.batchSizeKg, labels.unitKg, labels.notSet);
+  // Resolve the persisted line CODE to a friendly "code — name" label for display.
+  const lineOption = run.line ? lineList.find((l) => l.code === run.line) : undefined;
+  const lineDisplay = run.line
+    ? lineOption
+      ? `${lineOption.code} — ${lineOption.name}`
+      : run.line
+    : labels.notSet;
   const scheduledBody = interpolate(labels.scheduledPilotBody, {
     date: run.plannedDate ?? labels.notSet,
-    line: run.line ?? labels.notSet,
+    line: lineDisplay,
     batch: infoBatch,
     supervisor,
   });
@@ -407,7 +505,7 @@ export function PilotScreen({
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="pilot-plan-grid">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wide muted">{labels.colLine}</div>
-              <div className="font-medium">{run.line ?? labels.notSet}</div>
+              <div className="font-medium" data-testid="pilot-plan-line">{lineDisplay}</div>
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wide muted">{labels.colBatchSize}</div>
@@ -425,25 +523,26 @@ export function PilotScreen({
         </CardContent>
       </Card>
 
-      {/* Material reservation — prototype lines 374-389. */}
+      {/*
+        Material reservation — prototype lines 374-389.
+        Rows are AUTO-DERIVED from the recipe (one per formulation ingredient);
+        Required/Available/Reserved are READ-ONLY display cells — the user no
+        longer types them, and there is no "+ Add material" affordance.
+      */}
       <Card data-testid="pilot-material-card">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <CardHeader>
           <CardTitle>{labels.materialTitle}</CardTitle>
-          {canEditMaterial ? (
-            <Button
-              type="button"
-              className="btn-sm"
-              data-testid="add-pilot-material-button"
-              onClick={() => {
-                setEditingMaterial(null);
-                setMaterialModalOpen(true);
-              }}
-            >
-              {labels.addMaterial}
-            </Button>
-          ) : null}
         </CardHeader>
         <CardContent className="p-0">
+          {!lineSelected ? (
+            <div
+              role="note"
+              data-testid="pilot-select-line-hint"
+              className="alert alert-blue m-4"
+            >
+              {labels.selectLineHint}
+            </div>
+          ) : null}
           <Table data-testid="pilot-material-table">
             <TableHeader>
               <TableRow>
@@ -452,51 +551,63 @@ export function PilotScreen({
                 <TableHead scope="col">{labels.colAvailable}</TableHead>
                 <TableHead scope="col">{labels.colReserved}</TableHead>
                 <TableHead scope="col">{labels.colStatus}</TableHead>
-                {canEditMaterial ? (
-                  <TableHead scope="col">
-                    <span className="sr-only">{labels.editAction}</span>
-                  </TableHead>
-                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {materials.map((m) => (
-                <TableRow key={m.id} data-testid="pilot-material-row" data-status={m.status}>
-                  <TableCell className="font-medium">{m.ingredientCode}</TableCell>
-                  <TableCell className="mono tabular-nums">{formatQty(m.requiredKg, labels.unitKg, labels.notSet)}</TableCell>
-                  <TableCell className="mono tabular-nums">{formatQty(m.availableKg, labels.unitKg, labels.notSet)}</TableCell>
-                  <TableCell className="mono tabular-nums">{formatQty(m.reservedKg, labels.unitKg, labels.notSet)}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={statusVariant(m.status)}
-                      className={statusToneClass(m.status)}
-                      data-status={m.status}
-                      data-testid="pilot-material-status"
-                    >
-                      {m.status === 'short'
-                        ? interpolate(labels.statusShort, {
-                            shortBy: formatQty(m.shortByKg, labels.unitKg, ''),
-                          }).trim()
-                        : labels.statusReserved}
-                    </Badge>
-                  </TableCell>
-                  {canEditMaterial ? (
-                    <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        className="btn-sm btn-ghost"
-                        data-testid="edit-pilot-material-button"
-                        onClick={() => {
-                          setEditingMaterial(m);
-                          setMaterialModalOpen(true);
-                        }}
-                      >
-                        {labels.editAction}
-                      </Button>
+              {materials.map((m) => {
+                // Until a line is picked we have no warehouse, so Available /
+                // Reserved are unknown — render them as the "—" placeholder and
+                // suppress the (meaningless) short badge.
+                const shortBy = lineSelected ? shortByOf(m) : null;
+                const effectiveStatus: PilotMaterialStatus = lineSelected ? m.status : 'reserved';
+                return (
+                  <TableRow
+                    key={m.ingredientCode}
+                    data-testid="pilot-material-row"
+                    data-status={lineSelected ? m.status : 'unknown'}
+                  >
+                    {/*
+                      Single "Ingredient" cell (prototype parity) — descriptive
+                      name primary, the RM code as a small traceability subtitle.
+                    */}
+                    <TableCell className="font-medium">
+                      <span data-testid="pilot-material-name">{m.ingredientName}</span>
+                      {m.ingredientCode && m.ingredientCode !== m.ingredientName ? (
+                        <span className="muted text-[11px] block" data-testid="pilot-material-code">
+                          {m.ingredientCode}
+                        </span>
+                      ) : null}
                     </TableCell>
-                  ) : null}
-                </TableRow>
-              ))}
+                    <TableCell className="mono tabular-nums" data-testid="pilot-material-required">
+                      {formatQty(m.requiredKg, labels.unitKg, labels.notSet)}
+                    </TableCell>
+                    <TableCell className="mono tabular-nums" data-testid="pilot-material-available">
+                      {lineSelected ? formatQty(m.availableKg, labels.unitKg, labels.notSet) : labels.notSet}
+                    </TableCell>
+                    <TableCell className="mono tabular-nums" data-testid="pilot-material-reserved">
+                      {lineSelected ? formatQty(m.reservedKg, labels.unitKg, labels.notSet) : labels.notSet}
+                    </TableCell>
+                    <TableCell>
+                      {lineSelected ? (
+                        <Badge
+                          variant={statusVariant(effectiveStatus)}
+                          className={statusToneClass(effectiveStatus)}
+                          data-status={effectiveStatus}
+                          data-testid="pilot-material-status"
+                        >
+                          {effectiveStatus === 'short'
+                            ? interpolate(labels.statusShort, {
+                                shortBy: formatQty(shortBy, labels.unitKg, ''),
+                              }).trim()
+                            : labels.statusReserved}
+                        </Badge>
+                      ) : (
+                        <span className="muted">{labels.notSet}</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
 
@@ -552,17 +663,9 @@ export function PilotScreen({
           labels={labels}
           run={run}
           supervisors={supervisorList}
+          lines={lineList}
           onSubmit={handleRunSubmit}
-        />
-      ) : null}
-
-      {canEditMaterial ? (
-        <PilotMaterialModal
-          open={materialModalOpen}
-          onOpenChange={setMaterialModalOpen}
-          labels={labels}
-          material={editingMaterial}
-          onSubmit={handleMaterialSubmit}
+          onLineChange={handleLineChange}
         />
       ) : null}
     </main>

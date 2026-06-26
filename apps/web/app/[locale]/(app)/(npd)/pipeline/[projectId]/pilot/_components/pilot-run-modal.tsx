@@ -25,6 +25,7 @@ import { Select } from '@monopilot/ui/Select';
 
 import type {
   PilotActionOutcome,
+  ProductionLineOption,
   SupervisorOption,
   PilotLabels,
   PilotRunStatus,
@@ -71,7 +72,9 @@ export function PilotRunModal({
   labels,
   run,
   supervisors,
+  lines,
   onSubmit,
+  onLineChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -79,7 +82,14 @@ export function PilotRunModal({
   /** Pre-fill values when editing an existing run; null = new run. */
   run: PilotRunView | null;
   supervisors: SupervisorOption[];
+  /** Production-line options for the "Line" dropdown; value = line CODE. */
+  lines: ProductionLineOption[];
   onSubmit: (values: PilotRunFormValues) => Promise<PilotActionOutcome>;
+  /**
+   * Notify the parent when the line changes (with the new line CODE, or null
+   * when cleared) so it can re-derive recipe availability for the new warehouse.
+   */
+  onLineChange?: (lineCode: string | null) => void;
 }) {
   const [values, setValues] = React.useState<PilotRunFormValues>(() => fromRun(run));
   const [submitState, setSubmitState] = React.useState<'idle' | 'saving' | 'error'>('idle');
@@ -113,6 +123,18 @@ export function PilotRunModal({
     ...supervisors.map((s) => ({ value: s.id, label: s.name })),
   ];
 
+  // The "Line" dropdown persists the line CODE; show "code — name" per option.
+  // First option ('') is the unset placeholder so a run can have no line yet.
+  const lineOptions = [
+    { value: '', label: labels.linePlaceholder },
+    ...lines.map((l) => ({ value: l.code, label: `${l.code} — ${l.name}` })),
+  ];
+
+  function handleLineSelect(next: string) {
+    update('line', next);
+    onLineChange?.(next || null);
+  }
+
   // pilot_runs.status (migration 234 CHECK). Marking a run "completed" is what
   // clears the launch gate PILOT_WO_NOT_LINKED, so the control is always offered.
   const statusOptions: { value: PilotRunFormValues['status']; label: string }[] = [
@@ -138,13 +160,20 @@ export function PilotRunModal({
                 onChange={(e) => update('plannedDate', e.target.value)}
               />
             </div>
-            <div className="field">
-              <label htmlFor="pilot-line">{labels.fieldLine}</label>
-              <Input
-                id="pilot-line"
+            <div className="field" data-testid="pilot-line-field">
+              <label id="pilot-line-label">{labels.fieldLine}</label>
+              <Select
+                aria-labelledby="pilot-line-label"
                 value={values.line}
-                onChange={(e) => update('line', e.target.value)}
+                onValueChange={handleLineSelect}
+                options={lineOptions}
+                placeholder={labels.linePlaceholder}
               />
+              {lines.length === 0 ? (
+                <p className="muted text-[11px] mt-1" data-testid="pilot-no-lines-hint">
+                  {labels.noLines}
+                </p>
+              ) : null}
             </div>
             <div className="field">
               <label htmlFor="pilot-batch">{labels.fieldBatchSize}</label>

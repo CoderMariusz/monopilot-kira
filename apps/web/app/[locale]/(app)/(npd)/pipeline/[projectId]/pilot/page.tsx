@@ -26,17 +26,20 @@ import {
   type PageState,
   type PilotLabels,
   type PilotScreenData,
+  type ProductionLineOption,
+  type PilotRecipeMaterialView,
   type SupervisorOption,
   type ToggleChecklistCall,
   type ToggleChecklistOutcome,
   type PilotActionOutcome,
+  type LoadRecipeMaterialsCall,
   type UpsertRunCall,
-  type UpsertMaterialCall,
 } from './_components/pilot-screen';
 import { getPilotRun, hasPilotPermission } from './_actions/get-pilot-run';
 import { togglePilotChecklistItem } from './_actions/toggle-pilot-checklist-item';
 import { upsertPilotRun } from './_actions/upsert-pilot-run';
-import { upsertPilotMaterial } from './_actions/upsert-pilot-material';
+import { listProductionLines } from './_actions/list-production-lines';
+import { getPilotRecipeMaterials } from './_actions/get-pilot-recipe-materials';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -53,6 +56,8 @@ type LoaderResult = {
   data: PilotScreenData | null;
   canWrite: boolean;
   supervisors: SupervisorOption[];
+  lines: ProductionLineOption[];
+  recipeMaterials: PilotRecipeMaterialView[];
 };
 
 type QueryClient = {
@@ -94,11 +99,11 @@ const DEFAULT_LABELS: PilotLabels = {
   notSet: '—',
   planPilotRun: '+ Plan pilot run',
   editPlan: 'Edit plan',
-  addMaterial: '+ Add material',
-  editMaterial: 'Edit material',
-  editAction: 'Edit',
   fieldPlannedDate: 'Planned date',
   fieldLine: 'Line',
+  linePlaceholder: 'Select a line…',
+  noLines: 'No production lines configured.',
+  selectLineHint: 'Select a line to see ingredient availability.',
   fieldBatchSize: 'Batch size (kg)',
   fieldExpectedYield: 'Expected yield (%)',
   fieldDuration: 'Duration (hours)',
@@ -107,10 +112,6 @@ const DEFAULT_LABELS: PilotLabels = {
   statusPlanned: 'Planned',
   statusInProgress: 'In progress',
   statusCompleted: 'Completed',
-  fieldIngredient: 'Ingredient',
-  fieldRequired: 'Required (kg)',
-  fieldAvailable: 'Available (kg)',
-  fieldReserved: 'Reserved (kg)',
   save: 'Save',
   saving: 'Saving…',
   cancel: 'Cancel',
@@ -161,29 +162,77 @@ async function readWriteContext(): Promise<{ canWrite: boolean; supervisors: Sup
   }
 }
 
+/** Production-line dropdown options (org-scoped). Empty on any failure. */
+async function readLines(): Promise<ProductionLineOption[]> {
+  try {
+    return await listProductionLines();
+  } catch (error) {
+    console.error('[pilot] production-line read failed:', error);
+    return [];
+  }
+}
+
+/**
+ * Recipe ingredients for the run's persisted line. Required comes from the
+ * recipe; Available/Reserved resolve against the line's warehouse (0 when the
+ * line is unset). Empty on any failure (e.g. no recipe yet).
+ */
+async function readRecipeMaterials(
+  projectId: string,
+  lineCode: string | null,
+): Promise<PilotRecipeMaterialView[]> {
+  try {
+    const rows = await getPilotRecipeMaterials({ projectId, lineCode });
+    return rows.map((r) => ({
+      ingredientCode: r.ingredientCode,
+      ingredientName: r.ingredientName,
+      requiredKg: r.requiredKg,
+      availableKg: r.availableKg,
+      reservedKg: r.reservedKg,
+      status: r.status,
+    }));
+  } catch (error) {
+    console.error('[pilot] recipe-materials read failed:', error);
+    return [];
+  }
+}
+
 async function readPageData(projectId: string): Promise<LoaderResult> {
-  const [{ canWrite, supervisors }, result] = await Promise.all([
+  const [{ canWrite, supervisors }, result, lines] = await Promise.all([
     readWriteContext(),
     getPilotRun({ projectId }),
+    readLines(),
   ]);
 
   if (result.ok) {
-    return {
-      state: 'ready',
-      data: { ...result.data, supervisors, canWrite },
-      canWrite,
+    // Recipe ingredients resolved for the persisted line's warehouse.
+    const recipeMaterials = await readRecipeMaterials(projectId, result.data.run.line);
+    const data: PilotScreenData = {
+      run: result.data.run,
+      checklist: result.data.checklist,
       supervisors,
+      canWrite,
+      lines,
+      recipeMaterials,
     };
+    return { state: 'ready', data, canWrite, supervisors, lines, recipeMaterials };
   }
   switch (result.error) {
     case 'forbidden':
-      return { state: 'permission_denied', data: null, canWrite: false, supervisors: [] };
+      return {
+        state: 'permission_denied',
+        data: null,
+        canWrite: false,
+        supervisors: [],
+        lines: [],
+        recipeMaterials: [],
+      };
     case 'not_found':
-      return { state: 'empty', data: null, canWrite, supervisors };
+      return { state: 'empty', data: null, canWrite, supervisors, lines, recipeMaterials: [] };
     case 'invalid_input':
-      return { state: 'error', data: null, canWrite, supervisors };
+      return { state: 'error', data: null, canWrite, supervisors, lines, recipeMaterials: [] };
     default:
-      return { state: 'error', data: null, canWrite, supervisors };
+      return { state: 'error', data: null, canWrite, supervisors, lines, recipeMaterials: [] };
   }
 }
 
@@ -223,18 +272,14 @@ export default async function PilotPage(propsInput: unknown = {}) {
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   }
 
-  async function upsertMaterialAction(call: UpsertMaterialCall): Promise<PilotActionOutcome> {
+  // Re-derive recipe ingredients + availability when the line changes (client →
+  // server → client) so Available/Reserved track the chosen line's warehouse
+  // without a full RSC reload. The loader owns its own RBAC (npd.pilot.read).
+  async function loadRecipeMaterialsAction(
+    call: LoadRecipeMaterialsCall,
+  ): Promise<PilotRecipeMaterialView[]> {
     'use server';
-    const result = await upsertPilotMaterial({
-      projectId,
-      pilotRunId: call.pilotRunId,
-      materialId: call.materialId,
-      ingredientCode: call.ingredientCode,
-      requiredKg: call.requiredKg,
-      availableKg: call.availableKg,
-      reservedKg: call.reservedKg,
-    });
-    return result.ok ? { ok: true } : { ok: false, error: result.error };
+    return readRecipeMaterials(projectId, call.lineCode);
   }
 
   const injected = props.data !== undefined || props.state !== undefined;
@@ -244,6 +289,8 @@ export default async function PilotPage(propsInput: unknown = {}) {
         data: props.data ?? null,
         canWrite: props.data?.canWrite ?? false,
         supervisors: props.data?.supervisors ?? [],
+        lines: props.data?.lines ?? [],
+        recipeMaterials: props.data?.recipeMaterials ?? [],
       }
     : await readPageData(projectId);
 
@@ -254,9 +301,11 @@ export default async function PilotPage(propsInput: unknown = {}) {
       labels={labels}
       canWrite={loaded.canWrite}
       supervisors={loaded.supervisors}
+      lines={loaded.lines}
+      recipeMaterials={loaded.recipeMaterials}
       onToggleChecklistItem={toggleChecklistAction}
       onUpsertRun={upsertRunAction}
-      onUpsertMaterial={upsertMaterialAction}
+      onLoadRecipeMaterials={loadRecipeMaterialsAction}
     />
   );
 }

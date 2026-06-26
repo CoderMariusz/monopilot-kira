@@ -32,6 +32,8 @@ const LABELS = {
   planPilotRun: 'lbl.planPilotRun',
   fieldPlannedDate: 'lbl.fieldPlannedDate',
   fieldLine: 'lbl.fieldLine',
+  linePlaceholder: 'lbl.linePlaceholder',
+  noLines: 'lbl.noLines',
   fieldBatchSize: 'lbl.fieldBatchSize',
   fieldExpectedYield: 'lbl.fieldExpectedYield',
   fieldDuration: 'lbl.fieldDuration',
@@ -69,6 +71,7 @@ describe('PilotRunModal — status control (gap 1)', () => {
         labels={LABELS}
         run={RUN}
         supervisors={[]}
+        lines={[]}
         onSubmit={async () => ({ ok: true })}
       />,
     );
@@ -88,6 +91,7 @@ describe('PilotRunModal — status control (gap 1)', () => {
         labels={LABELS}
         run={RUN}
         supervisors={[]}
+        lines={[]}
         onSubmit={onSubmit}
       />,
     );
@@ -114,6 +118,7 @@ describe('PilotRunModal — status control (gap 1)', () => {
         labels={LABELS}
         run={{ ...RUN, status: 'in_progress' }}
         supervisors={[]}
+        lines={[]}
         onSubmit={async () => ({ ok: true })}
       />,
     );
