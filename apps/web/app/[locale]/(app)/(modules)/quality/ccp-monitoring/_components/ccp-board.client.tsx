@@ -31,6 +31,7 @@ import { useTranslations } from 'next-intl';
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 
+import { Sparkline } from '../../../production/_components/sparkline';
 import type { CcpBoardItem, RecordMonitoringAction, UpsertCcpAction } from './ccp-contracts';
 import type { CcpBoardLabels, CcpRecordLabels, CcpCreateLabels } from './labels';
 import { formatLimit } from './labels';
@@ -54,6 +55,103 @@ function statusLabel(item: CcpBoardItem, labels: CcpBoardLabels): string {
   if (item.lastStatus === 'in_limit') return labels.status.inLimit;
   if (item.lastStatus === 'out_of_limit') return labels.status.outOfLimit;
   return labels.status.noData;
+}
+
+const TREND_LABEL = 'Last 20 readings';
+const MIN_LIMIT_LABEL = 'Min limit';
+const MAX_LIMIT_LABEL = 'Max limit';
+
+function toFiniteNumber(value: string | null): number | null {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function limitPosition(
+  limit: number | null,
+  measuredValues: number[],
+  minLimit: number | null,
+  maxLimit: number | null,
+): string | null {
+  if (limit === null) return null;
+  const domain = [
+    ...measuredValues,
+    ...(minLimit !== null ? [minLimit] : []),
+    ...(maxLimit !== null ? [maxLimit] : []),
+  ];
+  if (domain.length === 0) return null;
+  const min = Math.min(...domain);
+  const max = Math.max(...domain);
+  const range = max - min || 1;
+  const top = 100 - ((limit - min) / range) * 100;
+  return `${Math.min(100, Math.max(0, top))}%`;
+}
+
+function CcpTrendSparkline({ item }: { item: CcpBoardItem }) {
+  const measuredValues = item.trend
+    .map((point) => toFiniteNumber(point.measuredValue))
+    .filter((value): value is number => value !== null);
+  const minLimit = toFiniteNumber(item.criticalLimitMin);
+  const maxLimit = toFiniteNumber(item.criticalLimitMax);
+  const minTop = limitPosition(minLimit, measuredValues, minLimit, maxLimit);
+  const maxTop = limitPosition(maxLimit, measuredValues, minLimit, maxLimit);
+
+  if (measuredValues.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-1" data-testid={`ccp-trend-${item.id}`}>
+      <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400">
+        <span>{TREND_LABEL}</span>
+        <span className="font-mono tabular-nums">{measuredValues.length}/20</span>
+      </div>
+      <div
+        className="relative h-[60px] overflow-hidden rounded-md border border-slate-200 bg-slate-50"
+      >
+        {maxTop ? (
+          <div
+            className="pointer-events-none absolute left-0 right-0 z-10 border-t border-dashed border-red-300"
+            style={{ top: maxTop }}
+            title={MAX_LIMIT_LABEL}
+            data-testid={`ccp-trend-max-${item.id}`}
+          />
+        ) : null}
+        {minTop ? (
+          <div
+            className="pointer-events-none absolute left-0 right-0 z-10 border-t border-dashed border-sky-300"
+            style={{ top: minTop }}
+            title={MIN_LIMIT_LABEL}
+            data-testid={`ccp-trend-min-${item.id}`}
+          />
+        ) : null}
+        <div className="absolute inset-0 [&_svg]:h-[60px]">
+          <Sparkline
+            points={measuredValues.map((value, index) => ({
+              value,
+              label: item.trend[index]?.measuredAt,
+            }))}
+            color={item.lastStatus === 'out_of_limit' ? '#dc2626' : '#0f766e'}
+            ariaLabel={`${TREND_LABEL}: ${item.ccpCode}`}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-[10px] text-slate-400">
+        {minLimit !== null ? (
+          <span className="inline-flex items-center gap-1">
+            <span className="h-0 w-4 border-t border-dashed border-sky-300" aria-hidden />
+            {MIN_LIMIT_LABEL}
+          </span>
+        ) : null}
+        {maxLimit !== null ? (
+          <span className="inline-flex items-center gap-1">
+            <span className="h-0 w-4 border-t border-dashed border-red-300" aria-hidden />
+            {MAX_LIMIT_LABEL}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 export function CcpBoardClient({
@@ -303,6 +401,8 @@ export function CcpBoardClient({
                   </dd>
                 </div>
               </dl>
+
+              <CcpTrendSparkline item={item} />
             </Card>
           </li>
         ))}

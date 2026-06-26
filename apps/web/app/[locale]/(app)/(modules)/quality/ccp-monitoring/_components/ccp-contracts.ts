@@ -55,6 +55,11 @@ export type MonitoringResult = {
   outboxEmitted: boolean;
 };
 
+export type CcpTrendPoint = {
+  measuredValue: string;
+  measuredAt: string;
+};
+
 export type ActionFailure = { ok: false; reason: 'forbidden' | 'error'; message?: string };
 export type ActionResult<T> = { ok: true; data: T } | ActionFailure;
 
@@ -116,4 +121,6 @@ export type CcpBoardItem = {
   lastAt: string | null;
   /** derived limit status of the latest reading */
   lastStatus: 'in_limit' | 'out_of_limit' | 'no_data';
+  /** last readings for the compact trend, oldest to newest */
+  trend: CcpTrendPoint[];
 };

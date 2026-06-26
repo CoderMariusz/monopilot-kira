@@ -86,6 +86,10 @@ function makeItem(over: Partial<CcpBoardItem>): CcpBoardItem {
     lastValue: 'lastValue' in over ? (over.lastValue ?? null) : '75.0',
     lastAt: 'lastAt' in over ? (over.lastAt ?? null) : '2026-06-18T10:30:00.000Z',
     lastStatus: over.lastStatus ?? 'in_limit',
+    trend: over.trend ?? [
+      { measuredValue: '72.5', measuredAt: '2026-06-18T10:00:00.000Z' },
+      { measuredValue: '75.0', measuredAt: '2026-06-18T10:30:00.000Z' },
+    ],
   };
 }
 
@@ -123,6 +127,28 @@ describe('CcpBoardClient (E3 parity)', () => {
     expect(screen.getByTestId('ccp-limit-a')).toHaveTextContent('72');
     expect(screen.getByTestId('ccp-last-a')).toHaveTextContent('75.0');
     expect(screen.getByTestId('ccp-status-a')).toHaveTextContent(BOARD_LABELS.status.inLimit);
+  });
+
+  it('renders a read-only trend sparkline with the last readings and min/max limit markers', () => {
+    renderBoard([
+      makeItem({
+        id: 'trend',
+        ccpCode: 'CCP-01',
+        criticalLimitMin: '72',
+        criticalLimitMax: '80',
+        trend: [
+          { measuredValue: '72.5', measuredAt: '2026-06-18T10:00:00.000Z' },
+          { measuredValue: '75.0', measuredAt: '2026-06-18T10:30:00.000Z' },
+          { measuredValue: '78.2', measuredAt: '2026-06-18T11:00:00.000Z' },
+        ],
+      }),
+    ]);
+
+    expect(screen.getByTestId('ccp-trend-trend')).toHaveTextContent('Last 20 readings');
+    expect(screen.getByTestId('ccp-trend-trend')).toHaveTextContent('3/20');
+    expect(screen.getByTestId('ccp-trend-min-trend')).toHaveAttribute('title', 'Min limit');
+    expect(screen.getByTestId('ccp-trend-max-trend')).toHaveAttribute('title', 'Max limit');
+    expect(screen.getByLabelText('Last 20 readings: CCP-01')).toBeInTheDocument();
   });
 
   it('shows an OUT-OF-LIMIT badge for a breached latest reading and NO data badge when none recorded', () => {

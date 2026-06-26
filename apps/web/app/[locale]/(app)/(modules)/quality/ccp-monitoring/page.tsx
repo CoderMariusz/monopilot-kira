@@ -39,6 +39,7 @@ import { canEditCcpPlan } from './_actions/can-edit-ccp';
 import { CcpBoardClient } from './_components/ccp-board.client';
 import type {
   CcpBoardItem,
+  CcpTrendPoint,
   MonitoringLogRow,
   RecordMonitoringAction,
   UpsertCcpAction,
@@ -82,6 +83,20 @@ function latestByCcp(logs: MonitoringLogRow[]): Map<string, MonitoringLogRow> {
     if (!latest.has(row.ccpId)) latest.set(row.ccpId, row);
   }
   return latest;
+}
+
+function trendByCcp(logs: MonitoringLogRow[], limit: number): Map<string, CcpTrendPoint[]> {
+  const trends = new Map<string, CcpTrendPoint[]>();
+  for (const row of logs) {
+    const current = trends.get(row.ccpId) ?? [];
+    if (current.length >= limit) continue;
+    current.push({ measuredValue: row.measuredValue, measuredAt: row.measuredAt });
+    trends.set(row.ccpId, current);
+  }
+  for (const [ccpId, rows] of trends) {
+    trends.set(ccpId, rows.reverse());
+  }
+  return trends;
 }
 
 async function BoardContent({ locale }: { locale: string }) {
@@ -128,6 +143,7 @@ async function BoardContent({ locale }: { locale: string }) {
     canEditCcpPlan(),
   ]);
   const latest = logResult.ok ? latestByCcp(logResult.data) : new Map<string, MonitoringLogRow>();
+  const trends = logResult.ok ? trendByCcp(logResult.data, 20) : new Map<string, CcpTrendPoint[]>();
 
   const items: CcpBoardItem[] = ccpsResult.data.map((ccp) => {
     const last = latest.get(ccp.id) ?? null;
@@ -144,6 +160,7 @@ async function BoardContent({ locale }: { locale: string }) {
       lastValue: last ? last.measuredValue : null,
       lastAt: last ? last.measuredAt : null,
       lastStatus: last ? (last.withinLimits ? 'in_limit' : 'out_of_limit') : 'no_data',
+      trend: trends.get(ccp.id) ?? [],
     };
   });
 
