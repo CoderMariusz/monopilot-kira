@@ -14,6 +14,7 @@ type FormulationRow = {
   batch_size_kg: string | null;
   target_yield_pct: string | null;
   target_price_eur: string | null;
+  processing_overhead_pct: string | null;
   cost_json: unknown | null;
   nutrition_json: unknown | null;
   allergen_json: unknown | null;
@@ -64,6 +65,7 @@ export type GetFormulationResult =
           batchSizeKg: string | null;
           targetYieldPct: string | null;
           targetPriceEur: string | null;
+          processingOverheadPct: string | null;
         } | null;
         ingredients: IngredientRow[];
         cachedCalc: {
@@ -95,6 +97,7 @@ export async function getFormulation(input: { projectId?: unknown }): Promise<Ge
            fv.batch_size_kg::text,
            fv.target_yield_pct::text,
            fv.target_price_eur::text,
+           fv.processing_overhead_pct::text,
            fcc.cost_json,
            fcc.nutrition_json,
            fcc.allergen_json,
@@ -132,6 +135,7 @@ export async function getFormulation(input: { projectId?: unknown }): Promise<Ge
                   batchSizeKg: row.batch_size_kg,
                   targetYieldPct: row.target_yield_pct,
                   targetPriceEur: row.target_price_eur,
+                  processingOverheadPct: row.processing_overhead_pct,
                 }
               : null,
           ingredients: ingredients.rows,

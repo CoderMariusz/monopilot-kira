@@ -86,6 +86,7 @@ export type FormulationEditorData = {
   packWeightG: string | null;
   targetPriceEur: string | null;
   targetYieldPct: string | null;
+  processingOverheadPct?: string | null;
   versions: Array<{ id: string; versionNumber: number }>;
   ingredients: Array<{
     id: string;
@@ -237,6 +238,9 @@ export type SaveDraftAction = (input: {
     allergensInherited: string[];
     sequence: number;
   }>;
+  targetYieldPct?: string | null;
+  targetPriceEur?: string | null;
+  processingOverheadPct?: string | null;
 }) => Promise<{ ok: true; data: unknown } | { ok: false; error: string }>;
 
 export type RecomputeAction = (input: {
@@ -377,7 +381,7 @@ function toRecomputeIngredients(
 }
 
 /** calc roll-up → CostPanel breakdown (adds the overhead% the panel label needs). */
-function toCostBreakdown(calc: RecomputeResult): CostBreakdown {
+function toCostBreakdown(calc: RecomputeResult, processingPct: string): CostBreakdown {
   return {
     rawCost: calc.rawCost,
     yieldedCost: calc.yieldedCost,
@@ -386,7 +390,7 @@ function toCostBreakdown(calc: RecomputeResult): CostBreakdown {
     costPerKg: calc.costPerKg,
     revenuePerKg: calc.revenuePerKg,
     marginPct: calc.marginPct,
-    overheadPct: DEFAULT_OVERHEAD_PCT,
+    overheadPct: processingPct,
   };
 }
 
@@ -632,6 +636,7 @@ export function FormulationEditor({
   const packWeightKg = packWeightKgFromG(packWeightG || null);
   const [targetPrice, setTargetPrice] = React.useState<string>(data?.targetPriceEur ?? '');
   const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
+  const [processingPct, setProcessingPct] = React.useState<string>(data?.processingOverheadPct ?? DEFAULT_OVERHEAD_PCT);
   const [versionId, setVersionId] = React.useState<string>(data?.versionId ?? '');
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
   const onCreateVersion = React.useCallback(async () => {
@@ -689,10 +694,11 @@ export function FormulationEditor({
         ingredients: toRecomputeIngredients(rows, nutritionByRm),
         targetPriceEur: isDecimalString(targetPrice) ? targetPrice : null,
         yieldPct: String(yieldPct),
+        processingOverheadPct: processingPct,
         // Costing v2: pack weight from the project (g→kg); recipe stage adds NO packaging.
         packWeightKg,
       }),
-    [rows, targetPrice, yieldPct, nutritionByRm, packWeightKg],
+    [rows, targetPrice, yieldPct, processingPct, nutritionByRm, packWeightKg],
   );
 
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -749,6 +755,9 @@ export function FormulationEditor({
         const result = await saveDraftAction({
           projectId: data.projectId,
           versionId,
+          targetYieldPct: String(yieldPct),
+          targetPriceEur: targetPrice,
+          processingOverheadPct: processingPct,
           ingredients: completeRows.map((r, i) => ({
             rmCode: r.rmCode.trim(),
             itemId: r.itemId,
@@ -774,7 +783,7 @@ export function FormulationEditor({
         setSaveStatus('error');
       }
     })();
-  }, [data, editable, recomputeAction, saveDraftAction, validate, versionId]);
+  }, [data, editable, processingPct, recomputeAction, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
 
   /** Schedule a single debounced save (resets the 800 ms timer on each call). */
   const scheduleSave = React.useCallback(() => {
@@ -1502,11 +1511,13 @@ export function FormulationEditor({
                 />
                 <CostPanel
                   state="ready"
-                  calc={toCostBreakdown(calc)}
+                  calc={toCostBreakdown(calc, processingPct)}
                   targetPrice={targetPrice}
                   onTargetPriceChange={setTargetPrice}
                   yieldPct={yieldPct}
                   onYieldChange={setYieldPct}
+                  processingPct={processingPct}
+                  onProcessingChange={setProcessingPct}
                   labels={panelLabels.cost}
                   currency={currency}
                   /* Costing v2: packaging is NOT part of the recipe stage. */

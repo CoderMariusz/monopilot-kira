@@ -38,11 +38,30 @@ export async function saveDraft(input: {
   projectId?: unknown;
   versionId?: unknown;
   ingredients?: unknown;
+  targetYieldPct?: unknown;
+  targetPriceEur?: unknown;
+  processingOverheadPct?: unknown;
 }): Promise<SaveDraftResult> {
   const projectId = parseUuid(input?.projectId);
   const versionId = parseUuid(input?.versionId);
   const ingredients = parseIngredients(input?.ingredients);
-  if (!projectId || !versionId || !ingredients) return { ok: false, error: 'invalid_input' };
+  const targetYieldPct = normalizeNumericPct(input?.targetYieldPct);
+  const targetPriceEur = normalizeNumeric(input?.targetPriceEur);
+  const processingOverheadPct = normalizeNumericPct(input?.processingOverheadPct);
+  if (
+    !projectId ||
+    !versionId ||
+    !ingredients ||
+    targetYieldPct === undefined ||
+    targetPriceEur === undefined ||
+    processingOverheadPct === undefined
+  ) {
+    return { ok: false, error: 'invalid_input' };
+  }
+  const shouldPersistVersionParams =
+    Object.prototype.hasOwnProperty.call(input, 'targetYieldPct') ||
+    Object.prototype.hasOwnProperty.call(input, 'targetPriceEur') ||
+    Object.prototype.hasOwnProperty.call(input, 'processingOverheadPct');
 
   try {
     return await withOrgContext(async (ctx) => {
@@ -180,6 +199,24 @@ export async function saveDraft(input: {
         );
       }
 
+      if (shouldPersistVersionParams) {
+        await ctx.client.query(
+          `UPDATE public.formulation_versions
+              SET target_yield_pct = $2::numeric,
+                  target_price_eur = $3::numeric,
+                  processing_overhead_pct = $4::numeric
+            WHERE id = $1::uuid
+              AND state = 'draft'
+              AND EXISTS (
+                SELECT 1
+                  FROM public.formulations f
+                 WHERE f.id = formulation_id
+                   AND f.org_id = app.current_org_id()
+              )`,
+          [versionId, targetYieldPct, targetPriceEur, processingOverheadPct],
+        );
+      }
+
       await ctx.client.query(
         `insert into public.formulation_audit_log
            (org_id, formulation_id, version_id, event_type, event_payload, actor_user_id)
@@ -289,6 +326,14 @@ function normalizeNumeric(value: unknown): string | null | undefined {
   const text = String(value).trim();
   if (!/^\d+(?:\.\d+)?$/.test(text)) return undefined;
   return text;
+}
+
+function normalizeNumericPct(value: unknown): string | null | undefined {
+  const normalized = normalizeNumeric(value);
+  if (normalized === null || normalized === undefined) return normalized;
+  const asNumber = Number(normalized);
+  if (!Number.isFinite(asNumber) || asNumber < 0 || asNumber > 100) return undefined;
+  return normalized;
 }
 
 function parseTextArray(value: unknown): string[] | null {

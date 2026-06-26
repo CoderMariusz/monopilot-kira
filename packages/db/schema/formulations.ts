@@ -67,6 +67,7 @@ export const formulationVersions = pgTable(
     batchSizeKg: numeric('batch_size_kg'),
     targetYieldPct: numeric('target_yield_pct'),
     targetPriceEur: numeric('target_price_eur'),
+    processingOverheadPct: numeric('processing_overhead_pct'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     createdByUser: uuid('created_by_user').references(() => users.id),
     schemaVersion: integer('schema_version').notNull().default(1),
@@ -96,6 +97,10 @@ export const formulationVersions = pgTable(
     targetPriceEurCheck: check(
       'formulation_versions_target_price_eur_check',
       sql`${table.targetPriceEur} is null or ${table.targetPriceEur} >= 0`,
+    ),
+    processingOverheadPctCheck: check(
+      'formulation_versions_processing_overhead_pct_check',
+      sql`${table.processingOverheadPct} is null or (${table.processingOverheadPct} >= 0 and ${table.processingOverheadPct} <= 100)`,
     ),
   }),
 );

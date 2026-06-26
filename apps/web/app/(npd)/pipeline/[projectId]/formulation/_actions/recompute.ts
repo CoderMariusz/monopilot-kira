@@ -49,6 +49,7 @@ interface VersionMetaRow {
   batch_size_kg: string | null;
   target_price_eur: string | null;
   target_yield_pct: string | null;
+  processing_overhead_pct: string | null;
   /** Costing v2: pack net weight in grams (the recipe batch size), from npd_projects. */
   pack_weight_g: string | null;
 }
@@ -129,6 +130,7 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
     // project before we compute / cache anything.
     const metaRes = await client.query<VersionMetaRow>(
       `select fv.batch_size_kg, fv.target_price_eur, fv.target_yield_pct,
+              fv.processing_overhead_pct::text as processing_overhead_pct,
               p.pack_weight_g::text as pack_weight_g
          from formulation_versions fv
          join formulations f on f.id = fv.formulation_id
@@ -198,6 +200,7 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
       batchKg: meta.batch_size_kg,
       targetPriceEur: meta.target_price_eur,
       yieldPct: meta.target_yield_pct,
+      processingOverheadPct: meta.processing_overhead_pct ?? undefined,
       // Costing v2: pack weight (g) is the batch size; recipe stage adds no packaging.
       packWeightKg: packWeightKgFromGrams(meta.pack_weight_g),
     });

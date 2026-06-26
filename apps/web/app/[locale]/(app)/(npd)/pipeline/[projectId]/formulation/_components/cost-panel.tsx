@@ -225,6 +225,8 @@ export function CostPanel({
   onTargetPriceChange,
   yieldPct,
   onYieldChange,
+  processingPct,
+  onProcessingChange,
   labels,
   currency = 'EUR',
   includePackaging = true,
@@ -238,6 +240,9 @@ export function CostPanel({
   /** Controlled expected-yield percentage (parent owns the state). */
   yieldPct: number;
   onYieldChange: (value: number) => void;
+  /** Controlled processing-overhead percentage (parent owns the state). */
+  processingPct?: string;
+  onProcessingChange?: (value: string) => void;
   labels: CostPanelLabels;
   /** ISO-4217 currency code; default EUR (never hardcode the symbol). */
   currency?: string;
@@ -272,6 +277,7 @@ export function CostPanel({
 
   const margin = marginPerKg(calc);
   const marginNegative = isNegative(margin);
+  const overheadPct = processingPct ?? calc.overheadPct;
 
   return (
     <Card role="region" aria-labelledby={titleId} data-testid="cost-panel">
@@ -290,7 +296,7 @@ export function CostPanel({
             testId="cost-yielded"
           />
           <CostLine
-            label={interpolate(labels.processing, { overheadPct: calc.overheadPct })}
+            label={interpolate(labels.processing, { overheadPct })}
             value={`${formatMoney(calc.processing, currency)} ${labels.perKgSuffix}`}
             testId="cost-processing"
           />
@@ -310,7 +316,7 @@ export function CostPanel({
         </div>
 
         {/* Controlled target-price + yield inputs (recipe.jsx:81-88). */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1">
             <label htmlFor="cost-target-price" className="block text-xs font-medium muted">
               {labels.targetPrice}
@@ -333,6 +339,21 @@ export function CostPanel({
               className="form-input mono"
               value={yieldPct}
               onChange={(e) => onYieldChange(Number(e.target.value))}
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="cost-processing-pct" className="block text-xs font-medium muted">
+              Processing %
+            </label>
+            <Input
+              id="cost-processing-pct"
+              type="number"
+              min="0"
+              max="100"
+              step="any"
+              className="form-input mono"
+              value={overheadPct}
+              onChange={(e) => onProcessingChange?.(e.target.value)}
             />
           </div>
         </div>

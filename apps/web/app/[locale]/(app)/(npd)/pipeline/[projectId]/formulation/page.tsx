@@ -532,6 +532,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     packWeightG,
     targetPriceEur: currentVersion.targetPriceEur,
     targetYieldPct: currentVersion.targetYieldPct,
+    processingOverheadPct: currentVersion.processingOverheadPct,
     // Full version history (v1, v2…) for the picker + Compare modal. Falls back
     // to just the current version when the history read returned nothing, and
     // guarantees the current version is always present (defensive union).
