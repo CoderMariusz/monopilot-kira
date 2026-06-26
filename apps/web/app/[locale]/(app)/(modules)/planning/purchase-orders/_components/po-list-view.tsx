@@ -78,6 +78,8 @@ export type PoListLabels = {
   exportError: string;
   /** Wave E-IO — "Import" button → /planning/import?source=po (bulk PO import hub). */
   importLabel: string;
+  /** Bulk PO import (CSV) → /planning/purchase-orders/import (preview + confirm). */
+  bulkImportLabel: string;
   searchPlaceholder: string;
   rowsCount: string;
   supplierFilterLabel: string;
@@ -259,6 +261,15 @@ export function PoListView({
             className="btn btn--secondary"
           >
             {labels.importLabel}
+          </Link>
+          {/* Bulk PO import (CSV) preview → confirm screen. */}
+          <Link
+            href={`/${locale}/planning/purchase-orders/import`}
+            prefetch={false}
+            data-testid="po-list-bulk-import"
+            className="btn btn--secondary"
+          >
+            {labels.bulkImportLabel}
           </Link>
           <Button
             type="button"

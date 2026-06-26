@@ -83,6 +83,7 @@ const LABELS: GateScreenLabels = {
     forbidden: 'You do not have permission to view this gate.',
     faDerivedHint: 'Closed in FA →',
     faDerivedLocked: 'FA-derived',
+    revertGate: 'Revert gate',
   },
   advance: {
     title: 'Advance gate',

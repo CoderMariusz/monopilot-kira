@@ -90,6 +90,9 @@ export type OpenModalFn = (
   payload: { project: GateChecklistProject },
 ) => void;
 
+/** Opens the revert-gate e-sign modal (admin/owner rollback to the previous gate). */
+export type OpenRevertModalFn = (payload: { project: GateChecklistProject }) => void;
+
 export type GateChecklistProject = {
   id: string;
   code: string;
@@ -127,6 +130,8 @@ export type GateChecklistLabels = {
   forbidden: string;
   faDerivedHint: string;
   faDerivedLocked: string;
+  /** "Revert gate" ghost button label (admin/owner rollback to the previous gate). */
+  revertGate: string;
 };
 
 function categoryLabel(category: string, labels: GateChecklistLabels): string {
@@ -434,19 +439,24 @@ export function GateChecklistPanel({
   gates,
   labels,
   canWrite = false,
+  canRevert = false,
   state = 'ready',
   isTerminal = false,
   toggleGateChecklistItem,
   openModal,
+  openRevertModal,
 }: {
   project: GateChecklistProject;
   gates: GateView[];
   labels: GateChecklistLabels;
   canWrite?: boolean;
+  /** True when the caller may revert a gate (npd.gate.advance — same permission as advance). */
+  canRevert?: boolean;
   state?: PanelState;
   isTerminal?: boolean;
   toggleGateChecklistItem?: ToggleGateChecklistItemAction;
   openModal?: OpenModalFn;
+  openRevertModal?: OpenRevertModalFn;
 }) {
   // Optimistic local override of item done-state (reconciled by the parent's revalidation).
   const [overrides, setOverrides] = React.useState<Record<string, boolean>>({});
@@ -613,6 +623,21 @@ export function GateChecklistPanel({
           ) : null}
 
           <div className="flex justify-end gap-2">
+            {/* Revert gate — admin/owner rollback to the previous gate. Hidden at the first
+                gate (G0), where previousGate() is null and the action returns
+                ALREADY_AT_FIRST_GATE (mirror the server guard so the user gets a clean
+                state, not just an error). The action also blocks NPD_RELEASE_LOCKED, which
+                is surfaced as a mapped error inside the revert modal. */}
+            {canRevert && currentGate.key !== 'G0' && (
+              <Button
+                type="button"
+                data-testid="gate-revert-button"
+                className="btn--ghost"
+                onClick={() => openRevertModal?.({ project })}
+              >
+                {labels.revertGate}
+              </Button>
+            )}
             {currentGate.next && (
               <Button
                 type="button"

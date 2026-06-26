@@ -4778,7 +4778,8 @@
       "error": "Nie można załadować listy kontrolnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki.",
       "faDerivedHint": "Zamknięte w FA →",
-      "faDerivedLocked": "Wyliczane z FA"
+      "faDerivedLocked": "Wyliczane z FA",
+      "revertGate": "Cofnij etap"
     },
     "advanceGateModal": {
       "title": "Przejście do następnej bramki",
@@ -6083,6 +6084,31 @@
         "count": "Liczba",
         "conversion": "Konwersja"
       }
+    },
+    "gateRevertModal": {
+      "title": "Cofnij etap",
+      "warning": "Spowoduje to cofnięcie projektu o jeden etap z {gate}. Postęp bieżącego etapu pozostaje zapisany w dzienniku audytu.",
+      "reasonLabel": "Powód cofnięcia",
+      "reasonPlaceholder": "Wyjaśnij, dlaczego ten etap jest cofany…",
+      "reasonTooShort": "Wymagane minimum 5 znaków",
+      "reasonHelp": "Wymagane do dziennika audytu",
+      "esignTitle": "Wymagany podpis elektroniczny",
+      "esignSubtitle": "Potwierdź swoją tożsamość. Tworzy to wiążący prawnie zapis audytu.",
+      "pinLabel": "PIN",
+      "pinPlaceholder": "Wprowadź swój PIN podpisu elektronicznego",
+      "confirm": "Potwierdzam cofnięcie etapu i rozumiem, że tworzy to podlegający audytowi zapis podpisu.",
+      "submit": "Potwierdź i cofnij",
+      "processing": "Przetwarzanie…",
+      "cancel": "Anuluj",
+      "doneTitle": "Etap cofnięty",
+      "doneDetail": "Projekt cofnięto o jeden etap. Zmiana jest zapisana w dzienniku audytu.",
+      "errorReleaseLocked": "Ten projekt jest zablokowany do wydania i nie może zostać cofnięty. Najpierw go odblokuj.",
+      "errorFirstGate": "Projekt jest już na pierwszym etapie — nie ma wcześniejszego etapu do cofnięcia.",
+      "errorEsign": "Weryfikacja podpisu nie powiodła się. Sprawdź swój PIN i spróbuj ponownie.",
+      "errorInput": "Podaj prawidłowy powód i PIN.",
+      "errorNotFound": "Nie znaleziono tego projektu. Mógł zostać usunięty.",
+      "errorGeneric": "Nie udało się cofnąć etapu. Spróbuj ponownie.",
+      "forbidden": "Nie masz uprawnień do cofania etapów."
     }
   },
   "Errors": {
@@ -6655,7 +6681,8 @@
         "export": "Eksportuj",
         "exporting": "Eksportowanie…",
         "exportError": "Eksport nie powiódł się. Spróbuj ponownie.",
-        "import": "Importuj"
+        "import": "Importuj",
+        "bulkImport": "Importuj ZZ"
       },
       "poStatus": {
         "draft": "Wersja robocza",
@@ -6856,6 +6883,47 @@
             "invalid_state": "Tego zamówienia nie można przyjąć w obecnym statusie.",
             "error": "Coś poszło nie tak podczas przyjmowania. Spróbuj ponownie."
           }
+        }
+      },
+      "bulkImport": {
+        "title": "Zbiorczy import zamówień zakupu",
+        "subtitle": "Wgraj plik CSV, aby podejrzeć i utworzyć zamówienia zakupu.",
+        "breadcrumbCurrent": "Import zbiorczy",
+        "denied": "Nie masz uprawnień do importowania zamówień zakupu.",
+        "fileLabel": "Plik CSV",
+        "fileHelp": "Wgraj plik CSV z pozycjami zamówień zakupu (supplier_code, item_code, qty, uom, …).",
+        "selectedFile": "Wybrany plik",
+        "preview": "Podgląd",
+        "previewing": "Przetwarzanie…",
+        "confirm": "Potwierdź import",
+        "confirming": "Importowanie…",
+        "reset": "Wyczyść",
+        "previewError": "Nie udało się wczytać podglądu pliku. Spróbuj ponownie.",
+        "confirmError": "Nie udało się ukończyć importu. Spróbuj ponownie.",
+        "validTitle": "Prawidłowe wiersze",
+        "validCount": "Prawidłowe wiersze: {n}",
+        "errorsTitle": "Błędy wierszy",
+        "errorsCount": "Błędy: {n}",
+        "noValidRows": "Brak prawidłowych wierszy do zaimportowania.",
+        "noErrors": "Brak błędów w wierszach.",
+        "createdTitle": "Import zakończony.",
+        "createdCount": "Utworzono zamówienia zakupu: {n}.",
+        "createErrorsTitle": "Błędy tworzenia",
+        "backToList": "Powrót do zamówień zakupu",
+        "columns": {
+          "row": "Wiersz",
+          "supplier": "Dostawca",
+          "item": "Pozycja",
+          "qty": "Ilość",
+          "uom": "JM",
+          "unitPrice": "Cena jedn.",
+          "currency": "Waluta",
+          "expected": "Oczekiwana dostawa"
+        },
+        "errorColumns": {
+          "row": "Wiersz",
+          "column": "Kolumna",
+          "message": "Komunikat"
         }
       }
     },

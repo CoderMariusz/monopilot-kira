@@ -103,6 +103,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     exporting: t('actions.exporting'),
     exportError: t('actions.exportError'),
     importLabel: t('actions.import'),
+    bulkImportLabel: t('actions.bulkImport'),
     searchPlaceholder: t('list.searchPlaceholder'),
     rowsCount: t('list.rowsCount'),
     supplierFilterLabel: t('list.supplierFilterLabel'),

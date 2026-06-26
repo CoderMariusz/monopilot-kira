@@ -31,6 +31,7 @@ import {
 } from '../../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { approveProjectGate as approveProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/approve-project-gate';
+import { revertNpdGate as revertNpdGateAction } from '../../../../../../(npd)/pipeline/_actions/revert-npd-gate';
 import { toggleGateChecklistItem as toggleGateChecklistItemAction } from '../../../../../../(npd)/pipeline/_actions/toggle-gate-checklist-item';
 import {
   GATE_ADVANCE_PERMISSION,
@@ -148,6 +149,7 @@ const DEFAULT_CHECKLIST_LABELS: GateChecklistLabels = {
   forbidden: 'You do not have permission to view this gate.',
   faDerivedHint: 'Closed in FA →',
   faDerivedLocked: 'FA-derived',
+  revertGate: 'Revert gate',
 };
 
 const DEFAULT_ADVANCE_LABELS: AdvanceGateLabels = {
@@ -483,6 +485,15 @@ async function toggleChecklistAdapter(projectId: string, itemId: string, done: b
   return result.ok ? { ok: true as const } : { ok: false as const, code: result.code };
 }
 
+// revertNpdGate adapter — forwards to the EXISTING action (revert-npd-gate.ts, T2-owned).
+// The action enforces its own RBAC (GATE_ADVANCE_PERMISSION), e-sign PIN + reason, and
+// the NPD_RELEASE_LOCKED / ALREADY_AT_FIRST_GATE guards; the modal maps the returned
+// { success, error, status } codes to friendly copy. We never client-trust the result.
+async function revertAdapter(input: { projectId: string; reason: string; pin: string }) {
+  'use server';
+  return revertNpdGateAction(input);
+}
+
 export default async function GatePage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as GatePageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
@@ -543,9 +554,11 @@ export default async function GatePage(propsInput: unknown = {}) {
       canWrite={loaded.canWrite}
       canAdvance={loaded.canAdvance}
       canApprove={loaded.canApprove}
+      canRevert={loaded.canAdvance}
       toggleGateChecklistItem={loaded.canWrite ? toggleChecklistAdapter.bind(null, projectId) : undefined}
       advanceProjectGate={advanceAdapter}
       approveProjectGate={approveAdapter}
+      revertProjectGate={loaded.canAdvance ? revertAdapter : undefined}
     />
   );
 }

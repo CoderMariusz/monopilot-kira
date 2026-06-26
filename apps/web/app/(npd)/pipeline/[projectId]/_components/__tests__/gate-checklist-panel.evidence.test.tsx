@@ -55,6 +55,7 @@ const LABELS: GateChecklistLabels = {
   forbidden: 'You do not have permission to view this gate checklist.',
   faDerivedHint: 'Closed in FA →',
   faDerivedLocked: 'FA-derived',
+  revertGate: 'Revert gate',
 };
 
 const PROJECT: GateChecklistProject = {

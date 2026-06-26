@@ -4777,7 +4777,8 @@
       "error": "Не вдалося завантажити контрольний список етапу. Спробуйте ще раз.",
       "forbidden": "У вас немає дозволу переглядати цей контрольний список етапу.",
       "faDerivedHint": "Closed in FA →",
-      "faDerivedLocked": "FG-derived"
+      "faDerivedLocked": "FG-derived",
+      "revertGate": "Revert gate"
     },
     "advanceGateModal": {
       "title": "Перехід до наступного етапу",
@@ -6082,6 +6083,31 @@
         "count": "Count",
         "conversion": "Conversion"
       }
+    },
+    "gateRevertModal": {
+      "title": "Revert gate",
+      "warning": "This moves the project back one gate from {gate}. The current gate's progress stays recorded in the audit log.",
+      "reasonLabel": "Reason for reverting",
+      "reasonPlaceholder": "Explain why this gate is being reverted…",
+      "reasonTooShort": "Minimum 5 characters required",
+      "reasonHelp": "Required for the audit trail",
+      "esignTitle": "E-Signature Required",
+      "esignSubtitle": "Confirm your identity. This creates a legally-binding audit record.",
+      "pinLabel": "PIN",
+      "pinPlaceholder": "Enter your e-sign PIN",
+      "confirm": "I confirm this gate revert and understand it creates an auditable signature record.",
+      "submit": "Confirm & revert",
+      "processing": "Processing…",
+      "cancel": "Cancel",
+      "doneTitle": "Gate reverted",
+      "doneDetail": "The project moved back one gate. The change is recorded in the audit log.",
+      "errorReleaseLocked": "This project is locked for release and cannot be reverted. Unlock it first.",
+      "errorFirstGate": "The project is already at the first gate — there is no earlier gate to revert to.",
+      "errorEsign": "Signature verification failed. Check your PIN and try again.",
+      "errorInput": "Please provide a valid reason and PIN.",
+      "errorNotFound": "This project could not be found. It may have been deleted.",
+      "errorGeneric": "Could not revert the gate. Try again.",
+      "forbidden": "You do not have permission to revert gates."
     }
   },
   "Errors": {
@@ -6654,7 +6680,8 @@
         "export": "Export",
         "exporting": "Exporting…",
         "exportError": "Export failed. Please retry.",
-        "import": "Import"
+        "import": "Import",
+        "bulkImport": "Import POs"
       },
       "poStatus": {
         "draft": "Draft",
@@ -6855,6 +6882,47 @@
             "invalid_state": "This purchase order can't be received in its current status.",
             "error": "Something went wrong receiving. Please retry."
           }
+        }
+      },
+      "bulkImport": {
+        "title": "Bulk import purchase orders",
+        "subtitle": "Upload a CSV to preview and create purchase orders.",
+        "breadcrumbCurrent": "Bulk import",
+        "denied": "You do not have permission to import purchase orders.",
+        "fileLabel": "CSV file",
+        "fileHelp": "Upload a CSV of purchase order lines (supplier_code, item_code, qty, uom, …).",
+        "selectedFile": "Selected file",
+        "preview": "Preview",
+        "previewing": "Previewing…",
+        "confirm": "Confirm import",
+        "confirming": "Importing…",
+        "reset": "Reset",
+        "previewError": "Could not preview the file. Please retry.",
+        "confirmError": "The import could not be completed. Please retry.",
+        "validTitle": "Valid rows",
+        "validCount": "{n} valid row(s)",
+        "errorsTitle": "Row errors",
+        "errorsCount": "{n} error(s)",
+        "noValidRows": "No valid rows to import.",
+        "noErrors": "No row errors.",
+        "createdTitle": "Import complete.",
+        "createdCount": "{n} purchase order(s) created.",
+        "createErrorsTitle": "Create errors",
+        "backToList": "Back to purchase orders",
+        "columns": {
+          "row": "Row",
+          "supplier": "Supplier",
+          "item": "Item",
+          "qty": "Qty",
+          "uom": "UoM",
+          "unitPrice": "Unit price",
+          "currency": "Currency",
+          "expected": "Expected delivery"
+        },
+        "errorColumns": {
+          "row": "Row",
+          "column": "Column",
+          "message": "Message"
         }
       }
     },

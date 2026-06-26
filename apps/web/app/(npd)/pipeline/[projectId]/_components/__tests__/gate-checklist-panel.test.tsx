@@ -65,6 +65,7 @@ const LABELS: GateChecklistLabels = {
   forbidden: 'lbl.forbidden',
   faDerivedHint: 'lbl.faDerivedHint',
   faDerivedLocked: 'lbl.faDerivedLocked',
+  revertGate: 'lbl.revertGate',
 };
 
 const PROJECT: GateChecklistProject = {

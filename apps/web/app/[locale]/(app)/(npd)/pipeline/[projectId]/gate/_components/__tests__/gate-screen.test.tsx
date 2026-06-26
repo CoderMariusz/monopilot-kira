@@ -97,6 +97,7 @@ const CHECKLIST_LABELS: GateScreenLabels['checklist'] = {
   forbidden: 'cl.forbidden',
   faDerivedHint: 'cl.faDerivedHint',
   faDerivedLocked: 'cl.faDerivedLocked',
+  revertGate: 'cl.revertGate',
 };
 
 const ADVANCE_LABELS: GateScreenLabels['advance'] = {
@@ -298,6 +299,50 @@ describe('T-111 GateScreen wiring', () => {
     renderScreen({ canApprove: false }, 'G3');
     await user.click(screen.getByTestId('gate-advance-button'));
     expect(await screen.findByTestId('gate-approval-forbidden')).toBeInTheDocument();
+  });
+
+  it('revert: the ghost "Revert gate" button opens the GateRevertModal (e-sign reason + PIN)', async () => {
+    const user = userEvent.setup();
+    renderScreen({ canRevert: true, revertProjectGate: vi.fn(async () => ({ success: true as const })) }, 'G3');
+    await user.click(screen.getByTestId('gate-revert-button'));
+    expect(await screen.findByTestId('gate-revert-project')).toBeInTheDocument();
+    expect(document.getElementById('gate-revert-reason')).toBeInTheDocument();
+    const pin = document.getElementById('gate-revert-pin') as HTMLInputElement;
+    expect(pin.type).toBe('password');
+  });
+
+  it('revert: a successful revert triggers router.refresh and closes the modal', async () => {
+    const user = userEvent.setup();
+    const revertProjectGate = vi.fn(async () => ({ success: true as const }));
+    renderScreen({ canRevert: true, revertProjectGate }, 'G3');
+
+    await user.click(screen.getByTestId('gate-revert-button'));
+    await user.type(document.getElementById('gate-revert-reason')!, 'Reverting wrong gate');
+    await user.type(document.getElementById('gate-revert-pin')!, '4321');
+    await user.click(screen.getByTestId('modal-body').querySelector('#gate-revert-confirm')!);
+    await user.click(screen.getByTestId('gate-revert-submit'));
+
+    expect(revertProjectGate).toHaveBeenCalledWith({ projectId: PROJECT_ID, reason: 'Reverting wrong gate', pin: '4321' });
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('revert: the button is hidden at the first gate (G0 — previousGate is null)', () => {
+    // Build a data object whose current gate is G0; the panel must not offer a revert.
+    const data = makeData('G2');
+    const g0Data: GateScreenData = {
+      ...data,
+      panelProject: { ...data.panelProject, currentGate: 'G2' },
+      gates: data.gates.map((g) => ({ ...g, isCurrent: g.key === 'G0' })),
+    };
+    render(
+      <GateScreen projectId={PROJECT_ID} data={g0Data} labels={LABELS} state="ready" canWrite canAdvance canApprove canRevert revertProjectGate={vi.fn(async () => ({ success: true as const }))} />,
+    );
+    expect(screen.queryByTestId('gate-revert-button')).not.toBeInTheDocument();
+  });
+
+  it('revert: the button is absent when the caller may not revert (canRevert=false)', () => {
+    renderScreen({ canRevert: false }, 'G3');
+    expect(screen.queryByTestId('gate-revert-button')).not.toBeInTheDocument();
   });
 
   it('i18n: the orchestrator renders only label VALUES (no inline English literals)', () => {

@@ -34,6 +34,7 @@ import {
   type GateChecklistProject,
   type GateView,
   type OpenModalFn,
+  type OpenRevertModalFn,
   type PanelState,
   type ToggleGateChecklistItemAction,
 } from '../../../../../../../(npd)/pipeline/[projectId]/_components/gate-checklist-panel';
@@ -52,13 +53,17 @@ import {
   type OnApproveGate,
 } from '../../../../../../../(npd)/_modals/gate-approval-modal';
 import {
+  GateRevertModal,
+  type RevertProjectGateAction,
+} from '../../../../../../../(npd)/_modals/gate-revert-modal';
+import {
   ApprovalHistoryTimeline,
   type ApprovalHistoryEntry,
   type ApprovalHistoryLabels,
   type ApprovalHistoryState,
 } from '../../_components/approval-history-timeline';
 
-type ActiveModal = 'none' | 'advanceGate' | 'gateApproval';
+type ActiveModal = 'none' | 'advanceGate' | 'gateApproval' | 'gateRevert';
 
 export type GateScreenData = {
   /** Checklist-panel project header. */
@@ -95,10 +100,14 @@ export type GateScreenProps = {
   canAdvance?: boolean;
   /** True when the caller may approve gates (npd.gate.approve). */
   canApprove?: boolean;
+  /** True when the caller may revert a gate (npd.gate.advance — same permission as advance). */
+  canRevert?: boolean;
   /** Server-Action adapters (owned by T-058 — injected by the RSC page, never authored here). */
   toggleGateChecklistItem?: ToggleGateChecklistItemAction;
   advanceProjectGate?: AdvanceProjectGateAction;
   approveProjectGate?: OnApproveGate;
+  /** revertNpdGate adapter (owned by revert-npd-gate.ts — injected by the RSC page). */
+  revertProjectGate?: RevertProjectGateAction;
 };
 
 /** Maps the panel state to the read-only timeline's state union. */
@@ -114,9 +123,11 @@ export function GateScreen({
   canWrite = false,
   canAdvance = false,
   canApprove = false,
+  canRevert = false,
   toggleGateChecklistItem,
   advanceProjectGate,
   approveProjectGate,
+  revertProjectGate,
 }: GateScreenProps) {
   const router = useRouter();
   const [activeModal, setActiveModal] = React.useState<ActiveModal>('none');
@@ -124,6 +135,11 @@ export function GateScreen({
   // GateChecklistPanel asks to open a modal keyed by the gate's requiresApproval flag.
   const openModal = React.useCallback<OpenModalFn>((modal) => {
     setActiveModal(modal);
+  }, []);
+
+  // The panel's "Revert gate" ghost button opens the dedicated e-sign revert modal.
+  const openRevertModal = React.useCallback<OpenRevertModalFn>(() => {
+    setActiveModal('gateRevert');
   }, []);
 
   const closeModal = React.useCallback(() => setActiveModal('none'), []);
@@ -148,6 +164,13 @@ export function GateScreen({
 
   const approvalStatus: GateApprovalStatus = canApprove ? 'ready' : 'forbidden';
 
+  // Human label of the gate the project currently sits at (e.g. "G3 — Development"),
+  // shown in the revert modal's warning copy.
+  const currentGateView = data.gates.find((g) => g.isCurrent) ?? data.gates[data.gates.length - 1];
+  const currentGateLabel = currentGateView
+    ? `${currentGateView.key} — ${currentGateView.label}`
+    : data.panelProject.currentGate;
+
   return (
     <div data-testid="gate-screen" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0">
@@ -156,10 +179,12 @@ export function GateScreen({
           gates={data.gates}
           labels={labels.checklist}
           canWrite={canWrite}
+          canRevert={canRevert && !!revertProjectGate}
           state={state}
           isTerminal={data.isTerminal}
           toggleGateChecklistItem={toggleGateChecklistItem}
           openModal={openModal}
+          openRevertModal={openRevertModal}
         />
       </div>
 
@@ -190,6 +215,20 @@ export function GateScreen({
         project={data.approvalProject}
         status={approvalStatus}
         onApprove={handleApprove}
+        onClose={closeModal}
+      />
+
+      <GateRevertModal
+        open={activeModal === 'gateRevert'}
+        project={{
+          id: data.panelProject.id,
+          code: data.panelProject.code,
+          name: data.panelProject.name,
+          currentGateLabel,
+        }}
+        status={canRevert ? 'ready' : 'forbidden'}
+        revertProjectGate={canRevert ? revertProjectGate : undefined}
+        onReverted={onMutated}
         onClose={closeModal}
       />
     </div>
