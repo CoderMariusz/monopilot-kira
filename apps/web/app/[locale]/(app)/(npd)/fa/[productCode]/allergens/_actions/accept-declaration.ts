@@ -6,7 +6,14 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 
-const WRITE_PERMISSIONS = ['technical.write', 'quality.write'] as const;
+// The accept/revoke control is an allergen write, so it must accept the SAME
+// permission that gates the surface (npd.allergen.write — resolved in
+// read-allergen-cascade.ts canWrite). Without it, an org super-user / NPD writer
+// who holds npd.allergen.write (and sees the checkbox) but lacks technical.write/
+// quality.write got the checkbox rendered yet every save returned FORBIDDEN
+// ("Could not update the declaration. Try again."). technical.write/quality.write
+// stay valid so quality/technical leads keep their existing access.
+const WRITE_PERMISSIONS = ['npd.allergen.write', 'technical.write', 'quality.write'] as const;
 
 const inputSchema = z.object({
   productCode: z.string().trim().min(1),
