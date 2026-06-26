@@ -57,6 +57,11 @@ type DocsRow = {
   invalid_count: string;
 };
 
+type CriterionConfigRow = {
+  criterion_key: string;
+  required: boolean;
+};
+
 export async function evaluateApprovalCriteria(
   productCodeInput: unknown,
 ): Promise<EvaluateApprovalCriteriaResult> {
@@ -186,25 +191,48 @@ export async function evaluateApprovalCriteria(
       const docsRow = docs.rows[0] ?? { active_count: '0', expired_count: '0', invalid_count: '0' };
       const publishedAllergens = [...(productRow.allergens ?? []), ...(productRow.may_contain ?? [])];
       const marginThresholdPct = resolveThreshold(marginThreshold.rows[0]);
+      const criterionConfig = await client.query<CriterionConfigRow>(
+        `select criterion_key, required
+           from public.npd_approval_criterion_config
+          where org_id = app.current_org_id()`,
+      );
+      const requiredByCriterion = new Map(
+        criterionConfig.rows.map((row) => [row.criterion_key, row.required] as const),
+      );
+      const requiredFor = (criterionKey: keyof ApprovalCriteriaResult, fallback = true): boolean =>
+        requiredByCriterion.get(criterionKey) ?? fallback;
 
       return {
         ok: true as const,
         data: evaluateApprovalCriteriaPure({
-          formulation: { lockedAt: formulationRow.locked_at },
-          nutrition: { nutriScoreGrade: nutrition.rows[0]?.grade ?? null },
+          formulation: {
+            required: requiredFor('C1'),
+            lockedAt: formulationRow.locked_at,
+          },
+          nutrition: {
+            required: requiredFor('C2'),
+            nutriScoreGrade: nutrition.rows[0]?.grade ?? null,
+          },
           costing: {
+            required: requiredFor('C3'),
             targetMarginPct: costing.rows[0]?.margin_pct ?? null,
             ...(marginThresholdPct ? { marginThresholdPct } : {}),
           },
-          sensory: sensoryInput,
+          sensory: {
+            ...sensoryInput,
+            required: requiredFor('C4', sensoryInput.required ?? true),
+          },
           allergens: {
+            required: requiredFor('C5'),
             audited: allergenAudit.rows[0]?.audited === true || productRow.allergens_declaration_accepted === true,
             passed: publishedAllergens.every((code) => code.trim().length > 0),
           },
           risks: {
+            required: requiredFor('C6'),
             openHighCount: Number.parseInt(risks.rows[0]?.open_high_count ?? '0', 10),
           },
           docs: {
+            required: requiredFor('C7'),
             activeCount: Number.parseInt(docsRow.active_count, 10),
             expiredCount: Number.parseInt(docsRow.expired_count, 10),
             invalidCount: Number.parseInt(docsRow.invalid_count, 10),

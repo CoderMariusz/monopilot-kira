@@ -1374,6 +1374,22 @@
       "disabled": "Disabled",
       "updatedBySystem": "system",
       "tenantLocalFeatureFlag": "Tenant-local feature flag."
+    },
+    "npdApproval": {
+      "title": "Approval requirements",
+      "subtitle": "Choose which checks must pass before a product can be approved.",
+      "section_title": "Approval requirements",
+      "helper": "Turn a criterion off to stop it blocking approval for this org (e.g. small production that doesn't need microbiological testing).",
+      "column_criterion": "Criterion",
+      "column_required": "Required",
+      "required_yes": "Required",
+      "required_no": "Optional",
+      "saving": "Saving…",
+      "toggle_error": "Could not update this criterion. Try again.",
+      "read_only_notice": "You need npd.schema.edit to change approval requirements.",
+      "forbidden": "You don't have permission to view approval requirements.",
+      "load_error": "Unable to load approval requirements.",
+      "empty": "No approval criteria are configured."
     }
   },
   "navigation": {
@@ -1557,7 +1573,8 @@
         "labor_rates": "Labor rates",
         "temp_ranges": "Temperature ranges",
         "docks": "Dock doors",
-        "scanner_auth": "Sign-off & PINs"
+        "scanner_auth": "Sign-off & PINs",
+        "npd_approval": "Approval requirements"
       }
     },
     "npd": {

@@ -32,6 +32,8 @@ const EXPECTED_SETTINGS_NAV = [
     items: [
       { key: "products", label: "Products & SKUs", icon: "▢" },
       { key: "npd-fields", label: "NPD fields", icon: "▦" },
+      // NPD approval requirements (C1..C7 required toggles) — surfaced next to NPD fields.
+      { key: "npd-approval", label: "Approval requirements", icon: "✔" },
       { key: "boms", label: "BOMs & recipes", icon: "⛓" },
       { key: "processes", label: "Processes", icon: "⟶", highlight: true },
       // Wave-7 machines CRUD screen (supersedes /settings/infra/machines).

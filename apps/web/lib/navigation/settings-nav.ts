@@ -53,6 +53,11 @@ export const SETTINGS_NAV_GROUPS = [
   group("data", "Data", true, [
     item("products", "Products & SKUs", "▢"),
     item("npd-fields", "NPD fields", "▦", false, "/settings/npd-fields"),
+    // NPD approval requirements — per-org toggles for which approval criteria
+    // (C1..C7) block product approval. Sits next to NPD fields so the screen is
+    // not a URL-only dead-end. RBAC (npd.schema.edit) is enforced server-side on
+    // the page/actions; the nav stays ungated per the UI-128 RBAC_TODO contract.
+    item("npd-approval", "Approval requirements", "✔", false, "/settings/npd-approval"),
     item("boms", "BOMs & recipes", "⛓"),
     item("processes", "Processes", "⟶", true),
     item("machines", "Machines", "⚙"),

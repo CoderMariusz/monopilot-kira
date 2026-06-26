@@ -1374,6 +1374,22 @@
       "disabled": "Wyłączone",
       "updatedBySystem": "system",
       "tenantLocalFeatureFlag": "Lokalna flaga funkcji tenant."
+    },
+    "npdApproval": {
+      "title": "Wymagania zatwierdzenia",
+      "subtitle": "Wybierz, które kontrole muszą zostać spełnione, zanim produkt zostanie zatwierdzony.",
+      "section_title": "Wymagania zatwierdzenia",
+      "helper": "Wyłącz kryterium, aby przestało blokować zatwierdzenie dla tej organizacji (np. mała produkcja, która nie wymaga badań mikrobiologicznych).",
+      "column_criterion": "Kryterium",
+      "column_required": "Wymagane",
+      "required_yes": "Wymagane",
+      "required_no": "Opcjonalne",
+      "saving": "Zapisywanie…",
+      "toggle_error": "Nie udało się zaktualizować tego kryterium. Spróbuj ponownie.",
+      "read_only_notice": "Potrzebujesz uprawnienia npd.schema.edit, aby zmieniać wymagania zatwierdzenia.",
+      "forbidden": "Nie masz uprawnień do wyświetlania wymagań zatwierdzenia.",
+      "load_error": "Nie udało się załadować wymagań zatwierdzenia.",
+      "empty": "Brak skonfigurowanych kryteriów zatwierdzenia."
     }
   },
   "navigation": {
@@ -1557,7 +1573,8 @@
         "labor_rates": "Stawki pracy",
         "temp_ranges": "Zakresy temperatur",
         "docks": "Bramy dokowe",
-        "scanner_auth": "Zatwierdzenia i PIN-y"
+        "scanner_auth": "Zatwierdzenia i PIN-y",
+        "npd_approval": "Wymagania zatwierdzenia"
       }
     },
     "npd": {
