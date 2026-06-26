@@ -58,6 +58,7 @@ const readyResult = {
         materials: [{ itemCode: 'RM-A', qtyKg: '10.000', costPerKg: '1.250000', cost: '12.5000' }],
         materialsTotal: '12.5000',
         labor: { runtimeMin: '60.000', staffing: '2', ratePerHour: '15.0000', cost: '30.0000' },
+        downtimeCost: '7.5000',
         machineCost: '0.0000',
         setupCost: '5.0000',
         wasteCost: '1.2500',
@@ -109,6 +110,8 @@ describe('FinanceWoCostTable', () => {
     expect(within(expanded).getByText('RM-A')).toBeInTheDocument();
     expect(within(expanded).getByText('12.5000')).toBeInTheDocument();
     expect(within(expanded).getByText('5.0000')).toBeInTheDocument();
+    expect(within(expanded).getByText('Downtime cost')).toBeInTheDocument();
+    expect(within(expanded).getByText('7.5000')).toBeInTheDocument();
   });
 
   it('re-fetches the server component by calling router.refresh on Refresh', () => {

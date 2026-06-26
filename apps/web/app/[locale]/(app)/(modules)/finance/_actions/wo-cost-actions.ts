@@ -60,6 +60,7 @@ export type WoActualCost = {
   materials: WoActualCostMaterial[];
   materialsTotal: string;
   labor: WoActualCostLabor | null;
+  downtimeCost: string;
   machineCost: string;
   setupCost: string;
   wasteCost: string;
@@ -136,6 +137,23 @@ function clampRuntime(runtimeMin: string, downtimeMin: number): string {
   const downtime = toMicro(Math.max(0, downtimeMin).toFixed(6));
   const actual = runtime > downtime ? runtime - downtime : 0n;
   return microToFixed(actual, 6);
+}
+
+function divRound(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const neg = (numerator < 0n) !== (denominator < 0n);
+  const absNum = numerator < 0n ? -numerator : numerator;
+  const absDen = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNum + absDen / 2n) / absDen;
+  return neg ? -rounded : rounded;
+}
+
+function downtimeCostFromLaborRate(downtimeMin: number, laborRatePerHour: string | null): string {
+  if (laborRatePerHour == null) return '0.0000';
+  const downtimeMinutes = toMicro(Math.max(0, downtimeMin).toFixed(6));
+  const ratePerHour = toMicro(laborRatePerHour);
+  const cost = divRound(downtimeMinutes * ratePerHour, toMicro('60'));
+  return microToFixed(cost, 4);
 }
 
 function asDays(value: unknown, fallback: number): number {
@@ -288,6 +306,7 @@ async function computeWoActualCostInContext(
         ? 'per_hour'
         : null;
   const hasHourlyLabor = costMode === 'per_hour' && processRow?.cost_rate != null;
+  const downtimeCost = hasHourlyLabor ? downtimeCostFromLaborRate(downtimeMin, processRow!.cost_rate!) : '0.0000';
   const machineCost = costMode === 'per_run' && processRow?.cost_rate != null ? processRow.cost_rate : null;
   const totals = computeWoActualCostTotals({
     materials: materials.rows.map((row) => ({
@@ -316,6 +335,7 @@ async function computeWoActualCostInContext(
       product: { itemCode: wo.product_code, name: wo.product_name },
       outputKg: wo.output_kg,
       ...totals,
+      downtimeCost,
       processResolution: {
         operationName: processRow?.operation_name ?? null,
         processRowKey: processRow?.row_key ?? null,

@@ -117,6 +117,7 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
           'materials',
           'materialsTotal',
           'labor',
+          'downtimeCost',
           'machineCost',
           'setupCost',
           'wasteCost',
@@ -133,6 +134,7 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
           JSON.stringify(row.materials),
           row.materialsTotal,
           row.labor == null ? null : JSON.stringify(row.labor),
+          row.downtimeCost,
           row.machineCost,
           row.setupCost,
           row.wasteCost,
@@ -263,6 +265,10 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
                           <div>
                             <dt className="text-slate-500">{labels.breakdown.waste}</dt>
                             <dd className="font-mono text-slate-900">{row.wasteCost}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-slate-500">Downtime cost</dt>
+                            <dd className="font-mono text-slate-900">{row.downtimeCost}</dd>
                           </div>
                         </dl>
                       </div>
