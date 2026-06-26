@@ -496,8 +496,25 @@ export function NutritionScreen({
             </Card>
 
             <Card data-testid="nutri-score-card">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <CardTitle>{labels.nutriScoreTitle}</CardTitle>
+                {/* C2 — recompute right next to the grade so a D/E warning is fixable
+                    in place (the page-header affordance is easy to miss). Same action,
+                    same pending/refresh path as the empty-state CTA. Render-gated on the
+                    write-only action being threaded server-side. */}
+                {computeAction !== undefined ? (
+                  <Button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    onClick={runCompute}
+                    disabled={computeStatus === 'computing'}
+                    aria-label={labels.recomputeNutriScore}
+                    data-status={computeStatus}
+                    data-testid="nutrition-recompute-card"
+                  >
+                    {computeStatus === 'computing' ? labels.computing : labels.recomputeNutriScore}
+                  </Button>
+                ) : null}
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-5 py-2">

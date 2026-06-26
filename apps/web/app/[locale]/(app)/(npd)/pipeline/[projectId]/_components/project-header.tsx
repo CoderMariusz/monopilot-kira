@@ -106,6 +106,13 @@ export type ProjectHeaderView = {
   targetLaunch: string | null;
   /** Already-localized gate/stage badge label. */
   gateLabel: string;
+  /**
+   * Optional already-localized tooltip for the gate badge. Used to explain the
+   * G0–G1 merge at the initial gate (G1 "Feasibility" is collapsed into the Brief
+   * stage by the 2026-06-06 pivot and is never a forward advance target, so it is
+   * never shown as its own stepper step). Rendered as the badge's native `title`.
+   */
+  gateLabelHint?: string | null;
   gateTone: ProjectHeaderBadgeTone;
   /** Already-localized priority badge label. */
   prioLabel: string;
@@ -267,7 +274,11 @@ export function ProjectHeader({
             <h1 className="page-title" style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
               {project.name}
             </h1>
-            <span className={`badge badge-${project.gateTone}`} data-testid="project-header-gate">
+            <span
+              className={`badge badge-${project.gateTone}`}
+              title={project.gateLabelHint ?? undefined}
+              data-testid="project-header-gate"
+            >
               {project.gateLabel}
             </span>
             <span className={`badge badge-${project.prioTone}`} data-testid="project-header-prio">

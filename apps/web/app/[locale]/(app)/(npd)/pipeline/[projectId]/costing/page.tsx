@@ -109,6 +109,7 @@ const DEFAULT_LABELS: Required<CostingLabels> = {
   error: 'Unable to load costing data.',
   forbidden: 'You do not have permission to view costing data.',
   computeCosting: 'Compute costing',
+  recomputeCosting: 'Recompute',
   computing: 'Computing…',
   computeError: 'Could not compute the costing. Try again.',
   computeErrorNotFound: 'No formulation is available to compute costing from yet.',

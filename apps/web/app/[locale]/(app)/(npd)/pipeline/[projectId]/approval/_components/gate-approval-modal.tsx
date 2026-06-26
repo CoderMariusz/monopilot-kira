@@ -136,13 +136,21 @@ export function GateApprovalModal({
         </div>
       </Modal.Body>
       <Modal.Footer>
-        <Button type="button" data-testid="approval-modal-cancel" disabled={busy} onClick={onClose}>
+        <Button
+          type="button"
+          className="btn--ghost"
+          data-testid="approval-modal-cancel"
+          disabled={busy}
+          onClick={onClose}
+        >
           {labels.cancel}
         </Button>
         <Button
           type="button"
+          className="btn--primary"
           data-testid="approval-modal-confirm"
-          disabled={!canConfirm}
+          disabled={busy}
+          aria-busy={busy}
           onClick={handleConfirm}
         >
           {busy ? labels.signing : labels.confirm}

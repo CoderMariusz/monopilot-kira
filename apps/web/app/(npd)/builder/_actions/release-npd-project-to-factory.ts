@@ -40,6 +40,9 @@ export type ReleaseNpdProjectToFactoryResult =
         productCode: string;
         activeBomHeaderId: string;
         activeFactorySpecId: string;
+        yieldPromptRequired: boolean;
+        productionCode: string;
+        bomHeaderId: string;
         releaseStatus: 'released_to_factory';
         factoryAvailableAt: string;
         releaseEventId: number;
@@ -64,7 +67,20 @@ export async function releaseNpdProjectToFactory(
     const runRelease = async (ctx: OrgContextLike): Promise<ReleaseNpdProjectToFactoryResult> => {
       const context = ctx as OrgContextLike;
       await requireReleasePermission(context);
-      await materializeNpdBom(context, { projectId: parsed.data.projectId });
+      const materialized = await materializeNpdBom(context, { projectId: parsed.data.projectId });
+      if (materialized.code === 'PRODUCTION_CODE_CONFLICT') {
+        return {
+          ok: false,
+          error: 'PRECONDITION_BLOCKERS',
+          status: 409,
+          blockers: [
+            {
+              code: 'ACTIVE_SHARED_BOM_REQUIRED',
+              message: `Production code ${materialized.productionCode} is already used outside this NPD project.`,
+            },
+          ],
+        };
+      }
       const ready = await runReleasePreflight(context, parsed.data);
 
       const releaseEventId = await insertReleasedToFactoryEvent(context, {
@@ -98,6 +114,9 @@ export async function releaseNpdProjectToFactory(
           productCode: ready.productCode,
           activeBomHeaderId: ready.activeBomHeaderId,
           activeFactorySpecId: ready.activeFactorySpecId,
+          yieldPromptRequired: materialized.yieldPromptRequired,
+          productionCode: materialized.productionCode ?? ready.productCode,
+          bomHeaderId: materialized.bomHeaderId ?? ready.activeBomHeaderId,
           releaseStatus: release.release_status,
           factoryAvailableAt: toIso(release.factory_available_at),
           releaseEventId: Number(release.release_event_id),

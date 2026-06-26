@@ -56,6 +56,9 @@ export type PromoteToProductionResult =
       data: {
         projectId: string;
         destinationBomCode: string | null;
+        yieldPromptRequired: boolean;
+        productionCode: string;
+        bomHeaderId: string;
         promoteToProductionDate: string;
         /** True when the real factory-release flow committed the release. */
         releasedToFactory: boolean;
@@ -181,6 +184,9 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
           JSON.stringify({
             projectId,
             destinationBomCode: releaseDestinationBom,
+            yieldPromptRequired: release.data.yieldPromptRequired,
+            productionCode: release.data.productionCode,
+            bomHeaderId: release.data.bomHeaderId,
             releasedToFactory,
             promoteToProductionDate: row.promote_to_production_date,
           }),
@@ -190,6 +196,9 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
       return {
         ok: true as const,
         destinationBomCode: releaseDestinationBom,
+        yieldPromptRequired: release.data.yieldPromptRequired,
+        productionCode: release.data.productionCode,
+        bomHeaderId: release.data.bomHeaderId,
         promoteToProductionDate: row.promote_to_production_date,
         releasedToFactory,
       };
@@ -204,6 +213,9 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
       data: {
         projectId,
         destinationBomCode: result.destinationBomCode,
+        yieldPromptRequired: result.yieldPromptRequired,
+        productionCode: result.productionCode,
+        bomHeaderId: result.bomHeaderId,
         promoteToProductionDate: result.promoteToProductionDate,
         releasedToFactory: result.releasedToFactory,
       },

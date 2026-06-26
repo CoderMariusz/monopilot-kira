@@ -72,6 +72,8 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       // allergen cascade recompute over the materialized BOM (no parents in fixture)
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select pc.component_name')) return [];
       if (sql.startsWith('with recursive parents as')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
@@ -81,9 +83,11 @@ describe('materializeNpdBom', () => {
     expect(result).toEqual({
       projectId: PROJECT,
       productCode: 'FG-001',
+      productionCode: 'FG-001',
       itemId: ITEM,
       bomHeaderId: BOM,
       factorySpecId: SPEC,
+      yieldPromptRequired: false,
       createdBom: true,
       createdFactorySpec: true,
     });
@@ -109,6 +113,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('update public.formulations')) return [];
       if (sql.startsWith('select id, wo_reference, status')) return [];
       if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select h.id, h.version')) return [{ id: BOM, version: 2 }];
       if (sql.startsWith('select id from public.factory_specs')) return [{ id: SPEC }];
       throw new Error(`Unhandled SQL: ${sql}`);

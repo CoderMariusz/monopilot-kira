@@ -124,6 +124,8 @@ export type CostingLabels = {
   forbidden: string;
   /** Compute costing action (C3) — empty-state CTA + its error messages. */
   computeCosting: string;
+  /** Recompute action (C3) — ready-state CTA to re-roll the breakdown after inputs change. */
+  recomputeCosting?: string;
   computing: string;
   computeError: string;
   computeErrorNotFound: string;
@@ -434,21 +436,45 @@ export function CostingScreen({
           </h1>
           <p className="mt-1 text-sm muted">{labels.subtitle}</p>
         </div>
-        {/* recipe parity: per-kg / per-pack / per-batch toggle = .pills (not buttons) */}
-        <div className="pills" role="group" aria-label={labels.title}>
-          {unitButtons.map((u) => (
-            <button
-              key={u.value}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* recipe parity: per-kg / per-pack / per-batch toggle = .pills (not buttons) */}
+          <div className="pills" role="group" aria-label={labels.title}>
+            {unitButtons.map((u) => (
+              <button
+                key={u.value}
+                type="button"
+                aria-pressed={unit === u.value}
+                onClick={() => setUnit(u.value)}
+                className={unit === u.value ? 'pill on' : 'pill'}
+              >
+                {u.label}
+              </button>
+            ))}
+          </div>
+          {/* C3 — Recompute the breakdown after inputs change (write-gated server-side
+              by withholding the action; same idempotent compute action as the empty state). */}
+          {computeAction ? (
+            <Button
               type="button"
-              aria-pressed={unit === u.value}
-              onClick={() => setUnit(u.value)}
-              className={unit === u.value ? 'pill on' : 'pill'}
+              className="btn-primary"
+              onClick={runCompute}
+              disabled={computeStatus === 'computing'}
+              data-status={computeStatus}
+              data-testid="costing-recompute"
             >
-              {u.label}
-            </button>
-          ))}
+              {computeStatus === 'computing'
+                ? labels.computing
+                : (labels.recomputeCosting ?? labels.computeCosting)}
+            </Button>
+          ) : null}
         </div>
       </header>
+
+      {computeStatus === 'error' && computeError ? (
+        <div role="alert" className="alert alert-red" data-testid="costing-compute-error">
+          {computeError}
+        </div>
+      ) : null}
 
       {failingScenarios.length > 0 ? (
         <div

@@ -2,6 +2,8 @@ import { cascadeAllergensForChangedItem } from '../../../../../lib/technical/all
 import { type GateProjectRow } from './gate-helpers';
 import { type OrgContextLike } from '../shared';
 
+function deriveProductionCode(npdCode: string): string { return npdCode.replace(/-NPD-/i, '-'); }
+
 type MaterializeNpdBomInput = {
   projectId: string;
 };
@@ -22,6 +24,12 @@ type IngredientRow = {
   item_id: string | null;
   qty_kg: string | null;
   sequence: number;
+};
+
+type PackagingComponentRow = {
+  component_name: string;
+  item_id: string;
+  qty: string;
 };
 
 type ItemRow = {
@@ -47,11 +55,14 @@ type PilotEvidenceRow = {
 };
 
 export type MaterializeNpdBomResult = {
+  code?: 'PRODUCTION_CODE_CONFLICT';
   projectId: string;
   productCode: string | null;
+  productionCode: string | null;
   itemId: string | null;
   bomHeaderId: string | null;
   factorySpecId: string | null;
+  yieldPromptRequired: boolean;
   createdBom: boolean;
   createdFactorySpec: boolean;
 };
@@ -62,20 +73,28 @@ export async function materializeNpdBom(
 ): Promise<MaterializeNpdBomResult> {
   const project = await loadProject(ctx, input.projectId);
   if (!project?.product_code) {
-    return emptyResult(input.projectId, project?.product_code ?? null);
+    return emptyResult(input.projectId, project?.product_code ?? null, null);
+  }
+
+  const productionCode = deriveProductionCode(project.product_code);
+  if (await hasProductionCodeConflict(ctx, productionCode, project.id)) {
+    return {
+      code: 'PRODUCTION_CODE_CONFLICT',
+      ...emptyResult(project.id, project.product_code, productionCode),
+    };
   }
 
   const formulation = await loadLockedFormulation(ctx, project.id);
   if (!formulation) {
     await ensureFgItemAndProduct(ctx, project, null);
-    return emptyResult(project.id, project.product_code);
+    return emptyResult(project.id, project.product_code, productionCode);
   }
 
   const ingredients = await loadIngredients(ctx, formulation.version_id);
   const item = await ensureFgItemAndProduct(ctx, project, formulation);
   await stampProductCloseoutInputs(ctx, project, item);
 
-  const existingBom = await loadExistingActiveNpdBom(ctx, project.id, project.product_code);
+  const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
   const bom = existingBom ?? (ingredients.length > 0
     ? await createActiveNpdBom(ctx, project, formulation, ingredients)
     : null);
@@ -106,16 +125,18 @@ export async function materializeNpdBom(
         where org_id = app.current_org_id()
           and product_code = $1
           and (private_jsonb -> 'trial_allergens_cascade_recomputed_at') is null`,
-      [project.product_code],
+      [productionCode],
     );
   }
 
   return {
     projectId: project.id,
     productCode: project.product_code,
+    productionCode,
     itemId: item.id,
     bomHeaderId: bom?.id ?? null,
     factorySpecId: existingSpec?.id ?? createdSpec?.id ?? null,
+    yieldPromptRequired: !formulation.target_yield_pct,
     createdBom: !existingBom && !!bom,
     createdFactorySpec: !!createdSpec,
   };
@@ -131,6 +152,24 @@ async function loadProject(ctx: OrgContextLike, projectId: string): Promise<Proj
     [projectId],
   );
   return rows[0] ?? null;
+}
+
+async function hasProductionCodeConflict(
+  ctx: OrgContextLike,
+  productionCode: string,
+  projectId: string,
+): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select id
+       from public.items
+      where org_id = app.current_org_id()
+        and item_code = $1
+        and (origin_module is distinct from 'npd'
+             or npd_project_id is distinct from $2::uuid)
+      limit 1`,
+    [productionCode, projectId],
+  );
+  return Boolean(rows[0]);
 }
 
 async function loadLockedFormulation(ctx: OrgContextLike, projectId: string): Promise<LockedFormulationRow | null> {
@@ -171,15 +210,19 @@ async function ensureFgItemAndProduct(
   project: ProjectRow,
   formulation: LockedFormulationRow | null,
 ): Promise<ItemRow> {
-  const productCode = project.product_code as string;
+  const productCode = deriveProductionCode(project.product_code as string);
+  const outputUom = project.pack_weight_g != null ? 'each' : 'base';
+  const netQtyPerEach = project.pack_weight_g != null ? Number(project.pack_weight_g) / 1000.0 : null;
   const inserted = await ctx.client.query<ItemRow>(
     `insert into public.items
-       (org_id, item_code, item_type, name, status, uom_base, shelf_life_days, created_by)
+       (org_id, item_code, item_type, name, status, uom_base, shelf_life_days, output_uom,
+        net_qty_per_each, each_per_box, origin_module, npd_project_id, created_by)
      values
-       (app.current_org_id(), $1, 'fg', $2, 'active', 'kg', 30, $3::uuid)
+       (app.current_org_id(), $1, 'fg', $2, 'active', 'kg', 30, $3, $4::numeric, null,
+        'npd', $5::uuid, $6::uuid)
      on conflict (org_id, item_code) do nothing
      returning id, item_code, name, shelf_life_days`,
-    [productCode, project.name, ctx.userId],
+    [productCode, project.name, outputUom, netQtyPerEach, project.id, ctx.userId],
   );
   const item = inserted.rows[0] ?? (await loadItem(ctx, productCode));
   if (!item) throw new Error(`failed to ensure FG item ${productCode}`);
@@ -230,6 +273,7 @@ async function loadItem(ctx: OrgContextLike, productCode: string): Promise<ItemR
 
 async function stampProductCloseoutInputs(ctx: OrgContextLike, project: ProjectRow, item: ItemRow): Promise<void> {
   const pilot = await loadPilotEvidence(ctx, project.id);
+  const productCode = deriveProductionCode(project.product_code as string);
   await ctx.client.query(
     `update public.product
         set shelf_life = coalesce(nullif(shelf_life, ''), $2),
@@ -245,7 +289,7 @@ async function stampProductCloseoutInputs(ctx: OrgContextLike, project: ProjectR
       where org_id = app.current_org_id()
         and product_code = $1`,
     [
-      project.product_code,
+      productCode,
       String(item.shelf_life_days ?? 30),
       project.id,
       pilot?.id ?? null,
@@ -301,7 +345,8 @@ async function createActiveNpdBom(
   formulation: LockedFormulationRow,
   ingredients: IngredientRow[],
 ): Promise<BomHeaderRow> {
-  const version = await nextBomVersion(ctx, project.product_code as string);
+  const productCode = deriveProductionCode(project.product_code as string);
+  const version = await nextBomVersion(ctx, productCode);
   const yieldPct = formulation.target_yield_pct ?? '100.000';
   const { rows } = await ctx.client.query<BomHeaderRow>(
     `insert into public.bom_headers
@@ -312,7 +357,7 @@ async function createActiveNpdBom(
         current_date, $5, $6::uuid, 'npd-release-materialize-v1')
      returning id, version`,
     [
-      project.product_code,
+      productCode,
       project.id,
       version,
       yieldPct,
@@ -323,8 +368,10 @@ async function createActiveNpdBom(
   const header = rows[0];
   if (!header) throw new Error('bom_headers insert returned no row');
 
+  const qtyMultiplier = project.pack_weight_g ? Number(project.pack_weight_g) / 1000 : 1;
   for (let index = 0; index < ingredients.length; index++) {
     const ingredient = ingredients[index]!;
+    const quantity = (Number(ingredient.qty_kg ?? 0) * qtyMultiplier).toFixed(6);
     await ctx.client.query(
       `insert into public.bom_lines
          (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
@@ -337,9 +384,32 @@ async function createActiveNpdBom(
         index + 1,
         ingredient.item_id,
         ingredient.rm_code,
-        ingredient.qty_kg,
+        quantity,
         'NPD formulation',
         ingredient.sequence,
+      ],
+    );
+  }
+
+  const packagingComponents = await loadPackagingComponents(ctx, project.id);
+  for (let index = 0; index < packagingComponents.length; index++) {
+    const component = packagingComponents[index]!;
+    const lineNo = ingredients.length + index + 1;
+    await ctx.client.query(
+      `insert into public.bom_lines
+         (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
+          scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
+       values
+         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'PM', $5::numeric, 'each',
+          0.00, $6, $7, false, 'npd_packaging_components')`,
+      [
+        header.id,
+        lineNo,
+        component.item_id,
+        component.component_name,
+        component.qty,
+        'NPD packaging',
+        lineNo,
       ],
     );
   }
@@ -355,6 +425,21 @@ async function createActiveNpdBom(
   );
 
   return header;
+}
+
+async function loadPackagingComponents(ctx: OrgContextLike, projectId: string): Promise<PackagingComponentRow[]> {
+  const { rows } = await ctx.client.query<PackagingComponentRow>(
+    `select pc.component_name,
+            pc.item_id::text as item_id,
+            coalesce(pc.qty_per_pack, 1)::text as qty
+       from public.packaging_components pc
+      where pc.project_id = $1::uuid
+        and pc.org_id = app.current_org_id()
+        and pc.item_id is not null
+      order by pc.display_order nulls last, pc.created_at`,
+    [projectId],
+  );
+  return rows;
 }
 
 async function nextBomVersion(ctx: OrgContextLike, productCode: string): Promise<number> {
@@ -388,6 +473,7 @@ async function createApprovedFactorySpec(
   fgItemId: string,
   bom: BomHeaderRow,
 ): Promise<FactorySpecRow> {
+  const productCode = deriveProductionCode(project.product_code as string);
   const version = await nextFactorySpecVersion(ctx, fgItemId);
   const { rows } = await ctx.client.query<FactorySpecRow>(
     `insert into public.factory_specs
@@ -401,7 +487,7 @@ async function createApprovedFactorySpec(
      returning id`,
     [
       fgItemId,
-      `FS-${project.product_code}-v${version}`,
+      `FS-${productCode}-v${version}`,
       version,
       bom.id,
       bom.version,
@@ -425,13 +511,19 @@ async function nextFactorySpecVersion(ctx: OrgContextLike, fgItemId: string): Pr
   return Number(rows[0]?.next_version ?? 1);
 }
 
-function emptyResult(projectId: string, productCode: string | null): MaterializeNpdBomResult {
+function emptyResult(
+  projectId: string,
+  productCode: string | null,
+  productionCode: string | null,
+): MaterializeNpdBomResult {
   return {
     projectId,
     productCode,
+    productionCode,
     itemId: null,
     bomHeaderId: null,
     factorySpecId: null,
+    yieldPromptRequired: false,
     createdBom: false,
     createdFactorySpec: false,
   };

@@ -170,6 +170,12 @@ const GATE_LABEL_DEFAULTS: Record<GateKey | 'Launched', string> = {
   Launched: 'Launched',
 };
 
+// Tooltip shown on the initial-gate (G0) badge so the absence of a standalone G1
+// step reads as intentional. G1 "Feasibility" is part of the Brief stage (the
+// 2026-06-06 pivot), so it is never skipped — just merged. Label/UI only.
+const GATE_MERGE_HINT_DEFAULT =
+  'G1 Feasibility is part of the Brief stage — it is covered here, not skipped. The next advance goes to G2.';
+
 const PRIO_LABEL_DEFAULTS: Record<ProjectPriority, string> = {
   high: 'High priority',
   normal: 'Normal priority',
@@ -381,8 +387,24 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     project.currentStage === 'launched'
       ? p('gate.Launched', GATE_LABEL_DEFAULTS.Launched)
       : (stepLabels[project.currentStage as ProjectStageKey] ?? project.currentStage);
+
+  // ── G0–G1 merge made EXPLICIT (owner: "Brief · G0 then jumps to G2, no G1"). ──
+  // G1 "Feasibility" is collapsed into the Brief stage by the 2026-06-06 pivot
+  // (see gate-helpers.ts advanceTransitionForStage) — it is never its own stepper
+  // step and never a forward advance target. Rather than silently hide it, the
+  // initial-gate badge spells out "G0–G1 Idea / Feasibility" and carries a tooltip
+  // explaining the merge, so the gap between G0 and G2 reads as intentional, not a
+  // skipped step. UI/label only — the gate state machine is untouched.
+  const isInitialGate = currentGate === 'G0';
+  const g1Label = p('gate.G1', GATE_LABEL_DEFAULTS.G1);
+  const gateSegment = isInitialGate
+    ? `G0–G1 ${gateLabel} / ${g1Label}`
+    : `${currentGate} ${gateLabel}`;
   const headerBadgeLabel =
-    currentGate === 'Launched' ? gateLabel : `${stageDisplay} · ${currentGate} ${gateLabel}`;
+    currentGate === 'Launched' ? gateLabel : `${stageDisplay} · ${gateSegment}`;
+  const headerBadgeHint = isInitialGate
+    ? p('gate.g0MergeHint', GATE_MERGE_HINT_DEFAULT)
+    : null;
 
   // ── Honest advance transition, derived from the STAGE machine (never static
   // gate metadata). From brief (G0) the next step is recipe → gate G2 — the UI
@@ -404,6 +426,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     owner: project.owner,
     targetLaunch: project.targetLaunch,
     gateLabel: headerBadgeLabel,
+    gateLabelHint: headerBadgeHint,
     gateTone,
     prioLabel: p(`prio.${project.prio}`, PRIO_LABEL_DEFAULTS[project.prio]),
     prioTone: PRIO_TONE[project.prio],
