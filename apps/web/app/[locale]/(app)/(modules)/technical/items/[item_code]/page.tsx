@@ -204,6 +204,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     varianceTolerance: t('detail.overview.varianceTolerance'),
     shelfLife: t('detail.overview.shelfLife'),
     costPerKg: t('detail.overview.costPerKg'),
+    listPrice: ovHas('detail.overview.listPrice') ? t('detail.overview.listPrice') : 'List price (GBP / base UoM)',
     updated: t('detail.overview.updated'),
     none: t('detail.overview.none'),
     outputUom: ovHas('detail.overview.outputUom') ? t('detail.overview.outputUom') : 'Output unit',

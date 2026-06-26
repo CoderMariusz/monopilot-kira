@@ -1822,6 +1822,7 @@
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
           "costPerKg": "Cost / UM de bază",
+          "listPrice": "List price (GBP / base UoM)",
           "updated": "Updated",
           "none": "—",
           "outputUom": "Output unit",

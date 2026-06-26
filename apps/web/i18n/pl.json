@@ -1822,6 +1822,7 @@
           "shelfLife": "Termin przydatności",
           "shelfLifeDays": "{days} d",
           "costPerKg": "Koszt / bazowa JM",
+          "listPrice": "Cena katalogowa (GBP / bazowa JM)",
           "updated": "Zaktualizowano",
           "none": "—",
           "outputUom": "Jednostka wyjściowa",

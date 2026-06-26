@@ -32,6 +32,7 @@ export type ItemOverviewLabels = {
   varianceTolerance: string;
   shelfLife: string;
   costPerKg: string;
+  listPrice: string;
   updated: string;
   none: string;
   // Pack hierarchy (migration 267).
@@ -148,6 +149,7 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
           <Row label={labels.eachPerBox} value={item.eachPerBox != null ? String(item.eachPerBox) : none} mono />
           <Row label={labels.boxesPerPallet} value={item.boxesPerPallet != null ? String(item.boxesPerPallet) : none} mono />
           <Row label={labels.costPerKg} value={fmtNum(item.costPerKg, none)} mono />
+          <Row label={labels.listPrice} value={fmtNum(item.listPriceGbp, none)} mono />
           <Row label={labels.weightMode} value={item.weightMode} mono />
           <Row label={labels.nominalWeight} value={fmtNum(item.nominalWeight, none)} mono />
           <Row label={labels.tareWeight} value={fmtNum(item.tareWeight, none)} mono />

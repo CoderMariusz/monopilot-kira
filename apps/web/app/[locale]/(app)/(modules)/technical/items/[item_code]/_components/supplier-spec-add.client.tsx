@@ -252,6 +252,10 @@ export function SupplierSpecAdd({
               <Button
                 onClick={submit}
                 disabled={pending || noSuppliers || !supplierId}
+                // Vivid primary so the enabled state reads as actionable — the bare
+                // @monopilot/ui Button is `.btn` (neutral/grey) and looked disabled
+                // even when ready, matching the rest of the app's `btn btn-primary`.
+                className="btn-primary"
                 data-testid="supplier-spec-add-submit"
               >
                 {pending ? labels.submitting : labels.submit}
