@@ -82,6 +82,11 @@ const LABELS: HandoffLabels = {
   promote: 'L_PROMOTE',
   promoting: 'L_PROMOTING',
   promoteError: 'L_PROMOTE_ERR',
+  generateBom: 'L_GEN_BOM',
+  generating: 'L_GENERATING',
+  generateBomHint: 'L_GEN_HINT',
+  generateNoRecipe: 'L_GEN_NO_RECIPE',
+  generateError: 'L_GEN_ERR',
   promoteSuccessTitle: 'L_PROMOTE_OK_TITLE',
   promoteSuccessBody: 'Created FG {code}',
   promoteSuccessViewBom: 'L_PROMOTE_OK_VIEW_BOM',
@@ -213,6 +218,154 @@ describe('HandoffScreen — release-gate panel (dead-end repair)', () => {
   it('enables Promote only when the checklist AND every release gate are met', () => {
     render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} onPromote={vi.fn()} />);
     expect(screen.getByTestId('handoff-promote-btn')).not.toBeDisabled();
+  });
+});
+
+describe('HandoffScreen — Generate production BOM (deadlock break)', () => {
+  const BOM_ID = '07300000-0000-4000-8000-0000000000b0';
+
+  /** Gates where the ACTIVE_SHARED_BOM gate is NOT met (deadlock state). */
+  const BOM_GATE_UNMET: HandoffScreenData['releaseGates'] = [
+    { code: 'G4_REQUIRED', met: true },
+    { code: 'FG_CANDIDATE_REQUIRED', met: true },
+    { code: 'ACTIVE_SHARED_BOM_REQUIRED', met: false },
+    { code: 'FACTORY_SPEC_REQUIRED', met: false },
+    { code: 'V18_OPEN_HIGH_RISK', met: true },
+  ];
+
+  it('shows the Generate BOM button when the ACTIVE_SHARED_BOM gate is NOT met', () => {
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={vi.fn()}
+      />,
+    );
+    const btn = screen.getByTestId('handoff-generate-btn');
+    expect(btn).toHaveTextContent('L_GEN_BOM');
+    expect(screen.getByTestId('handoff-generate-hint')).toHaveTextContent('L_GEN_HINT');
+  });
+
+  it('HIDES the Generate BOM button when the ACTIVE_SHARED_BOM gate IS met', () => {
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, ALL_GATES_MET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('handoff-generate-btn')).not.toBeInTheDocument();
+  });
+
+  it('calls onGenerate with the projectId and refreshes the route on ok', async () => {
+    refreshSpy.mockClear();
+    const onGenerate = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: false,
+    });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-generate-btn'));
+    await waitFor(() =>
+      expect(onGenerate).toHaveBeenCalledWith({
+        projectId: '07300000-0000-4000-8000-0000000000c1',
+      }),
+    );
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it('surfaces the yield prompt after generate when yieldPromptRequired is true', async () => {
+    const onGenerate = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: true,
+    });
+    const onUpdateBomYield = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+        onUpdateBomYield={onUpdateBomYield}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-generate-btn'));
+    const input = await screen.findByTestId('handoff-yield-input');
+    fireEvent.change(input, { target: { value: '88' } });
+    fireEvent.click(screen.getByTestId('handoff-yield-save-btn'));
+    await waitFor(() =>
+      expect(onUpdateBomYield).toHaveBeenCalledWith({ bomHeaderId: BOM_ID, yieldPct: 88 }),
+    );
+  });
+
+  it('shows an inline role=alert with the no-recipe message on { ok:false, error:no_recipe } (never throws)', async () => {
+    const onGenerate = vi.fn().mockResolvedValue({ ok: false, error: 'no_recipe' });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-generate-btn'));
+    const err = await screen.findByTestId('handoff-generate-error');
+    expect(err).toHaveAttribute('role', 'alert');
+    expect(err).toHaveTextContent('L_GEN_NO_RECIPE');
+  });
+
+  it('shows the generic generate error for other failures (e.g. persistence_failed)', async () => {
+    const onGenerate = vi.fn().mockResolvedValue({ ok: false, error: 'persistence_failed' });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-generate-btn'));
+    const err = await screen.findByTestId('handoff-generate-error');
+    expect(err).toHaveTextContent('L_GEN_ERR');
+  });
+
+  it('does not render the Generate button once promoted', () => {
+    const data = { ...dataReady(true, BOM_GATE_UNMET), promoted: true };
+    render(
+      <HandoffScreen
+        state="ready"
+        data={data}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('handoff-generate-btn')).not.toBeInTheDocument();
   });
 });
 

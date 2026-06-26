@@ -5732,6 +5732,11 @@
       "yieldSaving": "Zapisywanie…",
       "yieldSaved": "Wydajność zapisana.",
       "yieldError": "Nie udało się zapisać wydajności. Podaj wartość od 0,001 do 100 i spróbuj ponownie.",
+      "generateBom": "Wygeneruj BOM produkcyjny",
+      "generating": "Generowanie…",
+      "generateBomHint": "Dwa kroki: najpierw wygeneruj BOM produkcyjny, sprawdź lub popraw go w module Technicznym, następnie Promuj, aby go wydać.",
+      "generateNoRecipe": "Najpierw zablokuj recepturę, a następnie wygeneruj BOM produkcyjny.",
+      "generateError": "Nie udało się wygenerować BOM-u produkcyjnego. Spróbuj ponownie.",
       "gate": {
         "G4_REQUIRED": "Projekt na bramce G4",
         "FG_CANDIDATE_REQUIRED": "Przypisany kandydat wyrobu gotowego",

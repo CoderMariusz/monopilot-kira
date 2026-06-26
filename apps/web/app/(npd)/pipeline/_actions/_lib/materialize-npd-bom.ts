@@ -2,7 +2,13 @@ import { cascadeAllergensForChangedItem } from '../../../../../lib/technical/all
 import { type GateProjectRow } from './gate-helpers';
 import { type OrgContextLike } from '../shared';
 
-function deriveProductionCode(npdCode: string): string { return npdCode.replace(/-NPD-/i, '-'); }
+// FG-002 rename DEFERRED. The production-vs-NPD code split (FG-NPD-002 → FG-002) is
+// entangled with the product→items merge (owner decision #1): the release-gate probe
+// (release-gate-status.ts) AND the real preflight (release-preflight.ts) look up the
+// active BOM + factory_spec by the NPD product_code, so deriving a different code here
+// makes materialize create a BOM the preflight can't find → promote rolls back. Until
+// the merge lands, the production code stays = the NPD product_code (identity).
+function deriveProductionCode(npdCode: string): string { return npdCode; }
 
 type MaterializeNpdBomInput = {
   projectId: string;

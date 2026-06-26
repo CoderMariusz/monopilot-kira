@@ -28,6 +28,8 @@ import {
   type HandoffScreenData,
   type PromoteCall,
   type PromoteOutcome,
+  type GenerateCall,
+  type GenerateOutcome,
   type ToggleChecklistCall,
   type ToggleChecklistOutcome,
   type UpdateBomYieldCall,
@@ -36,6 +38,7 @@ import {
 import { getHandoff } from './_actions/get-handoff';
 import { toggleHandoffChecklistItem } from './_actions/toggle-handoff-checklist-item';
 import { promoteToProduction } from './_actions/promote-to-production';
+import { generateProductionBom } from './_actions/generate-production-bom';
 import { updateBomYield } from './_actions/update-bom-yield';
 
 export const dynamic = 'force-dynamic';
@@ -95,6 +98,12 @@ const DEFAULT_LABELS: HandoffLabels = {
   promote: '✓ Promote to production BOM',
   promoting: 'Promoting…',
   promoteError: 'Promotion failed. Check the gates and try again.',
+  generateBom: 'Generate production BOM',
+  generating: 'Generating…',
+  generateBomHint:
+    'Two steps: first Generate the production BOM, review or correct it in Technical, then Promote to release it.',
+  generateNoRecipe: 'Lock a recipe first, then generate the production BOM.',
+  generateError: 'Could not generate the production BOM. Try again.',
   promoteSuccessTitle: 'Production BOM created',
   promoteSuccessBody: 'Production FG {code} was created and its BOM auto-built.',
   promoteSuccessViewBom: 'Open production BOM',
@@ -195,6 +204,17 @@ export default async function HandoffPage(propsInput: unknown = {}) {
     };
   }
 
+  async function generateAction(_call: GenerateCall): Promise<GenerateOutcome> {
+    'use server';
+    // Deadlock break: materialize the production BOM on its own so the
+    // ACTIVE_SHARED_BOM / FACTORY_SPEC gates flip to met and Promote enables.
+    // Idempotent — a later promote reuses the BOM (and any manual corrections).
+    const result = await generateProductionBom({ projectId });
+    if (!result.ok) return { ok: false, error: result.error };
+    const { productionCode, bomHeaderId, yieldPromptRequired } = result.data;
+    return { ok: true, productionCode, bomHeaderId, yieldPromptRequired };
+  }
+
   async function updateYieldAction(call: UpdateBomYieldCall): Promise<UpdateBomYieldOutcome> {
     'use server';
     const result = await updateBomYield({
@@ -226,6 +246,7 @@ export default async function HandoffPage(propsInput: unknown = {}) {
       labels={labels}
       hrefs={hrefs}
       onPromote={promoteAction}
+      onGenerate={generateAction}
       onToggleChecklistItem={toggleChecklistAction}
       onUpdateBomYield={updateYieldAction}
     />

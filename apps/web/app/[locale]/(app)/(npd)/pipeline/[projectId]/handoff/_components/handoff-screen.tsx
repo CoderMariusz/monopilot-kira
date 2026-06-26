@@ -124,6 +124,16 @@ export type HandoffLabels = {
   promote: string;
   promoting: string;
   promoteError: string;
+  // "Generate production BOM" step — breaks the handoff deadlock (the
+  // ACTIVE_SHARED_BOM / FACTORY_SPEC gates were only ever satisfied INSIDE
+  // promote, so promote could never be reached). Generate builds the BOM first.
+  generateBom: string;
+  generating: string;
+  /** Helper line explaining the two-step flow (Generate → Technical → Promote). */
+  generateBomHint: string;
+  /** Special-cased error message when no recipe is locked yet. */
+  generateNoRecipe: string;
+  generateError: string;
   // Post-promote success panel (auto-built production BOM result).
   promoteSuccessTitle: string;
   /** Body with the {code} placeholder for the generated production FG code. */
@@ -172,6 +182,15 @@ export type PromoteOutcome = {
   yieldPromptRequired?: boolean;
   /** Locale-prefixed Technical BOM-detail href for `productionCode` (resolved server-side). */
   bomHref?: string | null;
+};
+export type GenerateCall = { projectId: string };
+export type GenerateOutcome = {
+  ok: boolean;
+  error?: string;
+  /** On success, the materialized production-BOM result (mirror of promote). */
+  productionCode?: string | null;
+  bomHeaderId?: string | null;
+  yieldPromptRequired?: boolean;
 };
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
@@ -273,6 +292,7 @@ export function HandoffScreen({
   labels,
   hrefs,
   onPromote,
+  onGenerate,
   onToggleChecklistItem,
   onUpdateBomYield,
 }: {
@@ -281,6 +301,7 @@ export function HandoffScreen({
   labels: HandoffLabels;
   hrefs?: HandoffHrefs;
   onPromote?: (call: PromoteCall) => Promise<PromoteOutcome>;
+  onGenerate?: (call: GenerateCall) => Promise<GenerateOutcome>;
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
   onUpdateBomYield?: (call: UpdateBomYieldCall) => Promise<UpdateBomYieldOutcome>;
 }) {
@@ -288,6 +309,9 @@ export function HandoffScreen({
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
   const [promoting, setPromoting] = React.useState(false);
   const [promoteError, setPromoteError] = React.useState<string | null>(null);
+  // "Generate production BOM" step (deadlock break) — its own pending + error state.
+  const [generating, setGenerating] = React.useState(false);
+  const [generateError, setGenerateError] = React.useState<string | null>(null);
   // Auto-built production-BOM result + the inline yield-prompt sub-state.
   const [promoteSuccess, setPromoteSuccess] = React.useState<PromoteSuccess | null>(null);
   const [yieldInput, setYieldInput] = React.useState('');
@@ -299,6 +323,8 @@ export function HandoffScreen({
   React.useEffect(() => {
     setOptimistic({});
     setPromoteError(null);
+    setGenerating(false);
+    setGenerateError(null);
     setPromoteSuccess(null);
     setYieldInput('');
     setYieldSaving(false);
@@ -338,6 +364,11 @@ export function HandoffScreen({
   // looking "permanently disabled with no reason" (the reported dead end).
   const releaseGatesMet = releaseGates.length > 0 && releaseGates.every((g) => g.met);
   const canPromote = allChecked && releaseGatesMet && !promoted;
+  // Deadlock break: the production BOM is the ACTIVE_SHARED_BOM gate. When it is
+  // NOT met (and not yet promoted) the user must GENERATE the BOM first — only
+  // then does the gate flip to met and the Promote button enable.
+  const bomGate = releaseGates.find((g) => g.code === 'ACTIVE_SHARED_BOM_REQUIRED');
+  const showGenerate = !promoted && !!bomGate && !bomGate.met;
 
   /** Remediation link for an unmet gate (locale-prefixed, resolved server-side). */
   function gateRemediationHref(code: ReleaseGateCode): string | null {
@@ -401,6 +432,38 @@ export function HandoffScreen({
       setPromoteError('error');
     } finally {
       setPromoting(false);
+    }
+  }
+
+  async function handleGenerate() {
+    if (!onGenerate || generating) return;
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const result = await onGenerate({ projectId: data!.projectId });
+      if (!result.ok) {
+        // Special-case no_recipe; everything else falls back to the generic copy.
+        setGenerateError(result.error === 'no_recipe' ? 'no_recipe' : 'error');
+      } else {
+        // The BOM now exists. Surface the same auto-built result panel + yield
+        // prompt the promote flow uses (so a yield-less recipe can be corrected
+        // here too), then refresh the RSC tree so the gate probe re-runs, the BOM
+        // appears in "Destination BOM", and Promote enables.
+        setPromoteSuccess({
+          productionCode: result.productionCode ?? null,
+          bomHeaderId: result.bomHeaderId ?? null,
+          bomHref: null,
+          yieldPromptRequired: result.yieldPromptRequired === true,
+        });
+        setYieldDismissed(false);
+        setYieldSaved(false);
+        setYieldError(null);
+        router.refresh();
+      }
+    } catch {
+      setGenerateError('error');
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -675,6 +738,45 @@ export function HandoffScreen({
                 );
               })}
             </ul>
+
+            {/*
+              Generate production BOM — deadlock break. The ACTIVE_SHARED_BOM gate
+              (and FACTORY_SPEC) are only ever satisfied by materializing the BOM,
+              but those were created INSIDE promote — so the user could never reach
+              promote. This step builds the BOM first (RM from the locked recipe +
+              packaging PM lines). On success the gates flip to met and Promote
+              enables. Shown only while the BOM gate is unmet (BOM not yet built).
+            */}
+            {showGenerate ? (
+              <div className="mt-4 space-y-2 border-t pt-4">
+                <p className="muted text-sm" data-testid="handoff-generate-hint">
+                  {labels.generateBomHint}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  data-testid="handoff-generate-btn"
+                  disabled={generating || !onGenerate}
+                  aria-disabled={generating || !onGenerate}
+                  onClick={handleGenerate}
+                >
+                  {generating ? labels.generating : labels.generateBom}
+                </button>
+                {generateError ? (
+                  <div
+                    role="alert"
+                    data-testid="handoff-generate-error"
+                    className="alert alert-red"
+                  >
+                    <div className="alert-title">
+                      {generateError === 'no_recipe'
+                        ? labels.generateNoRecipe
+                        : labels.generateError}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

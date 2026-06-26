@@ -3494,6 +3494,11 @@
       "yieldSaving": "Saving…",
       "yieldSaved": "Yield saved.",
       "yieldError": "Could not save the yield. Enter a value between 0.001 and 100 and try again.",
+      "generateBom": "Generate production BOM",
+      "generating": "Generating…",
+      "generateBomHint": "Two steps: first Generate the production BOM, review or correct it in Technical, then Promote to release it.",
+      "generateNoRecipe": "Lock a recipe first, then generate the production BOM.",
+      "generateError": "Could not generate the production BOM. Try again.",
       "gate": {
         "G4_REQUIRED": "Project at gate G4",
         "FG_CANDIDATE_REQUIRED": "FG product candidate mapped",
