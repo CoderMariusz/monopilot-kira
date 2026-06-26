@@ -58,19 +58,32 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
 
       if (!deleted) return { ok: false, error: 'NOT_FOUND' };
 
-      await ctx.client.query(
-        `insert into public.outbox_events
-           (org_id, event_type, aggregate_type, aggregate_id, payload, app_version, dedup_key)
-         values
-           (app.current_org_id(), $1, 'npd_project', $2, $3::jsonb, 'npd-project-actions-v1', $4)
-         on conflict (org_id, dedup_key) where dedup_key is not null do nothing`,
-        [
-          PROJECT_DELETED_EVENT,
-          deleted.id,
-          JSON.stringify({ org_id: ctx.orgId, actor_user_id: ctx.userId, project_id: deleted.id, code: deleted.code }),
-          `${PROJECT_DELETED_EVENT}:${deleted.id}`,
-        ],
-      );
+      // Emit the deletion event as BEST-EFFORT. The project row is already deleted
+      // in this transaction; a failure here must NOT roll back the delete. The
+      // event_type 'npd.project.deleted' is not yet in the outbox_events CHECK
+      // allow-list, so this INSERT throws — and a failed statement aborts the whole
+      // transaction, which is exactly why "Could not delete the project" happened.
+      // Isolate it behind a SAVEPOINT so the delete still commits. (Follow-up:
+      // allow-list the event_type so deletion events are actually recorded.)
+      try {
+        await ctx.client.query('savepoint after_project_delete');
+        await ctx.client.query(
+          `insert into public.outbox_events
+             (org_id, event_type, aggregate_type, aggregate_id, payload, app_version, dedup_key)
+           values
+             (app.current_org_id(), $1, 'npd_project', $2, $3::jsonb, 'npd-project-actions-v1', $4)
+           on conflict (org_id, dedup_key) where dedup_key is not null do nothing`,
+          [
+            PROJECT_DELETED_EVENT,
+            deleted.id,
+            JSON.stringify({ org_id: ctx.orgId, actor_user_id: ctx.userId, project_id: deleted.id, code: deleted.code }),
+            `${PROJECT_DELETED_EVENT}:${deleted.id}`,
+          ],
+        );
+      } catch (evtErr) {
+        await ctx.client.query('rollback to savepoint after_project_delete');
+        console.error('[deleteProject] deletion event not emitted (delete still committed)', evtErr);
+      }
 
       try {
         revalidatePath('/pipeline');

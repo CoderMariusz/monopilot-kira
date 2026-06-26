@@ -74,7 +74,12 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
           where gci.id = $2::uuid
             and gci.project_id = $1::uuid
             and gci.org_id = app.current_org_id()
-          for update`,
+          -- Lock ONLY the checklist row. A bare FOR UPDATE tries to lock every
+          -- table in the join, including the nullable done lateral, which Postgres
+          -- rejects: "FOR UPDATE cannot be applied to the nullable side of an outer
+          -- join" -- that error made EVERY checklist tick fail (rollback), so the
+          -- box never stayed checked, blocking all gate progress.
+          for update of gci`,
         [parsed.data.projectId, parsed.data.itemId],
       );
       const beforeRow = before.rows[0];
