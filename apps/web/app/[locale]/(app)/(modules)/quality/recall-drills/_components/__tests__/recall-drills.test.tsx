@@ -13,8 +13,8 @@
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import en from '../../../../../../../../i18n/en.json';
 import pl from '../../../../../../../../i18n/pl.json';
@@ -22,6 +22,19 @@ import pl from '../../../../../../../../i18n/pl.json';
 import { RecallDrillsList } from '../recall-drills-list.client';
 import { buildRecallDrillsLabels, formatDuration, RECALL_TARGET_MS, type Translator } from '../../../trace/_components/labels';
 import type { RecallDrill } from '../../../trace/_components/trace-contracts';
+
+const downloadCsvMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../../../../../../lib/shared/download', async () => {
+  const actual = await vi.importActual<typeof import('../../../../../../../../lib/shared/download')>(
+    '../../../../../../../../lib/shared/download',
+  );
+  return {
+    ...actual,
+    downloadCsv: downloadCsvMock,
+    isoDateStamp: () => '2026-06-26',
+  };
+});
 
 function makeT(locale: 'en' | 'pl'): Translator {
   const ns = (locale === 'pl' ? pl : en).quality.recallDrills as Record<string, unknown>;
@@ -69,6 +82,10 @@ function renderList(drills: RecallDrill[]) {
   );
 }
 
+beforeEach(() => {
+  downloadCsvMock.mockClear();
+});
+
 describe('RecallDrillsList (E2A parity)', () => {
   it('renders one row per drill with the input ref, direction and a within-target badge for a fast drill', () => {
     renderList([makeDrill({ id: 'drill-1', inputRef: 'LP-IN-7', direction: 'both', durationMs: 120000 })]);
@@ -114,6 +131,32 @@ describe('RecallDrillsList (E2A parity)', () => {
     const row = screen.getByTestId('recall-drill-row-11111111-2222-4333-8444-555555555555');
     // the visible cells (within the row) must not contain a UUID string.
     expect(row.textContent ?? '').not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  });
+
+  it('exports every rendered drill row as CSV using the shared download helper', () => {
+    renderList([
+      makeDrill({ id: 'fast', inputRef: 'LP-IN-7', inputType: 'lp', direction: 'both', durationMs: 120000 }),
+      makeDrill({
+        id: 'slow',
+        inputRef: 'BATCH-42',
+        inputType: 'batch',
+        direction: 'backward',
+        startedAt: '2026-06-24T12:30:00.000Z',
+        durationMs: RECALL_TARGET_MS + 60000,
+      }),
+    ]);
+
+    fireEvent.click(screen.getByTestId('recall-drills-export-csv'));
+
+    expect(downloadCsvMock).toHaveBeenCalledTimes(1);
+    expect(downloadCsvMock).toHaveBeenCalledWith(
+      [
+        'Drill ref,Date,Scope,Duration (minutes),Duration vs 4h target,Overall pass/fail,Notes',
+        `LP-IN-7,2026-06-23,${LABELS.inputType.lp} / ${LABELS.direction.both},2,pass,pass,`,
+        `BATCH-42,2026-06-24,${LABELS.inputType.batch} / ${LABELS.direction.backward},241,fail,fail,`,
+      ].join('\r\n'),
+      'recall-drills-2026-06-26.csv',
+    );
   });
 });
 

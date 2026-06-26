@@ -16,6 +16,7 @@
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 
+import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type { RecallDrill } from '../../trace/_components/trace-contracts';
 import {
   formatDuration,
@@ -25,6 +26,19 @@ import {
 } from '../../trace/_components/labels';
 
 type TargetStatus = 'within' | 'over' | 'in_progress';
+
+const EXPORT_CSV_LABEL = 'Export CSV'; // i18n-key: quality.recall_drills.export_csv
+const CSV_HEADERS = [
+  'Drill ref', // i18n-key: quality.recall_drills.export_csv.header.drill_ref
+  'Date', // i18n-key: quality.recall_drills.export_csv.header.date
+  'Scope', // i18n-key: quality.recall_drills.export_csv.header.scope
+  'Duration (minutes)', // i18n-key: quality.recall_drills.export_csv.header.duration_minutes
+  'Duration vs 4h target', // i18n-key: quality.recall_drills.export_csv.header.duration_vs_target
+  'Overall pass/fail', // i18n-key: quality.recall_drills.export_csv.header.overall_pass_fail
+  'Notes', // i18n-key: quality.recall_drills.export_csv.header.notes
+] as const;
+const PASS_LABEL = 'pass'; // i18n-key: quality.recall_drills.export_csv.value.pass
+const FAIL_LABEL = 'fail'; // i18n-key: quality.recall_drills.export_csv.value.fail
 
 function targetStatus(drill: RecallDrill): TargetStatus {
   if (drill.completedAt === null || drill.durationMs === null) return 'in_progress';
@@ -49,6 +63,35 @@ function formatStarted(iso: string): string {
   return iso.slice(0, 16).replace('T', ' ');
 }
 
+function formatDate(iso: string): string {
+  return iso ? iso.slice(0, 10) : '';
+}
+
+function formatDurationMinutes(ms: number | null): string {
+  if (ms === null || ms < 0) return '';
+  return String(Number((ms / 60000).toFixed(2)));
+}
+
+function passFail(status: TargetStatus): string {
+  return status === 'within' ? PASS_LABEL : FAIL_LABEL;
+}
+
+function buildRecallDrillsCsv(drills: RecallDrill[], labels: RecallDrillsLabels): string {
+  const rows = drills.map((drill) => {
+    const status = targetStatus(drill);
+    return [
+      drill.inputRef,
+      formatDate(drill.startedAt),
+      `${labels.inputType[drill.inputType]} / ${labels.direction[drill.direction]}`,
+      formatDurationMinutes(drill.durationMs),
+      passFail(status),
+      passFail(status),
+      '',
+    ];
+  });
+  return toCsv(CSV_HEADERS, rows);
+}
+
 export function RecallDrillsList({
   drills,
   labels,
@@ -62,19 +105,33 @@ export function RecallDrillsList({
   newDrillHref: string;
   t: Translator;
 }) {
+  function exportCsv() {
+    downloadCsv(buildRecallDrillsCsv(drills, labels), `recall-drills-${isoDateStamp()}.csv`);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
           {labels.targetBadge}
         </span>
-        <a
-          href={newDrillHref}
-          data-testid="recall-drills-new"
-          className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-800"
-        >
-          + {labels.newDrill}
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="recall-drills-export-csv"
+            onClick={exportCsv}
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            {EXPORT_CSV_LABEL}
+          </button>
+          <a
+            href={newDrillHref}
+            data-testid="recall-drills-new"
+            className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            + {labels.newDrill}
+          </a>
+        </div>
       </div>
 
       {drills.length === 0 ? (
