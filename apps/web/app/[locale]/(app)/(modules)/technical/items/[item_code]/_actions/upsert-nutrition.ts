@@ -40,6 +40,8 @@ const EU14_CODES = [
   'A14',
 ] as const;
 
+const EU14_TO_ALLERGEN_CODE: Record<string, string> = { A01: 'gluten', A02: 'crustaceans', A03: 'eggs', A04: 'fish', A05: 'peanuts', A06: 'soybeans', A07: 'milk', A08: 'nuts', A09: 'celery', A10: 'mustard', A11: 'sesame', A12: 'sulphites', A13: 'lupin', A14: 'molluscs' };
+
 const DecimalString = z
   .string()
   .trim()
@@ -90,6 +92,75 @@ function normalizeNutrition(value: Record<string, unknown> | null): Nutrition | 
     out[code] = nutrient;
   }
   return out as Nutrition;
+}
+
+async function syncBriefDeclaredProfiles(client: QueryClient, itemId: string, userId: string, aCodes: string[]): Promise<void> {
+  const target = [
+    ...new Set(aCodes.map((a) => EU14_TO_ALLERGEN_CODE[a]).filter((code): code is string => Boolean(code))),
+  ];
+
+  try {
+    await client.query('savepoint sync_allergens');
+
+    const existing = await client.query<{ allergen_code: string; source: string }>(
+      `select allergen_code, source
+         from public.item_allergen_profiles
+        where org_id = app.current_org_id()
+          and item_id = $1::uuid`,
+      [itemId],
+    );
+
+    const protectedCodes = new Set(
+      existing.rows
+        .filter((row) => row.source === 'cascaded' || row.source === 'manual_override')
+        .map((row) => row.allergen_code),
+    );
+    const existingBrief = new Set(
+      existing.rows.filter((row) => row.source === 'brief_declared').map((row) => row.allergen_code),
+    );
+
+    for (const code of target) {
+      if (protectedCodes.has(code)) continue;
+      await client.query(
+        `insert into public.item_allergen_profiles
+           (org_id, item_id, allergen_code, source, intensity, confidence, declared_by)
+         values (
+           app.current_org_id(),
+           $1::uuid,
+           $2,
+           'brief_declared',
+           'contains',
+           'declared',
+           $3::uuid
+         )
+         on conflict (org_id, item_id, allergen_code) do update
+           set source = 'brief_declared',
+               intensity = 'contains',
+               confidence = 'declared',
+               declared_by = excluded.declared_by,
+               declared_at = pg_catalog.now()
+         where public.item_allergen_profiles.source not in ('cascaded', 'manual_override')`,
+        [itemId, code, userId],
+      );
+    }
+
+    for (const code of existingBrief) {
+      if (target.includes(code)) continue;
+      await client.query(
+        `delete from public.item_allergen_profiles
+          where org_id = app.current_org_id()
+            and item_id = $1::uuid
+            and allergen_code = $2
+            and source = 'brief_declared'`,
+        [itemId, code],
+      );
+    }
+
+    await client.query('release savepoint sync_allergens');
+  } catch (e) {
+    await client.query('rollback to savepoint sync_allergens');
+    console.error('[upsert-nutrition] allergen profile sync failed', e);
+  }
 }
 
 export async function upsertNutrition(rawInput: unknown): Promise<NutritionActionResult> {
@@ -164,6 +235,8 @@ export async function upsertNutrition(rawInput: unknown): Promise<NutritionActio
       );
       const row = upserted.rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
+
+      await syncBriefDeclaredProfiles(queryClient, itemRow.id, userId, input.allergensInherited);
 
       await writeAudit(queryClient, {
         orgId,
