@@ -9,7 +9,7 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
 type Warehouse = { id: string; code: string; name: string };
-type LocationRow = { id: string; warehouseId: string; warehouseCode?: string | null; warehouseName?: string | null; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
+type LocationRow = { id: string; warehouseId: string; warehouseCode?: string | null; warehouseName?: string | null; siteCode?: string | null; siteName?: string | null; lpCount?: number; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
 type CreateLocationInput = { csvRowNumber: number; warehouseId: string; parentPath: string | null; name: string; level: number; path: string };
 type CreateLocationResult =
   | { ok: true; data?: unknown }
@@ -54,6 +54,8 @@ type LocationTreeLabels = {
   sidebarLabel: string;
   sectionTitle: string;
   warehouse: string;
+  site: string;
+  siteUnassigned: string;
   allWarehouses: string;
   importCsv: string;
   addLocation: string;
@@ -133,6 +135,8 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   sidebarLabel: 'Infrastructure',
   sectionTitle: 'Locations',
   warehouse: 'Warehouse',
+  site: 'Site',
+  siteUnassigned: 'Unassigned site',
   allWarehouses: 'All warehouses',
   importCsv: 'Import CSV',
   addLocation: '+ Add location',
@@ -273,10 +277,21 @@ async function readLocationData(): Promise<{
             order by code asc`,
         ),
         queryClient.query<LocationRow>(
-          `select l.id,
+          `with lp_counts as (
+             select location_id, count(*)::int as lp_count
+               from public.license_plates
+              where org_id = app.current_org_id()
+                and location_id is not null
+                and status not in ('consumed', 'shipped', 'destroyed')
+              group by location_id
+           )
+           select l.id,
                   l.warehouse_id as "warehouseId",
                   w.code as "warehouseCode",
                   w.name as "warehouseName",
+                  si.site_code as "siteCode",
+                  si.name as "siteName",
+                  coalesce(lpc.lp_count, 0) as "lpCount",
                   l.parent_id as "parentId",
                   l.code,
                   l.name,
@@ -289,6 +304,11 @@ async function readLocationData(): Promise<{
              left join public.warehouses w
                on w.id = l.warehouse_id
               and w.org_id = app.current_org_id()
+             left join public.sites si
+               on si.id = w.site_id
+              and si.org_id = app.current_org_id()
+             left join lp_counts lpc
+               on lpc.location_id = l.id
             where l.org_id = app.current_org_id()
             order by l.path asc`,
         ),

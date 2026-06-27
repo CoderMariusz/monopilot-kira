@@ -32,6 +32,8 @@ export type LocationOption = {
   warehouseId: string;
   warehouseCode: string | null;
   warehouseName: string | null;
+  siteCode: string | null;
+  siteName: string | null;
 };
 
 /**
@@ -57,15 +59,20 @@ export async function listLocations(
         warehouse_id: string;
         warehouse_code: string | null;
         warehouse_name: string | null;
+        site_code: string | null;
+        site_name: string | null;
       }>(
         `select l.id::text,
                 l.code,
                 l.name,
                 l.warehouse_id::text,
                 w.code as warehouse_code,
-                w.name as warehouse_name
+                w.name as warehouse_name,
+                si.site_code as site_code,
+                si.name as site_name
            from public.locations l
            left join public.warehouses w on w.org_id = app.current_org_id() and w.id = l.warehouse_id
+           left join public.sites si on si.org_id = app.current_org_id() and si.id = w.site_id
           where l.org_id = app.current_org_id()
             and ($1::uuid is null or l.warehouse_id = $1::uuid)
             and ($2::text is null or l.code ilike '%' || $2 || '%' or l.name ilike '%' || $2 || '%')
@@ -83,6 +90,8 @@ export async function listLocations(
           warehouseId: row.warehouse_id,
           warehouseCode: row.warehouse_code,
           warehouseName: row.warehouse_name,
+          siteCode: row.site_code,
+          siteName: row.site_name,
         })),
       };
     });

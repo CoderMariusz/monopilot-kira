@@ -586,6 +586,8 @@
       "sidebarLabel": "Infrastructură",
       "sectionTitle": "Locații",
       "warehouse": "Depozit",
+      "site": "Site",
+      "siteUnassigned": "Unassigned site",
       "allWarehouses": "Toate depozitele",
       "importCsv": "Importați CSV",
       "csvFile": "Fișier CSV",

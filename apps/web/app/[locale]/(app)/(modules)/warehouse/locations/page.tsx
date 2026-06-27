@@ -61,6 +61,7 @@ function buildLabels(t: ReturnType<typeof getWhFacilityTranslator>): LocationsTr
     lpCountLabelPlural: t('locations.lpCountLabelPlural'),
     lpCountCapNote: t('locations.lpCountCapNote'),
     warehouseUnassigned: t('locations.warehouseUnassigned'),
+    siteUnassigned: t('locations.siteUnassigned'),
     levelLabel: t('locations.levelLabel'),
     deferredNote: t('locations.deferredNote'),
   };

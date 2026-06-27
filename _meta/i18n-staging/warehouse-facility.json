@@ -25,6 +25,7 @@
         "dispatch": "Dispatch"
       },
       "warehouseUnassigned": "Unassigned warehouse",
+      "siteUnassigned": "Unassigned site",
       "levelLabel": "L{level}",
       "deferredNote": "Inline location editing (add / edit / deactivate) lives in Settings → Infrastructure — use the Manage locations link above."
     },
@@ -86,6 +87,7 @@
         "dispatch": "Wysyłka"
       },
       "warehouseUnassigned": "Magazyn nieprzypisany",
+      "siteUnassigned": "Nieprzypisany zakład",
       "levelLabel": "P{level}",
       "deferredNote": "Edycja lokalizacji (dodawanie / edycja / dezaktywacja) znajduje się w Ustawienia → Infrastruktura — użyj linku Zarządzaj lokalizacjami powyżej."
     },

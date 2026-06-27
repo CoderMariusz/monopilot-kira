@@ -55,6 +55,7 @@ export type LocationsTreeLabels = {
   lpCountLabelPlural: string;
   lpCountCapNote: string;
   warehouseUnassigned: string;
+  siteUnassigned: string;
   levelLabel: string;
   deferredNote: string;
 };
@@ -73,6 +74,8 @@ type WarehouseGroup = {
   warehouseId: string;
   warehouseCode: string | null;
   warehouseName: string | null;
+  siteCode: string | null;
+  siteName: string | null;
   locations: LocationOption[];
 };
 
@@ -86,6 +89,8 @@ function groupByWarehouse(locations: LocationOption[]): WarehouseGroup[] {
         warehouseId: loc.warehouseId,
         warehouseCode: loc.warehouseCode,
         warehouseName: loc.warehouseName,
+        siteCode: loc.siteCode,
+        siteName: loc.siteName,
         locations: [],
       };
       byWh.set(key, group);
@@ -192,6 +197,16 @@ export function LocationsTreeClient({
                 {group.warehouseName ? (
                   <span className="text-xs text-slate-500">{group.warehouseName}</span>
                 ) : null}
+                <span
+                  className="rounded-full border border-slate-200 px-1.5 text-[11px] text-slate-500"
+                  data-testid={`locations-site-${group.warehouseId || 'none'}`}
+                >
+                  {group.siteCode
+                    ? group.siteName && group.siteName !== group.siteCode
+                      ? `${group.siteCode} — ${group.siteName}`
+                      : group.siteCode
+                    : labels.siteUnassigned}
+                </span>
                 <span className="ml-auto rounded-full bg-slate-200 px-1.5 text-[11px] tabular-nums text-slate-600">
                   {group.locations.length}
                 </span>

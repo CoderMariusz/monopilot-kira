@@ -586,6 +586,8 @@
       "sidebarLabel": "Infrastructure",
       "sectionTitle": "Locations",
       "warehouse": "Warehouse",
+      "site": "Zakład",
+      "siteUnassigned": "Nieprzypisany zakład",
       "allWarehouses": "All warehouses",
       "importCsv": "Import CSV",
       "csvFile": "CSV file",

@@ -8,7 +8,7 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 
 export type Warehouse = { id: string; code: string; name: string };
-export type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean; warehouseCode?: string | null; warehouseName?: string | null };
+export type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean; warehouseCode?: string | null; warehouseName?: string | null; siteCode?: string | null; siteName?: string | null; lpCount?: number };
 export type UpsertLocationInput = { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string; active?: boolean; barcode?: string | null };
 export type UpsertLocationResult = { ok: true; data: { id: string; path: string; level: number } } | { ok: false; error: string };
 export type DeleteLocationInput = { locationId: string; warehouseId: string };
@@ -21,6 +21,8 @@ export type LocationTreeLabels = {
   sidebarLabel: string;
   sectionTitle: string;
   warehouse: string;
+  site: string;
+  siteUnassigned: string;
   allWarehouses: string;
   importCsv: string;
   addLocation: string;
@@ -307,9 +309,10 @@ export function LocationTreeScreen({
                       {canUpdateInfra ? <><Button type="button" onClick={() => openDialog('edit', selectedLocation)}>{labels.editLocation}</Button><Button type="button" onClick={() => openDialog('child', selectedLocation)}>{labels.addChild}</Button><Button type="button" className="border border-red-200 bg-red-50 text-red-700" onClick={() => { setDeleteCandidate(selectedLocation); setFormError(null); }}>{labels.deleteLocation}</Button></> : null}
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-5">
+                  <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-6">
                     <SummaryItem label={labels.warehouse} value={warehouseLabelFor(selectedLocation, warehouseById, labels.warehouseUnassigned)} mono />
-                    <SummaryItem label={labels.lpsHere} value="0" />
+                    <SummaryItem label={labels.site} value={siteLabelFor(selectedLocation, labels.siteUnassigned)} mono />
+                    <SummaryItem label={labels.lpsHere} value={String(selectedLocation.lpCount ?? 0)} />
                     <SummaryItem label={labels.selectedParent} value={parentPathFor(selectedLocation, visibleRows)} mono />
                     <SummaryItem label={labels.selectedDepth} value={`L${selectedLocation.level}`} />
                     <SummaryItem label={labels.barcodeLabel} value={selectedLocation.barcode?.trim() || labels.noBarcode} mono />
@@ -433,6 +436,14 @@ function warehouseLabelFor(location: LocationRow, warehouseById: Map<string, War
   const warehouse = location.warehouseId ? warehouseById.get(location.warehouseId) : undefined;
   const code = location.warehouseCode ?? warehouse?.code ?? null;
   const name = location.warehouseName ?? warehouse?.name ?? null;
+  if (!code && !name) return unassigned;
+  if (name && name !== code) return code ? `${code} — ${name}` : name;
+  return code ?? name ?? unassigned;
+}
+
+function siteLabelFor(location: LocationRow, unassigned: string) {
+  const code = location.siteCode ?? null;
+  const name = location.siteName ?? null;
   if (!code && !name) return unassigned;
   if (name && name !== code) return code ? `${code} — ${name}` : name;
   return code ?? name ?? unassigned;

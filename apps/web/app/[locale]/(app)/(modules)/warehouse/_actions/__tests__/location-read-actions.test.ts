@@ -46,7 +46,7 @@ function makeClient(): QueryClient {
 beforeEach(() => {
   allowPermission = true;
   locationRows = [
-    { id: LOC_ID, code: 'A-01', name: 'Aisle 01', warehouse_id: WH_ID, warehouse_code: 'WH1', warehouse_name: 'Main' },
+    { id: LOC_ID, code: 'A-01', name: 'Aisle 01', warehouse_id: WH_ID, warehouse_code: 'WH1', warehouse_name: 'Main', site_code: 'SITE1', site_name: 'Main Site' },
   ];
   client = makeClient();
 });
@@ -57,13 +57,14 @@ describe('listLocations', () => {
     expect(res).toEqual({
       ok: true,
       data: [
-        { id: LOC_ID, code: 'A-01', name: 'Aisle 01', warehouseId: WH_ID, warehouseCode: 'WH1', warehouseName: 'Main' },
+        { id: LOC_ID, code: 'A-01', name: 'Aisle 01', warehouseId: WH_ID, warehouseCode: 'WH1', warehouseName: 'Main', siteCode: 'SITE1', siteName: 'Main Site' },
       ],
     });
     const locationSql = (client.query as ReturnType<typeof vi.fn>).mock.calls
       .map(([sql]) => String(sql))
       .find((sql) => normalize(sql).includes('from public.locations'));
     expect(normalize(locationSql ?? '')).toContain('left join public.warehouses w on w.org_id = app.current_org_id() and w.id = l.warehouse_id');
+    expect(normalize(locationSql ?? '')).toContain('left join public.sites si on si.org_id = app.current_org_id() and si.id = w.site_id');
     expect(normalize(locationSql ?? '')).not.toContain('current_setting');
   });
 

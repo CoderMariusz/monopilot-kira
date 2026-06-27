@@ -586,6 +586,8 @@
       "sidebarLabel": "Інфраструктура",
       "sectionTitle": "Локації",
       "warehouse": "Склад",
+      "site": "Site",
+      "siteUnassigned": "Unassigned site",
       "allWarehouses": "Усі склади",
       "importCsv": "Імпортувати CSV",
       "csvFile": "Файл CSV",
