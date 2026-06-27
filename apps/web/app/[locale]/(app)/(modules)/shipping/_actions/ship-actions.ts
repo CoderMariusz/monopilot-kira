@@ -289,7 +289,14 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
          update public.license_plates lp
             set quantity = lp.quantity - shipment_lps.shipped_qty,
                 reserved_qty = greatest(0, lp.reserved_qty - shipment_lps.shipped_qty),
-                status = 'shipped',
+                -- Only flip the whole LP to 'shipped' when the shipment consumes
+                -- its full quantity. On a partial ship the remainder must stay in
+                -- its prior (pickable) status, otherwise it is frozen: a 'shipped'
+                -- LP with leftover qty can be neither split nor destroyed → lost stock.
+                status = case
+                           when lp.quantity = shipment_lps.shipped_qty then 'shipped'
+                           else lp.status
+                         end,
                 updated_at = now(),
                 updated_by = $2::uuid
            from shipment_lps
