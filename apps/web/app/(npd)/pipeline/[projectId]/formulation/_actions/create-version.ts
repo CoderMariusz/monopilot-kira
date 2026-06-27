@@ -124,7 +124,11 @@ export async function createFormulationVersion(input: {
            $1::uuid,
            $2::uuid,
            'formulation.version_created',
-           jsonb_build_object('sourceVersionId', $3::uuid::text, 'versionNumber', $4),
+           -- $4 MUST be cast: jsonb_build_object args are "any", so an untyped
+           -- bind param fails prepare with "could not determine data type of
+           -- parameter $4" — which threw the whole action (→ persistence_failed,
+           -- silently swallowed by the UI) so NO version was ever created.
+           jsonb_build_object('sourceVersionId', $3::uuid::text, 'versionNumber', $4::int),
            $5::uuid
          )`,
         [row.id, created.id, sourceVersionId, created.version_number, ctx.userId],

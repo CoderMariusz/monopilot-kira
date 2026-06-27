@@ -699,11 +699,16 @@ export function FormulationEditor({
         }
         return;
       }
+      // Never swallow a failure silently: a server-side ok:false (e.g. the
+      // create-version action throwing) used to leave the button re-enabled
+      // with no feedback, so the user thought "Add version" did nothing.
+      window.alert(labels.createDraftError);
       setCreatingVersion(false);
     } catch {
+      window.alert(labels.createDraftError);
       setCreatingVersion(false);
     }
-  }, [createVersionAction, data, versionId, creatingVersion, navigateToVersion, refresh]);
+  }, [createVersionAction, data, versionId, creatingVersion, navigateToVersion, refresh, labels.createDraftError]);
 
   // ── Submit for trial (gated server-side; editor only mirrors the result) ──────
   type SubmitStatus = 'idle' | 'submitting' | 'submitted' | 'error';
