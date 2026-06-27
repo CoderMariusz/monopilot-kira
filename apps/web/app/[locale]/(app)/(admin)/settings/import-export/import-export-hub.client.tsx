@@ -143,7 +143,7 @@ function formatCount(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-function formatTimestamp(iso: string | null, never: string): string {
+function formatTimestampClient(iso: string | null, never: string): string {
   if (!iso) return never;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return never;
@@ -154,6 +154,24 @@ function formatTimestamp(iso: string | null, never: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function FormattedTimestamp({
+  iso,
+  never,
+  placeholder = '—',
+}: {
+  iso: string | null;
+  never: string;
+  placeholder?: string;
+}) {
+  const [label, setLabel] = React.useState(() => (iso ? placeholder : never));
+
+  React.useEffect(() => {
+    setLabel(iso ? formatTimestampClient(iso, never) : never);
+  }, [iso, never]);
+
+  return <>{label}</>;
 }
 
 function jobStatusClass(status: ImportJobStatus): string {
@@ -264,7 +282,7 @@ export default function ImportExportHub(props: MasterDataHubProps) {
                 <div className="muted">{labels.table.recordsUnit}</div>
               </div>
               <div className="muted" role="cell">
-                {formatTimestamp(entity.last_imported_at, labels.table.never)}
+                <FormattedTimestamp iso={entity.last_imported_at} never={labels.table.never} />
               </div>
               <div className="impex-actions" role="cell">
                 <button
@@ -305,7 +323,7 @@ export default function ImportExportHub(props: MasterDataHubProps) {
                   </div>
                   <div className="impex-job-who muted">{job.source_file_name ?? '—'}</div>
                   <div className="impex-job-when muted">
-                    {formatTimestamp(job.created_at, '—')}
+                    <FormattedTimestamp iso={job.created_at} never="—" />
                   </div>
                   <div className={'impex-job-status status-' + job.status}>
                     {jobStatusLabel(job.status, labels)}
@@ -354,7 +372,9 @@ export default function ImportExportHub(props: MasterDataHubProps) {
                       '—'
                     )}
                   </div>
-                  <div className="impex-job-when muted">{formatTimestamp(job.created_at, '—')}</div>
+                  <div className="impex-job-when muted">
+                    <FormattedTimestamp iso={job.created_at} never="—" />
+                  </div>
                   <div className={'impex-job-status status-' + job.status}>
                     {jobStatusLabel(job.status, labels)}
                   </div>

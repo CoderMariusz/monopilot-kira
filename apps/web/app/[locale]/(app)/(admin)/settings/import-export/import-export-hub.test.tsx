@@ -15,7 +15,10 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { renderToString } from 'react-dom/server';
+import { hydrateRoot, type Root } from 'react-dom/client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 
 import ImportExportHub, { type MasterDataHubLabels } from './import-export-hub.client';
 import type { ExportJobRow, ImportableEntityRow, ImportJobRow } from './_actions/master-data';
@@ -105,6 +108,42 @@ function hub() {
 afterEach(() => cleanup());
 
 describe('master-data Import/Export hub', () => {
+  it('hydrates timestamp cells from deterministic placeholders without a React mismatch', async () => {
+    const element = (
+      <ImportExportHub entities={entities} recentJobs={recentJobs} recentExports={recentExports} labels={labels} />
+    );
+    const html = renderToString(element);
+    expect(html).toContain('<div class="muted" role="cell">—</div>');
+    expect(html).not.toContain('12 May 2026');
+    expect(html).not.toContain('13 May 2026');
+
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let root: Root | undefined;
+
+    try {
+      root = hydrateRoot(container, element);
+      expect(container.querySelector('.impex-job-when')?.textContent).toBe('—');
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const errors = consoleError.mock.calls.map((call) => call.map(String).join(' ')).join('\n');
+      expect(errors).not.toMatch(/Hydration failed|server rendered HTML|#418/);
+    } finally {
+      consoleError.mockRestore();
+      if (root) {
+        await act(async () => {
+          root?.unmount();
+        });
+      }
+      container.remove();
+    }
+  });
+
   it('renders the entity table with real record counts and last-import timestamps', () => {
     renderHub();
     const table = within(hub()).getByRole('table', { name: 'Import / Export' });
