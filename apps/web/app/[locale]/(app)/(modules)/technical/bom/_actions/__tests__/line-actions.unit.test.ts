@@ -59,7 +59,7 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
       if (n.includes('from public.user_roles')) {
         return { rows: (client.hasPermission ? [{ ok: true }] : []) as never[], rowCount: client.hasPermission ? 1 : 0 };
       }
-      if (n.startsWith('select id, product_id, status from public.bom_headers')) {
+      if (n.startsWith('select h.id, i.item_code as product_id, h.status from public.bom_headers')) {
         return {
           rows: (client.headerStatus ? [{ id: HEADER_ID, product_id: 'FG-1', status: client.headerStatus }] : []) as never[],
           rowCount: client.headerStatus ? 1 : 0,

@@ -327,11 +327,14 @@ async function loadActiveBomRefs(client: QueryClient, rawCodes: string[]): Promi
   const codes = uniqueNormalized(rawCodes);
   if (codes.length === 0) return new Set();
   const { rows } = await client.query<ActiveBomLookupRow>(
-    `select distinct product_id
-       from public.bom_headers
-      where org_id = app.current_org_id()
-        and product_id = any($1::text[])
-        and status = 'active'`,
+    `select distinct i.item_code as product_id
+       from public.bom_headers bh
+       join public.items i
+         on i.org_id = bh.org_id
+        and i.id = bh.item_id
+      where bh.org_id = app.current_org_id()
+        and i.item_code = any($1::text[])
+        and bh.status = 'active'`,
     [codes],
   );
   return new Set(rows.map((row) => row.product_id));

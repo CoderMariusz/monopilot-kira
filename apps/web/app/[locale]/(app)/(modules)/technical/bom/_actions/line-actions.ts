@@ -58,9 +58,10 @@ type HeaderRow = { id: string; product_id: string | null; status: string };
 
 async function loadHeader(c: QueryClient, bomHeaderId: string): Promise<HeaderRow | null> {
   const { rows } = await c.query<HeaderRow>(
-    `select id, product_id, status
-       from public.bom_headers
-      where org_id = app.current_org_id() and id = $1::uuid
+    `select h.id, i.item_code as product_id, h.status
+       from public.bom_headers h
+       join public.items i on i.id = h.item_id and i.org_id = h.org_id
+      where h.org_id = app.current_org_id() and h.id = $1::uuid
       limit 1`,
     [bomHeaderId],
   );
@@ -97,12 +98,13 @@ export async function addBomLine(rawInput: unknown): Promise<BomLineActionResult
       }
       if (header.product_id) {
         const { rows: edgeRows } = await c.query<{ parent: string; component: string }>(
-          `select h.product_id as parent, l.component_code as component
+          `select i.item_code as parent, l.component_code as component
              from public.bom_headers h
+             join public.items i on i.id = h.item_id and i.org_id = h.org_id
              join public.bom_lines l on l.bom_header_id = h.id and l.org_id = h.org_id
             where h.org_id = app.current_org_id()
               and h.status = 'active'
-              and h.product_id is not null`,
+              and h.item_id is not null`,
         );
         const graph = buildGraph(edgeRows);
         if (detectCycle(graph, header.product_id, [input.componentCode])) {

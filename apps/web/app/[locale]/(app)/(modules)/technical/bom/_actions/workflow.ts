@@ -46,9 +46,12 @@ type HeaderState = { id: string; status: string; product_id: string | null };
 
 async function loadVersion(c: QueryClient, productId: string, version: number): Promise<HeaderState | null> {
   const { rows } = await c.query<HeaderState>(
-    `select id, status, product_id
-       from public.bom_headers
-      where org_id = app.current_org_id() and product_id = $1 and version = $2`,
+    `select h.id, h.status, i.item_code as product_id
+       from public.bom_headers h
+       join public.items i on i.id = h.item_id and i.org_id = h.org_id
+      where h.org_id = app.current_org_id()
+        and h.item_id = (select id from public.items where org_id = app.current_org_id() and item_code = $1)
+        and h.version = $2`,
     [productId, version],
   );
   return rows[0] ?? null;
@@ -76,10 +79,11 @@ export async function approveBom(rawInput: unknown): Promise<BomWorkflowResult> 
 
       // Re-validate cycle-freeness at approve time (red-line).
       const { rows: edgeRows } = await c.query<{ parent: string; component: string }>(
-        `select h.product_id as parent, l.component_code as component
+        `select i.item_code as parent, l.component_code as component
            from public.bom_headers h
+           join public.items i on i.id = h.item_id and i.org_id = h.org_id
            join public.bom_lines l on l.bom_header_id = h.id and l.org_id = h.org_id
-          where h.org_id = app.current_org_id() and h.status = 'active' and h.product_id is not null`,
+          where h.org_id = app.current_org_id() and h.status = 'active' and h.item_id is not null`,
       );
       const { rows: thisLines } = await c.query<{ item_id: string | null; component_code: string }>(
         `select item_id, component_code from public.bom_lines

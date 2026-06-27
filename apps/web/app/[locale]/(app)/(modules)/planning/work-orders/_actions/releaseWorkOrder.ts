@@ -55,10 +55,7 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
                   select bh.id
                     from public.bom_headers bh
                    where bh.org_id = app.current_org_id()
-                     and bh.product_id = (
-                       select i.item_code from public.items i
-                        where i.id = wo.product_id and i.org_id = app.current_org_id()
-                     )
+                     and bh.item_id = wo.product_id
                      and bh.status = 'active'
                    order by bh.version desc
                    limit 1
