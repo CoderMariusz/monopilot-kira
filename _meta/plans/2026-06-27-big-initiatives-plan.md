@@ -39,6 +39,15 @@ fields pre-fill from the project.
 
 **Owner decisions for A:** (1) confirm the 3-section grouping for A3; (2) URL `/fa`→`/fg` rename — do it or keep route internal? (3) `auto`-field UX (dropdown of same-dept vs any-dept source fields).
 
+### A — OWNER ADDITIONS (2026-06-27) — all "kill double-entry" / recipe fixes
+- **A7 Recipe Version locked + "Add version" submit broken.** Version field is locked; add-version doesn't submit. Fix: unlock + working add-version (new = draft, editable, in selector, per-version lock). [folds into A6 + NPD-flow-blocker #3]
+- **A8 Submit "For trial" → create a trial in step 4 as a DRAFT.** For-trial submission must create the trial record (draft) at step 4.
+- **A9 Recipe ingredient price AUTO-COPY** from the item master (price set at product creation, per kg or per piece) when an ingredient is selected — kill manual entry.
+- **A10 Packaging AUTO-PULL supplier + price** assigned to the product.
+- **A11 Add SUPPLIER field to create-item step 2 (Classification).** Today there is none. The supplier must follow the component, be auto-added to the supplier-spec (with FILE-UPLOAD if the supplier supplies a spec), and appear in Packaging.
+- **A12 FG detail PRE-FILL from brief** (repro `/en/fa/FG-NPD-012`): copy Volume/Weights (g), Price (Brief), Packs per case from the project/brief — currently not copied. [= A3 with these exact fields]
+- **A13 REMOVE the "Number of cases *" field** from FG detail (redundant double-entry).
+
 ---
 
 ## Initiative B — Site-scoping: the top-bar Site selector must define everything on screen
