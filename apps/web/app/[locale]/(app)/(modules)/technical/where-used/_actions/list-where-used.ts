@@ -25,21 +25,26 @@ export async function listWhereUsed(rawCode: unknown): Promise<WhereUsedResult[]
     return await withOrgContext(async ({ client }): Promise<WhereUsedResult[]> => {
       const qc = client as QueryClient;
       const { rows } = await qc.query<WhereUsedRow>(
-        `select distinct on (ph.product_id)
-                ph.product_id as fg_code,
-                pr.product_name as fg_name,
+        `select distinct on (i.item_code)
+                i.item_code as fg_code,
+                i.name as fg_name,
                 bl.quantity::text as component_qty,
                 bl.uom as component_uom
            from public.bom_lines bl
            join public.bom_headers ph
              on ph.id = bl.bom_header_id and ph.org_id = bl.org_id
-           left join public.product pr
-             on pr.org_id = ph.org_id and pr.product_code = ph.product_id
+           left join public.items i
+             on i.org_id = ph.org_id and i.id = ph.item_id
           where bl.org_id = app.current_org_id()
             and bl.component_code = $1
-            and ph.product_id is not null
-            and ph.product_id <> $1
-          order by ph.product_id, ph.version desc
+            and ph.item_id is not null
+            and ph.item_id <> (
+              select id
+                from public.items
+               where org_id = app.current_org_id()
+                 and item_code = $1
+            )
+          order by i.item_code, ph.version desc
           limit 100`,
         [code],
       );

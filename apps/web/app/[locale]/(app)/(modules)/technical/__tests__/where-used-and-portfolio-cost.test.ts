@@ -60,13 +60,14 @@ describe('technical where-used and portfolio cost read actions', () => {
     const sql = normalize(calls()[0]!.sql);
     expect(sql).toContain('from public.bom_lines bl');
     expect(sql).toContain('join public.bom_headers ph');
-    expect(sql).toContain('left join public.product pr');
-    expect(sql).toContain('ph.product_id as fg_code');
-    expect(sql).toContain('pr.product_name as fg_name');
+    expect(sql).toContain('left join public.items i');
+    expect(sql).toContain('i.item_code as fg_code');
+    expect(sql).toContain('i.name as fg_name');
     expect(sql).toContain('bl.quantity::text as component_qty');
     expect(sql).toContain('bl.uom as component_uom');
     expect(sql).toContain('bl.org_id = app.current_org_id()');
     expect(sql).toContain('bl.component_code = $1');
+    expect(sql).toContain('ph.item_id <> ( select id from public.items where org_id = app.current_org_id() and item_code = $1 )');
   });
 
   it('returns an empty where-used list for blank input without querying', async () => {
