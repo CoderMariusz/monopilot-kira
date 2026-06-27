@@ -1390,6 +1390,12 @@
       "forbidden": "Nie masz uprawnień do wyświetlania wymagań zatwierdzenia.",
       "load_error": "Nie udało się załadować wymagań zatwierdzenia.",
       "empty": "Brak skonfigurowanych kryteriów zatwierdzenia."
+    },
+    "infra": {
+      "warehouses": {
+        "warehouseSite": "Zakład",
+        "warehouseSitePlaceholder": "Wybierz zakład"
+      }
     }
   },
   "navigation": {

@@ -17,6 +17,7 @@ import WarehouseListScreen, {
   type Warehouse,
   type WarehouseLabels,
   type WarehousePageState,
+  type WarehouseSiteOption,
   type WarehouseStorageRules,
 } from './warehouse-list-screen.client';
 
@@ -50,6 +51,7 @@ type WarehouseRow = {
 };
 
 type CapabilityRow = { ok: boolean | string | number | null };
+type SiteOptionRow = { id: string; name: string };
 
 const STORAGE_RULE_STRATEGIES: readonly BinAssignmentStrategy[] = ['FEFO', 'FIFO', 'LIFO', 'Manual'];
 
@@ -87,6 +89,7 @@ function toStorageRules(row: WarehouseRow): WarehouseStorageRules {
 type PageProps = {
   params?: Promise<{ locale: string }>;
   warehouses?: Warehouse[];
+  sites?: WarehouseSiteOption[];
   canUpdateInfra?: boolean;
   createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
@@ -145,6 +148,8 @@ const DEFAULT_LABELS: WarehouseLabels = {
   createWarehousePending: 'Creating…',
   warehouseCode: 'Code',
   warehouseName: 'Name',
+  warehouseSite: 'Site',
+  warehouseSitePlaceholder: 'Select site',
   warehouseAddress: 'Address',
   createWarehouseFailed: 'Warehouse could not be created.',
   createWarehouseSuccess: 'Warehouse created.',
@@ -333,22 +338,33 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
   return rows;
 }
 
-async function loadWarehouses(): Promise<{ state: WarehousePageState; warehouses: Warehouse[]; canUpdateInfra: boolean }> {
+async function querySites(client: QueryClient): Promise<WarehouseSiteOption[]> {
+  const { rows } = await client.query<SiteOptionRow>(
+    `select id::text as id, name
+       from public.sites
+      where org_id = app.current_org_id()
+        and is_active = true
+      order by is_default desc, lower(name), id`,
+  );
+  return rows.map((row) => ({ id: row.id, name: row.name }));
+}
+
+async function loadWarehouses(): Promise<{ state: WarehousePageState; warehouses: Warehouse[]; sites: WarehouseSiteOption[]; canUpdateInfra: boolean }> {
   try {
-    return await withOrgContext(async (ctx): Promise<{ state: WarehousePageState; warehouses: Warehouse[]; canUpdateInfra: boolean }> => {
+    return await withOrgContext(async (ctx): Promise<{ state: WarehousePageState; warehouses: Warehouse[]; sites: WarehouseSiteOption[]; canUpdateInfra: boolean }> => {
       const context = ctx as OrgContextLike;
       const [canRead, canUpdateInfra] = await Promise.all([
         hasPermission(context, READ_PERMISSION),
         hasPermission(context, UPDATE_PERMISSION),
       ]);
-      if (!canRead) return { state: 'permission_denied', warehouses: [], canUpdateInfra: false };
+      if (!canRead) return { state: 'permission_denied', warehouses: [], sites: [], canUpdateInfra: false };
 
-      const rows = await queryWarehouses(context.client);
-      return { state: rows.length === 0 ? 'empty' : 'ready', warehouses: rows.map(toWarehouse), canUpdateInfra };
+      const [rows, sites] = await Promise.all([queryWarehouses(context.client), querySites(context.client)]);
+      return { state: rows.length === 0 ? 'empty' : 'ready', warehouses: rows.map(toWarehouse), sites, canUpdateInfra };
     });
   } catch (error) {
     console.error('[settings/infra/warehouses] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { state: 'error', warehouses: [], canUpdateInfra: false };
+    return { state: 'error', warehouses: [], sites: [], canUpdateInfra: false };
   }
 }
 
@@ -376,6 +392,7 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
     ? {
         state: props.state ?? (suppliedWarehouses.length === 0 ? 'empty' : 'ready'),
         warehouses: suppliedWarehouses,
+        sites: props.sites ?? [],
         canUpdateInfra: props.canUpdateInfra ?? false,
       }
     : await loadWarehouses();
@@ -385,6 +402,7 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
       labels={labels}
       locale={locale}
       initialWarehouses={runtime.warehouses}
+      sites={props.sites ?? runtime.sites}
       canUpdateInfra={props.canUpdateInfra ?? runtime.canUpdateInfra}
       createWarehouse={props.createWarehouse ?? runCreateWarehouse}
       deactivateWarehouse={props.deactivateWarehouse ?? runDeactivateWarehouse}

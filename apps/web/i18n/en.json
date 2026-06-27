@@ -1409,6 +1409,12 @@
       "forbidden": "You don't have permission to view approval requirements.",
       "load_error": "Unable to load approval requirements.",
       "empty": "No approval criteria are configured."
+    },
+    "infra": {
+      "warehouses": {
+        "warehouseSite": "Site",
+        "warehouseSitePlaceholder": "Select site"
+      }
     }
   },
   "navigation": {

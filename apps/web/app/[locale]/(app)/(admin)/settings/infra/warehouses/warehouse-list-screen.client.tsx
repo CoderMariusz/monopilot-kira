@@ -36,6 +36,11 @@ export type Warehouse = {
   storageRules?: WarehouseStorageRules | null;
 };
 
+export type WarehouseSiteOption = {
+  id: string;
+  name: string;
+};
+
 export type UpdateStorageRulesInput = { warehouseId: string } & Partial<WarehouseStorageRules>;
 export type UpdateStorageRulesResult =
   | { ok: true; data: { warehouseId: string } & WarehouseStorageRules }
@@ -48,7 +53,7 @@ export const DEFAULT_STORAGE_RULES: WarehouseStorageRules = {
   blockExpiredStock: true,
 };
 
-export type CreateWarehouseInput = { code: string; name: string; address?: string | null };
+export type CreateWarehouseInput = { code: string; name: string; site_id: string; address?: string | null };
 export type CreateWarehouseResult =
   | { ok: true; data: Warehouse }
   | { ok: false; error?: string };
@@ -120,6 +125,8 @@ export type WarehouseLabels = {
   createWarehousePending: string;
   warehouseCode: string;
   warehouseName: string;
+  warehouseSite: string;
+  warehouseSitePlaceholder: string;
   warehouseAddress: string;
   createWarehouseFailed: string;
   createWarehouseSuccess: string;
@@ -152,6 +159,7 @@ export default function WarehouseListScreen({
   labels,
   locale = 'en',
   initialWarehouses,
+  sites = [],
   canUpdateInfra,
   createWarehouse,
   deactivateWarehouse,
@@ -161,6 +169,7 @@ export default function WarehouseListScreen({
   labels: WarehouseLabels;
   locale?: string;
   initialWarehouses: Warehouse[];
+  sites?: WarehouseSiteOption[];
   canUpdateInfra: boolean;
   createWarehouse: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
@@ -177,7 +186,7 @@ export default function WarehouseListScreen({
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
-  const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', address: '' });
+  const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', site_id: '', address: '' });
   const [error, setError] = React.useState<string | null>(state === 'error' ? labels.error : null);
   const [warning, setWarning] = React.useState<WarningState | null>(null);
   const [storageWarehouseId, setStorageWarehouseId] = React.useState<string>(() => initialWarehouses[0]?.id ?? '');
@@ -276,6 +285,10 @@ export default function WarehouseListScreen({
     () => rows.map((row) => ({ value: row.id, label: `${row.code} — ${row.name}` })),
     [rows],
   );
+  const siteOptions = React.useMemo<SelectOption[]>(
+    () => sites.map((site) => ({ value: site.id, label: site.name })),
+    [sites],
+  );
   const binAssignmentOptions = React.useMemo<SelectOption[]>(
     () => [
       { value: 'FEFO', label: labels.binAssignmentFefo },
@@ -324,9 +337,15 @@ export default function WarehouseListScreen({
   async function submitCreateWarehouse(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canUpdateInfra || createPending) return;
+    const siteId = newWarehouse.site_id.trim();
+    if (!siteId) {
+      setError(labels.createWarehouseFailed);
+      return;
+    }
     const input = {
       code: newWarehouse.code,
       name: newWarehouse.name,
+      site_id: siteId,
       address: newWarehouse.address.trim() || null,
     };
     setCreatePending(true);
@@ -338,8 +357,10 @@ export default function WarehouseListScreen({
         setError(labels.createWarehouseFailed);
         return;
       }
-      setRows((current) => [result.data, ...current.filter((row) => row.id !== result.data.id)]);
-      setNewWarehouse({ code: '', name: '', address: '' });
+      const selectedSite = sites.find((site) => site.id === siteId) ?? null;
+      const createdRow = { ...result.data, site: result.data.site ?? selectedSite?.name ?? null };
+      setRows((current) => [createdRow, ...current.filter((row) => row.id !== result.data.id)]);
+      setNewWarehouse({ code: '', name: '', site_id: '', address: '' });
       setCreateStatus(labels.createWarehouseSuccess);
       setCreateDialogOpen(false);
     } finally {
@@ -707,6 +728,27 @@ export default function WarehouseListScreen({
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
                 />
               </label>
+              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <label htmlFor="new-warehouse-site">{labels.warehouseSite}</label>
+                <Select
+                  id="new-warehouse-site-select"
+                  value={newWarehouse.site_id}
+                  options={siteOptions}
+                  onValueChange={(value) => setNewWarehouse((current) => ({ ...current, site_id: value }))}
+                  disabled={!canUpdateInfra || createPending || siteOptions.length === 0}
+                >
+                  <SelectTrigger id="new-warehouse-site" aria-label={labels.warehouseSite}>
+                    <SelectValue placeholder={labels.warehouseSitePlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {siteOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-address">
                 {labels.warehouseAddress}
                 <Input
@@ -723,7 +765,7 @@ export default function WarehouseListScreen({
               </label>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
-                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createWarehouse : `${labels.createWarehouse} — ${labels.insufficientPermission}`}>
+                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending || !newWarehouse.site_id} aria-label={canUpdateInfra ? labels.createWarehouse : `${labels.createWarehouse} — ${labels.insufficientPermission}`}>
                   {createPending ? labels.createWarehousePending : labels.createWarehouse}
                 </Button>
               </div>

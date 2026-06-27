@@ -10,13 +10,14 @@ import React from 'react';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 
-const { withOrgContextMock, deactivateWarehouseActionMock, updateStorageRulesActionMock } = vi.hoisted(() => ({
+const { withOrgContextMock, createWarehouseActionMock, deactivateWarehouseActionMock, updateStorageRulesActionMock } = vi.hoisted(() => ({
   withOrgContextMock: vi.fn(),
+  createWarehouseActionMock: vi.fn(async () => ({ ok: false as const, error: 'invalid_input' })),
   deactivateWarehouseActionMock: vi.fn(async (input: DeactivateWarehouseInput) => ({
     ok: true as const,
     data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
@@ -38,6 +39,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 }));
 
 vi.mock('../../../../../../../actions/infra/warehouse', () => ({
+  createWarehouse: createWarehouseActionMock,
   deactivateWarehouse: deactivateWarehouseActionMock,
   updateWarehouseStorageRules: updateStorageRulesActionMock,
 }));
@@ -110,6 +112,11 @@ type Warehouse = {
   storageRules?: WarehouseStorageRules | null;
 };
 
+type WarehouseSiteOption = {
+  id: string;
+  name: string;
+};
+
 type DeactivateWarehouseInput = {
   warehouseId: string;
   force?: boolean;
@@ -131,10 +138,23 @@ type DeactivateWarehouseResult =
 type WarehousePageProps = {
   params?: Promise<{ locale: string }>;
   warehouses?: Warehouse[];
+  sites?: WarehouseSiteOption[];
   canUpdateInfra?: boolean;
+  createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
 };
+
+type CreateWarehouseInput = {
+  code: string;
+  name: string;
+  site_id: string;
+  address?: string | null;
+};
+
+type CreateWarehouseResult =
+  | { ok: true; data: Warehouse }
+  | { ok: false; error?: string };
 
 type WarehousesPage = (props: WarehousePageProps) => React.ReactNode | Promise<React.ReactNode>;
 
@@ -162,6 +182,11 @@ const prototypeParityWarehouses = [
     usedPercent: 68,
   },
 ] satisfies PrototypeParityWarehouse[];
+
+const sampleSites: WarehouseSiteOption[] = [
+  { id: '00000000-0000-4000-8000-000000000701', name: 'Kraków HQ' },
+  { id: '00000000-0000-4000-8000-000000000702', name: 'Poznań DC' },
+];
 
 const warehouses: Warehouse[] = Array.from({ length: 25 }, (_, index) => {
   const rowNumber = index + 1;
@@ -199,10 +224,23 @@ async function loadWarehousesPage(): Promise<WarehousesPage> {
 
 async function renderWarehousesPage(overrides: Partial<WarehousePageProps> = {}) {
   const Page = await loadWarehousesPage();
-  const props: WarehousePageProps = {
-    params: Promise.resolve({ locale: 'en' }),
-    warehouses,
-    canUpdateInfra: true,
+    const props: WarehousePageProps = {
+      params: Promise.resolve({ locale: 'en' }),
+      warehouses,
+      sites: sampleSites,
+      canUpdateInfra: true,
+      createWarehouse: vi.fn(async (input: CreateWarehouseInput) => ({
+        ok: true as const,
+        data: {
+          id: '00000000-0000-4000-8000-000000000778',
+          code: input.code,
+          name: input.name,
+          site: sampleSites.find((site) => site.id === input.site_id)?.name ?? null,
+          address: input.address ?? null,
+          deactivated_at: null,
+          active_wo_count: 0,
+        },
+      })),
     deactivateWarehouse: vi.fn(async (input: DeactivateWarehouseInput) => ({
       ok: true as const,
       data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
@@ -381,13 +419,32 @@ describe('UI-SET-001 warehouse prototype parity', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     await user.type(within(dialog).getByLabelText(/^code$/i), 'WH-LIVE-02');
     await user.type(within(dialog).getByLabelText(/^name$/i), 'Live frozen warehouse');
+    await user.click(within(dialog).getByRole('combobox', { name: /^site$/i }));
+    await user.click(screen.getByRole('option', { name: /^kraków hq$/i }));
     await user.click(within(dialog).getByRole('button', { name: /^create warehouse$/i }));
 
     await waitFor(() => expect(createWarehouse).toHaveBeenCalledTimes(1));
-    expect(createWarehouse).toHaveBeenCalledWith(expect.objectContaining({ code: 'WH-LIVE-02', name: 'Live frozen warehouse' }));
+    expect(createWarehouse).toHaveBeenCalledWith(expect.objectContaining({ code: 'WH-LIVE-02', name: 'Live frozen warehouse', site_id: sampleSites[0].id }));
     expect(screen.queryByRole('dialog', { name: /^add warehouse$/i })).not.toBeInTheDocument();
     expect(within(warehouseTable()).getByRole('row', { name: /WH-LIVE-02.*Live frozen warehouse.*Active/i })).toBeInTheDocument();
     expectNoRawSettingsKeys();
+  });
+
+  it('rejects Add warehouse submission when no site is selected', async () => {
+    const user = userEvent.setup();
+    const createWarehouse = vi.fn(async () => ({ ok: false as const, error: 'invalid_input' }));
+    await renderWarehousesPage({ warehouses: prototypeParityWarehouses as Warehouse[], sites: [], createWarehouse });
+
+    await user.click(screen.getByRole('button', { name: /^\+ add warehouse$/i }));
+
+    const dialog = screen.getByRole('dialog', { name: /^add warehouse$/i });
+    await user.type(within(dialog).getByLabelText(/^code$/i), 'WH-NOSITE');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'No site warehouse');
+    expect(within(dialog).getByRole('button', { name: /^create warehouse$/i })).toBeDisabled();
+
+    fireEvent.submit(document.getElementById('add-warehouse-form') as HTMLFormElement);
+
+    expect(createWarehouse).not.toHaveBeenCalled();
   });
 
   it('shows a prototype-aligned permission state without exposing the create dialog when update permission is missing', async () => {

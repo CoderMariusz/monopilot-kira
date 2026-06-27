@@ -6,6 +6,7 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const ACTOR_USER_ID = '22222222-2222-4222-8222-222222222222';
 const WAREHOUSE_ID = '33333333-3333-4333-8333-333333333333';
 const OTHER_WAREHOUSE_ID = '44444444-4444-4444-8444-444444444444';
+const SITE_ID = '12121212-1212-4212-8212-121212121212';
 const ZONE_ID = '55555555-5555-4555-8555-555555555555';
 const AISLE_ID = '66666666-6666-4666-8666-666666666666';
 const BIN_ID = '77777777-7777-4777-8777-777777777777';
@@ -17,7 +18,7 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 type InfraLocation = { id: string; warehouse_id: string; parent_id: string | null; code: string; level: number; path: string };
 type InfraMachine = { id: string; location_id: string | null; status: string };
 type InfraLine = { id: string; status: string; machine_ids: string[]; default_output_location_id: string | null };
-type InfraWarehouse = { id: string; is_active: boolean };
+type InfraWarehouse = { id: string; is_active: boolean; code?: string; name?: string; site_id?: string; address_label?: string | null };
 
 type FakeClient = {
   calls: QueryCall[];
@@ -177,6 +178,23 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         const warehouseId = params.map(String).find((value) => client.warehouses.has(value));
         const count = warehouseId && client.activeWorkOrders.has(warehouseId) ? 2 : 0;
         return { rows: [{ active_count: count, count }] as never[], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('insert into public.warehouses')) {
+        const siteId = String(params[0]);
+        const code = String(params[1]);
+        const name = String(params[2]);
+        const address = safeJsonParse(params[3]) as { line1?: string } | null;
+        const row = {
+          id: OTHER_WAREHOUSE_ID,
+          is_active: true,
+          code,
+          name,
+          site_id: siteId,
+          address_label: address?.line1 ?? null,
+        };
+        client.warehouses.set(row.id, row);
+        return { rows: [row] as never[], rowCount: 1 };
       }
 
       if (normalized.startsWith('update public.warehouses')) {
@@ -387,6 +405,26 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const forced = await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true });
     expect(forced).toMatchObject({ ok: true, data: { isActive: false }, warning: { code: 'ACTIVE_WO_REFERENCES', activeWorkOrders: 2 } });
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.warehouse.deactivated')).toBe(true);
+  });
+
+  it('creates warehouses with a required site_id and persists it into public.warehouses', async () => {
+    const createWarehouse = await loadAction<
+      (input: { code: string; name: string; site_id?: string; address?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { site_id?: string } }>
+    >('warehouse.ts', 'createWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+
+    await expect(createWarehouse({ code: 'WH-NOSITE', name: 'Missing site warehouse' })).resolves.toMatchObject({
+      ok: false,
+      error: 'invalid_input',
+    });
+    expect(_runWithOrgContext).not.toHaveBeenCalled();
+
+    const result = await createWarehouse({ code: 'wh-site', name: 'Site warehouse', site_id: SITE_ID, address: 'Dock 9' });
+
+    expect(result).toMatchObject({ ok: true, data: { site_id: SITE_ID } });
+    const insertCall = currentClient.calls.find((call) => call.sql.toLowerCase().startsWith('insert into public.warehouses'));
+    expect(insertCall?.sql.toLowerCase()).toContain('site_id');
+    expect(insertCall?.params).toEqual([SITE_ID, 'WH-SITE', 'Site warehouse', JSON.stringify({ line1: 'Dock 9' })]);
+    expect(currentClient.warehouses.get(OTHER_WAREHOUSE_ID)?.site_id).toBe(SITE_ID);
   });
 
   it('creates a DRAFT line with zero machines and writes line_machines (delete-then-insert with sequence) when machines are assigned', async () => {

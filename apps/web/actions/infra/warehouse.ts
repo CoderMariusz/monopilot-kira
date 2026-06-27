@@ -1,5 +1,7 @@
 'use server';
 
+import { z } from 'zod';
+
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -12,7 +14,7 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
-type WarehouseRow = { id: string; code?: string; name?: string; address_label?: string | null; is_active?: boolean | null; deactivated_at?: string | null };
+type WarehouseRow = { id: string; code?: string; name?: string; site_id?: string | null; address_label?: string | null; is_active?: boolean | null; deactivated_at?: string | null };
 type CountRow = { active_count?: number | string | null; count?: number | string | null };
 
 type ParsedDeactivateInput = {
@@ -23,6 +25,7 @@ type ParsedDeactivateInput = {
 type ParsedCreateInput = {
   code: string;
   name: string;
+  site_id: string;
   address: string | null;
 };
 
@@ -35,7 +38,7 @@ export type DeactivateWarehouseResult =
     };
 
 export type CreateWarehouseResult =
-  | { ok: true; data: { id: string; code: string; name: string; address: string | null; deactivated_at: null; active_wo_count: 0 } }
+  | { ok: true; data: { id: string; code: string; name: string; site_id: string; address: string | null; deactivated_at: null; active_wo_count: 0 } }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'already_exists' | 'persistence_failed' };
 
 export type BinAssignmentStrategy = 'FEFO' | 'FIFO' | 'LIFO' | 'Manual';
@@ -59,6 +62,18 @@ const EDIT_PERMISSION = 'settings.infra.update';
 
 const BIN_ASSIGNMENT_STRATEGIES: readonly BinAssignmentStrategy[] = ['FEFO', 'FIFO', 'LIFO', 'Manual'];
 
+const createWarehouseInputSchema = z.object({
+  code: z
+    .string()
+    .transform((value) => value.trim().toUpperCase())
+    .refine((value) => /^[A-Z0-9][A-Z0-9_-]{0,31}$/.test(value)),
+  name: z.string().trim().min(1).max(128),
+  site_id: z.string().uuid(),
+  address: z
+    .union([z.string().trim().min(1).max(256), z.literal(''), z.null(), z.undefined()])
+    .transform((value) => (typeof value === 'string' && value.trim().length > 0 ? value.trim() : null)),
+});
+
 export async function createWarehouse(rawInput: unknown): Promise<CreateWarehouseResult> {
   const input = parseCreateInput(rawInput);
   if (!input) return { ok: false, error: 'invalid_input' };
@@ -67,15 +82,16 @@ export async function createWarehouse(rawInput: unknown): Promise<CreateWarehous
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<CreateWarehouseResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
       const { rows } = await client.query<WarehouseRow>(
-        `insert into public.warehouses (org_id, code, name, warehouse_type, address)
-         values (app.current_org_id(), $1, $2, 'storage', $3::jsonb)
+        `insert into public.warehouses (org_id, site_id, code, name, warehouse_type, address)
+         values (app.current_org_id(), $1::uuid, $2, $3, 'storage', $4::jsonb)
          on conflict (org_id, code) do nothing
          returning id,
                    code,
                    name,
+                   site_id::text as site_id,
                    nullif(concat_ws(', ', address->>'line1'), '') as address_label,
                    null::text as deactivated_at`,
-        [input.code, input.name, JSON.stringify(input.address ? { line1: input.address } : {})],
+        [input.site_id, input.code, input.name, JSON.stringify(input.address ? { line1: input.address } : {})],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'already_exists' };
@@ -85,6 +101,7 @@ export async function createWarehouse(rawInput: unknown): Promise<CreateWarehous
           id: row.id,
           code: row.code ?? input.code,
           name: row.name ?? input.name,
+          site_id: input.site_id,
           address: row.address_label ?? input.address,
           deactivated_at: null,
           active_wo_count: 0,
@@ -262,30 +279,8 @@ function parseStorageRulesInput(raw: unknown): (Partial<WarehouseStorageRules> &
 }
 
 function parseCreateInput(raw: unknown): ParsedCreateInput | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const input = raw as Record<string, unknown>;
-  const code = normalizeCode(input.code);
-  const name = normalizeText(input.name, 128);
-  const address = optionalText(input.address, 256);
-  if (!code || !name) return null;
-  return { code, name, address };
-}
-
-function normalizeCode(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().toUpperCase();
-  return /^[A-Z0-9][A-Z0-9_-]{0,31}$/.test(trimmed) ? trimmed : null;
-}
-
-function normalizeText(value: unknown, max: number): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed.length <= max ? trimmed : null;
-}
-
-function optionalText(value: unknown, max: number): string | null {
-  if (value === undefined || value === null || value === '') return null;
-  return normalizeText(value, max);
+  const parsed = createWarehouseInputSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 function parseDeactivateInput(raw: unknown): ParsedDeactivateInput | null {
