@@ -114,11 +114,11 @@ export async function loadAllergenCascade(): Promise<LoadCascadeResult> {
           `select bh.version
              from public.bom_headers bh
             where bh.org_id = app.current_org_id()
-              and bh.product_id = $1
+              and bh.item_id = $1::uuid
               and bh.status = 'active'
             order by bh.version desc
             limit 1`,
-          [fg.item_code],
+          [fg.id],
         );
 
         // (3) Derivation chain — component allergen contributions + process additions
@@ -134,7 +134,7 @@ export async function loadAllergenCascade(): Promise<LoadCascadeResult> {
               select bh.id as bom_header_id
                 from public.bom_headers bh
                where bh.org_id = app.current_org_id()
-                 and bh.product_id = $1
+                 and bh.item_id = $1::uuid
                  and bh.status = 'active'
                order by bh.version desc
                limit 1
@@ -153,7 +153,7 @@ export async function loadAllergenCascade(): Promise<LoadCascadeResult> {
                on ra.org_id = app.current_org_id() and ra.allergen_code = iap.allergen_code
             where bl.item_id is not null
             order by c.item_code asc`,
-          [fg.item_code],
+          [fg.id],
         );
 
         const { rows: processAdds } = await qc.query<{
@@ -165,7 +165,7 @@ export async function loadAllergenCascade(): Promise<LoadCascadeResult> {
               select bh.id as bom_header_id
                 from public.bom_headers bh
                where bh.org_id = app.current_org_id()
-                 and bh.product_id = $1
+                 and bh.item_id = $1::uuid
                  and bh.status = 'active'
                order by bh.version desc
                limit 1
@@ -182,7 +182,7 @@ export async function loadAllergenCascade(): Promise<LoadCascadeResult> {
                on ra.org_id = app.current_org_id() and ra.allergen_code = moa.allergen_code
             where bl.manufacturing_operation_name is not null
             order by moa.manufacturing_operation_name asc`,
-          [fg.item_code],
+          [fg.id],
         );
 
         // Group component contributions by component item.

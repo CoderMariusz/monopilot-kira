@@ -111,22 +111,22 @@ export async function listCostedProducts(): Promise<ListCostedProductsResult> {
   try {
     return await withOrgContext(async ({ client }): Promise<ListCostedProductsResult> => {
       const qc = client as QueryClient;
-      // Latest (highest version, non-archived) BOM per product_id, joined to the
-      // item master for the product name (product_id is TEXT → items.item_code).
+      // Latest (highest version, non-archived) BOM per item_id, joined to the
+      // item master for the product code/name.
       const { rows } = await qc.query<ProductRow>(
-        `select distinct on (bh.product_id)
-                bh.product_id as product_code,
+        `select distinct on (i.item_code)
+                i.item_code as product_code,
                 i.name,
                 bh.version   as bom_version,
                 bh.status    as bom_status
            from public.bom_headers bh
-           left join public.items i
-                  on i.item_code = bh.product_id
-                 and i.org_id = app.current_org_id()
+           join public.items i
+             on i.id = bh.item_id
+            and i.org_id = app.current_org_id()
           where bh.org_id = app.current_org_id()
-            and bh.product_id is not null
+            and bh.item_id is not null
             and bh.status <> 'archived'
-          order by bh.product_id, bh.version desc`,
+          order by i.item_code, bh.version desc`,
       );
 
       // Phase-3 NPD↔Technical shortcut: one cheap org-scoped read mapping each
@@ -178,7 +178,7 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
       // material roll-up. The Σ(quantity × cost_per_kg) is done in NUMERIC space.
       const headerResult = await qc.query<HeaderRow>(
         `select bh.id,
-                bh.product_id as product_code,
+                i.item_code as product_code,
                 i.name,
                 bh.version    as bom_version,
                 bh.status     as bom_status,
@@ -192,11 +192,16 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
                     and bl.bom_header_id = bh.id
                     and ci.cost_per_kg is not null) as total_material_cost
            from public.bom_headers bh
-           left join public.items i
-                  on i.item_code = bh.product_id
-                 and i.org_id = app.current_org_id()
+           join public.items i
+             on i.id = bh.item_id
+            and i.org_id = app.current_org_id()
           where bh.org_id = app.current_org_id()
-            and bh.product_id = $1
+            and bh.item_id = (
+              select fi.id
+                from public.items fi
+               where fi.org_id = app.current_org_id()
+                 and fi.item_code = $1
+            )
             and bh.status <> 'archived'
           order by bh.version desc
           limit 1`,

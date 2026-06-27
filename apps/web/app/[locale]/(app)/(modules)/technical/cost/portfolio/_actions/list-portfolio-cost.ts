@@ -23,16 +23,19 @@ export async function listPortfolioCost(): Promise<PortfolioCostResult[]> {
       const qc = client as QueryClient;
       const { rows } = await qc.query<PortfolioCostRow>(
         `with latest_bom as (
-           select distinct on (bh.product_id)
+           select distinct on (i.item_code)
                   bh.id,
-                  bh.product_id,
+                  bh.item_id,
                   bh.version,
                   bh.status
              from public.bom_headers bh
+             join public.items i
+               on i.id = bh.item_id
+              and i.org_id = app.current_org_id()
             where bh.org_id = app.current_org_id()
-              and bh.product_id is not null
+              and bh.item_id is not null
               and bh.status <> 'archived'
-            order by bh.product_id, bh.version desc
+            order by i.item_code, bh.version desc
          )
          select i.item_code as fg_code,
                 i.name as fg_name,
@@ -47,7 +50,7 @@ export async function listPortfolioCost(): Promise<PortfolioCostResult[]> {
                 'PLN'::text as currency
            from public.items i
            left join latest_bom lb
-                  on lb.product_id = i.item_code
+                  on lb.item_id = i.id
           where i.org_id = app.current_org_id()
             and i.item_type = 'fg'
           order by i.item_code asc`,
