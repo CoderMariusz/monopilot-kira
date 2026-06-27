@@ -60,6 +60,13 @@ type PilotEvidenceRow = {
   status: string;
 };
 
+type DbErrorLike = {
+  code?: string;
+  constraint?: string;
+  detail?: string;
+  message?: string;
+};
+
 export type MaterializeNpdBomResult = {
   code?: 'PRODUCTION_CODE_CONFLICT';
   projectId: string;
@@ -353,24 +360,29 @@ async function createActiveNpdBom(
 ): Promise<BomHeaderRow> {
   const productCode = deriveProductionCode(project.product_code as string);
   const version = await nextBomVersion(ctx, productCode);
-  const yieldPct = formulation.target_yield_pct ?? '100.000';
-  const { rows } = await ctx.client.query<BomHeaderRow>(
-    `insert into public.bom_headers
-       (org_id, product_id, npd_project_id, origin_module, status, version, yield_pct,
-        effective_from, notes, created_by_user, app_version)
-     values
-       (app.current_org_id(), $1, $2::uuid, 'npd', 'draft', $3, $4::numeric,
-        current_date, $5, $6::uuid, 'npd-release-materialize-v1')
-     returning id, version`,
-    [
-      productCode,
-      project.id,
-      version,
-      yieldPct,
-      `Materialized from locked NPD formulation version ${formulation.version_number}.`,
-      ctx.userId,
-    ],
-  );
+  const yieldPct = normalizeBomYieldPct(formulation.target_yield_pct);
+  let rows: BomHeaderRow[];
+  try {
+    ({ rows } = await ctx.client.query<BomHeaderRow>(
+      `insert into public.bom_headers
+         (org_id, product_id, npd_project_id, origin_module, status, version, yield_pct,
+          effective_from, notes, created_by_user, app_version)
+       values
+         (app.current_org_id(), $1, $2::uuid, 'npd', 'draft', $3, $4::numeric,
+          current_date, $5, $6::uuid, 'npd-release-materialize-v1')
+       returning id, version`,
+      [
+        productCode,
+        project.id,
+        version,
+        yieldPct,
+        `Materialized from locked NPD formulation version ${formulation.version_number}.`,
+        ctx.userId,
+      ],
+    ));
+  } catch (error) {
+    throw new Error(formatBomHeaderInsertError(error));
+  }
   const header = rows[0];
   if (!header) throw new Error('bom_headers insert returned no row');
 
@@ -457,6 +469,24 @@ async function nextBomVersion(ctx: OrgContextLike, productCode: string): Promise
     [productCode],
   );
   return Number(rows[0]?.next_version ?? 1);
+}
+
+function normalizeBomYieldPct(targetYieldPct: string | null): string {
+  if (targetYieldPct === null) return '100';
+  const trimmed = targetYieldPct.trim();
+  const numeric = Number(trimmed);
+  if (!Number.isFinite(numeric) || numeric <= 0 || numeric > 100) return '100';
+  return trimmed;
+}
+
+function formatBomHeaderInsertError(error: unknown): string {
+  const dbError = error as DbErrorLike;
+  const constraint = dbError.constraint ? ` (${dbError.constraint})` : '';
+  const detail = dbError.detail ?? dbError.message ?? 'unknown database error';
+  if (dbError.code === '23514') {
+    return `Could not generate production BOM header: database check constraint failed${constraint}. ${detail}`;
+  }
+  return `Could not generate production BOM header: ${detail}`;
 }
 
 async function loadApprovedFactorySpec(ctx: OrgContextLike, fgItemId: string): Promise<FactorySpecRow | null> {

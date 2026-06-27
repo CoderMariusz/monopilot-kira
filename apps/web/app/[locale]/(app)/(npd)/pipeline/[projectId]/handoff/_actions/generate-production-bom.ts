@@ -34,6 +34,7 @@ export type GenerateProductionBomError =
   | 'forbidden'
   | 'no_recipe'
   | 'production_code_conflict'
+  | 'bom_materialization_failed'
   | 'persistence_failed';
 
 export type GenerateProductionBomResult =
@@ -96,6 +97,11 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
       },
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.startsWith('Could not generate production BOM header:')) {
+      console.error('[generateProductionBom] bom_materialization_failed:', message);
+      return { ok: false, error: 'bom_materialization_failed', message };
+    }
     console.error('[generateProductionBom] persistence_failed:', error);
     return { ok: false, error: 'persistence_failed' };
   }
