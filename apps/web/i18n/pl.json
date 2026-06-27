@@ -1395,6 +1395,9 @@
       "warehouses": {
         "warehouseSite": "Zakład",
         "warehouseSitePlaceholder": "Wybierz zakład"
+      },
+      "locations": {
+        "warehouseUnassigned": "—"
       }
     }
   },
@@ -4734,7 +4737,9 @@
       "colQtyPerPack": "Ilość / opak. (kg)",
       "qtyBalanceWarning": "Suma składników to {qty} kg wobec opakowania {pack} kg. Dopasuj do masy opakowania (±1%) przed zgłoszeniem do próby.",
       "packWeightUnsetHint": "Ustaw masę opakowania w Briefie, aby walidować recepturę względem wielkości opakowania.",
-      "qtyRangeError": "Ilość musi być liczbą nieujemną."
+      "qtyRangeError": "Ilość musi być liczbą nieujemną.",
+      "creatingDraft": "Tworzenie…",
+      "createDraftError": "Nie udało się utworzyć wersji roboczej. Spróbuj ponownie."
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -4785,7 +4790,8 @@
       "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki.",
       "faDerivedHint": "Zamknięte w FA →",
       "faDerivedLocked": "Wyliczane z FA",
-      "revertGate": "Cofnij etap"
+      "revertGate": "Cofnij etap",
+      "advanceTerminalHint": "Uruchomiony — w pełni zaawansowany"
     },
     "advanceGateModal": {
       "title": "Przejście do następnej bramki",

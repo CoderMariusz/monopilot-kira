@@ -1414,6 +1414,9 @@
       "warehouses": {
         "warehouseSite": "Site",
         "warehouseSitePlaceholder": "Select site"
+      },
+      "locations": {
+        "warehouseUnassigned": "—"
       }
     }
   },
@@ -2453,7 +2456,9 @@
       "lockErrorLocked": "This version is already locked.",
       "lockErrorNotSubmitted": "Only a draft or trial version can be locked.",
       "lockErrorNotFound": "This version could not be found.",
-      "batchSizeHint": "Batch size = pack weight; ingredients must total this."
+      "batchSizeHint": "Batch size = pack weight; ingredients must total this.",
+      "creatingDraft": "Creating…",
+      "createDraftError": "Could not create the draft. Try again."
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -2504,7 +2509,8 @@
       "forbidden": "You do not have permission to view this gate checklist.",
       "faDerivedHint": "Closed in FA →",
       "faDerivedLocked": "FG-derived",
-      "revertGate": "Revert gate"
+      "revertGate": "Revert gate",
+      "advanceTerminalHint": "Launched — fully advanced"
     },
     "advanceGateModal": {
       "title": "Advance gate",

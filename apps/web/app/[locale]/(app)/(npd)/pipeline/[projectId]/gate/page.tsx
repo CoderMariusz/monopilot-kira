@@ -112,7 +112,14 @@ type GateMeta = {
 const GATE_META: Record<GateKey, GateMeta> = {
   G0: { label: 'Idea', next: 'G2', nextLabel: 'Business Case', advanceTarget: 'G2', requiresApproval: false },
   G1: { label: 'Feasibility (within Brief)', next: 'G2', nextLabel: 'Business Case', advanceTarget: 'G2', requiresApproval: false },
-  G2: { label: 'Business Case', next: 'G3', nextLabel: 'Development', advanceTarget: 'G3', requiresApproval: true },
+  // G2 (Business Case) is a SELF-ADVANCE gate — only G3 (Development) and G4 (Testing)
+  // carry the BRCGS/CFR-21 e-sign (approveProjectGate accepts gateCode ∈ {G3,G4} only,
+  // and the stage machine sets requiresESign solely on approval→handoff). Marking G2 as
+  // requiresApproval routed a fresh G2 project's panel CTA into the e-sign modal, which
+  // buildApprovalProject defaults to gateCode 'G3' → approveProjectGate GATE_MISMATCH →
+  // "Could not record the gate decision" (a new project could never advance past G2).
+  // The gate-screen test fixtures already model G2 as requiresApproval:false.
+  G2: { label: 'Business Case', next: 'G3', nextLabel: 'Development', advanceTarget: 'G3', requiresApproval: false },
   G3: { label: 'Development', next: 'G4', nextLabel: 'Testing', advanceTarget: 'G4', requiresApproval: true },
   G4: { label: 'Testing', next: null, nextLabel: 'Launched', advanceTarget: 'Launched', requiresApproval: true },
 };

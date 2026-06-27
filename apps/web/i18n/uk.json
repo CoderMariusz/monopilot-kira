@@ -1395,6 +1395,9 @@
       "warehouses": {
         "warehouseSite": "Site",
         "warehouseSitePlaceholder": "Select site"
+      },
+      "locations": {
+        "warehouseUnassigned": "—"
       }
     }
   },
@@ -4733,7 +4736,9 @@
       "colQtyPerPack": "Qty / pack (kg)",
       "qtyBalanceWarning": "Ingredient total is {qty} kg vs a {pack} kg pack. Adjust to match the pack weight (±1%) before submitting for trial.",
       "packWeightUnsetHint": "Set the pack weight on the Brief to validate the recipe against the pack size.",
-      "qtyRangeError": "Quantity must be a non-negative number."
+      "qtyRangeError": "Quantity must be a non-negative number.",
+      "creatingDraft": "Creating…",
+      "createDraftError": "Could not create the draft. Try again."
     },
     "costPanel": {
       "title": "Вартість і маржа",
@@ -4784,7 +4789,8 @@
       "forbidden": "У вас немає дозволу переглядати цей контрольний список етапу.",
       "faDerivedHint": "Closed in FA →",
       "faDerivedLocked": "FG-derived",
-      "revertGate": "Revert gate"
+      "revertGate": "Revert gate",
+      "advanceTerminalHint": "Launched — fully advanced"
     },
     "advanceGateModal": {
       "title": "Перехід до наступного етапу",
