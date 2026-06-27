@@ -1,9 +1,17 @@
 # E2E Tester Tour — COMPREHENSIVE REPORT (2026-06-27, autonomous night run)
 
+> **⬆️ SUPERSEDED 2026-06-27 by RUN-2 + RUN-3 — the BLOCKER below is now FIXED. Full operational path is UNBLOCKED end-to-end.**
+> Owner chose **auto-putaway** (receive → `status='available'` directly) + the warehouse `site_id` backfill + Add-warehouse Site-picker
+> (`2ca88194`) closed the root cause. RUN-3 live-verified: NPD Generate-BOM (yield), scanner Receive-PO (location), scanner
+> Consume, FG production, TO-ship, SO-ship **all work**. Note: consume still correctly requires a scanner **QC-PASS**
+> (`qa_status pending→released`) — that is deliberate BRCGS quarantine, not a bug. Also fixed: partial-ship LP-remainder freeze
+> (`8d986445`). Per-run detail: `_meta/e2e-tour-2026-06-27-RUN2-findings.md`, `_meta/e2e-tour-2026-06-27-RUN3-findings.md`.
+> The original (now-historical) verdict + finding list below is retained for the audit trail.
+
 Walked the FULL tester path on the LIVE deployed app (admin@monopilot.test), all 16 steps, clicking everything,
 no shortcuts. Raw step log + screenshots: `_meta/e2e-tour-2026-06-27-findings.md` + `.playwright-mcp/*.png`.
 
-## VERDICT — are all paths unblocked?
+## VERDICT — are all paths unblocked? *(historical — see superseded banner above)*
 **NO — one BLOCKER breaks the operational tail.** Steps 0–14 (login → warehouse/location → full NPD → PO →
 receive → WO → consume → produce FG → movements) all WORK (with minor issues noted). **Steps 15–16 (TO ship,
 SO allocate/pack/ship) are BLOCKED** by a single root cause: received + QC-released stock never becomes
