@@ -127,6 +127,8 @@ export const productionLines = pgTable(
     name: text('name').notNull(),
     status: text('status').notNull().default('active'),
     defaultLocationId: uuid('default_location_id').references(() => locations.id, { onDelete: 'set null' }),
+    siteId: uuid('site_id').references(() => sites.id),
+    warehouseId: uuid('warehouse_id').references(() => warehouses.id),
   },
   (table) => ({
     orgCodeUnique: unique('production_lines_org_code_unique').on(table.orgId, table.code),
