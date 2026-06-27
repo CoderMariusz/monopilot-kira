@@ -135,10 +135,28 @@ export type DeclarationAction = (input: {
 const REFRESH_DEBOUNCE_MS = 600;
 
 /** Render the accepted-at timestamp as a short date; falls back to the raw value. */
-function formatAcceptedAt(value: string | null | undefined): string {
+function formatAcceptedAtClient(value: string | null | undefined): string {
   if (!value) return '';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+}
+
+function FormattedDeclarationAcceptedBy({
+  label,
+  name,
+  acceptedAt,
+}: {
+  label: string;
+  name: string;
+  acceptedAt: string | null | undefined;
+}) {
+  const [dateLabel, setDateLabel] = React.useState(() => acceptedAt ?? '');
+
+  React.useEffect(() => {
+    setDateLabel(formatAcceptedAtClient(acceptedAt));
+  }, [acceptedAt]);
+
+  return <>{label.replace('{name}', name).replace('{date}', dateLabel)}</>;
 }
 
 function StateNotice({
@@ -525,9 +543,11 @@ export function AllergenCascadeWidget({
                   <span className="font-medium">{labels.declarationAcceptedBadge}</span>
                   {data.declarationAcceptedBy ? (
                     <span className="text-slate-500">
-                      {labels.declarationAcceptedBy
-                        .replace('{name}', data.declarationAcceptedBy)
-                        .replace('{date}', formatAcceptedAt(data.declarationAcceptedAt))}
+                      <FormattedDeclarationAcceptedBy
+                        label={labels.declarationAcceptedBy}
+                        name={data.declarationAcceptedBy}
+                        acceptedAt={data.declarationAcceptedAt}
+                      />
                     </span>
                   ) : null}
                 </p>

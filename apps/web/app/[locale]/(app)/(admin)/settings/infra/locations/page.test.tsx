@@ -458,6 +458,54 @@ describe('UI-SET-002 locations modal CRUD parity RED', () => {
     }));
   });
 
+  it('filters Add location parent options by selected warehouse and resets parent when the warehouse changes', async () => {
+    const user = userEvent.setup();
+    const scopedLocations: LocationRow[] = [
+      ...locations,
+      { id: 'zone-n10', warehouseId: 'wh-north', warehouseCode: 'NORTH', warehouseName: 'North Warehouse', parentId: 'root-north', name: 'North Zone 10', level: 2, path: 'north.z10' },
+    ];
+
+    await renderLocationModalCrud({ canUpdateInfra: true, locations: scopedLocations });
+    await user.click(screen.getByRole('button', { name: /\+ add location/i }));
+
+    const dialog = currentDialog();
+    const parentSelect = within(dialog).getByRole('combobox', { name: /parent location/i });
+    await user.click(parentSelect);
+    expect(screen.getByRole('option', { name: /^apex$/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /apex › z02$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^north$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /north › z10/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('option', { name: /apex › z02$/i }));
+    expect(parentSelect).toHaveTextContent(/apex › z02/i);
+
+    await user.click(within(dialog).getByRole('combobox', { name: /^warehouse$/i }));
+    const northWarehouseOption = screen.getAllByRole('option', { name: /north warehouse/i })
+      .find((option) => option.getAttribute('data-value') === 'wh-north');
+    expect(northWarehouseOption).toBeTruthy();
+    await user.click(northWarehouseOption as HTMLElement);
+    expect(parentSelect).toHaveTextContent('—');
+
+    await user.click(parentSelect);
+    expect(screen.getByRole('option', { name: /^north$/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /north › z10/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^apex$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /apex › z02/i })).not.toBeInTheDocument();
+
+    cleanup();
+    await renderLocationModalCrud({
+      canUpdateInfra: true,
+      warehouses: [],
+      locations: [],
+      state: 'ready',
+    });
+    await user.click(screen.getByRole('button', { name: /\+ add location/i }));
+
+    const emptyParentSelect = within(currentDialog()).getByRole('combobox', { name: /parent location/i });
+    expect(emptyParentSelect).toBeDisabled();
+    expect(emptyParentSelect).toHaveTextContent('—');
+  });
+
   it('opens a delete confirmation and calls deleteLocation scoped to the selected warehouse', async () => {
     const user = userEvent.setup();
     const deleteLocation = vi.fn(async () => ({

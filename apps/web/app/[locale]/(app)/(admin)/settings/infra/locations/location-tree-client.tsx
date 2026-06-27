@@ -141,15 +141,20 @@ export function LocationTreeScreen({
 
   React.useEffect(() => setRows([...locations]), [locations]);
 
-  const parentLocation = visibleRows.find((location) => location.id === form.parentId) ?? null;
+  const parentLocation = rows.find((location) => location.id === form.parentId && location.warehouseId === form.warehouseId) ?? null;
   const depthExceeded = parentLocation ? parentLocation.level >= 3 : false;
   const nextLevel = parentLocation ? parentLocation.level + 1 : 1;
-  const valid = form.code.trim().length > 0 && form.name.trim().length > 0 && !depthExceeded;
+  const valid = form.warehouseId.trim().length > 0 && form.code.trim().length > 0 && form.name.trim().length > 0 && !depthExceeded;
   const warehouseOptions = [{ value: 'all', label: labels.allWarehouses }, ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))];
   const warehouseById = React.useMemo(() => new Map(warehouses.map((warehouse) => [warehouse.id, warehouse])), [warehouses]);
   const parentOptions = React.useMemo<SelectOption[]>(
-    () => [{ value: 'root', label: '—' }, ...visibleRows.filter((location) => location.id !== editingLocation?.id).map((location) => ({ value: location.id, label: location.path.replace(/\./g, ' › ') }))],
-    [editingLocation?.id, visibleRows],
+    () => [
+      { value: 'root', label: '—' },
+      ...rows
+        .filter((location) => location.warehouseId === form.warehouseId && location.id !== editingLocation?.id)
+        .map((location) => ({ value: location.id, label: location.path.replace(/\./g, ' › ') })),
+    ],
+    [editingLocation?.id, form.warehouseId, rows],
   );
   const typeOptions = React.useMemo<SelectOption[]>(
     () => ['storage', 'transit', 'receiving', 'production_line'].map((value) => ({ value, label: value })),
@@ -173,10 +178,18 @@ export function LocationTreeScreen({
           : warehouses[0]?.id ?? '';
     setDialogMode(mode);
     setEditingLocation(mode === 'edit' ? target ?? null : null);
+    const requestedParent = mode === 'child' && target ? target : mode === 'edit' ? null : rows.find((location) => location.id === (parentLocationId ?? selectedLocation?.id ?? '')) ?? null;
+    const initialParentId = mode === 'child' && target
+      ? target.id
+      : mode === 'edit'
+        ? target?.parentId ?? ''
+        : requestedParent?.warehouseId === initialWarehouseId
+          ? requestedParent.id
+          : '';
     setForm({
       code: mode === 'edit' && target ? locationCode(target) : '',
       name: mode === 'edit' && target ? target.name : '',
-      parentId: mode === 'child' && target ? target.id : mode === 'edit' ? target?.parentId ?? '' : parentLocationId ?? selectedLocation?.id ?? '',
+      parentId: initialParentId,
       warehouseId: initialWarehouseId,
       locationType: mode === 'edit' && target ? target.locationType ?? 'storage' : 'storage',
       active: mode === 'edit' && target ? target.isActive ?? true : true,
@@ -329,7 +342,7 @@ export function LocationTreeScreen({
               <label className="grid gap-1 text-sm font-medium" htmlFor="location-name">{labels.fieldName}<Input id="location-name" value={form.name} maxLength={80} required onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, name: value })); }} /></label>
               <div className="grid gap-1 text-sm font-medium">
                 <span id="location-warehouse-label">{labels.warehouse}</span>
-                <Select value={form.warehouseId} options={warehouseSelectOptions} disabled={dialogMode === 'child' || dialogMode === 'edit'} onValueChange={(value) => { setForm((current) => ({ ...current, warehouseId: value })); }} aria-labelledby="location-warehouse-label" aria-label={labels.warehouse}>
+                <Select value={form.warehouseId} options={warehouseSelectOptions} disabled={dialogMode === 'child' || dialogMode === 'edit'} onValueChange={(value) => { setForm((current) => ({ ...current, warehouseId: value, parentId: '' })); }} aria-labelledby="location-warehouse-label" aria-label={labels.warehouse}>
                   <SelectTrigger className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" aria-label={labels.warehouse}><SelectValue /></SelectTrigger>
                   <SelectContent>{warehouseSelectOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                 </Select>
@@ -337,7 +350,7 @@ export function LocationTreeScreen({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-1 text-sm font-medium">
                   <span id="location-parent-label">{labels.fieldParent}</span>
-                  <Select value={form.parentId || 'root'} options={parentOptions} onValueChange={(value) => { setForm((current) => ({ ...current, parentId: value === 'root' ? '' : value })); }} aria-labelledby="location-parent-label" aria-label={labels.fieldParent}>
+                  <Select value={form.parentId || 'root'} options={parentOptions} disabled={!form.warehouseId} onValueChange={(value) => { setForm((current) => ({ ...current, parentId: value === 'root' ? '' : value })); }} aria-labelledby="location-parent-label" aria-label={labels.fieldParent}>
                     <SelectTrigger className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" aria-label={labels.fieldParent}><SelectValue /></SelectTrigger>
                     <SelectContent>{parentOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                   </Select>

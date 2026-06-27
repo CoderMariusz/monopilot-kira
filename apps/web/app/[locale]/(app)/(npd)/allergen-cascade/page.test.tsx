@@ -16,7 +16,8 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within, fireEvent } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { cleanup, render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const replace = vi.fn();
@@ -54,11 +55,24 @@ const READY_LOAD: AllergenLoad = {
   displayNames: {},
 };
 
-async function renderBody(props: {
+const ACCEPTED_AT = '2026-06-15T12:34:56.000Z';
+const ACCEPTED_AT_CLIENT = new Date(ACCEPTED_AT).toLocaleDateString();
+
+const ACCEPTED_DECLARATION_LOAD: AllergenLoad = {
+  ...READY_LOAD,
+  data: {
+    ...READY_LOAD.data!,
+    declarationAccepted: true,
+    declarationAcceptedBy: 'Ada Lovelace',
+    declarationAcceptedAt: ACCEPTED_AT,
+  },
+};
+
+async function buildBodyElement(props: {
   fgList: FgListResult;
   allergenLoad?: AllergenLoad;
   requestedFg?: string;
-}) {
+}): Promise<React.ReactElement> {
   const labels = {
     title: 'Allergen cascade preview',
     subtitle: 'Visual trace RM → process → FG',
@@ -72,8 +86,17 @@ async function renderBody(props: {
   };
   // Minimal allergen labels: the reused widget falls back to its own defaults for
   // any key not provided; the page just needs the wiring to render.
-  const allergenLabels = {} as never;
-  const element = (await CascadeBody({
+  const allergenLabels = {
+    declarationTitle: 'Declaration sign-off',
+    declarationDescription: 'Published FG declaration',
+    declarationAcceptLabel: 'Accept declaration',
+    declarationAcceptedBadge: 'Declaration accepted',
+    declarationNotAccepted: 'Declaration not accepted',
+    declarationAcceptedBy: 'by {name} on {date}',
+    declarationPending: 'Saving...',
+    declarationError: 'Could not update the declaration.',
+  } as never;
+  return (await CascadeBody({
     locale: 'en',
     requestedFg: props.requestedFg,
     pageLabels: labels,
@@ -81,6 +104,14 @@ async function renderBody(props: {
     injectedFgList: props.fgList,
     injectedAllergenLoad: props.allergenLoad,
   })) as React.ReactElement;
+}
+
+async function renderBody(props: {
+  fgList: FgListResult;
+  allergenLoad?: AllergenLoad;
+  requestedFg?: string;
+}) {
+  const element = await buildBodyElement(props);
   return render(element);
 }
 
@@ -176,5 +207,22 @@ describe('Allergen cascade page — UI states', () => {
     });
     expect(screen.getByTestId('fg-selector')).toBeInTheDocument();
     expect(screen.getByTestId('allergen-cascade-widget')).toBeInTheDocument();
+  });
+
+  it('first paints declaration timestamps deterministically, then formats after mount', async () => {
+    const element = await buildBodyElement({
+      fgList: FG_LIST,
+      allergenLoad: ACCEPTED_DECLARATION_LOAD,
+    });
+    const ssrHtml = renderToString(element);
+
+    expect(ssrHtml).toContain(ACCEPTED_AT);
+    expect(ssrHtml).not.toContain(ACCEPTED_AT_CLIENT);
+
+    render(element);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('allergen-declaration-confirmation')).toHaveTextContent(ACCEPTED_AT_CLIENT);
+    });
   });
 });
