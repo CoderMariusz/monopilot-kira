@@ -170,4 +170,27 @@ describe('FaCreateModal — success + error paths', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(LABELS.errorDuplicate);
     expect(onCreated).not.toHaveBeenCalled();
   });
+
+  // BOUNDARY-SAFE duplicate: a custom DuplicateError thrown from a Server Action
+  // is flattened to a generic message-stripped Error at the RSC→client boundary
+  // (so the old throw path only "worked" in dev/unit stubs). The adapter now
+  // RETURNS { ok:false, error:'already_exists' } instead — assert the modal maps
+  // that returned result to the friendly duplicate copy, NOT the generic fallback.
+  it('surfaces the friendly duplicate Alert when the action RETURNS { ok:false, error:"already_exists" }', async () => {
+    const user = userEvent.setup();
+    const createFaAction = vi.fn(async () => ({ ok: false as const, error: 'already_exists' as const }));
+    const onCreated = vi.fn();
+    renderModal({ createFaAction, onCreated });
+
+    const code = screen.getByLabelText(new RegExp(LABELS.fieldProductCode));
+    await user.clear(code);
+    await user.type(code, 'FA5609');
+    await user.type(screen.getByLabelText(new RegExp(LABELS.fieldProductName)), 'Duplicate code');
+    await user.click(screen.getByRole('button', { name: LABELS.create }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(LABELS.errorDuplicate);
+    expect(alert).not.toHaveTextContent(LABELS.errorGeneric);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
 });

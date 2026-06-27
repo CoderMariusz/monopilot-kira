@@ -133,6 +133,26 @@ describe('G-1 — create → navigate', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(MODAL_LABELS.errorDuplicate);
     expect(pushMock).not.toHaveBeenCalled();
   });
+
+  // BOUNDARY-SAFE duplicate: the production adapter RETURNS the duplicate as data
+  // (a thrown custom error is flattened across the RSC→client boundary). The host
+  // must show the friendly "already exists" Alert and NOT navigate.
+  it('surfaces the friendly duplicate Alert and does NOT navigate when the action returns { ok:false, error:"already_exists" }', async () => {
+    const user = userEvent.setup();
+    const action = vi.fn(async () => ({ ok: false as const, error: 'already_exists' as const }));
+    render(<FaCreateModalHost labels={MODAL_LABELS} createFaAction={action} forceOpen />);
+
+    const code = screen.getByLabelText(new RegExp(MODAL_LABELS.fieldProductCode));
+    await user.clear(code);
+    await user.type(code, 'FA5609');
+    await user.type(screen.getByLabelText(new RegExp(MODAL_LABELS.fieldProductName)), 'Duplicate code');
+    await user.click(screen.getByRole('button', { name: MODAL_LABELS.create }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(MODAL_LABELS.errorDuplicate);
+    expect(alert).not.toHaveTextContent(MODAL_LABELS.errorGeneric);
+    expect(pushMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('G-1 — RBAC on the host (forbidden = no injected action)', () => {

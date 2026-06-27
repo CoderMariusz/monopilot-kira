@@ -37,11 +37,26 @@ import { Button } from '@monopilot/ui/Button';
 import Modal from '@monopilot/ui/Modal';
 import Input from '@monopilot/ui/Input';
 
+/**
+ * Server Action result (owned by the page adapter — injected here).
+ *
+ * The success path returns the new `productCode`. The DUPLICATE case is surfaced
+ * as a DISCRIMINATED RESULT (`{ ok: false, error: 'already_exists' }`) rather than
+ * a thrown error: a custom `DuplicateError` thrown from a Server Action is
+ * flattened to a generic, message-stripped Error at the RSC→client boundary in a
+ * production build, so the client could never tell a duplicate apart from a
+ * generic failure (it showed the generic "Try again" copy live). Returning the
+ * code keeps it serializable + intact across the boundary, so the modal can map
+ * it to the friendly "FG Code already exists" message. The adapter still throws
+ * for every OTHER failure (those keep the generic fallback).
+ */
+export type CreateFaResult = { productCode: string } | { ok: false; error: 'already_exists' };
+
 // Server Action signature (owned by T-008 — imported by the page, injected here).
 export type CreateFaAction = (input: {
   productCode: string;
   productName: string;
-}) => Promise<{ productCode: string }>;
+}) => Promise<CreateFaResult>;
 
 export type FaCreateLabels = {
   title: string;
@@ -89,6 +104,16 @@ function isDuplicateError(error: unknown): boolean {
   return e.name === 'DuplicateError' || e.code === 'DUPLICATE_PRODUCT_CODE';
 }
 
+/** Discriminate the returned duplicate result ({ ok:false, error:'already_exists' }). */
+function isDuplicateResult(result: unknown): result is { ok: false; error: 'already_exists' } {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    (result as { ok?: unknown }).ok === false &&
+    (result as { error?: unknown }).error === 'already_exists'
+  );
+}
+
 export function FaCreateModal({
   open,
   labels,
@@ -134,10 +159,18 @@ export function FaCreateModal({
         productCode: values.productCode,
         productName: values.productName,
       });
-      if (result?.productCode) {
+      // Duplicate (boundary-safe): the adapter returns the code as data — show the
+      // friendly "already exists" message rather than the generic fallback.
+      if (isDuplicateResult(result)) {
+        setServerError(labels.errorDuplicate);
+        return;
+      }
+      if (result && 'productCode' in result && result.productCode) {
         onCreated(result.productCode);
       }
     } catch (error) {
+      // Legacy throw path (e.g. a thrown DuplicateError that still carries its
+      // identity, or any non-duplicate failure) → keep the duplicate-aware mapping.
       setServerError(isDuplicateError(error) ? labels.errorDuplicate : labels.errorGeneric);
     }
   });

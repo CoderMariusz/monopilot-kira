@@ -22,6 +22,7 @@ import {
   type FaCreateLabels,
 } from '../../fa/_components/fa-create-modal';
 import { createFa } from '../../../../../(npd)/fa/actions/create-fa';
+import { DuplicateError } from '../../../../../(npd)/fa/actions/errors';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -83,9 +84,25 @@ async function buildLabels(locale: string): Promise<FaCreateLabels> {
 }
 
 // Server Action adapter (RHF input → T-008 createFa). Mirrors fa-create-host.
+// Catches DuplicateError SERVER-SIDE and returns it as a serializable result so
+// the modal can show the friendly "already exists" message (a thrown custom error
+// is flattened to a generic Error at the RSC→client boundary). All other errors
+// keep throwing (generic fallback); createFa's own throw contract is unchanged.
 const createFaAction: CreateFaAction = async (input) => {
   'use server';
-  return createFa(input);
+  try {
+    return await createFa(input);
+  } catch (error) {
+    if (
+      error instanceof DuplicateError ||
+      (typeof error === 'object' &&
+        error !== null &&
+        (error as { code?: string }).code === 'DUPLICATE_PRODUCT_CODE')
+    ) {
+      return { ok: false, error: 'already_exists' };
+    }
+    throw error;
+  }
 };
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };

@@ -28,6 +28,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { type CreateFaAction, type FaCreateLabels } from './fa-create-modal';
 import { createFa } from '../../../../../(npd)/fa/actions/create-fa';
+import { DuplicateError } from '../../../../../(npd)/fa/actions/errors';
 
 // FG terminology (Create FG) + the prototype copy translated 1:1.
 const DEFAULT_LABELS: FaCreateLabels = {
@@ -72,9 +73,30 @@ export async function buildFaCreateLabels(locale: string): Promise<FaCreateLabel
 
 // Server Action adapter (RHF input → T-008 createFa). Keeps the client modal a
 // pure form; the action is a server reference passed across the boundary.
+//
+// Duplicate handling: createFa THROWS DuplicateError on a 23505, but a custom
+// error thrown from a Server Action is flattened to a generic, message-stripped
+// Error at the RSC→client boundary — so the modal could never distinguish a
+// duplicate from a generic failure (it showed "Try again" live). We catch the
+// DuplicateError HERE (server-side, before the boundary) and return it as a
+// serializable result the modal maps to the friendly "already exists" copy. Every
+// other error keeps throwing (generic fallback). createFa's own throw contract is
+// unchanged — only this UI-facing seam differs.
 export const createFaAction: CreateFaAction = async (input) => {
   'use server';
-  return createFa(input);
+  try {
+    return await createFa(input);
+  } catch (error) {
+    if (
+      error instanceof DuplicateError ||
+      (typeof error === 'object' &&
+        error !== null &&
+        (error as { code?: string }).code === 'DUPLICATE_PRODUCT_CODE')
+    ) {
+      return { ok: false, error: 'already_exists' };
+    }
+    throw error;
+  }
 };
 
 export type FaCreateModalProps = {
