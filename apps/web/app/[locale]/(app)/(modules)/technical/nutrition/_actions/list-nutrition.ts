@@ -191,14 +191,19 @@ export async function getNutritionPanel(rawProductCode: unknown): Promise<GetNut
             order by n.display_order asc`,
           [productCode],
         ),
-        // Allergens: nutrition_allergens ⋈ public.allergens (EU-14 name).
+        // Allergens: nutrition_allergens ⋈ "Reference"."Allergens" (canonical org-scoped EU-14 master).
+        // The old join hit the legacy public.allergens (numeric 'A01' codes, unseeded/empty) so the name
+        // was always null. NOTE: full resolution still depends on the SOURCE vocab — Reference.RawMaterials
+        // .allergens_inherited (which compute.ts copies into nutrition_allergens.allergen_code) currently
+        // mixes non-canonical codes ('A01','soya') with canonical ones; those stay unresolved until the
+        // RawMaterials allergen vocabulary is normalized to Reference.Allergens.allergen_code.
         qc.query<AllergenRow>(
           `select na.allergen_code,
-                  a.name,
+                  a.display_name as name,
                   na.presence
              from public.nutrition_allergens na
-             left join public.allergens a
-                    on a.code = na.allergen_code
+             left join "Reference"."Allergens" a
+                    on a.org_id = na.org_id and a.allergen_code = na.allergen_code
             where na.org_id = app.current_org_id()
               and na.product_code = $1
             order by na.allergen_code asc`,
