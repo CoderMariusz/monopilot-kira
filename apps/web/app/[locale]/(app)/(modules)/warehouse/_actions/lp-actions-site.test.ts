@@ -49,24 +49,24 @@ describe('listLPs site filter (14-multi-site CL4)', () => {
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(1);
     const [call] = calls;
-    expect(call.sql).toContain('$6::uuid is null or lp.site_id = $6::uuid');
-    // [status, qaStatus, warehouseId, search, limit, siteId]
-    expect(call.params).toEqual([null, null, null, null, 200, null]);
+    expect(call.sql).toContain('$3::uuid is null or lp.site_id = $3::uuid');
+    // [warehouseId, search, siteId, limit]
+    expect(call.params).toEqual([null, null, null, 200]);
   });
 
   it('binds the site uuid as the 6th param when siteId is set', async () => {
     const result = await listLPs({ limit: 200, siteId: SITE_ID });
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(1);
-    expect(calls[0].params).toEqual([null, null, null, null, 200, SITE_ID]);
+    expect(calls[0].params).toEqual([null, null, SITE_ID, 200]);
   });
 
-  it('keeps the existing filters intact alongside the site filter', async () => {
+  it('keeps search intact alongside the site filter without status restrictions', async () => {
     const result = await listLPs({ status: 'available', search: 'LP-1', siteId: SITE_ID });
     expect(result.ok).toBe(true);
     const [call] = calls;
-    expect(call.params[0]).toBe('available');
-    expect(call.params[3]).toBe('LP-1');
-    expect(call.params[5]).toBe(SITE_ID);
+    expect(call.sql).not.toMatch(/lp\.status\s*=/);
+    expect(call.params[1]).toBe('LP-1');
+    expect(call.params[2]).toBe(SITE_ID);
   });
 });

@@ -42,6 +42,10 @@ export type LocationLookupResponse =
   | { location: ScannerLocation; error?: never }
   | { location?: never; error: string };
 
+export type LocationListResponse =
+  | { locations: ScannerLocation[]; error?: never }
+  | { locations?: never; error: string };
+
 export type ReceiveResponse = {
   ok: boolean;
   replay?: boolean;

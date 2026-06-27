@@ -148,6 +148,14 @@ describe('LpListClient (WH-002 parity)', () => {
     expect(screen.getByTestId('lp-qa-lp-1')).toHaveTextContent('HOLD');
   });
 
+  it('renders received LP rows in the default all tab', () => {
+    renderList([
+      makeRow({ id: 'received-1', lpNumber: 'LP-RECEIVED', status: 'received', qaStatus: 'PENDING' }),
+    ]);
+    expect(screen.getByTestId('lp-row-received-1')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-status-received-1')).toHaveTextContent(EN.status.received);
+  });
+
   it('shows the empty-all state when there are no rows', () => {
     renderList([]);
     expect(screen.getByTestId('lp-list-empty')).toHaveTextContent(EN.emptyAll);

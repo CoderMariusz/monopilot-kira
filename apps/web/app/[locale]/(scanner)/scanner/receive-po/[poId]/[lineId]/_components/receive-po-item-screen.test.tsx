@@ -11,6 +11,8 @@ const replace = vi.fn();
 const push = vi.fn();
 const scannerFetch = vi.fn();
 const mockSession = { token: 'tok', user: { id: 'user-1', name: 'Jan Kowalski' } };
+const noLocationsMessage =
+  'No receiving location is configured for this scanner site. Ask a supervisor to add a location before receiving.';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace, push }),
@@ -57,11 +59,32 @@ function poResponse() {
   });
 }
 
+async function waitForReceiveEnabled() {
+  const button = screen.getByRole('button', { name: 'Receive' });
+  await waitFor(() => expect(button).toBeEnabled());
+  return button;
+}
+
 describe('ReceivePoItemScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     scannerFetch.mockImplementation((path: string) => {
       if (path.includes('/pos/po-1')) return poResponse();
+      if (path === '/api/warehouse/scanner/location') {
+        return jsonResponse({
+          ok: true,
+          locations: [
+            {
+              id: 'loc-9',
+              code: 'A-01-01',
+              name: 'Rack A',
+              warehouseId: 'wh-1',
+              warehouseCode: 'WH1',
+              locationType: 'rack',
+            },
+          ],
+        });
+      }
       // lane W9-L8: destination-location resolver (same route as putaway)
       if (path.includes('/api/warehouse/scanner/location')) {
         return jsonResponse({
@@ -86,7 +109,7 @@ describe('ReceivePoItemScreen', () => {
     expect(await screen.findByText('RM-BEEF')).toBeInTheDocument();
     expect(screen.getByTestId('receive-po-uom-label')).toHaveTextContent('kg');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Receive' }));
+    await userEvent.click(await waitForReceiveEnabled());
 
     await waitFor(() =>
       expect(scannerFetch.mock.calls.some((call) => call[0] === '/api/warehouse/scanner/receive-line')).toBe(true),
@@ -96,6 +119,7 @@ describe('ReceivePoItemScreen', () => {
       expect.objectContaining({
         poLineId: 'line-1',
         qty: '8.5',
+        toLocationId: 'loc-9',
       }),
     );
     expect(typeof receiveCall?.[1].qty).toBe('string');
@@ -134,6 +158,21 @@ describe('ReceivePoItemScreen', () => {
           ),
         );
       }
+      if (path === '/api/warehouse/scanner/location') {
+        return jsonResponse({
+          ok: true,
+          locations: [
+            {
+              id: 'loc-9',
+              code: 'A-01-01',
+              name: 'Rack A',
+              warehouseId: 'wh-1',
+              warehouseCode: 'WH1',
+              locationType: 'rack',
+            },
+          ],
+        });
+      }
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -152,7 +191,7 @@ describe('ReceivePoItemScreen', () => {
     render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
 
     expect(await screen.findByText('RM-BEEF')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Receive' }));
+    await userEvent.click(await waitForReceiveEnabled());
 
     expect(await screen.findByText('QC inspection required — LP held as pending.')).toBeInTheDocument();
   });
@@ -161,7 +200,7 @@ describe('ReceivePoItemScreen', () => {
     render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
 
     expect(await screen.findByText('RM-BEEF')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Receive' }));
+    await userEvent.click(await waitForReceiveEnabled());
 
     expect(await screen.findByText('LP-1')).toBeInTheDocument();
     expect(screen.queryByText('QC inspection required — LP held as pending.')).not.toBeInTheDocument();
@@ -170,6 +209,46 @@ describe('ReceivePoItemScreen', () => {
   // ── lane W9-L8: optional destination location ───────────────────────────
 
   it('resolves a typed destination location and sends its id as toLocationId', async () => {
+    scannerFetch.mockImplementation((path: string) => {
+      if (path.includes('/pos/po-1')) return poResponse();
+      if (path === '/api/warehouse/scanner/location') {
+        return jsonResponse({
+          ok: true,
+          locations: [
+            {
+              id: 'loc-8',
+              code: 'B-01-01',
+              name: 'Rack B',
+              warehouseId: 'wh-1',
+              warehouseCode: 'WH1',
+              locationType: 'rack',
+            },
+            {
+              id: 'loc-9',
+              code: 'A-01-01',
+              name: 'Rack A',
+              warehouseId: 'wh-1',
+              warehouseCode: 'WH1',
+              locationType: 'rack',
+            },
+          ],
+        });
+      }
+      if (path.includes('/api/warehouse/scanner/location')) {
+        return jsonResponse({
+          ok: true,
+          location: {
+            id: 'loc-9',
+            code: 'A-01-01',
+            name: 'Rack A',
+            warehouseId: 'wh-1',
+            warehouseCode: 'WH1',
+            locationType: 'rack',
+          },
+        });
+      }
+      return jsonResponse({ ok: true, lpNumber: 'LP-1', qty: '8.5', uom: 'kg' });
+    });
     render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
 
     expect(await screen.findByText('RM-BEEF')).toBeInTheDocument();
@@ -178,8 +257,8 @@ describe('ReceivePoItemScreen', () => {
 
     // resolved chip: label + code + name
     expect(await screen.findByText('Selected location')).toBeInTheDocument();
-    expect(screen.getByText('A-01-01')).toBeInTheDocument();
-    expect(screen.getByText('Rack A')).toBeInTheDocument();
+    expect(screen.getAllByText('A-01-01').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Rack A').length).toBeGreaterThan(0);
     const lookupCall = scannerFetch.mock.calls.find((call) =>
       String(call[0]).startsWith('/api/warehouse/scanner/location?code='),
     );
@@ -194,22 +273,62 @@ describe('ReceivePoItemScreen', () => {
     expect(receiveCall?.[1]).toEqual(expect.objectContaining({ poLineId: 'line-1', toLocationId: 'loc-9' }));
   });
 
-  it('leaving the destination empty sends no toLocationId (default location)', async () => {
+  it('auto-selects the only destination location and enables Receive without user action', async () => {
     render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
 
     expect(await screen.findByText('RM-BEEF')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Receive' }));
+    expect(await screen.findByText('Selected location')).toBeInTheDocument();
+    expect(screen.getByText('A-01-01')).toBeInTheDocument();
+    await userEvent.click(await waitForReceiveEnabled());
 
     await waitFor(() =>
       expect(scannerFetch.mock.calls.some((call) => call[0] === '/api/warehouse/scanner/receive-line')).toBe(true),
     );
     const receiveCall = scannerFetch.mock.calls.find((call) => call[0] === '/api/warehouse/scanner/receive-line');
-    expect(receiveCall?.[1].toLocationId).toBeUndefined();
+    expect(receiveCall?.[1].toLocationId).toBe('loc-9');
+  });
+
+  it('keeps Receive disabled and shows an inline error when no destination locations exist', async () => {
+    scannerFetch.mockImplementation((path: string) => {
+      if (path.includes('/pos/po-1')) return poResponse();
+      if (path === '/api/warehouse/scanner/location') return jsonResponse({ ok: true, locations: [] });
+      return jsonResponse({ ok: true, lpNumber: 'LP-1', qty: '8.5', uom: 'kg' });
+    });
+
+    render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
+
+    expect(await screen.findByText('RM-BEEF')).toBeInTheDocument();
+    expect(await screen.findByText(noLocationsMessage)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Receive' })).toBeDisabled();
+    expect(scannerFetch.mock.calls.some((call) => call[0] === '/api/warehouse/scanner/receive-line')).toBe(false);
   });
 
   it('shows "Location not found." on a 404 resolve and blocks Receive while the destination is unresolved', async () => {
     scannerFetch.mockImplementation((path: string) => {
       if (path.includes('/pos/po-1')) return poResponse();
+      if (path === '/api/warehouse/scanner/location') {
+        return jsonResponse({
+          ok: true,
+          locations: [
+            {
+              id: 'loc-8',
+              code: 'B-01-01',
+              name: 'Rack B',
+              warehouseId: 'wh-1',
+              warehouseCode: 'WH1',
+              locationType: 'rack',
+            },
+            {
+              id: 'loc-9',
+              code: 'A-01-01',
+              name: 'Rack A',
+              warehouseId: 'wh-1',
+              warehouseCode: 'WH1',
+              locationType: 'rack',
+            },
+          ],
+        });
+      }
       if (path.includes('/api/warehouse/scanner/location')) {
         return jsonResponse({ error: 'location_not_found' }, 404);
       }

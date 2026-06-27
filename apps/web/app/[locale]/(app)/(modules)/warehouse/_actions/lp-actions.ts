@@ -54,8 +54,6 @@ function mapLpListRow(row: LpListRow): LicensePlateListItem {
 }
 
 export async function listLPs(input: LicensePlateListInput = {}): Promise<WarehouseResult<LicensePlateListItem[]>> {
-  const status = asTrimmed(input.status);
-  const qaStatus = asTrimmed(input.qaStatus);
   const search = asTrimmed(input.search);
   const warehouseId = asTrimmed(input.warehouseId);
   const siteId = asTrimmed(input.siteId);
@@ -93,20 +91,18 @@ export async function listLPs(input: LicensePlateListInput = {}): Promise<Wareho
              on w.org_id = app.current_org_id()
             and w.id = lp.warehouse_id
           where lp.org_id = app.current_org_id()
-            and ($1::text is null or lp.status = $1)
-            and ($2::text is null or lp.qa_status = $2)
-            and ($3::uuid is null or lp.warehouse_id = $3)
+            and ($1::uuid is null or lp.warehouse_id = $1)
             and (
-              $4::text is null
-              or lp.lp_number ilike '%' || $4 || '%'
-              or lp.batch_number ilike '%' || $4 || '%'
-              or i.item_code ilike '%' || $4 || '%'
-              or i.name ilike '%' || $4 || '%'
+              $2::text is null
+              or lp.lp_number ilike '%' || $2 || '%'
+              or lp.batch_number ilike '%' || $2 || '%'
+              or i.item_code ilike '%' || $2 || '%'
+              or i.name ilike '%' || $2 || '%'
             )
-            and ($6::uuid is null or lp.site_id = $6::uuid)
+            and ($3::uuid is null or lp.site_id = $3::uuid)
           order by lp.created_at desc, lp.lp_number asc
-          limit $5::integer`,
-        [status, qaStatus, warehouseId, search, limit, siteId],
+          limit $4::integer`,
+        [warehouseId, search, siteId, limit],
       );
 
       return { ok: true, data: rows.map(mapLpListRow) };

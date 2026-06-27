@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+
 import { traceGenealogy } from './genealogy-actions';
 import { listLPs } from './lp-actions';
 import { releaseLpQa } from './lp-qa-actions';
@@ -18,6 +20,7 @@ let lpStatus = 'available';
 let lpQaStatus = 'pending';
 let lockActive = false;
 let lpExists = true;
+let lastMoveType = 'transfer';
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -76,6 +79,7 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.startsWith('insert into public.stock_moves')) {
+        lastMoveType = String(params?.[2] ?? 'transfer');
         return { rows: [{ id: '88888888-8888-4888-8888-888888888888' }], rowCount: 1 };
       }
 
@@ -97,6 +101,14 @@ function makeClient(): QueryClient {
           ],
           rowCount: 1,
         };
+      }
+
+      if (
+        normalized.startsWith('update public.license_plates') &&
+        normalized.includes("status = 'available'") &&
+        normalized.includes('returning id::text')
+      ) {
+        return { rows: lpStatus === 'received' ? [{ id: LP_ID }] : [], rowCount: lpStatus === 'received' ? 1 : 0 };
       }
 
       if (normalized.startsWith('update public.license_plates') && normalized.includes('returning id::text, lp_number, status, qa_status')) {
@@ -143,7 +155,7 @@ function makeClient(): QueryClient {
               move_number: 'SM-TEST',
               lp_id: LP_ID,
               lp_number: 'LP-001',
-              move_type: 'transfer',
+              move_type: lastMoveType,
               from_location_code: 'A-01',
               to_location_code: 'B-01',
               quantity: '10.000000',
@@ -241,6 +253,7 @@ describe('warehouse backend actions', () => {
     lpQaStatus = 'pending';
     lockActive = false;
     lpExists = true;
+    lastMoveType = 'transfer';
     client = makeClient();
   });
 
@@ -254,7 +267,7 @@ describe('warehouse backend actions', () => {
     expect(calls[0]).toContain('from public.user_roles');
   });
 
-  it('listLPs keeps status, QA, search, warehouse, and limit filters parameterized in org-scoped SQL', async () => {
+  it('listLPs keeps search, warehouse, and limit filters parameterized without status or QA restrictions', async () => {
     const result = await listLPs({
       status: 'available',
       qaStatus: 'released',
@@ -267,12 +280,12 @@ describe('warehouse backend actions', () => {
     const listCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(sql).includes('from public.license_plates lp'));
     expect(listCall).toBeTruthy();
     expect(normalize(String(listCall?.[0]))).toContain('lp.org_id = app.current_org_id()');
-    expect(normalize(String(listCall?.[0]))).toContain('lp.status = $1');
-    expect(normalize(String(listCall?.[0]))).toContain('lp.qa_status = $2');
-    expect(normalize(String(listCall?.[0]))).toContain('lp.warehouse_id = $3');
+    expect(normalize(String(listCall?.[0]))).not.toMatch(/lp\.status\s*=/);
+    expect(normalize(String(listCall?.[0]))).not.toMatch(/lp\.qa_status\s*=/);
+    expect(normalize(String(listCall?.[0]))).toContain('lp.status, lp.qa_status');
+    expect(normalize(String(listCall?.[0]))).toContain('lp.warehouse_id = $1');
     expect(normalize(String(listCall?.[0]))).toContain('ilike');
-    // 14-multi-site (CL4): trailing param is the optional site filter (null = All sites).
-    expect(listCall?.[1]).toEqual(['available', 'released', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'RM', 25, null]);
+    expect(listCall?.[1]).toEqual(['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'RM', null, 25]);
   });
 
   it('createStockMove rejects immovable LP statuses before inserting a stock move', async () => {
@@ -299,6 +312,33 @@ describe('warehouse backend actions', () => {
 
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+
+  it('createStockMove putaway promotes a received released LP to available and records the transition', async () => {
+    lpStatus = 'received';
+    lpQaStatus = 'released';
+
+    const result = await createStockMove({ lpId: LP_ID, toLocationId: LOC_ID, clientOpId: 'op-putaway' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.moveType).toBe('putaway');
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
+    const insert = calls.find((call) => call.sql.startsWith('insert into public.stock_moves'));
+    expect(insert?.params?.[2]).toBe('putaway');
+    const update = calls.find((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes("status = 'available'"));
+    expect(update?.sql).toContain("and status = 'received'");
+    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
+    expect(history?.params?.slice(0, 2)).toEqual([LP_ID, '88888888-8888-4888-8888-888888888888']);
+    expect(history?.sql).toContain("'received', 'available'");
+    const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[1]).toContain('"status_from":"received"');
+    expect(outbox?.params?.[1]).toContain('"status_to":"available"');
+
+    // Mirrors v_inventory_available migration 191 predicate for this LP:
+    // putaway owns status='available'; QC release already owns qa_status='released'.
+    expect(update).toBeTruthy();
+    expect(lpQaStatus).toBe('released');
   });
 
   it('releaseReservation clears reservation and writes state history when reserved becomes available', async () => {

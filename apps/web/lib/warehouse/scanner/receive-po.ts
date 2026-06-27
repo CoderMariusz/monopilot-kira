@@ -362,6 +362,10 @@ export async function receiveScannerPoLine(
       shelfLifeModeSnapshot: line.shelf_life_mode ?? null,
       grnId: grn.id,
     });
+    await insertLpAutoPutaway(client, session, {
+      lpId: lp.id,
+      transactionId: randomUUID(),
+    });
 
     const grnItem = await insertGrnItem(client, session, {
       grnId: grn.id,
@@ -646,7 +650,7 @@ async function insertLicensePlate(
      )
      values (
        $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
-       'received', 'pending', $8, $9::timestamptz, $10::timestamptz,
+       'available', 'pending', $8, $9::timestamptz, $10::timestamptz,
        $11, $12::uuid, 'grn',
        $13::uuid, $14::uuid, $14::uuid
      )
@@ -669,6 +673,21 @@ async function insertLicensePlate(
     ],
   );
   return rows[0]!;
+}
+
+async function insertLpAutoPutaway(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  input: { lpId: string; transactionId: string },
+): Promise<void> {
+  await client.query(
+    `insert into public.lp_state_history
+       (org_id, lp_id, from_state, to_state, reason_code, stock_move_id, transaction_id, created_by)
+     values
+       (app.current_org_id(), $1::uuid, 'received', 'available', $2, $3::uuid, $4::uuid, $5::uuid)
+     on conflict (org_id, transaction_id) do nothing`,
+    [input.lpId, 'auto_putaway_po_receive', null, input.transactionId, session.user_id],
+  );
 }
 
 async function insertGrnItem(

@@ -69,10 +69,17 @@ describe('scanner receive PO service', () => {
     expect(findCall(client, 'insert into public.license_plates')?.params).toEqual(
       expect.arrayContaining([ORG_A, WAREHOUSE_ID, ITEM_ID, '10.5', 'kg', 'B-1', '2026-07-01', LOCATION_ID]),
     );
+    expect(findCall(client, 'insert into public.license_plates')?.sql).toContain("'available', 'pending'");
     expect(findCall(client, 'insert into public.grn_items')?.params).toEqual(
       expect.arrayContaining([ORG_A, 'grn-1', ITEM_ID, LINE_ID, '10.000000', '10.5', 'kg', 'B-1', '2026-07-01']),
     );
-    expect(findCall(client, 'insert into public.lp_state_history')).toBeTruthy();
+    const autoPutawayHistory = findCalls(client, 'insert into public.lp_state_history').find((call) =>
+      call.sql.includes("'received', 'available'"),
+    );
+    expect(autoPutawayHistory?.sql).toContain(
+      '(org_id, lp_id, from_state, to_state, reason_code, stock_move_id, transaction_id, created_by)',
+    );
+    expect(autoPutawayHistory?.params).toEqual(['lp-1', 'auto_putaway_po_receive', null, expect.any(String), USER_A]);
     expect(findCall(client, 'update public.purchase_orders')?.params).toEqual([ORG_A, PO_ID, 'received', USER_A]);
     expect(auditExt(client)).toMatchObject({ poLineId: LINE_ID, lpId: 'lp-1', qty: '10.5', overReceived: true });
     // flag OFF (default): no QC inspection is opened and the response says so
@@ -172,9 +179,9 @@ describe('scanner receive PO service', () => {
 
     expect(result).toMatchObject({ ok: true, lpId: 'lp-1', qcInspectionRequired: true, inspectionId: 'insp-1' });
 
-    // LP is held as pending (qa_status='pending' in the insert), never auto-released
+    // LP is immediately put away but held as pending QA, never auto-released
     const lpInsert = findCall(client, 'insert into public.license_plates');
-    expect(lpInsert?.sql).toContain("'received', 'pending'");
+    expect(lpInsert?.sql).toContain("'available', 'pending'");
 
     // inspection insert: numbered via next_quality_inspection_number, org-scoped, lp-referenced,
     // guarded against a duplicate pending inspection for the same LP
@@ -571,6 +578,10 @@ function makeReceiveClient(options: {
 
 function findCall(client: FakeClient, fragment: string) {
   return client.calls.find((call) => call.sql.includes(fragment));
+}
+
+function findCalls(client: FakeClient, fragment: string) {
+  return client.calls.filter((call) => call.sql.includes(fragment));
 }
 
 function auditResult(client: FakeClient): unknown {

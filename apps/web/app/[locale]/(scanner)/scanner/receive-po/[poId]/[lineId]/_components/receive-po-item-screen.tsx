@@ -16,12 +16,19 @@ import { useScannerSession } from "../../../../../_components/scanner-session";
 import type { ScannerLabels } from "../../../../../_components/scanner-labels";
 import { StateText } from "../../../_components/receive-po-list-screen";
 import type {
+  LocationListResponse,
   LocationLookupResponse,
   ReceiveResponse,
   ScannerLocation,
   ScannerPoDetail,
   ScannerPoLine,
 } from "../../../_components/types";
+
+const DESTINATION_NO_LOCATIONS_KEY = "scanner.receivePo.destinationNoLocations";
+const DESTINATION_NO_LOCATIONS_EN =
+  "No receiving location is configured for this scanner site. Ask a supervisor to add a location before receiving.";
+const DESTINATION_NO_LOCATIONS_PL =
+  "Dla tej lokalizacji skanera nie skonfigurowano lokalizacji przyjęcia. Poproś przełożonego o dodanie lokalizacji przed przyjęciem.";
 
 export function ReceivePoItemScreen({
   locale,
@@ -52,7 +59,10 @@ export function ReceivePoItemScreen({
   const [destResolving, setDestResolving] = useState(false);
   const [destErr, setDestErr] = useState<string | null>(null);
   const [destLocation, setDestLocation] = useState<ScannerLocation | null>(null);
+  const [locationOptions, setLocationOptions] = useState<ScannerLocation[]>([]);
+  const [locationOptionsState, setLocationOptionsState] = useState<"loading" | "ready" | "error">("loading");
   const L = labels.receivePo;
+  const noLocationsMessage = locale === "pl" ? DESTINATION_NO_LOCATIONS_PL : DESTINATION_NO_LOCATIONS_EN;
 
   useEffect(() => {
     if (ready && !session) router.replace(`/${locale}/scanner/login`);
@@ -84,12 +94,50 @@ export function ReceivePoItemScreen({
     };
   }, [ready, session, scannerFetch, poId, lineId]);
 
+  useEffect(() => {
+    if (!ready || !session) return;
+    let cancelled = false;
+    setLocationOptionsState("loading");
+    setLocationOptions([]);
+    scannerFetch("/api/warehouse/scanner/location", undefined, { method: "GET", namespace: "absolute" })
+      .then(async (res) => {
+        if (cancelled) return;
+        const body = (await res.json()) as LocationListResponse;
+        if (!res.ok || !body.locations) throw new Error("locations_failed");
+        setLocationOptions(body.locations);
+        if (body.locations.length === 1) {
+          const only = body.locations[0];
+          setDestVal(only.code);
+          setDestLocation(only);
+          setDestErr(null);
+        } else {
+          setDestVal("");
+          setDestLocation(null);
+        }
+        setLocationOptionsState("ready");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLocationOptionsState("error");
+          setLocationOptions([]);
+          setDestLocation(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, session, scannerFetch]);
+
   const line = useMemo(() => po?.lines.find((candidate) => candidate.id === lineId) ?? null, [po, lineId]);
   const remaining = line ? remainingQty(line) : "0";
   const overReceive = line ? Number(qty || "0") > Number(remaining) : false;
   // Typed-but-unresolved destination blocks Receive — never silently fall back
   // to the default location when the operator clearly asked for one.
   const destPending = destVal.trim() !== "" && (!destLocation || destResolving);
+  const destinationUnavailable = locationOptionsState === "ready" && locationOptions.length === 0;
+  const destinationRequired =
+    locationOptionsState === "loading" || destinationUnavailable || (locationOptions.length > 0 && !destLocation);
+  const canReceive = Boolean(line && qty && !submitting && !destPending && !destinationRequired);
 
   const resolveDestination = useCallback(
     async (raw: string) => {
@@ -126,7 +174,7 @@ export function ReceivePoItemScreen({
   );
 
   async function submit() {
-    if (!line || submitting || destPending) return;
+    if (!canReceive || !line) return;
     setSubmitting(true);
     setError(null);
     const payload = {
@@ -221,7 +269,30 @@ export function ReceivePoItemScreen({
               />
               <div style={{ marginTop: 6, fontSize: 11, color: T.hint }}>{L.destinationHint}</div>
               {destResolving && <div style={{ padding: "8px 0", color: T.mute, fontSize: 13 }}>{L.resolving}</div>}
+              {locationOptionsState === "error" && <Banner kind="err" title={L.errorLoad}>{L.errorLoad}</Banner>}
+              {destinationUnavailable && (
+                <Banner kind="err" title={DESTINATION_NO_LOCATIONS_KEY}>{noLocationsMessage}</Banner>
+              )}
               {destErr && <Banner kind="err" title={destErr}>{" "}</Banner>}
+              {locationOptions.length > 1 && (
+                <div style={locationOptionsStyle}>
+                  {locationOptions.map((location) => (
+                    <button
+                      key={location.id}
+                      type="button"
+                      style={locationOptionButtonStyle}
+                      onClick={() => {
+                        setDestVal(location.code);
+                        setDestLocation(location);
+                        setDestErr(null);
+                      }}
+                    >
+                      <span style={monoLocStyle}>{location.code}</span>
+                      <span style={{ color: T.mute, fontSize: 11 }}>{location.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {destLocation && !destResolving && (
                 <div style={resolvedChipStyle}>
                   <div style={resolvedChipLabel}>{L.resolvedLabel}</div>
@@ -269,7 +340,7 @@ export function ReceivePoItemScreen({
       </Content>
       <BottomActions>
         {!done && (
-          <Btn onClick={submit} disabled={!line || !qty || submitting || destPending}>
+          <Btn onClick={submit} disabled={!canReceive}>
             {submitting ? L.receiving : L.receive}
           </Btn>
         )}
@@ -382,6 +453,27 @@ const resolvedChipStyle = {
   border: `1px solid ${T.blue}`,
   background: "#0e2333",
   padding: 12,
+} as const;
+
+const locationOptionsStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 8,
+  marginTop: 10,
+} as const;
+
+const locationOptionButtonStyle = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 8,
+  minHeight: 42,
+  borderRadius: 8,
+  border: `1px solid ${T.elev}`,
+  background: T.surf,
+  padding: "8px 10px",
+  textAlign: "left",
+  cursor: "pointer",
 } as const;
 
 const resolvedChipLabel = {

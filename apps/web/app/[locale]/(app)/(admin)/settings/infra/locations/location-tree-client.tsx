@@ -320,7 +320,7 @@ export function LocationTreeScreen({
               {selectedLocation?.level === 2 ? <BinOccupancy labels={labels} bins={bins} canUpdateInfra={canUpdateInfra} /> : null}
 
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><h3 className="text-sm font-semibold">{labels.lpsTableTitle} (0)</h3><a href="/en/warehouse/lps" className="text-sm font-medium text-blue-700 hover:underline">{labels.openFullLpList}</a></div>
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><h3 className="text-sm font-semibold">{labels.lpsTableTitle} (0)</h3><a href="/en/warehouse/license-plates" className="text-sm font-medium text-blue-700 hover:underline">{labels.openFullLpList}</a></div>
                 <table role="table" aria-label={labels.lpsTableTitle} className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th scope="col" className="px-4 py-3">{labels.lpColumn}</th><th scope="col" className="px-4 py-3">{labels.productColumn}</th><th scope="col" className="px-4 py-3 text-right">{labels.qtyColumn}</th><th scope="col" className="px-4 py-3">{labels.batchColumn}</th><th scope="col" className="px-4 py-3">{labels.expiryColumn}</th><th scope="col" className="px-4 py-3">{labels.statusColumn}</th><th scope="col" className="px-4 py-3">{labels.qaColumn}</th></tr></thead>
                   <tbody><tr><td className="px-4 py-8 text-center text-slate-500" colSpan={7}>{labels.noLpsAtLocation}</td></tr></tbody>

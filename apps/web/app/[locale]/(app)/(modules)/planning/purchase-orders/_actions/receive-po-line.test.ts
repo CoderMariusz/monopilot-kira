@@ -80,7 +80,14 @@ describe('receivePoLineDesktop', () => {
       inspectionId: null,
     });
     expect(findCall('insert into public.grns')).toBeTruthy();
-    expect(findCall('insert into public.license_plates')).toBeTruthy();
+    expect(findCall('insert into public.license_plates')?.sql).toContain("'available', 'pending'");
+    const autoPutawayHistory = findCalls('insert into public.lp_state_history').find((call) =>
+      call.sql.includes("'received', 'available'"),
+    );
+    expect(autoPutawayHistory?.sql).toContain(
+      '(org_id, lp_id, from_state, to_state, reason_code, stock_move_id, transaction_id, created_by)',
+    );
+    expect(autoPutawayHistory?.params).toEqual(['lp-1', 'auto_putaway_po_receive', null, expect.any(String), USER_ID]);
     expect(findCall('insert into public.grn_items')).toBeTruthy();
     expect(findCall('update public.purchase_orders')?.params).toEqual([ORG_ID, PO_ID, 'received', USER_ID]);
   });
@@ -187,4 +194,8 @@ function defaultWarehouse(): { id: string; site_id: string | null; default_locat
 
 function findCall(fragment: string): MockCall | undefined {
   return currentClient.calls.find((call) => call.sql.replace(/\s+/g, ' ').trim().toLowerCase().includes(fragment));
+}
+
+function findCalls(fragment: string): MockCall[] {
+  return currentClient.calls.filter((call) => call.sql.replace(/\s+/g, ' ').trim().toLowerCase().includes(fragment));
 }
