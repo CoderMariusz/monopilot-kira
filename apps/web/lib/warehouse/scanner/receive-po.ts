@@ -287,20 +287,6 @@ export async function receiveScannerPoLine(
       throw new ReceivePoError('over_receive_cap', 409);
     }
 
-    const warehouse = await resolveWarehouse(client, session);
-    if (!warehouse) {
-      await insertAudit(client, session, input.clientOpId, 'no_warehouse_for_site', {
-        poLineId: input.poLineId,
-        siteId: session.site_id,
-      });
-      await client.query('commit');
-      return {
-        ok: false,
-        reason: 'no_warehouse_for_site',
-        message: NO_WAREHOUSE_FOR_SITE_MESSAGE,
-      };
-    }
-
     // Lane W9-L8: optional explicit destination. Validated INSIDE the txn,
     // org-scoped (l.org_id = session.org_id) — a location from another org or
     // a vanished id is indistinguishable from "not found" → 422
@@ -318,6 +304,23 @@ export async function receiveScannerPoLine(
       }
     }
 
+    const warehouse = await resolveWarehouse(client, session, {
+      explicitWarehouseId: requestedLocation?.warehouse_id ?? null,
+      poDestinationWarehouseId: line.destination_warehouse_id,
+    });
+    if (!warehouse) {
+      await insertAudit(client, session, input.clientOpId, 'no_warehouse_for_site', {
+        poLineId: input.poLineId,
+        siteId: session.site_id,
+      });
+      await client.query('commit');
+      return {
+        ok: false,
+        reason: 'no_warehouse_for_site',
+        message: NO_WAREHOUSE_FOR_SITE_MESSAGE,
+      };
+    }
+
     if (requestedLocation && requestedLocation.warehouse_id !== warehouse.id) {
       await insertAudit(client, session, input.clientOpId, 'invalid_location', {
         poLineId: input.poLineId,
@@ -327,9 +330,9 @@ export async function receiveScannerPoLine(
       throw new ReceivePoError('invalid_location', 422);
     }
 
-    // Destination for the new LP (and its GRN item line): the session-site
-    // warehouse is fixed; a validated location within that warehouse wins.
-    // The GRN header uses the same session-site warehouse target.
+    // Destination for the new LP (and its GRN item line): explicit destination
+    // location, PO destination warehouse, then the session-site/default fallback.
+    // The GRN header uses the same resolved warehouse target.
     const destWarehouseId = warehouse.id;
     const destLocationId = requestedLocation?.id ?? warehouse.default_location_id;
 
@@ -460,6 +463,7 @@ type LineForReceive = {
   po_id: string;
   item_id: string;
   supplier_id: string;
+  destination_warehouse_id: string | null;
   line_no: number;
   ordered_qty: string;
   uom: string;
@@ -488,6 +492,7 @@ async function loadLineForUpdate(
             pol.po_id,
             pol.item_id,
             po.supplier_id,
+            po.destination_warehouse_id,
             pol.line_no,
             pol.qty::text as ordered_qty,
             pol.uom,
@@ -540,7 +545,11 @@ async function resolveRequestedLocation(
 
 type WarehouseTarget = { id: string; default_location_id: string | null };
 
-async function resolveWarehouse(client: QueryClient, session: ScannerSessionRow): Promise<WarehouseTarget | null> {
+async function resolveWarehouse(
+  client: QueryClient,
+  session: ScannerSessionRow,
+  input: { explicitWarehouseId?: string | null; poDestinationWarehouseId?: string | null } = {},
+): Promise<WarehouseTarget | null> {
   const { rows } = await client.query<WarehouseTarget>(
     `select w.id,
             (select l.id
@@ -552,14 +561,16 @@ async function resolveWarehouse(client: QueryClient, session: ScannerSessionRow)
        from public.warehouses w
       where w.org_id = app.current_org_id()
       order by case
-                 when $1::uuid is not null and w.site_id = $1::uuid then 0
-                 else 1
+                 when $1::uuid is not null and w.id = $1::uuid then 0
+                 when $2::uuid is not null and w.id = $2::uuid then 1
+                 when $3::uuid is not null and w.site_id = $3::uuid then 2
+                 else 3
                end,
                w.is_default desc,
                w.created_at asc,
                w.id asc
       limit 1`,
-    [session.site_id],
+    [input.explicitWarehouseId ?? null, input.poDestinationWarehouseId ?? null, session.site_id],
   );
   return rows[0] ?? null;
 }

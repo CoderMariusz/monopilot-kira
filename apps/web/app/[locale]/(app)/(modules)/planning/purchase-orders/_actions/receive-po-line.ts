@@ -23,6 +23,7 @@ type LineForReceive = {
   po_id: string;
   item_id: string;
   supplier_id: string;
+  destination_warehouse_id: string | null;
   line_no: number;
   ordered_qty: string;
   uom: string;
@@ -58,7 +59,7 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
       const cap = (ordered * 110n) / 100n;
       if (afterLine > cap) return { ok: false, error: 'over_receive_cap', poId: line.po_id };
 
-      const warehouse = await resolveWarehouse(client, input);
+      const warehouse = await resolveWarehouse(client, input, line.destination_warehouse_id);
       if (!warehouse) return { ok: false, error: 'no_warehouse', poId: line.po_id };
 
       let requestedLocation: RequestedLocation | null = null;
@@ -202,6 +203,7 @@ async function loadLineForUpdate(client: QueryClient, orgId: string, poLineId: s
             pol.po_id,
             pol.item_id,
             po.supplier_id,
+            po.destination_warehouse_id,
             pol.line_no,
             pol.qty::text as ordered_qty,
             pol.uom,
@@ -230,7 +232,11 @@ async function loadLineForUpdate(client: QueryClient, orgId: string, poLineId: s
   return rows[0] ?? null;
 }
 
-async function resolveWarehouse(client: QueryClient, input: DesktopReceiveInput): Promise<WarehouseTarget | null> {
+async function resolveWarehouse(
+  client: QueryClient,
+  input: DesktopReceiveInput,
+  poDestinationWarehouseId: string | null,
+): Promise<WarehouseTarget | null> {
   if (input.warehouseId) {
     const { rows } = await client.query<WarehouseTarget>(
       `select w.id,
@@ -270,6 +276,25 @@ async function resolveWarehouse(client: QueryClient, input: DesktopReceiveInput)
       [input.toLocationId],
     );
     return rows[0] ?? null;
+  }
+
+  if (poDestinationWarehouseId) {
+    const { rows } = await client.query<WarehouseTarget>(
+      `select w.id,
+              w.site_id,
+              (select l.id
+                 from public.locations l
+                where l.org_id = w.org_id
+                  and l.warehouse_id = w.id
+                order by l.level asc, l.code asc
+                limit 1) as default_location_id
+         from public.warehouses w
+        where w.org_id = app.current_org_id()
+          and w.id = $1::uuid
+        limit 1`,
+      [poDestinationWarehouseId],
+    );
+    if (rows[0]) return rows[0];
   }
 
   const { rows } = await client.query<WarehouseTarget>(

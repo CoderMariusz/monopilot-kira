@@ -10,8 +10,10 @@ const LINE_ID = '00000000-0000-4000-8000-0000000000b1';
 const ITEM_ID = '00000000-0000-4000-8000-0000000000c1';
 const SUPPLIER_ID = '00000000-0000-4000-8000-0000000000d1';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
+const PO_DEST_WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e3';
 const SITE_ID = '00000000-0000-4000-8000-0000000000e2';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
+const PO_DEST_LOCATION_ID = '00000000-0000-4000-8000-0000000000f3';
 
 const baseInput: DesktopReceiveInput = {
   poLineId: LINE_ID,
@@ -109,6 +111,58 @@ describe('receivePoLineDesktop', () => {
     expect(findCall('insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
   });
 
+  it('uses the PO destination warehouse when no explicit warehouse is supplied', async () => {
+    currentClient = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      destinationWarehouseId: PO_DEST_WAREHOUSE_ID,
+    });
+
+    const result = await receivePoLineDesktop(baseInput);
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
+    const destinationLookup = currentClient.calls.find((call) => call.params?.[0] === PO_DEST_WAREHOUSE_ID);
+    expect(destinationLookup?.sql).toContain('from public.warehouses w');
+    expect(findCall('insert into public.license_plates')?.params[2]).toBe(PO_DEST_WAREHOUSE_ID);
+    expect(findCall('insert into public.license_plates')?.params[11]).toBe(PO_DEST_LOCATION_ID);
+    expect(findCall('insert into public.grns')?.params).toEqual(
+      expect.arrayContaining([PO_DEST_WAREHOUSE_ID, PO_DEST_LOCATION_ID]),
+    );
+  });
+
+  it('lets an explicit warehouseId override the PO destination warehouse', async () => {
+    currentClient = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      destinationWarehouseId: PO_DEST_WAREHOUSE_ID,
+    });
+
+    const result = await receivePoLineDesktop({ ...baseInput, warehouseId: WAREHOUSE_ID });
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
+    const warehouseLookups = findCalls('from public.warehouses w');
+    expect(warehouseLookups[0]?.params).toEqual([WAREHOUSE_ID]);
+    expect(warehouseLookups.some((call) => call.params?.[0] === PO_DEST_WAREHOUSE_ID)).toBe(false);
+    expect(findCall('insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
+    expect(findCall('insert into public.license_plates')?.params[11]).toBe(LOCATION_ID);
+  });
+
+  it('falls back to the existing default warehouse order when the PO has no destination warehouse', async () => {
+    currentClient = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      destinationWarehouseId: null,
+    });
+
+    const result = await receivePoLineDesktop(baseInput);
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
+    const warehouseLookup = findCall('from public.warehouses w');
+    expect(warehouseLookup?.params).toBeUndefined();
+    expect(warehouseLookup?.sql).toContain('order by w.is_default desc');
+    expect(findCall('insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
+  });
+
   it('returns no_warehouse when no desktop warehouse can be resolved', async () => {
     currentClient = makeClient({ warehouse: null });
 
@@ -126,6 +180,7 @@ type MockOptions = {
   warehouse?: { id: string; site_id: string | null; default_location_id: string | null } | null;
   existingGrn?: { id: string; grn_number: string } | null;
   isReceived?: boolean;
+  destinationWarehouseId?: string | null;
 };
 
 class MockClient implements QueryClient {
@@ -148,6 +203,7 @@ class MockClient implements QueryClient {
             po_id: PO_ID,
             item_id: ITEM_ID,
             supplier_id: SUPPLIER_ID,
+            destination_warehouse_id: this.options.destinationWarehouseId ?? null,
             line_no: 1,
             ordered_qty: this.options.orderedQty ?? '10.000000',
             uom: 'kg',
@@ -160,6 +216,14 @@ class MockClient implements QueryClient {
     }
 
     if (normalized.includes('from public.warehouses w')) {
+      if (params?.[0] === PO_DEST_WAREHOUSE_ID) {
+        return {
+          rows: [{ id: PO_DEST_WAREHOUSE_ID, site_id: SITE_ID, default_location_id: PO_DEST_LOCATION_ID }] as T[],
+        };
+      }
+      if (params?.[0] === WAREHOUSE_ID) {
+        return { rows: [defaultWarehouse()] as T[] };
+      }
       return { rows: (this.options.warehouse === null ? [] : [this.options.warehouse ?? defaultWarehouse()]) as T[] };
     }
 

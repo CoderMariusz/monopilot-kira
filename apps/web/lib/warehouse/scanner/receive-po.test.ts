@@ -17,7 +17,9 @@ const ITEM_ID = '00000000-0000-4000-8000-0000000000c1';
 const SUPPLIER_ID = '00000000-0000-4000-8000-0000000000d1';
 const SITE_ID = '00000000-0000-4000-8000-0000000000d2';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
+const PO_DEST_WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e2';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
+const PO_DEST_LOCATION_ID = '00000000-0000-4000-8000-0000000000f3';
 // lane W9-L8: operator-chosen destination inside the session-site warehouse
 const REQ_LOCATION_ID = '00000000-0000-4000-8000-0000000000f2';
 
@@ -412,6 +414,60 @@ describe('scanner receive PO service', () => {
     expect(grnItemInsert?.params[10]).toBe(LOCATION_ID);
   });
 
+  it('uses the PO destination warehouse when no explicit destination location is supplied', async () => {
+    const client = makeReceiveClient({
+      orderedQty: '20.000000',
+      receivedQty: '0.000000',
+      destinationWarehouseId: PO_DEST_WAREHOUSE_ID,
+    });
+
+    await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-po-dest' });
+
+    const warehouseLookup = findCall(client, 'from public.warehouses w');
+    expect(warehouseLookup?.params).toEqual([null, PO_DEST_WAREHOUSE_ID, SITE_ID]);
+    expect(findCall(client, 'insert into public.license_plates')?.params[2]).toBe(PO_DEST_WAREHOUSE_ID);
+    expect(findCall(client, 'insert into public.license_plates')?.params[11]).toBe(PO_DEST_LOCATION_ID);
+    expect(findCall(client, 'insert into public.grns')?.params).toEqual(
+      expect.arrayContaining([PO_DEST_WAREHOUSE_ID, PO_DEST_LOCATION_ID]),
+    );
+  });
+
+  it('lets an explicit destination location override the PO destination warehouse', async () => {
+    const client = makeReceiveClient({
+      orderedQty: '20.000000',
+      receivedQty: '0.000000',
+      destinationWarehouseId: PO_DEST_WAREHOUSE_ID,
+      requestedLocation: { id: REQ_LOCATION_ID, warehouse_id: WAREHOUSE_ID },
+    });
+
+    await receiveScannerPoLine(client, session, {
+      ...input,
+      clientOpId: 'op-explicit-over-po-dest',
+      toLocationId: REQ_LOCATION_ID,
+    });
+
+    const warehouseLookup = findCall(client, 'from public.warehouses w');
+    expect(warehouseLookup?.params).toEqual([WAREHOUSE_ID, PO_DEST_WAREHOUSE_ID, SITE_ID]);
+    expect(findCall(client, 'insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
+    expect(findCall(client, 'insert into public.license_plates')?.params[11]).toBe(REQ_LOCATION_ID);
+  });
+
+  it('falls back through site/default warehouse ordering when the PO has no destination warehouse', async () => {
+    const client = makeReceiveClient({
+      orderedQty: '20.000000',
+      receivedQty: '0.000000',
+      destinationWarehouseId: null,
+    });
+
+    await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-po-no-dest' });
+
+    const warehouseLookup = findCall(client, 'from public.warehouses w');
+    expect(warehouseLookup?.params).toEqual([null, null, SITE_ID]);
+    expect(warehouseLookup?.sql).toContain('w.site_id = $3::uuid');
+    expect(warehouseLookup?.sql).toContain('w.is_default desc');
+    expect(findCall(client, 'insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
+  });
+
   it('falls back to an org warehouse when the session site has no linked/default warehouse', async () => {
     const client = makeReceiveClient({
       orderedQty: '20.000000',
@@ -485,6 +541,7 @@ function makeReceiveClient(options: {
   shelfLifeDays?: number | null;
   shelfLifeMode?: string | null;
   requestedLocation?: { id: string; warehouse_id: string };
+  destinationWarehouseId?: string | null;
   warehouse?: { id: string; default_location_id: string | null };
   noWarehouse?: boolean;
 }): FakeClient {
@@ -520,6 +577,7 @@ function makeReceiveClient(options: {
                   po_id: PO_ID,
                   item_id: ITEM_ID,
                   supplier_id: SUPPLIER_ID,
+                  destination_warehouse_id: options.destinationWarehouseId ?? null,
                   line_no: 1,
                   ordered_qty: options.orderedQty ?? '10.000000',
                   uom: 'kg',
@@ -542,6 +600,12 @@ function makeReceiveClient(options: {
       }
       if (normalized.includes('from public.warehouses w')) {
         if (options.noWarehouse) return { rows: [] as T[], rowCount: 0 };
+        if (params[0] === WAREHOUSE_ID) {
+          return { rows: [{ id: WAREHOUSE_ID, default_location_id: LOCATION_ID }] as T[], rowCount: 1 };
+        }
+        if (params[1] === PO_DEST_WAREHOUSE_ID) {
+          return { rows: [{ id: PO_DEST_WAREHOUSE_ID, default_location_id: PO_DEST_LOCATION_ID }] as T[], rowCount: 1 };
+        }
         return {
           rows: [options.warehouse ?? { id: WAREHOUSE_ID, default_location_id: LOCATION_ID }] as T[],
           rowCount: 1,
