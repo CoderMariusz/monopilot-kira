@@ -146,9 +146,15 @@ export async function listItems(opts?: {
                   -- bom_headers.item_id is the items.id FK; keep returning item_code strings from items.
                   (select count(*) from public.bom_headers bh
                      where bh.item_id = i.id and bh.org_id = app.current_org_id()) as bom_count,
-                  (select coalesce(array_agg(distinct a.name order by a.name), array[]::text[])
+                  -- Reference.Allergens is the canonical org-scoped EU-14 master (semantic allergen_code:
+                  -- 'gluten','milk',…), matching item_allergen_profiles.allergen_code. The old join hit the
+                  -- legacy public.allergens table (numeric 'A01' codes, unseeded/empty here) so the allergens
+                  -- column rendered empty for every item even when profiles existed.
+                  (select coalesce(array_agg(distinct coalesce(a.display_name, a.allergen_code)
+                                              order by coalesce(a.display_name, a.allergen_code)), array[]::text[])
                      from public.item_allergen_profiles iap
-                     join public.allergens a on a.code = iap.allergen_code
+                     join "Reference"."Allergens" a
+                       on a.org_id = iap.org_id and a.allergen_code = iap.allergen_code
                     where iap.item_id = i.id and iap.org_id = app.current_org_id()) as allergens,
                   count(*) over () as total_count
              from public.items i
