@@ -116,6 +116,26 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
         [versionId, JSON.stringify({ formulationId: row.formulation_id, productCode: row.product_code })],
       );
 
+      // A8 — seed a placeholder "draft" trial at the Trial step (step 4) so it is
+      // not empty when the technologist arrives after submitting for trial.
+      // trial_batches has no explicit state column; result defaults to 'pending'
+      // (the placeholder/draft state). Idempotent: only seeds the FIRST trial for
+      // this project, so a re-submit (or an already-logged trial) never trips the
+      // (org, project, trial_no) unique constraint. batch_size_kg is pre-filled from
+      // the submitted version (kill double-entry); the technologist fills the rest.
+      await ctx.client.query(
+        `insert into public.trial_batches
+           (org_id, project_id, trial_no, batch_size_kg, result, created_by, updated_by)
+         select app.current_org_id(), $1::uuid, 'T-1',
+                (select batch_size_kg from public.formulation_versions where id = $2::uuid),
+                'pending', $3::uuid, $3::uuid
+          where not exists (
+            select 1 from public.trial_batches
+             where project_id = $1::uuid and org_id = app.current_org_id()
+          )`,
+        [projectId, versionId, ctx.userId],
+      );
+
       return { ok: true, data: { versionId } };
     });
   } catch (error) {
