@@ -42,6 +42,14 @@ const EU14_CODES = [
 
 const EU14_TO_ALLERGEN_CODE: Record<string, string> = { A01: 'gluten', A02: 'crustaceans', A03: 'eggs', A04: 'fish', A05: 'peanuts', A06: 'soybeans', A07: 'milk', A08: 'nuts', A09: 'celery', A10: 'mustard', A11: 'sesame', A12: 'sulphites', A13: 'lupin', A14: 'molluscs' };
 
+// Reverse map: canonical Reference.Allergens code -> EU-14 numeric code the UI picker is keyed on.
+// "Reference"."RawMaterials".allergens_inherited is now stored in the canonical vocabulary (mig 365 guard
+// normalizes 'A0x'/'soya' -> 'gluten'/'soybeans'), so getItemNutrition must map it back to EU-14 for the
+// picker to pre-check correctly.
+const ALLERGEN_CODE_TO_EU14: Record<string, string> = Object.fromEntries(
+  Object.entries(EU14_TO_ALLERGEN_CODE).map(([eu14, canonical]) => [canonical, eu14]),
+);
+
 const DecimalString = z
   .string()
   .trim()
@@ -259,7 +267,9 @@ export async function upsertNutrition(rawInput: unknown): Promise<NutritionActio
         data: {
           itemCode: row.rm_code,
           nutrition: input.nutrition,
-          allergensInherited: row.allergens_inherited ?? input.allergensInherited,
+          // Echo the submitted EU-14 codes: storage is canonical (mig 365 guard normalizes), so reflecting
+          // the user's own selection keeps the picker round-trip stable regardless of DB normalization.
+          allergensInherited: input.allergensInherited,
         },
       };
     });
@@ -299,7 +309,8 @@ export async function getItemNutrition(itemCode: string): Promise<{
       if (!nutrition) return null;
       return {
         nutrition,
-        allergensInherited: row.allergens_inherited ?? [],
+        // Storage is canonical (mig 365); map back to the EU-14 codes the picker expects.
+        allergensInherited: (row.allergens_inherited ?? []).map((c) => ALLERGEN_CODE_TO_EU14[c] ?? c),
       };
     });
   } catch (err) {
