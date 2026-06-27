@@ -140,7 +140,11 @@ const ENTITY_ICON: Record<ImportableEntityKey, string> = {
 };
 
 function formatCount(n: number): string {
-  return n.toLocaleString('en-US');
+  // Deterministic thousands grouping. `Number.prototype.toLocaleString`/`Intl` output can differ between
+  // the Node server's ICU and the browser's, which produced a React #418 hydration mismatch on this page
+  // once a count exceeded 999 (it is called synchronously in render at several sites). A pure-JS grouping
+  // is byte-identical on both sides.
+  return Math.trunc(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function formatTimestampClient(iso: string | null, never: string): string {
