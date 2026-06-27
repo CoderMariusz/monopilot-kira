@@ -52,12 +52,18 @@ export async function deleteBomVersion(rawInput: unknown): Promise<DeleteBomVers
       if (!(await hasPermission(ctx, BOM_CREATE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const { rows: headerRows } = await c.query<BomHeaderDeleteRow>(
-        `select id, product_id, version, status, yield_pct::text as yield_pct,
+        `select bh.id, i.item_code as product_id, bh.version, bh.status, bh.yield_pct::text as yield_pct,
                 effective_from, effective_to, notes
-           from public.bom_headers
-          where org_id = app.current_org_id()
-            and product_id = $1
-            and version = $2`,
+           from public.bom_headers bh
+           join public.items i on i.id = bh.item_id
+          where bh.org_id = app.current_org_id()
+            and bh.item_id = (
+              select id
+                from public.items
+               where org_id = app.current_org_id()
+                 and item_code = $1
+            )
+            and bh.version = $2`,
         [input.productId, input.version],
       );
       const header = headerRows[0];
@@ -71,7 +77,12 @@ export async function deleteBomVersion(rawInput: unknown): Promise<DeleteBomVers
           `select count(*)::int as version_count
              from public.bom_headers
             where org_id = app.current_org_id()
-              and product_id = $1`,
+              and item_id = (
+                select id
+                  from public.items
+                 where org_id = app.current_org_id()
+                   and item_code = $1
+              )`,
           [input.productId],
         ),
         c.query<{ snapshot_count: string | number }>(

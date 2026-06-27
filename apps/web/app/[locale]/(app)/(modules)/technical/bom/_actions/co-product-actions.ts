@@ -57,9 +57,10 @@ type CoProductRow = {
 
 async function loadHeader(c: QueryClient, bomHeaderId: string): Promise<HeaderRow | null> {
   const { rows } = await c.query<HeaderRow>(
-    `select id, product_id, status
-       from public.bom_headers
-      where org_id = app.current_org_id() and id = $1::uuid
+    `select bh.id, i.item_code as product_id, bh.status
+       from public.bom_headers bh
+       join public.items i on i.id = bh.item_id
+      where bh.org_id = app.current_org_id() and bh.id = $1::uuid
       limit 1`,
     [bomHeaderId],
   );

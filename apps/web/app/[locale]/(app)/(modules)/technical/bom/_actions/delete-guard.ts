@@ -31,7 +31,7 @@ export type GetVersionDeleteGuardResult =
   | { ok: false; error: 'not_found' | 'load_failed' };
 
 /**
- * Loads the delete guard for one FG version (by product_id + version number).
+ * Loads the delete guard for one FG version (by item_code + version number).
  * Returns `not_found` when the version does not exist in this org.
  */
 export async function getVersionDeleteGuard(
@@ -44,7 +44,14 @@ export async function getVersionDeleteGuard(
       const headerRes = await c.query<{ id: string; status: string }>(
         `select id, status
            from public.bom_headers
-          where org_id = app.current_org_id() and product_id = $1 and version = $2`,
+          where org_id = app.current_org_id()
+            and item_id = (
+              select id
+                from public.items
+               where org_id = app.current_org_id()
+                 and item_code = $1
+            )
+            and version = $2`,
         [productId, version],
       );
       const header = headerRes.rows[0];

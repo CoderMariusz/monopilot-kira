@@ -61,10 +61,10 @@ export type SnapshotQueryRow = {
  * plain, Next-free module) so the integration test can execute the EXACT SQL the
  * server action runs against a real Postgres + RLS (`app.current_org_id()`).
  *
- * Joins are org-scoped: `public.product` exposes `product_name` (NOT `name`) and
- * `bom_headers.product_id` is the text product_code. Derived status is computed
- * via a window function (latest snapshot per header = in_use; older = closed;
- * missing header = orphaned).
+ * Joins are org-scoped: `public.product` exposes `product_name` (NOT `name`);
+ * `bom_headers.item_id` is the items.id FK while this read model still returns
+ * item_code strings. Derived status is computed via a window function (latest
+ * snapshot per header = in_use; older = closed; missing header = orphaned).
  */
 export const LIST_SNAPSHOTS_SQL = `select
            s.id,
@@ -72,7 +72,7 @@ export const LIST_SNAPSHOTS_SQL = `select
            wo.wo_number as wo_number,
            s.bom_header_id,
            h.version as bom_version,
-           h.product_id,
+           i.item_code as product_id,
            p.product_name as product_name,
            coalesce(jsonb_array_length(s.snapshot_json -> 'lines'), 0) as line_count,
            s.snapshot_at,
@@ -83,8 +83,10 @@ export const LIST_SNAPSHOTS_SQL = `select
          from public.bom_snapshots s
          left join public.bom_headers h
            on h.id = s.bom_header_id and h.org_id = app.current_org_id()
+         left join public.items i
+           on i.id = h.item_id and i.org_id = app.current_org_id()
          left join public.product p
-           on p.product_code = h.product_id and p.org_id = app.current_org_id()
+           on p.product_code = i.item_code and p.org_id = app.current_org_id()
          left join public.work_orders wo
            on wo.id = s.work_order_id and wo.org_id = app.current_org_id()
          where s.org_id = app.current_org_id()

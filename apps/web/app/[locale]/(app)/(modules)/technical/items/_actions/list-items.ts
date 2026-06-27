@@ -143,10 +143,9 @@ export async function listItems(opts?: {
                   i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,
                   i.output_uom, i.net_qty_per_each, i.each_per_box, i.boxes_per_pallet,
                   i.cost_per_kg, i.list_price_gbp::text as list_price_gbp, i.updated_at, i.d365_sync_status,
-                  -- bom_headers.product_id is TEXT and FKs to product(org_id, product_code);
-                  -- the items-master code namespace joins on item_code, not items.id (uuid).
+                  -- bom_headers.item_id is the items.id FK; keep returning item_code strings from items.
                   (select count(*) from public.bom_headers bh
-                     where bh.product_id = i.item_code and bh.org_id = app.current_org_id()) as bom_count,
+                     where bh.item_id = i.id and bh.org_id = app.current_org_id()) as bom_count,
                   (select coalesce(array_agg(distinct a.name order by a.name), array[]::text[])
                      from public.item_allergen_profiles iap
                      join public.allergens a on a.code = iap.allergen_code

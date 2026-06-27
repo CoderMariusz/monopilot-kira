@@ -14,8 +14,8 @@
  *   tab panels. Allergens has its own loader (allergen-profile.ts).
  *
  * Query-fix notes (the "Unable to load" root-cause class on this module):
- *   - bom_headers.product_id is TEXT (FKs the item-master code namespace), NOT a
- *     uuid join on items.id. So BOM versions are read `where product_id = item_code`.
+ *   - bom_headers.item_id is the items.id UUID FK. BOM versions still accept the
+ *     route item_code, resolve it to items.id, and keep returning code strings.
  *   - routings / item_cost_history / lab_results key on items.id (uuid) — resolve
  *     the uuid from item_code first, then read by item_id.
  */
@@ -84,14 +84,19 @@ export async function loadBomTab(itemCode: string): Promise<BomTabData> {
       approved_at: string | Date | null;
       line_count: string | number;
     }>(
-      // bom_headers.product_id is TEXT → joins the item-master code, NOT items.id.
+      // bom_headers.item_id is the items.id FK; itemCode remains the route/API code string.
       `select bh.id, bh.version, bh.status, bh.effective_from, bh.effective_to,
               bh.approved_by, bh.approved_at,
               (select count(*) from public.bom_lines bl
                 where bl.bom_header_id = bh.id and bl.org_id = bh.org_id) as line_count
          from public.bom_headers bh
         where bh.org_id = app.current_org_id()
-          and bh.product_id = $1
+          and bh.item_id = (
+            select i.id
+              from public.items i
+             where i.org_id = app.current_org_id()
+               and i.item_code = $1
+          )
         order by bh.version desc`,
       [itemCode],
     );
