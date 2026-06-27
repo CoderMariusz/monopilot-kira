@@ -191,6 +191,10 @@
       "emptyFiltered": "No inventory matches this search. Try a different term or pivot.",
       "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
       "error": "We could not load inventory right now. Refresh to try again.",
+      "siteLabel": "Site:",
+      "siteUnknown": "Selected site",
+      "siteRequiredTitle": "Select a site to view stock",
+      "siteRequiredBody": "Pick a site from the selector at the top of the page to see its inventory. Stock is scoped to one site at a time.",
       "pickable": "pickable",
       "none": "—"
     },
@@ -491,6 +495,10 @@
       "emptyFiltered": "Żaden stan nie pasuje do tego wyszukiwania. Spróbuj innego hasła lub przekroju.",
       "denied": "Nie masz uprawnień do podglądu stanu magazynowego. Poproś administratora o uprawnienie warehouse.inventory.read.",
       "error": "Nie udało się teraz wczytać stanu magazynowego. Odśwież, aby spróbować ponownie.",
+      "siteLabel": "Zakład:",
+      "siteUnknown": "Wybrany zakład",
+      "siteRequiredTitle": "Wybierz zakład, aby zobaczyć stan magazynowy",
+      "siteRequiredBody": "Wybierz zakład z selektora u góry strony, aby zobaczyć jego stan magazynowy. Stan jest pokazywany dla jednego zakładu naraz.",
       "pickable": "do pobrania",
       "none": "—"
     },

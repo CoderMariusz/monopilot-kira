@@ -14,6 +14,26 @@ export type WarehouseResult<T> =
   | { ok: true; data: T }
   | { ok: false; reason: 'forbidden' | 'not_found' | 'error'; message?: string };
 
+/**
+ * SW (site-scoped inventory) — fail-closed read result for the inventory pivots.
+ *
+ * The inventory browser is scoped by the top-bar Site selector. The success
+ * shape keeps the existing `data` rows untouched and adds:
+ *   - `activeSiteId` — the site the rows were filtered to (null only when none
+ *     resolves), and
+ *   - `noActiveSite` — true ONLY when no site resolves (no explicit id, no
+ *     cookie, no org-default); the action then returns empty `data` rather than
+ *     leaking all-sites stock, and the UI shows a "select a site" prompt, and
+ *   - `siteName` — the active site's display name for the "Site: {siteName}"
+ *     header (null when `noActiveSite`).
+ *
+ * Owner-locked FAIL-CLOSED decision: this DIFFERS from the all-sites `listLPs`
+ * read — with no active site we return EMPTY + the flag, never all sites.
+ */
+export type InventoryResult<T> =
+  | { ok: true; data: T; noActiveSite: boolean; activeSiteId: string | null; siteName: string | null }
+  | { ok: false; reason: 'forbidden' | 'not_found' | 'error'; message?: string };
+
 export const WAREHOUSE_READ_PERMISSION = 'warehouse.inventory.read';
 export const WAREHOUSE_STOCK_MOVE_PERMISSION = 'warehouse.stock.move';
 export const WAREHOUSE_LP_RESERVE_PERMISSION = 'warehouse.lp.reserve';

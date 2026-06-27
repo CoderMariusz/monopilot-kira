@@ -12,6 +12,8 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const PRODUCT_ID = '33333333-3333-4333-8333-333333333333';
 const LOCATION_ID = '44444444-4444-4444-8444-444444444444';
 const WAREHOUSE_ID = '55555555-5555-4555-8555-555555555555';
+const SITE_ID = '66666666-6666-4666-8666-666666666666';
+const SITE_NAME = 'Main plant';
 
 type LpFixture = {
   productId: string;
@@ -32,11 +34,21 @@ type LpFixture = {
 let client: QueryClient;
 let allowPermission = true;
 let lps: LpFixture[] = [];
+// SW (site-scoped inventory): the active site getActiveSiteId resolves. `null`
+// exercises the FAIL-CLOSED branch (no cookie / no org-default).
+let activeSiteId: string | null = SITE_ID;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+// SW (site-scoped inventory): the inventory reads now resolve the active site via
+// getActiveSiteId and fail closed when none resolves. Mock it so the test drives
+// the active-site vs no-active-site branch deterministically.
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => activeSiteId),
 }));
 
 function normalize(sql: string): string {
@@ -76,6 +88,11 @@ function makeClient(): QueryClient {
       const q = normalize(sql);
       if (q.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+
+      // SW (site-scoped inventory): the active site's display-name lookup.
+      if (q.includes('select name from public.sites')) {
+        return { rows: [{ name: SITE_NAME }], rowCount: 1 };
       }
 
       const active = activeRows();
@@ -141,6 +158,7 @@ function makeClient(): QueryClient {
 
 beforeEach(() => {
   allowPermission = true;
+  activeSiteId = SITE_ID;
   lps = [
     {
       productId: PRODUCT_ID,
@@ -221,11 +239,22 @@ describe('inventory pivot actions', () => {
       lpCount: 3,
     });
 
+    // SW (site-scoped inventory): the active site is surfaced on the result.
+    expect(result.noActiveSite).toBe(false);
+    expect(result.activeSiteId).toBe(SITE_ID);
+    expect(result.siteName).toBe(SITE_NAME);
+
     const sql = directInventorySql();
     expect(sql).toContain('from public.license_plates lp');
     expect(sql).not.toContain('v_inventory_available');
     expect(sql).toContain("lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')");
     expect(sql).toContain('sum(lp.quantity) filter ( where lp.status = \'available\' and lp.qa_status = \'released\' )');
+    // SW: strict site scope is applied with the active site as a bound param.
+    expect(sql).toContain('lp.site_id = $1::uuid');
+    const call = vi
+      .mocked(client.query)
+      .mock.calls.find(([s]) => normalize(s).includes('from public.license_plates lp'));
+    expect(call?.[1]).toEqual([SITE_ID]);
   });
 
   it('by location uses the same on-hand and pickable scope', async () => {
@@ -240,7 +269,9 @@ describe('inventory pivot actions', () => {
       pickableQty: '100',
       lpCount: 3,
     });
-    expect(directInventorySql()).not.toContain('v_inventory_available');
+    const sql = directInventorySql();
+    expect(sql).not.toContain('v_inventory_available');
+    expect(sql).toContain('lp.site_id = $1::uuid');
   });
 
   it('by batch uses the same on-hand and pickable scope', async () => {
@@ -255,6 +286,59 @@ describe('inventory pivot actions', () => {
       pickableQty: '100',
       lpCount: 3,
     });
-    expect(directInventorySql()).not.toContain('v_inventory_available');
+    const sql = directInventorySql();
+    expect(sql).not.toContain('v_inventory_available');
+    expect(sql).toContain('lp.site_id = $1::uuid');
+  });
+});
+
+describe('inventory pivot actions — FAIL-CLOSED site scope', () => {
+  beforeEach(() => {
+    // No site resolves (no explicit id, no cookie, no org-default).
+    activeSiteId = null;
+  });
+
+  it('by product returns empty + noActiveSite and never queries license_plates when no site resolves', async () => {
+    const result = await getInventoryByProduct();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.noActiveSite).toBe(true);
+    expect(result.activeSiteId).toBeNull();
+    expect(result.siteName).toBeNull();
+    expect(result.data).toEqual([]);
+
+    // FAIL-CLOSED: no all-sites leak — the inventory query is never issued.
+    const queried = vi
+      .mocked(client.query)
+      .mock.calls.some(([sql]) => normalize(sql).includes('from public.license_plates lp'));
+    expect(queried).toBe(false);
+  });
+
+  it('by location returns empty + noActiveSite when no site resolves', async () => {
+    const result = await getInventoryByLocation();
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.noActiveSite).toBe(true);
+    expect(result.activeSiteId).toBeNull();
+    expect(result.data).toEqual([]);
+  });
+
+  it('by batch returns empty + noActiveSite when no site resolves', async () => {
+    const result = await getInventoryByBatch();
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.noActiveSite).toBe(true);
+    expect(result.activeSiteId).toBeNull();
+    expect(result.data).toEqual([]);
+  });
+
+  it('still fails closed on missing permission before resolving a site', async () => {
+    allowPermission = false;
+    activeSiteId = SITE_ID;
+    const result = await getInventoryByProduct();
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected forbidden');
+    expect(result.reason).toBe('forbidden');
   });
 });

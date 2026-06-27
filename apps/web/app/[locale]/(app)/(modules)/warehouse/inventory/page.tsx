@@ -115,13 +115,40 @@ async function BrowserContent({ locale }: { locale: string }) {
     );
   }
 
+  // SW (site-scoped inventory) — FAIL-CLOSED empty state: no active site resolved
+  // (no cookie, no org-default) → prompt for a site instead of showing all stock.
+  if (product.noActiveSite) {
+    return (
+      <div
+        data-testid="inventory-no-site"
+        data-state="empty"
+        className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center"
+      >
+        <p className="text-sm font-medium text-slate-700">{t('inventory.siteRequiredTitle')}</p>
+        <p className="mt-1 text-sm text-slate-500">{t('inventory.siteRequiredBody')}</p>
+      </div>
+    );
+  }
+
+  // Prominent "Site: {siteName}" header — the top-bar Site selector defines scope.
+  const siteName = product.siteName ?? t('inventory.siteUnknown');
+
   return (
-    <InventoryBrowserClient
-      byProduct={product.data}
-      byLocation={location.data}
-      byBatch={batch.data}
-      labels={buildLabels(t)}
-    />
+    <div className="flex flex-col gap-4">
+      <p
+        data-testid="inventory-site-header"
+        className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700"
+      >
+        <span className="font-medium text-slate-500">{t('inventory.siteLabel')}</span>
+        <span className="font-semibold text-slate-900">{siteName}</span>
+      </p>
+      <InventoryBrowserClient
+        byProduct={product.data}
+        byLocation={location.data}
+        byBatch={batch.data}
+        labels={buildLabels(t)}
+      />
+    </div>
   );
 }
 
