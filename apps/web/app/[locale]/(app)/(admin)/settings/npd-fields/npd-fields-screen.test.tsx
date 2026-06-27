@@ -60,6 +60,29 @@ const labels: NpdFieldsScreenLabels = {
     approval: 'Approval',
     handoff: 'Handoff',
   },
+  newField: 'New field',
+  newDepartment: 'New department',
+  editAction: 'Edit',
+  save: 'Save',
+  cancel: 'Cancel',
+  create: 'Create',
+  fieldCode: 'Field code',
+  fieldLabel: 'Field label',
+  fieldDepartment: 'Department',
+  fieldDataType: 'Data type',
+  fieldRequired: 'Required by default',
+  fieldHelpText: 'Help text',
+  departmentCode: 'Department code',
+  departmentName: 'Department name',
+  departmentDescription: 'Description',
+  newFieldTitle: 'Create NPD field',
+  newDepartmentTitle: 'Create NPD department',
+  editFieldTitle: 'Edit NPD field',
+  editDepartmentTitle: 'Edit NPD department',
+  dataTypeText: 'Text',
+  dataTypeNumber: 'Number',
+  dataTypeDate: 'Date',
+  deleteDepartmentUnavailable: 'Department deletion is not yet available. Deactivate it instead.',
 };
 
 const departments: NpdDepartmentConfigRow[] = [
@@ -213,5 +236,115 @@ describe('NpdFieldsScreen', () => {
     expect(screen.getByLabelText('Target pH Visible')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Assign field' })).toBeDisabled();
     expect(screen.getAllByRole('button', { name: 'Remove' })[0]).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'New field' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'New department' })).toBeDisabled();
+  });
+
+  it('creates a new field via the createField action', async () => {
+    const createFieldAction = vi.fn(async () => ({
+      id: 'field-new',
+      org_id: 'org',
+      code: 'brix',
+      label: 'Brix',
+      data_type: 'text' as const,
+      validation_json: {},
+      help_text: null,
+      active: true,
+    }));
+    renderScreen({ createFieldAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New field' }));
+    const dialog = screen.getByRole('dialog', { name: 'Create NPD field' });
+    fireEvent.change(within(dialog).getByLabelText('Field code'), { target: { value: 'brix' } });
+    fireEvent.change(within(dialog).getByLabelText('Field label'), { target: { value: 'Brix' } });
+    fireEvent.submit(within(dialog).getByTestId('npd-new-field-form'));
+
+    await waitFor(() => {
+      // data_type defaults to the first picker option ('text'); the picker is the
+      // shadcn Select and is exercised in E2E rather than jsdom.
+      expect(createFieldAction).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'brix', label: 'Brix', data_type: 'text' }),
+      );
+    });
+  });
+
+  it('creates a new department via the createDepartment action', async () => {
+    const createDepartmentAction = vi.fn(async () => ({
+      id: 'dept-new',
+      org_id: 'org',
+      code: 'quality',
+      name: 'Quality',
+      display_order: 30,
+      active: true,
+      created_at: '2026-06-27T00:00:00.000Z',
+    }));
+    renderScreen({ createDepartmentAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New department' }));
+    const dialog = screen.getByRole('dialog', { name: 'Create NPD department' });
+    fireEvent.change(within(dialog).getByLabelText('Department code'), { target: { value: 'quality' } });
+    fireEvent.change(within(dialog).getByLabelText('Department name'), { target: { value: 'Quality' } });
+    fireEvent.submit(within(dialog).getByTestId('npd-new-department-form'));
+
+    await waitFor(() => {
+      expect(createDepartmentAction).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'quality', name: 'Quality' }),
+      );
+    });
+  });
+
+  it('edits a department via the updateDepartment action', async () => {
+    const updateDepartmentAction = vi.fn(async () => ({
+      id: departments[0].id,
+      org_id: 'org',
+      code: 'technical',
+      name: 'Technical (renamed)',
+      display_order: 10,
+      active: true,
+      created_at: '2026-06-27T00:00:00.000Z',
+    }));
+    renderScreen({ updateDepartmentAction });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit Technical' })[0]);
+    const dialog = screen.getByRole('dialog', { name: 'Edit NPD department' });
+    fireEvent.change(within(dialog).getByLabelText('Department name'), {
+      target: { value: 'Technical (renamed)' },
+    });
+    fireEvent.submit(within(dialog).getByTestId('npd-edit-department-form'));
+
+    await waitFor(() => {
+      expect(updateDepartmentAction).toHaveBeenCalledWith(
+        departments[0].id,
+        expect.objectContaining({ name: 'Technical (renamed)' }),
+      );
+    });
+  });
+
+  it('edits a field via the updateField action', async () => {
+    const updateFieldAction = vi.fn(async () => ({
+      id: 'field-1',
+      org_id: 'org',
+      code: 'target_ph',
+      label: 'Target pH (v2)',
+      data_type: 'number' as const,
+      validation_json: {},
+      help_text: null,
+      active: true,
+    }));
+    renderScreen({ updateFieldAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Target pH' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit NPD field' });
+    fireEvent.change(within(dialog).getByLabelText('Field label'), {
+      target: { value: 'Target pH (v2)' },
+    });
+    fireEvent.submit(within(dialog).getByTestId('npd-edit-field-form'));
+
+    await waitFor(() => {
+      expect(updateFieldAction).toHaveBeenCalledWith(
+        'field-1',
+        expect.objectContaining({ label: 'Target pH (v2)' }),
+      );
+    });
   });
 });

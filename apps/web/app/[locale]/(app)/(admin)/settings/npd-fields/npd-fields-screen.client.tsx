@@ -5,17 +5,29 @@ import { useRouter } from 'next/navigation';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
-import { PageHead, Section, SelectField, Toggle } from '../_components';
+import { PageHead, Section, SelectField, SettingField, SRow, Toggle } from '../_components';
 import {
   assignFieldToDepartment,
+  createDepartment,
+  createField,
   removeAssignment,
   setDepartmentActive,
   updateAssignment,
+  updateDepartment,
+  updateField,
 } from './_actions/npd-field-config';
 
 const STAGE_CODES = ['brief', 'recipe', 'packaging', 'trial', 'sensory', 'pilot', 'approval', 'handoff'] as const;
 
+/**
+ * Data types exposed in the management UI. The catalog action accepts a wider
+ * union, but this slice deliberately limits the picker to {text, number, date}
+ * — the dynamic 'auto'/formula source is a later slice (do not expose here).
+ */
+const UI_DATA_TYPES = ['text', 'number', 'date'] as const;
+
 type StageCode = (typeof STAGE_CODES)[number];
+type UiDataType = (typeof UI_DATA_TYPES)[number];
 
 export type NpdFieldCatalogRow = {
   id: string;
@@ -23,6 +35,7 @@ export type NpdFieldCatalogRow = {
   label: string;
   data_type: string;
   active: boolean;
+  help_text?: string | null;
 };
 
 export type NpdDepartmentFieldRow = {
@@ -65,6 +78,29 @@ export type NpdFieldsScreenLabels = {
   remove: string;
   saving: string;
   error: string;
+  newField: string;
+  newDepartment: string;
+  editAction: string;
+  save: string;
+  cancel: string;
+  create: string;
+  fieldCode: string;
+  fieldLabel: string;
+  fieldDepartment: string;
+  fieldDataType: string;
+  fieldRequired: string;
+  fieldHelpText: string;
+  departmentCode: string;
+  departmentName: string;
+  departmentDescription: string;
+  newFieldTitle: string;
+  newDepartmentTitle: string;
+  editFieldTitle: string;
+  editDepartmentTitle: string;
+  dataTypeText: string;
+  dataTypeNumber: string;
+  dataTypeDate: string;
+  deleteDepartmentUnavailable: string;
   columns: {
     field: string;
     dataType: string;
@@ -81,6 +117,10 @@ type UpdateAssignmentAction = typeof updateAssignment;
 type AssignFieldAction = typeof assignFieldToDepartment;
 type RemoveAssignmentAction = typeof removeAssignment;
 type SetDepartmentActiveAction = typeof setDepartmentActive;
+type CreateFieldAction = typeof createField;
+type CreateDepartmentAction = typeof createDepartment;
+type UpdateFieldAction = typeof updateField;
+type UpdateDepartmentAction = typeof updateDepartment;
 
 export type NpdFieldsScreenProps = {
   departments: NpdDepartmentConfigRow[];
@@ -91,9 +131,32 @@ export type NpdFieldsScreenProps = {
   assignFieldAction?: AssignFieldAction;
   updateAssignmentAction?: UpdateAssignmentAction;
   removeAssignmentAction?: RemoveAssignmentAction;
+  createFieldAction?: CreateFieldAction;
+  createDepartmentAction?: CreateDepartmentAction;
+  updateFieldAction?: UpdateFieldAction;
+  updateDepartmentAction?: UpdateDepartmentAction;
 };
 
 type PendingTarget = { kind: 'department' | 'assignment' | 'assign'; id: string } | null;
+
+type DialogState =
+  | { kind: 'new-field' }
+  | { kind: 'new-department' }
+  | { kind: 'edit-field'; field: NpdFieldCatalogRow }
+  | { kind: 'edit-department'; department: NpdDepartmentConfigRow }
+  | null;
+
+function slugifyCode(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function normalizeUiDataType(value: string): UiDataType {
+  return UI_DATA_TYPES.includes(value as UiDataType) ? (value as UiDataType) : 'text';
+}
 
 function normalizeStage(value: string): StageCode {
   return STAGE_CODES.includes(value as StageCode) ? (value as StageCode) : 'brief';
@@ -147,6 +210,10 @@ export default function NpdFieldsScreen({
   assignFieldAction = assignFieldToDepartment,
   updateAssignmentAction = updateAssignment,
   removeAssignmentAction = removeAssignment,
+  createFieldAction = createField,
+  createDepartmentAction = createDepartment,
+  updateFieldAction = updateField,
+  updateDepartmentAction = updateDepartment,
 }: NpdFieldsScreenProps) {
   const router = useRouter();
   const [departmentRows, setDepartmentRows] = useState(departments);
@@ -154,6 +221,9 @@ export default function NpdFieldsScreen({
   const [selectedFieldId, setSelectedFieldId] = useState('');
   const [pendingTarget, setPendingTarget] = useState<PendingTarget>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [dialogPending, setDialogPending] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const selectedDepartment = useMemo(
@@ -177,6 +247,11 @@ export default function NpdFieldsScreen({
       label: `${field.label} (${field.data_type})`,
     }));
   const stageOptions = STAGE_CODES.map((stage) => ({ value: stage, label: labels.stages[stage] }));
+  const dataTypeOptions: Array<{ value: UiDataType; label: string }> = [
+    { value: 'text', label: labels.dataTypeText },
+    { value: 'number', label: labels.dataTypeNumber },
+    { value: 'date', label: labels.dataTypeDate },
+  ];
   const editDisabled = !canEdit || pendingTarget !== null;
 
   function refreshAfterMutation() {
@@ -316,9 +391,125 @@ export default function NpdFieldsScreen({
     });
   }
 
+  function openDialog(next: DialogState) {
+    if (!canEdit) return;
+    setDialogError(null);
+    setDialog(next);
+  }
+
+  function closeDialog() {
+    if (dialogPending) return;
+    setDialog(null);
+    setDialogError(null);
+  }
+
+  async function runDialogMutation(mutate: () => Promise<void>) {
+    if (!canEdit || dialogPending) return;
+    setDialogPending(true);
+    setDialogError(null);
+    try {
+      await mutate();
+      setDialog(null);
+      refreshAfterMutation();
+    } catch {
+      setDialogError(labels.error);
+    } finally {
+      setDialogPending(false);
+    }
+  }
+
+  function handleCreateField(input: {
+    code: string;
+    label: string;
+    department_id: string;
+    data_type: UiDataType;
+    required: boolean;
+    help_text: string;
+  }) {
+    void runDialogMutation(async () => {
+      const created = await createFieldAction({
+        code: input.code,
+        label: input.label,
+        data_type: input.data_type,
+        help_text: input.help_text.trim() ? input.help_text.trim() : null,
+      });
+      // Optional: if a department was chosen, immediately assign the new field there.
+      if (input.department_id) {
+        const target = departmentRows.find((department) => department.id === input.department_id);
+        const nextOrder = (target?.fields.reduce((max, f) => Math.max(max, f.display_order), 0) ?? 0) + 10;
+        await assignFieldAction({
+          department_id: input.department_id,
+          field_id: created.id,
+          required: input.required,
+          visible: true,
+          stage_code: 'brief',
+          display_order: nextOrder,
+        });
+      }
+    });
+  }
+
+  function handleCreateDepartment(input: { code: string; name: string; description: string }) {
+    void runDialogMutation(async () => {
+      const nextOrder = departmentRows.reduce((max, d) => Math.max(max, d.display_order), 0) + 10;
+      await createDepartmentAction({
+        code: input.code,
+        name: input.name,
+        display_order: nextOrder,
+      });
+    });
+  }
+
+  function handleUpdateField(
+    fieldId: string,
+    patch: { label: string; data_type: UiDataType; help_text: string },
+  ) {
+    void runDialogMutation(async () => {
+      await updateFieldAction(fieldId, {
+        label: patch.label,
+        data_type: patch.data_type,
+        help_text: patch.help_text.trim() ? patch.help_text.trim() : null,
+      });
+    });
+  }
+
+  function handleUpdateDepartment(departmentId: string, patch: { name: string }) {
+    void runDialogMutation(async () => {
+      await updateDepartmentAction(departmentId, { name: patch.name });
+      setDepartmentRows((current) =>
+        current.map((row) => (row.id === departmentId ? { ...row, name: patch.name } : row)),
+      );
+    });
+  }
+
   return (
     <main aria-label={labels.title} className="mx-auto grid max-w-5xl gap-3 p-6">
-      <PageHead title={labels.title} sub={labels.subtitle} />
+      <PageHead
+        title={labels.title}
+        sub={labels.subtitle}
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              aria-label={labels.newDepartment}
+              disabled={editDisabled}
+              onClick={() => openDialog({ kind: 'new-department' })}
+            >
+              + {labels.newDepartment}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              aria-label={labels.newField}
+              disabled={editDisabled}
+              onClick={() => openDialog({ kind: 'new-field' })}
+            >
+              + {labels.newField}
+            </button>
+          </div>
+        }
+      />
 
       {!canEdit ? (
         <div className="alert alert-amber" role="status" data-testid="npd-fields-read-only">
@@ -353,6 +544,7 @@ export default function NpdFieldsScreen({
                 <tr>
                   <th>{labels.selectedDepartment}</th>
                   <th>{labels.active}</th>
+                  <th>{labels.columns.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,6 +573,17 @@ export default function NpdFieldsScreen({
                         />
                         {statusBadge(department.active, labels)}
                       </div>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        aria-label={`${labels.editAction} ${department.name}`}
+                        disabled={editDisabled}
+                        onClick={() => openDialog({ kind: 'edit-department', department })}
+                      >
+                        {labels.editAction}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -495,14 +698,35 @@ export default function NpdFieldsScreen({
                         />
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          disabled={rowDisabled}
-                          onClick={() => handleRemoveAssignment(field)}
-                        >
-                          {labels.remove}
-                        </button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            aria-label={`${labels.editAction} ${field.label}`}
+                            disabled={rowDisabled}
+                            onClick={() => {
+                              const catalogField =
+                                fieldCatalog.find((entry) => entry.id === field.field_id) ?? {
+                                  id: field.field_id,
+                                  code: field.code,
+                                  label: field.label,
+                                  data_type: field.data_type,
+                                  active: true,
+                                };
+                              openDialog({ kind: 'edit-field', field: catalogField });
+                            }}
+                          >
+                            {labels.editAction}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={rowDisabled}
+                            onClick={() => handleRemoveAssignment(field)}
+                          >
+                            {labels.remove}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -512,6 +736,347 @@ export default function NpdFieldsScreen({
           )}
         </Section>
       ) : null}
+
+      {dialog?.kind === 'new-field' ? (
+        <FieldDialog
+          mode="create"
+          title={labels.newFieldTitle}
+          labels={labels}
+          departmentOptions={departmentOptions}
+          dataTypeOptions={dataTypeOptions}
+          pending={dialogPending}
+          error={dialogError}
+          formTestId="npd-new-field-form"
+          submitLabel={labels.create}
+          onCancel={closeDialog}
+          onSubmit={(values) =>
+            handleCreateField({
+              code: values.code,
+              label: values.label,
+              department_id: values.department_id,
+              data_type: values.data_type,
+              required: values.required,
+              help_text: values.help_text,
+            })
+          }
+        />
+      ) : null}
+
+      {dialog?.kind === 'edit-field' ? (
+        <FieldDialog
+          mode="edit"
+          title={labels.editFieldTitle}
+          labels={labels}
+          departmentOptions={departmentOptions}
+          dataTypeOptions={dataTypeOptions}
+          initial={{
+            code: dialog.field.code,
+            label: dialog.field.label,
+            data_type: normalizeUiDataType(dialog.field.data_type),
+            help_text: dialog.field.help_text ?? '',
+          }}
+          pending={dialogPending}
+          error={dialogError}
+          formTestId="npd-edit-field-form"
+          submitLabel={labels.save}
+          onCancel={closeDialog}
+          onSubmit={(values) =>
+            handleUpdateField(dialog.field.id, {
+              label: values.label,
+              data_type: values.data_type,
+              help_text: values.help_text,
+            })
+          }
+        />
+      ) : null}
+
+      {dialog?.kind === 'new-department' ? (
+        <DepartmentDialog
+          title={labels.newDepartmentTitle}
+          labels={labels}
+          pending={dialogPending}
+          error={dialogError}
+          formTestId="npd-new-department-form"
+          submitLabel={labels.create}
+          mode="create"
+          onCancel={closeDialog}
+          onSubmit={(values) =>
+            handleCreateDepartment({ code: values.code, name: values.name, description: values.description })
+          }
+        />
+      ) : null}
+
+      {dialog?.kind === 'edit-department' ? (
+        <DepartmentDialog
+          title={labels.editDepartmentTitle}
+          labels={labels}
+          initial={{ code: dialog.department.code, name: dialog.department.name, description: '' }}
+          pending={dialogPending}
+          error={dialogError}
+          formTestId="npd-edit-department-form"
+          submitLabel={labels.save}
+          mode="edit"
+          onCancel={closeDialog}
+          onSubmit={(values) => handleUpdateDepartment(dialog.department.id, { name: values.name })}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function DialogShell({
+  titleId,
+  title,
+  children,
+  onCancel,
+}: {
+  titleId: string;
+  title: string;
+  children: React.ReactNode;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      aria-labelledby={titleId}
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4"
+    >
+      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+        <div className="flex items-start justify-between gap-3">
+          <h2 id={titleId} className="text-lg font-semibold text-slate-950">
+            {title}
+          </h2>
+          <button type="button" className="btn btn-secondary" aria-label="×" onClick={onCancel}>
+            ×
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type FieldDialogValues = {
+  code: string;
+  label: string;
+  department_id: string;
+  data_type: UiDataType;
+  required: boolean;
+  help_text: string;
+};
+
+function FieldDialog({
+  mode,
+  title,
+  labels,
+  departmentOptions,
+  dataTypeOptions,
+  initial,
+  pending,
+  error,
+  formTestId,
+  submitLabel,
+  onCancel,
+  onSubmit,
+}: {
+  mode: 'create' | 'edit';
+  title: string;
+  labels: NpdFieldsScreenLabels;
+  departmentOptions: Array<{ value: string; label: string }>;
+  dataTypeOptions: Array<{ value: UiDataType; label: string }>;
+  initial?: { code: string; label: string; data_type: UiDataType; help_text: string };
+  pending: boolean;
+  error: string | null;
+  formTestId: string;
+  submitLabel: string;
+  onCancel: () => void;
+  onSubmit: (values: FieldDialogValues) => void;
+}) {
+  const titleId = React.useId();
+  const [code, setCode] = useState(initial?.code ?? '');
+  const [label, setLabel] = useState(initial?.label ?? '');
+  const [departmentId, setDepartmentId] = useState('');
+  const [dataType, setDataType] = useState<UiDataType>(initial?.data_type ?? 'text');
+  const [required, setRequired] = useState(false);
+  const [helpText, setHelpText] = useState(initial?.help_text ?? '');
+  const [codeTouched, setCodeTouched] = useState(mode === 'edit');
+
+  const effectiveCode = mode === 'create' && !codeTouched ? slugifyCode(label) : code;
+  const canSubmit = !pending && effectiveCode.trim().length > 0 && label.trim().length > 0;
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmit) return;
+    onSubmit({
+      code: slugifyCode(effectiveCode),
+      label: label.trim(),
+      department_id: departmentId,
+      data_type: dataType,
+      required,
+      help_text: helpText,
+    });
+  }
+
+  return (
+    <DialogShell titleId={titleId} title={title} onCancel={onCancel}>
+      <form data-testid={formTestId} onSubmit={submit} className="mt-4">
+        <SettingField
+          id={`${formTestId}-label`}
+          label={labels.fieldLabel}
+          value={label}
+          disabled={pending}
+          onChange={setLabel}
+        />
+        <SettingField
+          id={`${formTestId}-code`}
+          label={labels.fieldCode}
+          hint={mode === 'create' ? labels.fieldCode : undefined}
+          value={mode === 'create' ? effectiveCode : code}
+          disabled={pending || mode === 'edit'}
+          readOnly={mode === 'edit'}
+          onChange={(value) => {
+            setCodeTouched(true);
+            setCode(value);
+          }}
+        />
+        <SelectField
+          id={`${formTestId}-data-type`}
+          label={labels.fieldDataType}
+          options={dataTypeOptions}
+          value={dataType}
+          disabled={pending}
+          onChange={(value) => setDataType(normalizeUiDataType(value))}
+        />
+        <SettingField
+          id={`${formTestId}-help-text`}
+          label={labels.fieldHelpText}
+          value={helpText}
+          disabled={pending}
+          onChange={setHelpText}
+        />
+        {mode === 'create' ? (
+          <>
+            <SelectField
+              id={`${formTestId}-department`}
+              label={labels.fieldDepartment}
+              hint={labels.assignFieldPlaceholder}
+              options={[{ value: '', label: '—' }, ...departmentOptions]}
+              value={departmentId}
+              disabled={pending}
+              onChange={setDepartmentId}
+            />
+            <SRow label={labels.fieldRequired}>
+              <Toggle
+                aria-label={labels.fieldRequired}
+                checked={required}
+                disabled={pending || departmentId === ''}
+                onChange={setRequired}
+              />
+            </SRow>
+          </>
+        ) : null}
+
+        {error ? (
+          <div className="alert alert-red" role="alert" style={{ marginTop: 12 }}>
+            {error}
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button type="button" className="btn btn-secondary" disabled={pending} onClick={onCancel}>
+            {labels.cancel}
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
+            {pending ? labels.saving : submitLabel}
+          </button>
+        </div>
+      </form>
+    </DialogShell>
+  );
+}
+
+type DepartmentDialogValues = { code: string; name: string; description: string };
+
+function DepartmentDialog({
+  mode,
+  title,
+  labels,
+  initial,
+  pending,
+  error,
+  formTestId,
+  submitLabel,
+  onCancel,
+  onSubmit,
+}: {
+  mode: 'create' | 'edit';
+  title: string;
+  labels: NpdFieldsScreenLabels;
+  initial?: DepartmentDialogValues;
+  pending: boolean;
+  error: string | null;
+  formTestId: string;
+  submitLabel: string;
+  onCancel: () => void;
+  onSubmit: (values: DepartmentDialogValues) => void;
+}) {
+  const titleId = React.useId();
+  const [code, setCode] = useState(initial?.code ?? '');
+  const [name, setName] = useState(initial?.name ?? '');
+  const [codeTouched, setCodeTouched] = useState(mode === 'edit');
+
+  const effectiveCode = mode === 'create' && !codeTouched ? slugifyCode(name) : code;
+  const canSubmit = !pending && effectiveCode.trim().length > 0 && name.trim().length > 0;
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmit) return;
+    // NOTE: npd_departments has no description column (mig 333) and the
+    // createDepartment/updateDepartment actions do not accept one, so we only
+    // submit { code, name }. Description is intentionally not collected to avoid
+    // a silent no-op; a backing column + action change is a separate slice.
+    onSubmit({ code: slugifyCode(effectiveCode), name: name.trim(), description: '' });
+  }
+
+  return (
+    <DialogShell titleId={titleId} title={title} onCancel={onCancel}>
+      <form data-testid={formTestId} onSubmit={submit} className="mt-4">
+        <SettingField
+          id={`${formTestId}-name`}
+          label={labels.departmentName}
+          value={name}
+          disabled={pending}
+          onChange={setName}
+        />
+        <SettingField
+          id={`${formTestId}-code`}
+          label={labels.departmentCode}
+          value={mode === 'create' ? effectiveCode : code}
+          disabled={pending || mode === 'edit'}
+          readOnly={mode === 'edit'}
+          onChange={(value) => {
+            setCodeTouched(true);
+            setCode(value);
+          }}
+        />
+
+        {error ? (
+          <div className="alert alert-red" role="alert" style={{ marginTop: 12 }}>
+            {error}
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button type="button" className="btn btn-secondary" disabled={pending} onClick={onCancel}>
+            {labels.cancel}
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
+            {pending ? labels.saving : submitLabel}
+          </button>
+        </div>
+      </form>
+    </DialogShell>
   );
 }
