@@ -9,8 +9,8 @@
  * require — version history, approval chain, snapshots and where-used — without a
  * service-role bypass or any hardcoded rows.
  *
- * Route mapping: `:itemCode` resolves to `bom_headers.product_id` (the FG's
- * product_code natural key). Cross-org reads return zero rows (RLS), which the
+ * Route mapping: `:itemCode` resolves to `bom_headers.item_id` via the FG's
+ * item_code natural key. Cross-org reads return zero rows (RLS), which the
  * route layer maps to 404.
  *
  * Red-lines honoured:
@@ -89,11 +89,11 @@ export type GetBomDetailPageResult =
  * the route renders the authoring shell instead of a 404 so the New-BOM picker's
  * "route an active FG → /technical/bom/{code}" flow no longer dead-ends.
  *
- * `:itemCode` = `public.items.item_code` (= `bom_headers.product_id`). Cross-org
+ * `:itemCode` = `public.items.item_code` (= `bom_headers.item_id` via FK). Cross-org
  * rows are invisible (RLS), so an unknown/cross-org code returns null → 404.
  */
 export type BomFgSummary = {
-  /** FG natural key (item_code = product_id). */
+  /** FG natural key (item_code returned as productId for caller compatibility). */
   productId: string;
   /** Display name from the items master (falls back to the code in the UI). */
   productName: string | null;
@@ -176,11 +176,16 @@ export async function getBomDetailPage(
       const versionsRes = await c.query<VersionSqlRow>(
         `select h.id, h.version, h.status, h.effective_from, h.effective_to,
                 u.display_name as approved_by_name, h.approved_at, h.notes
-           from public.bom_headers h
+          from public.bom_headers h
            left join public.users u
              on u.id = h.approved_by
           where h.org_id = app.current_org_id()
-            and h.product_id = $1
+            and h.item_id = (
+              select id
+                from public.items
+               where org_id = app.current_org_id()
+                 and item_code = $1
+            )
           order by h.version desc`,
         [productId],
       );
@@ -251,7 +256,7 @@ export async function getBomDetailPage(
           [selectedId],
         ),
         // Where-used: other (active) BOMs whose lines reference THIS FG as a
-        // component (component_code = this product_id). Distinct parent FGs.
+        // component (component_code = this item_code). Distinct parent FGs.
         c.query<{
           parent_product_id: string;
           parent_product_name: string | null;
@@ -260,9 +265,9 @@ export async function getBomDetailPage(
           quantity: string;
           uom: string;
         }>(
-          `select distinct on (ph.product_id)
-                  ph.product_id as parent_product_id,
-                  pr.product_name as parent_product_name,
+          `select distinct on (pi.item_code)
+                  pi.item_code as parent_product_id,
+                  pi.name as parent_product_name,
                   ph.version as parent_version,
                   ph.status as parent_status,
                   bl.quantity::text as quantity,
@@ -270,13 +275,13 @@ export async function getBomDetailPage(
              from public.bom_lines bl
              join public.bom_headers ph
                on ph.id = bl.bom_header_id and ph.org_id = bl.org_id
-             left join public.product pr
-               on pr.org_id = ph.org_id and pr.product_code = ph.product_id
+             left join public.items pi
+               on pi.id = ph.item_id and pi.org_id = ph.org_id
             where bl.org_id = app.current_org_id()
               and bl.component_code = $1
-              and ph.product_id is not null
-              and ph.product_id <> $1
-            order by ph.product_id, ph.version desc
+              and ph.item_id is not null
+              and pi.item_code <> $1
+            order by pi.item_code, ph.version desc
             limit 100`,
           [productId],
         ),

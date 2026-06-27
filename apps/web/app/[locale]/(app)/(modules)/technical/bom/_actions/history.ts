@@ -72,7 +72,7 @@ function deltaOf(
 }
 
 /**
- * Loads the BOM change-history timeline for one FG (by product_id). Returns
+ * Loads the BOM change-history timeline for one FG (by item_code). Returns
  * `not_found` when the FG has no BOM versions in this org (route → 404).
  */
 export async function getBomHistory(productId: string): Promise<GetBomHistoryResult> {
@@ -84,7 +84,13 @@ export async function getBomHistory(productId: string): Promise<GetBomHistoryRes
       const headersRes = await c.query<{ id: string }>(
         `select id
            from public.bom_headers
-          where org_id = app.current_org_id() and product_id = $1`,
+          where org_id = app.current_org_id()
+            and item_id = (
+              select id
+                from public.items
+               where org_id = app.current_org_id()
+                 and item_code = $1
+            )`,
         [productId],
       );
       if (headersRes.rows.length === 0) return { ok: false, error: 'not_found' };

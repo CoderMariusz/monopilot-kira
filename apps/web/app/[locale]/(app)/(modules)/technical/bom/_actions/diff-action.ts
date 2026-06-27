@@ -34,7 +34,14 @@ async function loadDetail(c: QueryClient, productId: string, version: number): P
   const headerRes = await c.query(
     `select ${HEADER_COLS}
        from public.bom_headers
-      where org_id = app.current_org_id() and product_id = $1 and version = $2`,
+      where org_id = app.current_org_id()
+        and item_id = (
+          select id
+            from public.items
+           where org_id = app.current_org_id()
+             and item_code = $1
+        )
+        and version = $2`,
     [productId, version],
   );
   const headerRow = headerRes.rows[0];

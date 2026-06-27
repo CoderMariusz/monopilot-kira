@@ -8,8 +8,8 @@
  * serves the snapshot viewer / diff). Org-scoped reads under withOrgContext + RLS
  * (`app.current_org_id()`). No service-role bypass, no audit-only fields echoed.
  *
- * Route mapping: `:itemCode` resolves to `bom_headers.product_id` (the FG's
- * product_code natural key). Cross-org reads return zero rows (RLS), which the
+ * Route mapping: `:itemCode` resolves to `bom_headers.item_id` via the FG's
+ * item_code natural key. Cross-org reads return zero rows (RLS), which the
  * route layer maps to 404 (AC#3).
  */
 
@@ -35,7 +35,7 @@ export type ListBomsResult =
 // ── BOM list (hero view, TEC-020 / T-037) ─────────────────────────────────────
 /**
  * One row per FG product: the latest BOM version (highest `version`) of each
- * `product_id`, with the FG's display name + category from `public.product`.
+ * `item_id`, with the FG's display name + category from `public.items`.
  * This powers the BOM list page; `getBomDetail` / `listBoms` remain per-FG.
  *
  * Org-scoped under RLS (`app.current_org_id()`) — both `bom_headers` and the
@@ -85,28 +85,30 @@ export async function listBomHeaders(opts?: {
   try {
     return await withOrgContext(async ({ client }): Promise<ListBomHeadersResult> => {
       const c = client as QueryClient;
-      // DISTINCT ON (product_id) keeps the highest version per FG. The optional
+      // DISTINCT ON (item_code) keeps the highest version per FG. The optional
       // status filter applies to that latest version; the optional text filter
-      // matches the product_id or the joined product_name. The window count gives
+      // matches the item_code or the joined product_name. The window count gives
       // the total number of FGs for pagination without a second round-trip.
       const { rows } = await c.query<BomListSqlRow>(
         `with latest as (
-            select distinct on (h.product_id)
+            select distinct on (i.item_code)
                    h.id,
-                   h.product_id,
+                   i.item_code as product_id,
                    h.version,
                    h.status,
                    h.yield_pct::text as yield_pct,
                    h.updated_at,
-                   pr.product_name,
-                   pr.department_number as category
+                   i.name as product_name,
+                   x.department_number as category
               from public.bom_headers h
-              left join public.product pr
-                on pr.org_id = h.org_id
-               and pr.product_code = h.product_id
+              left join public.items i
+                on i.id = h.item_id
+               and i.org_id = h.org_id
+              left join public.fg_npd_ext x
+                on x.item_id = i.id
              where h.org_id = app.current_org_id()
-               and h.product_id is not null
-             order by h.product_id, h.version desc
+               and h.item_id is not null
+             order by i.item_code, h.version desc
          ),
          filtered as (
             select latest.*,
@@ -156,7 +158,7 @@ export async function listBomHeaders(opts?: {
   }
 }
 
-/** BOM list for an FG (product_id), newest version first (AC#1). */
+/** BOM list for an FG (item_code), newest version first (AC#1). */
 export async function listBoms(productId: string): Promise<ListBomsResult> {
   try {
     return await withOrgContext(async ({ client }): Promise<ListBomsResult> => {
@@ -164,7 +166,12 @@ export async function listBoms(productId: string): Promise<ListBomsResult> {
         `select ${HEADER_COLS}
            from public.bom_headers
           where org_id = app.current_org_id()
-            and product_id = $1
+            and item_id = (
+              select id
+                from public.items
+               where org_id = app.current_org_id()
+                 and item_code = $1
+            )
           order by version desc`,
         [productId],
       );
@@ -222,9 +229,14 @@ export async function getBomDetail(productId: string, version: number): Promise<
       const c = client as QueryClient;
       const headerRes = await c.query(
         `select ${HEADER_COLS}
-           from public.bom_headers
-          where org_id = app.current_org_id()
-            and product_id = $1
+          from public.bom_headers
+         where org_id = app.current_org_id()
+            and item_id = (
+              select id
+                from public.items
+               where org_id = app.current_org_id()
+                 and item_code = $1
+            )
             and version = $2`,
         [productId, version],
       );
