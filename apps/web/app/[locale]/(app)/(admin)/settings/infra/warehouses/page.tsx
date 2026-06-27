@@ -295,7 +295,7 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               w.code,
               w.name,
               nullif(concat_ws(', ', w.address->>'line1', w.address->>'city', w.address->>'country'), '') as address_label,
-              coalesce(nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
+              coalesce(nullif(s.name, ''), nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
               count(distinct l.id) filter (where l.location_type = 'zone' or l.level = 1)::integer as zone_count,
               count(distinct l.id) filter (where l.location_type in ('bin', 'location') or l.level > 1)::integer as bin_count,
               nullif(coalesce(w.address->>'capacity_label', w.address->>'capacity'), '') as capacity_label,
@@ -304,6 +304,9 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               coalesce(count(distinct wo.warehouse_id) filter (where wo.status::text = any($1::text[])), 0)::integer as active_wo_count,
               ${storageColumns}
          from public.warehouses w
+         left join public.sites s
+           on s.id = w.site_id
+          and s.org_id = app.current_org_id()
          left join public.locations l
            on l.org_id = app.current_org_id()
           and l.warehouse_id = w.id
@@ -312,13 +315,13 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
           and wo.warehouse_id = w.id
          ${storageJoin}
         where w.org_id = app.current_org_id()
-        group by w.id, w.code, w.name, w.address${storageGroupBy}
+        group by w.id, w.code, w.name, w.address, s.name${storageGroupBy}
         order by lower(w.name), lower(w.code)`
     : `select w.id,
               w.code,
               w.name,
               nullif(concat_ws(', ', w.address->>'line1', w.address->>'city', w.address->>'country'), '') as address_label,
-              coalesce(nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
+              coalesce(nullif(s.name, ''), nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
               count(distinct l.id) filter (where l.location_type = 'zone' or l.level = 1)::integer as zone_count,
               count(distinct l.id) filter (where l.location_type in ('bin', 'location') or l.level > 1)::integer as bin_count,
               nullif(coalesce(w.address->>'capacity_label', w.address->>'capacity'), '') as capacity_label,
@@ -327,12 +330,15 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               0::integer as active_wo_count,
               ${storageColumns}
          from public.warehouses w
+         left join public.sites s
+           on s.id = w.site_id
+          and s.org_id = app.current_org_id()
          left join public.locations l
            on l.org_id = app.current_org_id()
           and l.warehouse_id = w.id
          ${storageJoin}
         where w.org_id = app.current_org_id()
-        group by w.id, w.code, w.name, w.address${storageGroupBy}
+        group by w.id, w.code, w.name, w.address, s.name${storageGroupBy}
         order by lower(w.name), lower(w.code)`;
   const { rows } = await client.query<WarehouseRow>(sql, includeActiveWoCount ? [[...ACTIVE_WORK_ORDER_STATUSES]] : []);
   return rows;
