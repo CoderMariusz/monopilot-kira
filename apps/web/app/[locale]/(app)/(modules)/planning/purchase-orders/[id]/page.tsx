@@ -131,6 +131,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       status: t('detail.summary.status'),
       expected: t('detail.summary.expected'),
       currency: t('detail.summary.currency'),
+      destinationWarehouse: t('detail.summary.destinationWarehouse'),
       total: t('detail.summary.total'),
       created: t('detail.summary.created'),
     },
@@ -344,6 +345,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
         status: po.status,
         expectedDelivery: po.expectedDelivery,
         currency: po.currency,
+        destinationWarehouseName: po.destinationWarehouseName,
         notes: po.notes,
         createdAt: po.createdAt,
         lines: po.lines.map((l) => ({

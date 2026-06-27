@@ -71,6 +71,7 @@ export type PoDetail = {
   status: string;
   expectedDelivery: string | null;
   currency: string;
+  destinationWarehouseName: string | null;
   notes: string | null;
   createdAt: string;
   lines: PoDetailLine[];
@@ -84,6 +85,7 @@ export type PoDetailLabels = {
     status: string;
     expected: string;
     currency: string;
+    destinationWarehouse: string;
     total: string;
     created: string;
   };
@@ -582,6 +584,12 @@ export function PoDetailView({
               <div className="flex justify-between gap-2">
                 <dt className="text-slate-500">{labels.summary.currency}</dt>
                 <dd className="font-mono text-xs text-slate-800">{po.currency}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500">{labels.summary.destinationWarehouse}</dt>
+                <dd className="text-right text-slate-800" data-testid="po-detail-destination-warehouse">
+                  {po.destinationWarehouseName ?? '—'}
+                </dd>
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-slate-500">{labels.summary.created}</dt>

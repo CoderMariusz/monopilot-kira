@@ -43,6 +43,7 @@ import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import type { PoSupplierOption } from '../_actions/po-form-data';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
+import { listPoWarehouses } from '../_actions/actions';
 
 export type CreatePoLabels = {
   title: string;
@@ -52,6 +53,9 @@ export type CreatePoLabels = {
   poNumberHelp: string;
   supplierLabel: string;
   supplierPlaceholder: string;
+  destinationWarehouseLabel: string;
+  destinationWarehousePlaceholder: string;
+  destinationWarehouseLoading: string;
   expectedLabel: string;
   currencyLabel: string;
   notesLabel: string;
@@ -126,6 +130,7 @@ export type CreatePoModalProps = {
     /** Optional — createPurchaseOrder auto-generates a per-org number when omitted. */
     poNumber?: string;
     supplierId: string;
+    destinationWarehouseId?: string;
     expectedDelivery?: string;
     currency: string;
     notes?: string;
@@ -153,6 +158,9 @@ export function CreatePoModal({
 }: CreatePoModalProps) {
   const [poNumber, setPoNumber] = React.useState('');
   const [supplierId, setSupplierId] = React.useState('');
+  const [destinationWarehouseId, setDestinationWarehouseId] = React.useState('');
+  const [warehouses, setWarehouses] = React.useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [warehousesLoading, setWarehousesLoading] = React.useState(false);
   const [expected, setExpected] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [lines, setLines] = React.useState<CreatePoLine[]>(() => [makeLine()]);
@@ -165,12 +173,34 @@ export function CreatePoModal({
     if (!open) {
       setPoNumber('');
       setSupplierId('');
+      setDestinationWarehouseId('');
+      setWarehouses([]);
+      setWarehousesLoading(false);
       setExpected('');
       setNotes('');
       setLines([makeLine()]);
       setPending(false);
       setFormError(null);
     }
+  }, [open]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!open) return;
+    setWarehousesLoading(true);
+    void listPoWarehouses()
+      .then((rows) => {
+        if (!cancelled) setWarehouses(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setWarehouses([]);
+      })
+      .finally(() => {
+        if (!cancelled) setWarehousesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
@@ -208,6 +238,7 @@ export function CreatePoModal({
       const result = await createPurchaseOrderAction({
         poNumber: poNumber.trim() || undefined,
         supplierId,
+        destinationWarehouseId: destinationWarehouseId || undefined,
         expectedDelivery: expected || undefined,
         currency,
         notes: notes.trim() || undefined,
@@ -270,6 +301,21 @@ export function CreatePoModal({
                 aria-label={labels.supplierLabel}
                 placeholder={labels.supplierPlaceholder}
                 options={suppliers.map((s) => ({ value: s.id, label: `${s.code} — ${s.name}` }))}
+              />
+            </label>
+
+            {/* Destination warehouse — optional, real org warehouse master */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-slate-700">{labels.destinationWarehouseLabel}</span>
+              <Select
+                value={destinationWarehouseId}
+                onValueChange={setDestinationWarehouseId}
+                aria-label={labels.destinationWarehouseLabel}
+                placeholder={warehousesLoading ? labels.destinationWarehouseLoading : labels.destinationWarehousePlaceholder}
+                options={[
+                  { value: '', label: labels.destinationWarehousePlaceholder },
+                  ...warehouses.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` })),
+                ]}
               />
             </label>
 

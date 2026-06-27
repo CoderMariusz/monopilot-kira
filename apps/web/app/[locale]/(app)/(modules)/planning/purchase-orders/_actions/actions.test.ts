@@ -13,6 +13,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const PO_ID = '33333333-3333-4333-8333-333333333333';
 const SUPPLIER_ID = '44444444-4444-4444-8444-444444444444';
 const ITEM_ID = '55555555-5555-4555-8555-555555555555';
+const DESTINATION_WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -34,6 +35,8 @@ function header(overrides: Partial<Record<string, unknown>> = {}) {
     supplier_id: SUPPLIER_ID,
     supplier_code: 'SUP-TEST-01',
     supplier_name: 'Test Supplier',
+    destination_warehouse_id: null,
+    destination_warehouse_name: null,
     status: 'draft',
     expected_delivery: '2026-06-18',
     currency: 'EUR',
@@ -155,6 +158,31 @@ describe('planning purchase order actions', () => {
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => sql);
     expect(calls.some((sql) => sql.includes('insert into public.purchase_order_lines'))).toBe(true);
     expect(calls.some((sql) => sql.includes('insert into public.audit_events'))).toBe(true);
+  });
+
+  it('accepts and persists destination_warehouse_id when creating a purchase order', async () => {
+    const result = await createPurchaseOrder({
+      poNumber: 'PO-TEST-DEST',
+      supplierId: SUPPLIER_ID,
+      destinationWarehouseId: DESTINATION_WAREHOUSE_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    const insertHeaderCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).includes('insert into public.purchase_orders'));
+    expect(insertHeaderCall?.[0]).toContain('destination_warehouse_id');
+    expect(insertHeaderCall?.[1]).toEqual([
+      'PO-TEST-DEST',
+      SUPPLIER_ID,
+      DESTINATION_WAREHOUSE_ID,
+      'draft',
+      null,
+      'EUR',
+      null,
+      USER_ID,
+    ]);
   });
 
   it('auto-generates a purchase order number when absent', async () => {

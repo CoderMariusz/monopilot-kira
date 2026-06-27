@@ -37,6 +37,9 @@ const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh }),
 }));
+vi.mock('../_actions/actions', () => ({
+  listPoWarehouses: vi.fn(async () => [{ id: 'wh-1', code: 'WH-A', name: 'Main warehouse' }]),
+}));
 
 // ── Labels (mirror _meta/i18n-staging/purchase-orders.json en) ──
 const statusLabels = {
@@ -91,6 +94,9 @@ const listLabels: PoListLabels = {
     poNumberHelp: 'Leave empty to auto-number (format in Settings → Documents).',
     supplierLabel: 'Supplier',
     supplierPlaceholder: 'Select a supplier',
+    destinationWarehouseLabel: 'Destination warehouse',
+    destinationWarehousePlaceholder: 'No destination warehouse',
+    destinationWarehouseLoading: 'Loading warehouses...',
     expectedLabel: 'Expected delivery',
     currencyLabel: 'Currency',
     notesLabel: 'Notes',
@@ -135,6 +141,7 @@ const detailLabels: PoDetailLabels = {
     status: 'Status',
     expected: 'Expected delivery',
     currency: 'Currency',
+    destinationWarehouse: 'Destination warehouse',
     total: 'Total',
     created: 'Created',
   },
@@ -193,6 +200,7 @@ function makeRow(over: Partial<PoRow>): PoRow {
     status: 'draft',
     expectedDelivery: '2026-07-01',
     currency: 'EUR',
+    destinationWarehouseName: null,
     notes: null,
     lineCount: 0,
     ...over,
@@ -368,6 +376,10 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     fireEvent.click(within(form1).getAllByRole('combobox')[0]);
     fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
 
+    await waitFor(() => expect(screen.getByText('Destination warehouse')).toBeInTheDocument());
+    fireEvent.click(within(form1).getAllByRole('combobox')[1]);
+    fireEvent.click(await screen.findByRole('option', { name: 'WH-A — Main warehouse' }));
+
     // Pick a real item via the ItemPicker combobox seam.
     fireEvent.click(screen.getByTestId('item-picker-trigger'));
     await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
@@ -391,12 +403,23 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
         expect.objectContaining({
           poNumber: 'PO-NEW-1',
           supplierId: 'sup-1',
+          destinationWarehouseId: 'wh-1',
           currency: 'EUR',
           lines: [expect.objectContaining({ itemId: 'item-1', qty: '500', uom: 'kg', unitPrice: '2.50', lineNo: 1 })],
         }),
       ),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('renders the optional destination warehouse dropdown in the create form', async () => {
+    renderList();
+    fireEvent.click(screen.getByTestId('po-list-create'));
+
+    expect(await screen.findByText('Destination warehouse')).toBeInTheDocument();
+    const form = screen.getByTestId('create-po-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[1]);
+    expect(await screen.findByRole('option', { name: 'WH-A — Main warehouse' })).toBeInTheDocument();
   });
 
   it('submits WITHOUT a PO number (auto-numbered) — poNumber omitted from the payload', async () => {
@@ -615,7 +638,7 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
     return { ...utils, transitionAction, reopenAction };
   }
 
-  it('shows [Reopen to draft] only for a cancelled PO and hides it for sent/draft', () => {
+  it('shows [Reopen to draft] for sent/cancelled POs and hides it for draft', () => {
     const { rerender } = renderDetailWithReopen({ status: 'cancelled' });
     expect(screen.getByTestId('po-reopen-draft')).toHaveTextContent('Reopen to draft');
     rerender(
@@ -627,7 +650,7 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
         reopenPurchaseOrderAction={vi.fn()}
       />,
     );
-    expect(screen.queryByTestId('po-reopen-draft')).toBeNull();
+    expect(screen.getByTestId('po-reopen-draft')).toHaveTextContent('Reopen to draft');
     rerender(
       <PoDetailView
         po={{ ...detail, status: 'draft' }}

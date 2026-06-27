@@ -27,6 +27,8 @@ type PurchaseOrderRow = {
   supplier_id: string;
   supplier_code: string | null;
   supplier_name: string | null;
+  destination_warehouse_id?: string | null;
+  destination_warehouse_name?: string | null;
   status: string;
   expected_delivery: string | null;
   currency: string;
@@ -68,6 +70,8 @@ type PurchaseOrder = {
   supplierId: string;
   supplierCode: string | null;
   supplierName: string | null;
+  destinationWarehouseId: string | null;
+  destinationWarehouseName: string | null;
   status: string;
   expectedDelivery: string | null;
   currency: string;
@@ -93,6 +97,10 @@ const UpdatePurchaseOrderInput = z.object({
     .optional(),
   currency: z.string().trim().length(3).optional(),
   notes: z.string().trim().max(2000).optional(),
+});
+
+const CreatePurchaseOrderInput = PurchaseOrderCreateInput.extend({
+  destinationWarehouseId: uuidSchema.optional(),
 });
 
 const AddPurchaseOrderLineInput = z.object({
@@ -123,6 +131,8 @@ function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
     supplierId: row.supplier_id,
     supplierCode: row.supplier_code,
     supplierName: row.supplier_name,
+    destinationWarehouseId: row.destination_warehouse_id ?? null,
+    destinationWarehouseName: row.destination_warehouse_name ?? null,
     status: row.status,
     expectedDelivery: row.expected_delivery,
     currency: row.currency,
@@ -130,6 +140,22 @@ function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
+}
+
+export async function listPoWarehouses(): Promise<Array<{ id: string; code: string; name: string }>> {
+  try {
+    return await withOrgContext(async ({ client }) => {
+      const { rows } = await (client as QueryClient).query<{ id: string; code: string; name: string }>(
+        `select id, code, name
+           from public.warehouses
+          where org_id = app.current_org_id()
+          order by code`,
+      );
+      return rows.map((r) => ({ id: r.id, code: r.code, name: r.name }));
+    });
+  } catch {
+    return [];
+  }
 }
 
 function mapLine(row: PurchaseOrderLineRow): PurchaseOrderLine {
@@ -181,6 +207,7 @@ async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOr
 async function fetchDraftPurchaseOrderForUpdate(client: QueryClient, poId: string): Promise<PurchaseOrderRow | null> {
   const { rows } = await client.query<PurchaseOrderRow>(
     `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
+            null::uuid as destination_warehouse_id, null::text as destination_warehouse_name,
             po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
             po.created_at, po.updated_at
        from public.purchase_orders po
@@ -271,10 +298,12 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
     return await withOrgContext(async ({ client }): Promise<PurchaseOrderListResult> => {
       const { rows } = await (client as QueryClient).query<PurchaseOrderRow>(
         `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
+                po.destination_warehouse_id, w.name as destination_warehouse_name,
                 po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
                 po.created_at, po.updated_at
            from public.purchase_orders po
            left join public.suppliers s on s.org_id = app.current_org_id() and s.id = po.supplier_id
+           left join public.warehouses w on w.org_id = app.current_org_id() and w.id = po.destination_warehouse_id
            left join public.org_document_settings ods
              on ods.org_id = po.org_id
             and ods.doc_type = 'po'
@@ -322,10 +351,12 @@ export async function getPurchaseOrder(id: string): Promise<PurchaseOrderResult<
       const c = client as QueryClient;
       const { rows } = await c.query<PurchaseOrderRow>(
         `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
+                po.destination_warehouse_id, w.name as destination_warehouse_name,
                 po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
                 po.created_at, po.updated_at
            from public.purchase_orders po
            left join public.suppliers s on s.org_id = app.current_org_id() and s.id = po.supplier_id
+           left join public.warehouses w on w.org_id = app.current_org_id() and w.id = po.destination_warehouse_id
           where po.org_id = app.current_org_id()
             and po.id = $1::uuid
           limit 1`,
@@ -342,7 +373,7 @@ export async function getPurchaseOrder(id: string): Promise<PurchaseOrderResult<
 }
 
 export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
-  const parsed = PurchaseOrderCreateInput.safeParse(rawInput);
+  const parsed = CreatePurchaseOrderInput.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
   const input = parsed.data;
 
@@ -354,14 +385,16 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
       async function insertHeader(poNumber: string) {
         return ctx.client.query<PurchaseOrderRow>(
           `insert into public.purchase_orders
-             (org_id, po_number, supplier_id, status, expected_delivery, currency, notes, created_by, updated_by)
+             (org_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
            values
-             (app.current_org_id(), $1, $2::uuid, $3, $4::date, $5, $6, $7::uuid, $7::uuid)
+             (app.current_org_id(), $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7, $8::uuid, $8::uuid)
            returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+                     destination_warehouse_id, null::text as destination_warehouse_name,
                      status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
           [
             poNumber,
             input.supplierId,
+            input.destinationWarehouseId ?? null,
             input.status,
             input.expectedDelivery ?? null,
             input.currency,
@@ -398,7 +431,12 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
         action: 'planning.purchase_order.created',
         resourceType: 'purchase_order',
         resourceId: header.id,
-        afterState: { poNumber: header.po_number, status: header.status, lineCount: input.lines.length },
+        afterState: {
+          poNumber: header.po_number,
+          status: header.status,
+          lineCount: input.lines.length,
+          destinationWarehouseId: input.destinationWarehouseId ?? null,
+        },
       });
       revalidatePurchaseOrderPaths(header.id);
       return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };

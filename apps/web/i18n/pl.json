@@ -6739,6 +6739,9 @@
         "poNumberPlaceholder": "Auto (np. PO-202606-0007)",
         "supplierLabel": "Dostawca",
         "supplierPlaceholder": "Wybierz dostawcę",
+        "destinationWarehouseLabel": "Magazyn docelowy",
+        "destinationWarehousePlaceholder": "Brak magazynu docelowego",
+        "destinationWarehouseLoading": "Ładowanie magazynów...",
         "expectedLabel": "Oczekiwana dostawa",
         "currencyLabel": "Waluta",
         "notesLabel": "Notatki",
@@ -6789,6 +6792,7 @@
           "status": "Status",
           "expected": "Oczekiwana dostawa",
           "currency": "Waluta",
+          "destinationWarehouse": "Magazyn docelowy",
           "total": "Razem",
           "created": "Utworzono"
         },

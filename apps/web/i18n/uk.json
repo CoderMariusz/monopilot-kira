@@ -6775,7 +6775,10 @@
           "cancel": "Cancel",
           "error": "Item search failed"
         },
-        "poNumberHelp": "Leave empty to auto-number (format in Settings → Documents)."
+        "poNumberHelp": "Leave empty to auto-number (format in Settings → Documents).",
+        "destinationWarehouseLabel": "Destination warehouse",
+        "destinationWarehousePlaceholder": "No destination warehouse",
+        "destinationWarehouseLoading": "Loading warehouses..."
       },
       "detail": {
         "title": "Purchase order",
@@ -6789,7 +6792,8 @@
           "expected": "Expected delivery",
           "currency": "Currency",
           "total": "Total",
-          "created": "Created"
+          "created": "Created",
+          "destinationWarehouse": "Destination warehouse"
         },
         "lines": {
           "title": "PO lines",

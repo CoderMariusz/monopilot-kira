@@ -7699,6 +7699,9 @@
         "poNumberPlaceholder": "Auto (e.g. PO-202606-0007)",
         "supplierLabel": "Supplier",
         "supplierPlaceholder": "Select a supplier",
+        "destinationWarehouseLabel": "Destination warehouse",
+        "destinationWarehousePlaceholder": "No destination warehouse",
+        "destinationWarehouseLoading": "Loading warehouses...",
         "expectedLabel": "Expected delivery",
         "currencyLabel": "Currency",
         "notesLabel": "Notes",
@@ -7749,6 +7752,7 @@
           "status": "Status",
           "expected": "Expected delivery",
           "currency": "Currency",
+          "destinationWarehouse": "Destination warehouse",
           "total": "Total",
           "created": "Created"
         },
