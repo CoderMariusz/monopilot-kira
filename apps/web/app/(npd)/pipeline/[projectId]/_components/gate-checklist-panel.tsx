@@ -603,8 +603,23 @@ export function GateChecklistPanel({
           {currentBlockers.length > 0 ? (
             <div role="alert" data-testid="gate-blocker-alert" className="alert alert-amber mb-3">
               <span aria-hidden="true">⚠</span>{' '}
+              {/* Build the advance-target display once so the terminal gate (G4 →
+                  "Launched", where `next` is null) does not render the message's
+                  literal "{gate}: " prefix as a stray ": " with an empty gate code.
+                  Normal G0→G3 keep "{gate}: {gateLabel}"; the terminal case collapses
+                  to just the stage label. The whole "{gate}: {gateLabel}" token pair
+                  is replaced in one shot so the i18n message shape is untouched. */}
               {labels.blockerAlert
                 .replace('{count}', String(currentBlockers.length))
+                .replace(
+                  '{gate}: {gateLabel}',
+                  currentGate.next
+                    ? `${currentGate.next}: ${currentGate.nextLabel ?? ''}`
+                    : (currentGate.nextLabel ?? ''),
+                )
+                // Defensive fallback if a locale ever reorders the tokens so the
+                // pair above did not match: substitute each token individually so
+                // no raw "{gate}"/"{gateLabel}" placeholder ever leaks to the user.
                 .replace('{gate}', currentGate.next ?? '')
                 .replace('{gateLabel}', currentGate.nextLabel ?? '')}
               <ul data-testid="gate-blocker-list" className="mt-2 list-disc pl-5">

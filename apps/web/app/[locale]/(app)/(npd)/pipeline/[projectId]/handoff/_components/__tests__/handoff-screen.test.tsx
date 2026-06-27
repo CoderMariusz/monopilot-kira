@@ -294,6 +294,57 @@ describe('HandoffScreen — Generate production BOM (deadlock break)', () => {
     await waitFor(() => expect(refreshSpy).toHaveBeenCalledTimes(1));
   });
 
+  it('reflects the now-met BOM gate after generate when the router.refresh() re-supplies fresh data (no stale panel)', async () => {
+    // F-3 regression: clicking Generate must refresh the RSC tree so the
+    // release-gate panel updates WITHOUT a manual reload. The panel is purely
+    // data-driven (reads data.releaseGates), so we (1) assert refresh() fires on
+    // success, then (2) re-render with the fresh gates the refresh would supply
+    // and assert the ACTIVE_SHARED_BOM row flips to met and the Generate button
+    // disappears — proving the panel is not stuck on stale client state.
+    refreshSpy.mockClear();
+    const onGenerate = vi.fn().mockResolvedValue({
+      ok: true,
+      productionCode: 'FG-002',
+      bomHeaderId: BOM_ID,
+      yieldPromptRequired: false,
+    });
+    const { rerender } = render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+      />,
+    );
+    // Pre-generate: BOM gate unmet + Generate button visible.
+    expect(
+      screen.getByTestId('handoff-release-gate-ACTIVE_SHARED_BOM_REQUIRED'),
+    ).toHaveAttribute('data-met', 'false');
+    expect(screen.getByTestId('handoff-generate-btn')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('handoff-generate-btn'));
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalledTimes(1));
+
+    // The refresh re-renders the RSC tree with the BOM now built — same
+    // checklistId (no reset), fresh releaseGates. The panel must reflect it.
+    rerender(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, ALL_GATES_MET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+      />,
+    );
+    expect(
+      screen.getByTestId('handoff-release-gate-ACTIVE_SHARED_BOM_REQUIRED'),
+    ).toHaveAttribute('data-met', 'true');
+    expect(screen.queryByTestId('handoff-generate-btn')).not.toBeInTheDocument();
+  });
+
   it('surfaces the yield prompt after generate when yieldPromptRequired is true', async () => {
     const onGenerate = vi.fn().mockResolvedValue({
       ok: true,

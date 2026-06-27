@@ -202,6 +202,13 @@ describe('GateChecklistPanel — blocker gating', () => {
     expect(within(alert).getByText('Target margin confirmed')).toBeInTheDocument();
   });
 
+  it('renders the blocker target as "{gate}: {gateLabel}" for a normal (non-terminal) gate', () => {
+    // G2 is current with next:G3 / nextLabel:Development → "...before G3: Development".
+    renderPanel();
+    const alert = screen.getByTestId('gate-blocker-alert');
+    expect(alert).toHaveTextContent('1 blocking before G3: Development');
+  });
+
   it('enables the advance button and shows the green ready alert when no blockers', () => {
     renderPanel({ gates: makeReadyGates() });
     const advance = screen.getByTestId('gate-advance-button');
@@ -298,6 +305,45 @@ describe('GateChecklistPanel — terminal G4 / Mark as Launched', () => {
 
     expect(screen.queryByTestId('gate-mark-launched')).toBeNull();
     expect(screen.getByTestId('gate-advance-terminal')).toHaveTextContent('lbl.advanceTerminalHint');
+  });
+
+  // F-2 regression: at the terminal gate (G4 advancing to "Launched") `next` is
+  // null while `nextLabel` is "Launched". The blocker alert must NOT render the
+  // empty "{gate}: " prefix as a stray leading colon — it must read cleanly as
+  // "...before Launched", not "...before : Launched".
+  it('renders the blocker alert with no empty "{gate}:" prefix at the terminal gate (just the stage label)', () => {
+    // G4 current, advancing to the terminal "Launched", with one required item NOT
+    // done (a real blocker). Mirrors GATE_META.G4 = { next:null, nextLabel:'Launched' }.
+    const terminalBlocked: GateView[] = [
+      {
+        key: 'G4',
+        label: 'Testing',
+        isCurrent: true,
+        next: null,
+        nextLabel: 'Launched',
+        requiresApproval: true,
+        pct: 0,
+        blockers: [],
+        items: [
+          { id: 'g4-t1', text: 'Pilot run validated', required: true, done: false, category: 'TECHNICAL', by: null, at: null, file: null },
+        ],
+      },
+    ];
+    render(
+      React.createElement(GateChecklistPanel, {
+        project: TERMINAL_PROJECT,
+        gates: terminalBlocked,
+        labels: LABELS,
+        canWrite: true,
+        state: 'ready',
+      }),
+    );
+    const alert = screen.getByTestId('gate-blocker-alert');
+    // Clean: "1 blocking before Launched" — the empty gate code + its literal ": " are gone.
+    expect(alert).toHaveTextContent('1 blocking before Launched');
+    expect(alert.textContent).not.toMatch(/before\s*:/);
+    expect(alert.textContent).not.toContain('{gate}');
+    expect(alert.textContent).not.toContain('{gateLabel}');
   });
 });
 
