@@ -375,10 +375,10 @@ async function createActiveNpdBom(
   try {
     ({ rows } = await ctx.client.query<BomHeaderRow>(
       `insert into public.bom_headers
-         (org_id, product_id, npd_project_id, origin_module, status, version, yield_pct,
+         (org_id, product_id, item_id, npd_project_id, origin_module, status, version, yield_pct,
           effective_from, notes, created_by_user, app_version)
        values
-         (app.current_org_id(), $1, $2::uuid, 'npd', 'draft', $3, $4::numeric,
+         (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), $2::uuid, 'npd', 'draft', $3, $4::numeric,
           current_date, $5, $6::uuid, 'npd-release-materialize-v1')
        returning id, version`,
       [

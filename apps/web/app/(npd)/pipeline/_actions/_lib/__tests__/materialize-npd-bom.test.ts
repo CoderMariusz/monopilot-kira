@@ -57,6 +57,7 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     if (sql.startsWith('insert into public.items')) {
       return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
     }
+    if (sql.startsWith('select 1 from public.product')) return [];
     if (sql.startsWith('insert into public.product')) return [];
     if (sql.startsWith('update public.formulations')) return [];
     if (sql.startsWith('select id, wo_reference, status')) return [];
@@ -89,6 +90,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.items')) {
         return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
       }
+      if (sql.startsWith('select 1 from public.product')) return [];
       if (sql.startsWith('insert into public.product')) return [];
       if (sql.startsWith('update public.formulations')) return [];
       if (sql.startsWith('select id, wo_reference, status')) return [{ id: '77777777-7777-4777-8777-777777777777', wo_reference: 'WO-1', status: 'completed' }];
@@ -156,6 +158,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select id, item_code, name, shelf_life_days')) {
         return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 45 }];
       }
+      if (sql.startsWith('select 1 from public.product')) return [];
       if (sql.startsWith('insert into public.product')) return [];
       if (sql.startsWith('update public.formulations')) return [];
       if (sql.startsWith('select id, wo_reference, status')) return [];

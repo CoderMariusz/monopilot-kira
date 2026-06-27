@@ -169,7 +169,8 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
       const { rows: verRows } = await c.query<{ next_version: number }>(
         `select coalesce(max(version), 0) + 1 as next_version
            from public.bom_headers
-          where org_id = app.current_org_id() and product_id = $1`,
+          where org_id = app.current_org_id()
+            and item_id = (select id from public.items where org_id = app.current_org_id() and item_code = $1)`,
         [input.productId],
       );
       const version = Number(verRows[0]?.next_version ?? 1);
@@ -177,9 +178,9 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
       // ── INSERT header (draft) + lines + co-products, atomically in the txn ─────
       const { rows: headerRows } = await c.query<{ id: string }>(
         `insert into public.bom_headers
-           (org_id, product_id, origin_module, status, version, yield_pct, effective_from, notes, created_by_user, app_version, bom_type)
+           (org_id, product_id, item_id, origin_module, status, version, yield_pct, effective_from, notes, created_by_user, app_version, bom_type)
          values
-           (app.current_org_id(), $1, 'technical', 'draft', $2, $3::numeric, coalesce($4::date, current_date), $5, $6::uuid, 'technical-bom-v1', $7)
+           (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), 'technical', 'draft', $2, $3::numeric, coalesce($4::date, current_date), $5, $6::uuid, 'technical-bom-v1', $7)
          returning id`,
         [input.productId, version, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, userId, input.bom_type],
       );

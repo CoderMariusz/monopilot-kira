@@ -137,17 +137,17 @@ function makeClient(fgItem: FakeClient['fgItem']): FakeClient {
       if (normalized.includes('from public.product')) {
         return { rows: [] as never[], rowCount: 0 };
       }
-      if (normalized.includes('from public.items') && normalized.includes('item_code = $1')) {
-        return { rows: (client.fgItem ? [client.fgItem] : []) as never[], rowCount: client.fgItem ? 1 : 0 };
-      }
-      if (normalized.startsWith('insert into public.product')) {
-        return { rows: [] as never[], rowCount: 1 };
-      }
       if (normalized.includes('coalesce(max(version), 0) + 1')) {
         return { rows: [{ next_version: 1 }] as never[], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.bom_headers')) {
         return { rows: [{ id: HEADER_ID }] as never[], rowCount: 1 };
+      }
+      if (normalized.includes('from public.items') && normalized.includes('item_code = $1')) {
+        return { rows: (client.fgItem ? [client.fgItem] : []) as never[], rowCount: client.fgItem ? 1 : 0 };
+      }
+      if (normalized.startsWith('insert into public.product')) {
+        return { rows: [] as never[], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.bom_lines')) {
         return { rows: [] as never[], rowCount: 1 };
