@@ -42,12 +42,28 @@ function normalizeText(value: string | null): string | null {
 }
 
 async function loadProduct(client: PoolClient, productCode: string): Promise<ProductRow> {
+  // product→items merge (mig 359, §8f finding #1): once public.product is a VIEW over items ⨝ fg_npd_ext,
+  // `… FROM public.product … FOR UPDATE` raises "cannot lock rows in a view" (and pack_size/line now live
+  // on fg_npd_ext). Acquire the row lock on the canonical base row (public.items) — that serializes the
+  // pack-size/line cascade per FG exactly as the old FOR UPDATE did — then read pack_size/line through the
+  // product view (its column shape is unchanged). The lock is best-effort so a not-yet-twinned FG in the
+  // pre-cut window still falls through to the product_not_found check below.
+  await client.query(
+    `
+      select i.id
+      from public.items i
+      where i.item_code = $1
+        and i.org_id = app.current_org_id()
+      for update
+    `,
+    [productCode],
+  );
+
   const result = await client.query<ProductRow>(
     `
       select product_code, pack_size, line
       from public.product
       where product_code = $1
-      for update
     `,
     [productCode],
   );

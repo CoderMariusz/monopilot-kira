@@ -248,6 +248,22 @@ async function updateProductCell(
   columnName: string,
   value: string | number | boolean | Date | null,
 ): Promise<UpdateFaCellResult> {
+  // product→items merge (mig 359, §8f finding #1): once public.product is a VIEW, `SELECT … FROM
+  // public.product … FOR UPDATE` raises "cannot lock rows in a view". Acquire the row lock on the
+  // canonical base row (public.items) instead — that serializes concurrent FA-cell edits per FG exactly
+  // as the old single-row FOR UPDATE did. The read of the previous value + the UPDATE still go through
+  // public.product (the view's INSTEAD-OF triggers fan the write to items + fg_npd_ext). The lock is
+  // best-effort (an FG materialized only into product without an items twin in the pre-cut window still
+  // works — the view read below is the authoritative existence check / PRODUCT_NOT_FOUND source).
+  await ctx.client.query(
+    `select i.id
+       from public.items i
+      where i.org_id = app.current_org_id()
+        and i.item_code = $1
+      for update`,
+    [productCode],
+  );
+
   const { rows } = await ctx.client.query<UpdateRow>(
     `with current_row as (
        select ${quoteIdentifier(columnName)}::text as previous_value,
@@ -255,7 +271,6 @@ async function updateProductCell(
          from public.product
         where org_id = app.current_org_id()
           and product_code = $1
-        for update
      ),
      updated as (
        update public.product p
