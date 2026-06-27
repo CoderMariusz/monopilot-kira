@@ -11,6 +11,7 @@ import {
   hasPermission,
   mapProjectRow,
 } from './shared';
+import { peekSuggestedFgCandidateCode } from './_lib/gate-helpers';
 
 const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
 
@@ -53,6 +54,8 @@ export type GetProjectResult =
         permissions: ProjectPermissions;
         /** Ingredient count on the project's CURRENT formulation version (drives the recipe-stage advance requirement). */
         recipeIngredientCount: number;
+        /** Suggested FG code rendered from the org's fg mask without consuming next_seq. */
+        suggestedFgCandidateCode: string;
       };
     }
   | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED' };
@@ -161,6 +164,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       const project = projectRows.rows[0];
       if (!project) return { ok: false, error: 'NOT_FOUND' };
       const recipeIngredientCount = Number(project.recipe_ingredient_count ?? 0);
+      const suggestedFgCandidateCode = await peekSuggestedFgCandidateCode(context.client, context.orgId, project.code);
 
       const [checklistRows, approvalsRows] = await Promise.all([
         context.client.query<ChecklistItemRow>(
@@ -235,6 +239,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
           approvalsTimeline: approvalsRows.rows.map(mapApproval),
           permissions,
           recipeIngredientCount,
+          suggestedFgCandidateCode,
         },
       };
     });

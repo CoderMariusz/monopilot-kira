@@ -149,9 +149,14 @@ export function FgCandidateModal({
         const result = await action({
           projectId,
           mode,
-          // Create mode tolerates an empty code (the action auto-generates
-          // FG-{code}); send the trimmed value when present.
-          productCode: productCode.length > 0 ? productCode : null,
+          // In Create mode the unedited suggestion is only a peek; send null so
+          // the server consumes the real next FG sequence. User edits are honored.
+          productCode:
+            mode === 'create' && productCode === suggestedCode.trim()
+              ? null
+              : productCode.length > 0
+                ? productCode
+                : null,
         });
         if (result.ok) {
           onCreated(result.data.productCode);
@@ -164,7 +169,7 @@ export function FgCandidateModal({
         setSubmitting(false);
       }
     },
-    [action, submitting, mode, mapCode, createCode, labels, projectId, onCreated],
+    [action, submitting, mode, mapCode, createCode, labels, projectId, suggestedCode, onCreated],
   );
 
   const submitLabel = submitting

@@ -6,6 +6,8 @@ import {
   type ProjectGate,
   type QueryClient,
 } from '../shared';
+import { nextEntityCode, renderCodeMask } from '../../../../../lib/documents/code-mask';
+import type { QueryClient as NumberingQueryClient } from '../../../../../lib/documents/numbering';
 
 export const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
 export const GATE_APPROVE_PERMISSION = 'npd.gate.approve';
@@ -431,7 +433,7 @@ export async function createFgCandidate(
   project: GateProjectRow,
   requestedProductCode?: string | null,
 ): Promise<{ productCode: string; created: boolean; mapped: boolean }> {
-  const productCode = normalizeProductCode(requestedProductCode, project);
+  const productCode = await generateFgProductCode(ctx, requestedProductCode, project);
 
   if (project.product_code) {
     if (project.product_code !== productCode) throw new GateActionError('FG_ALREADY_LINKED', 409);
@@ -517,6 +519,24 @@ export async function createFgCandidate(
   return { productCode, created, mapped: true };
 }
 
+export async function peekSuggestedFgCandidateCode(
+  client: QueryClient,
+  orgId: string,
+  projectCode: string,
+): Promise<string> {
+  const { rows } = await client.query<{ next_seq: string | number; code_mask: string | null }>(
+    `select next_seq, code_mask
+       from public.org_document_settings
+      where org_id = $1::uuid
+        and doc_type = 'fg'
+      limit 1`,
+    [orgId],
+  );
+  const row = rows[0];
+  if (!row?.code_mask) return fallbackFgProductCode(projectCode);
+  return renderCodeMask(row.code_mask, { seq: Number(row.next_seq) });
+}
+
 /**
  * Count the ingredients on the project's CURRENT formulation version. Zero means
  * the recipe is empty (no `formulations` row, no current version, or no ingredient
@@ -554,12 +574,38 @@ async function findFgConflict(
 }
 
 function normalizeProductCode(requestedProductCode: string | null | undefined, project: GateProjectRow): string {
-  const raw = requestedProductCode?.trim() || `FG-${project.code}`;
+  const raw = requestedProductCode?.trim() || fallbackFgProductCode(project.code);
   const normalized = raw.toUpperCase().replace(/[^A-Z0-9-]/g, '-').replace(/-+/g, '-').slice(0, 80);
   if (normalized.length < 3) {
     return `FG-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
   return normalized;
+}
+
+async function generateFgProductCode(
+  ctx: OrgContextLike,
+  requestedProductCode: string | null | undefined,
+  project: GateProjectRow,
+): Promise<string> {
+  if (requestedProductCode?.trim()) return normalizeProductCode(requestedProductCode, project);
+
+  try {
+    // nextEntityCode wants the numbering QueryClient (unconstrained generic); ctx.client is the pipeline
+    // QueryClient (T extends pg.QueryResultRow). Structurally compatible for this call (query→{rows}).
+    return await nextEntityCode(ctx.client as unknown as NumberingQueryClient, ctx.orgId, 'fg');
+  } catch (error) {
+    if (isMissingFgCodeMaskError(error)) return normalizeProductCode(null, project);
+    throw error;
+  }
+}
+
+function isMissingFgCodeMaskError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message === 'entity_code_settings_missing:fg' || error.message === 'entity_code_mask_missing:fg';
+}
+
+function fallbackFgProductCode(projectCode: string): string {
+  return `FG-${projectCode}`;
 }
 
 export function serializeGateError(error: unknown):

@@ -519,10 +519,9 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
         cloneProject={canClone ? cloneAdapter : undefined}
         fgCandidate={{
           labels: fgCandidateLabels,
-          // Suggested FG code (owner ASK-with-suggestion decision). The action
-          // normalizes/uppercases; mirror its FG-{code} convention here so the
-          // pre-filled value matches what an empty submit would generate.
-          suggestedCode: `FG-${project.code}`,
+          // Suggested FG code (peek only): rendered from the org's fg mask without
+          // consuming next_seq. The create action consumes the real next value.
+          suggestedCode: result.data.suggestedFgCandidateCode,
           // The action gates on npd.gate.advance (same permission as Advance).
           canCreate: canAdvance,
           action: canAdvance ? fgCandidateAdapter : undefined,
