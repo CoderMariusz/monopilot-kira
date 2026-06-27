@@ -77,7 +77,8 @@ Effort gut-feel (relative): B1 ≈ largest (22 actions, mechanical); A3 + B3 med
 - B1/B2/B4 are broad but low-risk read-path; the gate is the cross-site leakage test (B4) per module — never ship a B1 batch without it.
 - Codex stays on backend slices (≤5 files, no `pnpm build`, verify by targeted vitest); Claude owns all migrations + UI + the per-batch review + live verify + push.
 
-## What I need from the owner before orchestrating
-- A: the 3 decisions above (3-section grouping, `/fa`→`/fg` route, auto-field UX).
-- B: the 2 decisions above (reads fail-closed vs all-sites; scanner fallback strictness).
-- Priority steer: start with **B (site-scoping, the felt pain)**, **A (kill double-entry P0)**, or **both in parallel** (my recommendation).
+## Owner decisions — LOCKED 2026-06-27
+- **Priority: BOTH tracks in parallel.** Start B1 (site read adoption) + A4 (code-mask) first; rest in waves.
+- **Site reads = FAIL-CLOSED.** No active site → lists return empty + "select a site" notice; never leak cross-site.
+- **FA→FG = FULL route rename `/fa` → `/fg`** (breaking) WITH redirects from `/fa/*` → `/fg/*` so existing links/bookmarks don't 404. Rename route segment + nav + filenames-where-cheap; keep `public.product` table + internal architecture.
+- Still-open per-slice (decide at kickoff, non-blocking): A3 3-section grouping; A2 auto-field source scope (same-dept vs any-dept); B scanner soft-fallback strictness.
