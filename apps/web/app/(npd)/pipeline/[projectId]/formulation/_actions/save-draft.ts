@@ -38,6 +38,7 @@ export async function saveDraft(input: {
   projectId?: unknown;
   versionId?: unknown;
   ingredients?: unknown;
+  batchSizeKg?: unknown;
   targetYieldPct?: unknown;
   targetPriceEur?: unknown;
   processingOverheadPct?: unknown;
@@ -45,6 +46,7 @@ export async function saveDraft(input: {
   const projectId = parseUuid(input?.projectId);
   const versionId = parseUuid(input?.versionId);
   const ingredients = parseIngredients(input?.ingredients);
+  const batchSizeKg = normalizePositiveNumeric(input?.batchSizeKg);
   const targetYieldPct = normalizeNumericPct(input?.targetYieldPct);
   const targetPriceEur = normalizeNumeric(input?.targetPriceEur);
   const processingOverheadPct = normalizeNumericPct(input?.processingOverheadPct);
@@ -52,13 +54,16 @@ export async function saveDraft(input: {
     !projectId ||
     !versionId ||
     !ingredients ||
+    batchSizeKg === undefined ||
     targetYieldPct === undefined ||
     targetPriceEur === undefined ||
     processingOverheadPct === undefined
   ) {
     return { ok: false, error: 'invalid_input' };
   }
+  const hasBatchSizeKg = Object.prototype.hasOwnProperty.call(input, 'batchSizeKg');
   const shouldPersistVersionParams =
+    hasBatchSizeKg ||
     Object.prototype.hasOwnProperty.call(input, 'targetYieldPct') ||
     Object.prototype.hasOwnProperty.call(input, 'targetPriceEur') ||
     Object.prototype.hasOwnProperty.call(input, 'processingOverheadPct');
@@ -204,7 +209,8 @@ export async function saveDraft(input: {
           `UPDATE public.formulation_versions
               SET target_yield_pct = $2::numeric,
                   target_price_eur = $3::numeric,
-                  processing_overhead_pct = $4::numeric
+                  processing_overhead_pct = $4::numeric,
+                  batch_size_kg = case when $5::boolean then $6::numeric else batch_size_kg end
             WHERE id = $1::uuid
               AND state = 'draft'
               AND EXISTS (
@@ -213,7 +219,7 @@ export async function saveDraft(input: {
                  WHERE f.id = formulation_id
                    AND f.org_id = app.current_org_id()
               )`,
-          [versionId, targetYieldPct, targetPriceEur, processingOverheadPct],
+          [versionId, targetYieldPct, targetPriceEur, processingOverheadPct, hasBatchSizeKg, batchSizeKg],
         );
       }
 
@@ -333,6 +339,14 @@ function normalizeNumericPct(value: unknown): string | null | undefined {
   if (normalized === null || normalized === undefined) return normalized;
   const asNumber = Number(normalized);
   if (!Number.isFinite(asNumber) || asNumber < 0 || asNumber > 100) return undefined;
+  return normalized;
+}
+
+function normalizePositiveNumeric(value: unknown): string | null | undefined {
+  const normalized = normalizeNumeric(value);
+  if (normalized === null || normalized === undefined) return normalized;
+  const asNumber = Number(normalized);
+  if (!Number.isFinite(asNumber) || asNumber <= 0) return undefined;
   return normalized;
 }
 

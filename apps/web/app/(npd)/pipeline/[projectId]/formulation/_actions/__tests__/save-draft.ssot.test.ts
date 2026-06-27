@@ -35,6 +35,8 @@ const ITEM_B = '77777777-7777-4777-8777-777777777777';
 let client: QueryClient;
 /** Captured $2 of the formulation_ingredients INSERT (the persisted rows). */
 let insertedRows: Array<Record<string, unknown>> | null;
+/** Captured formulation_versions UPDATE params. */
+let versionUpdateParams: readonly unknown[] | null;
 /** Prior persisted rows returned by the carryover read. */
 let priorRows: Array<{ rm_code: string; allergens_inherited: string[] | null }>;
 /** F8: the org's canonical allergen reference (Reference."Allergens"). */
@@ -91,6 +93,10 @@ function makeClient(): QueryClient {
         insertedRows = JSON.parse(String(params[1])) as Array<Record<string, unknown>>;
         return { rows: [] };
       }
+      if (q.startsWith('update public.formulation_versions')) {
+        versionUpdateParams = params;
+        return { rows: [] };
+      }
       if (q.startsWith('insert into public.formulation_audit_log')) return { rows: [] };
       throw new Error(`unexpected query in save-draft.ssot.test: ${q.slice(0, 120)}`);
     }),
@@ -119,6 +125,7 @@ function line(overrides: Partial<{
 beforeEach(() => {
   client = makeClient();
   insertedRows = null;
+  versionUpdateParams = null;
   priorRows = [];
   canonicalCodes = ['celery', 'gluten', 'milk', 'mustard', 'sesame'];
 });
@@ -215,5 +222,22 @@ describe('saveDraft — F-B12 cost from the item master', () => {
       ingredients: [line({ itemId: ITEM_B, costPerKgEur: '2.50' })],
     });
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('2.50');
+  });
+});
+
+describe('saveDraft — formulation version batch size', () => {
+  it('persists the supplied batchSizeKg on the draft formulation version', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      batchSizeKg: '0.250000',
+      targetYieldPct: '100',
+      targetPriceEur: '1.20',
+      processingOverheadPct: '8',
+      ingredients: [line()],
+    });
+
+    expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
+    expect(versionUpdateParams).toEqual([VERSION_ID, '100', '1.20', '8', true, '0.250000']);
   });
 });

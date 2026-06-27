@@ -238,6 +238,7 @@ export type SaveDraftAction = (input: {
     allergensInherited: string[];
     sequence: number;
   }>;
+  batchSizeKg?: string | null;
   targetYieldPct?: string | null;
   targetPriceEur?: string | null;
   processingOverheadPct?: string | null;
@@ -829,6 +830,7 @@ export function FormulationEditor({
         const result = await saveDraftAction({
           projectId: data.projectId,
           versionId,
+          batchSizeKg: packWeightKg,
           targetYieldPct: String(yieldPct),
           targetPriceEur: targetPrice,
           processingOverheadPct: processingPct,
@@ -857,7 +859,7 @@ export function FormulationEditor({
         setSaveStatus('error');
       }
     })();
-  }, [data, editable, processingPct, recomputeAction, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
+  }, [data, editable, packWeightKg, processingPct, recomputeAction, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
 
   /** Schedule a single debounced save (resets the 800 ms timer on each call). */
   const scheduleSave = React.useCallback(() => {
