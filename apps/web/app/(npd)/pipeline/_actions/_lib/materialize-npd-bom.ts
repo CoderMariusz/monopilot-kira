@@ -240,23 +240,33 @@ async function ensureFgItemAndProduct(
   const item = inserted.rows[0] ?? (await loadItem(ctx, productCode));
   if (!item) throw new Error(`failed to ensure FG item ${productCode}`);
 
-  await ctx.client.query(
-    `insert into public.product
-       (org_id, product_code, product_name, shelf_life, done_mrp, closed_mrp, created_by_user, app_version)
-     values
-       (app.current_org_id(), $1, $2, $3, true, 'Yes', $4::uuid, 'npd-release-materialize-v1')
-     on conflict (org_id, product_code) do update
-       set product_name = coalesce(public.product.product_name, excluded.product_name),
-           shelf_life = coalesce(nullif(public.product.shelf_life, ''), excluded.shelf_life),
-           done_mrp = true,
-           closed_mrp = 'Yes'`,
-    [
-      productCode,
-      project.name,
-      String(item.shelf_life_days ?? 30),
-      ctx.userId,
-    ],
+  // product is a VIEW post-merge-cut → no ON CONFLICT DO UPDATE (42P10). Replicate the upsert as
+  // insert-if-absent / targeted-update-if-present: a blind INSERT through the view would re-run the
+  // INSTEAD-OF insert and overwrite fg_npd_ext with the sparse NEW values. The UPDATE path touches
+  // only the closeout columns; the INSTEAD-OF update preserves every other column (NEW == current).
+  const existingProduct = await ctx.client.query(
+    `select 1 from public.product where org_id = app.current_org_id() and product_code = $1 limit 1`,
+    [productCode],
   );
+  if (existingProduct.rows.length === 0) {
+    await ctx.client.query(
+      `insert into public.product
+         (org_id, product_code, product_name, shelf_life, done_mrp, closed_mrp, created_by_user, app_version)
+       values
+         (app.current_org_id(), $1, $2, $3, true, 'Yes', $4::uuid, 'npd-release-materialize-v1')`,
+      [productCode, project.name, String(item.shelf_life_days ?? 30), ctx.userId],
+    );
+  } else {
+    await ctx.client.query(
+      `update public.product
+          set product_name = coalesce(product_name, $2),
+              shelf_life = coalesce(nullif(shelf_life, ''), $3),
+              done_mrp = true,
+              closed_mrp = 'Yes'
+        where org_id = app.current_org_id() and product_code = $1`,
+      [productCode, project.name, String(item.shelf_life_days ?? 30)],
+    );
+  }
 
   if (formulation) {
     await ctx.client.query(

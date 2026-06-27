@@ -457,7 +457,8 @@ export async function createFgCandidate(
          (org_id, product_code, product_name, created_by_user, app_version)
        values
          (app.current_org_id(), $1, $2, $3::uuid, $4)
-       on conflict (org_id, product_code) do nothing
+       -- product is a VIEW post-merge-cut → no ON CONFLICT (a view has no constraints; 42P10).
+       -- The SELECT pre-check above already guards existence, so this only runs when absent.
        returning product_code`,
       [productCode, project.name, ctx.userId, APP_VERSION],
     );

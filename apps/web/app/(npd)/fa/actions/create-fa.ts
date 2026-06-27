@@ -86,6 +86,18 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
 }
 
 async function insertProduct(ctx: OrgContextLike, productCode: string, productName: string): Promise<void> {
+  // product is a VIEW post-merge-cut: a duplicate INSERT no longer raises a PK 23505 (the INSTEAD-OF
+  // insert reuses the items twin and would silently overwrite fg_npd_ext). Pre-check + re-raise the
+  // same 23505 contract isUniqueViolation() relies on, so a duplicate FA code is still rejected.
+  const existing = await ctx.client.query(
+    `select 1 from public.product where org_id = app.current_org_id() and product_code = $1 limit 1`,
+    [productCode],
+  );
+  if (existing.rows.length > 0) {
+    const err = new Error(`product ${productCode} already exists`) as Error & { code?: string };
+    err.code = '23505';
+    throw err;
+  }
   await ctx.client.query(
     `insert into public.product
        (org_id, product_code, product_name, created_by_user, app_version)

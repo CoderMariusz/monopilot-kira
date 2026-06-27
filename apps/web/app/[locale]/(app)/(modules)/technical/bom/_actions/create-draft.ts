@@ -73,14 +73,22 @@ async function ensureBomProductReference(
     return { ok: false, message: 'invalid reference' };
   }
 
-  await c.query(
-    `insert into public.product
-       (org_id, product_code, product_name, status_overall, created_by_user, app_version)
-     values
-       (app.current_org_id(), $1, $2, $3, $4::uuid, 'technical-bom-v1')
-     on conflict (org_id, product_code) do nothing`,
-    [item.item_code, item.name ?? item.item_code, item.status, input.userId],
+  // product is a VIEW post-merge-cut (no ON CONFLICT — 42P10). Ensure the row exists WITHOUT
+  // disturbing an existing one: a plain INSERT through the view re-runs the INSTEAD-OF insert and
+  // would overwrite fg_npd_ext with the sparse NEW values, so insert ONLY when absent.
+  const existingProduct = await c.query(
+    `select 1 from public.product where org_id = app.current_org_id() and product_code = $1 limit 1`,
+    [item.item_code],
   );
+  if (existingProduct.rows.length === 0) {
+    await c.query(
+      `insert into public.product
+         (org_id, product_code, product_name, status_overall, created_by_user, app_version)
+       values
+         (app.current_org_id(), $1, $2, $3, $4::uuid, 'technical-bom-v1')`,
+      [item.item_code, item.name ?? item.item_code, item.status, input.userId],
+    );
+  }
   return { ok: true };
 }
 
