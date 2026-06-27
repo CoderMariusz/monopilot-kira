@@ -20,9 +20,7 @@ export {
   default,
   type AssignableUser,
   type AssignRole,
-  type PermissionStatus,
   type RoleCode,
-  type RolePermission,
   type RolesScreenProps,
   type SystemRole,
 } from '../../../[locale]/(app)/(admin)/settings/roles/roles-screen.client';

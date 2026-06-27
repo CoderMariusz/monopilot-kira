@@ -28,33 +28,16 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   })),
 }));
 
-type RoleCode =
-  | 'owner'
-  | 'admin'
-  | 'npd_manager'
-  | 'module_admin'
-  | 'planner'
-  | 'production_lead'
-  | 'quality_lead'
-  | 'warehouse_operator'
-  | 'auditor'
-  | 'viewer';
+// Post-fix contract: a role code is any business-role code surfaced by the
+// loader (every org role EXCEPT the three platform-internal `org.*.admin` codes).
+// It is no longer a curated 10-literal union — personas are first-class.
+type RoleCode = string;
 
 type SystemRole = {
   code: RoleCode;
   name: string;
   usersAssigned: number;
   scope: 'Full system' | 'Module-scoped' | 'Workflow-scoped' | 'Read-only';
-};
-
-type PermissionStatus = 'enabled' | 'disabled_by_org_policy' | 'misconfigured_policy';
-
-type RolePermission = {
-  name: string;
-  group: 'Settings' | 'NPD workflow authorization' | 'Technical approval';
-  directlyGrantedBySeed: boolean;
-  status: PermissionStatus;
-  policySummary?: string;
 };
 
 type AssignableUser = {
@@ -66,7 +49,9 @@ type AssignableUser = {
 
 type RolesPageProps = {
   roles: SystemRole[];
-  permissionsByRole: Record<RoleCode, RolePermission[]>;
+  // The View-Permissions modal now renders the role's REAL granted permission
+  // strings (from role_permissions), grouped by the rbac catalog — read-only.
+  permissionsByRole: Record<RoleCode, string[]>;
   assignableUsers: AssignableUser[];
   canManageRoles: boolean;
   assignRole: ReturnType<typeof vi.fn>;
@@ -75,69 +60,33 @@ type RolesPageProps = {
 
 type RolesPage = (props: RolesPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
+// All-business-roles contract: the owner/admin family PLUS persona seeds
+// (finance_manager, qa_inspector, …) are surfaced. Platform-internal
+// `org.*.admin` codes are NEVER injected — the loader filters them out.
 const systemRoles: SystemRole[] = [
   { code: 'owner', name: 'Owner', usersAssigned: 1, scope: 'Full system' },
   { code: 'admin', name: 'Admin', usersAssigned: 2, scope: 'Full system' },
   { code: 'npd_manager', name: 'NPD Manager', usersAssigned: 3, scope: 'Workflow-scoped' },
-  { code: 'module_admin', name: 'Module Admin', usersAssigned: 4, scope: 'Module-scoped' },
-  { code: 'planner', name: 'Planner', usersAssigned: 5, scope: 'Module-scoped' },
-  { code: 'production_lead', name: 'Production Lead', usersAssigned: 6, scope: 'Module-scoped' },
-  { code: 'quality_lead', name: 'Quality Lead', usersAssigned: 7, scope: 'Module-scoped' },
-  { code: 'warehouse_operator', name: 'Warehouse Operator', usersAssigned: 8, scope: 'Module-scoped' },
-  { code: 'auditor', name: 'Auditor', usersAssigned: 9, scope: 'Read-only' },
-  { code: 'viewer', name: 'Viewer', usersAssigned: 10, scope: 'Read-only' },
+  { code: 'finance_manager', name: 'Finance Manager', usersAssigned: 4, scope: 'Module-scoped' },
+  { code: 'qa_inspector', name: 'QA Inspector', usersAssigned: 5, scope: 'Module-scoped' },
+  { code: 'shift_lead', name: 'Shift Lead', usersAssigned: 6, scope: 'Module-scoped' },
+  { code: 'auditor', name: 'Auditor', usersAssigned: 7, scope: 'Read-only' },
+  { code: 'viewer', name: 'Viewer', usersAssigned: 8, scope: 'Read-only' },
 ];
 
-const npdManagerPermissions: RolePermission[] = [
-  {
-    group: 'Settings',
-    name: 'settings.roles.view',
-    directlyGrantedBySeed: true,
-    status: 'enabled',
-    policySummary: 'System default grant from role seed.',
-  },
-  {
-    group: 'Settings',
-    name: 'settings.roles.assign',
-    directlyGrantedBySeed: false,
-    status: 'disabled_by_org_policy',
-    policySummary: 'Role assignment is disabled by org authorization policy.',
-  },
-  {
-    group: 'NPD workflow authorization',
-    name: 'npd.released_product_edit.request',
-    directlyGrantedBySeed: true,
-    status: 'enabled',
-    policySummary: 'Request workflow remains enabled by org policy.',
-  },
-  {
-    group: 'NPD workflow authorization',
-    name: 'npd.released_product_edit.authorize',
-    directlyGrantedBySeed: true,
-    status: 'disabled_by_org_policy',
-    policySummary: 'Authorization policy is disabled for released-product edits.',
-  },
-  {
-    group: 'Technical approval',
-    name: 'technical.product_spec.approve',
-    directlyGrantedBySeed: true,
-    status: 'misconfigured_policy',
-    policySummary: 'Technical approval policy is misconfigured: approver role seed is missing.',
-  },
+// The role's REAL granted permission strings (from role_permissions). The View
+// modal groups these by the rbac catalog and renders them read-only.
+const npdManagerPermissions: string[] = [
+  'settings.roles.assign',
+  'settings.org.read',
+  'npd.released_product_edit.request',
+  'technical.product_spec.approve',
 ];
 
-const permissionsByRole = systemRoles.reduce<Record<RoleCode, RolePermission[]>>((acc, role) => {
-  acc[role.code] = role.code === 'npd_manager' ? npdManagerPermissions : [
-    {
-      group: 'Settings',
-      name: 'settings.roles.view',
-      directlyGrantedBySeed: true,
-      status: 'enabled',
-      policySummary: 'System default grant from role seed.',
-    },
-  ];
+const permissionsByRole = systemRoles.reduce<Record<RoleCode, string[]>>((acc, role) => {
+  acc[role.code] = role.code === 'npd_manager' ? npdManagerPermissions : ['settings.org.read'];
   return acc;
-}, {} as Record<RoleCode, RolePermission[]>);
+}, {} as Record<RoleCode, string[]>);
 
 const assignableUsers: AssignableUser[] = [
   { id: 'user-nora', name: 'Nora NPD', email: 'nora.npd@example.test', currentRoleCode: 'viewer' },
@@ -189,7 +138,7 @@ describe('SET-011 Roles & Permissions layout', () => {
     vi.clearAllMocks();
   });
 
-  it('renders System Roles, disabled Custom Roles, and exactly 10 seeded system-role rows with required columns and actions', async () => {
+  it('renders System Roles, disabled Custom Roles, and one row per surfaced business role (incl. personas) with required columns and actions', async () => {
     await renderRolesPage();
 
     expect(screen.getByRole('heading', { name: /roles & permissions/i })).toBeInTheDocument();
@@ -202,8 +151,11 @@ describe('SET-011 Roles & Permissions layout', () => {
       expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
     }
 
+    // All-business-roles contract: one row per surfaced role (no fixed 10-row
+    // allow-list), and persona seeds (finance_manager, qa_inspector) are present.
     const bodyRows = within(table).getAllByRole('row').slice(1);
-    expect(bodyRows).toHaveLength(10);
+    expect(bodyRows).toHaveLength(systemRoles.length);
+    expect(systemRoles.map((role) => role.code)).toEqual(expect.arrayContaining(['finance_manager', 'qa_inspector', 'shift_lead']));
     for (const role of systemRoles) {
       const row = rowForRole(table, new RegExp(role.name, 'i'));
       expect(within(row).getByText(role.code)).toBeInTheDocument();
@@ -211,6 +163,11 @@ describe('SET-011 Roles & Permissions layout', () => {
       expect(within(row).getByText(role.scope)).toBeInTheDocument();
       expect(within(row).getByRole('button', { name: /view permissions/i })).toBeEnabled();
     }
+
+    // Platform-internal roles are never surfaced.
+    expect(within(table).queryByText('org.access.admin')).not.toBeInTheDocument();
+    expect(within(table).queryByText('org.platform.admin')).not.toBeInTheDocument();
+    expect(within(table).queryByText('org.schema.admin')).not.toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /assign role to user/i })).toBeEnabled();
   });
@@ -263,7 +220,7 @@ describe('SET-011 View Permissions depth patch', () => {
     vi.clearAllMocks();
   });
 
-  it('opens a flat grouped permission detail with workflow strings, org-policy states, search, and no rejected 4-level matrix', async () => {
+  it('renders the role REAL granted permissions, grouped by the rbac catalog, read-only with search (no phantom 5-permission list, no matrix)', async () => {
     const user = userEvent.setup();
     await renderRolesPage();
 
@@ -271,23 +228,35 @@ describe('SET-011 View Permissions depth patch', () => {
     await user.click(within(rowForRole(table, /NPD Manager/i)).getByRole('button', { name: /view permissions/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /permissions.+npd manager/i });
-    expect(within(dialog).getByRole('region', { name: /^settings$/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole('region', { name: /npd workflow authorization/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole('region', { name: /technical approval/i })).toBeInTheDocument();
 
-    expect(within(dialog).getByText('settings.roles.view')).toBeInTheDocument();
-    expect(within(dialog).getByText('npd.released_product_edit.request')).toBeInTheDocument();
-    expect(within(dialog).getByText('npd.released_product_edit.authorize')).toBeInTheDocument();
-    expect(within(dialog).getByText('technical.product_spec.approve')).toBeInTheDocument();
-    expect(within(dialog).getAllByText(/direct grant|granted by role seed/i).length).toBeGreaterThanOrEqual(3);
-    expect(within(dialog).getByText(/disabled by org authorization policy/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/misconfigured/i)).toBeInTheDocument();
+    // Catalog module groups (from settings.roles.editor.groups.*), not the old
+    // hardcoded 3 (Settings / NPD workflow authorization / Technical approval).
+    expect(within(dialog).getByRole('region', { name: /settings — core/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('region', { name: /npd \(new product development\)/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('region', { name: /technical \/ bom/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('region', { name: /^production$/i })).toBeInTheDocument();
 
+    // The role's REAL granted permissions are pre-checked (disabled checkboxes).
+    const grantedRead = within(dialog).getByRole('checkbox', { name: 'settings.org.read' });
+    expect(grantedRead).toHaveAttribute('aria-checked', 'true');
+    expect(grantedRead).toBeDisabled();
+    expect(within(dialog).getByRole('checkbox', { name: 'settings.roles.assign' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(dialog).getByRole('checkbox', { name: 'npd.released_product_edit.request' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(dialog).getByRole('checkbox', { name: 'technical.product_spec.approve' })).toHaveAttribute('aria-checked', 'true');
+
+    // A catalog permission this role does NOT hold renders un-checked.
+    expect(within(dialog).getByRole('checkbox', { name: 'settings.org.update' })).toHaveAttribute('aria-checked', 'false');
+
+    // Phantom permission string is gone — it is not in the catalog and not granted.
+    expect(within(dialog).queryByText('settings.roles.view')).not.toBeInTheDocument();
+
+    // No rejected 4-level matrix.
     for (const matrixHeader of [/^view$/i, /^create$/i, /^edit$/i, /^delete$/i, /^execute$/i]) {
       expect(within(dialog).queryByRole('columnheader', { name: matrixHeader })).not.toBeInTheDocument();
     }
 
-    await user.type(within(dialog).getByRole('searchbox', { name: /search permissions/i }), 'technical');
+    // Search narrows to the matching permission strings only.
+    await user.type(within(dialog).getByRole('searchbox', { name: /search permissions/i }), 'technical.product_spec.approve');
     expect(within(dialog).getByText('technical.product_spec.approve')).toBeInTheDocument();
     expect(within(dialog).queryByText('npd.released_product_edit.request')).not.toBeInTheDocument();
   });
@@ -325,9 +294,12 @@ describe('SET-011 SM-07 role assignment', () => {
     await renderRolesPage({ canManageRoles: false });
 
     expect(screen.getByRole('table', { name: /system roles/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /view permissions/i })).toHaveLength(10);
+    expect(screen.getAllByRole('button', { name: /view permissions/i })).toHaveLength(systemRoles.length);
     expect(screen.getByText(/read-only/i)).toBeInTheDocument();
-    expect(screen.getByText(/settings\.roles\.assign|settings\.roles\.manage/i)).toBeInTheDocument();
+    // The read-only notice cites the real gate permission only (no phantom
+    // settings.roles.manage / settings.roles.view).
+    expect(screen.getByText(/settings\.roles\.assign/i)).toBeInTheDocument();
+    expect(screen.queryByText(/settings\.roles\.manage|settings\.roles\.view/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /assign role to user/i })).not.toBeInTheDocument();
   });
 });

@@ -773,8 +773,8 @@
       "assigningPreview": "Assigning <strong>{role}</strong> to <strong>{name}</strong>. Previous role <strong>{previousRole}</strong> will be replaced.",
       "unavailableTitle": "Roles & permissions are not available.",
       "unavailableBody": "The roles server loader has not been wired in this environment. No seed data is shown.",
-      "subtitle": "Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.",
-      "readOnlyAssignmentNotice": "Role assignment controls are hidden for this Read-only operator. Required permission: settings.roles.assign or settings.roles.manage.",
+      "subtitle": "Review every business role of the org, each role’s real granted permissions grouped by module, and assign roles to members.",
+      "readOnlyAssignmentNotice": "Role assignment controls are hidden for this Read-only operator. Required permission: settings.roles.assign.",
       "assignedUsers": "Assigned users",
       "permissionDepth": "Permission depth",
       "flatGroupsNoMatrix": "Flat groups, no role × module matrix",
@@ -799,7 +799,10 @@
         "usersAssigned": "Users assigned",
         "scope": "Scope",
         "actions": "Actions"
-      }
+      },
+      "grantedSummary": "{count} permission(s) granted to this role.",
+      "granted": "Granted",
+      "otherGroupLabel": "Other"
     },
     "security": {
       "heading": "Securitate"
@@ -1322,7 +1325,30 @@
       "stage_sensory": "Sensory",
       "stage_pilot": "Pilot",
       "stage_approval": "Approval",
-      "stage_handoff": "Handoff"
+      "stage_handoff": "Handoff",
+      "new_field": "New field",
+      "new_department": "New department",
+      "edit_action": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "create": "Create",
+      "field_code": "Field code",
+      "field_label": "Field label",
+      "field_department": "Department",
+      "field_data_type": "Data type",
+      "field_required": "Required by default",
+      "field_help_text": "Help text",
+      "department_code": "Department code",
+      "department_name": "Department name",
+      "department_description": "Description",
+      "new_field_title": "Create NPD field",
+      "new_department_title": "Create NPD department",
+      "edit_field_title": "Edit NPD field",
+      "edit_department_title": "Edit NPD department",
+      "data_type_text": "Text",
+      "data_type_number": "Number",
+      "data_type_date": "Date",
+      "delete_department_unavailable": "Department deletion is not yet available. Deactivate it instead."
     },
     "schema_column_wizard": {
       "breadcrumb": "Settings / Schema browser / Column wizard",

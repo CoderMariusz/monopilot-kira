@@ -3,40 +3,29 @@
 import React, { useId, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
+import { Checkbox } from '@monopilot/ui/Checkbox';
+
 import RoleEditor, {
   type CreateRoleFn,
   type EditableRole,
   type ListRolePermissionsFn,
   type SetRolePermissionsFn,
 } from './_components/role-editor.client';
+import { PERMISSION_GROUPS } from './_components/permission-catalog';
 
-export type RoleCode =
-  | 'owner'
-  | 'admin'
-  | 'npd_manager'
-  | 'module_admin'
-  | 'planner'
-  | 'production_lead'
-  | 'quality_lead'
-  | 'warehouse_operator'
-  | 'auditor'
-  | 'viewer';
+/**
+ * A role code is any org-scoped business-role code surfaced by the loader. The
+ * loader withholds only the three platform-internal `org.*.admin` codes, so this
+ * stays a free string rather than a curated 10-literal union (which used to
+ * silently drop every persona seed).
+ */
+export type RoleCode = string;
 
 export type SystemRole = {
   code: RoleCode;
   name: string;
   usersAssigned: number;
   scope: 'Full system' | 'Module-scoped' | 'Workflow-scoped' | 'Read-only';
-};
-
-export type PermissionStatus = 'enabled' | 'disabled_by_org_policy' | 'misconfigured_policy';
-
-export type RolePermission = {
-  name: string;
-  group: 'Settings' | 'NPD workflow authorization' | 'Technical approval';
-  directlyGrantedBySeed: boolean;
-  status: PermissionStatus;
-  policySummary?: string;
 };
 
 export type AssignableUser = {
@@ -69,25 +58,17 @@ export type RolesScreenProps = {
    * render a loud unavailable-state alert and never invent seed/fixture data.
    */
   roles?: SystemRole[];
-  permissionsByRole?: Record<RoleCode, RolePermission[]>;
+  /**
+   * roleCode → the role's REAL granted permission strings (from
+   * public.role_permissions). The View-Permissions modal renders these grouped
+   * by the canonical rbac catalog, read-only.
+   */
+  permissionsByRole?: Record<RoleCode, string[]>;
   assignableUsers?: AssignableUser[];
   canManageRoles?: boolean;
   assignRole?: AssignRole;
   roleAdmin?: RoleAdminWiring;
 };
-
-const permissionGroups: RolePermission['group'][] = ['Settings', 'NPD workflow authorization', 'Technical approval'];
-
-function statusLabel(status: PermissionStatus, t: (key: string) => string) {
-  if (status === 'disabled_by_org_policy') return t('permissionStatus.orgPolicyBlock');
-  if (status === 'misconfigured_policy') return t('permissionStatus.policyIssue');
-  return t('permissionStatus.enabledByOrgPolicy');
-}
-
-function resolvedPolicySummary(permission: RolePermission, t: (key: string) => string) {
-  if (permission.status === 'disabled_by_org_policy') return t('orgPolicyBlocksGrant');
-  return permission.policySummary;
-}
 
 function Badge({ children, tone = 'slate' }: { children: React.ReactNode; tone?: 'slate' | 'green' | 'amber' | 'red' | 'blue' }) {
   const toneClass = {
@@ -143,24 +124,43 @@ function DialogShell({
   );
 }
 
-function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; permissions: RolePermission[]; onClose: () => void }) {
+/**
+ * Read-only View-Permissions modal. Renders the role's REAL granted permissions
+ * (the same `role_permissions` set the editor reads) grouped by the canonical
+ * rbac catalog (`PERMISSION_GROUPS` / 14 module groups). Checkboxes are disabled
+ * and pre-checked from the granted set — it is a read-only mirror of the editor.
+ * Any granted permission outside the catalog is surfaced under an "other" group
+ * so nothing the role actually holds is silently hidden.
+ */
+function PermissionsDialog({ role, granted, onClose }: { role: SystemRole; granted: string[]; onClose: () => void }) {
   const t = useTranslations('settings.roles');
+  const tg = useTranslations('settings.roles.editor.groups');
   const searchId = useId();
   const [query, setQuery] = useState('');
+  const grantedSet = useMemo(() => new Set(granted), [granted]);
+
+  // Build catalog groups + a trailing "other" group for granted permissions that
+  // are not part of any catalog module (defensive — keeps the view exhaustive).
+  const groups = useMemo(() => {
+    const cataloged = new Set(PERMISSION_GROUPS.flatMap((group) => group.permissions));
+    const orphanGranted = granted.filter((permission) => !cataloged.has(permission)).sort();
+    const base = PERMISSION_GROUPS.map((group) => ({
+      id: group.id,
+      label: tg(group.id),
+      permissions: group.permissions,
+    }));
+    return orphanGranted.length > 0
+      ? [...base, { id: 'other', label: t('otherGroupLabel'), permissions: orphanGranted as readonly string[] }]
+      : base;
+  }, [granted, t, tg]);
+
   const normalized = query.trim().toLowerCase();
-  const filtered = permissions.filter((permission) => {
-    if (!normalized) return true;
-    return `${permission.group} ${permission.name} ${permission.policySummary ?? ''}`.toLowerCase().includes(normalized);
-  });
+  const totalGranted = grantedSet.size;
 
   return (
     <DialogShell title={t('permissionsTitle', { role: role.name })} closeLabel={t('closeDialog', { title: t('permissionsTitle', { role: role.name }) })} onClose={onClose}>
       <div className="space-y-4">
-        {permissions.some((permission) => permission.status === 'disabled_by_org_policy') ? (
-          <p className="alert alert-amber">
-            {t('disabledByOrgPolicy')}
-          </p>
-        ) : null}
+        <p className="muted text-sm">{t('grantedSummary', { count: totalGranted })}</p>
         <div className="ff">
           <label htmlFor={searchId}>{t('searchPermissions')}</label>
           <input
@@ -172,29 +172,28 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
             placeholder={t('filter_by_module_or_permission')}
           />
         </div>
-        {permissionGroups.map((group) => {
-          const groupPermissions = filtered.filter((permission) => permission.group === group);
+        {groups.map((group) => {
+          const matching = group.permissions.filter((permission) => {
+            if (!normalized) return true;
+            return `${group.label} ${permission}`.toLowerCase().includes(normalized);
+          });
           return (
-            <section key={group} role="region" aria-label={t(`permissionGroups.${group}`)} className="card" style={{ margin: 0 }}>
-              <h3 className="card-title">{t(`permissionGroups.${group}`)}</h3>
-              {groupPermissions.length === 0 ? (
+            <section key={group.id} role="region" aria-label={group.label} className="card" style={{ margin: 0 }}>
+              <h3 className="card-title">{group.label}</h3>
+              {matching.length === 0 ? (
                 <p className="muted mt-2 text-sm">{t('noPermissionsMatch')}</p>
               ) : (
-                <ul className="mt-3 space-y-3">
-                  {groupPermissions.map((permission) => (
-                    <li key={permission.name} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'var(--gray-050)' }}>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <code className="mono rounded bg-white px-2 py-1 font-semibold" style={{ border: '1px solid var(--border)' }}>{permission.name}</code>
-                        <Badge tone={permission.directlyGrantedBySeed ? 'green' : 'slate'}>
-                          {permission.directlyGrantedBySeed ? t('directGrantByRoleSeed') : t('notDirectGrantByRoleSeed')}
-                        </Badge>
-                        <Badge tone={permission.status === 'enabled' ? 'green' : permission.status === 'misconfigured_policy' ? 'red' : 'amber'}>
-                          {statusLabel(permission.status, t)}
-                        </Badge>
-                      </div>
-                      {resolvedPolicySummary(permission, t) ? <p className="muted mt-2 text-sm">{resolvedPolicySummary(permission, t)}</p> : null}
-                    </li>
-                  ))}
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {matching.map((permission) => {
+                    const isGranted = grantedSet.has(permission);
+                    return (
+                      <li key={permission} className="flex items-center gap-2">
+                        <Checkbox checked={isGranted} disabled aria-label={permission} />
+                        <code className="mono text-xs">{permission}</code>
+                        {isGranted ? <Badge tone="green">{t('granted')}</Badge> : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -347,7 +346,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
   const t = useTranslations('settings.roles');
   const rolesUnavailable = props.roles === undefined;
   const roles = props.roles ?? [];
-  const permissionsByRole = props.permissionsByRole ?? ({} as Record<RoleCode, RolePermission[]>);
+  const permissionsByRole = props.permissionsByRole ?? ({} as Record<RoleCode, string[]>);
   const assignableUsers = props.assignableUsers ?? [];
   const canManageRoles = props.canManageRoles ?? false;
   const assignRole = props.assignRole ?? (() => ({ ok: false, error: 'not_wired' }));
@@ -471,7 +470,7 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
       {permissionRole ? (
         <PermissionsDialog
           role={permissionRole}
-          permissions={permissionsByRole[permissionRole.code] ?? []}
+          granted={permissionsByRole[permissionRole.code] ?? []}
           onClose={() => setPermissionRole(null)}
         />
       ) : null}

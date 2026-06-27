@@ -1,21 +1,13 @@
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
-import {
-  NPD_POST_RELEASE_EDIT_POLICY,
-  TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
-  readAuthorizationPolicy,
-  type AuthorizationPolicyRow,
-  type QueryClient,
-} from '../../../../../../actions/authorization/preflight';
+import { type QueryClient } from '../../../../../../actions/authorization/preflight';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { createRole, listRolePermissions, setRolePermissions } from './_actions/role-admin-actions';
 import type { EditableRole } from './_components/role-editor.client';
 import RolesScreen, {
   type AssignableUser,
-  type PermissionStatus,
   type RoleCode,
-  type RolePermission,
   type SystemRole,
 } from './roles-screen.client';
 
@@ -25,7 +17,8 @@ type AssignRoleInput = { userId: string; roleCode: RoleCode; reason: string };
 
 type RolesPageProps = {
   roles?: SystemRole[];
-  permissionsByRole?: Record<RoleCode, RolePermission[]>;
+  /** roleCode → the role's REAL granted permission strings (from role_permissions). */
+  permissionsByRole?: Record<RoleCode, string[]>;
   assignableUsers?: AssignableUser[];
   canManageRoles?: boolean;
   assignRole?: (payload: AssignRoleInput) => Promise<unknown> | unknown;
@@ -39,6 +32,8 @@ type PageProps = {
 type RoleRow = {
   code: string;
   name: string | null;
+  is_system: boolean | null;
+  display_order: number | string | null;
   users_assigned: number | string | null;
   permissions: string[] | null;
 };
@@ -64,28 +59,34 @@ type RolesScreenReadResult =
   | {
       state: 'ready';
       roles: SystemRole[];
-      permissionsByRole: Record<RoleCode, RolePermission[]>;
+      permissionsByRole: Record<RoleCode, string[]>;
       assignableUsers: AssignableUser[];
       canManageRoles: boolean;
       editableRoles: EditableRole[];
     }
   | { state: 'loading' | 'empty' | 'error' | 'permission-denied'; canManageRoles: boolean };
 
-const ROLE_CODES = [
-  'owner',
-  'admin',
-  'npd_manager',
-  'module_admin',
-  'planner',
-  'production_lead',
-  'quality_lead',
-  'warehouse_operator',
-  'auditor',
-  'viewer',
-] as const satisfies readonly RoleCode[];
+/**
+ * Platform-internal roles excluded from the business-role matrix. Every other
+ * org-scoped role (owner/admin family + every persona seed) is surfaced; the
+ * filter is `r.code not like 'org.%'`, which matches exactly these three
+ * `org.*.admin` codes. There is no curated allow-list anymore.
+ */
+const PLATFORM_INTERNAL_ROLE_CODES = new Set<string>(['org.access.admin', 'org.platform.admin', 'org.schema.admin']);
 
-const ROLE_MANAGE_PERMISSIONS = ['settings.roles.assign', 'settings.roles.manage'] as const;
-const ROLE_VIEW_PERMISSIONS = ['settings.roles.view', ...ROLE_MANAGE_PERMISSIONS, 'owner', 'admin'] as const;
+function isBusinessRoleCode(value: string | null | undefined): value is RoleCode {
+  if (!value) return false;
+  // Mirror the SQL filter `code not like 'org.%'` so the client/action contract
+  // (a non-empty, non-platform-internal role code) matches what the list query
+  // returns. Belt-and-braces: also reject the three known platform-internal codes.
+  return !value.startsWith('org.') && !PLATFORM_INTERNAL_ROLE_CODES.has(value);
+}
+
+// Only the canonical roles permission in the rbac catalog gates management.
+// (`settings.roles.view` / `settings.roles.manage` are NOT in
+// packages/rbac/src/permissions.enum.ts — they were phantom strings.)
+const ROLE_MANAGE_PERMISSIONS = ['settings.roles.assign'] as const;
+const ROLE_VIEW_PERMISSIONS = [...ROLE_MANAGE_PERMISSIONS, 'owner', 'admin'] as const;
 
 const STATE_COPY = {
   loading: { title: 'Roles & Permissions', body: 'Loading roles and permissions…' },
@@ -95,104 +96,23 @@ const STATE_COPY = {
   ready: { title: 'Roles & Permissions', body: '' },
 } as const;
 
-function isRoleCode(value: string | null | undefined): value is RoleCode {
-  return ROLE_CODES.includes(value as RoleCode);
-}
-
-function scopeForRole(code: RoleCode): SystemRole['scope'] {
+function scopeForRole(code: string): SystemRole['scope'] {
   if (code === 'owner' || code === 'admin') return 'Full system';
   if (code === 'npd_manager') return 'Workflow-scoped';
   if (code === 'auditor' || code === 'viewer') return 'Read-only';
+  // Every other surfaced role (persona seeds + in-app custom roles) is
+  // module-scoped — the matrix shows their real granted permissions per module.
   return 'Module-scoped';
 }
 
-function labelForRole(code: RoleCode, label?: string | null): string {
+function labelForRole(code: string, label?: string | null): string {
   if (label?.trim()) return label;
-  return code.split('_').map((part) => part[0]?.toUpperCase() + part.slice(1)).join(' ');
+  return code.split(/[._]/).map((part) => part[0]?.toUpperCase() + part.slice(1)).join(' ');
 }
 
 function toCount(value: number | string | null | undefined): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function policyEnabled(policy: AuthorizationPolicyRow | null): boolean {
-  return policy?.is_enabled === true || policy?.enabled === true;
-}
-
-function policyHasPermission(policy: AuthorizationPolicyRow | null, permission: string): boolean {
-  return Boolean(policy?.request_permissions?.includes(permission) || policy?.authorize_permissions?.includes(permission));
-}
-
-function workflowStatus(policy: AuthorizationPolicyRow | null, permission: string): PermissionStatus {
-  if (!policy || !policyEnabled(policy)) return 'disabled_by_org_policy';
-  if (!policyHasPermission(policy, permission)) return 'misconfigured_policy';
-  if (permission === 'technical.product_spec.approve' && (!policy.approver_role_codes?.length || toCount(policy.min_approvers) < 1)) {
-    return 'misconfigured_policy';
-  }
-  if (permission === 'npd.released_product_edit.authorize' && !policy.approver_role_codes?.length) {
-    return 'misconfigured_policy';
-  }
-  return 'enabled';
-}
-
-function workflowSummary(status: PermissionStatus, enabledCopy: string): string {
-  if (status === 'disabled_by_org_policy') return 'Disabled by org authorization policy.';
-  if (status === 'misconfigured_policy') return 'Misconfigured org authorization policy blocks this workflow.';
-  return enabledCopy;
-}
-
-function buildPermissionsByRole(
-  roles: SystemRole[],
-  seededPermissions: Map<RoleCode, Set<string>>,
-  policies: { npd: AuthorizationPolicyRow | null; technical: AuthorizationPolicyRow | null },
-): Record<RoleCode, RolePermission[]> {
-  return roles.reduce<Record<RoleCode, RolePermission[]>>((acc, role) => {
-    const direct = seededPermissions.get(role.code) ?? new Set<string>();
-    const hasDirect = (permission: string) => direct.has(permission) || role.code === 'owner';
-    const npdRequestStatus = workflowStatus(policies.npd, 'npd.released_product_edit.request');
-    const npdAuthorizeStatus = workflowStatus(policies.npd, 'npd.released_product_edit.authorize');
-    const technicalStatus = workflowStatus(policies.technical, 'technical.product_spec.approve');
-
-    acc[role.code] = [
-      {
-        group: 'Settings',
-        name: 'settings.roles.view',
-        directlyGrantedBySeed: hasDirect('settings.roles.view'),
-        status: 'enabled',
-        policySummary: 'System role seed controls Settings role visibility.',
-      },
-      {
-        group: 'Settings',
-        name: 'settings.roles.assign',
-        directlyGrantedBySeed: hasDirect('settings.roles.assign') || hasDirect('settings.roles.manage'),
-        status: 'enabled',
-        policySummary: 'Role assignment is gated by settings.roles.assign or settings.roles.manage.',
-      },
-      {
-        group: 'NPD workflow authorization',
-        name: 'npd.released_product_edit.request',
-        directlyGrantedBySeed: hasDirect('npd.released_product_edit.request'),
-        status: npdRequestStatus,
-        policySummary: workflowSummary(npdRequestStatus, 'Request workflow remains enabled by org policy.'),
-      },
-      {
-        group: 'NPD workflow authorization',
-        name: 'npd.released_product_edit.authorize',
-        directlyGrantedBySeed: hasDirect('npd.released_product_edit.authorize'),
-        status: npdAuthorizeStatus,
-        policySummary: workflowSummary(npdAuthorizeStatus, 'Authorization workflow remains enabled by org policy.'),
-      },
-      {
-        group: 'Technical approval',
-        name: 'technical.product_spec.approve',
-        directlyGrantedBySeed: hasDirect('technical.product_spec.approve'),
-        status: technicalStatus,
-        policySummary: workflowSummary(technicalStatus, 'Technical product-spec approval remains enabled by org policy.'),
-      },
-    ];
-    return acc;
-  }, {} as Record<RoleCode, RolePermission[]>);
 }
 
 async function hasAnyPermission(client: QueryClient, userId: string, orgId: string, permissions: readonly string[]): Promise<boolean> {
@@ -215,40 +135,48 @@ async function hasAnyPermission(client: QueryClient, userId: string, orgId: stri
   return (rowCount ?? rows.length) > 0;
 }
 
-async function readRoleRows(client: QueryClient): Promise<{ roles: SystemRole[]; seededPermissions: Map<RoleCode, Set<string>> }> {
+async function readRoleRows(client: QueryClient): Promise<{ roles: SystemRole[]; permissionsByRole: Record<RoleCode, string[]> }> {
+  // Surface EVERY business role of the org. The only roles withheld are the
+  // three platform-internal `org.*.admin` codes (matched by `code not like
+  // 'org.%'`). Ordered by display_order then code so the seeded personas land in
+  // their intended order. No curated allow-list — the DB is the source of truth.
   const { rows } = await client.query<RoleRow>(
     `select r.code,
             coalesce(r.name, r.code) as name,
+            coalesce(r.is_system, false) as is_system,
+            coalesce(r.display_order, 0) as display_order,
             count(distinct ur.user_id)::int as users_assigned,
             coalesce(array_remove(array_agg(distinct rp.permission), null), '{}'::text[]) as permissions
        from public.roles r
        left join public.user_roles ur on ur.role_id = r.id and ur.org_id = r.org_id
        left join public.role_permissions rp on rp.role_id = r.id
       where r.org_id = app.current_org_id()
-        and r.code = any($1::text[])
-      group by r.code, r.name
-      order by array_position($1::text[], r.code)`,
-    [ROLE_CODES],
+        and r.code not like 'org.%'
+      group by r.code, r.name, r.is_system, r.display_order
+      order by coalesce(r.display_order, 0), r.code`,
   );
 
-  const seededPermissions = new Map<RoleCode, Set<string>>();
-  const byCode = new Map<RoleCode, SystemRole>();
+  const roles: SystemRole[] = [];
+  const permissionsByRole: Record<RoleCode, string[]> = {};
   for (const row of rows) {
-    if (!isRoleCode(row.code)) continue;
-    byCode.set(row.code, {
+    // Belt-and-braces: the SQL already excludes `org.%`, but keep the predicate
+    // so the contract is enforced in one place even if the query is edited.
+    if (!isBusinessRoleCode(row.code)) continue;
+    roles.push({
       code: row.code,
       name: labelForRole(row.code, row.name),
       usersAssigned: toCount(row.users_assigned),
       scope: scopeForRole(row.code),
     });
-    seededPermissions.set(row.code, new Set(row.permissions ?? []));
+    // The role's REAL granted permission strings (normalized role_permissions),
+    // de-duped + sorted for a stable View-Permissions render.
+    permissionsByRole[row.code] = Array.from(new Set(row.permissions ?? [])).sort();
   }
 
-  // Real data only — render exactly the org-scoped roles returned by RLS, in
-  // canonical order. No seed/fixture fallback. An empty DB resolves to an
-  // honest empty-state in readRolesScreenData.
-  const roles = ROLE_CODES.map((code) => byCode.get(code)).filter((role): role is SystemRole => role !== undefined);
-  return { roles, seededPermissions };
+  // Real data only — render exactly the org-scoped roles returned by RLS. No
+  // seed/fixture fallback. An empty DB resolves to an honest empty-state in
+  // readRolesScreenData.
+  return { roles, permissionsByRole };
 }
 
 async function readEditableRoles(client: QueryClient): Promise<EditableRole[]> {
@@ -292,7 +220,9 @@ async function readAssignableUsers(client: QueryClient): Promise<AssignableUser[
     id: row.id,
     name: row.name ?? row.email ?? 'User',
     email: row.email ?? '',
-    currentRoleCode: isRoleCode(row.current_role_code) ? row.current_role_code : 'viewer',
+    // Carry the real assigned business-role code; fall back to `viewer` only for
+    // unassigned members or platform-internal codes (never surfaced in the matrix).
+    currentRoleCode: isBusinessRoleCode(row.current_role_code) ? row.current_role_code : 'viewer',
   }));
 }
 
@@ -304,12 +234,10 @@ async function readRolesScreenData(): Promise<RolesScreenReadResult> {
       const canManageRoles = await hasAnyPermission(queryClient, userId, orgId, ROLE_MANAGE_PERMISSIONS);
       if (!canViewRoles) return { state: 'permission-denied' as const, canManageRoles: false };
 
-      const [{ roles, seededPermissions }, assignableUsers, editableRoles, npd, technical] = await Promise.all([
+      const [{ roles, permissionsByRole }, assignableUsers, editableRoles] = await Promise.all([
         readRoleRows(queryClient),
         readAssignableUsers(queryClient),
         readEditableRoles(queryClient),
-        readAuthorizationPolicy(queryClient, NPD_POST_RELEASE_EDIT_POLICY),
-        readAuthorizationPolicy(queryClient, TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY),
       ]);
 
       if (roles.length === 0) return { state: 'empty' as const, canManageRoles };
@@ -317,7 +245,7 @@ async function readRolesScreenData(): Promise<RolesScreenReadResult> {
       return {
         state: 'ready' as const,
         roles,
-        permissionsByRole: buildPermissionsByRole(roles, seededPermissions, { npd, technical }),
+        permissionsByRole,
         assignableUsers,
         canManageRoles,
         editableRoles,
@@ -363,7 +291,10 @@ function renderRolesScreen(props: RolesPageProps) {
 export async function assignRoleAction(input: AssignRoleInput): Promise<{ ok: boolean; auditAction?: string; error?: string }> {
   'use server';
 
-  if (!isRoleCode(input.roleCode) || !input.userId || input.reason.trim().length === 0) {
+  // Validate the target is a non-empty, non-platform-internal (business) role
+  // code; the role itself is re-resolved against the DB below, and the manage
+  // gate is re-checked server-side, so the gate is never client-trusted.
+  if (!isBusinessRoleCode(input.roleCode) || !input.userId || input.reason.trim().length === 0) {
     return { ok: false, error: 'invalid_role_assignment' };
   }
 
@@ -373,11 +304,14 @@ export async function assignRoleAction(input: AssignRoleInput): Promise<{ ok: bo
       const canAssign = await hasAnyPermission(queryClient, userId, orgId, ROLE_MANAGE_PERMISSIONS);
       if (!canAssign) return { ok: false, error: 'settings.roles.assign_required' };
 
+      // Re-resolve the role within RLS so only an org-scoped, non-platform role
+      // can be assigned (the `not like 'org.%'` guard mirrors the list filter).
       const { rows } = await queryClient.query<RoleIdRow>(
         `select id::text as id
            from public.roles
           where org_id = app.current_org_id()
             and code = $1
+            and code not like 'org.%'
           limit 1`,
         [input.roleCode],
       );

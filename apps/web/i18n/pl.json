@@ -773,8 +773,8 @@
       "assigningPreview": "Przypisanie <strong>{role}</strong> do <strong>{name}</strong>. Poprzednia rola <strong>{previousRole}</strong> zostanie zastąpiona.",
       "unavailableTitle": "Role i uprawnienia są niedostępne.",
       "unavailableBody": "Loader ról serwera nie został podłączony w tym środowisku. Dane seed nie są wyświetlane.",
-      "subtitle": "Przejrzyj systemowe role seed, płaskie uprawnienia Settings/Auth i stan polityk autoryzacji organizacji.",
-      "readOnlyAssignmentNotice": "Kontrolki przypisywania ról są ukryte dla operatora tylko do odczytu. Wymagane uprawnienie: settings.roles.assign lub settings.roles.manage.",
+      "subtitle": "Przejrzyj wszystkie role biznesowe organizacji, rzeczywiste uprawnienia każdej roli pogrupowane modułami oraz przypisuj role członkom.",
+      "readOnlyAssignmentNotice": "Kontrolki przypisywania ról są ukryte dla operatora tylko do odczytu. Wymagane uprawnienie: settings.roles.assign.",
       "assignedUsers": "Przypisani użytkownicy",
       "permissionDepth": "Głębokość uprawnień",
       "flatGroupsNoMatrix": "Płaskie grupy, bez macierzy rola × moduł",
@@ -799,7 +799,10 @@
         "usersAssigned": "Przypisani użytkownicy",
         "scope": "Zakres",
         "actions": "Akcje"
-      }
+      },
+      "grantedSummary": "Tej roli nadano {count} uprawnień.",
+      "granted": "Nadane",
+      "otherGroupLabel": "Inne"
     },
     "security": {
       "heading": "Bezpieczeństwo"
@@ -1090,7 +1093,30 @@
       "stage_sensory": "Sensoryka",
       "stage_pilot": "Pilotaż",
       "stage_approval": "Zatwierdzenie",
-      "stage_handoff": "Przekazanie"
+      "stage_handoff": "Przekazanie",
+      "new_field": "Nowe pole",
+      "new_department": "Nowy dział",
+      "edit_action": "Edytuj",
+      "save": "Zapisz",
+      "cancel": "Anuluj",
+      "create": "Utwórz",
+      "field_code": "Kod pola",
+      "field_label": "Etykieta pola",
+      "field_department": "Dział",
+      "field_data_type": "Typ danych",
+      "field_required": "Wymagane domyślnie",
+      "field_help_text": "Tekst pomocy",
+      "department_code": "Kod działu",
+      "department_name": "Nazwa działu",
+      "department_description": "Opis",
+      "new_field_title": "Utwórz pole NPD",
+      "new_department_title": "Utwórz dział NPD",
+      "edit_field_title": "Edytuj pole NPD",
+      "edit_department_title": "Edytuj dział NPD",
+      "data_type_text": "Tekst",
+      "data_type_number": "Liczba",
+      "data_type_date": "Data",
+      "delete_department_unavailable": "Usuwanie działu nie jest jeszcze dostępne. Dezaktywuj go zamiast tego."
     },
     "shifts": {
       "title": "Zmiany i kalendarz",
