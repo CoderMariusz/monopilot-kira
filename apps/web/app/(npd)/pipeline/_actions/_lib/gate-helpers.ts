@@ -252,6 +252,30 @@ export async function assertG4ESignForHandoff(ctx: OrgContextLike, projectId: st
   }
 }
 
+/**
+ * G3 e-signature guard for the G3 → G4 stage crossing (pilot → approval).
+ * Mirrors assertG4ESignForHandoff: a valid, immutable G3 e-sign approval (collected
+ * by approveProjectGate, gateCode 'G3') must exist before the project may enter G4.
+ * Advancing without one throws ESIGN_REQUIRED. (Owner decision F-1, 2026-06-27.)
+ */
+export async function assertG3ESignForApproval(ctx: OrgContextLike, projectId: string): Promise<void> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.gate_approvals
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and gate_code = 'G3'
+        and decision = 'approved'
+        and esigned_at is not null
+        and esign_hash is not null
+      limit 1`,
+    [projectId],
+  );
+  if (rows.length === 0) {
+    throw new GateActionError('ESIGN_REQUIRED', 403);
+  }
+}
+
 export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: string): Promise<GateProjectRow> {
   const { rows } = await ctx.client.query<GateProjectRow>(
     `select id, code, name, type, current_gate, current_stage, product_code

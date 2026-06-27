@@ -11,6 +11,7 @@ import {
   GATE_ADVANCED_EVENT,
   STAGE_ORDER,
   assertAdjacentStage,
+  assertG3ESignForApproval,
   assertG4ESignForHandoff,
   createFgCandidate,
   emitOutbox,
@@ -103,6 +104,12 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
 
       // ─── Per-transition side effects ───
       let productCode = project.product_code;
+
+      // E-sign checkpoint: crossing the G3 → G4 boundary (pilot → approval) requires a
+      // valid G3 e-signature (collected by approveProjectGate). Owner decision F-1.
+      if (gateForStage(project.current_stage as AnyStage) === 'G3' && targetGate === 'G4') {
+        await assertG3ESignForApproval(context, project.id);
+      }
 
       // E-sign checkpoint: approval → handoff requires a valid G4 e-signature.
       // Entering handoff also seeds the handoff checklist — without it the stage

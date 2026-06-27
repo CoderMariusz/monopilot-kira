@@ -26,6 +26,7 @@ const checkedG0ProjectId = randomUUID();
 const rollbackProjectId = randomUUID();
 const rejectProjectId = randomUUID();
 const approveProjectId = randomUUID();
+const approvalProjectId = randomUUID();
 const handoffProjectId = randomUUID();
 const formulationId = randomUUID();
 const formulationVersionId = randomUUID();
@@ -91,7 +92,8 @@ async function seedGateFixtures(): Promise<void> {
        ($10, $2, 'NPD-T058-R', 'Rollback project', 'standard', 'G3', 'trial', $3),
        ($11, $2, 'NPD-T058-J', 'Reject project', 'standard', 'G3', 'trial', $3),
        ($12, $2, 'NPD-T058-P', 'Approval project', 'standard', 'G4', 'approval', $3),
-       ($13, $2, 'NPD-T058-H', 'Handoff e-sign project', 'standard', 'G4', 'approval', $3)
+       ($13, $2, 'NPD-T058-G3', 'G3 approval e-sign project', 'standard', 'G3', 'pilot', $3),
+       ($14, $2, 'NPD-T058-H', 'Handoff e-sign project', 'standard', 'G4', 'approval', $3)
      on conflict (id) do nothing`,
     [
       projectId,
@@ -106,6 +108,7 @@ async function seedGateFixtures(): Promise<void> {
       rollbackProjectId,
       rejectProjectId,
       approveProjectId,
+      approvalProjectId,
       handoffProjectId,
     ],
   );
@@ -507,6 +510,37 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
         advanceProjectGate({ projectId: handoffProjectId, targetStage: 'handoff' }),
       ),
     ).resolves.toMatchObject({ ok: true, data: { currentStage: 'handoff', currentGate: 'G4' } });
+  });
+
+  it('blocks pilot→approval without a G3 e-signature, then allows it once approved', async () => {
+    const { advanceProjectGate } = await import('../advance-project-gate');
+    const { approveProjectGate } = await import('../approve-project-gate');
+
+    // approvalProjectId is at pilot/G3 with NO gate_approvals row yet → the
+    // pilot→approval e-sign checkpoint must block the G3→G4 crossing.
+    const blocked = await withActionActor(seed.userAId, seed.orgAId, () =>
+      advanceProjectGate({ projectId: approvalProjectId, targetStage: 'approval' }),
+    );
+    expect(blocked).toMatchObject({ ok: false, error: 'ESIGN_REQUIRED', status: 403 });
+
+    const stillPilot = await owner.query<{ current_stage: string }>(
+      `select current_stage from public.npd_projects where id = $1::uuid`,
+      [approvalProjectId],
+    );
+    expect(stillPilot.rows[0]?.current_stage).toBe('pilot');
+
+    // Record the G3 e-signature via the existing approve flow, then the advance passes.
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        approveProjectGate({ projectId: approvalProjectId, gateCode: 'G3', decision: 'approved', notes: 'Approval e-sign.', password: pin }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({ projectId: approvalProjectId, targetStage: 'approval' }),
+      ),
+    ).resolves.toMatchObject({ ok: true, data: { currentStage: 'approval', currentGate: 'G4' } });
   });
 
   it('isolates cross-org projects through RLS', async () => {
