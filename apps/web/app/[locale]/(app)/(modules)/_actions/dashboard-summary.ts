@@ -24,6 +24,7 @@
  * Component during render, like `skeleton-data.ts`.
  */
 import { withOrgContext } from "../../../../../lib/auth/with-org-context";
+import { getActiveSiteId } from "../../../../../lib/site/site-context";
 
 export type DashboardKpi = {
   /** Stable key for i18n + test ids. */
@@ -88,26 +89,32 @@ function emptyDashboard(): DashboardData {
 export async function getDashboardData(): Promise<DashboardData> {
   try {
     return await withOrgContext(async ({ client }) => {
+      const activeSiteId = await getActiveSiteId({ client });
+
       const scalar = async (sql: string, params: unknown[] = []): Promise<number> => {
         const res = await client.query<{ n: number }>(sql, params);
         return res.rows[0]?.n ?? 0;
       };
 
       const activeWos = await scalar(
-        `select count(*)::int as n from public.work_orders where status = any($1::text[])`,
-        [ACTIVE_WO_STATUSES],
+        `select count(*)::int as n
+           from public.work_orders wo
+          where wo.status = any($1::text[])
+            and wo.site_id = $2::uuid`,
+        [ACTIVE_WO_STATUSES, activeSiteId],
       );
 
       const pendingPos = await scalar(
         `select count(*)::int as n
-           from public.purchase_orders
-          where org_id = app.current_org_id()
-            and status = any($1::text[])`,
-        [OPEN_PO_STATUSES],
+           from public.purchase_orders po
+          where po.org_id = app.current_org_id()
+            and po.status = any($1::text[])
+            and po.site_id = $2::uuid`,
+        [OPEN_PO_STATUSES, activeSiteId],
       );
 
       const lowStock = await scalar(
-        `select count(*)::int as n
+        `select count(distinct rt.item_id)::int as n
            from public.reorder_thresholds rt
            join public.items i
              on i.org_id = app.current_org_id()
@@ -117,24 +124,37 @@ export async function getDashboardData(): Promise<DashboardData> {
              select product_id, sum(available_qty)::numeric as available_qty
                from public.v_inventory_available
               where org_id = app.current_org_id()
+                and site_id = $1::uuid
               group by product_id
            ) inv on inv.product_id = rt.item_id
           where rt.org_id = app.current_org_id()
             and rt.min_qty > 0
             and coalesce(inv.available_qty, 0::numeric) < rt.min_qty`,
+        [activeSiteId],
       );
 
       const qualityHolds = await scalar(
-        `select count(*)::int as n from public.quality_holds where hold_status = any($1::text[])`,
-        [OPEN_HOLD_STATUSES],
+        `select count(*)::int as n
+           from public.quality_holds qh
+          where qh.hold_status = any($1::text[])
+            and qh.site_id = $2::uuid`,
+        [OPEN_HOLD_STATUSES, activeSiteId],
       );
 
       const shipmentsToday = await scalar(
-        `select count(*)::int as n from public.shipments where created_at::date = (now() at time zone 'utc')::date`,
+        `select count(*)::int as n
+           from public.shipments s
+          where s.created_at::date = (now() at time zone 'utc')::date
+            and s.site_id = $1::uuid`,
+        [activeSiteId],
       );
 
       const shipmentExceptions = await scalar(
-        `select count(*)::int as n from public.shipments where status = 'exception'`,
+        `select count(*)::int as n
+           from public.shipments s
+          where s.status = 'exception'
+            and s.site_id = $1::uuid`,
+        [activeSiteId],
       );
 
       // Resolve a human reference for the resource (PO/TO/WO number, customer /
