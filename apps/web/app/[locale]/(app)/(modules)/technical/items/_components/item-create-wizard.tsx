@@ -99,6 +99,9 @@ export type WizardFormState = {
   itemType: (typeof ITEM_TYPES)[number];
   status: (typeof ITEM_STATUSES)[number];
   productGroup: string;
+  // A11 — optional supplier link. Stores the supplier CODE (not name/id); an empty
+  // string means "no supplier" and the payload omits supplierCode (it is optional).
+  supplierCode: string;
   uomBase: string;
   uomSecondary: string;
   weightMode: (typeof WEIGHT_MODES)[number];
@@ -125,6 +128,7 @@ export function emptyWizardForm(): WizardFormState {
     itemType: 'rm',
     status: 'active',
     productGroup: '',
+    supplierCode: '',
     uomBase: 'kg',
     uomSecondary: '',
     weightMode: 'fixed',
@@ -314,6 +318,7 @@ export function ItemWizard({
   mode,
   initialForm,
   labels = DEFAULT_WIZARD_LABELS,
+  supplierOptions = [],
   onSaved,
 }: {
   open: boolean;
@@ -321,6 +326,14 @@ export function ItemWizard({
   mode: ItemWizardMode;
   initialForm?: WizardFormState;
   labels?: ItemWizardLabels;
+  /**
+   * A11 — optional supplier master list (org suppliers), resolved server-side by
+   * the page (via the planning `listSuppliers` action) and threaded down the same
+   * way `labels` is — the wizard never calls actions on mount. Each option's
+   * `value` is the supplier CODE; `label` is the human "CODE — Name". Defaults to
+   * an empty list so the field renders only the "none" choice (e.g. RTL/edit).
+   */
+  supplierOptions?: SelectOption[];
   onSaved?: () => void;
 }) {
   const router = useRouter();
@@ -357,6 +370,12 @@ export function ItemWizard({
   const uomSecondaryOptions: SelectOption[] = React.useMemo(
     () => [{ value: '', label: labels.uomNone }, ...uomOptions],
     [labels.uomNone, uomOptions],
+  );
+  // A11 — optional supplier select: a leading "none" choice (empty value) over the
+  // threaded org supplier list. Same shape/idiom as the secondary-UoM "none" row.
+  const supplierSelectOptions: SelectOption[] = React.useMemo(
+    () => [{ value: '', label: labels.supplierNone }, ...supplierOptions],
+    [labels.supplierNone, supplierOptions],
   );
   const outputUomOptions: SelectOption[] = React.useMemo(
     () => OUTPUT_UOMS.map((value) => ({ value, label: labels.outputUomLabels[value] })),
@@ -470,10 +489,17 @@ export function ItemWizard({
       boxesPerPallet: form.outputUom === 'base' ? undefined : numOrUndefined(form.boxesPerPallet),
       listPriceGbp: numOrUndefined(form.listPriceGbp),
     };
+    // A11 — supplier link is create-only (it auto-creates an approved supplier
+    // spec). Empty selection ⇒ omit supplierCode (the field is optional).
+    const supplierCode = trimOrUndefined(form.supplierCode);
     startTransition(async () => {
       const result = isEdit
         ? await updateItem({ id: (mode as { itemId: string }).itemId, ...common })
-        : await createItem({ itemCode: form.itemCode, ...common });
+        : await createItem({
+            itemCode: form.itemCode,
+            ...common,
+            ...(supplierCode ? { supplierCode } : {}),
+          });
       if (result.ok) {
         onClose();
         onSaved?.();
@@ -652,6 +678,19 @@ export function ItemWizard({
               />
             </Field>
           </div>
+          {/* A11 — optional supplier link (create only). Selecting a supplier makes
+              createItem auto-create an approved+active supplier spec for the item. */}
+          {!isEdit ? (
+            <Field label={labels.fields.supplier} help={labels.fields.supplierHelp}>
+              <LabeledSelect
+                value={form.supplierCode}
+                onValueChange={(v) => update('supplierCode', v)}
+                options={supplierSelectOptions}
+                placeholder={labels.supplierNone}
+                ariaLabel={labels.fields.supplier}
+              />
+            </Field>
+          ) : null}
         </div>
       ) : null}
 

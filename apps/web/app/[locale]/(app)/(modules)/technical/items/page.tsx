@@ -20,6 +20,9 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 
+import { type SelectOption } from '@monopilot/ui/Select';
+
+import { listSuppliers } from '../../planning/suppliers/_actions/actions';
 import { listItems } from './_actions/list-items';
 import type { DeactivateLabels } from './_components/deactivate-modal';
 import { buildTransitionLabels } from './_components/item-transition-labels';
@@ -67,6 +70,18 @@ export default async function TechnicalItemsPage() {
   const { items, canCreate, canEdit, canDeactivate, state, limit, total, truncated } = await listItems();
   const t = await getTranslations('technical.items');
   const tItems = await getTranslations('items');
+
+  // A11 — optional supplier link in the create wizard. Resolve the org supplier
+  // master server-side (only when the user can create) and thread it down to the
+  // wizard, mirroring how labels/list data are loaded here. The field is optional,
+  // so a failed/empty list degrades gracefully to "no suppliers" (just the none row).
+  let supplierOptions: SelectOption[] = [];
+  if (canCreate) {
+    const suppliers = await listSuppliers({ status: 'active', limit: 200 });
+    if (suppliers.ok) {
+      supplierOptions = suppliers.data.map((s) => ({ value: s.code, label: `${s.code} — ${s.name}` }));
+    }
+  }
 
   const wizardLabels = buildWizardLabels(t);
   wizardLabels.fields.listPriceGbp = tItems('list_price_gbp_label');
@@ -140,7 +155,9 @@ export default async function TechnicalItemsPage() {
           <h1 className="page-title">{t('list.title')}</h1>
           <p className="helper mt-1 max-w-3xl">{t('list.description')}</p>
         </div>
-        {canCreate ? <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} /> : null}
+        {canCreate ? (
+          <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} supplierOptions={supplierOptions} />
+        ) : null}
       </header>
 
       {state === 'error' ? (
@@ -158,7 +175,7 @@ export default async function TechnicalItemsPage() {
             </div>
             {canCreate ? (
               <div className="empty-state-action">
-                <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} />
+                <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} supplierOptions={supplierOptions} />
               </div>
             ) : null}
           </div>

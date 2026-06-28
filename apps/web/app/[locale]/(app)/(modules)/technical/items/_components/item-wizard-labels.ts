@@ -34,6 +34,9 @@ export type ItemWizardLabels = {
     uomBase: string;
     uomSecondary: string;
     productGroup: string;
+    // A11 — optional supplier link (auto-creates an approved supplier spec).
+    supplier: string;
+    supplierHelp: string;
     weightMode: string;
     nominalWeight: string;
     tareWeight: string;
@@ -58,6 +61,8 @@ export type ItemWizardLabels = {
   uomLabels: Record<(typeof CANONICAL_UOMS)[number], string>;
   /** Empty-option label for the optional secondary UoM select. */
   uomNone: string;
+  /** Empty-option label for the optional supplier select (no supplier link). */
+  supplierNone: string;
   /** Localized labels for the output-unit select (base/each/box). */
   outputUomLabels: Record<OutputUom, string>;
   /** Section sub-help under the packaging block. */
@@ -95,6 +100,8 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     uomBase: 'Base UoM',
     uomSecondary: 'Secondary UoM',
     productGroup: 'Product group',
+    supplier: 'Supplier',
+    supplierHelp: 'Optional. Auto-creates an approved supplier specification for this item.',
     weightMode: 'Weight mode',
     nominalWeight: 'Nominal weight',
     tareWeight: 'Tare weight',
@@ -133,6 +140,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     szt: 'pcs (each)',
   },
   uomNone: '—',
+  supplierNone: '— None —',
   outputUomLabels: {
     base: 'Base unit',
     each: 'Each (piece)',
@@ -205,6 +213,8 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       uomBase: t('create.fields.uomBase'),
       uomSecondary: t('create.fields.uomSecondary'),
       productGroup: t('create.fields.productGroup'),
+      supplier: get('create.fields.supplier', D.fields.supplier),
+      supplierHelp: get('create.fields.supplierHelp', D.fields.supplierHelp),
       weightMode: t('create.fields.weightMode'),
       nominalWeight: t('create.fields.nominalWeight'),
       tareWeight: t('create.fields.tareWeight'),
@@ -243,6 +253,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       szt: get('create.uomLabels.szt', D.uomLabels.szt),
     },
     uomNone: get('create.uomNone', D.uomNone),
+    supplierNone: get('create.supplierNone', D.supplierNone),
     outputUomLabels: {
       base: get('create.outputUomLabels.base', D.outputUomLabels.base),
       each: get('create.outputUomLabels.each', D.outputUomLabels.each),

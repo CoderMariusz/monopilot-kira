@@ -2084,6 +2084,8 @@
           "uomBase": "Bazowa JM",
           "uomSecondary": "Dodatkowa JM",
           "productGroup": "Grupa produktu",
+          "supplier": "Dostawca",
+          "supplierHelp": "Opcjonalnie. Automatycznie tworzy zatwierdzoną specyfikację dostawcy dla tej pozycji.",
           "weightMode": "Tryb ważenia",
           "nominalWeight": "Masa nominalna",
           "tareWeight": "Tara",
@@ -2119,6 +2121,7 @@
           "szt": "szt (sztuka)"
         },
         "uomNone": "—",
+        "supplierNone": "— Brak —",
         "outputUomLabels": {
           "base": "Jednostka bazowa",
           "each": "Sztuka",

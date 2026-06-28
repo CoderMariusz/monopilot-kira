@@ -119,6 +119,69 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance })).toBeInTheDocument();
   });
 
+  it('renders an OPTIONAL supplier dropdown in the classification step, populated from threaded options', async () => {
+    const user = userEvent.setup();
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'create' },
+      supplierOptions: [
+        { value: 'SUP-001', label: 'SUP-001 — Acme Foods' },
+        { value: 'SUP-002', label: 'SUP-002 — Bravo Spices' },
+      ],
+    });
+    await fillBasicAndAdvance(user); // → classification
+
+    const supplierField = screen.getByRole('combobox', { name: L.fields.supplier });
+    expect(supplierField).toBeInTheDocument();
+    // helper hint rendered under the field
+    expect(screen.getByText(L.fields.supplierHelp)).toBeInTheDocument();
+
+    await user.click(supplierField);
+    // the empty "none" option + the two threaded suppliers
+    expect(screen.getByRole('option', { name: L.supplierNone })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'SUP-001 — Acme Foods' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'SUP-002 — Bravo Spices' })).toBeInTheDocument();
+  });
+
+  it('passes the selected supplier CODE (not name/id) in the createItem payload', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'create' },
+      supplierOptions: [{ value: 'SUP-001', label: 'SUP-001 — Acme Foods' }],
+    });
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('combobox', { name: L.fields.supplier }));
+    await user.click(screen.getByRole('option', { name: 'SUP-001 — Acme Foods' }));
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('button', { name: L.next })); // → review
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    expect(createItem).toHaveBeenCalledTimes(1);
+    expect(createItem.mock.calls[0][0]).toMatchObject({ itemCode: 'RM-2002', supplierCode: 'SUP-001' });
+  });
+
+  it('omits supplierCode when no supplier is selected', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'create' },
+      supplierOptions: [{ value: 'SUP-001', label: 'SUP-001 — Acme Foods' }],
+    });
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('button', { name: L.next })); // → review
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    expect(createItem).toHaveBeenCalledTimes(1);
+    expect(createItem.mock.calls[0][0]).not.toHaveProperty('supplierCode');
+  });
+
   it('submits createItem with the assembled payload from the review step', async () => {
     const user = userEvent.setup();
     createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });

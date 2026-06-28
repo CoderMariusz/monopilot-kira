@@ -4302,6 +4302,8 @@
           "uomBase": "Base UoM",
           "uomSecondary": "Secondary UoM",
           "productGroup": "Product group",
+          "supplier": "Supplier",
+          "supplierHelp": "Optional. Auto-creates an approved supplier specification for this item.",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
           "tareWeight": "Tare weight",
@@ -4337,6 +4339,7 @@
           "szt": "pcs (each)"
         },
         "uomNone": "—",
+        "supplierNone": "— None —",
         "outputUomLabels": {
           "base": "Base unit",
           "each": "Each (piece)",

@@ -21,6 +21,7 @@
 import React from 'react';
 
 import { Button } from '@monopilot/ui/Button';
+import { type SelectOption } from '@monopilot/ui/Select';
 
 import { type ItemListItem } from '../_actions/shared';
 import { DeactivateItemModal, type DeactivateLabels } from './deactivate-modal';
@@ -43,6 +44,8 @@ function rowToForm(item: ItemListItem): WizardFormState {
     itemType: item.itemType,
     status: item.status,
     productGroup: item.productGroup ?? '',
+    // A11 — supplier link is create-only; edit-mode reuse never surfaces the field.
+    supplierCode: '',
     uomBase: item.uomBase,
     uomSecondary: item.uomSecondary ?? '',
     weightMode: item.weightMode,
@@ -65,9 +68,12 @@ function rowToForm(item: ItemListItem): WizardFormState {
 export function NewItemButton({
   label,
   wizardLabels,
+  supplierOptions = [],
 }: {
   label: string;
   wizardLabels?: ItemWizardLabels;
+  /** A11 — org supplier list (CODE → "CODE — Name") for the wizard's optional supplier link. */
+  supplierOptions?: SelectOption[];
 }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -80,7 +86,13 @@ export function NewItemButton({
       >
         {label}
       </Button>
-      <ItemWizard open={open} onClose={() => setOpen(false)} mode={{ kind: 'create' }} labels={wizardLabels} />
+      <ItemWizard
+        open={open}
+        onClose={() => setOpen(false)}
+        mode={{ kind: 'create' }}
+        labels={wizardLabels}
+        supplierOptions={supplierOptions}
+      />
     </>
   );
 }

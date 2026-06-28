@@ -40,6 +40,8 @@ function detailToForm(item: ItemDetail): WizardFormState {
     itemType: item.itemType,
     status: item.status,
     productGroup: item.productGroup ?? '',
+    // A11 — supplier link is create-only; the detail edit form never surfaces it.
+    supplierCode: '',
     uomBase: item.uomBase,
     uomSecondary: item.uomSecondary ?? '',
     weightMode: item.weightMode,
