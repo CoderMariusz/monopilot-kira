@@ -15,6 +15,8 @@
 import { cookies } from 'next/headers';
 
 import { withOrgContext } from '../auth/with-org-context';
+import { assertUserSiteAccess } from './assert-user-site-access';
+import { SiteAccessError } from './site-access-error';
 import { SITE_COOKIE_NAME, asSiteId } from './site-context';
 
 const ONE_YEAR_S = 60 * 60 * 24 * 365;
@@ -29,7 +31,7 @@ export async function setActiveSite(siteId: string | null): Promise<{ ok: boolea
   const valid = asSiteId(siteId);
   if (!valid) return { ok: false };
 
-  const exists = await withOrgContext(async ({ client }) => {
+  const exists = await withOrgContext(async ({ client, userId }) => {
     const { rows } = await client.query<{ ok: boolean }>(
       `select true as ok
          from public.sites
@@ -39,7 +41,15 @@ export async function setActiveSite(siteId: string | null): Promise<{ ok: boolea
         limit 1`,
       [valid],
     );
-    return rows.length > 0;
+    if (rows.length === 0) return false;
+
+    try {
+      await assertUserSiteAccess(userId, valid, client);
+      return true;
+    } catch (error) {
+      if (error instanceof SiteAccessError) return false;
+      throw error;
+    }
   });
   if (!exists) return { ok: false };
 
