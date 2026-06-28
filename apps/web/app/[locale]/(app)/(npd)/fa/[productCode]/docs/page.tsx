@@ -76,7 +76,7 @@ const DEFAULT_LABELS: ComplianceDocsLabels = {
   docTypeCert: 'Certificate',
   docTypeOther: 'Other',
   modalTitle: 'Upload compliance document',
-  modalSubtitle: 'FA {code}',
+  modalSubtitle: 'FG {code}',
   fieldDocType: 'Document type',
   fieldTitle: 'Title',
   fieldTitleHint: 'A short human-readable name (3–300 characters).',

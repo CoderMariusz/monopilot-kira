@@ -63,7 +63,7 @@ export type DashboardPipelinePreviewProps = {
  */
 export const DEFAULT_PIPELINE_PREVIEW_LABELS: DashboardPipelinePreviewLabels = {
   title: 'Pipeline (recent)',
-  subtitle: 'Recent FA gate movement',
+  subtitle: 'Recent FG gate movement',
   viewAll: 'View all',
   empty: 'No recent projects in the pipeline yet.',
   statusTodo: 'Pending',

@@ -77,7 +77,7 @@ export type FaTabsLabels = {
 };
 
 const DEFAULT_LABELS: FaTabsLabels = {
-  tablistLabel: 'FA detail departments',
+  tablistLabel: 'FG detail departments',
   tabs: DEFAULT_TAB_LABELS,
   deferred: 'Tab content deferred',
   deferredBody: 'This department workspace is delivered in a later slice.',

@@ -155,7 +155,7 @@ const DEFAULT_ACTION_LABELS: FaRightPanelActionsLabels = {
   d365Build: 'D365 Build',
   deleteFa: 'Delete FG',
   deptCloseDisabledHint: 'You do not have permission to close departments.',
-  d365DisabledHint: 'FA must be Complete first (all 7 departments closed).',
+  d365DisabledHint: 'FG must be Complete first (all 7 departments closed).',
   deleteDisabledHint: 'You do not have permission to delete finished goods.',
 };
 

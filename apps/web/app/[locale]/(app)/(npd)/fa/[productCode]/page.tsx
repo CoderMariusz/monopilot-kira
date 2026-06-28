@@ -776,14 +776,14 @@ const DEFAULT_HISTORY_LABELS: FaHistoryLabels = {
   detailsHide: 'Hide details',
   systemActor: 'System',
   unknownActor: 'Unknown',
-  loading: 'Loading FA history…',
+  loading: 'Loading FG history…',
   empty: 'No history yet',
   emptyBody: 'Changes to this Finished Good will appear here as they happen.',
   emptyFiltered: 'No events match this filter',
   emptyFilteredBody: 'Try a different event type or clear the filter.',
   clearFilter: 'Clear filter',
-  error: 'Unable to load FA history.',
-  forbidden: 'You do not have permission to view this FA history.',
+  error: 'Unable to load FG history.',
+  forbidden: 'You do not have permission to view this FG history.',
   eventLabels: {},
 };
 

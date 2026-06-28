@@ -106,7 +106,7 @@ export function FaRightPanel({ fa, gateProgress, onOpenModal }: FaRightPanelProp
 
   return (
     <aside
-      aria-label="FA right panel validation status"
+      aria-label="FG right panel validation status"
       className="sticky top-4 self-start"
       data-prototype-anchor="npd/fa-screens.jsx:404-452"
     >

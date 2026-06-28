@@ -440,7 +440,7 @@ export function FaRightPanelSkeleton() {
   return (
     <aside
       aria-busy="true"
-      aria-label="Loading FA summary"
+      aria-label="Loading FG summary"
       className={ASIDE_CLASS}
       data-prototype-anchor="npd/fa-screens.jsx:404-452"
       data-testid="fa-right-panel-skeleton"
