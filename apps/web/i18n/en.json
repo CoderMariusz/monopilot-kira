@@ -1135,7 +1135,17 @@
       "data_type_text": "Text",
       "data_type_number": "Number",
       "data_type_date": "Date",
-      "delete_department_unavailable": "Department deletion is not yet available. Deactivate it instead."
+      "delete_department_unavailable": "Department deletion is not yet available. Deactivate it instead.",
+      "field_auto": "Auto-derived",
+      "field_auto_hint": "Compute this field automatically from another catalog field.",
+      "field_auto_source": "Source field",
+      "field_auto_source_placeholder": "Choose the field to derive from",
+      "auto_badge": "Auto",
+      "auto_from": "from {source}",
+      "auto_source_self": "An auto field cannot derive from itself. Choose a different source field.",
+      "auto_source_not_found": "The selected source field was not found. Choose an active catalog field.",
+      "auto_source_cycle": "That source field already derives from this field, which would create a loop.",
+      "auto_source_required": "Choose a source field when Auto-derived is on."
     },
     "shifts": {
       "title": "Shifts & calendar",

@@ -89,6 +89,18 @@ async function buildLabels(locale: string): Promise<NpdFieldsScreenLabels> {
     dataTypeNumber: t('data_type_number'),
     dataTypeDate: t('data_type_date'),
     deleteDepartmentUnavailable: t('delete_department_unavailable'),
+    fieldAuto: t('field_auto'),
+    fieldAutoHint: t('field_auto_hint'),
+    fieldAutoSource: t('field_auto_source'),
+    fieldAutoSourcePlaceholder: t('field_auto_source_placeholder'),
+    autoBadge: t('auto_badge'),
+    autoFrom: t('auto_from'),
+    autoSourceErrors: {
+      auto_source_self: t('auto_source_self'),
+      auto_source_not_found: t('auto_source_not_found'),
+      auto_source_cycle: t('auto_source_cycle'),
+      auto_source_required: t('auto_source_required'),
+    },
     columns: {
       field: t('column_field'),
       dataType: t('column_data_type'),

@@ -83,6 +83,18 @@ const labels: NpdFieldsScreenLabels = {
   dataTypeNumber: 'Number',
   dataTypeDate: 'Date',
   deleteDepartmentUnavailable: 'Department deletion is not yet available. Deactivate it instead.',
+  fieldAuto: 'Auto-derived',
+  fieldAutoHint: 'Compute this field automatically from another catalog field.',
+  fieldAutoSource: 'Source field',
+  fieldAutoSourcePlaceholder: 'Choose the field to derive from',
+  autoBadge: 'Auto',
+  autoFrom: 'from {source}',
+  autoSourceErrors: {
+    auto_source_self: 'An auto field cannot derive from itself. Choose a different source field.',
+    auto_source_not_found: 'The selected source field was not found. Choose an active catalog field.',
+    auto_source_cycle: 'That source field already derives from this field, which would create a loop.',
+    auto_source_required: 'Choose a source field when Auto-derived is on.',
+  },
 };
 
 const departments: NpdDepartmentConfigRow[] = [
@@ -140,10 +152,18 @@ const departments: NpdDepartmentConfigRow[] = [
 ];
 
 const fieldCatalog: NpdFieldCatalogRow[] = [
-  { id: 'field-1', code: 'target_ph', label: 'Target pH', data_type: 'number', active: true },
-  { id: 'field-2', code: 'shelf_life_days', label: 'Shelf life days', data_type: 'integer', active: true },
-  { id: 'field-3', code: 'label_claim', label: 'Label claim', data_type: 'text', active: true },
-  { id: 'field-4', code: 'trial_notes', label: 'Trial notes', data_type: 'text', active: true },
+  { id: 'field-1', code: 'target_ph', label: 'Target pH', data_type: 'number', active: true, is_auto: false, auto_source_field: null },
+  {
+    id: 'field-2',
+    code: 'shelf_life_days',
+    label: 'Shelf life days',
+    data_type: 'integer',
+    active: true,
+    is_auto: true,
+    auto_source_field: 'target_ph',
+  },
+  { id: 'field-3', code: 'label_claim', label: 'Label claim', data_type: 'text', active: true, is_auto: false, auto_source_field: null },
+  { id: 'field-4', code: 'trial_notes', label: 'Trial notes', data_type: 'text', active: true, is_auto: false, auto_source_field: null },
 ];
 
 function renderScreen(overrides: Partial<React.ComponentProps<typeof NpdFieldsScreen>> = {}) {
@@ -346,5 +366,110 @@ describe('NpdFieldsScreen', () => {
         expect.objectContaining({ label: 'Target pH (v2)' }),
       );
     });
+  });
+
+  it('shows the Auto toggle and reveals the Source field dropdown only when Auto is on', () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Target pH' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit NPD field' });
+
+    // The Auto-derived toggle is always present in the edit dialog.
+    const autoToggle = within(dialog).getByLabelText('Auto-derived');
+    expect(autoToggle).toBeInTheDocument();
+    expect(autoToggle).not.toBeChecked();
+
+    // The Source field dropdown is hidden while Auto is off.
+    expect(within(dialog).queryByLabelText('Source field')).not.toBeInTheDocument();
+
+    // Turning Auto on reveals the Source field dropdown.
+    fireEvent.click(autoToggle);
+    expect(within(dialog).getByLabelText('Source field')).toBeInTheDocument();
+  });
+
+  it('excludes the edited field from the Source field options (no self-reference)', () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Target pH' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit NPD field' });
+    fireEvent.click(within(dialog).getByLabelText('Auto-derived'));
+
+    // Open the source dropdown and assert the field's own code is not an option.
+    fireEvent.click(within(dialog).getByLabelText('Source field'));
+    const options = screen.getAllByRole('option').map((node) => node.getAttribute('data-value'));
+    expect(options).not.toContain('target_ph');
+    expect(options).toContain('shelf_life_days');
+  });
+
+  it('sends is_auto + auto_source_field in the updateField patch', async () => {
+    const updateFieldAction = vi.fn(async () => ({
+      id: 'field-1',
+      org_id: 'org',
+      code: 'target_ph',
+      label: 'Target pH',
+      data_type: 'number' as const,
+      validation_json: {},
+      help_text: null,
+      active: true,
+      is_auto: true,
+      auto_source_field: 'shelf_life_days',
+    }));
+    renderScreen({ updateFieldAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Target pH' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit NPD field' });
+
+    fireEvent.click(within(dialog).getByLabelText('Auto-derived'));
+    // Open the source picker and choose another field.
+    fireEvent.click(within(dialog).getByLabelText('Source field'));
+    fireEvent.click(screen.getByRole('option', { name: /Shelf life days/ }));
+
+    fireEvent.submit(within(dialog).getByTestId('npd-edit-field-form'));
+
+    await waitFor(() => {
+      expect(updateFieldAction).toHaveBeenCalledWith(
+        'field-1',
+        expect.objectContaining({ is_auto: true, auto_source_field: 'shelf_life_days' }),
+      );
+    });
+  });
+
+  it('renders the inline error message when updateField returns an error union', async () => {
+    const updateFieldAction = vi.fn(async () => ({
+      ok: false as const,
+      error: 'auto_source_required',
+    }));
+    renderScreen({ updateFieldAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Target pH' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit NPD field' });
+
+    // Turn Auto on but leave the source empty, then save → backend rejects with
+    // the union. The dialog must STAY open and show the mapped message.
+    fireEvent.click(within(dialog).getByLabelText('Auto-derived'));
+    fireEvent.submit(within(dialog).getByTestId('npd-edit-field-form'));
+
+    await waitFor(() => {
+      expect(updateFieldAction).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Edit NPD field' })).toBeInTheDocument();
+      expect(
+        screen.getByText('Choose a source field when Auto-derived is on.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('shows the Auto badge and "from {source}" hint on an auto-derived field row', () => {
+    renderScreen();
+
+    const table = screen.getByTestId('npd-fields-table');
+    // field-2 (shelf_life_days) is auto-derived from target_ph in the fixture.
+    expect(within(table).getByTestId('npd-field-auto-badge-field-2')).toHaveTextContent('Auto');
+    expect(within(table).getByTestId('npd-field-auto-from-field-2')).toHaveTextContent(
+      'from target_ph',
+    );
+    // field-1 (target_ph) is NOT auto — no badge.
+    expect(within(table).queryByTestId('npd-field-auto-badge-field-1')).not.toBeInTheDocument();
   });
 });

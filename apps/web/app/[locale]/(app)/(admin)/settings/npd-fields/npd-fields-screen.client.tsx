@@ -36,7 +36,22 @@ export type NpdFieldCatalogRow = {
   data_type: string;
   active: boolean;
   help_text?: string | null;
+  is_auto?: boolean;
+  auto_source_field?: string | null;
 };
+
+/**
+ * Error codes the `updateField` union may return for auto-derived config.
+ * Mirrors the server action's `{ ok:false, error }` branch.
+ */
+export const AUTO_SOURCE_ERROR_CODES = [
+  'auto_source_self',
+  'auto_source_not_found',
+  'auto_source_cycle',
+  'auto_source_required',
+] as const;
+
+export type AutoSourceErrorCode = (typeof AUTO_SOURCE_ERROR_CODES)[number];
 
 export type NpdDepartmentFieldRow = {
   assignment_id: string;
@@ -101,6 +116,13 @@ export type NpdFieldsScreenLabels = {
   dataTypeNumber: string;
   dataTypeDate: string;
   deleteDepartmentUnavailable: string;
+  fieldAuto: string;
+  fieldAutoHint: string;
+  fieldAutoSource: string;
+  fieldAutoSourcePlaceholder: string;
+  autoBadge: string;
+  autoFrom: string;
+  autoSourceErrors: Record<AutoSourceErrorCode, string>;
   columns: {
     field: string;
     dataType: string;
@@ -145,6 +167,17 @@ type DialogState =
   | { kind: 'edit-field'; field: NpdFieldCatalogRow }
   | { kind: 'edit-department'; department: NpdDepartmentConfigRow }
   | null;
+
+function isAutoSourceError(
+  result: unknown,
+): result is { ok: false; error: AutoSourceErrorCode | string } {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    'ok' in result &&
+    (result as { ok: unknown }).ok === false
+  );
+}
 
 function slugifyCode(value: string): string {
   return value
@@ -217,6 +250,7 @@ export default function NpdFieldsScreen({
 }: NpdFieldsScreenProps) {
   const router = useRouter();
   const [departmentRows, setDepartmentRows] = useState(departments);
+  const [fieldCatalogRows, setFieldCatalogRows] = useState(fieldCatalog);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState(departments[0]?.id ?? '');
   const [selectedFieldId, setSelectedFieldId] = useState('');
   const [pendingTarget, setPendingTarget] = useState<PendingTarget>(null);
@@ -240,7 +274,7 @@ export default function NpdFieldsScreen({
     value: department.id,
     label: department.name,
   }));
-  const assignableFields = fieldCatalog
+  const assignableFields = fieldCatalogRows
     .filter((field) => field.active && !assignedFieldIds.has(field.id))
     .map((field) => ({
       value: field.id,
@@ -327,7 +361,7 @@ export default function NpdFieldsScreen({
         stage_code: 'brief',
         display_order: nextOrder,
       });
-      const catalogField = fieldCatalog.find((field) => field.id === selectedFieldId);
+      const catalogField = fieldCatalogRows.find((field) => field.id === selectedFieldId);
       if (catalogField) {
         setDepartmentRows((current) =>
           current.map((department) =>
@@ -462,15 +496,59 @@ export default function NpdFieldsScreen({
 
   function handleUpdateField(
     fieldId: string,
-    patch: { label: string; data_type: UiDataType; help_text: string },
+    patch: {
+      label: string;
+      data_type: UiDataType;
+      help_text: string;
+      is_auto: boolean;
+      auto_source_field: string | null;
+    },
   ) {
-    void runDialogMutation(async () => {
-      await updateFieldAction(fieldId, {
-        label: patch.label,
-        data_type: patch.data_type,
-        help_text: patch.help_text.trim() ? patch.help_text.trim() : null,
-      });
-    });
+    if (!canEdit || dialogPending) return;
+    setDialogPending(true);
+    setDialogError(null);
+    void (async () => {
+      try {
+        const result = await updateFieldAction(fieldId, {
+          label: patch.label,
+          data_type: patch.data_type,
+          help_text: patch.help_text.trim() ? patch.help_text.trim() : null,
+          is_auto: patch.is_auto,
+          // When Auto is off the source is ignored/cleared (the backend also
+          // nulls it server-side, but we don't send a stale value).
+          auto_source_field: patch.is_auto ? patch.auto_source_field : null,
+        });
+        if (isAutoSourceError(result)) {
+          setDialogError(
+            labels.autoSourceErrors[result.error as AutoSourceErrorCode] ?? labels.error,
+          );
+          return;
+        }
+        // Success: reflect the saved auto config on the held catalog row so the
+        // list badge updates in place without a full refetch.
+        const saved = result;
+        setFieldCatalogRows((current) =>
+          current.map((row) =>
+            row.id === fieldId
+              ? {
+                  ...row,
+                  label: saved.label,
+                  data_type: saved.data_type,
+                  help_text: saved.help_text,
+                  is_auto: saved.is_auto,
+                  auto_source_field: saved.auto_source_field,
+                }
+              : row,
+          ),
+        );
+        setDialog(null);
+        refreshAfterMutation();
+      } catch {
+        setDialogError(labels.error);
+      } finally {
+        setDialogPending(false);
+      }
+    })();
   }
 
   function handleUpdateDepartment(departmentId: string, patch: { name: string }) {
@@ -644,11 +722,26 @@ export default function NpdFieldsScreen({
               <tbody>
                 {selectedDepartment.fields.map((field) => {
                   const rowDisabled = editDisabled;
+                  const catalogRow = fieldCatalogRows.find((entry) => entry.id === field.field_id);
+                  const isAuto = catalogRow?.is_auto ?? false;
+                  const autoSource = catalogRow?.auto_source_field ?? null;
                   return (
                     <tr key={field.assignment_id}>
                       <td>
-                        <div style={{ fontWeight: 500 }}>{field.label}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+                          {field.label}
+                          {isAuto ? (
+                            <span className="badge badge-purple" data-testid={`npd-field-auto-badge-${field.field_id}`}>
+                              ⚙ {labels.autoBadge}
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="muted mono">{field.code}</div>
+                        {isAuto && autoSource ? (
+                          <div className="muted" data-testid={`npd-field-auto-from-${field.field_id}`}>
+                            {labels.autoFrom.replace('{source}', autoSource)}
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         <span className="badge badge-blue">{field.data_type}</span>
@@ -706,12 +799,14 @@ export default function NpdFieldsScreen({
                             disabled={rowDisabled}
                             onClick={() => {
                               const catalogField =
-                                fieldCatalog.find((entry) => entry.id === field.field_id) ?? {
+                                catalogRow ?? {
                                   id: field.field_id,
                                   code: field.code,
                                   label: field.label,
                                   data_type: field.data_type,
                                   active: true,
+                                  is_auto: false,
+                                  auto_source_field: null,
                                 };
                               openDialog({ kind: 'edit-field', field: catalogField });
                             }}
@@ -769,11 +864,16 @@ export default function NpdFieldsScreen({
           labels={labels}
           departmentOptions={departmentOptions}
           dataTypeOptions={dataTypeOptions}
+          autoSourceOptions={fieldCatalogRows
+            .filter((entry) => entry.code !== dialog.field.code)
+            .map((entry) => ({ value: entry.code, label: `${entry.label} (${entry.code})` }))}
           initial={{
             code: dialog.field.code,
             label: dialog.field.label,
             data_type: normalizeUiDataType(dialog.field.data_type),
             help_text: dialog.field.help_text ?? '',
+            is_auto: dialog.field.is_auto ?? false,
+            auto_source_field: dialog.field.auto_source_field ?? '',
           }}
           pending={dialogPending}
           error={dialogError}
@@ -785,6 +885,8 @@ export default function NpdFieldsScreen({
               label: values.label,
               data_type: values.data_type,
               help_text: values.help_text,
+              is_auto: values.is_auto,
+              auto_source_field: values.auto_source_field.trim() ? values.auto_source_field : null,
             })
           }
         />
@@ -865,6 +967,8 @@ type FieldDialogValues = {
   data_type: UiDataType;
   required: boolean;
   help_text: string;
+  is_auto: boolean;
+  auto_source_field: string;
 };
 
 function FieldDialog({
@@ -873,6 +977,7 @@ function FieldDialog({
   labels,
   departmentOptions,
   dataTypeOptions,
+  autoSourceOptions = [],
   initial,
   pending,
   error,
@@ -886,7 +991,15 @@ function FieldDialog({
   labels: NpdFieldsScreenLabels;
   departmentOptions: Array<{ value: string; label: string }>;
   dataTypeOptions: Array<{ value: UiDataType; label: string }>;
-  initial?: { code: string; label: string; data_type: UiDataType; help_text: string };
+  autoSourceOptions?: Array<{ value: string; label: string }>;
+  initial?: {
+    code: string;
+    label: string;
+    data_type: UiDataType;
+    help_text: string;
+    is_auto?: boolean;
+    auto_source_field?: string;
+  };
   pending: boolean;
   error: string | null;
   formTestId: string;
@@ -901,6 +1014,8 @@ function FieldDialog({
   const [dataType, setDataType] = useState<UiDataType>(initial?.data_type ?? 'text');
   const [required, setRequired] = useState(false);
   const [helpText, setHelpText] = useState(initial?.help_text ?? '');
+  const [isAuto, setIsAuto] = useState(initial?.is_auto ?? false);
+  const [autoSourceField, setAutoSourceField] = useState(initial?.auto_source_field ?? '');
   const [codeTouched, setCodeTouched] = useState(mode === 'edit');
 
   const effectiveCode = mode === 'create' && !codeTouched ? slugifyCode(label) : code;
@@ -916,6 +1031,9 @@ function FieldDialog({
       data_type: dataType,
       required,
       help_text: helpText,
+      is_auto: isAuto,
+      // When Auto is off the source is cleared/ignored.
+      auto_source_field: isAuto ? autoSourceField : '',
     });
   }
 
@@ -975,6 +1093,33 @@ function FieldDialog({
                 onChange={setRequired}
               />
             </SRow>
+          </>
+        ) : null}
+
+        {mode === 'edit' ? (
+          <>
+            <SRow label={labels.fieldAuto} hint={labels.fieldAutoHint}>
+              <Toggle
+                aria-label={labels.fieldAuto}
+                checked={isAuto}
+                disabled={pending}
+                onChange={(next) => {
+                  setIsAuto(next);
+                  if (!next) setAutoSourceField('');
+                }}
+              />
+            </SRow>
+            {isAuto ? (
+              <SelectField
+                id={`${formTestId}-auto-source`}
+                label={labels.fieldAutoSource}
+                hint={labels.fieldAutoSourcePlaceholder}
+                options={[{ value: '', label: '—' }, ...autoSourceOptions]}
+                value={autoSourceField}
+                disabled={pending}
+                onChange={setAutoSourceField}
+              />
+            ) : null}
           </>
         ) : null}
 

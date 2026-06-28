@@ -1116,7 +1116,17 @@
       "data_type_text": "Tekst",
       "data_type_number": "Liczba",
       "data_type_date": "Data",
-      "delete_department_unavailable": "Usuwanie działu nie jest jeszcze dostępne. Dezaktywuj go zamiast tego."
+      "delete_department_unavailable": "Usuwanie działu nie jest jeszcze dostępne. Dezaktywuj go zamiast tego.",
+      "field_auto": "Wyliczane automatycznie",
+      "field_auto_hint": "Wylicz to pole automatycznie na podstawie innego pola katalogu.",
+      "field_auto_source": "Pole źródłowe",
+      "field_auto_source_placeholder": "Wybierz pole, z którego wyliczyć",
+      "auto_badge": "Auto",
+      "auto_from": "z {source}",
+      "auto_source_self": "Pole automatyczne nie może wyliczać się z samego siebie. Wybierz inne pole źródłowe.",
+      "auto_source_not_found": "Nie znaleziono wybranego pola źródłowego. Wybierz aktywne pole katalogu.",
+      "auto_source_cycle": "To pole źródłowe już wylicza się z tego pola, co utworzyłoby pętlę.",
+      "auto_source_required": "Wybierz pole źródłowe, gdy opcja Wyliczane automatycznie jest włączona."
     },
     "shifts": {
       "title": "Zmiany i kalendarz",
