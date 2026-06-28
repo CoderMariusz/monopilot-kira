@@ -261,8 +261,13 @@ export async function withOrgContext<T>(
   const owner = getOwnerPool();
   await owner
     .query(
-      `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
-      [sessionToken, orgId],
+      // mig 382: register the authenticated user_id on the OWNER pool (app_user
+      // cannot write this table), so app.set_org_context can copy it into the
+      // active context and app.current_user_id() returns an unspoofable user for
+      // the per-user-site RLS policies. set_org_context stays 2-arg (it reads the
+      // user_id from this trusted row, never from a caller-supplied param).
+      `insert into app.session_org_contexts (session_token, org_id, user_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+      [sessionToken, orgId, userId],
     )
     .catch((err) => annotateOrgContextError('owner_register_session', err));
 
