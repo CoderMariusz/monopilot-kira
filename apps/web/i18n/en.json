@@ -3334,7 +3334,8 @@
       "attachTooLarge": "File is larger than 20 MB.",
       "attachUnsupportedType": "Unsupported file type. Allowed: PDF, PNG, JPG, DOCX, XLSX.",
       "attachUploadFailed": "Could not upload the attachment. Please try again.",
-      "attachDeleteFailed": "Could not delete the attachment. Please try again."
+      "attachDeleteFailed": "Could not delete the attachment. Please try again.",
+      "fieldPacksPerCase": "Packs per case"
     },
     "sensory": {
       "title": "Sensory panel",
@@ -3718,7 +3719,9 @@
       "errorForbidden": "You do not have permission to create projects.",
       "fieldPackWeight": "Pack weight (g)",
       "fieldPackWeightPlaceholder": "e.g. 200",
-      "startUnavailableHint": "Not available yet"
+      "startUnavailableHint": "Not available yet",
+      "fieldPacksPerCase": "Packs per case",
+      "fieldPacksPerCasePlaceholder": "e.g. 12"
     },
     "faBomTab": {
       "title": "BOM (computed view)",

@@ -44,6 +44,7 @@ const LABELS = {
   fieldTargetPrice: 'Target retail price (EUR)',
   fieldPackFormat: 'Pack format',
   fieldPackWeight: 'Pack weight (g)',
+  fieldPacksPerCase: 'Packs per case',
   fieldSalesChannel: 'Sales channel',
   fieldExpectedVolume: 'Expected volume',
   fieldTargetAudience: 'Target audience',

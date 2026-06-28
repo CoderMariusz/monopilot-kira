@@ -94,7 +94,11 @@ test.describe('NPD create-project wizard — 4 steps (project.jsx:107-263)', () 
     await expect(page.getByTestId('wizard-continue')).toBeDisabled();
     await page.locator('#wiz-name').fill('E2E Sliced Ham 200g');
     await page.locator('#wiz-target').fill('2026-09-01');
+    // Optional "Packs per case" integer (costing-v2 backend; copied to the FG).
+    await expect(page.locator('#wiz-packs-per-case')).toBeVisible();
+    await page.locator('#wiz-packs-per-case').fill('12');
     await page.screenshot({ path: path.join(artifactDir, 'step-1-basics.png'), fullPage: true });
+    await page.screenshot({ path: path.join(artifactDir, 'step-1-packs-per-case.png'), fullPage: true });
     await runAxe(page, 'step-1-basics');
     await page.getByTestId('wizard-continue').click();
 

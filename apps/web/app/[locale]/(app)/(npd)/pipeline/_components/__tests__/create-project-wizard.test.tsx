@@ -71,6 +71,8 @@ const LABELS: WizardLabels = {
   fieldPackFormatPlaceholder: 'lbl.fieldPackFormatPlaceholder',
   fieldPackWeight: 'lbl.fieldPackWeight',
   fieldPackWeightPlaceholder: 'lbl.fieldPackWeightPlaceholder',
+  fieldPacksPerCase: 'lbl.fieldPacksPerCase',
+  fieldPacksPerCasePlaceholder: 'lbl.fieldPacksPerCasePlaceholder',
   fieldSalesChannel: 'lbl.fieldSalesChannel',
   fieldVolume: 'lbl.fieldVolume',
   fieldVolumePlaceholder: 'lbl.fieldVolumePlaceholder',
@@ -243,7 +245,8 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
     fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham 200g' } });
     fireEvent.change(screen.getByLabelText(/lbl\.fieldTargetLaunch/), { target: { value: '2026-09-01' } });
     fireEvent.change(screen.getByLabelText(/lbl\.fieldPackFormat/), { target: { value: '200g sliced pack' } });
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldPackWeight/), { target: { value: '200' } });
+    fireEvent.change(screen.getByLabelText('lbl.fieldPackWeight'), { target: { value: '200' } });
+    fireEvent.change(screen.getByLabelText('lbl.fieldPacksPerCase'), { target: { value: '12' } });
     fireEvent.change(screen.getByLabelText(/lbl\.fieldVolume/), { target: { value: '1,200 kg/week' } });
     fireEvent.click(screen.getByTestId('wizard-continue'));
 
@@ -273,6 +276,8 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       targetLaunch: '2026-09-01',
       packFormat: '200g sliced pack',
       packWeightG: 200,
+      // Optional integer captured from the form and included in the payload.
+      packsPerCase: 12,
       salesChannel: 'Retail',
       expectedVolume: '1,200 kg/week',
       targetRetailPriceEur: 19.9,
@@ -313,6 +318,38 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       cloneSource: null,
       salesChannel: 'Retail',
     });
+    // Empty "Packs per case" is OMITTED from the payload (optional, never null).
+    expect(createAction.mock.calls[0]![0]).not.toHaveProperty('packsPerCase');
+  });
+
+  it('clone path: a captured Packs per case is forwarded in the clone overrides; empty omits it', async () => {
+    const createAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-blank', code: 'NPD-009' } }));
+    const cloneAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-clone', code: 'NPD-010' } }));
+    renderWizard({
+      createAction,
+      cloneAction,
+      cloneSources: [{ id: 'src-1', code: 'NPD-001', name: 'Sliced Ham Standard' }],
+    });
+
+    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Cloned v2' } });
+    // Capture packs per case on the Basics step.
+    fireEvent.change(screen.getByLabelText('lbl.fieldPacksPerCase'), { target: { value: '24' } });
+    fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
+    fireEvent.click(screen.getByTestId('wizard-continue')); // → Starting point
+
+    fireEvent.click(screen.getByTestId('wizard-start-clone'));
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: /NPD-001/ }));
+    fireEvent.click(screen.getByTestId('wizard-continue')); // → Review
+
+    const createBtn = screen.getByTestId('wizard-create');
+    await waitFor(() => expect(createBtn).not.toBeDisabled());
+    await act(async () => {
+      fireEvent.click(createBtn);
+    });
+
+    await waitFor(() => expect(cloneAction).toHaveBeenCalledTimes(1));
+    expect(cloneAction.mock.calls[0]![0].overrides).toMatchObject({ packsPerCase: 24 });
   });
 });
 

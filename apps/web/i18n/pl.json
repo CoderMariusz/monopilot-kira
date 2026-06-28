@@ -5575,7 +5575,8 @@
       "attachTooLarge": "Plik jest większy niż 20 MB.",
       "attachUnsupportedType": "Nieobsługiwany typ pliku. Dozwolone: PDF, PNG, JPG, DOCX, XLSX.",
       "attachUploadFailed": "Nie udało się przesłać załącznika. Spróbuj ponownie.",
-      "attachDeleteFailed": "Nie udało się usunąć załącznika. Spróbuj ponownie."
+      "attachDeleteFailed": "Nie udało się usunąć załącznika. Spróbuj ponownie.",
+      "fieldPacksPerCase": "Sztuk w zbiorczym"
     },
     "sensory": {
       "title": "Panel sensoryczny",
@@ -5959,7 +5960,9 @@
       "errorForbidden": "Nie masz uprawnień do tworzenia projektów.",
       "fieldPackWeight": "Masa opakowania (g)",
       "fieldPackWeightPlaceholder": "np. 200",
-      "startUnavailableHint": "Jeszcze niedostępne"
+      "startUnavailableHint": "Jeszcze niedostępne",
+      "fieldPacksPerCase": "Sztuk w zbiorczym",
+      "fieldPacksPerCasePlaceholder": "np. 12"
     },
     "faBomTab": {
       "title": "BOM (widok obliczony)",

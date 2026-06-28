@@ -51,6 +51,8 @@ const DEFAULT_LABELS: WizardLabels = {
   fieldPackFormatPlaceholder: 'e.g. 200g sliced pack',
   fieldPackWeight: 'Pack weight (g)',
   fieldPackWeightPlaceholder: 'e.g. 200',
+  fieldPacksPerCase: 'Packs per case',
+  fieldPacksPerCasePlaceholder: 'e.g. 12',
   fieldSalesChannel: 'Sales channel',
   fieldVolume: 'Expected weekly volume',
   fieldVolumePlaceholder: 'e.g. 1,200 kg/week',

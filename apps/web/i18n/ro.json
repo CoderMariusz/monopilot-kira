@@ -5574,7 +5574,8 @@
       "attachTooLarge": "File is larger than 20 MB.",
       "attachUnsupportedType": "Unsupported file type. Allowed: PDF, PNG, JPG, DOCX, XLSX.",
       "attachUploadFailed": "Could not upload the attachment. Please try again.",
-      "attachDeleteFailed": "Could not delete the attachment. Please try again."
+      "attachDeleteFailed": "Could not delete the attachment. Please try again.",
+      "fieldPacksPerCase": "Packs per case"
     },
     "sensory": {
       "title": "Panel senzorial",
@@ -5958,7 +5959,9 @@
       "errorForbidden": "Nu ai permisiunea de a crea proiecte.",
       "fieldPackWeight": "Pack weight (g)",
       "fieldPackWeightPlaceholder": "e.g. 200",
-      "startUnavailableHint": "Indisponibil încă"
+      "startUnavailableHint": "Indisponibil încă",
+      "fieldPacksPerCase": "Packs per case",
+      "fieldPacksPerCasePlaceholder": "e.g. 12"
     },
     "faBomTab": {
       "title": "BOM (vizualizare calculată)",

@@ -61,6 +61,8 @@ export type WizardCloneAction = (input: {
     targetLaunch: string | null;
     packFormat: string | null;
     packWeightG: number | null;
+    /** Packs per case — optional non-negative integer; omitted when empty. */
+    packsPerCase?: number | null;
     salesChannel: string | null;
     expectedVolume: string | null;
     targetRetailPriceEur: number | null;
@@ -80,6 +82,8 @@ export type WizardCreateAction = (input: {
   packFormat: string | null;
   /** Costing v2: pack net weight in grams (the recipe batch size). */
   packWeightG: number | null;
+  /** Packs per case — optional non-negative integer; omitted when empty. */
+  packsPerCase?: number | null;
   salesChannel: string | null;
   expectedVolume: string | null;
   targetRetailPriceEur: number | null;
@@ -110,6 +114,8 @@ export type WizardLabels = {
   fieldPackFormatPlaceholder: string;
   fieldPackWeight: string;
   fieldPackWeightPlaceholder: string;
+  fieldPacksPerCase: string;
+  fieldPacksPerCasePlaceholder: string;
   fieldSalesChannel: string;
   fieldVolume: string;
   fieldVolumePlaceholder: string;
@@ -179,6 +185,7 @@ type FormState = {
   targetLaunch: string;
   packFormat: string;
   packWeightG: string;
+  packsPerCase: string;
   salesChannel: string;
   expectedVolume: string;
   targetRetailPriceEur: string;
@@ -197,6 +204,7 @@ const INITIAL_FORM: FormState = {
   targetLaunch: '',
   packFormat: '',
   packWeightG: '',
+  packsPerCase: '',
   salesChannel: SALES_CHANNEL_VALUES[0],
   expectedVolume: '',
   targetRetailPriceEur: '',
@@ -220,6 +228,24 @@ function parseEur(value: string): number | null {
   if (trimmed.length === 0) return null;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+/**
+ * Parse the optional "Packs per case" input to a non-negative integer.
+ * Empty (or invalid) → `undefined` so the field is OMITTED from the payload
+ * (the optional createProject input keeps the backend default / FG copy untouched).
+ */
+function parseOptionalInteger(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+/** Spread helper: include `packsPerCase` only when the input parses to an integer. */
+function packsPerCaseField(value: string): { packsPerCase?: number } {
+  const parsed = parseOptionalInteger(value);
+  return parsed === undefined ? {} : { packsPerCase: parsed };
 }
 
 export function CreateProjectWizard({
@@ -293,6 +319,8 @@ export function CreateProjectWizard({
             targetLaunch: nullable(form.targetLaunch),
             packFormat: nullable(form.packFormat),
             packWeightG: parseEur(form.packWeightG),
+            // Empty → omitted so a cloned source value isn't clobbered to null.
+            ...packsPerCaseField(form.packsPerCase),
             salesChannel: form.salesChannel,
             expectedVolume: nullable(form.expectedVolume),
             targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
@@ -329,6 +357,8 @@ export function CreateProjectWizard({
         targetLaunch: nullable(form.targetLaunch),
         packFormat: nullable(form.packFormat),
         packWeightG: parseEur(form.packWeightG),
+        // Empty → omitted (optional); a parsed integer is sent through to the FG.
+        ...packsPerCaseField(form.packsPerCase),
         salesChannel: form.salesChannel,
         expectedVolume: nullable(form.expectedVolume),
         targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
@@ -533,7 +563,20 @@ export function CreateProjectWizard({
                 onChange={(e) => update('packWeightG', e.target.value)}
               />
             </div>
-            <div className="ff" />
+            {/* Packs per case — optional non-negative integer; empty omits the field. */}
+            <div className="ff">
+              <label htmlFor="wiz-packs-per-case">{labels.fieldPacksPerCase}</label>
+              <input
+                id="wiz-packs-per-case"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                placeholder={labels.fieldPacksPerCasePlaceholder}
+                value={form.packsPerCase}
+                onChange={(e) => update('packsPerCase', e.target.value)}
+              />
+            </div>
           </div>
         </div>
       )}

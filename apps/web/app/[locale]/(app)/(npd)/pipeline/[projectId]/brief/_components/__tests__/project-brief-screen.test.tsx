@@ -46,6 +46,7 @@ const LABELS: ProjectBriefLabels = {
   fieldTargetPrice: 'Target retail price (EUR)',
   fieldPackFormat: 'Pack format',
   fieldPackWeight: 'Pack weight (g)',
+  fieldPacksPerCase: 'Packs per case',
   fieldSalesChannel: 'Sales channel',
   fieldExpectedVolume: 'Expected volume',
   fieldTargetAudience: 'Target audience',
@@ -95,6 +96,7 @@ const READY: ProjectBriefView = {
   targetLaunchDate: '2026-09-01',
   packFormat: '200g sliced pack',
   packWeightG: '200',
+  packsPerCase: 12,
   expectedVolume: '1200',
   marketingClaims: 'High protein',
   category: 'Meat · Cold cut',
@@ -121,6 +123,8 @@ describe('ProjectBriefScreen — read-only view (project.jsx:45-105)', () => {
     expect(screen.queryByTestId('brief-field-productName')).not.toBeInTheDocument();
     // The read field still renders the value as static text.
     expect(screen.getByTestId('project-brief-field-product-name')).toHaveTextContent('Sliced Ham 200g');
+    // Packs per case renders its integer value in the read view.
+    expect(screen.getByTestId('project-brief-field-packs-per-case')).toHaveTextContent('12');
     // Upload stays disabled in both views.
     expect(screen.getByTestId('project-brief-upload')).toBeDisabled();
   });
@@ -140,6 +144,7 @@ describe('ProjectBriefScreen — inline edit form (write grant)', () => {
     expect(screen.getByTestId('brief-field-targetRetailPriceEur')).toHaveValue('19.90');
     expect(screen.getByTestId('brief-field-packFormat')).toHaveValue('200g sliced pack');
     expect(screen.getByTestId('brief-field-packWeightG')).toHaveValue(200);
+    expect(screen.getByTestId('brief-field-packsPerCase')).toHaveValue(12);
     expect(screen.getByTestId('brief-field-expectedVolume')).toHaveValue('1200');
     expect(screen.getByTestId('brief-field-targetAudience')).toHaveValue('Premium retail');
     expect(screen.getByTestId('brief-field-marketingClaims')).toHaveValue('High protein');
@@ -177,6 +182,8 @@ describe('ProjectBriefScreen — inline edit form (write grant)', () => {
         targetRetailPriceEur: '19.90',
         packFormat: '200g sliced pack',
         packWeightG: '200',
+        // Present (unchanged) value sent as a number per the zod patch contract.
+        packsPerCase: 12,
         salesChannel: 'Retail',
         expectedVolume: '1200',
         targetAudience: 'Premium retail',
@@ -201,6 +208,34 @@ describe('ProjectBriefScreen — inline edit form (write grant)', () => {
     expect(arg.patch.notes).toBeNull();
     expect(arg.patch.packWeightG).toBeNull();
     expect(arg.patch.salesChannel).toBeNull();
+  });
+
+  it('Packs per case: an empty input is OMITTED from the patch (existing value NOT clobbered to null)', async () => {
+    const onUpdate = vi.fn(async () => ({ ok: true as const }));
+    // Brief already has packsPerCase = 12 (READY). The user clears it and saves
+    // some OTHER field — the patch must NOT carry packsPerCase at all, so the
+    // backend keeps the existing 12 instead of nulling it.
+    render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={onUpdate} />);
+    expect(screen.getByTestId('brief-field-packsPerCase')).toHaveValue(12);
+    fireEvent.change(screen.getByTestId('brief-field-packsPerCase'), { target: { value: '' } });
+    fireEvent.change(screen.getByTestId('brief-field-notes'), { target: { value: 'Updated note' } });
+    fireEvent.click(screen.getByTestId('brief-save'));
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    const { patch } = onUpdate.mock.calls[0]![0] as { patch: Record<string, unknown> };
+    expect(patch).not.toHaveProperty('packsPerCase');
+    expect(patch.notes).toBe('Updated note');
+  });
+
+  it('Packs per case: an edited integer is sent as a number in the patch', async () => {
+    const onUpdate = vi.fn(async () => ({ ok: true as const }));
+    render(<ProjectBriefScreen state="ready" data={READY} labels={LABELS} canWrite onUpdate={onUpdate} />);
+    fireEvent.change(screen.getByTestId('brief-field-packsPerCase'), { target: { value: '24' } });
+    fireEvent.click(screen.getByTestId('brief-save'));
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    const { patch } = onUpdate.mock.calls[0]![0] as { patch: Record<string, unknown> };
+    expect(patch.packsPerCase).toBe(24);
   });
 
   it('error path: FORBIDDEN maps to the inline permission message + no refresh', async () => {
