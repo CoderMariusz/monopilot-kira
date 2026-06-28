@@ -14,6 +14,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
 const WO_B = '44444444-4444-4444-8444-444444444444';
 const LINE_ID = '55555555-5555-4555-8555-555555555555';
+const SITE_ID = '66666666-6666-4666-8666-666666666666';
 
 const START = '2026-06-12T08:00:00.000Z';
 const END = '2026-06-12T16:00:00.000Z';
@@ -25,10 +26,18 @@ let updateVisibleStatus: string | null = null;
 let lineExists = true;
 let dependencyEdges: Array<{ parent_wo_id: string; child_wo_id: string }> = [];
 
+const { getActiveSiteIdMock } = vi.hoisted(() => ({
+  getActiveSiteIdMock: vi.fn(),
+}));
+
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: getActiveSiteIdMock,
 }));
 
 const WO_ROW = {
@@ -90,6 +99,7 @@ function makeClient(): QueryClient {
 
 describe('rescheduleWorkOrder', () => {
   beforeEach(() => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     allowPermission = true;
     currentStatus = 'DRAFT';
     updateVisibleStatus = null;
@@ -231,6 +241,7 @@ describe('rescheduleWorkOrder', () => {
 
 describe('getScheduleBoard', () => {
   beforeEach(() => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     allowPermission = true;
     client = makeClient();
   });
@@ -255,7 +266,37 @@ describe('getScheduleBoard', () => {
     // Board statuses only — the query is pinned to DRAFT/RELEASED/IN_PROGRESS.
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining('wo.scheduled_start_time is not null'),
-      expect.arrayContaining([['DRAFT', 'RELEASED', 'IN_PROGRESS']]),
+      expect.arrayContaining([['DRAFT', 'RELEASED', 'IN_PROGRESS'], SITE_ID]),
     );
+    const workOrderReads = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => String(sql).includes('from public.work_orders wo'));
+    expect(workOrderReads).toHaveLength(2);
+    expect(workOrderReads[0]?.[0]).toContain('wo.site_id = $4::uuid');
+    expect(workOrderReads[0]?.[1]).toEqual([
+      ['DRAFT', 'RELEASED', 'IN_PROGRESS'],
+      expect.any(String),
+      expect.any(String),
+      SITE_ID,
+    ]);
+    expect(workOrderReads[1]?.[0]).toContain('wo.site_id = $2::uuid');
+    expect(workOrderReads[1]?.[1]).toEqual([['DRAFT', 'RELEASED', 'IN_PROGRESS'], SITE_ID]);
+  });
+
+  it('fails closed with no active site before running board reads', async () => {
+    getActiveSiteIdMock.mockResolvedValue(null);
+
+    const result = await getScheduleBoard();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data).toMatchObject({
+      lines: [],
+      scheduled: [],
+      unscheduled: [],
+      noActiveSite: true,
+    });
+    expect(client.query).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('from public.user_roles');
   });
 });

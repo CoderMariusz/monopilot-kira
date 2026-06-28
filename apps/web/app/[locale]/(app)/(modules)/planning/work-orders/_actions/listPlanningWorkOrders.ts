@@ -1,5 +1,6 @@
 'use server';
 
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   mapExecution,
@@ -22,6 +23,13 @@ export async function listPlanningWorkOrders(params: {
 
   try {
     return await withOrgContext(async ({ client }): Promise<ListPlanningWorkOrdersResult> => {
+      const s = await getActiveSiteId({ client });
+      if (!s) {
+        return { ok: true, workOrders: [], archivedCount: 0, noActiveSite: true } as ListPlanningWorkOrdersResult & {
+          noActiveSite: true;
+        };
+      }
+
       const { rows } = await client.query<WOSummaryRow>(
         `select
            wo.id, wo.wo_number, wo.product_id, i.item_code, wo.item_type_at_creation,
@@ -70,6 +78,7 @@ export async function listPlanningWorkOrders(params: {
             limit 1
          ) sched on true
          where wo.org_id = app.current_org_id()
+           and wo.site_id = $5::uuid
            and ($1::text is null or wo.status = $1)
            and (
              $2::text is null
@@ -86,7 +95,7 @@ export async function listPlanningWorkOrders(params: {
            ) = $4::boolean
          order by wo.scheduled_start_time nulls last, wo.created_at desc
          limit $3`,
-        [status || null, search || null, limit, archived],
+        [status || null, search || null, limit, archived, s],
       );
       const count = await client.query<{ archived_count: string | number }>(
         `select count(*) as archived_count
@@ -96,6 +105,7 @@ export async function listPlanningWorkOrders(params: {
              on ods.org_id = wo.org_id
             and ods.doc_type = 'wo'
           where wo.org_id = app.current_org_id()
+            and wo.site_id = $3::uuid
             and ($1::text is null or wo.status = $1)
             and (
               $2::text is null
@@ -105,7 +115,7 @@ export async function listPlanningWorkOrders(params: {
             and wo.status in ('CLOSED', 'CANCELLED')
             and ods.archive_after_days is not null
             and wo.updated_at < now() - make_interval(days => ods.archive_after_days)`,
-        [status || null, search || null],
+        [status || null, search || null, s],
       );
 
       return {

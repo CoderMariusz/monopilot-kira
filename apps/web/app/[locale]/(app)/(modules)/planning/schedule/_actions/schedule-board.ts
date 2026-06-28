@@ -22,6 +22,7 @@
 
 import { z } from 'zod';
 
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   PLANNING_WO_WRITE_PERMISSION,
@@ -100,6 +101,21 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
       windowStart.setUTCHours(0, 0, 0, 0);
       const windowEnd = new Date(windowStart.getTime() + BOARD_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
+      const s = await getActiveSiteId({ client: ctx.client });
+      if (!s) {
+        return {
+          ok: true,
+          data: {
+            windowStart: windowStart.toISOString(),
+            windowEnd: windowEnd.toISOString(),
+            lines: [],
+            scheduled: [],
+            unscheduled: [],
+            noActiveSite: true,
+          } as ScheduleBoardData & { noActiveSite: true },
+        };
+      }
+
       const linesResult = await ctx.client.query<ScheduleBoardLine>(
         `select id, code, name
            from public.production_lines
@@ -111,20 +127,22 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
       const scheduledResult = await ctx.client.query<WoRow>(
         `${WO_SELECT}
      and wo.status = any($1::text[])
+     and wo.site_id = $4::uuid
      and wo.scheduled_start_time is not null
      and wo.scheduled_start_time < $3::timestamptz
      and coalesce(wo.scheduled_end_time, wo.scheduled_start_time + interval '1 hour') > $2::timestamptz
    order by wo.scheduled_start_time`,
-        [[...BOARD_STATUSES], windowStart.toISOString(), windowEnd.toISOString()],
+        [[...BOARD_STATUSES], windowStart.toISOString(), windowEnd.toISOString(), s],
       );
 
       const unscheduledResult = await ctx.client.query<WoRow>(
         `${WO_SELECT}
      and wo.status = any($1::text[])
+     and wo.site_id = $2::uuid
      and wo.scheduled_start_time is null
    order by wo.created_at desc
    limit 50`,
-        [[...BOARD_STATUSES]],
+        [[...BOARD_STATUSES], s],
       );
 
       return {

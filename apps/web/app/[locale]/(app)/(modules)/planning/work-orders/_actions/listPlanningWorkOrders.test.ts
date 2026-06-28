@@ -9,8 +9,13 @@ const WO_ID = '33333333-3333-4333-8333-333333333333';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 const EXECUTION_ID = '55555555-5555-4555-8555-555555555555';
 const SCHEDULE_ID = '66666666-6666-4666-8666-666666666666';
+const SITE_ID = '77777777-7777-4777-8777-777777777777';
 
 let client: QueryClient;
+
+const { getActiveSiteIdMock } = vi.hoisted(() => ({
+  getActiveSiteIdMock: vi.fn(),
+}));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -18,8 +23,13 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: getActiveSiteIdMock,
+}));
+
 describe('listPlanningWorkOrders', () => {
   beforeEach(() => {
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     client = {
       query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
         const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -99,13 +109,29 @@ describe('listPlanningWorkOrders', () => {
       }),
     ]);
     expect(result.archivedCount).toBe(2);
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('from public.work_orders wo'), ['RELEASED', 'FG', 10, false]);
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining('from public.work_orders wo'),
+      ['RELEASED', 'FG', 10, false, SITE_ID],
+    );
+    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('wo.site_id = $5::uuid');
   });
 
   it('passes archived=true to return only archived work orders', async () => {
     await listPlanningWorkOrders({ archived: true });
 
-    expect(vi.mocked(client.query).mock.calls[0]?.[1]).toEqual([null, null, 50, true]);
+    expect(vi.mocked(client.query).mock.calls[0]?.[1]).toEqual([null, null, 50, true, SITE_ID]);
+  });
+
+  it('fails closed with no active site before running the work orders read', async () => {
+    getActiveSiteIdMock.mockResolvedValue(null);
+
+    await expect(listPlanningWorkOrders({})).resolves.toEqual({
+      ok: true,
+      workOrders: [],
+      archivedCount: 0,
+      noActiveSite: true,
+    });
+    expect(client.query).not.toHaveBeenCalled();
   });
 
   it('returns persistence_failed when the query fails', async () => {
