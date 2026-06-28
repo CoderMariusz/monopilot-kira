@@ -105,17 +105,20 @@ export async function getRequiredFieldsForDept(
          select to_jsonb(p.*) as product_json
            from public.product p
           where p.org_id = app.current_org_id()
-            and p.product_code = $1
+            and p.product_code = $1::text
           limit 1
        ),
        required_columns as (
-         select dc.column_key,
-                lower(dc.column_key) as physical_column,
-                dc.display_order
-           from "Reference"."DeptColumns" dc
-          where dc.org_id = app.current_org_id()
-            and lower(dc.dept_code) = lower($2)
-            and dc.required_for_done = true
+         select f.code as column_key,
+                lower(f.code) as physical_column,
+                df.display_order
+           from public.npd_departments d
+           join public.npd_department_field df on df.department_id = d.id and df.org_id = d.org_id
+           join public.npd_field_catalog f on f.id = df.field_id and f.org_id = df.org_id and f.active = true
+          where d.org_id = app.current_org_id()
+            and lower(d.code) = lower($2::text)
+            and d.active = true
+            and df.required = true
        )
        select rc.column_key,
               rc.physical_column,

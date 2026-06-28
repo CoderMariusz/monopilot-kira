@@ -146,6 +146,51 @@ async function seedProduct(productCode: string, overrides: Record<string, unknow
   );
 }
 
+async function seedDynamicCatalog(): Promise<void> {
+  await owner.query(
+    `insert into public.npd_departments (org_id, code, name, display_order, active)
+     values ($1::uuid, 'Core', 'Core', 10, true)
+     on conflict (org_id, code) do update
+       set name = excluded.name,
+           display_order = excluded.display_order,
+           active = true`,
+    [seed.orgAId],
+  );
+  await owner.query(
+    `with core_dept as (
+       select id
+         from public.npd_departments
+        where org_id = $1::uuid
+          and code = 'Core'
+     ),
+     recipe_field as (
+       insert into public.npd_field_catalog (org_id, code, label, data_type, active)
+       values ($1::uuid, 'recipe_components', 'Recipe Components', 'text', true)
+       on conflict (org_id, code) do update
+         set label = excluded.label,
+             data_type = excluded.data_type,
+             active = true
+       returning id
+     ),
+     reset_core_required as (
+       update public.npd_department_field df
+          set required = false
+         from core_dept d
+        where df.org_id = $1::uuid
+          and df.department_id = d.id
+     )
+     insert into public.npd_department_field
+       (org_id, department_id, field_id, required, visible, display_order)
+     select $1::uuid, core_dept.id, recipe_field.id, true, true, 10
+       from core_dept, recipe_field
+     on conflict (org_id, department_id, field_id) do update
+       set required = true,
+           visible = true,
+           display_order = excluded.display_order`,
+    [seed.orgAId],
+  );
+}
+
 async function cleanup(): Promise<void> {
   await owner.query(`delete from public.outbox_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.product where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
@@ -168,6 +213,7 @@ run('closeDeptSection — REAL DB integration (T-017)', () => {
     // eslint-disable-next-line no-restricted-syntax -- direct app_user RLS checks for non-vacuous cross-org isolation proof
     app = new pg.Pool({ connectionString: makeAppUserConnectionString() });
     await seedIdentities();
+    await seedDynamicCatalog();
   }, 120000);
 
   afterAll(async () => {

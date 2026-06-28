@@ -29,6 +29,51 @@ async function ensureAppUser(): Promise<void> {
   await ensureAppUserWithAdvisoryLock(owner);
 }
 
+async function seedDynamicCatalog(): Promise<void> {
+  await owner.query(
+    `insert into public.npd_departments (org_id, code, name, display_order, active)
+     values
+       ($1::uuid, 'Core', 'Core', 10, true),
+       ($1::uuid, 'MRP', 'MRP', 60, true),
+       ($1::uuid, 'Production', 'Production', 40, true)
+     on conflict (org_id, code) do update
+       set name = excluded.name,
+           display_order = excluded.display_order,
+           active = true`,
+    [orgId],
+  );
+  await owner.query(
+    `with fields(code, label, data_type, display_order, dept_code) as (
+       values
+         ('product_name', 'Product Name', 'text', 10, 'Core'),
+         ('pack_size', 'Pack Size', 'text', 20, 'Core'),
+         ('box', 'Box', 'text', 10, 'MRP'),
+         ('line', 'Line', 'text', 10, 'Production')
+     ),
+     upsert_fields as (
+       insert into public.npd_field_catalog (org_id, code, label, data_type, active)
+       select $1::uuid, code, label, data_type, true
+         from fields
+       on conflict (org_id, code) do update
+         set label = excluded.label,
+             data_type = excluded.data_type,
+             active = true
+       returning id, org_id, code
+     )
+     insert into public.npd_department_field
+       (org_id, department_id, field_id, required, visible, display_order)
+     select $1::uuid, d.id, f.id, false, true, fields.display_order
+       from fields
+       join upsert_fields f on f.org_id = $1::uuid and f.code = fields.code
+       join public.npd_departments d on d.org_id = $1::uuid and d.code = fields.dept_code
+     on conflict (org_id, department_id, field_id) do update
+       set required = excluded.required,
+           visible = excluded.visible,
+           display_order = excluded.display_order`,
+    [orgId],
+  );
+}
+
 async function seed(): Promise<void> {
   await ensureAppUser();
   await owner.query(
@@ -92,6 +137,7 @@ async function seed(): Promise<void> {
            dropdown_source = null`,
     [orgId],
   );
+  await seedDynamicCatalog();
   await ownerQueryWithInferredOrgContext(owner,
     `insert into public.product
        (product_code, org_id, product_name, pack_size, box, line, built, schema_version, created_by_user)

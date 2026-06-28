@@ -8,7 +8,7 @@
  * written. A non-auto field still flows through to the product UPDATE.
  *
  * The boundary mocked is ONLY the transport (withOrgContext) — the SQL the action
- * builds (DeptColumns load, RBAC probe, the auto-field catalog probe, the
+ * builds (catalog metadata load, RBAC probe, the auto-field catalog probe, the
  * UPDATE) still runs as written; we route each query by shape and return rows.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,8 +33,13 @@ import { ValidationError } from '../errors';
 function wireQueries(opts: { deptCode: string; autoColumns: Set<string> }) {
   queryMock.mockImplementation(async (sql: string, params?: readonly unknown[]) => {
     const text = String(sql);
-    // 1) DeptColumns load (loadDeptColumn) — returns the dept that owns the col.
-    if (/from\s+"Reference"\."DeptColumns"/i.test(text) && /lower\(column_key\)\s*=\s*\$1/i.test(text)) {
+    // 1) Dynamic catalog load (loadDeptColumn) — returns the dept that owns the col.
+    if (
+      /from\s+public\.npd_departments\s+d/i.test(text) &&
+      /join\s+public\.npd_department_field\s+df/i.test(text) &&
+      /join\s+public\.npd_field_catalog\s+f/i.test(text) &&
+      /lower\(f\.code\)\s*=\s*lower\(\$1::text\)/i.test(text)
+    ) {
       const columnName = String(params?.[0] ?? '');
       return {
         rows: [
@@ -54,7 +59,7 @@ function wireQueries(opts: { deptCode: string; autoColumns: Set<string> }) {
       return { rows: [{ ok: true }] };
     }
     // 3) Auto-field catalog probe (NEW) — npd_field_catalog is_auto=true?
-    if (/npd_field_catalog/i.test(text)) {
+    if (/from\s+public\.npd_field_catalog\s+f/i.test(text) && /f\.is_auto\s*=\s*true/i.test(text)) {
       const code = String(params?.[0] ?? '');
       return { rows: opts.autoColumns.has(code) ? [{ ok: true }] : [] };
     }
@@ -123,6 +128,14 @@ describe('updateFaCell — auto-derived field guard (mig 374)', () => {
 
     const result = await updateFaCell('FA0001', 'product_name', 'New Name');
     expect(result).toEqual({ previousValue: 'old', newValue: 'new', builtReset: false });
+
+    const metadataSql = queryMock.mock.calls.map((c) => String(c[0])).find((sql) =>
+      /from\s+public\.npd_departments\s+d/i.test(sql),
+    );
+    expect(metadataSql).toMatch(/join\s+public\.npd_department_field\s+df/i);
+    expect(metadataSql).toMatch(/join\s+public\.npd_field_catalog\s+f/i);
+    expect(metadataSql).toMatch(/lower\(f\.code\)\s*=\s*lower\(\$1::text\)/i);
+    expect(metadataSql).not.toMatch(/"Reference"\."DeptColumns"/i);
 
     const ranUpdate = queryMock.mock.calls.some((c) =>
       /update\s+public\.product/i.test(String(c[0])),

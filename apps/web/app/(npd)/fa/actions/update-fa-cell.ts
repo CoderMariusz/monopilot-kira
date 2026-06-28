@@ -116,11 +116,19 @@ export async function updateFaCell(
 
 async function loadDeptColumn(ctx: OrgContextLike, columnName: string): Promise<DeptColumnRow> {
   const { rows } = await ctx.client.query<DeptColumnRow>(
-    `select dept_code, lower(column_key) as column_key, data_type, field_type, dropdown_source, required_for_done
-       from "Reference"."DeptColumns"
-      where org_id = app.current_org_id()
-        and lower(column_key) = $1
-      order by schema_version desc
+    `select d.code as dept_code,
+            lower(f.code) as column_key,
+            f.data_type,
+            null::text as field_type,
+            f.dropdown_source,
+            df.required as required_for_done
+       from public.npd_departments d
+       join public.npd_department_field df on df.department_id = d.id and df.org_id = d.org_id
+       join public.npd_field_catalog f on f.id = df.field_id and f.org_id = df.org_id and f.active = true
+      where d.org_id = app.current_org_id()
+        and d.active = true
+        and lower(f.code) = lower($1::text)
+      order by df.display_order asc nulls last, f.code asc
       limit 1`,
     [columnName],
   );
