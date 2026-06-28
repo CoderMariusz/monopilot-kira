@@ -6,6 +6,7 @@ import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -427,6 +428,11 @@ export async function listInspections(input: {
   try {
     const parsed = listSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<InspectionListRow[]>> => {
+      const s = await getActiveSiteId({ client: ctx.client });
+      if (!s) {
+        return { ok: true, data: [], noActiveSite: true } as ActionResult<InspectionListRow[]> & { noActiveSite: true };
+      }
+
       if (!(await hasPermission(ctx, 'quality.inspection.execute'))) return { ok: false, reason: 'forbidden' };
 
       const { rows } = await ctx.client.query<Parameters<typeof mapListRow>[0]>(
@@ -458,6 +464,7 @@ export async function listInspections(input: {
          left join public.items i on i.id = coalesce(qi.product_id, lp.product_id, woo.product_id) and i.org_id = qi.org_id
          left join public.users assigned on assigned.id = qi.assigned_to and assigned.org_id = qi.org_id
         where qi.org_id = app.current_org_id()
+          and qi.site_id = $4::uuid
           and ($1::text is null or qi.status = $1)
           and (
             $2::text is null
@@ -469,7 +476,7 @@ export async function listInspections(input: {
           )
         order by qi.created_at desc
         limit $3::int`,
-        [parsed.status ?? null, parsed.search ?? null, parsed.limit ?? 100],
+        [parsed.status ?? null, parsed.search ?? null, parsed.limit ?? 100, s],
       );
       return { ok: true, data: rows.map(mapListRow) };
     });
@@ -658,6 +665,8 @@ export async function createInspection(input: {
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedInspection>> => {
       if (!(await hasPermission(ctx, 'quality.inspection.assign'))) return { ok: false, reason: 'forbidden' };
 
+      const s = await getActiveSiteId({ client: ctx.client });
+
       const inserted = await ctx.client.query<{
         id: string;
         inspection_number: string;
@@ -667,6 +676,7 @@ export async function createInspection(input: {
       }>(
         `insert into public.quality_inspections (
            org_id,
+           site_id,
            inspection_number,
            reference_type,
            reference_id,
@@ -679,6 +689,7 @@ export async function createInspection(input: {
          )
          values (
            app.current_org_id(),
+           $8::uuid,
            public.next_quality_inspection_number(app.current_org_id()),
            $1,
            $2::uuid,
@@ -698,6 +709,7 @@ export async function createInspection(input: {
           parsed.dueDate ?? null,
           parsed.notes ?? null,
           ctx.userId,
+          s,
         ],
       );
       const row = inserted.rows[0];

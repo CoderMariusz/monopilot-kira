@@ -9,13 +9,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { signEvent } from '@monopilot/e-sign';
 
 import {
+  createInspection,
   getInspectionDetail,
+  listInspections,
   searchInspectionLps,
   resolveInspectionGrn,
   resolveInspectionWoOutput,
   searchInspectionAssignees,
   submitInspectionDecision,
 } from '../inspection-actions';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -32,6 +35,7 @@ const HOLD_ID = '88888888-8888-4888-8888-888888888888';
 const WOO_ID = '77777777-7777-4777-8777-777777777777';
 const GRN_ID = '99999999-9999-4999-8999-999999999999';
 const ASSIGNEE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -47,6 +51,9 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
 function normalize(sql: string): string {
@@ -128,6 +135,15 @@ function makeClient(): QueryClient {
       if (q.startsWith('insert into public.quality_hold_items')) {
         return { rows: [], rowCount: 1 };
       }
+      if (q.startsWith('insert into public.quality_inspections')) {
+        return {
+          rows: [{ id: INSP_ID, inspection_number: 'INSP-00000001', reference_type: 'lp', reference_id: LP_ID, status: 'pending' }],
+          rowCount: 1,
+        };
+      }
+      if (q.includes('from public.quality_inspections qi') && q.includes('qi.site_id = $4::uuid')) {
+        return { rows: [{ ...DETAIL_ROW, hold_id: null }] };
+      }
       if (q.includes('from public.quality_inspections qi')) {
         // The detail row carries hold_id from the lateral join; null when no active hold.
         return { rows: [{ ...DETAIL_ROW, hold_id: holdRows === 'one' ? HOLD_ID : null }] };
@@ -160,7 +176,31 @@ beforeEach(() => {
   wooRows = 'one';
   inspectionStatus = 'in_progress';
   client = makeClient();
+  vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
   vi.mocked(signEvent).mockClear();
+});
+
+describe('listInspections — active site scope', () => {
+  it('adds the active site_id bind to the list read', async () => {
+    const res = await listInspections({ status: 'pending', search: 'LP-4', limit: 25 });
+    expect(res.ok).toBe(true);
+
+    const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('qi.site_id = $4::uuid'),
+    );
+    expect(listQuery).toBeTruthy();
+    expect(normalize(String(listQuery?.[0]))).toContain('from public.quality_inspections qi');
+    expect(listQuery?.[1]).toEqual(['pending', 'LP-4', 25, SITE_ID]);
+  });
+
+  it('returns noActiveSite without running the main DB query when no site is active', async () => {
+    vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
+
+    const res = await listInspections();
+
+    expect(res).toEqual({ ok: true, data: [], noActiveSite: true });
+    expect(client.query).not.toHaveBeenCalled();
+  });
 });
 
 describe('getInspectionDetail — holdId deep link', () => {
@@ -326,5 +366,34 @@ describe('searchInspectionAssignees', () => {
     allowPermission = false;
     const res = await searchInspectionAssignees({ query: 'QA' });
     expect(res).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('createInspection — site_id on INSERT', () => {
+  it('binds the active site_id ($8::uuid) in the quality_inspections INSERT', async () => {
+    const res = await createInspection({ referenceType: 'lp', referenceId: LP_ID });
+    expect(res.ok).toBe(true);
+
+    const insertCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.quality_inspections'),
+    );
+    expect(insertCall).toBeTruthy();
+    const sql = normalize(String(insertCall?.[0]));
+    expect(sql).toContain('site_id');
+    expect(sql).toContain('$8::uuid');
+    // The 8th bind (index 7) must be the resolved site id.
+    expect(insertCall?.[1]?.[7]).toBe(SITE_ID);
+  });
+
+  it('binds null for site_id when no active site is resolved', async () => {
+    vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
+
+    const res = await createInspection({ referenceType: 'lp', referenceId: LP_ID });
+    expect(res.ok).toBe(true);
+
+    const insertCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.quality_inspections'),
+    );
+    expect(insertCall?.[1]?.[7]).toBeNull();
   });
 });

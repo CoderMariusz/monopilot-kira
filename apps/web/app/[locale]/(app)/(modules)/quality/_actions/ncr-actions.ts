@@ -5,6 +5,7 @@ import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -219,6 +220,11 @@ export async function listNcrs(input: {
   try {
     const parsed = listSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<NcrListRow[]>> => {
+      const s = await getActiveSiteId({ client: ctx.client });
+      if (!s) {
+        return { ok: true, data: [], noActiveSite: true } as ActionResult<NcrListRow[]> & { noActiveSite: true };
+      }
+
       if (!(await hasPermission(ctx, 'quality.dashboard.view'))) return { ok: false, reason: 'forbidden' };
 
       const { rows } = await ctx.client.query<Parameters<typeof mapListRow>[0]>(
@@ -242,6 +248,7 @@ export async function listNcrs(input: {
          left join public.items i on i.id = n.product_id and i.org_id = n.org_id
          left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
         where n.org_id = app.current_org_id()
+          and n.site_id = $6::uuid
           and ($1::text is null or n.status = $1)
           and ($2::text is null or n.severity = $2)
           and ($3::text is null or n.ncr_type = $3)
@@ -255,7 +262,7 @@ export async function listNcrs(input: {
           ))
         order by n.created_at desc
         limit $5::int`,
-        [parsed.status ?? null, parsed.severity ?? null, parsed.ncrType ?? null, parsed.search || null, parsed.limit ?? 100],
+        [parsed.status ?? null, parsed.severity ?? null, parsed.ncrType ?? null, parsed.search || null, parsed.limit ?? 100, s],
       );
 
       return { ok: true, data: rows.map(mapListRow) };
@@ -441,9 +448,12 @@ export async function createNcr(input: {
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedNcr>> => {
       if (!(await hasPermission(ctx, 'quality.ncr.create'))) return { ok: false, reason: 'forbidden' };
 
+      const s = await getActiveSiteId({ client: ctx.client });
+
       const created = await ctx.client.query<CreatedNcr & { ncr_number: string }>(
         `insert into public.ncr_reports (
            org_id,
+           site_id,
            ncr_type,
            severity,
            status,
@@ -458,6 +468,7 @@ export async function createNcr(input: {
          )
          values (
            app.current_org_id(),
+           $11::uuid,
            $1,
            $2,
            'open',
@@ -482,6 +493,7 @@ export async function createNcr(input: {
           ctx.userId,
           parsed.affectedQtyKg ?? null,
           parsed.linkedHoldId ?? null,
+          s,
         ],
       );
       const row = created.rows[0];

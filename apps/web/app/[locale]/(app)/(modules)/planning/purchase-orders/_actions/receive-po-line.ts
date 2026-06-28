@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { computeExpiryDate, formatDecimal, parseDecimal } from '../../../../../../../lib/warehouse/scanner/receive-po';
 import { hasWarehousePermission } from '../../../warehouse/_actions/shared';
 import {
@@ -131,8 +132,9 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
       });
 
       const qcInspectionRequired = await requiresGrnQcInspection(client, orgId);
+      const activeSiteId = await getActiveSiteId({ client });
       const inspectionId = qcInspectionRequired
-        ? await insertQcInspectionForLp(client, orgId, userId, { lpId: lp.id, productId: line.item_id })
+        ? await insertQcInspectionForLp(client, orgId, userId, { lpId: lp.id, productId: line.item_id, siteId: activeSiteId })
         : null;
 
       const poStatus = await rollupPurchaseOrderStatus(client, orgId, userId, line.po_id);
@@ -569,13 +571,13 @@ async function insertQcInspectionForLp(
   client: QueryClient,
   orgId: string,
   userId: string,
-  input: { lpId: string; productId: string },
+  input: { lpId: string; productId: string; siteId: string | null },
 ): Promise<string | null> {
   const { rows } = await client.query<{ id: string }>(
     `insert into public.quality_inspections (
-       org_id, inspection_number, reference_type, reference_id, product_id, status, created_by
+       org_id, site_id, inspection_number, reference_type, reference_id, product_id, status, created_by
      )
-     select $1::uuid, public.next_quality_inspection_number($1::uuid), 'lp', $2::uuid, $3::uuid, 'pending', $4::uuid
+     select $1::uuid, $5::uuid, public.next_quality_inspection_number($1::uuid), 'lp', $2::uuid, $3::uuid, 'pending', $4::uuid
       where not exists (
         select 1
           from public.quality_inspections qi
@@ -585,7 +587,7 @@ async function insertQcInspectionForLp(
            and qi.status = 'pending'
       )
      returning id`,
-    [orgId, input.lpId, input.productId, userId],
+    [orgId, input.lpId, input.productId, userId, input.siteId],
   );
   return rows[0]?.id ?? null;
 }

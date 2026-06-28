@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closeNcr, createNcr, getNcrDetail, listNcrs, updateNcrInvestigation } from '../ncr-actions';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -16,6 +17,7 @@ const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 const HOLD_ID = '55555555-5555-4555-8555-555555555555';
 
 const CCP_ID = '66666666-6666-4666-8666-666666666666';
+const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 let permissions: Set<string>;
@@ -28,6 +30,9 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
 vi.mock('@monopilot/e-sign', () => ({
@@ -55,6 +60,31 @@ function makeClient(): QueryClient {
         const permission = String(params[2]);
         const allowed = permissions.has(permission);
         return { rows: allowed ? [{ ok: true }] : [], rowCount: allowed ? 1 : 0 };
+      }
+
+      if (q.startsWith('select n.id::text') && q.includes('n.site_id = $6::uuid')) {
+        return {
+          rows: [
+            {
+              id: NCR_ID,
+              ncr_number: 'NCR-00001000',
+              ncr_type: 'quality',
+              severity: 'major',
+              status: 'open',
+              title: 'Seal failure',
+              product_id: PRODUCT_ID,
+              product_code: 'FG-PIE',
+              product_name: 'Steak Pie',
+              linked_hold_id: HOLD_ID,
+              linked_hold_number: 'HLD-00001000',
+              response_due_at: '2026-06-13T10:00:00.000Z',
+              created_at: '2026-06-11T10:00:00.000Z',
+              root_cause_category: null,
+              closed_at: null,
+            },
+          ],
+          rowCount: 1,
+        };
       }
 
       if (q.startsWith('select n.id::text')) {
@@ -178,7 +208,29 @@ describe('quality NCR server actions', () => {
     currentStatus = 'open';
     detailReference = { type: 'lp', id: 'ref-uuid' };
     client = makeClient();
+    vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
     vi.clearAllMocks();
+  });
+
+  it('listNcrs adds the active site_id bind to the list read', async () => {
+    const result = await listNcrs({ status: 'open', severity: 'major', ncrType: 'quality', search: 'Seal', limit: 25 });
+    expect(result.ok).toBe(true);
+
+    const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('n.site_id = $6::uuid'),
+    );
+    expect(listQuery).toBeTruthy();
+    expect(normalize(String(listQuery?.[0]))).toContain('from public.ncr_reports n');
+    expect(listQuery?.[1]).toEqual(['open', 'major', 'quality', 'Seal', 25, SITE_ID]);
+  });
+
+  it('listNcrs returns noActiveSite without running the main DB query when no site is active', async () => {
+    vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
+
+    const result = await listNcrs();
+
+    expect(result).toEqual({ ok: true, data: [], noActiveSite: true });
+    expect(client.query).not.toHaveBeenCalled();
   });
 
   it('enforces forbidden gates', async () => {
@@ -261,6 +313,33 @@ describe('quality NCR server actions', () => {
       normalize(String(sql)).includes('from public.haccp_ccps c'),
     );
     expect(ccpFetch).toBeUndefined();
+  });
+
+  it('createNcr binds the active site_id ($11::uuid) in the ncr_reports INSERT', async () => {
+    const result = await createNcr({ ncrType: 'quality', severity: 'minor' });
+    expect(result.ok).toBe(true);
+
+    const insertCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.ncr_reports'),
+    );
+    expect(insertCall).toBeTruthy();
+    const sql = normalize(String(insertCall?.[0]));
+    expect(sql).toContain('site_id');
+    expect(sql).toContain('$11::uuid');
+    // The 11th bind (index 10) must be the resolved site id.
+    expect(insertCall?.[1]?.[10]).toBe(SITE_ID);
+  });
+
+  it('createNcr binds null for site_id when no active site is resolved', async () => {
+    vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
+
+    const result = await createNcr({ ncrType: 'quality', severity: 'minor' });
+    expect(result.ok).toBe(true);
+
+    const insertCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.ncr_reports'),
+    );
+    expect(insertCall?.[1]?.[10]).toBeNull();
   });
 
   it('requires e-signature for critical close and uses create permission for non-critical close', async () => {

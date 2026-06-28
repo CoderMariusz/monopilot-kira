@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   WAREHOUSE_READ_PERMISSION,
   WAREHOUSE_STOCK_MOVE_PERMISSION,
@@ -55,6 +56,8 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
     return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<StockMoveListItem[]>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
+      const s = await getActiveSiteId({ client: ctx.client });
+      if (!s) return { ok: true, data: [], noActiveSite: true } as WarehouseResult<StockMoveListItem[]> & { noActiveSite: true };
 
       const { rows } = await ctx.client.query<{
         id: string;
@@ -89,6 +92,7 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
              left join public.locations fl on fl.org_id = app.current_org_id() and fl.id = sm.from_location_id
              left join public.locations tl on tl.org_id = app.current_org_id() and tl.id = sm.to_location_id
             where sm.org_id = app.current_org_id()
+              and sm.site_id = $3::uuid
 
            union all
 
@@ -120,6 +124,7 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
              left join public.license_plates lp2 on lp2.org_id = app.current_org_id() and lp2.id = h.lp_id
              left join public.locations tl2 on tl2.org_id = app.current_org_id() and tl2.id = lp2.location_id
             where h.org_id = app.current_org_id()
+              and h.site_id = $3::uuid
          )
          select id, move_number, lp_id, lp_number, move_type,
                 from_location_code, to_location_code, quantity, uom,
@@ -128,7 +133,7 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
           where ($1::text is null or move_type = $1)
           order by move_date desc, id desc
           limit $2::integer`,
-        [moveType, limit],
+        [moveType, limit, s],
       );
 
       return {

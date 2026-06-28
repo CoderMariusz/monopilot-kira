@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   WAREHOUSE_READ_PERMISSION,
   asLimit,
@@ -57,6 +58,8 @@ export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResul
     return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<GrnListItem[]>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
+      const s = await getActiveSiteId({ client: ctx.client });
+      if (!s) return { ok: true, data: [], noActiveSite: true } as WarehouseResult<GrnListItem[]> & { noActiveSite: true };
 
       const { rows } = await ctx.client.query<GrnRow>(
         `select g.id::text,
@@ -78,6 +81,7 @@ export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResul
            left join public.suppliers s on s.org_id = app.current_org_id() and s.id = g.supplier_id
            left join public.warehouses w on w.org_id = app.current_org_id() and w.id = g.warehouse_id
           where g.org_id = app.current_org_id()
+            and g.site_id = $5::uuid
             and ($1::text is null or g.status = $1)
             and ($2::text is null or g.source_type = $2)
             and (
@@ -87,7 +91,7 @@ export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResul
             )
           order by g.receipt_date desc, g.grn_number desc
           limit $4::integer`,
-        [status, sourceType, search, limit],
+        [status, sourceType, search, limit, s],
       );
 
       return { ok: true, data: rows.map(mapGrn) };
