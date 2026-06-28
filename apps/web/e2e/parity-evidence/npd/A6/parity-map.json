@@ -1,0 +1,45 @@
+{
+  "task": "A6",
+  "prototype": "NONE (spec-driven)",
+  "reused_pattern": "apps/web/app/(npd)/_modals/gate-revert-modal.tsx (in-app e-sign modal pattern)",
+  "mapping": [
+    {
+      "gateRevertPattern": "@monopilot/ui Modal (Header/Body/Footer) size=md",
+      "production": "UnlockVersionModal — same Modal primitives, modalId=\"npd-formulation-unlock\""
+    },
+    {
+      "gateRevertPattern": "reason Textarea",
+      "production": "unlock-reason Textarea (optional — unlock action treats reason as optional, not a submit gate)"
+    },
+    {
+      "gateRevertPattern": "type=password PIN Input (never plaintext) + confirm Checkbox; submit gated on both",
+      "production": "unlock-pin password Input + unlock-confirm-checkbox; submit disabled until pin + confirm"
+    },
+    {
+      "gateRevertPattern": "per-code error map (errorKey) + role=alert inline",
+      "production": "lockErrorMessage-style switch → unlockErrorMessage (forbidden/VERSION_NOT_LOCKED/esign_failed/not_found) + role=alert"
+    },
+    {
+      "gateRevertPattern": "injected revertProjectGate Server Action prop",
+      "production": "unlockVersionAction prop threaded from page.tsx (imports unlock-version.ts, never authored)"
+    },
+    {
+      "gateRevertPattern": "onReverted → host close + revalidation",
+      "production": "onConfirm → host calls action; ok → close modal + refresh() (RSC re-reads draft = editable)"
+    }
+  ],
+  "toolbar_placement": "header[data-region=toolbar] — Unlock button shown ONLY when data.state===locked, next to the (disabled) Lock button",
+  "rbac": "server-side (npd.formulation.unlock + e-sign PIN inside unlockVersion); forbidden mirrored read-only inline, never client-trusted",
+  "five_ui_states": {
+    "loading": "inherited from FormulationEditor StateNotice (state!=ready)",
+    "empty": "inherited from FormulationEditor empty state",
+    "error": "esign-error.html (esign_failed + generic codes mapped to inline role=alert)",
+    "permission_denied": "forbidden code → unlockErrorForbidden inline alert (RBAC mirrored)",
+    "optimistic": "optimistic-unlocking.html (\"Unlocking…\" pending submit label)"
+  },
+  "deviations": [
+    "No prototype JSX exists for this control — parity is against the established GateRevertModal e-sign pattern, per UI-PROTOTYPE-PARITY-POLICY.md §1 (spec-driven + nearest reusable pattern).",
+    "Reason is OPTIONAL (the unlockVersion action types reason as optional), so unlike gate-revert it is not a submit gate; submit gates only on PIN + confirm.",
+    "A NEW UnlockVersionModal was created rather than modifying the shared gate-revert-modal.tsx (which must not change — it serves the gate-revert flow)."
+  ]
+}

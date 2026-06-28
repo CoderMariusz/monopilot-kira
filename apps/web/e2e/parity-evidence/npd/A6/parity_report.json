@@ -1,0 +1,39 @@
+{
+  "task": "A6",
+  "control": "Unlock recipe (locked formulation version → e-sign PIN → draft)",
+  "prototype_anchor": "NONE — spec-driven; reuses GateRevertModal e-sign pattern (apps/web/app/(npd)/_modals/gate-revert-modal.tsx)",
+  "server_action": "unlockVersion (apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/unlock-version.ts) — imported, never authored",
+  "prd_refs": [
+    "§17.11.1"
+  ],
+  "generated_at": "2026-06-28T09:06:52.481Z",
+  "states": {
+    "locked_toolbar": {
+      "unlockButtonPresent": true,
+      "unlockButtonDisabled": false,
+      "lockedBannerPresent": true,
+      "saveDisabled": true
+    },
+    "modal_open": {
+      "modalPresent": true,
+      "reasonTextarea": true,
+      "pinIsPassword": true,
+      "confirmCheckbox": true,
+      "submitDisabledBeforeInput": true,
+      "bodyShowsVersionNumber": true
+    },
+    "esign_error": {
+      "errorAlertPresent": true,
+      "errorText": "Incorrect PIN. Please try again.",
+      "modalStillOpen": true
+    },
+    "optimistic_unlocking": {
+      "submitLabel": "Unlocking…",
+      "triggerLabel": "Unlocking…"
+    },
+    "draft_no_button": {
+      "unlockButtonPresent": false,
+      "lockedBannerPresent": false
+    }
+  }
+}

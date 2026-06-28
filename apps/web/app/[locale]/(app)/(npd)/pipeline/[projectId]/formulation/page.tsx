@@ -53,6 +53,8 @@ import { submitForTrial } from '../../../../../../(npd)/pipeline/[projectId]/for
 import { compareVersions } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/compare-versions';
 // C1 — lock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
 import { lockVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/lock-version';
+// A6 — unlock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
+import { unlockVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/unlock-version';
 import { loadAllergensConfig } from '../../../../(modules)/technical/allergens-config/_actions/load-config';
 // Costing v2 — editable batch size (= pack weight): persist via the brief's
 // updateProjectBrief action (batch = pack weight). Imported, never re-authored.
@@ -115,6 +117,22 @@ const DEFAULT_LABELS: FormulationLabels = {
   lockErrorLocked: 'This version is already locked.',
   lockErrorNotSubmitted: 'Only a draft or trial version can be locked.',
   lockErrorNotFound: 'This version could not be found.',
+  unlockRecipe: 'Unlock recipe',
+  unlocking: 'Unlocking…',
+  unlockTitle: 'Unlock recipe',
+  unlockBody: 'Unlocking returns v{n} to draft so it can be edited again.',
+  unlockReasonLabel: 'Reason (optional)',
+  unlockReasonPlaceholder: 'Why are you unlocking this version?',
+  unlockPinLabel: 'E-signature PIN',
+  unlockPinPlaceholder: 'Enter your PIN',
+  unlockConfirmCheckbox: 'I confirm I am unlocking this locked recipe version.',
+  unlockSubmit: 'Unlock recipe',
+  unlockCancel: 'Cancel',
+  unlockError: 'Could not unlock the recipe. Try again.',
+  unlockErrorForbidden: 'You do not have permission to unlock this recipe.',
+  unlockErrorNotLocked: 'This version is not locked.',
+  unlockErrorEsign: 'Incorrect PIN. Please try again.',
+  unlockErrorNotFound: 'This version could not be found.',
   compareTitle: 'Compare versions',
   compareVersionA: 'Version A',
   compareVersionB: 'Version B',
@@ -635,6 +653,10 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       // gate as save). The action ALSO enforces `npd.formulation.lock` server-side
       // and surfaces `forbidden` inline if the user lacks the lock grant.
       lockVersionAction={loaded.canEdit ? lockVersion : undefined}
+      // A6 — unlock recipe: thread only when the user can write (same UI gate as
+      // lock/save). The action ALSO enforces `npd.formulation.unlock` + the e-sign
+      // PIN server-side and surfaces `forbidden`/`esign_failed` inline.
+      unlockVersionAction={loaded.canEdit ? unlockVersion : undefined}
       // Costing v2 — editable batch size (= pack weight). Only threaded when the
       // user can write (same gate as save); the action also enforces RBAC server-side.
       updatePackWeightAction={loaded.canEdit ? updatePackWeightAdapter : undefined}

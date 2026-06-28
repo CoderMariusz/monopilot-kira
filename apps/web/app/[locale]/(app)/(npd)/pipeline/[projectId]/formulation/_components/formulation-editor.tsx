@@ -68,6 +68,7 @@ import {
   type NutritionRow,
   type NutritionTargets,
 } from './nutrition-panel';
+import { UnlockVersionModal } from './unlock-version-modal';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -165,6 +166,25 @@ export type FormulationLabels = {
   lockErrorLocked: string;
   lockErrorNotSubmitted: string;
   lockErrorNotFound: string;
+  /** Unlock-recipe toolbar action + e-sign PIN modal (A6). */
+  unlockRecipe: string;
+  unlocking: string;
+  unlockTitle: string;
+  /** "{n}" replaced client-side with the current version number. */
+  unlockBody: string;
+  unlockReasonLabel: string;
+  unlockReasonPlaceholder: string;
+  unlockPinLabel: string;
+  unlockPinPlaceholder: string;
+  unlockConfirmCheckbox: string;
+  unlockSubmit: string;
+  unlockCancel: string;
+  /** Generic + code-specific unlock error messages (mapped from the action's error codes). */
+  unlockError: string;
+  unlockErrorForbidden: string;
+  unlockErrorNotLocked: string;
+  unlockErrorEsign: string;
+  unlockErrorNotFound: string;
   /** Compare-versions modal labels. */
   compareTitle: string;
   compareVersionA: string;
@@ -309,6 +329,32 @@ export type LockVersionAction = (input: {
         | 'not_found'
         | 'VERSION_LOCKED'
         | 'VERSION_NOT_SUBMITTED'
+        | 'persistence_failed';
+    }
+>;
+
+/**
+ * Unlock-version Server Action (A6, legacy actions tree, `_actions/unlock-version.ts`).
+ * Returns a LOCKED version back to draft, gated by an e-sign PIN. RBAC
+ * (`npd.formulation.unlock`) + the e-sign check are enforced server-side; the
+ * editor only mirrors the `forbidden` code read-only and surfaces every other
+ * error code (esign_failed wrong PIN, VERSION_NOT_LOCKED, not_found) inline.
+ */
+export type UnlockVersionAction = (input: {
+  projectId: string;
+  versionId: string;
+  pin: string;
+  reason?: string;
+}) => Promise<
+  | { ok: true; data: { versionId: string } }
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'not_found'
+        | 'VERSION_NOT_LOCKED'
+        | 'esign_failed'
         | 'persistence_failed';
     }
 >;
@@ -550,6 +596,7 @@ export function FormulationEditor({
   compareVersionsAction,
   createVersionAction,
   lockVersionAction,
+  unlockVersionAction,
   updatePackWeightAction,
   searchItemsAction,
   projectId,
@@ -586,6 +633,8 @@ export function FormulationEditor({
   compareVersionsAction?: CompareVersionsAction;
   /** Lock-version Server Action (C1) — freezes the current version. Gated server-side. */
   lockVersionAction?: LockVersionAction;
+  /** Unlock-version Server Action (A6) — returns a locked version to draft (e-sign PIN). Gated server-side. */
+  unlockVersionAction?: UnlockVersionAction;
   /** Costing v2: persist the editable batch size (= pack weight g) via the brief action. */
   updatePackWeightAction?: UpdatePackWeightAction;
   /** Lane-B: org-scoped item-search action for the ingredient picker (defaults to searchItems). */
@@ -727,6 +776,11 @@ export function FormulationEditor({
   const [lockConfirmOpen, setLockConfirmOpen] = React.useState(false);
   const [lockStatus, setLockStatus] = React.useState<LockStatus>('idle');
   const [lockError, setLockError] = React.useState<string>('');
+
+  // ── Unlock recipe (A6) — e-sign PIN modal + server-gated unlock ──────────────
+  const [unlockOpen, setUnlockOpen] = React.useState(false);
+  const [unlocking, setUnlocking] = React.useState(false);
+  const [unlockErrorCode, setUnlockErrorCode] = React.useState<string | null>(null);
 
   // Per-RM nutrition is reference data (stable across pct edits); derive once.
   const nutritionByRm = React.useMemo(() => {
@@ -1109,6 +1163,59 @@ export function FormulationEditor({
     })();
   }, [lockVersionAction, data, versionId, lockStatus, refresh, lockErrorMessage, labels.lockError]);
 
+  /** Map a server unlock-error code → the localized inline message. */
+  const unlockErrorMessage = React.useCallback(
+    (error: string): string => {
+      switch (error) {
+        case 'forbidden':
+          return labels.unlockErrorForbidden;
+        case 'VERSION_NOT_LOCKED':
+          return labels.unlockErrorNotLocked;
+        case 'esign_failed':
+          return labels.unlockErrorEsign;
+        case 'not_found':
+          return labels.unlockErrorNotFound;
+        default:
+          return labels.unlockError;
+      }
+    },
+    [labels],
+  );
+
+  /**
+   * Unlock recipe (A6). Server action enforces RBAC (`npd.formulation.unlock`) +
+   * the e-sign PIN check + the `locked` precondition; we only mirror the result.
+   * On success the version returns to `draft` (editable), so we close the modal
+   * and refresh to re-read the now-editable version from Supabase. On failure the
+   * modal stays open with the mapped error (the user can retry the PIN).
+   */
+  const onConfirmUnlock = React.useCallback(
+    async (input: { pin: string; reason: string }) => {
+      if (!unlockVersionAction || !data || unlocking) return;
+      setUnlocking(true);
+      setUnlockErrorCode(null);
+      try {
+        const result = await unlockVersionAction({
+          projectId: data.projectId,
+          versionId,
+          pin: input.pin,
+          reason: input.reason || undefined,
+        });
+        if (result.ok) {
+          setUnlockOpen(false);
+          refresh();
+        } else {
+          setUnlockErrorCode(result.error);
+        }
+      } catch {
+        setUnlockErrorCode('persistence_failed');
+      } finally {
+        setUnlocking(false);
+      }
+    },
+    [unlockVersionAction, data, versionId, unlocking, refresh],
+  );
+
   // Re-seed the editable pack weight when the persisted value changes (after a
   // successful commit the action revalidated and refresh() re-runs the RSC loader,
   // so `data.packWeightG` arrives fresh).
@@ -1303,6 +1410,25 @@ export function FormulationEditor({
           >
             {lockStatus === 'locking' ? labels.locking : labels.lockRecipe}
           </Button>
+          {locked ? (
+            <Button
+              type="button"
+              className="btn-ghost"
+              // A6: shown ONLY on a locked version. Gated by the injected action the
+              // same way Lock is (disabled, never a dead end, when no action prop).
+              // The action ALSO enforces `npd.formulation.unlock` + the e-sign PIN
+              // server-side and surfaces `forbidden` inline.
+              disabled={!unlockVersionAction || unlocking}
+              data-status={unlocking ? 'unlocking' : 'idle'}
+              onClick={() => {
+                setUnlockErrorCode(null);
+                setUnlockOpen(true);
+              }}
+              data-testid="unlock-recipe-trigger"
+            >
+              {unlocking ? labels.unlocking : labels.unlockRecipe}
+            </Button>
+          ) : null}
           <Button
             type="button"
             className="btn-secondary"
@@ -1410,6 +1536,18 @@ export function FormulationEditor({
           result={compareResult}
           onRun={onRunCompare}
           onClose={() => setCompareOpen(false)}
+        />
+      ) : null}
+
+      {unlockOpen && data ? (
+        <UnlockVersionModal
+          open={unlockOpen}
+          versionNumber={data.versionNumber}
+          labels={labels}
+          submitting={unlocking}
+          errorMessage={unlockErrorCode ? unlockErrorMessage(unlockErrorCode) : null}
+          onConfirm={onConfirmUnlock}
+          onClose={() => setUnlockOpen(false)}
         />
       ) : null}
 

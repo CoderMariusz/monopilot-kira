@@ -1,0 +1,11 @@
+{
+  "task": "A6",
+  "note": "Live @axe-core/playwright blocked (no running RBAC-authenticated app server in worktree) — produced at Gate-5 by e2e/npd-formulation-unlock.spec.ts. RTL role/label checks substitute, per UI-PROTOTYPE-PARITY-POLICY.md.",
+  "dialogHasAriaModal": true,
+  "dialogHasTitle": true,
+  "pinInputLabelled": true,
+  "pinNeverPlaintext": true,
+  "confirmCheckboxLabelled": true,
+  "reasonTextareaLabelled": true,
+  "errorUsesRoleAlert": true
+}
