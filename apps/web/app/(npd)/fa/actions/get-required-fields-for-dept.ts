@@ -9,10 +9,10 @@ import { ValidationError } from './errors';
  * T-022 — Server-side readiness probe for the Dept Close modal.
  *
  * Returns the per-dept required-field checklist used by the dept-close modal:
- * one row per `Reference.DeptColumns` entry with `required_for_done = true`,
+ * one row per NPD field catalog entry with `required = true`,
  * each carrying a `pass` flag computed from the real `public.product` row
  * (NOT a hardcoded checklist — the prototype's static arrays are replaced by
- * live DeptColumns + product reads). Mirrors the readiness contract that
+ * live catalog + product reads). Mirrors the readiness contract that
  * `closeDeptSection` (T-017) enforces via `public.is_all_required_filled`, so
  * the modal cannot surface a green checklist the action would reject.
  *
@@ -75,7 +75,7 @@ const inputSchema = z.object({
 
 /**
  * Humanize a `column_key` (e.g. `product_name`, `Pack_Size`) into a label
- * ("Product Name", "Pack Size"). `Reference.DeptColumns` has no display-label
+ * ("Product Name", "Pack Size"). The NPD field catalog has no separate display-label
  * column, so the key is the source of truth for the checklist label.
  */
 function humanizeColumnKey(columnKey: string): string {

@@ -241,16 +241,15 @@ async function readDeptColumns(
   ctx: OrgContextLike,
   deptCode: string,
 ): Promise<GenericDeptColumn[]> {
-  // A3 slice-3 Phase 2 — the rendered field set per department now comes from the
-  // DYNAMIC catalog (public.npd_field_catalog + public.npd_department_field), not
-  // "Reference"."DeptColumns". mig 370 seeded the catalog FROM DeptColumns
-  // (excluding the System Done_* flags, the Benchmark editor field, and the
-  // owner-retired Number_of_Cases), and migs 374/376 added is_auto/auto_source_field
-  // + dropdown_source/blocking_rule so this join can emit the SAME aliased columns
-  // mapDeptColumn already reads. Org scope is RLS-pinned on EVERY relation
-  // (app.current_org_id()) so no cross-org field can leak in. The write path
-  // (update-fa-cell.ts), readDropdowns, deriveDeptStatuses and the close-dept gates
-  // stay DeptColumns-authoritative (slice-4). $1::text cast preserved.
+  // A3 slice-3 Phase 2 onwards — the rendered field set per department, the close gates,
+  // and the write path all read from the DYNAMIC catalog (public.npd_field_catalog +
+  // public.npd_department_field), not "Reference"."DeptColumns". mig 370 seeded the
+  // catalog FROM DeptColumns (excluding the System Done_* flags, the Benchmark editor
+  // field, and the owner-retired Number_of_Cases), and migs 374/376 added is_auto/
+  // auto_source_field + dropdown_source/blocking_rule so this join can emit the SAME
+  // aliased columns mapDeptColumn already reads. Org scope is RLS-pinned on EVERY
+  // relation (app.current_org_id()) so no cross-org field can leak in. Reference.
+  // DeptColumns is no longer authoritative for the FA. $1::text cast preserved.
   const { rows } = await ctx.client.query<DeptColumnRow>(
     `select lower(f.code)          as physical_column,
             f.code                 as column_key,

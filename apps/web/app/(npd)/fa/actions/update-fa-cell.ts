@@ -134,7 +134,7 @@ async function loadDeptColumn(ctx: OrgContextLike, columnName: string): Promise<
   );
   const row = rows[0];
   if (!row) {
-    throw new ValidationError('UNKNOWN_COLUMN', 'Column is not registered in Reference.DeptColumns');
+    throw new ValidationError('UNKNOWN_COLUMN', 'Column is not registered in the NPD field catalog');
   }
   if (!/^[a-z][a-z0-9_]*$/.test(row.column_key)) {
     throw new ValidationError('UNSAFE_COLUMN', 'Column metadata references an unsafe product column');

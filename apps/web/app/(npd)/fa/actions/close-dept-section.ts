@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { AuthError, DepartmentNotReadyError, ValidationError } from './errors';
 
+// Readiness gate: verifies all required fields (from npd_department_field.required)
+// are filled before allowing a dept to close. Required fields are read from the
+// dynamic catalog via the public.is_all_required_filled(product_code, dept) check.
 const DEPT_CONFIG = {
   Core: { permission: 'npd.core.write', closedColumn: 'closed_core' },
   Planning: { permission: 'npd.planning.write', closedColumn: 'closed_planning' },
