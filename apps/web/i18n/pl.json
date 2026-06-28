@@ -1126,7 +1126,9 @@
       "auto_source_self": "Pole automatyczne nie może wyliczać się z samego siebie. Wybierz inne pole źródłowe.",
       "auto_source_not_found": "Nie znaleziono wybranego pola źródłowego. Wybierz aktywne pole katalogu.",
       "auto_source_cycle": "To pole źródłowe już wylicza się z tego pola, co utworzyłoby pętlę.",
-      "auto_source_required": "Wybierz pole źródłowe, gdy opcja Wyliczane automatycznie jest włączona."
+      "auto_source_required": "Wybierz pole źródłowe, gdy opcja Wyliczane automatycznie jest włączona.",
+      "deactivate_core_error": "Działu podstawowego nie można dezaktywować.",
+      "deactivate_last_error": "Co najmniej jeden dział musi pozostać aktywny."
     },
     "shifts": {
       "title": "Zmiany i kalendarz",

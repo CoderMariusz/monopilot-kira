@@ -332,6 +332,31 @@ export async function updateDepartment(id: string, patch: unknown): Promise<Depa
     const context = ctx as OrgContextLike;
     await requireNpdSchemaEdit(context);
     if (updates.length === 0) return selectDepartmentById(context, id);
+    if (parsed.active === false) {
+      const { rows: departmentRows } = await context.client.query<{ code: string }>(
+        `select code
+           from public.npd_departments
+          where id = $1::uuid
+            and org_id = app.current_org_id()
+          limit 1`,
+        [id],
+      );
+      if (departmentRows[0]?.code.toLowerCase() === 'core') {
+        throw new Error('cannot_deactivate_core');
+      }
+
+      const { rows: activeRows } = await context.client.query<{ count: string }>(
+        `select count(*)::text as count
+           from public.npd_departments
+          where org_id = app.current_org_id()
+            and active = true
+            and id <> $1::uuid`,
+        [id],
+      );
+      if (activeRows[0]?.count === '0') {
+        throw new Error('cannot_deactivate_last');
+      }
+    }
     const setClause = updates.map(([key], index) => `${key} = $${index + 2}`).join(', ');
     const { rows } = await context.client.query<DepartmentRow>(
       `update public.npd_departments

@@ -101,6 +101,10 @@ async function buildLabels(locale: string): Promise<NpdFieldsScreenLabels> {
       auto_source_cycle: t('auto_source_cycle'),
       auto_source_required: t('auto_source_required'),
     },
+    deactivateErrors: {
+      cannot_deactivate_core: t('deactivate_core_error'),
+      cannot_deactivate_last: t('deactivate_last_error'),
+    },
     columns: {
       field: t('column_field'),
       dataType: t('column_data_type'),

@@ -95,6 +95,10 @@ const labels: NpdFieldsScreenLabels = {
     auto_source_cycle: 'That source field already derives from this field, which would create a loop.',
     auto_source_required: 'Choose a source field when Auto-derived is on.',
   },
+  deactivateErrors: {
+    cannot_deactivate_core: 'Core department cannot be deactivated.',
+    cannot_deactivate_last: 'At least one department must stay active.',
+  },
 };
 
 const departments: NpdDepartmentConfigRow[] = [
@@ -245,6 +249,88 @@ describe('NpdFieldsScreen', () => {
     await waitFor(() => {
       expect(setDepartmentActiveAction).toHaveBeenCalledWith(departments[0].id, false);
     });
+  });
+
+  it('shows the core-department message and rolls the toggle back when deactivation is refused via the error union', async () => {
+    // Union mechanism: the action RESOLVES with { ok:false, error } (no throw),
+    // mirroring the updateField convention used elsewhere in this screen.
+    const setDepartmentActiveAction = vi.fn(async () => ({
+      ok: false as const,
+      error: 'cannot_deactivate_core',
+    }));
+    renderScreen({ setDepartmentActiveAction });
+
+    const toggle = screen.getByLabelText('Technical Active');
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(setDepartmentActiveAction).toHaveBeenCalledWith(departments[0].id, false);
+    });
+
+    // The specific localized message is shown (NOT the generic error string).
+    await waitFor(() => {
+      expect(screen.getByTestId('npd-fields-error')).toHaveTextContent(
+        'Core department cannot be deactivated.',
+      );
+    });
+    expect(screen.queryByText('Unable to save NPD field settings.')).not.toBeInTheDocument();
+
+    // The optimistic toggle reverts to ON since the deactivation was refused.
+    await waitFor(() => {
+      expect(screen.getByLabelText('Technical Active')).toBeChecked();
+    });
+    const deptTable = screen.getByTestId('npd-departments-table');
+    expect(within(deptTable).getByText('● Active')).toBeInTheDocument();
+  });
+
+  it('maps the last-department message and rolls back when the action throws the code', async () => {
+    // Thrown mechanism: a rejected promise (e.g. a DB constraint/trigger) whose
+    // message contains the code. handleDepartmentActive tolerates both shapes.
+    const setDepartmentActiveAction = vi.fn(async () => {
+      throw new Error('npd_departments_active_check: cannot_deactivate_last');
+    });
+    renderScreen({ setDepartmentActiveAction });
+
+    const toggle = screen.getByLabelText('Technical Active');
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('npd-fields-error')).toHaveTextContent(
+        'At least one department must stay active.',
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Technical Active')).toBeChecked();
+    });
+  });
+
+  it('renders inactive departments with a dimmed row and an Inactive tag', () => {
+    renderScreen();
+
+    // Packaging is inactive in the fixture.
+    const inactiveRow = screen.getByTestId(
+      'npd-department-row-22222222-2222-2222-2222-222222222222',
+    );
+    expect(inactiveRow).toHaveAttribute('data-inactive', 'true');
+    expect(inactiveRow).toHaveStyle({ opacity: '0.55' });
+    expect(
+      within(inactiveRow).getByTestId(
+        'npd-department-inactive-tag-22222222-2222-2222-2222-222222222222',
+      ),
+    ).toHaveTextContent('Inactive');
+
+    // The active Technical row is NOT dimmed and has no inactive tag.
+    const activeRow = screen.getByTestId(
+      'npd-department-row-11111111-1111-1111-1111-111111111111',
+    );
+    expect(activeRow).not.toHaveAttribute('data-inactive');
+    expect(
+      within(activeRow).queryByTestId(
+        'npd-department-inactive-tag-11111111-1111-1111-1111-111111111111',
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it('disables edit controls when canEdit is false', () => {

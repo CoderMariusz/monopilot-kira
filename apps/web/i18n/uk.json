@@ -1358,7 +1358,9 @@
       "auto_source_self": "An auto field cannot derive from itself. Choose a different source field.",
       "auto_source_not_found": "The selected source field was not found. Choose an active catalog field.",
       "auto_source_cycle": "That source field already derives from this field, which would create a loop.",
-      "auto_source_required": "Choose a source field when Auto-derived is on."
+      "auto_source_required": "Choose a source field when Auto-derived is on.",
+      "deactivate_core_error": "Core department cannot be deactivated.",
+      "deactivate_last_error": "At least one department must stay active."
     },
     "schema_column_wizard": {
       "breadcrumb": "Settings / Schema browser / Column wizard",

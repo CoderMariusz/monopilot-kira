@@ -53,6 +53,20 @@ export const AUTO_SOURCE_ERROR_CODES = [
 
 export type AutoSourceErrorCode = (typeof AUTO_SOURCE_ERROR_CODES)[number];
 
+/**
+ * Error codes the `setDepartmentActive` action surfaces when a deactivation is
+ * refused server-side. The backend may report these either as a discriminated
+ * union (`{ ok:false, error }`, the convention used by `updateField`) or as a
+ * thrown `Error` whose message contains the code — `handleDepartmentActive`
+ * tolerates both. When refused, the optimistic toggle is rolled back to ON.
+ */
+export const DEACTIVATE_ERROR_CODES = [
+  'cannot_deactivate_core',
+  'cannot_deactivate_last',
+] as const;
+
+export type DeactivateErrorCode = (typeof DEACTIVATE_ERROR_CODES)[number];
+
 export type NpdDepartmentFieldRow = {
   assignment_id: string;
   field_id: string;
@@ -123,6 +137,7 @@ export type NpdFieldsScreenLabels = {
   autoBadge: string;
   autoFrom: string;
   autoSourceErrors: Record<AutoSourceErrorCode, string>;
+  deactivateErrors: Record<DeactivateErrorCode, string>;
   columns: {
     field: string;
     dataType: string;
@@ -138,7 +153,19 @@ export type NpdFieldsScreenLabels = {
 type UpdateAssignmentAction = typeof updateAssignment;
 type AssignFieldAction = typeof assignFieldToDepartment;
 type RemoveAssignmentAction = typeof removeAssignment;
-type SetDepartmentActiveAction = typeof setDepartmentActive;
+/**
+ * The screen tolerates either return shape from the deactivation action:
+ *  - the resolved row (success / current behaviour), or
+ *  - a `{ ok:false, error }` refusal union (forward-compatible with the backend
+ *    lane that adds `cannot_deactivate_core` / `cannot_deactivate_last`).
+ * A thrown rejection carrying the code is also handled at runtime. Widening here
+ * (rather than `typeof setDepartmentActive`) keeps the screen the source of
+ * truth for the shapes it consumes without editing the backend action.
+ */
+type SetDepartmentActiveResult =
+  | Awaited<ReturnType<typeof setDepartmentActive>>
+  | { ok: false; error: DeactivateErrorCode | string };
+type SetDepartmentActiveAction = (id: string, active: boolean) => Promise<SetDepartmentActiveResult>;
 type CreateFieldAction = typeof createField;
 type CreateDepartmentAction = typeof createDepartment;
 type UpdateFieldAction = typeof updateField;
@@ -177,6 +204,37 @@ function isAutoSourceError(
     'ok' in result &&
     (result as { ok: unknown }).ok === false
   );
+}
+
+function isDeactivateErrorCode(value: unknown): value is DeactivateErrorCode {
+  return (
+    typeof value === 'string' && DEACTIVATE_ERROR_CODES.includes(value as DeactivateErrorCode)
+  );
+}
+
+/**
+ * Resolve a refused-deactivation code from whatever `setDepartmentActive`
+ * surfaces. Two mechanisms are tolerated:
+ *  - a discriminated union `{ ok:false, error:'cannot_deactivate_*' }`
+ *    (the `updateField` convention), and
+ *  - a thrown `Error`/string whose message *contains* the code (e.g. a Postgres
+ *    constraint/trigger raising `cannot_deactivate_core`).
+ * Returns the matched code, or `null` for any other (generic) failure.
+ */
+function resolveDeactivateError(source: unknown): DeactivateErrorCode | null {
+  if (typeof source === 'object' && source !== null && 'ok' in source) {
+    const candidate = source as { ok: unknown; error?: unknown };
+    if (candidate.ok === false && isDeactivateErrorCode(candidate.error)) {
+      return candidate.error;
+    }
+  }
+  const message =
+    source instanceof Error
+      ? source.message
+      : typeof source === 'string'
+        ? source
+        : '';
+  return DEACTIVATE_ERROR_CODES.find((code) => message.includes(code)) ?? null;
 }
 
 function slugifyCode(value: string): string {
@@ -333,19 +391,44 @@ export default function NpdFieldsScreen({
   }
 
   function handleDepartmentActive(department: NpdDepartmentConfigRow, active: boolean) {
+    if (!canEdit) return;
+    // Optimistic flip of the toggle + badge.
     setDepartmentRows((current) =>
       current.map((row) => (row.id === department.id ? { ...row, active } : row)),
     );
-    void runMutation({ kind: 'department', id: department.id }, async () => {
+    setPendingTarget({ kind: 'department', id: department.id });
+    setError(null);
+
+    const rollback = () => {
+      setDepartmentRows((current) =>
+        current.map((row) =>
+          row.id === department.id ? { ...row, active: department.active } : row,
+        ),
+      );
+    };
+
+    void (async () => {
       try {
-        await setDepartmentActiveAction(department.id, active);
+        const result = await setDepartmentActiveAction(department.id, active);
+        // Union mechanism: the action resolved with { ok:false, error }. No throw.
+        const unionCode = resolveDeactivateError(result);
+        if (unionCode) {
+          // Refused: revert the optimistic toggle to its prior state and show the
+          // specific localized reason instead of the generic error.
+          rollback();
+          setError(labels.deactivateErrors[unionCode]);
+          return;
+        }
+        refreshAfterMutation();
       } catch (caught) {
-        setDepartmentRows((current) =>
-          current.map((row) => (row.id === department.id ? { ...row, active: department.active } : row)),
-        );
-        throw caught;
+        // Thrown mechanism: a rejected promise (e.g. a DB constraint/trigger).
+        rollback();
+        const thrownCode = resolveDeactivateError(caught);
+        setError(thrownCode ? labels.deactivateErrors[thrownCode] : labels.error);
+      } finally {
+        setPendingTarget(null);
       }
-    });
+    })();
   }
 
   function handleAssignField() {
@@ -627,12 +710,18 @@ export default function NpdFieldsScreen({
               </thead>
               <tbody>
                 {departmentRows.map((department) => (
-                  <tr key={department.id}>
+                  <tr
+                    key={department.id}
+                    data-testid={`npd-department-row-${department.id}`}
+                    data-inactive={department.active ? undefined : 'true'}
+                    style={department.active ? undefined : { opacity: 0.55 }}
+                  >
                     <td>
                       <button
                         type="button"
                         className={`pill ${selectedDepartment?.id === department.id ? 'on' : ''}`}
                         aria-pressed={selectedDepartment?.id === department.id}
+                        style={department.active ? undefined : { opacity: 0.6 }}
                         onClick={() => setSelectedDepartmentId(department.id)}
                       >
                         {department.name}
@@ -640,6 +729,15 @@ export default function NpdFieldsScreen({
                       <span className="muted mono" style={{ marginLeft: 8 }}>
                         {department.code}
                       </span>
+                      {department.active ? null : (
+                        <span
+                          className="badge badge-gray"
+                          data-testid={`npd-department-inactive-tag-${department.id}`}
+                          style={{ marginLeft: 8 }}
+                        >
+                          {labels.inactive}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

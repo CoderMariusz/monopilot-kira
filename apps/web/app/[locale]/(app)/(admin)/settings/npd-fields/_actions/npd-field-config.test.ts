@@ -6,6 +6,8 @@ const harness = vi.hoisted(() => ({
   calls: [] as QueryCall[],
   permissionGranted: true,
   departmentRows: [] as Array<Record<string, unknown>>,
+  departmentCodeRows: [] as Array<Record<string, unknown>>,
+  activeDepartmentCountRows: [] as Array<Record<string, unknown>>,
   fieldRows: [] as Array<Record<string, unknown>>,
   sourceFieldRows: [] as Array<Record<string, unknown>>,
   assignmentRows: [] as Array<Record<string, unknown>>,
@@ -29,8 +31,23 @@ function makeClient() {
         return { rows: harness.joinedRows as T[], rowCount: harness.joinedRows.length };
       }
 
+      if (normalized.startsWith('select code') && normalized.includes('from public.npd_departments')) {
+        return { rows: harness.departmentCodeRows as T[], rowCount: harness.departmentCodeRows.length };
+      }
+
+      if (normalized.startsWith('select count(*)::text as count') && normalized.includes('from public.npd_departments')) {
+        return {
+          rows: harness.activeDepartmentCountRows as T[],
+          rowCount: harness.activeDepartmentCountRows.length,
+        };
+      }
+
       if (normalized.includes('from public.npd_departments')) {
         return { rows: harness.departmentRows as T[], rowCount: harness.departmentRows.length };
+      }
+
+      if (normalized.includes('update public.npd_departments')) {
+        return { rows: harness.departmentRows.slice(0, 1) as T[], rowCount: harness.departmentRows.length > 0 ? 1 : 0 };
       }
 
       if (normalized.includes('insert into public.npd_departments')) {
@@ -87,6 +104,8 @@ describe('NPD field config actions', () => {
         created_at: '2026-06-24T00:00:00.000Z',
       },
     ];
+    harness.departmentCodeRows = [{ code: 'RND' }];
+    harness.activeDepartmentCountRows = [{ count: '1' }];
     harness.fieldRows = [
       {
         id: '44444444-4444-4444-8444-444444444444',
@@ -186,6 +205,39 @@ describe('NPD field config actions', () => {
       '22222222-2222-4222-8222-222222222222',
       'npd.schema.edit',
     ]);
+  });
+
+  it('setDepartmentActive rejects deactivating Core department without issuing UPDATE', async () => {
+    const { setDepartmentActive } = await import('./npd-field-config');
+    harness.departmentCodeRows = [{ code: 'Core' }];
+
+    await expect(
+      setDepartmentActive('33333333-3333-4333-8333-333333333333', false),
+    ).rejects.toThrow('cannot_deactivate_core');
+
+    expect(harness.calls.some((entry) => entry.sql.includes('update public.npd_departments'))).toBe(false);
+  });
+
+  it('setDepartmentActive deactivates a non-Core department when other active departments exist', async () => {
+    const { setDepartmentActive } = await import('./npd-field-config');
+
+    const row = await setDepartmentActive('33333333-3333-4333-8333-333333333333', false);
+
+    expect(row).toEqual(harness.departmentRows[0]);
+    const updateCall = harness.calls.find((entry) => entry.sql.includes('update public.npd_departments'));
+    expect(updateCall?.sql).toContain('active = $2');
+    expect(updateCall?.params).toEqual(['33333333-3333-4333-8333-333333333333', false]);
+  });
+
+  it('setDepartmentActive rejects deactivating the only remaining active department without issuing UPDATE', async () => {
+    const { setDepartmentActive } = await import('./npd-field-config');
+    harness.activeDepartmentCountRows = [{ count: '0' }];
+
+    await expect(
+      setDepartmentActive('33333333-3333-4333-8333-333333333333', false),
+    ).rejects.toThrow('cannot_deactivate_last');
+
+    expect(harness.calls.some((entry) => entry.sql.includes('update public.npd_departments'))).toBe(false);
   });
 
   it('updateField persists is_auto=true and auto_source_field', async () => {
