@@ -144,7 +144,8 @@ type FaDetailLoad =
       fa: FaCoreRow;
       history: HistoryLoad;
       dept: DeptData;
-      deptStatuses: Record<DeptKey, DeptStatus>;
+      // Defect A1-2 — Partial: deactivated non-Core departments are omitted.
+      deptStatuses: Partial<Record<DeptKey, DeptStatus>>;
       canDelete: boolean;
       canBuild: boolean;
     }
@@ -271,6 +272,30 @@ async function readDeptColumns(
   return rows.map((row, i) => mapDeptColumn(row, i));
 }
 
+/**
+ * Defect A1-2 — the set of NPD departments that are CURRENTLY ACTIVE for this org
+ * (public.npd_departments.active = true), keyed by the canonical lower-case dept
+ * code (matched against DEPT_KEYS so an unrelated/typo dept row can't widen the
+ * model). Org scope is RLS-pinned (app.current_org_id()). The page filters the
+ * dept-status strip + the section parts to this set so a deactivated non-Core
+ * department never renders a heading, a strip circle, or a Close affordance.
+ *
+ * NOTE: the all-7-active state returns the full DEPT_KEYS set, so every downstream
+ * filter is a no-op vs. the prior behavior.
+ */
+async function readActiveDeptCodes(ctx: OrgContextLike): Promise<Set<DeptKey>> {
+  const { rows } = await ctx.client.query<{ code: string }>(
+    `select lower(d.code) as code
+       from public.npd_departments d
+      where d.org_id = app.current_org_id()
+        and d.active = true`,
+  );
+  const valid = new Set(DEPT_KEYS as readonly string[]);
+  const active = new Set<DeptKey>();
+  for (const row of rows) if (valid.has(row.code)) active.add(row.code as DeptKey);
+  return active;
+}
+
 // ---------------------------------------------------------------------------
 // Dropdown options — load the real, org-scoped option list for every distinct
 // `dropdown_source` the loaded DeptColumns reference. The Selects in every dept
@@ -393,6 +418,12 @@ type DeptData = {
   dropdowns: Record<string, string[]>;
   /** Server-resolved npd.production.write — drives the Production add/remove affordances. */
   canWriteProduction: boolean;
+  /**
+   * Defect A1-2 — the set of CURRENTLY ACTIVE NPD departments for this org
+   * (npd_departments.active = true). Drives the dept-strip + section-part filters
+   * so a deactivated non-Core department never renders. All-7-active ⇒ full set.
+   */
+  activeDepts: Set<DeptKey>;
 };
 
 async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
@@ -477,6 +508,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         mrp,
         canDelete,
         canBuild,
+        activeDepts,
       ] = await Promise.all([
         readProductValues(ctx, productCode),
         readDeptColumns(ctx, 'Core'),
@@ -490,6 +522,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         readDeptColumns(ctx, 'MRP'),
         hasPermission(ctx, DELETE_PERMISSION),
         hasPermission(ctx, BUILD_PERMISSION),
+        readActiveDeptCodes(ctx),
       ]);
 
       // mig 374 — AUTO-DERIVED field read-time override. For every loaded auto
@@ -544,10 +577,13 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         prodRows,
         dropdowns,
         canWriteProduction,
+        activeDepts,
       };
 
       // Dept-status strip — derived SERVER-SIDE from the real product row +
       // the live DeptColumns required-field metadata (NO hardcoded array).
+      // Defect A1-2 — `activeDepts` omits any deactivated non-Core department
+      // from the derived map (all-7-active ⇒ identical full map as before).
       const deptStatuses = deriveDeptStatuses(values, {
         core,
         planning,
@@ -556,7 +592,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         technical,
         mrp,
         procurement,
-      });
+      }, activeDepts);
 
       // History inside the SAME org-context transaction (no second round-trip).
       let history: HistoryLoad;
@@ -1260,6 +1296,9 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     prodRows: [],
     dropdowns: {},
     canWriteProduction: false,
+    // Test-injection seam: treat every department as active so the injected
+    // render matches the all-7-active production default (Defect A1-2 no-op).
+    activeDepts: new Set<DeptKey>(DEPT_KEYS),
   };
 
   const emptyDeptStatuses: Record<DeptKey, DeptStatus> = {
@@ -1303,12 +1342,17 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
 
   // Dept-status strip items: localized labels merged with server-derived statuses
   // (status derivation is in loadFaDetail → deriveDeptStatuses; NO hardcode here).
-  const deptStripItems: DeptStatusItem[] = DEPT_KEYS.map((deptKey, i) => ({
-    dept: deptKey,
-    label: labels.deptStrip.labels[deptKey],
-    status: deptStatuses[deptKey],
-    index: i + 1,
-  }));
+  // Defect A1-2 — filter to the currently-active departments first (a deactivated
+  // non-Core dept must not render a strip circle), then map. All-7-active is a
+  // no-op (the set carries every DEPT_KEYS member, status is always present).
+  const deptStripItems: DeptStatusItem[] = DEPT_KEYS
+    .filter((deptKey) => dept.activeDepts.has(deptKey))
+    .map((deptKey, i) => ({
+      dept: deptKey,
+      label: labels.deptStrip.labels[deptKey],
+      status: deptStatuses[deptKey] ?? 'pending',
+      index: i + 1,
+    }));
 
   const faComplete = fa.statusOverall === 'Complete' || fa.statusOverall === 'Built';
 
@@ -1538,16 +1582,23 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   // Procurement/Production/Technical/MRP). It is supplied explicitly per part so
   // the dept-close affordance never depends on ?tab= inference (post-A3-slice-2
   // the tab slugs are section slugs — inference would pick the wrong dept).
-  const commercialParts: FaSectionPart[] = [
+  // Defect A1-2 — keep the FULL section-part literals, then filter each section to
+  // the currently-active departments so a deactivated non-Core dept renders NO
+  // heading and NO Close affordance inside the section. All-7-active is a no-op
+  // (every part's key is in dept.activeDepts). Core is always active (guarded
+  // against deactivation) so its inline part below stays unfiltered.
+  const ALL_COMMERCIAL: FaSectionPart[] = [
     { key: 'commercial', deptValue: 'Commercial', heading: labels.deptStrip.labels.commercial, node: commercialNode },
     { key: 'planning', deptValue: 'Planning', heading: labels.deptStrip.labels.planning, node: planningNode },
     { key: 'procurement', deptValue: 'Procurement', heading: labels.deptStrip.labels.procurement, node: procurementNode },
   ];
-  const productionParts: FaSectionPart[] = [
+  const ALL_PRODUCTION: FaSectionPart[] = [
     { key: 'production', deptValue: 'Production', heading: labels.deptStrip.labels.production, node: productionNode },
     { key: 'technical', deptValue: 'Technical', heading: labels.deptStrip.labels.technical, node: technicalNode },
     { key: 'mrp', deptValue: 'MRP', heading: labels.deptStrip.labels.mrp, node: mrpNode },
   ];
+  const commercialParts = ALL_COMMERCIAL.filter((p) => dept.activeDepts.has(p.key as DeptKey));
+  const productionParts = ALL_PRODUCTION.filter((p) => dept.activeDepts.has(p.key as DeptKey));
 
   const panels: FaTabPanels = {
     core: (

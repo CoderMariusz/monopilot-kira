@@ -20,6 +20,18 @@ describe('closeDeptSection required-field close path', () => {
     queryMock.mockImplementation(async (sql: string) => {
       const text = String(sql);
       if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      // Defect A1-2 — the active-dept existence check runs BEFORE the readiness
+      // gate; without this branch the readiness path below would never be reached.
+      // It is the ONLY query that selects `true as ok` from npd_departments
+      // (listMissingRequiredColumns selects rc.physical_column), so this matcher
+      // does not steal the missing-columns query's result.
+      if (
+        /select\s+true\s+as\s+ok[\s\S]*from\s+public\.npd_departments[\s\S]*d\.active\s*=\s*true/i.test(
+          text,
+        )
+      ) {
+        return { rows: [{ ok: true }] };
+      }
       if (/is_all_required_filled/i.test(text)) return { rows: [{ ready: false }] };
       if (/required_columns\s+as/i.test(text)) {
         return { rows: [{ physical_column: 'recipe_components', field_value: null }] };
@@ -43,5 +55,32 @@ describe('closeDeptSection required-field close path', () => {
     expect(sql).toMatch(/p\.product_code\s*=\s*\$1::text/i);
     expect(sql).toMatch(/lower\(d\.code\)\s*=\s*lower\(\$2::text\)/i);
     expect(sql).not.toMatch(/"Reference"\."DeptColumns"/i);
+  });
+
+  it('rejects with DEPT_INACTIVE when the department is deactivated (Defect A1-2)', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      // Active-dept existence check returns NO row → department is deactivated.
+      if (
+        /select\s+true\s+as\s+ok[\s\S]*from\s+public\.npd_departments[\s\S]*d\.active\s*=\s*true/i.test(
+          text,
+        )
+      ) {
+        return { rows: [] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(closeDeptSection('FA0001', 'Production')).rejects.toMatchObject({
+      name: 'ValidationError',
+      code: 'DEPT_INACTIVE',
+    });
+
+    // The readiness gate must NOT have run — the inactive check short-circuits first.
+    const ranReadinessGate = queryMock.mock.calls.some((call) =>
+      /is_all_required_filled/i.test(String(call[0])),
+    );
+    expect(ranReadinessGate).toBe(false);
   });
 });

@@ -68,6 +68,24 @@ export async function closeDeptSection(
       throw new AuthError('FORBIDDEN', `${config.permission} is required to close ${parsed.data.dept}`);
     }
 
+    // Defect A1-2 — a deactivated NPD department (npd_departments.active = false)
+    // must NOT be closeable. The detail page already hides its section + strip
+    // circle, but the close action is the authoritative gate (a stale URL / link
+    // could still target it), so reject before the readiness gate. Org scope is
+    // RLS-pinned (app.current_org_id()); code is matched case-insensitively.
+    const { rows: activeRows } = await context.client.query<{ ok: boolean }>(
+      `select true as ok
+         from public.npd_departments d
+        where d.org_id = app.current_org_id()
+          and lower(d.code) = lower($1::text)
+          and d.active = true
+        limit 1`,
+      [parsed.data.dept],
+    );
+    if (activeRows.length === 0) {
+      throw new ValidationError('DEPT_INACTIVE', `Department ${parsed.data.dept} is not active`);
+    }
+
     const { rows: gateRows } = await context.client.query<{ ready: boolean }>(
       `select public.is_all_required_filled($1, $2) as ready`,
       [parsed.data.productCode, parsed.data.dept],

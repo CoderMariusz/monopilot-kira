@@ -101,6 +101,22 @@ function wireOrgContext(
         if (/from\s+public\.(product|fa)/i.test(sql) && /product_code/i.test(sql)) {
           return { rows: faRow ? [faRow] : [] };
         }
+        // Defect A1-2 — readActiveDeptCodes: all 7 departments active (the live
+        // all-7-active default). Distinct from readDeptColumns (which joins
+        // npd_department_field) by selecting `lower(d.code) as code` directly.
+        if (/lower\(d\.code\)\s+as\s+code/i.test(sql) && /d\.active\s*=\s*true/i.test(sql)) {
+          return {
+            rows: [
+              { code: 'core' },
+              { code: 'planning' },
+              { code: 'commercial' },
+              { code: 'production' },
+              { code: 'technical' },
+              { code: 'mrp' },
+              { code: 'procurement' },
+            ],
+          };
+        }
         // DeptColumns / prod_detail / history reads → empty in this jsdom suite.
         return { rows: [] };
       }),

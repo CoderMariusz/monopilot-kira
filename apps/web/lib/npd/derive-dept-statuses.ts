@@ -63,14 +63,23 @@ export type GenericDeptColumn = {
  * (`columnsByDept`); departments not present in `columnsByDept` (e.g. MRP when
  * its columns are not part of a slice's reads) fall back to the `closed_<dept>`
  * flag alone (done when closed, inprog otherwise).
+ *
+ * Defect A1-2 — `activeDepts` (optional): when supplied, departments NOT in the
+ * set are OMITTED from the returned map entirely (no status), so a deactivated
+ * non-Core NPD department never renders a strip circle, a section heading, or a
+ * Close affordance downstream. Omitting the argument (`undefined`) is a pure
+ * no-op: every department is treated as active and the full map is returned
+ * exactly as before.
  */
 export function deriveDeptStatuses(
   values: Record<string, unknown>,
   columnsByDept: Partial<Record<DeptKey, GenericDeptColumn[]>>,
-): Record<DeptKey, DeptStatus> {
+  activeDepts?: ReadonlySet<DeptKey>,
+): Partial<Record<DeptKey, DeptStatus>> {
   const str = (v: unknown) => (v == null ? '' : String(v).trim());
   const out = {} as Record<DeptKey, DeptStatus>;
   for (const dept of DEPT_KEYS) {
+    if (activeDepts && !activeDepts.has(dept)) continue;
     const closed = str(values[`closed_${dept}`]).toLowerCase() === 'yes';
     const cols = columnsByDept[dept] ?? [];
     const required = cols.filter((c) => c.required);
