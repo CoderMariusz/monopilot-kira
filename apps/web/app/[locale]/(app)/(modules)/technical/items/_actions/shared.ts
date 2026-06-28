@@ -193,6 +193,7 @@ export const CreateItemInput = z
     weightMode: z.enum(WEIGHT_MODES).optional().default('fixed'),
     description: z.string().trim().max(2000).optional(),
     productGroup: z.string().trim().max(128).optional(),
+    supplierCode: z.string().trim().min(1).optional(),
     // '' (the empty option) ⇒ undefined; otherwise must be canonical.
     uomSecondary: z.preprocess(
       (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),

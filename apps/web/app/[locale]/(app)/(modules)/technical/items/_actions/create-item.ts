@@ -73,6 +73,48 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       const inserted = rows[0];
       if (!inserted) return { ok: false, error: 'persistence_failed' };
 
+      if (input.supplierCode) {
+        const supplier = await (client as QueryClient).query(
+          `select 1
+             from public.suppliers
+            where org_id = app.current_org_id()
+              and code = $1::text
+            limit 1`,
+          [input.supplierCode],
+        );
+        if (!supplier.rows[0]) {
+          console.warn('[technical/items] createItem supplier_spec_skipped_missing_supplier', {
+            itemId: inserted.id,
+            supplierCode: input.supplierCode,
+          });
+        } else {
+          const txClient = client as QueryClient;
+          await txClient.query('savepoint sp_supplier_spec');
+          try {
+            await txClient.query(
+              `insert into public.supplier_specs
+                 (org_id, item_id, supplier_code, supplier_status,
+                  spec_version, lifecycle_status, review_status,
+                  approved_by, approved_at, uploaded_by)
+               values
+                 (app.current_org_id(), $1::uuid, $2::text, 'approved',
+                  '1.0', 'active', 'approved',
+                  $3::uuid, now(), $3::uuid)
+               on conflict (org_id, item_id, supplier_code) where lifecycle_status = 'active' AND review_status = 'approved' do nothing`,
+              [inserted.id, input.supplierCode, userId],
+            );
+            await txClient.query('release savepoint sp_supplier_spec');
+          } catch (err) {
+            await txClient.query('rollback to savepoint sp_supplier_spec');
+            console.warn('[technical/items] createItem supplier_spec_failed', {
+              itemId: inserted.id,
+              supplierCode: input.supplierCode,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+      }
+
       if (input.costPerKg !== undefined) {
         const cost = await writeItemCostLedger(client as QueryClient, {
           orgId,
