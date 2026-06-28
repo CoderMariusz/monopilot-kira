@@ -489,14 +489,14 @@ export async function createFgCandidate(
   // Price (Brief) stayed NULL on every project-created FG and had to be re-typed on the
   // FG detail. Copy them from npd_projects now; coalesce only fills blanks (never
   // clobbers a value the user already typed). expected_volume is free text → copied
-  // only when it is a plain number. There is no brief source for packs-per-case, so it
-  // stays manual. Runs whether the FG was just created or only mapped.
+  // only when it is a plain number. Runs whether the FG was just created or only mapped.
   const brief = await ctx.client.query<{
     pack_weight_g: string | null;
     target_retail_price_eur: string | null;
     expected_volume: string | null;
+    packs_per_case: string | null;
   }>(
-    `select pack_weight_g::text, target_retail_price_eur::text, expected_volume
+    `select pack_weight_g::text, target_retail_price_eur::text, expected_volume, packs_per_case::text
        from public.npd_projects
       where id = $1::uuid and org_id = app.current_org_id()`,
     [project.id],
@@ -507,14 +507,26 @@ export async function createFgCandidate(
       b.expected_volume && /^[0-9]+(\.[0-9]+)?$/.test(b.expected_volume.trim())
         ? b.expected_volume.trim()
         : null;
+    const parsedPacksPerCase =
+      b.packs_per_case && /^\d+$/.test(b.packs_per_case.trim())
+        ? parseInt(b.packs_per_case.trim(), 10)
+        : NaN;
+    const packsPerCase = Number.isNaN(parsedPacksPerCase) ? null : parsedPacksPerCase;
     await ctx.client.query(
       `update public.product
           set weight      = coalesce(weight,      $2::numeric),
               price_brief = coalesce(price_brief, $3::numeric),
-              volume      = coalesce(volume,      $4::numeric)
+              volume      = coalesce(volume,      $4::numeric),
+              packs_per_case = coalesce(packs_per_case, $5::integer)
         where org_id = app.current_org_id()
           and product_code = $1`,
-      [productCode, b.pack_weight_g, b.target_retail_price_eur, volumeNumeric],
+      [
+        productCode,
+        b.pack_weight_g,
+        b.target_retail_price_eur,
+        volumeNumeric,
+        packsPerCase,
+      ],
     );
   }
 

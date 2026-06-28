@@ -34,6 +34,7 @@ export type ProjectBriefView = {
   packFormat: string | null;
   /** Costing v2: pack net weight in grams (the recipe batch size). */
   packWeightG: string | null;
+  packsPerCase: number | null;
   expectedVolume: string | null;
   marketingClaims: string | null;
   /** RIGHT column. */
@@ -83,6 +84,7 @@ type ProjectBriefRow = {
   target_launch: string | null;
   pack_format: string | null;
   pack_weight_g: string | null;
+  packs_per_case: number | null;
   sales_channel: string | null;
   expected_volume: string | null;
   target_retail_price_eur: string | null;
@@ -113,6 +115,7 @@ export async function readProjectBrief(projectId: string): Promise<ReadProjectBr
                 target_launch::text            as target_launch,
                 pack_format,
                 pack_weight_g::text            as pack_weight_g,
+                packs_per_case,
                 sales_channel,
                 expected_volume,
                 target_retail_price_eur::text  as target_retail_price_eur,
@@ -143,6 +146,7 @@ export async function readProjectBrief(projectId: string): Promise<ReadProjectBr
         targetLaunchDate: row.target_launch,
         packFormat: row.pack_format,
         packWeightG: row.pack_weight_g,
+        packsPerCase: row.packs_per_case,
         expectedVolume: row.expected_volume,
         marketingClaims: row.marketing_claims,
         category: row.type,

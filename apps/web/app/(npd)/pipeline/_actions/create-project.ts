@@ -30,6 +30,7 @@ export type CreateProjectInput = {
   packFormat?: string | null;
   /** Costing v2: pack net weight in grams (the recipe batch size). */
   packWeightG?: number | null;
+  packsPerCase?: number | null;
   salesChannel?: string | null;
   expectedVolume?: string | null;
   targetRetailPriceEur?: number | null;
@@ -79,13 +80,13 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
         `insert into public.npd_projects
            (org_id, code, name, type, prio, owner, target_launch, notes,
             pack_format, sales_channel, expected_volume, target_retail_price_eur,
-            target_audience, marketing_claims, constraints, pack_weight_g,
+            target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case,
             current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
             $9, $10, $11, $12::numeric,
-            $13, $14, $15, $16::numeric,
-            'G0', 'brief', $17, $18, $19::uuid, 'npd-project-actions-v1')
+            $13, $14, $15, $16::numeric, $17::integer,
+            'G0', 'brief', $18, $19, $20::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           context.orgId,
@@ -104,6 +105,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.marketingClaims ?? null,
           input.constraints ?? null,
           input.packWeightG ?? null,
+          input.packsPerCase ?? null,
           input.startFrom,
           input.cloneSource ?? null,
           context.userId,
@@ -163,6 +165,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const constraints = trimOptionalString(input.constraints, 2000);
   const targetRetailPriceEur = parseOptionalNonNegNumber(input.targetRetailPriceEur);
   const packWeightG = parseOptionalNonNegNumber(input.packWeightG);
+  const packsPerCase = parseOptionalNonNegInteger(input.packsPerCase);
   const startFrom = parseStartFrom(input.startFrom);
   const cloneSource = trimOptionalString(input.cloneSource, 120);
 
@@ -171,7 +174,8 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
     owner === undefined || targetLaunch === undefined || notes === undefined ||
     packFormat === undefined || salesChannel === undefined || expectedVolume === undefined ||
     targetAudience === undefined || marketingClaims === undefined || constraints === undefined ||
-    targetRetailPriceEur === undefined || packWeightG === undefined || cloneSource === undefined
+    targetRetailPriceEur === undefined || packWeightG === undefined || packsPerCase === undefined ||
+    cloneSource === undefined
   ) {
     return null;
   }
@@ -179,9 +183,21 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   return {
     name, type, prio, owner, targetLaunch, notes,
     packFormat, salesChannel, expectedVolume, targetRetailPriceEur,
-    targetAudience, marketingClaims, constraints, packWeightG,
+    targetAudience, marketingClaims, constraints, packWeightG, packsPerCase,
     startFrom, cloneSource, templateId,
   };
+}
+
+function parseOptionalNonNegInteger(value: unknown): number | null | undefined {
+  if (value === undefined || value === null || value === '') return null;
+  const n =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : NaN;
+  if (!Number.isInteger(n) || n < 0) return undefined;
+  return n;
 }
 
 async function allocateProjectCode(ctx: OrgContextLike): Promise<string> {
