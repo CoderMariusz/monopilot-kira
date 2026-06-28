@@ -132,8 +132,8 @@ async function updateAllergenDeclaration(productCode: string, accepted: boolean)
         [productCode],
       );
 
-      safeRevalidatePath(`/npd/fa/${productCode}/allergens`);
-      safeRevalidatePath(`/en/npd/fa/${productCode}/allergens`);
+      safeRevalidatePath(`/npd/fg/${productCode}/allergens`);
+      safeRevalidatePath(`/en/npd/fg/${productCode}/allergens`);
       const projectId = project.rows[0]?.id;
       if (projectId) {
         safeRevalidatePath(`/npd/pipeline/${projectId}/approval`);

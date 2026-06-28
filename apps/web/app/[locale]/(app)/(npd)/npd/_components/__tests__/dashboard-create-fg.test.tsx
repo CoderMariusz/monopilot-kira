@@ -40,7 +40,7 @@ import {
   type DashboardScreenLabels,
   type DashboardScreenProps,
 } from '../dashboard-screen';
-import type { FaCreateLabels } from '../../../fa/_components/fa-create-modal';
+import type { FaCreateLabels } from '../../../fg/_components/fa-create-modal';
 
 afterEach(() => {
   cleanup();

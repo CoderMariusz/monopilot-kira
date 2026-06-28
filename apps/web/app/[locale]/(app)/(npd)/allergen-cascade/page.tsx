@@ -50,7 +50,7 @@ import {
   buildAllergenLabels,
   loadAllergenCascade,
   type AllergenLoad,
-} from '../fa/[productCode]/_lib/allergen-cascade';
+} from '../fg/[productCode]/_lib/allergen-cascade';
 import { FgSelector, type FgSelectorOption } from './_components/fg-selector';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 

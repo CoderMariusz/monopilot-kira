@@ -99,7 +99,7 @@ export function DashboardPipelinePreview({ recentProjects }: DashboardPipelinePr
           <div className="divide-y divide-slate-100">
             {recentProjects.map((project) => {
               const productCode = project.productCode || project.code;
-              const detailHref = `/fa/${encodeURIComponent(productCode)}`;
+              const detailHref = `/fg/${encodeURIComponent(productCode)}`;
 
               return (
                 <Link

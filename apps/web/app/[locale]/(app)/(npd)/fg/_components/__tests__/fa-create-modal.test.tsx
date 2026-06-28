@@ -13,7 +13,7 @@
  *    Create disabled (mirrors the server ^FA[A-Z0-9]+$ rule client-side).
  *  - V02 inline error: empty Product_Name keeps Create disabled with a message.
  *  - Success path: a valid submit calls the injected createFa action then
- *    onCreated('<code>') (the page maps this to router.push('/npd/fa/<code>')).
+ *    onCreated('<code>') (the page maps this to router.push('/npd/fg/<code>')).
  *  - Duplicate path: a DuplicateError from the action surfaces a destructive Alert
  *    (error state) and does NOT navigate.
  *  - Pending/optimistic: submit is disabled while the action is in flight.

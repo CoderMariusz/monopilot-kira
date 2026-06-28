@@ -82,7 +82,7 @@ function summary(root: HTMLElement) {
     ),
     rowLinks: Array.from(root.querySelectorAll('a'))
       .map((a) => a.getAttribute('href'))
-      .filter((href): href is string => Boolean(href?.startsWith('/fa/'))),
+      .filter((href): href is string => Boolean(href?.startsWith('/fg/'))),
     badges: root.querySelectorAll('[data-slot="badge"]').length,
     badgeDots: Array.from(root.querySelectorAll('[data-slot="badge"]')).every((b) =>
       Boolean(b.querySelector('[aria-hidden="true"]')),
@@ -141,7 +141,7 @@ describe('T-133 parity evidence — write per-state DOM artifacts', () => {
       regionHasAccessibleName: Boolean(
         ready.container.querySelector('[role="region"][aria-labelledby]'),
       ),
-      rowsAreLinks: Array.from(ready.container.querySelectorAll('a[href^="/fa/"]')).every((a) =>
+      rowsAreLinks: Array.from(ready.container.querySelectorAll('a[href^="/fg/"]')).every((a) =>
         Boolean(a.getAttribute('aria-label')),
       ),
       badgesHaveText: Array.from(ready.container.querySelectorAll('[data-slot="badge"]')).every(
@@ -157,7 +157,7 @@ describe('T-133 parity evidence — write per-state DOM artifacts', () => {
     const readyState = (report.states as Record<string, ReturnType<typeof summary>>).ready;
     expect(readyState.card).toBe(true);
     expect(readyState.viewAllLink).toBe(true);
-    expect(readyState.rowLinks).toEqual(['/fa/FA5101', '/fa/FA5102', '/fa/FA5103']);
+    expect(readyState.rowLinks).toEqual(['/fg/FA5101', '/fg/FA5102', '/fg/FA5103']);
     expect(readyState.badges).toBe(3);
     expect(readyState.badgeDots).toBe(true);
     expect(readyState.rawSelects).toBe(0);

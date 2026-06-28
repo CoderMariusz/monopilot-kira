@@ -72,7 +72,7 @@ const sel = {
 };
 
 async function gotoTechnical(page: Page, baseURL: string) {
-  await page.goto(`${baseURL}/en/fa/${FA_CODE}?tab=technical`, {
+  await page.goto(`${baseURL}/en/fg/${FA_CODE}?tab=technical`, {
     waitUntil: 'domcontentloaded',
   });
 }
@@ -121,7 +121,7 @@ test.describe('allergen cascade reachability — locale sub-route', () => {
     const page = await context.newPage();
     try {
       await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto(`${baseURL}/en/fa/${FA_CODE}/allergens`, {
+      await page.goto(`${baseURL}/en/fg/${FA_CODE}/allergens`, {
         waitUntil: 'domcontentloaded',
       });
       await expect(page.locator(sel.allergensPage)).toBeVisible();
@@ -146,7 +146,7 @@ test.describe('allergen declaration accept control — unblocks approval (C5)', 
     const page = await context.newPage();
     try {
       await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto(`${baseURL!}/en/fa/${FA_CODE}/allergens`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${baseURL!}/en/fg/${FA_CODE}/allergens`, { waitUntil: 'domcontentloaded' });
 
       await expect(page.locator(sel.allergensPage)).toBeVisible();
       const declaration = page.locator(sel.declaration);

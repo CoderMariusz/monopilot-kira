@@ -7,7 +7,7 @@
   "schema_driven": "Fields are rendered from the `columns` prop sourced server-side from Reference.DeptColumns (dept_code=Commercial) via T-014 buildDeptZod runtime / dept-column metadata. NO hardcoded field list.",
   "data_source": "REAL public.product row (composite PK org_id + product_code), org-scoped via withOrgContext/RLS; write path = updateFaCell (T-009). NO mocks.",
   "v08_rule": "earliest (brief handoff + 24 weeks) is computed SERVER-SIDE and passed as a prop. Client shows the advisory alert + blocks a launch_date write earlier than earliest; canonical enforcement is server-side in updateFaCell (T-009).",
-  "generated_at": "2026-06-18T17:50:50.209Z",
+  "generated_at": "2026-06-28T16:26:01.183Z",
   "states": {
     "loading": {
       "tab": true,

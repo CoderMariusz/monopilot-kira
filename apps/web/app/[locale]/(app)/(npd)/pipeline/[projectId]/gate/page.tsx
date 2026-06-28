@@ -261,7 +261,7 @@ function pctOf(items: { done: boolean }[]): number {
 
 function mapChecklistItem(item: ChecklistItem) {
   const faHref = item.faDept && item.faProductCode
-    ? `/fa/${encodeURIComponent(item.faProductCode)}?dept=${encodeURIComponent(item.faDept)}`
+    ? `/fg/${encodeURIComponent(item.faProductCode)}?dept=${encodeURIComponent(item.faDept)}`
     : null;
   return {
     id: item.id,

@@ -11,9 +11,9 @@
  * here and never trusted from the client.
  *
  * On success the modal calls `onCreated(code)`; this host navigates to the
- * canonical FA detail route `/{locale}/fa/{productCode}` (NOT /npd/fa/… — the
- * modal's old comment about /npd/fa is stale; the consolidated detail route is
- * /[locale]/fa/[productCode]).
+ * canonical FG detail route `/{locale}/fg/{productCode}` (NOT /npd/fg/… — the
+ * modal's old comment about /npd/fg is stale; the consolidated detail route is
+ * /[locale]/fg/[productCode]).
  *
  * Prototype parity source (1:1): modals.jsx:9-43 (FACreateModal / MODAL-01) via
  * the rendered FaCreateModal; the open-trigger mirrors fa-screens.jsx:204
@@ -56,9 +56,9 @@ export function FaCreateModalHost({ labels, createFaAction, forceOpen }: FaCreat
 
   const onCreated = React.useCallback(
     (productCode: string) => {
-      // Canonical FA detail route: /[locale]/fa/[productCode].
+      // Canonical FG detail route: /[locale]/fg/[productCode].
       const localePrefix = localePrefixFrom(pathname);
-      router.push(`${localePrefix}/fa/${productCode}`);
+      router.push(`${localePrefix}/fg/${productCode}`);
     },
     [pathname, router],
   );

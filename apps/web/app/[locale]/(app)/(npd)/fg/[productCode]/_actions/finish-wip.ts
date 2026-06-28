@@ -205,7 +205,7 @@ export async function addProdDetailRow(input: AddProdDetailRowInput): Promise<Ad
     const next = [...components, intermediateCode];
     await persistComponents(ctx, productCode, next);
 
-    safeRevalidatePath(`/npd/fa/${productCode}`);
+    safeRevalidatePath(`/npd/fg/${productCode}`);
     const created = await ctx.client.query<{ id: string; component_index: number }>(
       `select id, component_index from public.prod_detail
         where org_id = app.current_org_id() and product_code = $1 and intermediate_code = $2
@@ -256,7 +256,7 @@ export async function updateProdDetailRow(
     const next = components.map((c) => (c === current.intermediate_code ? intermediateCode : c));
     await persistComponents(ctx, productCode, next);
 
-    safeRevalidatePath(`/npd/fa/${productCode}`);
+    safeRevalidatePath(`/npd/fg/${productCode}`);
     const fresh = await ctx.client.query<{ id: string; component_index: number }>(
       `select id, component_index from public.prod_detail
         where org_id = app.current_org_id() and product_code = $1 and intermediate_code = $2
@@ -305,7 +305,7 @@ export async function removeProdDetailRow(
     );
     await persistComponents(ctx, productCode, next);
 
-    safeRevalidatePath(`/npd/fa/${productCode}`);
+    safeRevalidatePath(`/npd/fg/${productCode}`);
     return { removed: true };
   });
 }

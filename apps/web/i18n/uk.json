@@ -4848,7 +4848,7 @@
       "emptyBody": "У цьому проєкті ще не налаштовано пунктів контрольного списку етапу.",
       "error": "Не вдалося завантажити контрольний список етапу. Спробуйте ще раз.",
       "forbidden": "У вас немає дозволу переглядати цей контрольний список етапу.",
-      "faDerivedHint": "Closed in FA →",
+      "faDerivedHint": "Closed in FG →",
       "faDerivedLocked": "FG-derived",
       "revertGate": "Revert gate",
       "advanceTerminalHint": "Launched — fully advanced"

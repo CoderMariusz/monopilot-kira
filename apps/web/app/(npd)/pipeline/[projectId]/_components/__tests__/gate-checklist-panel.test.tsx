@@ -406,7 +406,7 @@ describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
         at: null,
         file: null,
         faDept: 'Technical',
-        faHref: '/fa/FG-NPD-001?dept=Technical',
+        faHref: '/fg/FG-NPD-001?dept=Technical',
       },
     ];
 
@@ -419,7 +419,7 @@ describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
     expect(within(row).getByText('lbl.faDerivedHint')).toBeInTheDocument();
     expect(within(row).getByRole('link', { name: 'Technical' })).toHaveAttribute(
       'href',
-      '/fa/FG-NPD-001?dept=Technical',
+      '/fg/FG-NPD-001?dept=Technical',
     );
 
     await user.click(checkbox);

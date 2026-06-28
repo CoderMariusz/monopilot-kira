@@ -4,7 +4,7 @@
   "prototype_anchor": "prototypes/settings/access-screens.jsx:95-129",
   "permission_gate": "settings.roles.assign",
   "dual_store_write": "role_permissions (delete+insert ON CONFLICT) AND roles.permissions jsonb rebuilt to the same set, one txn",
-  "generated_at": "2026-06-23T21:21:46.011Z",
+  "generated_at": "2026-06-27T18:05:04.084Z",
   "states": {
     "create_modal": {
       "hasDialog": true,
@@ -36,7 +36,7 @@
         "settings.roles.editor.groups.multi_site",
         "settings.roles.editor.groups.scheduler"
       ],
-      "checkboxes": 246,
+      "checkboxes": 257,
       "lockNote": false,
       "rawSelects": 0,
       "radixOutsideUi": 0,
@@ -61,7 +61,7 @@
         "settings.roles.editor.groups.multi_site",
         "settings.roles.editor.groups.scheduler"
       ],
-      "checkboxes": 246,
+      "checkboxes": 257,
       "lockNote": true,
       "rawSelects": 0,
       "radixOutsideUi": 0,

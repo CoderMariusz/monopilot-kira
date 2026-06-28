@@ -175,7 +175,7 @@ describe('FaListTable — prototype parity (fa-screens.jsx:177-297)', () => {
   it('links each row to /(npd)/fa/[productCode]', () => {
     renderTable();
     const link = screen.getByRole('link', { name: /FA1001/ });
-    expect(link).toHaveAttribute('href', expect.stringContaining('/fa/FA1001'));
+    expect(link).toHaveAttribute('href', expect.stringContaining('/fg/FA1001'));
   });
 });
 

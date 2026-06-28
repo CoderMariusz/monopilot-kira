@@ -280,9 +280,9 @@ export function FaListTable({
 
   function onCreated(productCode: string) {
     setCreateOpen(false);
-    // Canonical FA detail route: /[locale]/fa/[productCode].
+    // Canonical FG detail route: /[locale]/fg/[productCode].
     const localePrefix = localePrefixFrom(pathname);
-    router.push(`${localePrefix}/fa/${productCode}`);
+    router.push(`${localePrefix}/fg/${productCode}`);
   }
 
   const filtered = React.useMemo(() => {
@@ -470,7 +470,7 @@ export function FaListTable({
                 return (
                   <tr key={row.productCode} data-testid={`fa-list-row-${row.productCode}`} data-status={status}>
                     <td className="mono">
-                      <Link href={`/fa/${row.productCode}`} prefetch style={{ color: 'var(--blue)' }}>
+                      <Link href={`/fg/${row.productCode}`} prefetch style={{ color: 'var(--blue)' }}>
                         {row.productCode}
                       </Link>
                     </td>
@@ -508,7 +508,7 @@ export function FaListTable({
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <Link
-                        href={`/fa/${row.productCode}`}
+                        href={`/fg/${row.productCode}`}
                         prefetch
                         className="btn btn-ghost btn-sm"
                         style={{ textDecoration: 'none' }}
@@ -547,7 +547,7 @@ export function FaListTable({
                   return (
                     <Link
                       key={f.productCode}
-                      href={`/fa/${f.productCode}`}
+                      href={`/fg/${f.productCode}`}
                       prefetch
                       data-testid={`fa-kanban-card-${f.productCode}`}
                       style={{

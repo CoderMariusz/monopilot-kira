@@ -32,7 +32,7 @@ function resolveAuth(): { baseURL?: string; authStorage?: string } {
 // The FA code under test on the seeded preview org (override via env).
 const FA_CODE = process.env.PLAYWRIGHT_FA_CODE ?? 'FA0043';
 const detailRoute = (tab?: string) =>
-  `/en/fa/${FA_CODE}${tab ? `?tab=${tab}` : ''}`;
+  `/en/fg/${FA_CODE}${tab ? `?tab=${tab}` : ''}`;
 
 const sel = {
   shell: '[data-testid="fa-detail-shell"]',

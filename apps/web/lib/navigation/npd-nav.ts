@@ -53,7 +53,7 @@ export const NPD_NAV_APEX_GROUP: NpdNavGroup = {
   i18nKey: "groups.apex",
   items: [
     { key: "fgDashboard", i18nKey: "tabs.fgDashboard", route: "/npd" },
-    { key: "finishedGoods", i18nKey: "tabs.finishedGoods", route: "/fa" },
+    { key: "finishedGoods", i18nKey: "tabs.finishedGoods", route: "/fg" },
   ],
 };
 

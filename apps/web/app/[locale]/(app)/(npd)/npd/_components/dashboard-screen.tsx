@@ -36,7 +36,7 @@ import {
   FaCreateModal,
   type CreateFaAction,
   type FaCreateLabels,
-} from '../../fa/_components/fa-create-modal';
+} from '../../fg/_components/fa-create-modal';
 
 const LOCALES = ['en', 'pl', 'ro', 'uk'];
 
@@ -353,9 +353,9 @@ export function DashboardScreen({
 
   function onCreated(productCode: string) {
     setCreateOpen(false);
-    // Canonical FA detail route: /[locale]/fa/[productCode].
+    // Canonical FG detail route: /[locale]/fg/[productCode].
     const localePrefix = localePrefixFrom(pathname);
-    router.push(`${localePrefix}/fa/${productCode}`);
+    router.push(`${localePrefix}/fg/${productCode}`);
   }
 
   function toggleDept(dept: Dept) {
@@ -544,7 +544,7 @@ export function DashboardScreen({
                                     <a
                                       className="mono font-semibold"
                                       style={{ color: 'var(--blue)' }}
-                                      href={`/fa/${encodeURIComponent(fa.productCode)}`}
+                                      href={`/fg/${encodeURIComponent(fa.productCode)}`}
                                     >
                                       {fa.productCode}
                                     </a>
@@ -648,7 +648,7 @@ export function DashboardScreen({
                   return (
                     <TableRow key={a.productCode} className={`${rowTone} ${borderTone}`}>
                       <TableCell className="mono">
-                        <a style={{ color: 'var(--blue)' }} href={`/fa/${encodeURIComponent(a.productCode)}`}>
+                        <a style={{ color: 'var(--blue)' }} href={`/fg/${encodeURIComponent(a.productCode)}`}>
                           {a.productCode}
                         </a>
                       </TableCell>
@@ -666,7 +666,7 @@ export function DashboardScreen({
                         {a.missingData ?? '—'}
                       </TableCell>
                       <TableCell>
-                        <a className="btn btn-secondary btn-sm" href={`/fa/${encodeURIComponent(a.productCode)}`}>
+                        <a className="btn btn-secondary btn-sm" href={`/fg/${encodeURIComponent(a.productCode)}`}>
                           {labels.openFa} →
                         </a>
                       </TableCell>

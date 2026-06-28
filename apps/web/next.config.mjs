@@ -53,6 +53,19 @@ const nextConfig = {
   env: {
     DEV_AUTH_BYPASS: process.env.DEV_AUTH_BYPASS ?? '',
   },
+  // NPD-DYN FA→FG: the Finished-Goods route moved from /fa to /fg (A5 Phase 1B).
+  // Keep old /fa URLs working (bookmarks, external links) via temporary (non-
+  // permanent) redirects. The FA product-CODE prefix, npd.fa.* perms, and fa.*
+  // events are intentionally NOT renamed by this slice — these redirects only
+  // map the URL path. Locale-prefixed forms first, then bare /fa as a fallback.
+  async redirects() {
+    return [
+      { source: '/:locale/fa', destination: '/:locale/fg', permanent: false },
+      { source: '/:locale/fa/:path*', destination: '/:locale/fg/:path*', permanent: false },
+      { source: '/fa', destination: '/fg', permanent: false },
+      { source: '/fa/:path*', destination: '/fg/:path*', permanent: false },
+    ];
+  },
 };
 
 export default withSentryConfig(withNextIntl(withSerwist(nextConfig)), {

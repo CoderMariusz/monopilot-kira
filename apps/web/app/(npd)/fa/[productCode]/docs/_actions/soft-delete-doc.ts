@@ -56,7 +56,7 @@ export async function softDeleteDoc(input: SoftDeleteDocInput): Promise<SoftDele
         },
       });
 
-      revalidatePath(`/npd/fa/${productCode}/docs`);
+      revalidatePath(`/npd/fg/${productCode}/docs`);
       return { ok: true, docId: row.id };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

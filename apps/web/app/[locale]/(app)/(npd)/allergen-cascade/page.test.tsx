@@ -29,7 +29,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import AllergenCascadePage, { CascadeBody, type FgListResult } from './page';
-import type { AllergenLoad } from '../fa/[productCode]/_lib/allergen-cascade';
+import type { AllergenLoad } from '../fg/[productCode]/_lib/allergen-cascade';
 
 afterEach(() => cleanup());
 beforeEach(() => replace.mockClear());

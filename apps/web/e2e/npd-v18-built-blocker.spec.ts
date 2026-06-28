@@ -150,7 +150,7 @@ test.describe('NPD V18 built-blocker (docs-screens.jsx:56-106 · fa-screens.jsx:
 
     try {
       // Navigate to the Risk Register for this FA.
-      const risksRoute = `${baseURL}/en/fa/${productCode}/risks`;
+      const risksRoute = `${baseURL}/en/fg/${productCode}/risks`;
       await page.goto(risksRoute, { waitUntil: 'domcontentloaded' });
 
       // Confirm the Risk Register screen rendered.
@@ -220,7 +220,7 @@ test.describe('NPD V18 built-blocker (docs-screens.jsx:56-106 · fa-screens.jsx:
     const page = await context.newPage();
 
     try {
-      const faRoute = `${baseURL}/en/fa/${productCode}`;
+      const faRoute = `${baseURL}/en/fg/${productCode}`;
       await page.goto(faRoute, { waitUntil: 'domcontentloaded' });
 
       // FA detail page must load.
@@ -261,7 +261,7 @@ test.describe('NPD V18 built-blocker (docs-screens.jsx:56-106 · fa-screens.jsx:
     const page = await context.newPage();
 
     try {
-      const risksRoute = `${baseURL}/en/fa/${productCode}/risks`;
+      const risksRoute = `${baseURL}/en/fg/${productCode}/risks`;
       await page.goto(risksRoute, { waitUntil: 'domcontentloaded' });
 
       await expect(

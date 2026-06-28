@@ -6,7 +6,7 @@
  *
  * Exercises the full compliance doc lifecycle visible from the browser:
  *   1. Log in as an NPD Manager via the real /en/login form.
- *   2. Navigate to /en/fa/<productCode>/docs (ComplianceDocsScreen, T-086).
+ *   2. Navigate to /en/fg/<productCode>/docs (ComplianceDocsScreen, T-086).
  *   3. Upload a minimal fixture PDF with expires_at = today + 25 days.
  *   4. Assert the row appears in the docs table with badge data-status="Expiring"
  *      (within the ≤30-day threshold per §19 + T-085 classifyExpiry formula).
@@ -25,7 +25,7 @@
  *   PLAYWRIGHT_LOGIN_EMAIL       — defaults to admin@monopilot.test
  *   PLAYWRIGHT_LOGIN_PASSWORD    — required for the live run (no default)
  *   PLAYWRIGHT_TEST_FA_CODE      — product code of an existing FA (e.g. DEV-0001)
- *                                  defaults to the first FA visible on /en/fa
+ *                                  defaults to the first FA visible on /en/fg
  *   PLAYWRIGHT_AUTH_STORAGE      — optional: pre-baked storageState JSON path;
  *                                  when provided, skip the login form step
  */
@@ -79,12 +79,12 @@ async function runAxe(
   expect(axe.violations, `axe violations on ${label}`).toEqual([]);
 }
 
-/** Resolve a real FA product code: env override, else the first FA link on /en/fa. */
+/** Resolve a real FA product code: env override, else the first FA link on /en/fg. */
 async function resolveFaCode(
   page: import('@playwright/test').Page,
 ): Promise<string> {
   if (testFaCode) return testFaCode;
-  await page.goto(`${baseURL}/en/fa`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${baseURL}/en/fg`, { waitUntil: 'domcontentloaded' });
   const firstLink = page.getByRole('link', { name: /^DEV|^FA|^NPD/i }).first();
   await expect(firstLink, 'at least one FA must exist to run compliance upload flow').toBeVisible({
     timeout: 15_000,
@@ -149,7 +149,7 @@ test.describe('NPD compliance doc upload → expiry status → dashboard (T-088 
         const faCode = await resolveFaCode(page);
 
         // ── Step 2: navigate to the compliance docs screen (T-086 route) ──
-        const docsRoute = `/en/fa/${encodeURIComponent(faCode)}/docs`;
+        const docsRoute = `/en/fg/${encodeURIComponent(faCode)}/docs`;
         await page.goto(`${baseURL}${docsRoute}`, { waitUntil: 'domcontentloaded' });
         await expect(
           page.getByTestId('compliance-docs-screen'),

@@ -2565,7 +2565,7 @@
       "emptyBody": "This project has no gate checklist items configured yet.",
       "error": "Unable to load the gate checklist. Try again.",
       "forbidden": "You do not have permission to view this gate checklist.",
-      "faDerivedHint": "Closed in FA →",
+      "faDerivedHint": "Closed in FG →",
       "faDerivedLocked": "FG-derived",
       "revertGate": "Revert gate",
       "advanceTerminalHint": "Launched — fully advanced"

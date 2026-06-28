@@ -175,7 +175,7 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
         },
       });
 
-      revalidatePath(`/npd/fa/${parsed.value.productCode}/docs`);
+      revalidatePath(`/npd/fg/${parsed.value.productCode}/docs`);
       return { ok: true, docId: row.id, versionNumber: row.version_number };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

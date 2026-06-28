@@ -107,8 +107,8 @@ export async function updateFaCell(
     }
 
     await writeEditOutbox(context, parsed.data.productCode, column.column_key, result);
-    safeRevalidatePath(`/npd/fa/${parsed.data.productCode}`);
-    safeRevalidatePath('/npd/fa');
+    safeRevalidatePath(`/npd/fg/${parsed.data.productCode}`);
+    safeRevalidatePath('/npd/fg');
 
     return result;
   });

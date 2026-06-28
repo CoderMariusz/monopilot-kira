@@ -105,7 +105,7 @@ export async function createRisk(input: CreateRiskInput): Promise<CreateRiskResu
         ],
       );
 
-      revalidatePath(`/npd/fa/${parsed.productCode}/risks`);
+      revalidatePath(`/npd/fg/${parsed.productCode}/risks`);
       return { ok: true, riskId };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

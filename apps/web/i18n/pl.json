@@ -4849,7 +4849,7 @@
       "emptyBody": "Ten projekt nie ma jeszcze skonfigurowanych pozycji listy kontrolnej bramki.",
       "error": "Nie można załadować listy kontrolnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki.",
-      "faDerivedHint": "Zamknięte w FA →",
+      "faDerivedHint": "Zamknięte w FG →",
       "faDerivedLocked": "Wyliczane z FA",
       "revertGate": "Cofnij etap",
       "advanceTerminalHint": "Uruchomiony — w pełni zaawansowany"

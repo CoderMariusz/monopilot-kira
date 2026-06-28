@@ -32,7 +32,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const pushMock = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/en/fa',
+  usePathname: () => '/en/fg',
   // Fresh load: empty params; crucially this value is STATIC — it never changes
   // in response to pushMock, exactly like the real hard-load failure mode.
   useSearchParams: () => new URLSearchParams(),
@@ -100,7 +100,7 @@ describe('NF — "+ Create FG" opens the modal on a FRESH hard load (no prior na
     vi.resetModules();
     vi.doMock('next/navigation', () => ({
       useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
-      usePathname: () => '/en/fa',
+      usePathname: () => '/en/fg',
       useSearchParams: () => new URLSearchParams('modal=faCreate'),
     }));
     const { FaListTable: FreshTable } = await import('../fa-list-table');
@@ -122,7 +122,7 @@ describe('NF — "+ Create FG" opens the modal on a FRESH hard load (no prior na
     vi.doUnmock('next/navigation');
   });
 
-  it('a valid submit calls createFa and navigates to /{locale}/fa/{code} on success', async () => {
+  it('a valid submit calls createFa and navigates to /{locale}/fg/{code} on success', async () => {
     const user = userEvent.setup();
     const createFaAction = vi.fn(async () => ({ productCode: 'FA5609' }));
 
@@ -147,7 +147,7 @@ describe('NF — "+ Create FG" opens the modal on a FRESH hard load (no prior na
     await waitFor(() =>
       expect(createFaAction).toHaveBeenCalledWith({ productCode: 'FA5609', productName: 'Pulled Chicken Shawarma' }),
     );
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
   });
 
   it('RBAC: when canCreate is false the button is absent AND no dialog can be opened', () => {

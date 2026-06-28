@@ -15,7 +15,7 @@
  *   - window.NPD_FAS.some() client duplicate check → DROPPED client-side; the unique (org_id, product_code) constraint is
  *                                                     authoritative — the createFa action throws DuplicateError, surfaced as an Alert
  *   - inline alert-blue range note                 → @monopilot/ui informational note rendered from the rangeHint label
- *   - hardcoded redirect /npd/fa/<code>            → onCreated('<code>') callback (page maps to router.push)
+ *   - hardcoded redirect /npd/fg/<code>            → onCreated('<code>') callback (page maps to router.push)
  *
  * Deviation (logged): the prototype has a third optional "Dev Code" field. The merged
  * createFa Server Action (T-008) accepts only { productCode, productName } and the task

@@ -152,7 +152,7 @@ test.describe('NPD project detail — header + 8-stage rail + brief (project.jsx
    * A project at gate G2/G3 with no linked product_code exposes a header
    * "Create / Link FG" button that opens the FgCandidateModal (Create vs Link
    * mode, suggested FG-{code} pre-fill). Once an FG is linked the header instead
-   * offers an "Open FG" link to /{locale}/fa/{code}. Exactly ONE of the two
+   * offers an "Open FG" link to /{locale}/fg/{code}. Exactly ONE of the two
    * affordances is present on any project (and neither on non-G2/G3 gates) — so we
    * assert the header surfaces an FG control and capture per-state screenshots.
    */
@@ -182,7 +182,7 @@ test.describe('NPD project detail — header + 8-stage rail + brief (project.jsx
       await page.screenshot({ path: path.join(artifactDir, 'fg-create-modal.png'), fullPage: true });
       await runAxe(page, 'fg-create-modal');
     } else if (await openFg.count()) {
-      await expect(openFg).toHaveAttribute('href', /\/fa\//);
+      await expect(openFg).toHaveAttribute('href', /\/fg\//);
       await page.screenshot({ path: path.join(artifactDir, 'fg-open-link.png'), fullPage: true });
     }
   });

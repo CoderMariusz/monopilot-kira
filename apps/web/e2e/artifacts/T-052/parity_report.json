@@ -12,7 +12,7 @@
     "getDashboardSummary (T-051)",
     "getLaunchAlerts (T-051)"
   ],
-  "generated_at": "2026-06-18T17:50:45.857Z",
+  "generated_at": "2026-06-26T11:20:34.802Z",
   "states": {
     "loading": {
       "pageRoot": true,
@@ -99,13 +99,13 @@
         "Pending",
         "Blocked",
         "Progress",
-        "FA Code",
+        "FG Code",
         "Product",
         "Launch date",
         "Days left",
         "Alert",
         "Missing data",
-        "Open FA"
+        "Open FG"
       ]
     },
     "optimistic_show_built": {

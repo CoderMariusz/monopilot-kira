@@ -38,7 +38,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 // A seeded, core-closed FA so dept tabs are unlocked for capture. Overridable.
 const productCode = process.env.NPD_FA_DETAIL_PRODUCT_CODE ?? 'FA0043';
 const evidenceDir = path.resolve(__dirname, 'parity-evidence/npd/T-106');
-const route = `/en/fa/${productCode}`;
+const route = `/en/fg/${productCode}`;
 
 type AxeAnalysis = { violations: Array<{ id: string; impact?: string | null }> };
 type AxeBuilderCtor = new (opts: { page: Page }) => { analyze(): Promise<AxeAnalysis> };

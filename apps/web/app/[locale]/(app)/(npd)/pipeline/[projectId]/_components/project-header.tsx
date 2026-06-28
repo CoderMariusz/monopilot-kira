@@ -216,7 +216,7 @@ export function ProjectHeader({
 
   const onFgCreated = React.useCallback(
     (productCode: string) => {
-      router.push(`/${locale}/fa/${productCode}`);
+      router.push(`/${locale}/fg/${productCode}`);
       router.refresh();
     },
     [locale, router],
@@ -346,7 +346,7 @@ export function ProjectHeader({
               Hidden entirely on other gates (the FG candidate only exists at G2/G3). */}
           {project.productCode ? (
             <Link
-              href={`/${locale}/fa/${project.productCode}`}
+              href={`/${locale}/fg/${project.productCode}`}
               prefetch={false}
               className="btn btn-secondary"
               data-testid="project-header-open-fg"

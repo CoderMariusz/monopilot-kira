@@ -118,8 +118,8 @@ describe('AC3: row navigation target', () => {
     const href = firstRow.getAttribute('href');
     expect(href).toBeTruthy();
     expect(
-      ['/fa/FA5601', '/pipeline/npd-project-001'].some((allowedHref) => href === allowedHref),
-      `row href must target either /(npd)/fa/[productCode] or /(npd)/pipeline/[projectId], got ${href}`,
+      ['/fg/FA5601', '/pipeline/npd-project-001'].some((allowedHref) => href === allowedHref),
+      `row href must target either /(npd)/fg/[productCode] or /(npd)/pipeline/[projectId], got ${href}`,
     ).toBe(true);
   });
 });

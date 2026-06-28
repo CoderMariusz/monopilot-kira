@@ -117,10 +117,10 @@ function safeRevalidatePath(path: string): void {
 }
 
 function revalidateFaPaths(productCode: string): void {
-  safeRevalidatePath('/npd/fa');
-  safeRevalidatePath(`/npd/fa/${productCode}`);
+  safeRevalidatePath('/npd/fg');
+  safeRevalidatePath(`/npd/fg/${productCode}`);
   for (const locale of LOCALES) {
-    safeRevalidatePath(`/${locale}/npd/fa`);
-    safeRevalidatePath(`/${locale}/npd/fa/${productCode}`);
+    safeRevalidatePath(`/${locale}/npd/fg`);
+    safeRevalidatePath(`/${locale}/npd/fg/${productCode}`);
   }
 }

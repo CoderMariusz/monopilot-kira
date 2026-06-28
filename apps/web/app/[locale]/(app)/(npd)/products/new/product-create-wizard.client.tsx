@@ -22,7 +22,7 @@ import {
   FaCreateModal,
   type CreateFaAction,
   type FaCreateLabels,
-} from '../../fa/_components/fa-create-modal';
+} from '../../fg/_components/fa-create-modal';
 
 /** Allow only same-origin absolute paths (open-redirect / locale-break guard). */
 function safeReturnTo(raw: string | undefined): string | null {
@@ -69,7 +69,7 @@ export function ProductCreateWizard({
   returnTo,
 }: ProductCreateWizardProps) {
   const router = useRouter();
-  const fallbackBase = `/${locale}/fa`;
+  const fallbackBase = `/${locale}/fg`;
   const returnPath = React.useMemo(() => safeReturnTo(returnTo), [returnTo]);
 
   const onClose = React.useCallback(() => {

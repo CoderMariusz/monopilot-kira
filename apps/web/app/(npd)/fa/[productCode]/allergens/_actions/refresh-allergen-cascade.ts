@@ -21,6 +21,6 @@ export async function refreshAllergenCascade(productCode: string): Promise<void>
 
   const result = await updateFaAllergenSet({ productCode: code });
   if (result.ok && result.changed) {
-    revalidatePath(`/npd/fa/${code}/allergens`);
+    revalidatePath(`/npd/fg/${code}/allergens`);
   }
 }

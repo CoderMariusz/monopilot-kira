@@ -99,7 +99,7 @@ export async function releaseNpdProjectToFactory(
       });
 
       safeRevalidatePath(`/npd/pipeline/${ready.projectId}`);
-      safeRevalidatePath(`/npd/fa/${ready.productCode}`);
+      safeRevalidatePath(`/npd/fg/${ready.productCode}`);
       // materializeNpdBom wrote fresh rows to public.items, public.bom_headers/
       // bom_lines and public.factory_specs — refresh the Technical lists so the
       // newly-minted FG / BOM / spec appear without a manual reload.

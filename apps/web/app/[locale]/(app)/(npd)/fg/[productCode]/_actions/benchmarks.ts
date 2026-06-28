@@ -182,7 +182,7 @@ export async function upsertBenchmark(input: UpsertBenchmarkInput): Promise<Benc
         throw new ValidationError('BENCHMARK_NOT_FOUND', 'Benchmark row is not visible in this organisation');
       }
       await emitCoreChanged(ctx, productCode, { op: 'update', id, label });
-      safeRevalidatePath(`/npd/fa/${productCode}`);
+      safeRevalidatePath(`/npd/fg/${productCode}`);
       return toBenchmark(row);
     }
 
@@ -213,7 +213,7 @@ export async function upsertBenchmark(input: UpsertBenchmarkInput): Promise<Benc
       throw new ValidationError('INSERT_FAILED', 'Could not add the benchmark');
     }
     await emitCoreChanged(ctx, productCode, { op: 'insert', id: row.id, label });
-    safeRevalidatePath(`/npd/fa/${productCode}`);
+    safeRevalidatePath(`/npd/fg/${productCode}`);
     return toBenchmark(row);
   });
 }
@@ -244,7 +244,7 @@ export async function deleteBenchmark(input: DeleteBenchmarkInput): Promise<{ re
       return { removed: false };
     }
     await emitCoreChanged(ctx, productCode, { op: 'delete', id, label: deleted.rows[0].label });
-    safeRevalidatePath(`/npd/fa/${productCode}`);
+    safeRevalidatePath(`/npd/fg/${productCode}`);
     return { removed: true };
   });
 }

@@ -83,10 +83,10 @@ export async function deleteFa(
     });
     await writeOutbox(context, normalizedProductCode, normalizedReason);
 
-    safeRevalidatePath('/fa');
-    safeRevalidatePath(`/fa/${normalizedProductCode}`);
-    safeRevalidatePath('/npd/fa');
-    safeRevalidatePath(`/npd/fa/${normalizedProductCode}`);
+    safeRevalidatePath('/fg');
+    safeRevalidatePath(`/fg/${normalizedProductCode}`);
+    safeRevalidatePath('/npd/fg');
+    safeRevalidatePath(`/npd/fg/${normalizedProductCode}`);
     return { productCode: normalizedProductCode, deleted: true };
   });
 }

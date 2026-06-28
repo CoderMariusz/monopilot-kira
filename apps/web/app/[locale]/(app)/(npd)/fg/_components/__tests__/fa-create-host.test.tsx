@@ -7,7 +7,7 @@
  *  - the FG list "+ Create FG" button pushes `?modal=faCreate` (opens the modal);
  *  - the FaCreateModalHost reads `?modal=faCreate` and renders FaCreateModal;
  *  - a valid submit calls the injected createFa action and, on success,
- *    navigates to the canonical FA detail route `/{locale}/fa/{code}`;
+ *    navigates to the canonical FG detail route `/{locale}/fg/{code}`;
  *  - a DuplicateError surfaces a destructive Alert and does NOT navigate;
  *  - RBAC: the button is hidden when canCreate is false (no render-then-disable),
  *    and the action is absent on the host (Create disabled) when forbidden.
@@ -28,7 +28,7 @@ const pushMock = vi.fn();
 let currentParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/en/fa',
+  usePathname: () => '/en/fg',
   useSearchParams: () => currentParams,
 }));
 
@@ -97,7 +97,7 @@ describe('G-1 — FaCreateModalHost maps ?modal=faCreate to the modal', () => {
 });
 
 describe('G-1 — create → navigate', () => {
-  it('calls createFa then navigates to /{locale}/fa/{code} on success', async () => {
+  it('calls createFa then navigates to /{locale}/fg/{code} on success', async () => {
     const user = userEvent.setup();
     const action = vi.fn(async () => ({ productCode: 'FA5609' }));
     render(<FaCreateModalHost labels={MODAL_LABELS} createFaAction={action} forceOpen />);
@@ -111,7 +111,7 @@ describe('G-1 — create → navigate', () => {
     await waitFor(() =>
       expect(action).toHaveBeenCalledWith({ productCode: 'FA5609', productName: 'Pulled Chicken Shawarma' }),
     );
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
   });
 
   it('surfaces a destructive Alert and does NOT navigate on DuplicateError', async () => {

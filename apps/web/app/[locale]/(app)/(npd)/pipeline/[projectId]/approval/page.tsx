@@ -191,7 +191,7 @@ function buildCriterionLinks(
   };
   if (productCode) {
     const fa = (segment: string) =>
-      `/${locale}/fa/${encodeURIComponent(productCode)}/${segment}`;
+      `/${locale}/fg/${encodeURIComponent(productCode)}/${segment}`;
     links.C5 = fa('allergens');
     links.C6 = fa('risks');
     links.C7 = fa('docs');

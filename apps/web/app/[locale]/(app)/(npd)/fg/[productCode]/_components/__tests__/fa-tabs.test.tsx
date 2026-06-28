@@ -104,7 +104,7 @@ describe('T-136 FA detail tabs shell', () => {
   it('matches the fa_detail tab parity checklist with the 3 section tabs + BOM + History in order', async () => {
     await renderFaTabs();
 
-    const tablist = screen.getByRole('tablist', { name: /fa detail departments|factory article departments|fa tabs/i });
+    const tablist = screen.getByRole('tablist', { name: /fg detail departments|factory article departments|fg tabs/i });
     expect(tablist).toHaveAttribute('data-slot', 'tabs-list');
     expect(document.querySelector('.subnav-inline')).not.toBeInTheDocument();
 

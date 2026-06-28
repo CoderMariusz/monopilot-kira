@@ -62,7 +62,7 @@ export async function createFa(input: CreateFaInput): Promise<CreateFaResult> {
       throw error;
     }
 
-    safeRevalidatePath('/npd/fa');
+    safeRevalidatePath('/npd/fg');
     return { productCode: productCode.productCode };
   });
 }

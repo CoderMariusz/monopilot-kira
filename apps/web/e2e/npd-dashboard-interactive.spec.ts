@@ -247,7 +247,7 @@ test.describe('NPD Dashboard interactive controls (fa-screens.jsx:32-174 §11.7)
         return;
       }
 
-      // The first body row contains an anchor whose href is /fa/<productCode>.
+      // The first body row contains an anchor whose href is /fg/<productCode>.
       const firstFaLink = alertsTable
         .getByRole('row')
         .nth(1) // skip header row
@@ -256,7 +256,7 @@ test.describe('NPD Dashboard interactive controls (fa-screens.jsx:32-174 §11.7)
 
       await expect(firstFaLink, 'first FA code link must be visible').toBeVisible({ timeout: 5_000 });
       const href = await firstFaLink.getAttribute('href');
-      expect(href, 'FA link href must begin with /fa/').toMatch(/^\/fa\//);
+      expect(href, 'FG link href must begin with /fg/').toMatch(/^\/fg\//);
 
       await page.screenshot({
         path: path.join(evidenceDir, 'T-091-alert-links.png'),

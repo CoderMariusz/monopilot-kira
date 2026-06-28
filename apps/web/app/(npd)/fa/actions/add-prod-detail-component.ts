@@ -177,7 +177,7 @@ export async function addProdDetailComponent(
       ],
     );
 
-    safeRevalidatePath(`/npd/fa/${productCode}`);
+    safeRevalidatePath(`/npd/fg/${productCode}`);
     return { id, intermediateCode: item.item_code, componentIndex, itemId };
   });
 }
@@ -230,7 +230,7 @@ export async function removeProdDetailComponent(
       ],
     );
 
-    safeRevalidatePath(`/npd/fa/${productCode}`);
+    safeRevalidatePath(`/npd/fg/${productCode}`);
     return { removed: true };
   });
 }

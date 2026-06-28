@@ -31,7 +31,7 @@ const requiredFinalRouteFiles = [
   '[locale]/(app)/(admin)/settings/invitations/page.tsx',
   '[locale]/(app)/(admin)/settings/schema/preview/page.tsx',
   '[locale]/(app)/(admin)/account/profile/page.tsx',
-  '[locale]/(app)/(npd)/fa/[productCode]/page.tsx',
+  '[locale]/(app)/(npd)/fg/[productCode]/page.tsx',
 ];
 
 const conflictingOldLocaleRoutes = [

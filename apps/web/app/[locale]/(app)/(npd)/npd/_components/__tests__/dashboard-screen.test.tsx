@@ -197,7 +197,7 @@ describe('T-052 DashboardScreen — structural parity (fa-screens.jsx:32-174)', 
     expect(within(deptTable).getByText(LABELS.blockedFaListTitle)).toBeInTheDocument();
     expect(within(deptTable).getByRole('link', { name: 'FA0043' })).toHaveAttribute(
       'href',
-      '/fa/FA0043',
+      '/fg/FA0043',
     );
     expect(within(deptTable).getByText(/smoked almond yoghurt/i)).toBeInTheDocument();
     expect(within(deptTable).getByText('Core: Product Name.')).toBeInTheDocument();
@@ -207,7 +207,7 @@ describe('T-052 DashboardScreen — structural parity (fa-screens.jsx:32-174)', 
     renderScreen();
     const alertsTable = screen.getByRole('table', { name: /launch alerts/i });
     const link = within(alertsTable).getByRole('link', { name: /FA0043/i });
-    expect(link).toHaveAttribute('href', '/fa/FA0043');
+    expect(link).toHaveAttribute('href', '/fg/FA0043');
     const badges = alertsTable.querySelectorAll('[data-slot="badge"]');
     expect(badges.length).toBeGreaterThanOrEqual(2);
   });

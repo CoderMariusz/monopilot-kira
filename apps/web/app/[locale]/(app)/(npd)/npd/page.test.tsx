@@ -178,7 +178,7 @@ describe('T-052 page — real-data wiring', () => {
 
     const alertsTable = screen.getByRole('table', { name: /launch alerts/i });
     const link = within(alertsTable).getByRole('link', { name: /FA0043/i });
-    expect(link).toHaveAttribute('href', '/fa/FA0043');
+    expect(link).toHaveAttribute('href', '/fg/FA0043');
   });
 });
 
@@ -275,7 +275,7 @@ describe('T-134 assembly — KPI region + T-133 pipeline preview + launch alerts
     const row = within(previewRegion).getByRole('link', {
       name: /FA5101.*Smoked Almond Yoghurt/i,
     });
-    expect(row).toHaveAttribute('href', '/fa/FA5101');
+    expect(row).toHaveAttribute('href', '/fg/FA5101');
   });
 
   it('renders the preview empty state when there are no recent projects', async () => {

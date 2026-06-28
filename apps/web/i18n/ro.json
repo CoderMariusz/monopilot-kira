@@ -4848,7 +4848,7 @@
       "emptyBody": "Acest proiect nu are încă elemente de verificare a porții configurate.",
       "error": "Nu se poate încărca lista de verificare a porții. Încercați din nou.",
       "forbidden": "Nu aveți permisiunea de a vizualiza această listă de verificare a porții.",
-      "faDerivedHint": "Closed in FA →",
+      "faDerivedHint": "Closed in FG →",
       "faDerivedLocked": "FG-derived",
       "revertGate": "Revert gate",
       "advanceTerminalHint": "Launched — fully advanced"

@@ -71,7 +71,7 @@ export async function updateFaAllergenSet(
       if (!row) return { ok: false, code: 'NOT_FOUND' };
 
       if (row.changed) {
-        revalidatePath(`/npd/fa/${productCode}/allergens`);
+        revalidatePath(`/npd/fg/${productCode}/allergens`);
       }
 
       return {

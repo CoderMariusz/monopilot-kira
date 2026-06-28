@@ -29,7 +29,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { ProductCreateWizard } from '../product-create-wizard.client';
-import type { FaCreateLabels } from '../../../fa/_components/fa-create-modal';
+import type { FaCreateLabels } from '../../../fg/_components/fa-create-modal';
 
 afterEach(() => {
   cleanup();

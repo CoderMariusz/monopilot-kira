@@ -122,7 +122,7 @@ describe('NpdSubNav', () => {
     ]);
     expect(NPD_NAV_APEX_GROUP.items.map((t) => [t.key, t.route])).toEqual([
       ['fgDashboard', '/npd'],
-      ['finishedGoods', '/fa'],
+      ['finishedGoods', '/fg'],
     ]);
   });
 });
