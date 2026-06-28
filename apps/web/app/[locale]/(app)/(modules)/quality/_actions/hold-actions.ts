@@ -5,6 +5,7 @@ import { hashESignSubject, signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -460,6 +461,7 @@ export async function createHold(input: {
     const parsed = createSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedHold>> => {
       if (!(await hasPermission(ctx, 'quality.hold.create'))) return { ok: false, reason: 'forbidden' };
+      const siteId = await getActiveSiteId({ client: ctx.client });
 
       const explicitDurationDays = await getExplicitDurationDays(ctx, parsed.estimatedReleaseAt);
       const reasonDurationDays = await getReasonDurationDays(ctx, parsed.reasonCodeId);
@@ -474,6 +476,7 @@ export async function createHold(input: {
       }>(
         `insert into public.quality_holds (
            org_id,
+           site_id,
            reference_type,
            reference_id,
            reason_code_id,
@@ -485,6 +488,7 @@ export async function createHold(input: {
          )
          values (
            app.current_org_id(),
+           $8::uuid,
            $1,
            $2::uuid,
            $3::uuid,
@@ -503,6 +507,7 @@ export async function createHold(input: {
           parsed.priority,
           defaultHoldDurationDays,
           ctx.userId,
+          siteId,
         ],
       );
       const created = hold.rows[0];

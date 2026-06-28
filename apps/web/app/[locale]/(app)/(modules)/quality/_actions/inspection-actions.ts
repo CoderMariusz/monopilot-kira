@@ -273,9 +273,11 @@ async function createLpHold(
   ctx: QualityContext,
   params: { lpId: string; note: string | null },
 ): Promise<void> {
+  const siteId = await getActiveSiteId({ client: ctx.client });
   const hold = await ctx.client.query<{ id: string; hold_number: string }>(
     `insert into public.quality_holds (
        org_id,
+       site_id,
        reference_type,
        reference_id,
        reason_free_text,
@@ -285,6 +287,7 @@ async function createLpHold(
      )
      values (
        app.current_org_id(),
+       $4::uuid,
        'lp',
        $1::uuid,
        $2,
@@ -293,7 +296,7 @@ async function createLpHold(
        $3::uuid
      )
      returning id::text, hold_number`,
-    [params.lpId, params.note ?? 'inspection hold', ctx.userId],
+    [params.lpId, params.note ?? 'inspection hold', ctx.userId, siteId],
   );
   const createdHold = hold.rows[0];
   if (!createdHold?.id) throw new Error('quality hold insert did not return a row');

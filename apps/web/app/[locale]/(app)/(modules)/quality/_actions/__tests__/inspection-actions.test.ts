@@ -326,7 +326,8 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     if (res.ok) expect(res.data.qaStatus).toBe('on_hold');
     const holdInsert = findCall('insert into public.quality_holds');
     expect(holdInsert).toBeTruthy();
-    expect(holdInsert?.[1]).toEqual([LP_ID, 'checked', USER_ID]);
+    expect(holdInsert?.[0]).toContain('site_id');
+    expect(holdInsert?.[1]).toEqual([LP_ID, 'checked', USER_ID, SITE_ID]);
     const itemInsert = findCall('insert into public.quality_hold_items');
     expect(itemInsert).toBeTruthy();
     // decimal qty stays a string end-to-end

@@ -387,13 +387,14 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const siteId = await getActiveSiteId({ client });
 
       async function insertHeader(poNumber: string) {
         return ctx.client.query<PurchaseOrderRow>(
           `insert into public.purchase_orders
-             (org_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
+             (org_id, site_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
            values
-             (app.current_org_id(), $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7, $8::uuid, $8::uuid)
+             (app.current_org_id(), $9::uuid, $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7, $8::uuid, $8::uuid)
            returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
                      destination_warehouse_id, null::text as destination_warehouse_name,
                      status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
@@ -406,6 +407,7 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
             input.currency,
             input.notes ?? null,
             userId,
+            siteId,
           ],
         );
       }

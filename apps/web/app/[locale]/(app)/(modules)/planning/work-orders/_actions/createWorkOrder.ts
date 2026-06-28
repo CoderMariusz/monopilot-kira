@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
 import {
   APP_VERSION,
@@ -52,6 +53,7 @@ export async function createWorkOrder(params: {
       const woId = randomUUID();
       // Replaces the old WO-<timestamp>-<uuid8> local composition with org-configured numbering.
       const woNumber = await nextDocumentNumber(ctx.client, ctx.orgId, 'wo', new Date());
+      const siteId = await getActiveSiteId({ client: ctx.client });
 
       const itemUomResult = await ctx.client.query<ItemUomRow>(
         `select output_uom, uom_base, net_qty_per_each::text as net_qty_per_each,
@@ -129,12 +131,12 @@ export async function createWorkOrder(params: {
               active_factory_spec_id,
               planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
               source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
-              ext_jsonb, created_by, updated_by)
+              ext_jsonb, created_by, updated_by, site_id)
            values
              ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
               $12::uuid,
               $5::numeric, $16, 'DRAFT', $6::timestamptz, $7::uuid, $8::uuid,
-              'manual', $9, $13::numeric, $14, $15::jsonb, $10::jsonb, $11::uuid, $11::uuid)
+              'manual', $9, $13::numeric, $14, $15::jsonb, $10::jsonb, $11::uuid, $11::uuid, $17::uuid)
            returning id, wo_number, product_id, $9::text as item_code, item_type_at_creation,
                      planned_quantity::text as planned_quantity, produced_quantity::text as produced_quantity,
                      uom, status, scheduled_start_time, scheduled_end_time, production_line_id, machine_id,
@@ -156,6 +158,7 @@ export async function createWorkOrder(params: {
             input.quantityEnteredUom ?? null,
             JSON.stringify(dbUomSnapshot),
             uomSnapshot.uomBase,
+            siteId,
           ],
         );
       }
