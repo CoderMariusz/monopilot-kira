@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
@@ -296,6 +297,9 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
 
   try {
     return await withOrgContext(async ({ client }): Promise<PurchaseOrderListResult> => {
+      const s = await getActiveSiteId({ client });
+      if (!s) return { ok: true, data: [], archivedCount: 0, noActiveSite: true } as PurchaseOrderListResult & { noActiveSite: true };
+
       const { rows } = await (client as QueryClient).query<PurchaseOrderRow>(
         `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
                 po.destination_warehouse_id, w.name as destination_warehouse_name,
@@ -308,6 +312,7 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
              on ods.org_id = po.org_id
             and ods.doc_type = 'po'
           where po.org_id = app.current_org_id()
+            and po.site_id = $5::uuid
             and ($1::text is null or po.status = $1)
             and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
             and coalesce(
@@ -320,7 +325,7 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
             ) = $4::boolean
           order by po.expected_delivery asc nulls last, po.po_number asc
           limit $3::integer`,
-        [status?.success ? status.data : null, q, limit, archived],
+        [status?.success ? status.data : null, q, limit, archived, s],
       );
       const count = await (client as QueryClient).query<{ archived_count: string | number }>(
         `select count(*) as archived_count
@@ -330,12 +335,13 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
              on ods.org_id = po.org_id
             and ods.doc_type = 'po'
           where po.org_id = app.current_org_id()
+            and po.site_id = $3::uuid
             and ($1::text is null or po.status = $1)
             and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
             and po.status in ('received', 'cancelled')
             and ods.archive_after_days is not null
             and po.updated_at < now() - make_interval(days => ods.archive_after_days)`,
-        [status?.success ? status.data : null, q],
+        [status?.success ? status.data : null, q, s],
       );
       return { ok: true, data: rows.map(mapPurchaseOrder), archivedCount: Number(count.rows[0]?.archived_count ?? 0) };
     });

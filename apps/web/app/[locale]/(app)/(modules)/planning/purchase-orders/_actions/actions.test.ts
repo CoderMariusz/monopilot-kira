@@ -14,6 +14,7 @@ const PO_ID = '33333333-3333-4333-8333-333333333333';
 const SUPPLIER_ID = '44444444-4444-4444-8444-444444444444';
 const ITEM_ID = '55555555-5555-4555-8555-555555555555';
 const DESTINATION_WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
+const SITE_ID = '88888888-8888-4888-8888-888888888888';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -22,10 +23,18 @@ let generatedSeq = 7;
 let failNextAutoInsert = false;
 let currentStatus = 'draft';
 
+const { getActiveSiteIdMock } = vi.hoisted(() => ({
+  getActiveSiteIdMock: vi.fn(),
+}));
+
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: getActiveSiteIdMock,
 }));
 
 function header(overrides: Partial<Record<string, unknown>> = {}) {
@@ -116,6 +125,7 @@ describe('planning purchase order actions', () => {
     generatedSeq = 7;
     failNextAutoInsert = false;
     currentStatus = 'draft';
+    getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     client = makeClient();
   });
 
@@ -128,13 +138,33 @@ describe('planning purchase order actions', () => {
     expect(result.archivedCount).toBe(1);
   });
 
-  it('passes archived=false by default and archived=true for archive views', async () => {
+  it('passes archived=false by default and archived=true for archive views, including site_id bind', async () => {
     await listPurchaseOrders({});
     await listPurchaseOrders({ archived: true });
 
     const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.purchase_orders po'));
-    expect(listCalls[0]?.[1]).toEqual([null, null, 100, false]);
-    expect(listCalls[2]?.[1]).toEqual([null, null, 100, true]);
+    expect(listCalls[0]?.[1]).toEqual([null, null, 100, false, SITE_ID]);
+    expect(listCalls[2]?.[1]).toEqual([null, null, 100, true, SITE_ID]);
+  });
+
+  it('includes po.site_id = $5::uuid in the list SELECT when a site is active', async () => {
+    await listPurchaseOrders({ status: 'draft' });
+
+    const mainCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit'),
+    );
+    expect(mainCall?.[0]).toContain('po.site_id = $5::uuid');
+    expect(mainCall?.[1]).toEqual(['draft', null, 100, false, SITE_ID]);
+  });
+
+  it('returns noActiveSite:true with an empty list and does NOT run any query when getActiveSiteId resolves null', async () => {
+    getActiveSiteIdMock.mockResolvedValue(null);
+
+    const result = await listPurchaseOrders({ status: 'draft' });
+
+    expect(result).toEqual({ ok: true, data: [], archivedCount: 0, noActiveSite: true });
+    // No SELECT/INSERT/UPDATE queries should have been issued.
+    expect(client.query).not.toHaveBeenCalled();
   });
 
   it('gets purchase order detail with ordered lines', async () => {
