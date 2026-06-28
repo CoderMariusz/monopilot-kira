@@ -113,7 +113,7 @@ export async function getRequiredFieldsForDept(
                 lower(f.code) as physical_column,
                 df.display_order
            from public.npd_departments d
-           join public.npd_department_field df on df.department_id = d.id and df.org_id = d.org_id
+           join public.npd_department_field df on df.department_id = d.id and df.org_id = d.org_id and df.visible = true
            join public.npd_field_catalog f on f.id = df.field_id and f.org_id = df.org_id and f.active = true
           where d.org_id = app.current_org_id()
             and lower(d.code) = lower($2::text)
