@@ -145,8 +145,12 @@ export function DashboardPipelinePreview({
         ) : (
           <div className="divide-y divide-slate-100">
             {compactProjects.map((project) => {
-              const productCode = project.productCode || project.code;
-              const detailHref = `/fg/${encodeURIComponent(productCode)}`;
+              // A recent-project row routes to that project's pipeline working
+              // surface (keyed by project UUID, like every other NPD surface) —
+              // NOT to /fg/<code>. The FG detail route expects an FG product_code
+              // (e.g. FA5609); the dashboard only carries the NPD project code, so
+              // /fg/<projectCode> always 404'd. project.projectId is the real id.
+              const detailHref = `/pipeline/${encodeURIComponent(project.projectId)}`;
 
               return (
                 <Link
