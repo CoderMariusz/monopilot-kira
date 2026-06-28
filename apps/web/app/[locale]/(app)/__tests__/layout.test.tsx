@@ -53,12 +53,14 @@ vi.mock('../../../../lib/auth/supabase-server', () => ({
   },
 }));
 
-// 14-multi-site (CL4): the layout fetches the org's sites + the active-site
+// 14-multi-site: the layout fetches the user's visible sites + the active-site
 // cookie for the topbar picker. Mocked here — this suite verifies shell
 // composition + the auth guard, not the site read seams (site-switcher.test.tsx
-// covers the picker; getOrgSites degrades to [] on its own failures).
-vi.mock('../../../../lib/site/get-org-sites', () => ({
-  getOrgSites: vi.fn(async () => []),
+// covers the picker; resolve-effective-active-site.test.ts covers the
+// The topbar picker reads the user's sites; security is enforced by RLS, not the
+// active-site cookie, so the layout writes no cookie during render.
+vi.mock('../../../../lib/site/get-user-sites', () => ({
+  getUserSites: vi.fn(async () => []),
 }));
 vi.mock('../../../../lib/site/site-context', () => ({
   SITE_COOKIE_NAME: 'mp_site_id',

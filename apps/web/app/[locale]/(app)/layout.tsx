@@ -8,7 +8,7 @@ import { createServerSupabaseClient, getCachedUser } from '../../../lib/auth/sup
 import { APP_NAV_GROUPS } from '../../../lib/navigation/app-nav';
 import { filterNavGroupsByPermissions } from '../../../lib/navigation/filter-nav';
 import { getNavPermissionContext } from '../../../lib/navigation/nav-permissions';
-import { getOrgSites } from '../../../lib/site/get-org-sites';
+import { getUserSites } from '../../../lib/site/get-user-sites';
 import { setActiveSite } from '../../../lib/site/site-actions';
 import { getActiveSiteId } from '../../../lib/site/site-context';
 import type { PhaseOneLanguage, UserLanguage } from '../../../lib/i18n/user-language';
@@ -152,9 +152,18 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
   const navGroups = filterNavGroupsByPermissions(APP_NAV_GROUPS, navPermissionContext);
   const effectiveLanguage = phaseOneLocale(locale);
   const userLanguage = userLanguageFromMetadata(metadata.language ?? metadata.locale);
-  // 14-multi-site (CL4): org sites + the cookie-persisted active site for the
-  // topbar picker. getOrgSites degrades to [] on any failure → SiteCrumb fallback.
-  const [sites, activeSiteId] = await Promise.all([getOrgSites(), getActiveSiteId()]);
+  // 14-multi-site: the topbar picker shows only the user's assigned sites
+  // (getUserSites degrades to the full org set for admins / 0-assignment users).
+  // The active site stays a pure VIEW preference (mp_site_id cookie) — security
+  // is enforced from BELOW by the mig-383 RLS floor regardless of it, so we do
+  // NOT write the cookie during render (Next.js forbids cookies().set() outside
+  // a Server Action / Route Handler — it throws). Create-time site resolution for
+  // a restricted user (so line-less creates pass the RLS WITH CHECK) is handled
+  // in the DB trigger via app.current_user_id(), not here.
+  const [sites, activeSiteId] = await Promise.all([
+    getUserSites(shellUser.id),
+    getActiveSiteId(),
+  ]);
   const topbar = await AppTopbar({
     locale,
     user: shellUser,
