@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
 import { assignRole } from '../../../../../../actions/users/assign-role';
+import { assignUserSites } from '../../../../../../actions/users/assign-user-sites';
 import { createUserWithPassword } from '../../../../../../actions/users/create-user-with-password';
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
@@ -13,6 +14,7 @@ import SettingsUsersScreen, {
   type RoleFilter,
   type RoleSummary,
   type SettingsUser,
+  type SiteOption,
   type UsersScreenData,
   type UsersScreenLabels,
   type UsersSearchParams,
@@ -57,6 +59,17 @@ type KpiRow = {
   invited_users: string | number;
   disabled_users: string | number;
   seat_limit: number | null;
+};
+
+type SiteRow = {
+  id: string;
+  name: string;
+};
+
+type UserSitesRow = {
+  user_id: string;
+  site_ids: string[] | null;
+  site_names: string[] | null;
 };
 
 type PermissionCheckRow = { ok: boolean };
@@ -192,7 +205,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
 
       if (!canView) return { state: 'permission-denied' as const };
 
-      const [roleResult, userResult, kpiResult] = await Promise.all([
+      const [roleResult, userResult, kpiResult, siteResult, userSitesResult] = await Promise.all([
         queryClient.query<RoleRow>(
           `select r.id,
                   r.code,
@@ -234,6 +247,29 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
             where o.id = $1::uuid`,
           [orgId],
         ),
+        // Active org sites — the full set an admin assigns FROM.
+        queryClient.query<SiteRow>(
+          `select id::text as id, name
+             from public.sites
+            where org_id = $1::uuid
+              and is_active = true
+            order by is_default desc, name asc`,
+          [orgId],
+        ),
+        // Per-user assigned sites, grouped (mig 381 user_sites). 0 rows for a
+        // user = unrestricted (the RLS floor + enforcement lib degrade to
+        // all-org-sites), so absent users simply fall back to the "All sites"
+        // label below.
+        queryClient.query<UserSitesRow>(
+          `select us.user_id::text as user_id,
+                  array_agg(us.site_id::text order by s.name) as site_ids,
+                  array_agg(s.name order by s.name) as site_names
+             from public.user_sites us
+             join public.sites s on s.id = us.site_id and s.org_id = us.org_id
+            where us.org_id = $1::uuid
+            group by us.user_id`,
+          [orgId],
+        ),
       ]);
 
       const roles: RoleSummary[] = roleResult.rows.map((role) => ({
@@ -243,8 +279,21 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         category: toCategory(undefined, role.code),
       }));
 
+      const siteOptions: SiteOption[] = siteResult.rows.map((site) => ({ id: site.id, name: site.name }));
+
+      // user_id → { ids, names } of the user's assigned sites (mig 381). 0 rows
+      // (user absent from the map) means unrestricted → "All sites" label.
+      const assignmentsByUser = new Map<string, { ids: string[]; names: string[] }>();
+      for (const row of userSitesResult.rows) {
+        const ids = (row.site_ids ?? []).filter((id): id is string => typeof id === 'string');
+        const names = (row.site_names ?? []).filter((name): name is string => typeof name === 'string');
+        if (ids.length === 0) continue;
+        assignmentsByUser.set(row.user_id, { ids, names });
+      }
+
       const users: SettingsUser[] = userResult.rows.map((user) => {
         const name = user.name?.trim() || user.email;
+        const assignment = assignmentsByUser.get(user.id);
         return {
           id: user.id,
           name,
@@ -254,7 +303,10 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
           roleId: user.role_id,
           roleLabel: user.role_name,
           roleCategory: toCategory(undefined, user.role_code),
-          site: labels.allSites,
+          // Site name(s) when assigned; "All sites" when the user has ZERO
+          // assignments (0 = unrestricted).
+          site: assignment && assignment.names.length > 0 ? assignment.names.join(', ') : labels.allSites,
+          assignedSiteIds: assignment?.ids ?? [],
           lastActive: toIsoString(user.last_login_at ?? user.updated_at),
           status: user.is_active ? 'active' : user.invite_token ? 'invited' : 'disabled',
         };
@@ -294,6 +346,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         data: {
           users,
           roles,
+          siteOptions,
           modules: visibleModules,
           permissions: matrix,
           kpis: {
@@ -425,6 +478,16 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     userCreated: t('user_created'),
     userCreationFailed: t('user_creation_failed'),
     userCreationForbiddenRole: t('user_creation_forbidden_role'),
+    assignSites: t('assign_sites'),
+    assignSitesUnavailable: t('assign_sites_unavailable'),
+    assignSitesDialogTitle: t('assign_sites_dialog_title'),
+    assignSitesDialogSubtitle: t('assign_sites_dialog_subtitle'),
+    assignSitesHelp: t('assign_sites_help'),
+    assignSitesEmptyHint: t('assign_sites_empty_hint'),
+    noOrgSites: t('no_org_sites'),
+    saveSites: t('save_sites'),
+    sitesAssignmentSuccess: t('sites_assignment_success'),
+    sitesAssignmentFailed: t('sites_assignment_failed'),
   };
 }
 
@@ -496,6 +559,7 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       locale={locale}
       inviteUserAction={inviteUser}
       assignRoleAction={assignRole}
+      assignUserSitesAction={result.data.canAssignRoles ? assignUserSites : undefined}
       resetPasswordAction={resetPasswordAction}
       createUserWithPasswordAction={result.data.canInviteUsers ? createUserWithPasswordAction : undefined}
     />

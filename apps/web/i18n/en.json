@@ -161,7 +161,17 @@
       "pick_role": "— pick role —",
       "role_assignment_preview": "Assigning {role} to {user}. Previous role {previousRole} will be replaced.",
       "role_assignment_success": "Role updated.",
-      "role_assignment_failed": "Role assignment failed: {error}."
+      "role_assignment_failed": "Role assignment failed: {error}.",
+      "assign_sites": "Assign sites",
+      "assign_sites_unavailable": "Site assignment unavailable",
+      "assign_sites_dialog_title": "Assign sites",
+      "assign_sites_dialog_subtitle": "Choose which sites this user can see and select.",
+      "assign_sites_help": "The user will only see the selected sites.",
+      "assign_sites_empty_hint": "No sites selected — the user can see ALL sites (unrestricted).",
+      "no_org_sites": "No sites are configured for this organization yet.",
+      "save_sites": "Save sites",
+      "sites_assignment_success": "Site access updated.",
+      "sites_assignment_failed": "Site assignment failed: {error}."
     },
     "features": {
       "title": "Feature flags",

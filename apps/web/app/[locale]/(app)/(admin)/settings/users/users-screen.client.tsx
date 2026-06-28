@@ -29,7 +29,10 @@ export type SettingsUser = {
   roleId: string;
   roleLabel: string;
   roleCategory: RoleCategory;
+  /** Human-readable assigned-site label (site name(s) joined, or "All sites" when unassigned). */
   site: string;
+  /** Authoritative ids of the user's currently-assigned org sites (empty = unrestricted). */
+  assignedSiteIds: string[];
   lastActive: string;
   status: UserStatus;
 };
@@ -39,6 +42,11 @@ export type RoleSummary = {
   code: string;
   label: string;
   category: RoleCategory;
+};
+
+export type SiteOption = {
+  id: string;
+  name: string;
 };
 
 export type UsersKpis = {
@@ -51,6 +59,8 @@ export type UsersKpis = {
 export type UsersScreenData = {
   users: SettingsUser[];
   roles: RoleSummary[];
+  /** All active org sites — the admin assigns from this full list. */
+  siteOptions: SiteOption[];
   modules: PermissionModuleSummary[];
   permissions: Record<string, Record<string, PermissionCell>>;
   kpis: UsersKpis;
@@ -149,6 +159,17 @@ export type UsersScreenLabels = {
   userCreationFailed?: string;
   /** Shown when the chosen role is a privileged system role that cannot be self-served (forbidden_role). */
   userCreationForbiddenRole?: string;
+  // ── Per-user site assignment (mig 381 user_sites) ──────────────────────────
+  assignSites?: string;
+  assignSitesUnavailable?: string;
+  assignSitesDialogTitle?: string;
+  assignSitesDialogSubtitle?: string;
+  assignSitesHelp?: string;
+  assignSitesEmptyHint?: string;
+  noOrgSites?: string;
+  saveSites?: string;
+  sitesAssignmentSuccess?: string;
+  sitesAssignmentFailed?: string;
 };
 
 export type InviteUserAction = (input: {
@@ -166,6 +187,11 @@ export type InviteUserAction = (input: {
 
 export type AssignRoleAction = (input: { targetUserId: string; roleId: string }) => Promise<
   | { ok: true; data: { targetUserId: string; roleId: string } }
+  | { ok: false; error: string }
+>;
+
+export type AssignUserSitesAction = (input: { userId: string; siteIds: string[] }) => Promise<
+  | { ok: true; data: { userId: string; siteIds: string[] } }
   | { ok: false; error: string }
 >;
 
@@ -189,6 +215,7 @@ export type SettingsUsersScreenProps = {
   locale: string;
   inviteUserAction?: InviteUserAction;
   assignRoleAction?: AssignRoleAction;
+  assignUserSitesAction?: AssignUserSitesAction;
   resetPasswordAction?: ResetPasswordAction;
   createUserWithPasswordAction?: CreateUserWithPasswordAction;
 };
@@ -290,7 +317,11 @@ function InviteDialog({
   onFeedback: (feedback: { kind: 'status' | 'alert'; message: string } | null) => void;
 }) {
   const defaultRoleId = data.roles.find((role) => role.category === 'Manager')?.id ?? data.roles[0]?.id ?? '';
-  const sites = Array.from(new Set(data.users.map((user) => user.site))).filter(Boolean);
+  // Invite site picker draws from the real org sites (mig 381 source) when
+  // available, falling back to the labels derived from the directory.
+  const sites = data.siteOptions.length > 0
+    ? data.siteOptions.map((site) => site.name)
+    : Array.from(new Set(data.users.map((user) => user.site))).filter(Boolean);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [roleId, setRoleId] = useState(defaultRoleId);
@@ -618,6 +649,123 @@ function RoleAssignDialog({
   );
 }
 
+function AssignSitesDialog({
+  user,
+  onClose,
+  labels,
+  siteOptions,
+  assignUserSitesAction,
+  onFeedback,
+}: {
+  user: SettingsUser | null;
+  onClose: () => void;
+  labels: UsersScreenLabels;
+  siteOptions: SiteOption[];
+  assignUserSitesAction?: AssignUserSitesAction;
+  onFeedback: (feedback: { kind: 'status' | 'alert'; message: string } | null) => void;
+}) {
+  // Pre-check the user's current assignments; an empty set means "unrestricted"
+  // (0 rows) which the help text explains. The selection set is the
+  // authoritative payload — assignUserSites REPLACES the assignments.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isPending, startTransition] = useTransition();
+
+  React.useEffect(() => {
+    setSelected(new Set(user?.assignedSiteIds ?? []));
+  }, [user?.id, user?.assignedSiteIds]);
+
+  const title = labels.assignSitesDialogTitle ?? 'Assign sites';
+
+  function toggle(siteId: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(siteId);
+      else next.delete(siteId);
+      return next;
+    });
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !assignUserSitesAction) {
+      onFeedback({ kind: 'alert', message: labels.assignSitesUnavailable ?? 'Site assignment unavailable' });
+      return;
+    }
+    const siteIds = siteOptions.map((site) => site.id).filter((id) => selected.has(id));
+    startTransition(async () => {
+      const result = await assignUserSitesAction({ userId: user.id, siteIds });
+      if (result.ok) {
+        onFeedback({ kind: 'status', message: labels.sitesAssignmentSuccess ?? 'Site access updated.' });
+        onClose();
+        return;
+      }
+      onFeedback({
+        kind: 'alert',
+        message: interpolate(labels.sitesAssignmentFailed ?? 'Site assignment failed: {error}.', { error: result.error }),
+      });
+    });
+  }
+
+  return (
+    <Modal open={Boolean(user)} onOpenChange={(open) => { if (!open) onClose(); }} size="md" modalId="SM-08">
+      <Modal.Header title={title} />
+      <p className="px-5 pt-2 text-sm text-muted-foreground">{labels.assignSitesDialogSubtitle ?? 'Choose which sites this user can see and select.'}</p>
+      <form onSubmit={submit}>
+        <Modal.Body>
+          <div className="space-y-4 px-5 py-4">
+            {user ? (
+              <div className="rounded-md border p-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold">
+                    {user.initials}
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">{user.name}</div>
+                    <div className="text-xs text-muted-foreground">{user.email}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {siteOptions.length === 0 ? (
+              <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted-foreground">
+                {labels.noOrgSites ?? 'No sites are configured for this organization yet.'}
+              </p>
+            ) : (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">{labels.assignSites ?? 'Assign sites'}</legend>
+                {siteOptions.map((site) => (
+                  <label key={site.id} className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(site.id)}
+                      onChange={(event) => toggle(site.id, event.currentTarget.checked)}
+                      aria-label={site.name}
+                    />
+                    <span>{site.name}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+            <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              {selected.size === 0
+                ? (labels.assignSitesEmptyHint ?? 'No sites selected — the user can see ALL sites (unrestricted).')
+                : (labels.assignSitesHelp ?? 'The user will only see the selected sites.')}
+            </p>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex justify-end gap-2 rounded-b-xl border-t bg-slate-50 px-5 py-4">
+            <Button type="button" className="btn-secondary" onClick={onClose}>{labels.cancel}</Button>
+            <Button type="submit" className="btn-primary" disabled={isPending || !user || !assignUserSitesAction}>
+              {labels.saveSites ?? 'Save sites'}
+            </Button>
+          </div>
+        </Modal.Footer>
+      </form>
+    </Modal>
+  );
+}
+
 export default function SettingsUsersScreen({
   data,
   labels,
@@ -625,6 +773,7 @@ export default function SettingsUsersScreen({
   locale,
   inviteUserAction,
   assignRoleAction,
+  assignUserSitesAction,
   resetPasswordAction,
   createUserWithPasswordAction,
 }: SettingsUsersScreenProps) {
@@ -633,8 +782,19 @@ export default function SettingsUsersScreen({
   const [query, setQuery] = useState(searchParams?.q ?? '');
   const [showInvite, setShowInvite] = useState(false);
   const [roleAssignmentDraft, setRoleAssignmentDraft] = useState<{ user: SettingsUser; roleId: string } | null>(null);
+  const [siteAssignmentUser, setSiteAssignmentUser] = useState<SettingsUser | null>(null);
   const [passwordResetUser, setPasswordResetUser] = useState<SettingsUser | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'status' | 'alert'; message: string } | null>(null);
+
+  const canAssignSites = data.canAssignRoles && Boolean(assignUserSitesAction);
+
+  function openSiteAssignment(user: SettingsUser) {
+    if (!canAssignSites) {
+      setFeedback({ kind: 'alert', message: labels.assignSitesUnavailable ?? 'Site assignment unavailable' });
+      return;
+    }
+    setSiteAssignmentUser(user);
+  }
 
   const visibleUsers = useMemo(() => {
     const searchTerm = query.toLowerCase().trim();
@@ -795,7 +955,18 @@ export default function SettingsUsersScreen({
                   <div className="border-t pt-2 text-xs text-muted-foreground">
                     {labels.lastActivePrefix}: {user.lastActive}
                   </div>
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      className="text-xs"
+                      disabled={!canAssignSites}
+                      aria-label={canAssignSites
+                        ? `${labels.assignSites ?? 'Assign sites'} for ${user.name}`
+                        : `${labels.assignSitesUnavailable ?? 'Site assignment unavailable'} for ${user.name}`}
+                      onClick={() => openSiteAssignment(user)}
+                    >
+                      {labels.assignSites ?? 'Assign sites'}
+                    </Button>
                     <Button
                       type="button"
                       className="text-xs"
@@ -859,7 +1030,22 @@ export default function SettingsUsersScreen({
                           <Pill toneKey={user.roleCategory}>{labels.roleCategoryLabels[user.roleCategory]}</Pill>
                         </div>
                       </td>
-                      <td className="p-2">{user.site}</td>
+                      <td className="p-2">
+                        <div className="flex items-center gap-2">
+                          <span>{user.site}</span>
+                          <Button
+                            type="button"
+                            className="text-xs"
+                            disabled={!canAssignSites}
+                            aria-label={canAssignSites
+                              ? `${labels.assignSites ?? 'Assign sites'} for ${user.name}`
+                              : `${labels.assignSitesUnavailable ?? 'Site assignment unavailable'} for ${user.name}`}
+                            onClick={() => openSiteAssignment(user)}
+                          >
+                            {labels.assignSites ?? 'Assign sites'}
+                          </Button>
+                        </div>
+                      </td>
                       <td className="p-2 text-muted-foreground">{user.lastActive}</td>
                       <td className="p-2"><Pill toneKey={user.status}>{labels.statuses[user.status]}</Pill></td>
                       <td className="p-2">
@@ -952,6 +1138,14 @@ export default function SettingsUsersScreen({
         labels={labels}
         data={data}
         assignRoleAction={assignRoleAction}
+        onFeedback={setFeedback}
+      />
+      <AssignSitesDialog
+        user={siteAssignmentUser}
+        onClose={() => setSiteAssignmentUser(null)}
+        labels={labels}
+        siteOptions={data.siteOptions}
+        assignUserSitesAction={assignUserSitesAction}
         onFeedback={setFeedback}
       />
       {passwordResetUser ? (

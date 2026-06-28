@@ -142,7 +142,17 @@
       "pick_role": "— alege rol —",
       "role_assignment_preview": "Se atribuie rolul {role} utilizatorului {user}. Rolul anterior {previousRole} va fi înlocuit.",
       "role_assignment_success": "Rol actualizat.",
-      "role_assignment_failed": "Atribuirea rolului a eșuat: {error}."
+      "role_assignment_failed": "Atribuirea rolului a eșuat: {error}.",
+      "assign_sites": "Assign sites",
+      "assign_sites_unavailable": "Site assignment unavailable",
+      "assign_sites_dialog_title": "Assign sites",
+      "assign_sites_dialog_subtitle": "Choose which sites this user can see and select.",
+      "assign_sites_help": "The user will only see the selected sites.",
+      "assign_sites_empty_hint": "No sites selected — the user can see ALL sites (unrestricted).",
+      "no_org_sites": "No sites are configured for this organization yet.",
+      "save_sites": "Save sites",
+      "sites_assignment_success": "Site access updated.",
+      "sites_assignment_failed": "Site assignment failed: {error}."
     },
     "features": {
       "title": "Indicatori de funcționalitate",

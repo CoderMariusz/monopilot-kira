@@ -81,6 +81,11 @@ type AssignRoleAction = (input: { targetUserId: string; roleId: string }) => Pro
 
 type ResetPasswordAction = (input: { userId: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
 
+type AssignUserSitesAction = (input: { userId: string; siteIds: string[] }) => Promise<
+  | { ok: true; data: { userId: string; siteIds: string[] } }
+  | { ok: false; error: string }
+>;
+
 const labels: UsersScreenLabels = {
   title: 'Users & roles',
   summary: '{users} users · {roles} roles',
@@ -130,6 +135,16 @@ const labels: UsersScreenLabels = {
   permissionDenied: 'You do not have permission to manage users.',
   roleAssignmentUnavailable: 'Role assignment unavailable',
   exportStatus: 'Export prepared',
+  assignSites: 'Assign sites',
+  assignSitesUnavailable: 'Site assignment unavailable',
+  assignSitesDialogTitle: 'Assign sites',
+  assignSitesDialogSubtitle: 'Choose which sites this user can see and select.',
+  assignSitesHelp: 'The user will only see the selected sites.',
+  assignSitesEmptyHint: 'No sites selected — the user can see ALL sites (unrestricted).',
+  noOrgSites: 'No sites are configured for this organization yet.',
+  saveSites: 'Save sites',
+  sitesAssignmentSuccess: 'Site access updated.',
+  sitesAssignmentFailed: 'Site assignment failed: {error}.',
 };
 
 function permissionGroupId(permission: string): string {
@@ -172,6 +187,7 @@ const data: UsersScreenData = {
       roleLabel: 'Manager',
       roleCategory: 'Manager',
       site: 'Kraków HQ',
+      assignedSiteIds: ['site-krk'],
       lastActive: '2026-05-20 08:00',
       status: 'active',
     },
@@ -184,10 +200,15 @@ const data: UsersScreenData = {
       roleId: 'role-operator',
       roleLabel: 'Operator',
       roleCategory: 'Operator',
-      site: 'Wrocław',
+      site: 'All sites',
+      assignedSiteIds: [],
       lastActive: '2026-05-19 10:30',
       status: 'active',
     },
+  ],
+  siteOptions: [
+    { id: 'site-krk', name: 'Kraków HQ' },
+    { id: 'site-wro', name: 'Wrocław' },
   ],
   modules: [
     { id: 'npd', label: 'NPD' },
@@ -204,8 +225,8 @@ const data: UsersScreenData = {
   canAssignRoles: true,
 };
 
-function renderScreen(overrides: Partial<SettingsUsersScreenProps & { assignRoleAction: AssignRoleAction; resetPasswordAction: ResetPasswordAction }> = {}) {
-  const Screen = SettingsUsersScreen as React.ComponentType<SettingsUsersScreenProps & { assignRoleAction?: AssignRoleAction; resetPasswordAction?: ResetPasswordAction }>;
+function renderScreen(overrides: Partial<SettingsUsersScreenProps & { assignRoleAction: AssignRoleAction; resetPasswordAction: ResetPasswordAction; assignUserSitesAction: AssignUserSitesAction }> = {}) {
+  const Screen = SettingsUsersScreen as React.ComponentType<SettingsUsersScreenProps & { assignRoleAction?: AssignRoleAction; resetPasswordAction?: ResetPasswordAction; assignUserSitesAction?: AssignUserSitesAction }>;
   return render(
     <Screen
       data={data}
@@ -366,6 +387,65 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     expect(screen.getByText('Maria Manager')).toBeVisible();
     expect(screen.queryByRole('alert', { name: /unable to load users/i })).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/settings\.users_screen|settings\.[a-z0-9_.-]+/i);
+  });
+
+  it('renders the real per-user Site column: an assigned site name, and "All sites" for an unassigned user', () => {
+    renderScreen({ assignUserSitesAction: vi.fn() });
+
+    // Maria has one assigned site → its name is shown (not a hardcoded "All sites").
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    expect(within(mariaRow).getByText('Kraków HQ')).toBeVisible();
+    // Ola has ZERO assignments → falls back to the "All sites" unrestricted label.
+    const olaRow = screen.getByRole('row', { name: /Ola Operator ola@example\.com/i });
+    expect(within(olaRow).getByText('All sites')).toBeVisible();
+  });
+
+  it('opens the Assign sites dialog pre-checked to the user\'s current assignments and persists the new set through the Server Action', async () => {
+    const user = userEvent.setup();
+    const assignUserSitesAction = vi.fn().mockResolvedValue({ ok: true, data: { userId: 'user-maria', siteIds: ['site-krk', 'site-wro'] } });
+    renderScreen({ assignUserSitesAction });
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    await user.click(within(mariaRow).getByRole('button', { name: /assign sites for maria manager/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /assign sites/i });
+    // Pre-checked to the current assignment (Kraków HQ), Wrocław unchecked.
+    const krk = within(dialog).getByRole('checkbox', { name: 'Kraków HQ' });
+    const wro = within(dialog).getByRole('checkbox', { name: 'Wrocław' });
+    expect(krk).toBeChecked();
+    expect(wro).not.toBeChecked();
+
+    // Add Wrocław, then save → the FULL set is the authoritative payload.
+    await user.click(wro);
+    await user.click(within(dialog).getByRole('button', { name: /save sites/i }));
+
+    expect(assignUserSitesAction).toHaveBeenCalledWith({ userId: 'user-maria', siteIds: ['site-krk', 'site-wro'] });
+    expect(screen.getByRole('status')).toHaveTextContent(/site access updated/i);
+  });
+
+  it('treats an emptied Assign sites selection as unassign-all (empty payload = unrestricted)', async () => {
+    const user = userEvent.setup();
+    const assignUserSitesAction = vi.fn().mockResolvedValue({ ok: true, data: { userId: 'user-maria', siteIds: [] } });
+    renderScreen({ assignUserSitesAction });
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    await user.click(within(mariaRow).getByRole('button', { name: /assign sites for maria manager/i }));
+    const dialog = await screen.findByRole('dialog', { name: /assign sites/i });
+
+    // Uncheck the only assigned site → empty set.
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Kraków HQ' }));
+    expect(within(dialog).getByText(/can see ALL sites/i)).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: /save sites/i }));
+
+    expect(assignUserSitesAction).toHaveBeenCalledWith({ userId: 'user-maria', siteIds: [] });
+  });
+
+  it('keeps the Assign sites affordance fail-closed (disabled) when no assign-sites action is wired', () => {
+    renderScreen();
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    const assignControl = within(mariaRow).getByRole('button', { name: /site assignment unavailable for maria manager/i });
+    expect(assignControl).toBeDisabled();
   });
 
   it('does NOT offer the set-password toggle when the create-with-password action is not wired', async () => {

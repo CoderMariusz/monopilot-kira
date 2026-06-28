@@ -142,7 +142,17 @@
       "pick_role": "— wybierz rolę —",
       "role_assignment_preview": "Przypisanie roli {role} użytkownikowi {user}. Poprzednia rola {previousRole} zostanie zastąpiona.",
       "role_assignment_success": "Rola została zaktualizowana.",
-      "role_assignment_failed": "Nie udało się przypisać roli: {error}."
+      "role_assignment_failed": "Nie udało się przypisać roli: {error}.",
+      "assign_sites": "Przypisz lokalizacje",
+      "assign_sites_unavailable": "Przypisywanie lokalizacji niedostępne",
+      "assign_sites_dialog_title": "Przypisz lokalizacje",
+      "assign_sites_dialog_subtitle": "Wybierz, które lokalizacje ten użytkownik może widzieć i wybierać.",
+      "assign_sites_help": "Użytkownik będzie widział tylko wybrane lokalizacje.",
+      "assign_sites_empty_hint": "Nie wybrano lokalizacji — użytkownik widzi WSZYSTKIE lokalizacje (bez ograniczeń).",
+      "no_org_sites": "Dla tej organizacji nie skonfigurowano jeszcze żadnych lokalizacji.",
+      "save_sites": "Zapisz lokalizacje",
+      "sites_assignment_success": "Dostęp do lokalizacji zaktualizowany.",
+      "sites_assignment_failed": "Przypisanie lokalizacji nie powiodło się: {error}."
     },
     "features": {
       "title": "Flagi funkcji",

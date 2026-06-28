@@ -314,7 +314,17 @@
     "create_user_help": "Konto zostanie utworzone jako aktywne z tym hasłem. E-mail nie zostanie wysłany.",
     "user_created": "Utworzono użytkownika {email}.",
     "user_creation_failed": "Tworzenie użytkownika nie powiodło się: {error}",
-    "user_creation_forbidden_role": "Wybrana rola jest rolą systemową i nie może być przypisana bezpośrednio. Wybierz rolę inną niż systemowa (np. Menedżer NPD, Przeglądający)."
+    "user_creation_forbidden_role": "Wybrana rola jest rolą systemową i nie może być przypisana bezpośrednio. Wybierz rolę inną niż systemowa (np. Menedżer NPD, Przeglądający).",
+    "assign_sites": "Przypisz lokalizacje",
+    "assign_sites_unavailable": "Przypisywanie lokalizacji niedostępne",
+    "assign_sites_dialog_title": "Przypisz lokalizacje",
+    "assign_sites_dialog_subtitle": "Wybierz, które lokalizacje ten użytkownik może widzieć i wybierać.",
+    "assign_sites_help": "Użytkownik będzie widział tylko wybrane lokalizacje.",
+    "assign_sites_empty_hint": "Nie wybrano lokalizacji — użytkownik widzi WSZYSTKIE lokalizacje (bez ograniczeń).",
+    "no_org_sites": "Dla tej organizacji nie skonfigurowano jeszcze żadnych lokalizacji.",
+    "save_sites": "Zapisz lokalizacje",
+    "sites_assignment_success": "Dostęp do lokalizacji zaktualizowany.",
+    "sites_assignment_failed": "Przypisanie lokalizacji nie powiodło się: {error}."
   },
   "roles": {
     "screen_title": "Role i uprawnienia",

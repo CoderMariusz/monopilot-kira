@@ -314,7 +314,17 @@
     "create_user_help": "Contul este creat activ cu această parolă. Nu se trimite niciun e-mail.",
     "user_created": "Utilizatorul {email} a fost creat.",
     "user_creation_failed": "Crearea utilizatorului a eșuat: {error}",
-    "user_creation_forbidden_role": "The selected role is a system role and cannot be assigned directly. Please choose a non-system role (e.g. NPD Manager, Viewer)."
+    "user_creation_forbidden_role": "The selected role is a system role and cannot be assigned directly. Please choose a non-system role (e.g. NPD Manager, Viewer).",
+    "assign_sites": "Assign sites",
+    "assign_sites_unavailable": "Site assignment unavailable",
+    "assign_sites_dialog_title": "Assign sites",
+    "assign_sites_dialog_subtitle": "Choose which sites this user can see and select.",
+    "assign_sites_help": "The user will only see the selected sites.",
+    "assign_sites_empty_hint": "No sites selected — the user can see ALL sites (unrestricted).",
+    "no_org_sites": "No sites are configured for this organization yet.",
+    "save_sites": "Save sites",
+    "sites_assignment_success": "Site access updated.",
+    "sites_assignment_failed": "Site assignment failed: {error}."
   },
   "roles": {
     "screen_title": "Roluri și permisiuni",
