@@ -241,29 +241,32 @@ async function readDeptColumns(
   ctx: OrgContextLike,
   deptCode: string,
 ): Promise<GenericDeptColumn[]> {
-  // mig 374 — supplement each DeptColumns row with the catalog auto flags. The
-  // join is by catalog code = column_key (case-insensitive); a column with no
-  // catalog row (or a non-auto one) simply gets is_auto=false/null. Org scope is
-  // RLS-pinned on BOTH sides (app.current_org_id()) so no cross-org catalog row
-  // can leak in.
+  // A3 slice-3 Phase 2 — the rendered field set per department now comes from the
+  // DYNAMIC catalog (public.npd_field_catalog + public.npd_department_field), not
+  // "Reference"."DeptColumns". mig 370 seeded the catalog FROM DeptColumns
+  // (excluding the System Done_* flags, the Benchmark editor field, and the
+  // owner-retired Number_of_Cases), and migs 374/376 added is_auto/auto_source_field
+  // + dropdown_source/blocking_rule so this join can emit the SAME aliased columns
+  // mapDeptColumn already reads. Org scope is RLS-pinned on EVERY relation
+  // (app.current_org_id()) so no cross-org field can leak in. The write path
+  // (update-fa-cell.ts), readDropdowns, deriveDeptStatuses and the close-dept gates
+  // stay DeptColumns-authoritative (slice-4). $1::text cast preserved.
   const { rows } = await ctx.client.query<DeptColumnRow>(
-    `select dc.column_key,
-            lower(dc.column_key) as physical_column,
-            dc.field_type,
-            dc.data_type,
-            dc.required_for_done,
-            dc.dropdown_source,
-            dc.blocking_rule,
-            dc.display_order,
+    `select lower(f.code)          as physical_column,
+            f.code                 as column_key,
+            null::text             as field_type,
+            f.data_type            as data_type,
+            df.required            as required_for_done,
+            f.dropdown_source      as dropdown_source,
+            f.blocking_rule        as blocking_rule,
+            df.display_order       as display_order,
             coalesce(f.is_auto, false) as is_auto,
-            f.auto_source_field
-       from "Reference"."DeptColumns" dc
-       left join public.npd_field_catalog f
-         on f.org_id = app.current_org_id()
-        and lower(f.code) = lower(dc.column_key)
-      where dc.org_id = app.current_org_id()
-        and lower(dc.dept_code) = lower($1::text)
-      order by dc.display_order nulls last, dc.column_key`,
+            f.auto_source_field    as auto_source_field
+       from public.npd_departments d
+       join public.npd_department_field df on df.department_id = d.id and df.org_id = d.org_id and df.visible = true
+       join public.npd_field_catalog f on f.id = df.field_id and f.org_id = df.org_id and f.active = true
+      where d.org_id = app.current_org_id() and lower(d.code) = lower($1::text) and d.active = true
+      order by df.display_order asc nulls last, f.code asc`,
     [deptCode],
   );
   return rows.map((row, i) => mapDeptColumn(row, i));

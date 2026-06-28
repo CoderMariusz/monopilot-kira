@@ -105,8 +105,11 @@ function wireOrgContext() {
         if (/to_jsonb\(p\.\*\)/i.test(text)) {
           return { rows: [{ product_json: productJson }] };
         }
-        // DeptColumns load — only the Core dept gets the auto + source columns.
-        if (/from\s+"Reference"\."DeptColumns"/i.test(text)) {
+        // Dept-field load (A3 slice-3 Phase 2 — now sources the dynamic catalog
+        // npd_department_field/npd_field_catalog instead of "Reference"."DeptColumns";
+        // the SQL still emits the same aliased columns, so the fixtures are unchanged).
+        // Only the Core dept gets the auto + source columns.
+        if (/from\s+public\.npd_departments/i.test(text)) {
           const deptArg = String(params?.[0] ?? '').toLowerCase();
           if (deptArg === 'core') {
             return { rows: [SOURCE_COLUMN, AUTO_COLUMN] };
