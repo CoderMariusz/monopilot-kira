@@ -44,6 +44,7 @@ export type CloneProjectOverrides = {
   targetLaunch?: string | null;
   packFormat?: string | null;
   packWeightG?: number | null;
+  packsPerCase?: number | null;
   salesChannel?: string | null;
   expectedVolume?: string | null;
   targetRetailPriceEur?: number | null;
@@ -89,6 +90,7 @@ type SourceRow = {
   marketing_claims: string | null;
   constraints: string | null;
   pack_weight_g: string | number | null;
+  packs_per_case: string | number | null;
 };
 
 type InsertRow = { id: string; code: string };
@@ -109,7 +111,7 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
       const { rows: sourceRows } = await ctx.client.query<SourceRow>(
         `select code, name, type, prio, owner, target_launch::text as target_launch, notes,
                 pack_format, sales_channel, expected_volume, target_retail_price_eur,
-                target_audience, marketing_claims, constraints, pack_weight_g
+                target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case
            from public.npd_projects
           where id = $1::uuid
             and org_id = app.current_org_id()
@@ -141,6 +143,10 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
         o?.packWeightG !== undefined && o.packWeightG !== null
           ? o.packWeightG
           : toNumericOrNull(source.pack_weight_g);
+      const packsPerCase =
+        o?.packsPerCase !== undefined && o.packsPerCase !== null
+          ? o.packsPerCase
+          : toNumericOrNull(source.packs_per_case);
 
       // 3. Allocate a fresh org-scoped NPD-NNN code (same sequence as create).
       const code = await allocateProjectCode(ctx);
@@ -150,13 +156,13 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
         `insert into public.npd_projects
            (org_id, code, name, type, prio, owner, target_launch, notes,
             pack_format, sales_channel, expected_volume, target_retail_price_eur,
-            target_audience, marketing_claims, constraints, pack_weight_g,
+            target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case,
             current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
             $9, $10, $11, $12::numeric,
-            $13, $14, $15, $16::numeric,
-            'G0', 'brief', 'clone', $17, $18::uuid, 'npd-project-actions-v1')
+            $13, $14, $15, $16::numeric, $17::integer,
+            'G0', 'brief', 'clone', $18, $19::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           ctx.orgId,
@@ -175,6 +181,7 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
           marketingClaims,
           constraints,
           packWeightG,
+          packsPerCase,
           source.code,
           ctx.userId,
         ],
@@ -296,6 +303,7 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
   const targetLaunch = parseOptionalDate(raw.targetLaunch);
   const targetRetailPriceEur = parseOptionalNonNeg(raw.targetRetailPriceEur);
   const packWeightG = parseOptionalNonNeg(raw.packWeightG);
+  const packsPerCase = parseOptionalNonNegInteger(raw.packsPerCase);
   const prio = raw.prio === undefined || raw.prio === null ? null : parsePriority(raw.prio);
 
   if (
@@ -303,7 +311,7 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
     salesChannel === undefined || expectedVolume === undefined || targetAudience === undefined ||
     marketingClaims === undefined || constraints === undefined || notes === undefined ||
     targetLaunch === undefined || targetRetailPriceEur === undefined || packWeightG === undefined ||
-    prio === null
+    packsPerCase === undefined || prio === null
   ) {
     return null;
   }
@@ -312,7 +320,7 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
     sourceProjectId,
     overrides: {
       name, type, prio, targetLaunch, packFormat, salesChannel, expectedVolume,
-      targetAudience, marketingClaims, constraints, notes, targetRetailPriceEur, packWeightG,
+      targetAudience, marketingClaims, constraints, notes, targetRetailPriceEur, packWeightG, packsPerCase,
     },
   };
 }
@@ -327,6 +335,18 @@ function parseOptionalNonNeg(value: unknown): number | null | undefined {
   if (value === undefined || value === null || value === '') return null;
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
   if (!Number.isFinite(n) || n < 0) return undefined;
+  return n;
+}
+
+function parseOptionalNonNegInteger(value: unknown): number | null | undefined {
+  if (value === undefined || value === null || value === '') return null;
+  const n =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : NaN;
+  if (!Number.isInteger(n) || n < 0) return undefined;
   return n;
 }
 
