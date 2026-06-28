@@ -74,6 +74,16 @@ export async function updateFaCell(
       throw new AuthError('FORBIDDEN', `${permission} is required to update ${parsed.data.columnName}`);
     }
 
+    // mig 374 — auto-derived columns are READ-TIME mirrors of another field and
+    // must NEVER be written. Guard BEFORE assertProductColumn: an auto field may
+    // be a non-physical catalog field (no public.product column), so reaching
+    // assertProductColumn would mis-reject it as COLUMN_NOT_IN_PRODUCT instead of
+    // the correct READ_ONLY_COLUMN, and a physical auto field would otherwise be
+    // editable. Mirrors the existing 'formula' READ_ONLY_COLUMN guard.
+    if (await isAutoColumn(context, column.column_key)) {
+      throw new ValidationError('READ_ONLY_COLUMN', 'Auto-derived columns cannot be edited');
+    }
+
     await assertProductColumn(context, column.column_key);
     const newValue = await validateValue(context, column, parsed.data.value);
 
@@ -163,6 +173,26 @@ async function assertProductColumn(ctx: OrgContextLike, columnName: string): Pro
   if (!rows[0]?.ok) {
     throw new ValidationError('COLUMN_NOT_IN_PRODUCT', 'Registered column does not exist on product');
   }
+}
+
+/**
+ * mig 374 — is this column an auto-derived catalog field for the current org?
+ * Auto fields (public.npd_field_catalog.is_auto = true) are read-time mirrors of
+ * another field and are never independently written. Matched on catalog code =
+ * the (already lower-cased, regex-validated) column key; org scope is RLS-pinned
+ * via app.current_org_id() and re-asserted in the predicate.
+ */
+async function isAutoColumn(ctx: OrgContextLike, columnName: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.npd_field_catalog f
+      where f.org_id = app.current_org_id()
+        and lower(f.code) = $1::text
+        and f.is_auto = true
+      limit 1`,
+    [columnName],
+  );
+  return rows.length > 0;
 }
 
 async function validateValue(ctx: OrgContextLike, column: DeptColumnRow, value: unknown): Promise<string | number | boolean | Date | null> {

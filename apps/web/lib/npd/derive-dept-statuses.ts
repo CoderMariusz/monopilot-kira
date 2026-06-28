@@ -38,6 +38,13 @@ export type GenericDeptColumn = {
   required: boolean;
   readOnly: boolean;
   auto?: boolean;
+  /**
+   * mig 374 — when this column is an auto-derived field (`auto` true), the
+   * physical key of the catalog field it mirrors at read time
+   * (npd_field_catalog.auto_source_field). The page overrides this column's value
+   * with the source column's value before render; the column stays read-only.
+   */
+  autoSourceField?: string;
   dropdownSource?: string;
   displayOrder: number;
   priceGated?: boolean;

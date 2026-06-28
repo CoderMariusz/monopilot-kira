@@ -48,6 +48,18 @@ export type FaDynamicField = {
   deptCode: string;
   /** npd_department_field.display_order — order within the dept. */
   displayOrder: number;
+  /**
+   * mig 374 — auto-derived field (npd_field_catalog.is_auto). When true the field
+   * is rendered read-only and its value is read-time derived from
+   * `autoSourceField`; the future fully-dynamic render carries this awareness so
+   * it can render the same read-only/auto control + value override the current
+   * static render does.
+   */
+  auto?: boolean;
+  /** True when the field is non-editable (currently == auto; reserved for PK/formula). */
+  readOnly?: boolean;
+  /** mig 374 — the code of the catalog field this auto field mirrors at read time. */
+  autoSourceField?: string;
 };
 
 /** One rendered section = a SECTION_MAP entry resolved to its concrete fields. */

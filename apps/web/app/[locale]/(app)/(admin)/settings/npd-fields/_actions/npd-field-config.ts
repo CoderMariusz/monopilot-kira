@@ -36,6 +36,8 @@ type FieldCatalogRow = {
   validation_json: JsonValue;
   help_text: string | null;
   active: boolean;
+  is_auto: boolean;
+  auto_source_field: string | null;
 };
 
 type DepartmentFieldRow = {
@@ -77,7 +79,11 @@ type UpdateFieldPatch = {
   validation_json?: JsonValue;
   help_text?: string | null;
   active?: boolean;
+  is_auto?: boolean;
+  auto_source_field?: string | null;
 };
+
+type UpdateFieldResult = FieldCatalogRow | { ok: false; error: string };
 
 type AssignFieldInput = {
   department_id: string;
@@ -195,6 +201,8 @@ function parseUpdateFieldPatch(input: unknown): UpdateFieldPatch {
     validation_json: readOptionalJson(record, 'validation_json'),
     help_text: readOptionalNullableString(record, 'help_text'),
     active: readOptionalBoolean(record, 'active'),
+    is_auto: readOptionalBoolean(record, 'is_auto'),
+    auto_source_field: readOptionalNullableString(record, 'auto_source_field'),
   };
 }
 
@@ -261,7 +269,7 @@ async function selectDepartmentById(context: OrgContextLike, id: string): Promis
 
 async function selectFieldById(context: OrgContextLike, id: string): Promise<FieldCatalogRow> {
   const { rows } = await context.client.query<FieldCatalogRow>(
-    `select id::text, org_id::text, code, label, data_type, validation_json, help_text, active
+    `select id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field
        from public.npd_field_catalog
       where id = $1::uuid
         and org_id = app.current_org_id()
@@ -347,7 +355,7 @@ export async function listFieldCatalog(): Promise<FieldCatalogRow[]> {
   return withOrgContext<FieldCatalogRow[]>(async (ctx): Promise<FieldCatalogRow[]> => {
     const context = ctx as OrgContextLike;
     const { rows } = await context.client.query<FieldCatalogRow>(
-      `select id::text, org_id::text, code, label, data_type, validation_json, help_text, active
+      `select id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field
          from public.npd_field_catalog
         where org_id = app.current_org_id()
         order by lower(label), lower(code)`,
@@ -364,7 +372,7 @@ export async function createField(input: unknown): Promise<FieldCatalogRow> {
     const { rows } = await context.client.query<FieldCatalogRow>(
       `insert into public.npd_field_catalog (org_id, code, label, data_type, validation_json, help_text, active)
        values (app.current_org_id(), $1, $2, $3, $4::jsonb, $5, $6)
-       returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active`,
+       returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field`,
       [
         parsed.code,
         parsed.label,
@@ -380,23 +388,68 @@ export async function createField(input: unknown): Promise<FieldCatalogRow> {
   });
 }
 
-export async function updateField(id: string, patch: unknown): Promise<FieldCatalogRow> {
+export async function updateField(id: string, patch: unknown): Promise<UpdateFieldResult> {
   const parsed = parseUpdateFieldPatch(patch);
-  const updates = definedEntries(parsed);
-  return withOrgContext<FieldCatalogRow>(async (ctx): Promise<FieldCatalogRow> => {
+  let updates = definedEntries(parsed);
+  return withOrgContext<UpdateFieldResult>(async (ctx): Promise<UpdateFieldResult> => {
     const context = ctx as OrgContextLike;
     await requireNpdSchemaEdit(context);
     if (updates.length === 0) return selectFieldById(context, id);
+    const current = await selectFieldById(context, id);
+    const resolvedIsAuto = parsed.is_auto ?? current.is_auto;
+    let resolvedAutoSourceField = parsed.auto_source_field === undefined ? current.auto_source_field : parsed.auto_source_field;
+
+    if (resolvedIsAuto) {
+      if (resolvedAutoSourceField === null || resolvedAutoSourceField === '') {
+        return { ok: false, error: 'auto_source_required' };
+      }
+      if (resolvedAutoSourceField === current.code) {
+        return { ok: false, error: 'auto_source_self' };
+      }
+      const { rows: sourceRows } = await context.client.query<{
+        code: string;
+        is_auto: boolean;
+        auto_source_field: string | null;
+      }>(
+        `select code, is_auto, auto_source_field
+           from public.npd_field_catalog
+          where org_id = app.current_org_id()
+            and code = $1::text
+            and active = true
+          limit 1`,
+        [resolvedAutoSourceField],
+      );
+      const source = sourceRows[0];
+      if (!source) {
+        return { ok: false, error: 'auto_source_not_found' };
+      }
+      if (source.is_auto && source.auto_source_field === current.code) {
+        return { ok: false, error: 'auto_source_cycle' };
+      }
+    } else if (parsed.is_auto === false) {
+      parsed.auto_source_field = null;
+      updates = definedEntries(parsed);
+    }
+
     const params = updates.map(([key, value]) => (key === 'validation_json' ? JSON.stringify(value ?? {}) : value));
+    const casts: Record<keyof UpdateFieldPatch & string, string> = {
+      label: 'text',
+      data_type: 'text',
+      validation_json: 'jsonb',
+      help_text: 'text',
+      active: 'boolean',
+      is_auto: 'boolean',
+      auto_source_field: 'text',
+    };
     const setClause = updates
-      .map(([key], index) => (key === 'validation_json' ? `${key} = $${index + 2}::jsonb` : `${key} = $${index + 2}`))
+      .map(([key], index) => `${key} = $${index + 2}::${casts[key]}`)
       .join(', ');
     const { rows } = await context.client.query<FieldCatalogRow>(
       `update public.npd_field_catalog
           set ${setClause}
         where id = $1::uuid
           and org_id = app.current_org_id()
-        returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active`,
+        returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field`,
       [id, ...params],
     );
     const row = rows[0];
@@ -405,7 +458,7 @@ export async function updateField(id: string, patch: unknown): Promise<FieldCata
   });
 }
 
-export async function setFieldActive(id: string, active: boolean): Promise<FieldCatalogRow> {
+export async function setFieldActive(id: string, active: boolean): Promise<UpdateFieldResult> {
   return updateField(id, { active });
 }
 

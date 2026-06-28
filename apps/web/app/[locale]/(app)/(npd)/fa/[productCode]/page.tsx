@@ -187,6 +187,10 @@ type DeptColumnRow = {
   dropdown_source: string | null;
   blocking_rule: string | null;
   display_order: number | null;
+  /** mig 374 — auto-derived flag from public.npd_field_catalog (matched on code). */
+  is_auto: boolean | null;
+  /** mig 374 — the code of the catalog field this auto column mirrors at read time. */
+  auto_source_field: string | null;
 };
 
 /** Map a DeptColumns metadata row → a generic, render-ready column descriptor. */
@@ -205,7 +209,16 @@ function mapDeptColumn(row: DeptColumnRow, index: number): GenericDeptColumn {
           : ft === 'formula'
             ? 'formula'
             : 'text';
-  const auto = AUTO_DERIVED_KEYS.has(key);
+  // mig 374 — a catalog-marked auto field (npd_field_catalog.is_auto) is BOTH
+  // read-only AND auto, regardless of the legacy hardcoded AUTO_DERIVED_KEYS set.
+  // The source field whose value it mirrors at read time is carried through so
+  // the page loader can override this column's value before render.
+  const catalogAuto = row.is_auto === true;
+  const autoSourceField =
+    catalogAuto && (row.auto_source_field ?? '').trim() !== ''
+      ? (row.auto_source_field as string).trim().toLowerCase()
+      : undefined;
+  const auto = catalogAuto || AUTO_DERIVED_KEYS.has(key);
   const readOnly = auto || READONLY_ID_KEYS.has(key) || dataType === 'formula';
   return {
     key,
@@ -213,6 +226,7 @@ function mapDeptColumn(row: DeptColumnRow, index: number): GenericDeptColumn {
     required: row.required_for_done === true,
     readOnly,
     auto: auto || undefined,
+    autoSourceField,
     dropdownSource: hasDropdown ? (row.dropdown_source as string) : undefined,
     displayOrder: row.display_order ?? index,
     priceGated:
@@ -227,6 +241,11 @@ async function readDeptColumns(
   ctx: OrgContextLike,
   deptCode: string,
 ): Promise<GenericDeptColumn[]> {
+  // mig 374 — supplement each DeptColumns row with the catalog auto flags. The
+  // join is by catalog code = column_key (case-insensitive); a column with no
+  // catalog row (or a non-auto one) simply gets is_auto=false/null. Org scope is
+  // RLS-pinned on BOTH sides (app.current_org_id()) so no cross-org catalog row
+  // can leak in.
   const { rows } = await ctx.client.query<DeptColumnRow>(
     `select dc.column_key,
             lower(dc.column_key) as physical_column,
@@ -235,10 +254,15 @@ async function readDeptColumns(
             dc.required_for_done,
             dc.dropdown_source,
             dc.blocking_rule,
-            dc.display_order
+            dc.display_order,
+            coalesce(f.is_auto, false) as is_auto,
+            f.auto_source_field
        from "Reference"."DeptColumns" dc
+       left join public.npd_field_catalog f
+         on f.org_id = app.current_org_id()
+        and lower(f.code) = lower(dc.column_key)
       where dc.org_id = app.current_org_id()
-        and lower(dc.dept_code) = lower($1)
+        and lower(dc.dept_code) = lower($1::text)
       order by dc.display_order nulls last, dc.column_key`,
     [deptCode],
   );
@@ -465,6 +489,27 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         hasPermission(ctx, DELETE_PERMISSION),
         hasPermission(ctx, BUILD_PERMISSION),
       ]);
+
+      // mig 374 — AUTO-DERIVED field read-time override. For every loaded auto
+      // column (across ALL depts), mirror the SOURCE field's current value onto
+      // the auto column's key so the read-only input shows the source's value
+      // (never a stale independently-stored value). Only applied when the source
+      // key actually exists in `values`, so a misconfigured source can't blank a
+      // field. Mutating `values` here (before the dept objects + deptStatuses are
+      // built) feeds the override uniformly into every consumer.
+      for (const col of [
+        ...core,
+        ...planning,
+        ...commercial,
+        ...production,
+        ...technical,
+        ...procurement,
+        ...mrp,
+      ]) {
+        if (col.auto && col.autoSourceField && col.autoSourceField in values) {
+          values[col.key] = values[col.autoSourceField];
+        }
+      }
 
       const coreDone = String(values.closed_core ?? '').toLowerCase() === 'yes';
       const prodDone = String(values.closed_production ?? '').toLowerCase() === 'yes';

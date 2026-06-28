@@ -59,6 +59,9 @@ type CatalogRow = {
   field_data_type: string | null;
   df_required: boolean | null;
   df_display_order: number | null;
+  /** mig 374 — auto-derived flags carried through for the fully-dynamic render. */
+  field_is_auto: boolean | null;
+  field_auto_source: string | null;
 };
 
 async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
@@ -135,6 +138,8 @@ export async function loadFaDynamicSections(productCode: string): Promise<FaDyna
           f.code               as field_code,
           f.label              as field_label,
           f.data_type          as field_data_type,
+          coalesce(f.is_auto, false) as field_is_auto,
+          f.auto_source_field  as field_auto_source,
           df.required          as df_required,
           df.display_order     as df_display_order
          from public.npd_departments d
@@ -181,6 +186,15 @@ export async function loadFaDynamicSections(productCode: string): Promise<FaDyna
         sectionLabels.set(key, OTHER_SECTION_LABEL);
       }
 
+      // mig 374 — carry auto-awareness into the dynamic field definition so the
+      // future fully-dynamic render renders auto fields read-only + value-overridden
+      // exactly as the current static render does.
+      const auto = row.field_is_auto === true;
+      const autoSourceField =
+        auto && (row.field_auto_source ?? '').trim() !== ''
+          ? (row.field_auto_source as string).trim().toLowerCase()
+          : undefined;
+
       bySection.get(key)!.push({
         code: fieldCode,
         label: (row.field_label ?? fieldCode).trim() || fieldCode,
@@ -188,6 +202,9 @@ export async function loadFaDynamicSections(productCode: string): Promise<FaDyna
         required: row.df_required === true,
         deptCode,
         displayOrder: Number(row.df_display_order ?? 0),
+        auto: auto || undefined,
+        readOnly: auto || undefined,
+        autoSourceField,
       });
     }
 

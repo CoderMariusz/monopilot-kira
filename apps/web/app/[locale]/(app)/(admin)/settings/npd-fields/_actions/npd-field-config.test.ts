@@ -7,6 +7,7 @@ const harness = vi.hoisted(() => ({
   permissionGranted: true,
   departmentRows: [] as Array<Record<string, unknown>>,
   fieldRows: [] as Array<Record<string, unknown>>,
+  sourceFieldRows: [] as Array<Record<string, unknown>>,
   assignmentRows: [] as Array<Record<string, unknown>>,
   joinedRows: [] as Array<Record<string, unknown>>,
 }));
@@ -37,6 +38,18 @@ function makeClient() {
       }
 
       if (normalized.includes('insert into public.npd_field_catalog')) {
+        return { rows: harness.fieldRows.slice(0, 1) as T[], rowCount: harness.fieldRows.length > 0 ? 1 : 0 };
+      }
+
+      if (normalized.startsWith('select id::text, org_id::text, code, label') && normalized.includes('from public.npd_field_catalog')) {
+        return { rows: harness.fieldRows.slice(0, 1) as T[], rowCount: harness.fieldRows.length > 0 ? 1 : 0 };
+      }
+
+      if (normalized.startsWith('select code, is_auto, auto_source_field') && normalized.includes('from public.npd_field_catalog')) {
+        return { rows: harness.sourceFieldRows as T[], rowCount: harness.sourceFieldRows.length };
+      }
+
+      if (normalized.includes('update public.npd_field_catalog')) {
         return { rows: harness.fieldRows.slice(0, 1) as T[], rowCount: harness.fieldRows.length > 0 ? 1 : 0 };
       }
 
@@ -84,6 +97,15 @@ describe('NPD field config actions', () => {
         validation_json: { min: 0, max: 14 },
         help_text: null,
         active: true,
+        is_auto: false,
+        auto_source_field: null,
+      },
+    ];
+    harness.sourceFieldRows = [
+      {
+        code: 'source_ph',
+        is_auto: false,
+        auto_source_field: null,
       },
     ];
     harness.assignmentRows = [
@@ -164,6 +186,85 @@ describe('NPD field config actions', () => {
       '22222222-2222-4222-8222-222222222222',
       'npd.schema.edit',
     ]);
+  });
+
+  it('updateField persists is_auto=true and auto_source_field', async () => {
+    const { updateField } = await import('./npd-field-config');
+
+    const row = await updateField('44444444-4444-4444-8444-444444444444', {
+      is_auto: true,
+      auto_source_field: 'source_ph',
+    });
+
+    expect(row).toEqual(harness.fieldRows[0]);
+    const updateCall = harness.calls.find((entry) => entry.sql.includes('update public.npd_field_catalog'));
+    expect(updateCall?.sql).toContain('is_auto = $2::boolean');
+    expect(updateCall?.sql).toContain('auto_source_field = $3::text');
+    expect(updateCall?.params).toEqual(['44444444-4444-4444-8444-444444444444', true, 'source_ph']);
+  });
+
+  it('updateField rejects auto_source_field self-reference without issuing UPDATE', async () => {
+    const { updateField } = await import('./npd-field-config');
+
+    const result = await updateField('44444444-4444-4444-8444-444444444444', {
+      is_auto: true,
+      auto_source_field: 'target_ph',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'auto_source_self' });
+    expect(harness.calls.some((entry) => entry.sql.includes('update public.npd_field_catalog'))).toBe(false);
+  });
+
+  it('updateField rejects missing auto_source_field source without issuing UPDATE', async () => {
+    const { updateField } = await import('./npd-field-config');
+    harness.sourceFieldRows = [];
+
+    const result = await updateField('44444444-4444-4444-8444-444444444444', {
+      is_auto: true,
+      auto_source_field: 'missing_source',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'auto_source_not_found' });
+    expect(harness.calls.some((entry) => entry.sql.includes('update public.npd_field_catalog'))).toBe(false);
+  });
+
+  it('updateField rejects a direct auto_source_field cycle without issuing UPDATE', async () => {
+    const { updateField } = await import('./npd-field-config');
+    harness.sourceFieldRows = [
+      {
+        code: 'source_ph',
+        is_auto: true,
+        auto_source_field: 'target_ph',
+      },
+    ];
+
+    const result = await updateField('44444444-4444-4444-8444-444444444444', {
+      is_auto: true,
+      auto_source_field: 'source_ph',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'auto_source_cycle' });
+    expect(harness.calls.some((entry) => entry.sql.includes('update public.npd_field_catalog'))).toBe(false);
+  });
+
+  it('updateField forces auto_source_field null when is_auto=false', async () => {
+    const { updateField } = await import('./npd-field-config');
+    harness.fieldRows = [
+      {
+        ...harness.fieldRows[0],
+        is_auto: true,
+        auto_source_field: 'source_ph',
+      },
+    ];
+
+    await updateField('44444444-4444-4444-8444-444444444444', {
+      is_auto: false,
+    });
+
+    const updateCall = harness.calls.find((entry) => entry.sql.includes('update public.npd_field_catalog'));
+    expect(updateCall?.sql).toContain('is_auto = $2::boolean');
+    expect(updateCall?.sql).toContain('auto_source_field = $3::text');
+    expect(updateCall?.params).toEqual(['44444444-4444-4444-8444-444444444444', false, null]);
   });
 
   it('getDepartmentFieldConfig returns the joined department/field shape', async () => {
