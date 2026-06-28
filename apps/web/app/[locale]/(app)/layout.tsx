@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { AppSidebar } from '../../../components/shell/app-sidebar';
 import { AppTopbar } from '../../../components/shell/app-topbar';
+import { SessionExpiryGuard } from './_components/session-expiry-guard.client';
 import { createServerSupabaseClient, getCachedUser } from '../../../lib/auth/supabase-server';
 import { APP_NAV_GROUPS } from '../../../lib/navigation/app-nav';
 import { filterNavGroupsByPermissions } from '../../../lib/navigation/filter-nav';
@@ -180,6 +181,11 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
         gridTemplateRows: 'var(--shell-topbar-h) minmax(0, 1fr)',
       }}
     >
+      {/* IDLE-2 (#62): global session-expired interceptor for ALL Server
+          Actions — patches window.fetch once at the authenticated shell mount
+          and hard-redirects to the idle-login page on the unique
+          `x-monopilot-auth: session_expired` response header. */}
+      <SessionExpiryGuard locale={locale} />
       <div style={{ gridColumn: '1 / -1', gridRow: '1 / 2' }}>{topbar}</div>
       <AppSidebar locale={locale} groups={navGroups} />
       <main data-testid="app-shell-main" className="min-w-0 overflow-auto bg-slate-50">
