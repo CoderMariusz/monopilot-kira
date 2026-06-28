@@ -125,6 +125,8 @@ export const Permission = {
   NPD_FORMULATION_CREATE_DRAFT: 'npd.formulation.create_draft',
   /** NPD formulation lock permission; PRD 01-NPD §2.2, §18. */
   NPD_FORMULATION_LOCK: 'npd.formulation.lock',
+  /** NPD formulation unlock (locked -> draft) permission; A6, gated by e-sign. */
+  NPD_FORMULATION_UNLOCK: 'npd.formulation.unlock',
   /** NPD recipe trial submission permission; PRD 01-NPD §2.2, §18. */
   NPD_RECIPE_SUBMIT_FOR_TRIAL: 'npd.recipe.submit_for_trial',
   /** NPD pilot BOM promotion permission; PRD 01-NPD §2.2, §18. */
