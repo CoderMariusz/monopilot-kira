@@ -368,10 +368,12 @@ export function FaPlanningTab({
       onCloseSection();
       return;
     }
-    // Default: navigate via URL param so the parent shell (T-105) opens the
-    // deptClose modal for the Planning dept.
+    // Default: open the dept-close modal for Planning via the EXPLICIT ?dept=
+    // launcher the FA modal host honors. The prior `?tab=planning&close=planning`
+    // target was dead post-A3-slice-2 (no reader for ?close=, and ?tab=planning is
+    // no longer a tab slug), so the only conflicting affordance is removed here.
     if (typeof window !== 'undefined') {
-      window.location.assign('?tab=planning&close=planning');
+      window.location.assign('?modal=deptClose&dept=Planning');
     }
   }
 

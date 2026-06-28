@@ -24,29 +24,17 @@ type FaTabsProps = {
 
 type FaTabsComponent = (props: FaTabsProps) => React.ReactElement;
 
+// A3 SLICE 2 — the 7 dept tabs collapse into 3 SECTION tabs (Core / Commercial &
+// Planning / Production & Technical) + the unchanged BOM + History tabs = 5 tabs.
 const EXPECTED_FA_TABS = [
   'Core',
-  'Planning',
-  'Commercial',
-  'Production',
-  'Technical',
-  'MRP',
-  'Procurement',
+  'Commercial & Planning',
+  'Production & Technical',
   'BOM',
   'History',
 ] as const;
 
-const TAB_SLUGS = [
-  'core',
-  'planning',
-  'commercial',
-  'production',
-  'technical',
-  'mrp',
-  'procurement',
-  'bom',
-  'history',
-] as const;
+const TAB_SLUGS = ['core', 'commercial', 'production', 'bom', 'history'] as const;
 
 let pathname = '/(npd)/fa/FA-RED-001';
 let searchParams = new URLSearchParams();
@@ -113,7 +101,7 @@ describe('T-136 FA detail tabs shell', () => {
     cleanup();
   });
 
-  it('matches the fa_detail tab parity checklist with 8 shadcn/Radix tabs in prototype order', async () => {
+  it('matches the fa_detail tab parity checklist with the 3 section tabs + BOM + History in order', async () => {
     await renderFaTabs();
 
     const tablist = screen.getByRole('tablist', { name: /fa detail departments|factory article departments|fa tabs/i });
@@ -121,7 +109,7 @@ describe('T-136 FA detail tabs shell', () => {
     expect(document.querySelector('.subnav-inline')).not.toBeInTheDocument();
 
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(9);
+    expect(tabs).toHaveLength(5);
     expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([...EXPECTED_FA_TABS]);
 
     tabs.forEach((tab, index) => {
@@ -131,16 +119,16 @@ describe('T-136 FA detail tabs shell', () => {
     });
   });
 
-  it('activates the Technical trigger and deferred-empty placeholder from ?tab=technical', async () => {
-    await renderFaTabs('technical');
+  it('activates the Production section trigger and deferred-empty placeholder from ?tab=production', async () => {
+    await renderFaTabs('production');
 
-    const technicalTab = screen.getByRole('tab', { name: 'Technical' });
-    expect(technicalTab).toHaveAttribute('aria-selected', 'true');
-    expect(technicalTab).toHaveAttribute('data-state', 'active');
+    const productionTab = screen.getByRole('tab', { name: /production & technical/i });
+    expect(productionTab).toHaveAttribute('aria-selected', 'true');
+    expect(productionTab).toHaveAttribute('data-state', 'active');
 
-    const panel = screen.getByRole('tabpanel', { name: /technical/i });
+    const panel = screen.getByRole('tabpanel', { name: /production & technical/i });
     expect(panel).toHaveAttribute('data-state', 'active');
-    expect(within(panel).getByText(/technical/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/production & technical/i)).toBeInTheDocument();
     expect(within(panel).getByText(/deferred-empty|tab content deferred/i)).toBeInTheDocument();
     expect(panel.querySelector('[data-slot="card"]')).toBeInTheDocument();
   });
@@ -150,13 +138,13 @@ describe('T-136 FA detail tabs shell', () => {
     const { rerender } = await renderFaTabs('core');
     const FaTabs = await loadFaTabs();
 
-    await user.click(screen.getByRole('tab', { name: 'Production' }));
+    await user.click(screen.getByRole('tab', { name: /commercial & planning/i }));
 
-    expect(routerPush).toHaveBeenCalledWith(expect.stringMatching(/\?tab=production(?:$|&)/));
+    expect(routerPush).toHaveBeenCalledWith(expect.stringMatching(/\?tab=commercial(?:$|&)/));
 
     rerender(React.createElement(FaTabs, { productCode: 'FA-RED-001', coreDone: true, prodDone: true }));
-    expect(screen.getByRole('tab', { name: 'Production' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tabpanel', { name: /production/i })).toHaveTextContent(/deferred-empty|tab content deferred/i);
+    expect(screen.getByRole('tab', { name: /commercial & planning/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: /commercial & planning/i })).toHaveTextContent(/deferred-empty|tab content deferred/i);
 
     setUrlTab('core');
     rerender(React.createElement(FaTabs, { productCode: 'FA-RED-001', coreDone: true, prodDone: true }));

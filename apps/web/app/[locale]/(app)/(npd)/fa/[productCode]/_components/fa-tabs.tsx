@@ -3,15 +3,22 @@
 /**
  * T-136 — FA detail tabs container (fa_detail prototype shell).
  *
+ * A3 · SLICE 2 — SECTION regrouping: the 7 dept tabs (Core/Planning/Commercial/
+ * Production/Technical/MRP/Procurement) are collapsed into 3 owner-facing SECTION
+ * tabs — `core`, `commercial` (= Commercial + Planning + Procurement) and
+ * `production` (= Production + Technical + MRP) — while `bom` and `history` keep
+ * their own tabs (5 tabs total). The dept bodies are stacked vertically inside a
+ * section by FaSectionWrapper (page.tsx assembles each section's `panels[slug]`).
+ * The grouping itself is owned by SECTION_MAP in
+ * load-fa-dynamic-sections.types.ts — this file only knows the 3 section slugs.
+ *
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-401 (fa_detail)
  *   The prototype's `subnav-inline` tab bar (lines 387-398) maps here to a tabs
- *   primitive composition. The prototype lists 12 tabs; this shell exposes the 8
- *   *department* tabs (Core/Planning/Commercial/Production/Technical/MRP/
- *   Procurement/History) PLUS the read-only BOM tab (SCR-03h, fa-screens.jsx:
- *   840-886, wired Lane 12) — inserted between Procurement and History per the
- *   prototype tab order. The remaining prototype tabs (Formulations/Risks/Docs)
- *   live in their own routes/slices and are out of scope here.
+ *   primitive composition. The per-DEPARTMENT gate circles still render in the
+ *   flat DeptStatusStrip above the tabs (unchanged), so no per-dept signal is
+ *   lost by the section regrouping. The remaining prototype tabs
+ *   (Formulations/Risks/Docs) live in their own routes/slices.
  *
  * shadcn note: the repo's Radix re-export lives in `packages/ui` only; importing
  * `@radix-ui/*` from app code is a Foundation lint red-line. We therefore emit
@@ -24,15 +31,13 @@
  * deferred-empty placeholder for the History panel ONLY; every other panel keeps
  * the deferred-empty card. Omitting it preserves the prior shell behavior.
  *
- * T-105 dept wiring: the FA detail page server-loads each dept tab body (schema-
- * driven DeptColumns + the real product row) and hands them to `panels`. A slot
- * with a provided panel renders the real component; a slot left undefined keeps
- * the deferred-empty card. The Core-close gate (`coreDone`) locks Planning /
- * Commercial / Technical / Procurement, and `(coreDone && prodDone)` gates MRP —
- * matching the prototype TABS `locked` flags (fa-screens.jsx:312-325). Locked
- * triggers are disabled, carry a "Locked" badge, and never activate; if the URL
- * points at a locked tab we fall back to Core. Core + Production are never locked
- * (Production uses a per-field block inside FaProductionTab).
+ * Section gating (A3 SLICE 2 — PROVISIONAL OWNER POLICY): the Core section is
+ * NEVER locked. The Commercial and Production SECTIONS both unlock once Core is
+ * closed (`coreDone`). The stricter per-dept gates (MRP needs prodDone;
+ * Procurement price needs production) are UNCHANGED — they remain as the
+ * field-level / inline behavior inside the dept tab bodies and in the flat
+ * DeptStatusStrip; this shell adds NO section-level lock for them. `prodDone` is
+ * still accepted as a prop for back-compat but no longer gates a section.
  */
 
 import { useMemo, type ReactNode } from 'react';
@@ -42,12 +47,8 @@ import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
 
 const FA_TAB_SLUGS = [
   'core',
-  'planning',
   'commercial',
   'production',
-  'technical',
-  'mrp',
-  'procurement',
   'bom',
   'history',
 ] as const;
@@ -57,12 +58,8 @@ export type FaTabSlug = (typeof FA_TAB_SLUGS)[number];
 /** English fallbacks — keep the shell test contract green when no labels passed. */
 const DEFAULT_TAB_LABELS: Record<FaTabSlug, string> = {
   core: 'Core',
-  planning: 'Planning',
-  commercial: 'Commercial',
-  production: 'Production',
-  technical: 'Technical',
-  mrp: 'MRP',
-  procurement: 'Procurement',
+  commercial: 'Commercial & Planning',
+  production: 'Production & Technical',
   bom: 'BOM',
   history: 'History',
 };
@@ -104,9 +101,13 @@ type FaTabsProps = {
    * given this still wires the History slot. (The page may pass either.)
    */
   historyPanel?: ReactNode;
-  /** Core-close gate ('closed_core' === 'Yes') — unlocks dept tabs. */
+  /** Core-close gate ('closed_core' === 'Yes') — unlocks the Commercial + Production sections. */
   coreDone?: boolean;
-  /** Production-close gate ('closed_production' === 'Yes') — unlocks MRP. */
+  /**
+   * Production-close gate ('closed_production' === 'Yes'). A3 SLICE 2: no longer
+   * gates a SECTION (the MRP-needs-prod gate stays field-level inside the
+   * Production-section bodies); accepted for back-compat with existing callers.
+   */
   prodDone?: boolean;
 };
 
@@ -115,20 +116,23 @@ function isFaTabSlug(value: string | null): value is FaTabSlug {
 }
 
 /**
- * T-105 lock model — 1:1 with prototype TABS (fa-screens.jsx:312-325):
- *   core/production → never locked; planning/commercial/technical/procurement →
- *   locked when !coreDone; mrp → locked when (!coreDone || !prodDone); history →
- *   never locked.
+ * A3 · SLICE 2 SECTION lock policy (PROVISIONAL — owner-flagged):
+ *   - `core` section: NEVER locked.
+ *   - `commercial` + `production` sections: BOTH unlock once Core is closed
+ *     (`coreDone`).
+ *   - `bom` / `history`: NEVER locked.
+ *
+ * The stricter per-dept gates (MRP needs prodDone; Procurement price needs
+ * production) are NOT modelled as section locks here — they remain the
+ * field-level / inline behavior inside the dept tab bodies and the flat
+ * DeptStatusStrip. `prodDone` is therefore unused by the section gate but kept in
+ * the signature for back-compat with existing callers.
  */
-function isTabLocked(slug: FaTabSlug, coreDone: boolean, prodDone: boolean): boolean {
+function isTabLocked(slug: FaTabSlug, coreDone: boolean, _prodDone: boolean): boolean {
   switch (slug) {
-    case 'planning':
     case 'commercial':
-    case 'technical':
-    case 'procurement':
+    case 'production':
       return !coreDone;
-    case 'mrp':
-      return !coreDone || !prodDone;
     default:
       return false;
   }

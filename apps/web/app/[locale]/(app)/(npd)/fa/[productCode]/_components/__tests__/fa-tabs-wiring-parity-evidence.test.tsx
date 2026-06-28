@@ -49,6 +49,7 @@ vi.mock('../../../../../../(npd)/fa/actions/update-fa-cell', () => ({
 }));
 
 import { FaTabs, type FaTabsLabels } from '../fa-tabs';
+import { FaSectionWrapper, type FaSectionPart } from '../fa-section-wrapper';
 import { FaCoreTab, type FaCoreColumn } from '../fa-core-tab';
 import { FaPlanningTab, type FaPlanningColumn } from '../fa-planning-tab';
 import { FaCommercialTab, type FaCommercialColumn } from '../commercial-tab';
@@ -96,40 +97,75 @@ const procurementColumns: FaProcurementColumn[] = [
 const tabLabels: FaTabsLabels = {
   tablistLabel: 'FA detail departments',
   tabs: {
-    core: 'Core', planning: 'Planning', commercial: 'Commercial', production: 'Production',
-    technical: 'Technical', mrp: 'MRP', procurement: 'Procurement', bom: 'BOM', history: 'History',
+    core: 'Core', commercial: 'Commercial & Planning', production: 'Production & Technical',
+    bom: 'BOM', history: 'History',
   },
   deferred: 'Tab content deferred',
   deferredBody: 'This department workspace is delivered in a later slice.',
   locked: 'Locked',
 };
 
+function coreBody() {
+  return (
+    <FaCoreTab productCode={PC} columns={coreColumns} values={{ product_name: 'Smoked Almond Yoghurt', pack_size: '6x400g' }} dropdowns={{}}
+      labels={commonLabels({ title: 'Core section', subtitle: '', closedBadge: '✓ Closed', openBadge: 'Open', autoHint: 'auto', requiredMissingTitle: 'Required', requiredMissingBody: 'fill', save: 'Save Core', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…' })} />
+  );
+}
+function planningBody() {
+  return (
+    <FaPlanningTab productCode={PC} columns={planningColumns} values={{ primary_ingredient_pct: 80 }} dropdowns={{}}
+      labels={commonLabels({ title: 'Planning', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', bomNoteTitle: 'BOM', bomNoteBody: 'note', save: 'Save Planning', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', closeSection: 'Close Planning', selectPlaceholder: 'Select…' })} />
+  );
+}
+function commercialBody() {
+  return (
+    <FaCommercialTab productCode={PC} columns={commercialColumns} values={{ launch_date: '2026-09-01' }} closedCommercial={null} briefId={null} earliest={null}
+      labels={commonLabels({ title: 'Commercial', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', v08Alert: 'v08 {earliest}', v08Violation: 'v08v {earliest}', requiredMissingTitle: 'Required', requiredMissingBody: 'fill', save: 'Save Commercial', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', close: 'Close Commercial' })} />
+  );
+}
+function productionBody() {
+  return (
+    <FaProductionTab productCode={PC} packSizeFilled columns={productionColumns} rows={[{ id: 'r1', componentIndex: 1, intermediateCode: 'PR-001', v06Status: 'pass', values: { line: 'L1' } }]} dropdowns={{}}
+      labels={commonLabels({ title: 'Production detail', componentsCount: '{count} component(s)', subtitle: '', lockedTitle: 'Blocked', lockedBody: 'fill pack size', v06Pass: 'OK', v06Warn: 'Warn', aggregateTitle: 'Aggregate', autoHint: 'auto', singleComponent: 'Component', save: 'Save Production', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…' })} />
+  );
+}
+function technicalBody() {
+  return (
+    <FaTechnicalTab productCode={PC} columns={technicalColumns} values={{ shelf_life: '14 days' }} dropdowns={{}}
+      labels={commonLabels({ title: 'Technical', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', autoHint: 'auto', requiredMissingTitle: 'Required', requiredMissingBody: 'fill', save: 'Save Technical', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…', allergenSlotTitle: 'Allergens', allergenSlotSubtitle: 'sub', allergenSlotLoading: 'loading' })} />
+  );
+}
+function procurementBody() {
+  return (
+    <FaProcurementTab productCode={PC} columns={procurementColumns} values={{ price: 1.5 }} dropdowns={{}} closedCore="Yes" closedProduction="Yes"
+      labels={commonLabels({ title: 'Procurement', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', priceBlockedTitle: 'Blocked', priceBlockedBody: 'close core', priceBlockedHint: 'locked', save: 'Save Procurement', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…' })} />
+  );
+}
+function mrpBody() {
+  return (
+    <FaProcurementTab productCode={PC} columns={[{ key: 'mrp_lot_size', dataType: 'number', required: false, readOnly: false, displayOrder: 70 }]} values={{ mrp_lot_size: 100 }} dropdowns={{}} closedCore="Yes" closedProduction="Yes"
+      labels={commonLabels({ title: 'MRP', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', priceBlockedTitle: 'Locked', priceBlockedBody: 'locked', priceBlockedHint: 'locked', save: 'Save MRP', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…' })} />
+  );
+}
+
+// A3 SLICE 2 — 3 SECTION panels (page.tsx assembly mirror). FaSectionWrapper
+// stacks the dept bodies inside a section. BOM + History keep their own tabs.
 function panels() {
+  const commercialParts: FaSectionPart[] = [
+    { key: 'commercial', deptValue: 'Commercial', heading: 'Commercial', node: commercialBody() },
+    { key: 'planning', deptValue: 'Planning', heading: 'Planning', node: planningBody() },
+    { key: 'procurement', deptValue: 'Procurement', heading: 'Procurement', node: procurementBody() },
+  ];
+  const productionParts: FaSectionPart[] = [
+    { key: 'production', deptValue: 'Production', heading: 'Production', node: productionBody() },
+    { key: 'technical', deptValue: 'Technical', heading: 'Technical', node: technicalBody() },
+    { key: 'mrp', deptValue: 'MRP', heading: 'MRP', node: mrpBody() },
+  ];
   return {
-    core: (
-      <FaCoreTab productCode={PC} columns={coreColumns} values={{ product_name: 'Smoked Almond Yoghurt', pack_size: '6x400g' }} dropdowns={{}}
-        labels={commonLabels({ title: 'Core section', subtitle: '', closedBadge: '✓ Closed', openBadge: 'Open', autoHint: 'auto', requiredMissingTitle: 'Required', requiredMissingBody: 'fill', save: 'Save Core', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…' })} />
-    ),
-    planning: (
-      <FaPlanningTab productCode={PC} columns={planningColumns} values={{ primary_ingredient_pct: 80 }} dropdowns={{}}
-        labels={commonLabels({ title: 'Planning', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', bomNoteTitle: 'BOM', bomNoteBody: 'note', save: 'Save Planning', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', closeSection: 'Close Planning', selectPlaceholder: 'Select…' })} />
-    ),
-    commercial: (
-      <FaCommercialTab productCode={PC} columns={commercialColumns} values={{ launch_date: '2026-09-01' }} closedCommercial={null} briefId={null} earliest={null}
-        labels={commonLabels({ title: 'Commercial', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', v08Alert: 'v08 {earliest}', v08Violation: 'v08v {earliest}', requiredMissingTitle: 'Required', requiredMissingBody: 'fill', save: 'Save Commercial', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', close: 'Close Commercial' })} />
-    ),
-    production: (
-      <FaProductionTab productCode={PC} packSizeFilled columns={productionColumns} rows={[{ id: 'r1', componentIndex: 1, intermediateCode: 'PR-001', v06Status: 'pass', values: { line: 'L1' } }]} dropdowns={{}}
-        labels={commonLabels({ title: 'Production detail', componentsCount: '{count} component(s)', subtitle: '', lockedTitle: 'Blocked', lockedBody: 'fill pack size', v06Pass: 'OK', v06Warn: 'Warn', aggregateTitle: 'Aggregate', autoHint: 'auto', singleComponent: 'Component', save: 'Save Production', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…' })} />
-    ),
-    technical: (
-      <FaTechnicalTab productCode={PC} columns={technicalColumns} values={{ shelf_life: '14 days' }} dropdowns={{}}
-        labels={commonLabels({ title: 'Technical', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', autoHint: 'auto', requiredMissingTitle: 'Required', requiredMissingBody: 'fill', save: 'Save Technical', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…', allergenSlotTitle: 'Allergens', allergenSlotSubtitle: 'sub', allergenSlotLoading: 'loading' })} />
-    ),
-    procurement: (
-      <FaProcurementTab productCode={PC} columns={procurementColumns} values={{ price: 1.5 }} dropdowns={{}} closedCore="Yes" closedProduction="Yes"
-        labels={commonLabels({ title: 'Procurement', subtitle: '', closedBadge: 'Closed', openBadge: 'Open', priceBlockedTitle: 'Blocked', priceBlockedBody: 'close core', priceBlockedHint: 'locked', save: 'Save Procurement', saving: 'Saving…', saveSuccess: 'Saved', saveError: 'Failed', selectPlaceholder: 'Select…' })} />
-    ),
+    core: <FaSectionWrapper sectionKey="core" parts={[{ key: 'core', deptValue: 'Core', heading: 'Core', node: coreBody() }]} />,
+    commercial: <FaSectionWrapper sectionKey="commercial" parts={commercialParts} />,
+    production: <FaSectionWrapper sectionKey="production" parts={productionParts} />,
+    bom: <div data-testid="fa-bom-panel">BOM view</div>,
     history: <div data-testid="fa-history-panel">History timeline</div>,
   };
 }
@@ -147,7 +183,7 @@ function writeArtifact(name: string, html: string) {
   writeFileSync(resolve(evidenceDir, name), `${html}\n`, 'utf-8');
 }
 
-describe('T-105/T-106 FA dept tabs wiring — parity evidence', () => {
+describe('A3 SLICE 2 — FA section tabs wiring — parity evidence', () => {
   beforeAll(() => {
     mkdirSync(evidenceDir, { recursive: true });
   });
@@ -155,25 +191,23 @@ describe('T-105/T-106 FA dept tabs wiring — parity evidence', () => {
   it('writes the unlocked + locked tab-bar DOM artifacts', () => {
     const unlocked = renderWired('core', true, true);
     writeArtifact('tabbar-unlocked.html', unlocked.container.innerHTML);
-    // all 8 dept tabs + read-only BOM present, none locked.
-    expect(within(screen.getByRole('tablist')).getAllByRole('tab')).toHaveLength(9);
+    // 3 section tabs + BOM + History present, none locked.
+    expect(within(screen.getByRole('tablist')).getAllByRole('tab')).toHaveLength(5);
     expect(document.querySelectorAll('[data-locked="true"]')).toHaveLength(0);
     cleanup();
 
     const locked = renderWired('core', false, false);
     writeArtifact('tabbar-locked.html', locked.container.innerHTML);
-    // Planning/Commercial/Technical/Procurement + MRP locked (5 gated tabs).
-    expect(document.querySelectorAll('[data-locked="true"]')).toHaveLength(5);
+    // Commercial + Production SECTIONS locked when !coreDone (2 gated tabs).
+    expect(document.querySelectorAll('[data-locked="true"]')).toHaveLength(2);
   });
 
-  it('writes per-tab body DOM artifacts (Core/Planning/Commercial/Production/Technical/Procurement/History)', () => {
+  it('writes per-section body DOM artifacts (Core / Commercial / Production / BOM / History)', () => {
     for (const [slug, testid] of [
-      ['core', 'fa-core-tab'],
-      ['planning', 'fa-planning-tab'],
-      ['commercial', 'fa-commercial-tab'],
-      ['production', 'fa-production-tab'],
-      ['technical', 'fa-technical-tab'],
-      ['procurement', 'fa-procurement-tab'],
+      ['core', 'fa-section-core'],
+      ['commercial', 'fa-section-commercial'],
+      ['production', 'fa-section-production'],
+      ['bom', 'fa-bom-panel'],
       ['history', 'fa-history-panel'],
     ] as const) {
       cleanup();
@@ -181,36 +215,48 @@ describe('T-105/T-106 FA dept tabs wiring — parity evidence', () => {
       expect(screen.getByTestId(testid)).toBeInTheDocument();
       writeArtifact(`tab-${slug}.html`, container.innerHTML);
     }
+    // The grouped sections stack the real dept bodies (zero field-cell rewrites).
+    cleanup();
+    renderWired('commercial', true, true);
+    expect(screen.getByTestId('fa-commercial-tab')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-planning-tab')).toBeInTheDocument();
+    cleanup();
+    renderWired('production', true, true);
+    expect(screen.getByTestId('fa-production-tab')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-technical-tab')).toBeInTheDocument();
   });
 
-  it('writes a structural parity report mapping the prototype TABS array', () => {
+  it('writes a structural parity report mapping the 3-section regrouping', () => {
     const report = {
-      task: 'T-105 (wiring) + T-106 (parity)',
-      prototype: 'prototypes/design/Monopilot Design System/npd/fa-screens.jsx:312-408',
-      tabOrder: ['core', 'planning', 'commercial', 'production', 'technical', 'mrp', 'procurement', 'bom', 'history'],
+      task: 'A3 SLICE 2 (FA detail = 3 sections + BOM + History)',
+      prototype: 'prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-408',
+      tabOrder: ['core', 'commercial', 'production', 'bom', 'history'],
+      sectionMap: {
+        core: ['Core'],
+        commercial: ['Commercial', 'Planning', 'Procurement'],
+        production: ['Production', 'Technical', 'MRP'],
+      },
       lockModel: {
-        never: ['core', 'production', 'history'],
-        coreGated: ['planning', 'commercial', 'technical', 'procurement'],
-        coreAndProdGated: ['mrp'],
-        prototypeLines: '314-319',
+        never: ['core', 'bom', 'history'],
+        coreGated: ['commercial', 'production'],
+        note:
+          'PROVISIONAL owner policy: Commercial + Production sections unlock once Core is closed. The stricter per-dept gates (MRP needs prodDone; Procurement price needs production) stay field-level inside the dept bodies + the flat DeptStatusStrip; no section-level lock added for them.',
       },
       wiredBodies: {
-        core: 'FaCoreTab (T-023, fa-screens.jsx:455-517)',
-        planning: 'FaPlanningTab (T-104, fa-screens.jsx:537-557)',
-        commercial: 'FaCommercialTab (T-103, fa-screens.jsx:559-586)',
-        production: 'FaProductionTab (T-024, fa-screens.jsx:571-653)',
-        technical: 'FaTechnicalTab (T-026)',
-        procurement: 'FaProcurementTab (T-102, fa-screens.jsx:806-838)',
-        history: 'FaHistoryTab (T-027, kept working)',
-        mrp: 'deferred-empty placeholder (no merged MRP component in scope)',
-        bom: 'FaBomTab (read-only SCR-03h, fa-screens.jsx:840-886, Lane 12)',
+        core: 'FaCoreTab (unchanged)',
+        commercial: 'FaSectionWrapper stacking FaCommercialTab + FaPlanningTab + FaProcurementTab (unchanged)',
+        production: 'FaSectionWrapper stacking FaProductionTab + FaTechnicalTab + MRP (FaProcurementTab reused as the MRP field renderer)',
+        bom: 'FaBomTab (read-only, own tab)',
+        history: 'FaHistoryTab (own tab)',
       },
+      mrp: 'Rendered (NOT a placeholder): MRP DeptColumns are fed through FaProcurementTab; writes go through updateFaCell (npd.mrp.write).',
+      deptStatusStrip: 'UNCHANGED — the flat 7-dept status circles still render above the tabs, so no per-dept signal is lost.',
       realData:
-        'page.tsx reads Reference.DeptColumns + product (to_jsonb) + prod_detail via withOrgContext (RLS app.current_org_id()); columns are schema-driven, not hardcoded.',
+        'page.tsx reads Reference.DeptColumns (incl. MRP) + product (to_jsonb) + prod_detail via withOrgContext (RLS app.current_org_id()); columns are schema-driven, not hardcoded.',
       playwrightBlocker:
         'Live RBAC-authenticated Supabase server not bootable in worktree; e2e/npd-fa-detail-tabs.spec.ts skips without PLAYWRIGHT_BASE_URL. RTL DOM artifacts are the accepted fallback per UI-PROTOTYPE-PARITY-POLICY.md.',
     };
     writeArtifact('parity-report.json', JSON.stringify(report, null, 2));
-    expect(report.tabOrder).toHaveLength(9);
+    expect(report.tabOrder).toHaveLength(5);
   });
 });

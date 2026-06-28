@@ -4454,7 +4454,10 @@
         "procurement": "Закупівлі",
         "history": "Історія",
         "locked": "Заблоковано",
-        "bom": "BOM"
+        "bom": "BOM",
+        "sectionCore": "Core",
+        "sectionCommercial": "Commercial & Planning",
+        "sectionProduction": "Production & Technical"
       },
       "deptStrip": {
         "ariaLabel": "Прогрес відділів",
@@ -4486,7 +4489,8 @@
         "fallbackType": "Один компонент",
         "multiComponentType": "Multi component",
         "singleComponentType": "Single component"
-      }
+      },
+      "closeDept": "Close {dept}"
     },
     "dashboard": {
       "alertAmber": "Бурштиновий",
@@ -5150,6 +5154,25 @@
         "proc_shelf_life_days": "Термін придатності постачання (днів)",
         "closed_procurement": "Постачання закрито"
       }
+    },
+    "faMrpTab": {
+      "title": "MRP",
+      "subtitle": "Material requirements planning details.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "priceBlockedTitle": "Locked",
+      "priceBlockedBody": "Field locked.",
+      "priceBlockedHint": "Locked.",
+      "save": "Save MRP",
+      "saving": "Saving…",
+      "saveSuccess": "MRP saved.",
+      "saveError": "Could not save MRP.",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading MRP…",
+      "empty": "No MRP fields configured",
+      "emptyBody": "This organisation has no MRP department columns yet.",
+      "error": "Unable to load MRP.",
+      "forbidden": "You do not have permission to edit MRP."
     },
     "faRightPanel": {
       "title": "Статус перевірки",

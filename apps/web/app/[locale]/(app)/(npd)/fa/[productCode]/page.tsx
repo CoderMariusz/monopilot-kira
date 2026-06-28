@@ -83,6 +83,7 @@ import {
   type FaProcurementTabLabels,
 } from './_components/fa-procurement-tab';
 import { FaBomTab, type FaBomTabLabels } from './_components/fa-bom-tab';
+import { FaSectionWrapper, type FaSectionPart } from './_components/fa-section-wrapper';
 import { getFaBom } from './_actions/get-fa-bom';
 import type { FaBomResult } from './_actions/fa-bom-types';
 import { bom_export_csv } from '../../../../../(npd)/fa/actions/bom-export-csv';
@@ -359,6 +360,8 @@ type DeptData = {
   production: GenericDeptColumn[];
   technical: GenericDeptColumn[];
   procurement: GenericDeptColumn[];
+  /** A3 SLICE 2: MRP schema-driven columns, rendered inside the Production section. */
+  mrp: GenericDeptColumn[];
   prodRows: ProdDetailRow[];
   /** Real, org-scoped dropdown options keyed by dropdown_source. */
   dropdowns: Record<string, string[]>;
@@ -477,6 +480,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         production,
         technical,
         procurement,
+        mrp,
       ]);
 
       const dept: DeptData = {
@@ -489,6 +493,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         production,
         technical,
         procurement,
+        mrp,
         prodRows,
         dropdowns,
         canWriteProduction,
@@ -546,6 +551,13 @@ type FaDetailLabels = {
     labels: Record<DeptKey, string>;
     statusLabels: Record<DeptStatus, string>;
   };
+  /**
+   * A3 SLICE 2 — per-dept "Close {dept}" affordance label (FaSectionWrapper).
+   * `{dept}` is replaced with the localized dept heading. This is the launcher
+   * for the dept-close modal; post-regroup it carries an EXPLICIT ?dept= so the
+   * gate no longer depends on ?tab= inference.
+   */
+  closeDept: string;
   /** Header actions bar (prototype fa-screens.jsx:344-362). */
   actions: FaHeaderActionsLabels;
   /** Workflow template line (product-owner approved addition). */
@@ -579,12 +591,8 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
     tablistLabel: 'FA detail departments',
     tabs: {
       core: 'Core',
-      planning: 'Planning',
-      commercial: 'Commercial',
-      production: 'Production',
-      technical: 'Technical',
-      mrp: 'MRP',
-      procurement: 'Procurement',
+      commercial: 'Commercial & Planning',
+      production: 'Production & Technical',
       bom: 'BOM',
       history: 'History',
     },
@@ -610,6 +618,7 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
       pending: 'Pending',
     },
   },
+  closeDept: 'Close {dept}',
   actions: {
     deleteFa: 'Delete FG',
     d365Build: 'Build D365 →',
@@ -656,13 +665,12 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
       tabs: {
         tablistLabel: pick('tabs.tablistLabel', d.tabs.tablistLabel),
         tabs: {
-          core: pick('tabs.core', d.tabs.tabs.core),
-          planning: pick('tabs.planning', d.tabs.tabs.planning),
-          commercial: pick('tabs.commercial', d.tabs.tabs.commercial),
-          production: pick('tabs.production', d.tabs.tabs.production),
-          technical: pick('tabs.technical', d.tabs.tabs.technical),
-          mrp: pick('tabs.mrp', d.tabs.tabs.mrp),
-          procurement: pick('tabs.procurement', d.tabs.tabs.procurement),
+          // A3 SLICE 2 — 3 SECTION labels + the unchanged BOM / History tabs. The
+          // section labels use new keys (tabs.sectionCore/sectionCommercial/
+          // sectionProduction) so the old per-dept tab keys stay untouched.
+          core: pick('tabs.sectionCore', d.tabs.tabs.core),
+          commercial: pick('tabs.sectionCommercial', d.tabs.tabs.commercial),
+          production: pick('tabs.sectionProduction', d.tabs.tabs.production),
           bom: pick('tabs.bom', d.tabs.tabs.bom),
           history: pick('tabs.history', d.tabs.tabs.history),
         },
@@ -688,6 +696,7 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
           pending: pick('deptStrip.statusLabels.pending', d.deptStrip.statusLabels.pending),
         },
       },
+      closeDept: pick('closeDept', d.closeDept),
       actions: {
         deleteFa: pick('actions.deleteFa', d.actions.deleteFa),
         d365Build: pick('actions.d365Build', d.actions.d365Build),
@@ -1065,6 +1074,44 @@ async function buildProcurementLabels(
   };
 }
 
+/**
+ * A3 SLICE 2 — MRP labels. There is no dedicated FaMrpTab component; the MRP
+ * fields are rendered inside the Production section by REUSING FaProcurementTab
+ * (the simplest schema-driven dept body: columns/values/dropdowns → editable
+ * cells → updateFaCell). FaProcurementTab's price-gate is inert for MRP (no MRP
+ * column carries `priceGated`), so we pass closedCore/closedProduction='Yes' to
+ * keep the procurement-specific amber alert hidden. These labels therefore reuse
+ * the FaProcurementTabLabels shape but carry MRP-appropriate copy from the
+ * npd.faMrpTab namespace.
+ */
+async function buildMrpLabels(
+  locale: string,
+  columns: GenericDeptColumn[],
+): Promise<FaProcurementTabLabels> {
+  const p = await pickerFor(locale, 'npd.faMrpTab');
+  return {
+    title: p('title', 'MRP'),
+    subtitle: p('subtitle', 'Material requirements planning details'),
+    closedBadge: p('closedBadge', 'Closed'),
+    openBadge: p('openBadge', 'Open'),
+    // Inert for MRP (no priceGated column) — kept to satisfy the shared label shape.
+    priceBlockedTitle: p('priceBlockedTitle', 'Locked'),
+    priceBlockedBody: p('priceBlockedBody', 'Field locked.'),
+    priceBlockedHint: p('priceBlockedHint', 'Locked.'),
+    save: p('save', 'Save MRP'),
+    saving: p('saving', 'Saving…'),
+    saveSuccess: p('saveSuccess', 'Saved'),
+    saveError: p('saveError', 'Save failed'),
+    selectPlaceholder: p('selectPlaceholder', 'Select…'),
+    loading: p('loading', 'Loading…'),
+    empty: p('empty', 'No MRP columns configured'),
+    emptyBody: p('emptyBody', 'Configure MRP columns in Settings.'),
+    error: p('error', 'Unable to load MRP.'),
+    forbidden: p('forbidden', 'You cannot edit MRP.'),
+    fields: fieldLabelsFor(columns, p),
+  };
+}
+
 async function buildBomLabels(locale: string): Promise<FaBomTabLabels> {
   const p = await pickerFor(locale, 'npd.faBomTab');
   return {
@@ -1162,6 +1209,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     production: [],
     technical: [],
     procurement: [],
+    mrp: [],
     prodRows: [],
     dropdowns: {},
     canWriteProduction: false,
@@ -1246,6 +1294,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     productionLabels,
     technicalLabels,
     procurementLabels,
+    mrpLabels,
     allergenLabels,
     finishWipLabels,
     benchmarkLabels,
@@ -1257,6 +1306,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     buildProductionLabels(locale, dept.production),
     buildTechnicalLabels(locale, dept.technical),
     buildProcurementLabels(locale, dept.procurement),
+    buildMrpLabels(locale, dept.mrp),
     buildAllergenLabels(locale),
     buildFinishWipLabels(locale),
     buildBenchmarkLabels(locale),
@@ -1340,76 +1390,128 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   // and re-enforced in updateFaCell). Wired by the Commercial parity slice.
   const earliestLaunch: string | null = null;
 
+  // A3 SLICE 2 — assemble each dept body ONCE (the FaXxxTab components themselves
+  // get ZERO changes), then GROUP them into 3 owner-facing sections via
+  // FaSectionWrapper. The dept→section grouping mirrors SECTION_MAP in
+  // load-fa-dynamic-sections.types.ts:
+  //   core       = [Core]
+  //   commercial = [Commercial, Planning, Procurement]
+  //   production = [Production, Technical, MRP]
+  // bom + history keep their OWN tabs (unchanged), so the tab bar is 5 tabs.
+  const coreNode = (
+    <FaCoreTab
+      productCode={fa.productCode}
+      columns={dept.core as FaCoreColumn[]}
+      values={dept.values}
+      dropdowns={dept.dropdowns}
+      labels={coreLabels}
+      state="ready"
+      finishWipSlot={finishWipSlot}
+      benchmarkSlot={benchmarkSlot}
+    />
+  );
+  const planningNode = (
+    <FaPlanningTab
+      productCode={fa.productCode}
+      columns={dept.planning as FaPlanningColumn[]}
+      values={dept.values}
+      dropdowns={dept.dropdowns}
+      labels={planningLabels}
+      state="ready"
+    />
+  );
+  const commercialNode = (
+    <FaCommercialTab
+      productCode={fa.productCode}
+      columns={dept.commercial as FaCommercialColumn[]}
+      values={dept.values}
+      closedCommercial={closedCommercial}
+      briefId={briefId}
+      earliest={earliestLaunch}
+      labels={commercialLabels}
+      state="ready"
+    />
+  );
+  const productionNode = (
+    <FaProductionTab
+      productCode={fa.productCode}
+      packSizeFilled={packSizeFilled}
+      columns={dept.production as FaProductionColumn[]}
+      rows={dept.prodRows}
+      dropdowns={dept.dropdowns}
+      labels={productionLabels}
+      canWrite={dept.canWriteProduction}
+      state="ready"
+    />
+  );
+  const technicalNode = (
+    <FaTechnicalTab
+      productCode={fa.productCode}
+      columns={dept.technical as FaTechnicalColumn[]}
+      values={dept.values}
+      dropdowns={dept.dropdowns}
+      labels={technicalLabels}
+      state="ready"
+      allergenSlot={allergenSlot}
+    />
+  );
+  const procurementNode = (
+    <FaProcurementTab
+      productCode={fa.productCode}
+      columns={dept.procurement as FaProcurementColumn[]}
+      values={dept.values}
+      dropdowns={dept.dropdowns}
+      closedCore={closedCore}
+      closedProduction={closedProduction}
+      labels={procurementLabels}
+      state="ready"
+    />
+  );
+  // MRP body: REUSE FaProcurementTab as the schema-driven field renderer fed by
+  // the MRP DeptColumns (loaded above) + the real product values. The price-gate
+  // is inert (no MRP column is priceGated), so closedCore/closedProduction='Yes'
+  // simply keeps the procurement amber alert hidden. Writes go through the SAME
+  // updateFaCell action (DEPT_PERMISSION maps mrp → npd.mrp.write). NO field-cell
+  // rewrite — this is the same component the Procurement dept uses.
+  const mrpNode = (
+    <FaProcurementTab
+      productCode={fa.productCode}
+      columns={dept.mrp as FaProcurementColumn[]}
+      values={dept.values}
+      dropdowns={dept.dropdowns}
+      closedCore="Yes"
+      closedProduction="Yes"
+      labels={mrpLabels}
+      state="ready"
+    />
+  );
+
+  // `deptValue` is the EXACT canonical `Dept` union string the modal host's
+  // ?dept= param + close/readiness actions expect (Core/Commercial/Planning/
+  // Procurement/Production/Technical/MRP). It is supplied explicitly per part so
+  // the dept-close affordance never depends on ?tab= inference (post-A3-slice-2
+  // the tab slugs are section slugs — inference would pick the wrong dept).
+  const commercialParts: FaSectionPart[] = [
+    { key: 'commercial', deptValue: 'Commercial', heading: labels.deptStrip.labels.commercial, node: commercialNode },
+    { key: 'planning', deptValue: 'Planning', heading: labels.deptStrip.labels.planning, node: planningNode },
+    { key: 'procurement', deptValue: 'Procurement', heading: labels.deptStrip.labels.procurement, node: procurementNode },
+  ];
+  const productionParts: FaSectionPart[] = [
+    { key: 'production', deptValue: 'Production', heading: labels.deptStrip.labels.production, node: productionNode },
+    { key: 'technical', deptValue: 'Technical', heading: labels.deptStrip.labels.technical, node: technicalNode },
+    { key: 'mrp', deptValue: 'MRP', heading: labels.deptStrip.labels.mrp, node: mrpNode },
+  ];
+
   const panels: FaTabPanels = {
     core: (
-      <FaCoreTab
-        productCode={fa.productCode}
-        columns={dept.core as FaCoreColumn[]}
-        values={dept.values}
-        dropdowns={dept.dropdowns}
-        labels={coreLabels}
-        state="ready"
-        finishWipSlot={finishWipSlot}
-        benchmarkSlot={benchmarkSlot}
+      <FaSectionWrapper
+        sectionKey="core"
+        closeDeptLabel={labels.closeDept}
+        parts={[{ key: 'core', deptValue: 'Core', heading: labels.deptStrip.labels.core, node: coreNode }]}
       />
     ),
-    planning: (
-      <FaPlanningTab
-        productCode={fa.productCode}
-        columns={dept.planning as FaPlanningColumn[]}
-        values={dept.values}
-        dropdowns={dept.dropdowns}
-        labels={planningLabels}
-        state="ready"
-      />
-    ),
-    commercial: (
-      <FaCommercialTab
-        productCode={fa.productCode}
-        columns={dept.commercial as FaCommercialColumn[]}
-        values={dept.values}
-        closedCommercial={closedCommercial}
-        briefId={briefId}
-        earliest={earliestLaunch}
-        labels={commercialLabels}
-        state="ready"
-      />
-    ),
-    production: (
-      <FaProductionTab
-        productCode={fa.productCode}
-        packSizeFilled={packSizeFilled}
-        columns={dept.production as FaProductionColumn[]}
-        rows={dept.prodRows}
-        dropdowns={dept.dropdowns}
-        labels={productionLabels}
-        canWrite={dept.canWriteProduction}
-        state="ready"
-      />
-    ),
-    technical: (
-      <FaTechnicalTab
-        productCode={fa.productCode}
-        columns={dept.technical as FaTechnicalColumn[]}
-        values={dept.values}
-        dropdowns={dept.dropdowns}
-        labels={technicalLabels}
-        state="ready"
-        allergenSlot={allergenSlot}
-      />
-    ),
-    procurement: (
-      <FaProcurementTab
-        productCode={fa.productCode}
-        columns={dept.procurement as FaProcurementColumn[]}
-        values={dept.values}
-        dropdowns={dept.dropdowns}
-        closedCore={closedCore}
-        closedProduction={closedProduction}
-        labels={procurementLabels}
-        state="ready"
-      />
-    ),
+    commercial: <FaSectionWrapper sectionKey="commercial" closeDeptLabel={labels.closeDept} parts={commercialParts} />,
+    production: <FaSectionWrapper sectionKey="production" closeDeptLabel={labels.closeDept} parts={productionParts} />,
     bom: bomSlot,
     history: (
       <FaHistoryTab

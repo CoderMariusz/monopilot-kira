@@ -4454,7 +4454,10 @@
         "procurement": "Achiziții",
         "history": "Istoric",
         "locked": "Blocat",
-        "bom": "BOM"
+        "bom": "BOM",
+        "sectionCore": "Core",
+        "sectionCommercial": "Commercial & Planning",
+        "sectionProduction": "Production & Technical"
       },
       "deptStrip": {
         "ariaLabel": "Progres departamente",
@@ -4486,7 +4489,8 @@
         "fallbackType": "Componentă unică",
         "multiComponentType": "Multi component",
         "singleComponentType": "Single component"
-      }
+      },
+      "closeDept": "Close {dept}"
     },
     "dashboard": {
       "alertAmber": "Chihlimbar",
@@ -5150,6 +5154,25 @@
         "proc_shelf_life_days": "Termen valabilitate aprovizionare (zile)",
         "closed_procurement": "Aprovizionare închisă"
       }
+    },
+    "faMrpTab": {
+      "title": "MRP",
+      "subtitle": "Material requirements planning details.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "priceBlockedTitle": "Locked",
+      "priceBlockedBody": "Field locked.",
+      "priceBlockedHint": "Locked.",
+      "save": "Save MRP",
+      "saving": "Saving…",
+      "saveSuccess": "MRP saved.",
+      "saveError": "Could not save MRP.",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading MRP…",
+      "empty": "No MRP fields configured",
+      "emptyBody": "This organisation has no MRP department columns yet.",
+      "error": "Unable to load MRP.",
+      "forbidden": "You do not have permission to edit MRP."
     },
     "faRightPanel": {
       "title": "Stare validare",

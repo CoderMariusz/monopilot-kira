@@ -1,15 +1,18 @@
 /**
- * T-106 (PARITY) / T-025 (ROOT) — FA detail dept tabs E2E (Playwright).
+ * T-106 (PARITY) / T-025 (ROOT) / A3 SLICE 2 — FA detail SECTION tabs E2E (Playwright).
  *
- * Browser-level parity for the FA detail tabs container once the merged dept tab
- * components are wired (T-105): Core / Planning / Commercial / Production /
- * Technical / MRP / Procurement / BOM (read-only, Lane 12) / History. For each
- * reachable tab it activates the trigger, captures a per-state screenshot, and
- * runs axe (0 violations).
+ * Browser-level parity for the FA detail tabs container after A3 SLICE 2 regroups
+ * the 7 dept tabs into 3 owner-facing SECTION tabs — Core / Commercial & Planning
+ * (= Commercial + Planning + Procurement) / Production & Technical (= Production +
+ * Technical + MRP) — plus the unchanged BOM (read-only, Lane 12) and History tabs
+ * (5 tabs total). The dept bodies are stacked inside a section by FaSectionWrapper
+ * (the FaXxxTab components are unchanged). For each section it activates the
+ * trigger, asserts the section landmark + its stacked dept bodies, captures a
+ * per-state screenshot, and runs axe (0 violations).
  *
  * Prototype anchors (1:1):
- *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:312-408
- *     (FADetail tab bar + TABS array + per-tab body switch)
+ *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-408
+ *     (FADetail tab bar + per-section body switch)
  *   - Core tab          455-517
  *   - Production tab     571-653
  *   - Planning tab       537-557
@@ -51,19 +54,26 @@ async function runAxe(page: Page, name: string): Promise<AxeAnalysis> {
   return axe;
 }
 
-// Each entry: URL tab slug + the testid the wired dept body exposes.
-const TABS: Array<{ slug: string; testid: string }> = [
-  { slug: 'core', testid: 'fa-core-tab' },
-  { slug: 'planning', testid: 'fa-planning-tab' },
-  { slug: 'commercial', testid: 'fa-commercial-tab' },
-  { slug: 'production', testid: 'fa-production-tab' },
-  { slug: 'technical', testid: 'fa-technical-tab' },
-  { slug: 'procurement', testid: 'fa-procurement-tab' },
+// Each entry: section URL slug + the section landmark testid + the dept-body
+// testids the section stacks (FaSectionWrapper). MRP + Procurement reuse
+// FaProcurementTab → data-testid fa-procurement-tab.
+const SECTIONS: Array<{ slug: string; sectionTestId: string; bodyTestIds: string[] }> = [
+  { slug: 'core', sectionTestId: 'fa-section-core', bodyTestIds: ['fa-core-tab'] },
+  {
+    slug: 'commercial',
+    sectionTestId: 'fa-section-commercial',
+    bodyTestIds: ['fa-commercial-tab', 'fa-planning-tab', 'fa-procurement-tab'],
+  },
+  {
+    slug: 'production',
+    sectionTestId: 'fa-section-production',
+    bodyTestIds: ['fa-production-tab', 'fa-technical-tab'],
+  },
   // Read-only BOM (computed view) — SCR-03h, fa-screens.jsx:840-886 (Lane 12).
-  { slug: 'bom', testid: 'fa-bom-tab' },
+  { slug: 'bom', sectionTestId: 'fa-bom-tab', bodyTestIds: ['fa-bom-tab'] },
 ];
 
-test.describe('NPD FA detail dept tabs parity (fa-screens.jsx:312-408)', () => {
+test.describe('NPD FA detail section tabs parity (fa-screens.jsx:300-408)', () => {
   test.skip(
     !baseURL,
     'PLAYWRIGHT_BASE_URL unset — live RBAC-authenticated server required; RTL DOM fallback evidence used.',
@@ -73,24 +83,20 @@ test.describe('NPD FA detail dept tabs parity (fa-screens.jsx:312-408)', () => {
     mkdirSync(evidenceDir, { recursive: true });
   });
 
-  test('renders the dept bar (8 dept + read-only BOM) in prototype order + Built/status header', async ({ page }) => {
+  test('renders the section bar (3 sections + BOM + History) in order + Built/status header', async ({ page }) => {
     await page.goto(`${baseURL}${route}`);
 
     const tablist = page.getByRole('tablist');
     await expect(tablist).toBeVisible();
 
     const tabs = tablist.getByRole('tab');
-    await expect(tabs).toHaveCount(9);
+    await expect(tabs).toHaveCount(5);
     const labels = await tabs.allTextContents();
-    // Tab order matches the prototype TABS array (dept tabs + BOM + History).
+    // Tab order = 3 section tabs + BOM + History.
     expect(labels.map((t) => t.trim().replace(/Locked$/, ''))).toEqual([
       'Core',
-      'Planning',
-      'Commercial',
-      'Production',
-      'Technical',
-      'MRP',
-      'Procurement',
+      'Commercial & Planning',
+      'Production & Technical',
       'BOM',
       'History',
     ]);
@@ -98,13 +104,16 @@ test.describe('NPD FA detail dept tabs parity (fa-screens.jsx:312-408)', () => {
     await page.screenshot({ path: path.join(evidenceDir, 'T-106-tabbar.png'), fullPage: true });
   });
 
-  for (const { slug, testid } of TABS) {
-    test(`activates the ${slug} tab, captures a screenshot, and is axe-clean`, async ({ page }) => {
+  for (const { slug, sectionTestId, bodyTestIds } of SECTIONS) {
+    test(`activates the ${slug} section, asserts its stacked dept bodies, captures a screenshot, and is axe-clean`, async ({ page }) => {
       await page.goto(`${baseURL}${route}?tab=${slug}`);
 
-      // The body renders only when the tab is reachable (not Core-gated).
-      const body = page.getByTestId(testid);
-      await expect(body).toBeVisible();
+      // The section landmark renders only when the section is reachable (not Core-gated).
+      await expect(page.getByTestId(sectionTestId)).toBeVisible();
+      // Each stacked dept body in the section is present (zero field-cell rewrites).
+      for (const bodyTestId of bodyTestIds) {
+        await expect(page.getByTestId(bodyTestId).first()).toBeVisible();
+      }
 
       await page.screenshot({
         path: path.join(evidenceDir, `T-106-${slug}.png`),

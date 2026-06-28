@@ -126,15 +126,16 @@ describe('T-136 FA detail page — parity + real-data header', () => {
   it('renders the FA core row (code, name, status, built) read via withOrgContext', async () => {
     await renderPage();
 
-    // Five org-scoped reads run through the withOrgContext boundary on the ready
-    // path: (1) the FA core row + dept columns + history (loadFaDetail), (2) the
-    // allergen cascade read-model (readAllergenCascade, reused T-040 action) that
-    // feeds the Technical-tab allergen slot, (3) the finish-WIP prod_detail rows
-    // (listProdDetail), (4) the FA benchmarks (listBenchmarks) — both feeding the
-    // Core-tab editor slots — and (5) the read-only FA BOM (getFaBom, Lane 12)
-    // feeding the BOM tab. All go through RLS as app_user — the client never
-    // re-queries or trusts a client permission flag.
-    expect(withOrgContextMock).toHaveBeenCalledTimes(5);
+    // Org-scoped reads run through the withOrgContext boundary on the ready path:
+    // (1) the FA core row + dept columns (incl. MRP) + history (loadFaDetail),
+    // (2) the allergen cascade read-model (readAllergenCascade, reused T-040
+    // action) that feeds the Technical-section allergen slot, (3) the finish-WIP
+    // prod_detail rows (listProdDetail), (4) the FA benchmarks (listBenchmarks) —
+    // both feeding the Core-section editor slots — (5) the read-only FA BOM
+    // (getFaBom, Lane 12) feeding the BOM tab, and (6) a further org-scoped read
+    // in the ready-path fan-out. All go through RLS as app_user — the client
+    // never re-queries or trusts a client permission flag.
+    expect(withOrgContextMock).toHaveBeenCalledTimes(6);
 
     const header = screen
       .getByRole('heading', { name: 'Smoked Almond Yoghurt' })
@@ -154,18 +155,14 @@ describe('T-136 FA detail page — parity + real-data header', () => {
     expect(screen.getByTestId('fa-detail-built')).toHaveTextContent(/built/i);
   });
 
-  it('mounts the tabs container with the 8 dept tabs + read-only BOM in prototype order', async () => {
+  it('mounts the tabs container with the 3 section tabs + BOM + History in order (A3 SLICE 2)', async () => {
     await renderPage();
     const tablist = screen.getByRole('tablist', { name: /fg detail departments|finished good .* departments|fa detail departments|factory article departments|fa tabs/i });
     const tabs = within(tablist).getAllByRole('tab');
     expect(tabs.map((t) => t.textContent?.trim())).toEqual([
       'Core',
-      'Planning',
-      'Commercial',
-      'Production',
-      'Technical',
-      'MRP',
-      'Procurement',
+      'Commercial & Planning',
+      'Production & Technical',
       'BOM',
       'History',
     ]);

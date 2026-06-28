@@ -4454,7 +4454,10 @@
         "procurement": "Zakupy",
         "history": "Historia",
         "locked": "Zablokowane",
-        "bom": "BOM"
+        "bom": "BOM",
+        "sectionCore": "Podstawowe",
+        "sectionCommercial": "Handlowe i planowanie",
+        "sectionProduction": "Produkcja i techniczne"
       },
       "deptStrip": {
         "ariaLabel": "Postęp działów",
@@ -4486,7 +4489,8 @@
         "fallbackType": "Pojedynczy komponent",
         "multiComponentType": "Wielokomponentowy",
         "singleComponentType": "Pojedynczy komponent"
-      }
+      },
+      "closeDept": "Zamknij {dept}"
     },
     "dashboard": {
       "alertAmber": "Bursztynowy",
@@ -5151,6 +5155,25 @@
         "proc_shelf_life_days": "Termin przydatności zaopatrzenia (dni)",
         "closed_procurement": "Zaopatrzenie zamknięte"
       }
+    },
+    "faMrpTab": {
+      "title": "MRP",
+      "subtitle": "Dane planowania zapotrzebowania materiałowego.",
+      "closedBadge": "✓ Zamknięte",
+      "openBadge": "Otwarte",
+      "priceBlockedTitle": "Zablokowane",
+      "priceBlockedBody": "Pole zablokowane.",
+      "priceBlockedHint": "Zablokowane.",
+      "save": "Zapisz MRP",
+      "saving": "Zapisywanie…",
+      "saveSuccess": "MRP zapisane.",
+      "saveError": "Nie udało się zapisać MRP.",
+      "selectPlaceholder": "Wybierz…",
+      "loading": "Ładowanie MRP…",
+      "empty": "Brak skonfigurowanych pól MRP",
+      "emptyBody": "Ta organizacja nie ma jeszcze kolumn działu MRP.",
+      "error": "Nie udało się załadować MRP.",
+      "forbidden": "Nie masz uprawnień do edycji MRP."
     },
     "faRightPanel": {
       "title": "Status walidacji",

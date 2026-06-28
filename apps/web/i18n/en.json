@@ -2170,7 +2170,10 @@
         "procurement": "Procurement",
         "history": "History",
         "locked": "Locked",
-        "bom": "BOM"
+        "bom": "BOM",
+        "sectionCore": "Core",
+        "sectionCommercial": "Commercial & Planning",
+        "sectionProduction": "Production & Technical"
       },
       "deptStrip": {
         "ariaLabel": "Department gate progress",
@@ -2202,7 +2205,8 @@
         "fallbackType": "Single component",
         "multiComponentType": "Multi component",
         "singleComponentType": "Single component"
-      }
+      },
+      "closeDept": "Close {dept}"
     },
     "dashboard": {
       "alertAmber": "Amber",
@@ -2894,6 +2898,25 @@
         "proc_shelf_life_days": "Proc. shelf life (days)",
         "closed_procurement": "Closed Procurement"
       }
+    },
+    "faMrpTab": {
+      "title": "MRP",
+      "subtitle": "Material requirements planning details.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "priceBlockedTitle": "Locked",
+      "priceBlockedBody": "Field locked.",
+      "priceBlockedHint": "Locked.",
+      "save": "Save MRP",
+      "saving": "Saving…",
+      "saveSuccess": "MRP saved.",
+      "saveError": "Could not save MRP.",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading MRP…",
+      "empty": "No MRP fields configured",
+      "emptyBody": "This organisation has no MRP department columns yet.",
+      "error": "Unable to load MRP.",
+      "forbidden": "You do not have permission to edit MRP."
     },
     "faRightPanel": {
       "title": "Validation status",
