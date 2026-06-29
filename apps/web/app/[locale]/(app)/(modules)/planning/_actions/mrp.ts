@@ -43,6 +43,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
+import { computeWoMaterialScalar } from '../../../../../../lib/production/wo-material-scalar';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
 import { createPurchaseOrder } from '../purchase-orders/_actions/actions';
 import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
@@ -1051,9 +1052,10 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
           continue;
         }
 
-        const activeBom = await c.query<{ id: string; version: number }>(
+        const activeBom = await c.query<{ id: string; version: number; line_basis: string }>(
           `select id
                   , version
+                  , line_basis
              from public.bom_headers
             where org_id = app.current_org_id()
               and product_id = $1
@@ -1152,6 +1154,12 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
           await insertWorkOrderHeader(await nextDocumentNumber(c, orgId, 'wo', new Date()));
         }
 
+        const materialScalar = computeWoMaterialScalar({
+          plannedBaseQty: Number(quantity),
+          lineBasis: activeBom.rows[0].line_basis,
+          eachPerBox: itemUom.each_per_box == null ? null : Number(itemUom.each_per_box),
+          netQtyPerEach: itemUom.net_qty_per_each == null ? null : Number(itemUom.net_qty_per_each),
+        });
         await c.query(
           `insert into public.wo_materials
              (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,
@@ -1166,7 +1174,7 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
             where bl.org_id = app.current_org_id()
               and bl.bom_header_id = $4::uuid
             order by bl.line_no`,
-          [woId, quantity, activeBom.rows[0].version, activeBom.rows[0].id],
+          [woId, materialScalar.toFixed(6), activeBom.rows[0].version, activeBom.rows[0].id],
         );
         await c.query(
           `insert into public.wo_operations

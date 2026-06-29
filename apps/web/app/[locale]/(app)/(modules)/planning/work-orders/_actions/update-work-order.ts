@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 
+import { computeWoMaterialScalar } from '../../../../../../../lib/production/wo-material-scalar';
 import { snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
@@ -40,7 +41,7 @@ type ItemSnapshotRow = {
   weight_mode: 'fixed' | 'catch';
 };
 
-type BomRow = { id: string; version: number };
+type BomRow = { id: string; version: number; line_basis: string };
 type SpecRow = { id: string };
 
 const UpdateWorkOrderInput = z.object({
@@ -112,7 +113,7 @@ async function ensureMachineInOrg(ctx: OrgActionContext, machineId: string): Pro
 
 async function fetchActiveBom(ctx: OrgActionContext, itemCode: string): Promise<BomRow | null> {
   const { rows } = await ctx.client.query<BomRow>(
-    `select id, version
+    `select id, version, line_basis
        from public.bom_headers
       where org_id = app.current_org_id()
         and product_id = $1
@@ -140,7 +141,7 @@ async function fetchApprovedSpec(ctx: OrgActionContext, productId: string): Prom
 
 async function resnapshotWorkOrder(
   ctx: OrgActionContext,
-  input: { woId: string; productId: string; plannedBaseQty: string; bom: BomRow | null },
+  input: { woId: string; productId: string; plannedBaseQty: string; bom: BomRow | null; item: ItemSnapshotRow },
 ): Promise<void> {
   await ctx.client.query(
     `delete from public.wo_materials
@@ -156,6 +157,12 @@ async function resnapshotWorkOrder(
   );
 
   if (input.bom) {
+    const materialScalar = computeWoMaterialScalar({
+      plannedBaseQty: Number(input.plannedBaseQty),
+      lineBasis: input.bom.line_basis,
+      eachPerBox: input.item.each_per_box == null ? null : Number(input.item.each_per_box),
+      netQtyPerEach: input.item.net_qty_per_each == null ? null : Number(input.item.net_qty_per_each),
+    });
     await ctx.client.query(
       `insert into public.wo_materials
          (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,
@@ -170,7 +177,7 @@ async function resnapshotWorkOrder(
         where bl.org_id = app.current_org_id()
           and bl.bom_header_id = $4::uuid
         order by bl.line_no`,
-      [input.woId, input.plannedBaseQty, input.bom.version, input.bom.id],
+      [input.woId, materialScalar.toFixed(6), input.bom.version, input.bom.id],
     );
   }
 
@@ -315,6 +322,7 @@ export async function updateWorkOrder(params: {
           productId: nextProductId,
           plannedBaseQty: nextPlannedQuantity,
           bom,
+          item,
         });
       }
 

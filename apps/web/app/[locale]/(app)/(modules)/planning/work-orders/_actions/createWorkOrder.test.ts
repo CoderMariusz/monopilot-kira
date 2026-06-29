@@ -12,6 +12,7 @@ const SPEC_ID = '99999999-9999-4999-8999-999999999999';
 let client: QueryClient;
 let allowPermission = true;
 let hasBom = true;
+let bomLineBasis = 'per_base';
 let hasRouting = true;
 let generatedSeq = 7;
 let failNextHeaderInsert = false;
@@ -44,7 +45,7 @@ function makeClient(): QueryClient {
         };
       }
       if (normalized.includes('from public.bom_headers')) {
-        return { rows: hasBom ? [{ id: BOM_ID, version: 3 }] : [], rowCount: hasBom ? 1 : 0 };
+        return { rows: hasBom ? [{ id: BOM_ID, version: 3, line_basis: bomLineBasis }] : [], rowCount: hasBom ? 1 : 0 };
       }
       if (normalized.includes('from public.factory_specs')) {
         return { rows: [{ id: SPEC_ID }], rowCount: 1 };
@@ -143,6 +144,7 @@ describe('createWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
     hasBom = true;
+    bomLineBasis = 'per_base';
     hasRouting = true;
     generatedSeq = 7;
     failNextHeaderInsert = false;
@@ -241,6 +243,32 @@ describe('createWorkOrder', () => {
         'kg',
       ]),
     );
+  });
+
+  it('scales per-box BOM material snapshots by planned boxes instead of planned base quantity', async () => {
+    bomLineBasis = 'per_box';
+    itemUom = {
+      output_uom: 'box',
+      uom_base: 'kg',
+      net_qty_per_each: '0.5000',
+      each_per_box: '4',
+      boxes_per_pallet: null,
+      weight_mode: 'fixed',
+    };
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '100.000',
+    });
+
+    expect(result.ok).toBe(true);
+    const materialsCall = (client.query as ReturnType<typeof vi.fn>).mock.calls.find(([sql]: [string]) =>
+      String(sql).replace(/\s+/g, ' ').toLowerCase().startsWith('insert into public.wo_materials'),
+    );
+    expect(materialsCall).toBeDefined();
+    const [, params] = materialsCall as [string, readonly unknown[]];
+    expect(params[1]).toBe('50.000000');
   });
 
   it('F-B02: snapshots the active routing into wo_operations at WO create (same point as materials)', async () => {

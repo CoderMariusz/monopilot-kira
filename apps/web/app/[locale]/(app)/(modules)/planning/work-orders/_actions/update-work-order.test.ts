@@ -209,7 +209,7 @@ describe('updateWorkOrder', () => {
     expect(calls.some(([sql]) => sql.startsWith('delete from public.wo_materials'))).toBe(true);
     expect(calls.some(([sql]) => sql.startsWith('delete from public.wo_operations'))).toBe(true);
     const materialInsert = calls.find(([sql]) => sql.startsWith('insert into public.wo_materials'));
-    expect(materialInsert?.[1]).toEqual([WO_ID, '50.000', 9, BOM_B_ID]);
+    expect(materialInsert?.[1]).toEqual([WO_ID, '50.000000', 9, BOM_B_ID]);
     const operationInsert = calls.find(([sql]) => sql.startsWith('insert into public.wo_operations'));
     expect(operationInsert?.[1]).toEqual([WO_ID, '50.000', PRODUCT_B_ID]);
     const updateCall = calls.find(([sql]) => sql.startsWith('update public.work_orders'));

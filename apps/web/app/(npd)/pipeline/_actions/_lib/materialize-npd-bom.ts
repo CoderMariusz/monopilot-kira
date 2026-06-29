@@ -268,6 +268,15 @@ async function ensureFgItemAndProduct(
       [productCode, project.packs_per_case],
     );
   }
+  // Pair each_per_box with net_qty_per_each (kg per pack) so per-box WO consumption scaling
+  // (kg_per_box = each_per_box × net_qty_per_each, slice S2-WO) has both factors even for an
+  // FG item created before its pack weight was set. Idempotent: only fills a NULL.
+  if (netQtyPerEach != null) {
+    await ctx.client.query(
+      `update public.items set net_qty_per_each = $2::numeric where org_id = app.current_org_id() and item_code = $1 and net_qty_per_each is null`,
+      [productCode, netQtyPerEach],
+    );
+  }
 
   // product is a VIEW post-merge-cut → no ON CONFLICT DO UPDATE (42P10). Replicate the upsert as
   // insert-if-absent / targeted-update-if-present: a blind INSERT through the view would re-run the

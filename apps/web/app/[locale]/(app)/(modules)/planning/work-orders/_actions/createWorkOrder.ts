@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
+import { computeWoMaterialScalar } from '../../../../../../../lib/production/wo-material-scalar';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
 import {
@@ -95,8 +96,8 @@ export async function createWorkOrder(params: {
         } as typeof conversion;
       }
 
-      const activeBom = await ctx.client.query<{ id: string; version: number }>(
-        `select id, version
+      const activeBom = await ctx.client.query<{ id: string; version: number; line_basis: string }>(
+        `select id, version, line_basis
            from public.bom_headers
           where org_id = app.current_org_id()
             and product_id = $1
@@ -175,6 +176,12 @@ export async function createWorkOrder(params: {
 
       let materialRows: WOMaterialRow[] = [];
       if (bom) {
+        const materialScalar = computeWoMaterialScalar({
+          plannedBaseQty: Number(plannedBaseQty),
+          lineBasis: bom?.line_basis,
+          eachPerBox: itemUom.each_per_box == null ? null : Number(itemUom.each_per_box),
+          netQtyPerEach: itemUom.net_qty_per_each == null ? null : Number(itemUom.net_qty_per_each),
+        });
         const insertedMaterials = await ctx.client.query<WOMaterialRow>(
           `insert into public.wo_materials
              (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,
@@ -192,7 +199,7 @@ export async function createWorkOrder(params: {
            returning id, wo_id, product_id, material_name, required_qty::text as required_qty,
                      consumed_qty::text as consumed_qty, reserved_qty::text as reserved_qty, uom,
                      sequence, material_source, bom_item_id, bom_version, notes`,
-          [woId, plannedBaseQty, bom.version, bom.id],
+          [woId, materialScalar.toFixed(6), bom.version, bom.id],
         );
         materialRows = insertedMaterials.rows;
       }

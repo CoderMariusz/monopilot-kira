@@ -923,7 +923,7 @@ describe('convertPlannedToWo', () => {
     expect(workOrderInserts[0][4]).toBe('8.000');
     expect(workOrderInserts[0][5]).toBe('INT-DOUGH');
     expect(workOrderInserts[0][10]).toBe('factory-spec-id');
-    expect(woMaterialInserts).toEqual([[woId, '8.000', 1, 'bom-id']]);
+    expect(woMaterialInserts).toEqual([[woId, '8.000000', 1, 'bom-id']]);
     expect(woOperationInserts).toEqual([[woId, '8.000', DOUGH_ID]]);
     expect(scheduleOutputInserts).toEqual([[woId, DOUGH_ID, '8.000', 'Created from MRP planned order', 'kg']]);
     expect(woStatusHistoryInserts).toEqual([

@@ -183,6 +183,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
       }
       if (sql.startsWith('insert into public.items')) return [];
+      if (sql.startsWith('update public.items')) return [];
       if (sql.startsWith('select id, item_code, name, shelf_life_days')) {
         return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 45 }];
       }
@@ -247,6 +248,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
       }
       if (sql.startsWith('insert into public.items')) return [];
+      if (sql.startsWith('update public.items')) return [];
       if (sql.startsWith('select id, item_code, name, shelf_life_days')) {
         return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 45 }];
       }
