@@ -86,6 +86,10 @@ export async function closeDeptSection(
       throw new ValidationError('DEPT_INACTIVE', `Department ${parsed.data.dept} is not active`);
     }
 
+    if (parsed.data.dept === 'Production' && !(await hasProductionProcess(context, parsed.data.productCode))) {
+      throw new ValidationError('NO_PRODUCTION_PROCESS', 'Production requires at least one WIP process.');
+    }
+
     const { rows: gateRows } = await context.client.query<{ ready: boolean }>(
       `select public.is_all_required_filled($1, $2) as ready`,
       [parsed.data.productCode, parsed.data.dept],
@@ -132,6 +136,22 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
     [ctx.userId, ctx.orgId, permission],
   );
   return rows.length > 0;
+}
+
+async function hasProductionProcess(ctx: OrgContextLike, productCode: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ has_process: boolean }>(
+    `select exists(
+       select 1
+         from public.npd_wip_processes wp
+         join public.prod_detail pd
+           on pd.id = wp.prod_detail_id
+          and pd.org_id = wp.org_id
+        where pd.product_code = $1
+          and wp.org_id = app.current_org_id()
+     ) as has_process`,
+    [productCode],
+  );
+  return rows[0]?.has_process === true;
 }
 
 async function listMissingRequiredColumns(

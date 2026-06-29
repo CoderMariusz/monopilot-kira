@@ -83,4 +83,33 @@ describe('closeDeptSection required-field close path', () => {
     );
     expect(ranReadinessGate).toBe(false);
   });
+
+  it('rejects Production close when no WIP process exists', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (
+        /select\s+true\s+as\s+ok[\s\S]*from\s+public\.npd_departments[\s\S]*d\.active\s*=\s*true/i.test(
+          text,
+        )
+      ) {
+        return { rows: [{ ok: true }] };
+      }
+      if (/from\s+public\.npd_wip_processes\s+wp/i.test(text)) {
+        return { rows: [{ has_process: false }] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(closeDeptSection('FA0001', 'Production')).rejects.toMatchObject({
+      name: 'ValidationError',
+      code: 'NO_PRODUCTION_PROCESS',
+      message: 'Production requires at least one WIP process.',
+    });
+
+    const ranReadinessGate = queryMock.mock.calls.some((call) =>
+      /is_all_required_filled/i.test(String(call[0])),
+    );
+    expect(ranReadinessGate).toBe(false);
+  });
 });
