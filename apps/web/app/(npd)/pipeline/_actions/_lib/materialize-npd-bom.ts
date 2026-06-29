@@ -177,8 +177,14 @@ async function hasProductionCodeConflict(
        from public.items
       where org_id = app.current_org_id()
         and item_code = $1
+        -- A genuine conflict is a NON-npd item owning this code, OR an npd item already
+        -- claimed by a DIFFERENT project. An npd item with npd_project_id IS NULL is
+        -- "unclaimed" (created by the FA/FG create flow without a project link) — this
+        -- project legitimately owns the product_code, so it must be adoptable, NOT a
+        -- conflict (else generateProductionBom dead-ends with PRODUCTION_CODE_CONFLICT
+        -- and the recipe can never be materialised into a BOM).
         and (origin_module is distinct from 'npd'
-             or npd_project_id is distinct from $2::uuid)
+             or (npd_project_id is not null and npd_project_id is distinct from $2::uuid))
       limit 1`,
     [productionCode, projectId],
   );
