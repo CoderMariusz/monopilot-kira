@@ -1,0 +1,31 @@
+-- Migration 385 — per-user-site RLS correction: quality_holds is ORG-GLOBAL, never site-scoped.
+--
+-- WHY (CRITICAL safety fix): mig 383 added a RESTRICTIVE site-visibility policy
+-- (quality_holds_site_visibility) to public.quality_holds, alongside 10 genuinely site-scoped
+-- tables. That was a mistake. A quality hold is an org-wide SAFETY signal: the consume / ship /
+-- pack / pick / LP-ops GATES read holds through public.v_active_holds (SECURITY INVOKER, mig 197)
+-- to BLOCK an operation when ANY active hold covers the referenced LP/lot — regardless of where
+-- the hold was raised or where the operator works.
+--
+-- With the site policy in place, once an admin assigns sites a RESTRICTED operator (site A) who
+-- consumes/ships an LP whose hold was raised at site B would get ZERO rows back from v_active_holds
+-- for that hold (the RESTRICTIVE policy AND-filters it out under the invoker's site visibility) ->
+-- the gate FALSE-PASSES and held material is consumed silently (BRCGS finding, T-064 contract
+-- violation). It also under-counts open holds on the cross-site dashboard KPI/alert.
+--
+-- FIX: holds belong with transfer_orders / demand_forecasts / reorder_thresholds in the
+-- ORG-GLOBAL (NOT site-scoped) set that mig 383 already excluded. Drop the single mis-applied
+-- policy. The PERMISSIVE org policy (org_id = app.current_org_id()) is untouched, so tenant
+-- isolation is preserved; only the per-user-site AND-filter is removed for this one table. The
+-- mig-384 quality_holds site_id BEFORE INSERT trigger stays (site_id remains an informational
+-- column on the hold; we simply do not RESTRICT reads by it).
+--
+-- Consequence (accepted, safety-positive): a site-restricted user's holds LIST now shows all org
+-- active holds. That is correct for a safety artifact. If per-site holds-list filtering is ever
+-- wanted as a pure view nicety, add an explicit app-layer WHERE on the LIST query only — never an
+-- RLS policy that would re-break the gate.
+--
+-- NO-OP TODAY: 0 public.user_sites rows => user_can_see_site() already returns true for everyone,
+-- so this changes nothing until assignments exist. It closes the gap BEFORE the first assignment.
+
+drop policy if exists quality_holds_site_visibility on public.quality_holds;
