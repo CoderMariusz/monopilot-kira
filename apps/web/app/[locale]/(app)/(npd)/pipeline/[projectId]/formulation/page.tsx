@@ -169,6 +169,11 @@ const DEFAULT_LABELS: FormulationLabels = {
   rmCodeRequired: 'Ingredient code is required.',
   livePanels: 'Live calculations',
   livePanelsHint: 'Cost, nutrition and allergen panels appear here.',
+  // BUG 3 — recipe-related secondary links so the project's nutrition + costing
+  // pages are reachable from the formulation stage (not only after approval).
+  relatedLinksLabel: 'Related',
+  linkNutrition: 'Nutrition',
+  linkCosting: 'Costing',
   costPanelTitle: 'Cost',
   nutritionPanelTitle: 'Nutrition',
   allergenPanelTitle: 'Allergens',
@@ -634,8 +639,39 @@ export default async function FormulationPage(propsInput: unknown = {}) {
     : await readPageData(projectId, requestedVersionId);
 
   return (
-    <FormulationEditor
-      state={loaded.state}
+    <>
+      {/*
+        BUG 3 — recipe-related secondary links. The project's Nutrition + Costing
+        pages used to be reachable ONLY from the approval-criteria card; surface
+        them on the formulation (recipe) stage so they are navigable earlier.
+        Locale-prefixed sibling sub-routes. Plain anchors (no client island) keep
+        the heavily-tested editor untouched.
+      */}
+      <nav
+        aria-label={labels.relatedLinksLabel ?? 'Related'}
+        data-testid="formulation-related-links"
+        className="mb-3 flex flex-wrap items-center gap-2 text-sm"
+      >
+        <span className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+          {labels.relatedLinksLabel ?? 'Related'}
+        </span>
+        <a
+          href={`/${locale}/pipeline/${projectId}/nutrition`}
+          data-testid="formulation-link-nutrition"
+          className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+        >
+          {labels.linkNutrition ?? 'Nutrition'}
+        </a>
+        <a
+          href={`/${locale}/pipeline/${projectId}/costing`}
+          data-testid="formulation-link-costing"
+          className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+        >
+          {labels.linkCosting ?? 'Costing'}
+        </a>
+      </nav>
+      <FormulationEditor
+        state={loaded.state}
       data={loaded.data}
       labels={labels}
       panelLabels={panelLabels}
@@ -663,7 +699,8 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       projectId={projectId}
       createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
       createVersionAction={loaded.canEdit ? createVersionAdapter : undefined}
-    />
+      />
+    </>
   );
 }
 

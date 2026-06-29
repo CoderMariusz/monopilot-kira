@@ -2195,7 +2195,8 @@
         "bom": "BOM",
         "sectionCore": "Core",
         "sectionCommercial": "Commercial & Planning",
-        "sectionProduction": "Production & Technical"
+        "sectionProduction": "Production & Technical",
+        "docs": "Docs"
       },
       "deptStrip": {
         "ariaLabel": "Department gate progress",
@@ -2228,7 +2229,8 @@
         "multiComponentType": "Multi component",
         "singleComponentType": "Single component"
       },
-      "closeDept": "Close {dept}"
+      "closeDept": "Close {dept}",
+      "reopenDept": "Reopen {dept}"
     },
     "dashboard": {
       "alertAmber": "Amber",
@@ -2526,7 +2528,10 @@
       "unlockErrorNotFound": "This version could not be found.",
       "batchSizeHint": "Batch size = pack weight; ingredients must total this.",
       "creatingDraft": "Creating…",
-      "createDraftError": "Could not create the draft. Try again."
+      "createDraftError": "Could not create the draft. Try again.",
+      "relatedLinksLabel": "Related",
+      "linkNutrition": "Nutrition",
+      "linkCosting": "Costing"
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -3012,7 +3017,12 @@
       "deptCloseDeferred": "The department-close workflow opens here.",
       "d365BuildTitle": "Build D365 output",
       "d365BuildDeferred": "The D365 build workflow opens here.",
-      "close": "Cancel"
+      "close": "Cancel",
+      "deptReopenTitle": "Reopen {dept}?",
+      "deptReopenIntro": "Reopening {dept} clears its closed flag so the department can be edited again. The change is recorded in history.",
+      "deptReopenConfirm": "Reopen department",
+      "deptReopenPending": "Reopening…",
+      "deptReopenError": "Unable to reopen this department."
     },
     "faProductionTab": {
       "title": "Production detail",

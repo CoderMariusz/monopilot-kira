@@ -224,6 +224,15 @@ export type FormulationLabels = {
   rmCodeRequired: string;
   livePanels: string;
   livePanelsHint: string;
+  /**
+   * BUG 3 — recipe-related secondary links (Nutrition / Costing) shown on the
+   * formulation stage so those project pages are reachable BEFORE approval. Used
+   * only by the formulation page (page.tsx); the editor itself does not render
+   * them. Optional so existing editor-only tests need not supply them.
+   */
+  relatedLinksLabel?: string;
+  linkNutrition?: string;
+  linkCosting?: string;
   costPanelTitle: string;
   nutritionPanelTitle: string;
   allergenPanelTitle: string;
@@ -842,6 +851,12 @@ export function FormulationEditor({
     setYieldPct(parseYield(data?.targetYieldPct));
     setProcessingPct(data?.processingOverheadPct ?? DEFAULT_OVERHEAD_PCT);
     setSaveStatus('idle');
+    // Submit-for-trial is PER-VERSION: a soft nav to another version re-renders
+    // this island without remounting, so a 'submitted'/'error' state from the
+    // previous version would otherwise carry over and make the new version's
+    // button look already-submitted/blocked. Reset it on every real version switch.
+    setSubmitStatus('idle');
+    setSubmitError('');
     setCreatingVersion(false);
   }, [data]);
 

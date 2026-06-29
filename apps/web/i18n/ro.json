@@ -4479,7 +4479,8 @@
         "bom": "BOM",
         "sectionCore": "Core",
         "sectionCommercial": "Commercial & Planning",
-        "sectionProduction": "Production & Technical"
+        "sectionProduction": "Production & Technical",
+        "docs": "Docs"
       },
       "deptStrip": {
         "ariaLabel": "Progres departamente",
@@ -4512,7 +4513,8 @@
         "multiComponentType": "Multi component",
         "singleComponentType": "Single component"
       },
-      "closeDept": "Close {dept}"
+      "closeDept": "Close {dept}",
+      "reopenDept": "Reopen {dept}"
     },
     "dashboard": {
       "alertAmber": "Chihlimbar",
@@ -4810,7 +4812,10 @@
       "packWeightUnsetHint": "Set the pack weight on the Brief to validate the recipe against the pack size.",
       "qtyRangeError": "Quantity must be a non-negative number.",
       "creatingDraft": "Creating…",
-      "createDraftError": "Could not create the draft. Try again."
+      "createDraftError": "Could not create the draft. Try again.",
+      "relatedLinksLabel": "Related",
+      "linkNutrition": "Nutrition",
+      "linkCosting": "Costing"
     },
     "costPanel": {
       "title": "Cost și marjă",
@@ -5269,7 +5274,12 @@
       "deptCloseDeferred": "Fluxul de închidere a departamentului se deschide aici.",
       "d365BuildTitle": "Construiește ieșirea D365",
       "d365BuildDeferred": "Fluxul de construire D365 se deschide aici.",
-      "close": "Anulează"
+      "close": "Anulează",
+      "deptReopenTitle": "Reopen {dept}?",
+      "deptReopenIntro": "Reopening {dept} clears its closed flag so the department can be edited again. The change is recorded in history.",
+      "deptReopenConfirm": "Reopen department",
+      "deptReopenPending": "Reopening…",
+      "deptReopenError": "Unable to reopen this department."
     },
     "faProductionTab": {
       "title": "Detalii producție",

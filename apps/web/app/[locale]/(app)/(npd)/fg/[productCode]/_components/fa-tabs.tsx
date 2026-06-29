@@ -74,6 +74,13 @@ export type FaTabsLabels = {
   deferredBody: string;
   /** T-105: "Locked" badge on gated triggers (prototype lines 395). */
   locked?: string;
+  /**
+   * Compliance documents SUB-ROUTE link label. Rendered as a navigable anchor in
+   * the tab bar (NOT a `?tab=` dept/section tab — `/fg/[productCode]/docs` is its
+   * own route, so it is a link, not a `role="tab"` trigger). Optional → English
+   * fallback when no labels passed.
+   */
+  docs?: string;
 };
 
 const DEFAULT_LABELS: FaTabsLabels = {
@@ -82,6 +89,7 @@ const DEFAULT_LABELS: FaTabsLabels = {
   deferred: 'Tab content deferred',
   deferredBody: 'This department workspace is delivered in a later slice.',
   locked: 'Locked',
+  docs: 'Docs',
 };
 
 /** T-105: per-slug server-loaded dept tab bodies (FaCoreTab, FaPlanningTab, …). */
@@ -157,6 +165,13 @@ export function FaTabs({
     : requestedTab;
 
   const lockedLabel = labels.locked ?? DEFAULT_LABELS.locked ?? 'Locked';
+  const docsLabel = labels.docs ?? DEFAULT_LABELS.docs ?? 'Docs';
+  // Compliance documents are a SIBLING sub-route (/fg/[productCode]/docs), not a
+  // `?tab=` dept tab, so the affordance is a plain navigable anchor appended after
+  // the dept/section triggers — NOT a `role="tab"` button (the parity tests assert
+  // exactly the 5 section/dept tabs). The detail page's pathname has no trailing
+  // slash, so `${pathname}/docs` is the locale-prefixed sub-route href.
+  const docsHref = `${pathname}/docs`;
 
   const tabs = useMemo(
     () =>
@@ -233,6 +248,20 @@ export function FaTabs({
               </button>
             );
           })}
+
+          {/*
+            Compliance documents — a SUB-ROUTE link (not a `?tab=` dept tab). It
+            lives visually in the tab bar but is a `role="link"` anchor so the
+            5-section-tab parity contract (getAllByRole('tab') === 5) is preserved.
+          */}
+          <a
+            href={docsHref}
+            data-slot="fa-docs-link"
+            data-testid="fa-tab-docs-link"
+            className="rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+          >
+            {docsLabel}
+          </a>
         </div>
 
         {tabs.map((tab) => {

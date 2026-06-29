@@ -4479,7 +4479,8 @@
         "bom": "BOM",
         "sectionCore": "Podstawowe",
         "sectionCommercial": "Handlowe i planowanie",
-        "sectionProduction": "Produkcja i techniczne"
+        "sectionProduction": "Produkcja i techniczne",
+        "docs": "Dokumenty"
       },
       "deptStrip": {
         "ariaLabel": "Postęp działów",
@@ -4512,7 +4513,8 @@
         "multiComponentType": "Wielokomponentowy",
         "singleComponentType": "Pojedynczy komponent"
       },
-      "closeDept": "Zamknij {dept}"
+      "closeDept": "Zamknij {dept}",
+      "reopenDept": "Otwórz ponownie: {dept}"
     },
     "dashboard": {
       "alertAmber": "Bursztynowy",
@@ -4810,7 +4812,10 @@
       "packWeightUnsetHint": "Ustaw masę opakowania w Briefie, aby walidować recepturę względem wielkości opakowania.",
       "qtyRangeError": "Ilość musi być liczbą nieujemną.",
       "creatingDraft": "Tworzenie…",
-      "createDraftError": "Nie udało się utworzyć wersji roboczej. Spróbuj ponownie."
+      "createDraftError": "Nie udało się utworzyć wersji roboczej. Spróbuj ponownie.",
+      "relatedLinksLabel": "Powiązane",
+      "linkNutrition": "Wartości odżywcze",
+      "linkCosting": "Kalkulacja kosztów"
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -5269,7 +5274,12 @@
       "deptCloseDeferred": "Tutaj otwiera się proces zamykania działu.",
       "d365BuildTitle": "Zbuduj wyjście D365",
       "d365BuildDeferred": "Tutaj otwiera się proces budowy D365.",
-      "close": "Anuluj"
+      "close": "Anuluj",
+      "deptReopenTitle": "Otworzyć ponownie {dept}?",
+      "deptReopenIntro": "Ponowne otwarcie działu {dept} usuwa znacznik zamknięcia, dzięki czemu dział można ponownie edytować. Zmiana jest zapisywana w historii.",
+      "deptReopenConfirm": "Otwórz ponownie dział",
+      "deptReopenPending": "Otwieranie ponowne…",
+      "deptReopenError": "Nie można ponownie otworzyć tego działu."
     },
     "faProductionTab": {
       "title": "Szczegóły produkcji",

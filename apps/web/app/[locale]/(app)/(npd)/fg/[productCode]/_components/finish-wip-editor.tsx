@@ -28,16 +28,18 @@
  * (onAddRow / onRemoveRow / onUpdateRow) are passed in. No value imports from a
  * server module; the page wires the real actions.
  *
- * 5 UI states: loading / empty / error / permission_denied / ready (+ optimistic
- * add-remove with rollback on failure).
+ * 5 UI states: loading / empty / error / permission_denied / ready.
+ *
+ * BUG 4b — READ-ONLY / informational table (owner preference). These `prod_detail`
+ * WIP rows do NOT flow into the generated BOM (the BOM RM lines come from
+ * formulation_ingredients), so the table only DISPLAYS existing rows. The add-row,
+ * the per-row remove control, and the actions column are NOT rendered. The
+ * onAddRow / onRemoveRow / onUpdateRow Server Action props are still accepted (the
+ * page keeps wiring them) but no mutating UI is exposed here.
  */
 
-import React from 'react';
-
 import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
-import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
 
 import type {
@@ -145,24 +147,11 @@ function StateNotice({
 // ---------------------------------------------------------------------------
 
 export function FinishWipEditor({
-  productCode,
   rows,
   isMultiComponent,
   labels,
   state = 'ready',
-  onAddRow,
-  onRemoveRow,
-  onUpdateRow,
 }: FinishWipEditorProps) {
-  const [localRows, setLocalRows] = React.useState<FinishWipRow[]>(rows);
-  const [pending, setPending] = React.useState(false);
-  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
-  const [newCode, setNewCode] = React.useState('');
-
-  React.useEffect(() => {
-    setLocalRows(rows);
-  }, [rows]);
-
   const Header = (
     <CardHeader>
       <div className="flex items-center justify-between gap-2">
@@ -188,71 +177,27 @@ export function FinishWipEditor({
     );
   }
 
-  // Single-component: clamp to exactly one (locked, mirror) row.
-  const displayRows = isMultiComponent ? localRows : localRows.slice(0, 1);
-  const canMutate = isMultiComponent && !pending;
-
-  async function handleAdd() {
-    const code = newCode.trim();
-    if (!code || !onAddRow || !canMutate) return;
-    setErrorMsg(null);
-    setPending(true);
-    // Optimistic insert.
-    const optimistic: FinishWipRow = {
-      id: `optimistic-${code}`,
-      componentIndex: localRows.length + 1,
-      intermediateCode: code,
-      ingredientCode: '…',
-      componentWeight: null,
-    };
-    setLocalRows((prev) => [...prev, optimistic]);
-    setNewCode('');
-    try {
-      const created = await onAddRow({ productCode, intermediateCode: code });
-      setLocalRows((prev) => prev.map((r) => (r.id === optimistic.id ? created : r)));
-    } catch {
-      setLocalRows((prev) => prev.filter((r) => r.id !== optimistic.id));
-      setErrorMsg(labels.saveError);
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleRemove(row: FinishWipRow) {
-    if (!onRemoveRow || !canMutate || !row.id) return;
-    setErrorMsg(null);
-    setPending(true);
-    const snapshot = localRows;
-    setLocalRows((prev) => prev.filter((r) => r.id !== row.id));
-    try {
-      await onRemoveRow({ productCode, prodDetailId: row.id });
-    } catch {
-      setLocalRows(snapshot);
-      setErrorMsg(labels.saveError);
-    } finally {
-      setPending(false);
-    }
-  }
+  // BUG 4b — READ-ONLY informational table. Single-component still clamps to one
+  // mirror row; multi-component lists every prod_detail row. No add/edit/delete
+  // affordances are rendered (these rows do not flow into the generated BOM).
+  const displayRows = isMultiComponent ? rows : rows.slice(0, 1);
 
   return (
-    <Card data-testid="finish-wip-editor" data-state="ready" data-multi={String(isMultiComponent)}>
+    <Card data-testid="finish-wip-editor" data-state="ready" data-multi={String(isMultiComponent)} data-readonly="true">
       {Header}
       <CardContent>
         {displayRows.length === 0 ? (
-          <EmptyState
-            icon={<span aria-hidden="true">🧩</span>}
-            title={labels.empty}
-            body={labels.emptyBody}
-            action={
-              <Button
-                type="button"
-                onClick={handleAdd}
-                disabled={!canMutate || newCode.trim() === ''}
-              >
-                {labels.addRow}
-              </Button>
-            }
-          />
+          // Read-only empty state — informational only, NO add affordance (the
+          // table never mutates). A plain notice instead of the EmptyState
+          // primitive, which requires an action element.
+          <div
+            data-testid="finish-wip-empty"
+            className="flex flex-col items-center gap-1 py-6 text-center"
+          >
+            <span aria-hidden="true">🧩</span>
+            <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
+            <p className="text-xs text-slate-500">{labels.emptyBody}</p>
+          </div>
         ) : (
           <table className="w-full text-sm" data-testid="finish-wip-table">
             <thead>
@@ -266,11 +211,6 @@ export function FinishWipEditor({
                 <th scope="col" className="px-2 py-1">
                   {labels.weightHeader}
                 </th>
-                {isMultiComponent ? (
-                  <th scope="col" className="px-2 py-1">
-                    {labels.actionsHeader}
-                  </th>
-                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -294,61 +234,16 @@ export function FinishWipEditor({
                   <td className="px-2 py-1 text-slate-600">
                     {row.componentWeight !== null ? `${row.componentWeight}` : '—'}
                   </td>
-                  {isMultiComponent ? (
-                    <td className="px-2 py-1">
-                      <Button
-                        type="button"
-                        className="text-red-600"
-                        onClick={() => void handleRemove(row)}
-                        disabled={!canMutate || !row.id}
-                        data-testid="finish-wip-remove"
-                      >
-                        {labels.removeRow}
-                      </Button>
-                    </td>
-                  ) : null}
                 </tr>
               ))}
             </tbody>
           </table>
         )}
 
-        {/* Add-component row — only when multi-component. */}
-        {isMultiComponent ? (
-          <div className="mt-3 flex items-end gap-2">
-            <div className="grid gap-1">
-              <label htmlFor="finish-wip-new" className="text-xs font-medium text-slate-700">
-                {labels.componentHeader}
-              </label>
-              <Input
-                id="finish-wip-new"
-                value={newCode}
-                placeholder={labels.componentPlaceholder}
-                onChange={(e) => setNewCode(e.target.value)}
-                disabled={pending}
-                data-testid="finish-wip-new-code"
-              />
-            </div>
-            <Button
-              type="button"
-              onClick={handleAdd}
-              disabled={!canMutate || newCode.trim() === ''}
-              data-testid="finish-wip-add"
-            >
-              {pending ? labels.saving : labels.addRow}
-            </Button>
-          </div>
-        ) : (
-          <p className="mt-3 text-xs text-slate-500" data-testid="finish-wip-single-hint">
-            {labels.singleLockedHint}
-          </p>
-        )}
-
-        {errorMsg ? (
-          <p role="alert" className="mt-2 text-xs text-red-700">
-            {errorMsg}
-          </p>
-        ) : null}
+        {/* Informational note — this table is read-only; no add/edit/delete UI. */}
+        <p className="mt-3 text-xs text-slate-500" data-testid="finish-wip-single-hint">
+          {labels.singleLockedHint}
+        </p>
       </CardContent>
     </Card>
   );

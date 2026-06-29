@@ -42,6 +42,7 @@ import {
   type RequiredFieldsForDept,
 } from '../../../../../../(npd)/fa/actions/get-required-fields-for-dept';
 import { closeDeptSection } from '../../../../../../(npd)/fa/actions/close-dept-section';
+import { reopenDeptSection } from '../../../../../../(npd)/fa/actions/reopen-dept-section';
 
 /**
  * Map an FA detail tab slug (lower-case, T-136 FaTabs) to the canonical `Dept`
@@ -84,6 +85,12 @@ function resolveDept(deptParam: string | null, tabParam: string | null): Dept {
 export type FaDetailModalHostLabels = {
   deptCloseTitle: string;
   deptCloseDeferred: string;
+  /** BUG 4a — Reopen-department confirm modal (counterpart of Dept Close). */
+  deptReopenTitle: string;
+  deptReopenIntro: string;
+  deptReopenConfirm: string;
+  deptReopenPending: string;
+  deptReopenError: string;
   d365BuildTitle: string;
   d365BuildDeferred: string;
   deleteTitle: string;
@@ -110,7 +117,7 @@ export type FaDetailModalHostProps = {
   labels: FaDetailModalHostLabels;
 };
 
-const OPEN_KEYS = ['deptClose', 'd365Build', 'faDelete'] as const;
+const OPEN_KEYS = ['deptClose', 'deptReopen', 'd365Build', 'faDelete'] as const;
 type OpenKey = (typeof OPEN_KEYS)[number];
 
 function isOpenKey(value: string | null): value is OpenKey {
@@ -182,6 +189,32 @@ export function FaDetailModalHost({ productCode, productName, canClose, labels }
       });
   }
 
+  // ── Reopen-department confirm (BUG 4a) ──────────────────────────────────────
+  // Counterpart of Dept Close: undo a dept-section close. RBAC
+  // (`npd.closed_flag.unset`) is enforced SERVER-SIDE inside reopenDeptSection —
+  // the host never client-trusts a permission flag; a forbidden caller surfaces
+  // the action's error inline. Reuses the same `?dept=` resolution as deptClose.
+  const deptReopenOpen = modal === 'deptReopen';
+  const [reopenError, setReopenError] = React.useState<string | null>(null);
+  const [reopenPending, startReopen] = React.useTransition();
+
+  React.useEffect(() => {
+    if (!deptReopenOpen) setReopenError(null);
+  }, [deptReopenOpen]);
+
+  function confirmDeptReopen() {
+    setReopenError(null);
+    startReopen(async () => {
+      try {
+        await reopenDeptSection(productCode, dept);
+        closeModal();
+        router.refresh();
+      } catch (err) {
+        setReopenError(err instanceof Error ? err.message : labels.deptReopenError);
+      }
+    });
+  }
+
   function closeModal() {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
     params.delete('modal');
@@ -221,6 +254,43 @@ export function FaDetailModalHost({ productCode, productName, canClose, labels }
         onClose={closeModal}
         onConfirm={confirmDeptClose}
       />
+
+      <Modal
+        open={deptReopenOpen}
+        onOpenChange={handleOpenChange}
+        size="md"
+        modalId="npd-fa-dept-reopen"
+      >
+        <Modal.Header title={labels.deptReopenTitle.replace('{dept}', dept)} />
+        <p data-slot="dialog-subtitle" className="mt-1 text-xs text-slate-500">
+          {subtitle}
+        </p>
+        <Modal.Body>
+          <p data-testid="fa-modal-deptReopen" className="py-2 text-sm text-slate-700">
+            {labels.deptReopenIntro.replace('{dept}', dept)}
+          </p>
+          {reopenError ? (
+            <div role="alert" className="alert alert-red text-sm">
+              {reopenError}
+            </div>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button type="button" className="btn-secondary btn-sm" onClick={closeModal} disabled={reopenPending}>
+            {labels.close}
+          </Button>
+          <Button
+            type="button"
+            className="btn-primary btn-sm"
+            onClick={confirmDeptReopen}
+            disabled={reopenPending}
+            aria-disabled={reopenPending}
+            data-testid="fa-modal-deptReopen-confirm"
+          >
+            {reopenPending ? labels.deptReopenPending : labels.deptReopenConfirm}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       <Modal
         open={modal === 'd365Build'}

@@ -4479,7 +4479,8 @@
         "bom": "BOM",
         "sectionCore": "Core",
         "sectionCommercial": "Commercial & Planning",
-        "sectionProduction": "Production & Technical"
+        "sectionProduction": "Production & Technical",
+        "docs": "Docs"
       },
       "deptStrip": {
         "ariaLabel": "Прогрес відділів",
@@ -4512,7 +4513,8 @@
         "multiComponentType": "Multi component",
         "singleComponentType": "Single component"
       },
-      "closeDept": "Close {dept}"
+      "closeDept": "Close {dept}",
+      "reopenDept": "Reopen {dept}"
     },
     "dashboard": {
       "alertAmber": "Бурштиновий",
@@ -4810,7 +4812,10 @@
       "packWeightUnsetHint": "Set the pack weight on the Brief to validate the recipe against the pack size.",
       "qtyRangeError": "Quantity must be a non-negative number.",
       "creatingDraft": "Creating…",
-      "createDraftError": "Could not create the draft. Try again."
+      "createDraftError": "Could not create the draft. Try again.",
+      "relatedLinksLabel": "Related",
+      "linkNutrition": "Nutrition",
+      "linkCosting": "Costing"
     },
     "costPanel": {
       "title": "Вартість і маржа",
@@ -5269,7 +5274,12 @@
       "deptCloseDeferred": "Тут відкривається процес закриття відділу.",
       "d365BuildTitle": "Зібрати вихід D365",
       "d365BuildDeferred": "Тут відкривається процес збирання D365.",
-      "close": "Скасувати"
+      "close": "Скасувати",
+      "deptReopenTitle": "Reopen {dept}?",
+      "deptReopenIntro": "Reopening {dept} clears its closed flag so the department can be edited again. The change is recorded in history.",
+      "deptReopenConfirm": "Reopen department",
+      "deptReopenPending": "Reopening…",
+      "deptReopenError": "Unable to reopen this department."
     },
     "faProductionTab": {
       "title": "Деталі виробництва",

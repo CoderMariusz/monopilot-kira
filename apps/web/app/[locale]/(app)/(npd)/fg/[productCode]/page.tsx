@@ -641,6 +641,11 @@ type FaDetailLabels = {
    * gate no longer depends on ?tab= inference.
    */
   closeDept: string;
+  /**
+   * BUG 4a — per-dept "Reopen {dept}" affordance label (FaSectionWrapper). Shown
+   * in place of Close for a CLOSED dept; launches the reopen confirm modal.
+   */
+  reopenDept: string;
   /** Header actions bar (prototype fa-screens.jsx:344-362). */
   actions: FaHeaderActionsLabels;
   /** Workflow template line (product-owner approved addition). */
@@ -682,6 +687,7 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
     deferred: 'Tab content deferred',
     deferredBody: 'This department workspace is delivered in a later slice.',
     locked: 'Locked',
+    docs: 'Docs',
   },
   deptStrip: {
     ariaLabel: 'Department gate progress',
@@ -702,6 +708,7 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
     },
   },
   closeDept: 'Close {dept}',
+  reopenDept: 'Reopen {dept}',
   actions: {
     deleteFa: 'Delete FG',
     d365Build: 'Build D365 →',
@@ -760,6 +767,7 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
         deferred: pick('deferred', d.tabs.deferred),
         deferredBody: pick('deferredBody', d.tabs.deferredBody),
         locked: pick('tabs.locked', d.tabs.locked ?? 'Locked'),
+        docs: pick('tabs.docs', d.tabs.docs ?? 'Docs'),
       },
       deptStrip: {
         ariaLabel: pick('deptStrip.ariaLabel', d.deptStrip.ariaLabel),
@@ -780,6 +788,7 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
         },
       },
       closeDept: pick('closeDept', d.closeDept),
+      reopenDept: pick('reopenDept', d.reopenDept),
       actions: {
         deleteFa: pick('actions.deleteFa', d.actions.deleteFa),
         d365Build: pick('actions.d365Build', d.actions.d365Build),
@@ -1588,15 +1597,21 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   // heading and NO Close affordance inside the section. All-7-active is a no-op
   // (every part's key is in dept.activeDepts). Core is always active (guarded
   // against deactivation) so its inline part below stays unfiltered.
+  // BUG 4a — per-dept closed flag (closed_<dept> === 'Yes'), so a CLOSED dept
+  // section renders a "Reopen {dept}" affordance instead of "Close {dept}". Read
+  // from the SAME product values the strip/gates already use (no extra round-trip).
+  const isDeptClosed = (deptKey: string): boolean =>
+    String(dept.values[`closed_${deptKey}`] ?? '').toLowerCase() === 'yes';
+
   const ALL_COMMERCIAL: FaSectionPart[] = [
-    { key: 'commercial', deptValue: 'Commercial', heading: labels.deptStrip.labels.commercial, node: commercialNode },
-    { key: 'planning', deptValue: 'Planning', heading: labels.deptStrip.labels.planning, node: planningNode },
-    { key: 'procurement', deptValue: 'Procurement', heading: labels.deptStrip.labels.procurement, node: procurementNode },
+    { key: 'commercial', deptValue: 'Commercial', heading: labels.deptStrip.labels.commercial, node: commercialNode, closed: isDeptClosed('commercial') },
+    { key: 'planning', deptValue: 'Planning', heading: labels.deptStrip.labels.planning, node: planningNode, closed: isDeptClosed('planning') },
+    { key: 'procurement', deptValue: 'Procurement', heading: labels.deptStrip.labels.procurement, node: procurementNode, closed: isDeptClosed('procurement') },
   ];
   const ALL_PRODUCTION: FaSectionPart[] = [
-    { key: 'production', deptValue: 'Production', heading: labels.deptStrip.labels.production, node: productionNode },
-    { key: 'technical', deptValue: 'Technical', heading: labels.deptStrip.labels.technical, node: technicalNode },
-    { key: 'mrp', deptValue: 'MRP', heading: labels.deptStrip.labels.mrp, node: mrpNode },
+    { key: 'production', deptValue: 'Production', heading: labels.deptStrip.labels.production, node: productionNode, closed: isDeptClosed('production') },
+    { key: 'technical', deptValue: 'Technical', heading: labels.deptStrip.labels.technical, node: technicalNode, closed: isDeptClosed('technical') },
+    { key: 'mrp', deptValue: 'MRP', heading: labels.deptStrip.labels.mrp, node: mrpNode, closed: isDeptClosed('mrp') },
   ];
   const commercialParts = ALL_COMMERCIAL.filter((p) => dept.activeDepts.has(p.key as DeptKey));
   const productionParts = ALL_PRODUCTION.filter((p) => dept.activeDepts.has(p.key as DeptKey));
@@ -1606,11 +1621,12 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       <FaSectionWrapper
         sectionKey="core"
         closeDeptLabel={labels.closeDept}
-        parts={[{ key: 'core', deptValue: 'Core', heading: labels.deptStrip.labels.core, node: coreNode }]}
+        reopenDeptLabel={labels.reopenDept}
+        parts={[{ key: 'core', deptValue: 'Core', heading: labels.deptStrip.labels.core, node: coreNode, closed: isDeptClosed('core') }]}
       />
     ),
-    commercial: <FaSectionWrapper sectionKey="commercial" closeDeptLabel={labels.closeDept} parts={commercialParts} />,
-    production: <FaSectionWrapper sectionKey="production" closeDeptLabel={labels.closeDept} parts={productionParts} />,
+    commercial: <FaSectionWrapper sectionKey="commercial" closeDeptLabel={labels.closeDept} reopenDeptLabel={labels.reopenDept} parts={commercialParts} />,
+    production: <FaSectionWrapper sectionKey="production" closeDeptLabel={labels.closeDept} reopenDeptLabel={labels.reopenDept} parts={productionParts} />,
     bom: bomSlot,
     history: (
       <FaHistoryTab

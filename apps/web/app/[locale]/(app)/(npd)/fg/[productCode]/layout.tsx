@@ -162,6 +162,12 @@ const DEFAULT_ACTION_LABELS: FaRightPanelActionsLabels = {
 const DEFAULT_MODAL_LABELS: FaDetailModalHostLabels = {
   deptCloseTitle: 'Close department',
   deptCloseDeferred: 'The department-close workflow opens here.',
+  deptReopenTitle: 'Reopen {dept}?',
+  deptReopenIntro:
+    'Reopening {dept} clears its closed flag so the department can be edited again. The change is recorded in history.',
+  deptReopenConfirm: 'Reopen department',
+  deptReopenPending: 'Reopening…',
+  deptReopenError: 'Unable to reopen this department.',
   d365BuildTitle: 'Build D365 output',
   d365BuildDeferred: 'The D365 build workflow opens here.',
   deleteTitle: 'Delete FG {productCode}?',
@@ -217,6 +223,11 @@ async function buildModalLabels(locale: string): Promise<FaDetailModalHostLabels
     return {
       deptCloseTitle: pick('deptCloseTitle', d.deptCloseTitle),
       deptCloseDeferred: pick('deptCloseDeferred', d.deptCloseDeferred),
+      deptReopenTitle: pick('deptReopenTitle', d.deptReopenTitle),
+      deptReopenIntro: pick('deptReopenIntro', d.deptReopenIntro),
+      deptReopenConfirm: pick('deptReopenConfirm', d.deptReopenConfirm),
+      deptReopenPending: pick('deptReopenPending', d.deptReopenPending),
+      deptReopenError: pick('deptReopenError', d.deptReopenError),
       d365BuildTitle: pick('d365BuildTitle', d.d365BuildTitle),
       d365BuildDeferred: pick('d365BuildDeferred', d.d365BuildDeferred),
       deleteTitle: pick('deleteTitle', d.deleteTitle),

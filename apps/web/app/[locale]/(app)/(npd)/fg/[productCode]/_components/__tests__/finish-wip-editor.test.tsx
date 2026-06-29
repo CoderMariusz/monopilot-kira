@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 
 import {
   FinishWipEditor,
@@ -103,17 +103,18 @@ describe('FinishWipEditor', () => {
     expect(autoCells[0].className).toContain('bg-green-50');
   });
 
-  it('enables add + remove when multi-component', async () => {
-    const { onAddRow, onRemoveRow } = setup();
-    expect(screen.getByTestId('finish-wip-add')).toBeTruthy();
-    expect(screen.getAllByTestId('finish-wip-remove')).toHaveLength(2);
-
-    fireEvent.change(screen.getByTestId('finish-wip-new-code'), { target: { value: 'PR8803' } });
-    fireEvent.click(screen.getByTestId('finish-wip-add'));
-    await waitFor(() => expect(onAddRow).toHaveBeenCalledWith({ productCode: 'FA1234', intermediateCode: 'PR8803' }));
-
-    fireEvent.click(screen.getAllByTestId('finish-wip-remove')[0]);
-    await waitFor(() => expect(onRemoveRow).toHaveBeenCalled());
+  // BUG 4b — owner preference: this table is READ-ONLY / informational (the
+  // prod_detail WIP rows do not flow into the generated BOM). The add-row, the
+  // per-row remove control, and the actions column are no longer rendered even
+  // for a multi-component product; existing rows are still displayed.
+  it('is read-only even when multi-component (no add/remove affordances)', () => {
+    setup();
+    expect(screen.getAllByTestId('finish-wip-row')).toHaveLength(2);
+    expect(screen.queryByTestId('finish-wip-add')).toBeNull();
+    expect(screen.queryByTestId('finish-wip-new-code')).toBeNull();
+    expect(screen.queryByTestId('finish-wip-remove')).toBeNull();
+    // Actions column header is gone too.
+    expect(screen.queryByText(labels.actionsHeader)).toBeNull();
   });
 
   it('single-component shows exactly one locked row, no add/remove', () => {
