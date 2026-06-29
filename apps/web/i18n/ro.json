@@ -1376,7 +1376,16 @@
       "auto_source_cycle": "That source field already derives from this field, which would create a loop.",
       "auto_source_required": "Choose a source field when Auto-derived is on.",
       "deactivate_core_error": "Core department cannot be deactivated.",
-      "deactivate_last_error": "At least one department must stay active."
+      "deactivate_last_error": "At least one department must stay active.",
+      "catalog_title": "Field catalog",
+      "catalog_subtitle": "Every field defined for this organisation. Delete a field once it is removed from all departments.",
+      "catalog_empty": "No catalog fields are defined.",
+      "catalog_assignment_count": "{count} assignments",
+      "field_remove_from_all_first": "Remove this field from all departments first.",
+      "catalog_column_field": "Field",
+      "catalog_column_data_type": "Data type",
+      "catalog_column_assignments": "Assignments",
+      "catalog_column_actions": "Actions"
     },
     "schema_column_wizard": {
       "breadcrumb": "Settings / Schema browser / Column wizard",

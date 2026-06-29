@@ -105,6 +105,17 @@ const labels: NpdFieldsScreenLabels = {
     cannot_deactivate_core: 'Core department cannot be deactivated.',
     cannot_deactivate_last: 'At least one department must stay active.',
   },
+  catalogTitle: 'Field catalog',
+  catalogSubtitle: 'Every field defined for this organisation. Delete a field once it is removed from all departments.',
+  catalogEmpty: 'No catalog fields are defined.',
+  catalogAssignmentCount: '{count} assignments',
+  fieldRemoveFromAllFirst: 'Remove this field from all departments first.',
+  catalogColumns: {
+    field: 'Field',
+    dataType: 'Data type',
+    assignments: 'Assignments',
+    actions: 'Actions',
+  },
 };
 
 const departments: NpdDepartmentConfigRow[] = [
@@ -170,7 +181,7 @@ const departments: NpdDepartmentConfigRow[] = [
 ];
 
 const fieldCatalog: NpdFieldCatalogRow[] = [
-  { id: 'field-1', code: 'target_ph', label: 'Target pH', data_type: 'number', active: true, is_auto: false, auto_source_field: null },
+  { id: 'field-1', code: 'target_ph', label: 'Target pH', data_type: 'number', active: true, is_auto: false, auto_source_field: null, assignment_count: 1 },
   {
     id: 'field-2',
     code: 'shelf_life_days',
@@ -179,9 +190,10 @@ const fieldCatalog: NpdFieldCatalogRow[] = [
     active: true,
     is_auto: true,
     auto_source_field: 'target_ph',
+    assignment_count: 1,
   },
-  { id: 'field-3', code: 'label_claim', label: 'Label claim', data_type: 'text', active: true, is_auto: false, auto_source_field: null },
-  { id: 'field-4', code: 'trial_notes', label: 'Trial notes', data_type: 'text', active: true, is_auto: false, auto_source_field: null },
+  { id: 'field-3', code: 'label_claim', label: 'Label claim', data_type: 'text', active: true, is_auto: false, auto_source_field: null, assignment_count: 1 },
+  { id: 'field-4', code: 'trial_notes', label: 'Trial notes', data_type: 'text', active: true, is_auto: false, auto_source_field: null, assignment_count: 0 },
 ];
 
 function renderScreen(overrides: Partial<React.ComponentProps<typeof NpdFieldsScreen>> = {}) {
@@ -671,28 +683,79 @@ describe('NpdFieldsScreen', () => {
     confirmSpy.mockRestore();
   });
 
-  it('confirms then calls deleteFieldAction and drops the field row on success', async () => {
+  // ── Field catalog section (S1b: reachable hard-delete) ──────────────────────
+
+  it('does NOT render a per-assigned-row Delete-from-catalog button (only Remove)', () => {
+    renderScreen();
+
+    // The assigned-fields table row for Target pH keeps Edit + Remove but no
+    // catalog-delete affordance — that lives in the dedicated catalog section.
+    const fieldsTable = screen.getByTestId('npd-fields-table');
+    expect(within(fieldsTable).getByRole('button', { name: 'Edit Target pH' })).toBeInTheDocument();
+    expect(within(fieldsTable).getAllByRole('button', { name: 'Remove' }).length).toBeGreaterThan(0);
+    expect(
+      within(fieldsTable).queryByRole('button', { name: 'Delete from catalog Target pH' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the field-catalog section listing every catalog field with its assignment count', () => {
+    renderScreen();
+
+    const catalogTable = screen.getByTestId('npd-field-catalog-table');
+    // All four catalog fields appear, including the unassigned trial_notes.
+    expect(within(catalogTable).getByText('Target pH')).toBeInTheDocument();
+    expect(within(catalogTable).getByText('Trial notes')).toBeInTheDocument();
+    // Assignment counts are surfaced per row.
+    const trialRow = within(catalogTable).getByTestId('npd-catalog-row-field-4');
+    expect(trialRow).toHaveTextContent('0 assignments');
+    const targetRow = within(catalogTable).getByTestId('npd-catalog-row-field-1');
+    expect(targetRow).toHaveTextContent('1 assignments');
+  });
+
+  it('enables Delete for a catalog field with 0 assignments and calls deleteFieldAction', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const deleteFieldAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
     renderScreen({ deleteFieldAction });
 
-    // Technical is selected by default; delete the Target pH (field-1) catalog entry.
-    fireEvent.click(screen.getByRole('button', { name: 'Delete from catalog Target pH' }));
+    // trial_notes (field-4) has 0 assignments → its catalog Delete is enabled.
+    const deleteButton = screen.getByRole('button', { name: 'Delete from catalog Trial notes' });
+    expect(deleteButton).toBeEnabled();
+
+    fireEvent.click(deleteButton);
 
     expect(confirmSpy).toHaveBeenCalledWith(
       'Delete this field from the catalog permanently? This cannot be undone.',
     );
     await waitFor(() => {
-      expect(deleteFieldAction).toHaveBeenCalledWith('field-1');
+      expect(deleteFieldAction).toHaveBeenCalledWith('field-4');
     });
-    const fieldsTable = screen.getByTestId('npd-fields-table');
+    // The deleted field disappears from the catalog table.
+    const catalogTable = screen.getByTestId('npd-field-catalog-table');
     await waitFor(() => {
-      expect(within(fieldsTable).queryByText('Target pH')).not.toBeInTheDocument();
+      expect(within(catalogTable).queryByText('Trial notes')).not.toBeInTheDocument();
     });
     confirmSpy.mockRestore();
   });
 
+  it('disables Delete for a catalog field with >0 assignments and never calls deleteFieldAction', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteFieldAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
+    renderScreen({ deleteFieldAction });
+
+    // Target pH (field-1) has 1 assignment → its catalog Delete is disabled.
+    const deleteButton = screen.getByRole('button', { name: 'Delete from catalog Target pH' });
+    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toHaveAttribute('title', 'Remove this field from all departments first.');
+
+    fireEvent.click(deleteButton);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(deleteFieldAction).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
   it('surfaces the in-use message when deleteFieldAction refuses with field_in_use', async () => {
+    // Defensive path: even from the catalog section (count===0 guard), if the
+    // backend still reports the field as assigned, the existing message shows.
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const deleteFieldAction = vi.fn(async () => ({
       ok: false as const,
@@ -700,10 +763,10 @@ describe('NpdFieldsScreen', () => {
     }));
     renderScreen({ deleteFieldAction });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete from catalog Target pH' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete from catalog Trial notes' }));
 
     await waitFor(() => {
-      expect(deleteFieldAction).toHaveBeenCalledWith('field-1');
+      expect(deleteFieldAction).toHaveBeenCalledWith('field-4');
     });
     await waitFor(() => {
       expect(
@@ -711,8 +774,8 @@ describe('NpdFieldsScreen', () => {
       ).toBeInTheDocument();
     });
     // The field row remains since the delete was refused.
-    const fieldsTable = screen.getByTestId('npd-fields-table');
-    expect(within(fieldsTable).getByText('Target pH')).toBeInTheDocument();
+    const catalogTable = screen.getByTestId('npd-field-catalog-table');
+    expect(within(catalogTable).getByText('Trial notes')).toBeInTheDocument();
     confirmSpy.mockRestore();
   });
 });

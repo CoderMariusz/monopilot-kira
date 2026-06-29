@@ -33,6 +33,13 @@ export type NpdFieldCatalogRow = {
   help_text?: string | null;
   is_auto?: boolean;
   auto_source_field?: string | null;
+  /**
+   * Number of `npd_department_field` rows that reference this catalog field,
+   * counted across ALL departments (not just the selected one). Provided by the
+   * page loader. A field is hard-deletable only when this is 0; while it is > 0
+   * the catalog Delete is disabled and the backend would return `field_in_use`.
+   */
+  assignment_count?: number;
 };
 
 /**
@@ -168,6 +175,22 @@ export type NpdFieldsScreenLabels = {
     actions: string;
   };
   stages: Record<StageCode, string>;
+  // Field-catalog section (S1b: reachable hard-delete). Lists every org catalog
+  // field with its cross-department assignment count and a Delete that only
+  // enables once the field is unassigned everywhere.
+  catalogTitle: string;
+  catalogSubtitle: string;
+  catalogEmpty: string;
+  /** `{count}` placeholder → assignment count, e.g. "3 assignments". */
+  catalogAssignmentCount: string;
+  /** Disabled-reason tooltip shown on the catalog Delete while count > 0. */
+  fieldRemoveFromAllFirst: string;
+  catalogColumns: {
+    field: string;
+    dataType: string;
+    assignments: string;
+    actions: string;
+  };
 };
 
 type UpdateAssignmentAction = typeof updateAssignment;
@@ -513,9 +536,27 @@ export default function NpdFieldsScreen({
               : department,
           ),
         );
+        // Keep the catalog assignment count in sync so the catalog Delete
+        // affordance reflects the new cross-department usage immediately.
+        bumpAssignmentCount(selectedFieldId, 1);
       }
       setSelectedFieldId('');
     });
+  }
+
+  /**
+   * Adjust the cross-department assignment count held on a catalog row by
+   * `delta` (clamped at 0). Drives the enabled/disabled state of the catalog
+   * Delete so unassigning the last department flips Delete to enabled in place.
+   */
+  function bumpAssignmentCount(fieldId: string, delta: number) {
+    setFieldCatalogRows((current) =>
+      current.map((row) =>
+        row.id === fieldId
+          ? { ...row, assignment_count: Math.max(0, (row.assignment_count ?? 0) + delta) }
+          : row,
+      ),
+    );
   }
 
   function handleRemoveAssignment(assignment: NpdDepartmentFieldRow) {
@@ -531,6 +572,9 @@ export default function NpdFieldsScreen({
           : department,
       ),
     );
+    // Optimistically drop the cross-department count; removing the last
+    // assignment flips the catalog Delete to enabled (count → 0).
+    bumpAssignmentCount(assignment.field_id, -1);
     void runMutation({ kind: 'assignment', id: assignment.assignment_id }, async () => {
       try {
         await removeAssignmentAction(assignment.assignment_id);
@@ -547,6 +591,7 @@ export default function NpdFieldsScreen({
               : department,
           ),
         );
+        bumpAssignmentCount(assignment.field_id, 1);
         throw caught;
       }
     });
@@ -1050,27 +1095,6 @@ export default function NpdFieldsScreen({
                           >
                             {labels.remove}
                           </button>
-                          <button
-                            type="button"
-                            className="btn btn-danger"
-                            aria-label={`${labels.deleteField} ${field.label}`}
-                            disabled={rowDisabled}
-                            onClick={() =>
-                              handleDeleteField(
-                                catalogRow ?? {
-                                  id: field.field_id,
-                                  code: field.code,
-                                  label: field.label,
-                                  data_type: field.data_type,
-                                  active: true,
-                                  is_auto: false,
-                                  auto_source_field: null,
-                                },
-                              )
-                            }
-                          >
-                            {labels.deleteField}
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1081,6 +1105,62 @@ export default function NpdFieldsScreen({
           )}
         </Section>
       ) : null}
+
+      <Section title={labels.catalogTitle} sub={labels.catalogSubtitle}>
+        {fieldCatalogRows.length === 0 ? (
+          <div className="muted" role="status" data-testid="npd-field-catalog-empty">
+            {labels.catalogEmpty}
+          </div>
+        ) : (
+          <table data-testid="npd-field-catalog-table">
+            <thead>
+              <tr>
+                <th>{labels.catalogColumns.field}</th>
+                <th>{labels.catalogColumns.dataType}</th>
+                <th>{labels.catalogColumns.assignments}</th>
+                <th>{labels.catalogColumns.actions}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fieldCatalogRows.map((field) => {
+                const count = field.assignment_count ?? 0;
+                const deletable = canEdit && count === 0;
+                return (
+                  <tr key={field.id} data-testid={`npd-catalog-row-${field.id}`}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{field.label}</div>
+                      <div className="muted mono">{field.code}</div>
+                    </td>
+                    <td>
+                      <span className="badge badge-blue">{field.data_type}</span>
+                    </td>
+                    <td>
+                      <span
+                        className={count === 0 ? 'badge badge-gray' : 'badge badge-amber'}
+                        data-testid={`npd-catalog-count-${field.id}`}
+                      >
+                        {labels.catalogAssignmentCount.replace('{count}', String(count))}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        aria-label={`${labels.deleteField} ${field.label}`}
+                        disabled={!deletable || editDisabled}
+                        title={count > 0 ? labels.fieldRemoveFromAllFirst : undefined}
+                        onClick={() => handleDeleteField(field)}
+                      >
+                        {labels.deleteField}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </Section>
 
       {dialog?.kind === 'new-field' ? (
         <FieldDialog

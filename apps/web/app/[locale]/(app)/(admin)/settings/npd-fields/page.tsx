@@ -3,7 +3,10 @@ import { getTranslations } from 'next-intl/server';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getDepartmentFieldConfig } from './_actions/get-department-field-config';
 import { deleteDepartment, deleteField, listFieldCatalog } from './_actions/npd-field-config';
-import NpdFieldsScreen, { type NpdFieldsScreenLabels } from './npd-fields-screen.client';
+import NpdFieldsScreen, {
+  type NpdFieldCatalogRow,
+  type NpdFieldsScreenLabels,
+} from './npd-fields-screen.client';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +45,33 @@ async function canEditNpdSchema(): Promise<boolean> {
     });
   } catch {
     return false;
+  }
+}
+
+/**
+ * Cross-department assignment count per catalog field, org-scoped.
+ *
+ * One query, no N+1: a single `count(npd_department_field)` grouped by
+ * `field_id` over the whole org. Returned as a `field_id → count` map so the
+ * page can decorate the field catalog without re-querying per row. Fields with
+ * zero assignments are absent from the map (callers default to 0). On failure
+ * the catalog still renders (every field defaults to 0 → Delete enabled), but
+ * the backend `field_in_use` guard remains the source of truth.
+ */
+async function getFieldAssignmentCounts(): Promise<Map<string, number>> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ field_id: string; count: string }>(
+        `select field_id::text as field_id, count(*)::text as count
+           from public.npd_department_field
+          where org_id = app.current_org_id()
+          group by field_id`,
+      );
+      return new Map(rows.map((row) => [row.field_id, Number.parseInt(row.count, 10) || 0]));
+    });
+  } catch {
+    return new Map();
   }
 }
 
@@ -130,6 +160,17 @@ async function buildLabels(locale: string): Promise<NpdFieldsScreenLabels> {
       approval: t('stage_approval'),
       handoff: t('stage_handoff'),
     },
+    catalogTitle: t('catalog_title'),
+    catalogSubtitle: t('catalog_subtitle'),
+    catalogEmpty: t('catalog_empty'),
+    catalogAssignmentCount: t('catalog_assignment_count'),
+    fieldRemoveFromAllFirst: t('field_remove_from_all_first'),
+    catalogColumns: {
+      field: t('catalog_column_field'),
+      dataType: t('catalog_column_data_type'),
+      assignments: t('catalog_column_assignments'),
+      actions: t('catalog_column_actions'),
+    },
   };
 }
 
@@ -137,17 +178,25 @@ export default async function NpdFieldsSettingsPage({ params }: PageProps = {}) 
   const { locale } = (await params) ?? { locale: 'en' };
 
   // No prototype anchor — net-new admin screen; match existing settings screen structure
-  const [labels, departments, fieldCatalog, canEdit] = await Promise.all([
+  const [labels, departments, fieldCatalog, assignmentCounts, canEdit] = await Promise.all([
     buildLabels(locale),
     getDepartmentFieldConfig(),
     listFieldCatalog(),
+    getFieldAssignmentCounts(),
     canEditNpdSchema(),
   ]);
+
+  // Decorate each catalog field with its cross-department assignment count so
+  // the screen can gate the hard-delete on count === 0.
+  const fieldCatalogWithCounts: NpdFieldCatalogRow[] = fieldCatalog.map((field) => ({
+    ...field,
+    assignment_count: assignmentCounts.get(field.id) ?? 0,
+  }));
 
   return (
     <NpdFieldsScreen
       departments={departments}
-      fieldCatalog={fieldCatalog}
+      fieldCatalog={fieldCatalogWithCounts}
       canEdit={canEdit}
       labels={labels}
       deleteDepartmentAction={deleteDepartment}
