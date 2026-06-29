@@ -96,6 +96,10 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
     );
 
     const id = inserted.rows[0]?.id;
+    if (id && parsed.data.createsWipItem) {
+      await ensureWipItem(ctx, parsed.data.processName, id);
+    }
+
     return id ? { ok: true, id } : { ok: false, error: 'Could not add WIP process' };
   });
 }
@@ -110,15 +114,17 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
       return { ok: false, error: `${PRODUCTION_WRITE_PERMISSION} is required to update a WIP process` };
     }
 
-    const updated = await ctx.client.query(
+    const updated = await ctx.client.query<{ id: string; process_name: string; creates_wip_item: boolean }>(
       `update public.npd_wip_processes
           set process_name = coalesce($2::text, process_name),
               duration_hours = coalesce($3::numeric, duration_hours),
               additional_cost = coalesce($4::numeric, additional_cost),
               creates_wip_item = coalesce($5::boolean, creates_wip_item),
+              wip_item_id = case when $5::boolean is false then null else wip_item_id end,
               updated_at = now()
         where id = $1::uuid
-          and org_id = app.current_org_id()`,
+          and org_id = app.current_org_id()
+      returning id, process_name, creates_wip_item`,
       [
         parsed.data.id,
         parsed.data.processName ?? null,
@@ -127,6 +133,11 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
         parsed.data.createsWipItem ?? null,
       ],
     );
+
+    const process = updated.rows[0];
+    if (process?.creates_wip_item) {
+      await ensureWipItem(ctx, process.process_name, process.id);
+    }
 
     return { ok: true, updated: updated.rowCount === 1 };
   });
@@ -231,4 +242,50 @@ async function getCurrentLaborRate(ctx: OrgContextLike, roleGroup: string): Prom
 
   const rate = rows[0]?.rate_per_hour;
   return rate === undefined || rate === null ? null : Number(rate);
+}
+
+async function ensureWipItem(ctx: OrgContextLike, processName: string, processId: string): Promise<string> {
+  const itemCode = `WIP-${sanitizeProcessName(processName)}-${processId.slice(0, 8)}`;
+  const inserted = await ctx.client.query<{ id: string }>(
+    `insert into public.items
+       (org_id, item_code, item_type, name, origin_module, status, uom_base, created_by)
+     values
+       (app.current_org_id(), $1, 'intermediate', $2, 'npd', 'active', 'kg', $3::uuid)
+     on conflict (org_id, item_code) do nothing
+     returning id`,
+    [itemCode, processName, ctx.userId],
+  );
+
+  const itemId = inserted.rows[0]?.id ?? (await ctx.client.query<{ id: string }>(
+    `select id
+       from public.items
+      where org_id = app.current_org_id()
+        and item_code = $1
+      limit 1`,
+    [itemCode],
+  )).rows[0]?.id;
+
+  if (!itemId) {
+    throw new Error('Could not ensure WIP item');
+  }
+
+  await ctx.client.query(
+    `update public.npd_wip_processes
+        set wip_item_id = $2::uuid,
+            updated_at = now()
+      where id = $1::uuid
+        and org_id = app.current_org_id()`,
+    [processId, itemId],
+  );
+
+  return itemId;
+}
+
+function sanitizeProcessName(processName: string): string {
+  const sanitized = processName
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return sanitized || 'PROCESS';
 }

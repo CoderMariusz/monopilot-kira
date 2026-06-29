@@ -71,7 +71,21 @@ import {
   type FaProductionColumn,
   type FaProductionTabLabels,
   type ProdDetailRow,
+  type OperationOption,
+  isLegacyProcessColumn,
 } from './_components/fa-production-tab';
+import {
+  getComponentProcesses,
+  type ComponentProcess,
+} from '../../../../../(npd)/fa/actions/get-component-processes';
+import { listManufacturingOperations } from '../../../../../../actions/reference/manufacturing-ops/list';
+import {
+  addWipProcess,
+  updateWipProcess,
+  removeWipProcess,
+  saveWipProcessRoles,
+} from '../../../../../(npd)/fa/actions/wip-process-actions';
+import { getProcessDefault } from '../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
 import {
   FaTechnicalTab,
   type FaTechnicalColumn,
@@ -401,6 +415,42 @@ async function readProdDetailRows(
   });
 }
 
+/**
+ * S5b — load the dynamic per-component process list for each ProdDetail row.
+ * getComponentProcesses opens its OWN org-context tx (RLS-pinned), so we call it
+ * per row OUTSIDE the page's withOrgContext block (after the rows resolve). A
+ * single failed read degrades that component's list to empty (never 500s the
+ * whole page). Returns a map keyed by prod_detail_id (= ProdDetailRow.id).
+ */
+async function loadComponentProcesses(
+  prodRows: ProdDetailRow[],
+): Promise<Record<string, ComponentProcess[]>> {
+  const map: Record<string, ComponentProcess[]> = {};
+  const results = await Promise.all(
+    prodRows.map(async (row) => {
+      try {
+        const res = await getComponentProcesses(row.id);
+        return { id: row.id, data: res.ok ? res.data : [] };
+      } catch {
+        return { id: row.id, data: [] as ComponentProcess[] };
+      }
+    }),
+  );
+  for (const r of results) map[r.id] = r.data;
+  return map;
+}
+
+/** S5b — active ManufacturingOperations (id + name) for the process picker. */
+async function loadOperationOptions(): Promise<OperationOption[]> {
+  try {
+    const res = await listManufacturingOperations({});
+    if (!res.ok) return [];
+    return res.data.map((op) => ({ id: op.id, operationName: op.operation_name }));
+  } catch {
+    return [];
+  }
+}
+
 type DeptData = {
   values: Record<string, unknown>;
   coreDone: boolean;
@@ -414,6 +464,10 @@ type DeptData = {
   /** A3 SLICE 2: MRP schema-driven columns, rendered inside the Production section. */
   mrp: GenericDeptColumn[];
   prodRows: ProdDetailRow[];
+  /** S5b (D6/D9) — dynamic per-component process list keyed by prod_detail_id. */
+  prodProcesses: Record<string, ComponentProcess[]>;
+  /** S5b — active ManufacturingOperations (id + name) for the process picker. */
+  operations: OperationOption[];
   /** Real, org-scoped dropdown options keyed by dropdown_source. */
   dropdowns: Record<string, string[]>;
   /** Server-resolved npd.production.write — drives the Production add/remove affordances. */
@@ -480,7 +534,7 @@ function toHistoryRow(event: FaHistoryEvent): FaHistoryRow {
 
 async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
   try {
-    return await withOrgContext(async (rawCtx): Promise<FaDetailLoad> => {
+    const loaded = await withOrgContext(async (rawCtx): Promise<FaDetailLoad> => {
       const ctx = rawCtx as OrgContextLike;
 
       if (!(await hasPermission(ctx, READ_PERMISSION))) {
@@ -563,6 +617,14 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         mrp,
       ]);
 
+      // S5b (D6/D9) — filter the legacy fixed-slot process columns OUT of the
+      // Production grid (manufacturing_operation_N / operation_yield_N /
+      // intermediate_code_* / yield_line / pr_code*). They are replaced by the
+      // dynamic per-component process list (FaProductionTab → ComponentProcesses).
+      // All OTHER Production columns (line, equipment_setup, resource_requirement,
+      // rate, component_weight, …) are kept untouched.
+      const productionFiltered = production.filter((col) => !isLegacyProcessColumn(col.key));
+
       const dept: DeptData = {
         values,
         coreDone,
@@ -570,11 +632,14 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         core,
         planning,
         commercial,
-        production,
+        production: productionFiltered,
         technical,
         procurement,
         mrp,
         prodRows,
+        // Enriched after the org-context block closes (each action opens its OWN tx).
+        prodProcesses: {},
+        operations: [],
         dropdowns,
         canWriteProduction,
         activeDepts,
@@ -607,6 +672,21 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
 
       return { state: 'ready', fa, history, dept, deptStatuses, canDelete, canBuild };
     });
+
+    // S5b — enrich the READY load with the dynamic per-component process list +
+    // the operation picker source. Each action opens its OWN org-context tx
+    // (RLS-pinned), so they run here, after the page's context closes. A failed
+    // read degrades to empty (the component renders its empty state) — never 500.
+    if (loaded.state === 'ready') {
+      const [prodProcesses, operations] = await Promise.all([
+        loadComponentProcesses(loaded.dept.prodRows),
+        loadOperationOptions(),
+      ]);
+      loaded.dept.prodProcesses = prodProcesses;
+      loaded.dept.operations = operations;
+    }
+
+    return loaded;
   } catch (error) {
     console.error('[fa-detail] org-scoped read failed:', error);
     return { state: 'error' };
@@ -1105,6 +1185,39 @@ async function buildProductionLabels(
       cancel: p('picker.cancel', 'Cancel'),
       error: p('picker.error', 'Item search failed'),
     },
+    // S5b (D6/D9) — dynamic per-component process list labels.
+    processes: {
+      sectionTitle: p('processes.sectionTitle', 'Processes'),
+      sectionSubtitle: p('processes.sectionSubtitle', 'Add the manufacturing processes for this component.'),
+      addProcess: p('processes.addProcess', '+ Add process'),
+      pickerLabel: p('processes.pickerLabel', 'Select a process'),
+      pickerPlaceholder: p('processes.pickerPlaceholder', 'Search processes…'),
+      pickerEmpty: p('processes.pickerEmpty', 'No processes available'),
+      pickerLoading: p('processes.pickerLoading', 'Loading processes…'),
+      pickerError: p('processes.pickerError', 'Could not load processes'),
+      pickerCancel: p('processes.pickerCancel', 'Cancel'),
+      empty: p('processes.empty', 'No processes yet'),
+      emptyBody: p('processes.emptyBody', 'Add the first manufacturing process.'),
+      duration: p('processes.duration', 'Duration (h)'),
+      additionalCost: p('processes.additionalCost', 'Standard cost'),
+      processCost: p('processes.processCost', 'Process cost'),
+      createsWip: p('processes.createsWip', 'Creates WIP'),
+      rolesHeader: p('processes.rolesHeader', 'Roles'),
+      editProcess: p('processes.editProcess', 'Edit process'),
+      removeProcess: p('processes.removeProcess', 'Remove process'),
+      save: p('processes.save', 'Save process'),
+      saving: p('processes.saving', 'Saving…'),
+      cancel: p('processes.cancel', 'Cancel'),
+      addError: p('processes.addError', 'Could not add the process'),
+      updateError: p('processes.updateError', 'Could not update the process'),
+      removeError: p('processes.removeError', 'Could not remove the process'),
+      saveRolesError: p('processes.saveRolesError', 'Could not save the roles'),
+      subtotalLabel: p('processes.subtotalLabel', 'Process subtotal'),
+      roleGroup: p('processes.roleGroup', 'Role'),
+      headcount: p('processes.headcount', 'Headcount'),
+      loading: p('processes.loading', 'Loading processes…'),
+      loadError: p('processes.loadError', 'Could not load processes'),
+    },
     fields: fieldLabelsFor(columns, p),
   };
 }
@@ -1303,6 +1416,8 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     procurement: [],
     mrp: [],
     prodRows: [],
+    prodProcesses: {},
+    operations: [],
     dropdowns: {},
     canWriteProduction: false,
     // Test-injection seam: treat every department as active so the injected
@@ -1544,6 +1659,16 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       labels={productionLabels}
       canWrite={dept.canWriteProduction}
       state="ready"
+      // S5b (D6/D9) — server-loaded dynamic process list + the operation picker
+      // source. The CRUD / getProcessDefault action seams default to the real
+      // Server Actions inside the component (RPC stubs); we pass only the DATA.
+      componentProcesses={dept.prodProcesses}
+      operationOptions={dept.operations}
+      onAddProcess={addWipProcess}
+      onUpdateProcess={updateWipProcess}
+      onRemoveProcess={removeWipProcess}
+      onSaveProcessRoles={saveWipProcessRoles}
+      onGetProcessDefault={getProcessDefault}
     />
   );
   const technicalNode = (

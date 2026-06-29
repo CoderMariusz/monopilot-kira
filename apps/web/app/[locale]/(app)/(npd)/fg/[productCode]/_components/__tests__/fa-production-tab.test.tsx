@@ -69,6 +69,9 @@ import {
   type FaProductionTabLabels,
   type FaProductionColumn,
   type ProdDetailRow,
+  type ComponentProcess,
+  type OperationOption,
+  type ProductionProcessLabels,
 } from '../fa-production-tab';
 
 const LABELS: FaProductionTabLabels = {
@@ -112,6 +115,67 @@ const LABELS: FaProductionTabLabels = {
     rate: 'Rate',
     intermediate_code_final: 'PR Code Final (auto)',
   },
+  processes: PROCESS_LABELS(),
+};
+
+function PROCESS_LABELS(): ProductionProcessLabels {
+  return {
+    sectionTitle: 'Processes',
+    sectionSubtitle: 'Add the manufacturing processes for this component.',
+    addProcess: '+ Add process',
+    pickerLabel: 'Select a process',
+    pickerPlaceholder: 'Search processes…',
+    pickerEmpty: 'No processes available',
+    pickerLoading: 'Loading processes…',
+    pickerError: 'Could not load processes',
+    pickerCancel: 'Cancel',
+    empty: 'No processes yet',
+    emptyBody: 'Add the first manufacturing process.',
+    duration: 'Duration (h)',
+    additionalCost: 'Standard cost',
+    processCost: 'Process cost',
+    createsWip: 'Creates WIP',
+    rolesHeader: 'Roles',
+    editProcess: 'Edit process',
+    removeProcess: 'Remove process',
+    save: 'Save process',
+    saving: 'Saving…',
+    cancel: 'Cancel',
+    addError: 'Could not add the process',
+    updateError: 'Could not update the process',
+    removeError: 'Could not remove the process',
+    saveRolesError: 'Could not save the roles',
+    subtotalLabel: 'Process subtotal',
+    roleGroup: 'Role',
+    headcount: 'Headcount',
+    loading: 'Loading processes…',
+    loadError: 'Could not load processes',
+  };
+}
+
+const OPERATION_OPTIONS: OperationOption[] = [
+  { id: 'op-mince', operationName: 'Mince' },
+  { id: 'op-cook', operationName: 'Cook' },
+  { id: 'op-pack', operationName: 'Pack' },
+];
+
+const COMPONENT_PROCESSES: Record<string, ComponentProcess[]> = {
+  'row-1': [
+    {
+      id: 'wp-1',
+      processName: 'Mince',
+      displayOrder: 0,
+      durationHours: 2,
+      additionalCost: 5,
+      createsWipItem: false,
+      wipItemId: null,
+      roles: [
+        { roleGroup: 'Operator', headcount: 3, ratePerHour: 12 },
+        { roleGroup: 'Supervisor', headcount: 1, ratePerHour: 20 },
+      ],
+      processCost: 117,
+    },
+  ],
 };
 
 // Schema-driven Production columns (mirrors Reference.DeptColumns seed, display order).
@@ -208,19 +272,17 @@ describe('FaProductionTab — AC1 prototype parity (fa-screens.jsx:571-653)', ()
     expect(screen.getByText(LABELS.v06Pass)).toBeInTheDocument();
   });
 
-  it('renders schema-driven Process/Yield/auto-PR columns in display order', () => {
+  it('renders the surviving schema-driven columns in display order (legacy slots filtered)', () => {
     renderReady();
-    for (const col of COLUMNS) {
-      const label = LABELS.fields[col.key];
-      expect(screen.getAllByText(label, { exact: false }).length).toBeGreaterThan(0);
+    // S5b (D6/D9): only the NON-legacy production columns survive the grid; the
+    // legacy fixed manufacturing_operation_N / operation_yield_N / intermediate_*
+    // / yield_line columns are filtered out (moved into the dynamic process list).
+    const SURVIVING = ['line', 'equipment_setup', 'resource_requirement', 'rate'] as const;
+    for (const key of SURVIVING) {
+      expect(screen.getAllByText(LABELS.fields[key], { exact: false }).length).toBeGreaterThan(0);
     }
     const html = document.body.innerHTML;
-    expect(html.indexOf(LABELS.fields.manufacturing_operation_1)).toBeLessThan(
-      html.indexOf(LABELS.fields.manufacturing_operation_2),
-    );
-    expect(html.indexOf(LABELS.fields.line)).toBeLessThan(
-      html.indexOf(LABELS.fields.intermediate_code_final),
-    );
+    expect(html.indexOf(LABELS.fields.line)).toBeLessThan(html.indexOf(LABELS.fields.rate));
   });
 
   it('uses shadcn primitives (Input/Select wrappers, no raw <select>)', () => {
@@ -230,23 +292,17 @@ describe('FaProductionTab — AC1 prototype parity (fa-screens.jsx:571-653)', ()
     expect(container.querySelector('select')).toBeNull();
   });
 
-  it('renders intermediate_code_p1 (auto) as read-only with green styling', () => {
-    renderReady();
-    const input = screen.getByLabelText(LABELS.fields.intermediate_code_p1, {
-      exact: false,
-    }) as HTMLInputElement;
-    expect(input).toHaveAttribute('readonly');
-    expect(input.className).toMatch(/green/);
-  });
-
-  it('renders equipment_setup (dieset auto) and intermediate_code_final read-only green', () => {
+  it('still renders the surviving equipment_setup (dieset auto) as read-only green', () => {
     renderReady();
     const dieset = screen.getByLabelText(LABELS.fields.equipment_setup, { exact: false }) as HTMLInputElement;
-    const finalCode = screen.getByLabelText(LABELS.fields.intermediate_code_final, { exact: false }) as HTMLInputElement;
     expect(dieset).toHaveAttribute('readonly');
     expect(dieset.className).toMatch(/green/);
-    expect(finalCode).toHaveAttribute('readonly');
-    expect(finalCode.className).toMatch(/green/);
+  });
+
+  it('no longer renders the filtered intermediate_code_* auto columns', () => {
+    renderReady();
+    expect(screen.queryByLabelText(LABELS.fields.intermediate_code_p1, { exact: false })).toBeNull();
+    expect(screen.queryByLabelText(LABELS.fields.intermediate_code_final, { exact: false })).toBeNull();
   });
 });
 
@@ -278,29 +334,6 @@ describe('FaProductionTab — multi-component aggregate row', () => {
   });
 });
 
-describe('FaProductionTab — AC2 chain2 (manufacturing_operation_1 → intermediate_code_p1)', () => {
-  it('Save calls updateFaCell for manufacturing_operation_1 when it is changed', async () => {
-    const user = userEvent.setup();
-    renderReady();
-    // Open the op1 Select and pick a new value via its options.
-    await user.click(within(screen.getAllByTestId('fa-prod-component')[0]).getByRole('combobox', {
-      name: 'Process 1',
-    }));
-    const option = screen.getAllByRole('option', {
-      name: 'Cook',
-    })[0];
-    await user.click(option);
-    await user.click(screen.getByRole('button', { name: LABELS.save }));
-
-    expect(updateFaCellMock).toHaveBeenCalledWith(
-      'FA-1001',
-      'manufacturing_operation_1',
-      'Cook',
-      expect.objectContaining({ componentIndex: 1 }),
-    );
-  });
-});
-
 describe('FaProductionTab — AC3 chain1 (line → equipment_setup autofilled)', () => {
   it('Save calls updateFaCell for line when it is changed', async () => {
     const user = userEvent.setup();
@@ -324,17 +357,16 @@ describe('FaProductionTab — AC3 chain1 (line → equipment_setup autofilled)',
 });
 
 describe('FaProductionTab — read-only red line', () => {
-  it('never submits intermediate_code_* or equipment_setup even when editable fields change', async () => {
+  it('never submits the read-only equipment_setup even when editable fields change', async () => {
     const user = userEvent.setup();
     renderReady();
-    const yieldInput = screen.getByLabelText(LABELS.fields.operation_yield_1, { exact: false });
-    await user.clear(yieldInput);
-    await user.type(yieldInput, '88');
+    const rateInput = screen.getByLabelText(LABELS.fields.rate, { exact: false });
+    await user.clear(rateInput);
+    await user.type(rateInput, '880');
     await user.click(screen.getByRole('button', { name: LABELS.save }));
 
     const calledColumns = updateFaCellMock.mock.calls.map((c) => c[1]);
-    expect(calledColumns).not.toContain('intermediate_code_p1');
-    expect(calledColumns).not.toContain('intermediate_code_final');
+    expect(calledColumns).toContain('rate');
     expect(calledColumns).not.toContain('equipment_setup');
   });
 
@@ -350,8 +382,8 @@ describe('FaProductionTab — locked gate (Pack_Size missing)', () => {
   it('shows the locked alert and disables every editable control', () => {
     renderReady({ packSizeFilled: false });
     expect(screen.getByText(LABELS.lockedBody, { exact: false })).toBeInTheDocument();
-    const yieldInput = screen.getByLabelText(LABELS.fields.operation_yield_1, { exact: false });
-    expect(yieldInput).toBeDisabled();
+    const rateInput = screen.getByLabelText(LABELS.fields.rate, { exact: false });
+    expect(rateInput).toBeDisabled();
   });
 });
 
@@ -511,5 +543,199 @@ describe('FaProductionTab — locale completeness (live Gate-5 regression)', () 
     for (const key of PICKER_KEYS) {
       expect(isRealString(picker[key], key), `${locale}.picker.${key}`).toBe(true);
     }
+  });
+});
+
+// ===========================================================================
+// NPD v2 S5b (owner D6/D9) — dynamic per-component PROCESS LIST. The legacy
+// fixed 4 manufacturing_operation_N / operation_yield_N / intermediate_code_*
+// columns are filtered OUT of the grid; each component instead carries an
+// unlimited, Settings-driven process list (operationName + roles + duration +
+// cost + a createsWipItem tick), backed by getComponentProcesses + the
+// addWipProcess / updateWipProcess / removeWipProcess / saveWipProcessRoles
+// CRUD (mocked here as action-prop seams).
+// ===========================================================================
+
+const S5B_LABELS: FaProductionTabLabels = {
+  ...LABELS,
+  picker: ADD_LABELS.picker,
+  addComponent: ADD_LABELS.addComponent,
+  emptyCtaBody: ADD_LABELS.emptyCtaBody,
+  removeComponent: ADD_LABELS.removeComponent,
+  removeError: ADD_LABELS.removeError,
+  processes: PROCESS_LABELS(),
+};
+
+function renderS5b(overrides?: Partial<React.ComponentProps<typeof FaProductionTab>>) {
+  return render(
+    <FaProductionTab
+      productCode="FA-1001"
+      packSizeFilled
+      columns={COLUMNS}
+      rows={ROWS}
+      dropdowns={DROPDOWNS}
+      labels={S5B_LABELS}
+      state="ready"
+      canWrite
+      componentProcesses={COMPONENT_PROCESSES}
+      operationOptions={OPERATION_OPTIONS}
+      {...overrides}
+    />,
+  );
+}
+
+describe('FaProductionTab — S5b legacy process columns are filtered out', () => {
+  it('does NOT render the fixed manufacturing_operation_N / operation_yield_N / intermediate_code_* columns', () => {
+    renderS5b();
+    // Legacy fixed-slot field labels must NOT appear anywhere.
+    for (const legacyKey of [
+      'manufacturing_operation_1',
+      'manufacturing_operation_2',
+      'manufacturing_operation_3',
+      'manufacturing_operation_4',
+      'operation_yield_1',
+      'intermediate_code_p1',
+      'intermediate_code_final',
+    ]) {
+      expect(screen.queryByText(S5B_LABELS.fields[legacyKey])).not.toBeInTheDocument();
+    }
+    // No data-field cell for the filtered keys is rendered.
+    expect(document.querySelector('[data-field="manufacturing_operation_1"]')).toBeNull();
+    expect(document.querySelector('[data-field="intermediate_code_final"]')).toBeNull();
+  });
+
+  it('keeps the NON-legacy production columns (line, equipment_setup, resource_requirement, rate)', () => {
+    renderS5b();
+    expect(screen.getAllByText(S5B_LABELS.fields.line).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(S5B_LABELS.fields.equipment_setup, { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(S5B_LABELS.fields.rate, { exact: false }).length).toBeGreaterThan(0);
+  });
+
+  it('filters yield_line (legacy ^yield_line$) out of the grid', () => {
+    renderS5b();
+    expect(screen.queryByText(S5B_LABELS.fields.yield_line)).not.toBeInTheDocument();
+    expect(document.querySelector('[data-field="yield_line"]')).toBeNull();
+  });
+});
+
+describe('FaProductionTab — S5b per-component process list', () => {
+  it('renders the Processes section with the injected process rows + roles + cost', () => {
+    renderS5b();
+    const section = screen.getByTestId('fa-prod-processes-row-1');
+    expect(within(section).getByText('Mince')).toBeInTheDocument();
+    // Roles render as chips: roleGroup ×headcount
+    expect(within(section).getByText(/Operator/)).toBeInTheDocument();
+    expect(within(section).getByText(/Supervisor/)).toBeInTheDocument();
+    // The computed process cost is shown.
+    expect(within(section).getByTestId('fa-prod-process-cost-wp-1')).toHaveTextContent('117');
+  });
+
+  it('shows the per-component process subtotal (Σ processCost)', () => {
+    renderS5b();
+    const subtotal = screen.getByTestId('fa-prod-process-subtotal-row-1');
+    expect(subtotal).toHaveTextContent('117');
+  });
+
+  it('renders an empty-state when a component has no processes', () => {
+    renderS5b({ componentProcesses: { 'row-1': [] } });
+    const section = screen.getByTestId('fa-prod-processes-row-1');
+    expect(within(section).getByText(S5B_LABELS.processes.empty)).toBeInTheDocument();
+  });
+
+  it('"+ Add process" → pick an operation → calls getProcessDefault then addWipProcess then saveWipProcessRoles', async () => {
+    const user = userEvent.setup();
+    const onGetProcessDefault = vi.fn(async () => ({
+      ok: true as const,
+      data: {
+        operationId: 'op-cook',
+        operationName: 'Cook',
+        standardCost: 7.5,
+        defaultDurationHours: 1.5,
+        roles: [{ roleGroup: 'Operator', defaultHeadcount: 2 }],
+      },
+    }));
+    const onAddProcess = vi.fn(async () => ({ ok: true as const, id: 'wp-new' }));
+    const onSaveProcessRoles = vi.fn(async () => ({ ok: true as const, saved: 1 }));
+    const onMutated = vi.fn();
+
+    renderS5b({ onGetProcessDefault, onAddProcess, onSaveProcessRoles, onMutated });
+
+    const section = screen.getByTestId('fa-prod-processes-row-1');
+    await user.click(within(section).getByTestId('fa-prod-add-process'));
+    // Operation picker opens; choose "Cook".
+    const option = await screen.findByTestId('process-option-op-cook');
+    await user.click(option);
+
+    expect(onGetProcessDefault).toHaveBeenCalledWith('op-cook');
+    expect(onAddProcess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prodDetailId: 'row-1',
+        processName: 'Cook',
+        durationHours: 1.5,
+        additionalCost: 7.5,
+        createsWipItem: false,
+      }),
+    );
+    expect(onSaveProcessRoles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processId: 'wp-new',
+        roles: [expect.objectContaining({ roleGroup: 'Operator', headcount: 2 })],
+      }),
+    );
+    expect(onMutated).toHaveBeenCalled();
+  });
+
+  it('Remove process → calls removeWipProcess with the process id', async () => {
+    const user = userEvent.setup();
+    const onRemoveProcess = vi.fn(async () => ({ ok: true as const, removed: true }));
+    const onMutated = vi.fn();
+    renderS5b({ onRemoveProcess, onMutated });
+
+    const section = screen.getByTestId('fa-prod-processes-row-1');
+    await user.click(within(section).getByTestId('fa-prod-remove-process-wp-1'));
+
+    expect(onRemoveProcess).toHaveBeenCalledWith({ id: 'wp-1' });
+    expect(onMutated).toHaveBeenCalled();
+  });
+
+  it('Edit → toggle createsWip + change duration → Save calls updateWipProcess', async () => {
+    const user = userEvent.setup();
+    const onUpdateProcess = vi.fn(async () => ({ ok: true as const, updated: true }));
+    const onMutated = vi.fn();
+    renderS5b({ onUpdateProcess, onMutated });
+
+    const section = screen.getByTestId('fa-prod-processes-row-1');
+    await user.click(within(section).getByTestId('fa-prod-edit-process-wp-1'));
+
+    // Edit dialog opens with duration / additionalCost / createsWip controls.
+    const dialog = await screen.findByTestId('fa-prod-process-editor');
+    const duration = within(dialog).getByTestId('fa-prod-process-duration');
+    await user.clear(duration);
+    await user.type(duration, '4');
+    await user.click(within(dialog).getByTestId('fa-prod-process-creates-wip'));
+    await user.click(within(dialog).getByTestId('fa-prod-process-save'));
+
+    expect(onUpdateProcess).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'wp-1', durationHours: 4, createsWipItem: true }),
+    );
+    expect(onMutated).toHaveBeenCalled();
+  });
+
+  it('hides the process editing affordances when the user cannot write Production', () => {
+    renderS5b({ canWrite: false });
+    const section = screen.getByTestId('fa-prod-processes-row-1');
+    expect(within(section).queryByTestId('fa-prod-add-process')).not.toBeInTheDocument();
+    expect(within(section).queryByTestId('fa-prod-remove-process-wp-1')).not.toBeInTheDocument();
+    // The process row + its cost are still READ-visible.
+    expect(within(section).getByText('Mince')).toBeInTheDocument();
+    expect(within(section).getByTestId('fa-prod-process-cost-wp-1')).toBeInTheDocument();
+  });
+
+  it('disables the add-process affordance when the Pack_Size gate locks the tab', () => {
+    renderS5b({ packSizeFilled: false });
+    const section = screen.getByTestId('fa-prod-processes-row-1');
+    const addBtn = within(section).queryByTestId('fa-prod-add-process');
+    // Either hidden or disabled — never an active write affordance while locked.
+    if (addBtn) expect(addBtn).toBeDisabled();
   });
 });

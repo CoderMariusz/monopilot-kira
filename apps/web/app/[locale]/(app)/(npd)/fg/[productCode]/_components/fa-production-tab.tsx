@@ -50,12 +50,14 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
 import Input from '@monopilot/ui/Input';
+import { Switch } from '@monopilot/ui/Switch';
 import {
   Select,
   SelectContent,
@@ -71,6 +73,87 @@ import {
 } from '../../../../../../(npd)/fa/actions/add-prod-detail-component';
 import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 import { ItemPicker, type ItemPickerLabels, type ItemSearchFn } from '../../../_components/item-picker';
+import type {
+  ComponentProcess,
+} from '../../../../../../(npd)/fa/actions/get-component-processes';
+import {
+  addWipProcess,
+  updateWipProcess,
+  removeWipProcess,
+  saveWipProcessRoles,
+} from '../../../../../../(npd)/fa/actions/wip-process-actions';
+import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
+
+export type { ComponentProcess } from '../../../../../../(npd)/fa/actions/get-component-processes';
+
+// ---------------------------------------------------------------------------
+// S5b (owner D6/D9) — dynamic per-component PROCESS LIST. The fixed legacy
+// process columns are filtered OUT of the schema-driven grid (they live in the
+// dynamic process list instead). The set is matched by physical key against
+// LEGACY_PROCESS_COLUMN_RE so a future seed can't reintroduce them by adding a
+// numbered slot column.
+// ---------------------------------------------------------------------------
+
+const LEGACY_PROCESS_COLUMN_RE =
+  /^(manufacturing_operation_\d+|operation_yield_\d+|intermediate_code_p\d+|intermediate_code_final|yield_line|pr_code)/;
+
+/** True when a production column key is a legacy fixed-slot process column (S5b filter). */
+export function isLegacyProcessColumn(key: string): boolean {
+  return LEGACY_PROCESS_COLUMN_RE.test(key);
+}
+
+/** An active ManufacturingOperations row, reduced to the picker shape (id + name). */
+export type OperationOption = { id: string; operationName: string };
+
+/** Contract subset of getProcessDefault's payload (Settings → process defaults). */
+type ProcessDefaultPayload = {
+  operationId: string;
+  operationName: string;
+  standardCost: number;
+  defaultDurationHours: number;
+  roles: { roleGroup: string; defaultHeadcount: number }[];
+};
+
+type GetProcessDefaultFn = (
+  operationId: string,
+) => Promise<{ ok: true; data: ProcessDefaultPayload | null } | { ok: false; error: string }>;
+type AddProcessFn = typeof addWipProcess;
+type UpdateProcessFn = typeof updateWipProcess;
+type RemoveProcessFn = typeof removeWipProcess;
+type SaveProcessRolesFn = typeof saveWipProcessRoles;
+
+export type ProductionProcessLabels = {
+  sectionTitle: string;
+  sectionSubtitle: string;
+  addProcess: string;
+  pickerLabel: string;
+  pickerPlaceholder: string;
+  pickerEmpty: string;
+  pickerLoading: string;
+  pickerError: string;
+  pickerCancel: string;
+  empty: string;
+  emptyBody: string;
+  duration: string;
+  additionalCost: string;
+  processCost: string;
+  createsWip: string;
+  rolesHeader: string;
+  editProcess: string;
+  removeProcess: string;
+  save: string;
+  saving: string;
+  cancel: string;
+  addError: string;
+  updateError: string;
+  removeError: string;
+  saveRolesError: string;
+  subtotalLabel: string;
+  roleGroup: string;
+  headcount: string;
+  loading: string;
+  loadError: string;
+};
 
 // ---------------------------------------------------------------------------
 // Types (schema-driven — mirror Reference.DeptColumns metadata + prod_detail)
@@ -149,6 +232,8 @@ export type FaProductionTabLabels = {
   removeError: string;
   /** Item-picker (combobox over the real items master) labels. */
   picker: ItemPickerLabels;
+  /** S5b — dynamic per-component process list labels. */
+  processes: ProductionProcessLabels;
   /** Per-column human label keyed by physical column key. */
   fields: Record<string, string>;
 };
@@ -182,6 +267,22 @@ export type FaProductionTabProps = {
   onRemoveComponent?: typeof removeProdDetailComponent;
   /** Refresh callback after add/remove (defaults to router.refresh in the page). */
   onMutated?: () => void;
+
+  // -- S5b dynamic per-component process list -------------------------------
+  /** Server-loaded processes keyed by prod_detail_id (= ProdDetailRow.id). */
+  componentProcesses?: Record<string, ComponentProcess[]>;
+  /** Active ManufacturingOperations (id + name) for the process picker. */
+  operationOptions?: OperationOption[];
+  /** Seam: getProcessDefault(operationId) (Settings → process defaults). */
+  onGetProcessDefault?: GetProcessDefaultFn;
+  /** Seam: addWipProcess (defaults to the real CRUD action). */
+  onAddProcess?: AddProcessFn;
+  /** Seam: updateWipProcess. */
+  onUpdateProcess?: UpdateProcessFn;
+  /** Seam: removeWipProcess. */
+  onRemoveProcess?: RemoveProcessFn;
+  /** Seam: saveWipProcessRoles. */
+  onSaveProcessRoles?: SaveProcessRolesFn;
 };
 
 // ---------------------------------------------------------------------------
@@ -200,11 +301,57 @@ function fieldLabel(col: FaProductionColumn, labels: FaProductionTabLabels): str
 }
 
 function sortColumns(columns: FaProductionColumn[]): FaProductionColumn[] {
-  return [...columns].sort((a, b) => {
-    if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
-    return a.key.localeCompare(b.key);
-  });
+  // S5b (D6/D9): drop the legacy fixed-slot process columns from the grid — they
+  // are replaced by the dynamic per-component process list below. Defense-in-depth
+  // vs. the page-loader filter so a future seed cannot reintroduce a slot column.
+  return [...columns]
+    .filter((col) => !isLegacyProcessColumn(col.key))
+    .sort((a, b) => {
+      if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
+      return a.key.localeCompare(b.key);
+    });
 }
+
+/** Format a numeric cost for display (2dp, locale-agnostic, no currency symbol). */
+function fmtCost(value: number): string {
+  if (!Number.isFinite(value)) return '0.00';
+  return value.toFixed(2);
+}
+
+/** English fallbacks so a partial/absent `labels.processes` bundle never crashes
+ * the process list (mirrors the ItemPicker DEFAULT_PICKER_LABELS pattern). */
+const DEFAULT_PROCESS_LABELS: ProductionProcessLabels = {
+  sectionTitle: 'Processes',
+  sectionSubtitle: 'Add the manufacturing processes for this component.',
+  addProcess: '+ Add process',
+  pickerLabel: 'Select a process',
+  pickerPlaceholder: 'Search processes…',
+  pickerEmpty: 'No processes available',
+  pickerLoading: 'Loading processes…',
+  pickerError: 'Could not load processes',
+  pickerCancel: 'Cancel',
+  empty: 'No processes yet',
+  emptyBody: 'Add the first manufacturing process.',
+  duration: 'Duration (h)',
+  additionalCost: 'Standard cost',
+  processCost: 'Process cost',
+  createsWip: 'Creates WIP',
+  rolesHeader: 'Roles',
+  editProcess: 'Edit process',
+  removeProcess: 'Remove process',
+  save: 'Save process',
+  saving: 'Saving…',
+  cancel: 'Cancel',
+  addError: 'Could not add the process',
+  updateError: 'Could not update the process',
+  removeError: 'Could not remove the process',
+  saveRolesError: 'Could not save the roles',
+  subtotalLabel: 'Process subtotal',
+  roleGroup: 'Role',
+  headcount: 'Headcount',
+  loading: 'Loading processes…',
+  loadError: 'Could not load processes',
+};
 
 /** Replace the "{count}" placeholder in a pre-translated string. */
 function withCount(template: string, count: number): string {
@@ -365,6 +512,557 @@ function ProductionField({
 }
 
 // ---------------------------------------------------------------------------
+// S5b — Operation picker (combobox over active ManufacturingOperations). No raw
+// <select> (red line): a search Input + a portaled listbox, mirroring ItemPicker.
+// ---------------------------------------------------------------------------
+
+function OperationPicker({
+  labels,
+  options,
+  disabled,
+  onSelect,
+}: {
+  labels: ProductionProcessLabels;
+  options: OperationOption[];
+  disabled: boolean;
+  onSelect: (op: OperationOption) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [rect, setRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q === '' ? options : options.filter((o) => o.operationName.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const reposition = React.useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = Math.min(420, Math.max(280, r.width, window.innerWidth - 24));
+    const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12));
+    setRect({ top: r.bottom + 4, left, width });
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) {
+      setQuery('');
+      setRect(null);
+      setActiveIndex(0);
+      return undefined;
+    }
+    reposition();
+    const onScroll = () => reposition();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [open, reposition]);
+
+  React.useEffect(() => {
+    if (open && rect) inputRef.current?.focus();
+  }, [open, rect]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Node;
+      if (!containerRef.current?.contains(target) && !panelRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  function choose(op: OperationOption) {
+    onSelect(op);
+    setOpen(false);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const op = filtered[activeIndex];
+      if (op) choose(op);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+    }
+  }
+
+  const listId = React.useId();
+
+  return (
+    <div ref={containerRef} className="relative inline-block">
+      <Button
+        type="button"
+        className="btn--secondary"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={labels.addProcess}
+        data-testid="fa-prod-add-process"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {labels.addProcess}
+      </Button>
+
+      {open && rect && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-label={labels.pickerLabel}
+              style={{
+                position: 'fixed',
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                zIndex: 1000,
+                pointerEvents: 'auto',
+              }}
+              className="rounded-md border border-slate-200 bg-white p-2 shadow-xl"
+              data-testid="fa-prod-process-picker"
+            >
+              <Input
+                ref={inputRef}
+                role="combobox"
+                aria-expanded={open}
+                aria-controls={listId}
+                aria-autocomplete="list"
+                aria-label={labels.pickerLabel}
+                value={query}
+                placeholder={labels.pickerPlaceholder}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onKeyDown}
+                className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              />
+              <ul
+                id={listId}
+                role="listbox"
+                aria-label={labels.pickerLabel}
+                className="mt-1 max-h-56 overflow-auto"
+              >
+                {filtered.length === 0 ? (
+                  <li className="px-2 py-2 text-xs text-slate-500" data-testid="fa-prod-process-picker-empty">
+                    {labels.pickerEmpty}
+                  </li>
+                ) : (
+                  filtered.map((op, idx) => (
+                    <li
+                      key={op.id}
+                      role="option"
+                      aria-selected={idx === activeIndex}
+                      data-testid={`process-option-${op.id}`}
+                      className={[
+                        'cursor-pointer rounded px-2 py-1.5 text-sm',
+                        idx === activeIndex ? 'bg-blue-50' : 'hover:bg-slate-50',
+                      ].join(' ')}
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      onClick={() => choose(op)}
+                    >
+                      {op.operationName}
+                    </li>
+                  ))
+                )}
+              </ul>
+              <div className="mt-1 flex justify-end">
+                <Button type="button" className="btn--ghost" onClick={() => setOpen(false)}>
+                  {labels.pickerCancel}
+                </Button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S5b — Process edit dialog (duration / additionalCost / createsWipItem). Roles
+// are pre-filled from the operation default on add; this editor adjusts the
+// process scalars (role re-editing is a follow-up; the toggle + numbers are the
+// owner's must-haves). Built on @monopilot/ui Switch/Input/Button — no Radix
+// outside packages/ui.
+// ---------------------------------------------------------------------------
+
+function ProcessEditDialog({
+  process,
+  labels,
+  disabled,
+  onClose,
+  onSubmit,
+}: {
+  process: ComponentProcess;
+  labels: ProductionProcessLabels;
+  disabled: boolean;
+  onClose: () => void;
+  onSubmit: (next: { durationHours: number; additionalCost: number; createsWipItem: boolean }) => void;
+}) {
+  const [duration, setDuration] = React.useState(String(process.durationHours ?? 0));
+  const [addCost, setAddCost] = React.useState(String(process.additionalCost ?? 0));
+  const [createsWip, setCreatesWip] = React.useState(Boolean(process.createsWipItem));
+
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${labels.editProcess} ${process.processName}`}
+      data-testid="fa-prod-process-editor"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(15,23,42,0.45)',
+        pointerEvents: 'auto',
+      }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-sm rounded-lg bg-white p-4 shadow-xl">
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">
+          {labels.editProcess} — <span className="font-mono">{process.processName}</span>
+        </h3>
+        <div className="grid gap-3">
+          <div className="grid gap-1">
+            <label htmlFor="fa-prod-process-duration" className="text-xs font-medium text-slate-700">
+              {labels.duration}
+            </label>
+            <Input
+              id="fa-prod-process-duration"
+              data-testid="fa-prod-process-duration"
+              type="number"
+              value={duration}
+              disabled={disabled}
+              onChange={(e) => setDuration(e.target.value)}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="grid gap-1">
+            <label htmlFor="fa-prod-process-addcost" className="text-xs font-medium text-slate-700">
+              {labels.additionalCost}
+            </label>
+            <Input
+              id="fa-prod-process-addcost"
+              data-testid="fa-prod-process-addcost"
+              type="number"
+              value={addCost}
+              disabled={disabled}
+              onChange={(e) => setAddCost(e.target.value)}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span id="fa-prod-process-wip-label" className="text-xs font-medium text-slate-700">
+              {labels.createsWip}
+            </span>
+            <Switch
+              checked={createsWip}
+              disabled={disabled}
+              aria-labelledby="fa-prod-process-wip-label"
+              data-testid="fa-prod-process-creates-wip"
+              onCheckedChange={setCreatesWip}
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" className="btn--ghost" onClick={onClose}>
+            {labels.cancel}
+          </Button>
+          <Button
+            type="button"
+            data-testid="fa-prod-process-save"
+            disabled={disabled}
+            onClick={() =>
+              onSubmit({
+                durationHours: Number(duration) || 0,
+                additionalCost: Number(addCost) || 0,
+                createsWipItem: createsWip,
+              })
+            }
+          >
+            {labels.save}
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S5b — per-component dynamic process list. One instance per ProdDetailRow.
+// ---------------------------------------------------------------------------
+
+function ComponentProcesses({
+  prodDetailId,
+  processes,
+  operations,
+  labels,
+  canWrite,
+  locked,
+  getDefault,
+  addProcess,
+  updateProcess,
+  removeProcess,
+  saveRoles,
+  onMutated,
+}: {
+  prodDetailId: string;
+  processes: ComponentProcess[];
+  operations: OperationOption[];
+  labels: ProductionProcessLabels;
+  canWrite: boolean;
+  locked: boolean;
+  getDefault: GetProcessDefaultFn;
+  addProcess: AddProcessFn;
+  updateProcess: UpdateProcessFn;
+  removeProcess: RemoveProcessFn;
+  saveRoles: SaveProcessRolesFn;
+  onMutated: () => void;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState<ComponentProcess | null>(null);
+
+  const writable = canWrite && !locked;
+  const subtotal = processes.reduce((sum, p) => sum + (Number(p.processCost) || 0), 0);
+
+  async function handlePick(op: OperationOption) {
+    setBusy(true);
+    setError(null);
+    try {
+      const def = await getDefault(op.id);
+      const payload = def.ok ? def.data : null;
+      const processName = payload?.operationName ?? op.operationName;
+      const durationHours = payload?.defaultDurationHours ?? 0;
+      const additionalCost = payload?.standardCost ?? 0;
+      const added = await addProcess({
+        prodDetailId,
+        processName,
+        durationHours,
+        additionalCost,
+        createsWipItem: false,
+      });
+      if (!added.ok) {
+        setError(labels.addError);
+        return;
+      }
+      const roles = payload?.roles ?? [];
+      if (roles.length > 0) {
+        const saved = await saveRoles({
+          processId: added.id,
+          roles: roles.map((r) => ({ roleGroup: r.roleGroup, headcount: r.defaultHeadcount })),
+        });
+        if (!saved.ok) {
+          setError(labels.saveRolesError);
+          return;
+        }
+      }
+      onMutated();
+    } catch {
+      setError(labels.addError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await removeProcess({ id });
+      if (!res.ok) {
+        setError(labels.removeError);
+        return;
+      }
+      onMutated();
+    } catch {
+      setError(labels.removeError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdate(
+    id: string,
+    next: { durationHours: number; additionalCost: number; createsWipItem: boolean },
+  ) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await updateProcess({ id, ...next });
+      if (!res.ok) {
+        setError(labels.updateError);
+        return;
+      }
+      setEditing(null);
+      onMutated();
+    } catch {
+      setError(labels.updateError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="mt-3 rounded-md border border-slate-200 bg-slate-50/60 p-3"
+      data-testid={`fa-prod-processes-${prodDetailId}`}
+    >
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-800">{labels.sectionTitle}</h4>
+          <p className="text-[11px] text-slate-500">{labels.sectionSubtitle}</p>
+        </div>
+        {writable ? (
+          <OperationPicker
+            labels={labels}
+            options={operations}
+            disabled={busy}
+            onSelect={handlePick}
+          />
+        ) : null}
+      </div>
+
+      {processes.length === 0 ? (
+        <div className="flex flex-col items-center gap-0.5 py-4 text-center">
+          <p className="text-xs font-medium text-slate-600">{labels.empty}</p>
+          <p className="text-[11px] text-slate-400">{labels.emptyBody}</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {processes.map((proc) => (
+            <li
+              key={proc.id}
+              data-testid={`fa-prod-process-${proc.id}`}
+              className="rounded-md border border-slate-200 bg-white p-2"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-800">{proc.processName}</span>
+                {proc.createsWipItem ? (
+                  <Badge tone="info" data-testid={`fa-prod-process-wip-${proc.id}`}>
+                    {labels.createsWip}
+                  </Badge>
+                ) : null}
+                <span className="ml-auto flex items-center gap-3 text-xs text-slate-600">
+                  <span className="tabular-nums">
+                    {labels.duration}: {fmtCost(Number(proc.durationHours))}
+                  </span>
+                  <span className="tabular-nums">
+                    {labels.additionalCost}: {fmtCost(Number(proc.additionalCost))}
+                  </span>
+                  <span className="font-semibold tabular-nums text-slate-800">
+                    {labels.processCost}:{' '}
+                    <span data-testid={`fa-prod-process-cost-${proc.id}`}>
+                      {fmtCost(Number(proc.processCost))}
+                    </span>
+                  </span>
+                  {writable ? (
+                    <>
+                      <Button
+                        type="button"
+                        className="btn--ghost"
+                        data-testid={`fa-prod-edit-process-${proc.id}`}
+                        aria-label={`${labels.editProcess} ${proc.processName}`}
+                        disabled={busy}
+                        onClick={() => setEditing(proc)}
+                      >
+                        ✎
+                      </Button>
+                      <Button
+                        type="button"
+                        className="btn--ghost"
+                        data-testid={`fa-prod-remove-process-${proc.id}`}
+                        aria-label={`${labels.removeProcess} ${proc.processName}`}
+                        disabled={busy}
+                        onClick={() => handleRemove(proc.id)}
+                      >
+                        ✕
+                      </Button>
+                    </>
+                  ) : null}
+                </span>
+              </div>
+              {proc.roles.length > 0 ? (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  <span className="text-[11px] font-medium text-slate-500">{labels.rolesHeader}:</span>
+                  {proc.roles.map((role) => (
+                    <span
+                      key={role.roleGroup}
+                      data-testid={`fa-prod-process-role-${proc.id}-${role.roleGroup}`}
+                      className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
+                    >
+                      {role.roleGroup} ×{role.headcount}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div
+        className="mt-2 flex justify-end text-xs font-semibold text-slate-800"
+        data-testid={`fa-prod-process-subtotal-${prodDetailId}`}
+      >
+        {labels.subtotalLabel}: <span className="ml-1 tabular-nums">{fmtCost(subtotal)}</span>
+      </div>
+
+      {error ? (
+        <div
+          role="alert"
+          className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700"
+          data-testid={`fa-prod-process-error-${prodDetailId}`}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {editing ? (
+        <ProcessEditDialog
+          process={editing}
+          labels={labels}
+          disabled={busy}
+          onClose={() => setEditing(null)}
+          onSubmit={(next) => handleUpdate(editing.id, next)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FaProductionTab
 // ---------------------------------------------------------------------------
 
@@ -382,6 +1080,13 @@ export function FaProductionTab({
   onAddComponent,
   onRemoveComponent,
   onMutated,
+  componentProcesses,
+  operationOptions = [],
+  onGetProcessDefault,
+  onAddProcess,
+  onUpdateProcess,
+  onRemoveProcess,
+  onSaveProcessRoles,
 }: FaProductionTabProps) {
   const ordered = React.useMemo(() => sortColumns(columns), [columns]);
   const locked = !packSizeFilled;
@@ -389,6 +1094,13 @@ export function FaProductionTab({
   const searchAction: ItemSearchFn = onSearchItems ?? searchItems;
   const addAction = onAddComponent ?? addProdDetailComponent;
   const removeAction = onRemoveComponent ?? removeProdDetailComponent;
+
+  // S5b — dynamic process-list action seams (default to the real CRUD actions).
+  const getDefaultAction: GetProcessDefaultFn = onGetProcessDefault ?? getProcessDefault;
+  const addProcessAction: AddProcessFn = onAddProcess ?? addWipProcess;
+  const updateProcessAction: UpdateProcessFn = onUpdateProcess ?? updateWipProcess;
+  const removeProcessAction: RemoveProcessFn = onRemoveProcess ?? removeWipProcess;
+  const saveRolesAction: SaveProcessRolesFn = onSaveProcessRoles ?? saveWipProcessRoles;
 
   // Default refresh after add/remove re-renders the server component (re-reads the
   // real prod_detail rows). useRouter() is always called at the top (Rules of
@@ -617,6 +1329,23 @@ export function FaProductionTab({
                       );
                     })}
                   </div>
+
+                  {/* S5b (D6/D9) — dynamic per-component process list. Replaces the
+                      legacy fixed 4 manufacturing_operation slots. */}
+                  <ComponentProcesses
+                    prodDetailId={row.id}
+                    processes={componentProcesses?.[row.id] ?? []}
+                    operations={operationOptions}
+                    labels={{ ...DEFAULT_PROCESS_LABELS, ...labels.processes }}
+                    canWrite={canWrite}
+                    locked={locked}
+                    getDefault={getDefaultAction}
+                    addProcess={addProcessAction}
+                    updateProcess={updateProcessAction}
+                    removeProcess={removeProcessAction}
+                    saveRoles={saveRolesAction}
+                    onMutated={() => mutated?.()}
+                  />
                 </div>
               ))}
 
