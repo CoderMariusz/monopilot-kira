@@ -2,7 +2,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getDepartmentFieldConfig } from './_actions/get-department-field-config';
-import { listFieldCatalog } from './_actions/npd-field-config';
+import { deleteDepartment, deleteField, listFieldCatalog } from './_actions/npd-field-config';
 import NpdFieldsScreen, { type NpdFieldsScreenLabels } from './npd-fields-screen.client';
 
 export const dynamic = 'force-dynamic';
@@ -89,6 +89,12 @@ async function buildLabels(locale: string): Promise<NpdFieldsScreenLabels> {
     dataTypeNumber: t('data_type_number'),
     dataTypeDate: t('data_type_date'),
     deleteDepartmentUnavailable: t('delete_department_unavailable'),
+    deleteDepartment: t('delete_department'),
+    deleteField: t('delete_field'),
+    deleteDepartmentConfirm: t('delete_department_confirm'),
+    deleteFieldConfirm: t('delete_field_confirm'),
+    departmentInUse: t('department_in_use'),
+    fieldInUse: t('field_in_use'),
     fieldAuto: t('field_auto'),
     fieldAutoHint: t('field_auto_hint'),
     fieldAutoSource: t('field_auto_source'),
@@ -144,6 +150,8 @@ export default async function NpdFieldsSettingsPage({ params }: PageProps = {}) 
       fieldCatalog={fieldCatalog}
       canEdit={canEdit}
       labels={labels}
+      deleteDepartmentAction={deleteDepartment}
+      deleteFieldAction={deleteField}
     />
   );
 }

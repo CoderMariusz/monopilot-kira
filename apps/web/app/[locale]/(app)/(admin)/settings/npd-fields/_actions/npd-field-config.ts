@@ -84,6 +84,8 @@ type UpdateFieldPatch = {
 };
 
 type UpdateFieldResult = FieldCatalogRow | { ok: false; error: string };
+type DeleteDepartmentResult = { ok: true; id: string } | { ok: false; error: 'cannot_delete_core' | 'department_in_use' };
+type DeleteFieldResult = { ok: true; id: string } | { ok: false; error: 'field_in_use' };
 
 type AssignFieldInput = {
   department_id: string;
@@ -376,6 +378,47 @@ export async function setDepartmentActive(id: string, active: boolean): Promise<
   return updateDepartment(id, { active });
 }
 
+export async function deleteDepartment(id: string): Promise<DeleteDepartmentResult> {
+  return withOrgContext<DeleteDepartmentResult>(async (ctx): Promise<DeleteDepartmentResult> => {
+    const context = ctx as OrgContextLike;
+    await requireNpdSchemaEdit(context);
+    const { rows: departmentRows } = await context.client.query<{ code: string }>(
+      `select code
+         from public.npd_departments
+        where id = $1::uuid
+          and org_id = app.current_org_id()
+        limit 1`,
+      [id],
+    );
+    const department = departmentRows[0];
+    if (!department) throw new Error('NPD department not found.');
+    if (department.code.toLowerCase() === 'core') {
+      return { ok: false, error: 'cannot_delete_core' };
+    }
+
+    const { rows: projectRows } = await context.client.query<{ exists: boolean }>(
+      `select exists (
+         select 1
+           from public.npd_projects
+          where department_id = $1::uuid
+            and org_id = app.current_org_id()
+       ) as exists`,
+      [id],
+    );
+    if (projectRows[0]?.exists) {
+      return { ok: false, error: 'department_in_use' };
+    }
+
+    await context.client.query(
+      `delete from public.npd_departments
+        where id = $1::uuid
+          and org_id = app.current_org_id()`,
+      [id],
+    );
+    return { ok: true, id };
+  });
+}
+
 export async function listFieldCatalog(): Promise<FieldCatalogRow[]> {
   return withOrgContext<FieldCatalogRow[]>(async (ctx): Promise<FieldCatalogRow[]> => {
     const context = ctx as OrgContextLike;
@@ -485,6 +528,44 @@ export async function updateField(id: string, patch: unknown): Promise<UpdateFie
 
 export async function setFieldActive(id: string, active: boolean): Promise<UpdateFieldResult> {
   return updateField(id, { active });
+}
+
+export async function deleteField(id: string): Promise<DeleteFieldResult> {
+  return withOrgContext<DeleteFieldResult>(async (ctx): Promise<DeleteFieldResult> => {
+    const context = ctx as OrgContextLike;
+    await requireNpdSchemaEdit(context);
+    const { rows: fieldRows } = await context.client.query<{ ok: number }>(
+      `select 1 as ok
+         from public.npd_field_catalog
+        where id = $1::uuid
+          and org_id = app.current_org_id()
+        limit 1`,
+      [id],
+    );
+    if (!fieldRows[0]) throw new Error('NPD field not found.');
+
+    const { rows: assignmentRows } = await context.client.query<{ exists: boolean }>(
+      `select exists (
+         select 1
+           from public.npd_department_field
+          where field_id = $1::uuid
+            and org_id = app.current_org_id()
+       ) as exists`,
+      [id],
+    );
+    if (assignmentRows[0]?.exists) {
+      return { ok: false, error: 'field_in_use' };
+    }
+
+    // field VALUES live as physical columns on public.product / fg_npd_ext - this is metadata-only removal; orphaned physical columns are harmless.
+    await context.client.query(
+      `delete from public.npd_field_catalog
+        where id = $1::uuid
+          and org_id = app.current_org_id()`,
+      [id],
+    );
+    return { ok: true, id };
+  });
 }
 
 export async function listDepartmentFields(departmentId: string): Promise<DepartmentFieldRow[]> {

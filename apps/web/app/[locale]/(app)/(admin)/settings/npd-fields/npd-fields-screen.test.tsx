@@ -82,7 +82,13 @@ const labels: NpdFieldsScreenLabels = {
   dataTypeText: 'Text',
   dataTypeNumber: 'Number',
   dataTypeDate: 'Date',
-  deleteDepartmentUnavailable: 'Department deletion is not yet available. Deactivate it instead.',
+  deleteDepartmentUnavailable: 'The core department cannot be deleted.',
+  deleteDepartment: 'Delete',
+  deleteField: 'Delete from catalog',
+  deleteDepartmentConfirm: 'Delete this department permanently? This cannot be undone.',
+  deleteFieldConfirm: 'Delete this field from the catalog permanently? This cannot be undone.',
+  departmentInUse: 'This department is still in use and cannot be deleted.',
+  fieldInUse: 'This field is still assigned. Remove its assignments first, then delete.',
   fieldAuto: 'Auto-derived',
   fieldAutoHint: 'Compute this field automatically from another catalog field.',
   fieldAutoSource: 'Source field',
@@ -153,6 +159,14 @@ const departments: NpdDepartmentConfigRow[] = [
       },
     ],
   },
+  {
+    id: '33333333-3333-3333-3333-333333333333',
+    code: 'core',
+    name: 'Core',
+    display_order: 0,
+    active: true,
+    fields: [],
+  },
 ];
 
 const fieldCatalog: NpdFieldCatalogRow[] = [
@@ -195,8 +209,16 @@ describe('NpdFieldsScreen', () => {
     const table = screen.getByTestId('npd-departments-table');
     expect(within(table).getByText('Technical')).toBeInTheDocument();
     expect(within(table).getByText('Packaging')).toBeInTheDocument();
-    expect(within(table).getByText('● Active')).toHaveClass('badge', 'badge-green');
-    expect(within(table).getByText('✕ Inactive')).toHaveClass('badge', 'badge-gray');
+    // Technical is active, Packaging is inactive in the fixture (Core is also
+    // active, so scope the badge assertions to the specific department rows).
+    const technicalRow = screen.getByTestId(
+      'npd-department-row-11111111-1111-1111-1111-111111111111',
+    );
+    const packagingRow = screen.getByTestId(
+      'npd-department-row-22222222-2222-2222-2222-222222222222',
+    );
+    expect(within(technicalRow).getByText('● Active')).toHaveClass('badge', 'badge-green');
+    expect(within(packagingRow).getByText('✕ Inactive')).toHaveClass('badge', 'badge-gray');
   });
 
   it('renders the selected department fields', () => {
@@ -281,8 +303,10 @@ describe('NpdFieldsScreen', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Technical Active')).toBeChecked();
     });
-    const deptTable = screen.getByTestId('npd-departments-table');
-    expect(within(deptTable).getByText('● Active')).toBeInTheDocument();
+    const technicalRow = screen.getByTestId(
+      'npd-department-row-11111111-1111-1111-1111-111111111111',
+    );
+    expect(within(technicalRow).getByText('● Active')).toBeInTheDocument();
   });
 
   it('maps the last-department message and rolls back when the action throws the code', async () => {
@@ -557,5 +581,138 @@ describe('NpdFieldsScreen', () => {
     );
     // field-1 (target_ph) is NOT auto — no badge.
     expect(within(table).queryByTestId('npd-field-auto-badge-field-1')).not.toBeInTheDocument();
+  });
+
+  it('renders a Delete button for a non-core department and hides it for the core department', () => {
+    renderScreen();
+
+    const deptTable = screen.getByTestId('npd-departments-table');
+    // Technical / Packaging are non-core → a Delete affordance is present.
+    expect(within(deptTable).getByRole('button', { name: 'Delete Technical' })).toBeInTheDocument();
+    expect(within(deptTable).getByRole('button', { name: 'Delete Packaging' })).toBeInTheDocument();
+    // The immutable Core department exposes NO delete affordance.
+    expect(
+      within(deptTable).queryByRole('button', { name: 'Delete Core' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('confirms then calls deleteDepartmentAction and removes the row on success', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteDepartmentAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
+    renderScreen({ deleteDepartmentAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Packaging' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Delete this department permanently? This cannot be undone.',
+    );
+    await waitFor(() => {
+      expect(deleteDepartmentAction).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
+    });
+    // The deleted department row disappears from the table.
+    const deptTable = screen.getByTestId('npd-departments-table');
+    await waitFor(() => {
+      expect(within(deptTable).queryByText('Packaging')).not.toBeInTheDocument();
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it('does NOT call deleteDepartmentAction when the confirm dialog is cancelled', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const deleteDepartmentAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
+    renderScreen({ deleteDepartmentAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Technical' }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(deleteDepartmentAction).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('surfaces the in-use message when deleteDepartmentAction refuses with department_in_use', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteDepartmentAction = vi.fn(async () => ({
+      ok: false as const,
+      error: 'department_in_use' as const,
+    }));
+    renderScreen({ deleteDepartmentAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Technical' }));
+
+    await waitFor(() => {
+      expect(deleteDepartmentAction).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111');
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('npd-fields-error')).toHaveTextContent(
+        'This department is still in use and cannot be deleted.',
+      );
+    });
+    // The row stays put since the delete was refused.
+    const deptTable = screen.getByTestId('npd-departments-table');
+    expect(within(deptTable).getByText('Technical')).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it('maps cannot_delete_core to the core-delete message via the deleteDepartmentUnavailable slot', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteDepartmentAction = vi.fn(async () => ({
+      ok: false as const,
+      error: 'cannot_delete_core' as const,
+    }));
+    renderScreen({ deleteDepartmentAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Technical' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('npd-fields-error')).toHaveTextContent(
+        'The core department cannot be deleted.',
+      );
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it('confirms then calls deleteFieldAction and drops the field row on success', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteFieldAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
+    renderScreen({ deleteFieldAction });
+
+    // Technical is selected by default; delete the Target pH (field-1) catalog entry.
+    fireEvent.click(screen.getByRole('button', { name: 'Delete from catalog Target pH' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Delete this field from the catalog permanently? This cannot be undone.',
+    );
+    await waitFor(() => {
+      expect(deleteFieldAction).toHaveBeenCalledWith('field-1');
+    });
+    const fieldsTable = screen.getByTestId('npd-fields-table');
+    await waitFor(() => {
+      expect(within(fieldsTable).queryByText('Target pH')).not.toBeInTheDocument();
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it('surfaces the in-use message when deleteFieldAction refuses with field_in_use', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteFieldAction = vi.fn(async () => ({
+      ok: false as const,
+      error: 'field_in_use' as const,
+    }));
+    renderScreen({ deleteFieldAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete from catalog Target pH' }));
+
+    await waitFor(() => {
+      expect(deleteFieldAction).toHaveBeenCalledWith('field-1');
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText('This field is still assigned. Remove its assignments first, then delete.'),
+      ).toBeInTheDocument();
+    });
+    // The field row remains since the delete was refused.
+    const fieldsTable = screen.getByTestId('npd-fields-table');
+    expect(within(fieldsTable).getByText('Target pH')).toBeInTheDocument();
+    confirmSpy.mockRestore();
   });
 });

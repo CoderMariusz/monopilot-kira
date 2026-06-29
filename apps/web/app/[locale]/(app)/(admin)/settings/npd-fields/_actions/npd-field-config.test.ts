@@ -8,8 +8,10 @@ const harness = vi.hoisted(() => ({
   departmentRows: [] as Array<Record<string, unknown>>,
   departmentCodeRows: [] as Array<Record<string, unknown>>,
   activeDepartmentCountRows: [] as Array<Record<string, unknown>>,
+  projectRows: [] as Array<Record<string, unknown>>,
   fieldRows: [] as Array<Record<string, unknown>>,
   sourceFieldRows: [] as Array<Record<string, unknown>>,
+  fieldAssignmentRows: [] as Array<Record<string, unknown>>,
   assignmentRows: [] as Array<Record<string, unknown>>,
   joinedRows: [] as Array<Record<string, unknown>>,
 }));
@@ -42,6 +44,14 @@ function makeClient() {
         };
       }
 
+      if (normalized.startsWith('select exists') && normalized.includes('from public.npd_projects')) {
+        return { rows: harness.projectRows as T[], rowCount: harness.projectRows.length };
+      }
+
+      if (normalized.includes('delete from public.npd_departments')) {
+        return { rows: [] as T[], rowCount: 1 };
+      }
+
       if (normalized.includes('from public.npd_departments')) {
         return { rows: harness.departmentRows as T[], rowCount: harness.departmentRows.length };
       }
@@ -58,6 +68,11 @@ function makeClient() {
         return { rows: harness.fieldRows.slice(0, 1) as T[], rowCount: harness.fieldRows.length > 0 ? 1 : 0 };
       }
 
+      if (normalized.startsWith('select 1 as ok') && normalized.includes('from public.npd_field_catalog')) {
+        const rows = harness.fieldRows.length > 0 ? [{ ok: 1 }] : [];
+        return { rows: rows as T[], rowCount: rows.length };
+      }
+
       if (normalized.startsWith('select id::text, org_id::text, code, label') && normalized.includes('from public.npd_field_catalog')) {
         return { rows: harness.fieldRows.slice(0, 1) as T[], rowCount: harness.fieldRows.length > 0 ? 1 : 0 };
       }
@@ -66,8 +81,16 @@ function makeClient() {
         return { rows: harness.sourceFieldRows as T[], rowCount: harness.sourceFieldRows.length };
       }
 
+      if (normalized.includes('delete from public.npd_field_catalog')) {
+        return { rows: [] as T[], rowCount: 1 };
+      }
+
       if (normalized.includes('update public.npd_field_catalog')) {
         return { rows: harness.fieldRows.slice(0, 1) as T[], rowCount: harness.fieldRows.length > 0 ? 1 : 0 };
+      }
+
+      if (normalized.startsWith('select exists') && normalized.includes('from public.npd_department_field')) {
+        return { rows: harness.fieldAssignmentRows as T[], rowCount: harness.fieldAssignmentRows.length };
       }
 
       if (normalized.includes('insert into public.npd_department_field')) {
@@ -106,6 +129,7 @@ describe('NPD field config actions', () => {
     ];
     harness.departmentCodeRows = [{ code: 'RND' }];
     harness.activeDepartmentCountRows = [{ count: '1' }];
+    harness.projectRows = [{ exists: false }];
     harness.fieldRows = [
       {
         id: '44444444-4444-4444-8444-444444444444',
@@ -127,6 +151,7 @@ describe('NPD field config actions', () => {
         auto_source_field: null,
       },
     ];
+    harness.fieldAssignmentRows = [{ exists: false }];
     harness.assignmentRows = [
       {
         id: '55555555-5555-4555-8555-555555555555',
@@ -240,6 +265,37 @@ describe('NPD field config actions', () => {
     expect(harness.calls.some((entry) => entry.sql.includes('update public.npd_departments'))).toBe(false);
   });
 
+  it('deleteDepartment returns cannot_delete_core for Core without issuing DELETE', async () => {
+    const { deleteDepartment } = await import('./npd-field-config');
+    harness.departmentCodeRows = [{ code: 'core' }];
+
+    const result = await deleteDepartment('33333333-3333-4333-8333-333333333333');
+
+    expect(result).toEqual({ ok: false, error: 'cannot_delete_core' });
+    expect(harness.calls.some((entry) => entry.sql.includes('delete from public.npd_departments'))).toBe(false);
+  });
+
+  it('deleteDepartment returns department_in_use when referenced by a project without issuing DELETE', async () => {
+    const { deleteDepartment } = await import('./npd-field-config');
+    harness.projectRows = [{ exists: true }];
+
+    const result = await deleteDepartment('33333333-3333-4333-8333-333333333333');
+
+    expect(result).toEqual({ ok: false, error: 'department_in_use' });
+    expect(harness.calls.some((entry) => entry.sql.includes('delete from public.npd_departments'))).toBe(false);
+  });
+
+  it('deleteDepartment deletes a clean department', async () => {
+    const { deleteDepartment } = await import('./npd-field-config');
+
+    const result = await deleteDepartment('33333333-3333-4333-8333-333333333333');
+
+    expect(result).toEqual({ ok: true, id: '33333333-3333-4333-8333-333333333333' });
+    const deleteCall = harness.calls.find((entry) => entry.sql.includes('delete from public.npd_departments'));
+    expect(deleteCall?.sql).toContain('app.current_org_id()');
+    expect(deleteCall?.params).toEqual(['33333333-3333-4333-8333-333333333333']);
+  });
+
   it('updateField persists is_auto=true and auto_source_field', async () => {
     const { updateField } = await import('./npd-field-config');
 
@@ -317,6 +373,27 @@ describe('NPD field config actions', () => {
     expect(updateCall?.sql).toContain('is_auto = $2::boolean');
     expect(updateCall?.sql).toContain('auto_source_field = $3::text');
     expect(updateCall?.params).toEqual(['44444444-4444-4444-8444-444444444444', false, null]);
+  });
+
+  it('deleteField returns field_in_use for an assigned field without issuing DELETE', async () => {
+    const { deleteField } = await import('./npd-field-config');
+    harness.fieldAssignmentRows = [{ exists: true }];
+
+    const result = await deleteField('44444444-4444-4444-8444-444444444444');
+
+    expect(result).toEqual({ ok: false, error: 'field_in_use' });
+    expect(harness.calls.some((entry) => entry.sql.includes('delete from public.npd_field_catalog'))).toBe(false);
+  });
+
+  it('deleteField deletes an unassigned field', async () => {
+    const { deleteField } = await import('./npd-field-config');
+
+    const result = await deleteField('44444444-4444-4444-8444-444444444444');
+
+    expect(result).toEqual({ ok: true, id: '44444444-4444-4444-8444-444444444444' });
+    const deleteCall = harness.calls.find((entry) => entry.sql.includes('delete from public.npd_field_catalog'));
+    expect(deleteCall?.sql).toContain('app.current_org_id()');
+    expect(deleteCall?.params).toEqual(['44444444-4444-4444-8444-444444444444']);
   });
 
   it('getDepartmentFieldConfig returns the joined department/field shape', async () => {

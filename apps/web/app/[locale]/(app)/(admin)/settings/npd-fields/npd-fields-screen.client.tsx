@@ -62,6 +62,23 @@ export const DEACTIVATE_ERROR_CODES = [
 
 export type DeactivateErrorCode = (typeof DEACTIVATE_ERROR_CODES)[number];
 
+/**
+ * Error codes the `deleteDepartment` action returns when a delete is refused.
+ * `cannot_delete_core` — the immutable core department; `department_in_use` —
+ * the department still has dependent data (assignments / project rows).
+ */
+export const DELETE_DEPARTMENT_ERROR_CODES = ['cannot_delete_core', 'department_in_use'] as const;
+
+export type DeleteDepartmentErrorCode = (typeof DELETE_DEPARTMENT_ERROR_CODES)[number];
+
+/**
+ * Error codes the `deleteField` action returns when a delete is refused.
+ * `field_in_use` — the field is still assigned to one or more departments.
+ */
+export const DELETE_FIELD_ERROR_CODES = ['field_in_use'] as const;
+
+export type DeleteFieldErrorCode = (typeof DELETE_FIELD_ERROR_CODES)[number];
+
 export type NpdDepartmentFieldRow = {
   assignment_id: string;
   field_id: string;
@@ -124,7 +141,15 @@ export type NpdFieldsScreenLabels = {
   dataTypeText: string;
   dataTypeNumber: string;
   dataTypeDate: string;
+  // Repurposed: the message shown when a department delete is refused because it
+  // is the immutable core department (`cannot_delete_core`).
   deleteDepartmentUnavailable: string;
+  deleteDepartment: string;
+  deleteField: string;
+  deleteDepartmentConfirm: string;
+  deleteFieldConfirm: string;
+  departmentInUse: string;
+  fieldInUse: string;
   fieldAuto: string;
   fieldAutoHint: string;
   fieldAutoSource: string;
@@ -165,6 +190,18 @@ type CreateFieldAction = typeof createField;
 type CreateDepartmentAction = typeof createDepartment;
 type UpdateFieldAction = typeof updateField;
 type UpdateDepartmentAction = typeof updateDepartment;
+/**
+ * The delete actions are owned by the backend lane and follow the same
+ * discriminated-union refusal convention as `updateField`. Declared here as the
+ * fixed contract the screen consumes (rather than `typeof`), so the screen stays
+ * the source of truth for the shapes it renders without editing the action file.
+ */
+type DeleteDepartmentAction = (
+  id: string,
+) => Promise<{ ok: true; id: string } | { ok: false; error: DeleteDepartmentErrorCode }>;
+type DeleteFieldAction = (
+  id: string,
+) => Promise<{ ok: true; id: string } | { ok: false; error: DeleteFieldErrorCode }>;
 
 export type NpdFieldsScreenProps = {
   departments: NpdDepartmentConfigRow[];
@@ -179,6 +216,8 @@ export type NpdFieldsScreenProps = {
   createDepartmentAction?: CreateDepartmentAction;
   updateFieldAction?: UpdateFieldAction;
   updateDepartmentAction?: UpdateDepartmentAction;
+  deleteDepartmentAction?: DeleteDepartmentAction;
+  deleteFieldAction?: DeleteFieldAction;
 };
 
 type PendingTarget = { kind: 'department' | 'assignment' | 'assign'; id: string } | null;
@@ -300,6 +339,11 @@ export default function NpdFieldsScreen({
   createDepartmentAction = createDepartment,
   updateFieldAction = updateField,
   updateDepartmentAction = updateDepartment,
+  // The delete actions are owned by the backend lane and injected by the page;
+  // they cannot be imported here (would couple the client to the action module).
+  // The no-op defaults keep the screen renderable in isolation.
+  deleteDepartmentAction,
+  deleteFieldAction,
 }: NpdFieldsScreenProps) {
   const router = useRouter();
   const [departmentRows, setDepartmentRows] = useState(departments);
@@ -506,6 +550,80 @@ export default function NpdFieldsScreen({
         throw caught;
       }
     });
+  }
+
+  function handleDeleteDepartment(department: NpdDepartmentConfigRow) {
+    if (!canEdit || !deleteDepartmentAction) return;
+    // Core departments are never deletable; the button is disabled, but guard
+    // here too in case the server-side check is the source of truth.
+    if (department.code.toLowerCase() === 'core') return;
+    if (!window.confirm(labels.deleteDepartmentConfirm)) return;
+
+    setPendingTarget({ kind: 'department', id: department.id });
+    setError(null);
+    void (async () => {
+      try {
+        const result = await deleteDepartmentAction(department.id);
+        if (!result.ok) {
+          // Refused: map the union code to a specific localized message.
+          // `cannot_delete_core` reuses the existing deleteDepartmentUnavailable
+          // slot; `department_in_use` uses the dedicated departmentInUse message.
+          setError(
+            result.error === 'cannot_delete_core'
+              ? labels.deleteDepartmentUnavailable
+              : labels.departmentInUse,
+          );
+          return;
+        }
+        // Success: drop the row from local state and reselect a survivor so the
+        // assigned-fields panel never points at a deleted department.
+        setDepartmentRows((current) => {
+          const remaining = current.filter((row) => row.id !== department.id);
+          if (selectedDepartmentId === department.id) {
+            setSelectedDepartmentId(remaining[0]?.id ?? '');
+          }
+          return remaining;
+        });
+        refreshAfterMutation();
+      } catch {
+        setError(labels.error);
+      } finally {
+        setPendingTarget(null);
+      }
+    })();
+  }
+
+  function handleDeleteField(field: NpdFieldCatalogRow) {
+    if (!canEdit || !deleteFieldAction) return;
+    if (!window.confirm(labels.deleteFieldConfirm)) return;
+
+    // The delete affordance lives on the table row (not in a dialog), so refusals
+    // surface in the same top-level error alert as the other row mutations.
+    setPendingTarget({ kind: 'assignment', id: field.id });
+    setError(null);
+    void (async () => {
+      try {
+        const result = await deleteFieldAction(field.id);
+        if (!result.ok) {
+          // `field_in_use`: explain the remediation (remove assignments first).
+          setError(labels.fieldInUse);
+          return;
+        }
+        // Success: drop the catalog row and any assignment that referenced it.
+        setFieldCatalogRows((current) => current.filter((row) => row.id !== field.id));
+        setDepartmentRows((current) =>
+          current.map((department) => ({
+            ...department,
+            fields: department.fields.filter((entry) => entry.field_id !== field.id),
+          })),
+        );
+        refreshAfterMutation();
+      } catch {
+        setError(labels.error);
+      } finally {
+        setPendingTarget(null);
+      }
+    })();
   }
 
   function openDialog(next: DialogState) {
@@ -751,15 +869,28 @@ export default function NpdFieldsScreen({
                       </div>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        aria-label={`${labels.editAction} ${department.name}`}
-                        disabled={editDisabled}
-                        onClick={() => openDialog({ kind: 'edit-department', department })}
-                      >
-                        {labels.editAction}
-                      </button>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          aria-label={`${labels.editAction} ${department.name}`}
+                          disabled={editDisabled}
+                          onClick={() => openDialog({ kind: 'edit-department', department })}
+                        >
+                          {labels.editAction}
+                        </button>
+                        {department.code.toLowerCase() === 'core' ? null : (
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            aria-label={`${labels.deleteDepartment} ${department.name}`}
+                            disabled={editDisabled}
+                            onClick={() => handleDeleteDepartment(department)}
+                          >
+                            {labels.deleteDepartment}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -918,6 +1049,27 @@ export default function NpdFieldsScreen({
                             onClick={() => handleRemoveAssignment(field)}
                           >
                             {labels.remove}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            aria-label={`${labels.deleteField} ${field.label}`}
+                            disabled={rowDisabled}
+                            onClick={() =>
+                              handleDeleteField(
+                                catalogRow ?? {
+                                  id: field.field_id,
+                                  code: field.code,
+                                  label: field.label,
+                                  data_type: field.data_type,
+                                  active: true,
+                                  is_auto: false,
+                                  auto_source_field: null,
+                                },
+                              )
+                            }
+                          >
+                            {labels.deleteField}
                           </button>
                         </div>
                       </td>
