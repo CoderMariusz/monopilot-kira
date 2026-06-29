@@ -21,6 +21,7 @@ const LP_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 const ASSIGNED_ID = '66666666-6666-4666-8666-666666666666';
 const HOLD_ID = '77777777-7777-4777-8777-777777777777';
+const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -30,6 +31,13 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+// listInspections + createInspection now resolve the active site and scope the
+// read / INSERT to it (qi.site_id = $4 / $8::uuid). Mock the resolver so the
+// site-scoped path is exercised instead of the noActiveSite short-circuit.
+vi.mock('../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
 vi.mock('next/cache', () => ({
@@ -185,7 +193,7 @@ describe('quality inspection server actions', () => {
       }),
     );
     const listCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('select qi.id::text'));
-    expect(listCall?.[1]).toEqual(['pending', 'LP-0001', 25]);
+    expect(listCall?.[1]).toEqual(['pending', 'LP-0001', 25, SITE_ID]);
   });
 
   it('enforces assignment permission when creating inspections', async () => {
@@ -222,7 +230,8 @@ describe('quality inspection server actions', () => {
     });
     const insertCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_inspections'));
     expect(String(insertCall?.[0])).toContain('public.next_quality_inspection_number(app.current_org_id())');
-    expect(insertCall?.[1]).toEqual(['lp', LP_ID, PRODUCT_ID, ASSIGNED_ID, '2026-06-12', 'incoming QA', USER_ID]);
+    // site_id is bound as the 8th param ($8::uuid) — the active site resolved above.
+    expect(insertCall?.[1]).toEqual(['lp', LP_ID, PRODUCT_ID, ASSIGNED_ID, '2026-06-12', 'incoming QA', USER_ID, SITE_ID]);
   });
 
   it('records parameter results and marks the inspection in progress', async () => {

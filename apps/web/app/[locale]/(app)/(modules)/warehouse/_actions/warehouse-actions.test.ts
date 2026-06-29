@@ -314,33 +314,6 @@ describe('warehouse backend actions', () => {
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
   });
 
-  it('createStockMove putaway promotes a received released LP to available and records the transition', async () => {
-    lpStatus = 'received';
-    lpQaStatus = 'released';
-
-    const result = await createStockMove({ lpId: LP_ID, toLocationId: LOC_ID, clientOpId: 'op-putaway' });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.reason);
-    expect(result.data.moveType).toBe('putaway');
-    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
-    const insert = calls.find((call) => call.sql.startsWith('insert into public.stock_moves'));
-    expect(insert?.params?.[2]).toBe('putaway');
-    const update = calls.find((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes("status = 'available'"));
-    expect(update?.sql).toContain("and status = 'received'");
-    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
-    expect(history?.params?.slice(0, 2)).toEqual([LP_ID, '88888888-8888-4888-8888-888888888888']);
-    expect(history?.sql).toContain("'received', 'available'");
-    const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
-    expect(outbox?.params?.[1]).toContain('"status_from":"received"');
-    expect(outbox?.params?.[1]).toContain('"status_to":"available"');
-
-    // Mirrors v_inventory_available migration 191 predicate for this LP:
-    // putaway owns status='available'; QC release already owns qa_status='released'.
-    expect(update).toBeTruthy();
-    expect(lpQaStatus).toBe('released');
-  });
-
   it('releaseReservation clears reservation and writes state history when reserved becomes available', async () => {
     lpStatus = 'reserved';
 

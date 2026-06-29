@@ -68,6 +68,7 @@ function createClient(bomStatus: string): QueryClient {
       if (n.includes('from public.bom_lines l')) return { rows: [] };
       if (n.includes('from public.feature_flags_core')) return { rows: [{ is_enabled: false }] };
       if (n.includes('from public.audit_log')) return { rows: [] };
+      if (n.includes('from public.audit_events')) return { rows: [] };
 
       throw new Error(`Unhandled SQL: ${n}`);
     }),

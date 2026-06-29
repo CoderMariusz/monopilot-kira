@@ -17,6 +17,7 @@ const REASON_CODE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const RMA_REASON_CODE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const PRODUCT_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const BOM_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const MACHINE_ID = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
 
 let duplicateLineCodeAtSelectedSite = false;
 
@@ -142,12 +143,6 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('from public.production_lines') && !normalized.includes('from public.production_lines pl')) {
-        if (normalized.includes('select true as ok')) {
-          return {
-            rows: duplicateLineCodeAtSelectedSite ? [{ ok: true }] as never[] : [] as never[],
-            rowCount: duplicateLineCodeAtSelectedSite ? 1 : 0,
-          };
-        }
         return {
           rows: [{ id: LINE_ID, code: 'LINE-1', name: 'Yoghurt line', site_id: SITE_ID }] as never[],
           rowCount: 1,
@@ -376,11 +371,42 @@ function makeClient(): FakeClient {
         };
       }
 
+      // createLine now delegates to the canonical infra upsertLine, whose INSERT is
+      // (id, org_id, site_id, warehouse_id, default_output_location_id, code, name, status)
+      // with binds [id, siteId, warehouseId, defaultOutputLocationId, code, name, status, machineIds[]].
+      // A duplicate (site_id, code) is rejected by the DB unique index (SQLSTATE 23505),
+      // not by an application-level pre-check — simulate that with a thrown pg error.
       if (normalized.startsWith('insert into public.production_lines')) {
+        if (duplicateLineCodeAtSelectedSite) {
+          const dupError = new Error('duplicate key value violates unique constraint') as Error & { code?: string };
+          dupError.code = '23505';
+          throw dupError;
+        }
         return {
-          rows: [{ id: LINE_ID, code: String(params[1] ?? 'LINE-1'), name: String(params[2] ?? 'Yoghurt line'), status: String(params[3] ?? 'active') }] as never[],
+          rows: [
+            {
+              id: LINE_ID,
+              code: String(params[4] ?? 'LINE-1'),
+              name: String(params[5] ?? 'Yoghurt line'),
+              status: String(params[6] ?? 'active'),
+              default_output_location_id: (params[3] as string | null) ?? null,
+              machine_ids: (params[7] as string[] | undefined) ?? [],
+            },
+          ] as never[],
           rowCount: 1,
         };
+      }
+
+      // upsertLine validates machine references, then rewrites line_machines rows.
+      if (normalized.startsWith('select id, status') && normalized.includes('from public.machines')) {
+        const ids = (params[0] as string[] | undefined) ?? [];
+        return { rows: ids.map((id) => ({ id, status: 'active' })) as never[], rowCount: ids.length };
+      }
+      if (normalized.startsWith('delete from public.line_machines')) {
+        return { rows: [] as never[], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.line_machines')) {
+        return { rows: [] as never[], rowCount: 1 };
       }
 
       if (normalized.startsWith('update public.sites') && normalized.includes('returning id::text')) {
@@ -825,12 +851,16 @@ describe('settings shifts/devices wiring contract', () => {
         haccp_valid_until: '2026-09-14',
       }),
     );
+    // An ACTIVE line requires at least one machine (canonical infra upsertLine rule:
+    // status='active' with zero machines => line_requires_machine). The contract test
+    // supplies a machine so the active-line happy path is exercised.
     const createdLine = await withFakeOrg(client, () =>
       mod.createLine({
         site_id: SITE_ID,
         code: 'LINE-1',
         name: 'Yoghurt line',
         status: 'active',
+        machineIds: [MACHINE_ID],
       }),
     );
     const sameCodeDifferentSite = await withFakeOrg(client, () =>
@@ -839,6 +869,7 @@ describe('settings shifts/devices wiring contract', () => {
         code: 'LINE-1',
         name: 'Yoghurt line at another site',
         status: 'active',
+        machineIds: [MACHINE_ID],
       }),
     );
     duplicateLineCodeAtSelectedSite = true;
@@ -848,6 +879,7 @@ describe('settings shifts/devices wiring contract', () => {
         code: 'LINE-1',
         name: 'Duplicate yoghurt line',
         status: 'active',
+        machineIds: [MACHINE_ID],
       }),
     );
 
@@ -866,13 +898,15 @@ describe('settings shifts/devices wiring contract', () => {
     expect(saved).toMatchObject({ ok: true, data: { id: SITE_ID, org_id: ORG_ID } });
     expect(createdLine).toMatchObject({ ok: true, data: { id: LINE_ID, code: 'LINE-1' } });
     expect(sameCodeDifferentSite).toMatchObject({ ok: true, data: { id: LINE_ID, code: 'LINE-1' } });
-    expect(duplicateLine).toEqual({ ok: false, error: 'duplicate_code' });
+    // A duplicate (site_id, code) is rejected by the DB unique index; the canonical
+    // infra upsertLine maps the failure to persistence_failed.
+    expect(duplicateLine).toEqual({ ok: false, error: 'persistence_failed' });
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
     expect(sql).toContain('from public.sites s');
     expect(sql).toContain('from public.production_lines pl');
     expect(sql).toContain('left join public.shift_patterns sp');
     expect(sql).toContain('and pl.site_id = $2::uuid');
-    expect(sql).toContain('insert into public.production_lines (org_id, site_id, code, name, status)');
+    expect(sql).toContain('insert into public.production_lines (id, org_id, site_id, warehouse_id, default_output_location_id, code, name, status)');
     expect(sql).toContain('update public.sites');
     expect(sql).toContain('app.current_org_id()');
     expect(client.calls.some((call) => call.params.includes(ORG_ID))).toBe(true);
