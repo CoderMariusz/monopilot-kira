@@ -253,14 +253,21 @@ async function ensureFgItemAndProduct(
        (org_id, item_code, item_type, name, status, uom_base, shelf_life_days, output_uom,
         net_qty_per_each, each_per_box, origin_module, npd_project_id, created_by)
      values
-       (app.current_org_id(), $1, 'fg', $2, 'active', 'kg', 30, $3, $4::numeric, null,
-        'npd', $5::uuid, $6::uuid)
+       (app.current_org_id(), $1, 'fg', $2, 'active', 'kg', 30, $3, $4::numeric, $5::int,
+        'npd', $6::uuid, $7::uuid)
      on conflict (org_id, item_code) do nothing
      returning id, item_code, name, shelf_life_days`,
-    [productCode, project.name, outputUom, netQtyPerEach, project.id, ctx.userId],
+    [productCode, project.name, outputUom, netQtyPerEach, project.packs_per_case, project.id, ctx.userId],
   );
   const item = inserted.rows[0] ?? (await loadItem(ctx, productCode));
   if (!item) throw new Error(`failed to ensure FG item ${productCode}`);
+
+  if (project.packs_per_case != null && project.packs_per_case > 0) {
+    await ctx.client.query(
+      `update public.items set each_per_box = $2 where org_id = app.current_org_id() and item_code = $1 and coalesce(each_per_box, 0) <> $2`,
+      [productCode, project.packs_per_case],
+    );
+  }
 
   // product is a VIEW post-merge-cut → no ON CONFLICT DO UPDATE (42P10). Replicate the upsert as
   // insert-if-absent / targeted-update-if-present: a blind INSERT through the view would re-run the
@@ -398,10 +405,10 @@ async function createActiveNpdBom(
     ({ rows } = await ctx.client.query<BomHeaderRow>(
       `insert into public.bom_headers
          (org_id, product_id, item_id, npd_project_id, origin_module, status, version, yield_pct,
-          effective_from, notes, created_by_user, app_version)
+          line_basis, effective_from, notes, created_by_user, app_version)
        values
          (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), $2::uuid, 'npd', 'draft', $3, $4::numeric,
-          current_date, $5, $6::uuid, 'npd-release-materialize-v1')
+          'per_box', current_date, $5, $6::uuid, 'npd-release-materialize-v1')
        returning id, version`,
       [
         productCode,

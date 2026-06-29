@@ -58,6 +58,7 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     if (sql.startsWith('insert into public.items')) {
       return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
     }
+    if (sql.startsWith('update public.items')) return [];
     if (sql.startsWith('select 1 from public.product')) return [];
     if (sql.startsWith('insert into public.product')) return [];
     if (sql.startsWith('update public.formulations')) return [];
@@ -110,6 +111,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.items')) {
         return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
       }
+      if (sql.startsWith('update public.items')) return [];
       if (sql.startsWith('select 1 from public.product')) return [];
       if (sql.startsWith('insert into public.product')) return [];
       if (sql.startsWith('update public.formulations')) return [];
@@ -145,6 +147,10 @@ describe('materializeNpdBom', () => {
     expect(client.calls.filter((call) => normalize(call.sql).startsWith('insert into public.bom_lines'))).toHaveLength(2);
     const bomLineInserts = client.calls.filter((c) => normalize(c.sql).startsWith('insert into public.bom_lines'));
     expect(bomLineInserts[0]?.params[4]).toBe('5.000000');
+    const bomHeaderInsert = client.calls.find((c) => normalize(c.sql).startsWith('insert into public.bom_headers'));
+    expect(bomHeaderInsert?.sql).toContain('per_box');
+    const itemsInsert = client.calls.find((c) => normalize(c.sql).startsWith('insert into public.items'));
+    expect(itemsInsert?.params).toContain(4);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('update public.bom_headers'))).toBe(true);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.factory_specs'))).toBe(true);
   });
@@ -180,6 +186,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select id, item_code, name, shelf_life_days')) {
         return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 45 }];
       }
+      if (sql.startsWith('update public.items')) return [];
       if (sql.startsWith('select 1 from public.product')) return [];
       if (sql.startsWith('insert into public.product')) return [];
       if (sql.startsWith('update public.formulations')) return [];
