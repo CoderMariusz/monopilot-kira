@@ -178,7 +178,7 @@ describe('T-052 page — real-data wiring', () => {
 
     const alertsTable = screen.getByRole('table', { name: /launch alerts/i });
     const link = within(alertsTable).getByRole('link', { name: /FA0043/i });
-    expect(link).toHaveAttribute('href', '/fg/FA0043');
+    expect(link).toHaveAttribute('href', '/en/fg/FA0043');
   });
 });
 
