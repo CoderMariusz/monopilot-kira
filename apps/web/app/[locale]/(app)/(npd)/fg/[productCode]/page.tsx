@@ -1526,6 +1526,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       productCode={fa.productCode}
       columns={dept.commercial as FaCommercialColumn[]}
       values={dept.values}
+      dropdowns={dept.dropdowns}
       closedCommercial={closedCommercial}
       briefId={briefId}
       earliest={earliestLaunch}

@@ -114,6 +114,7 @@ function renderReady(overrides?: Partial<React.ComponentProps<typeof FaCommercia
       productCode="FA-1001"
       columns={COLUMNS}
       values={VALUES}
+      dropdowns={{}}
       closedCommercial="No"
       briefId={null}
       earliest={null}
@@ -181,6 +182,36 @@ describe('FaCommercialTab — AC1 prototype parity (fa-screens.jsx:559-586)', ()
       'type',
       'number',
     );
+  });
+
+  it('renders dropdown-typed Commercial columns as Select comboboxes, not text inputs', async () => {
+    const user = userEvent.setup();
+    renderReady({
+      columns: [
+        ...COLUMNS,
+        {
+          key: 'closed_commercial',
+          dataType: 'dropdown',
+          required: false,
+          readOnly: false,
+          dropdownSource: 'CloseConfirm',
+          displayOrder: 8,
+        },
+      ],
+      dropdowns: { CloseConfirm: ['Yes', 'No'] },
+    });
+
+    const closedCommercial = screen.getByRole('combobox', {
+      name: LABELS.fields.closed_commercial,
+    });
+    expect(closedCommercial).toBeInTheDocument();
+    expect(
+      document.querySelector('input[name="closed_commercial"]'),
+    ).not.toBeInTheDocument();
+
+    await user.click(closedCommercial);
+    expect(screen.getByRole('option', { name: 'Yes' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'No' })).toBeInTheDocument();
   });
 
   it('renders Save + Close action buttons', () => {

@@ -55,6 +55,7 @@ import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import { updateFaCell } from '../../../../../../(npd)/fa/actions/update-fa-cell';
 
@@ -75,6 +76,8 @@ export type FaCommercialColumn = {
   readOnly: boolean;
   /** Render the value in a monospace font (e.g. Bar codes / GS1). */
   mono?: boolean;
+  /** Reference dropdown table name (when dataType === 'dropdown'). */
+  dropdownSource?: string;
   /** display_order (ascending) — render order. */
   displayOrder: number;
 };
@@ -117,6 +120,8 @@ export type FaCommercialTabProps = {
   columns: FaCommercialColumn[];
   /** Real product-row values keyed by physical column key (server-loaded). */
   values: Record<string, unknown>;
+  /** Dropdown option values keyed by dropdownSource (Reference tables). */
+  dropdowns: Record<string, string[]>;
   /** closed_commercial value from the real product row ('Yes' → Closed badge). */
   closedCommercial: string | null;
   /** Product's brief_id (real product row). When present, the V08 rule applies. */
@@ -215,18 +220,18 @@ function CommercialField({
   col,
   labels,
   value,
+  options,
   onChange,
 }: {
   col: FaCommercialColumn;
   labels: FaCommercialTabLabels;
   value: string;
+  options: string[];
   onChange: (next: string) => void;
 }) {
   const label = fieldLabel(col, labels);
   const fieldId = `fa-commercial-${col.key}`;
   const isReadOnly = col.readOnly === true;
-  const inputType =
-    col.dataType === 'number' ? 'number' : col.dataType === 'date' ? 'date' : 'text';
   const monoClass = col.mono ? ' font-mono' : '';
 
   if (isReadOnly) {
@@ -246,6 +251,46 @@ function CommercialField({
       </div>
     );
   }
+
+  if (col.dataType === 'dropdown' || col.dataType === 'boolean') {
+    const sourceOptions =
+      col.dataType === 'boolean' && options.length === 0 ? ['Yes', 'No'] : options;
+    const selectOptions = [
+      { value: '', label: '(none)' },
+      ...sourceOptions.map((opt) => ({ value: opt, label: opt })),
+    ];
+    return (
+      <div className="grid gap-1" data-field={col.key}>
+        <label id={`${fieldId}-label`} htmlFor={fieldId} className="text-xs font-medium text-slate-700">
+          {label}
+          {col.required ? <span aria-hidden="true"> *</span> : null}
+        </label>
+        <Select
+          id={fieldId}
+          name={col.key}
+          value={value}
+          onValueChange={onChange}
+          options={selectOptions}
+          aria-labelledby={`${fieldId}-label`}
+          aria-required={col.required || undefined}
+        >
+          <SelectTrigger aria-label={label}>
+            <SelectValue placeholder="(none)" />
+          </SelectTrigger>
+          <SelectContent>
+            {selectOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+
+  const inputType =
+    col.dataType === 'number' ? 'number' : col.dataType === 'date' ? 'date' : 'text';
 
   return (
     <div className="grid gap-1" data-field={col.key}>
@@ -274,6 +319,7 @@ export function FaCommercialTab({
   productCode,
   columns,
   values,
+  dropdowns,
   closedCommercial,
   briefId,
   earliest,
@@ -418,6 +464,7 @@ export function FaCommercialTab({
                     col={col}
                     labels={labels}
                     value={form[col.key] ?? ''}
+                    options={col.dropdownSource ? (dropdowns[col.dropdownSource] ?? []) : []}
                     onChange={(next) => setValue(col.key, next)}
                   />
                 ))}
