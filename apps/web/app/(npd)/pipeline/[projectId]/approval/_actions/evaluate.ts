@@ -16,7 +16,7 @@ export type EvaluateApprovalCriteriaResult =
 
 type FormulationRow = {
   locked_at: Date | null;
-  current_version_id: string | null;
+  locked_version_id: string | null;
 };
 
 type NutritionRow = {
@@ -98,15 +98,26 @@ export async function evaluateApprovalCriteria(
       const projectId = project.rows[0]?.id;
 
       const formulation = await client.query<FormulationRow>(
-        `select locked_at, current_version_id
-           from public.formulations
-          where product_code = $1
-            and org_id = app.current_org_id()
-          order by locked_at desc nulls last, created_at desc
+        // Bug-2 fix: evaluate the highest LOCKED formulation version, NOT current_version_id.
+        // create-version moves current_version_id to the newest DRAFT (e.g. v2), which has no
+        // computed NutriScore yet → C2 read the draft and reported 'pending', falsely blocking
+        // approval even though a locked v1 had everything. An unlocked draft must be ignored;
+        // only locked versions count for approval.
+        `select f.locked_at,
+                (select fv.id
+                   from public.formulation_versions fv
+                  where fv.formulation_id = f.id
+                    and fv.state = 'locked'
+                  order by fv.version_number desc
+                  limit 1) as locked_version_id
+           from public.formulations f
+          where f.product_code = $1
+            and f.org_id = app.current_org_id()
+          order by f.locked_at desc nulls last, f.created_at desc
           limit 1`,
         [productCode],
       );
-      const formulationRow = formulation.rows[0] ?? { locked_at: null, current_version_id: null };
+      const formulationRow = formulation.rows[0] ?? { locked_at: null, locked_version_id: null };
 
       const nutrition = await client.query<NutritionRow>(
         `select grade
@@ -119,7 +130,7 @@ export async function evaluateApprovalCriteria(
             )
           order by computed_at desc
           limit 1`,
-        [productCode, formulationRow.current_version_id],
+        [productCode, formulationRow.locked_version_id],
       );
 
       const costing = await client.query<CostingRow>(
