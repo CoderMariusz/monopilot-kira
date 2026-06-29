@@ -34,6 +34,7 @@ export type GenerateProductionBomError =
   | 'forbidden'
   | 'no_recipe'
   | 'production_code_conflict'
+  | 'packs_per_box_required'
   | 'bom_materialization_failed'
   | 'persistence_failed';
 
@@ -70,6 +71,9 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
       const materialized = await materializeNpdBom(ctx, { projectId });
       if (materialized.code === 'PRODUCTION_CODE_CONFLICT') {
         return { ok: false as const, error: 'production_code_conflict' as const };
+      }
+      if (materialized.code === 'PACKS_PER_BOX_REQUIRED') {
+        return { ok: false as const, error: 'packs_per_box_required' as const };
       }
       // No locked formulation / no ingredients ⇒ no BOM could be built.
       if (!materialized.bomHeaderId) {

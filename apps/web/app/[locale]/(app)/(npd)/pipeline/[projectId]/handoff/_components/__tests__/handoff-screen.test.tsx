@@ -86,6 +86,7 @@ const LABELS: HandoffLabels = {
   generating: 'L_GENERATING',
   generateBomHint: 'L_GEN_HINT',
   generateNoRecipe: 'L_GEN_NO_RECIPE',
+  generatePacksPerBoxRequired: 'L_GEN_PACKS_PER_BOX',
   generateError: 'L_GEN_ERR',
   promoteSuccessTitle: 'L_PROMOTE_OK_TITLE',
   promoteSuccessBody: 'Created FG {code}',
@@ -389,6 +390,28 @@ describe('HandoffScreen — Generate production BOM (deadlock break)', () => {
     const err = await screen.findByTestId('handoff-generate-error');
     expect(err).toHaveAttribute('role', 'alert');
     expect(err).toHaveTextContent('L_GEN_NO_RECIPE');
+  });
+
+  it('shows the packs-per-box message on { ok:false, error:packs_per_box_required } (S0a contract)', async () => {
+    const onGenerate = vi
+      .fn()
+      .mockResolvedValue({ ok: false, error: 'packs_per_box_required' });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-generate-btn'));
+    const err = await screen.findByTestId('handoff-generate-error');
+    expect(err).toHaveAttribute('role', 'alert');
+    expect(err).toHaveTextContent('L_GEN_PACKS_PER_BOX');
+    // Must NOT collapse to the generic copy.
+    expect(err).not.toHaveTextContent('L_GEN_ERR');
   });
 
   it('shows the generic generate error for other failures (e.g. persistence_failed)', async () => {

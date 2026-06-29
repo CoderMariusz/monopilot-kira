@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { materializeNpdBom } from '../materialize-npd-bom';
+import { computeBomLineQty, materializeNpdBom } from '../materialize-npd-bom';
 import { type QueryClient } from '../../shared';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
@@ -37,6 +37,7 @@ function projectRow() {
     current_stage: 'handoff',
     product_code: 'FG-001',
     pack_weight_g: '200.000',
+    packs_per_case: 4,
   };
 }
 
@@ -73,6 +74,25 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     throw new Error(`Unhandled SQL: ${sql}`);
   });
 }
+
+describe('computeBomLineQty', () => {
+  it('multiplies per-pack qty by packs-per-box', () => {
+    expect(computeBomLineQty(1.25, 4)).toBeCloseTo(5, 6);
+  });
+  it('1 pack per box is identity', () => {
+    expect(computeBomLineQty(0.5, 1)).toBeCloseTo(0.5, 6);
+  });
+  it('yield loss inflates real consumption', () => {
+    expect(computeBomLineQty(1, 2, 50)).toBeCloseTo(4, 6); // 2 / 0.5
+  });
+  it('100% yield is a no-op', () => {
+    expect(computeBomLineQty(1, 2, 100)).toBeCloseTo(2, 6);
+  });
+  it('out-of-range yield falls back to no-op', () => {
+    expect(computeBomLineQty(1, 2, 0)).toBeCloseTo(2, 6);
+    expect(computeBomLineQty(1, 2, 150)).toBeCloseTo(2, 6);
+  });
+});
 
 describe('materializeNpdBom', () => {
   it('creates the missing FG item, product, active NPD BOM lines, and approved factory spec', async () => {
@@ -123,6 +143,8 @@ describe('materializeNpdBom', () => {
       createdFactorySpec: true,
     });
     expect(client.calls.filter((call) => normalize(call.sql).startsWith('insert into public.bom_lines'))).toHaveLength(2);
+    const bomLineInserts = client.calls.filter((c) => normalize(c.sql).startsWith('insert into public.bom_lines'));
+    expect(bomLineInserts[0]?.params[4]).toBe('5.000000');
     expect(client.calls.some((call) => normalize(call.sql).startsWith('update public.bom_headers'))).toBe(true);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.factory_specs'))).toBe(true);
   });
@@ -180,5 +202,61 @@ describe('materializeNpdBom', () => {
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_headers'))).toBe(false);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_lines'))).toBe(false);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.factory_specs'))).toBe(false);
+  });
+
+  it('returns PACKS_PER_BOX_REQUIRED WITHOUT writing the FG item or closeout stamp when packs-per-box is unset and no BOM exists', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), packs_per_case: 0 }];
+      if (sql.startsWith('select id from public.items where org_id')) return []; // no production-code conflict
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return []; // no existing BOM
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    const result = await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    expect(result.code).toBe('PACKS_PER_BOX_REQUIRED');
+    expect(result.bomHeaderId).toBeNull();
+    // The gate MUST fire BEFORE any product/item write — otherwise withOrgContext commits the
+    // ensureFgItemAndProduct insert + the stampProductCloseoutInputs locked-for-release stamp,
+    // wedging the project (locked-for-release with no BOM, unrevertable via NPD_RELEASE_LOCKED).
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('insert into public.items'))).toBe(false);
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('insert into public.product'))).toBe(false);
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('update public.product'))).toBe(false);
+  });
+
+  it('does NOT require packs-per-box on an idempotent re-run when an active BOM already exists', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), packs_per_case: 0 }];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
+      }
+      if (sql.startsWith('insert into public.items')) return [];
+      if (sql.startsWith('select id, item_code, name, shelf_life_days')) {
+        return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 45 }];
+      }
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select h.id, h.version')) return [{ id: BOM, version: 2 }];
+      if (sql.startsWith('select id from public.factory_specs')) return [{ id: SPEC }];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    const result = await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    expect(result.code).toBeUndefined();
+    expect(result.bomHeaderId).toBe(BOM);
   });
 });

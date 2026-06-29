@@ -133,6 +133,8 @@ export type HandoffLabels = {
   generateBomHint: string;
   /** Special-cased error message when no recipe is locked yet. */
   generateNoRecipe: string;
+  /** Special-cased error when the FG has no packs-per-box set (S0a contract). */
+  generatePacksPerBoxRequired: string;
   generateError: string;
   // Post-promote success panel (auto-built production BOM result).
   promoteSuccessTitle: string;
@@ -461,8 +463,13 @@ export function HandoffScreen({
     try {
       const result = await onGenerate({ projectId: data!.projectId });
       if (!result.ok) {
-        // Special-case no_recipe; everything else falls back to the generic copy.
-        setGenerateError(result.error === 'no_recipe' ? 'no_recipe' : 'error');
+        // Special-case no_recipe + packs_per_box_required (S0a contract);
+        // everything else falls back to the generic copy.
+        setGenerateError(
+          result.error === 'no_recipe' ? 'no_recipe'
+          : result.error === 'packs_per_box_required' ? 'packs_per_box_required'
+          : 'error',
+        );
       } else {
         // The BOM now exists. Surface the same auto-built result panel + yield
         // prompt the promote flow uses (so a yield-less recipe can be corrected
@@ -790,6 +797,8 @@ export function HandoffScreen({
                     <div className="alert-title">
                       {generateError === 'no_recipe'
                         ? labels.generateNoRecipe
+                        : generateError === 'packs_per_box_required'
+                        ? labels.generatePacksPerBoxRequired
                         : labels.generateError}
                     </div>
                   </div>

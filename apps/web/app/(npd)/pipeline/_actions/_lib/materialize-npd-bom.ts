@@ -16,6 +16,7 @@ type MaterializeNpdBomInput = {
 
 type ProjectRow = GateProjectRow & {
   pack_weight_g: string | null;
+  packs_per_case: number | null;
 };
 
 type LockedFormulationRow = {
@@ -68,7 +69,7 @@ type DbErrorLike = {
 };
 
 export type MaterializeNpdBomResult = {
-  code?: 'PRODUCTION_CODE_CONFLICT';
+  code?: 'PRODUCTION_CODE_CONFLICT' | 'PACKS_PER_BOX_REQUIRED';
   projectId: string;
   productCode: string | null;
   productionCode: string | null;
@@ -104,10 +105,25 @@ export async function materializeNpdBom(
   }
 
   const ingredients = await loadIngredients(ctx, formulation.version_id);
+
+  // v2 anchor #2: a production BOM is built PER BOX, so packs-per-box must be set before we can
+  // create one. This gate MUST run BEFORE ensureFgItemAndProduct/stampProductCloseoutInputs:
+  // those WRITE (insert the FG item + product row, stamp npd_locked_for_release_at) and this
+  // function RETURNS (not throws) on the missing-packs path, so withOrgContext would COMMIT those
+  // writes — leaving the project locked-for-release with NO BOM and unrevertable
+  // (revertNpdGate → NPD_RELEASE_LOCKED). Only required when actually CREATING new lines: an
+  // existing BOM is reused unchanged (idempotent re-run from promote), so this never blocks then.
+  const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
+  if (!existingBom && ingredients.length > 0 && Number(project.packs_per_case ?? 0) <= 0) {
+    return {
+      code: 'PACKS_PER_BOX_REQUIRED',
+      ...emptyResult(project.id, project.product_code, productionCode),
+    };
+  }
+
   const item = await ensureFgItemAndProduct(ctx, project, formulation);
   await stampProductCloseoutInputs(ctx, project, item);
 
-  const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
   const bom = existingBom ?? (ingredients.length > 0
     ? await createActiveNpdBom(ctx, project, formulation, ingredients)
     : null);
@@ -157,7 +173,7 @@ export async function materializeNpdBom(
 
 async function loadProject(ctx: OrgContextLike, projectId: string): Promise<ProjectRow | null> {
   const { rows } = await ctx.client.query<ProjectRow>(
-    `select id, code, name, type, current_gate, current_stage, product_code, pack_weight_g::text as pack_weight_g
+    `select id, code, name, type, current_gate, current_stage, product_code, pack_weight_g::text as pack_weight_g, packs_per_case
        from public.npd_projects
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -402,10 +418,11 @@ async function createActiveNpdBom(
   const header = rows[0];
   if (!header) throw new Error('bom_headers insert returned no row');
 
-  const qtyMultiplier = project.pack_weight_g ? Number(project.pack_weight_g) / 1000 : 1;
+  const packsPerBox = Number(project.packs_per_case ?? 0);
   for (let index = 0; index < ingredients.length; index++) {
     const ingredient = ingredients[index]!;
-    const quantity = (Number(ingredient.qty_kg ?? 0) * qtyMultiplier).toFixed(6);
+    // per-box, yield 100 for now (per-component yield wired in S4)
+    const quantity = computeBomLineQty(Number(ingredient.qty_kg ?? 0), packsPerBox).toFixed(6);
     await ctx.client.query(
       `insert into public.bom_lines
          (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
@@ -429,6 +446,7 @@ async function createActiveNpdBom(
   for (let index = 0; index < packagingComponents.length; index++) {
     const component = packagingComponents[index]!;
     const lineNo = ingredients.length + index + 1;
+    const pmQty = (Number(component.qty) * packsPerBox).toFixed(6);
     await ctx.client.query(
       `insert into public.bom_lines
          (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
@@ -441,7 +459,7 @@ async function createActiveNpdBom(
         lineNo,
         component.item_id,
         component.component_name,
-        component.qty,
+        pmQty,
         'NPD packaging',
         lineNo,
       ],
@@ -493,6 +511,20 @@ function normalizeBomYieldPct(targetYieldPct: string | null): string {
   const numeric = Number(trimmed);
   if (!Number.isFinite(numeric) || numeric <= 0 || numeric > 100) return '100';
   return trimmed;
+}
+
+/**
+ * Per-box, yield-adjusted BOM line quantity.
+ * formulation_ingredients.qty_kg is per PACK. A box holds packsPerBox packs, so the
+ * nominal per-box quantity = qtyKgPerPack × packsPerBox. Real consumption divides by the
+ * component yield fraction (yield loss inflates usage). yieldPct defaults to 100 (no loss);
+ * a real per-component yield arrives with the NPD v2 WIP routing (slice S4). An out-of-range
+ * yield (<=0 or >100) is treated as 100 (no-op) so the formula is always safe.
+ */
+export function computeBomLineQty(qtyKgPerPack: number, packsPerBox: number, yieldPct = 100): number {
+  const nominalPerBox = qtyKgPerPack * packsPerBox;
+  const yieldFraction = yieldPct > 0 && yieldPct <= 100 ? yieldPct / 100 : 1;
+  return nominalPerBox / yieldFraction;
 }
 
 function formatBomHeaderInsertError(error: unknown): string {

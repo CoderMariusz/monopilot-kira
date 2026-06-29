@@ -651,7 +651,13 @@ function isMissingFgCodeMaskError(error: unknown): boolean {
 }
 
 function fallbackFgProductCode(projectCode: string): string {
-  return `FG-${projectCode}`;
+  // Plan→FG: the FG code drops the "NPD" project prefix so NPD-012 → FG-012 (NOT FG-NPD-012).
+  // Safe because the FG↔project link is a stored FK (npd_projects.product_code / items.npd_project_id),
+  // never re-parsed back out of the code string — so the produced code can be a clean FG-<number>.
+  // Used by BOTH the create path (normalizeProductCode) and the suggested-code peek, so the modal
+  // preview and the actually-created code stay identical.
+  const numericPart = projectCode.replace(/^NPD[-_ ]?/i, '');
+  return `FG-${numericPart}`;
 }
 
 export function serializeGateError(error: unknown):

@@ -19,6 +19,8 @@ gates + applies migrations.
 7. Production uses **dynamic WIP processes** (NOT the 4 hardcoded read-only "PR" cells).
    Rename PR → WIP. Each operation yields a WIP product whose cost = RM cost + process cost,
    yield-adjusted.
+8. **Plan→FG code drops the "NPD" segment.** When a project is promoted to an FG, the FG code is
+   `FG-<number>` (e.g. `NPD-012` → **`FG-012`**), NOT `FG-NPD-012`. Owner add 2026-06-29.
 
 Companion findings: `_meta/plans/2026-06-29-npd-bugs-and-wip-redesign.md`,
 `_meta/plans/2026-06-26-product-items-merge-design.md`,
@@ -407,6 +409,8 @@ S6 → S7 → S8 (the big repoint) → S9 → S11 → S10 (drops last, after soa
   - **Role RATES are configured in Settings** (NEW roles-rate config table: role → rate).
   - **`process_cost = Σ(role_rate × headcount × time) + additional_cost`**; WIP component cost = RM cost + Σ process_cost, yield-adjusted (§5).
   - SCHEMA IMPACT: `npd_wip_processes` needs duration/time + additional_cost; a `npd_wip_process_roles` link (process_id, role_id, headcount); a Settings `role_rates` table (role_id → rate). Costing rollup reads these.
+
+- **D7 ✅ Plan→FG code drops "NPD" (anchor #8).** `NPD-012` → **`FG-012`** (not `FG-NPD-012`). SHIPPED in S0: `fallbackFgProductCode` (gate-helpers.ts) now strips a leading `NPD-` before the `FG-` prefix, so BOTH the suggested-code preview (`peekSuggestedFgCandidateCode`) and the real create path produce the clean code. SAFE because the FG↔project link is a stored FK (`npd_projects.product_code` / `items.npd_project_id`), never re-parsed out of the code string — so this also sidesteps the deferred FG-002 split-brain (the production code = the stored product_code = `FG-012`; `deriveProductionCode` stays identity, preflight finds the BOM/spec). NOTE: only affects NEW project→FG creations; existing `FG-NPD-*` codes are unchanged (renaming an existing FG's product_code is FK-entangled — separate gated decision if the owner wants it). If an org configures an FG code mask (`org_document_settings`), the mask path takes over and defines the format instead.
 
 **Revised slice notes:** S1 also collapses the seeded dept set to Core+Production (existing org: deactivate the other 5, keep dynamic-add). S3/S4 add the process→role→headcount→time→rate→cost model + the Settings role-rate config. S5 Production-tab process row requires role+headcount+time; close-gate = ≥1 process. The field cull + 2-dept collapse is content work in S1/S2 + the new-org seed (S9).
 

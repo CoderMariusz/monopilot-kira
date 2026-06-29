@@ -81,6 +81,23 @@ export async function releaseNpdProjectToFactory(
           ],
         };
       }
+      if (materialized.code === 'PACKS_PER_BOX_REQUIRED') {
+        // The production BOM is materialized PER BOX, so packs-per-box must be set first.
+        // materializeNpdBom returns BEFORE any product/item write on this path (no wedge), so
+        // surface a packs-specific blocker rather than letting the preflight emit the generic
+        // ACTIVE_SHARED_BOM_REQUIRED for the (correctly) absent BOM.
+        return {
+          ok: false,
+          error: 'PRECONDITION_BLOCKERS',
+          status: 409,
+          blockers: [
+            {
+              code: 'ACTIVE_SHARED_BOM_REQUIRED',
+              message: 'Set packs-per-box on the FG before generating the production BOM.',
+            },
+          ],
+        };
+      }
       const ready = await runReleasePreflight(context, parsed.data);
 
       const releaseEventId = await insertReleasedToFactoryEvent(context, {

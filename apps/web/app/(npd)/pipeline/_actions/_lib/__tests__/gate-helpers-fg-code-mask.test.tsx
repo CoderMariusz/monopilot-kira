@@ -70,12 +70,13 @@ describe('FG candidate code-mask generation', () => {
   it.each([
     ['entity_code_settings_missing', null],
     ['entity_code_mask_missing', { old_seq: 7, code_mask: null }],
-  ])('createFgCandidate falls back to FG-${projectCode} when nextEntityCode throws %s', async (_label, row) => {
+  ])('createFgCandidate falls back to FG-<number> (NPD prefix stripped) when nextEntityCode throws %s', async (_label, row) => {
     const ctx = makeCtx(createCandidateHandler(row));
 
     const result = await createFgCandidate(ctx, makeProject());
 
-    expect(result).toMatchObject({ productCode: 'FG-NPD-123', created: true, mapped: true });
+    // Plan→FG: NPD-123 → FG-123 (the "NPD-" project prefix is dropped, not carried into the FG code).
+    expect(result).toMatchObject({ productCode: 'FG-123', created: true, mapped: true });
   });
 
   it('suggested-code peek renders the fg mask without incrementing next_seq', async () => {

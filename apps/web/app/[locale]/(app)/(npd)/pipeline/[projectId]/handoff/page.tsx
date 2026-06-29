@@ -103,6 +103,7 @@ const DEFAULT_LABELS: HandoffLabels = {
   generateBomHint:
     'Two steps: first Generate the production BOM, review or correct it in Technical, then Promote to release it.',
   generateNoRecipe: 'Lock a recipe first, then generate the production BOM.',
+  generatePacksPerBoxRequired: 'Set packs-per-box on the FG before generating the production BOM.',
   generateError: 'Could not generate the production BOM. Try again.',
   promoteSuccessTitle: 'Production BOM created',
   promoteSuccessBody: 'Production FG {code} was created and its BOM auto-built.',
