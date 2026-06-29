@@ -21,6 +21,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 import { Dec } from '@monopilot/domain';
 import { Badge } from '@monopilot/ui/Badge';
@@ -35,6 +36,13 @@ import {
 } from '../../../../_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
 import { symbolFor } from './cost-panel';
+
+const LOCALES = ['en', 'pl', 'ro', 'uk'];
+
+function localePrefixFrom(pathname: string | null): string {
+  const segment = (pathname ?? '/').split('/')[1] ?? '';
+  return LOCALES.includes(segment) ? `/${segment}` : '';
+}
 
 export type IngredientField = 'rmCode' | 'name' | 'qtyKg' | 'pct' | 'costPerKgEur' | 'itemId';
 
@@ -131,6 +139,7 @@ export function IngredientRow({
   onCommit: (index: number) => void;
   onDelete: (index: number) => void;
 }) {
+  const pathname = usePathname();
   const contribution = computeContribution(ingredient.qtyKg, ingredient.costPerKgEur);
   const qtyErrorId = `ing-${ingredient.id}-qty-error`;
   const rmErrorId = `ing-${ingredient.id}-rm-error`;
@@ -161,7 +170,7 @@ export function IngredientRow({
               row controls are unchanged. */}
           {ingredient.rmCode ? (
             <Link
-              href={`/technical/items/${encodeURIComponent(ingredient.rmCode)}`}
+              href={`${localePrefixFrom(pathname)}/technical/items/${encodeURIComponent(ingredient.rmCode)}`}
               prefetch={false}
               data-testid="ingredient-open-in-technical"
               title={labels.openInTechnical ?? 'Open item in Technical'}

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 import { EmptyState } from '@monopilot/ui/EmptyState';
@@ -542,6 +543,7 @@ function RoleAssignDialog({
   assignRoleAction?: AssignRoleAction;
   onFeedback: (feedback: { kind: 'status' | 'alert'; message: string } | null) => void;
 }) {
+  const router = useRouter();
   const [roleId, setRoleId] = useState(draft?.roleId ?? '');
   const [isPending, startTransition] = useTransition();
 
@@ -574,6 +576,7 @@ function RoleAssignDialog({
       if (result.ok) {
         onFeedback({ kind: 'status', message: labels.roleAssignmentSuccess ?? 'Role updated.' });
         onClose();
+        router.refresh();
         return;
       }
       onFeedback({
@@ -667,6 +670,7 @@ function AssignSitesDialog({
   // Pre-check the user's current assignments; an empty set means "unrestricted"
   // (0 rows) which the help text explains. The selection set is the
   // authoritative payload — assignUserSites REPLACES the assignments.
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
 
@@ -697,6 +701,7 @@ function AssignSitesDialog({
       if (result.ok) {
         onFeedback({ kind: 'status', message: labels.sitesAssignmentSuccess ?? 'Site access updated.' });
         onClose();
+        router.refresh();
         return;
       }
       onFeedback({

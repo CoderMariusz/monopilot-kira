@@ -203,7 +203,7 @@ function mapDeptColumn(row: DeptColumnRow, index: number): GenericDeptColumn {
     ? 'dropdown'
     : ft === 'number' || ft === 'integer'
       ? 'number'
-      : ft === 'date' || ft === 'date-time'
+      : ft === 'date' || ft === 'datetime' || ft === 'date-time'
         ? 'date'
         : ft === 'boolean'
           ? 'boolean'
@@ -1415,6 +1415,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       lines={bomLoad.state === 'ready' ? bomLoad.lines : []}
       labels={bomLabels}
       state={bomLoad.state === 'ready' ? 'ready' : 'empty'}
+      technicalBomHref={`/${locale}/technical/bom`}
       onExportCsv={injected ? undefined : bom_export_csv}
     />
   );

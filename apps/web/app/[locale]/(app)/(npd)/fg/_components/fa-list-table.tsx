@@ -470,7 +470,7 @@ export function FaListTable({
                 return (
                   <tr key={row.productCode} data-testid={`fa-list-row-${row.productCode}`} data-status={status}>
                     <td className="mono">
-                      <Link href={`/fg/${row.productCode}`} prefetch style={{ color: 'var(--blue)' }}>
+                      <Link href={`${localePrefixFrom(pathname)}/fg/${row.productCode}`} prefetch style={{ color: 'var(--blue)' }}>
                         {row.productCode}
                       </Link>
                     </td>
@@ -508,7 +508,7 @@ export function FaListTable({
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <Link
-                        href={`/fg/${row.productCode}`}
+                        href={`${localePrefixFrom(pathname)}/fg/${row.productCode}`}
                         prefetch
                         className="btn btn-ghost btn-sm"
                         style={{ textDecoration: 'none' }}
@@ -547,7 +547,7 @@ export function FaListTable({
                   return (
                     <Link
                       key={f.productCode}
-                      href={`/fg/${f.productCode}`}
+                      href={`${localePrefixFrom(pathname)}/fg/${f.productCode}`}
                       prefetch
                       data-testid={`fa-kanban-card-${f.productCode}`}
                       style={{

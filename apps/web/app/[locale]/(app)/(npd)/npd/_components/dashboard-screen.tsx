@@ -544,7 +544,7 @@ export function DashboardScreen({
                                     <a
                                       className="mono font-semibold"
                                       style={{ color: 'var(--blue)' }}
-                                      href={`/fg/${encodeURIComponent(fa.productCode)}`}
+                                      href={`${localePrefixFrom(pathname)}/fg/${encodeURIComponent(fa.productCode)}`}
                                     >
                                       {fa.productCode}
                                     </a>
@@ -648,7 +648,7 @@ export function DashboardScreen({
                   return (
                     <TableRow key={a.productCode} className={`${rowTone} ${borderTone}`}>
                       <TableCell className="mono">
-                        <a style={{ color: 'var(--blue)' }} href={`/fg/${encodeURIComponent(a.productCode)}`}>
+                        <a style={{ color: 'var(--blue)' }} href={`${localePrefixFrom(pathname)}/fg/${encodeURIComponent(a.productCode)}`}>
                           {a.productCode}
                         </a>
                       </TableCell>
@@ -666,7 +666,7 @@ export function DashboardScreen({
                         {a.missingData ?? '—'}
                       </TableCell>
                       <TableCell>
-                        <a className="btn btn-secondary btn-sm" href={`/fg/${encodeURIComponent(a.productCode)}`}>
+                        <a className="btn btn-secondary btn-sm" href={`${localePrefixFrom(pathname)}/fg/${encodeURIComponent(a.productCode)}`}>
                           {labels.openFa} →
                         </a>
                       </TableCell>
