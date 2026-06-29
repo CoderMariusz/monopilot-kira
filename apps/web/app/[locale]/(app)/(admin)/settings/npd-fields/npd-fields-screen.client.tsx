@@ -19,12 +19,7 @@ import {
 
 const STAGE_CODES = ['brief', 'recipe', 'packaging', 'trial', 'sensory', 'pilot', 'approval', 'handoff'] as const;
 
-/**
- * Data types exposed in the management UI. The catalog action accepts a wider
- * union, but this slice deliberately limits the picker to {text, number, date}
- * — the dynamic 'auto'/formula source is a later slice (do not expose here).
- */
-const UI_DATA_TYPES = ['text', 'number', 'date'] as const;
+const UI_DATA_TYPES = ['text', 'integer', 'number', 'date', 'datetime', 'boolean', 'dropdown', 'formula'] as const;
 
 type StageCode = (typeof STAGE_CODES)[number];
 type UiDataType = (typeof UI_DATA_TYPES)[number];
@@ -341,8 +336,13 @@ export default function NpdFieldsScreen({
   const stageOptions = STAGE_CODES.map((stage) => ({ value: stage, label: labels.stages[stage] }));
   const dataTypeOptions: Array<{ value: UiDataType; label: string }> = [
     { value: 'text', label: labels.dataTypeText },
+    { value: 'integer', label: 'integer' },
     { value: 'number', label: labels.dataTypeNumber },
     { value: 'date', label: labels.dataTypeDate },
+    { value: 'datetime', label: 'datetime' },
+    { value: 'boolean', label: 'boolean' },
+    { value: 'dropdown', label: 'dropdown' },
+    { value: 'formula', label: 'formula' },
   ];
   const editDisabled = !canEdit || pendingTarget !== null;
 
