@@ -391,4 +391,25 @@ S6 → S7 → S8 (the big repoint) → S9 → S11 → S10 (drops last, after soa
 
 ---
 
+## 10. CONFIRMED OWNER DECISIONS (2026-06-29) — BUILD FROM THESE
+
+- **D1 ✅ YES** — packs-per-box = `items.each_per_box`; retire `packs_per_case`.
+- **D2 ✅ YES** — long-tail dept fields → `project.field_values jsonb` (keyed by catalog code); cross-module essentials stay real columns.
+- **D3 ✅ CUT TO MINIMUM + COLLAPSE TO 2 DEPARTMENTS: `Core` + `Production`** (was 7: Core/Commercial/Planning/Production/Technical/MRP/Procurement). The dynamic **add-department + assign-columns** capability STAYS (an org can add more depts/fields later). Minimal field set the owner specified:
+  - **Components (RM/ingredients)** added WITH: **each-per-box**, **component prices**, **attach documentation** — these live where you add components.
+  - **launch day**, **line** (where it's produced), **processes** (what it has).
+  - Claude-suggested KEEP (owner to confirm during build): product **name + FG code**, **pack weight** (drives box weight), **target retail price**; the **recipe** (ingredients) itself; **allergens/nutrition derived from recipe** (regulatory, not hand-entered). CUT: Commercial/Planning/MRP/Procurement/Technical dept fields, the W1/W2/W3 cases-per-week triplet, all duplicated descriptive fields (or make them add-as-needed).
+- **D4 ✅** — WIP `items` row created ONLY when the owner ticks "create WIP item" (cost still rolls up without a stored item).
+- **D5 ✅ KEEP `public.product` view FOR NOW** (owner may want the drop later, NOT yet) → DEFER the product-view drop in S10; other drops may proceed.
+- **D6 ✅ Production close REQUIRES ≥1 process.** RICHER PROCESS MODEL (supersedes §4's sketch):
+  - A process has **TIME (duration)** and/or **RATE**, and a **COST**.
+  - When elaborated, a process gets: assigned **ROLE(s)** + **HEADCOUNT per role** + how long it runs + an **additional cost**.
+  - **Role RATES are configured in Settings** (NEW roles-rate config table: role → rate).
+  - **`process_cost = Σ(role_rate × headcount × time) + additional_cost`**; WIP component cost = RM cost + Σ process_cost, yield-adjusted (§5).
+  - SCHEMA IMPACT: `npd_wip_processes` needs duration/time + additional_cost; a `npd_wip_process_roles` link (process_id, role_id, headcount); a Settings `role_rates` table (role_id → rate). Costing rollup reads these.
+
+**Revised slice notes:** S1 also collapses the seeded dept set to Core+Production (existing org: deactivate the other 5, keep dynamic-add). S3/S4 add the process→role→headcount→time→rate→cost model + the Settings role-rate config. S5 Production-tab process row requires role+headcount+time; close-gate = ≥1 process. The field cull + 2-dept collapse is content work in S1/S2 + the new-org seed (S9).
+
+---
+
 **Saved to:** `_meta/plans/2026-06-29-npd-v2-redesign-plan.md`
