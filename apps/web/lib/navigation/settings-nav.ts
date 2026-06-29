@@ -62,6 +62,13 @@ export const SETTINGS_NAV_GROUPS = [
     item("processes", "Processes", "⟶", true),
     item("machines", "Machines", "⚙"),
     item("manufacturing-ops", "Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
+    // NPD v2 S5a (owner decision D9) — per-process production DEFAULTS (standard
+    // cost + default duration + roles[role_group, headcount]) that pre-fill the
+    // NPD Production tab. Sits next to Manufacturing operations / Processes so the
+    // screen is not a URL-only dead-end. RBAC (settings.org.update) is enforced
+    // server-side on the page/actions; the nav stays ungated per the UI-128
+    // RBAC_TODO contract.
+    item("process-defaults", "Process defaults", "⚙", false, "/settings/process-defaults"),
     item("partners", "Suppliers & customers", "↔"),
     item("units", "Units & conversions", "⚖"),
     // E2B — cold-chain product temperature ranges (mig 315). Master config that
