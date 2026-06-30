@@ -558,12 +558,16 @@ export function DisassemblyBomCreate({
       return;
     }
     contentRef.current?.focus();
+  }, [open, initialType]);
+
+  React.useEffect(() => {
+    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose, initialType]);
+  }, [open, onClose]);
 
   React.useEffect(() => {
     if (!open) return;

@@ -55,6 +55,10 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
       return;
     }
     contentRef.current?.focus();
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };

@@ -98,12 +98,16 @@ export function AllergenDeclarationModal({
     });
     setError(null);
     contentRef.current?.focus();
+    // initial is intentionally read on open only (modal seeds once per open).
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-    // initial is intentionally read on open only (modal seeds once per open).
   }, [open, onClose]);
 
   if (!open) return null;

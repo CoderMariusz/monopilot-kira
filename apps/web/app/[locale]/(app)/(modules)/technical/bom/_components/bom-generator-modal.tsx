@@ -57,6 +57,10 @@ function Dialog({
   React.useEffect(() => {
     if (!open) return;
     contentRef.current?.focus();
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };

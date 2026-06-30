@@ -121,6 +121,9 @@ function Modal({
 
   React.useEffect(() => {
     contentRef.current?.focus();
+  }, []);
+
+  React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };

@@ -91,8 +91,15 @@ function Modal({
   const titleId = React.useId();
   const contentRef = React.useRef<HTMLDivElement | null>(null);
 
+  // Autofocus the dialog ONCE on open. This must NOT depend on `onClose` (an
+  // unstable callback recreated every parent render): if it did, every keystroke
+  // re-ran the effect and re-focused this div, yanking focus out of the input
+  // after one character. Mount-only deps fix the focus-loss bug.
   React.useEffect(() => {
     contentRef.current?.focus();
+  }, []);
+
+  React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };

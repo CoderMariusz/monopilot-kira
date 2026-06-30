@@ -91,6 +91,10 @@ export function CreateEcoModal({
       return;
     }
     contentRef.current?.focus();
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && state !== 'submitting') onClose();
     };
