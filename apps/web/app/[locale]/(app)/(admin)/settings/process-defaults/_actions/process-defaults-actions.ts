@@ -5,7 +5,10 @@ import { z } from 'zod';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import type { ProcessDefaultRole, ProcessDefaultRow } from './process-defaults-types';
 
-export type { ProcessDefaultRole, ProcessDefaultRow };
+// NOTE: this is a 'use server' module → it must export ONLY async functions. Next's RSC transform
+// registers EVERY named export as a server action, so a re-exported/exported TYPE becomes a phantom
+// action ref that fails `next build` ("export not found" — tsc does NOT catch this). Types live in
+// ./process-defaults-types and are imported with `import type`; result-type aliases below stay LOCAL.
 
 const EDIT_PERMISSION = 'npd.schema.edit';
 
@@ -153,11 +156,11 @@ async function selectProcessDefaultByOperation(
   return mapProcessDefaultRow(row);
 }
 
-export type ListProcessDefaultsResult =
+type ListProcessDefaultsResult =
   | { ok: true; data: ProcessDefaultRow[] }
   | { ok: false; error: string };
-export type UpsertProcessDefaultsResult = { ok: true } | { ok: false; error: string };
-export type GetProcessDefaultResult =
+type UpsertProcessDefaultsResult = { ok: true } | { ok: false; error: string };
+type GetProcessDefaultResult =
   | { ok: true; data: ProcessDefaultRow | null }
   | { ok: false; error: string };
 
