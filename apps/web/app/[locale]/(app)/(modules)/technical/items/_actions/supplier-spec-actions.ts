@@ -64,6 +64,11 @@ const OptionalIsoDate = z.preprocess(
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD')
     .optional(),
 );
+const OptionalUnitPrice = z
+  .number()
+  .nonnegative()
+  .or(z.string().regex(/^\d+(\.\d+)?$/).transform(Number))
+  .optional();
 
 // NOT exported: a zod schema is an OBJECT and 'use server' files may only export
 // async functions (turbopack build error: "found object"). Types below stay.
@@ -75,6 +80,8 @@ const CreateItemSupplierSpecInput = z
     issuedDate: OptionalIsoDate,
     effectiveFrom: OptionalIsoDate,
     expiryDate: OptionalIsoDate,
+    unitPrice: OptionalUnitPrice,
+    priceCurrency: z.string().max(3).optional(),
     /**
      * approve-now: writes the APPROVED + ACTIVE state that satisfies the
      * rm-usability supplier gates. When false the row lands as pending/draft and
@@ -113,6 +120,8 @@ const UpdateItemSupplierSpecInput = z
     issuedDate: OptionalIsoDate,
     effectiveFrom: OptionalIsoDate,
     expiryDate: OptionalIsoDate,
+    unitPrice: OptionalUnitPrice,
+    priceCurrency: z.string().max(3).optional(),
     approveNow: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
@@ -195,11 +204,11 @@ export async function createItemSupplierSpec(
           `insert into public.supplier_specs
              (org_id, item_id, supplier_code, supplier_status, spec_version,
               issued_date, effective_from, expiry_date, lifecycle_status, review_status,
-              cost_review_blocked, spec_review_blocked, uploaded_by)
+              cost_review_blocked, spec_review_blocked, uploaded_by, unit_price, price_currency)
            values
              (app.current_org_id(), $1::uuid, $2, $3, $4,
               $5::date, coalesce($6::date, current_date), $7::date, $8, $9,
-              false, false, $10::uuid)
+              false, false, $10::uuid, $11::numeric, $12)
            on conflict (org_id, item_id, supplier_code)
              where lifecycle_status = 'active' and review_status = 'approved'
            do update set
@@ -207,6 +216,8 @@ export async function createItemSupplierSpec(
              issued_date         = excluded.issued_date,
              effective_from      = excluded.effective_from,
              expiry_date         = excluded.expiry_date,
+             unit_price          = coalesce(excluded.unit_price, public.supplier_specs.unit_price),
+             price_currency      = coalesce(excluded.price_currency, public.supplier_specs.price_currency),
              supplier_status     = 'approved',
              lifecycle_status    = 'active',
              review_status       = 'approved',
@@ -225,6 +236,8 @@ export async function createItemSupplierSpec(
             lifecycleStatus,
             reviewStatus,
             userId,
+            input.unitPrice ?? null,
+            input.priceCurrency ?? null,
           ],
         );
         const written = rows[0];
@@ -245,6 +258,8 @@ export async function createItemSupplierSpec(
             specVersion: input.specVersion,
             effectiveFrom: input.effectiveFrom ?? null,
             expiryDate: input.expiryDate ?? null,
+            unitPrice: input.unitPrice ?? null,
+            priceCurrency: input.priceCurrency ?? null,
           },
         });
 
@@ -289,6 +304,8 @@ export async function updateItemSupplierSpec(
           lifecycle_status: string;
           review_status: string;
           supplier_status: string;
+          unit_price: string | null;
+          price_currency: string | null;
         }>(
           `select id,
                   item_id::text,
@@ -298,7 +315,9 @@ export async function updateItemSupplierSpec(
                   expiry_date::text,
                   lifecycle_status,
                   review_status,
-                  supplier_status
+                  supplier_status,
+                  unit_price::text,
+                  price_currency
              from public.supplier_specs
             where org_id = app.current_org_id()
               and id = $1::uuid
@@ -318,6 +337,8 @@ export async function updateItemSupplierSpec(
           lifecycle_status: string;
           review_status: string;
           supplier_status: string;
+          unit_price: string | null;
+          price_currency: string | null;
         }>(
           `update public.supplier_specs
               set spec_version = coalesce($2, spec_version),
@@ -329,6 +350,8 @@ export async function updateItemSupplierSpec(
                   review_status = case when $6::boolean then 'approved' else review_status end,
                   approved_by = case when $6::boolean then $7::uuid else approved_by end,
                   approved_at = case when $6::boolean then pg_catalog.now() else approved_at end,
+                  unit_price = coalesce($8::numeric, unit_price),
+                  price_currency = coalesce($9, price_currency),
                   updated_at = pg_catalog.now()
             where org_id = app.current_org_id()
               and id = $1::uuid
@@ -339,7 +362,9 @@ export async function updateItemSupplierSpec(
                       expiry_date::text,
                       lifecycle_status,
                       review_status,
-                      supplier_status`,
+                      supplier_status,
+                      unit_price::text,
+                      price_currency`,
           [
             input.specId,
             input.specVersion ?? null,
@@ -348,6 +373,8 @@ export async function updateItemSupplierSpec(
             input.expiryDate ?? null,
             approveNow,
             userId,
+            input.unitPrice ?? null,
+            input.priceCurrency ?? null,
           ],
         );
         const updated = rows[0];
@@ -367,6 +394,8 @@ export async function updateItemSupplierSpec(
             lifecycleStatus: updated.lifecycle_status,
             reviewStatus: updated.review_status,
             supplierStatus: updated.supplier_status,
+            unitPrice: updated.unit_price,
+            priceCurrency: updated.price_currency,
           },
         });
 

@@ -33,7 +33,7 @@ import {
   updatePurchaseOrderLine,
   deletePurchaseOrderLine,
 } from '../_actions/actions';
-import { listPoSuppliers, listPoUnits, searchPoItems } from '../_actions/po-form-data';
+import { listPoSuppliers, listPoUnits, searchPoItems, getItemSupplierPrice } from '../_actions/po-form-data';
 import { receivePoLineDesktop } from '../_actions/receive-po-line';
 import type { DesktopReceiveInput } from '../_actions/receive-po-line.types';
 import { listLocations } from '../../../warehouse/_actions/location-read-actions';
@@ -229,6 +229,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         uomUnits: uoms.units,
         qtyPlaceholder: t('create.qtyPlaceholder'),
         unitPricePlaceholder: t('create.unitPricePlaceholder'),
+        priceSource: {
+          spec: t('create.priceSource.spec'),
+          list_price: t('create.priceSource.list_price'),
+        },
         submitAdd: t('edit.lineModal.submitAdd'),
         submitEdit: t('edit.lineModal.submitEdit'),
         submitting: t('edit.modal.submitting'),
@@ -364,6 +368,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       reopenPurchaseOrderAction={reopenPurchaseOrderAction}
       suppliers={suppliers}
       searchPoItemsAction={searchPoItems}
+      getItemSupplierPriceAction={getItemSupplierPrice}
       updatePurchaseOrderAction={updatePurchaseOrderAction}
       addPurchaseOrderLineAction={addPurchaseOrderLineAction}
       updatePurchaseOrderLineAction={updatePurchaseOrderLineAction}

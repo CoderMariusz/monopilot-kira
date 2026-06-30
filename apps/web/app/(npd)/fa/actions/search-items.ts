@@ -46,6 +46,7 @@ export type ItemPickerOption = {
   itemType: string;
   status: string;
   costPerKgEur: string | null;
+  listPriceGbp?: string | null;
   /** Base unit of measure from the items master (e.g. 'kg'). */
   uomBase: string;
 };
@@ -56,6 +57,7 @@ const searchInputSchema = z.object({
    *  (NEVER packaging unless the caller requests it explicitly). */
   itemTypes: z.array(z.enum(SEARCHABLE_ITEM_TYPES)).optional(),
   limit: z.number().int().min(1).max(50).optional().default(20),
+  supplierCode: z.string().trim().min(1).max(80).optional(),
 });
 
 export type SearchItemsInput = z.input<typeof searchInputSchema>;
@@ -67,6 +69,7 @@ type ItemRow = {
   item_type: string;
   status: string;
   cost_per_kg: string | null;
+  list_price_gbp: string | null;
   uom_base: string;
 };
 
@@ -80,7 +83,7 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
   if (!parsed.success) {
     throw new ValidationError('INVALID_INPUT', 'Invalid item search input');
   }
-  const { query, itemTypes, limit } = parsed.data;
+  const { query, itemTypes, limit, supplierCode } = parsed.data;
   const types = itemTypes && itemTypes.length > 0 ? itemTypes : [...DEFAULT_COMPONENT_ITEM_TYPES];
   const term = query.trim();
 
@@ -95,6 +98,7 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
               i.item_type,
               i.status,
               i.cost_per_kg,
+              i.list_price_gbp::text as list_price_gbp,
               i.uom_base
          from public.items i
         where i.org_id = app.current_org_id()
@@ -105,12 +109,25 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
             or i.item_code ilike $2 escape '\\'
             or i.name ilike $2 escape '\\'
           )
+          ${
+            supplierCode
+              ? `and exists (
+            select 1
+              from public.supplier_specs ss
+             where ss.org_id = i.org_id
+               and ss.item_id = i.id
+               and ss.supplier_code = $4
+               and ss.lifecycle_status = 'active'
+               and ss.review_status = 'approved'
+          )`
+              : ''
+          }
         order by
           case when $2::text is not null and i.item_code ilike $2 escape '\\' then 0 else 1 end,
           i.updated_at desc,
           i.item_code asc
         limit $3`,
-      [types, like, limit],
+      supplierCode ? [types, like, limit, supplierCode] : [types, like, limit],
     );
 
     return rows.map((r) => ({
@@ -120,6 +137,7 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
       itemType: r.item_type,
       status: r.status,
       costPerKgEur: r.cost_per_kg,
+      listPriceGbp: r.list_price_gbp,
       uomBase: r.uom_base,
     }));
   });

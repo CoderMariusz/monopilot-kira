@@ -18,6 +18,19 @@ const ctx = {
   calls: [] as Call[],
   // captured INSERT params + the inserted/updated flag we hand back
   insertedFlag: true,
+  existingSpec: {
+    id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    item_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    spec_version: 'v1',
+    issued_date: null,
+    effective_from: '2026-01-01',
+    expiry_date: '2031-01-01',
+    lifecycle_status: 'active',
+    review_status: 'approved',
+    supplier_status: 'approved',
+    unit_price: '12.3400',
+    price_currency: 'GBP',
+  } as Record<string, string | null>,
 };
 
 function fakeClient() {
@@ -40,8 +53,27 @@ function fakeClient() {
       if (s.includes('from public.supplier_specs') && s.includes('lifecycle_status = \'active\'')) {
         return { rows: ctx.hasActiveApproved ? [{ id: 'dup' }] : [] };
       }
+      if (s.includes('from public.supplier_specs') && s.includes('and id = $1::uuid')) {
+        return { rows: ctx.existingSpec ? [ctx.existingSpec] : [] };
+      }
       if (s.includes('insert into public.supplier_specs')) {
         return { rows: [{ id: 'spec-1', inserted: ctx.insertedFlag }] };
+      }
+      if (s.includes('update public.supplier_specs')) {
+        return {
+          rows: [
+            {
+              ...ctx.existingSpec,
+              id: String(params[0]),
+              spec_version: (params[1] as string | null) ?? ctx.existingSpec.spec_version,
+              issued_date: params[2] as string | null,
+              effective_from: (params[3] as string | null) ?? ctx.existingSpec.effective_from,
+              expiry_date: params[4] as string | null,
+              unit_price: params[7] === null ? ctx.existingSpec.unit_price : String(params[7]),
+              price_currency: params[8] === null ? ctx.existingSpec.price_currency : String(params[8]),
+            },
+          ],
+        };
       }
       if (s.includes('into public.audit_log')) {
         return { rows: [] };
@@ -58,7 +90,7 @@ vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 
 import { ITEMS_EDIT_PERMISSION } from '../shared';
-import { createItemSupplierSpec } from '../supplier-spec-actions';
+import { createItemSupplierSpec, updateItemSupplierSpec } from '../supplier-spec-actions';
 
 beforeEach(() => {
   ctx.grantedPerms = new Set<string>([ITEMS_EDIT_PERMISSION]);
@@ -66,6 +98,19 @@ beforeEach(() => {
   ctx.supplierCode = 'SUP-XYZ';
   ctx.hasActiveApproved = false;
   ctx.insertedFlag = true;
+  ctx.existingSpec = {
+    id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    item_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    spec_version: 'v1',
+    issued_date: null,
+    effective_from: '2026-01-01',
+    expiry_date: '2031-01-01',
+    lifecycle_status: 'active',
+    review_status: 'approved',
+    supplier_status: 'approved',
+    unit_price: '12.3400',
+    price_currency: 'GBP',
+  };
   ctx.calls = [];
 });
 afterEach(() => vi.clearAllMocks());
@@ -189,5 +234,53 @@ describe('createItemSupplierSpec', () => {
     ctx.insertedFlag = false; // DO UPDATE path
     const res = await createItemSupplierSpec(baseInput);
     expect(res).toMatchObject({ ok: true, data: { updated: true } });
+  });
+
+  it('writes unitPrice and priceCurrency to the supplier_specs insert params', async () => {
+    const res = await createItemSupplierSpec({ ...baseInput, unitPrice: '19.875', priceCurrency: 'EUR' });
+    expect(res.ok).toBe(true);
+
+    const insert = ctx.calls.find((c) =>
+      c.sql.replace(/\s+/g, ' ').toLowerCase().includes('insert into public.supplier_specs'),
+    )!;
+    const normalizedSql = insert.sql.replace(/\s+/g, ' ').toLowerCase();
+    expect(normalizedSql).toContain('unit_price');
+    expect(normalizedSql).toContain('price_currency');
+    expect(insert.params[10]).toBe(19.875);
+    expect(insert.params[11]).toBe('EUR');
+  });
+});
+
+describe('updateItemSupplierSpec', () => {
+  it('writes unitPrice and priceCurrency to the supplier_specs update params', async () => {
+    const res = await updateItemSupplierSpec({
+      specId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      unitPrice: 21.5,
+      priceCurrency: 'USD',
+    });
+    expect(res).toEqual({ ok: true, data: { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' } });
+
+    const update = ctx.calls.find((c) =>
+      c.sql.replace(/\s+/g, ' ').toLowerCase().includes('update public.supplier_specs'),
+    )!;
+    expect(update.params[7]).toBe(21.5);
+    expect(update.params[8]).toBe('USD');
+  });
+
+  it('preserves existing unitPrice and priceCurrency when omitted via coalesce', async () => {
+    const res = await updateItemSupplierSpec({
+      specId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      specVersion: 'v2',
+    });
+    expect(res).toEqual({ ok: true, data: { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' } });
+
+    const update = ctx.calls.find((c) =>
+      c.sql.replace(/\s+/g, ' ').toLowerCase().includes('update public.supplier_specs'),
+    )!;
+    const normalizedSql = update.sql.replace(/\s+/g, ' ').toLowerCase();
+    expect(normalizedSql).toContain('unit_price = coalesce($8::numeric, unit_price)');
+    expect(normalizedSql).toContain('price_currency = coalesce($9, price_currency)');
+    expect(update.params[7]).toBeNull();
+    expect(update.params[8]).toBeNull();
   });
 });

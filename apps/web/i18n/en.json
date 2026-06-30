@@ -6335,6 +6335,36 @@
         "invalid_state": "The change order is no longer in the expected state — it was refreshed.",
         "persistence_failed": "The action could not be completed."
       }
+    },
+    "items": {
+      "detail": {
+        "dataTabs": {
+          "supplier": {
+            "add": {
+              "unitPrice": "Unit price",
+              "unitPricePlaceholder": "0.00",
+              "priceCurrency": "Currency",
+              "priceCurrencyPlaceholder": "e.g. GBP",
+              "document": "Spec document",
+              "documentHint": "Optional. PDF or image, attached after the spec is created.",
+              "uploading": "Uploading document…",
+              "uploadFailed": "The spec was saved, but the document upload failed. Try attaching it again from Edit."
+            },
+            "rowActions": {
+              "unitPrice": "Unit price",
+              "unitPricePlaceholder": "0.00",
+              "priceCurrency": "Currency",
+              "priceCurrencyPlaceholder": "e.g. GBP",
+              "document": "Spec document",
+              "documentHint": "Optional. PDF or image — replaces the current document.",
+              "documentCurrent": "Current document:",
+              "documentView": "View",
+              "uploading": "Uploading document…",
+              "uploadFailed": "Changes saved, but the document upload failed. Try attaching it again."
+            }
+          }
+        }
+      }
     }
   },
   "production": {
@@ -7942,7 +7972,11 @@
           "cancel": "Cancel",
           "error": "Item search failed"
         },
-        "poNumberHelp": "Leave empty to auto-number (format in Settings → Documents)."
+        "poNumberHelp": "Leave empty to auto-number (format in Settings → Documents).",
+        "priceSource": {
+          "spec": "From supplier spec",
+          "list_price": "From list price"
+        }
       },
       "detail": {
         "title": "Purchase order",

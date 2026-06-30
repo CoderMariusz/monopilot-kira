@@ -15,7 +15,7 @@
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -39,6 +39,14 @@ const L: SupplierSpecAddLabels = {
   effectiveFrom: 'Effective from',
   expiryDate: 'Expiry date',
   approveNow: 'Approve now',
+  unitPrice: 'Unit price',
+  unitPricePlaceholder: '0.00',
+  priceCurrency: 'Currency',
+  priceCurrencyPlaceholder: 'e.g. GBP',
+  document: 'Spec document',
+  documentHint: 'Optional. PDF or image.',
+  uploading: 'Uploading document…',
+  uploadFailed: 'The spec was saved, but the document upload failed.',
   submit: 'Add supplier',
   submitting: 'Adding…',
   cancel: 'Cancel',
@@ -58,8 +66,8 @@ const L: SupplierSpecAddLabels = {
 };
 
 const suppliers: SupplierOption[] = [
-  { id: 'sup-1', code: 'SUP-A', name: 'Alpha Foods' },
-  { id: 'sup-2', code: 'SUP-B', name: 'Beta Meats' },
+  { id: 'sup-1', code: 'SUP-A', name: 'Alpha Foods', currency: 'GBP' },
+  { id: 'sup-2', code: 'SUP-B', name: 'Beta Meats', currency: 'EUR' },
 ];
 
 afterEach(() => {
@@ -145,5 +153,85 @@ describe('SupplierSpecAdd modal', () => {
     await user.click(screen.getByRole('option', { name: 'SUP-A · Alpha Foods' }));
     await user.click(screen.getByTestId('supplier-spec-add-submit'));
     expect(await screen.findByRole('alert')).toHaveTextContent(L.errors.already_exists);
+  });
+
+  // ── BUG3 + price — price/currency fields + document attach ──
+  it('renders price + currency inputs and a file input, and defaults the currency to the supplier', async () => {
+    const user = userEvent.setup();
+    render(<SupplierSpecAdd itemCode="RM-1" canEdit suppliers={suppliers} labels={L} addSupplierSpec={vi.fn()} />);
+    await user.click(screen.getByTestId('supplier-spec-add-cta'));
+
+    expect(screen.getByTestId('supplier-spec-add-unit-price')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-spec-add-price-currency')).toBeInTheDocument();
+    const fileInput = screen.getByTestId('supplier-spec-add-document');
+    expect(fileInput).toHaveAttribute('type', 'file');
+
+    // Picking SUP-A (GBP) defaults the currency field.
+    await user.click(screen.getByRole('combobox', { name: L.supplier }));
+    await user.click(screen.getByRole('option', { name: 'SUP-A · Alpha Foods' }));
+    await waitFor(() => expect(screen.getByTestId('supplier-spec-add-price-currency')).toHaveValue('GBP'));
+  });
+
+  it('passes unitPrice + priceCurrency into the create action and uploads the doc on save', async () => {
+    const user = userEvent.setup();
+    const addSupplierSpec = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: { id: 'spec-9', supplierCode: 'SUP-A', updated: false } });
+    const uploadSupplierSpecDoc = vi.fn().mockResolvedValue({ ok: true, data: { url: 'org-x/spec-9/doc.pdf' } });
+    render(
+      <SupplierSpecAdd
+        itemCode="RM-1"
+        canEdit
+        suppliers={suppliers}
+        labels={L}
+        addSupplierSpec={addSupplierSpec}
+        uploadSupplierSpecDoc={uploadSupplierSpecDoc}
+      />,
+    );
+    await user.click(screen.getByTestId('supplier-spec-add-cta'));
+    await user.click(screen.getByRole('combobox', { name: L.supplier }));
+    await user.click(screen.getByRole('option', { name: 'SUP-A · Alpha Foods' }));
+
+    fireEvent.change(screen.getByTestId('supplier-spec-add-unit-price'), { target: { value: '12.50' } });
+    const file = new File(['%PDF-1.4'], 'spec.pdf', { type: 'application/pdf' });
+    await user.upload(screen.getByTestId('supplier-spec-add-document') as HTMLInputElement, file);
+
+    await user.click(screen.getByTestId('supplier-spec-add-submit'));
+
+    await waitFor(() => expect(addSupplierSpec).toHaveBeenCalledTimes(1));
+    expect(addSupplierSpec).toHaveBeenCalledWith(
+      expect.objectContaining({ itemCode: 'RM-1', supplierId: 'sup-1', unitPrice: '12.50', priceCurrency: 'GBP' }),
+    );
+    // Upload runs AFTER the create returns the new spec id, with specId + file.
+    await waitFor(() => expect(uploadSupplierSpecDoc).toHaveBeenCalledTimes(1));
+    const fd = uploadSupplierSpecDoc.mock.calls[0][0] as FormData;
+    expect(fd.get('specId')).toBe('spec-9');
+    expect(fd.get('file')).toBeInstanceOf(File);
+  });
+
+  it('surfaces an inline error when the document upload fails (spec still saved)', async () => {
+    const user = userEvent.setup();
+    const addSupplierSpec = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: { id: 'spec-9', supplierCode: 'SUP-A', updated: false } });
+    const uploadSupplierSpecDoc = vi.fn().mockResolvedValue({ ok: false, error: 'storage failed' });
+    render(
+      <SupplierSpecAdd
+        itemCode="RM-1"
+        canEdit
+        suppliers={suppliers}
+        labels={L}
+        addSupplierSpec={addSupplierSpec}
+        uploadSupplierSpecDoc={uploadSupplierSpecDoc}
+      />,
+    );
+    await user.click(screen.getByTestId('supplier-spec-add-cta'));
+    await user.click(screen.getByRole('combobox', { name: L.supplier }));
+    await user.click(screen.getByRole('option', { name: 'SUP-A · Alpha Foods' }));
+    const file = new File(['x'], 'spec.png', { type: 'image/png' });
+    await user.upload(screen.getByTestId('supplier-spec-add-document') as HTMLInputElement, file);
+    await user.click(screen.getByTestId('supplier-spec-add-submit'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(L.uploadFailed);
   });
 });

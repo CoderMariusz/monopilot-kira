@@ -40,6 +40,7 @@ import { useRouter } from 'next/navigation';
 import { PoStatusBadge } from './po-status-badge';
 import { EditPoModal, type EditPoLabels, type EditPoResult } from './edit-po-modal';
 import { PoLineModal, type PoLineModalLabels, type PoLineMutationResult, type EditLineSeed } from './po-line-modal';
+import type { GetItemSupplierPriceAction } from './create-po-modal';
 import {
   ReceivePoLineModal,
   type ReceivePoLineLabels,
@@ -203,6 +204,7 @@ export function PoDetailView({
   reopenPurchaseOrderAction,
   suppliers = [],
   searchPoItemsAction,
+  getItemSupplierPriceAction,
   updatePurchaseOrderAction,
   addPurchaseOrderLineAction,
   updatePurchaseOrderLineAction,
@@ -222,6 +224,8 @@ export function PoDetailView({
    *  callers (non-edit usages / older tests) keep type-checking. */
   suppliers?: PoSupplierOption[];
   searchPoItemsAction?: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
+  /** BUG1 — supplier-effective price pre-fill on line item select (optional seam). */
+  getItemSupplierPriceAction?: GetItemSupplierPriceAction;
   updatePurchaseOrderAction?: (input: {
     id: string;
     supplierId?: string;
@@ -674,7 +678,10 @@ export function PoDetailView({
           labels={labels.edit.lineModal}
           poId={po.id}
           editLine={editLine}
+          supplierId={po.supplierId}
+          expectedDelivery={po.expectedDelivery}
           searchPoItemsAction={searchPoItemsAction}
+          getItemSupplierPriceAction={getItemSupplierPriceAction}
           addPurchaseOrderLineAction={addPurchaseOrderLineAction}
           updatePurchaseOrderLineAction={updatePurchaseOrderLineAction}
           onSaved={() => router.refresh()}

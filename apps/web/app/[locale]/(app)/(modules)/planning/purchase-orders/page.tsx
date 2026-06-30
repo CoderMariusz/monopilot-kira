@@ -29,7 +29,13 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listPurchaseOrders, createPurchaseOrder } from './_actions/actions';
 import { createExportJob } from './_actions/create-export-job';
-import { listPoSuppliers, listPoUnits, listPurchaseOrderLineCounts, searchPoItems } from './_actions/po-form-data';
+import {
+  listPoSuppliers,
+  listPoUnits,
+  listPurchaseOrderLineCounts,
+  searchPoItems,
+  getItemSupplierPrice,
+} from './_actions/po-form-data';
 import { buildUomDropdown, type UomDropdown } from '../_actions/uom-dropdown';
 import { PoListView, type PoListLabels } from './_components/po-list-view';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
@@ -159,6 +165,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       lineQty: t('create.lineQty'),
       lineUom: t('create.lineUom'),
       lineUnitPrice: t('create.lineUnitPrice'),
+      priceSource: {
+        spec: t('create.priceSource.spec'),
+        list_price: t('create.priceSource.list_price'),
+      },
       // UoM dropdown now reads from the REAL org units (public.unit_of_measure via
       // listPoUnits → buildUomDropdown), so admin-added units appear. `uom.units`
       // is the ordered code list; `uom.options` the code→"code — name" labels. When
@@ -243,6 +253,7 @@ async function ListContent({
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale, uom)}
       searchPoItemsAction={searchPoItems}
+      getItemSupplierPriceAction={getItemSupplierPrice}
       createPurchaseOrderAction={createPurchaseOrder}
       createExportJobAction={createExportJob}
     />

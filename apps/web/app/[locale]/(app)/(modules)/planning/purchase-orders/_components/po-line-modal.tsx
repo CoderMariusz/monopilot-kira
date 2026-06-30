@@ -28,9 +28,13 @@ import Input from '@monopilot/ui/Input';
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
+import type { GetItemSupplierPriceAction } from './create-po-modal';
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+
+/** BUG2 — widen the picker input locally so the modal can thread the PO supplier. */
+type PoItemSearchInput = SearchItemsInput & { supplierId?: string };
 
 export type PoLineModalLabels = {
   addTitle: string;
@@ -49,6 +53,8 @@ export type PoLineModalLabels = {
   uomUnits?: readonly string[];
   qtyPlaceholder: string;
   unitPricePlaceholder: string;
+  /** BUG1 — hint when the price was pre-filled from supplier data, keyed by source. */
+  priceSource?: { spec: string; list_price: string };
   submitAdd: string;
   submitEdit: string;
   submitting: string;
@@ -94,7 +100,14 @@ export type PoLineModalProps = {
   poId: string;
   /** null = add mode, populated = edit mode. */
   editLine: EditLineSeed | null;
+  /** BUG2 — the parent PO's supplier; threaded into the picker search to filter
+   *  the items to that supplier (add mode). Optional so legacy callers compile. */
+  supplierId?: string | null;
+  /** BUG1 — the PO's expected delivery date used as the price-effective date. */
+  expectedDelivery?: string | null;
   searchPoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
+  /** BUG1 — supplier-effective price pre-fill on item select (optional seam). */
+  getItemSupplierPriceAction?: GetItemSupplierPriceAction;
   addPurchaseOrderLineAction: (input: {
     poId: string;
     itemId: string;
@@ -118,7 +131,10 @@ export function PoLineModal({
   labels,
   poId,
   editLine,
+  supplierId,
+  expectedDelivery,
   searchPoItemsAction,
+  getItemSupplierPriceAction,
   addPurchaseOrderLineAction,
   updatePurchaseOrderLineAction,
   onSaved,
@@ -128,8 +144,16 @@ export function PoLineModal({
   const [qty, setQty] = React.useState('');
   const [uom, setUom] = React.useState('');
   const [unitPrice, setUnitPrice] = React.useState('');
+  const [priceSource, setPriceSource] = React.useState<'spec' | 'list_price' | null>(null);
   const [pending, setPending] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+
+  // BUG2 — scope the picker to the parent PO's supplier (re-runs if supplier changes).
+  const searchSupplierItems = React.useCallback(
+    (input: SearchItemsInput) =>
+      searchPoItemsAction({ ...input, ...(supplierId ? { supplierId } : {}) } as PoItemSearchInput),
+    [searchPoItemsAction, supplierId],
+  );
 
   React.useEffect(() => {
     if (open) {
@@ -137,10 +161,29 @@ export function PoLineModal({
       setQty(editLine?.qty ?? '');
       setUom(editLine?.uom ?? '');
       setUnitPrice(editLine?.unitPrice ?? '');
+      setPriceSource(null);
       setPending(false);
       setFormError(null);
     }
   }, [open, editLine?.lineId, editLine?.qty, editLine?.uom, editLine?.unitPrice]);
+
+  // BUG1 — pre-fill the unit price from the supplier-effective price on item select.
+  async function prefillPrice(picked: ItemPickerOption) {
+    if (!getItemSupplierPriceAction) return;
+    try {
+      const res = await getItemSupplierPriceAction({
+        itemId: picked.id,
+        supplierId: supplierId ?? null,
+        date: expectedDelivery ?? null,
+      });
+      if (res.ok && res.data.unitPrice != null && res.data.source !== 'none') {
+        setUnitPrice(res.data.unitPrice);
+        setPriceSource(res.data.source);
+      }
+    } catch {
+      /* leave the price blank — user can type it */
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -225,10 +268,11 @@ export function PoLineModal({
               </div>
             ) : (
               <ItemPicker
-                searchItemsAction={searchPoItemsAction}
+                searchItemsAction={searchSupplierItems}
                 onSelect={(picked) => {
                   setItem(picked);
                   if (!uom) setUom(picked.uomBase);
+                  void prefillPrice(picked);
                 }}
                 triggerClassName="btn btn--secondary btn-sm"
                 labels={labels.picker}
@@ -269,8 +313,16 @@ export function PoLineModal({
               value={unitPrice}
               data-testid="po-line-price"
               placeholder={labels.unitPricePlaceholder}
-              onChange={(e) => setUnitPrice(e.target.value)}
+              onChange={(e) => {
+                setUnitPrice(e.target.value);
+                setPriceSource(null);
+              }}
             />
+            {priceSource && labels.priceSource ? (
+              <span className="text-[10px] text-slate-500" data-testid="po-line-price-source">
+                {labels.priceSource[priceSource]}
+              </span>
+            ) : null}
           </label>
         </form>
       </Modal.Body>

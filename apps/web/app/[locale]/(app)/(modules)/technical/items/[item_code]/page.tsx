@@ -54,6 +54,7 @@ import {
   deactivateItemSupplierSpec,
   updateItemSupplierSpec,
 } from '../_actions/supplier-spec-actions';
+import { uploadSupplierSpecDoc } from '../_actions/upload-supplier-spec-doc';
 import {
   SupplierSpecRowActions,
   type SupplierSpecRowActionsLabels,
@@ -298,7 +299,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   // supplier_spec. Writing an approved+active row clears the BOM readiness gates
   // SUPPLIER_NOT_APPROVED / SUPPLIER_SPEC_NOT_ACTIVE for this item.
   const supplierOptions: SupplierOption[] = suppliersResult.ok
-    ? suppliersResult.data.map((s) => ({ id: s.id, code: s.code, name: s.name }))
+    ? suppliersResult.data.map((s) => ({ id: s.id, code: s.code, name: s.name, currency: s.currency }))
     : [];
 
   const a = (key: string, fallback: string, namespace = 'add'): string => {
@@ -320,6 +321,14 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     effectiveFrom: a('effectiveFrom', 'Effective from'),
     expiryDate: a('expiryDate', 'Expiry date'),
     approveNow: a('approveNow', 'Approve now (activates the spec and clears the readiness warnings)'),
+    unitPrice: a('unitPrice', 'Unit price'),
+    unitPricePlaceholder: a('unitPricePlaceholder', '0.00'),
+    priceCurrency: a('priceCurrency', 'Currency'),
+    priceCurrencyPlaceholder: a('priceCurrencyPlaceholder', 'e.g. GBP'),
+    document: a('document', 'Spec document'),
+    documentHint: a('documentHint', 'Optional. PDF or image, attached after the spec is created.'),
+    uploading: a('uploading', 'Uploading document…'),
+    uploadFailed: a('uploadFailed', 'The spec was saved, but the document upload failed. Try attaching it again from Edit.'),
     submit: a('submit', 'Add supplier'),
     submitting: a('submitting', 'Adding…'),
     cancel: a('cancel', 'Cancel'),
@@ -348,6 +357,16 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     effectiveFrom: a('effectiveFrom', 'Effective from', 'rowActions'),
     expiryDate: a('expiryDate', 'Expiry date', 'rowActions'),
     approveNow: a('approveNow', 'Approve now (sets active and approved)', 'rowActions'),
+    unitPrice: a('unitPrice', 'Unit price', 'rowActions'),
+    unitPricePlaceholder: a('unitPricePlaceholder', '0.00', 'rowActions'),
+    priceCurrency: a('priceCurrency', 'Currency', 'rowActions'),
+    priceCurrencyPlaceholder: a('priceCurrencyPlaceholder', 'e.g. GBP', 'rowActions'),
+    document: a('document', 'Spec document', 'rowActions'),
+    documentHint: a('documentHint', 'Optional. PDF or image — replaces the current document.', 'rowActions'),
+    documentCurrent: a('documentCurrent', 'Current document:', 'rowActions'),
+    documentView: a('documentView', 'View', 'rowActions'),
+    uploading: a('uploading', 'Uploading document…', 'rowActions'),
+    uploadFailed: a('uploadFailed', 'Changes saved, but the document upload failed. Try attaching it again.', 'rowActions'),
     submit: a('submit', 'Save changes', 'rowActions'),
     submitting: a('submitting', 'Saving…', 'rowActions'),
     cancel: a('cancel', 'Cancel', 'rowActions'),
@@ -379,6 +398,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       suppliers={supplierOptions}
       labels={supplierAddLabels}
       addSupplierSpec={createItemSupplierSpec}
+      uploadSupplierSpecDoc={uploadSupplierSpecDoc}
     />
   );
 
@@ -481,6 +501,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
                         labels={supplierRowActionsLabels}
                         updateSpec={updateItemSupplierSpec}
                         deactivateSpec={deactivateItemSupplierSpec}
+                        uploadSupplierSpecDoc={uploadSupplierSpecDoc}
                       />
                     )
                   : undefined

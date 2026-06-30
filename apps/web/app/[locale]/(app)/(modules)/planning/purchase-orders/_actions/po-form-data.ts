@@ -34,6 +34,26 @@ export type PoSupplierOption = {
   currency: string;
 };
 
+type SupplierPriceRow = {
+  unit_price: string | null;
+  currency: string | null;
+};
+
+type SupplierRow = {
+  code: string | null;
+  currency: string | null;
+};
+
+type ItemListPriceRow = {
+  unit_price: string | null;
+};
+
+export type ItemSupplierPrice = {
+  unitPrice: string | null;
+  currency: string | null;
+  source: 'spec' | 'list_price' | 'none';
+};
+
 /** Active suppliers for the create-PO supplier select (org-scoped, code-sorted). */
 export async function listPoSuppliers(): Promise<PoSupplierOption[]> {
   const result = await listSuppliers({ status: 'active', limit: 200 });
@@ -58,13 +78,106 @@ const PO_PURCHASABLE_ITEM_TYPES = [
  *  When the caller passes no `itemTypes`, default to ALL purchasable physical
  *  goods (purchasing buys everything, packaging included); explicit filters from
  *  the caller are preserved as-is. */
-export async function searchPoItems(input: SearchItemsInput = {}): Promise<ItemPickerOption[]> {
+export async function searchPoItems(input: SearchItemsInput & { supplierId?: string } = {}): Promise<ItemPickerOption[]> {
   try {
     const itemTypes =
       input.itemTypes && input.itemTypes.length > 0 ? input.itemTypes : [...PO_PURCHASABLE_ITEM_TYPES];
-    return await searchItems({ ...input, itemTypes });
+    if (!input.supplierId) {
+      return await searchItems({ ...input, itemTypes });
+    }
+
+    const supplierCode = await withOrgContext<string | undefined>(async (ctx) => {
+      const { rows } = await ctx.client.query<{ code: string | null }>(
+        `select code
+           from public.suppliers
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [input.supplierId],
+      );
+      return rows[0]?.code ?? undefined;
+    });
+
+    return await searchItems({ ...input, itemTypes, supplierCode });
   } catch {
     return [];
+  }
+}
+
+export async function getItemSupplierPrice(
+  input: { itemId: string; supplierId?: string | null; date?: string | null }
+): Promise<{ ok: true; data: ItemSupplierPrice } | { ok: false; error: string }> {
+  try {
+    const data = await withOrgContext<ItemSupplierPrice>(async (ctx) => {
+      let supplier: SupplierRow | null = null;
+
+      if (input.supplierId) {
+        const supplierResult = await ctx.client.query<SupplierRow>(
+          `select code,
+                  currency
+             from public.suppliers
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+            limit 1`,
+          [input.supplierId],
+        );
+        supplier = supplierResult.rows[0] ?? null;
+
+        if (supplier?.code) {
+          const specResult = await ctx.client.query<SupplierPriceRow>(
+            `select ss.unit_price::text as unit_price,
+                    coalesce(ss.price_currency, $3::text) as currency
+               from public.supplier_specs ss
+              where ss.org_id = app.current_org_id()
+                and ss.item_id = $1::uuid
+                and ss.supplier_code = $2
+                and ss.lifecycle_status = 'active'
+                and ss.review_status = 'approved'
+                and ss.unit_price is not null
+                and ss.effective_from <= coalesce($4::date, current_date)
+                and (ss.expiry_date is null or ss.expiry_date >= coalesce($4::date, current_date))
+              order by ss.effective_from desc
+              limit 1`,
+            [input.itemId, supplier.code, supplier.currency, input.date ?? null],
+          );
+          const spec = specResult.rows[0];
+          if (spec?.unit_price) {
+            return {
+              unitPrice: spec.unit_price,
+              currency: spec.currency,
+              source: 'spec',
+            };
+          }
+        }
+      }
+
+      const itemResult = await ctx.client.query<ItemListPriceRow>(
+        `select list_price_gbp::text as unit_price
+           from public.items
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [input.itemId],
+      );
+      const item = itemResult.rows[0];
+      if (item?.unit_price) {
+        return {
+          unitPrice: item.unit_price,
+          currency: 'GBP',
+          source: 'list_price',
+        };
+      }
+
+      return {
+        unitPrice: null,
+        currency: null,
+        source: 'none',
+      };
+    });
+
+    return { ok: true, data };
+  } catch {
+    return { ok: false, error: 'Failed to resolve item supplier price' };
   }
 }
 

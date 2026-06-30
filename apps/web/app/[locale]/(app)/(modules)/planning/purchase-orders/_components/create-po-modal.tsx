@@ -45,6 +45,29 @@ import type { PoSupplierOption } from '../_actions/po-form-data';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 import { listPoWarehouses } from '../_actions/actions';
 
+/**
+ * BUG2 — the PO line picker must show ONLY the items the selected supplier
+ * supplies. `searchPoItems` filters when given a `supplierId`, but the prop type
+ * (SearchItemsInput) predates that field — widen it locally at the call boundary
+ * so the modal can thread the supplier through without re-authoring the action.
+ */
+type PoItemSearchInput = SearchItemsInput & { supplierId?: string };
+
+/**
+ * BUG1 — effective supplier-spec price by date (fallback items.list_price_gbp).
+ * Owned by the parallel po-form-data lane; consumed here to pre-fill the line's
+ * unit price on item select. Optional so existing render sites keep compiling
+ * until the page threads it.
+ */
+export type GetItemSupplierPriceAction = (input: {
+  itemId: string;
+  supplierId?: string | null;
+  date?: string | null;
+}) => Promise<
+  | { ok: true; data: { unitPrice: string | null; currency: string | null; source: 'spec' | 'list_price' | 'none' } }
+  | { ok: false; error: string }
+>;
+
 export type CreatePoLabels = {
   title: string;
   poNumberLabel: string;
@@ -67,6 +90,12 @@ export type CreatePoLabels = {
   lineQty: string;
   lineUom: string;
   lineUnitPrice: string;
+  /**
+   * BUG1 — subtle hint shown beside a line's unit price when it was pre-filled
+   * from the supplier data. Keyed by the source so the operator knows whether the
+   * price came from the supplier spec or the item list price.
+   */
+  priceSource: { spec: string; list_price: string };
   uomPlaceholder: string;
   /**
    * Display labels for the UoM dropdown options, keyed by unit code. Covers the
@@ -113,6 +142,8 @@ type CreatePoLine = {
   qty: string;
   uom: string;
   unitPrice: string;
+  /** BUG1 — where the pre-filled unitPrice came from (null once user-edited / blank). */
+  priceSource: 'spec' | 'list_price' | null;
 };
 
 export type CreatePoResult =
@@ -126,6 +157,8 @@ export type CreatePoModalProps = {
   suppliers: PoSupplierOption[];
   /** Server Action seams (passed from the RSC; never authored here). */
   searchPoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
+  /** BUG1 — pre-fill the supplier-effective price on item select (optional seam). */
+  getItemSupplierPriceAction?: GetItemSupplierPriceAction;
   createPurchaseOrderAction: (input: {
     /** Optional — createPurchaseOrder auto-generates a per-org number when omitted. */
     poNumber?: string;
@@ -144,7 +177,7 @@ const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 
 function makeLine(): CreatePoLine {
-  return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '', unitPrice: '' };
+  return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '', unitPrice: '', priceSource: null };
 }
 
 export function CreatePoModal({
@@ -153,6 +186,7 @@ export function CreatePoModal({
   labels,
   suppliers,
   searchPoItemsAction,
+  getItemSupplierPriceAction,
   createPurchaseOrderAction,
   onCreated,
 }: CreatePoModalProps) {
@@ -206,8 +240,48 @@ export function CreatePoModal({
   const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
   const currency = selectedSupplier?.currency ?? 'EUR';
 
+  // BUG2 — every line's ItemPicker must search the SELECTED supplier's items only.
+  // The picker calls the action with { query, itemTypes }; inject the supplierId so
+  // searchPoItems filters to that supplier. The identity is stable per supplierId so
+  // the picker's debounced effect re-runs whenever the supplier changes (re-filter).
+  const searchSupplierItems = React.useCallback(
+    (input: SearchItemsInput) =>
+      searchPoItemsAction({ ...input, ...(supplierId ? { supplierId } : {}) } as PoItemSearchInput),
+    [searchPoItemsAction, supplierId],
+  );
+
+  // When the supplier changes, drop any already-picked line item — it may no longer
+  // belong to the new supplier (the picker re-filters; the price hint also resets).
+  const prevSupplierRef = React.useRef(supplierId);
+  React.useEffect(() => {
+    if (prevSupplierRef.current !== supplierId) {
+      prevSupplierRef.current = supplierId;
+      setLines((prev) => prev.map((l) => (l.item ? { ...l, item: null, unitPrice: '', priceSource: null } : l)));
+    }
+  }, [supplierId]);
+
   function updateLine(key: string, patch: Partial<CreatePoLine>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  // BUG1 — on item select pre-fill the line's unit price from the supplier-effective
+  // price (spec by date, else item list price). Editable: a manual change clears the
+  // source hint (handled in the price input's onChange). Failure is silent — the user
+  // simply types the price (blank → '0' submit fallback preserved).
+  async function prefillLinePrice(key: string, item: ItemPickerOption) {
+    if (!getItemSupplierPriceAction) return;
+    try {
+      const res = await getItemSupplierPriceAction({
+        itemId: item.id,
+        supplierId: supplierId || null,
+        date: expected || null,
+      });
+      if (res.ok && res.data.unitPrice != null && res.data.source !== 'none') {
+        updateLine(key, { unitPrice: res.data.unitPrice, priceSource: res.data.source });
+      }
+    } catch {
+      /* leave the price blank — user can type it */
+    }
   }
   function addLine() {
     setLines((prev) => [...prev, makeLine()]);
@@ -375,8 +449,11 @@ export function CreatePoModal({
                           </div>
                         ) : (
                           <ItemPicker
-                            searchItemsAction={searchPoItemsAction}
-                            onSelect={(item) => updateLine(line.key, { item, uom: line.uom || item.uomBase })}
+                            searchItemsAction={searchSupplierItems}
+                            onSelect={(item) => {
+                              updateLine(line.key, { item, uom: line.uom || item.uomBase });
+                              void prefillLinePrice(line.key, item);
+                            }}
                             triggerClassName="btn btn--secondary btn-sm"
                             labels={labels.picker}
                           />
@@ -414,9 +491,18 @@ export function CreatePoModal({
                           value={line.unitPrice}
                           data-testid="create-po-line-price"
                           placeholder={labels.unitPricePlaceholder}
-                          onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
+                          // A manual edit clears the "pre-filled from supplier" hint.
+                          onChange={(e) => updateLine(line.key, { unitPrice: e.target.value, priceSource: null })}
                           className="w-28 text-right"
                         />
+                        {line.priceSource ? (
+                          <span
+                            className="mt-0.5 block text-[10px] text-slate-500"
+                            data-testid="create-po-line-price-source"
+                          >
+                            {labels.priceSource[line.priceSource]}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2 text-right">
                         {lines.length > 1 ? (

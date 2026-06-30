@@ -22,6 +22,18 @@ export type SupplierSpecRowActionsLabels = {
   effectiveFrom: string;
   expiryDate: string;
   approveNow: string;
+  /** Price + currency fields (new). */
+  unitPrice: string;
+  unitPricePlaceholder: string;
+  priceCurrency: string;
+  priceCurrencyPlaceholder: string;
+  /** Document attach + current-document affordances (new). */
+  document: string;
+  documentHint: string;
+  documentCurrent: string;
+  documentView: string;
+  uploading: string;
+  uploadFailed: string;
   submit: string;
   submitting: string;
   cancel: string;
@@ -35,11 +47,17 @@ export type SupplierSpecRowActionsLabels = {
   errors: Record<SupplierSpecActionError, string>;
 };
 
+type UploadSupplierSpecDoc = (
+  formData: FormData,
+) => Promise<{ ok: true; data: { url: string } } | { ok: false; error: string }>;
+
 export interface SupplierSpecRowActionsProps {
   spec: SupplierSpecRow;
   labels: SupplierSpecRowActionsLabels;
   updateSpec: (input: unknown) => Promise<UpdateItemSupplierSpecResult>;
   deactivateSpec: (specId: unknown) => Promise<DeactivateItemSupplierSpecResult>;
+  /** Optional — attach/replace the spec document (the spec already exists in edit). */
+  uploadSupplierSpecDoc?: UploadSupplierSpecDoc;
 }
 
 function asDateInput(value: string | null): string {
@@ -126,7 +144,12 @@ export function SupplierSpecRowActions({
   labels,
   updateSpec,
   deactivateSpec,
+  uploadSupplierSpecDoc,
 }: SupplierSpecRowActionsProps) {
+  // unit_price / price_currency may not be on SupplierSpecRow yet (read action owned
+  // by a parallel lane) — read defensively so this compiles before/after that lands.
+  const specExtra = spec as SupplierSpecRow & { unitPrice?: string | null; priceCurrency?: string | null };
+
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
   const [deactivateOpen, setDeactivateOpen] = React.useState(false);
@@ -134,12 +157,16 @@ export function SupplierSpecRowActions({
   const [issuedDate, setIssuedDate] = React.useState(asDateInput(spec.issuedDate));
   const [effectiveFrom, setEffectiveFrom] = React.useState(asDateInput(spec.effectiveFrom));
   const [expiryDate, setExpiryDate] = React.useState(asDateInput(spec.expiryDate));
+  const [unitPrice, setUnitPrice] = React.useState(specExtra.unitPrice ?? '');
+  const [priceCurrency, setPriceCurrency] = React.useState(specExtra.priceCurrency ?? '');
+  const [docFile, setDocFile] = React.useState<File | null>(null);
   const [approveNow, setApproveNow] = React.useState(
     spec.reviewStatus === 'approved' && spec.lifecycleStatus === 'active',
   );
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const canDeactivate = !['superseded', 'blocked', 'expired'].includes(spec.lifecycleStatus);
 
   function resetEdit() {
@@ -147,6 +174,10 @@ export function SupplierSpecRowActions({
     setIssuedDate(asDateInput(spec.issuedDate));
     setEffectiveFrom(asDateInput(spec.effectiveFrom));
     setExpiryDate(asDateInput(spec.expiryDate));
+    setUnitPrice(specExtra.unitPrice ?? '');
+    setPriceCurrency(specExtra.priceCurrency ?? '');
+    setDocFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setApproveNow(spec.reviewStatus === 'approved' && spec.lifecycleStatus === 'active');
     setError(null);
     setSuccess(null);
@@ -173,12 +204,29 @@ export function SupplierSpecRowActions({
         issuedDate: issuedDate || undefined,
         effectiveFrom: effectiveFrom || undefined,
         expiryDate: expiryDate || undefined,
+        unitPrice: unitPrice.trim() ? unitPrice.trim() : undefined,
+        priceCurrency: priceCurrency.trim() || undefined,
         approveNow,
       });
       if (!result.ok) {
         setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
         return;
       }
+
+      // Document attach (optional): the spec exists (edit mode), so upload by id.
+      // A failed upload does NOT roll back the field changes — surface it honestly.
+      if (docFile && uploadSupplierSpecDoc) {
+        const fd = new FormData();
+        fd.append('specId', spec.id);
+        fd.append('file', docFile);
+        const up = await uploadSupplierSpecDoc(fd);
+        if (!up.ok) {
+          setError(labels.uploadFailed);
+          router.refresh();
+          return;
+        }
+      }
+
       setSuccess(labels.success);
       router.refresh();
       window.setTimeout(() => closeEdit(), 1200);
@@ -295,6 +343,52 @@ export function SupplierSpecRowActions({
               />
             </Field>
           </div>
+          <div className="ff-inline">
+            <Field label={labels.unitPrice}>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={unitPrice}
+                placeholder={labels.unitPricePlaceholder}
+                onChange={(e) => setUnitPrice(e.target.value)}
+                aria-label={labels.unitPrice}
+                data-testid="supplier-spec-edit-unit-price"
+              />
+            </Field>
+            <Field label={labels.priceCurrency}>
+              <Input
+                type="text"
+                value={priceCurrency}
+                placeholder={labels.priceCurrencyPlaceholder}
+                onChange={(e) => setPriceCurrency(e.target.value.toUpperCase())}
+                aria-label={labels.priceCurrency}
+                data-testid="supplier-spec-edit-price-currency"
+              />
+            </Field>
+          </div>
+          <Field label={labels.document}>
+            {spec.specDocumentUrl ? (
+              <div className="text-sm" style={{ marginBottom: 6 }} data-testid="supplier-spec-edit-document-current">
+                <span className="muted" style={{ marginRight: 6 }}>
+                  {labels.documentCurrent}
+                </span>
+                <a href={spec.specDocumentUrl} target="_blank" rel="noreferrer" data-testid="supplier-spec-edit-document-view">
+                  {labels.documentView}
+                </a>
+              </div>
+            ) : null}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,image/*"
+              aria-label={labels.document}
+              data-testid="supplier-spec-edit-document"
+              onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+            />
+            <span className="muted" style={{ fontSize: 11, display: 'block', marginTop: 2 }}>
+              {labels.documentHint}
+            </span>
+          </Field>
           <label className="flex items-center gap-2" style={{ marginTop: 4, fontSize: 13 }}>
             <input
               type="checkbox"

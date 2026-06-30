@@ -44,7 +44,8 @@ import type {
   SupplierSpecActionError,
 } from '../../_actions/supplier-spec-actions';
 
-export type SupplierOption = { id: string; code: string; name: string };
+/** Currency is optional so the modal can default the price currency to the chosen supplier's. */
+export type SupplierOption = { id: string; code: string; name: string; currency?: string | null };
 
 export type SupplierSpecAddLabels = {
   cta: string;
@@ -57,6 +58,16 @@ export type SupplierSpecAddLabels = {
   effectiveFrom: string;
   expiryDate: string;
   approveNow: string;
+  /** Price + currency fields (new). */
+  unitPrice: string;
+  unitPricePlaceholder: string;
+  priceCurrency: string;
+  priceCurrencyPlaceholder: string;
+  /** Document attach (new). */
+  document: string;
+  documentHint: string;
+  uploading: string;
+  uploadFailed: string;
   submit: string;
   submitting: string;
   cancel: string;
@@ -74,8 +85,14 @@ type AddSupplierSpec = (input: {
   issuedDate?: string;
   effectiveFrom?: string;
   expiryDate?: string;
+  unitPrice?: number | string;
+  priceCurrency?: string;
   approveNow: boolean;
 }) => Promise<CreateItemSupplierSpecResult>;
+
+type UploadSupplierSpecDoc = (
+  formData: FormData,
+) => Promise<{ ok: true; data: { url: string } } | { ok: false; error: string }>;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -154,12 +171,15 @@ export function SupplierSpecAdd({
   suppliers,
   labels,
   addSupplierSpec,
+  uploadSupplierSpecDoc,
 }: {
   itemCode: string;
   canEdit: boolean;
   suppliers: SupplierOption[];
   labels: SupplierSpecAddLabels;
   addSupplierSpec: AddSupplierSpec;
+  /** Optional — attach a spec document after the spec is created. */
+  uploadSupplierSpecDoc?: UploadSupplierSpecDoc;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -168,10 +188,24 @@ export function SupplierSpecAdd({
   const [issuedDate, setIssuedDate] = React.useState('');
   const [effectiveFrom, setEffectiveFrom] = React.useState('');
   const [expiryDate, setExpiryDate] = React.useState('');
+  const [unitPrice, setUnitPrice] = React.useState('');
+  const [priceCurrency, setPriceCurrency] = React.useState('');
+  // Whether the user manually edited the currency (so a supplier change won't clobber it).
+  const currencyTouchedRef = React.useRef(false);
+  const [docFile, setDocFile] = React.useState<File | null>(null);
   const [approveNow, setApproveNow] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Default the price currency to the selected supplier's currency (until the user
+  // overrides it). Runs whenever the supplier changes and the field is untouched.
+  React.useEffect(() => {
+    if (currencyTouchedRef.current) return;
+    const cur = suppliers.find((s) => s.id === supplierId)?.currency;
+    setPriceCurrency(cur ?? '');
+  }, [supplierId, suppliers]);
 
   // permission-denied: the write trigger is gated server-side (canEdit mirrors
   // technical.items.edit). Hidden entirely when the caller cannot edit.
@@ -189,6 +223,11 @@ export function SupplierSpecAdd({
     setIssuedDate('');
     setEffectiveFrom('');
     setExpiryDate('');
+    setUnitPrice('');
+    setPriceCurrency('');
+    currencyTouchedRef.current = false;
+    setDocFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setApproveNow(true);
     setError(null);
     setSuccess(null);
@@ -214,12 +253,29 @@ export function SupplierSpecAdd({
         issuedDate: issuedDate || undefined,
         effectiveFrom: effectiveFrom || undefined,
         expiryDate: expiryDate || undefined,
+        unitPrice: unitPrice.trim() ? unitPrice.trim() : undefined,
+        priceCurrency: priceCurrency.trim() || undefined,
         approveNow,
       });
       if (!result.ok) {
         setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
         return;
       }
+
+      // Document attach (optional): the spec now exists, so upload against its id.
+      // A failed upload does NOT roll back the spec — surface it honestly inline.
+      if (docFile && uploadSupplierSpecDoc) {
+        const fd = new FormData();
+        fd.append('specId', result.data.id);
+        fd.append('file', docFile);
+        const up = await uploadSupplierSpecDoc(fd);
+        if (!up.ok) {
+          setError(labels.uploadFailed);
+          router.refresh();
+          return;
+        }
+      }
+
       setSuccess(result.data.updated ? labels.successUpdated : labels.success);
       // Refresh so the supplier-specs tab re-reads and the BOM readiness warnings
       // (SUPPLIER_NOT_APPROVED / SUPPLIER_SPEC_NOT_ACTIVE) for this item clear.
@@ -329,6 +385,47 @@ export function SupplierSpecAdd({
                   onChange={(e) => setIssuedDate(e.target.value)}
                   aria-label={labels.issuedDate}
                 />
+              </Field>
+
+              <div className="ff-inline">
+                <Field label={labels.unitPrice}>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={unitPrice}
+                    placeholder={labels.unitPricePlaceholder}
+                    onChange={(e) => setUnitPrice(e.target.value)}
+                    aria-label={labels.unitPrice}
+                    data-testid="supplier-spec-add-unit-price"
+                  />
+                </Field>
+                <Field label={labels.priceCurrency}>
+                  <Input
+                    type="text"
+                    value={priceCurrency}
+                    placeholder={labels.priceCurrencyPlaceholder}
+                    onChange={(e) => {
+                      currencyTouchedRef.current = true;
+                      setPriceCurrency(e.target.value.toUpperCase());
+                    }}
+                    aria-label={labels.priceCurrency}
+                    data-testid="supplier-spec-add-price-currency"
+                  />
+                </Field>
+              </div>
+
+              <Field label={labels.document}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,image/*"
+                  aria-label={labels.document}
+                  data-testid="supplier-spec-add-document"
+                  onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                />
+                <span className="muted" style={{ fontSize: 11, display: 'block', marginTop: 2 }}>
+                  {labels.documentHint}
+                </span>
               </Field>
 
               <label className="flex items-center gap-2" style={{ marginTop: 4, fontSize: 13 }}>

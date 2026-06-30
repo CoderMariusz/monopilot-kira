@@ -9,7 +9,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const queryMock = vi.fn(async () => ({ rows: [] }));
+const queryMock = vi.fn(
+  async (_sql: string, _params?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }> => ({ rows: [] }),
+);
 
 vi.mock('../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: <T,>(fn: (ctx: unknown) => Promise<T>) =>
@@ -23,6 +25,11 @@ function lastBoundTypes(): string[] {
   const call = queryMock.mock.calls.at(-1);
   const params = call?.[1] as unknown[];
   return params?.[0] as string[];
+}
+
+function lastQuery(): { sql: string; params: unknown[] } {
+  const call = queryMock.mock.calls.at(-1);
+  return { sql: String(call?.[0] ?? ''), params: (call?.[1] as unknown[]) ?? [] };
 }
 
 afterEach(() => {
@@ -53,5 +60,39 @@ describe('searchItems item-type fan-out', () => {
     // 'service' is not a legal items.item_type — zod enum should reject it.
     await expect(searchItems({ itemTypes: ['service' as never] })).rejects.toThrow();
     expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it('filters by active approved supplier spec and returns listPriceGbp when supplierCode is provided', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'item-1',
+          item_code: 'RM-SALT',
+          name: 'Salt',
+          item_type: 'rm',
+          status: 'active',
+          cost_per_kg: '1.2300',
+          list_price_gbp: '1.4500',
+          uom_base: 'kg',
+        },
+      ],
+    });
+
+    const result = await searchItems({ query: 'salt', supplierCode: 'SUP-001' });
+    const { sql, params } = lastQuery();
+
+    expect(sql).toContain('public.supplier_specs ss');
+    expect(sql).toContain("ss.lifecycle_status = 'active'");
+    expect(sql).toContain("ss.review_status = 'approved'");
+    expect(params).toContain('SUP-001');
+    expect(result[0]?.listPriceGbp).toBe('1.4500');
+  });
+
+  it('does not add the supplier_specs filter when supplierCode is absent', async () => {
+    await searchItems({ query: 'salt' });
+    const { sql, params } = lastQuery();
+
+    expect(sql).not.toContain('supplier_specs');
+    expect(params).toHaveLength(3);
   });
 });

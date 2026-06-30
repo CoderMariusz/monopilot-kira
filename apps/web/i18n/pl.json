@@ -4033,6 +4033,36 @@
         "invalid_state": "Zlecenie zmiany nie jest już w oczekiwanym stanie — odświeżono.",
         "persistence_failed": "Nie udało się wykonać akcji."
       }
+    },
+    "items": {
+      "detail": {
+        "dataTabs": {
+          "supplier": {
+            "add": {
+              "unitPrice": "Cena jednostkowa",
+              "unitPricePlaceholder": "0,00",
+              "priceCurrency": "Waluta",
+              "priceCurrencyPlaceholder": "np. GBP",
+              "document": "Dokument specyfikacji",
+              "documentHint": "Opcjonalnie. PDF lub obraz, dołączany po utworzeniu specyfikacji.",
+              "uploading": "Przesyłanie dokumentu…",
+              "uploadFailed": "Specyfikacja została zapisana, ale przesłanie dokumentu nie powiodło się. Spróbuj dołączyć go ponownie z poziomu edycji."
+            },
+            "rowActions": {
+              "unitPrice": "Cena jednostkowa",
+              "unitPricePlaceholder": "0,00",
+              "priceCurrency": "Waluta",
+              "priceCurrencyPlaceholder": "np. GBP",
+              "document": "Dokument specyfikacji",
+              "documentHint": "Opcjonalnie. PDF lub obraz — zastępuje bieżący dokument.",
+              "documentCurrent": "Bieżący dokument:",
+              "documentView": "Pokaż",
+              "uploading": "Przesyłanie dokumentu…",
+              "uploadFailed": "Zmiany zapisano, ale przesłanie dokumentu nie powiodło się. Spróbuj dołączyć go ponownie."
+            }
+          }
+        }
+      }
     }
   },
   "npd": {
@@ -6982,7 +7012,11 @@
           "cancel": "Anuluj",
           "error": "Wyszukiwanie pozycji nie powiodło się"
         },
-        "poNumberHelp": "Pozostaw puste, aby ponumerować automatycznie (format w Ustawienia → Dokumenty)."
+        "poNumberHelp": "Pozostaw puste, aby ponumerować automatycznie (format w Ustawienia → Dokumenty).",
+        "priceSource": {
+          "spec": "Z karty dostawcy",
+          "list_price": "Z cennika pozycji"
+        }
       },
       "detail": {
         "title": "Zamówienie zakupu",

@@ -108,6 +108,7 @@ const listLabels: PoListLabels = {
     lineQty: 'Qty',
     lineUom: 'UoM',
     lineUnitPrice: 'Unit price',
+    priceSource: { spec: 'From supplier spec', list_price: 'From list price' },
     uomPlaceholder: 'Unit',
     uomOptions: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
     qtyPlaceholder: '0',
@@ -217,6 +218,9 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
   const searchPoItemsAction = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue([
     { id: 'item-1', itemCode: 'RM-001', name: 'Pork Belly', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
   ]);
+  const getItemSupplierPriceAction = vi
+    .fn<[unknown], Promise<{ ok: true; data: { unitPrice: string | null; currency: string | null; source: 'spec' | 'list_price' | 'none' } }>>()
+    .mockResolvedValue({ ok: true, data: { unitPrice: '3.75', currency: 'GBP', source: 'spec' } });
   const createPurchaseOrderAction = vi.fn<[unknown], Promise<CreatePoResult>>();
   const createExportJobAction = vi
     .fn<[CreateExportJobInput], Promise<CreateExportJobResult>>()
@@ -229,12 +233,13 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
       labels={listLabels}
       archivedCount={2}
       searchPoItemsAction={searchPoItemsAction}
+      getItemSupplierPriceAction={getItemSupplierPriceAction}
       createPurchaseOrderAction={createPurchaseOrderAction}
       createExportJobAction={createExportJobAction}
       {...props}
     />,
   );
-  return { ...utils, searchPoItemsAction, createPurchaseOrderAction, createExportJobAction };
+  return { ...utils, searchPoItemsAction, getItemSupplierPriceAction, createPurchaseOrderAction, createExportJobAction };
 }
 
 beforeEach(() => {
@@ -511,6 +516,85 @@ describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create
     fireEvent.click(screen.getByTestId('create-po-submit'));
     await waitFor(() => expect(screen.getByTestId('create-po-error')).toHaveTextContent(errors.forbidden));
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('CreatePoModal — supplier-filtered picker + price pre-fill (BUG2 + BUG1)', () => {
+  // BUG2 — modals.jsx:196 product list is supplier-attributed → the picker search
+  // must carry the chosen supplier so searchPoItems filters to that supplier's items.
+  it('threads the selected supplierId into the line picker search (BUG2)', async () => {
+    const { searchPoItemsAction } = renderList();
+    fireEvent.click(screen.getByTestId('po-list-create'));
+
+    // Choose a supplier (first combobox in the form).
+    const form = screen.getByTestId('create-po-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
+
+    // Open the picker → it searches. Every call must include supplierId: 'sup-1'.
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(searchPoItemsAction).toHaveBeenCalled());
+    const lastCall = searchPoItemsAction.mock.calls.at(-1)?.[0] as { supplierId?: string };
+    expect(lastCall.supplierId).toBe('sup-1');
+  });
+
+  // BUG1 — modals.jsx:212 "Auto-filled from supplier_products · editable": on item
+  // select the line unit price is pre-filled from getItemSupplierPrice, editable, and
+  // a subtle source hint is shown.
+  it('pre-fills the line unit price from getItemSupplierPrice + shows the source hint (BUG1)', async () => {
+    const { getItemSupplierPriceAction } = renderList();
+    fireEvent.click(screen.getByTestId('po-list-create'));
+
+    const form = screen.getByTestId('create-po-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
+
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+
+    await waitFor(() =>
+      expect(getItemSupplierPriceAction).toHaveBeenCalledWith(
+        expect.objectContaining({ itemId: 'item-1', supplierId: 'sup-1' }),
+      ),
+    );
+    // The price input is pre-filled (still editable) and the source hint reads "spec".
+    await waitFor(() => expect(screen.getByTestId('create-po-line-price')).toHaveValue('3.75'));
+    expect(screen.getByTestId('create-po-line-price-source')).toHaveTextContent('From supplier spec');
+
+    // Editable — a manual change clears the source hint.
+    fireEvent.change(screen.getByTestId('create-po-line-price'), { target: { value: '4.00' } });
+    expect(screen.getByTestId('create-po-line-price')).toHaveValue('4.00');
+    expect(screen.queryByTestId('create-po-line-price-source')).toBeNull();
+  });
+
+  // BUG2 — switching the supplier re-filters: the already-picked line item is cleared
+  // (it may not belong to the new supplier) and a fresh search carries the new id.
+  it('clears the picked line item + re-filters when the supplier changes (BUG2)', async () => {
+    const { searchPoItemsAction } = renderList();
+    fireEvent.click(screen.getByTestId('po-list-create'));
+
+    const form = screen.getByTestId('create-po-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(await screen.findByText('AGRO — Agro-Fresh Ltd.'));
+
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-po-line-item')).toHaveTextContent('RM-001'));
+
+    // Switch supplier → the picked item is dropped (picker trigger returns).
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(await screen.findByText('BALT — Baltic Pork Co.'));
+    await waitFor(() => expect(screen.queryByTestId('create-po-line-item')).toBeNull());
+    expect(screen.getByTestId('item-picker-trigger')).toBeInTheDocument();
+
+    // A new picker search now carries the new supplier id.
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => {
+      const lastCall = searchPoItemsAction.mock.calls.at(-1)?.[0] as { supplierId?: string };
+      expect(lastCall.supplierId).toBe('sup-2');
+    });
   });
 });
 

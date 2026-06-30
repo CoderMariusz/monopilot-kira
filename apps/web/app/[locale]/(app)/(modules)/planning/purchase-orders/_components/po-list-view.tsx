@@ -49,7 +49,12 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import { downloadCsv } from '../../../../../../../lib/shared/download';
 
 import { PoStatusBadge } from './po-status-badge';
-import { CreatePoModal, type CreatePoLabels, type CreatePoResult } from './create-po-modal';
+import {
+  CreatePoModal,
+  type CreatePoLabels,
+  type CreatePoResult,
+  type GetItemSupplierPriceAction,
+} from './create-po-modal';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import type { PoSupplierOption } from '../_actions/po-form-data';
 import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/create-export-job';
@@ -127,6 +132,8 @@ export type PoListViewProps = {
   /** Open the create modal immediately on mount (?new=1 deep-link). */
   autoOpenCreate?: boolean;
   searchPoItemsAction: (input: SearchItemsInput) => Promise<ItemPickerOption[]>;
+  /** BUG1 — supplier-effective price pre-fill on line item select (optional seam). */
+  getItemSupplierPriceAction?: GetItemSupplierPriceAction;
   createPurchaseOrderAction: (input: {
     /** Optional — createPurchaseOrder auto-generates a per-org number when omitted. */
     poNumber?: string;
@@ -160,6 +167,7 @@ export function PoListView({
   archivedCount,
   autoOpenCreate = false,
   searchPoItemsAction,
+  getItemSupplierPriceAction,
   createPurchaseOrderAction,
   createExportJobAction,
 }: PoListViewProps) {
@@ -463,6 +471,7 @@ export function PoListView({
         labels={labels.create}
         suppliers={suppliers}
         searchPoItemsAction={searchPoItemsAction}
+        getItemSupplierPriceAction={getItemSupplierPriceAction}
         createPurchaseOrderAction={createPurchaseOrderAction}
         onCreated={() => router.refresh()}
       />
