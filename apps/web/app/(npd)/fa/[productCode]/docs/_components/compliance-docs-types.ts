@@ -1,0 +1,52 @@
+export type DocType = 'CoA' | 'SDS' | 'Spec' | 'Cert' | 'Other';
+
+export type ComplianceDocsLabels = {
+  title: string;
+  subtitle: string;
+  upload: string;
+  colType: string;
+  colTitle: string;
+  colVersion: string;
+  colUploaded: string;
+  colExpires: string;
+  colStatus: string;
+  colActions: string;
+  download: string;
+  delete: string;
+  noExpiry: string;
+  statusValid: string;
+  statusExpiring: string;
+  statusExpired: string;
+  loading: string;
+  empty: string;
+  emptyBody: string;
+  error: string;
+  forbidden: string;
+  fileTypesNote: string;
+  // Approval criterion C7 wayfinding (links this docs screen back to the gate it satisfies).
+  approvalC7Note: string;
+  backToApproval: string;
+  docTypeCoA: string;
+  docTypeSDS: string;
+  docTypeSpec: string;
+  docTypeCert: string;
+  docTypeOther: string;
+  // modal labels (passed through to DocUploadModal)
+  modalTitle: string;
+  modalSubtitle: string;
+  fieldDocType: string;
+  fieldTitle: string;
+  fieldTitleHint: string;
+  fieldFile: string;
+  fieldFileHint: string;
+  fieldExpires: string;
+  fieldExpiresHint: string;
+  cancel: string;
+  uploadAction: string;
+  errorTitleRequired: string;
+  errorTitleTooLong: string;
+  errorFileRequired: string;
+  errorFileTooLarge: string;
+  errorFileType: string;
+  errorUpload: string;
+};

@@ -11,7 +11,7 @@ import D365TestConnectionModal, {
   type D365ConnectionResult,
 } from '../../../../../../../../components/settings/modals/d365-test-connection-modal';
 
-import type { D365FieldMapping, D365Filter, D365Direction, D365MappingLabels, ExportD365MappingCsv } from './page';
+import type { D365FieldMapping, D365Filter, D365Direction, D365MappingLabels, ExportD365MappingCsv } from './mapping-types';
 
 const prototypeSource = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:109-146';
 const route = '/settings/integrations/d365/mapping';

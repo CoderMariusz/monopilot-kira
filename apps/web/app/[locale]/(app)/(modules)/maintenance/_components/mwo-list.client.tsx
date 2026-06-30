@@ -26,7 +26,7 @@
  * arrive from the server page; this component owns only tab/search/modal state.
  */
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
@@ -34,6 +34,11 @@ import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../lib/shared/download';
+import { MwoCreateModal } from './mwo-create-modal';
+import { MwoOverview } from './mwo-overview';
+import { PmScheduleList } from './mwo-pm-schedule-list';
+import { RowActions } from './mwo-row-actions';
+import { MwoTransitionModal } from './mwo-transition-modal';
 import type {
   MachineOption,
   MwoListRow,
@@ -45,7 +50,7 @@ import type {
   PmScheduleRow,
 } from '../_actions/mwo-actions';
 
-const STATE_VARIANT: Record<MwoState, BadgeVariant> = {
+export const STATE_VARIANT: Record<MwoState, BadgeVariant> = {
   requested: 'warning',
   approved: 'info',
   open: 'info',
@@ -54,7 +59,7 @@ const STATE_VARIANT: Record<MwoState, BadgeVariant> = {
   cancelled: 'muted',
 };
 
-const PRIORITY_VARIANT: Record<MwoPriority, BadgeVariant> = {
+export const PRIORITY_VARIANT: Record<MwoPriority, BadgeVariant> = {
   low: 'muted',
   medium: 'secondary',
   high: 'warning',
@@ -185,13 +190,13 @@ export type TransitionMwoAction = (input: {
 
 // Formatters live IN this client module — passing functions from the RSC page
 // crashes live with Next16 "Functions cannot be passed to Client Components".
-function fmtDate(iso: string | null): string {
+export function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
   return d.toISOString().slice(0, 10);
 }
-function fmtDateTime(iso: string | null): string {
+export function fmtDateTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
@@ -525,473 +530,4 @@ function buildOverviewStats(rows: MwoListRow[]): MwoOverviewStats {
     else ratio.unplanned += 1;
   }
   return { backlog, ratio };
-}
-
-function MwoOverview({
-  stats,
-  labels,
-}: {
-  stats: MwoOverviewStats;
-  labels: NonNullable<MwoListLabels['overview']>;
-}) {
-  const backlog = [
-    { label: labels.d0_7, value: stats.backlog.d0_7 },
-    { label: labels.d8_30, value: stats.backlog.d8_30 },
-    { label: labels.d31_plus, value: stats.backlog.d31_plus },
-  ];
-  const backlogMax = Math.max(1, ...backlog.map((b) => b.value));
-  const ratioTotal = Math.max(1, stats.ratio.planned + stats.ratio.unplanned);
-  const plannedPct = Math.round((stats.ratio.planned / ratioTotal) * 100);
-  const unplannedPct = Math.max(0, 100 - plannedPct);
-
-  return (
-    <div className="grid gap-3 lg:grid-cols-[2fr_1fr]" data-testid="mwo-overview">
-      <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3">
-          <h2 className="text-sm font-semibold text-slate-900">{labels.backlogTitle}</h2>
-          <p className="text-xs text-slate-500">{labels.backlogSubtitle}</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {backlog.map((bucket) => (
-            <div key={bucket.label} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-medium text-slate-600">{bucket.label}</span>
-                <span className="font-mono text-lg font-semibold text-slate-900">{bucket.value}</span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-slate-200" aria-hidden="true">
-                <div
-                  className="h-2 rounded-full bg-slate-900"
-                  style={{ width: `${Math.max(4, Math.round((bucket.value / backlogMax) * 100))}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3">
-          <h2 className="text-sm font-semibold text-slate-900">{labels.ratioTitle}</h2>
-          <p className="text-xs text-slate-500">{labels.ratioSubtitle}</p>
-        </div>
-        <div className="flex h-2 overflow-hidden rounded-full bg-amber-100" aria-hidden="true">
-          <div className="bg-emerald-600" style={{ width: `${plannedPct}%` }} />
-          <div className="bg-amber-400" style={{ width: `${unplannedPct}%` }} />
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div>
-            <p className="text-xs text-slate-500">{labels.planned}</p>
-            <p className="font-mono text-lg font-semibold text-slate-900">{stats.ratio.planned}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">{labels.unplanned}</p>
-            <p className="font-mono text-lg font-semibold text-slate-900">{stats.ratio.unplanned}</p>
-          </div>
-        </div>
-        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-          <span>{plannedPct}%</span>
-          <span>{unplannedPct}%</span>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-/** Per-status row action (work-orders.jsx:222-227): open→Start, in_progress→Complete, + Cancel. */
-function RowActions({
-  row,
-  labels,
-  permissions,
-  onTransition,
-}: {
-  row: MwoListRow;
-  labels: MwoListLabels;
-  permissions: MwoActionPermissions;
-  onTransition: (to: MwoTransition) => void;
-}) {
-  const terminal = row.state === 'completed' || row.state === 'cancelled';
-  if (terminal) return <span className="text-xs text-slate-300">—</span>;
-
-  return (
-    <div className="flex items-center gap-1.5">
-      {row.state === 'open' && permissions.canExecute ? (
-        <button
-          type="button"
-          data-testid={`mwo-start-${row.id}`}
-          onClick={() => onTransition('in_progress')}
-          className="rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-800"
-        >
-          {labels.action.start}
-        </button>
-      ) : null}
-      {row.state === 'in_progress' && permissions.canExecute ? (
-        <button
-          type="button"
-          data-testid={`mwo-complete-${row.id}`}
-          onClick={() => onTransition('completed')}
-          className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-500"
-        >
-          {labels.action.complete}
-        </button>
-      ) : null}
-      {permissions.canCancel ? (
-        <button
-          type="button"
-          data-testid={`mwo-cancel-${row.id}`}
-          onClick={() => onTransition('cancelled')}
-          className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:border-red-200 hover:text-red-600"
-        >
-          {labels.action.cancel}
-        </button>
-      ) : null}
-      {!permissions.canExecute && !permissions.canCancel ? (
-        <span className="text-xs text-slate-300">—</span>
-      ) : null}
-    </div>
-  );
-}
-
-/** MODAL: create MWO (modals.jsx:186-233, machine-scoped reactive subset). */
-function MwoCreateModal({
-  machines,
-  labels,
-  createMwoAction,
-  onClose,
-  onCreated,
-}: {
-  machines: MachineOption[];
-  labels: MwoListLabels;
-  createMwoAction: CreateMwoAction;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [machineId, setMachineId] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<MwoPriority>('medium');
-  const [dueDate, setDueDate] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, startSubmit] = useTransition();
-
-  const submit = () => {
-    if (!machineId || title.trim().length < 3) {
-      setError(labels.create.errorRequired);
-      return;
-    }
-    setError(null);
-    startSubmit(async () => {
-      const result = await createMwoAction({
-        machineId,
-        title: title.trim(),
-        description: description.trim() || undefined,
-        priority,
-        dueDate: dueDate || undefined,
-      });
-      if (result.ok) onCreated();
-      else setError(result.reason === 'forbidden' ? labels.transition.errorForbidden : labels.create.errorFailed);
-    });
-  };
-
-  return (
-    <ModalShell title={labels.create.title} testId="mwo-create-modal" onClose={onClose}>
-      <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">{labels.create.machine}</span>
-          {machines.length === 0 ? (
-            <span data-testid="mwo-create-no-machines" className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-              {labels.create.noMachines}
-            </span>
-          ) : (
-            <select
-              value={machineId}
-              onChange={(e) => setMachineId(e.target.value)}
-              data-testid="mwo-create-machine"
-              className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-            >
-              <option value="">{labels.create.machinePlaceholder}</option>
-              {machines.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.code} · {m.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">{labels.create.titleField}</span>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={labels.create.titlePlaceholder}
-            data-testid="mwo-create-title"
-            className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">{labels.create.description}</span>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={labels.create.descriptionPlaceholder}
-            rows={3}
-            data-testid="mwo-create-description"
-            className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-          />
-        </label>
-
-        <div className="flex gap-3">
-          <label className="flex flex-1 flex-col gap-1 text-sm">
-            <span className="font-medium text-slate-700">{labels.create.priority}</span>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as MwoPriority)}
-              data-testid="mwo-create-priority"
-              className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-            >
-              {(['low', 'medium', 'high', 'critical'] as const).map((p) => (
-                <option key={p} value={p}>
-                  {labels.priority[p]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm">
-            <span className="font-medium text-slate-700">{labels.create.dueDate}</span>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              data-testid="mwo-create-due-date"
-              className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-            />
-          </label>
-        </div>
-
-        {error ? (
-          <p role="alert" data-testid="mwo-create-error" className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-1 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            data-testid="mwo-create-cancel"
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-          >
-            {labels.create.cancel}
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={submitting || machines.length === 0}
-            data-testid="mwo-create-submit"
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {submitting ? labels.create.submitting : labels.create.submit}
-          </button>
-        </div>
-      </div>
-    </ModalShell>
-  );
-}
-
-/** MODAL: confirm a state transition (note for complete/cancel). */
-function MwoTransitionModal({
-  row,
-  to,
-  labels,
-  transitionMwoAction,
-  onClose,
-  onDone,
-}: {
-  row: MwoListRow;
-  to: MwoTransition;
-  labels: MwoListLabels;
-  transitionMwoAction: TransitionMwoAction;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, startSubmit] = useTransition();
-
-  const title =
-    to === 'in_progress'
-      ? labels.transition.startTitle
-      : to === 'completed'
-        ? labels.transition.completeTitle
-        : labels.transition.cancelTitle;
-  const confirmLabel =
-    to === 'in_progress'
-      ? labels.transition.confirmStart
-      : to === 'completed'
-        ? labels.transition.confirmComplete
-        : labels.transition.confirmCancel;
-  const noteLabel = to === 'cancelled' ? labels.transition.noteCancel : labels.transition.noteComplete;
-
-  const submit = () => {
-    setError(null);
-    startSubmit(async () => {
-      const result = await transitionMwoAction({
-        mwoId: row.id,
-        to,
-        note: note.trim() || undefined,
-      });
-      if (result.ok) onDone();
-      else if (result.reason === 'forbidden') setError(labels.transition.errorForbidden);
-      else if (result.reason === 'invalid_transition') setError(labels.transition.errorIllegal);
-      else setError(labels.transition.errorFailed);
-    });
-  };
-
-  return (
-    <ModalShell title={`${title} — ${row.mwoNumber}`} testId="mwo-transition-modal" onClose={onClose}>
-      <div className="flex flex-col gap-3">
-        {to !== 'in_progress' ? (
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-slate-700">{noteLabel}</span>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={3}
-              data-testid="mwo-transition-note"
-              className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-            />
-          </label>
-        ) : null}
-
-        {error ? (
-          <p role="alert" data-testid="mwo-transition-error" className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-1 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            data-testid="mwo-transition-dismiss"
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-          >
-            {labels.transition.dismiss}
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={submitting}
-            data-testid="mwo-transition-confirm"
-            className={[
-              'rounded-md px-3 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300',
-              to === 'cancelled' ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-900 hover:bg-slate-800',
-            ].join(' ')}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </ModalShell>
-  );
-}
-
-/** Read-only PM schedule list (pm-schedules.jsx:3-277, list view only). */
-function PmScheduleList({ pmSchedules, labels }: { pmSchedules: PmScheduleRow[]; labels: MwoListLabels }) {
-  return (
-    <Card data-testid="pm-schedule-card" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      {pmSchedules.length === 0 ? (
-        <p data-testid="pm-empty" data-state="empty" className="px-4 py-10 text-center text-sm text-slate-500">
-          {labels.pm.empty}
-        </p>
-      ) : (
-        <Table aria-label={labels.pm.title}>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">{labels.pm.col.equipment}</TableHead>
-              <TableHead scope="col">{labels.pm.col.type}</TableHead>
-              <TableHead scope="col">{labels.pm.col.interval}</TableHead>
-              <TableHead scope="col">{labels.pm.col.nextDue}</TableHead>
-              <TableHead scope="col">{labels.pm.col.lastCompleted}</TableHead>
-              <TableHead scope="col">{labels.pm.col.active}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pmSchedules.map((s) => (
-              <TableRow key={s.id} data-testid={`pm-row-${s.id}`}>
-                <TableCell className="text-xs text-slate-600">
-                  {s.equipmentCode ? (
-                    <div className="flex flex-col">
-                      <span className="font-mono text-xs font-semibold text-slate-900">{s.equipmentCode}</span>
-                      <span className="text-[11px] text-slate-500">{s.equipmentName}</span>
-                    </div>
-                  ) : (
-                    <span className="text-slate-400">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{labels.pm.type[s.scheduleType]}</Badge>
-                </TableCell>
-                <TableCell className="font-mono text-xs text-slate-600">
-                  {s.intervalValue} {labels.pm.intervalUnit[s.intervalBasis]}
-                </TableCell>
-                <TableCell className="font-mono text-xs text-slate-600">{fmtDate(s.nextDueDate)}</TableCell>
-                <TableCell className="font-mono text-xs text-slate-500">{fmtDateTime(s.lastCompletedAt)}</TableCell>
-                <TableCell>
-                  <Badge variant={s.active ? 'success' : 'muted'}>
-                    {s.active ? labels.pm.activeYes : labels.pm.activeNo}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </Card>
-  );
-}
-
-/** Minimal a11y modal shell (overlay + dialog), styled to the locked system. */
-function ModalShell({
-  title,
-  testId,
-  onClose,
-  children,
-}: {
-  title: string;
-  testId: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
-      onClick={onClose}
-      data-testid={`${testId}-overlay`}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        data-testid={testId}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-md px-2 py-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-          >
-            ×
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
 }

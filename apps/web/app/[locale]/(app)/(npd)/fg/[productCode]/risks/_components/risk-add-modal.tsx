@@ -35,7 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Textarea from '@monopilot/ui/Textarea';
 import Input from '@monopilot/ui/Input';
 
-import type { RiskRegisterLabels, RiskRow, RiskState } from './risk-register-screen';
+import type { RiskRegisterLabels, RiskRow, RiskState } from './risk-types';
 
 // Server Action signatures (owned by T-081 — imported by the page, injected here).
 export type CreateRiskAction = (input: {

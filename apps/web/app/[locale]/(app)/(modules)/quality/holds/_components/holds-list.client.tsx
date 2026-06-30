@@ -41,6 +41,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import { HoldCreateModal, type HoldCreateLabels } from './hold-create-modal.client';
+import { HOLD_REF_TYPES } from './hold-types';
+import type { HoldRefType } from './hold-types';
 import type { createHold } from '../../_actions/hold-actions';
 import type {
   resolveLpByNumber,
@@ -49,11 +51,11 @@ import type {
   resolveGrnByNumber,
 } from '../../_actions/lookup-actions';
 
+export { HOLD_REF_TYPES } from './hold-types';
+export type { HoldRefType } from './hold-types';
+
 export type HoldStatusTab = 'active' | 'released' | 'all';
 export const HOLD_STATUS_TABS: HoldStatusTab[] = ['active', 'released', 'all'];
-
-export type HoldRefType = 'lp' | 'batch' | 'wo' | 'po' | 'grn';
-export const HOLD_REF_TYPES: HoldRefType[] = ['lp', 'batch', 'wo', 'po', 'grn'];
 
 /** Subset of HoldListRow the list renders (server-resolved, never recomputed). */
 export type HoldRow = {

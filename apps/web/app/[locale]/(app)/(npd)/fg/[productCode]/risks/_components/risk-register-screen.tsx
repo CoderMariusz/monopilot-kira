@@ -32,86 +32,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 import { RiskAddModal } from './risk-add-modal';
 import type { CreateRiskAction, UpdateRiskAction } from './risk-add-modal';
+import type { RiskBucket, RiskRegisterLabels, RiskRow, RiskState } from './risk-types';
 
-export type RiskBucket = 'High' | 'Med' | 'Low';
-export type RiskState = 'Open' | 'Mitigated' | 'Closed';
+export type { RiskBucket, RiskRegisterLabels, RiskRow, RiskState } from './risk-types';
+
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
-
-export type RiskRow = {
-  id: string;
-  productCode: string;
-  title: string;
-  description: string;
-  likelihood: number;
-  impact: number;
-  score: number;
-  bucket: RiskBucket;
-  state: RiskState;
-  mitigation: string | null;
-  owner: string | null;
-};
-
-export type RiskRegisterLabels = {
-  title: string;
-  subtitle: string;
-  addRisk: string;
-  filterState: string;
-  filterBucket: string;
-  clearFilters: string;
-  stateAll: string;
-  bucketAll: string;
-  colScore: string;
-  colDescription: string;
-  colLikelihood: string;
-  colImpact: string;
-  colStatus: string;
-  colOwner: string;
-  colMitigation: string;
-  colActions: string;
-  edit: string;
-  bucketHigh: string;
-  bucketMed: string;
-  bucketLow: string;
-  stateOpen: string;
-  stateMitigated: string;
-  stateClosed: string;
-  builtBlocked: string;
-  builtBlockedBody: string;
-  loading: string;
-  empty: string;
-  emptyBody: string;
-  error: string;
-  forbidden: string;
-  // modal labels (passed through to RiskAddModal)
-  modalTitleAdd: string;
-  modalTitleEdit: string;
-  fieldDescription: string;
-  fieldDescriptionHint: string;
-  fieldLikelihood: string;
-  fieldImpact: string;
-  fieldMitigation: string;
-  fieldMitigationHint: string;
-  fieldOwner: string;
-  fieldStatus: string;
-  fieldReason: string;
-  fieldReasonHint: string;
-  scoreLabel: string;
-  likelihoodLow: string;
-  likelihoodMed: string;
-  likelihoodHigh: string;
-  impactLow: string;
-  impactMed: string;
-  impactHigh: string;
-  cancel: string;
-  save: string;
-  create: string;
-  mitigate: string;
-  close: string;
-  reopen: string;
-  errorRequired: string;
-  errorTooLong: string;
-  errorReasonShort: string;
-};
 
 const BUCKET_VALUES: RiskBucket[] = ['High', 'Med', 'Low'];
 const STATE_VALUES: RiskState[] = ['Open', 'Mitigated', 'Closed'];

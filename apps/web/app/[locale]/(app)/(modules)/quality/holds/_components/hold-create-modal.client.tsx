@@ -44,9 +44,10 @@ import type {
   resolveGrnByNumber,
   LpLookupResult,
 } from '../../_actions/lookup-actions';
-import type { HoldRefType } from './holds-list.client';
+import { HOLD_REF_TYPES } from './hold-types';
+import type { HoldRefType } from './hold-types';
 
-const REF_TYPES: HoldRefType[] = ['lp', 'batch', 'wo', 'po', 'grn'];
+const REF_TYPES = HOLD_REF_TYPES;
 const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 
 export type HoldCreateLookupLabels = {

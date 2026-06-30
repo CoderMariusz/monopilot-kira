@@ -34,7 +34,7 @@ import Modal from '@monopilot/ui/Modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import Input from '@monopilot/ui/Input';
 
-import type { ComplianceDocsLabels, DocType } from './compliance-docs-screen';
+import type { ComplianceDocsLabels, DocType } from './compliance-docs-types';
 
 // Server Action signature (owned by T-084 — imported by the page, injected here).
 // FormData fields: productCode, docType, title, file, expiresAt.
