@@ -29,16 +29,18 @@ describe('getModuleCount', () => {
 
     expect(result).toEqual({ ok: true, count: 7 });
     expect(queryMock).toHaveBeenCalledTimes(1);
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining('from public.work_order'));
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining('from public.work_orders'));
   });
 
   it('maps every allowlisted key to its public.* table', async () => {
     const cases: Array<[Parameters<typeof getModuleCount>[0], string]> = [
-      ['bom_item', 'public.bom_item'],
-      ['work_order', 'public.work_order'],
-      ['quality_event', 'public.quality_event'],
-      ['shipment', 'public.shipment'],
-      ['lot', 'public.lot'],
+      // DB cleanup P7: these dashboard counts were repointed off the dead placeholder
+      // tables (lot/quality_event/bom_item/shipment/work_order) onto the canonical ones.
+      ['bom_item', 'public.bom_lines'],
+      ['work_order', 'public.work_orders'],
+      ['quality_event', 'public.quality_holds'],
+      ['shipment', 'public.shipping_orders'],
+      ['lot', 'public.license_plates'],
       ['users', 'public.users'],
     ];
 

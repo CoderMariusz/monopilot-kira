@@ -79,17 +79,39 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
 
 async function readBomRows(ctx: OrgContextLike, productCode: string): Promise<BomExportRow[]> {
   const { rows } = await ctx.client.query<BomExportRow>(
-    `select
-        product_code,
-        component_type,
-        component_code,
-        quantity::text as quantity,
-        process_stage,
-        source,
-        d365_status
-       from public.fa_bom_view
-      where product_code = $1
-      order by line_no`,
+    `with selected_header as (
+        select header.id, header.product_id
+          from public.bom_headers header
+         where header.org_id = app.current_org_id()
+           and header.product_id = $1
+           and header.status in ('active', 'technical_approved', 'in_review', 'draft')
+         order by
+           case header.status
+             when 'active' then 1
+             when 'technical_approved' then 2
+             when 'in_review' then 3
+             else 4
+           end,
+           header.version desc,
+           header.created_at desc
+         limit 1
+      )
+      select
+        header.product_id as product_code,
+        line.component_type,
+        line.component_code,
+        line.quantity::text as quantity,
+        coalesce(nullif(line.manufacturing_operation_name, ''), '') as process_stage,
+        coalesce(nullif(line.source, ''), '') as source,
+        coalesce(nullif(d365.status, ''), 'Empty') as d365_status
+       from selected_header header
+       join public.bom_lines line
+         on line.org_id = app.current_org_id()
+        and line.bom_header_id = header.id
+       left join public.d365_import_cache d365
+         on d365.org_id = app.current_org_id()
+        and d365.code = line.component_code
+      order by line.line_no`,
     [productCode],
   );
   return rows;

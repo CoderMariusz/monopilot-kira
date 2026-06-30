@@ -353,23 +353,13 @@ async function resolvePilotEvidence(
 async function pilotWorkOrderExists(ctx: OrgContextLike, pilotWoId: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
-       from public.work_order
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-      limit 1`,
-    [pilotWoId],
-  );
-  if (rows.length > 0) return true;
-
-  const planned = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
        from public.work_orders
       where org_id = app.current_org_id()
         and id = $1::uuid
       limit 1`,
     [pilotWoId],
   );
-  return planned.rows.length > 0;
+  return rows.length > 0;
 }
 
 async function loadCompletedPilotRun(ctx: OrgContextLike, projectId: string): Promise<PilotRunEvidenceRow | null> {

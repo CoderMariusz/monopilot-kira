@@ -17,11 +17,11 @@ import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 // Fixed allowlist of schema-qualified, org-scoped tables. Callers pass a key
 // from this map only — raw caller input is NEVER interpolated into SQL.
 const COUNTABLE = {
-  bom_item: 'public.bom_item',
-  work_order: 'public.work_order',
-  quality_event: 'public.quality_event',
-  shipment: 'public.shipment',
-  lot: 'public.lot',
+  bom_item: 'public.bom_lines',
+  work_order: 'public.work_orders',
+  quality_event: 'public.quality_holds',
+  shipment: 'public.shipping_orders',
+  lot: 'public.license_plates',
   users: 'public.users',
 } as const;
 
