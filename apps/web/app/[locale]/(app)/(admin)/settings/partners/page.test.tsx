@@ -1,112 +1,132 @@
 /**
  * @vitest-environment jsdom
- * Wave 5 (Class D build-now) — /settings/partners schema-driven reference screen.
+ * DB-cleanup Phase 3 — /settings/partners is now an informational LANDING that
+ * points operators at the OPERATIONAL master modules (Suppliers under planning,
+ * Customers under shipping). The decorative reference_tables.partners store had
+ * zero operational readers and caused the "Settings shows 2, Planning shows 4"
+ * confusion, so the schema-driven SingleReferenceScreen is gone.
  *
- * Proves the route reads REAL reference_tables data via withOrgContext (no
- * injected props, no hardcoded array) and renders the shared reference-data
- * screen — never the SettingsRouteStub. Parity source: the reference-data
- * screen at settings/reference (admin-screens.jsx:561-621 reference_data_screen).
+ * Parity source for the landing chrome: the sibling settings page
+ * settings/scanner-auth/page.tsx (page-head + h1.page-title + p.muted) and the
+ * tenant page card/anchor pattern (settings/tenant/page.tsx — section.card,
+ * card-head, card-title, a.btn.btn-secondary.btn-sm with /${locale}/... hrefs).
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   withOrgContext: vi.fn(),
   upsertReferenceRow: vi.fn(),
   softDeleteReferenceRow: vi.fn(),
+  getTranslations: vi.fn(),
 }));
 
+// If the page still imported the SingleReferenceScreen path it would pull these
+// in; the landing must NOT, so we keep the mocks to prove they are never read.
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: mocks.withOrgContext,
 }));
-
 vi.mock('../../../../../../actions/reference/upsert', () => ({
   upsertReferenceRow: mocks.upsertReferenceRow,
 }));
-
 vi.mock('../../../../../../actions/reference/soft-delete', () => ({
   softDeleteReferenceRow: mocks.softDeleteReferenceRow,
 }));
 
-type FakeRow = Record<string, unknown>;
-type DbScript = { schema: FakeRow[]; rows: FakeRow[]; canEdit: boolean };
+// i18n — the landing copy must come from the settings.partners namespace
+// (real en/pl values live in messages/<locale>/02-settings.json). We assert the
+// page resolves the namespace rather than hardcoding inline strings.
+const I18N: Record<string, string> = {
+  movedTitle: 'Suppliers & customers',
+  movedBody:
+    'Suppliers and customers are managed in their operational modules — there is one source of truth for each. Use the links below to maintain them.',
+  suppliersLink: 'Manage suppliers',
+  suppliersDescription: 'Supplier master records, specs and scorecards (Planning).',
+  customersLink: 'Manage customers',
+  customersDescription: 'Customer master records used for sales orders and shipping.',
+};
 
-function wireLiveRead(script: DbScript) {
-  mocks.withOrgContext.mockImplementation(
-    async (action: (ctx: { userId: string; orgId: string; client: unknown }) => Promise<unknown>) => {
-      const client = {
-        query: async (sql: string) => {
-          if (/from\s+public\.reference_schemas/i.test(sql)) {
-            return { rows: script.schema, rowCount: script.schema.length };
-          }
-          if (/count\(\*\)\s+as\s+row_count/i.test(sql)) {
-            return {
-              rows: script.rows.length
-                ? [{ table_code: 'partners', row_count: script.rows.length, updated_at: '2026-06-01T00:00:00.000Z' }]
-                : [],
-              rowCount: script.rows.length ? 1 : 0,
-            };
-          }
-          if (/from\s+public\.reference_tables/i.test(sql)) {
-            return { rows: script.rows, rowCount: script.rows.length };
-          }
-          if (/public\.role_permissions/i.test(sql)) {
-            return script.canEdit ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
-          }
-          return { rows: [], rowCount: 0 };
-        },
-      };
-      return action({ userId: 'partner-user', orgId: 'partner-org', client });
-    },
-  );
-}
+vi.mock('next-intl/server', () => ({
+  getTranslations: (...args: unknown[]) => mocks.getTranslations(...args),
+}));
 
-const liveSchema: FakeRow[] = [
-  { table_code: 'reference.partners', column_code: 'partner_code', data_type: 'text', presentation_json: { label: 'Partner code' } },
-  { table_code: 'reference.partners', column_code: 'name', data_type: 'text', presentation_json: { label: 'Name' } },
-  { table_code: 'reference.partners', column_code: 'partner_type', data_type: 'enum', presentation_json: { label: 'Type' } },
-  { table_code: 'reference.partners', column_code: 'status', data_type: 'enum', presentation_json: { label: 'Status' } },
-];
-
-const liveRows: FakeRow[] = [
-  { table_code: 'partners', row_key: 'SUP-0001', row_data: { partner_code: 'SUP-0001', name: 'Baseline Ingredients Supplier', partner_type: 'supplier', status: 'active' }, version: 1, is_active: true, updated_at: '2026-06-01T00:00:00.000Z' },
-  { table_code: 'partners', row_key: 'CUST-0001', row_data: { partner_code: 'CUST-0001', name: 'Baseline Retail Customer', partner_type: 'customer', status: 'active' }, version: 1, is_active: true, updated_at: '2026-06-01T00:00:00.000Z' },
-];
-
-async function renderPage() {
-  const mod = (await import(/* @vite-ignore */ './page')) as { default: (p: { params: Promise<{ locale: string }> }) => Promise<React.ReactNode> };
-  const node = await mod.default({ params: Promise.resolve({ locale: 'en' }) });
+async function renderPage(locale = 'en') {
+  const mod = (await import(/* @vite-ignore */ './page')) as {
+    default: (p: { params: Promise<{ locale: string }> }) => Promise<React.ReactNode>;
+  };
+  const node = await mod.default({ params: Promise.resolve({ locale }) });
   return render(<>{node}</>);
 }
 
 afterEach(() => cleanup());
 
-describe('/settings/partners schema-driven reference screen', () => {
+describe('/settings/partners — operational masters landing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.withOrgContext.mockReset();
+    mocks.getTranslations.mockReset();
+    mocks.getTranslations.mockImplementation(async (opts: { namespace?: string }) => {
+      const t = (key: string) => I18N[key] ?? key;
+      // surface the namespace the page asked for so the test can assert it
+      (t as unknown as { __namespace?: string }).__namespace = opts?.namespace;
+      return t as unknown as (key: string) => string;
+    });
   });
 
-  it('reads real reference_tables rows via withOrgContext and renders them (not the SettingsRouteStub)', async () => {
-    wireLiveRead({ schema: liveSchema, rows: liveRows, canEdit: true });
-    const { container } = await renderPage();
+  it('renders the settings landing chrome with the moved-title + explanatory body (no inline strings, settings.partners namespace)', async () => {
+    await renderPage();
 
-    expect(mocks.withOrgContext, 'page must read through the org-scoped HOF, not a hardcoded array').toHaveBeenCalled();
-    expect(container.querySelector('[data-testid^="settings-route-stub-"]')).toBeNull();
+    // parity: page-head + h1.page-title (matches scanner-auth sibling)
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toHaveTextContent(I18N.movedTitle);
+    expect(heading).toHaveClass('page-title');
 
-    const table = screen.getByRole('table');
-    expect(within(table).getByText('SUP-0001')).toBeInTheDocument();
-    expect(within(table).getByText('Baseline Ingredients Supplier')).toBeInTheDocument();
-    expect(within(table).getByText('CUST-0001')).toBeInTheDocument();
+    // explanatory body — the "one source of truth" message
+    expect(screen.getByText(I18N.movedBody)).toBeInTheDocument();
+
+    // i18n: the copy resolves through the settings.partners namespace
+    expect(mocks.getTranslations).toHaveBeenCalledWith(
+      expect.objectContaining({ locale: 'en', namespace: 'settings.partners' }),
+    );
   });
 
-  it('falls back to the empty state (no stub, no fabricated rows) when org context is unavailable', async () => {
-    mocks.withOrgContext.mockRejectedValueOnce(new Error('org context unavailable'));
+  it('offers two operational links with locale-aware hrefs to the canonical masters', async () => {
+    await renderPage('en');
+
+    const suppliers = screen.getByRole('link', { name: new RegExp(I18N.suppliersLink) });
+    expect(suppliers).toHaveAttribute('href', '/en/planning/suppliers');
+
+    const customers = screen.getByRole('link', { name: new RegExp(I18N.customersLink) });
+    expect(customers).toHaveAttribute('href', '/en/shipping/customers');
+  });
+
+  it('prefixes the operational hrefs with the active locale (pl)', async () => {
+    await renderPage('pl');
+
+    expect(screen.getByRole('link', { name: new RegExp(I18N.suppliersLink) })).toHaveAttribute(
+      'href',
+      '/pl/planning/suppliers',
+    );
+    expect(screen.getByRole('link', { name: new RegExp(I18N.customersLink) })).toHaveAttribute(
+      'href',
+      '/pl/shipping/customers',
+    );
+  });
+
+  it('does NOT render the schema-driven SingleReferenceScreen any more (no reference table, no reference_tables read, no stub)', async () => {
     const { container } = await renderPage();
 
+    // RBAC posture: a purely-navigational landing reads no org-scoped reference
+    // data, so it never touches withOrgContext / role_permissions (consistent
+    // with sibling navigational settings pages; view is open to the settings
+    // session, edit of the masters is gated server-side in their own modules).
+    expect(mocks.withOrgContext).not.toHaveBeenCalled();
+
+    // the decorative store is gone — no data table, no partner rows, no stub
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByText('SUP-0001')).toBeNull();
     expect(container.querySelector('[data-testid^="settings-route-stub-"]')).toBeNull();
-    expect(screen.queryByText('SUP-0001')).not.toBeInTheDocument();
   });
 });

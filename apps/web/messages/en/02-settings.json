@@ -2300,5 +2300,13 @@
       "maintenance": "Maintenance",
       "retired": "Retired"
     }
+  },
+  "partners": {
+    "movedTitle": "Suppliers & customers",
+    "movedBody": "Suppliers and customers are managed in their operational modules — there is one source of truth for each. Use the links below to maintain them.",
+    "suppliersLink": "Manage suppliers",
+    "suppliersDescription": "Supplier master records, specs and scorecards (Planning).",
+    "customersLink": "Manage customers",
+    "customersDescription": "Customer master records used for sales orders and shipping."
   }
 }

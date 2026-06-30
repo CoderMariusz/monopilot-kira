@@ -27,7 +27,9 @@ Start HEAD: `77039d50` · branch `main` · next migration `394`.
 | X-cut | user_sessions ✅ / shipping FK ✅ (in P1) · new-org seed + Drizzle = deferred/follow-up | ✅ | ✅ | ✅ | ✅ | (395) | `3a0c6c24` | ✅ |
 | P2 | v_item_effective_cost single-source view + currency carriage | ✅ 2 lanes | ✅ Codex PASS | ✅ Opus PASS (2 test-gaps closed) | ✅ next build | 396,397 | `3a0ab58e` | ✅ pushed |
 | P3 | supplier/customer unify — **SAFE backend** (supplier_id FK; both write paths) | ✅ Codex | ✅ self+diff | ✅ Opus PASS | ✅ next build | 398 | `<this commit>` | ✅ |
-| P4 | process unify (Finance↔ManufacturingOperations) | 📐 DESIGN+FLAG (costing-model = owner decision) | — | — | — | — | — | — |
+| P3b | Settings partners → operational redirect + remove decorative rows | ✅ kira-ui | ✅ self | ✅ Opus PASS | ✅ next build | 399 | (P3+P4 commit) | ✅ |
+| P4 | Finance WO labour = Model A (labor_rates via ManufacturingOperations, GBP) | ✅ Codex | ✅ Codex | ✅ Opus PASS (+downtime fix) | ✅ next build | — | (P3+P4 commit) | ✅ |
+| _owner round-2_ | currency=GBP-single · P4=ModelA · P3=redirect · P5 drop+gate · P6 trigger+shadow (product_legacy DEFERRED 15-FK) · WAC-GBP · new-org-seed · P7 drop | — | — | — | — | — | — | — |
 | P5 | allergen single-vocab | 📐 DESIGN+FLAG | — | — | — | — | — | — |
 | P6 | item/product completion + legacy-process double-fire | 📐 DESIGN+FLAG | — | — | — | — | — | — |
 | P7 | dead-table drop (DESTRUCTIVE) | 📐 DESIGN+FLAG (needs live null-rate confirm + owner go) | — | — | — | — | — | — |

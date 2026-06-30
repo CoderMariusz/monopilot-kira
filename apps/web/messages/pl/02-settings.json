@@ -2300,5 +2300,13 @@
       "maintenance": "Konserwacja",
       "retired": "Wycofana"
     }
+  },
+  "partners": {
+    "movedTitle": "Dostawcy i klienci",
+    "movedBody": "Dostawcami i klientami zarządza się w ich modułach operacyjnych — każdy ma jedno źródło prawdy. Użyj poniższych odnośników, aby nimi zarządzać.",
+    "suppliersLink": "Zarządzaj dostawcami",
+    "suppliersDescription": "Rekordy główne dostawców, specyfikacje i karty wyników (Planowanie).",
+    "customersLink": "Zarządzaj klientami",
+    "customersDescription": "Rekordy główne klientów używane w zamówieniach sprzedaży i wysyłce."
   }
 }

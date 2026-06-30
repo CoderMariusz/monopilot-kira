@@ -416,6 +416,20 @@ export const GROUP_D_UI: ParityGroup = {
       prototype_anchor: `${PROTO}/admin-screens.jsx:216-344`,
       expectText: /quality|reference|reject/i,
     },
+    {
+      // DB-cleanup Phase 3: /settings/partners is now a navigational landing
+      // pointing at the OPERATIONAL supplier/customer masters (the decorative
+      // reference_tables.partners store had zero operational readers). No exact
+      // JSX prototype for a module-pointer landing → nearest reusable pattern is
+      // the ops-screens PageHead + grouped cards (same anchor module-toggles
+      // uses), recorded spec_driven per UI-PROTOTYPE-PARITY-POLICY §1.2.
+      set_task_id: 'SET-054',
+      route: '/en/settings/partners',
+      label: 'partners-operational-landing',
+      prototype_anchor: `${PROTO}/ops-screens.jsx:166-198`,
+      spec_driven: true,
+      expectText: /supplier|customer|operational/i,
+    },
   ],
 };
 
