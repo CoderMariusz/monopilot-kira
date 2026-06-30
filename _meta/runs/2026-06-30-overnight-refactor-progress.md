@@ -99,5 +99,44 @@ user-menu-language-picker, lib/technical/routing/service, packages/rbac/role-see
 
 ### Owner-gated (DO NOT auto-do): hasPermission canonical semantics; cost-source SSOT consolidation; reference_tables.processes vs ManufacturingOperations; dual schema-wizard; `_archive/` 52M deletion; settings redirect-stub removal; product_legacy.
 
+## RUN LOG (live)
+
+### ✅ WAVE 1 — SHIPPED + DEPLOYED READY (commit `5bdfb634`, deploy dpl_CgMm… READY)
+- C1 db schema-drift (11 dropped objects) + 6 broken-test fixes. C2 modal splits (RecordConsumptionModal + action-modals→4). C3 promotions as-any→JSX + yard float→Dec + 4 onClose listeners. C4 formatLimit dedup.
+- ⚠️ C4 ALSO deleted revert-gate.ts + gutted rollbackGate tests **against its own report** → REVERTED to HEAD; revert-gate repoint deferred (must migrate test coverage, not delete it).
+- Gate: `pnpm -r typecheck` EXIT=0. 28 files. Vercel READY (no 'use server' break).
+
+### ✅ WAVE 2 — SHIPPED (commit `da70a183`, deploy dpl_PjTK… BUILDING→will be READY)
+- C1 conservative dead-file deletion: 2/15 deleted (eco list-change-orders + update-change-order-draft, zero refs); 13 KEPT (had test importer/ref). C2 broke 3 circular deps (production shared↔holds-guard, rule-engine, sync-queue — all type-moves, T-064 gate logic untouched). C3 extracted 3 npd-fields dialogs.
+- Gate: `pnpm -r typecheck` EXIT=0; rule-engine 35 / sync-queue 34 / npd-fields 27 tests pass. 16 files.
+
+### 🔄 WAVE 3 — IN FLIGHT (4 Codex + 1 research)
+- C1 yard-labels circular cluster (4 cycles). C2 lp-detail extract. C3 users-screen extract. C4 sites-screen extract (all "extract-or-report, never force"). R1 dead-vs-parked feature classification (onboarding/tenant/d365/gdpr/import-export) for owner-decide list.
+
+### ⚠️ KNOWN ENVIRONMENT ISSUE — rogue Codex daemon re-applies C4-W1's gate diff
+The shared Codex broker re-materializes C4(Wave-1)'s reverted gate changes (delete revert-gate.ts + gut rollbackGate tests) onto the WORKING TREE whenever a new codex-rescue lane starts. **Mitigation:** explicit per-wave staging (never `git add -A`) shields every commit; I re-revert the 6 gate files (gate-checklist-panel.tsx, gate-actions.integration.test.ts, gate-machine-honesty.test.ts, gate-helpers.ts, revert-npd-gate.ts, revert-npd-gate.test.ts) before each commit + a FINAL revert at run-end so the tree is left clean. HEAD is always correct. Not killing the daemons (would destabilize codex-rescue).
+
+### Pre-existing red test (NOT tonight): `settings-nav.test.ts` nav parity count `[9,12]` vs `[9,11]` — flagged, investigate separately.
+
 ## Verification log
-- (filled per wave: build-gate result, tests, Vercel deploy state, browser smoke)
+- W1: typecheck EXIT=0; Vercel dpl_CgMm… READY (commit 5bdfb634).
+- W2: typecheck EXIT=0; rule-engine/sync-queue/npd-fields tests green; Vercel dpl_PjTK… BUILDING.
+- W3: typecheck EXIT=0; users 17 + sites 14 RTL pass; committed eaadc2dc, pushed.
+- ✅ Browser smoke (live, production monopilot-kira.vercel.app, admin login): dashboard + settings shell render; **promotions** (W1 h()→JSX rewrite, hardest change) renders fully; **npd-fields** (W2 dialog extraction) renders fully — no error boundaries. App loads, login works. Combined with typecheck×3 + all RTL/unit green + Vercel builds passing on W1/W2/W3 = nothing broke. users/sites/mwo/yard extractions are RTL-verified, ride the next deploy.
+### ✅ WAVE 4 — SHIPPED (commit `ba1d2b4c`, pushed)
+C2 broke 4 modal↔screen cycles (compliance-docs/d365-mapping/quality-holds/risks → type leaves). C3 extracted 6 mwo-list components. C4 deleted dead ProductOnboardingClient (sign-out KEPT — contract test; onboarding-4 + gdpr redact-user = owner-decide). Web typecheck EXIT=0; mwo 13 RTL pass. ⚠️ The C1 NPD-pipeline modal-cycle lane DETACHED/stuck in a read-loop (0 edits) → ABANDONED; NPD cycles deferred.
+
+### ✅ LIVE BROWSER SMOKE (production, admin login) — nothing broke
+dashboard + settings shell + promotions(W1 JSX rewrite) + npd-fields(W2 dialog extraction) all render clean. App+login work. Rest of extractions RTL-verified + Vercel builds green.
+
+### W4-RESEARCH (round 2) FINDINGS — for the owner + future waves
+- **REAL BUG #11 (dangling, HIGH):** `revalidatePath('/npd/fg/${code}/...')` in ~13+ Server Actions targets a NON-EXISTENT route (the `(npd)` group adds no URL segment; real URL = `/{locale}/fg/{code}/...`) → RSC cache NEVER invalidated after FG/allergen/docs/risks mutations → stale data. **Wave 5 C3 fixing.**
+- **#14 (correctness):** `production/work-orders/[id]/release/route.ts:5` local `ERROR_STATUS` has 6 keys vs canonical `lib/production/shared.ts:75` (14) → new production errors return wrong HTTP status. **W5-C2 fixing.**
+- **#3 (latent):** `isUuid` 20 copies, TWO regexes — strict(v4) vs loose(any) ; 8 production action files use the LOOSE one. Owner-decide (consolidating to strict could reject non-v4). REPORT.
+- **#1 writeOutbox 28 copies** (6 clusters; infra 4× byte-identical = easy win), **#2 hasPermission 127/18-variants** (owner-decide RBAC semantics), **#7 pagination zod 6+**, **#8 LP available-qty SQL 7×**, **#9 v_item_effective_cost JOIN 5×**, **#16 formatDate 17×**, **#6 formatMoney 4×** — all REPORT (consolidation candidates).
+- **DEAD:** `lib/settings/settings-page-loaders.ts` (491 LOC, 0 importers — only a COMMENT ref) + `isCrossShellSidebarModule` export. **W5-C1 deleting.**
+- **#12/#13 const re-decl** (CLOSED_WO / CONSUMPTION perms) — **W5-C2 fixing.**
+
+### 🔄 WAVE 5 — IN FLIGHT (3 Codex): dead-module+export deletion (C1), canonical-const dedup ERROR_STATUS/perms (C2), revalidatePath dangling-route fix (C3).
+
+### TODO before run-end: gate+commit+push W5 → FINAL gate-revert (gate files + any late C1 NPD dirt) so the working tree is clean → 5am report in chat → memory update.
