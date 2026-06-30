@@ -15,10 +15,7 @@
 import type { useTranslations } from 'next-intl';
 
 import type { AppointmentDirection, AppointmentStatus } from './yard-shared';
-import type { YardBoardLabels } from './yard-board.client';
-import type { AppointmentsLabels } from './appointments-view.client';
-import type { WeighbridgeLabels } from './weighbridge-view.client';
-import type { DocksLabels } from '../../../(admin)/settings/infra/docks/docks-view.client';
+import type { AppointmentsLabels, DocksLabels, WeighbridgeLabels, YardBoardLabels } from './yard-types';
 
 /** Accept either the client `useTranslations` hook or the server translator. */
 type Translator = ReturnType<typeof useTranslations>;

@@ -34,59 +34,7 @@ import {
   type ListAppointmentsInput,
 } from './yard-shared';
 import { buildAppointmentsLabels } from './yard-labels';
-
-export type AppointmentsLabels = {
-  loading: string;
-  denied: string;
-  error: string;
-  empty: string;
-  book: string;
-  noDockDoors: string;
-  viewDay: string;
-  viewWeek: string;
-  previous: string;
-  next: string;
-  today: string;
-  columns: {
-    time: string;
-    dockDoor: string;
-    carrier: string;
-    direction: string;
-    reference: string;
-    duration: string;
-    status: string;
-  };
-  noCarrier: string;
-  minutes: (count: number) => string;
-  directionLabel: (d: AppointmentDirection) => string;
-  statusLabel: (s: AppointmentStatus) => string;
-  modal: {
-    title: string;
-    dockDoorLabel: string;
-    carrierLabel: string;
-    noCarrier: string;
-    directionLabel: string;
-    referenceLabel: string;
-    scheduledAtLabel: string;
-    durationLabel: string;
-    submit: string;
-    submitting: string;
-    cancel: string;
-    directionOption: (d: AppointmentDirection) => string;
-    errors: {
-      dockDoorRequired: string;
-      scheduledAtRequired: string;
-      durationInvalid: string;
-      invalid_input: string;
-      forbidden: string;
-      not_found: string;
-      overlap: string;
-      already_exists: string;
-      invalid_status: string;
-      persistence_failed: string;
-    };
-  };
-};
+import type { AppointmentsLabels } from './yard-types';
 
 export type AppointmentsViewProps = {
   dockDoors: DockDoorRow[];

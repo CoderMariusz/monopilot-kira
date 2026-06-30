@@ -31,41 +31,7 @@ import {
   type YardVisitRow,
 } from './yard-shared';
 import { buildWeighbridgeLabels } from './yard-labels';
-
-export type WeighbridgeLabels = {
-  loading: string;
-  denied: string;
-  error: string;
-  formTitle: string;
-  visitLabel: string;
-  noVisits: string;
-  grossLabel: string;
-  tareLabel: string;
-  netLabel: string;
-  submit: string;
-  submitting: string;
-  recentTitle: string;
-  recentEmpty: string;
-  columns: {
-    vehicle: string;
-    carrier: string;
-    gross: string;
-    tare: string;
-    net: string;
-    weighedAt: string;
-  };
-  noCarrier: string;
-  errors: {
-    visitRequired: string;
-    grossInvalid: string;
-    tareInvalid: string;
-    netNegative: string;
-    invalid_input: string;
-    forbidden: string;
-    not_found: string;
-    persistence_failed: string;
-  };
-};
+import type { WeighbridgeLabels } from './yard-types';
 
 export type WeighbridgeViewProps = {
   /** Server Action seams (injected from the RSC page). Each THROWS on failure. */

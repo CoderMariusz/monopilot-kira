@@ -44,58 +44,7 @@ import {
   type YardVisitRow,
 } from './yard-shared';
 import { buildYardBoardLabels } from './yard-labels';
-
-export type YardBoardLabels = {
-  appointmentsTitle: string;
-  appointmentsEmpty: string;
-  onSiteTitle: string;
-  onSiteEmpty: string;
-  gateInTitle: string;
-  gateIn: string;
-  gateInPending: string;
-  gateOut: string;
-  gateOutPending: string;
-  weigh: string;
-  manual: string;
-  againstAppointment: string;
-  noAppointment: string;
-  vehicleReg: string;
-  trailerRef: string;
-  driverName: string;
-  carrier: string;
-  noCarrier: string;
-  reference: string;
-  time: string;
-  dockDoor: string;
-  status: string;
-  minutes: (count: number) => string;
-  vehicleRegRequired: string;
-  gateInFailed: string;
-  gateOutFailed: string;
-  loading: string;
-  denied: string;
-  error: string;
-  cancel: string;
-  directionLabel: (d: AppointmentDirection) => string;
-  statusLabel: (s: AppointmentStatus) => string;
-  // Weigh modal labels.
-  weighFormTitle: string;
-  grossLabel: string;
-  tareLabel: string;
-  netLabel: string;
-  weighSubmit: string;
-  weighSubmitting: string;
-  weighErrors: {
-    grossInvalid: string;
-    tareInvalid: string;
-    netNegative: string;
-    invalid_input: string;
-    forbidden: string;
-    not_found: string;
-    overlap: string;
-    persistence_failed: string;
-  };
-};
+import type { YardBoardLabels } from './yard-types';
 
 export type YardBoardProps = {
   /** Server Action seams (injected from the RSC page). Each THROWS on failure. */

@@ -1,0 +1,184 @@
+import type { AppointmentDirection, AppointmentStatus, DockDoorDirection } from './yard-shared';
+
+export type YardBoardLabels = {
+  appointmentsTitle: string;
+  appointmentsEmpty: string;
+  onSiteTitle: string;
+  onSiteEmpty: string;
+  gateInTitle: string;
+  gateIn: string;
+  gateInPending: string;
+  gateOut: string;
+  gateOutPending: string;
+  weigh: string;
+  manual: string;
+  againstAppointment: string;
+  noAppointment: string;
+  vehicleReg: string;
+  trailerRef: string;
+  driverName: string;
+  carrier: string;
+  noCarrier: string;
+  reference: string;
+  time: string;
+  dockDoor: string;
+  status: string;
+  minutes: (count: number) => string;
+  vehicleRegRequired: string;
+  gateInFailed: string;
+  gateOutFailed: string;
+  loading: string;
+  denied: string;
+  error: string;
+  cancel: string;
+  directionLabel: (d: AppointmentDirection) => string;
+  statusLabel: (s: AppointmentStatus) => string;
+  weighFormTitle: string;
+  grossLabel: string;
+  tareLabel: string;
+  netLabel: string;
+  weighSubmit: string;
+  weighSubmitting: string;
+  weighErrors: {
+    grossInvalid: string;
+    tareInvalid: string;
+    netNegative: string;
+    invalid_input: string;
+    forbidden: string;
+    not_found: string;
+    overlap: string;
+    persistence_failed: string;
+  };
+};
+
+export type AppointmentsLabels = {
+  loading: string;
+  denied: string;
+  error: string;
+  empty: string;
+  book: string;
+  noDockDoors: string;
+  viewDay: string;
+  viewWeek: string;
+  previous: string;
+  next: string;
+  today: string;
+  columns: {
+    time: string;
+    dockDoor: string;
+    carrier: string;
+    direction: string;
+    reference: string;
+    duration: string;
+    status: string;
+  };
+  noCarrier: string;
+  minutes: (count: number) => string;
+  directionLabel: (d: AppointmentDirection) => string;
+  statusLabel: (s: AppointmentStatus) => string;
+  modal: {
+    title: string;
+    dockDoorLabel: string;
+    carrierLabel: string;
+    noCarrier: string;
+    directionLabel: string;
+    referenceLabel: string;
+    scheduledAtLabel: string;
+    durationLabel: string;
+    submit: string;
+    submitting: string;
+    cancel: string;
+    directionOption: (d: AppointmentDirection) => string;
+    errors: {
+      dockDoorRequired: string;
+      scheduledAtRequired: string;
+      durationInvalid: string;
+      invalid_input: string;
+      forbidden: string;
+      not_found: string;
+      overlap: string;
+      already_exists: string;
+      invalid_status: string;
+      persistence_failed: string;
+    };
+  };
+};
+
+export type WeighbridgeLabels = {
+  loading: string;
+  denied: string;
+  error: string;
+  formTitle: string;
+  visitLabel: string;
+  noVisits: string;
+  grossLabel: string;
+  tareLabel: string;
+  netLabel: string;
+  submit: string;
+  submitting: string;
+  recentTitle: string;
+  recentEmpty: string;
+  columns: {
+    vehicle: string;
+    carrier: string;
+    gross: string;
+    tare: string;
+    net: string;
+    weighedAt: string;
+  };
+  noCarrier: string;
+  errors: {
+    visitRequired: string;
+    grossInvalid: string;
+    tareInvalid: string;
+    netNegative: string;
+    invalid_input: string;
+    forbidden: string;
+    not_found: string;
+    persistence_failed: string;
+  };
+};
+
+export type DocksLabels = {
+  loading: string;
+  denied: string;
+  error: string;
+  empty: string;
+  emptyHint: string;
+  add: string;
+  edit: string;
+  active: string;
+  inactive: string;
+  noWarehouse: string;
+  columns: {
+    code: string;
+    name: string;
+    direction: string;
+    warehouse: string;
+    status: string;
+    actions: string;
+  };
+  directionLabel: (d: DockDoorDirection) => string;
+  modal: {
+    titleAdd: string;
+    titleEdit: string;
+    codeLabel: string;
+    nameLabel: string;
+    directionLabel: string;
+    warehouseLabel: string;
+    noWarehouse: string;
+    activeLabel: string;
+    submit: string;
+    submitting: string;
+    cancel: string;
+    directionOption: (d: DockDoorDirection) => string;
+    errors: {
+      codeRequired: string;
+      invalid_input: string;
+      forbidden: string;
+      not_found: string;
+      already_exists: string;
+      persistence_failed: string;
+    };
+  };
+};
