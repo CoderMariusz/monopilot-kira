@@ -29,6 +29,8 @@ type LoaderRow = {
   supplier_code: string | null;
   spec: string | null;
   cost_per_unit: string | null;
+  /** NUMERIC(5,2) — the pg driver may hand this back as a string; coerced on map. */
+  scrap_pct: string | number | null;
   status: string;
   artwork_file_id: string | null;
   artwork_status: string | null;
@@ -66,6 +68,7 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
                 supplier_code,
                 spec,
                 cost_per_unit::text as cost_per_unit,
+                coalesce(scrap_pct, 0) as scrap_pct,
                 status,
                 artwork_file_id,
                 artwork_status,
@@ -85,6 +88,7 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
         supplierCode: r.supplier_code,
         spec: r.spec,
         costPerUnit: r.cost_per_unit,
+        scrapPct: Number(r.scrap_pct ?? 0),
         status: r.status as PackagingStatus,
         artworkFileId: r.artwork_file_id,
         artworkStatus: r.artwork_status,

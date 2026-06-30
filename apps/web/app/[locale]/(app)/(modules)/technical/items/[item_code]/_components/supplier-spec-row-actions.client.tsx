@@ -146,10 +146,9 @@ export function SupplierSpecRowActions({
   deactivateSpec,
   uploadSupplierSpecDoc,
 }: SupplierSpecRowActionsProps) {
-  // unit_price / price_currency may not be on SupplierSpecRow yet (read action owned
-  // by a parallel lane) — read defensively so this compiles before/after that lands.
-  const specExtra = spec as SupplierSpecRow & { unitPrice?: string | null; priceCurrency?: string | null };
-
+  // Pre-fill price from the spec's own stored price, and currency from the spec → else the supplier's
+  // default currency (owner: "Unit price should be the current price, editable; Currency pulled from
+  // the supplier"). Both come from listSupplierSpecs (unit_price / price_currency / supplier_currency).
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
   const [deactivateOpen, setDeactivateOpen] = React.useState(false);
@@ -157,8 +156,8 @@ export function SupplierSpecRowActions({
   const [issuedDate, setIssuedDate] = React.useState(asDateInput(spec.issuedDate));
   const [effectiveFrom, setEffectiveFrom] = React.useState(asDateInput(spec.effectiveFrom));
   const [expiryDate, setExpiryDate] = React.useState(asDateInput(spec.expiryDate));
-  const [unitPrice, setUnitPrice] = React.useState(specExtra.unitPrice ?? '');
-  const [priceCurrency, setPriceCurrency] = React.useState(specExtra.priceCurrency ?? '');
+  const [unitPrice, setUnitPrice] = React.useState(spec.unitPrice ?? spec.itemListPrice ?? '');
+  const [priceCurrency, setPriceCurrency] = React.useState(spec.priceCurrency ?? spec.supplierCurrency ?? '');
   const [docFile, setDocFile] = React.useState<File | null>(null);
   const [approveNow, setApproveNow] = React.useState(
     spec.reviewStatus === 'approved' && spec.lifecycleStatus === 'active',
@@ -174,8 +173,8 @@ export function SupplierSpecRowActions({
     setIssuedDate(asDateInput(spec.issuedDate));
     setEffectiveFrom(asDateInput(spec.effectiveFrom));
     setExpiryDate(asDateInput(spec.expiryDate));
-    setUnitPrice(specExtra.unitPrice ?? '');
-    setPriceCurrency(specExtra.priceCurrency ?? '');
+    setUnitPrice(spec.unitPrice ?? spec.itemListPrice ?? '');
+    setPriceCurrency(spec.priceCurrency ?? spec.supplierCurrency ?? '');
     setDocFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setApproveNow(spec.reviewStatus === 'approved' && spec.lifecycleStatus === 'active');

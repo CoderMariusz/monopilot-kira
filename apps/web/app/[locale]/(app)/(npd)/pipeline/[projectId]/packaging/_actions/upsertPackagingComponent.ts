@@ -50,6 +50,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
       const supplierCode = input.supplierCode ?? null;
       const spec = input.spec ?? null;
       const costPerUnit = input.costPerUnit ?? null;
+      const scrapPct = input.scrapPct;
       const displayOrder = input.displayOrder ?? 0;
       const itemId = input.itemId ?? null;
 
@@ -69,7 +70,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
         // ─── UPDATE ───────────────────────────────────────────────────────────
         const before = await queryClient.query<Record<string, unknown>>(
           `select id, tier, component_name, material, supplier_code, spec, item_id,
-                  cost_per_unit::text as cost_per_unit, status, display_order
+                  cost_per_unit::text as cost_per_unit, scrap_pct, status, display_order
              from public.packaging_components
             where id = $1::uuid and org_id = app.current_org_id() limit 1`,
           [input.id],
@@ -84,10 +85,11 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
                   supplier_code  = $5,
                   spec           = $6,
                   cost_per_unit  = $7::numeric,
-                  status         = $8,
-                  display_order  = $9,
-                  item_id        = $10::uuid,
-                  updated_by     = $11::uuid
+                  scrap_pct      = $8::numeric,
+                  status         = $9,
+                  display_order  = $10,
+                  item_id        = $11::uuid,
+                  updated_by     = $12::uuid
             where id = $1::uuid and org_id = app.current_org_id()
             returning id`,
           [
@@ -98,6 +100,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
             supplierCode,
             spec,
             costPerUnit,
+            scrapPct,
             input.status,
             displayOrder,
             itemId,
@@ -120,6 +123,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
             supplierCode,
             spec,
             costPerUnit,
+            scrapPct,
             status: input.status,
             displayOrder,
             itemId,
@@ -134,10 +138,10 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
       const inserted = await queryClient.query<{ id: string }>(
         `insert into public.packaging_components
            (org_id, project_id, tier, component_name, material, supplier_code, spec,
-            cost_per_unit, status, display_order, item_id, created_by, updated_by)
+            cost_per_unit, scrap_pct, status, display_order, item_id, created_by, updated_by)
          values
            (app.current_org_id(), $1::uuid, $2, $3, $4, $5, $6,
-            $7::numeric, $8, $9, $10::uuid, $11::uuid, $11::uuid)
+            $7::numeric, $8::numeric, $9, $10, $11::uuid, $12::uuid, $12::uuid)
          returning id`,
         [
           input.projectId,
@@ -147,6 +151,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
           supplierCode,
           spec,
           costPerUnit,
+          scrapPct,
           input.status,
           displayOrder,
           itemId,
@@ -170,6 +175,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
           supplierCode,
           spec,
           costPerUnit,
+          scrapPct,
           status: input.status,
           displayOrder,
           itemId,

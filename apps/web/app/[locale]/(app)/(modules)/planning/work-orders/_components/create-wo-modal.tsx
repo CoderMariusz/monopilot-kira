@@ -82,6 +82,13 @@ export type CreateWoLabels = {
    */
   quantityUom?: { base: string; each: string; box: string };
   conversionPreview?: string;
+  /**
+   * P0-UOM — label for the "Order unit" selector that lets the planner enter the
+   * WO quantity in a unit OTHER than the item's default output unit (e.g. order
+   * in box when the item is normally counted in each). Optional so callers that
+   * predate it still type-check; defaults to plain English "Order unit" in-file.
+   */
+  orderUnitLabel?: string;
   scheduledStartLabel: string;
   lineLabel: string;
   machineLabel: string;
@@ -154,6 +161,10 @@ export function CreateWoModal({
   onCreated,
 }: CreateWoModalProps) {
   const [product, setProduct] = React.useState<PickedProduct | null>(null);
+  // P0-UOM — the unit the quantity is entered in. Initialised to the picked
+  // item's default output unit, but the planner can switch it (Order unit
+  // selector below) to any unit the item's pack hierarchy can convert.
+  const [orderUom, setOrderUom] = React.useState<OutputUom>('base');
   const [quantity, setQuantity] = React.useState('');
   const [scheduledStart, setScheduledStart] = React.useState('');
   const [lineId, setLineId] = React.useState('');
@@ -168,6 +179,7 @@ export function CreateWoModal({
   React.useEffect(() => {
     if (!open) {
       setProduct(null);
+      setOrderUom('base');
       setQuantity('');
       setScheduledStart('');
       setLineId('');
@@ -217,6 +229,8 @@ export function CreateWoModal({
       uomBase: item.uomBase,
       snapshot,
     });
+    // Reset the order unit to the new item's default output unit on every pick.
+    setOrderUom(snapshot.outputUom);
     setFormError(null);
   }
 
@@ -234,17 +248,16 @@ export function CreateWoModal({
       return;
     }
 
-    // P0-UOM — quantity is entered in the product's OUTPUT unit. Convert to base
-    // kg for plannedQuantity (the reviewed action's base-qty contract) and send
-    // the entered unit alongside. If the pack factors are missing for each/box,
-    // surface uom_conversion_unavailable BEFORE the round-trip.
-    const outputUom: OutputUom = product.snapshot.outputUom;
+    // P0-UOM — quantity is entered in the planner-chosen ORDER unit. Convert to
+    // base kg for plannedQuantity (the reviewed action's base-qty contract) and
+    // send the entered unit alongside. If the pack factors are missing for
+    // each/box, surface uom_conversion_unavailable BEFORE the round-trip.
     let plannedBase: string;
-    if (outputUom === 'base') {
+    if (orderUom === 'base') {
       plannedBase = quantity.trim();
     } else {
       try {
-        const baseQty = toBaseQty(product.snapshot, Number(quantity.trim()), outputUom);
+        const baseQty = toBaseQty(product.snapshot, Number(quantity.trim()), orderUom);
         plannedBase = String(baseQty);
       } catch (err) {
         setFormError(
@@ -263,7 +276,7 @@ export function CreateWoModal({
         itemCode: product.itemCode,
         plannedQuantity: plannedBase,
         quantityEntered: quantity.trim(),
-        quantityEnteredUom: outputUom,
+        quantityEnteredUom: orderUom,
         // Parse the date-only input as LOCAL midnight (`+ 'T00:00:00'`) before
         // converting to ISO. `new Date('2026-06-15')` parses as UTC midnight, which
         // rolls back to the previous calendar day in UTC+ zones — the scheduled day
@@ -296,27 +309,47 @@ export function CreateWoModal({
     }
   }
 
-  // P0-UOM — derive the unit-aware quantity label + the live conversion preview.
-  // Until a product is picked, the label stays the plain base copy. For each/box
-  // the label gets the unit suffix ("Quantity (box)") and a preview line shows
-  // the nominal base-kg conversion. Base products keep the legacy label/no preview.
-  const pickedUom: OutputUom = product?.snapshot.outputUom ?? 'base';
+  // P0-UOM — the units the planner may ORDER in for the picked item. Always
+  // allow base (bulk kg). Allow `each` only when net_qty_per_each is a positive
+  // factor; allow `box` only when BOTH net_qty_per_each and each_per_box are
+  // present (the same convertibility rule toBaseQty enforces). Each option is
+  // labelled human-readably ("Each" / "Box" / the snapshot's base unit, e.g. "kg").
+  const orderUnitOptions = React.useMemo(() => {
+    if (!product) return [];
+    const snap = product.snapshot;
+    const hasEach = snap.netQtyPerEach !== null && Number.isFinite(snap.netQtyPerEach) && snap.netQtyPerEach > 0;
+    const hasBox =
+      hasEach && snap.eachPerBox !== null && Number.isFinite(snap.eachPerBox) && snap.eachPerBox > 0;
+    const opts: { value: OutputUom; label: string }[] = [
+      { value: 'base', label: labels.quantityUom?.base ?? snap.uomBase },
+    ];
+    if (hasEach) opts.push({ value: 'each', label: labels.quantityUom?.each ?? 'each' });
+    if (hasBox) opts.push({ value: 'box', label: labels.quantityUom?.box ?? 'box' });
+    return opts;
+  }, [product, labels.quantityUom]);
+
+  // P0-UOM — derive the unit-aware quantity label + the live conversion preview
+  // off the CHOSEN order unit (orderUom), not the item's default. Until a product
+  // is picked the label stays the plain base copy. For each/box the label gets the
+  // unit suffix ("Quantity (box)") and a preview line shows the nominal base-kg
+  // conversion. Base keeps the legacy label / no preview.
   const unitWord =
-    pickedUom === 'box'
+    orderUom === 'box'
       ? labels.quantityUom?.box
-      : pickedUom === 'each'
+      : orderUom === 'each'
         ? labels.quantityUom?.each
         : undefined;
   const qtyLabel = unitWord ? `${labels.quantityLabel} (${unitWord})` : labels.quantityLabel;
+  const orderUnitLabel = labels.orderUnitLabel ?? 'Order unit';
 
   let conversionPreview: string | null = null;
-  if (product && pickedUom !== 'base' && QTY_PATTERN.test(quantity.trim()) && Number(quantity) > 0) {
+  if (product && orderUom !== 'base' && QTY_PATTERN.test(quantity.trim()) && Number(quantity) > 0) {
     try {
-      const baseKg = toBaseQty(product.snapshot, Number(quantity.trim()), pickedUom);
+      const baseKg = toBaseQty(product.snapshot, Number(quantity.trim()), orderUom);
       conversionPreview =
         labels.conversionPreview
           ?.replace('{qty}', quantity.trim())
-          .replace('{unit}', unitWord ?? pickedUom)
+          .replace('{unit}', unitWord ?? orderUom)
           .replace('{kg}', fmtKg(baseKg))
           .replace('{base}', product.snapshot.uomBase) ?? null;
     } catch {
@@ -374,7 +407,23 @@ export function CreateWoModal({
             )}
           </div>
 
-          {/* Planned quantity (decimal string) — labelled in the product's OUTPUT unit. */}
+          {/* P0-UOM — Order unit selector. Only when a product is picked and the
+              item's pack hierarchy actually offers more than one convertible unit;
+              a single-unit item keeps the legacy behaviour (a disabled read-only
+              control, no point in a 1-option dropdown). */}
+          {product && orderUnitOptions.length > 1 ? (
+            <label className="flex flex-col gap-1" data-testid="create-wo-order-unit">
+              <span className="text-sm font-medium text-slate-700">{orderUnitLabel}</span>
+              <Select
+                value={orderUom}
+                onValueChange={(v) => setOrderUom(v as OutputUom)}
+                aria-label={orderUnitLabel}
+                options={orderUnitOptions.map((o) => ({ value: o.value, label: o.label }))}
+              />
+            </label>
+          ) : null}
+
+          {/* Planned quantity (decimal string) — labelled in the chosen ORDER unit. */}
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">{qtyLabel}</span>
             <Input

@@ -44,7 +44,10 @@ function rowToForm(item: ItemListItem): WizardFormState {
     itemType: item.itemType,
     status: item.status,
     productGroup: item.productGroup ?? '',
-    // A11 — supplier link is create-only; edit-mode reuse never surfaces the field.
+    // A11 — supplier link. The list row does NOT carry the item's current active
+    // supplier (listItems reads only public.items), so we leave this blank and let
+    // the user pick in EDIT mode rather than over-fetch per row. A chosen supplier
+    // is attached on save via createItemSupplierSpec.
     supplierCode: '',
     uomBase: item.uomBase,
     uomSecondary: item.uomSecondary ?? '',
@@ -107,6 +110,8 @@ export function ItemRowActions({
   wizardLabels,
   deactivateLabels,
   transitionLabels = DEFAULT_TRANSITION_LABELS,
+  supplierOptions = [],
+  supplierIdByCode = {},
 }: {
   item: ItemListItem;
   canEdit: boolean;
@@ -117,6 +122,10 @@ export function ItemRowActions({
   wizardLabels?: ItemWizardLabels;
   deactivateLabels?: DeactivateLabels;
   transitionLabels?: StatusTransitionLabels;
+  /** A11 — org supplier list (CODE → "CODE — Name") for the edit wizard's supplier picker. */
+  supplierOptions?: SelectOption[];
+  /** A11 — supplier CODE → UUID map so EDIT-mode save can call createItemSupplierSpec. */
+  supplierIdByCode?: Record<string, string>;
 }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [deactivateOpen, setDeactivateOpen] = React.useState(false);
@@ -178,6 +187,8 @@ export function ItemRowActions({
           mode={{ kind: 'edit', itemId: item.id }}
           initialForm={rowToForm(item)}
           labels={wizardLabels}
+          supplierOptions={supplierOptions}
+          supplierIdByCode={supplierIdByCode}
         />
       ) : null}
 

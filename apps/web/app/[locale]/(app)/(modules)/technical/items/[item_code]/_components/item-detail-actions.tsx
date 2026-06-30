@@ -40,7 +40,10 @@ function detailToForm(item: ItemDetail): WizardFormState {
     itemType: item.itemType,
     status: item.status,
     productGroup: item.productGroup ?? '',
-    // A11 — supplier link is create-only; the detail edit form never surfaces it.
+    // A11 — supplier link. The detail-page edit wizard is NOT wired with the org
+    // supplier list (no supplierOptions/supplierIdByCode below), so its supplier
+    // picker shows only the "none" row and never attaches a spec — richer
+    // multi-supplier management lives in this page's own Supplier Specs tab.
     supplierCode: '',
     uomBase: item.uomBase,
     uomSecondary: item.uomSecondary ?? '',

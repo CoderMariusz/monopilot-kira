@@ -24,6 +24,10 @@ export type SupplierSpecRow = {
   documentMimeType: string | null;
   certificateRefs: unknown[];
   uploadedAt: string | null;
+  unitPrice: string | null;
+  priceCurrency: string | null;
+  supplierCurrency: string | null;
+  itemListPrice: string | null;
 };
 
 export type SupplierSpecsData = {
@@ -50,6 +54,10 @@ type SupplierSpecSqlRow = {
   document_mime_type: string | null;
   certificate_refs: unknown;
   uploaded_at: string | Date | null;
+  unit_price: string | number | null;
+  price_currency: string | null;
+  supplier_currency: string | null;
+  item_list_price: string | number | null;
 };
 
 export async function listSupplierSpecs(itemCode: string): Promise<SupplierSpecsData> {
@@ -77,11 +85,18 @@ export async function listSupplierSpecs(itemCode: string): Promise<SupplierSpecs
                 ss.document_sha256,
                 ss.document_mime_type,
                 ss.certificate_refs,
-                ss.uploaded_at
+                ss.uploaded_at,
+                ss.unit_price::text as unit_price,
+                ss.price_currency,
+                s.currency as supplier_currency,
+                i.list_price_gbp::text as item_list_price
            from public.items i
            left join public.supplier_specs ss
              on ss.org_id = i.org_id
             and ss.item_id = i.id
+           left join public.suppliers s
+             on s.org_id = ss.org_id
+            and s.code = ss.supplier_code
           where i.org_id = app.current_org_id()
             and i.item_code = $1
           order by ss.effective_from desc nulls last, ss.uploaded_at desc nulls last`,
@@ -116,6 +131,10 @@ export async function listSupplierSpecs(itemCode: string): Promise<SupplierSpecs
           documentMimeType: row.document_mime_type,
           certificateRefs: Array.isArray(row.certificate_refs) ? row.certificate_refs : [],
           uploadedAt: toIso(row.uploaded_at),
+          unitPrice: row.unit_price == null ? null : String(row.unit_price),
+          priceCurrency: row.price_currency,
+          supplierCurrency: row.supplier_currency,
+          itemListPrice: row.item_list_price == null ? null : String(row.item_list_price),
         }));
 
       return specs.length > 0

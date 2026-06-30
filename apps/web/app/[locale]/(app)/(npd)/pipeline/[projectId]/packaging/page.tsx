@@ -105,6 +105,7 @@ const DEFAULT_LABELS: PackagingLabels = {
   fieldSupplier: 'Supplier',
   fieldSpec: 'Spec',
   fieldCostUnit: 'Cost per unit (€)',
+  fieldScrapPct: 'Scrap %',
   fieldStatus: 'Status',
   fieldTier: 'Tier',
   tierPrimary: 'Primary',
@@ -162,6 +163,8 @@ type LoaderRow = {
   supplier_code: string | null;
   spec: string | null;
   cost_per_unit: string | null;
+  /** NUMERIC(5,2) — the pg driver may hand this back as a string; coerced on map. */
+  scrap_pct: string | number | null;
   status: string;
   artwork_file_id: string | null;
   artwork_status: string | null;
@@ -177,6 +180,7 @@ function toRow(r: LoaderRow): PackagingComponentRow {
     supplierCode: r.supplier_code,
     spec: r.spec,
     costPerUnit: r.cost_per_unit,
+    scrapPct: Number(r.scrap_pct ?? 0),
     status: r.status as PackagingStatus,
     artworkFileId: r.artwork_file_id,
     artworkStatus: r.artwork_status,
@@ -211,7 +215,8 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
       const { rows } = await queryClient.query<LoaderRow>(
         `select id, tier, component_name, material, supplier_code, spec,
-                cost_per_unit::text as cost_per_unit, status, artwork_file_id,
+                cost_per_unit::text as cost_per_unit, coalesce(scrap_pct, 0) as scrap_pct,
+                status, artwork_file_id,
                 artwork_status, display_order
            from public.packaging_components
           where org_id = app.current_org_id() and project_id = $1::uuid

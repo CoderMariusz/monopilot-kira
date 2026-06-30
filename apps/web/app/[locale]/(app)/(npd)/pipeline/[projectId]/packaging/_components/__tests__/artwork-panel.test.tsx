@@ -86,6 +86,7 @@ const LABELS = {
   fieldSupplier: 'Supplier',
   fieldSpec: 'Spec',
   fieldCostUnit: 'Cost per unit (€)',
+  fieldScrapPct: 'Scrap %',
   fieldStatus: 'Status',
   fieldTier: 'Tier',
   tierPrimary: 'Primary',

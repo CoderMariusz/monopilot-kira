@@ -14,6 +14,8 @@
 
 import React from 'react';
 
+import { type SelectOption } from '@monopilot/ui/Select';
+
 import { type ItemListItem, type ItemStatus, type ItemType } from '../_actions/shared';
 import { type DeactivateLabels } from './deactivate-modal';
 import { type ItemWizardLabels } from './item-create-wizard';
@@ -140,6 +142,8 @@ export function ItemsTableClient({
   wizardLabels,
   deactivateLabels,
   transitionLabels,
+  supplierOptions = [],
+  supplierIdByCode = {},
 }: {
   items: ItemListItem[];
   canEdit: boolean;
@@ -154,6 +158,10 @@ export function ItemsTableClient({
   wizardLabels: ItemWizardLabels;
   deactivateLabels: DeactivateLabels;
   transitionLabels?: StatusTransitionLabels;
+  /** A11 — org supplier list (CODE → "CODE — Name") for the per-row edit wizard supplier picker. */
+  supplierOptions?: SelectOption[];
+  /** A11 — supplier CODE → UUID map so EDIT-mode save can call createItemSupplierSpec. */
+  supplierIdByCode?: Record<string, string>;
 }) {
   const [tab, setTab] = React.useState<'all' | ItemType>('all');
   const [status, setStatus] = React.useState<'all' | ItemStatus>('all');
@@ -319,6 +327,8 @@ export function ItemsTableClient({
                       wizardLabels={wizardLabels}
                       deactivateLabels={deactivateLabels}
                       transitionLabels={transitionLabels}
+                      supplierOptions={supplierOptions}
+                      supplierIdByCode={supplierIdByCode}
                     />
                   </td>
                 </tr>

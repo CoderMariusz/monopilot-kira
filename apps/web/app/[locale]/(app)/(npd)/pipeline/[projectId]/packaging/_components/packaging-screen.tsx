@@ -119,6 +119,7 @@ export type PackagingLabels = {
   fieldSupplier: string;
   fieldSpec: string;
   fieldCostUnit: string;
+  fieldScrapPct: string;
   fieldStatus: string;
   fieldTier: string;
   tierPrimary: string;
@@ -156,6 +157,8 @@ export type UpsertCall = {
   supplierCode: string | null;
   spec: string | null;
   costPerUnit: string | null;
+  /** % lost to damage/setup during packing (0..100). */
+  scrapPct: number;
   status: PackagingStatus;
   /** Optional FK to a `packaging` item in the catalog (item picker). */
   itemId?: string | null;

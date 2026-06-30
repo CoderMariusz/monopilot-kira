@@ -1165,7 +1165,7 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
              (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,
               bom_item_id, bom_version, material_source, notes)
            select app.current_org_id(), $1::uuid, coalesce(i.id, bl.id), bl.component_code,
-                  round((bl.quantity * $2::numeric), 3), bl.uom, coalesce(bl.sequence, bl.line_no),
+                  round((bl.quantity * $2::numeric) / greatest(1 - coalesce(bl.scrap_pct, 0) / 100.0, 0.01), 3), bl.uom, coalesce(bl.sequence, bl.line_no),
                   bl.id, $3::integer, 'stock', bl.notes
              from public.bom_lines bl
              left join public.items i

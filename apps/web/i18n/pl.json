@@ -2699,6 +2699,19 @@
         "deleteStatusBlocked": "Usuwać można tylko wersje robocze — zatwierdzone lub aktywne wersje nigdy nie są usuwane.",
         "deleteError": "Nie udało się usunąć tej wersji BOM. Spróbuj ponownie."
       },
+      "approveErrors": {
+        "title": "Nie można zatwierdzić — najpierw popraw źródła komponentów",
+        "intro": "Te komponenty nie są gotowe do wydania:",
+        "reasons": {
+          "ITEM_NOT_ACTIVE": "Pozycja nieaktywna",
+          "SUPPLIER_NOT_APPROVED": "Dostawca niezatwierdzony",
+          "SUPPLIER_SPEC_NOT_ACTIVE": "Specyfikacja dostawcy nieaktywna",
+          "ALLERGEN_CONFLICT": "Konflikt alergenów",
+          "COST_REVIEW_PENDING": "Oczekuje przegląd kosztów",
+          "SPEC_REVIEW_PENDING": "Oczekuje przegląd specyfikacji",
+          "QC_RELEASE_MISSING": "Brak zwolnienia QC"
+        }
+      },
       "firstAuthoring": {
         "breadcrumbRoot": "BOM-y i receptury",
         "emptyTitle": "Brak BOM-u",

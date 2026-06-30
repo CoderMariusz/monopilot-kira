@@ -39,7 +39,7 @@ import {
 import { DeleteBomVersionModal, type DeleteVersionLabels } from './delete-version-modal';
 import { deleteBomVersion } from '../_actions/delete-bom-version';
 import { approveBom, publishBom } from '../_actions/workflow';
-import type { BomStatus } from '../_actions/shared';
+import type { BomRmUsabilityFailure, BomStatus } from '../_actions/shared';
 
 type EditLine = BomEditLine;
 
@@ -74,6 +74,7 @@ export function BomDetailActions({
   canPublish: boolean;
 }) {
   const t = useTranslations('technical.bom.actions');
+  const tApproveErr = useTranslations('technical.bom.approveErrors');
   const tDelete = useTranslations('technical.bomDelete');
   const router = useRouter();
   const params = useParams<{ locale?: string }>();
@@ -84,6 +85,13 @@ export function BomDetailActions({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [approveState, setApproveState] = React.useState<'idle' | 'pending' | 'error'>('idle');
   const [approveMsg, setApproveMsg] = React.useState<string | null>(null);
+  /**
+   * Structured per-component sourcing failures from the approve preflight. Kept
+   * separate from `approveMsg` so a real validation block renders as the alert
+   * card below, while non-validation errors (forbidden / generic) keep the plain
+   * fallback message.
+   */
+  const [approveFailures, setApproveFailures] = React.useState<BomRmUsabilityFailure[] | null>(null);
   const [publishState, setPublishState] = React.useState<'idle' | 'pending' | 'error'>('idle');
   const [publishMsg, setPublishMsg] = React.useState<string | null>(null);
   const [deleteMsg, setDeleteMsg] = React.useState<string | null>(null);
@@ -121,6 +129,7 @@ export function BomDetailActions({
   function onApprove() {
     setApproveState('pending');
     setApproveMsg(null);
+    setApproveFailures(null);
     startTransition(async () => {
       const res = await approveBom({ productId, version: currentVersion });
       if (res.ok) {
@@ -128,10 +137,17 @@ export function BomDetailActions({
         router.refresh();
       } else {
         setApproveState('error');
+        // A sourcing-validation block carries the structured per-component
+        // failures → render the alert card. Anything else (forbidden / generic)
+        // keeps the plain fallback message and renders no card.
+        const failures = res.rmUsabilityFailures ?? null;
+        setApproveFailures(failures && failures.length > 0 ? failures : null);
         setApproveMsg(
-          res.error === 'forbidden'
-            ? t('approveForbidden')
-            : res.message ?? t('approveError'),
+          failures && failures.length > 0
+            ? null
+            : res.error === 'forbidden'
+              ? t('approveForbidden')
+              : res.message ?? t('approveError'),
         );
       }
     });
@@ -179,10 +195,18 @@ export function BomDetailActions({
     });
   }
 
+  // Map a machine reason code to a friendly, translated label. Falls back to the
+  // raw code for any unmapped / not-yet-localised code so we never throw on a
+  // locale that lacks the key (ro/uk are mirrored by the i18n script).
+  function reasonLabel(code: string): string {
+    return tApproveErr.has(`reasons.${code}`) ? tApproveErr(`reasons.${code}`) : code;
+  }
+
   if (!canCreate && !canApprove && !canPublish) return null;
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2" data-testid="bom-detail-actions">
+    <div className="flex w-full flex-col items-stretch gap-2" data-testid="bom-detail-actions">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
       {canCreate ? (
         <>
           <button
@@ -237,21 +261,41 @@ export function BomDetailActions({
           {publishState === 'pending' || pending ? t('publishing') : t('publish')}
         </button>
       ) : null}
+      </div>
 
-      {approveState === 'error' && approveMsg ? (
-        <span role="alert" className="text-sm" style={{ color: 'var(--red)' }}>
-          {approveMsg}
-        </span>
+      {/* Sourcing-validation block — structured per-component failures rendered
+          as the app's standard danger alert, full-width BELOW the CTA strip
+          (no longer a raw machine string jammed into the button row). */}
+      {approveState === 'error' && approveFailures && approveFailures.length > 0 ? (
+        <div role="alert" className="alert alert-red" data-testid="bom-approve-failures">
+          <div className="alert-title">{tApproveErr('title')}</div>
+          <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-muted)' }}>
+            {tApproveErr('intro')}
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12px]">
+            {approveFailures.map((failure) => (
+              <li key={failure.componentCode} data-component-code={failure.componentCode}>
+                <strong className="mono">{failure.componentCode}</strong>
+                {' — '}
+                {failure.reasons.map((code) => reasonLabel(code)).join(', ')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : approveState === 'error' && approveMsg ? (
+        <div role="alert" className="alert alert-red" data-testid="bom-approve-error">
+          <div className="alert-title">{approveMsg}</div>
+        </div>
       ) : null}
       {publishState === 'error' && publishMsg ? (
-        <span role="alert" className="text-sm" style={{ color: 'var(--red)' }}>
-          {publishMsg}
-        </span>
+        <div role="alert" className="alert alert-red" data-testid="bom-publish-error">
+          <div className="alert-title">{publishMsg}</div>
+        </div>
       ) : null}
       {deleteMsg ? (
-        <span role="alert" className="text-sm" style={{ color: 'var(--red)' }}>
-          {deleteMsg}
-        </span>
+        <div role="alert" className="alert alert-red" data-testid="bom-delete-error">
+          <div className="alert-title">{deleteMsg}</div>
+        </div>
       ) : null}
 
       {canCreate && addOpen ? (

@@ -31,6 +31,8 @@ type FormState = {
   supplierCode: string;
   spec: string;
   costPerUnit: string;
+  /** % lost to damage/setup during packing (0..100), kept as the input string. */
+  scrapPct: string;
   status: PackagingStatus;
   tier: PackagingTier;
   /** Optional FK to a `packaging` item in the catalog (item picker). */
@@ -46,6 +48,7 @@ function rowToForm(row: PackagingComponentRow | null, defaultTier: PackagingTier
     supplierCode: row?.supplierCode ?? '',
     spec: row?.spec ?? '',
     costPerUnit: row?.costPerUnit ?? '',
+    scrapPct: row?.scrapPct != null ? String(row.scrapPct) : '0',
     status: row?.status ?? 'draft',
     tier: row?.tier ?? defaultTier,
     // The list row does not carry item_id; the link is (re)established via the
@@ -134,6 +137,12 @@ export function PackagingComponentModal({
       setError(labels.saveError);
       return;
     }
+    const scrapRaw = form.scrapPct.trim();
+    const scrapPct = scrapRaw === '' ? 0 : Number(scrapRaw);
+    if (!Number.isFinite(scrapPct) || scrapPct < 0 || scrapPct > 100) {
+      setError(labels.saveError);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -146,6 +155,7 @@ export function PackagingComponentModal({
         supplierCode: form.supplierCode.trim() || null,
         spec: form.spec.trim() || null,
         costPerUnit: cost || null,
+        scrapPct,
         status: form.status,
         itemId: form.itemId,
       });
@@ -267,6 +277,22 @@ export function PackagingComponentModal({
                 onChange={(e) => set('costPerUnit', e.target.value)}
                 data-testid="field-cost"
               />
+            </label>
+            <label>
+              <span>{labels.fieldScrapPct}</span>
+              <Input
+                name="scrapPct"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={form.scrapPct}
+                onChange={(e) => set('scrapPct', e.target.value)}
+                data-testid="field-scrap-pct"
+              />
+              <span className="text-xs text-muted">
+                Extra % requisitioned to cover packing loss
+              </span>
             </label>
             <label>
               <span>{labels.fieldStatus}</span>

@@ -52,6 +52,7 @@ import {
   SHELF_LIFE_MODES,
   WEIGHT_MODES,
 } from '../_actions/shared';
+import { createItemSupplierSpec } from '../_actions/supplier-spec-actions';
 import { updateItem } from '../_actions/update-item';
 import { DEFAULT_WIZARD_LABELS, type ItemWizardLabels } from './item-wizard-labels';
 export { DEFAULT_WIZARD_LABELS, type ItemWizardLabels } from './item-wizard-labels';
@@ -319,6 +320,7 @@ export function ItemWizard({
   initialForm,
   labels = DEFAULT_WIZARD_LABELS,
   supplierOptions = [],
+  supplierIdByCode = {},
   onSaved,
 }: {
   open: boolean;
@@ -334,6 +336,14 @@ export function ItemWizard({
    * an empty list so the field renders only the "none" choice (e.g. RTL/edit).
    */
   supplierOptions?: SelectOption[];
+  /**
+   * Supplier CODE → supplier UUID lookup for the SAME org supplier list. The
+   * wizard's select works in CODE space (matching create-mode + the createItem
+   * payload), but the existing `createItemSupplierSpec` action resolves its row
+   * from the supplier UUID — so EDIT-mode save maps the chosen code back to its id
+   * via this table. Threaded from the page alongside `supplierOptions`.
+   */
+  supplierIdByCode?: Record<string, string>;
   onSaved?: () => void;
 }) {
   const router = useRouter();
@@ -489,17 +499,56 @@ export function ItemWizard({
       boxesPerPallet: form.outputUom === 'base' ? undefined : numOrUndefined(form.boxesPerPallet),
       listPriceGbp: numOrUndefined(form.listPriceGbp),
     };
-    // A11 — supplier link is create-only (it auto-creates an approved supplier
-    // spec). Empty selection ⇒ omit supplierCode (the field is optional).
+    // A11 — optional supplier link. In CREATE mode createItem auto-creates an
+    // approved+active supplier spec from the chosen code. In EDIT mode we attach
+    // (or refresh) that spec via the existing createItemSupplierSpec action AFTER
+    // the item update lands. Empty selection ⇒ omit (the field is optional).
     const supplierCode = trimOrUndefined(form.supplierCode);
+    // The item's supplier when the dialog opened (prefilled from the row, or blank
+    // when the row doesn't carry it). Used so EDIT only writes a spec when the
+    // selection actually CHANGED — re-saving an unchanged item touches nothing.
+    const originalSupplierCode = trimOrUndefined(initialForm?.supplierCode ?? '');
     startTransition(async () => {
-      const result = isEdit
-        ? await updateItem({ id: (mode as { itemId: string }).itemId, ...common })
-        : await createItem({
+      if (isEdit) {
+        const result = await updateItem({ id: (mode as { itemId: string }).itemId, ...common });
+        if (!result.ok) {
+          setError(labels.actionErrors[result.error]);
+          return;
+        }
+        // Only (re)attach when a supplier is chosen AND it differs from the one the
+        // item already carried. Mirrors create-item.ts's auto-create defaults
+        // (status active / review approved / default effective dates) via the
+        // action's approveNow:true path. Surface its error — never swallow.
+        if (supplierCode && supplierCode !== originalSupplierCode) {
+          const supplierId = supplierIdByCode[supplierCode];
+          if (!supplierId) {
+            setError(labels.actionErrors.invalid_input);
+            return;
+          }
+          const specResult = await createItemSupplierSpec({
             itemCode: form.itemCode,
-            ...common,
-            ...(supplierCode ? { supplierCode } : {}),
+            supplierId,
+            approveNow: true,
           });
+          if (!specResult.ok) {
+            setError(
+              labels.actionErrors[specResult.error as ItemsActionError] ??
+                labels.actionErrors.persistence_failed,
+            );
+            return;
+          }
+        }
+        onClose();
+        onSaved?.();
+        router.refresh();
+        return;
+      }
+
+      const result = await createItem({
+        itemCode: form.itemCode,
+        ...common,
+        ...(supplierCode ? { supplierCode } : {}),
+      });
       if (result.ok) {
         onClose();
         onSaved?.();
@@ -678,9 +727,17 @@ export function ItemWizard({
               />
             </Field>
           </div>
-          {/* A11 — optional supplier link (create only). Selecting a supplier makes
-              createItem auto-create an approved+active supplier spec for the item. */}
-          {!isEdit ? (
+          {/* A11 — optional supplier link. CREATE: createItem auto-creates an
+              approved+active supplier spec from the chosen code. EDIT: the same
+              picker (prefilled with the item's current supplier when the row
+              carries it); on save a changed selection attaches/refreshes the spec
+              via createItemSupplierSpec. Richer multi-supplier management lives on
+              the item detail page's Supplier Specs tab. */}
+          {/* Render only when real supplier options are wired in: the items LIST passes them
+              (create + edit), but the item DETAIL page edit-wizard does not (its canonical
+              supplier management is the Supplier Specs tab) — so this hides the dead "none-only"
+              picker there instead of showing an inert dropdown. */}
+          {supplierOptions.length > 0 ? (
             <Field label={labels.fields.supplier} help={labels.fields.supplierHelp}>
               <LabeledSelect
                 value={form.supplierCode}

@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push, replace: vi.fn(), prefetch: vi.fn(), refresh: mocks.refresh }),
+  useParams: () => ({ locale: 'en' }),
 }));
 // The modal imports `listItems` from `bom/_components` → `../../items/_actions/...`
 // which resolves to `technical/items/_actions/list-items`. From THIS test file
@@ -207,6 +208,39 @@ describe('TW1-bom — detail action bar is wired', () => {
     await waitFor(() =>
       expect(mocks.approveBom).toHaveBeenCalledWith({ productId: 'FG-1001', version: 3 }),
     );
+  });
+
+  // Bug-5: a sourcing-validation block used to render the raw machine string
+  // (`RM-002: SUPPLIER_SPEC_NOT_ACTIVE; …`) jammed into the button flex row.
+  // It now renders a structured, full-width danger alert with one bullet per
+  // failing component and translated reason labels.
+  it('renders the structured failure alert (not a raw string) when approve is blocked on sourcing', async () => {
+    const user = userEvent.setup();
+    mocks.approveBom.mockResolvedValue({
+      ok: false,
+      error: 'validation',
+      rmUsabilityFailures: [
+        { componentCode: 'RM-002', itemId: 'i1', reasons: ['SUPPLIER_SPEC_NOT_ACTIVE'] },
+        { componentCode: 'ING-001', itemId: 'i2', reasons: ['SUPPLIER_NOT_APPROVED', 'SUPPLIER_SPEC_NOT_ACTIVE'] },
+      ],
+    });
+    render(<BomDetailActions {...baseProps} status="draft" canCreate={false} canApprove />);
+
+    await user.click(screen.getByTestId('bom-approve-cta'));
+
+    const card = await screen.findByTestId('bom-approve-failures');
+    expect(card).toHaveClass('alert', 'alert-red');
+    expect(card).toHaveAttribute('role', 'alert');
+    // One <li> per failing component, keyed by code.
+    const rows = card.querySelectorAll('li[data-component-code]');
+    expect(rows).toHaveLength(2);
+    // Friendly translated reason labels, NOT the raw enum codes.
+    expect(card).toHaveTextContent('Supplier spec not active');
+    expect(card).toHaveTextContent('Supplier not approved');
+    expect(card).toHaveTextContent('RM-002');
+    expect(card).toHaveTextContent('ING-001');
+    // The raw machine string must NOT appear anywhere.
+    expect(card.textContent).not.toContain('SUPPLIER_SPEC_NOT_ACTIVE');
   });
 
   it('renders nothing when the server denied both create and approve', () => {

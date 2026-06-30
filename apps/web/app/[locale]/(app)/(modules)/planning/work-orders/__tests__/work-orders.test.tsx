@@ -549,6 +549,131 @@ describe('F-D08a — conversion preview renders from the REAL i18n bundles', () 
   });
 });
 
+// ── P0-UOM — Order unit selector: planner can ORDER in a unit other than the
+// item's default output unit (owner ask: "order in box though the item is
+// normally counted in each"). The selector is gated to the units the item's
+// pack hierarchy can actually convert; switching it re-labels the quantity,
+// re-drives the conversion preview, and is what createWorkOrder receives as
+// quantityEnteredUom.
+describe('WoListView — P0-UOM Order unit selector', () => {
+  const uomLabels: WoListLabels = {
+    ...listLabels,
+    create: {
+      ...listLabels.create,
+      orderUnitLabel: 'Order unit',
+      quantityUom: { base: 'kg', each: 'each', box: 'box' },
+      conversionPreview: '{qty} {unit} = {kg} {base}',
+      errors: {
+        ...listLabels.create.errors,
+        uom_conversion_unavailable: 'Missing pack data — set it in Technical.',
+      },
+    },
+  };
+
+  // each-default item, but convertible to box (net 2 kg/each, 10 each/box).
+  const EACH_PRODUCT = {
+    id: 'p1',
+    itemCode: 'FG-001',
+    name: 'Demo FG',
+    uomBase: 'kg',
+    output_uom: 'each',
+    net_qty_per_each: 2,
+    each_per_box: 10,
+    weight_mode: 'fixed',
+  };
+
+  // each-default item with NO box factor → box must NOT be offered.
+  const EACH_NO_BOX = {
+    id: 'p1',
+    itemCode: 'FG-001',
+    name: 'Demo FG',
+    uomBase: 'kg',
+    output_uom: 'each',
+    net_qty_per_each: 2,
+    each_per_box: null,
+    weight_mode: 'fixed',
+  };
+
+  const BASE_PRODUCT = { id: 'p1', itemCode: 'FG-001', name: 'Demo FG', uomBase: 'kg', output_uom: 'base' };
+
+  function renderUomList(searchRows: unknown[]) {
+    const searchFgProductsAction = vi.fn().mockResolvedValue(searchRows);
+    const createWorkOrderAction = vi.fn<
+      Parameters<React.ComponentProps<typeof WoListView>['createWorkOrderAction']>,
+      Promise<CreateWorkOrderResult>
+    >();
+    const utils = render(
+      <WoListView
+        locale="en"
+        workOrders={ROWS}
+        resources={resources}
+        labels={uomLabels}
+        searchFgProductsAction={searchFgProductsAction}
+        createWorkOrderAction={createWorkOrderAction}
+        releaseWorkOrderAction={vi.fn()}
+      />,
+    );
+    return { ...utils, createWorkOrderAction };
+  }
+
+  async function pickFirst() {
+    fireEvent.click(screen.getByTestId('wo-list-create'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-wo-selected-product')).toHaveTextContent('FG-001'));
+  }
+
+  it('offers the Order unit selector when the item converts to >1 unit, defaulting to its output unit', async () => {
+    renderUomList([EACH_PRODUCT]);
+    await pickFirst();
+    // Selector present.
+    expect(screen.getByTestId('create-wo-order-unit')).toBeInTheDocument();
+    // Default = the item output unit (each) → quantity labelled in each.
+    expect(screen.getByText('Planned quantity (each)')).toBeInTheDocument();
+  });
+
+  it('switching the order unit re-labels the quantity, re-drives the preview, and is sent as quantityEnteredUom', async () => {
+    const { createWorkOrderAction } = renderUomList([EACH_PRODUCT]);
+    createWorkOrderAction.mockResolvedValue({ ok: true, workOrder: {} as any, materials: [], primarySchedule: {} as any });
+    await pickFirst();
+
+    // Switch the order unit to box via the @monopilot/ui Select.
+    const select = within(screen.getByTestId('create-wo-order-unit')).getByRole('combobox');
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole('option', { name: 'box' }));
+
+    // Label flips to box; preview converts in box: 3 box × 10 each × 2 kg = 60.000 kg.
+    expect(await screen.findByText('Planned quantity (box)')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '3' } });
+    await waitFor(() => expect(screen.getByTestId('create-wo-conversion')).toHaveTextContent('3 box = 60.000 kg'));
+
+    fireEvent.click(screen.getByTestId('create-wo-submit'));
+    await waitFor(() =>
+      expect(createWorkOrderAction).toHaveBeenCalledWith(
+        expect.objectContaining({ quantityEnteredUom: 'box', quantityEntered: '3', plannedQuantity: '60' }),
+      ),
+    );
+  });
+
+  it('does NOT offer box when the item lacks each_per_box (only base + each)', async () => {
+    renderUomList([EACH_NO_BOX]);
+    await pickFirst();
+    const select = within(screen.getByTestId('create-wo-order-unit')).getByRole('combobox');
+    fireEvent.click(select);
+    expect(screen.getByRole('option', { name: 'kg' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'each' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'box' })).toBeNull();
+  });
+
+  it('renders NO selector for a base-only item (single convertible unit)', async () => {
+    renderUomList([BASE_PRODUCT]);
+    await pickFirst();
+    expect(screen.queryByTestId('create-wo-order-unit')).toBeNull();
+    expect(screen.getByText('Planned quantity')).toBeInTheDocument();
+  });
+});
+
 describe('WoDetailView — 7 tabs from fixture (parity: wo-detail.jsx:107-585)', () => {
   const fixture: Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'] = {
     ...(makeRow({ id: 'wo-1', woNumber: 'WO-DETAIL' }) as any),

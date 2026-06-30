@@ -71,15 +71,20 @@ export default async function TechnicalItemsPage() {
   const t = await getTranslations('technical.items');
   const tItems = await getTranslations('items');
 
-  // A11 — optional supplier link in the create wizard. Resolve the org supplier
-  // master server-side (only when the user can create) and thread it down to the
-  // wizard, mirroring how labels/list data are loaded here. The field is optional,
-  // so a failed/empty list degrades gracefully to "no suppliers" (just the none row).
+  // A11 — optional supplier link in the create/edit wizard. Resolve the org
+  // supplier master server-side (when the user can create OR edit) and thread it
+  // down to the wizard, mirroring how labels/list data are loaded here. The field
+  // is optional, so a failed/empty list degrades gracefully to "no suppliers"
+  // (just the none row). supplierOptions value = supplier CODE (matches the
+  // createItem payload); supplierIdByCode maps each code → UUID so the EDIT-mode
+  // save can call createItemSupplierSpec, which keys its row on the supplier id.
   let supplierOptions: SelectOption[] = [];
-  if (canCreate) {
+  const supplierIdByCode: Record<string, string> = {};
+  if (canCreate || canEdit) {
     const suppliers = await listSuppliers({ status: 'active', limit: 200 });
     if (suppliers.ok) {
       supplierOptions = suppliers.data.map((s) => ({ value: s.code, label: `${s.code} — ${s.name}` }));
+      for (const s of suppliers.data) supplierIdByCode[s.code] = s.id;
     }
   }
 
@@ -200,6 +205,8 @@ export default async function TechnicalItemsPage() {
             wizardLabels={wizardLabels}
             deactivateLabels={deactivateLabels}
             transitionLabels={transitionLabels}
+            supplierOptions={supplierOptions}
+            supplierIdByCode={supplierIdByCode}
           />
         </>
       )}

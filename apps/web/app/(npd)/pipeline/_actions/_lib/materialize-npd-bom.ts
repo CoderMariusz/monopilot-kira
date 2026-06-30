@@ -37,6 +37,7 @@ type PackagingComponentRow = {
   component_name: string;
   item_id: string;
   qty: string;
+  scrap_pct: string;
 };
 
 type ItemRow = {
@@ -276,6 +277,16 @@ async function ensureFgItemAndProduct(
       `update public.items set net_qty_per_each = $2::numeric where org_id = app.current_org_id() and item_code = $1 and net_qty_per_each is null`,
       [productCode, netQtyPerEach],
     );
+    // A discrete pack product (it has a per-each weight) must be orderable in each/box on the WO,
+    // not silently treated as bulk kg. The INSERT above is "on conflict do nothing", so an FG item
+    // first created as a draft before its pack weight was set keeps output_uom='base' and the WO
+    // modal then shows "Quantity (kg)" with no each/box conversion (owner: "FG-NPD-012 → automatically
+    // kg"). Upgrade base→each here; never clobber an already-chosen 'box'/'each'.
+    await ctx.client.query(
+      `update public.items set output_uom = 'each'
+        where org_id = app.current_org_id() and item_code = $1 and output_uom = 'base'`,
+      [productCode],
+    );
   }
 
   // product is a VIEW post-merge-cut → no ON CONFLICT DO UPDATE (42P10). Replicate the upsert as
@@ -463,13 +474,17 @@ async function createActiveNpdBom(
     const component = packagingComponents[index]!;
     const lineNo = ingredients.length + index + 1;
     const pmQty = (Number(component.qty) * packsPerBox).toFixed(6);
+    // Packaging components lose a fraction to damage/setup during packing (owner: "scrap per
+    // packaging component"). Carry the component's scrap_pct onto the PM BOM line so the WO
+    // material requirement (createWorkOrder) inflates required_qty by 1 / (1 - scrap_pct/100).
+    const scrapPct = clampScrapPct(component.scrap_pct);
     await ctx.client.query(
       `insert into public.bom_lines
          (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
           scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
        values
          (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'PM', $5::numeric, 'each',
-          0.00, $6, $7, false, 'npd_packaging_components')`,
+          $8::numeric, $6, $7, false, 'npd_packaging_components')`,
       [
         header.id,
         lineNo,
@@ -478,6 +493,7 @@ async function createActiveNpdBom(
         pmQty,
         'NPD packaging',
         lineNo,
+        scrapPct,
       ],
     );
   }
@@ -495,11 +511,20 @@ async function createActiveNpdBom(
   return header;
 }
 
+// Defensive clamp: scrap_pct is bounded 0..100 by the DB check, but guard against NULL/NaN/legacy
+// rows so a stray value can never produce a negative or >100 BOM-line scrap.
+function clampScrapPct(raw: string | null | undefined): string {
+  const n = Number(raw ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return '0.00';
+  return (n > 100 ? 100 : n).toFixed(2);
+}
+
 async function loadPackagingComponents(ctx: OrgContextLike, projectId: string): Promise<PackagingComponentRow[]> {
   const { rows } = await ctx.client.query<PackagingComponentRow>(
     `select pc.component_name,
             pc.item_id::text as item_id,
-            coalesce(pc.qty_per_pack, 1)::text as qty
+            coalesce(pc.qty_per_pack, 1)::text as qty,
+            coalesce(pc.scrap_pct, 0)::text as scrap_pct
        from public.packaging_components pc
       where pc.project_id = $1::uuid
         and pc.org_id = app.current_org_id()

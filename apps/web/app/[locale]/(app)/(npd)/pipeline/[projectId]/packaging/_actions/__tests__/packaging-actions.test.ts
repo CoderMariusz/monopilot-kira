@@ -170,6 +170,51 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(audit).toBeTruthy();
   });
 
+  it('defaults scrap_pct to 0 when omitted and binds it ::numeric in the INSERT', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const res = await upsertPackagingComponent(valid); // no scrapPct → schema default 0
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+
+    const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
+    expect(insert).toBeTruthy();
+    // The column is in the INSERT list and bound ::numeric.
+    expect(insert!.sql).toContain('scrap_pct');
+    expect(insert!.sql).toMatch(/\$8::numeric/);
+    // Default value 0 is among the bound params.
+    expect(insert!.params).toContain(0);
+  });
+
+  it('round-trips a scrap_pct value (coerced number) into the INSERT', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    // String input is coerced by z.coerce.number() — mirrors the modal sending a number.
+    const res = await upsertPackagingComponent({ ...valid, scrapPct: '2.5' });
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+
+    const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
+    expect(insert).toBeTruthy();
+    // Bound as the numeric 2.5 (scrap is a bounded % — no money-precision concern).
+    expect(insert!.params).toContain(2.5);
+  });
+
+  it('rejects an out-of-range scrap_pct (>100) with invalid_input (no DB touched)', async () => {
+    const res = await upsertPackagingComponent({ ...valid, scrapPct: 150 });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe('invalid_input');
+    expect(ctx.calls).toHaveLength(0);
+  });
+
+  it('updates scrap_pct in the set-list and audits it', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const res = await upsertPackagingComponent({ ...valid, id: COMPONENT_ID, scrapPct: 3 });
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+
+    const update = ctx.calls.find((c) => /update public\.packaging_components/i.test(c.sql));
+    expect(update).toBeTruthy();
+    expect(update!.sql).toContain('scrap_pct');
+    expect(update!.sql).toMatch(/scrap_pct\s*=\s*\$8::numeric/);
+    expect(update!.params).toContain(3);
+  });
+
   it('validates optional itemId as a packaging item before writing', async () => {
     ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
     ctx.packagingItemExists = false;
