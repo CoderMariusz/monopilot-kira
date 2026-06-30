@@ -119,7 +119,7 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
         const cost = await writeItemCostLedger(client as QueryClient, {
           orgId,
           userId,
-          input: { itemId: inserted.id, costPerKg: input.costPerKg, currency: 'PLN', source: 'manual' },
+          input: { itemId: inserted.id, costPerKg: input.costPerKg, currency: 'GBP', source: 'manual' },
         });
         if (!cost.ok) return { ok: false, error: cost.error === 'approver_required' ? 'invalid_input' : cost.error };
       }

@@ -137,7 +137,7 @@ async function loadInputLp(ctx: OrgContextLike, inputLpId: string): Promise<Inpu
     `select lp.id::text as id,
             lp.quantity::text as quantity,
             coalesce(ch.cost_per_kg::text, item.cost_per_kg::text) as cost_per_kg,
-            coalesce(trim(ch.currency::text), 'PLN') as currency
+            coalesce(trim(ch.currency::text), 'GBP') as currency
        from public.license_plates lp
        left join public.items item
          on item.org_id = lp.org_id
@@ -422,7 +422,7 @@ export async function registerDisassemblyOutput(
         input: {
           itemId: output.coProductItemId,
           costPerKg: fixedToDecimal(outputCostPerKg),
-          currency: input.currency ?? inputLp.currency ?? 'PLN',
+          currency: input.currency ?? inputLp.currency ?? 'GBP',
           source: 'disassembly_allocation',
           notes: `Disassembly allocation from input LP ${input.inputLpId}; allocated_cost=${fixedToDecimal(allocatedCost)}`,
         },

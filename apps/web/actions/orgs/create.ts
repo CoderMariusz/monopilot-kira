@@ -43,7 +43,7 @@ const createOrganizationInputSchema = {
     const name = normalizeString(input.name);
     const timezone = normalizeString(input.timezone) ?? 'Europe/Warsaw';
     const locale = normalizeString(input.locale) ?? 'pl';
-    const currency = normalizeString(input.currency) ?? 'PLN';
+    const currency = normalizeString(input.currency) ?? 'GBP';
     const region = normalizeString(input.region) ?? 'eu';
     const tier = normalizeString(input.tier) ?? 'L2';
 

@@ -238,7 +238,7 @@ export function CreatePoModal({
   }, [open]);
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
-  const currency = selectedSupplier?.currency ?? 'EUR';
+  const currency = selectedSupplier?.currency ?? 'GBP';
 
   // BUG2 — every line's ItemPicker must search the SELECTED supplier's items only.
   // The picker calls the action with { query, itemTypes }; inject the supplierId so

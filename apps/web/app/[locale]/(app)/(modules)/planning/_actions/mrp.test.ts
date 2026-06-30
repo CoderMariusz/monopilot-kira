@@ -866,7 +866,7 @@ describe('convertPlannedToPo', () => {
       supplierId: SUPPLIER_ID,
       status: 'draft',
       expectedDelivery: '2026-06-18',
-      currency: 'EUR',
+      currency: 'GBP',
       notes: 'Created from MRP planned orders',
       lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', lineNo: 1 }],
     });

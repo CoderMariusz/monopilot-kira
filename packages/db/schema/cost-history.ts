@@ -21,7 +21,7 @@ export const itemCostHistory = pgTable(
       .notNull()
       .references(() => items.id, { onDelete: 'cascade' }),
     costPerKg: numeric('cost_per_kg', { precision: 10, scale: 4 }).notNull(),
-    currency: char('currency', { length: 3 }).notNull().default('PLN'),
+    currency: char('currency', { length: 3 }).notNull().default('GBP'),
     effectiveFrom: date('effective_from').notNull().defaultNow(),
     effectiveTo: date('effective_to'),
     source: text('source'),

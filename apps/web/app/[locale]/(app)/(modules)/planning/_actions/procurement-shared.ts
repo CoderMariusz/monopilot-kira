@@ -52,7 +52,7 @@ export const SupplierCreateInput = z.object({
   code: z.string().trim().min(1).max(80),
   name: z.string().trim().min(1).max(255),
   contact: z.record(z.string(), z.unknown()).optional(),
-  currency: z.string().trim().length(3).default('EUR'),
+  currency: z.string().trim().length(3).default('GBP'),
   leadTimeDays: z.number().int().min(0).max(3650).default(0),
   status: SupplierStatusSchema.default('active'),
   notes: z.string().trim().max(2000).optional(),
@@ -74,7 +74,7 @@ export const PurchaseOrderCreateInput = z.object({
   supplierId: uuidSchema,
   status: PurchaseOrderStatusSchema.default('draft'),
   expectedDelivery: dateSchema.optional(),
-  currency: z.string().trim().length(3).default('EUR'),
+  currency: z.string().trim().length(3).default('GBP'),
   notes: z.string().trim().max(2000).optional(),
   lines: z.array(PurchaseOrderLineInput).min(1).max(200),
 });

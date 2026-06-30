@@ -153,7 +153,7 @@ export type SaveScenarioOutcome = { ok: boolean; error?: string };
 export type ComputeCostingCall = { projectId: string };
 export type ComputeCostingOutcome = { ok: boolean; error?: string; message?: string };
 
-const CURRENCY = '€';
+const CURRENCY = '£';
 
 /** Format a decimal STRING for display without float coercion (string-only). */
 function formatMoney(value: string): string {

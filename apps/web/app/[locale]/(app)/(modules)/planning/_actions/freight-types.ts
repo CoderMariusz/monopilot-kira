@@ -86,7 +86,7 @@ export const TransportLaneUpsertSchema = z.object({
   mode: modeSchema,
   costBasis: costBasisSchema,
   costAmount: costAmountSchema,
-  currency: z.string().trim().length(3).default('EUR').transform((value) => value.toUpperCase()),
+  currency: z.string().trim().length(3).default('GBP').transform((value) => value.toUpperCase()),
   transitDays: z.number().int().min(0).max(365).optional(),
   isActive: z.boolean().default(true),
 });

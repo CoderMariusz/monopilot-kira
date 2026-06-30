@@ -122,7 +122,7 @@ export async function loadOnboardingContext(): Promise<LoadOnboardingContextResu
           name: orgRow.name ?? '',
           timezone: orgRow.timezone ?? 'Europe/Warsaw',
           locale: orgRow.locale ?? 'pl',
-          currency: orgRow.currency ?? 'PLN',
+          currency: orgRow.currency ?? 'GBP',
           gs1Prefix: orgRow.gs1_prefix ?? '',
           onboardingCompletedAt: toIsoOrNull(orgRow.onboarding_completed_at),
           onboardingStartedAt: state.startedAt,

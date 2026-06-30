@@ -994,7 +994,7 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
           supplierId,
           status: 'draft',
           expectedDelivery: rows[0]?.due_date,
-          currency: 'EUR',
+          currency: 'GBP',
           notes: 'Created from MRP planned orders',
           lines: rows.map((row, index) => ({
             itemId: row.item_id,

@@ -128,7 +128,7 @@ const DEFAULT_ORGANIZATION: NonNullable<OnboardingProfilePageProps['organization
   name: '',
   timezone: 'Europe/Warsaw',
   locale: 'pl-PL',
-  currency: 'PLN',
+  currency: 'GBP',
   gs1Prefix: '',
   onboardingCompletedAt: null,
 };

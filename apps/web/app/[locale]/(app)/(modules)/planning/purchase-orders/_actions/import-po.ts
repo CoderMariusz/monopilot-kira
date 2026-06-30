@@ -163,7 +163,7 @@ export async function commitPoImport(
         supplierId: supplier.id,
         status: 'draft',
         expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
-        currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'EUR',
+        currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
         notes: joinNotes(group.rows),
         lines: lineInputs,
       });

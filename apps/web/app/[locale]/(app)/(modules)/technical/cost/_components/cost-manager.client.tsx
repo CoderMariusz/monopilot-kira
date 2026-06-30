@@ -259,7 +259,7 @@ function CostEditModal({
 }) {
   const sourceOptions = COST_SOURCES.map((value) => ({ value, label: copy.source[value] }));
   const [costPerKg, setCostPerKg] = React.useState('');
-  const [currency, setCurrency] = React.useState('PLN');
+  const [currency, setCurrency] = React.useState('GBP');
   const [source, setSource] = React.useState<CostEditableSource>('manual');
   const [notes, setNotes] = React.useState('');
   const [approver, setApprover] = React.useState('');

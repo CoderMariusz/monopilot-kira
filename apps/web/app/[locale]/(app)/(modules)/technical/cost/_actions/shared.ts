@@ -97,7 +97,7 @@ export const PostCostInput = z.object({
     .transform((v) => v.toUpperCase())
     .refine((v) => isIso4217Currency(v), { message: 'currency must be an ISO 4217 code (V-TEC-52)' })
     .optional()
-    .default('PLN'),
+    .default('GBP'),
   // V-TEC-51: effective_from <= current date. Defaults to today (the active row).
   effectiveFrom: z
     .string()
