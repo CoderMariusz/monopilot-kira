@@ -96,7 +96,7 @@ export async function listSupplierSpecs(itemCode: string): Promise<SupplierSpecs
             and ss.item_id = i.id
            left join public.suppliers s
              on s.org_id = ss.org_id
-            and s.code = ss.supplier_code
+            and (s.id = ss.supplier_id or (ss.supplier_id is null and s.code = ss.supplier_code))
           where i.org_id = app.current_org_id()
             and i.item_code = $1
           order by ss.effective_from desc nulls last, ss.uploaded_at desc nulls last`,

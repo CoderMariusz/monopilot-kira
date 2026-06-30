@@ -25,17 +25,26 @@ Start HEAD: `77039d50` · branch `main` · next migration `394`.
 | Scoping | exact specs for P1/P2/cross-cut | ✅ | — | — | — | — | — | — |
 | P1 | correctness blockers (wrong numbers) | ✅ 5 lanes | ✅ Codex | ✅ Opus (3 blockers fixed) | ✅ next build | 394,395 | `3a0c6c24` | ✅ deploy READY |
 | X-cut | user_sessions ✅ / shipping FK ✅ (in P1) · new-org seed + Drizzle = deferred/follow-up | ✅ | ✅ | ✅ | ✅ | (395) | `3a0c6c24` | ✅ |
-| P2 | v_item_effective_cost single-source view + currency carriage | 🔄 2 lanes | | | | 396,397 | | |
-| P3 | supplier/customer unify | | | | | | | |
-| P4 | process unify (Finance↔ManufacturingOperations) | | | | | | | |
-| P5 | allergen single-vocab | | | | | | | |
-| P6 | item/product completion | | | | | | | |
-| P7 | dead-table drop (cautious) | | | | | | | |
+| P2 | v_item_effective_cost single-source view + currency carriage | ✅ 2 lanes | ✅ Codex PASS | ✅ Opus PASS (2 test-gaps closed) | ✅ next build | 396,397 | `3a0ab58e` | ✅ pushed |
+| P3 | supplier/customer unify — **SAFE backend** (supplier_id FK; both write paths) | ✅ Codex | ✅ self+diff | ✅ Opus PASS | ✅ next build | 398 | `<this commit>` | ✅ |
+| P4 | process unify (Finance↔ManufacturingOperations) | 📐 DESIGN+FLAG (costing-model = owner decision) | — | — | — | — | — | — |
+| P5 | allergen single-vocab | 📐 DESIGN+FLAG | — | — | — | — | — | — |
+| P6 | item/product completion + legacy-process double-fire | 📐 DESIGN+FLAG | — | — | — | — | — | — |
+| P7 | dead-table drop (DESTRUCTIVE) | 📐 DESIGN+FLAG (needs live null-rate confirm + owner go) | — | — | — | — | — | — |
 
 ## Decisions deferred to joint in-app review (entangled with business/UX choices — NOT auto-fixed)
 - **WAC inventory valuation (audit A3/H4).** `item_wac_state` write path was scoped but DEFERRED: the `currencies` table referenced by `item_wac_state.currency_id` (NOT NULL) **does not exist**, and the sibling finance tables (`wo_actual_costing`/`inventory_cost_layers`/`cost_variances`) are dead. The whole valuation layer is a half-built P2 subsystem; writing WAC would require fabricating a currency_id. Needs a finance-valuation design decision (currency model first).
 - **New-org default warehouse/location seed (audit D).** DEFERRED: the onboarding wizard (`createFirstWarehouse`/`createFirstLocation`) already creates these manually, gated on `onboarding_completed_at IS NULL`. Auto-seeding on org-insert could conflict with / bypass the wizard. (org_sequences self-heals; `costing_margin_warn_pct` is already seeded by mig 096.) Decide: auto-seed vs. fail-gracefully-on-missing.
-- **Base currency / FX policy (audit A1, Phase 2 dependency).** Cost is stored in GBP (`list_price_gbp`), PLN (`item_cost_history` default), and a column *named* `cost_per_kg_eur` that actually holds GBP/PLN. The single-source resolver (Phase 2) will be currency-PRESERVING (carry `{amount,currency,source}`, stop silent relabel) but the base-currency + FX-rate policy is a business decision — deferred.
+- **Base currency / FX policy (audit A1, Phase 2 dependency).** Cost is stored in GBP (`list_price_gbp`), PLN (`item_cost_history` default), and a column *named* `cost_per_kg_eur` that actually holds GBP/PLN. The Phase-2 resolver is currency-PRESERVING (carries `{amount,currency,source}`, stops silent relabel) but the base-currency + FX-rate policy is a business decision — deferred. **Decide:** one base currency (GBP?) + an FX table, or single-currency-only.
+- **P3 — Settings "Partners" screen (the visible 2-vs-4).** `reference_tables.partners` (the Settings SingleReferenceScreen) has ZERO operational readers — it's decorative. **Decide:** point Settings → operational `public.suppliers` + `public.customers` (read-only deep-link, or full CRUD surface)? And may we DROP the orphan `reference_tables.partners` rows (irreversible)? Also: enforce `packaging_components.supplier_code` against `public.suppliers`, or keep free-text for prospective suppliers?
+- **P4 — Finance WO labour costing model.** Finance reads a flat rate from the dead `reference_tables.processes`; NPD/Technical compute `Σ(role rate × headcount × duration)` from `labor_rates`. **Decide which model** (recommended **A**: Finance reads `ManufacturingOperations → npd_process_defaults → roles → labor_rates`, using `wo_operations.expected_duration_minutes`) and **planned vs actual duration**. Then it's a single `wo-cost-actions.ts` query rewrite. (Moot until there are completed WOs + rates.)
+- **P5 — allergen single vocabulary.** Drop dead `public.allergens` (numeric, empty) + dead `reference_tables.allergens_reference`; enforce `"Reference"."Allergens"` everywhere; add snapshot `recomputed_at` + gate approval on freshness. **Decide:** confirm `"Reference"."Allergens"` is the sole vocabulary and the drop is safe.
+- **P6 — item/product completion + legacy process slots.** Finish the parked P3-FK (`bom_headers.product_id` shadow column drop); drop `product_legacy`; sync `Reference.Departments` ↔ `npd_departments`. **Live double-fire risk confirmed:** the legacy `prod_detail.manufacturing_operation_1..4` trigger (mig 222) fires ALONGSIDE the new `npd_wip_processes` trigger (mig 391) — retire the legacy path. **Decide:** go-ahead to drop the parked shadow column + `product_legacy` (owner previously PARKED these).
+- **P7 — dead-table drop (DESTRUCTIVE — needs live null-rate confirmation + explicit owner go).** Candidates (audit §C): `lot`, `quality_event`, `bom_item`, `shipment`, `work_order` (placeholder — NPD closeout reads the DEAD one!), `work_order_items`, `fa_bom_view`, plus dead finance tables (`wo_actual_costing`/`inventory_cost_layers`/`cost_variances`/`d365_finance_dlq`) and `standard_costs`/`uom_reference` review. NOT dropped autonomously.
+
+## Final summary (autonomous run)
+**Executed + deployed:** Phase 1 (correctness blockers — the wrong-number bugs) `3a0c6c24` READY; Phase 2 (cost single-source-of-truth — the owner's literal "jednego source of true dla wartosci") `3a0ab58e`. Migrations 394–398 live. Every phase: Codex fix → Codex review → Opus cross-review → Claude build gate; all blockers found by review were fixed before commit.
+**Designed + flagged (NOT blind-executed while owner away):** P3 Settings-UX, P4 costing-model, P5 allergen-vocab, P6 product/legacy completion, P7 destructive drops — each with a concrete plan + the exact decision needed, above. The deep "kill all double-systems" work past the values-SSoT is decision-gated by design; bring these to the in-app review to lock one table set.
 
 ## Per-phase detail
 

@@ -172,6 +172,7 @@ export async function createItemSupplierSpec(
             limit 1`,
           [input.supplierId],
         );
+        const supplierId = input.supplierId;
         const supplierCode = supRes.rows[0]?.code;
         if (!supplierCode) return { ok: false, error: 'supplier_not_found' };
 
@@ -204,14 +205,17 @@ export async function createItemSupplierSpec(
           `insert into public.supplier_specs
              (org_id, item_id, supplier_code, supplier_status, spec_version,
               issued_date, effective_from, expiry_date, lifecycle_status, review_status,
-              cost_review_blocked, spec_review_blocked, uploaded_by, unit_price, price_currency)
+              cost_review_blocked, spec_review_blocked, uploaded_by, unit_price, price_currency,
+              supplier_id)
            values
              (app.current_org_id(), $1::uuid, $2, $3, $4,
               $5::date, coalesce($6::date, current_date), $7::date, $8, $9,
-              false, false, $10::uuid, $11::numeric, $12)
+              false, false, $10::uuid, $11::numeric, $12,
+              $13::uuid)
            on conflict (org_id, item_id, supplier_code)
              where lifecycle_status = 'active' and review_status = 'approved'
            do update set
+             supplier_id         = excluded.supplier_id,
              spec_version        = excluded.spec_version,
              issued_date         = excluded.issued_date,
              effective_from      = excluded.effective_from,
@@ -238,6 +242,7 @@ export async function createItemSupplierSpec(
             userId,
             input.unitPrice ?? null,
             input.priceCurrency ?? null,
+            supplierId,
           ],
         );
         const written = rows[0];

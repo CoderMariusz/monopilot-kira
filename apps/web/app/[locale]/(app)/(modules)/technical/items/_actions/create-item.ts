@@ -74,8 +74,8 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       if (!inserted) return { ok: false, error: 'persistence_failed' };
 
       if (input.supplierCode) {
-        const supplier = await (client as QueryClient).query(
-          `select 1
+        const supplier = await (client as QueryClient).query<{ id: string }>(
+          `select id
              from public.suppliers
             where org_id = app.current_org_id()
               and code = $1::text
@@ -93,15 +93,15 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           try {
             await txClient.query(
               `insert into public.supplier_specs
-                 (org_id, item_id, supplier_code, supplier_status,
+                 (org_id, item_id, supplier_code, supplier_id, supplier_status,
                   spec_version, lifecycle_status, review_status,
                   approved_by, approved_at, uploaded_by)
                values
-                 (app.current_org_id(), $1::uuid, $2::text, 'approved',
+                 (app.current_org_id(), $1::uuid, $2::text, $4::uuid, 'approved',
                   '1.0', 'active', 'approved',
                   $3::uuid, now(), $3::uuid)
                on conflict (org_id, item_id, supplier_code) where lifecycle_status = 'active' AND review_status = 'approved' do nothing`,
-              [inserted.id, input.supplierCode, userId],
+              [inserted.id, input.supplierCode, userId, supplier.rows[0].id],
             );
             await txClient.query('release savepoint sp_supplier_spec');
           } catch (err) {
