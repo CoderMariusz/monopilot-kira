@@ -1,6 +1,5 @@
 export { tenants, organizations, users, outboxEvents, outboxDeadLetter } from './baseline.js';
 export { tenantMigrations } from './tenant-migrations.js';
-export { lot, workOrder, qualityEvent, shipment, bomItem } from './r13-business-tables.js';
 export { eSignLog } from './e-sign.js';
 export { gdprErasureRequests } from './gdpr.js';
 export { orgAuthorizationPolicies } from './settings-auth-policies.js';
@@ -148,8 +147,6 @@ export type {
   NewBomLine,
   NewBomSnapshot,
 } from './shared-bom.js';
-export { faBomView } from './fa-bom-view.js';
-export type { FaBomView } from './fa-bom-view.js';
 export { factoryReleaseStatus } from './factory-release-status.js';
 export type {
   FactoryReleaseStatus,
@@ -345,35 +342,13 @@ export type {
   SparePartStock,
   NewSparePartStock,
 } from './warehouse-waveb.js';
-// 10-finance — SCHEMA foundation (migration 199): standard_costs (T-009), wo_actual_costing
-// (T-015, READ-only soft ref to canonical 08-production wo_outputs), inventory_cost_layers /
-// item_wac_state / cost_variances (T-021 FIFO/WAC + variance), finance_outbox_events /
-// d365_finance_dlq (T-027 D365 stage-5 export-only, R15). NUMERIC-exact money/qty. Finance owns
-// standard-cost/valuation/variance; item_cost_history stays Technical's (dual ownership).
-export {
-  standardCosts,
-  woActualCosting,
-  inventoryCostLayers,
-  itemWacState,
-  costVariances,
-  financeOutboxEvents,
-  d365FinanceDlq,
-} from './finance.js';
+// 10-finance live tables after migrations 402/404.
+export { itemWacState, financeOutboxEvents } from './finance.js';
 export type {
-  StandardCost,
-  NewStandardCost,
-  WoActualCosting,
-  NewWoActualCosting,
-  InventoryCostLayer,
-  NewInventoryCostLayer,
   ItemWacState,
   NewItemWacState,
-  CostVariance,
-  NewCostVariance,
   FinanceOutboxEvent,
   NewFinanceOutboxEvent,
-  D365FinanceDlqRow,
-  NewD365FinanceDlqRow,
 } from './finance.js';
 // 13-maintenance — CMMS schema foundation (migration 201). 15 tables: settings/technicians/
 // equipment (T-002), schedules (T-003), MWO core + checklists + LOTO (T-004), spares ×4 (T-005),

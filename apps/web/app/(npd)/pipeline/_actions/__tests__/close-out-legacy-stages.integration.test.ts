@@ -157,7 +157,7 @@ async function seedLaunchReadyProject(input: {
   );
   if (!input.omitPilot) {
     await owner.query(
-      `insert into public.work_order (id, org_id, created_by_user, app_version)
+      `insert into public.work_orders (id, org_id, created_by_user, app_version)
        values ($1::uuid, $2::uuid, $3::uuid, 't-100-it')`,
       [pilotWoId, input.orgId, input.userId],
     );
@@ -217,7 +217,7 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.factory_release_status where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.gate_approvals where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.bom_headers where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
-  await owner.query(`delete from public.work_order where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
+  await owner.query(`delete from public.work_orders where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.outbox_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.npd_projects where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.product where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);

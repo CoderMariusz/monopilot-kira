@@ -11,6 +11,7 @@
  * satisfy it, so the RSC pages and the RTL tests assert the same resolved
  * strings.
  */
+import { formatLimit as formatQualityLimit } from '../../../../../../../lib/quality/format-limit';
 import type { HaccpPlanScopeType, HaccpPlanStatus, HazardType } from './haccp-contracts';
 
 export type Translator = (key: string, values?: Record<string, string | number>) => string;
@@ -406,9 +407,5 @@ export function formatLimit(
   max: string | null,
   unit: string,
 ): string {
-  const u = unit?.trim() ?? '';
-  if (min !== null && max !== null) return t('detail.limitRange', { min, max, unit: u });
-  if (min !== null) return t('detail.limitMinOnly', { min, unit: u });
-  if (max !== null) return t('detail.limitMaxOnly', { max, unit: u });
-  return t('detail.limitNone');
+  return formatQualityLimit(t, 'detail', min, max, unit);
 }

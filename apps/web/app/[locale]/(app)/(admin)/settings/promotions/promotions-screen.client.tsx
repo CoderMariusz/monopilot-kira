@@ -113,16 +113,18 @@ function StageOverview({ labels, promotionStages }: { labels: Labels; promotionS
   return h('section', { 'data-region': 'promotion-stage-overview', 'aria-labelledby': 'promotion-stage-overview-title' },
     h('h2', { id: 'promotion-stage-overview-title', className: 'card-title mb-2' }, labels.stageOverview),
     h('div', { className: 'grid gap-3 md:grid-cols-3' },
-      ...promotionStages.map((stage) => (h as any)(Card, { key: stage.id, 'data-testid': 'promotion-stage-card', className: 'kpi !mb-0' },
-        h(CardHeader, { className: '!p-0' },
-          h('div', { className: 'flex items-start justify-between gap-3' },
-            h('div', null,
-              h('h3', { 'data-testid': 'promotion-stage-label', className: 'kpi-label' }, stage.label),
-              h(CardDescription, { className: 'muted mt-1 text-[11px]' }, stage.description),
-            ),
-            h('span', { 'data-testid': 'promotion-stage-count', className: 'kpi-value' }, String(stage.count)),
-          ),
-        ),
+      ...promotionStages.map((stage) => (
+        <Card key={stage.id} data-testid="promotion-stage-card" className="kpi !mb-0">
+          <CardHeader className="!p-0">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 data-testid="promotion-stage-label" className="kpi-label">{stage.label}</h3>
+                <CardDescription className="muted mt-1 text-[11px]">{stage.description}</CardDescription>
+              </div>
+              <span data-testid="promotion-stage-count" className="kpi-value">{String(stage.count)}</span>
+            </div>
+          </CardHeader>
+        </Card>
       )),
     ),
   );
@@ -136,17 +138,27 @@ function ActivePromotions({ labels, promotions, state, onDiff }: { labels: Label
     h('div', { className: 'empty-state-icon', 'aria-hidden': 'true' }, '🚀'),
     h('div', { className: 'empty-state-body' }, labels.empty),
   );
-  else content = h('div', { className: 'space-y-2' }, ...promotions.map((promotion) => (h as any)(Card, { key: promotion.id, 'data-testid': 'promotion-row', className: 'card !mb-0' },
-    h(CardContent, { className: 'grid grid-cols-[1fr_auto] items-center gap-3 !p-0' },
-      h('div', null,
-        h('div', { 'data-testid': 'promotion-artefact', className: 'mono text-[13px] font-semibold text-[var(--text)]' }, promotion.artefact),
-        h('p', { className: 'muted mt-1 text-[11px]' }, `${promotion.from} → ${promotion.to} · ${promotion.requester} · ${promotion.affects}`),
-      ),
-      h('div', { className: 'flex items-center gap-2' },
-        (h as any)(Badge, { 'data-testid': 'promotion-status', variant: promotion.status === 'pending' ? 'warning' : 'info' }, promotion.status),
-        h(Button, { type: 'button', className: 'btn btn-secondary btn-sm', onClick: () => onDiff(promotion) }, 'View diff'),
-      ),
-    ),
+  else content = h('div', { className: 'space-y-2' }, ...promotions.map((promotion) => (
+    <Card key={promotion.id} data-testid="promotion-row" className="card !mb-0">
+      <CardContent className="grid grid-cols-[1fr_auto] items-center gap-3 !p-0">
+        <div>
+          <div data-testid="promotion-artefact" className="mono text-[13px] font-semibold text-[var(--text)]">
+            {promotion.artefact}
+          </div>
+          <p className="muted mt-1 text-[11px]">
+            {`${promotion.from} → ${promotion.to} · ${promotion.requester} · ${promotion.affects}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge data-testid="promotion-status" variant={promotion.status === 'pending' ? 'warning' : 'info'}>
+            {promotion.status}
+          </Badge>
+          <Button type="button" className="btn btn-secondary btn-sm" onClick={() => onDiff(promotion)}>
+            View diff
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )));
   return h('section', { 'data-region': 'active-promotions', 'aria-labelledby': 'active-promotions-title' },
     h('h2', { id: 'active-promotions-title', className: 'card-title mb-2' }, labels.activePromotions),
@@ -241,34 +253,38 @@ function PromoteDialog({ dialog, labels, onClose, submitAction, previewAction }:
 
   const title = promotion ? `Promotion ${promotion.id}` : 'Start L1→L2→L3 promotion';
 
-  return h(Modal as any, { open: true, onOpenChange: (open: boolean) => !open && onClose(), size: 'xl', modalId: 'SM-05' },
-    h('div', { className: 'modal-head' },
-      h('div', null,
-        h('h2', { id: titleId, className: 'modal-title' }, title),
-        h('p', { className: 'muted mt-0.5 text-[11px]' }, promotion?.diff ?? 'Promote a rule, flag, schema column or email template to a wider environment.'),
-      ),
-    ),
-    h((Modal as any).Body, null,
-      h('div', { className: 'modal-body' },
-        h(PromotionStepper, { current: step, done }),
-        step === 'select' ? h(SelectStep, { artefact, setArtefact, target, setTarget: (value: string) => setTarget(value as TargetStage) }) : null,
-        step === 'diff' ? h(DiffStep, { target, before: preview?.before ?? null, after: preview?.after ?? null, affects: preview?.affects ?? promotion?.affects ?? '—' }) : null,
-        step === 'review' ? h(ReviewStep, { artefact, from, target, affects: preview?.affects ?? promotion?.affects ?? '—', reason, setReason }) : null,
-        submitError ? h('div', { role: 'alert', className: 'alert alert-red mt-3' }, `${labels.error} (${submitError})`) : null,
-        submitted ? h('div', { role: 'status', className: 'alert alert-green mt-3' }, 'Promotion submitted.') : null,
-      ),
-    ),
-    h((Modal as any).Footer, null,
-      h('div', { className: 'modal-foot' },
-        step !== 'select' ? h(Button, { type: 'button', className: 'btn btn-ghost btn-sm mr-auto', onClick: back }, '← Back') : null,
-        h(Button, { type: 'button', className: 'btn btn-secondary btn-sm', onClick: onClose }, 'Cancel'),
-        step === 'select'
-          ? h(Button, { type: 'button', className: 'btn btn-primary btn-sm', disabled: artefact.length < 3, onClick: next }, 'Next: preview →')
-          : step === 'diff'
-            ? h(Button, { type: 'button', className: 'btn btn-primary btn-sm', onClick: next }, 'Next: confirm →')
-            : h(Button, { type: 'button', className: 'btn btn-primary btn-sm', disabled: reason.length < 10 || submitting, onClick: onSubmit }, submitting ? 'Submitting…' : 'Submit promotion'),
-      ),
-    ),
+  return (
+    <Modal open={true} onOpenChange={(open: boolean) => !open && onClose()} size="xl" modalId="SM-05">
+      <div className="modal-head">
+        <div>
+          <h2 id={titleId} className="modal-title">{title}</h2>
+          <p className="muted mt-0.5 text-[11px]">
+            {promotion?.diff ?? 'Promote a rule, flag, schema column or email template to a wider environment.'}
+          </p>
+        </div>
+      </div>
+      <Modal.Body>
+        <div className="modal-body">
+          <PromotionStepper current={step} done={done} />
+          {step === 'select' ? <SelectStep artefact={artefact} setArtefact={setArtefact} target={target} setTarget={(value: string) => setTarget(value as TargetStage)} /> : null}
+          {step === 'diff' ? <DiffStep target={target} before={preview?.before ?? null} after={preview?.after ?? null} affects={preview?.affects ?? promotion?.affects ?? '—'} /> : null}
+          {step === 'review' ? <ReviewStep artefact={artefact} from={from} target={target} affects={preview?.affects ?? promotion?.affects ?? '—'} reason={reason} setReason={setReason} /> : null}
+          {submitError ? <div role="alert" className="alert alert-red mt-3">{`${labels.error} (${submitError})`}</div> : null}
+          {submitted ? <div role="status" className="alert alert-green mt-3">Promotion submitted.</div> : null}
+        </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <div className="modal-foot">
+          {step !== 'select' ? <Button type="button" className="btn btn-ghost btn-sm mr-auto" onClick={back}>← Back</Button> : null}
+          <Button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</Button>
+          {step === 'select'
+            ? <Button type="button" className="btn btn-primary btn-sm" disabled={artefact.length < 3} onClick={next}>Next: preview →</Button>
+            : step === 'diff'
+              ? <Button type="button" className="btn btn-primary btn-sm" onClick={next}>Next: confirm →</Button>
+              : <Button type="button" className="btn btn-primary btn-sm" disabled={reason.length < 10 || submitting} onClick={onSubmit}>{submitting ? 'Submitting…' : 'Submit promotion'}</Button>}
+        </div>
+      </Modal.Footer>
+    </Modal>
   );
 }
 

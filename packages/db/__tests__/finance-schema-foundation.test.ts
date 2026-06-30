@@ -3,25 +3,13 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAppConnection, getOwnerConnection } from '../test-utils/test-pool.js';
 
-// 10-Finance SCHEMA foundation (migration 199). RED-first contract test.
-// Covers: tables + org_id NOT NULL; FK indexes; RLS enabled+forced + app.current_org_id()
-// cross-org isolation; canonical-owner separation (199 creates NO wo_outputs / schedule_outputs /
-// oee_snapshots / downtime_events / license_plates / item_cost_history); NUMERIC-exact valuation
-// round-trip (WAC avg_cost generated, FIFO layer) + variance generated column; RBAC seed to the
-// org-admin family in BOTH role_permissions + roles.permissions jsonb; idempotent.
+// 10-Finance SCHEMA foundation live-table contract.
+// Tables dropped in migrations 402/404 are intentionally excluded here.
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
 
-const FINANCE_TABLES = [
-  'standard_costs',
-  'wo_actual_costing',
-  'inventory_cost_layers',
-  'item_wac_state',
-  'cost_variances',
-  'finance_outbox_events',
-  'd365_finance_dlq',
-] as const;
+const FINANCE_TABLES = ['item_wac_state', 'finance_outbox_events'] as const;
 
 // Canonical-owner tables that 199 must NOT create (owned by other modules).
 const FOREIGN_OWNED_TABLES = [
@@ -121,7 +109,7 @@ runIntegrationSuite('10-finance schema foundation (migration 199)', () => {
     await adminPool?.end();
   });
 
-  it('AC1 — all 7 finance tables exist with org_id NOT NULL + RLS enabled+forced', async () => {
+  it('AC1 — live finance tables exist with org_id NOT NULL + RLS enabled+forced', async () => {
     const { rows: tables } = await adminPool.query<{ tablename: string }>(
       `select tablename from pg_tables where schemaname = 'public' and tablename = any($1::text[])`,
       [FINANCE_TABLES as unknown as string[]],
@@ -181,7 +169,7 @@ runIntegrationSuite('10-finance schema foundation (migration 199)', () => {
     }
   });
 
-  it('AC2 — FK indexes + FIFO partial consume index exist; money/qty columns are NUMERIC (no float)', async () => {
+  it('AC2 — live finance indexes exist; money/qty columns are NUMERIC (no float)', async () => {
     const { rows: idx } = await adminPool.query<{ indexname: string }>(
       `select indexname from pg_indexes
        where schemaname = 'public' and tablename = any($1::text[])`,
@@ -189,12 +177,7 @@ runIntegrationSuite('10-finance schema foundation (migration 199)', () => {
     );
     const names = idx.map((r) => r.indexname);
     for (const expected of [
-      'standard_costs_org_item_idx',
-      'wo_actual_costing_org_wo_idx',
-      'inventory_cost_layers_org_item_idx',
-      'inventory_cost_layers_fifo_consume_idx',
       'item_wac_state_org_idx',
-      'cost_variances_org_wo_idx',
       'finance_outbox_events_consolidator_idx',
     ]) {
       expect(names, `index ${expected}`).toContain(expected);
@@ -227,50 +210,41 @@ runIntegrationSuite('10-finance schema foundation (migration 199)', () => {
     expect(rows, 'no finance updated_at trigger on a foreign-owned table').toEqual([]);
   });
 
-  it('AC4 — RLS cross-org isolation: org B cannot see org A standard_costs / WAC / variances', async () => {
-    const stdId = randomUUID();
+  it('AC4 — RLS cross-org isolation: org B cannot see org A WAC / finance outbox rows', async () => {
     const wacItemId = randomUUID();
-    const varWoId = randomUUID();
     const currencyId = randomUUID();
+    const outboxKey = randomUUID();
 
-    await adminPool.query(
-      `insert into public.standard_costs (id, org_id, item_id, currency_id, total_cost, status)
-       values ($1, $2, $3, $4, 12.5000, 'approved')`,
-      [stdId, orgAId, randomUUID(), currencyId],
-    );
     await adminPool.query(
       `insert into public.item_wac_state (org_id, item_id, currency_id, total_qty_kg, total_value)
        values ($1, $2, $3, 100.000, 250.0000)`,
       [orgAId, wacItemId, currencyId],
     );
     await adminPool.query(
-      `insert into public.cost_variances (org_id, wo_id, currency_id, category, standard_amount, actual_amount)
-       values ($1, $2, $3, 'material', 100.0000, 130.0000)`,
-      [orgAId, varWoId, currencyId],
+      `insert into public.finance_outbox_events (org_id, event_type, idempotency_key, payload)
+       values ($1, 'finance.test.export', $2, '{}'::jsonb)`,
+      [orgAId, outboxKey],
     );
 
     const appClient = await appPool.connect();
     try {
       await bindOrg(adminPool, appClient, orgBId);
-      const sc = await appClient.query(`select count(*)::int as n from public.standard_costs`);
       const wac = await appClient.query(`select count(*)::int as n from public.item_wac_state`);
-      const cv = await appClient.query(`select count(*)::int as n from public.cost_variances`);
-      expect(sc.rows[0].n, 'org B sees zero org A standard_costs').toBe(0);
+      const outbox = await appClient.query(`select count(*)::int as n from public.finance_outbox_events`);
       expect(wac.rows[0].n).toBe(0);
-      expect(cv.rows[0].n).toBe(0);
+      expect(outbox.rows[0].n).toBe(0);
 
       await bindOrg(adminPool, appClient, orgAId);
-      const scA = await appClient.query(`select count(*)::int as n from public.standard_costs`);
-      expect(scA.rows[0].n, 'org A sees its own row').toBeGreaterThanOrEqual(1);
+      const wacA = await appClient.query(`select count(*)::int as n from public.item_wac_state`);
+      expect(wacA.rows[0].n, 'org A sees its own row').toBeGreaterThanOrEqual(1);
     } finally {
       appClient.release();
     }
   });
 
-  it('AC5 — NUMERIC-exact valuation round-trip: WAC avg_cost is GENERATED, variance_amount is GENERATED', async () => {
+  it('AC5 — NUMERIC-exact valuation round-trip: WAC avg_cost is GENERATED', async () => {
     const currencyId = randomUUID();
     const itemId = randomUUID();
-    const woId = randomUUID();
 
     // WAC: 333.333 kg @ total 1000.0000 → avg 3.000003 (round-trip exact, no float drift).
     await adminPool.query(
@@ -284,44 +258,6 @@ runIntegrationSuite('10-finance schema foundation (migration 199)', () => {
     );
     expect(wac).toHaveLength(1);
     expect(Number(wac[0].avg_cost)).toBeCloseTo(1000 / 333.333, 6);
-
-    // FIFO layer: qty_remaining must default-equal and round-trip exactly.
-    const lpId = randomUUID();
-    await adminPool.query(
-      `insert into public.inventory_cost_layers
-         (org_id, item_id, license_plate_id, currency_id, qty_received_kg, qty_remaining_kg, unit_cost, total_value)
-       values ($1, $2, $3, $4, 50.000, 50.000, 2.500000, 125.0000)`,
-      [orgAId, itemId, lpId, currencyId],
-    );
-    const { rows: layer } = await adminPool.query<{ qty_remaining_kg: string; total_value: string }>(
-      `select qty_remaining_kg, total_value from public.inventory_cost_layers where license_plate_id = $1`,
-      [lpId],
-    );
-    expect(layer[0].qty_remaining_kg).toBe('50.000');
-    expect(layer[0].total_value).toBe('125.0000');
-
-    // Variance generated column: actual - standard.
-    await adminPool.query(
-      `insert into public.cost_variances (org_id, wo_id, currency_id, category, standard_amount, actual_amount)
-       values ($1, $2, $3, 'labour', 200.0000, 175.5000)`,
-      [orgAId, woId, currencyId],
-    );
-    const { rows: v } = await adminPool.query<{ variance_amount: string }>(
-      `select variance_amount from public.cost_variances where org_id = $1 and wo_id = $2`,
-      [orgAId, woId],
-    );
-    expect(v[0].variance_amount).toBe('-24.5000');
-  });
-
-  it('AC5b — V-FIN-INV-04: a negative qty_remaining_kg layer is rejected (no negative inventory)', async () => {
-    await expect(
-      adminPool.query(
-        `insert into public.inventory_cost_layers
-           (org_id, item_id, currency_id, qty_received_kg, qty_remaining_kg, unit_cost)
-         values ($1, $2, $3, 10.000, -1.000, 1.000000)`,
-        [orgAId, randomUUID(), randomUUID()],
-      ),
-    ).rejects.toThrow();
   });
 
   it('AC6 — RBAC seed: a newly inserted org grants the full fin.* family to the org-admin family in BOTH stores', async () => {

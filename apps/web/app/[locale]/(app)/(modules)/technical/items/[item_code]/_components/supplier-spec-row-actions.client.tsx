@@ -90,6 +90,8 @@ function Modal({
 }) {
   const titleId = React.useId();
   const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Autofocus the dialog ONCE on open. This must NOT depend on `onClose` (an
   // unstable callback recreated every parent render): if it did, every keystroke
@@ -101,11 +103,11 @@ function Modal({
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, []);
 
   return (
     <div

@@ -717,14 +717,16 @@ function ProcessEditDialog({
   const [duration, setDuration] = React.useState(String(process.durationHours ?? 0));
   const [addCost, setAddCost] = React.useState(String(process.additionalCost ?? 0));
   const [createsWip, setCreatesWip] = React.useState(Boolean(process.createsWipItem));
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
 
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
   if (typeof document === 'undefined') return null;
 

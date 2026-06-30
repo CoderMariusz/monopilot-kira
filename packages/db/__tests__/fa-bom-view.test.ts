@@ -192,7 +192,7 @@ describe('133 FA BOM view migration contract', () => {
   });
 });
 
-runIntegrationTest('133 FA BOM view behavior', () => {
+runIntegrationTest.skip('133 FA BOM view behavior (view dropped in mig 404)', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
 

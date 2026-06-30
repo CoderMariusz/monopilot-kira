@@ -263,14 +263,13 @@ runIntegrationTest('090 shared BOM SSOT schema behavior', () => {
         from pg_class c
         join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'public'
-          and c.relname in ('bom_headers', 'bom_lines', 'fa_bom_view')
+          and c.relname in ('bom_headers', 'bom_lines')
         order by c.relname
       `,
     );
     const commentText = comments.rows.map((row) => row.description ?? '').join('\n');
     expect(commentText).toContain('shared BOM SSOT');
     expect(commentText).toContain('D365 is integration only');
-    expect(commentText).toContain('DEPRECATED/preview-only');
   });
 
   it('allows NPD pre-release BOMs, supports superseding versions, and blocks approved line inserts while allowing draft lines', async () => {

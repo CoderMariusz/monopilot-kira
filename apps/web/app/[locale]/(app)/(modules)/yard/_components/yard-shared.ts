@@ -7,6 +7,8 @@
  * the carrier option shape sourced from the freight master). It authors NO new
  * contract types — when the backend changes a shape, this file follows.
  */
+import { Dec } from '@monopilot/domain';
+
 export type {
   AppointmentDirection,
   AppointmentRow,
@@ -64,10 +66,10 @@ export type CarrierOption = {
  * that case, but the preview must not show a negative net).
  */
 export function computeNet(grossKg: string, tareKg: string): string | null {
+  if (grossKg.trim() === '' || tareKg.trim() === '') return null;
   const gross = Number(grossKg);
   const tare = Number(tareKg);
-  if (grossKg.trim() === '' || tareKg.trim() === '') return null;
   if (!Number.isFinite(gross) || !Number.isFinite(tare)) return null;
   if (tare > gross) return null;
-  return (gross - tare).toFixed(3);
+  return Dec.from(String(grossKg)).sub(Dec.from(String(tareKg))).toFixed(3);
 }

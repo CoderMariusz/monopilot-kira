@@ -121,9 +121,11 @@ function sameDraft(a: SaveProfileInput, b: SaveProfileInput) {
 
 function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP-CODES"; onClose: () => void }) {
   const dialogRef = React.useRef<HTMLDivElement>(null);
+  const onCloseRef = React.useRef(onClose);
   const outerTitleId = React.useId();
   const helperTitleId = React.useId();
   const title = modalId === "SM-MFA-ENROLL" ? "SM-MFA-ENROLL — Reconfigure authenticator" : "SM-BACKUP-CODES — Backup codes";
+  onCloseRef.current = onClose;
 
   React.useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -134,7 +136,7 @@ function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -161,7 +163,7 @@ function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP
       document.removeEventListener("keydown", handleKeyDown);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <>

@@ -130,6 +130,8 @@ function Modal({
 }) {
   const titleId = React.useId();
   const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
 
   React.useEffect(() => {
     contentRef.current?.focus();
@@ -137,11 +139,11 @@ function Modal({
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, []);
 
   return (
     <div

@@ -1,14 +1,14 @@
 /**
  * T-053 — schema-discovery.test.ts (GREEN-phase, fixed from RED)
- * Unit test to verify the consolidated schema barrel exports all 9 expected business tables.
+ * Unit test to verify the consolidated schema barrel exports live expected business tables.
  *
  * After consolidation (GREEN), schema/index.ts re-exports all tables from a single
  * canonical location: packages/db/schema/.
  *
  * Acceptance criteria:
- *  AC1: The schema barrel imports and exports all 9 business tables:
+ *  AC1: The schema barrel imports and exports live business tables:
  *       tenants, organizations, users (baseline)
- *       tenantMigrations, lot, workOrder, qualityEvent, shipment, bomItem (R13 placeholder)
+ *       tenantMigrations
  *  AC2: Each export is a Drizzle pgTable instance (verified via Symbol(drizzle:IsDrizzleTable)).
  */
 import { describe, expect, it } from 'vitest';
@@ -19,17 +19,12 @@ import * as schema from '../schema/index.js';
 const IS_DRIZZLE_TABLE = Symbol.for('drizzle:IsDrizzleTable');
 
 describe('T-053 — schema barrel consolidation', () => {
-  it('should export all 9 business tables from a single canonical schema barrel', () => {
+  it('should export live business tables from a single canonical schema barrel', () => {
     const expectedTables = [
       'tenants',
       'organizations',
       'users',
       'tenantMigrations',
-      'lot',
-      'workOrder',
-      'qualityEvent',
-      'shipment',
-      'bomItem',
     ];
 
     const exportedKeys = Object.keys(schema);
@@ -49,11 +44,6 @@ describe('T-053 — schema barrel consolidation', () => {
       { name: 'organizations', export: schema.organizations },
       { name: 'users', export: schema.users },
       { name: 'tenantMigrations', export: (schema as any).tenantMigrations },
-      { name: 'lot', export: (schema as any).lot },
-      { name: 'workOrder', export: (schema as any).workOrder },
-      { name: 'qualityEvent', export: (schema as any).qualityEvent },
-      { name: 'shipment', export: (schema as any).shipment },
-      { name: 'bomItem', export: (schema as any).bomItem },
     ];
 
     for (const { name, export: table } of tables) {
