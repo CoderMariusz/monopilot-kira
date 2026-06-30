@@ -3,8 +3,9 @@
  *
  * SSOT: public.item_allergen_profiles. The action IGNORES the client's
  * allergensInherited payload and re-derives the FULL allergen array per line
- * from the line's item_id. Cost comes from items.cost_per_kg (master), with the
- * client value only as a documented fallback when the master has no cost.
+ * from the line's item_id. Cost comes from public.v_item_effective_cost
+ * (master), with the client value only as a documented fallback when the
+ * master has no cost.
  *
  * Pure unit suite — withOrgContext is mocked; the client mock routes by SQL
  * shape and CAPTURES the insert payload so we assert exactly what would be
@@ -73,10 +74,11 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('delete from public.formulation_ingredients')) return { rows: [] };
       if (q.includes('from public.items')) {
+        expect(q).toContain('left join public.v_item_effective_cost');
         const requested = (params[0] as string[]) ?? [];
-        const known: Record<string, { id: string; cost_per_kg: string | null }> = {
-          [ITEM_A]: { id: ITEM_A, cost_per_kg: '9.9900' },
-          [ITEM_B]: { id: ITEM_B, cost_per_kg: null },
+        const known: Record<string, { id: string; cost_per_kg: string | null; cost_currency?: string | null }> = {
+          [ITEM_A]: { id: ITEM_A, cost_per_kg: '9.9900', cost_currency: 'GBP' },
+          [ITEM_B]: { id: ITEM_B, cost_per_kg: null, cost_currency: null },
         };
         return { rows: requested.filter((id) => known[id]).map((id) => known[id]) };
       }
@@ -108,6 +110,7 @@ function line(overrides: Partial<{
   itemId: string | null;
   qtyKg: string | null;
   costPerKgEur: string | null;
+  costCurrency: string | null;
   allergensInherited: string[];
   sequence: number;
 }> = {}) {
@@ -116,6 +119,7 @@ function line(overrides: Partial<{
     itemId: ITEM_A,
     qtyKg: '0.200',
     costPerKgEur: '1.00',
+    costCurrency: null,
     allergensInherited: [],
     sequence: 1,
     ...overrides,
@@ -205,14 +209,15 @@ describe('saveDraft — F-A06 allergen SSOT (client payload ignored)', () => {
   });
 });
 
-describe('saveDraft — F-B12 cost from the item master', () => {
-  it('uses items.cost_per_kg when the master has one (client value ignored)', async () => {
+describe('saveDraft — F-B12 cost from the effective-cost view', () => {
+  it('uses the effective-cost view when the master has one (client value ignored)', async () => {
     await saveDraft({
       projectId: PROJECT_ID,
       versionId: VERSION_ID,
-      ingredients: [line({ costPerKgEur: '1.00' })],
+      ingredients: [line({ costPerKgEur: '1.00', costCurrency: 'USD' })],
     });
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('9.9900');
+    expect(insertedRows?.[0]?.cost_currency).toBe('GBP');
   });
 
   it('falls back to the client value ONLY when the item has no master cost', async () => {
@@ -222,6 +227,7 @@ describe('saveDraft — F-B12 cost from the item master', () => {
       ingredients: [line({ itemId: ITEM_B, costPerKgEur: '2.50' })],
     });
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('2.50');
+    expect(insertedRows?.[0]?.cost_currency).toBeNull();
   });
 });
 

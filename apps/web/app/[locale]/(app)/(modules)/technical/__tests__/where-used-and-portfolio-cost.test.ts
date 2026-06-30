@@ -117,7 +117,9 @@ describe('technical where-used and portfolio cost read actions', () => {
     expect(sql).toContain('from public.items i');
     expect(sql).toContain('i.item_code as fg_code');
     expect(sql).toContain('i.name as fg_name');
-    expect(sql).toContain('sum(bl.quantity * ci.cost_per_kg)::text');
+    // Phase-2 cost SSoT: cost comes from the canonical v_item_effective_cost view (amount + currency), not bare ci.cost_per_kg.
+    expect(sql).toContain('sum(bl.quantity * vec.amount)::text');
+    expect(sql).toContain('left join public.v_item_effective_cost vec on vec.item_id = ci.id');
     expect(sql).toContain("i.item_type = 'fg'");
     expect(sql).toContain('i.org_id = app.current_org_id()');
     expect(sql).toContain('bl.org_id = app.current_org_id()');

@@ -22,10 +22,10 @@ Start HEAD: `77039d50` · branch `main` · next migration `394`.
 ## Phase status
 | Phase | Scope | Fix | Review | Opus X-review | Build | Migr | Commit | Push |
 |---|---|---|---|---|---|---|---|---|
-| Scoping | exact specs for P1/P2/cross-cut | — | — | — | — | — | — | — |
-| P1 | correctness blockers (wrong numbers) | | | | | | | |
-| X-cut | new-org seed / user_sessions / shipping FK / Drizzle | | | | | | | |
-| P2 | getEffectiveCost single-source + currency + packaging-in-waterfall | | | | | | | |
+| Scoping | exact specs for P1/P2/cross-cut | ✅ | — | — | — | — | — | — |
+| P1 | correctness blockers (wrong numbers) | ✅ 5 lanes | ✅ Codex | ✅ Opus (3 blockers fixed) | ✅ next build | 394,395 | `3a0c6c24` | ✅ deploy READY |
+| X-cut | user_sessions ✅ / shipping FK ✅ (in P1) · new-org seed + Drizzle = deferred/follow-up | ✅ | ✅ | ✅ | ✅ | (395) | `3a0c6c24` | ✅ |
+| P2 | v_item_effective_cost single-source view + currency carriage | 🔄 2 lanes | | | | 396,397 | | |
 | P3 | supplier/customer unify | | | | | | | |
 | P4 | process unify (Finance↔ManufacturingOperations) | | | | | | | |
 | P5 | allergen single-vocab | | | | | | | |
@@ -55,3 +55,25 @@ Shipped:
 Cross-cutting (shipped with P1): mig **395** — 3 shipping FKs (`sales_order_lines.product_id`→items, `inventory_allocations`/`shipment_box_contents.license_plate_id`→license_plates; 0 orphans confirmed) + 5 non-neg CHECKs.
 
 Residual notes (logged, not blocking): `packaging/page.tsx:205` still reads the name from `public.product` (M4-sibling); Drizzle schema drift (types-only, audit F) not yet synced — slated as a safe cross-cutting follow-up.
+
+### PHASE 2 — single source of truth for item cost — DONE
+Cadence: 2 Codex fix lanes → Codex review (all PASS) → Opus cross-review (PASS conditional: confirmed number-stability, join cardinality 1:1, MIXED-currency per-FG level, NULL-poisoning filtered, RLS/migration safety; required closing 2 test-coverage gaps) → Claude build gate (next build green).
+- **mig 396** `public.v_item_effective_cost` (SECURITY INVOKER): the canonical internal-cost source = `item_cost_history` active row (currency-bearing ledger) → `items.list_price_gbp` (GBP); carries `{amount, currency, source}`. Usable by set-based JOINs AND per-item reads. `items.cost_per_kg` deliberately NOT a source (opaque-currency denorm cache).
+- **mig 397** `formulation_ingredients.cost_currency` (additive nullable) — records the real currency.
+- list-recipe-cost / list-portfolio-cost JOIN the view (`vec.amount`), surface real currency (`MIXED` when a roll-up spans currencies) — kills hardcoded `'PLN'`. Arithmetic unchanged; on the wiped DB the number is identical (view falls back to list_price_gbp like the old coalesce).
+- save-draft resolves master ingredient cost via the view + records `cost_currency` → the **GBP-stored-as-EUR root is fixed at the write**.
+- Test gaps closed: new list-recipe-cost test + strengthened save-draft SSoT test (cost_currency asserted).
+DEFERRED (flagged): FX/base-currency policy; costing-waterfall (compute.ts) currency-aware DISPLAY (data now correct via cost_currency; "€" label is display polish); a shared per-item TS cost resolver (purchase-price `getItemSupplierPrice` already centralizes the purchase side).
+
+### PHASE 3 — supplier/customer unify — SAFE BACKEND executed; UX deferred
+Scope confirmed: **`reference_tables.partners` (the Settings "Suppliers & customers" SingleReferenceScreen) has ZERO operational readers** — purely decorative; this is the owner's "Settings shows 2, Planning has 4". Operational SoT = `public.suppliers` (Planning) + `public.customers` (Shipping). `supplier_specs.supplier_code`/`packaging_components.supplier_code` are loose TEXT (no FK); `suppliers(org_id, code)` is UNIQUE so a `supplier_id` backfill is deterministic 1:1.
+- **SAFE (executed this run):** add `supplier_specs.supplier_id uuid` FK (additive, backfill from code, NULL for orphans — no destructive change); wire `createItemSupplierSpec` to populate it; repoint the 2 readers (`list-supplier-specs.ts`, `validate-component.ts`) to the FK with a code-join fallback.
+- **NEEDS-OWNER-DECISION (flagged):** (a) Settings "Partners" screen — redirect/point at the operational `public.suppliers`+`public.customers` (the visible 2-vs-4 fix) vs. a full Settings CRUD surface; (b) enforce `packaging_components.supplier_code` against `public.suppliers` (currently intentional free-text for prospective suppliers); (c) DROP the decorative `reference_tables.partners` rows (irreversible).
+
+### PHASE 4 — Finance↔process cost disconnect — DESIGN + FLAG (costing-model = owner's decision)
+Root cause (the audit's top rozjazd): Finance WO labour cost (`finance/_actions/wo-cost-actions.ts:270-296`) reads a flat `cost_rate` from `reference_tables.processes`, keyed by a name that does NOT match the routing operation vocabulary (`reference_tables` seed `MIXING`/`'Ingredient mixing'` vs `ManufacturingOperations` `Mix`/`Bake`) — and `reference_tables.processes` is NOT auto-seeded for non-apex orgs. So Finance labour cost is **null/0 by default**. NPD/Technical instead compute `Σ(role rate × headcount × duration)` from `labor_rates` (per role_group) × `npd_wip_process_roles`. The two can never agree until they share a rate source.
+- **This is NOT safely auto-fixable** — it requires the owner's costing-model choice. Three designed options (full detail in the P4 scope transcript):
+  - **Model A (recommended):** rewrite Finance to read the SAME tables NPD uses — `wo_operations.operation_name` → `"Reference"."ManufacturingOperations"` → `npd_process_defaults` (operation_id FK) → `npd_process_default_roles` → `labor_rates`, using `wo_operations.expected_duration_minutes`. Owner decides: planned vs actual duration.
+  - **Model B:** Finance reads the WO product's actual `npd_wip_processes`/`roles` → `labor_rates` (but not all WOs have a `prod_detail`/NPD origin).
+  - **Model C:** add `cost_rate`/`cost_mode`/`currency` columns to `"Reference"."ManufacturingOperations"` and read directly (abolish `reference_tables.processes` for costing).
+- Also confirmed: legacy `prod_detail.manufacturing_operation_1..4` + `fg_npd_ext.process_1..4` still have a live trigger (mig 222) alongside the new `npd_wip_processes` trigger (mig 391) → **double-fire risk** on the legacy edit path (P6 cleanup).

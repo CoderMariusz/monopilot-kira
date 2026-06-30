@@ -59,6 +59,7 @@ export type RecipeCostLine = {
   unitCost: string | null;
   /** NUMERIC — string, null when unitCost is null. */
   lineCost: string | null;
+  currency: string;
 };
 
 export type RecipeCost = {
@@ -71,6 +72,7 @@ export type RecipeCost = {
   /** Σ lineCost, NUMERIC — string. null when no line had a cost. */
   totalMaterialCost: string | null;
   /** Currency unit recorded on items (PLN default). Display-only. */
+  currency: string;
   lines: RecipeCostLine[];
 };
 
@@ -95,6 +97,7 @@ type HeaderRow = {
   bom_status: string;
   yield_pct: string;
   total_material_cost: string | null;
+  currency: string;
 };
 
 type LineRow = {
@@ -105,6 +108,7 @@ type LineRow = {
   uom: string;
   unit_cost: string | null;
   line_cost: string | null;
+  currency: string;
 };
 
 export async function listCostedProducts(): Promise<ListCostedProductsResult> {
@@ -183,14 +187,24 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
                 bh.version    as bom_version,
                 bh.status     as bom_status,
                 bh.yield_pct::text as yield_pct,
-                (select sum(bl.quantity * ci.cost_per_kg)::text
+                (select sum(bl.quantity * vec.amount)::text
                    from public.bom_lines bl
                    left join public.items ci
                           on ci.org_id = app.current_org_id()
                          and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
                   where bl.org_id = app.current_org_id()
                     and bl.bom_header_id = bh.id
-                    and ci.cost_per_kg is not null) as total_material_cost
+                    and vec.amount is not null) as total_material_cost,
+                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+                   from public.bom_lines bl
+                   left join public.items ci
+                          on ci.org_id = app.current_org_id()
+                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+                  where bl.org_id = app.current_org_id()
+                    and bl.bom_header_id = bh.id
+                    and vec.amount is not null) as currency
            from public.bom_headers bh
            join public.items i
              on i.id = bh.item_id
@@ -220,6 +234,7 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
             bomStatus: 'none',
             yieldPct: '100.000',
             totalMaterialCost: null,
+            currency: 'none',
             lines: [],
           },
         };
@@ -231,12 +246,14 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
                 bl.component_type,
                 bl.quantity::text as quantity,
                 bl.uom,
-                ci.cost_per_kg::text as unit_cost,
-                (bl.quantity * ci.cost_per_kg)::text as line_cost
+                vec.amount::text as unit_cost,
+                (bl.quantity * vec.amount)::text as line_cost,
+                vec.currency as currency
            from public.bom_lines bl
            left join public.items ci
                   on ci.org_id = app.current_org_id()
                  and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+           left join public.v_item_effective_cost vec on vec.item_id = ci.id
           where bl.org_id = app.current_org_id()
             and bl.bom_header_id = $1::uuid
           order by bl.component_code asc`,
@@ -251,6 +268,7 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
         uom: r.uom,
         unitCost: r.unit_cost,
         lineCost: r.line_cost,
+        currency: r.currency,
       }));
 
       const cost: RecipeCost = {
@@ -260,6 +278,7 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
         bomStatus: header.bom_status,
         yieldPct: header.yield_pct,
         totalMaterialCost: header.total_material_cost,
+        currency: header.currency,
         lines,
       };
 

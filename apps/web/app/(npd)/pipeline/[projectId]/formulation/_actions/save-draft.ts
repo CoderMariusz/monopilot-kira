@@ -11,6 +11,7 @@ type IngredientInput = {
   itemId: string | null;
   qtyKg: string | null;
   costPerKgEur: string | null;
+  costCurrency: string | null;
   /**
    * F-A06 (W9-L4): still ACCEPTED for wire back-compat but IGNORED on persist.
    * `allergens_inherited` is a derived cache — the SSOT is
@@ -115,29 +116,30 @@ export async function saveDraft(input: {
 
       await ctx.client.query(`delete from public.formulation_ingredients where version_id = $1::uuid`, [versionId]);
       const requestedItemIds = [...new Set(ingredients.map((ingredient) => ingredient.itemId).filter(Boolean))] as string[];
-      // F-B12: the item master is the cost source of record; the client value is
-      // only a fallback for items with no master cost (or legacy free-text lines).
-      // cost_per_kg falls back to list_price_gbp (the user-entered "List price") so
-      // a material priced only via List price still carries a non-zero recipe cost.
-      const resolvedItems =
+      // F-B12: the effective-cost view is the cost source of record; the client
+      // value is only a fallback for items with no resolved cost (or legacy
+      // free-text lines).
+      const resolvedItemRows =
         requestedItemIds.length === 0
-          ? new Map<string, { costPerKg: string | null }>()
-          : new Map(
-              (
-                await ctx.client.query<{ id: string; cost_per_kg: string | null }>(
-                  `select id, coalesce(cost_per_kg, list_price_gbp)::text as cost_per_kg from public.items
-                    where org_id = app.current_org_id()
-                      and id = any($1::uuid[])
-                      and item_type in ('rm', 'ingredient', 'intermediate', 'co_product')`,
-                  [requestedItemIds],
-                )
-              ).rows.map((item) => [item.id, { costPerKg: item.cost_per_kg }]),
-            );
+          ? []
+          : (
+              await ctx.client.query<{ id: string; cost_per_kg: string | null; cost_currency: string | null }>(
+                `select i.id, vec.amount::text as cost_per_kg, vec.currency as cost_currency
+                   from public.items i
+                   left join public.v_item_effective_cost vec on vec.item_id = i.id
+                  where i.org_id = app.current_org_id()
+                    and i.id = any($1::uuid[])
+                    and i.item_type in ('rm', 'ingredient', 'intermediate', 'co_product')`,
+                [requestedItemIds],
+              )
+            ).rows;
+      const resolvedCostByItemId = new Map(resolvedItemRows.map((item) => [item.id, item.cost_per_kg]));
+      const resolvedCurrencyByItemId = new Map(resolvedItemRows.map((item) => [item.id, item.cost_currency]));
       // F-A06 SSOT resolution: full allergen set per item from
       // public.item_allergen_profiles (org-scoped). ALL intensities (contains /
       // may_contain / trace) are included — a false "Absent" is the food-safety
       // failure mode; the cascade engine unions the same way.
-      const resolvedIds = [...resolvedItems.keys()];
+      const resolvedIds = [...resolvedCostByItemId.keys()];
       const allergensByItemId =
         resolvedIds.length === 0
           ? new Map<string, string[]>()
@@ -154,14 +156,16 @@ export async function saveDraft(input: {
               ).rows.map((profile) => [profile.item_id, profile.codes]),
             );
       const ingredientRows = ingredients.map((ingredient) => {
-        const itemId = ingredient.itemId && resolvedItems.has(ingredient.itemId) ? ingredient.itemId : null;
-        const masterCost = itemId ? (resolvedItems.get(itemId)?.costPerKg ?? null) : null;
+        const itemId = ingredient.itemId && resolvedCostByItemId.has(ingredient.itemId) ? ingredient.itemId : null;
+        const masterCost = itemId ? (resolvedCostByItemId.get(itemId) ?? null) : null;
+        const masterCurrency = itemId ? (resolvedCurrencyByItemId.get(itemId) ?? null) : null;
         return {
           rm_code: ingredient.rmCode,
           item_id: itemId,
           qty_kg: ingredient.qtyKg,
           // F-B12: master cost wins; client value is the documented fallback.
           cost_per_kg_eur: masterCost ?? ingredient.costPerKgEur,
+          cost_currency: masterCurrency ?? ingredient.costCurrency,
           // F-A06: client payload IGNORED. Item-linked line → profile-derived
           // full array (truly-empty profile → []); free-text line → server-side
           // carryover of what was already persisted (never the wire value).
@@ -175,7 +179,7 @@ export async function saveDraft(input: {
       if (ingredientRows.length > 0) {
         await ctx.client.query(
           `insert into public.formulation_ingredients
-             (version_id, rm_code, item_id, qty_kg, pct, cost_per_kg_eur, allergens_inherited, sequence)
+             (version_id, rm_code, item_id, qty_kg, pct, cost_per_kg_eur, cost_currency, allergens_inherited, sequence)
            select
              $1::uuid,
              x.rm_code,
@@ -186,6 +190,7 @@ export async function saveDraft(input: {
                else round(x.qty_kg::numeric / nullif(sum(x.qty_kg::numeric) over (), 0) * 100, 3)
              end,
              x.cost_per_kg_eur::numeric,
+             x.cost_currency,
              coalesce(
                (select array_agg(e.value order by e.ord)
                   from jsonb_array_elements_text(x.allergens_inherited) with ordinality as e(value, ord)),
@@ -197,6 +202,7 @@ export async function saveDraft(input: {
              item_id text,
              qty_kg text,
              cost_per_kg_eur text,
+             cost_currency text,
              allergens_inherited jsonb,
              sequence integer
            )
@@ -304,6 +310,7 @@ function parseIngredient(value: unknown): IngredientInput | null {
   const itemId = normalizeUuidOrNull(candidate.itemId);
   const qtyKg = normalizeNumeric(candidate.qtyKg);
   const costPerKgEur = normalizeNumeric(candidate.costPerKgEur);
+  const costCurrency = normalizeOptionalText(candidate.costCurrency);
   const sequence = candidate.sequence;
   const allergensInherited = parseTextArray(candidate.allergensInherited);
   if (!rmCode || itemId === undefined || qtyKg === undefined || costPerKgEur === undefined) {
@@ -311,7 +318,7 @@ function parseIngredient(value: unknown): IngredientInput | null {
   }
   if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) return null;
   if (!allergensInherited) return null;
-  return { rmCode, itemId, qtyKg, costPerKgEur, sequence, allergensInherited };
+  return { rmCode, itemId, qtyKg, costPerKgEur, costCurrency, sequence, allergensInherited };
 }
 
 function normalizeRmCode(value: unknown): string | null {
@@ -333,6 +340,13 @@ function normalizeNumeric(value: unknown): string | null | undefined {
   const text = String(value).trim();
   if (!/^\d+(?:\.\d+)?$/.test(text)) return undefined;
   return text;
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 32 ? trimmed : null;
 }
 
 function normalizeNumericPct(value: unknown): string | null | undefined {

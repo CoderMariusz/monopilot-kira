@@ -39,15 +39,24 @@ export async function listPortfolioCost(): Promise<PortfolioCostResult[]> {
          )
          select i.item_code as fg_code,
                 i.name as fg_name,
-                (select sum(bl.quantity * ci.cost_per_kg)::text
+                (select sum(bl.quantity * vec.amount)::text
                    from public.bom_lines bl
                    left join public.items ci
                           on ci.org_id = app.current_org_id()
                          and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
                   where bl.org_id = app.current_org_id()
                     and bl.bom_header_id = lb.id
-                    and ci.cost_per_kg is not null) as total_recipe_cost,
-                'PLN'::text as currency
+                    and vec.amount is not null) as total_recipe_cost,
+                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+                   from public.bom_lines bl
+                   left join public.items ci
+                          on ci.org_id = app.current_org_id()
+                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+                  where bl.org_id = app.current_org_id()
+                    and bl.bom_header_id = lb.id
+                    and vec.amount is not null) as currency
            from public.items i
            left join latest_bom lb
                   on lb.item_id = i.id
