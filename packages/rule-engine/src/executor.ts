@@ -9,16 +9,17 @@
 // Imported as a namespace so tests can vi.spyOn the live binding (T-035 AC4).
 import * as workflowModule from './workflow.js';
 import type { WorkflowRule } from './workflow.js';
+import type { Condition, ExecuteRuleOptions, Rule } from './types.js';
 // Same namespace-import shape for cascade so tests can vi.spyOn(runCascade)
 // without coupling to the module's export shape.
 import * as cascadeHandlerModule from './cascade-handler.js';
-import type { Pool } from 'pg';
 
 export { dispatchCascade, isCascadeEvent } from './dispatch.js';
 export type {
   DispatchCascadeMessage,
   DispatchCascadeOptions,
 } from './dispatch.js';
+export type { Condition, ExecuteRuleOptions, Rule } from './types.js';
 
 export enum RuleExecutionMode {
   NORMAL = 'normal',
@@ -30,34 +31,6 @@ export interface ExecutorResult {
   actions: any[];
   on_fail?: any;
   dry_run?: boolean;
-}
-
-export interface Condition {
-  field: string;
-  operator: string;
-  value: any;
-}
-
-export interface Rule {
-  rule_id: string;
-  rule_type: 'cascading' | 'conditional_required' | 'gate' | 'workflow';
-  triggers: string[];
-  actions: any[];
-  conditions?: Condition[];
-  on_fail?: any;
-  // Workflow-as-data fields (T-035). Optional on base Rule; required on
-  // WorkflowRule (see workflow.ts). Allows the executor to dispatch a
-  // hybrid rule shape without forcing a discriminated-union refactor on
-  // every existing rule_type call site.
-  states?: string[];
-  initial_state?: string;
-  transitions?: any[];
-}
-
-export interface ExecuteRuleOptions {
-  pool?: Pool;
-  /** Tenant org scope for cascade dispatch (required by runCascade). */
-  orgId?: string;
 }
 
 const VALID_RULE_TYPES = new Set(['cascading', 'conditional_required', 'gate', 'workflow']);

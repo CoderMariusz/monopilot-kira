@@ -19,23 +19,12 @@
  */
 
 import { EventType } from '../../../../packages/outbox/src/events.enum';
+import type { ProductionContext } from './holds-guard-types';
+
+export type { ProductionContext, QueryClient } from './holds-guard-types';
 
 /** App-version stamp written to outbox_events.app_version (provenance for replay). */
 export const APP_VERSION = 'production-execution-v1';
-
-/** Minimal pg-client surface (matches the BOM-snapshot service `QueryClient`). */
-export type QueryClient = {
-  query<T = Record<string, unknown>>(
-    sql: string,
-    params?: readonly unknown[],
-  ): Promise<{ rows: T[]; rowCount?: number | null }>;
-};
-
-/**
- * The org-context handed to every production service. Mirrors the BOM-snapshot
- * `OrgActionContext` so the snapshot service can be called with the SAME ctx.
- */
-export type ProductionContext = { userId: string; orgId: string; siteId?: string | null; client: QueryClient };
 
 /** Materialized WO lifecycle states (migration 182 `wo_executions_status_check`). */
 export const WO_STATES = [

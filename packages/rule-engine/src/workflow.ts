@@ -14,7 +14,7 @@
  */
 
 import type { Pool } from 'pg';
-import type { Rule } from './executor.js';
+import type { Rule } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Types

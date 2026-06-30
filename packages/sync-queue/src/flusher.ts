@@ -11,7 +11,7 @@
  *   4xx !409  → keep entry; human intervention required
  */
 
-import { listPending, remove } from './index.js';
+import { listPending, remove } from './queue.js';
 
 // ---------------------------------------------------------------------------
 // Backoff schedule: attempt 1 → 5 min, 2 → 30 min, 3 → 2 h, 4+ → 12 h (cap)

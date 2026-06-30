@@ -152,7 +152,7 @@ describe('AC2: 409 dedup-success removes entry from queue', () => {
 
   it('calls remove() with the correct transaction_id after a 409 response', async () => {
     const removeSpy = vi.spyOn(
-      await import('../index.js'),
+      await import('../queue.js'),
       'remove',
     );
 
@@ -214,7 +214,7 @@ describe('AC3: 503 retry – entry stays in queue and backoff timer is set', () 
 
   it('remove() is NOT called after a 503 response', async () => {
     const removeSpy = vi.spyOn(
-      await import('../index.js'),
+      await import('../queue.js'),
       'remove',
     );
 

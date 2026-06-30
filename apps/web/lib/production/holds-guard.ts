@@ -24,7 +24,7 @@
  *   never be silently treated as "no hold".
  */
 
-import type { ProductionContext, QueryClient } from './shared';
+import type { ProductionContext, QueryClient } from './holds-guard-types';
 
 /** An active quality hold blocking a consume/output/completion path. */
 export type ActiveHold = { holdId: string; lpId: string | null; lotId: string | null };
