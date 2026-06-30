@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeWoMaterialScalar } from '../wo-material-scalar';
+import { computeWoMaterialScalar, WoMaterialScalarError } from '../wo-material-scalar';
 
 describe('computeWoMaterialScalar', () => {
   it('returns plannedBaseQty unchanged for per_base BOMs', () => {
@@ -25,37 +25,40 @@ describe('computeWoMaterialScalar', () => {
     ).toBe(50);
   });
 
-  it('falls back to plannedBaseQty for per_box BOMs with null each_per_box', () => {
-    expect(
+  // Fail-loud (DB cleanup audit A2): a per_box BOM whose item lacks the pack
+  // hierarchy must throw, not silently fall back to plannedBaseQty (~×kg/box
+  // material overstatement). Callers catch this BEFORE any write.
+  it('throws WoMaterialScalarError for per_box BOMs with null each_per_box', () => {
+    expect(() =>
       computeWoMaterialScalar({
         plannedBaseQty: 100,
         lineBasis: 'per_box',
         eachPerBox: null,
         netQtyPerEach: 0.5,
       }),
-    ).toBe(100);
+    ).toThrow(WoMaterialScalarError);
   });
 
-  it('falls back to plannedBaseQty for per_box BOMs with null netQtyPerEach', () => {
-    expect(
+  it('throws WoMaterialScalarError for per_box BOMs with null netQtyPerEach', () => {
+    expect(() =>
       computeWoMaterialScalar({
         plannedBaseQty: 100,
         lineBasis: 'per_box',
         eachPerBox: 4,
         netQtyPerEach: null,
       }),
-    ).toBe(100);
+    ).toThrow(WoMaterialScalarError);
   });
 
-  it('falls back to plannedBaseQty for per_box BOMs with zero each_per_box', () => {
-    expect(
+  it('throws WoMaterialScalarError for per_box BOMs with zero each_per_box', () => {
+    expect(() =>
       computeWoMaterialScalar({
         plannedBaseQty: 100,
         lineBasis: 'per_box',
         eachPerBox: 0,
         netQtyPerEach: 0.5,
       }),
-    ).toBe(100);
+    ).toThrow(WoMaterialScalarError);
   });
 
   it('scales a worked per-box BOM line by the computed box count', () => {

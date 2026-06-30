@@ -33,6 +33,7 @@ type FormState = {
   costPerUnit: string;
   /** % lost to damage/setup during packing (0..100), kept as the input string. */
   scrapPct: string;
+  qtyPerPack: string;
   status: PackagingStatus;
   tier: PackagingTier;
   /** Optional FK to a `packaging` item in the catalog (item picker). */
@@ -49,6 +50,7 @@ function rowToForm(row: PackagingComponentRow | null, defaultTier: PackagingTier
     spec: row?.spec ?? '',
     costPerUnit: row?.costPerUnit ?? '',
     scrapPct: row?.scrapPct != null ? String(row.scrapPct) : '0',
+    qtyPerPack: row?.qtyPerPack != null ? String(row.qtyPerPack) : '',
     status: row?.status ?? 'draft',
     tier: row?.tier ?? defaultTier,
     // The list row does not carry item_id; the link is (re)established via the
@@ -148,10 +150,16 @@ export function PackagingComponentModal({
       setError(labels.saveError);
       return;
     }
+    const qtyPerPackRaw = form.qtyPerPack.trim();
+    const qtyPerPack = qtyPerPackRaw === '' ? null : Number(qtyPerPackRaw);
+    if (qtyPerPack !== null && (!Number.isFinite(qtyPerPack) || qtyPerPack <= 0)) {
+      setError(labels.saveError);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const result = await onUpsert({
+      const payload = {
         id: editing?.id,
         projectId,
         tier: form.tier,
@@ -161,9 +169,11 @@ export function PackagingComponentModal({
         spec: form.spec.trim() || null,
         costPerUnit: cost || null,
         scrapPct,
+        qtyPerPack,
         status: form.status,
         itemId: form.itemId,
-      });
+      };
+      const result = await onUpsert(payload);
       if (result.ok) {
         onOpenChange(false);
         onMutated?.();
@@ -298,6 +308,18 @@ export function PackagingComponentModal({
               <span className="text-xs text-muted">
                 Extra % requisitioned to cover packing loss
               </span>
+            </label>
+            <label>
+              <span>Qty per pack</span>
+              <Input
+                name="qtyPerPack"
+                type="number"
+                min="0"
+                step="0.1"
+                value={form.qtyPerPack}
+                onChange={(e) => set('qtyPerPack', e.target.value)}
+                data-testid="field-qty-per-pack"
+              />
             </label>
             <label>
               <span>{labels.fieldStatus}</span>

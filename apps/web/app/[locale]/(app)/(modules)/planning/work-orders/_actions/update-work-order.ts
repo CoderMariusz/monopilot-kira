@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 
-import { computeWoMaterialScalar } from '../../../../../../../lib/production/wo-material-scalar';
+import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
@@ -142,7 +142,27 @@ async function fetchApprovedSpec(ctx: OrgActionContext, productId: string): Prom
 async function resnapshotWorkOrder(
   ctx: OrgActionContext,
   input: { woId: string; productId: string; plannedBaseQty: string; bom: BomRow | null; item: ItemSnapshotRow },
-): Promise<void> {
+): Promise<UpdateWorkOrderResult | null> {
+  // Validate per_box pack hierarchy BEFORE deleting the WO's existing materials/
+  // operations, so a misconfigured BOM returns a clean error instead of stripping
+  // the WO bare. Reused for the wo_materials insert below.
+  let materialScalar = 0;
+  if (input.bom) {
+    try {
+      materialScalar = computeWoMaterialScalar({
+        plannedBaseQty: Number(input.plannedBaseQty),
+        lineBasis: input.bom.line_basis,
+        eachPerBox: input.item.each_per_box == null ? null : Number(input.item.each_per_box),
+        netQtyPerEach: input.item.net_qty_per_each == null ? null : Number(input.item.net_qty_per_each),
+      });
+    } catch (err) {
+      if (err instanceof WoMaterialScalarError) {
+        return { ok: false, error: 'pack_hierarchy_incomplete' };
+      }
+      throw err;
+    }
+  }
+
   await ctx.client.query(
     `delete from public.wo_materials
       where org_id = app.current_org_id()
@@ -157,12 +177,7 @@ async function resnapshotWorkOrder(
   );
 
   if (input.bom) {
-    const materialScalar = computeWoMaterialScalar({
-      plannedBaseQty: Number(input.plannedBaseQty),
-      lineBasis: input.bom.line_basis,
-      eachPerBox: input.item.each_per_box == null ? null : Number(input.item.each_per_box),
-      netQtyPerEach: input.item.net_qty_per_each == null ? null : Number(input.item.net_qty_per_each),
-    });
+    // materialScalar validated + computed above (pre-delete).
     await ctx.client.query(
       `insert into public.wo_materials
          (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,
@@ -214,6 +229,7 @@ async function resnapshotWorkOrder(
      on conflict (wo_id, sequence) do nothing`,
     [input.woId, input.plannedBaseQty, input.productId],
   );
+  return null;
 }
 
 export async function updateWorkOrder(params: {
@@ -317,13 +333,14 @@ export async function updateWorkOrder(params: {
       if (!workOrder) return { ok: false, error: 'invalid_state' };
 
       if (mustResnapshot && item) {
-        await resnapshotWorkOrder(ctx, {
+        const resnapshotResult = await resnapshotWorkOrder(ctx, {
           woId: input.id,
           productId: nextProductId,
           plannedBaseQty: nextPlannedQuantity,
           bom,
           item,
         });
+        if (resnapshotResult) return resnapshotResult;
       }
 
       await ctx.client.query(

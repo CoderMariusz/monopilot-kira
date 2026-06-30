@@ -202,11 +202,13 @@ export async function listEligibleFgs(): Promise<ListEligibleFgsResult> {
   try {
     return await withOrgContext(async ({ client }): Promise<ListEligibleFgsResult> => {
       const { rows } = await (client as QueryClient).query<{ product_code: string; product_name: string | null }>(
-        `select product_code, product_name
-           from public.product
+        `select item_code as product_code,
+                name as product_name
+           from public.items
           where org_id = app.current_org_id()
-            and lower(trim(coalesce(status_overall, ''))) = 'complete'
-          order by product_code asc`,
+            and item_type = 'fg'
+            and status = 'active'
+          order by item_code asc`,
       );
       return { ok: true, data: rows.map((r) => ({ productCode: r.product_code, name: r.product_name })) };
     });

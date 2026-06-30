@@ -87,11 +87,11 @@ export async function listNutritionProducts(): Promise<ListNutritionProductsResu
       const [profileResult, rmResult] = await Promise.all([
         qc.query<ProductRow>(
           `select distinct np.product_code,
-                  p.product_name
+                  i.name as product_name
              from public.nutrition_profiles np
-             left join public.product p
-                    on p.product_code = np.product_code
-                   and p.org_id = app.current_org_id()
+             left join public.items i
+                    on i.item_code = np.product_code
+                   and i.org_id = app.current_org_id()
             where np.org_id = app.current_org_id()
             order by np.product_code asc`,
         ),
@@ -162,15 +162,15 @@ export async function getNutritionPanel(rawProductCode: unknown): Promise<GetNut
 
       const [productResult, macroResult, allergenResult] = await Promise.all([
         qc.query<ProductRow & { computed_at: string | null }>(
-          `select p.product_code,
-                  p.product_name,
+          `select i.item_code as product_code,
+                  i.name as product_name,
                   (select max(np.computed_at)::text
                      from public.nutrition_profiles np
                     where np.org_id = app.current_org_id()
                       and np.product_code = $1) as computed_at
-             from public.product p
-            where p.org_id = app.current_org_id()
-              and p.product_code = $1
+             from public.items i
+            where i.org_id = app.current_org_id()
+              and i.item_code = $1
             limit 1`,
           [productCode],
         ),

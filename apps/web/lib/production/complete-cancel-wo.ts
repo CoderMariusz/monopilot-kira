@@ -131,6 +131,39 @@ export async function completeWo(
   });
   if (!transition.ok) return transition;
 
+  // Persist actual_qty + produced_quantity from primary outputs so yield_percent
+  // (generated column, mig 176) is no longer permanently NULL.
+  await client.query(
+    `update public.work_orders
+        set actual_qty = (
+              select coalesce(sum(o.qty_kg), 0)
+                from public.wo_outputs o
+               where o.org_id = app.current_org_id()
+                 and o.wo_id = $1::uuid
+                 and o.output_type = 'primary'
+                 and o.correction_of_id is null
+                 and not exists (
+                   select 1 from public.wo_outputs c
+                    where c.org_id = o.org_id and c.correction_of_id = o.id
+                 )
+            ),
+            produced_quantity = (
+              select coalesce(sum(o.qty_kg), 0)
+                from public.wo_outputs o
+               where o.org_id = app.current_org_id()
+                 and o.wo_id = $1::uuid
+                 and o.output_type = 'primary'
+                 and o.correction_of_id is null
+                 and not exists (
+                   select 1 from public.wo_outputs c
+                    where c.org_id = o.org_id and c.correction_of_id = o.id
+                 )
+            )
+      where org_id = app.current_org_id()
+        and id = $1::uuid`,
+    [input.woId],
+  );
+
   // D-OEE-1: 08-production is the SOLE producer of oee_snapshots — write the WO-grain
   // snapshot INSIDE the completion txn, right after the state materializes. Idempotent
   // (R14 replay / grain collision → recorded:false, no error, no second row).

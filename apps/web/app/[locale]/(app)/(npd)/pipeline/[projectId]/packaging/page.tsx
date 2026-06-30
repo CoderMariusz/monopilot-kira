@@ -169,6 +169,7 @@ type LoaderRow = {
   artwork_file_id: string | null;
   artwork_status: string | null;
   display_order: number;
+  qty_per_pack: string | null;
 };
 
 function toRow(r: LoaderRow): PackagingComponentRow {
@@ -185,6 +186,7 @@ function toRow(r: LoaderRow): PackagingComponentRow {
     artworkFileId: r.artwork_file_id,
     artworkStatus: r.artwork_status,
     displayOrder: r.display_order,
+    qtyPerPack: r.qty_per_pack == null ? null : Number(r.qty_per_pack),
   };
 }
 
@@ -217,7 +219,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         `select id, tier, component_name, material, supplier_code, spec,
                 cost_per_unit::text as cost_per_unit, coalesce(scrap_pct, 0) as scrap_pct,
                 status, artwork_file_id,
-                artwork_status, display_order
+                artwork_status, display_order, qty_per_pack::text as qty_per_pack
            from public.packaging_components
           where org_id = app.current_org_id() and project_id = $1::uuid
           order by tier asc, display_order asc, component_name asc`,

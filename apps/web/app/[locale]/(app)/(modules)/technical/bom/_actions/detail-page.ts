@@ -219,9 +219,13 @@ export async function getBomDetailPage(
           [selectedId],
         ),
         c.query<{ product_name: string | null; category: string | null }>(
-          `select product_name, department_number as category
-             from public.product
-            where org_id = app.current_org_id() and product_code = $1
+          `select i.name as product_name,
+                  x.department_number as category
+             from public.items i
+             left join public.fg_npd_ext x
+                    on x.item_id = i.id
+            where i.org_id = app.current_org_id()
+              and i.item_code = $1
             limit 1`,
           [productId],
         ),

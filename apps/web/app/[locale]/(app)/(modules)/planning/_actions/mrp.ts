@@ -43,7 +43,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
-import { computeWoMaterialScalar } from '../../../../../../lib/production/wo-material-scalar';
+import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../lib/production/wo-material-scalar';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
 import { createPurchaseOrder } from '../purchase-orders/_actions/actions';
 import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
@@ -1147,19 +1147,30 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
             ],
           );
 
+        let materialScalar: number;
+        try {
+          materialScalar = computeWoMaterialScalar({
+            plannedBaseQty: Number(quantity),
+            lineBasis: activeBom.rows[0].line_basis,
+            eachPerBox: itemUom.each_per_box == null ? null : Number(itemUom.each_per_box),
+            netQtyPerEach: itemUom.net_qty_per_each == null ? null : Number(itemUom.net_qty_per_each),
+          });
+        } catch (err) {
+          if (err instanceof WoMaterialScalarError) {
+            skipped.push({ id: row.id, reason: 'pack_hierarchy_incomplete' });
+            continue;
+          }
+          throw err;
+        }
+
+        // Header insert AFTER the pack-hierarchy validation so a misconfigured
+        // per_box BOM skips cleanly without committing an orphan WO header.
         try {
           await insertWorkOrderHeader(await nextDocumentNumber(c, orgId, 'wo', new Date()));
         } catch (error) {
           if (!isPgError(error) || error.code !== '23505') throw error;
           await insertWorkOrderHeader(await nextDocumentNumber(c, orgId, 'wo', new Date()));
         }
-
-        const materialScalar = computeWoMaterialScalar({
-          plannedBaseQty: Number(quantity),
-          lineBasis: activeBom.rows[0].line_basis,
-          eachPerBox: itemUom.each_per_box == null ? null : Number(itemUom.each_per_box),
-          netQtyPerEach: itemUom.net_qty_per_each == null ? null : Number(itemUom.net_qty_per_each),
-        });
         await c.query(
           `insert into public.wo_materials
              (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,

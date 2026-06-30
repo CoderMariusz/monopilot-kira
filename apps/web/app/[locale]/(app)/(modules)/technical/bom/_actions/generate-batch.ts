@@ -41,14 +41,16 @@ export async function generateBomBatch(rawInput: unknown): Promise<BomGeneratorR
       if (!(await hasPermission(ctx, BOM_GENERATE_BATCH_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       // Candidate FGs (org-scoped). V-TEC-15 'Complete' filter applied in pure logic.
-      const { rows } = await c.query<{ product_code: string; status_overall: string | null }>(
-        `select product_code, status_overall
-           from public.product
-          where org_id = app.current_org_id()`,
+      const { rows } = await c.query<{ product_code: string; status: string }>(
+        `select item_code as product_code,
+                status
+           from public.items
+          where org_id = app.current_org_id()
+            and item_type = 'fg'`,
       );
       const candidates: FgCandidate[] = rows.map((r) => ({
         productCode: r.product_code,
-        statusOverall: r.status_overall,
+        statusOverall: r.status === 'active' ? 'Complete' : r.status,
       }));
 
       const eligible = resolveEligibleFgs(candidates, input.scope, input.productCodes);

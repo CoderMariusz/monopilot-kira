@@ -152,14 +152,19 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
       if (allergens.length > 0) {
         await client.query(
           `insert into public.nutrition_allergens
-             (org_id, product_code, formulation_version_id, allergen_code, presence, audited_by_user, audited_at)
-           select $1::uuid, $2, $3::uuid, x.allergen_code, 'contains', $4::uuid, now()
-             from jsonb_to_recordset($5::jsonb) as x(allergen_code text)
-           on conflict on constraint nutrition_allergens_org_product_allergen_unique
-           do update
-             set presence = excluded.presence,
-                 audited_by_user = excluded.audited_by_user,
-                 audited_at = excluded.audited_at`,
+            (org_id, product_code, formulation_version_id, allergen_code, presence, audited_by_user, audited_at)
+          select $1::uuid, $2, $3::uuid, n.allergen_code, 'contains', $4::uuid, now()
+            from (
+              select distinct public.normalize_allergen_code(x.allergen_code) as allergen_code
+                from jsonb_to_recordset($5::jsonb) as x(allergen_code text)
+               where nullif(btrim(x.allergen_code), '') is not null
+            ) n
+           where n.allergen_code is not null
+          on conflict on constraint nutrition_allergens_org_product_allergen_unique
+          do update
+            set presence = excluded.presence,
+                audited_by_user = excluded.audited_by_user,
+                audited_at = excluded.audited_at`,
           [
             orgId,
             productCode,

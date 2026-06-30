@@ -181,6 +181,21 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       const afterRow = updated.rows[0];
       if (!afterRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
 
+      // Keep items.each_per_box in sync when packs_per_case changes (mirrors
+      // materialize-npd-bom.ts) so WO snapshots created before the next materialize
+      // are not stale. No-op (0 rows) until the FG item exists.
+      if (afterRow.packs_per_case != null && afterRow.packs_per_case > 0) {
+        await context.client.query(
+          `update public.items
+              set each_per_box = $2
+            where org_id = app.current_org_id()
+              and npd_project_id = $1::uuid
+              and item_type = 'fg'
+              and coalesce(each_per_box, 0) <> $2`,
+          [parsed.data.projectId, afterRow.packs_per_case],
+        );
+      }
+
       await context.client.query(
         `insert into public.audit_events
            (org_id, actor_user_id, actor_type, action, resource_type, resource_id,

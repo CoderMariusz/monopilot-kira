@@ -330,6 +330,9 @@ const DROPDOWN_SOURCE_TABLE: Record<string, { table: string; valueColumn: string
   },
   CloseConfirm: { table: 'CloseConfirm', valueColumn: 'value' },
   ManufacturingOperations: { table: 'ManufacturingOperations', valueColumn: 'operation_name' },
+  // "Reference"."Suppliers" is a view over public.suppliers (active) — mig 394. The
+  // dropdown_source='Suppliers' Procurement FA cell previously 42P01'd on a phantom table.
+  Suppliers: { table: 'Suppliers', valueColumn: 'value' },
 };
 
 /**

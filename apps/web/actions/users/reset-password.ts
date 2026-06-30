@@ -95,19 +95,14 @@ export async function resetPassword(input: ResetPasswordInput): Promise<ResetPas
         return { ok: false, error: 'reset_failed' };
       }
 
-      const revokeResult = await client.query(
-        `update public.user_sessions
-            set revoked_at = now(),
-                revoked_by = $1::uuid
-          where user_id = $2::uuid
-            and org_id = $3::uuid
-            and revoked_at is null`,
-        [userId, targetUserId, orgId],
-      );
-
+      // Session invalidation is owned by Supabase Auth, not the app. There is no
+      // public.user_sessions table in this schema (see account/profile/profile-data.ts),
+      // so there is no app-side row on which to set revoked_at — a previous UPDATE here
+      // threw 42P01 at runtime. The recovery link minted above supersedes the target
+      // user's existing tokens on use.
       return {
         ok: true,
-        data: { targetUserId, revokedCount: revokeResult.rowCount ?? 0 },
+        data: { targetUserId, revokedCount: 0 },
       };
     } catch (error) {
       if (error === FORBIDDEN) {

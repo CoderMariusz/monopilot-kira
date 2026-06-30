@@ -31,6 +31,7 @@ type LoaderRow = {
   cost_per_unit: string | null;
   /** NUMERIC(5,2) — the pg driver may hand this back as a string; coerced on map. */
   scrap_pct: string | number | null;
+  qty_per_pack: string | number | null;
   status: string;
   artwork_file_id: string | null;
   artwork_status: string | null;
@@ -69,6 +70,7 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
                 spec,
                 cost_per_unit::text as cost_per_unit,
                 coalesce(scrap_pct, 0) as scrap_pct,
+                qty_per_pack,
                 status,
                 artwork_file_id,
                 artwork_status,
@@ -89,6 +91,7 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
         spec: r.spec,
         costPerUnit: r.cost_per_unit,
         scrapPct: Number(r.scrap_pct ?? 0),
+        qtyPerPack: r.qty_per_pack == null ? null : Number(r.qty_per_pack),
         status: r.status as PackagingStatus,
         artworkFileId: r.artwork_file_id,
         artworkStatus: r.artwork_status,

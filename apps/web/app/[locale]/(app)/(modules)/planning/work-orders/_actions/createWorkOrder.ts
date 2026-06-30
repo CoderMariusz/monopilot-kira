@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
-import { computeWoMaterialScalar } from '../../../../../../../lib/production/wo-material-scalar';
+import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
 import {
@@ -108,6 +108,27 @@ export async function createWorkOrder(params: {
       );
       const bom = activeBom.rows[0];
 
+      // Validate per_box pack hierarchy BEFORE any write: computeWoMaterialScalar
+      // throws WoMaterialScalarError when a per_box BOM's FG item lacks
+      // each_per_box/net_qty_per_each. Doing it here (pre-insert) returns a clean
+      // error without leaving an orphan draft WO; reused for the wo_materials insert.
+      let materialScalar = 0;
+      if (bom) {
+        try {
+          materialScalar = computeWoMaterialScalar({
+            plannedBaseQty: Number(plannedBaseQty),
+            lineBasis: bom.line_basis,
+            eachPerBox: itemUom.each_per_box == null ? null : Number(itemUom.each_per_box),
+            netQtyPerEach: itemUom.net_qty_per_each == null ? null : Number(itemUom.net_qty_per_each),
+          });
+        } catch (err) {
+          if (err instanceof WoMaterialScalarError) {
+            return { ok: false, error: 'pack_hierarchy_incomplete' };
+          }
+          throw err;
+        }
+      }
+
       // Factory-release snapshot: production start-wo.ts hard-requires BOTH
       // active_bom_header_id AND active_factory_spec_id (factory_release_missing
       // 409 otherwise — live E2E walk hit this for every Planning-created WO).
@@ -176,12 +197,7 @@ export async function createWorkOrder(params: {
 
       let materialRows: WOMaterialRow[] = [];
       if (bom) {
-        const materialScalar = computeWoMaterialScalar({
-          plannedBaseQty: Number(plannedBaseQty),
-          lineBasis: bom?.line_basis,
-          eachPerBox: itemUom.each_per_box == null ? null : Number(itemUom.each_per_box),
-          netQtyPerEach: itemUom.net_qty_per_each == null ? null : Number(itemUom.net_qty_per_each),
-        });
+        // materialScalar validated + computed above (pre-write).
         const insertedMaterials = await ctx.client.query<WOMaterialRow>(
           `insert into public.wo_materials
              (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,
