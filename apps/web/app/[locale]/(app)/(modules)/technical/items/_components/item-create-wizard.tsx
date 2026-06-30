@@ -28,6 +28,7 @@
  */
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
@@ -351,6 +352,7 @@ export function ItemWizard({
   onSaved?: () => void;
 }) {
   const router = useRouter();
+  const tItems = useTranslations('items');
   const [stepIndex, setStepIndex] = React.useState(0);
   const [form, setForm] = React.useState<WizardFormState>(() => initialForm ?? emptyWizardForm());
   const [error, setError] = React.useState<string | null>(null);
@@ -446,6 +448,9 @@ export function ItemWizard({
     form.outputUom === 'base'
       ? labels.outputUomLabels.base
       : conversionHint ?? labels.outputUomLabels[form.outputUom];
+  const priceFieldLabel = form.supplierCode
+    ? tItems('supplier_price_gbp_label')
+    : tItems('list_price_gbp_list_label');
 
   function update<K extends keyof WizardFormState>(key: K, value: WizardFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -532,6 +537,8 @@ export function ItemWizard({
           const specResult = await createItemSupplierSpec({
             itemCode: form.itemCode,
             supplierId,
+            unitPrice: form.listPriceGbp || undefined,
+            priceCurrency: 'GBP',
             approveNow: true,
           });
           if (!specResult.ok) {
@@ -554,6 +561,27 @@ export function ItemWizard({
         ...(supplierCode ? { supplierCode } : {}),
       });
       if (result.ok) {
+        if (supplierCode) {
+          const supplierId = supplierIdByCode[supplierCode];
+          if (!supplierId) {
+            setError(labels.actionErrors.invalid_input);
+            return;
+          }
+          const specResult = await createItemSupplierSpec({
+            itemCode: form.itemCode,
+            supplierId,
+            unitPrice: form.listPriceGbp || undefined,
+            priceCurrency: 'GBP',
+            approveNow: true,
+          });
+          if (!specResult.ok) {
+            setError(
+              labels.actionErrors[specResult.error as ItemsActionError] ??
+                labels.actionErrors.persistence_failed,
+            );
+            return;
+          }
+        }
         onClose();
         onSaved?.();
         router.refresh();
@@ -858,14 +886,14 @@ export function ItemWizard({
                 onChange={(e) => update('shelfLifeDays', e.currentTarget.value)}
               />
             </Field>
-            <Field label={labels.fields.listPriceGbp} htmlFor="wiz-list-price-gbp">
+            <Field label={priceFieldLabel} htmlFor="wiz-list-price-gbp">
               <Input
                 id="wiz-list-price-gbp"
                 name="listPriceGbp"
                 type="number"
                 min={0}
                 step="0.0001"
-                aria-label={labels.fields.listPriceGbp}
+                aria-label={priceFieldLabel}
                 className="form-input"
                 value={form.listPriceGbp}
                 onChange={(e) => update('listPriceGbp', e.currentTarget.value)}

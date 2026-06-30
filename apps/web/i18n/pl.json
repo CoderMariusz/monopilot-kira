@@ -60,7 +60,9 @@
   },
   "items": {
     "count": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}",
-    "list_price_gbp_label": "Cena katalogowa (GBP / bazowa UoM)"
+    "list_price_gbp_label": "Cena katalogowa (GBP / bazowa UoM)",
+    "list_price_gbp_list_label": "Cena katalogowa (GBP)",
+    "supplier_price_gbp_label": "Cena dostawcy (GBP)"
   },
   "settings": {
     "users_screen": {

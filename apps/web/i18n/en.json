@@ -79,7 +79,9 @@
   },
   "items": {
     "count": "{count, plural, one {# item} other {# items}}",
-    "list_price_gbp_label": "List price (GBP / base UoM)"
+    "list_price_gbp_label": "List price (GBP / base UoM)",
+    "list_price_gbp_list_label": "List price (GBP)",
+    "supplier_price_gbp_label": "Supplier price (GBP)"
   },
   "settings": {
     "users_screen": {
