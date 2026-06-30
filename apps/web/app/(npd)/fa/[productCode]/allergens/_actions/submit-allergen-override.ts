@@ -24,7 +24,7 @@ export async function submitAllergenOverride(
   try {
     const result = await setAllergenOverride(productCode, allergenCode, action, reason);
     if (result.ok) {
-      revalidatePath(`/npd/fg/${productCode}/allergens`);
+      revalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
     }
     return { ok: result.ok };
   } catch {

@@ -132,8 +132,8 @@ async function updateAllergenDeclaration(productCode: string, accepted: boolean)
         [productCode],
       );
 
-      safeRevalidatePath(`/npd/fg/${productCode}/allergens`);
-      safeRevalidatePath(`/en/npd/fg/${productCode}/allergens`);
+      safeRevalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
+      safeRevalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
       const projectId = project.rows[0]?.id;
       if (projectId) {
         safeRevalidatePath(`/npd/pipeline/${projectId}/approval`);
@@ -181,9 +181,9 @@ async function requireAllergenDeclarationWrite(
   return actorRole;
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path);
+    revalidatePath(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -107,8 +107,8 @@ export async function updateFaCell(
     }
 
     await writeEditOutbox(context, parsed.data.productCode, column.column_key, result);
-    safeRevalidatePath(`/npd/fg/${parsed.data.productCode}`);
-    safeRevalidatePath('/npd/fg');
+    safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
+    safeRevalidatePath('/[locale]/fg', 'page');
 
     return result;
   });
@@ -388,9 +388,9 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path);
+    revalidatePath(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -2,7 +2,11 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { NextRequest } from 'next/server';
 
-import { CORRECTION_REASON_CODES, type CorrectionReasonCode } from '../../../../../../../lib/corrections/correct-ledger-entry';
+import {
+  CLOSED_WO_CORRECTION_PERMISSION,
+  CORRECTION_REASON_CODES,
+  type CorrectionReasonCode,
+} from '../../../../../../../lib/corrections/correct-ledger-entry';
 import { materialIdFromConsumptionExt } from '../../../../../../../lib/corrections/material-scope';
 import { hasPermission, type ProductionContext } from '../../../../../../../lib/production/shared';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
@@ -24,7 +28,6 @@ const OPERATION = 'production.scanner.wos.reverse_consume';
 const CONSUMPTION_REVERSE_INTENT = 'production.consumption.reverse';
 const CONSUMPTION_CORRECT_PERMISSION = 'production.consumption.correct';
 const CONSUMPTION_OVERRIDE_APPROVE_PERMISSION = 'production.consumption.override_approve';
-const CLOSED_WO_CORRECTION_PERMISSION = 'production.corrections.closed_wo';
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 type ConsumptionRow = {

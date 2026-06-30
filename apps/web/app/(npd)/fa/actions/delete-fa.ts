@@ -85,8 +85,8 @@ export async function deleteFa(
 
     safeRevalidatePath('/fg');
     safeRevalidatePath(`/fg/${normalizedProductCode}`);
-    safeRevalidatePath('/npd/fg');
-    safeRevalidatePath(`/npd/fg/${normalizedProductCode}`);
+    safeRevalidatePath('/[locale]/fg', 'page');
+    safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
     return { productCode: normalizedProductCode, deleted: true };
   });
 }
@@ -208,9 +208,9 @@ async function writeOutbox(ctx: OrgContextLike, productCode: string, reason: str
   );
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path);
+    revalidatePath(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

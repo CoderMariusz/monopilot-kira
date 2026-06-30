@@ -114,9 +114,9 @@ async function emitCoreChanged(
   );
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path);
+    revalidatePath(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static-generation store.
   }
@@ -182,7 +182,7 @@ export async function upsertBenchmark(input: UpsertBenchmarkInput): Promise<Benc
         throw new ValidationError('BENCHMARK_NOT_FOUND', 'Benchmark row is not visible in this organisation');
       }
       await emitCoreChanged(ctx, productCode, { op: 'update', id, label });
-      safeRevalidatePath(`/npd/fg/${productCode}`);
+      safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
       return toBenchmark(row);
     }
 
@@ -213,7 +213,7 @@ export async function upsertBenchmark(input: UpsertBenchmarkInput): Promise<Benc
       throw new ValidationError('INSERT_FAILED', 'Could not add the benchmark');
     }
     await emitCoreChanged(ctx, productCode, { op: 'insert', id: row.id, label });
-    safeRevalidatePath(`/npd/fg/${productCode}`);
+    safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
     return toBenchmark(row);
   });
 }
@@ -244,7 +244,7 @@ export async function deleteBenchmark(input: DeleteBenchmarkInput): Promise<{ re
       return { removed: false };
     }
     await emitCoreChanged(ctx, productCode, { op: 'delete', id, label: deleted.rows[0].label });
-    safeRevalidatePath(`/npd/fg/${productCode}`);
+    safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
     return { removed: true };
   });
 }

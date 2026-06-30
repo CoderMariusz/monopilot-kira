@@ -177,7 +177,7 @@ export async function addProdDetailComponent(
       ],
     );
 
-    safeRevalidatePath(`/npd/fg/${productCode}`);
+    safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
     return { id, intermediateCode: item.item_code, componentIndex, itemId };
   });
 }
@@ -230,14 +230,14 @@ export async function removeProdDetailComponent(
       ],
     );
 
-    safeRevalidatePath(`/npd/fg/${productCode}`);
+    safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
     return { removed: true };
   });
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path);
+    revalidatePath(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }
