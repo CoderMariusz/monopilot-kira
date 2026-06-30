@@ -46,6 +46,9 @@ Start HEAD: `77039d50` · branch `main` · next migration `394`.
 **Executed + deployed:** Phase 1 (correctness blockers — the wrong-number bugs) `3a0c6c24` READY; Phase 2 (cost single-source-of-truth — the owner's literal "jednego source of true dla wartosci") `3a0ab58e`. Migrations 394–398 live. Every phase: Codex fix → Codex review → Opus cross-review → Claude build gate; all blockers found by review were fixed before commit.
 **Designed + flagged (NOT blind-executed while owner away):** P3 Settings-UX, P4 costing-model, P5 allergen-vocab, P6 product/legacy completion, P7 destructive drops — each with a concrete plan + the exact decision needed, above. The deep "kill all double-systems" work past the values-SSoT is decision-gated by design; bring these to the in-app review to lock one table set.
 
+## Deploy incident + fix (caught + corrected during the run)
+The P2 & P3 Vercel deploys ERRORed at the `pnpm --filter @monopilot/db migrate` step (runs BEFORE `next build` on Vercel; **NOT** in local `next build` — the recurring "local build ≠ committed build" gotcha): `CHECKSUM MISMATCH on already-applied migration 396`. Cause: I edited mig 396's in-file **comment** (a doc-reference fix) AFTER recording its checksum, and didn't re-record it. The applied SQL was unchanged (comment-only). Fix: re-recorded `schema_migrations.checksum` for 396 to the current file sha (`f491e612…`), then re-triggered the deploy. **Lesson reinforced: never touch an applied migration file — even a comment — without updating its recorded checksum, and always verify the Vercel deploy state (the migrate gate is invisible to local `next build`).**
+
 ## Per-phase detail
 
 ### PHASE 1 — correctness blockers (the wrong-number bugs) — DONE
