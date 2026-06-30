@@ -295,17 +295,35 @@ export default async function PilotPage(propsInput: unknown = {}) {
     : await readPageData(projectId);
 
   return (
-    <PilotScreen
-      state={loaded.state}
-      data={loaded.data}
-      labels={labels}
-      canWrite={loaded.canWrite}
-      supervisors={loaded.supervisors}
-      lines={loaded.lines}
-      recipeMaterials={loaded.recipeMaterials}
-      onToggleChecklistItem={toggleChecklistAction}
-      onUpsertRun={upsertRunAction}
-      onLoadRecipeMaterials={loadRecipeMaterialsAction}
-    />
+    <>
+      {/* Costing is computed after the pilot (owner) — surface the costing link on
+          this post-pilot stage instead of the recipe stage. Plain anchor, no island. */}
+      <nav
+        aria-label="Related"
+        data-testid="pilot-related-links"
+        className="mb-3 flex flex-wrap items-center gap-2 text-sm"
+      >
+        <span className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Related</span>
+        <a
+          href={`/${locale}/pipeline/${projectId}/costing`}
+          data-testid="pilot-link-costing"
+          className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+        >
+          Costing
+        </a>
+      </nav>
+      <PilotScreen
+        state={loaded.state}
+        data={loaded.data}
+        labels={labels}
+        canWrite={loaded.canWrite}
+        supervisors={loaded.supervisors}
+        lines={loaded.lines}
+        recipeMaterials={loaded.recipeMaterials}
+        onToggleChecklistItem={toggleChecklistAction}
+        onUpsertRun={upsertRunAction}
+        onLoadRecipeMaterials={loadRecipeMaterialsAction}
+      />
+    </>
   );
 }

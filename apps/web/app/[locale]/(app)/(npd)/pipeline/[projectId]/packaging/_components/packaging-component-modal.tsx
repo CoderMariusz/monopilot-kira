@@ -100,14 +100,18 @@ export function PackagingComponentModal({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  // Picking a catalog packaging item pre-fills name / material / cost (each still
-  // overridable) and records the FK so the saved component links to the item master.
+  // Picking a catalog packaging item pre-fills name / material / supplier / cost
+  // (each still overridable) and records the FK so the saved component links to the
+  // item master. Supplier + price come from the item's active+approved supplier spec
+  // (unitPrice falls back to list_price_gbp inside searchItems).
   function onPickItem(item: {
     id: string;
     itemCode: string;
     name: string;
     itemType: string;
     costPerKgEur: string | null;
+    supplierCode?: string | null;
+    unitPrice?: string | null;
   }) {
     setForm((prev) => ({
       ...prev,
@@ -115,7 +119,8 @@ export function PackagingComponentModal({
       itemCode: item.itemCode,
       componentName: item.name || prev.componentName,
       material: prev.material || item.itemCode,
-      costPerUnit: item.costPerKgEur ?? prev.costPerUnit,
+      supplierCode: item.supplierCode ?? prev.supplierCode,
+      costPerUnit: item.unitPrice ?? item.costPerKgEur ?? prev.costPerUnit,
     }));
     setError(null);
   }

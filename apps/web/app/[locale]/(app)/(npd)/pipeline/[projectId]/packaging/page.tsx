@@ -347,16 +347,34 @@ export default async function PackagingPage(propsInput: unknown = {}) {
   }
 
   return (
-    <PackagingScreen
-      state={loaded.state}
-      data={loaded.data}
-      labels={labels}
-      canWrite={loaded.canWrite}
-      onUpsert={upsertAction}
-      onDelete={deleteAction}
-      onUploadArtwork={uploadArtworkAction}
-      onDeleteArtwork={deleteArtworkAction}
-      searchItemsAction={searchPackagingItemsAction}
-    />
+    <>
+      {/* Nutrition is run after recipe approval (owner) — surface it on this
+          post-recipe stage instead of the recipe stage. Plain anchor, no island. */}
+      <nav
+        aria-label="Related"
+        data-testid="packaging-related-links"
+        className="mb-3 flex flex-wrap items-center gap-2 text-sm"
+      >
+        <span className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Related</span>
+        <a
+          href={`/${locale}/pipeline/${projectId}/nutrition`}
+          data-testid="packaging-link-nutrition"
+          className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+        >
+          Nutrition
+        </a>
+      </nav>
+      <PackagingScreen
+        state={loaded.state}
+        data={loaded.data}
+        labels={labels}
+        canWrite={loaded.canWrite}
+        onUpsert={upsertAction}
+        onDelete={deleteAction}
+        onUploadArtwork={uploadArtworkAction}
+        onDeleteArtwork={deleteArtworkAction}
+        searchItemsAction={searchPackagingItemsAction}
+      />
+    </>
   );
 }

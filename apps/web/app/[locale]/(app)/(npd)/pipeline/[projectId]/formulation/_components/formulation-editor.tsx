@@ -997,7 +997,10 @@ export function FormulationEditor({
                 itemId: item.id,
                 rmCode: item.itemCode,
                 name: item.name,
-                costPerKgEur: item.costPerKgEur ?? r.costPerKgEur,
+                // Prefill € / kg from the item's cost; fall back to its list price
+                // (the user-entered "List price (GBP / base UoM)") when cost_per_kg
+                // is unset, so the recipe reflects the price the user actually set.
+                costPerKgEur: item.costPerKgEur ?? item.unitPrice ?? item.listPriceGbp ?? r.costPerKgEur,
               }
             : r,
         ),

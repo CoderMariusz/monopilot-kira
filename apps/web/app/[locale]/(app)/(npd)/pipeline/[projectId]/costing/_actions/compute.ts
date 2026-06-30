@@ -274,7 +274,9 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
            yield_pct::text,
            case
              when target_price_eur is not null and target_price_eur > 0
-               then (100 * (1 - ((raw_cost_eur * 100 / yield_pct) / target_price_eur)))::text
+               -- clamp < 100: a zero/near-zero ingredient cost yields margin 100, which
+               -- the markup formula (price = cost / (1 - margin/100)) cannot accept.
+               then least(100 * (1 - ((raw_cost_eur * 100 / yield_pct) / target_price_eur)), 99.99)::text
              else '20'
            end as margin_pct
          from ingredient_costs`,

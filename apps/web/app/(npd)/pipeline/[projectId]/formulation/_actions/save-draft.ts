@@ -115,16 +115,17 @@ export async function saveDraft(input: {
 
       await ctx.client.query(`delete from public.formulation_ingredients where version_id = $1::uuid`, [versionId]);
       const requestedItemIds = [...new Set(ingredients.map((ingredient) => ingredient.itemId).filter(Boolean))] as string[];
-      // F-B12: items.cost_per_kg is read alongside the id validation — the item
-      // master is the cost source of record; the client value is only a fallback
-      // for items with no master cost (or legacy free-text lines).
+      // F-B12: the item master is the cost source of record; the client value is
+      // only a fallback for items with no master cost (or legacy free-text lines).
+      // cost_per_kg falls back to list_price_gbp (the user-entered "List price") so
+      // a material priced only via List price still carries a non-zero recipe cost.
       const resolvedItems =
         requestedItemIds.length === 0
           ? new Map<string, { costPerKg: string | null }>()
           : new Map(
               (
                 await ctx.client.query<{ id: string; cost_per_kg: string | null }>(
-                  `select id, cost_per_kg::text as cost_per_kg from public.items
+                  `select id, coalesce(cost_per_kg, list_price_gbp)::text as cost_per_kg from public.items
                     where org_id = app.current_org_id()
                       and id = any($1::uuid[])
                       and item_type in ('rm', 'ingredient', 'intermediate', 'co_product')`,

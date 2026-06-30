@@ -641,35 +641,11 @@ export default async function FormulationPage(propsInput: unknown = {}) {
   return (
     <>
       {/*
-        BUG 3 — recipe-related secondary links. The project's Nutrition + Costing
-        pages used to be reachable ONLY from the approval-criteria card; surface
-        them on the formulation (recipe) stage so they are navigable earlier.
-        Locale-prefixed sibling sub-routes. Plain anchors (no client island) keep
-        the heavily-tested editor untouched.
+        Nutrition + Costing links were moved OFF the recipe stage (owner): costing
+        is computed after the PILOT stage and nutrition after recipe approval, so
+        those links now live on the pilot + packaging stage pages respectively.
+        The inline live cost panel inside the editor stays (rolling recipe cost).
       */}
-      <nav
-        aria-label={labels.relatedLinksLabel ?? 'Related'}
-        data-testid="formulation-related-links"
-        className="mb-3 flex flex-wrap items-center gap-2 text-sm"
-      >
-        <span className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
-          {labels.relatedLinksLabel ?? 'Related'}
-        </span>
-        <a
-          href={`/${locale}/pipeline/${projectId}/nutrition`}
-          data-testid="formulation-link-nutrition"
-          className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
-        >
-          {labels.linkNutrition ?? 'Nutrition'}
-        </a>
-        <a
-          href={`/${locale}/pipeline/${projectId}/costing`}
-          data-testid="formulation-link-costing"
-          className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
-        >
-          {labels.linkCosting ?? 'Costing'}
-        </a>
-      </nav>
       <FormulationEditor
         state={loaded.state}
       data={loaded.data}

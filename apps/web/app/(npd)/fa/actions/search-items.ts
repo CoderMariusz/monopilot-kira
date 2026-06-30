@@ -47,6 +47,10 @@ export type ItemPickerOption = {
   status: string;
   costPerKgEur: string | null;
   listPriceGbp?: string | null;
+  /** Supplier code from the item's active+approved supplier spec (for prefill). */
+  supplierCode?: string | null;
+  /** Effective supplier price: supplier_specs.unit_price ?? items.list_price_gbp. */
+  unitPrice?: string | null;
   /** Base unit of measure from the items master (e.g. 'kg'). */
   uomBase: string;
 };
@@ -70,6 +74,8 @@ type ItemRow = {
   status: string;
   cost_per_kg: string | null;
   list_price_gbp: string | null;
+  supplier_code: string | null;
+  unit_price: string | null;
   uom_base: string;
 };
 
@@ -99,8 +105,20 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
               i.status,
               i.cost_per_kg,
               i.list_price_gbp::text as list_price_gbp,
+              sp.supplier_code,
+              coalesce(sp.unit_price, i.list_price_gbp::text) as unit_price,
               i.uom_base
          from public.items i
+         left join lateral (
+           select ss.supplier_code, ss.unit_price::text as unit_price
+             from public.supplier_specs ss
+            where ss.org_id = i.org_id
+              and ss.item_id = i.id
+              and ss.lifecycle_status = 'active'
+              and ss.review_status = 'approved'
+            order by ss.effective_from desc nulls last, ss.updated_at desc nulls last
+            limit 1
+         ) sp on true
         where i.org_id = app.current_org_id()
           and i.item_type = any($1::text[])
           and i.status = 'active'
@@ -138,6 +156,8 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
       status: r.status,
       costPerKgEur: r.cost_per_kg,
       listPriceGbp: r.list_price_gbp,
+      supplierCode: r.supplier_code,
+      unitPrice: r.unit_price,
       uomBase: r.uom_base,
     }));
   });
