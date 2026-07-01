@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { hasPermission } from '../../../lib/auth/has-permission';
 import { writeManufacturingOperationsOutbox } from './_shared/outbox';
 
 type QueryClient = {
@@ -159,20 +160,6 @@ async function runWithOrgContext<T>(action: (ctx: OrgContext) => Promise<T>): Pr
   const webWrapperPath = '../../../lib/auth/with-org-context.js';
   const mod = (await import(webWrapperPath)) as unknown as { withOrgContext: WithOrgContext };
   return mod.withOrgContext(action);
-}
-
-async function hasPermission(ctx: OrgContext, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
 }
 
 async function writeAuditLog(

@@ -1,5 +1,6 @@
 'use server';
 
+import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 const ROTATE_PERMISSION = 'settings.d365.rotate_secret';
@@ -99,20 +100,6 @@ function parseInput(raw: RotateD365SecretInput | null | undefined): { clientId: 
   const clientSecret = typeof raw.clientSecret === 'string' ? raw.clientSecret.trim() : '';
   if (!clientId || !clientSecret || clientId.length > 128 || clientSecret.length > 4096) return null;
   return { clientId, clientSecret };
-}
-
-async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
 }
 
 async function writeAuditLog(

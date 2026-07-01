@@ -5,6 +5,7 @@ import { assignUserSites } from '../../../../../../actions/users/assign-user-sit
 import { createUserWithPassword } from '../../../../../../actions/users/create-user-with-password';
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
+import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { ALL_PERMISSIONS } from '../../../../../../../../packages/rbac/src/permissions.enum';
 import SettingsUsersScreen, {
@@ -72,7 +73,6 @@ type UserSitesRow = {
   site_names: string[] | null;
 };
 
-type PermissionCheckRow = { ok: boolean };
 type UsersScreenReadResult =
   | { state: 'ready'; data: UsersScreenData }
   | { state: 'permission-denied' }
@@ -173,34 +173,16 @@ function strongestPermission(current: PermissionCell, next: PermissionCell): Per
   return PERMISSION_STRENGTH[next] > PERMISSION_STRENGTH[current] ? next : current;
 }
 
-async function hasAnyPermission(client: QueryClient, userId: string, orgId: string, permissions: string[]) {
-  const { rows } = await client.query<PermissionCheckRow>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = any($3::text[])
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or r.code = any($3::text[])
-          or coalesce(r.permissions, '[]'::jsonb) ?| $3::text[]
-        )
-      limit 1`,
-    [userId, orgId, permissions],
-  );
-  return rows.length > 0;
-}
-
 async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScreenReadResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
+      const permissionCtx = { client: queryClient, userId, orgId };
       const [canView, canInviteUsers, canAssignRoles, canResetPasswords] = await Promise.all([
-        hasAnyPermission(queryClient, userId, orgId, ['settings.users.view', 'settings.users.invite', 'settings.roles.assign', 'settings.users.create', 'settings.users.deactivate']),
-        hasAnyPermission(queryClient, userId, orgId, ['settings.users.invite']),
-        hasAnyPermission(queryClient, userId, orgId, ['settings.roles.assign']),
-        hasAnyPermission(queryClient, userId, orgId, ['org.access.admin']),
+        hasAnyPermission(permissionCtx, ['settings.users.view', 'settings.users.invite', 'settings.roles.assign', 'settings.users.create', 'settings.users.deactivate']),
+        hasAnyPermission(permissionCtx, ['settings.users.invite']),
+        hasAnyPermission(permissionCtx, ['settings.roles.assign']),
+        hasAnyPermission(permissionCtx, ['org.access.admin']),
       ]);
 
       if (!canView) return { state: 'permission-denied' as const };

@@ -22,6 +22,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { hasPermission as hasPermissionString } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 const ADMIN_PERMISSION = 'settings.flags.edit' as const;
@@ -108,28 +109,6 @@ export type SetOverconsumeThresholdsResult =
       error: 'invalid_input' | 'warn_above_approve' | 'forbidden' | 'persistence_failed';
       message?: string;
     };
-
-async function hasPermissionString(
-  { client, userId, orgId }: OrgContextLike,
-  permission: string,
-): Promise<boolean> {
-  const { rows } = await client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or r.code in ('owner', 'admin')
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [userId, orgId, permission],
-  );
-  return rows.length > 0;
-}
 
 async function hasAdminPermission(context: OrgContextLike): Promise<boolean> {
   return hasPermissionString(context, ADMIN_PERMISSION);

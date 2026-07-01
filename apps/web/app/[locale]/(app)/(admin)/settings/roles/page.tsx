@@ -2,6 +2,7 @@ import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
 import { type QueryClient } from '../../../../../../actions/authorization/preflight';
+import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { createRole, listRolePermissions, setRolePermissions } from './_actions/role-admin-actions';
 import type { EditableRole } from './_components/role-editor.client';
@@ -52,7 +53,6 @@ type UserRow = {
   current_role_code: string | null;
 };
 
-type PermissionCheckRow = { ok: boolean };
 type RoleIdRow = { id: string };
 
 type RolesScreenReadResult =
@@ -113,26 +113,6 @@ function labelForRole(code: string, label?: string | null): string {
 function toCount(value: number | string | null | undefined): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-async function hasAnyPermission(client: QueryClient, userId: string, orgId: string, permissions: readonly string[]): Promise<boolean> {
-  const { rows, rowCount } = await client.query<PermissionCheckRow>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = any($3::text[])
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or r.code = any($3::text[])
-          or r.slug = any($3::text[])
-          or coalesce(r.permissions, '[]'::jsonb) ?| $3::text[]
-        )
-      limit 1`,
-    [userId, orgId, permissions],
-  );
-  return (rowCount ?? rows.length) > 0;
 }
 
 async function readRoleRows(client: QueryClient): Promise<{ roles: SystemRole[]; permissionsByRole: Record<RoleCode, string[]> }> {
@@ -230,8 +210,9 @@ async function readRolesScreenData(): Promise<RolesScreenReadResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
-      const canViewRoles = await hasAnyPermission(queryClient, userId, orgId, ROLE_VIEW_PERMISSIONS);
-      const canManageRoles = await hasAnyPermission(queryClient, userId, orgId, ROLE_MANAGE_PERMISSIONS);
+      const permissionCtx = { client: queryClient, userId, orgId };
+      const canViewRoles = await hasAnyPermission(permissionCtx, [...ROLE_VIEW_PERMISSIONS]);
+      const canManageRoles = await hasAnyPermission(permissionCtx, [...ROLE_MANAGE_PERMISSIONS]);
       if (!canViewRoles) return { state: 'permission-denied' as const, canManageRoles: false };
 
       const [{ roles, permissionsByRole }, assignableUsers, editableRoles] = await Promise.all([
@@ -301,7 +282,7 @@ export async function assignRoleAction(input: AssignRoleInput): Promise<{ ok: bo
   try {
     return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
-      const canAssign = await hasAnyPermission(queryClient, userId, orgId, ROLE_MANAGE_PERMISSIONS);
+      const canAssign = await hasAnyPermission({ client: queryClient, userId, orgId }, [...ROLE_MANAGE_PERMISSIONS]);
       if (!canAssign) return { ok: false, error: 'settings.roles.assign_required' };
 
       // Re-resolve the role within RLS so only an org-scoped, non-platform role
