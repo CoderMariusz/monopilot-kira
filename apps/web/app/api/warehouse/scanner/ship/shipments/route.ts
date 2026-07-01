@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const shipments = await withTxnOrgContext(scopedClient, session.org_id, async () => {
+      const shipments = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
         const { rows } = await scopedClient.query<ShipmentListRow>(
           `select sh.id::text,
                   sh.shipment_number,

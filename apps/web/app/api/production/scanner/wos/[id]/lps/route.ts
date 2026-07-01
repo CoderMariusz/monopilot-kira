@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       // inside a txn with a registered context (see lib/scanner/txn-org-context.ts).
       // In autocommit it is NULL: the wo_materials gate would 422 and the FEFO
       // list would always be empty live.
-      withTxnOrgContext(scopedClient, session.org_id, async () => {
+      withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
         const materialRes = await scopedClient.query<{ product_id: string; uom: string }>(
           `select product_id, uom
              from public.wo_materials

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     withScannerOrg(client, session, async ({ client: scopedClient }) => {
       // app.current_org_id() only resolves inside a txn with a registered
       // context (see lib/scanner/txn-org-context.ts).
-      const wos = await withTxnOrgContext(scopedClient, session.org_id, () =>
+      const wos = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () =>
         listPickWorkOrders(scopedClient, session),
       );
       return jsonOk({ wos });

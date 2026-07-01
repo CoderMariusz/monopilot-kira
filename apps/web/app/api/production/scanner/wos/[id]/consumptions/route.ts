@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const result = await requireScannerSession(request, null, OPERATION, async ({ client, session }) => {
     const rows = await withScannerOrg(client, session, async ({ client: scopedClient }) =>
       // app.current_org_id() only resolves inside a registered txn context.
-      withTxnOrgContext(scopedClient, session.org_id, async () => {
+      withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
         const res = await scopedClient.query<ConsumptionRow>(
           `select c.id::text as id,
                   c.component_id::text as component_id,

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     withScannerOrg(client, session, async ({ client: scopedClient }) => {
       // app.current_org_id() only resolves inside a txn with a registered
       // context (see lib/scanner/txn-org-context.ts).
-      const lps = await withTxnOrgContext(scopedClient, session.org_id, async () => {
+      const lps = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
         const { rows } = await scopedClient.query<PickableLpRow>(
           `select inv.lp_id::text,
                   inv.lp_number,

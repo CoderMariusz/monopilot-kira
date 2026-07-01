@@ -1243,6 +1243,7 @@ describe('production scanner WO routes', () => {
     expect(cleanupIdx).toBeGreaterThan(commitIdx);
     // Context is registered for the SESSION org (never anything from the request) …
     expect((fakeClient.query.mock.calls[registerIdx][1] as unknown[])[1]).toBe(session.org_id);
+    expect((fakeClient.query.mock.calls[registerIdx][1] as unknown[])[2]).toBe(session.user_id);
     expect((fakeClient.query.mock.calls[setCtxIdx][1] as unknown[])[1]).toBe(session.org_id);
     // … and the queries themselves carry NO org bind — app.current_org_id() is the only org filter.
     expect(sqls[materialIdx]).toContain('app.current_org_id()');

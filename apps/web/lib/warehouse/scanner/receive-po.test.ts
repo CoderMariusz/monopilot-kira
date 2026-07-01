@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ReceivePoError,
+  listScannerPurchaseOrders,
   receiveScannerPoLine,
   type ReceiveLineInput,
 } from './receive-po';
@@ -48,6 +49,16 @@ const input: ReceiveLineInput = {
 };
 
 describe('scanner receive PO service', () => {
+  it('site-scopes scanner PO listing through app.user_can_see_site', async () => {
+    const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000' });
+
+    await listScannerPurchaseOrders(client, session);
+
+    const listCall = findCall(client, 'from public.purchase_orders po');
+    expect(listCall?.sql).toContain('app.user_can_see_site(po.site_id)');
+    expect(listCall?.params).toEqual([ORG_A, expect.any(Array)]);
+  });
+
   it('creates a GRN, GRN item, LP, LP genesis history, audit row, and rolls PO status up', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1790000000000);
     vi.spyOn(Math, 'random').mockReturnValue(0.1234);
@@ -186,9 +197,12 @@ describe('scanner receive PO service', () => {
     expect(lpInsert?.sql).toContain("'available', 'pending'");
 
     // inspection insert: numbered via next_quality_inspection_number, org-scoped, lp-referenced,
-    // guarded against a duplicate pending inspection for the same LP
+    // site-scoped from the LP, guarded against a duplicate pending inspection for the same LP
     const inspInsert = findCall(client, 'insert into public.quality_inspections');
     expect(inspInsert).toBeTruthy();
+    expect(inspInsert?.sql).toContain('org_id, site_id, inspection_number');
+    expect(inspInsert?.sql).toContain('select $1::uuid, lp.site_id');
+    expect(inspInsert?.sql).toContain('app.user_can_see_site(lp.site_id)');
     expect(inspInsert?.sql).toContain('public.next_quality_inspection_number($1::uuid)');
     expect(inspInsert?.sql).toContain('not exists');
     expect(inspInsert?.params).toEqual([ORG_A, 'lp-1', ITEM_ID, USER_A]);
@@ -230,8 +244,9 @@ describe('scanner receive PO service', () => {
     expect(commitIdx).toBeGreaterThan(allocatorIdx);
     expect(cleanupIdx).toBeGreaterThan(commitIdx);
 
-    // the registered context binds the SESSION org (org_id discipline)
+    // the registered context binds the SESSION org and scanner user (org/user RLS discipline)
     expect(client.calls[tokenIdx]?.params?.[1]).toBe(ORG_A);
+    expect(client.calls[tokenIdx]?.params?.[2]).toBe(USER_A);
     expect(client.calls[setCtxIdx]?.params?.[1]).toBe(ORG_A);
   });
 

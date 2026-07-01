@@ -91,7 +91,31 @@ describe('receivePoLineDesktop', () => {
     );
     expect(autoPutawayHistory?.params).toEqual(['lp-1', 'auto_putaway_po_receive', null, expect.any(String), USER_ID]);
     expect(findCall('insert into public.grn_items')).toBeTruthy();
-    expect(findCall('update public.purchase_orders')?.params).toEqual([ORG_ID, PO_ID, 'received', USER_ID]);
+    const poUpdate = findCall('update public.purchase_orders');
+    expect(poUpdate?.sql).toContain("status in ('confirmed', 'partially_received')");
+    expect(poUpdate?.params).toEqual([ORG_ID, PO_ID, 'received', USER_ID]);
+  });
+
+  it('allows a partial re-receive when the cumulative quantity stays within cap', async () => {
+    currentClient = makeClient({ orderedQty: '10.000000', receivedQty: '4.000000', isReceived: true });
+
+    const result = await receivePoLineDesktop({ ...baseInput, qty: '6.000' });
+
+    expect(result).toMatchObject({ ok: true, qty: '6', poStatus: 'received' });
+    expect(findCall('insert into public.grns')).toBeTruthy();
+    expect(findCall('insert into public.license_plates')).toBeTruthy();
+    expect(findCall('insert into public.grn_items')).toBeTruthy();
+  });
+
+  it('logs unexpected receive failures before returning the generic error', async () => {
+    currentClient = makeClient({ throwOnOpenGrnLookup: true });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await receivePoLineDesktop(baseInput);
+
+    expect(result).toEqual({ ok: false, error: 'error' });
+    expect(consoleError).toHaveBeenCalledWith('[planning] receivePoLineDesktop failed', expect.any(Error));
+    consoleError.mockRestore();
   });
 
   it('falls back to a deterministic org warehouse when no default warehouse exists', async () => {
@@ -181,6 +205,7 @@ type MockOptions = {
   existingGrn?: { id: string; grn_number: string } | null;
   isReceived?: boolean;
   destinationWarehouseId?: string | null;
+  throwOnOpenGrnLookup?: boolean;
 };
 
 class MockClient implements QueryClient {
@@ -229,6 +254,7 @@ class MockClient implements QueryClient {
 
     if (normalized.includes('pg_advisory_xact_lock')) return { rows: [] };
     if (normalized.includes('from public.grns') && normalized.includes('status =')) {
+      if (this.options.throwOnOpenGrnLookup) throw new Error('grn lookup failed');
       return { rows: (this.options.existingGrn ? [this.options.existingGrn] : []) as T[] };
     }
     if (normalized.includes("substring(grn_number from 'grn-")) return { rows: [{ seq: 1 }] as T[] };

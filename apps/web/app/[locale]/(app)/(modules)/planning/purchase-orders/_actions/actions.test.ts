@@ -4,6 +4,7 @@ import {
   createPurchaseOrder,
   getPurchaseOrder,
   listPurchaseOrders,
+  reopenPurchaseOrder,
   transitionPurchaseOrderStatus,
 } from './actions';
 import type { QueryClient } from '../../_actions/procurement-shared';
@@ -88,11 +89,11 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('select count(*) as archived_count')) {
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
       }
-      if (normalized.includes('from public.purchase_order_lines')) {
-        return { rows: [line()], rowCount: 1 };
+      if (normalized.startsWith('select count(*) filter')) {
+        return { rows: [{ active_received_count: 0, grn_line_count: 0 }], rowCount: 1 };
       }
       if (normalized.startsWith('select po.id')) {
-        return { rows: poExists ? [header({ status: params[3] === true ? 'received' : 'draft' })] : [], rowCount: poExists ? 1 : 0 };
+        return { rows: poExists ? [header({ status: currentStatus })] : [], rowCount: poExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.purchase_orders')) {
         if (failNextAutoInsert) {
@@ -109,8 +110,14 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('select status from public.purchase_orders')) {
         return { rows: poExists ? [{ status: currentStatus }] : [], rowCount: poExists ? 1 : 0 };
       }
+      if (normalized.startsWith('update public.purchase_orders') && normalized.includes("set status = 'draft'")) {
+        return { rows: poExists ? [header({ status: 'draft', supplier_code: null, supplier_name: null })] : [], rowCount: poExists ? 1 : 0 };
+      }
       if (normalized.startsWith('update public.purchase_orders')) {
         return { rows: poExists ? [header({ status: String(params[1]), supplier_code: null, supplier_name: null })] : [], rowCount: poExists ? 1 : 0 };
+      }
+      if (normalized.includes('from public.purchase_order_lines')) {
+        return { rows: [line()], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.audit_events')) {
         return { rows: [], rowCount: 1 };
@@ -341,5 +348,23 @@ describe('planning purchase order actions', () => {
     const result = await transitionPurchaseOrderStatus(PO_ID, 'cancelled');
 
     expect(result).toEqual({ ok: false, error: 'invalid_state' });
+  });
+
+  it('reopenPurchaseOrder ignores cancelled GRN lines in both receipt guards', async () => {
+    currentStatus = 'sent';
+
+    const result = await reopenPurchaseOrder(PO_ID);
+
+    expect(result.ok).toBe(true);
+    const receiptStateCall = vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).includes('as grn_line_count'));
+    expect(receiptStateCall?.[0]).toContain('count(*) filter');
+    expect(receiptStateCall?.[0]).toContain('gi.cancelled_at is null');
+    expect(receiptStateCall?.[0]).toContain("coalesce(g.status, 'draft') <> 'cancelled'");
+
+    const reopenUpdateCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).includes("set status = 'draft'"));
+    expect(reopenUpdateCall?.[0]).toContain('and gi.cancelled_at is null');
+    expect(reopenUpdateCall?.[0]).toContain("and coalesce(g.status, 'draft') <> 'cancelled'");
   });
 });

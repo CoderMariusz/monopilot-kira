@@ -370,13 +370,11 @@ async function evaluateMassBalanceGate(
             coalesce((select block_pct from cfg), 0)::text as block_pct,
             t.posted_consumption_kg > 0
               and y.effective_yield_pct > 0
-              and t.running_output_kg > t.posted_consumption_kg
               and t.running_output_kg
                     > (t.posted_consumption_kg * (y.effective_yield_pct / 100.0) * (1 + $3::numeric)) as warn,
             t.posted_consumption_kg > 0
               and y.effective_yield_pct > 0
               and coalesce((select block_pct from cfg), 0) > 0
-              and t.running_output_kg > t.posted_consumption_kg
               and t.running_output_kg
                     > (t.posted_consumption_kg * (y.effective_yield_pct / 100.0) * (1 + coalesce((select block_pct from cfg), 0) / 100)) as block
        from yield_ctx y

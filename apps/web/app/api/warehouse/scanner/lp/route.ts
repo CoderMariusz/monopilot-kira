@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       // app.current_org_id() only resolves inside a txn with a registered
       // context (see lib/scanner/txn-org-context.ts) — without this wrapper the
       // org-scoped lookup always returns empty.
-      const lp = await withTxnOrgContext(scopedClient, session.org_id, () => getScannerLpDetail(scopedClient, code));
+      const lp = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () => getScannerLpDetail(scopedClient, code));
       if (!lp) return jsonError('lp_not_found', 404);
       return jsonOk({ lp });
     }),

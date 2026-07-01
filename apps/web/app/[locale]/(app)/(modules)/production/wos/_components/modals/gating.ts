@@ -81,6 +81,12 @@ export function canOfferAction(
   return isActionAvailable(kind, status, workOrderStatus) && permissions[PERMISSION_FOR[kind]];
 }
 
-function normalizeWorkOrderStatus(status?: string | null): string {
+/**
+ * Canonicalize a planning-lifecycle status string (DRAFT / RELEASED / …) for
+ * case/whitespace-insensitive comparison. Exported (F13) so the WO detail header
+ * reuses the SAME normalization the release-gate above relies on, instead of
+ * re-implementing it.
+ */
+export function normalizeWorkOrderStatus(status?: string | null): string {
   return typeof status === 'string' ? status.trim().toUpperCase() : '';
 }

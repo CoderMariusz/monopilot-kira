@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       // app.current_org_id() only resolves inside a txn with a registered
       // context (see lib/scanner/txn-org-context.ts) — in autocommit the
       // org-filtered SELECT below always returns empty without this wrapper.
-      withTxnOrgContext(orgClient, session.org_id, async () => {
+      withTxnOrgContext(orgClient, session.org_id, session.user_id, async () => {
         const res = await orgClient.query<WasteCategoryRow>(
           `select code, name
              from public.waste_categories

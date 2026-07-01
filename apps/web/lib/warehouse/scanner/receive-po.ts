@@ -150,6 +150,7 @@ export async function listScannerPurchaseOrders(
        ) rec on rec.po_line_id = pol.id
       where po.org_id = $1::uuid
         and po.status = any($2::text[])
+        and app.user_can_see_site(po.site_id)
       group by po.id, po.po_number, s.code, s.name, po.expected_delivery, po.status
       order by po.expected_delivery asc nulls last, po.po_number asc`,
     [session.org_id, OPEN_PO_STATUSES],
@@ -209,6 +210,7 @@ export async function getScannerPurchaseOrder(
       where po.org_id = $1::uuid
         and po.id = $2::uuid
         and po.status = any($3::text[])
+        and app.user_can_see_site(po.site_id)
       order by pol.line_no asc`,
     [session.org_id, poId, OPEN_PO_STATUSES],
   );
@@ -255,7 +257,7 @@ export async function receiveScannerPoLine(
     // lib/scanner/txn-org-context.ts for the full rationale.
     // Audit note: most scanner SQL passes session.org_id explicitly ($1::uuid),
     // while the outbox insert below and QC allocator rely on app.current_org_id().
-    orgContextToken = await registerTxnOrgContext(client, session.org_id);
+    orgContextToken = await registerTxnOrgContext(client, session.org_id, session.user_id);
 
     const inTxnReplay = await findReplay(client, session, input.clientOpId);
     if (inTxnReplay) {
@@ -823,17 +825,22 @@ async function insertQcInspectionForLp(
   // belt-and-suspenders against a second pending inspection ever being opened for the same LP.
   const { rows } = await client.query<{ id: string }>(
     `insert into public.quality_inspections (
-       org_id, inspection_number, reference_type, reference_id, product_id, status, created_by
+       org_id, site_id, inspection_number, reference_type, reference_id, product_id, status, created_by
      )
-     select $1::uuid, public.next_quality_inspection_number($1::uuid), 'lp', $2::uuid, $3::uuid, 'pending', $4::uuid
-      where not exists (
-        select 1
-          from public.quality_inspections qi
-         where qi.org_id = $1::uuid
-           and qi.reference_type = 'lp'
-           and qi.reference_id = $2::uuid
-           and qi.status = 'pending'
-      )
+     select $1::uuid, lp.site_id, public.next_quality_inspection_number($1::uuid), 'lp', $2::uuid, $3::uuid, 'pending', $4::uuid
+       from public.license_plates lp
+      where lp.org_id = app.current_org_id()
+        and lp.id = $2::uuid
+        and app.user_can_see_site(lp.site_id)
+        and not exists (
+          select 1
+            from public.quality_inspections qi
+           where qi.org_id = $1::uuid
+             and qi.reference_type = 'lp'
+             and qi.reference_id = $2::uuid
+             and qi.status = 'pending'
+        )
+      limit 1
      returning id`,
     [session.org_id, input.lpId, input.productId, session.user_id],
   );

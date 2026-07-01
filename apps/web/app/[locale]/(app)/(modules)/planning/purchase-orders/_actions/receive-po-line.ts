@@ -181,6 +181,7 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
     return publicResult;
   } catch (err) {
     if (err instanceof Error && err.message === 'invalid_qty') return { ok: false, error: 'invalid_qty' };
+    console.error('[planning] receivePoLineDesktop failed', err);
     return { ok: false, error: 'error' };
   }
 }
@@ -620,7 +621,8 @@ async function rollupPurchaseOrderStatus(
             updated_by = $4::uuid,
             updated_at = now()
       where org_id = $1::uuid
-        and id = $2::uuid`,
+        and id = $2::uuid
+        and status in ('confirmed', 'partially_received')`,
     [orgId, poId, status, userId],
   );
 

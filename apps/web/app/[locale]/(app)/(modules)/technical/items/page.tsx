@@ -66,7 +66,15 @@ function buildDeactivateLabels(t: Translator): DeactivateLabels {
   };
 }
 
-export default async function TechnicalItemsPage() {
+export default async function TechnicalItemsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ modal?: string }>;
+}) {
+  // F6 — the "+ New item" CTA is rendered twice (header + empty-state). The
+  // ?modal=create deep-link auto-open must be owned by exactly ONE instance
+  // (the always-present header CTA) to avoid a double modal.
+  const autoOpenCreate = (await searchParams)?.modal === 'create';
   const { items, canCreate, canEdit, canDeactivate, state, limit, total, truncated } = await listItems();
   const t = await getTranslations('technical.items');
   const tItems = await getTranslations('items');
@@ -161,7 +169,12 @@ export default async function TechnicalItemsPage() {
           <p className="helper mt-1 max-w-3xl">{t('list.description')}</p>
         </div>
         {canCreate ? (
-          <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} supplierOptions={supplierOptions} />
+          <NewItemButton
+            label={newItemLabel}
+            wizardLabels={wizardLabels}
+            supplierOptions={supplierOptions}
+            autoOpen={autoOpenCreate}
+          />
         ) : null}
       </header>
 

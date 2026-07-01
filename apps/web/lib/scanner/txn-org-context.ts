@@ -33,11 +33,11 @@ export type TxnOrgContextClient = {
   query(sql: string, params?: readonly unknown[]): Promise<unknown>;
 };
 
-export async function registerTxnOrgContext(client: TxnOrgContextClient, orgId: string): Promise<string> {
+export async function registerTxnOrgContext(client: TxnOrgContextClient, orgId: string, userId: string): Promise<string> {
   const token = randomUUID();
   await client.query(
-    `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
-    [token, orgId],
+    `insert into app.session_org_contexts (session_token, org_id, user_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+    [token, orgId, userId],
   );
   await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [token, orgId]);
   return token;
@@ -61,12 +61,13 @@ export async function cleanupTxnOrgContext(client: TxnOrgContextClient, token: s
 export async function withTxnOrgContext<T>(
   client: TxnOrgContextClient,
   orgId: string,
+  userId: string,
   fn: () => Promise<T>,
 ): Promise<T> {
   await client.query('begin');
   let token: string | null = null;
   try {
-    token = await registerTxnOrgContext(client, orgId);
+    token = await registerTxnOrgContext(client, orgId, userId);
     const result = await fn();
     await client.query('commit');
     return result;

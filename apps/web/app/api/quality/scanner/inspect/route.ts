@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         // the CURRENT txid (migration 002); next_quality_inspection_number()
         // and the org_id values below depend on it. Register the context
         // inside this transaction (see lib/scanner/txn-org-context.ts).
-        orgContextToken = await registerTxnOrgContext(scopedClient, session.org_id);
+        orgContextToken = await registerTxnOrgContext(scopedClient, session.org_id, session.user_id);
         await scopedClient.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
           `${session.org_id}:quality-inspect:${lpId}`,
         ]);

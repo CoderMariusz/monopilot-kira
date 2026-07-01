@@ -66,7 +66,7 @@ export type WOSummary = WOHeader & {
 export type WOMaterial = {
   id: string;
   woId: string;
-  productId: string;
+  productId: string | null;
   materialName: string;
   requiredQty: string;
   consumedQty: string;
@@ -362,7 +362,7 @@ export type WOSummaryRow = WorkOrderRow & {
 export type WOMaterialRow = {
   id: string;
   wo_id: string;
-  product_id: string;
+  product_id: string | null;
   material_name: string;
   required_qty: string;
   consumed_qty: string;

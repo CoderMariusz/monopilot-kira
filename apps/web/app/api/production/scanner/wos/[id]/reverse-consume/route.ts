@@ -506,12 +506,13 @@ async function writeConsumptionReverseAudit(
 async function readReplayAfterRollback(
   client: ProductionContext['client'],
   orgId: string,
+  userId: string,
   clientOpId: string,
 ): Promise<Record<string, unknown> | null> {
   await client.query('begin');
   let token: string | null = null;
   try {
-    token = await registerTxnOrgContext(client, orgId);
+    token = await registerTxnOrgContext(client, orgId, userId);
     const replay = await readReplay(client, orgId, clientOpId);
     await client.query('commit');
     return replay;
@@ -551,7 +552,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     let txnOrgContextToken: string | null = null;
     try {
       await client.query('begin');
-      txnOrgContextToken = await registerTxnOrgContext(client, session.org_id);
+      txnOrgContextToken = await registerTxnOrgContext(client, session.org_id, session.user_id);
       const ctx = { client, userId: session.user_id, orgId: session.org_id } as unknown as ProductionContext;
 
       const earlyReplay = await readReplay(client, session.org_id, clientOpId);
@@ -737,7 +738,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       const pgCode = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : null;
       if (pgCode === '23505') {
-        const replay = await readReplayAfterRollback(client, session.org_id, clientOpId);
+        const replay = await readReplayAfterRollback(client, session.org_id, session.user_id, clientOpId);
         if (replay) return replayResponse(replay);
         await auditAttempt(client, session, OPERATION, 'already_corrected', { woId, clientOpId });
         return scannerError('already_corrected', 409);

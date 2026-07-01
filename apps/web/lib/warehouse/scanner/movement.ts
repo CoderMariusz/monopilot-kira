@@ -584,7 +584,7 @@ async function inIdempotentScannerWrite(
     // reaches it. Register the context inside this transaction or every lookup
     // returns NULL-org (lp_not_found) and the audit insert violates NOT NULL.
     // See lib/scanner/txn-org-context.ts.
-    orgContextToken = await registerTxnOrgContext(client, session.org_id);
+    orgContextToken = await registerTxnOrgContext(client, session.org_id, session.user_id);
 
     await client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
       `${session.org_id}:scanner:${clientOpId}`,
@@ -876,8 +876,19 @@ async function updateLpLocation(
   await client.query(
     `update public.license_plates
         set location_id = $2::uuid,
+            site_id = dest.site_id,
             updated_by = $3::uuid,
             updated_at = now()
+       from (
+         select w.site_id
+           from public.locations loc
+           join public.warehouses w
+             on w.org_id = app.current_org_id()
+            and w.id = loc.warehouse_id
+          where loc.org_id = app.current_org_id()
+            and loc.id = $2::uuid
+          limit 1
+       ) dest
       where org_id = app.current_org_id()
         and id = $1::uuid`,
     [lpId, toLocationId, session.user_id],

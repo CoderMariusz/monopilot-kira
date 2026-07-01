@@ -65,13 +65,11 @@ class MockClient implements QueryClient {
             warn:
               postedConsumption > 0 &&
               expectedInput !== null &&
-              runningOutput > postedConsumption &&
               runningOutput > warnThresholdOutput,
             block:
               postedConsumption > 0 &&
               expectedInput !== null &&
               Number(blockPct) > 0 &&
-              runningOutput > postedConsumption &&
               runningOutput > blockThresholdOutput,
           },
         ] as T[],
@@ -207,11 +205,11 @@ describe('registerOutput mass-balance advisory warning', () => {
     expect(client.outboxPayload?.mass_balance_warning).toEqual(result.mass_balance_warning);
   });
 
-  it('does not flag normal yield loss when output is below consumed input', async () => {
+  it('does not flag expected yield loss within the 2% tolerance', async () => {
     postedConsumptionKg = '1000';
     effectiveYieldPct = '10';
 
-    const result = await register('130');
+    const result = await register('101');
 
     expect(result.mass_balance_warning).toBeUndefined();
     expect(client.outboxPayload?.mass_balance_warning).toBeNull();
@@ -233,7 +231,7 @@ describe('registerOutput mass-balance advisory warning', () => {
     expect(client.outboxPayload?.mass_balance_warning).toBeNull();
   });
 
-  it('warns at 95% yield when output still exceeds posted input by more than 2%', async () => {
+  it('warns at 95% yield when output exceeds expected output by more than 2%', async () => {
     postedConsumptionKg = '95';
     effectiveYieldPct = '95';
 

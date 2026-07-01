@@ -61,6 +61,7 @@ type LpMetadataError =
 type GrnLineForCancel = {
   id: string;
   grn_id: string;
+  po_id: string | null;
   lp_id: string | null;
   received_qty: string;
   cancelled_at: string | null;
@@ -109,11 +110,18 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
   const { rows } = await ctx.client.query<GrnLineForCancel>(
     `select gi.id::text,
             gi.grn_id::text,
+            coalesce(g.po_id, pol.po_id)::text as po_id,
             gi.lp_id::text,
             gi.received_qty::text,
             gi.cancelled_at::text,
             gi.qa_status_initial
        from public.grn_items gi
+       left join public.grns g
+         on g.org_id = gi.org_id
+        and g.id = gi.grn_id
+       left join public.purchase_order_lines pol
+         on pol.org_id = gi.org_id
+        and pol.id = gi.po_line_id
       where gi.org_id = app.current_org_id()
         and gi.id = $1::uuid
       limit 1
@@ -121,6 +129,35 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
     [grnItemId],
   );
   return rows[0] ?? null;
+}
+
+async function rollupPurchaseOrderStatus(ctx: WarehouseContext, poId: string): Promise<void> {
+  const { rows } = await ctx.client.query<{ is_received: boolean }>(
+    `select bool_and(coalesce(rec.received_qty, 0) >= pol.qty) as is_received
+       from public.purchase_order_lines pol
+       left join (
+         select po_line_id, sum(received_qty) as received_qty
+           from public.grn_items
+          where org_id = app.current_org_id()
+            and po_line_id is not null
+            and cancelled_at is null
+          group by po_line_id
+       ) rec on rec.po_line_id = pol.id
+      where pol.org_id = app.current_org_id()
+        and pol.po_id = $1::uuid`,
+    [poId],
+  );
+  const status = rows[0]?.is_received ? 'received' : 'partially_received';
+  await ctx.client.query(
+    `update public.purchase_orders
+        set status = $2,
+            updated_by = $3::uuid,
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and status in ('confirmed', 'partially_received', 'received')`,
+    [poId, status, ctx.userId],
+  );
 }
 
 async function loadLpForCancel(ctx: WarehouseContext, lpId: string): Promise<LicensePlateForCancel | null> {
@@ -317,6 +354,8 @@ export async function cancelGrnLine(input: unknown): Promise<
             and cancelled_at is null`,
         [line.id, userId, parsed.data.reasonCode, note],
       );
+
+      if (line.po_id) await rollupPurchaseOrderStatus(ctx, line.po_id);
 
       await writeLpHistory(ctx, {
         lpId: line.lp_id,

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         try {
           // app.current_org_id() only resolves inside a txn with a registered
           // context (see lib/scanner/txn-org-context.ts).
-          const suggestions = await withTxnOrgContext(scopedClient, session.org_id, () =>
+          const suggestions = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () =>
             suggestPutawayLocations(scopedClient, lpId),
           );
           return jsonOk({ suggestions });

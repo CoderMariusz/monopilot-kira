@@ -57,6 +57,7 @@ import {
   WoActionsProvider,
   WoActionTrigger,
 } from '../../_components/modals/wo-actions';
+import { normalizeWorkOrderStatus } from '../../_components/modals/gating';
 import type { PrintFgLabelAction } from '../../_components/modals/action-modals';
 import {
   VoidCorrectionModal,
@@ -749,7 +750,12 @@ export function WoDetailScreen({
           </div>
           {actions ? (
             <div className="flex shrink-0 flex-wrap gap-2" data-testid="wo-action-bar">
-              {actions.status === null ? (
+              {/* F13 — the disabled "Release in Planning first" Start placeholder
+                  is only meaningful before release. Once the WO is RELEASED it is
+                  legitimately startable (the list Start works), so suppress the
+                  placeholder to avoid a misleading DOUBLE Start affordance. */}
+              {actions.status === null &&
+              normalizeWorkOrderStatus(actions.workOrderStatus) !== 'RELEASED' ? (
                 <button
                   type="button"
                   data-testid="wo-action-start-disabled"

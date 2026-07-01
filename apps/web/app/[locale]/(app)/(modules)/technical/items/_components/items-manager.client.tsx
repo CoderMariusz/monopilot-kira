@@ -19,7 +19,6 @@
  */
 
 import React from 'react';
-import { useSearchParams } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 import { type SelectOption } from '@monopilot/ui/Select';
@@ -73,20 +72,25 @@ export function NewItemButton({
   label,
   wizardLabels,
   supplierOptions = [],
+  autoOpen = false,
 }: {
   label: string;
   wizardLabels?: ItemWizardLabels;
   /** A11 — org supplier list (CODE → "CODE — Name") for the wizard's optional supplier link. */
   supplierOptions?: SelectOption[];
+  /**
+   * F6 — deep-link auto-open (?modal=create). The page renders this CTA twice
+   * (header + empty-state), so the auto-open must be owned by exactly ONE
+   * instance to avoid a double modal. Mirrors the planning WO/PO `autoOpenCreate`
+   * prop convention (seeds the open state); defaults off so the other instance
+   * is a plain button.
+   */
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = React.useState(false);
-  // F6 — deep-link support: a `?modal=create` query param (e.g. the NPD recipe
-  // empty-state "Create an item" CTA) auto-opens the create wizard so a fresh-org
-  // user landing here from another screen isn't left to hunt for the button.
-  const searchParams = useSearchParams();
-  React.useEffect(() => {
-    if (searchParams.get('modal') === 'create') setOpen(true);
-  }, [searchParams]);
+  // F6 — deep-link auto-open: the page owns the `?modal=create` read and passes
+  // `autoOpen` to exactly ONE of the two rendered CTAs (header vs empty-state),
+  // so a fresh-org deep-link opens a single create wizard, not a double modal.
+  const [open, setOpen] = React.useState(autoOpen);
   return (
     <>
       <Button

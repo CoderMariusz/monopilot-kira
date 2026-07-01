@@ -209,15 +209,20 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
         return { ok: false, reason: 'error', message: 'locked' };
       }
 
-      const locRes = await ctx.client.query<{ id: string }>(
-        `select id::text
-           from public.locations
-          where org_id = app.current_org_id()
-            and id = $1::uuid
+      const locRes = await ctx.client.query<{ id: string; site_id: string | null }>(
+        `select loc.id::text,
+                w.site_id::text as site_id
+           from public.locations loc
+           join public.warehouses w
+             on w.org_id = app.current_org_id()
+            and w.id = loc.warehouse_id
+          where loc.org_id = app.current_org_id()
+            and loc.id = $1::uuid
           limit 1`,
         [toLocationId],
       );
-      if (!locRes.rows[0]) return { ok: false, reason: 'not_found' };
+      const destination = locRes.rows[0];
+      if (!destination) return { ok: false, reason: 'not_found' };
 
       const transactionId = uuidFromSeed(`warehouse.stock.move:${orgId}:${lpId}:${clientOpId}`);
       const moveNumber = moveNumberFromTransactionId(transactionId);
@@ -238,10 +243,11 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
         await ctx.client.query(
           `update public.license_plates
               set location_id = $2::uuid,
+                  site_id = $4::uuid,
                   updated_by = $3::uuid
             where org_id = app.current_org_id()
               and id = $1::uuid`,
-          [lpId, toLocationId, userId],
+          [lpId, toLocationId, userId, destination.site_id],
         );
       }
 

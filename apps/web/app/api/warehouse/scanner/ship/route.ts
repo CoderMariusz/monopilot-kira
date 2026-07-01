@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const packResult = await withTxnOrgContext(scopedClient, session.org_id, () =>
+      const packResult = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () =>
         packLpIntoBoxCore(
           { userId: session.user_id, orgId: session.org_id, client: scopedClient },
           { shipmentId: input.shipmentId, lpId: input.lpId, boxId: input.boxId },

@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     const result = await requireScannerSession(request, body, 'scanner.print_label', async ({ client, session }) =>
       withScannerOrg(client, session, async ({ client: scopedClient }) =>
-        withTxnOrgContext(scopedClient, session.org_id, async () => {
+        withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
           if (!(await hasPrintPermission(scopedClient, session.user_id, session.org_id))) {
             return errorResponse('Forbidden', 403);
           }

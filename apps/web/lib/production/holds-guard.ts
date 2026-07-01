@@ -31,6 +31,10 @@ export type ActiveHold = { holdId: string; lpId: string | null; lotId: string | 
 
 export type HoldsGuardTarget = { lpId?: string | null; lotId?: string | null };
 
+export type WoHoldGuardResult =
+  | { ok: true }
+  | { ok: false; error: 'quality_hold_active'; hold: ActiveHold };
+
 /**
  * Returns the first active hold matching the LP or lot, or `null` when none is
  * active (or the `v_active_holds` view does not yet exist — fail-open seam).
@@ -84,6 +88,52 @@ export async function holdsGuard(
     // (42703 / undefined_column is deliberately NOT caught — see header.)
     if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '42P01') {
       return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Returns `quality_hold_active` when the WO itself is on an active quality hold.
+ *
+ * This intentionally stays in the local app seam instead of importing the
+ * package-level quality guard; production consume callers need the same
+ * `v_active_holds` / `app.current_org_id()` behavior as `holdsGuard` above.
+ */
+export async function assertWoNotOnHold(
+  woId: string,
+  ctx: Pick<ProductionContext, 'client'>,
+): Promise<WoHoldGuardResult> {
+  try {
+    const { rows } = await (ctx.client as QueryClient).query<{
+      hold_id: string;
+      reference_id: string;
+    }>(
+      `select hold_id, reference_id
+         from public.v_active_holds
+        where org_id = app.current_org_id()
+          and reference_type = 'wo'
+          and reference_id = $1::uuid
+        order by case priority
+                   when 'critical' then 0
+                   when 'high' then 1
+                   when 'medium' then 2
+                   when 'low' then 3
+                   else 4
+                 end
+        limit 1`,
+      [woId],
+    );
+    const row = rows[0];
+    if (!row) return { ok: true };
+    return {
+      ok: false,
+      error: 'quality_hold_active',
+      hold: { holdId: String(row.hold_id), lpId: null, lotId: null },
+    };
+  } catch (err) {
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '42P01') {
+      return { ok: true };
     }
     throw err;
   }

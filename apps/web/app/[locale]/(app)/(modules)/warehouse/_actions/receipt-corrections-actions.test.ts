@@ -21,6 +21,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const GRN_ITEM_ID = '33333333-3333-4333-8333-333333333333';
 const GRN_ID = '44444444-4444-4444-8444-444444444444';
 const LP_ID = '55555555-5555-4555-8555-555555555555';
+const PO_ID = '66666666-6666-4666-8666-666666666666';
 
 type State = {
   granted: boolean;
@@ -61,6 +62,7 @@ function makeClient(): QueryClient {
             ? [{
                 id: GRN_ITEM_ID,
                 grn_id: GRN_ID,
+                po_id: PO_ID,
                 lp_id: LP_ID,
                 received_qty: '10.000000',
                 cancelled_at: state.cancelledAt,
@@ -116,6 +118,14 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (n.includes('bool_and')) {
+        return { rows: [{ is_received: false }], rowCount: 1 };
+      }
+
+      if (n.startsWith('update public.purchase_orders')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       if (n.startsWith('insert into public.lp_state_history')) {
         return { rows: [], rowCount: 1 };
       }
@@ -160,6 +170,10 @@ describe('receipt corrections actions', () => {
     const grnUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.grn_items'));
     expect(normalize(grnUpdate!.sql)).toContain('cancelled_at = now()');
     expect(grnUpdate!.params).toEqual([GRN_ITEM_ID, USER_ID, 'entry_error', 'Wrong receipt']);
+
+    const poRollup = queries.find((q) => normalize(q.sql).startsWith('update public.purchase_orders'));
+    expect(normalize(poRollup!.sql)).toContain("status in ('confirmed', 'partially_received', 'received')");
+    expect(poRollup!.params).toEqual([PO_ID, 'partially_received', USER_ID]);
 
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history!.params).toEqual(expect.arrayContaining([LP_ID, 'received', 'returned', 'receipt_cancelled']));

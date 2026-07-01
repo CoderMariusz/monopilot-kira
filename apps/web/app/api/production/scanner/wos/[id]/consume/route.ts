@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { NextRequest } from 'next/server';
 
+import { assertWoNotOnHold } from '../../../../../../../lib/production/holds-guard';
 import { assertLpConsumableForProduction } from '../../../../../../../lib/production/lp-safety-guard';
 import {
   APP_VERSION,
@@ -100,8 +101,36 @@ export async function POST(request: NextRequest, context: RouteContext) {
       let txnOrgContextToken: string | null = null;
       await client.query('begin');
       try {
-        txnOrgContextToken = await registerTxnOrgContext(client, session.org_id);
+        txnOrgContextToken = await registerTxnOrgContext(client, session.org_id, session.user_id);
         const txnId = deterministicTransactionId(`${session.org_id}:scanner-consume:${clientOpId}`);
+
+        const woHoldGate = await assertWoNotOnHold(woId, { client });
+        if (!woHoldGate.ok) {
+          const emitCtx = {
+            client,
+            userId: session.user_id,
+            orgId: session.org_id,
+          } as unknown as ProductionContext;
+          await emitConsumeBlocked(
+            emitCtx,
+            new QualityHoldError({
+              hold: woHoldGate.hold,
+              woId,
+              blockedPath: 'consume',
+              transactionId: clientOpId,
+              lpId: null,
+              lotId: null,
+            }),
+          );
+          await client.query('commit');
+          await auditAttempt(client, session, 'production.scanner.wos.consume', 'quality_hold_active', {
+            woId,
+            materialId,
+            lpId,
+          });
+          return scannerError('quality_hold_active', 409);
+        }
+
         await client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
           `${session.org_id}:scanner:${clientOpId}`,
         ]);

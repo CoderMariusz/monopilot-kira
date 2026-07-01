@@ -43,6 +43,7 @@
 import { createHash } from 'node:crypto';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { assertWoNotOnHold } from '../../../../../../lib/production/holds-guard';
 import { assertLpConsumableForProduction } from '../../../../../../lib/production/lp-safety-guard';
 import {
   APP_VERSION,
@@ -277,6 +278,22 @@ export async function recordDesktopConsumption(
       }
 
       const txnId = deterministicTransactionId(`${orgId}:desktop-consume:${clientOpId}`);
+
+      const woHoldGate = await assertWoNotOnHold(woId, ctx);
+      if (!woHoldGate.ok) {
+        await emitConsumeBlocked(
+          ctx,
+          new QualityHoldError({
+            hold: woHoldGate.hold,
+            woId,
+            blockedPath: 'consume',
+            transactionId: txnId,
+            lpId: null,
+            lotId: null,
+          }),
+        );
+        return { ok: false, reason: 'quality_hold_active' };
+      }
 
       // (1) Serialize concurrent in-flight replays of the same clientOpId.
       await ctx.client.query(`select pg_advisory_xact_lock(hashtextextended($1::text, 0))`, [

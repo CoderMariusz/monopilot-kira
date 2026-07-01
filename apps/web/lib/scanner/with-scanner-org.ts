@@ -81,8 +81,8 @@ export async function withScannerOrg<T>(
   const owner = getOwnerPool();
 
   await owner.query(
-    `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
-    [sessionToken, session.org_id],
+    `insert into app.session_org_contexts (session_token, org_id, user_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+    [sessionToken, session.org_id, session.user_id],
   );
 
   const client = await getAppPool().connect();

@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 
     const result = await requireScannerSession(request, null, 'scanner.labor', async ({ client, session }) =>
       withScannerOrg(client, session, async ({ client: scopedClient, session: scopedSession }) =>
-        withTxnOrgContext(scopedClient, scopedSession.org_id, async () =>
+        withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () =>
           NextResponse.json(
             await getCurrentLaborState(scopedClient, {
               userId: scopedSession.user_id,
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     const result = await requireScannerSession(request, body, 'scanner.labor', async ({ client, session }) =>
       withScannerOrg(client, session, async ({ client: scopedClient, session: scopedSession }) =>
-        withTxnOrgContext(scopedClient, scopedSession.org_id, async () => {
+        withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () => {
           if (action === 'in') {
             await clockIn(scopedClient, {
               userId: scopedSession.user_id,

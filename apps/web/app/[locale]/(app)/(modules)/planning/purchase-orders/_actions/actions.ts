@@ -229,7 +229,10 @@ async function getPurchaseOrderReceiptState(client: QueryClient, poId: string): 
                 and coalesce(g.status, 'draft') <> 'cancelled'
                 and gi.received_qty > 0
             ) as active_received_count,
-            count(*) as grn_line_count
+            count(*) filter (
+              where gi.cancelled_at is null
+                and coalesce(g.status, 'draft') <> 'cancelled'
+            ) as grn_line_count
        from public.grn_items gi
        left join public.grns g
          on g.org_id = app.current_org_id()
@@ -824,6 +827,8 @@ export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderRe
                   on g.org_id = app.current_org_id()
                  and g.id = gi.grn_id
                where gi.org_id = app.current_org_id()
+                 and gi.cancelled_at is null
+                 and coalesce(g.status, 'draft') <> 'cancelled'
                  and (
                    gi.po_line_id in (
                      select pol.id

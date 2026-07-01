@@ -18,6 +18,8 @@
  * cancelled are terminal; the state machine rejects further verbs.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import { holdsGuard } from './holds-guard';
 import { recordWoCompletionSnapshot } from './oee-snapshot-producer';
 import {
@@ -27,6 +29,7 @@ import {
   type ProductionResult,
   fail,
   hasPermission,
+  readWoExecutionStatus,
   writeOutbox,
 } from './shared';
 import { applyTransition } from './wo-state-machine';
@@ -210,6 +213,12 @@ export type CancelWoData = {
   reservationsReleased: string[];
 };
 
+type CancelAffectedLp = {
+  id: string;
+  site_id: string | null;
+  status: string;
+};
+
 export async function cancelWo(
   ctx: ProductionContext,
   input: CancelWoInput,
@@ -218,6 +227,8 @@ export async function cancelWo(
   if (!input.reasonCode || input.reasonCode.trim().length === 0) {
     return fail('invalid_input', { message: 'reasonCode is required' });
   }
+
+  const previousStatus = await readWoExecutionStatus(ctx, input.woId);
 
   const transition = await applyTransition(ctx, {
     woId: input.woId,
@@ -231,6 +242,86 @@ export async function cancelWo(
   // 05-warehouse reservation-release seam (no LP module yet) — recorded on the
   // event payload so the warehouse consumer can release on receipt.
   const reservationsReleased: string[] = [];
+  const voidedOutputLpIds: string[] = [];
+
+  if (previousStatus === 'completed') {
+    const affectedLps = await ctx.client.query<CancelAffectedLp>(
+      `select lp.id, lp.site_id, lp.status
+         from public.license_plates lp
+        where lp.org_id = app.current_org_id()
+          and lp.status not in ('destroyed', 'consumed')
+          and exists (
+            select 1
+              from public.wo_outputs o
+             where o.org_id = app.current_org_id()
+               and o.wo_id = $1::uuid
+               and o.lp_id = lp.id
+               and o.correction_of_id is null
+          )
+        for update`,
+      [input.woId],
+    );
+
+    for (const lp of affectedLps.rows) {
+      await ctx.client.query(
+        `insert into public.lp_state_history (
+           org_id,
+           site_id,
+           lp_id,
+           from_state,
+           to_state,
+           reason_code,
+           reason_text,
+           wo_id,
+           transaction_id,
+           ext_jsonb,
+           created_by
+         )
+         values (
+           app.current_org_id(),
+           $1::uuid,
+           $2::uuid,
+           $3,
+           'destroyed',
+           'wo_cancelled',
+           $4,
+           $5::uuid,
+           $6::uuid,
+           $7::jsonb,
+           $8::uuid
+         )`,
+        [
+          lp.site_id,
+          lp.id,
+          lp.status,
+          input.notes ?? null,
+          input.woId,
+          randomUUID(),
+          JSON.stringify({
+            cancellation_reason_code: input.reasonCode,
+            transaction_id: input.transactionId,
+          }),
+          ctx.userId,
+        ],
+      );
+    }
+
+    voidedOutputLpIds.push(...affectedLps.rows.map((lp) => lp.id));
+
+    if (voidedOutputLpIds.length > 0) {
+      await ctx.client.query(
+        `update public.license_plates lp
+            set status = 'destroyed',
+                quantity = 0,
+                reserved_qty = 0,
+                updated_by = $2::uuid,
+                updated_at = now()
+          where lp.org_id = app.current_org_id()
+            and lp.id = any($1::uuid[])`,
+        [voidedOutputLpIds, ctx.userId],
+      );
+    }
+  }
 
   await writeOutbox(ctx, {
     eventType: EventType.PRODUCTION_WO_CLOSED,
@@ -242,6 +333,7 @@ export async function cancelWo(
       cancelledAt: transition.data.cancelledAt,
       reasonCode: input.reasonCode,
       reservationsReleased,
+      voidedOutputLpIds,
     },
   });
 
