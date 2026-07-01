@@ -12,13 +12,13 @@ import {
   type CorrectionReasonCode,
   insertCounterEntry,
 } from '../../../../../../lib/corrections/correct-ledger-entry';
+import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 
 const WASTE_CORRECT_PERMISSION = 'production.waste.correct';
 const OUTPUT_CORRECT_PERMISSION = 'production.output.correct';
 const OUTPUT_VOID_INTENT = 'production.output.void';
-const CONSUMPTION_CORRECT_PERMISSION = 'production.consumption.correct';
 const CONSUMPTION_REVERSE_INTENT = 'production.consumption.reverse';
 const NO_LP_ID = '00000000-0000-0000-0000-000000000000';
 // 'destroyed' became legal in migration 294 (the mig-191 CHECK lacked it even

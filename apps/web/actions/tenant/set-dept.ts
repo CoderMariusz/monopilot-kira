@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { writeTenantOutbox } from './_shared/outbox';
 
 export type SetDepartmentOverrideInput = {
   action: 'split' | 'merge' | 'add' | 'rename';
@@ -76,11 +77,13 @@ export async function setDepartmentOverride(rawInput: SetDepartmentOverrideInput
       if ((updated.rowCount ?? updated.rows.length) < 1 || !row) return { ok: false, error: 'not_found' };
 
       await writeAuditLog({ client, orgId, userId, action: 'tenant_variations.dept_override.updated', afterState: override });
-      await writeOutbox({
+      await writeTenantOutbox({
         client,
         orgId,
         aggregateId: orgId,
         eventType: 'settings.dept_override.updated',
+        aggregateType: 'tenant_variation',
+        appVersion: 'settings-tenant-variations-v1',
         payload: { org_id: orgId, scope: 'tenant', override, actor_user_id: userId },
       });
 
@@ -197,26 +200,5 @@ async function writeAuditLog({
        (org_id, actor_user_id, actor_type, action, resource_type, resource_id, after_state, retention_class)
      values ($1::uuid, $2::uuid, 'user', $3, 'tenant_variations', $4, $5::jsonb, 'standard')`,
     [orgId, userId, action, orgId, JSON.stringify(afterState)],
-  );
-}
-
-async function writeOutbox({
-  client,
-  orgId,
-  aggregateId,
-  eventType,
-  payload,
-}: {
-  client: QueryClient;
-  orgId: string;
-  aggregateId: string;
-  eventType: string;
-  payload: unknown;
-}): Promise<void> {
-  await client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values ($1::uuid, $2, 'tenant_variation', $3::uuid, $4::jsonb, 'settings-tenant-variations-v1')`,
-    [orgId, eventType, aggregateId, JSON.stringify(payload)],
   );
 }

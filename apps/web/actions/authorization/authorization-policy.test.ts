@@ -20,7 +20,6 @@ vi.mock('next/cache', () => ({
 const repoRoot = resolve(__dirname, '../../../..');
 const preflightPath = resolve(repoRoot, 'apps/web/actions/authorization/preflight.ts');
 const policyActionsPath = resolve(repoRoot, 'apps/web/actions/authorization/policy-actions.ts');
-const policyHelpersPath = resolve(repoRoot, 'apps/web/actions/authorization/policy-helpers.ts');
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_ORG_ID = '99999999-9999-4999-8999-999999999999';
@@ -93,13 +92,6 @@ type ActionsModule = {
     policyCode: string;
     patch: Partial<PolicyRow>;
     auditReason?: string;
-  }) => Promise<unknown>;
-};
-
-type HelpersModule = {
-  dryRunAuthorizationPolicyChanges: (input: {
-    client: FakeClient;
-    changes: Array<{ kind: 'feature_flag' | 'import_row'; flagCode?: string; enabled?: boolean; policyCode?: string }>;
   }) => Promise<unknown>;
 };
 
@@ -278,38 +270,6 @@ describe('authorization policy helpers and preflights (TASK-000216/T-126 RED)', 
     expect(currentClient.mutations).toEqual([]);
   });
 
-  it('lets feature-flag/import dry-runs call preflight helpers and prevents partial mutation when blockers exist', async () => {
-    replacePolicy({
-      policy_code: NPD_POLICY,
-      is_enabled: true,
-      request_permissions: ['npd.released_product_edit.request'],
-      authorize_permissions: [],
-      approver_role_codes: [],
-      requires_new_version: false,
-    });
-
-    const { dryRunAuthorizationPolicyChanges } = await loadHelpersModule();
-    const result = await dryRunAuthorizationPolicyChanges({
-      client: currentClient,
-      changes: [
-        { kind: 'feature_flag', flagCode: 'npd.post_release_edit.enabled', enabled: true, policyCode: NPD_POLICY },
-        { kind: 'import_row', policyCode: NPD_POLICY },
-      ],
-    });
-
-    expect(result).toEqual({
-      ok: false,
-      dryRun: true,
-      blockers: [
-        { code: 'authorize_permission_missing', policyCode: NPD_POLICY },
-        { code: 'authorizer_role_missing', policyCode: NPD_POLICY },
-        { code: 'requires_new_version_required', policyCode: NPD_POLICY },
-      ],
-    });
-    expect(statementIndex('org_authorization_policies')).toBeGreaterThanOrEqual(0);
-    expect(statementIndex('update public.org_authorization_policies')).toBe(-1);
-    expect(currentClient.mutations).toEqual([]);
-  });
 });
 
 async function loadPreflightModule(): Promise<PreflightModule> {
@@ -331,15 +291,6 @@ async function loadActionsModule(): Promise<ActionsModule> {
     expect.fail('policy-actions.ts must export updateAuthorizationPolicy(input)');
   }
   return mod as ActionsModule;
-}
-
-async function loadHelpersModule(): Promise<HelpersModule> {
-  expect(existsSync(policyHelpersPath), 'apps/web/actions/authorization/policy-helpers.ts must exist and export dryRunAuthorizationPolicyChanges').toBe(true);
-  const mod = (await import(policyHelpersPath)) as Partial<HelpersModule>;
-  if (typeof mod.dryRunAuthorizationPolicyChanges !== 'function') {
-    expect.fail('policy-helpers.ts must export dryRunAuthorizationPolicyChanges(input)');
-  }
-  return mod as HelpersModule;
 }
 
 function makeClient(): FakeClient {

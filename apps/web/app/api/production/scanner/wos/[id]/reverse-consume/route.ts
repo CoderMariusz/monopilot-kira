@@ -7,6 +7,7 @@ import {
   CORRECTION_REASON_CODES,
   type CorrectionReasonCode,
 } from '../../../../../../../lib/corrections/correct-ledger-entry';
+import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../../lib/corrections/material-scope';
 import { hasPermission, type ProductionContext } from '../../../../../../../lib/production/shared';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
@@ -26,7 +27,6 @@ import {
 
 const OPERATION = 'production.scanner.wos.reverse_consume';
 const CONSUMPTION_REVERSE_INTENT = 'production.consumption.reverse';
-const CONSUMPTION_CORRECT_PERMISSION = 'production.consumption.correct';
 const CONSUMPTION_OVERRIDE_APPROVE_PERMISSION = 'production.consumption.override_approve';
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 

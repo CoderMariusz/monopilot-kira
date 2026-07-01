@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { writeSettingsReferenceOutbox } from './_shared/outbox';
 
 const EDIT_PERMISSION = 'settings.reference.edit';
 
@@ -96,7 +97,7 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
           beforeState: { rowData: existing.row_data, version: existing.version, isActive: existing.is_active },
           afterState: { rowData: updated.row_data, version: updated.version, isActive: updated.is_active },
         });
-        await writeOutbox(client, {
+        await writeSettingsReferenceOutbox(client, {
           orgId,
           eventType: 'reference.row.upserted',
           aggregateType: 'reference_table',
@@ -129,7 +130,7 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
         beforeState: null,
         afterState: { rowData: inserted.row_data, version: inserted.version, isActive: inserted.is_active },
       });
-      await writeOutbox(client, {
+      await writeSettingsReferenceOutbox(client, {
         orgId,
         eventType: 'reference.row.upserted',
         aggregateType: 'reference_table',
@@ -346,18 +347,6 @@ async function writeAuditLog(
       JSON.stringify(params.beforeState),
       JSON.stringify(params.afterState),
     ],
-  );
-}
-
-async function writeOutbox(
-  client: QueryClient,
-  params: { orgId: string; eventType: string; aggregateType: string; aggregateId: string; payload: unknown },
-): Promise<void> {
-  await client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-reference-v1')`,
-    [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
   );
 }
 

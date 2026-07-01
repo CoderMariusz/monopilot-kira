@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 
+import { writeSettingsInfraOutbox } from './_shared/outbox';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -143,7 +144,7 @@ export async function deactivateWarehouse(rawInput: unknown): Promise<Deactivate
       const row = rows[0];
       if (!row) return { ok: false, error: 'not_found' };
 
-      await writeOutbox(client, {
+      await writeSettingsInfraOutbox(client, {
         orgId,
         eventType: 'settings.warehouse.deactivated',
         aggregateType: 'warehouse',
@@ -212,7 +213,7 @@ export async function updateWarehouseStorageRules(rawInput: unknown): Promise<Up
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
 
-      await writeOutbox(client, {
+      await writeSettingsInfraOutbox(client, {
         orgId,
         eventType: 'settings.warehouse.storage_rules_updated',
         aggregateType: 'warehouse',
@@ -330,18 +331,6 @@ async function hasPermission(ctx: OrgActionContext, permission: string): Promise
     [ctx.userId, ctx.orgId, permission, ['owner', 'admin', 'module_admin']],
   );
   return rows.length > 0;
-}
-
-async function writeOutbox(
-  client: QueryClient,
-  params: { orgId: string; eventType: string; aggregateType: string; aggregateId: string; payload: unknown },
-): Promise<void> {
-  await client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-infra-v1')`,
-    [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
-  );
 }
 
 function requiredUuid(value: unknown): string | null {

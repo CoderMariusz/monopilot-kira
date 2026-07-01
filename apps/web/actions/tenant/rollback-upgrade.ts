@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { writeTenantOutbox } from './_shared/outbox';
 
 export type RollbackUpgradeInput = {
   migrationId: string;
@@ -92,11 +93,13 @@ export async function rollbackUpgrade(rawInput: RollbackUpgradeInput): Promise<R
       );
       if ((updated.rowCount ?? updated.rows.length) < 1) return { ok: false, error: 'invalid_state' };
 
-      await writeOutbox({
+      await writeTenantOutbox({
         client,
         orgId,
         aggregateId: input.migrationId,
         eventType: 'settings.upgrade.rolled_back',
+        aggregateType: 'tenant_migration',
+        appVersion: 'settings-upgrade-orchestration-v1',
         payload: {
           org_id: orgId,
           migration_id: input.migrationId,
@@ -149,25 +152,4 @@ async function requirePermission({
     [userId, orgId, permission],
   );
   if (rows.length === 0) throw FORBIDDEN;
-}
-
-async function writeOutbox({
-  client,
-  orgId,
-  aggregateId,
-  eventType,
-  payload,
-}: {
-  client: QueryClient;
-  orgId: string;
-  aggregateId: string;
-  eventType: string;
-  payload: unknown;
-}): Promise<void> {
-  await client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values ($1::uuid, $2, 'tenant_migration', $3::uuid, $4::jsonb, 'settings-upgrade-orchestration-v1')`,
-    [orgId, eventType, aggregateId, JSON.stringify(payload)],
-  );
 }

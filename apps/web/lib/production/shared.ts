@@ -51,6 +51,7 @@ export type ProductionError =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
+  | 'invalid_state'
   | 'invalid_state_transition'
   | 'concurrent_modification'
   | 'quality_hold_active'
@@ -59,6 +60,7 @@ export type ProductionError =
   // for pre-wave-8 consumers (wo-modal-labels i18n) — do not emit it anew.
   | 'changeover_signoff_required'
   | 'allergen_changeover_required'
+  | 'factory_release_incomplete'
   | 'closed_production_strict_failed'
   | 'insufficient_input_for_output'
   | 'insufficient_lp_quantity'
@@ -76,11 +78,13 @@ export const ERROR_STATUS: Record<ProductionError, number> = {
   invalid_input: 422,
   forbidden: 403,
   not_found: 404,
+  invalid_state: 409,
   invalid_state_transition: 409,
   concurrent_modification: 409,
   quality_hold_active: 409,
   changeover_signoff_required: 409,
   allergen_changeover_required: 409,
+  factory_release_incomplete: 409,
   closed_production_strict_failed: 409,
   insufficient_input_for_output: 409,
   insufficient_lp_quantity: 409,

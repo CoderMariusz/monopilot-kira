@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { writeManufacturingOperationsOutbox } from './_shared/outbox';
+
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
@@ -62,7 +64,7 @@ export async function createManufacturingOperation(rawInput: unknown): Promise<C
           isActive: row.is_active,
         },
       });
-      await writeOutbox(ctx.client, {
+      await writeManufacturingOperationsOutbox(ctx.client, {
         orgId: ctx.orgId,
         eventType: 'manufacturing_operations.created',
         aggregateId: ctx.orgId,
@@ -172,17 +174,5 @@ async function writeAuditLog(
        (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
      values ($1::uuid, $2::uuid, 'user', $3, 'manufacturing_operations', $4, null, $5::jsonb, 'standard')`,
     [params.orgId, params.actorUserId, params.action, params.resourceId, JSON.stringify(params.afterState)],
-  );
-}
-
-async function writeOutbox(
-  client: QueryClient,
-  params: { orgId: string; eventType: string; aggregateId: string; payload: unknown },
-): Promise<void> {
-  await client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values ($1::uuid, $2, 'manufacturing_operations', $3::uuid, $4::jsonb, 'settings-manufacturing-ops-v1')`,
-    [params.orgId, params.eventType, params.aggregateId, JSON.stringify(params.payload)],
   );
 }
