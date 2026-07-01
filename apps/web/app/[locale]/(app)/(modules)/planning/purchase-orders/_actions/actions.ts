@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import { getActiveSiteId, resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
@@ -82,7 +82,7 @@ type PurchaseOrder = {
 };
 
 type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
-type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts';
+type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'no_active_site' | 'ambiguous_site';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
   | { ok: true; data: PurchaseOrder[]; archivedCount: number }
@@ -297,8 +297,14 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
 
   try {
     return await withOrgContext(async ({ client }): Promise<PurchaseOrderListResult> => {
+      // F10 — PO screens are org-wide per the site-selector tooltip ("Filters work
+      // orders, license plates and OEE only — other screens stay org-wide"). The
+      // top-bar site is an OPTIONAL narrowing filter here, never a hard gate: when
+      // it resolves ($5 non-null) the list is scoped to that site, but "All sites"
+      // (null) MUST return every org PO — otherwise a PO created under "All sites"
+      // (site_id NULL) is permanently invisible. So we no longer short-circuit to an
+      // empty list on a null active site.
       const s = await getActiveSiteId({ client });
-      if (!s) return { ok: true, data: [], archivedCount: 0, noActiveSite: true } as PurchaseOrderListResult & { noActiveSite: true };
 
       const { rows } = await (client as QueryClient).query<PurchaseOrderRow>(
         `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
@@ -312,7 +318,7 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
              on ods.org_id = po.org_id
             and ods.doc_type = 'po'
           where po.org_id = app.current_org_id()
-            and po.site_id = $5::uuid
+            and ($5::uuid is null or po.site_id = $5::uuid)
             and ($1::text is null or po.status = $1)
             and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
             and coalesce(
@@ -335,7 +341,7 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
              on ods.org_id = po.org_id
             and ods.doc_type = 'po'
           where po.org_id = app.current_org_id()
-            and po.site_id = $3::uuid
+            and ($3::uuid is null or po.site_id = $3::uuid)
             and ($1::text is null or po.status = $1)
             and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
             and po.status in ('received', 'cancelled')
@@ -387,7 +393,13 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
-      const siteId = await getActiveSiteId({ client });
+      // F10 — never persist site_id=NULL silently. Resolve a concrete site (active
+      // selection -> cookie -> org default -> the org's single active site). If the
+      // org has zero active sites, or >1 with none chosen/default, fail closed with
+      // an actionable error the create modal surfaces (rather than orphaning the PO).
+      const siteResolution = await resolveWriteSiteId(ctx.client);
+      if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
+      const siteId = siteResolution.siteId;
 
       async function insertHeader(poNumber: string) {
         return ctx.client.query<PurchaseOrderRow>(

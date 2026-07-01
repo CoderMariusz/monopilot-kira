@@ -205,7 +205,13 @@ function WoActionModals({
 
   return (
     <>
-      <StartModal open={open === 'start'} {...base} />
+      <StartModal
+        open={open === 'start'}
+        {...base}
+        lines={lines}
+        shifts={shifts}
+        defaultLineId={defaultLineId}
+      />
       <ReleaseModal open={open === 'release'} {...base} />
       <PauseModal
         open={open === 'pause'}

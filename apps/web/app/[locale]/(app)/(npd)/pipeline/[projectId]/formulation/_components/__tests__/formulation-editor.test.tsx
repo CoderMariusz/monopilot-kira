@@ -212,11 +212,17 @@ describe('FormulationEditor — F-D08b currency threading (PLN → zł)', () => 
     expect(screen.getByTestId('total-cost')).not.toHaveTextContent('€');
   });
 
-  it('keeps the EUR default when no currency is passed (back-compat)', () => {
+  // F4 (2026-07-01) — the org standard is GBP (single currency, no FX), so the
+  // default currency is £ and the recipe must NEVER render € or zł by default.
+  it('defaults to the GBP symbol (£) when no currency is passed', () => {
     renderEditor();
     const rows = screen.getAllByTestId('ingredient-row');
-    expect(within(rows[0]).getByTestId('ingredient-contribution')).toHaveTextContent('0.714 €');
-    expect(screen.getByTestId('total-cost')).toHaveTextContent(/€/);
+    expect(within(rows[0]).getByTestId('ingredient-contribution')).toHaveTextContent('0.714 £');
+    expect(within(rows[0]).getByTestId('ingredient-contribution')).not.toHaveTextContent('€');
+    expect(within(rows[0]).getByTestId('ingredient-contribution')).not.toHaveTextContent('zł');
+    expect(screen.getByTestId('total-cost')).toHaveTextContent(/£/);
+    expect(screen.getByTestId('total-cost')).not.toHaveTextContent('€');
+    expect(screen.getByTestId('total-cost')).not.toHaveTextContent('zł');
   });
 });
 

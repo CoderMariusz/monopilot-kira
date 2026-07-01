@@ -191,6 +191,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         not_found: t('errors.not_found'),
         already_exists: t('errors.already_exists'),
         invalid_state: t('errors.invalid_state'),
+        no_active_site: t('create.errors.no_active_site'),
+        ambiguous_site: t('create.errors.ambiguous_site'),
         persistence_failed: t('errors.persistence_failed'),
       },
       picker: {

@@ -213,20 +213,32 @@ describe('WO action payloads (mock fetch)', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it('Start posts { transactionId, lineId, shiftId } to the start route with the locale prefix', async () => {
+  it('Start posts { transactionId, lineId, shiftId } from the line/shift dropdowns (F15)', async () => {
     const captured: { url?: string; body?: any } = {};
     vi.stubGlobal('fetch', mockFetchOk(captured));
-    const user = userEvent.setup();
+    // The design-system Select paints `.select__item` with pointer-events that
+    // jsdom can't compute — disable the pointer-events guard for the option click.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     render(<Harness status="planned" />);
 
     await user.click(screen.getByTestId('wo-action-start'));
-    await user.type(screen.getByTestId('wo-start-line'), 'LINE-A');
-    await user.type(screen.getByTestId('wo-start-shift'), 'SHIFT-1');
+    // F15 — line + shift are now Select comboboxes (not free-text inputs).
+    const lineTrigger = screen.getByTestId('wo-start-line');
+    const shiftTrigger = screen.getByTestId('wo-start-shift');
+    expect(lineTrigger).toHaveAttribute('role', 'combobox');
+    expect(shiftTrigger).toHaveAttribute('role', 'combobox');
+    expect(lineTrigger.tagName).not.toBe('INPUT');
+    // Change line away from its WO default (LINE-1) to LINE-2, pick the afternoon shift.
+    await user.click(lineTrigger);
+    await user.click(screen.getByRole('option', { name: 'L2' }));
+    await user.click(shiftTrigger);
+    await user.click(screen.getByRole('option', { name: 'Afternoon' }));
     await user.click(screen.getByTestId('wo-start-confirm'));
 
     await waitFor(() => expect(captured.url).toBeDefined());
     expect(captured.url).toBe('/en/production/work-orders/11111111-1111-1111-1111-111111111111/start');
-    expect(captured.body).toMatchObject({ lineId: 'LINE-A', shiftId: 'SHIFT-1' });
+    // The line submits the production_line_id (LINE-2); the shift submits its code.
+    expect(captured.body).toMatchObject({ lineId: 'LINE-2', shiftId: 'afternoon' });
     expect(typeof captured.body.transactionId).toBe('string');
     expect(refresh).toHaveBeenCalled();
   });

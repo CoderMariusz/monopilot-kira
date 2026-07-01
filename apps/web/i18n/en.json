@@ -1998,13 +1998,13 @@
       "unitPerBatch": "Per batch",
       "waterfallTitle": "Cost waterfall",
       "colStep": "Step",
-      "colValue": "Value €/kg",
+      "colValue": "Value £/kg",
       "colDelta": "Δ %",
       "marginTitle": "Margin vs target price",
       "colScenario": "Scenario",
       "colTargetPrice": "Target price",
-      "colRevenue": "Revenue €/kg",
-      "colCost": "Cost €/kg",
+      "colRevenue": "Revenue £/kg",
+      "colCost": "Cost £/kg",
       "colMargin": "Margin",
       "colMarginPct": "Margin %",
       "marginWarn": "Margin warn",
@@ -2012,7 +2012,7 @@
       "hardFail": "Margin hard fail",
       "hardFailBody": "Scenario \"{name}\" has a negative margin ({marginPct}%) and cannot be saved.",
       "whatIfTitle": "What-if sliders",
-      "sliderPorkContent": "Raw cost €/kg",
+      "sliderPorkContent": "Raw cost £/kg",
       "sliderYield": "Yield %",
       "sliderTargetPrice": "Margin %",
       "scenarioName": "Scenario name",
@@ -2501,7 +2501,7 @@
       "addIngredient": "Add ingredient",
       "colIngredient": "Ingredient",
       "colQtyPerPack": "Qty / pack (kg)",
-      "colCostPerKg": "€ / kg",
+      "colCostPerKg": "£ / kg",
       "colContribution": "Contrib.",
       "colAllergen": "Allergen",
       "colPct": "%",
@@ -2589,7 +2589,10 @@
       "createDraftError": "Could not create the draft. Try again.",
       "relatedLinksLabel": "Related",
       "linkNutrition": "Nutrition",
-      "linkCosting": "Costing"
+      "linkCosting": "Costing",
+      "picker": {
+        "createItemCta": "Create an item in Technical"
+      }
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -2993,7 +2996,7 @@
       "error": "Unable to load the Procurement section.",
       "forbidden": "You do not have permission to edit the Procurement section.",
       "fields": {
-        "price_per_kg": "Price (€/kg)",
+        "price_per_kg": "Price (£/kg)",
         "lead_time_days": "Lead time (days)",
         "supplier": "Supplier",
         "proc_shelf_life_days": "Proc. shelf life (days)",
@@ -3432,7 +3435,7 @@
       "fieldProductName": "Product name",
       "fieldCategory": "Category",
       "fieldTargetLaunch": "Target launch date",
-      "fieldTargetPrice": "Target retail price (EUR)",
+      "fieldTargetPrice": "Target retail price (GBP)",
       "fieldPackFormat": "Pack format",
       "fieldSalesChannel": "Sales channel",
       "fieldExpectedVolume": "Expected volume",
@@ -3608,7 +3611,7 @@
       "fieldMaterial": "Material",
       "fieldSupplier": "Supplier",
       "fieldSpec": "Spec",
-      "fieldCostUnit": "Cost per unit (€)",
+      "fieldCostUnit": "Cost per unit (£)",
       "fieldStatus": "Status",
       "fieldTier": "Tier",
       "tierPrimary": "Primary",
@@ -3814,7 +3817,7 @@
       "fieldVolume": "Expected weekly volume",
       "fieldVolumePlaceholder": "e.g. 1,200 kg/week",
       "briefTitle": "Brief",
-      "fieldRetailPrice": "Target retail price (EUR)",
+      "fieldRetailPrice": "Target retail price (GBP)",
       "fieldAudience": "Target audience",
       "fieldAudiencePlaceholder": "e.g. Premium retail — Carrefour, Auchan PL",
       "fieldClaims": "Marketing claims",
@@ -4597,7 +4600,7 @@
           "name": "Name",
           "type": "Type",
           "uom": "UoM",
-          "costPerKg": "Cost / kg (zł)",
+          "costPerKg": "Cost / kg (£)",
           "allergens": "Allergens",
           "boms": "BOMs",
           "updated": "Updated",
@@ -7349,7 +7352,7 @@
       },
       "pendingPos": {
         "label": "Pending POs",
-        "hint": "Purchasing not live yet"
+        "hint": "Open purchase orders"
       },
       "lowStock": {
         "label": "Low Stock Alerts",
@@ -7632,7 +7635,9 @@
         "selectedProduct": "Selected product",
         "errors": {
           "productRequired": "Select a finished-good product.",
-          "quantityRequired": "Enter a positive quantity (up to 3 decimals)."
+          "quantityRequired": "Enter a positive quantity (up to 3 decimals).",
+          "no_active_site": "Select a site before creating a work order. This organisation has no active site yet — add one in Settings → Sites.",
+          "ambiguous_site": "Select a site in the top bar before creating a work order."
         },
         "noBomWarning": "Work order created, but the product has no active BOM — no materials were generated.",
         "quantityUom": {
@@ -7976,7 +7981,9 @@
           "not_found": "The selected supplier or item no longer exists.",
           "already_exists": "A purchase order with that number already exists.",
           "invalid_state": "That action isn't allowed right now.",
-          "persistence_failed": "Something went wrong saving. Please retry."
+          "persistence_failed": "Something went wrong saving. Please retry.",
+          "no_active_site": "Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.",
+          "ambiguous_site": "Select a site in the top bar before creating a purchase order."
         },
         "picker": {
           "trigger": "+ Add item",

@@ -104,7 +104,7 @@ const DEFAULT_LABELS: PackagingLabels = {
   fieldMaterial: 'Material',
   fieldSupplier: 'Supplier',
   fieldSpec: 'Spec',
-  fieldCostUnit: 'Cost per unit (€)',
+  fieldCostUnit: 'Cost per unit (£)',
   fieldScrapPct: 'Scrap %',
   fieldStatus: 'Status',
   fieldTier: 'Tier',

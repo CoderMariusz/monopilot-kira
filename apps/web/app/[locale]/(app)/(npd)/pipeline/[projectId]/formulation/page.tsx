@@ -155,7 +155,7 @@ const DEFAULT_LABELS: FormulationLabels = {
   addIngredient: 'Add ingredient',
   colIngredient: 'Ingredient',
   colQtyPerPack: 'Qty / pack (kg)',
-  colCostPerKg: '€ / kg',
+  colCostPerKg: '£ / kg',
   colContribution: 'Contrib.',
   colAllergen: 'Allergen',
   deleteRow: 'Delete ingredient',
@@ -200,6 +200,7 @@ const DEFAULT_LABELS: FormulationLabels = {
     empty: 'No matching items',
     cancel: 'Cancel',
     error: 'Item search failed',
+    createItemCta: 'Create an item in Technical',
   },
 };
 
@@ -220,6 +221,16 @@ function translateLabel(t: (key: string) => string, key: ScalarLabelKey): string
   }
 }
 
+/** Translate a nested picker key (e.g. `picker.createItemCta`) with a fallback. */
+function translatePickerKey(t: (key: string) => string, key: string, fallback: string): string {
+  try {
+    const value = t(key);
+    return value === key ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
 async function buildLabels(locale: string): Promise<FormulationLabels> {
   try {
     const t = await getTranslations({ locale, namespace: 'npd.formulationEditor' });
@@ -230,7 +241,18 @@ async function buildLabels(locale: string): Promise<FormulationLabels> {
       },
       {} as Record<ScalarLabelKey, string>,
     );
-    return { ...(scalar as Omit<FormulationLabels, 'picker'>), picker: { ...DEFAULT_LABELS.picker } };
+    // The picker sub-bundle keeps its English defaults, but the F6 empty-state
+    // CTA (link into Technical → Items) is user-facing copy, so translate that
+    // one string on the same namespace (falls back to the English default).
+    const createItemCta = translatePickerKey(
+      t,
+      'picker.createItemCta',
+      DEFAULT_LABELS.picker.createItemCta ?? 'Create an item in Technical',
+    );
+    return {
+      ...(scalar as Omit<FormulationLabels, 'picker'>),
+      picker: { ...DEFAULT_LABELS.picker, createItemCta },
+    };
   } catch {
     return { ...DEFAULT_LABELS };
   }
@@ -640,7 +662,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       nutritionTargets={NUTRITION_TARGETS}
       allergenNames={allergenNames}
       allergenReference={loaded.allergenReference}
-      currency="EUR"
+      currency="GBP"
       canEdit={loaded.canEdit}
       submitAllowed={loaded.submitAllowed}
       saveDraftAction={saveDraft}

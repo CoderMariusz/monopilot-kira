@@ -13,7 +13,9 @@
  *   completed    → close, cancel, output, waste
  *   closed       → (terminal)
  *   cancelled    → (terminal)
- *   null (no execution row yet) → not directly startable; release in Planning first.
+ *   null (no execution row yet) → startable ONLY when the Planning header status is
+ *     RELEASED (the list materializes that same RELEASED → `planned` and offers
+ *     Start, so the detail must too — F13); a DRAFT WO must be released first.
  */
 
 import type { WoActionKind, WoActionPermissions, WoState } from './types';
@@ -32,7 +34,13 @@ export function isActionAvailable(
     case 'release':
       return normalizeWorkOrderStatus(workOrderStatus) === 'DRAFT';
     case 'start':
-      return status !== null && s === 'planned';
+      // Start is legal while the WO is planned AND not yet running. A validly
+      // RELEASED work order with no execution row yet (status === null) IS startable
+      // — the LIST materializes that same RELEASED state to `planned` and offers
+      // Start, so the DETAIL must too (F13). Key off the Planning header status
+      // (RELEASED) when there is no runtime row, and off the runtime status
+      // (`planned`) once one exists. A DRAFT WO (null + not RELEASED) stays blocked.
+      return s === 'planned' && (status !== null || normalizeWorkOrderStatus(workOrderStatus) === 'RELEASED');
     case 'pause':
       return s === 'in_progress';
     case 'resume':

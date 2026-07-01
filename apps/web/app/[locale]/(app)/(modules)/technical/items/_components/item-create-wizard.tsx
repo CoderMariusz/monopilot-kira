@@ -555,33 +555,20 @@ export function ItemWizard({
         return;
       }
 
+      // CREATE mode is a SINGLE atomic write: createItem itself creates the
+      // approved+active supplier_specs row (with unit_price from the wizard's
+      // supplier price) inside the same transaction when supplierCode is set. We
+      // must NOT fire a second createItemSupplierSpec here — that redundant
+      // post-success sub-step ran in a NEW transaction after the item already
+      // committed, and any failure surfaced a false generic error while the item +
+      // spec had actually persisted (user retried → duplicate item-code). The
+      // supplier link is now part of the create payload only.
       const result = await createItem({
         itemCode: form.itemCode,
         ...common,
         ...(supplierCode ? { supplierCode } : {}),
       });
       if (result.ok) {
-        if (supplierCode) {
-          const supplierId = supplierIdByCode[supplierCode];
-          if (!supplierId) {
-            setError(labels.actionErrors.invalid_input);
-            return;
-          }
-          const specResult = await createItemSupplierSpec({
-            itemCode: form.itemCode,
-            supplierId,
-            unitPrice: form.listPriceGbp || undefined,
-            priceCurrency: 'GBP',
-            approveNow: true,
-          });
-          if (!specResult.ok) {
-            setError(
-              labels.actionErrors[specResult.error as ItemsActionError] ??
-                labels.actionErrors.persistence_failed,
-            );
-            return;
-          }
-        }
         onClose();
         onSaved?.();
         router.refresh();

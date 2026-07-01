@@ -2295,7 +2295,7 @@
           "name": "Name",
           "type": "Type",
           "uom": "UoM",
-          "costPerKg": "Cost / kg (zł)",
+          "costPerKg": "Cost / kg (£)",
           "allergens": "Allergens",
           "boms": "BOMs",
           "updated": "Updated",
@@ -4312,13 +4312,13 @@
       "unitPerBatch": "Pe lot",
       "waterfallTitle": "Cascada costurilor",
       "colStep": "Pas",
-      "colValue": "Valoare €/kg",
+      "colValue": "Valoare £/kg",
       "colDelta": "Δ %",
       "marginTitle": "Marjă față de prețul țintă",
       "colScenario": "Scenariu",
       "colTargetPrice": "Preț țintă",
-      "colRevenue": "Venit €/kg",
-      "colCost": "Cost €/kg",
+      "colRevenue": "Venit £/kg",
+      "colCost": "Cost £/kg",
       "colMargin": "Marjă",
       "colMarginPct": "Marjă %",
       "marginWarn": "Avertisment de marjă",
@@ -4326,7 +4326,7 @@
       "hardFail": "Eșec critic de marjă",
       "hardFailBody": "Scenariul „{name}” are o marjă negativă ({marginPct}%) și nu poate fi salvat.",
       "whatIfTitle": "Glisoare de simulare",
-      "sliderPorkContent": "Cost materie primă €/kg",
+      "sliderPorkContent": "Cost materie primă £/kg",
       "sliderYield": "Randament %",
       "sliderTargetPrice": "Marjă %",
       "scenarioName": "Nume scenariu",
@@ -4816,7 +4816,7 @@
       "addVersion": "Add version",
       "colIngredient": "Ingredient",
       "colPct": "% m/m",
-      "colCostPerKg": "€ / kg",
+      "colCostPerKg": "£ / kg",
       "colContribution": "Contrib.",
       "colAllergen": "Alergen",
       "deleteRow": "Șterge ingredientul",
@@ -4903,7 +4903,10 @@
       "createDraftError": "Could not create the draft. Try again.",
       "relatedLinksLabel": "Related",
       "linkNutrition": "Nutrition",
-      "linkCosting": "Costing"
+      "linkCosting": "Costing",
+      "picker": {
+        "createItemCta": "Create an item in Technical"
+      }
     },
     "costPanel": {
       "title": "Cost și marjă",
@@ -5280,7 +5283,7 @@
       "error": "Secțiunea aprovizionare nu a putut fi încărcată.",
       "forbidden": "Nu aveți permisiunea de a edita secțiunea aprovizionare.",
       "fields": {
-        "price_per_kg": "Preț (€/kg)",
+        "price_per_kg": "Preț (£/kg)",
         "lead_time_days": "Termen de livrare (zile)",
         "supplier": "Furnizor",
         "proc_shelf_life_days": "Termen valabilitate aprovizionare (zile)",
@@ -5703,7 +5706,7 @@
       "fieldProductName": "Nume produs",
       "fieldCategory": "Categorie",
       "fieldTargetLaunch": "Data țintă de lansare",
-      "fieldTargetPrice": "Preț de raft țintă (EUR)",
+      "fieldTargetPrice": "Preț de raft țintă (GBP)",
       "fieldPackFormat": "Format ambalaj",
       "fieldSalesChannel": "Canal de vânzare",
       "fieldExpectedVolume": "Volum estimat",
@@ -5879,7 +5882,7 @@
       "fieldMaterial": "Material",
       "fieldSupplier": "Furnizor",
       "fieldSpec": "Specificație",
-      "fieldCostUnit": "Cost pe unitate (€)",
+      "fieldCostUnit": "Cost pe unitate (£)",
       "fieldStatus": "Stare",
       "fieldTier": "Nivel",
       "tierPrimary": "Primar",
@@ -6085,7 +6088,7 @@
       "fieldVolume": "Volum săptămânal estimat",
       "fieldVolumePlaceholder": "ex. 1.200 kg/săptămână",
       "briefTitle": "Brief",
-      "fieldRetailPrice": "Preț de raft țintă (EUR)",
+      "fieldRetailPrice": "Preț de raft țintă (GBP)",
       "fieldAudience": "Public țintă",
       "fieldAudiencePlaceholder": "ex. Retail premium — Carrefour, Auchan PL",
       "fieldClaims": "Mențiuni de marketing",
@@ -6376,7 +6379,7 @@
       },
       "pendingPos": {
         "label": "Pending POs",
-        "hint": "Purchasing not live yet"
+        "hint": "Open purchase orders"
       },
       "lowStock": {
         "label": "Low Stock Alerts",
@@ -6659,7 +6662,9 @@
         "selectedProduct": "Selected product",
         "errors": {
           "productRequired": "Select a finished-good product.",
-          "quantityRequired": "Enter a positive quantity (up to 3 decimals)."
+          "quantityRequired": "Enter a positive quantity (up to 3 decimals).",
+          "no_active_site": "Select a site before creating a work order. This organisation has no active site yet — add one in Settings → Sites.",
+          "ambiguous_site": "Select a site in the top bar before creating a work order."
         },
         "noBomWarning": "Work order created, but the product has no active BOM — no materials were generated.",
         "quantityUom": {
@@ -7000,7 +7005,9 @@
           "not_found": "The selected supplier or item no longer exists.",
           "already_exists": "A purchase order with that number already exists.",
           "invalid_state": "That action isn't allowed right now.",
-          "persistence_failed": "Something went wrong saving. Please retry."
+          "persistence_failed": "Something went wrong saving. Please retry.",
+          "no_active_site": "Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.",
+          "ambiguous_site": "Select a site in the top bar before creating a purchase order."
         },
         "picker": {
           "trigger": "+ Add item",

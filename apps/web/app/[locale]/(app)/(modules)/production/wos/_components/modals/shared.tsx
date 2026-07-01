@@ -14,6 +14,7 @@ import Modal from '@monopilot/ui/Modal';
 import Input from '@monopilot/ui/Input';
 import Textarea from '@monopilot/ui/Textarea';
 import { Button } from '@monopilot/ui/Button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import { freshTransactionId } from './use-wo-action';
 import type {
@@ -127,8 +128,31 @@ export function ReleaseModal({ open, labels, run, onClose }: BaseModalProps) {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
-export function StartModal({ open, woId, labels, run, onClose }: BaseModalProps) {
-  const [lineId, setLineId] = useState('');
+export function StartModal({
+  open,
+  woId,
+  labels,
+  run,
+  onClose,
+  lines = [],
+  shifts = [],
+  defaultLineId = null,
+}: BaseModalProps & {
+  /** F15 — org production lines for the Line dropdown (empty ⇒ free-text fallback). */
+  lines?: WoLineOption[];
+  /** F15 — shift options for the Shift dropdown (empty ⇒ free-text fallback). */
+  shifts?: WoShiftOption[];
+  /** WO's assigned line id — preselected in the Line dropdown when a known option. */
+  defaultLineId?: string | null;
+}) {
+  // Line/Shift stay OPTIONAL on Start (unlike Pause). When the org has lines/shifts
+  // configured we render <Select> pickers (F15) — line defaults to the WO's assigned
+  // line when it is a known option; otherwise the field degrades to a free-text Input.
+  const hasLineOptions = lines.length > 0;
+  const hasShiftOptions = shifts.length > 0;
+  const [lineId, setLineId] = useState(
+    defaultLineId && lines.some((l) => l.id === defaultLineId) ? defaultLineId : '',
+  );
   const [shiftId, setShiftId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +174,7 @@ export function StartModal({ open, woId, labels, run, onClose }: BaseModalProps)
     }
   }
   function reset() {
-    setLineId('');
+    setLineId(defaultLineId && lines.some((l) => l.id === defaultLineId) ? defaultLineId : '');
     setShiftId('');
     setError(null);
   }
@@ -163,10 +187,50 @@ export function StartModal({ open, woId, labels, run, onClose }: BaseModalProps)
         {error ? <ErrorBanner message={error} testid="wo-start-error" /> : null}
         <div className="space-y-3">
           <FieldRow id="wo-start-line" label={`${labels.start.line} (${labels.start.optional})`}>
-            <Input id="wo-start-line" value={lineId} disabled={busy} onChange={(e) => setLineId(e.target.value)} data-testid="wo-start-line" />
+            {hasLineOptions ? (
+              <Select
+                value={lineId}
+                onValueChange={setLineId}
+                options={lines.map((l) => ({ value: l.id, label: l.code }))}
+                aria-label={labels.start.line}
+              >
+                <SelectTrigger id="wo-start-line" data-testid="wo-start-line">
+                  <SelectValue placeholder={labels.start.linePlaceholder ?? labels.start.line} />
+                </SelectTrigger>
+                <SelectContent>
+                  {lines.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input id="wo-start-line" value={lineId} disabled={busy} onChange={(e) => setLineId(e.target.value)} data-testid="wo-start-line" />
+            )}
           </FieldRow>
           <FieldRow id="wo-start-shift" label={`${labels.start.shift} (${labels.start.optional})`}>
-            <Input id="wo-start-shift" value={shiftId} disabled={busy} onChange={(e) => setShiftId(e.target.value)} data-testid="wo-start-shift" />
+            {hasShiftOptions ? (
+              <Select
+                value={shiftId}
+                onValueChange={setShiftId}
+                options={shifts.map((s) => ({ value: s.code, label: shiftLabel(labels, s) }))}
+                aria-label={labels.start.shift}
+              >
+                <SelectTrigger id="wo-start-shift" data-testid="wo-start-shift">
+                  <SelectValue placeholder={labels.start.shiftPlaceholder ?? labels.start.shift} />
+                </SelectTrigger>
+                <SelectContent>
+                  {shifts.map((s) => (
+                    <SelectItem key={s.code} value={s.code}>
+                      {shiftLabel(labels, s)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input id="wo-start-shift" value={shiftId} disabled={busy} onChange={(e) => setShiftId(e.target.value)} data-testid="wo-start-shift" />
+            )}
           </FieldRow>
         </div>
       </Modal.Body>

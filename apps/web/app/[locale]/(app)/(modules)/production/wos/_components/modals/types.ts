@@ -84,7 +84,21 @@ export type WoModalLabels = {
   /** Generic fallback for an unmapped/unknown error code. */
   errorFallback: string;
 
-  start: { title: string; subtitle: string; line: string; shift: string; optional: string };
+  start: {
+    title: string;
+    subtitle: string;
+    line: string;
+    shift: string;
+    optional: string;
+    /**
+     * F15 — placeholders for the line/shift <Select> dropdowns. OPTIONAL so older
+     * label fixtures still type-check; the page/buildWoModalLabels supplies them
+     * (falling back to the Pause equivalents' copy). When the org has no lines/shifts
+     * the modal degrades to a free-text Input, so these may be absent.
+     */
+    linePlaceholder?: string;
+    shiftPlaceholder?: string;
+  };
   pause: {
     title: string;
     subtitle: string;

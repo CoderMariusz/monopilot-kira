@@ -8,9 +8,11 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 const BOM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SPEC_ID = '99999999-9999-4999-8999-999999999999';
+const SITE_ID = '88888888-8888-4888-8888-888888888888';
 
 let client: QueryClient;
 let allowPermission = true;
+let hasActiveSite = true;
 let hasBom = true;
 let bomLineBasis = 'per_base';
 let hasRouting = true;
@@ -37,6 +39,11 @@ function makeClient(): QueryClient {
       const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      // F10 — resolveWriteSiteId reads public.sites (default lookup + single-active
+      // fallback). A single active/default site makes the write-site unambiguous.
+      if (normalized.includes('from public.sites')) {
+        return { rows: hasActiveSite ? [{ id: SITE_ID }] : [], rowCount: hasActiveSite ? 1 : 0 };
       }
       if (normalized.startsWith('update public.org_document_settings')) {
         return {
@@ -143,6 +150,7 @@ function makeClient(): QueryClient {
 describe('createWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
+    hasActiveSite = true;
     hasBom = true;
     bomLineBasis = 'per_base';
     hasRouting = true;
@@ -326,5 +334,29 @@ describe('createWorkOrder', () => {
       ok: false,
       error: 'forbidden',
     });
+  });
+
+  it('F10: persists the resolved site_id (never null) on the WO header', async () => {
+    const result = await createWorkOrder({ productId: PRODUCT_ID, itemCode: 'FG-NPD-004', plannedQuantity: '1000.000' });
+
+    expect(result.ok).toBe(true);
+    const headerCall = (client.query as ReturnType<typeof vi.fn>).mock.calls.find(([sql]: [string]) =>
+      String(sql).replace(/\s+/g, ' ').toLowerCase().startsWith('insert into public.work_orders'),
+    );
+    expect(headerCall).toBeDefined();
+    const [, params] = headerCall as [string, readonly unknown[]];
+    // site_id is the 17th bind ($17::uuid) — must be the resolved SITE_ID, not null.
+    expect(params[16]).toBe(SITE_ID);
+  });
+
+  it('F10: refuses to create with no_active_site instead of writing a null-site WO (fail-closed)', async () => {
+    hasActiveSite = false;
+
+    const result = await createWorkOrder({ productId: PRODUCT_ID, itemCode: 'FG-NPD-004', plannedQuantity: '1000.000' });
+
+    expect(result).toEqual({ ok: false, error: 'no_active_site' });
+    // No WO header insert may have happened (no orphaned null-site WO).
+    const calls = (client.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]: [string]) => String(sql));
+    expect(calls.some((sql: string) => sql.includes('insert into public.work_orders'))).toBe(false);
   });
 });

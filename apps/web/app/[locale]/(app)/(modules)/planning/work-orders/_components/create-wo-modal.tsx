@@ -116,6 +116,10 @@ export type CreateWoLabels = {
      * case here).
      */
     pack_hierarchy_incomplete?: string;
+    /** F10 — no resolvable site for the write (org has 0 active sites). */
+    no_active_site?: string;
+    /** F10 — >1 active site, none chosen/default; operator must pick one. */
+    ambiguous_site?: string;
   };
   noBomWarning: string;
   /** P0-UOM — surfaced when createWorkOrder warns the FG has no approved factory spec. */

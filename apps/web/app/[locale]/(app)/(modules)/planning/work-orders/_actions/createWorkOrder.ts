@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
-import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
 import {
   APP_VERSION,
@@ -51,10 +51,17 @@ export async function createWorkOrder(params: {
       if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const input = parsed.data;
+      // F10 (sibling of the PO null-site loss) — never persist site_id=NULL
+      // silently. Resolve a concrete site (active selection -> cookie -> org
+      // default -> the org's single active site) BEFORE any write; fail closed
+      // with an actionable error when the org has 0 active sites or >1 with none
+      // chosen/default, so a "All sites" user never orphans a WO.
+      const siteResolution = await resolveWriteSiteId(ctx.client);
+      if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
+      const siteId = siteResolution.siteId;
       const woId = randomUUID();
       // Replaces the old WO-<timestamp>-<uuid8> local composition with org-configured numbering.
       const woNumber = await nextDocumentNumber(ctx.client, ctx.orgId, 'wo', new Date());
-      const siteId = await getActiveSiteId({ client: ctx.client });
 
       const itemUomResult = await ctx.client.query<ItemUomRow>(
         `select output_uom, uom_base, net_qty_per_each::text as net_qty_per_each,

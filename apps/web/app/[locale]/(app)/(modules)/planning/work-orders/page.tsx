@@ -196,6 +196,16 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
           'errors.uom_conversion_unavailable',
           'This product is missing the pack data needed to convert units — set it in Technical.',
         ),
+        // F10 — a WO write with no resolvable site fails closed instead of
+        // persisting site_id=NULL; surface the actionable reason.
+        no_active_site: opt(
+          'create.errors.no_active_site',
+          'Select a site before creating a work order. This organisation has no active site yet — add one in Settings → Sites.',
+        ),
+        ambiguous_site: opt(
+          'create.errors.ambiguous_site',
+          'Select a site in the top bar before creating a work order.',
+        ),
       },
       noBomWarning: t('create.noBomWarning'),
       noFactorySpecWarning: opt(

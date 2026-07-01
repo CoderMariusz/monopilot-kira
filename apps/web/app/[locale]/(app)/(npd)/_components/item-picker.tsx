@@ -20,6 +20,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { createPortal } from 'react-dom';
 
 import { Button } from '@monopilot/ui/Button';
@@ -39,6 +40,12 @@ export type ItemPickerLabels = {
   cancel: string;
   /** Error toast text when the search action throws. */
   error: string;
+  /**
+   * F6 — optional empty-state CTA text (e.g. "Create an item in Technical").
+   * When set together with `createItemHref`, the "no matching items" state
+   * renders a link so a fresh-org user with an empty library isn't dead-ended.
+   */
+  createItemCta?: string;
 };
 
 export type SearchableItemType = 'fg' | 'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'byproduct' | 'packaging';
@@ -61,6 +68,7 @@ const DEFAULT_PICKER_LABELS: ItemPickerLabels = {
   empty: 'No matching items',
   cancel: 'Cancel',
   error: 'Item search failed',
+  createItemCta: 'Create an item in Technical',
 };
 
 export function ItemPicker<TItemType extends SearchableItemType = ComponentItemType>({
@@ -70,6 +78,7 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
   itemTypes,
   disabled = false,
   triggerClassName,
+  createItemHref,
 }: {
   labels?: ItemPickerLabels;
   /** Called with the chosen real item; the caller persists item_id + code. */
@@ -79,6 +88,13 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
   itemTypes?: TItemType[];
   disabled?: boolean;
   triggerClassName?: string;
+  /**
+   * F6 — optional target for the empty-state "create an item" CTA (e.g.
+   * `/technical/items?modal=create`). When provided, the "no matching items"
+   * state offers a link so an empty-library user can self-serve rather than
+   * hitting a Cancel-only dead-end.
+   */
+  createItemHref?: string;
 }) {
   const labels: ItemPickerLabels = { ...DEFAULT_PICKER_LABELS, ...labelsProp };
 
@@ -280,7 +296,21 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
               </li>
             ) : options.length === 0 ? (
               <li className="px-2 py-2 text-xs text-slate-500" data-testid="item-picker-empty">
-                {labels.empty}
+                <span>{labels.empty}</span>
+                {/* F6 — self-serve escape hatch. When the caller supplies a
+                    create-item target (Technical → Items), offer it inline so a
+                    fresh-org user with an empty library isn't stuck at a
+                    Cancel-only dead-end. */}
+                {createItemHref ? (
+                  <Link
+                    href={createItemHref}
+                    prefetch={false}
+                    data-testid="item-picker-create-link"
+                    className="mt-1 block font-medium text-blue-600 underline-offset-4 hover:underline"
+                  >
+                    {labels.createItemCta ?? DEFAULT_PICKER_LABELS.createItemCta}
+                  </Link>
+                ) : null}
               </li>
             ) : (
               options.map((item, idx) => (

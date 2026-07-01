@@ -57,7 +57,7 @@ const DEFAULT_LABELS: WizardLabels = {
   fieldVolume: 'Expected weekly volume',
   fieldVolumePlaceholder: 'e.g. 1,200 kg/week',
   briefTitle: 'Brief',
-  fieldRetailPrice: 'Target retail price (EUR)',
+  fieldRetailPrice: 'Target retail price (GBP)',
   fieldAudience: 'Target audience',
   fieldAudiencePlaceholder: 'e.g. Premium retail — Carrefour, Auchan PL',
   fieldClaims: 'Marketing claims',

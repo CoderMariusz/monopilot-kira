@@ -755,7 +755,7 @@ export function CreateProjectWizard({
               </tr>
               <tr>
                 <td className="muted">{labels.reviewPrice}</td>
-                <td>€{form.targetRetailPriceEur.trim() || labels.empty}</td>
+                <td>£{form.targetRetailPriceEur.trim() || labels.empty}</td>
               </tr>
               <tr>
                 <td className="muted">{labels.reviewChannelVolume}</td>

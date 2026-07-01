@@ -29,8 +29,11 @@ const QUICK_ACTIONS: Array<{
   variant: "primary" | "secondary";
   requires?: QuickActionGate;
 }> = [
-  { key: "createWo", route: "/planning", variant: "primary", requires: "planningWrite" },
-  { key: "createPo", route: "/planning", variant: "primary", requires: "planningWrite" },
+  // F2 — deep-link straight to the specific create modal (both list pages honour
+  // `?new=1`, see planning/{work,purchase}-orders/page.tsx) instead of dropping
+  // the user on the generic /planning landing page.
+  { key: "createWo", route: "/planning/work-orders?new=1", variant: "primary", requires: "planningWrite" },
+  { key: "createPo", route: "/planning/purchase-orders?new=1", variant: "primary", requires: "planningWrite" },
   { key: "receive", route: "/warehouse", variant: "secondary" },
   { key: "qualityCheck", route: "/quality", variant: "secondary" },
   { key: "createShipment", route: "/shipping", variant: "secondary" },

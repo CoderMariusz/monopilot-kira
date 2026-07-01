@@ -86,7 +86,7 @@ export type CostPanelLabels = {
   forbidden: string;
 };
 
-/** ISO-4217 → display symbol. Default currency is EUR (never hardcoded inline). */
+/** ISO-4217 → display symbol. Default currency is GBP (never hardcoded inline). */
 const CURRENCY_SYMBOLS: Record<string, string> = {
   EUR: '€',
   GBP: '£',
@@ -228,7 +228,7 @@ export function CostPanel({
   processingPct,
   onProcessingChange,
   labels,
-  currency = 'EUR',
+  currency = 'GBP',
   includePackaging = true,
 }: {
   state?: CostPanelState;
@@ -244,7 +244,7 @@ export function CostPanel({
   processingPct?: string;
   onProcessingChange?: (value: string) => void;
   labels: CostPanelLabels;
-  /** ISO-4217 currency code; default EUR (never hardcode the symbol). */
+  /** ISO-4217 currency code; default GBP (org single currency, no FX). */
   currency?: string;
   /**
    * Costing v2: packaging is NOT part of the recipe — at the recipe stage the

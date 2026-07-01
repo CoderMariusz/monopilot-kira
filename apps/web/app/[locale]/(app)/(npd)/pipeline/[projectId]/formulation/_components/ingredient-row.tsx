@@ -106,7 +106,7 @@ export function IngredientRow({
   disabled,
   error,
   searchItemsAction,
-  currency = 'EUR',
+  currency = 'GBP',
   onChange,
   onSelectItem,
   onCommit,
@@ -121,8 +121,8 @@ export function IngredientRow({
   searchItemsAction: ItemSearchFn;
   /**
    * F-D08b — ISO-4217 currency code for the contribution cell (same map as
-   * CostPanel: PLN → zł). Optional with the EUR default for back-compat; the
-   * formulation editor threads its own `currency` prop through.
+   * CostPanel: PLN → zł). Optional with the GBP default (org single currency,
+   * no FX); the formulation editor threads its own `currency` prop through.
    */
   currency?: string;
   onChange: (index: number, field: IngredientField, value: string) => void;
@@ -179,6 +179,11 @@ export function IngredientRow({
             disabled={disabled}
             triggerClassName="btn-ghost btn-sm"
             onSelect={(item) => onSelectItem(index, item)}
+            /* F6 — on a fresh org the raw-material library is empty, so the
+               picker's "no matching items" state is a Cancel-only dead-end.
+               Point the user to Technical → Items (create wizard auto-opens via
+               ?modal=create) so they can self-serve the recipe stage. */
+            createItemHref="/technical/items?modal=create"
           />
         </div>
         {ingredient.name ? (

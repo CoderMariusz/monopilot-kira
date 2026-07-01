@@ -23,8 +23,9 @@ let generatedSeq = 7;
 let failNextAutoInsert = false;
 let currentStatus = 'draft';
 
-const { getActiveSiteIdMock } = vi.hoisted(() => ({
+const { getActiveSiteIdMock, resolveWriteSiteIdMock } = vi.hoisted(() => ({
   getActiveSiteIdMock: vi.fn(),
+  resolveWriteSiteIdMock: vi.fn(),
 }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -35,6 +36,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: getActiveSiteIdMock,
+  resolveWriteSiteId: resolveWriteSiteIdMock,
 }));
 
 function header(overrides: Partial<Record<string, unknown>> = {}) {
@@ -126,6 +128,7 @@ describe('planning purchase order actions', () => {
     failNextAutoInsert = false;
     currentStatus = 'draft';
     getActiveSiteIdMock.mockResolvedValue(SITE_ID);
+    resolveWriteSiteIdMock.mockResolvedValue({ ok: true, siteId: SITE_ID });
     client = makeClient();
   });
 
@@ -147,24 +150,33 @@ describe('planning purchase order actions', () => {
     expect(listCalls[2]?.[1]).toEqual([null, null, 100, true, SITE_ID]);
   });
 
-  it('includes po.site_id = $5::uuid in the list SELECT when a site is active', async () => {
+  it('narrows the list SELECT to the active site (optional predicate) when a site is active', async () => {
     await listPurchaseOrders({ status: 'draft' });
 
     const mainCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
       String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit'),
     );
-    expect(mainCall?.[0]).toContain('po.site_id = $5::uuid');
+    // F10 — the site predicate is now an OPTIONAL narrowing filter, not a hard gate.
+    expect(mainCall?.[0]).toContain('($5::uuid is null or po.site_id = $5::uuid)');
     expect(mainCall?.[1]).toEqual(['draft', null, 100, false, SITE_ID]);
   });
 
-  it('returns noActiveSite:true with an empty list and does NOT run any query when getActiveSiteId resolves null', async () => {
+  it('F10: lists ORG-WIDE (site bind = null) when no site is active, instead of returning an empty list', async () => {
     getActiveSiteIdMock.mockResolvedValue(null);
 
     const result = await listPurchaseOrders({ status: 'draft' });
 
-    expect(result).toEqual({ ok: true, data: [], archivedCount: 0, noActiveSite: true });
-    // No SELECT/INSERT/UPDATE queries should have been issued.
-    expect(client.query).not.toHaveBeenCalled();
+    // PO screens stay org-wide per the site-selector tooltip: "All sites" must
+    // return every org PO — including ones created with site_id=NULL — never an
+    // empty list. The main SELECT MUST still run, bound with a null site.
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect((result as { noActiveSite?: boolean }).noActiveSite).toBeUndefined();
+    const mainCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit'),
+    );
+    expect(mainCall).toBeDefined();
+    expect(mainCall?.[1]).toEqual(['draft', null, 100, false, null]);
   });
 
   it('gets purchase order detail with ordered lines', async () => {
@@ -190,6 +202,49 @@ describe('planning purchase order actions', () => {
     expect(calls.some((sql) => sql.includes('insert into public.audit_events'))).toBe(true);
   });
 
+  it('F10: refuses to create with no_active_site instead of writing a null-site PO (fail-closed)', async () => {
+    // resolveWriteSiteId reports the org has no resolvable/active site.
+    resolveWriteSiteIdMock.mockResolvedValue({ ok: false, reason: 'no_active_site' });
+
+    const result = await createPurchaseOrder({
+      poNumber: 'PO-TEST-NOSITE',
+      supplierId: SUPPLIER_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'no_active_site' });
+    // No PO header/line insert may have happened (no orphaned null-site PO).
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.includes('insert into public.purchase_orders'))).toBe(false);
+    expect(calls.some((sql) => sql.includes('insert into public.purchase_order_lines'))).toBe(false);
+  });
+
+  it('F10: surfaces ambiguous_site when >1 active site and none chosen/default', async () => {
+    resolveWriteSiteIdMock.mockResolvedValue({ ok: false, reason: 'ambiguous_site' });
+
+    const result = await createPurchaseOrder({
+      supplierId: SUPPLIER_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'ambiguous_site' });
+  });
+
+  it('F10: persists the resolved site_id (never null) on the PO header', async () => {
+    const result = await createPurchaseOrder({
+      poNumber: 'PO-TEST-SITE',
+      supplierId: SUPPLIER_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    const insertHeaderCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).includes('insert into public.purchase_orders'));
+    // site_id is the 9th bind ($9::uuid) — must be the resolved SITE_ID, not null.
+    expect(insertHeaderCall?.[1]?.[8]).toBe(SITE_ID);
+  });
+
   it('accepts and persists destination_warehouse_id when creating a purchase order', async () => {
     const result = await createPurchaseOrder({
       poNumber: 'PO-TEST-DEST',
@@ -203,15 +258,18 @@ describe('planning purchase order actions', () => {
       .mocked(client.query)
       .mock.calls.find(([sql]) => String(sql).includes('insert into public.purchase_orders'));
     expect(insertHeaderCall?.[0]).toContain('destination_warehouse_id');
+    // currency defaults to GBP (single-currency org); site_id is the 9th bind
+    // ($9::uuid) and must be the resolved site, never null (F10).
     expect(insertHeaderCall?.[1]).toEqual([
       'PO-TEST-DEST',
       SUPPLIER_ID,
       DESTINATION_WAREHOUSE_ID,
       'draft',
       null,
-      'EUR',
+      'GBP',
       null,
       USER_ID,
+      SITE_ID,
     ]);
   });
 

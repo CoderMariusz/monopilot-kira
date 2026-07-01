@@ -2295,7 +2295,7 @@
           "name": "Nazwa",
           "type": "Typ",
           "uom": "JM",
-          "costPerKg": "Koszt / kg (zł)",
+          "costPerKg": "Koszt / kg (£)",
           "allergens": "Alergeny",
           "boms": "BOM-y",
           "updated": "Aktualizacja",
@@ -4325,13 +4325,13 @@
       "unitPerBatch": "Za partię",
       "waterfallTitle": "Wodospad kosztów",
       "colStep": "Krok",
-      "colValue": "Wartość €/kg",
+      "colValue": "Wartość £/kg",
       "colDelta": "Δ %",
       "marginTitle": "Marża a cena docelowa",
       "colScenario": "Scenariusz",
       "colTargetPrice": "Cena docelowa",
-      "colRevenue": "Przychód €/kg",
-      "colCost": "Koszt €/kg",
+      "colRevenue": "Przychód £/kg",
+      "colCost": "Koszt £/kg",
       "colMargin": "Marża",
       "colMarginPct": "Marża %",
       "marginWarn": "Ostrzeżenie o marży",
@@ -4339,7 +4339,7 @@
       "hardFail": "Krytyczny błąd marży",
       "hardFailBody": "Scenariusz „{name}” ma ujemną marżę ({marginPct}%) i nie może zostać zapisany.",
       "whatIfTitle": "Suwaki symulacji",
-      "sliderPorkContent": "Koszt surowca €/kg",
+      "sliderPorkContent": "Koszt surowca £/kg",
       "sliderYield": "Wydajność %",
       "sliderTargetPrice": "Marża %",
       "scenarioName": "Nazwa scenariusza",
@@ -4828,7 +4828,7 @@
       "addIngredient": "Dodaj składnik",
       "colIngredient": "Składnik",
       "colPct": "% m/m",
-      "colCostPerKg": "€ / kg",
+      "colCostPerKg": "£ / kg",
       "colContribution": "Udział",
       "colAllergen": "Alergen",
       "deleteRow": "Usuń składnik",
@@ -4916,7 +4916,10 @@
       "createDraftError": "Nie udało się utworzyć wersji roboczej. Spróbuj ponownie.",
       "relatedLinksLabel": "Powiązane",
       "linkNutrition": "Wartości odżywcze",
-      "linkCosting": "Kalkulacja kosztów"
+      "linkCosting": "Kalkulacja kosztów",
+      "picker": {
+        "createItemCta": "Utwórz pozycję w module Techniczny"
+      }
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -5293,7 +5296,7 @@
       "error": "Nie można wczytać sekcji zaopatrzenia.",
       "forbidden": "Nie masz uprawnień do edycji sekcji zaopatrzenia.",
       "fields": {
-        "price_per_kg": "Cena (€/kg)",
+        "price_per_kg": "Cena (£/kg)",
         "lead_time_days": "Czas realizacji (dni)",
         "supplier": "Dostawca",
         "proc_shelf_life_days": "Termin przydatności zaopatrzenia (dni)",
@@ -5716,7 +5719,7 @@
       "fieldProductName": "Nazwa produktu",
       "fieldCategory": "Kategoria",
       "fieldTargetLaunch": "Docelowa data wprowadzenia",
-      "fieldTargetPrice": "Docelowa cena detaliczna (EUR)",
+      "fieldTargetPrice": "Docelowa cena detaliczna (GBP)",
       "fieldPackFormat": "Format opakowania",
       "fieldSalesChannel": "Kanał sprzedaży",
       "fieldExpectedVolume": "Oczekiwany wolumen",
@@ -5892,7 +5895,7 @@
       "fieldMaterial": "Materiał",
       "fieldSupplier": "Dostawca",
       "fieldSpec": "Specyfikacja",
-      "fieldCostUnit": "Koszt jednostkowy (€)",
+      "fieldCostUnit": "Koszt jednostkowy (£)",
       "fieldStatus": "Status",
       "fieldTier": "Poziom",
       "tierPrimary": "Podstawowe",
@@ -6098,7 +6101,7 @@
       "fieldVolume": "Oczekiwany wolumen tygodniowy",
       "fieldVolumePlaceholder": "np. 1 200 kg/tydzień",
       "briefTitle": "Brief",
-      "fieldRetailPrice": "Docelowa cena detaliczna (EUR)",
+      "fieldRetailPrice": "Docelowa cena detaliczna (GBP)",
       "fieldAudience": "Grupa docelowa",
       "fieldAudiencePlaceholder": "np. Premium detal — Carrefour, Auchan PL",
       "fieldClaims": "Oświadczenia marketingowe",
@@ -6389,7 +6392,7 @@
       },
       "pendingPos": {
         "label": "Oczekujące zamówienia zakupu",
-        "hint": "Zakupy jeszcze niedostępne"
+        "hint": "Otwarte zamówienia zakupu"
       },
       "lowStock": {
         "label": "Alerty niskiego stanu",
@@ -6672,7 +6675,9 @@
         "selectedProduct": "Wybrany produkt",
         "errors": {
           "productRequired": "Wybierz produkt (wyrób gotowy).",
-          "quantityRequired": "Podaj dodatnią ilość (do 3 miejsc po przecinku)."
+          "quantityRequired": "Podaj dodatnią ilość (do 3 miejsc po przecinku).",
+          "no_active_site": "Wybierz zakład przed utworzeniem zlecenia produkcyjnego. Ta organizacja nie ma jeszcze aktywnego zakładu — dodaj go w Ustawienia → Zakłady.",
+          "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem zlecenia produkcyjnego."
         },
         "noBomWarning": "Zlecenie utworzone, ale produkt nie ma aktywnego BOM — nie wygenerowano materiałów.",
         "quantityUom": {
@@ -7016,7 +7021,9 @@
           "not_found": "Wybrany dostawca lub pozycja już nie istnieje.",
           "already_exists": "Zamówienie zakupu o tym numerze już istnieje.",
           "invalid_state": "Ta akcja jest teraz niedozwolona.",
-          "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+          "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
+          "no_active_site": "Wybierz zakład przed utworzeniem zamówienia zakupu. Ta organizacja nie ma jeszcze aktywnego zakładu — dodaj go w Ustawienia → Zakłady.",
+          "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem zamówienia zakupu."
         },
         "picker": {
           "trigger": "+ Dodaj pozycję",

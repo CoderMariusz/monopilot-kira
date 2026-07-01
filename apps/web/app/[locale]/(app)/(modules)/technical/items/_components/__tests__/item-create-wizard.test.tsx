@@ -28,8 +28,12 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
 
 const createItem = vi.fn();
 const updateItem = vi.fn();
+const createItemSupplierSpec = vi.fn();
 vi.mock('../../_actions/create-item', () => ({ createItem: (...a: unknown[]) => createItem(...a) }));
 vi.mock('../../_actions/update-item', () => ({ updateItem: (...a: unknown[]) => updateItem(...a) }));
+vi.mock('../../_actions/supplier-spec-actions', () => ({
+  createItemSupplierSpec: (...a: unknown[]) => createItemSupplierSpec(...a),
+}));
 
 import { ItemWizard, DEFAULT_WIZARD_LABELS, emptyWizardForm } from '../item-create-wizard';
 
@@ -211,6 +215,45 @@ describe('ItemWizard create mode (TEC-011)', () => {
       grossWeightMax: 0.3,
       varianceTolerancePct: 5,
     });
+  });
+
+  // F5 — a successful create (WITH a supplier attached) must surface NO error and
+  // close the modal. createItem is the single atomic write (it also creates the
+  // approved supplier_spec), so the wizard must NOT fire a redundant second
+  // createItemSupplierSpec whose failure previously false-errored an already-
+  // succeeded create.
+  it('closes with no error on a successful create + supplier, and makes no redundant spec write (F5)', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });
+    // If the wizard wrongly called this and it "failed", the old code surfaced a
+    // false generic error. Make it fail to prove the wizard no longer calls it.
+    createItemSupplierSpec.mockResolvedValue({ ok: false, error: 'item_not_found' });
+    renderWizard({
+      open: true,
+      onClose,
+      onSaved,
+      mode: { kind: 'create' },
+      supplierOptions: [{ value: 'SUP-001', label: 'SUP-001 — Acme Foods' }],
+      supplierIdByCode: { 'SUP-001': '00000000-0000-4000-8000-000000000001' },
+    });
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('combobox', { name: L.fields.supplier }));
+    await user.click(screen.getByRole('option', { name: 'SUP-001 — Acme Foods' }));
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.type(inputByName('listPriceGbp'), '5.20');
+    await user.click(screen.getByRole('button', { name: L.next })); // → review
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    expect(createItem).toHaveBeenCalledTimes(1);
+    // No redundant post-success spec write on the create path.
+    expect(createItemSupplierSpec).not.toHaveBeenCalled();
+    // No false error surfaced.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // Modal-close signal fired.
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSaved).toHaveBeenCalledTimes(1);
   });
 });
 

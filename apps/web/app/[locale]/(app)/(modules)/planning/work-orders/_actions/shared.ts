@@ -21,6 +21,11 @@ export type PlanningWorkOrderError =
   | 'invalid_state'
   | 'uom_conversion_unavailable'
   | 'pack_hierarchy_incomplete'
+  // F10 — a WO write with no resolvable site fails closed instead of persisting
+  // site_id=NULL: no_active_site (org has 0 active sites) / ambiguous_site (>1
+  // active site, none chosen or default — operator must pick via the top bar).
+  | 'no_active_site'
+  | 'ambiguous_site'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';

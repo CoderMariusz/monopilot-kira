@@ -2295,7 +2295,7 @@
           "name": "Name",
           "type": "Type",
           "uom": "UoM",
-          "costPerKg": "Cost / kg (zł)",
+          "costPerKg": "Cost / kg (£)",
           "allergens": "Allergens",
           "boms": "BOMs",
           "updated": "Updated",
@@ -4312,13 +4312,13 @@
       "unitPerBatch": "За партію",
       "waterfallTitle": "Каскад витрат",
       "colStep": "Крок",
-      "colValue": "Значення €/кг",
+      "colValue": "Значення £/кг",
       "colDelta": "Δ %",
       "marginTitle": "Маржа щодо цільової ціни",
       "colScenario": "Сценарій",
       "colTargetPrice": "Цільова ціна",
-      "colRevenue": "Дохід €/кг",
-      "colCost": "Вартість €/кг",
+      "colRevenue": "Дохід £/кг",
+      "colCost": "Вартість £/кг",
       "colMargin": "Маржа",
       "colMarginPct": "Маржа %",
       "marginWarn": "Попередження про маржу",
@@ -4326,7 +4326,7 @@
       "hardFail": "Критична помилка маржі",
       "hardFailBody": "Сценарій «{name}» має від’ємну маржу ({marginPct}%) і не може бути збережений.",
       "whatIfTitle": "Повзунки симуляції",
-      "sliderPorkContent": "Вартість сировини €/кг",
+      "sliderPorkContent": "Вартість сировини £/кг",
       "sliderYield": "Вихід %",
       "sliderTargetPrice": "Маржа %",
       "scenarioName": "Назва сценарію",
@@ -4816,7 +4816,7 @@
       "addVersion": "Add version",
       "colIngredient": "Інгредієнт",
       "colPct": "% м/м",
-      "colCostPerKg": "€ / кг",
+      "colCostPerKg": "£ / кг",
       "colContribution": "Внесок",
       "colAllergen": "Алерген",
       "deleteRow": "Видалити інгредієнт",
@@ -4903,7 +4903,10 @@
       "createDraftError": "Could not create the draft. Try again.",
       "relatedLinksLabel": "Related",
       "linkNutrition": "Nutrition",
-      "linkCosting": "Costing"
+      "linkCosting": "Costing",
+      "picker": {
+        "createItemCta": "Create an item in Technical"
+      }
     },
     "costPanel": {
       "title": "Вартість і маржа",
@@ -5280,7 +5283,7 @@
       "error": "Не вдалося завантажити розділ постачання.",
       "forbidden": "У вас немає дозволу редагувати розділ постачання.",
       "fields": {
-        "price_per_kg": "Ціна (€/кг)",
+        "price_per_kg": "Ціна (£/кг)",
         "lead_time_days": "Термін виконання (днів)",
         "supplier": "Постачальник",
         "proc_shelf_life_days": "Термін придатності постачання (днів)",
@@ -5703,7 +5706,7 @@
       "fieldProductName": "Назва продукту",
       "fieldCategory": "Категорія",
       "fieldTargetLaunch": "Цільова дата запуску",
-      "fieldTargetPrice": "Цільова роздрібна ціна (EUR)",
+      "fieldTargetPrice": "Цільова роздрібна ціна (GBP)",
       "fieldPackFormat": "Формат упаковки",
       "fieldSalesChannel": "Канал продажу",
       "fieldExpectedVolume": "Очікуваний обсяг",
@@ -5879,7 +5882,7 @@
       "fieldMaterial": "Матеріал",
       "fieldSupplier": "Постачальник",
       "fieldSpec": "Специфікація",
-      "fieldCostUnit": "Вартість за одиницю (€)",
+      "fieldCostUnit": "Вартість за одиницю (£)",
       "fieldStatus": "Статус",
       "fieldTier": "Рівень",
       "tierPrimary": "Первинний",
@@ -6085,7 +6088,7 @@
       "fieldVolume": "Очікуваний тижневий обсяг",
       "fieldVolumePlaceholder": "напр. 1 200 кг/тиждень",
       "briefTitle": "Бриф",
-      "fieldRetailPrice": "Цільова роздрібна ціна (EUR)",
+      "fieldRetailPrice": "Цільова роздрібна ціна (GBP)",
       "fieldAudience": "Цільова аудиторія",
       "fieldAudiencePlaceholder": "напр. Преміум-рітейл — Carrefour, Auchan PL",
       "fieldClaims": "Маркетингові заяви",
@@ -6376,7 +6379,7 @@
       },
       "pendingPos": {
         "label": "Pending POs",
-        "hint": "Purchasing not live yet"
+        "hint": "Open purchase orders"
       },
       "lowStock": {
         "label": "Low Stock Alerts",
@@ -6659,7 +6662,9 @@
         "selectedProduct": "Selected product",
         "errors": {
           "productRequired": "Select a finished-good product.",
-          "quantityRequired": "Enter a positive quantity (up to 3 decimals)."
+          "quantityRequired": "Enter a positive quantity (up to 3 decimals).",
+          "no_active_site": "Select a site before creating a work order. This organisation has no active site yet — add one in Settings → Sites.",
+          "ambiguous_site": "Select a site in the top bar before creating a work order."
         },
         "noBomWarning": "Work order created, but the product has no active BOM — no materials were generated.",
         "quantityUom": {
@@ -7000,7 +7005,9 @@
           "not_found": "The selected supplier or item no longer exists.",
           "already_exists": "A purchase order with that number already exists.",
           "invalid_state": "That action isn't allowed right now.",
-          "persistence_failed": "Something went wrong saving. Please retry."
+          "persistence_failed": "Something went wrong saving. Please retry.",
+          "no_active_site": "Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.",
+          "ambiguous_site": "Select a site in the top bar before creating a purchase order."
         },
         "picker": {
           "trigger": "+ Add item",

@@ -87,7 +87,13 @@ export function WoRowActions({
       >
         {label}
       </button>
-      <StartModal open={open === 'start'} {...base} />
+      <StartModal
+        open={open === 'start'}
+        {...base}
+        lines={lines}
+        shifts={shifts}
+        defaultLineId={lineId}
+      />
       <PauseModal
         open={open === 'pause'}
         {...base}

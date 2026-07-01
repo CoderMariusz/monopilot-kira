@@ -135,7 +135,16 @@ describe("Dashboard quick-actions bar", () => {
     const bar = screen.getByTestId("dashboard-quick-actions");
     const links = within(bar).getAllByRole("link");
     expect(links).toHaveLength(6);
-    expect(screen.getByTestId("dashboard-quick-action-createWo")).toHaveAttribute("href", "/en/planning");
+    // F2 — WO/PO quick-actions deep-link to their specific create modal (?new=1),
+    // not the generic /planning landing page.
+    expect(screen.getByTestId("dashboard-quick-action-createWo")).toHaveAttribute(
+      "href",
+      "/en/planning/work-orders?new=1",
+    );
+    expect(screen.getByTestId("dashboard-quick-action-createPo")).toHaveAttribute(
+      "href",
+      "/en/planning/purchase-orders?new=1",
+    );
     expect(screen.getByTestId("dashboard-quick-action-receive")).toHaveAttribute("href", "/en/warehouse");
     expect(screen.getByTestId("dashboard-quick-action-runMrp")).toHaveAttribute("href", "/en/scheduler");
   });

@@ -19,6 +19,7 @@
  */
 
 import React from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 import { type SelectOption } from '@monopilot/ui/Select';
@@ -79,6 +80,13 @@ export function NewItemButton({
   supplierOptions?: SelectOption[];
 }) {
   const [open, setOpen] = React.useState(false);
+  // F6 — deep-link support: a `?modal=create` query param (e.g. the NPD recipe
+  // empty-state "Create an item" CTA) auto-opens the create wizard so a fresh-org
+  // user landing here from another screen isn't left to hunt for the button.
+  const searchParams = useSearchParams();
+  React.useEffect(() => {
+    if (searchParams.get('modal') === 'create') setOpen(true);
+  }, [searchParams]);
   return (
     <>
       <Button

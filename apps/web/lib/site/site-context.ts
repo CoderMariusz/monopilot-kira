@@ -100,3 +100,54 @@ export async function getActiveSiteId(
   // Genuinely no site for this org.
   return null;
 }
+
+/** Outcome of {@link resolveWriteSiteId}. */
+export type ResolveWriteSiteIdResult =
+  | { ok: true; siteId: string }
+  /** No site is resolvable and the org has 0 active sites, or >1 with none default. */
+  | { ok: false; reason: 'no_active_site' | 'ambiguous_site' };
+
+/**
+ * Resolve the site id for a WRITE that must NOT silently persist site_id=NULL
+ * (F10). Extends {@link getActiveSiteId} with a last-resort disambiguation: when
+ * no explicit/cookie/default site resolves, but the org has exactly ONE active
+ * site, that site is used (a single-site org is unambiguous). Anything else fails
+ * closed with an actionable reason the caller surfaces in the UI:
+ *   - `no_active_site`  — the org has zero active sites (onboarding not done).
+ *   - `ambiguous_site`  — the org has >1 active site and none is the default, so
+ *                         the operator must pick one via the top-bar selector.
+ *
+ * Requires an RLS-bound client (org context already set). Callers run inside
+ * withOrgContext, so the query is org-scoped by RLS.
+ */
+export async function resolveWriteSiteId(
+  client: SiteResolverClient,
+  siteId?: string | null,
+): Promise<ResolveWriteSiteIdResult> {
+  const active = await getActiveSiteId({ siteId, client });
+  if (active) return { ok: true, siteId: active };
+
+  // No explicit/cookie/default site → fall back to the org's single active site
+  // if unambiguous. Read up to 2 so we can distinguish one-vs-many.
+  try {
+    const { rows } = await client.query<{ id: string }>(
+      `select id::text as id
+         from public.sites
+        where org_id = app.current_org_id()
+          and is_active
+        order by is_default desc, site_code asc
+        limit 2`,
+    );
+    if (rows.length === 1) {
+      const only = asSiteId(rows[0]?.id);
+      if (only) return { ok: true, siteId: only };
+    }
+    if (rows.length === 0) return { ok: false, reason: 'no_active_site' };
+  } catch {
+    // DB hiccup / no scope → cannot resolve; treat as no active site.
+    return { ok: false, reason: 'no_active_site' };
+  }
+
+  // >1 active site and none is the default → operator must choose.
+  return { ok: false, reason: 'ambiguous_site' };
+}

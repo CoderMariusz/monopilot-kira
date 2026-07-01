@@ -197,7 +197,7 @@ describe('PackagingScreen — parity', () => {
   it('renders money from NUMERIC strings (never a JS float)', () => {
     renderReady();
     const rows = within(screen.getByTestId('primary-packaging-table')).getAllByTestId('primary-component-row');
-    expect(within(rows[0]).getByTestId('component-cost').textContent).toContain('€0.18');
+    expect(within(rows[0]).getByTestId('component-cost').textContent).toContain('£0.18');
   });
 
   it('renders the status badges with the correct tones (approved=green, pending=amber)', () => {

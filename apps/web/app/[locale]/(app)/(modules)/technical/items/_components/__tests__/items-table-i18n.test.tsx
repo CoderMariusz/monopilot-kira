@@ -26,4 +26,13 @@ describe('ItemsTableClient i18n', () => {
     expect(screen.getByPlaceholderText('Szukaj po kodzie lub nazwie…')).toBeInTheDocument(); expect(screen.queryByText('Raw materials')).not.toBeInTheDocument();
     expect(screen.queryByText('Search by code or name…')).not.toBeInTheDocument();
   });
+
+  // F7 (2026-07-01) — 'szt' is the Polish storage value for each/piece. It must
+  // NOT leak the Polish word into the list; the UoM cell renders "pcs" instead.
+  it('renders the "szt" base UoM as "pcs" (no raw Polish word)', () => {
+    const sztItem = { ...item, id: '2', itemCode: 'PKG-1', name: 'Box', itemType: 'packaging', uomBase: 'szt' } as const;
+    render(<ItemsTableClient items={[sztItem]} canEdit={false} canDeactivate={false} editLabel="Edytuj" deactivateLabel="Dezaktywuj" allergensLabel="Alergeny" filterEmptyTitle="Brak wyników" filterEmptyBody="Zmień filtry." labels={labels} wizardLabels={{} as never} deactivateLabels={{} as never} />);
+    expect(screen.getByText('pcs')).toBeInTheDocument();
+    expect(screen.queryByText('szt')).not.toBeInTheDocument();
+  });
 });

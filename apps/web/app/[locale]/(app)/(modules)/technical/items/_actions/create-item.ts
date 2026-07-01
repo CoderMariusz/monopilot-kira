@@ -91,17 +91,29 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           const txClient = client as QueryClient;
           await txClient.query('savepoint sp_supplier_spec');
           try {
+            // Route the wizard's supplier price into the canonical
+            // supplier_specs.unit_price (mig 405) so PO prefill reads "From
+            // supplier spec". When a supplier is attached the wizard's price field
+            // IS the supplier price (item-create-wizard.tsx priceFieldLabel); it
+            // still also lands on items.list_price_gbp as the list price.
             await txClient.query(
               `insert into public.supplier_specs
                  (org_id, item_id, supplier_code, supplier_id, supplier_status,
                   spec_version, lifecycle_status, review_status,
-                  approved_by, approved_at, uploaded_by)
+                  approved_by, approved_at, uploaded_by, unit_price, price_currency)
                values
                  (app.current_org_id(), $1::uuid, $2::text, $4::uuid, 'approved',
                   '1.0', 'active', 'approved',
-                  $3::uuid, now(), $3::uuid)
+                  $3::uuid, now(), $3::uuid, $5::numeric, $6::text)
                on conflict (org_id, item_id, supplier_code) where lifecycle_status = 'active' AND review_status = 'approved' do nothing`,
-              [inserted.id, input.supplierCode, userId, supplier.rows[0].id],
+              [
+                inserted.id,
+                input.supplierCode,
+                userId,
+                supplier.rows[0].id,
+                input.listPriceGbp ?? null,
+                input.listPriceGbp != null ? 'GBP' : null,
+              ],
             );
             await txClient.query('release savepoint sp_supplier_spec');
           } catch (err) {

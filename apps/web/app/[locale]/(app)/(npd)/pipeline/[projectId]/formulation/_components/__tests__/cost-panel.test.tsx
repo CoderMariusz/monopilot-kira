@@ -118,18 +118,23 @@ describe('CostPanel — parity (recipe.jsx:67-101)', () => {
 });
 
 describe('CostPanel — currency formatting (AC#4)', () => {
-  it('formats money values with the currency symbol, NUMERIC-exact (default EUR)', () => {
+  // F4 (2026-07-01) — default currency is GBP (org single currency, no FX), so
+  // the panel renders £ by default and must never leak € / zł.
+  it('formats money values with the currency symbol, NUMERIC-exact (default GBP)', () => {
     renderPanel();
-    // €3.50 from "3.5000" — trimmed to 2 dp, no float drift.
-    expect(screen.getByTestId('cost-raw')).toHaveTextContent('€3.50 / kg');
-    expect(screen.getByTestId('cost-total')).toHaveTextContent('€4.76');
-    expect(screen.getByTestId('cost-revenue')).toHaveTextContent('€9.90');
+    // £3.50 from "3.5000" — trimmed to 2 dp, no float drift.
+    expect(screen.getByTestId('cost-raw')).toHaveTextContent('£3.50 / kg');
+    expect(screen.getByTestId('cost-total')).toHaveTextContent('£4.76');
+    expect(screen.getByTestId('cost-revenue')).toHaveTextContent('£9.90');
+    expect(screen.getByTestId('cost-raw')).not.toHaveTextContent('€');
+    expect(screen.getByTestId('cost-raw')).not.toHaveTextContent('zł');
   });
 
-  it('derives margin €/kg exactly from revenue − cost (no JS float on money)', () => {
-    // 9.9000 − 4.7586 = 5.1414 → "€5.14".
+  it('derives margin £/kg exactly from revenue − cost (no JS float on money)', () => {
+    // 9.9000 − 4.7586 = 5.1414 → "£5.14".
     renderPanel();
-    expect(screen.getByTestId('cost-margin')).toHaveTextContent('€5.14');
+    expect(screen.getByTestId('cost-margin')).toHaveTextContent('£5.14');
+    expect(screen.getByTestId('cost-margin')).not.toHaveTextContent('€');
   });
 
   it('honours a non-EUR currency prop without hardcoding the symbol', () => {
@@ -178,11 +183,11 @@ describe('CostPanel — margin tint thresholds (AC#3)', () => {
     expect(screen.getByTestId('cost-margin-box')).toHaveClass('bg-red-50');
   });
 
-  it('colours a negative margin €/kg red and a positive one green', () => {
+  it('colours a negative margin £/kg red and a positive one green', () => {
     renderPanel({ calc: { ...CALC, revenuePerKg: '4.5000', marginPct: '-4.20' } });
-    // 4.5000 − 4.7586 = -0.2586 → "-€0.26".
+    // 4.5000 − 4.7586 = -0.2586 → "-£0.26" (default GBP; sign before symbol).
     const margin = screen.getByTestId('cost-margin');
-    expect(margin).toHaveTextContent('-€0.26');
+    expect(margin).toHaveTextContent('-£0.26');
     expect(margin).toHaveClass('text-red-600');
   });
 });

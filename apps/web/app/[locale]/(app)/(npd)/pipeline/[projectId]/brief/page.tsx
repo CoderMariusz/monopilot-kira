@@ -68,7 +68,7 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   fieldProductName: 'Product name',
   fieldCategory: 'Category',
   fieldTargetLaunch: 'Target launch date',
-  fieldTargetPrice: 'Target retail price (EUR)',
+  fieldTargetPrice: 'Target retail price (GBP)',
   fieldPackFormat: 'Pack format',
   fieldPackWeight: 'Pack weight (g)',
   fieldPacksPerCase: 'Packs per case',

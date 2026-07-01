@@ -596,7 +596,7 @@ export function FormulationEditor({
   nutritionTargets,
   allergenNames,
   allergenReference,
-  currency = 'EUR',
+  currency = 'GBP',
   canEdit = false,
   submitAllowed = true,
   saveDraftAction,
@@ -629,7 +629,7 @@ export function FormulationEditor({
   allergenNames?: Record<string, string>;
   /** Org-scoped allergen reference rows from Reference.Allergens. Falls back to EU14 when empty. */
   allergenReference?: AllergenReference[];
-  /** ISO-4217 currency code for the CostPanel (default EUR). */
+  /** ISO-4217 currency code for the CostPanel (default GBP — org single currency). */
   currency?: string;
   canEdit?: boolean;
   /** True only while the project is in the recipe stage; server action still enforces state. */

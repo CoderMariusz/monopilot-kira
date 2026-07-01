@@ -123,6 +123,10 @@ export type CreatePoLabels = {
     not_found: string;
     already_exists: string;
     invalid_state: string;
+    /** F10 — no resolvable site for the write (org has 0 active sites). */
+    no_active_site: string;
+    /** F10 — >1 active site, none chosen/default; operator must pick one. */
+    ambiguous_site: string;
     persistence_failed: string;
   };
   picker: {

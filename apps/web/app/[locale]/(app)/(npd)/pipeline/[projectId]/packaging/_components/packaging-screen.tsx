@@ -167,7 +167,7 @@ export type MutationOutcome = { ok: boolean; error?: string };
 
 export type ArtworkDeleteCall = { projectId: string; objectName: string };
 
-const CURRENCY = '€';
+const CURRENCY = '£';
 
 /** Format a decimal STRING for display (string slicing only — no float math). */
 function formatMoney(value: string | null, emDash: string): string {

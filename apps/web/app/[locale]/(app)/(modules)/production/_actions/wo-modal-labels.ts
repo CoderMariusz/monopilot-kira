@@ -49,6 +49,10 @@ export function buildWoModalLabels(t: Translator): WoModalLabels {
       line: t('start.line'),
       shift: t('start.shift'),
       optional: t('common.optional'),
+      // F15 — the Start line/shift are now <Select> dropdowns; reuse the Pause
+      // placeholders so no new i18n keys are needed (line/shift copy is identical).
+      linePlaceholder: t('pause.linePlaceholder'),
+      shiftPlaceholder: t('pause.shiftPlaceholder'),
     },
     pause: {
       title: t('pause.title'),
