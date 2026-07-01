@@ -1,8 +1,0 @@
-# Story 06.36 - Frontend Schema
-
-components:
-  - AuditFindingList.tsx
-  - FindingForm.tsx
-  - SupplierResponseModal.tsx
-  - VerifyFindingModal.tsx
-  - FindingSeverityBadge.tsx
