@@ -30,7 +30,7 @@ function makeClient() {
     async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []) {
       harness.calls.push({ sql, params });
       const n = sql.replace(/\s+/g, ' ').trim().toLowerCase();
-      if (n.includes('from public.role_permissions')) {
+      if (n.includes('role_permissions')) {
         const permission = params[2];
         const ok = typeof permission === 'string' && harness.grantedPermissions.has(permission);
         return { rows: (ok ? [{ ok: true }] : []) as T[], rowCount: ok ? 1 : 0 };
@@ -129,7 +129,7 @@ describe('SET-029 real-data loader wiring (no injection-only placeholder default
 
     // RBAC registry query ran (capabilities.ts resolves permissions via role_permissions).
     expect(
-      harness.calls.some((c) => c.sql.toLowerCase().includes('from public.role_permissions')),
+      harness.calls.some((c) => c.sql.toLowerCase().includes('role_permissions')),
       'loader must resolve capabilities through the org-scoped RBAC registry',
     ).toBe(true);
 

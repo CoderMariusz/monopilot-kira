@@ -1,5 +1,6 @@
 'use server';
 
+import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -90,21 +91,6 @@ function normalizeTarget(value: unknown): string | null {
   return /^(users|roles|invitations|reference_tables|infrastructure|feature_flags|authorization_policies|audit_logs)$/.test(trimmed)
     ? trimmed
     : null;
-}
-
-async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.role_permissions rp
-       join public.roles r on r.id = rp.role_id
-       join public.user_roles ur on ur.role_id = r.id and ur.org_id = r.org_id
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and rp.permission = $3
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
 }
 
 async function createExportJob(

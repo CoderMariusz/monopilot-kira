@@ -352,7 +352,7 @@ function makeClient(): FakeClient {
       calls.push({ sql, params });
       const normalized = normalize(sql);
 
-      if (normalized.includes('from public.role_permissions')) {
+      if (normalized.includes('role_permissions')) {
         const requestedPermission = params.find((param): param is string => typeof param === 'string' && param.includes('.'));
         return currentClient.actorPermissions.has(requestedPermission ?? '')
           ? { rows: [{ ok: true }], rowCount: 1 }

@@ -129,7 +129,7 @@ function makeClient(rules: RuleRow[]): FakeClient {
       calls.push({ sql, params });
       const normalized = normalize(sql);
 
-      if (normalized.includes('from public.role_permissions')) {
+      if (normalized.includes('role_permissions')) {
         return params.includes(SETTINGS_AUTHORIZATION_EDIT) ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
 
