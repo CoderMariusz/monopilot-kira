@@ -6,10 +6,12 @@ import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
 import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
 import { microToDecimal, toMicro } from '../../../../../../../lib/shared/decimal';
 import {
   hasWarehousePermission,
+  uuidFromSeed,
   type QueryClient,
   type WarehouseContext,
 } from '../../_actions/shared';
@@ -206,7 +208,7 @@ async function assertCanAdjustStock(ctx: WarehouseContext): Promise<void> {
   }
 }
 
-async function readCountSessionSummary(client: QueryClient, sessionId: string): Promise<CountSession | null> {
+async function readCountSessionSummary(client: QueryClient, sessionId: string, siteId: string): Promise<CountSession | null> {
   const { rows } = await client.query<SessionRow>(
     `select cs.id::text,
             cs.warehouse_id::text,
@@ -226,9 +228,10 @@ async function readCountSessionSummary(client: QueryClient, sessionId: string): 
          on cl.session_id = cs.id
       where cs.org_id = app.current_org_id()
         and cs.id = $1::uuid
+        and cs.site_id = $2::uuid
       group by cs.id, cs.warehouse_id, w.code, cs.count_type, cs.status, cs.created_at
       limit 1`,
-    [sessionId],
+    [sessionId, siteId],
   );
   const row = rows[0];
   return row ? mapSession(row) : null;
@@ -552,7 +555,7 @@ async function resolveAdjustmentSiteId(
 
 async function selectLpsForShrinkage(
   client: QueryClient,
-  input: { locationId: string; itemId: string; lpId: string | null; quantity: string },
+  input: { warehouseId: string; locationId: string; itemId: string; lpId: string | null; quantity: string },
 ): Promise<ShrinkageLeg[]> {
   const { rows } = await client.query<LpForShrinkage>(
     `select lp.id::text,
@@ -561,8 +564,9 @@ async function selectLpsForShrinkage(
             lp.quantity::text,
             lp.reserved_qty::text,
             lp.uom
-       from public.license_plates lp
+      from public.license_plates lp
       where lp.org_id = app.current_org_id()
+        and lp.warehouse_id = $4::uuid
         and lp.location_id = $1::uuid
         and lp.product_id = $2::uuid
         and ($3::uuid is null or lp.id = $3::uuid)
@@ -571,7 +575,7 @@ async function selectLpsForShrinkage(
         and lp.quantity > lp.reserved_qty
       order by lp.expiry_date asc nulls last, lp.lp_number asc
       for update`,
-    [input.locationId, input.itemId, input.lpId],
+    [input.locationId, input.itemId, input.lpId, input.warehouseId],
   );
 
   let remaining = toMicro(input.quantity);
@@ -649,12 +653,12 @@ async function insertStockAdjustment(
 ): Promise<string> {
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.stock_adjustments (
-       org_id, count_line_id, item_id, location_id, warehouse_id, lp_id,
+       org_id, count_line_id, item_id, location_id, warehouse_id, site_id, lp_id,
        adjustment_qty, direction, reason, esign_ref, applied_by
      )
      values (
-       app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
-       $6::numeric, $7, $8, $9::uuid, $10::uuid
+       app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid,
+       $7::numeric, $8, $9, $10::uuid, $11::uuid
      )
      returning id::text`,
     [
@@ -662,6 +666,7 @@ async function insertStockAdjustment(
       input.countLine.item_id,
       input.countLine.location_id,
       input.countLine.warehouse_id,
+      input.countLine.session_site_id,
       input.lpId,
       input.adjustmentQty,
       input.direction,
@@ -688,7 +693,7 @@ async function insertStockMove(
     esignRef: string;
   },
 ): Promise<void> {
-  const transactionId = randomUUID();
+  const transactionId = uuidFromSeed(`warehouse.count.stock_move:${input.countLine.id}:${input.lpId}:${input.direction}`);
   const signedQuantity =
     input.direction === 'increase' ? input.quantity : microToDecimal(-toMicro(input.quantity));
 
@@ -700,7 +705,8 @@ async function insertStockMove(
      values (
        app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid, $5::uuid,
        $6::numeric, $7, $8, $8, $9::uuid, $10::jsonb, $11::uuid, $11::uuid
-     )`,
+     )
+     on conflict (org_id, transaction_id) do nothing`,
     [
       input.siteId,
       makeStockMoveNumber(transactionId),
@@ -790,11 +796,22 @@ export async function createCountSession(input: CreateCountSessionInput): Promis
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
 
+    const site = await ctx.client.query<{ site_id: string | null }>(
+      `select site_id::text
+         from public.warehouses
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1`,
+      [warehouseId],
+    );
+    const siteId = site.rows[0]?.site_id;
+    if (!siteId) throw new Error('warehouse_site_required');
+
     const { rows } = await ctx.client.query<{ id: string }>(
-      `insert into public.count_sessions (org_id, warehouse_id, count_type, status)
-       values (app.current_org_id(), $1::uuid, $2, 'open')
+      `insert into public.count_sessions (org_id, site_id, warehouse_id, count_type, status)
+       values (app.current_org_id(), $1::uuid, $2::uuid, $3, 'open')
        returning id::text`,
-      [warehouseId, countType],
+      [siteId, warehouseId, countType],
     );
     const sessionId = rows[0]?.id;
     if (!sessionId) throw new Error('count_session_insert_failed');
@@ -807,6 +824,8 @@ export async function listCountSessions(): Promise<CountSession[]> {
   return await withOrgContext(async ({ userId, orgId, client }): Promise<CountSession[]> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
+    const activeSiteId = await getActiveSiteId({ client: ctx.client });
+    if (!activeSiteId) return [];
 
     const { rows } = await ctx.client.query<SessionRow>(
       `select cs.id::text,
@@ -826,8 +845,10 @@ export async function listCountSessions(): Promise<CountSession[]> {
          left join public.count_lines cl
            on cl.session_id = cs.id
         where cs.org_id = app.current_org_id()
+          and cs.site_id = $1::uuid
         group by cs.id, cs.warehouse_id, w.code, cs.count_type, cs.status, cs.created_at
         order by cs.created_at desc nulls last, cs.id desc`,
+      [activeSiteId],
     );
 
     return rows.map(mapSession);
@@ -840,8 +861,10 @@ export async function getCountSession(sessionId: string): Promise<CountSessionDe
   return await withOrgContext(async ({ userId, orgId, client }): Promise<CountSessionDetail> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
+    const activeSiteId = await getActiveSiteId({ client: ctx.client });
+    if (!activeSiteId) throw new Error('count_session_not_found');
 
-    const session = await readCountSessionSummary(ctx.client, normalizedSessionId);
+    const session = await readCountSessionSummary(ctx.client, normalizedSessionId, activeSiteId);
     if (!session) throw new Error('count_session_not_found');
 
     return {
@@ -1051,6 +1074,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       adjustmentLegs.push({ lpId: adjustedLpId, siteId, quantity: adjustmentQty, uom });
     } else if (varianceMicro < 0n) {
       const shrinkageLegs = await selectLpsForShrinkage(ctx.client, {
+        warehouseId: countLineForApply.warehouse_id,
         locationId: countLineForApply.location_id,
         itemId: countLineForApply.item_id,
         lpId: countLineForApply.lp_id,

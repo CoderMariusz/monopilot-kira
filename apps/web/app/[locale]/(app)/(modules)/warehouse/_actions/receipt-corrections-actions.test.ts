@@ -35,7 +35,8 @@ type State = {
   lpBatchNumber: string | null;
   lpExpiryDate: string | null;
   lpBestBeforeDate: string | null;
-  blockedByUsage: boolean;
+  lpConsumptionRows: string[];
+  lpHasChild: boolean;
 };
 
 let state: State;
@@ -107,7 +108,8 @@ function makeClient(): QueryClient {
       }
 
       if (n.includes('from public.license_plates child') && n.includes('wo_material_consumption')) {
-        return { rows: [{ blocked: state.blockedByUsage }], rowCount: 1 };
+        const netConsumed = state.lpConsumptionRows.reduce((sum, qty) => sum + Number(qty), 0);
+        return { rows: [{ blocked: state.lpHasChild || netConsumed > 0 }], rowCount: 1 };
       }
 
       if (n.startsWith('update public.license_plates')) {
@@ -152,7 +154,8 @@ beforeEach(() => {
     lpBatchNumber: 'B-OLD',
     lpExpiryDate: '2026-08-01T00:00:00.000Z',
     lpBestBeforeDate: '2026-09-15T00:00:00.000Z',
-    blockedByUsage: false,
+    lpConsumptionRows: [],
+    lpHasChild: false,
   };
   queries = [];
   client = makeClient();
@@ -190,14 +193,35 @@ describe('receipt corrections actions', () => {
   });
 
   it.each([
-    ['consumed-child', { blockedByUsage: true }],
+    ['consumed', { lpConsumptionRows: ['10.000000'] }],
+    ['child', { lpHasChild: true }],
     ['reserved', { lpReservedQty: '1.000000' }],
     ['qty-changed', { lpQuantity: '9.000000' }],
   ])('cancelGrnLine refuses lp_not_cancellable when LP is %s', async (_name, patch) => {
     state = { ...state, ...patch };
     const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'wrong_quantity' });
     expect(result).toEqual({ ok: false, error: 'lp_not_cancellable' });
+    if (_name === 'consumed' || _name === 'child') {
+      const usageQuery = queries.find((q) => normalize(q.sql).includes('from public.wo_material_consumption'));
+      expect(normalize(usageQuery!.sql)).toContain('coalesce(sum(wmc.qty_consumed), 0)');
+      expect(normalize(usageQuery!.sql)).not.toContain('wmc.correction_of_id is null');
+    }
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.grn_items'))).toBe(false);
+  });
+
+  it('cancelGrnLine allows an LP whose consumption has been fully reversed to net zero', async () => {
+    state.lpConsumptionRows = ['10.000000', '-10.000000'];
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'wrong_quantity', note: 'net zero' });
+
+    expect(result).toEqual({ ok: true });
+
+    const usageQuery = queries.find((q) => normalize(q.sql).includes('from public.wo_material_consumption'));
+    expect(usageQuery).toBeDefined();
+    expect(normalize(usageQuery!.sql)).toContain('coalesce(sum(wmc.qty_consumed), 0)');
+    expect(normalize(usageQuery!.sql)).not.toContain('wmc.correction_of_id is null');
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.grn_items'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
   });
 
   it('cancelGrnLine refuses a double cancel', async () => {

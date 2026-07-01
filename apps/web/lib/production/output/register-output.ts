@@ -40,6 +40,7 @@
  */
 import { z } from 'zod';
 
+import { upsertWac } from '../../finance/upsert-wac';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
 import { makeLpNumber } from '../../warehouse/lp-create';
 import {
@@ -134,6 +135,7 @@ type ItemRow = {
   shelf_life_days: number | null;
   nominal_weight: string | null;
   variance_tolerance_pct: string | null;
+  cost_per_kg: string | null;
 };
 
 type WoRow = {
@@ -240,7 +242,7 @@ async function loadWo(ctx: OrgContextLike, woId: string): Promise<WoRow> {
 
 async function loadItem(ctx: OrgContextLike, productId: string): Promise<ItemRow> {
   const { rows } = await ctx.client.query<ItemRow>(
-    `select id, weight_mode, shelf_life_days, nominal_weight, variance_tolerance_pct
+    `select id, weight_mode, shelf_life_days, nominal_weight, variance_tolerance_pct, cost_per_kg::text as cost_per_kg
        from public.items
       where id = $1::uuid
         and org_id = app.current_org_id()
@@ -723,6 +725,16 @@ export async function registerOutput(
     );
   }
 
+  const outputValue = await multiplyNumeric(ctx, resolvedQtyKg, item.cost_per_kg);
+  await upsertWac(ctx.client, {
+    orgId: ctx.orgId,
+    siteId: ctx.siteId ?? null,
+    itemId: input.product_id,
+    deltaQtyKg: resolvedQtyKg,
+    deltaValue: outputValue,
+    updatedBy: input.operator_id ?? ctx.userId,
+  });
+
   // 9. outbox (same txn).
   await emitOutbox(ctx, {
     eventType: PRODUCTION_OUTPUT_RECORDED_EVENT,
@@ -758,6 +770,14 @@ export async function registerOutput(
     mass_balance_warning: massBalanceWarning,
     label_pdf_url: null, // T-033
   };
+}
+
+async function multiplyNumeric(ctx: OrgContextLike, left: string, right: string | null): Promise<string> {
+  const { rows } = await ctx.client.query<{ value: string }>(
+    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
+    [left, right ?? '0'],
+  );
+  return rows[0]?.value ?? '0';
 }
 
 function resolveQtyKg(wo: WoRow, input: RegisterOutputInputType): string {

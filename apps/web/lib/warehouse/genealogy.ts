@@ -65,6 +65,14 @@ export async function queryGenealogy(
       ancestors as (
         select id, parent_lp_id, path, depth from seed
         union all
+        -- TODO(R-TO bug 4): move ancestor traversal behind a SECURITY DEFINER
+        -- SQL function such as public.trace_lp_genealogy_org(lp_id uuid) owned by
+        -- a role that bypasses the restrictive site RLS policy, with every read
+        -- constrained by lp.org_id = app.current_org_id() / lg.org_id =
+        -- app.current_org_id() and no site predicate. This code-only lane cannot
+        -- install the required migration safely; leaving the current app_user
+        -- traversal avoids a half-fix that could either still prune ancestors or
+        -- leak cross-org data.
         select parent.id,
                parent.parent_lp_id,
                ancestors.path || parent.id,

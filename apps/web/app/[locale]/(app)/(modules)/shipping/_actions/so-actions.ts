@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { resolveSalesLinePrice } from './sales-line-price';
+import { deallocateSalesOrderInContext } from './so-deallocation';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -413,62 +414,6 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
   return order;
 }
 
-async function deallocateSalesOrderInContext(ctx: ShippingContext, soId: string): Promise<void> {
-  const { rows: allocations } = await ctx.client.query<{ lp_id: string; qty: string }>(
-    `select ia.license_plate_id::text as lp_id, ia.quantity_allocated::text as qty
-       from public.inventory_allocations ia
-       join public.sales_order_lines sol on sol.id = ia.sales_order_line_id
-      where ia.org_id = app.current_org_id()
-        and sol.org_id = app.current_org_id()
-        and sol.sales_order_id = $1::uuid
-        and ia.status = 'allocated'`,
-    [soId],
-  );
-
-  for (const allocation of allocations) {
-    await ctx.client.query(
-      `update public.license_plates
-          set reserved_qty = greatest(0, reserved_qty - $2::numeric),
-              updated_by = $3::uuid
-        where org_id = app.current_org_id()
-          and id = $1::uuid`,
-      [allocation.lp_id, allocation.qty, ctx.userId],
-    );
-  }
-
-  await ctx.client.query(
-    `update public.inventory_allocations ia
-        set status = 'released',
-            released_at = now(),
-            updated_by = $2::uuid
-       from public.sales_order_lines sol
-      where sol.id = ia.sales_order_line_id
-        and ia.org_id = app.current_org_id()
-        and sol.org_id = app.current_org_id()
-        and sol.sales_order_id = $1::uuid
-        and ia.status = 'allocated'`,
-    [soId, ctx.userId],
-  );
-
-  await ctx.client.query(
-    `update public.sales_order_lines
-        set quantity_allocated = 0,
-            updated_by = $2::uuid
-      where org_id = app.current_org_id()
-        and sales_order_id = $1::uuid`,
-    [soId, ctx.userId],
-  );
-
-  await ctx.client.query(
-    `update public.sales_orders
-        set status = 'confirmed',
-            updated_by = $2::uuid
-      where org_id = app.current_org_id()
-        and id = $1::uuid`,
-    [soId, ctx.userId],
-  );
-}
-
 async function transitionSalesOrderStatusInContext(
   ctx: ShippingContext,
   id: string,
@@ -729,6 +674,7 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
            from public.license_plates lp
           where lp.org_id = app.current_org_id()
             and lp.product_id = $1::uuid
+            and ($2::uuid is null or lp.site_id = $2::uuid)
             and lp.status = 'available'
             and lp.qa_status = 'released'
             -- Food-safety (G-QA-03 / owner per-rule BLOCK): never allocate an
@@ -752,7 +698,7 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
             and (lp.quantity - lp.reserved_qty) > 0
           order by lp.expiry_date asc nulls last, lp.created_at asc
           for update of lp`,
-        [line.product_id],
+        [line.product_id, line.site_id],
       );
 
       for (const lp of candidates) {

@@ -208,12 +208,14 @@ export async function rescheduleWorkOrder(params: {
         scheduled_start_time: Date | string | null;
         scheduled_end_time: Date | string | null;
         production_line_id: string | null;
+        site_id: string | null;
       }>(
-        `select status, scheduled_start_time, scheduled_end_time, production_line_id
+        `select status, scheduled_start_time, scheduled_end_time, production_line_id, site_id
            from public.work_orders
           where org_id = app.current_org_id()
             and id = $1::uuid
-          limit 1`,
+          limit 1
+          for update`,
         [input.woId],
       );
       const current = currentResult.rows[0];
@@ -223,6 +225,8 @@ export async function rescheduleWorkOrder(params: {
       }
 
       if (input.lineId) {
+        // production_lines has no site_id column in this schema, so target-line
+        // site matching is deferred until the infra table carries site scope.
         const lineResult = await ctx.client.query<{ id: string }>(
           `select id
              from public.production_lines

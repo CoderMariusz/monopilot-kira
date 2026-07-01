@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { deallocateSalesOrderInContext } from './so-deallocation';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -556,53 +557,61 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
         reason_code: parsed.reasonCode ?? null,
       });
 
-      for (const allocation of allocations) {
-        const { rowCount } = await ctx.client.query(
-          `update public.inventory_allocations
-              set status = 'released',
-                  released_at = coalesce(released_at, now()),
-                  ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
-                  updated_at = now(),
-                  updated_by = $3::uuid
-            where org_id = app.current_org_id()
-              and id = $1::uuid
-              and status in ('allocated', 'picked')`,
-          [
-            allocation.id,
-            JSON.stringify({ cancellation_signature_id: signatureId, cancelled_shipment_id: shipment.id }),
-            userId,
-          ],
-        );
-        if (rowCount !== 1) throw new ActionError('persistence_failed');
-
-        await ctx.client.query(
-          `update public.license_plates
-              set reserved_qty = greatest(0, reserved_qty - $2::numeric),
-                  updated_at = now(),
-                  updated_by = $3::uuid
-            where org_id = app.current_org_id()
-              and id = $1::uuid`,
-          [allocation.lp_id, allocation.qty, userId],
-        );
+      if (shipment.sales_order_id) {
+        await deallocateSalesOrderInContext(ctx, shipment.sales_order_id);
       }
 
       for (const lp of lps) {
         const { rowCount } = await ctx.client.query(
           `update public.license_plates
               set quantity = quantity + $2::numeric,
-                  reserved_qty = $3::numeric,
-                  status = $4,
+                  status = $3,
                   source_so_id = null,
                   updated_at = now(),
-                  updated_by = $5::uuid
+                  updated_by = $4::uuid
             where org_id = app.current_org_id()
               and id = $1::uuid
               and status = 'shipped'`,
-          [lp.lp_id, lp.shipped_qty, lp.prior_reserved_qty, lp.from_status, userId],
+          [lp.lp_id, lp.shipped_qty, lp.from_status, userId],
         );
         if (rowCount !== 1) throw new ActionError('persistence_failed');
         await writeLpTransition(ctx, shipment, { ...lp, from_status: 'shipped' }, lp.from_status, parsed.reasonCode ?? null, parsed.note ?? null);
       }
+
+      await ctx.client.query(
+        `update public.shipment_box_contents sbc
+            set deleted_at = coalesce(deleted_at, now()),
+                updated_at = now(),
+                updated_by = $2::uuid,
+                ext_data = coalesce(ext_data, '{}'::jsonb) || $3::jsonb
+           from public.shipment_boxes sb
+          where sb.id = sbc.shipment_box_id
+            and sb.org_id = app.current_org_id()
+            and sb.shipment_id = $1::uuid
+            and sbc.org_id = app.current_org_id()
+            and sbc.deleted_at is null`,
+        [
+          shipment.id,
+          userId,
+          JSON.stringify({ cancellation_signature_id: signatureId, cancellation_reason_code: parsed.reasonCode ?? null }),
+        ],
+      );
+
+      await ctx.client.query(
+        `update public.shipment_boxes
+            set deleted_at = coalesce(deleted_at, now()),
+                updated_at = now(),
+                updated_by = $2::uuid,
+                ext_data = coalesce(ext_data, '{}'::jsonb) || $3::jsonb
+          where org_id = app.current_org_id()
+            and shipment_id = $1::uuid
+            and deleted_at is null`,
+        [
+          shipment.id,
+          userId,
+          JSON.stringify({ cancellation_signature_id: signatureId, cancellation_reason_code: parsed.reasonCode ?? null }),
+        ],
+      );
 
       const { rowCount } = await ctx.client.query(
         `update public.shipments

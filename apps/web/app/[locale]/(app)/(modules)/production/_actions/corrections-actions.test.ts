@@ -38,6 +38,7 @@ const CORRECTION_ID = '66666666-6666-4666-8666-666666666666';
 const OUTPUT_ID = '77777777-7777-4777-8777-777777777777';
 const LP_ID = '88888888-8888-4888-8888-888888888888';
 const PARENT_LP_ID = '99999999-9999-4999-8999-999999999999';
+const WASTE_SITE_ID = '12121212-1212-4121-8121-121212121212';
 const CONSUMPTION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const COMPONENT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const MATERIAL_A_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
@@ -58,7 +59,9 @@ type State = {
   lpStatus: string;
   lpQaStatus: string;
   lpReservedQty: string;
-  lpConsumedOrChild: boolean;
+  lpConsumptionRows: string[];
+  lpHasChild: boolean;
+  openLpQualityHold: boolean;
   genealogyChildLinks: Set<string>;
   materialDecrementOk: boolean;
   materialRows: Array<{ id: string; product_id: string; consumed_qty: string }>;
@@ -107,6 +110,7 @@ function makeClient(): QueryClient {
               rows: [{
                 id: WASTE_ID,
                 transaction_id: '77777777-7777-4777-8777-777777777777',
+                site_id: WASTE_SITE_ID,
                 wo_id: WO_ID,
                 category_id: CATEGORY_ID,
                 qty_kg: '2.500',
@@ -207,8 +211,13 @@ function makeClient(): QueryClient {
           : { rows: [], rowCount: 0 };
       }
 
-      if (n.includes('exists') && n.includes('from public.wo_material_consumption') && n.includes('parent_lp_id')) {
-        return { rows: [{ ok: state.lpConsumedOrChild }], rowCount: 1 };
+      if (n.includes('coalesce(sum(qty_consumed), 0)') && n.includes('parent_lp_id')) {
+        const netConsumed = state.lpConsumptionRows.reduce((sum, qty) => sum + Number(qty), 0);
+        return { rows: [{ ok: netConsumed > 0 || state.lpHasChild }], rowCount: 1 };
+      }
+
+      if (n.includes('from public.quality_holds')) {
+        return { rows: [{ ok: state.openLpQualityHold }], rowCount: 1 };
       }
 
       if (n.startsWith('delete from public.lp_genealogy')) {
@@ -319,7 +328,9 @@ beforeEach(() => {
     lpStatus: 'received',
     lpQaStatus: 'pending',
     lpReservedQty: '0.000000',
-    lpConsumedOrChild: false,
+    lpConsumptionRows: [],
+    lpHasChild: false,
+    openLpQualityHold: false,
     genealogyChildLinks: new Set(),
     materialDecrementOk: true,
     materialRows: [{ id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '4.250' }],
@@ -438,6 +449,59 @@ describe('reverseConsumption', () => {
     expect(history?.params).toContain('consumed');
     expect(history?.params).toContain('received');
     expect(history?.params).not.toContain('available');
+  });
+
+  it('restores a consumed LP on QA hold to blocked so it cannot be picked before QA release', async () => {
+    state.lpStatus = 'consumed';
+    state.lpQaStatus = 'on_hold';
+    state.openLpQualityHold = true;
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      note: 'QA hold pallet',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    expect(lpUpdate?.params).toEqual([LP_ID, '4.250', USER_ID, 'blocked']);
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(history?.params).toContain('blocked');
+    expect(history?.params).not.toContain('received');
+  });
+
+  it('restores a consumed LP with released QA hold state to received when no open LP hold remains', async () => {
+    state.lpStatus = 'consumed';
+    state.lpQaStatus = 'on_hold';
+    state.openLpQualityHold = false;
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      note: 'hold was released',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const holdQuery = queries.find((q) => normalize(q.sql).includes('from public.quality_holds'));
+    expect(holdQuery).toBeDefined();
+    expect(normalize(holdQuery!.sql)).toContain("reference_type = 'lp'");
+    expect(normalize(holdQuery!.sql)).toContain('reference_id = $1::text');
+    expect(normalize(holdQuery!.sql)).toContain("hold_status in ('open', 'investigating', 'escalated', 'quarantined')");
+    expect(normalize(holdQuery!.sql)).toContain('released_at is null');
+    expect(holdQuery?.params).toEqual([LP_ID]);
+
+    const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
+    expect(lpUpdate?.params).toEqual([LP_ID, '4.250', USER_ID, 'received']);
+    expect(normalize(lpUpdate!.sql)).not.toContain('qa_status');
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(history?.params).toContain('received');
+    expect(history?.params).not.toContain('blocked');
   });
 
   it('supports no-LP consumption reversal as ledger-only after material decrement', async () => {
@@ -659,6 +723,7 @@ describe('voidWasteEntry', () => {
     expect(insert).toBeDefined();
     expect(insert?.sql).toContain('app.current_org_id()');
     expect(insert?.params).toContain(WASTE_ID);
+    expect(insert?.params).toContain(WASTE_SITE_ID);
     expect(insert?.params).toContain('-2.500');
     expect(insert?.params).toContain('entry_error');
     expect(insert?.params).toContain('wrong entry');
@@ -826,13 +891,36 @@ describe('voidWoOutput', () => {
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
   });
 
-  it('refuses an LP with consumption or genealogy children as not voidable', async () => {
-    state.lpConsumedOrChild = true;
+  it('refuses an LP with net-positive consumption or genealogy children as not voidable', async () => {
+    state.lpConsumptionRows = ['12.345'];
 
     const result = await voidWoOutput({ outputId: OUTPUT_ID, reasonCode: 'wrong_batch', signature: { password: '123456' } });
 
     expect(result).toEqual({ ok: false, error: 'lp_not_voidable' });
+    const blockerQuery = queries.find((q) => normalize(q.sql).includes('from public.wo_material_consumption') && normalize(q.sql).includes('parent_lp_id'));
+    expect(normalize(blockerQuery!.sql)).toContain('coalesce(sum(qty_consumed), 0)');
+    expect(normalize(blockerQuery!.sql)).not.toContain('correction_of_id is null');
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'))).toBe(false);
+  });
+
+  it('voidWoOutput allows an LP whose consumption has been fully reversed to net zero', async () => {
+    state.lpConsumptionRows = ['12.345', '-12.345'];
+
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'wrong_batch',
+      note: 'fully reversed consumption',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const blockerQuery = queries.find((q) => normalize(q.sql).includes('from public.wo_material_consumption') && normalize(q.sql).includes('parent_lp_id'));
+    expect(blockerQuery).toBeDefined();
+    expect(normalize(blockerQuery!.sql)).toContain('coalesce(sum(qty_consumed), 0)');
+    expect(normalize(blockerQuery!.sql)).not.toContain('correction_of_id is null');
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
   });
 
   it('refuses a double output correction', async () => {

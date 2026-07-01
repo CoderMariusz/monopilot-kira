@@ -24,6 +24,7 @@ const LINE_ID = '55555555-5555-4555-8555-555555555555';
 const ITEM_ID = '66666666-6666-4666-8666-666666666666';
 const LP_1 = '77777777-7777-4777-8777-777777777777';
 const LP_2 = '88888888-8888-4888-8888-888888888888';
+const SITE_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -35,6 +36,7 @@ let listPriceGbp: string | null = '7.2500';
 let allocationRows: Array<{ sales_order_line_id: string; lp_id: string; qty: string; status: string }> = [];
 let lpReserved: Record<string, string> = {};
 let lineAllocatedQty = '0';
+let lineSiteId: string | null = null;
 let candidateRows: Array<{
   lp_id: string;
   available_qty: string;
@@ -182,7 +184,7 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('select id::text, site_id::text')) {
-        return { rows: [{ id: LINE_ID, site_id: null, product_id: ITEM_ID, quantity_ordered: '10' }], rowCount: 1 };
+        return { rows: [{ id: LINE_ID, site_id: lineSiteId, product_id: ITEM_ID, quantity_ordered: '10' }], rowCount: 1 };
       }
       if (q.includes("feature_flags->>'near_expiry_warn_days'")) {
         return { rows: [{ warn_days: nearExpiryWarnDays }], rowCount: 1 };
@@ -229,6 +231,7 @@ beforeEach(() => {
   allocationRows = [];
   lpReserved = {};
   lineAllocatedQty = '0';
+  lineSiteId = null;
   candidateRows = [];
   nearExpiryWarnDays = '7';
   queryLog = [];
@@ -435,6 +438,18 @@ describe('allocateSalesOrder', () => {
     // never read the underlying quality_holds table directly — T-064 mandates
     // the v_active_holds seam (comments may mention the name; queries must not).
     expect(normalized).not.toContain('from public.quality_holds');
+  });
+
+  it('filters allocation candidates to the sales order line site when one is set', async () => {
+    status = 'confirmed';
+    lineSiteId = SITE_ID;
+    candidateRows = [{ lp_id: LP_1, available_qty: '10' }];
+
+    await allocateSalesOrder(SO_ID);
+
+    const candidateQuery = queryLog.find(({ sql }) => normalize(sql).startsWith('select lp.id::text as lp_id'));
+    expect(normalize(String(candidateQuery?.sql))).toContain('and ($2::uuid is null or lp.site_id = $2::uuid)');
+    expect(candidateQuery?.params).toEqual([ITEM_ID, SITE_ID]);
   });
 
   it('does NOT allocate when the only candidate LP is held (held LP never returned) — G-QA-07', async () => {

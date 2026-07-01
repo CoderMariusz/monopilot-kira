@@ -441,12 +441,13 @@ export async function moveScannerLp(
     if (!lp) throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found. Scan the barcode again or contact a supervisor.');
     assertLpMovable(lp);
 
-    await assertLocationExists(client, input.toLocationId);
+    const destination = await loadLocationScope(client, input.toLocationId);
     const moveId = await insertStockMove(client, session, {
       lpId: input.lpId,
       moveType: input.moveType,
       fromLocationId: lp.location_id,
       toLocationId: input.toLocationId,
+      siteId: destination.siteId,
       quantity: lp.quantity,
       uom: lp.uom,
       reason: input.reason ?? null,
@@ -454,7 +455,7 @@ export async function moveScannerLp(
       woId: null,
       materialId: null,
     });
-    await updateLpLocation(client, session, input.lpId, input.toLocationId);
+    await updateLpLocation(client, session, input.lpId, input.toLocationId, destination);
     // Lifecycle (audit F-A01): putaway is the canonical received→available
     // transition — v_inventory_available (mig 191) requires status='available',
     // so without this promotion received stock never reaches FEFO/consume.
@@ -487,10 +488,12 @@ export async function pickScannerLp(
   return inIdempotentScannerWrite(client, session, 'warehouse.scanner.pick', input.clientOpId, async () => {
     const pick = await client.query<{
       product_id: string;
+      site_id: string | null;
       uom: string;
       staging_location_id: string | null;
     }>(
       `select mat.product_id::text,
+              wo.site_id::text,
               mat.uom,
               line.default_location_id::text as staging_location_id
          from public.wo_materials mat
@@ -520,11 +523,14 @@ export async function pickScannerLp(
     // any other 422 → generic error). Do NOT reuse a generic 422 code here.
     const toLocationId = input.toLocationId ?? material.staging_location_id;
     if (!toLocationId) throw new WarehouseScannerError('destination_required', 422, 'Choose a destination location before picking this pallet.');
-    await assertLocationExists(client, toLocationId);
+    const destination = await loadLocationScope(client, toLocationId);
 
     const lp = await loadMovableLpForUpdate(client, session, input.lpId);
     if (!lp) throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found. Scan the barcode again or contact a supervisor.');
     assertLpMovable(lp);
+    if (lp.site_id && material.site_id && lp.site_id !== material.site_id) {
+      throw new WarehouseScannerError('lp_wrong_site', 409, 'This pallet belongs to another site and cannot be picked for this work order.');
+    }
     // PICK-ONLY food-safety gate (G-WH-01 / owner per-rule = HARD BLOCK):
     // staging to production is a consume precursor, so picked stock must be
     // QA-released, not expired, and not on an active quality hold. Putaway/move
@@ -555,6 +561,7 @@ export async function pickScannerLp(
       moveType: 'issue',
       fromLocationId: lp.location_id,
       toLocationId,
+      siteId: destination.siteId,
       quantity: lp.available_qty,
       uom: lp.uom,
       reason: 'scanner_pick',
@@ -562,7 +569,7 @@ export async function pickScannerLp(
       woId: input.woId,
       materialId: input.materialId,
     });
-    await updateLpLocation(client, session, input.lpId, toLocationId);
+    await updateLpLocation(client, session, input.lpId, toLocationId, destination);
     return moveId;
   });
 }
@@ -651,6 +658,7 @@ async function insertScannerAudit(
 type MovableLpRow = {
   id: string;
   product_id: string;
+  site_id: string | null;
   quantity: string;
   available_qty: string;
   reserved_qty: string;
@@ -671,6 +679,7 @@ async function loadMovableLpForUpdate(
   const { rows } = await client.query<MovableLpRow>(
     `select lp.id::text,
             lp.product_id::text,
+            lp.site_id::text,
             lp.quantity::text,
             (lp.quantity - lp.reserved_qty)::text as available_qty,
             lp.reserved_qty::text,
@@ -732,16 +741,22 @@ async function assertLpNotOnActiveHold(client: QueryClient, lpId: string): Promi
   }
 }
 
-async function assertLocationExists(client: QueryClient, locationId: string): Promise<void> {
-  const { rows } = await client.query<{ id: string }>(
-    `select id::text
-       from public.locations
-      where org_id = app.current_org_id()
-        and id = $1::uuid
+async function loadLocationScope(client: QueryClient, locationId: string): Promise<{ warehouseId: string; siteId: string }> {
+  const { rows } = await client.query<{ warehouse_id: string; site_id: string | null }>(
+    `select loc.warehouse_id::text,
+            w.site_id::text
+       from public.locations loc
+       join public.warehouses w
+         on w.org_id = app.current_org_id()
+        and w.id = loc.warehouse_id
+      where loc.org_id = app.current_org_id()
+        and loc.id = $1::uuid
       limit 1`,
     [locationId],
   );
-  if (!rows[0]) throw new WarehouseScannerError('invalid_location', 422, 'Location not found. Scan the location again or choose another one.');
+  const row = rows[0];
+  if (!row?.site_id) throw new WarehouseScannerError('invalid_location', 422, 'Location not found. Scan the location again or choose another one.');
+  return { warehouseId: row.warehouse_id, siteId: row.site_id };
 }
 
 async function insertStockMove(
@@ -752,6 +767,7 @@ async function insertStockMove(
     moveType: 'putaway' | 'transfer' | 'issue';
     fromLocationId: string | null;
     toLocationId: string;
+    siteId: string;
     quantity: string;
     uom: string;
     reason: string | null;
@@ -763,16 +779,17 @@ async function insertStockMove(
   const moveNumber = moveNumberFromTransactionId(input.transactionId);
   const { rows } = await client.query<{ id: string }>(
     `insert into public.stock_moves (
-       org_id, move_number, lp_id, move_type, from_location_id, to_location_id,
+       org_id, site_id, move_number, lp_id, move_type, from_location_id, to_location_id,
        quantity, uom, reason_text, wo_id, wo_material_id, transaction_id, created_by, updated_by
      )
      values (
-       app.current_org_id(), $1, $2::uuid, $3, $4::uuid, $5::uuid,
-       $6::numeric, $7, $8, $9::uuid, $10::uuid, $11::uuid, $12::uuid, $12::uuid
+       app.current_org_id(), $1::uuid, $2, $3::uuid, $4, $5::uuid, $6::uuid,
+       $7::numeric, $8, $9, $10::uuid, $11::uuid, $12::uuid, $13::uuid, $13::uuid
      )
      on conflict (org_id, transaction_id) do nothing
      returning id::text`,
     [
+      input.siteId,
       moveNumber,
       input.lpId,
       input.moveType,
@@ -872,26 +889,18 @@ async function updateLpLocation(
   session: ScannerSessionRow,
   lpId: string,
   toLocationId: string,
+  destination: { warehouseId: string; siteId: string },
 ): Promise<void> {
   await client.query(
     `update public.license_plates
         set location_id = $2::uuid,
-            site_id = dest.site_id,
+            site_id = $4::uuid,
+            warehouse_id = $5::uuid,
             updated_by = $3::uuid,
             updated_at = now()
-       from (
-         select w.site_id
-           from public.locations loc
-           join public.warehouses w
-             on w.org_id = app.current_org_id()
-            and w.id = loc.warehouse_id
-          where loc.org_id = app.current_org_id()
-            and loc.id = $2::uuid
-          limit 1
-       ) dest
       where org_id = app.current_org_id()
         and id = $1::uuid`,
-    [lpId, toLocationId, session.user_id],
+    [lpId, toLocationId, session.user_id, destination.siteId, destination.warehouseId],
   );
 }
 

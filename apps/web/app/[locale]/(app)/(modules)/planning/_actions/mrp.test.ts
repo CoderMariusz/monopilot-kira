@@ -25,6 +25,7 @@ const WO_PLANNED_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const FG_PLANNED_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const SITE_ID = '12121212-1212-4121-8121-121212121212';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -166,7 +167,7 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (normalized.includes('from public.mrp_planned_orders')) {
-        if (normalized.includes('for update of po')) {
+        if (normalized.includes('for update of po') && !Array.isArray(params[0])) {
           return { rows: cancelLookupRows as never[], rowCount: cancelLookupRows.length };
         }
         if (!Array.isArray(params[0])) {
@@ -176,6 +177,7 @@ function makeClient(): QueryClient {
               const label = itemLabelForId(itemId);
               return {
                 id: plannedOrderIdForItem(itemId, index),
+                site_id: SITE_ID,
                 item_id: p[2],
                 item_code: label.code,
                 item_name: label.name,
@@ -695,6 +697,7 @@ describe('runMrp', () => {
       {
         id: FG_PLANNED_ID,
         item_id: FG_ID,
+        site_id: SITE_ID,
         item_code: 'FG-BREAD',
         item_name: 'Finished bread',
         order_type: 'wo',
@@ -711,6 +714,7 @@ describe('runMrp', () => {
     expect(workOrderInserts).toHaveLength(1);
     expect(workOrderInserts[0][2]).toBe(FG_ID);
     expect(workOrderInserts[0][4]).toBe('9.000');
+    expect(workOrderInserts[0][11]).toBe(SITE_ID);
 
     createPurchaseOrderMock.mockClear();
     const poResult = await convertPlannedToPo([FG_PLANNED_ID]);
@@ -901,6 +905,7 @@ describe('convertPlannedToWo', () => {
     conversionRows = [
       {
         id: WO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: DOUGH_ID,
         item_code: 'INT-DOUGH',
         item_name: 'Bread dough',
@@ -923,13 +928,20 @@ describe('convertPlannedToWo', () => {
     expect(workOrderInserts[0][4]).toBe('8.000');
     expect(workOrderInserts[0][5]).toBe('INT-DOUGH');
     expect(workOrderInserts[0][10]).toBe('factory-spec-id');
+    expect(workOrderInserts[0][11]).toBe(SITE_ID);
     expect(woMaterialInserts).toEqual([[woId, '8.000000', 1, 'bom-id']]);
     expect(woOperationInserts).toEqual([[woId, '8.000', DOUGH_ID]]);
-    expect(scheduleOutputInserts).toEqual([[woId, DOUGH_ID, '8.000', 'Created from MRP planned order', 'kg']]);
+    expect(scheduleOutputInserts).toEqual([[woId, DOUGH_ID, '8.000', 'Created from MRP planned order', 'kg', SITE_ID]]);
     expect(woStatusHistoryInserts).toEqual([
       [woId, USER_ID, JSON.stringify({ app_version: 'planning-work-orders-v1', bom_header_id: 'bom-id' })],
     ]);
     expect(releasedUpdates).toEqual([[[WO_PLANNED_ID], woId]]);
+    const conversionSelect = executed.find((sql) => sql.includes('from public.mrp_planned_orders') && sql.includes('for update of po'))!;
+    expect(conversionSelect).toContain('po.site_id');
+    const releaseUpdate = executed.find((sql) => sql.startsWith('update public.mrp_planned_orders'))!;
+    expect(releaseUpdate).toContain("release_status in ('suggested', 'firm')");
+    expect(executed.find((sql) => sql.startsWith('insert into public.work_orders'))).toContain('site_id');
+    expect(executed.find((sql) => sql.startsWith('insert into public.schedule_outputs'))).toContain('site_id');
   });
 
   it('skips make planned orders with no active BOM before inlining WO creation', async () => {
@@ -937,6 +949,7 @@ describe('convertPlannedToWo', () => {
     conversionRows = [
       {
         id: WO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: DOUGH_ID,
         item_code: 'INT-DOUGH',
         item_name: 'Bread dough',

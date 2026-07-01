@@ -42,6 +42,7 @@ function makeClient(): QueryClient & { query: ReturnType<typeof vi.fn> } {
             {
               id: LP_ID,
               product_id: '88888888-8888-4888-8888-888888888888',
+              site_id: session.site_id,
               quantity: '10.000000',
               available_qty: '10.000000',
               reserved_qty: '0.000000',
@@ -57,7 +58,12 @@ function makeClient(): QueryClient & { query: ReturnType<typeof vi.fn> } {
           rowCount: 1,
         };
       }
-      if (q.startsWith('select id::text from public.locations')) return { rows: [{ id: TO_LOCATION_ID }], rowCount: 1 };
+      if (q.startsWith('select loc.warehouse_id::text')) {
+        return {
+          rows: [{ warehouse_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', site_id: session.site_id }],
+          rowCount: 1,
+        };
+      }
       if (q.startsWith('insert into public.stock_moves')) return { rows: [{ id: '99999999-9999-4999-8999-999999999999' }], rowCount: 1 };
       return { rows: [], rowCount: 0 };
     }),
@@ -77,8 +83,11 @@ describe('scanner warehouse movement', () => {
 
     const update = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.license_plates'));
     expect(update).toBeDefined();
-    expect(normalize(String(update?.[0]))).toContain('site_id = dest.site_id');
-    expect(normalize(String(update?.[0]))).toContain('from public.locations loc join public.warehouses w');
-    expect(update?.[1]).toEqual([LP_ID, TO_LOCATION_ID, USER_ID]);
+    expect(normalize(String(update?.[0]))).toContain('site_id = $4::uuid');
+    expect(normalize(String(update?.[0]))).toContain('warehouse_id = $5::uuid');
+    expect(update?.[1]).toEqual([LP_ID, TO_LOCATION_ID, USER_ID, session.site_id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']);
+    const insert = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.stock_moves'));
+    expect(normalize(String(insert?.[0]))).toContain('org_id, site_id, move_number');
+    expect(insert?.[1]?.[0]).toBe(session.site_id);
   });
 });

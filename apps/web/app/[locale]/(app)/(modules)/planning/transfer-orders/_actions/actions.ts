@@ -930,6 +930,15 @@ async function receiveTransferOrder(
     return { ok: false, error: 'invalid_state', message: 'to_warehouse_required' };
   }
   const destLocationId = await resolveDefaultLocation(ctx.client, to.to_warehouse_id);
+  const destWarehouse = await ctx.client.query<{ site_id: string | null }>(
+    `select w.site_id::text as site_id
+       from public.warehouses w
+      where w.org_id = app.current_org_id()
+        and w.id = $1::uuid
+      limit 1`,
+    [to.to_warehouse_id],
+  );
+  const destSiteId = destWarehouse.rows[0]?.site_id ?? null;
 
   const pending = await ctx.client.query<{
     id: string;
@@ -963,19 +972,20 @@ async function receiveTransferOrder(
     const lpNumber = makeLpNumber();
     const inserted = await ctx.client.query<{ id: string }>(
       `insert into public.license_plates (
-         org_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
+         org_id, site_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
          status, qa_status, batch_number, supplier_batch_number,
          expiry_date, best_before_date, shelf_life_mode_snapshot,
          origin, parent_lp_id, ext_jsonb, created_by, updated_by
        )
        values (
-         app.current_org_id(), $1::uuid, $2::uuid, $3, $4::uuid, $5::numeric, $6,
-         'available', $7, $8, $9,
-         $10::timestamptz, $11::timestamptz, $12,
-         'transfer', $13::uuid, jsonb_build_object('transfer_order_id', $14::uuid), $15::uuid, $15::uuid
+         app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
+         'available', $8, $9, $10,
+         $11::timestamptz, $12::timestamptz, $13,
+         'transfer', $14::uuid, jsonb_build_object('transfer_order_id', $15::uuid), $16::uuid, $16::uuid
        )
        returning id`,
       [
+        destSiteId,
         to.to_warehouse_id,
         destLocationId,
         lpNumber,
@@ -995,6 +1005,13 @@ async function receiveTransferOrder(
     );
     const destLp = inserted.rows[0];
     if (!destLp) return { ok: false, error: 'persistence_failed' };
+
+    await ctx.client.query(
+      `insert into public.lp_genealogy (org_id, child_lp_id, parent_lp_id, relation_type, qty, uom)
+       values (app.current_org_id(), $1::uuid, $2::uuid, 'derived', $3::numeric, $4)
+       on conflict (org_id, child_lp_id, parent_lp_id, relation_type) do nothing`,
+      [destLp.id, row.source_lp_id, row.qty, row.uom],
+    );
 
     await ctx.client.query(
       `insert into public.lp_state_history

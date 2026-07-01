@@ -64,7 +64,7 @@ function makeClient(): QueryClient {
       if (normalized.includes('select status, scheduled_start_time')) {
         return {
           rows: currentStatus
-            ? [{ status: currentStatus, scheduled_start_time: null, scheduled_end_time: null, production_line_id: null }]
+            ? [{ status: currentStatus, scheduled_start_time: null, scheduled_end_time: null, production_line_id: null, site_id: SITE_ID }]
             : [],
           rowCount: currentStatus ? 1 : 0,
         };
@@ -120,6 +120,10 @@ describe('rescheduleWorkOrder', () => {
       expect.stringContaining('update public.work_orders'),
       [WO_ID, START, END, LINE_ID, USER_ID, ['DRAFT', 'RELEASED'], 'DRAFT'],
     );
+    const lockRead = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase().includes('select status, scheduled_start_time'));
+    expect(String(lockRead?.[0])).toContain('for update');
     // Audit row like the neighbours: action 'reschedule', status unchanged.
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("'reschedule'"),

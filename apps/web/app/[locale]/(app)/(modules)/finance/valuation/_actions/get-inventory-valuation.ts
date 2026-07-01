@@ -88,17 +88,19 @@ async function getInventoryValuationInContext(ctx: FinanceContext): Promise<Inve
             coalesce(sum(lp.quantity), 0)::text as qty_on_hand,
             wac.avg_cost::text as wac,
             round(coalesce(sum(lp.quantity * wac.avg_cost), 0), 4)::text as total_value,
-            wac.currency_id::text as currency
+            c.code as currency
        from public.license_plates lp
        join public.item_wac_state wac
          on wac.org_id = app.current_org_id()
         and wac.item_id = lp.product_id
+       join public.currencies c
+         on c.id = wac.currency_id
        left join public.items i
          on i.org_id = app.current_org_id()
         and i.id = lp.product_id
       where lp.org_id = app.current_org_id()
         and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
-      group by lp.product_id, i.item_code, i.name, wac.avg_cost, wac.currency_id
+      group by lp.product_id, i.item_code, i.name, wac.avg_cost, c.code
       order by round(coalesce(sum(lp.quantity * wac.avg_cost), 0), 4) desc, i.item_code asc nulls last`,
   );
 
@@ -106,15 +108,17 @@ async function getInventoryValuationInContext(ctx: FinanceContext): Promise<Inve
     `select valued.currency,
             round(sum(valued.total_value), 4)::text as total_value
        from (
-         select wac.currency_id::text as currency,
+         select c.code as currency,
                 coalesce(sum(lp.quantity * wac.avg_cost), 0) as total_value
            from public.license_plates lp
            join public.item_wac_state wac
              on wac.org_id = app.current_org_id()
             and wac.item_id = lp.product_id
+           join public.currencies c
+             on c.id = wac.currency_id
           where lp.org_id = app.current_org_id()
             and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
-          group by wac.currency_id
+          group by c.code
        ) valued
       group by valued.currency
       order by valued.currency asc`,

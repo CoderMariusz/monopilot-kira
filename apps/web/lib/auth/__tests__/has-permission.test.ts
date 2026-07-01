@@ -63,10 +63,24 @@ describe('hasPermission', () => {
     await expect(hasPermission(ctxFor(client), 'technical.items.edit')).resolves.toBe(true);
   });
 
-  it('grants when role.code is a super role without an explicit permission', async () => {
+  it('denies module_admin without an explicit permission', async () => {
     const client = new FakePermissionClient([{ code: 'module_admin' }]);
 
-    await expect(hasPermission(ctxFor(client), 'warehouse.lp.adjust')).resolves.toBe(true);
+    await expect(hasPermission(ctxFor(client), 'warehouse.lp.adjust')).resolves.toBe(false);
+  });
+
+  it('grants module_admin when an explicit seeded permission exists', async () => {
+    const client = new FakePermissionClient([{ code: 'module_admin', rpPermissions: ['settings.users.create'] }]);
+
+    await expect(hasPermission(ctxFor(client), 'settings.users.create')).resolves.toBe(true);
+  });
+
+  it('grants owner/admin/org_admin as super roles without an explicit permission', async () => {
+    for (const code of ['owner', 'admin', 'org_admin']) {
+      const client = new FakePermissionClient([{ code }]);
+
+      await expect(hasPermission(ctxFor(client), 'warehouse.lp.adjust')).resolves.toBe(true);
+    }
   });
 
   it('grants when role.slug is a super role without an explicit permission', async () => {

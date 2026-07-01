@@ -36,6 +36,7 @@ let shippedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedLpIds: string[] = [];
 let shippedLpSnapshot: Array<Record<string, unknown>> = [];
 let salesOrderUpdate: Record<string, unknown> | null = null;
+let remainingShipmentCount = 0;
 let bolUpdate: Record<string, unknown> | null = null;
 let podUpdate: Record<string, unknown> | null = null;
 let outboxEvents: Array<{
@@ -156,6 +157,10 @@ function makeClient(): QueryClient {
         return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
+      if (q.startsWith('select count(*)::int as remaining_count') && q.includes("status not in ('shipped', 'cancelled')")) {
+        return { rows: [{ remaining_count: remainingShipmentCount }], rowCount: 1 };
+      }
+
       if (q.startsWith('update public.shipments') && q.includes('bol_pdf_url')) {
         bolUpdate = {
           shipment_id: params[0],
@@ -201,6 +206,7 @@ beforeEach(() => {
   shippedLpIds = [];
   shippedLpSnapshot = [];
   salesOrderUpdate = null;
+  remainingShipmentCount = 0;
   bolUpdate = null;
   podUpdate = null;
   outboxEvents = [];
@@ -287,6 +293,16 @@ describe('shipShipment', () => {
     expect(salesOrderUpdate).toBeNull();
   });
 
+  it('does not mark the SO shipped while another shipment remains open', async () => {
+    remainingShipmentCount = 1;
+
+    const result = await shipShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: true });
+    expect(shippedShipmentUpdate).toMatchObject({ shipment_id: SHIPMENT_ID });
+    expect(salesOrderUpdate).toBeNull();
+  });
+
   it('double-ship is rejected and LP is decremented exactly once', async () => {
     await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: true });
 
@@ -370,6 +386,25 @@ describe('generateBol', () => {
       ],
     });
     expect(String(bolUpdate?.bol_pdf_url)).not.toMatch(/^data:/);
+  });
+
+  it('rejects BOL generation for cancelled shipments', async () => {
+    shipmentStatus = 'cancelled';
+
+    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(bolUpdate).toBeNull();
+  });
+
+  it('rejects BOL generation when the shipment has no boxes', async () => {
+    shipmentStatus = 'packed';
+    boxCount = 0;
+
+    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+
+    expect(result).toEqual({ ok: false, error: 'no_boxes' });
+    expect(bolUpdate).toBeNull();
   });
 });
 

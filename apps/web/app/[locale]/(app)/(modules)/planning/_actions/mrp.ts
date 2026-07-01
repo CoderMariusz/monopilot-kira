@@ -44,6 +44,7 @@ import { randomUUID } from 'node:crypto';
 
 import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../lib/production/wo-material-scalar';
+import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
 import { createPurchaseOrder } from '../purchase-orders/_actions/actions';
 import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
@@ -303,6 +304,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       // 5) Planned production supply — schedule_outputs (planning-owned projection)
       //    of open WOs, to-stock only (direct_continue feeds a downstream WO, not
       //    stock; pending_decision is excluded conservatively).
+      // NOTE: IN_PROGRESS outputs are counted as supply; this is a documented transient over-count resolved at WO close.
       //
       //    Self-supply guard (Codex batch-D F2): a WO that CONSUMES product X to
       //    MAKE product X (rework / regrind) must not offset its own open material
@@ -731,6 +733,7 @@ export async function getMrpRunRequirements(runId: string): Promise<MrpRunRequir
 
 type PlannedOrderForConversion = {
   id: string;
+  site_id: string | null;
   item_id: string;
   item_code: string | null;
   item_name: string | null;
@@ -787,7 +790,7 @@ async function fetchPlannedOrdersForConversion(
   ids: string[],
 ): Promise<PlannedOrderForConversion[]> {
   const { rows } = await c.query<PlannedOrderForConversion>(
-    `select po.id, po.item_id, i.item_code, i.name as item_name,
+    `select po.id, po.site_id, po.item_id, i.item_code, i.name as item_name,
             po.order_type, po.quantity::text as quantity, po.uom,
             po.due_date::text as due_date, po.supplier_id, po.release_status
        from public.mrp_planned_orders po
@@ -796,10 +799,17 @@ async function fetchPlannedOrdersForConversion(
         and i.id = po.item_id
       where po.org_id = app.current_org_id()
         and po.id = any($1::uuid[])
-      order by po.due_date asc, i.item_code asc`,
+      order by po.due_date asc, i.item_code asc
+      for update of po`,
     [ids],
   );
   return rows;
+}
+
+async function resolvePlannedOrderWriteSiteId(c: QueryClient, row: PlannedOrderForConversion): Promise<string | null> {
+  if (row.site_id) return row.site_id;
+  const resolved = await resolveWriteSiteId(c);
+  return resolved.ok ? resolved.siteId : null;
 }
 
 async function markPlannedOrdersReleased(
@@ -813,7 +823,8 @@ async function markPlannedOrdersReleased(
             released_order_id = $2::uuid,
             converted_at = now()
       where org_id = app.current_org_id()
-        and id = any($1::uuid[])`,
+        and id = any($1::uuid[])
+        and release_status in ('suggested', 'firm')`,
     [ids, releasedOrderId],
   );
 }
@@ -1074,6 +1085,11 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
           skipped.push({ id: row.id, reason: 'quantity precision exceeds WO precision' });
           continue;
         }
+        const siteId = await resolvePlannedOrderWriteSiteId(c, row);
+        if (!siteId) {
+          skipped.push({ id: row.id, reason: 'missing site' });
+          continue;
+        }
         const itemUomResult = await c.query<{
           output_uom: string;
           uom_base: string;
@@ -1125,12 +1141,12 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
                 active_factory_spec_id,
                 planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
                 source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
-                ext_jsonb, created_by, updated_by)
+                ext_jsonb, created_by, updated_by, site_id)
              values
                ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
                 $11::uuid,
                 $5::numeric, $10, 'DRAFT', null, null, null,
-                'manual', $6, null, null, $9::jsonb, $7::jsonb, $8::uuid, $8::uuid)
+                'manual', $6, null, null, $9::jsonb, $7::jsonb, $8::uuid, $8::uuid, $12::uuid)
              returning id`,
             [
               woId,
@@ -1144,6 +1160,7 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
               JSON.stringify(dbUomSnapshot),
               uomSnapshot.uomBase,
               spec?.id ?? null,
+              siteId,
             ],
           );
 
@@ -1222,10 +1239,10 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
         );
         await c.query(
           `insert into public.schedule_outputs
-             (org_id, planned_wo_id, product_id, output_role, expected_qty, uom, allocation_pct, disposition, notes)
+             (org_id, site_id, planned_wo_id, product_id, output_role, expected_qty, uom, allocation_pct, disposition, notes)
            values
-             (app.current_org_id(), $1::uuid, $2::uuid, 'primary', $3::numeric, $5, 100.00, 'to_stock', $4)`,
-          [woId, row.item_id, quantity, notes, uomSnapshot.uomBase],
+             (app.current_org_id(), $6::uuid, $1::uuid, $2::uuid, 'primary', $3::numeric, $5, 100.00, 'to_stock', $4)`,
+          [woId, row.item_id, quantity, notes, uomSnapshot.uomBase, siteId],
         );
         await c.query(
           `insert into public.wo_status_history

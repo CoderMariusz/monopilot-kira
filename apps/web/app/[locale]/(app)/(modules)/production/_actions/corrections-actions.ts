@@ -88,6 +88,7 @@ export type ReverseConsumptionResult =
 type WasteRow = {
   id: string;
   transaction_id: string;
+  site_id: string | null;
   wo_id: string;
   category_id: string;
   qty_kg: string;
@@ -176,6 +177,7 @@ async function loadWasteForUpdate(ctx: ProductionContext, wasteId: string): Prom
   const { rows } = await ctx.client.query<WasteRow>(
     `select wl.id::text as id,
             wl.transaction_id::text as transaction_id,
+            wl.site_id::text as site_id,
             wl.wo_id::text as wo_id,
             wl.category_id::text as category_id,
             wl.qty_kg::text as qty_kg,
@@ -320,12 +322,12 @@ async function hasConsumptionCorrection(ctx: ProductionContext, consumptionId: s
 async function hasLpConsumptionOrChildren(ctx: ProductionContext, lpId: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select (
-       exists (
-         select 1
+       (
+         select coalesce(sum(qty_consumed), 0)
            from public.wo_material_consumption
           where org_id = app.current_org_id()
             and lp_id = $1::uuid
-       )
+       ) > 0
        or exists (
          select 1
            from public.license_plates
@@ -673,13 +675,30 @@ async function unlinkLpGenealogyChildren(ctx: ProductionContext, lpId: string): 
   );
 }
 
+async function hasOpenLpQualityHold(ctx: ProductionContext, lpId: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select exists (
+       select 1
+         from public.quality_holds
+        where org_id = app.current_org_id()
+          and reference_type = 'lp'
+          and reference_id = $1::text
+          and hold_status in ('open', 'investigating', 'escalated', 'quarantined')
+          and released_at is null
+     ) as ok`,
+    [lpId],
+  );
+  return rows[0]?.ok === true;
+}
+
 // F4 (R3 review) — QA-aware restore target. A consumed LP goes back to
-// 'available' (pickable) ONLY when its QA release still stands; anything else
-// ('pending', 'on_hold', 'rejected', …) restores to 'received' so the pallet
-// stays non-pickable until QA re-releases it. qa_status itself is preserved
-// as-is. Partially-consumed LPs ('available'/'received') keep their status.
-function lpRestoreTargetState(lp: LicensePlateRow): string {
+// 'available' (pickable) ONLY when its QA release still stands; QA holds restore
+// to 'blocked' only while an active LP hold still exists, and other
+// non-released statuses restore to 'received'. qa_status itself is preserved
+// as-is. Partially-consumed LPs keep their status.
+async function lpRestoreTargetState(ctx: ProductionContext, lp: LicensePlateRow): Promise<string> {
   if (lp.status !== 'consumed') return lp.status;
+  if (lp.qa_status === 'on_hold') return (await hasOpenLpQualityHold(ctx, lp.id)) ? 'blocked' : 'received';
   return lp.qa_status === 'released' ? 'available' : 'received';
 }
 
@@ -792,7 +811,7 @@ export async function voidWasteEntry(input: VoidWasteEntryInput): Promise<VoidWa
         reasonCode,
         transactionIdColumn: 'transaction_id',
         values: {
-          site_id: null,
+          site_id: original.site_id,
           wo_id: original.wo_id,
           category_id: original.category_id,
           qty_kg: negateDecimalString(original.qty_kg),
@@ -1049,7 +1068,7 @@ export async function reverseConsumption(input: ReverseConsumptionInput): Promis
       }
 
       if (lp) {
-        const toState = lpRestoreTargetState(lp);
+        const toState = await lpRestoreTargetState(ctx, lp);
         await restoreLicensePlate(ctx, { original, lp, toState });
         await writeLpRestoredHistory(ctx, { original, lp, toState, reasonCode, note });
       }

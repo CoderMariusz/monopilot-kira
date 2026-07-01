@@ -112,6 +112,13 @@ export async function searchTraceability(rawInput: unknown): Promise<Traceabilit
               and (wo.wo_number ilike '%' || $1 || '%' or wo.id::text = $1)
             limit $2::integer
          ),
+         seed_transfer_orders as (
+           select t.*
+             from public.transfer_orders t
+            where t.org_id = app.current_org_id()
+              and (t.to_number ilike '%' || $1 || '%' or t.id::text = $1)
+            limit $2::integer
+         ),
          touched_wos as (
            select wo_id from seed_outputs
            union
@@ -138,6 +145,17 @@ export async function searchTraceability(rawInput: unknown): Promise<Traceabilit
               and o.org_id = app.current_org_id()
               and o.wo_id in (select wo_id from touched_wos)
               and o.lp_id is not null
+           union
+           select source_lp_id
+             from public.transfer_order_line_lps
+            where org_id = app.current_org_id()
+              and to_id in (select id from seed_transfer_orders)
+           union
+           select dest_lp_id
+             from public.transfer_order_line_lps
+            where org_id = app.current_org_id()
+              and to_id in (select id from seed_transfer_orders)
+              and dest_lp_id is not null
          )
          select *
          from (

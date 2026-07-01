@@ -636,20 +636,22 @@ export async function destroyLp(lpIdInput: string, reasonInput: string, clientOp
         grnId: lp.grn_id,
         ext: { source: 'warehouse_lp_destroy', quantity: lp.quantity, uom: lp.uom },
       });
-      await insertStockMove(ctx, {
-        lpId: lp.id,
-        siteId: lp.site_id,
-        moveType: 'adjustment',
-        quantity: `-${lp.quantity}`,
-        uom: lp.uom,
-        locationId: lp.location_id,
-        reasonCode: 'lp_destroy',
-        reasonText: reason,
-        transactionId: uuidFromSeed(`${destroyTransactionId}:move`),
-        referenceId: lp.id,
-        referenceType: 'license_plate',
-        ext: { destroyed_lp_id: lp.id },
-      });
+      if (!isZeroDecimal(lp.quantity)) {
+        await insertStockMove(ctx, {
+          lpId: lp.id,
+          siteId: lp.site_id,
+          moveType: 'adjustment',
+          quantity: `-${lp.quantity}`,
+          uom: lp.uom,
+          locationId: lp.location_id,
+          reasonCode: 'lp_destroy',
+          reasonText: reason,
+          transactionId: uuidFromSeed(`${destroyTransactionId}:move`),
+          referenceId: lp.id,
+          referenceType: 'license_plate',
+          ext: { destroyed_lp_id: lp.id },
+        });
+      }
 
       return { ok: true };
     });

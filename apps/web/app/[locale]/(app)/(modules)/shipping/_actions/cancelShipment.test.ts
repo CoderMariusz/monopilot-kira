@@ -55,6 +55,7 @@ let boxContentsVoided = 0;
 vi.mock('@monopilot/e-sign', () => ({
   signEvent: vi.fn(async () => ({ signatureId: SIGNATURE_ID })),
 }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -143,15 +144,27 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.startsWith('select ia.license_plate_id::text')) {
+        const active = allocations.filter((allocation) => allocation.status === 'allocated' || allocation.status === 'picked');
+        return { rows: active.map((allocation) => ({ lp_id: allocation.lp_id, qty: allocation.qty })), rowCount: active.length };
+      }
+
       if (q.startsWith('select ia.id::text')) {
         return { rows: allocations, rowCount: allocations.length };
       }
 
       if (q.startsWith('update public.inventory_allocations')) {
-        releasedAllocations.push(String(params[0]));
-        allocations = allocations.map((allocation) =>
-          allocation.id === params[0] ? { ...allocation, status: 'released' } : allocation,
-        );
+        if (q.includes('from public.sales_order_lines')) {
+          releasedAllocations.push(...allocations.filter((allocation) => allocation.status !== 'released').map((allocation) => allocation.id));
+          allocations = allocations.map((allocation) =>
+            allocation.status === 'allocated' || allocation.status === 'picked' ? { ...allocation, status: 'released' } : allocation,
+          );
+        } else {
+          releasedAllocations.push(String(params[0]));
+          allocations = allocations.map((allocation) =>
+            allocation.id === params[0] ? { ...allocation, status: 'released' } : allocation,
+          );
+        }
         return { rows: [], rowCount: 1 };
       }
 
@@ -171,10 +184,13 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.license_plates') && q.includes('quantity = quantity +')) {
-        lpRestoreUpdates.push({ lpId: params[0], shippedQty: params[1], reservedQty: params[2], toStatus: params[3] });
+        lpRestoreUpdates.push({ lpId: params[0], shippedQty: params[1], reservedQty: lpReservedQty, toStatus: params[2] });
         lpQuantity = '10.000';
-        lpReservedQty = String(params[2]);
-        lpStatus = String(params[3]);
+        lpStatus = String(params[2]);
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.sales_order_lines') && q.includes('set quantity_allocated = 0')) {
         return { rows: [], rowCount: 1 };
       }
 
@@ -229,7 +245,11 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.sales_orders')) {
-        const nextStatus = q.includes("status = 'shipped'") ? 'shipped' : String(params[1]);
+        const nextStatus = q.includes("status = 'shipped'")
+          ? 'shipped'
+          : q.includes("status = 'confirmed'")
+            ? 'confirmed'
+            : String(params[1]);
         salesOrderStatusUpdates.push(nextStatus);
         shipment = { ...shipment, sales_order_status: nextStatus };
         return { rows: [{ id: params[0] }], rowCount: 1 };
@@ -303,16 +323,18 @@ beforeEach(() => {
 });
 
 describe('cancelShipment', () => {
-  it('cancels shipped shipments, releases allocations, restores shipped LPs, decrements reservations, and recomputes the SO', async () => {
+  it('cancels shipped shipments, deallocates reservations, restores shipped LPs, voids boxes, and recomputes the SO', async () => {
     const result = await cancelShipment(input());
 
     expect(result).toEqual({ ok: true });
     expect(releasedAllocations).toEqual([ALLOCATION_ID]);
     expect(reservedQtyUpdates).toEqual([{ lpId: LP_ID, qty: '5.000' }]);
-    expect(lpRestoreUpdates).toEqual([{ lpId: LP_ID, shippedQty: '6.000', reservedQty: '6.000', toStatus: 'available' }]);
+    expect(lpRestoreUpdates).toEqual([{ lpId: LP_ID, shippedQty: '6.000', reservedQty: '0.000', toStatus: 'available' }]);
     expect(lpTransitions).toEqual([{ fromStatus: 'shipped', toStatus: 'available' }]);
+    expect(boxContentsVoided).toBe(1);
+    expect(boxesVoided).toBe(1);
     expect(shipmentStatusUpdates).toContain('cancelled');
-    expect(salesOrderStatusUpdates).toEqual(['confirmed']);
+    expect(salesOrderStatusUpdates).toEqual(['confirmed', 'confirmed']);
   });
 
   it('ships by decrementing the LP quantity and cancel restores only that shipped delta once', async () => {
@@ -331,7 +353,7 @@ describe('cancelShipment', () => {
 
     await expect(cancelShipment(input())).resolves.toEqual({ ok: true });
     expect(lpQuantity).toBe('10.000');
-    expect(lpReservedQty).toBe('6.000');
+    expect(lpReservedQty).toBe('0.000');
     expect(lpStatus).toBe('available');
 
     await expect(cancelShipment(input())).resolves.toEqual({ ok: true });

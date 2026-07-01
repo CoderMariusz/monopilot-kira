@@ -26,6 +26,7 @@ const TRANSFER_RECEIVE_REVERSE_INTENT = 'warehouse.transfer_receive.reverse';
 const TRANSFER_RECEIVE_REVERSED_EVENT = 'warehouse.lp.transitioned';
 const APP_VERSION = 'planning-transfer-reversal-v1';
 const RETURNED_LP_STATUS = 'returned';
+const SOURCE_REVERSE_BLOCKED_STATUSES = new Set(['consumed', 'destroyed']);
 
 const uuidSchema = z.string().uuid();
 const quantitySchema = z
@@ -449,6 +450,14 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
         };
       }
 
+      if (SOURCE_REVERSE_BLOCKED_STATUSES.has(link.source_status)) {
+        return {
+          ok: false,
+          error: 'invalid_state',
+          message: `Source LP is ${link.source_status}; receive reversal would create phantom stock.`,
+        };
+      }
+
       try {
         await assertCorrectionAllowed(
           { userId, orgId, client: client as unknown as ProductionQueryClient } satisfies ProductionContext,
@@ -517,7 +526,7 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
       await ctx.client.query(
         `update public.license_plates
             set quantity = quantity + $2::numeric,
-                status = case when status = 'shipped' then 'available' else status end,
+                status = CASE WHEN status = 'shipped' THEN 'available' ELSE status END,
                 updated_by = $3::uuid,
                 updated_at = now()
           where org_id = app.current_org_id()

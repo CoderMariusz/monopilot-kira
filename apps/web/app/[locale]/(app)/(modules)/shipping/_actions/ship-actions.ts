@@ -336,19 +336,31 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
         );
       }
 
-      const { rows: updatedSoRows } = await ctx.client.query<{ id: string }>(
-        `update public.sales_orders
-            set status = $2,
-                shipped_at = case when $2 = 'shipped' then now() else shipped_at end,
-                updated_at = now(),
-                updated_by = $3::uuid
+      const { rows: remainingRows } = await ctx.client.query<{ remaining_count: number | string | bigint | null }>(
+        `select count(*)::int as remaining_count
+           from public.shipments
           where org_id = app.current_org_id()
-            and id = $1::uuid
+            and sales_order_id = $1::uuid
             and deleted_at is null
-          returning id::text`,
-        [shipment.sales_order_id, SALES_ORDER_SHIPPED_STATUS, userId],
+            and status not in ('shipped', 'cancelled')`,
+        [shipment.sales_order_id],
       );
-      if (!updatedSoRows[0]) throw new ActionError('persistence_failed');
+
+      if (toNumber(remainingRows[0]?.remaining_count) === 0) {
+        const { rows: updatedSoRows } = await ctx.client.query<{ id: string }>(
+          `update public.sales_orders
+              set status = $2,
+                  shipped_at = case when $2 = 'shipped' then now() else shipped_at end,
+                  updated_at = now(),
+                  updated_by = $3::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and deleted_at is null
+            returning id::text`,
+          [shipment.sales_order_id, SALES_ORDER_SHIPPED_STATUS, userId],
+        );
+        if (!updatedSoRows[0]) throw new ActionError('persistence_failed');
+      }
 
       return { ok: true };
     });
@@ -363,6 +375,33 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
       const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
       const forbidden = await requirePermission(ctx, SHIP_PACK_CLOSE);
       if (forbidden) return forbidden;
+
+      const { rows: shipmentRows } = await ctx.client.query<{
+        id: string;
+        status: string;
+        box_count: number | string | bigint | null;
+      }>(
+        `select sh.id::text,
+                sh.status,
+                count(distinct sb.id)::int as box_count
+           from public.shipments sh
+           left join public.shipment_boxes sb on sb.shipment_id = sh.id
+            and sb.org_id = app.current_org_id()
+            and sb.deleted_at is null
+          where sh.org_id = app.current_org_id()
+            and sh.id = $1::uuid
+            and sh.deleted_at is null
+          group by sh.id, sh.status
+          limit 1`,
+        [input.shipmentId],
+      );
+      const shipment = shipmentRows[0];
+      if (!shipment || !['packed', 'shipped'].includes(shipment.status)) {
+        return { ok: false, error: 'invalid_state' };
+      }
+      if (toNumber(shipment.box_count) < 1) {
+        return { ok: false, error: 'no_boxes' };
+      }
 
       const lpRows = await fetchShipmentLps(ctx, input.shipmentId);
       const bolPayload = {

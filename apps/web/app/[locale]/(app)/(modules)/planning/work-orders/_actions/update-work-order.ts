@@ -332,6 +332,17 @@ export async function updateWorkOrder(params: {
       const workOrder = updated.rows[0];
       if (!workOrder) return { ok: false, error: 'invalid_state' };
 
+      if (input.plannedQuantity !== undefined) {
+        await ctx.client.query(
+          `update public.schedule_outputs
+              set expected_qty = $2::numeric,
+                  updated_at = now()
+            where org_id = app.current_org_id()
+              and planned_wo_id = $1::uuid`,
+          [input.id, nextPlannedQuantity],
+        );
+      }
+
       if (mustResnapshot && item) {
         const resnapshotResult = await resnapshotWorkOrder(ctx, {
           woId: input.id,

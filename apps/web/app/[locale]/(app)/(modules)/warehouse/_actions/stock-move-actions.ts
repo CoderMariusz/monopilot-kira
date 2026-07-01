@@ -209,8 +209,9 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
         return { ok: false, reason: 'error', message: 'locked' };
       }
 
-      const locRes = await ctx.client.query<{ id: string; site_id: string | null }>(
+      const locRes = await ctx.client.query<{ id: string; warehouse_id: string; site_id: string | null }>(
         `select loc.id::text,
+                loc.warehouse_id::text as warehouse_id,
                 w.site_id::text as site_id
            from public.locations loc
            join public.warehouses w
@@ -223,20 +224,21 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
       );
       const destination = locRes.rows[0];
       if (!destination) return { ok: false, reason: 'not_found' };
+      if (!destination.site_id) return { ok: false, reason: 'error', message: 'destination_site_required' };
 
       const transactionId = uuidFromSeed(`warehouse.stock.move:${orgId}:${lpId}:${clientOpId}`);
       const moveNumber = moveNumberFromTransactionId(transactionId);
 
       const inserted = await ctx.client.query<{ id: string }>(
         `insert into public.stock_moves
-           (org_id, move_number, lp_id, move_type, from_location_id, to_location_id,
+           (org_id, site_id, move_number, lp_id, move_type, from_location_id, to_location_id,
             quantity, uom, reason_text, transaction_id, created_by, updated_by)
          values
-           (app.current_org_id(), $1, $2::uuid, 'transfer', $3::uuid, $4::uuid,
-            $5::numeric, $6, $7, $8::uuid, $9::uuid, $9::uuid)
+           (app.current_org_id(), $1::uuid, $2, $3::uuid, 'transfer', $4::uuid, $5::uuid,
+            $6::numeric, $7, $8, $9::uuid, $10::uuid, $10::uuid)
          on conflict (org_id, transaction_id) do nothing
          returning id::text`,
-        [moveNumber, lpId, lp.location_id, toLocationId, lp.quantity, lp.uom, reason, transactionId, userId],
+        [destination.site_id, moveNumber, lpId, lp.location_id, toLocationId, lp.quantity, lp.uom, reason, transactionId, userId],
       );
 
       if (inserted.rows[0]) {
@@ -244,10 +246,11 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
           `update public.license_plates
               set location_id = $2::uuid,
                   site_id = $4::uuid,
+                  warehouse_id = $5::uuid,
                   updated_by = $3::uuid
             where org_id = app.current_org_id()
               and id = $1::uuid`,
-          [lpId, toLocationId, userId, destination.site_id],
+          [lpId, toLocationId, userId, destination.site_id, destination.warehouse_id],
         );
       }
 

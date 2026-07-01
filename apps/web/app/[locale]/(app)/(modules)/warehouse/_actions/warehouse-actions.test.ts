@@ -75,7 +75,14 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.includes('from public.locations loc') && normalized.includes('join public.warehouses w')) {
-        return { rows: [{ id: LOC_ID, site_id: '99999999-9999-4999-8999-999999999999' }], rowCount: 1 };
+        return {
+          rows: [{
+            id: LOC_ID,
+            warehouse_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            site_id: '99999999-9999-4999-8999-999999999999',
+          }],
+          rowCount: 1,
+        };
       }
 
       if (normalized.startsWith('select id::text from public.locations')) {
@@ -83,7 +90,7 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.startsWith('insert into public.stock_moves')) {
-        lastMoveType = String(params?.[2] ?? 'transfer');
+        lastMoveType = String(params?.[3] ?? 'transfer');
         return { rows: [{ id: '88888888-8888-4888-8888-888888888888' }], rowCount: 1 };
       }
 
@@ -325,9 +332,19 @@ describe('warehouse backend actions', () => {
     const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
     const locationLookup = calls.find((call) => call.sql.includes('from public.locations loc'));
     expect(locationLookup?.sql).toContain('join public.warehouses w');
+    const moveInsert = calls.find((call) => call.sql.startsWith('insert into public.stock_moves'));
+    expect(moveInsert?.sql).toContain('org_id, site_id, move_number');
+    expect(moveInsert?.params?.[0]).toBe('99999999-9999-4999-8999-999999999999');
     const lpUpdate = calls.find((call) => call.sql.startsWith('update public.license_plates') && call.sql.includes('site_id = $4::uuid'));
     expect(lpUpdate).toBeDefined();
-    expect(lpUpdate?.params).toEqual([LP_ID, LOC_ID, USER_ID, '99999999-9999-4999-8999-999999999999']);
+    expect(lpUpdate?.sql).toContain('warehouse_id = $5::uuid');
+    expect(lpUpdate?.params).toEqual([
+      LP_ID,
+      LOC_ID,
+      USER_ID,
+      '99999999-9999-4999-8999-999999999999',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
   });
 
   it('releaseReservation clears reservation and writes state history when reserved becomes available', async () => {

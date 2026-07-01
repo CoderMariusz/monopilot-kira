@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+}));
 
 import { revalidatePath } from 'next/cache';
-import { approveAndApplyVariance, createCountSession, recordCount } from '../count-actions';
+import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
+import { approveAndApplyVariance, createCountSession, getCountSession, listCountSessions, recordCount } from '../count-actions';
 import type { CountLineStatus } from '../count-types';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -124,6 +128,28 @@ function makeClient(): QueryClient {
 
       if (n.startsWith('insert into public.count_sessions')) {
         return { rows: [{ id: SESSION_ID }], rowCount: 1 };
+      }
+
+      if (n.startsWith('select site_id::text from public.warehouses')) {
+        return { rows: [{ site_id: SITE_ID }], rowCount: 1 };
+      }
+
+      if (n.startsWith('select cs.id::text') && n.includes('from public.count_sessions cs')) {
+        return {
+          rows: [{
+            id: SESSION_ID,
+            warehouse_id: WAREHOUSE_ID,
+            warehouse_code: 'WH-01',
+            count_type: 'cycle',
+            status: 'open',
+            created_at: new Date('2026-06-24T10:00:00.000Z'),
+            line_count: 0,
+            counted_line_count: 0,
+            variance_line_count: 0,
+            variance_qty: '0',
+          }],
+          rowCount: 1,
+        };
       }
 
       if (n.startsWith('select coalesce(sum(inv.available_qty)')) {
@@ -251,6 +277,7 @@ beforeEach(async () => {
   const { signEvent } = await import('@monopilot/e-sign');
   vi.mocked(signEvent).mockClear();
   vi.mocked(revalidatePath).mockClear();
+  vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
 });
 
 describe('stock count actions', () => {
@@ -258,8 +285,21 @@ describe('stock count actions', () => {
     const result = await createCountSession({ warehouseId: WAREHOUSE_ID, countType: 'cycle' });
 
     expect(result).toBe(SESSION_ID);
-    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.count_sessions'))).toBe(true);
+    const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_sessions'));
+    expect(normalize(insert!.sql)).toContain('org_id, site_id, warehouse_id');
+    expect(insert!.params).toEqual([SITE_ID, WAREHOUSE_ID, 'cycle']);
     expect(revalidatePath).toHaveBeenCalledWith('/[locale]/warehouse/counts', 'page');
+  });
+
+  it('filters count session reads to the active site', async () => {
+    await listCountSessions();
+    await getCountSession(SESSION_ID);
+
+    expect(getActiveSiteId).toHaveBeenCalledWith({ client });
+    const sessionReads = queries.filter((q) => normalize(q.sql).startsWith('select cs.id::text'));
+    expect(sessionReads).toHaveLength(2);
+    expect(sessionReads.every((q) => normalize(q.sql).includes('cs.site_id = $1::uuid') || normalize(q.sql).includes('cs.site_id = $2::uuid'))).toBe(true);
+    expect(sessionReads.map((q) => q.params.includes(SITE_ID))).toEqual([true, true]);
   });
 
   it('computes variance_qty as countedQty minus system_qty without exposing system_qty', async () => {
@@ -468,17 +508,22 @@ describe('stock count actions', () => {
 
     const adjustmentInserts = queries.filter((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'));
     expect(adjustmentInserts).toHaveLength(2);
-    expect(adjustmentInserts.map((q) => [q.params[4], q.params[5], q.params[9]])).toEqual([
+    expect(adjustmentInserts.every((q) => normalize(q.sql).includes('warehouse_id, site_id, lp_id'))).toBe(true);
+    expect(adjustmentInserts.map((q) => [q.params[5], q.params[6], q.params[10]])).toEqual([
       [LP_ID, '5', USER_ID],
       [LP_ID_2, '2', USER_ID],
     ]);
 
     const stockMoves = queries.filter((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
     expect(stockMoves).toHaveLength(2);
+    expect(stockMoves.every((q) => normalize(q.sql).includes('on conflict (org_id, transaction_id) do nothing'))).toBe(true);
     expect(stockMoves.map((q) => [q.params[2], q.params[3], q.params[4], q.params[5]])).toEqual([
       [LP_ID, LOCATION_ID, null, '-5'],
       [LP_ID_2, LOCATION_ID, null, '-2'],
     ]);
+    const shrinkageSelect = queries.find((q) => normalize(q.sql).startsWith('select lp.id::text') && normalize(q.sql).includes('for update'));
+    expect(normalize(shrinkageSelect!.sql)).toContain('lp.warehouse_id = $4::uuid');
+    expect(shrinkageSelect!.params[3]).toBe(WAREHOUSE_ID);
   });
 
   it("apply blocked on cancelled session with 'count_session_not_open'", async () => {

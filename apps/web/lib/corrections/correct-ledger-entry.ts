@@ -80,6 +80,10 @@ export async function assertCorrectionAllowed(
     throw new CorrectionForbiddenError('closed_wo_correction_forbidden');
   }
 
+  if (input.woStatus === 'cancelled') {
+    throw new CorrectionForbiddenError('cancelled_wo_correction_forbidden');
+  }
+
   if (!input.requireEsign) return {};
 
   const signature = input.signature;

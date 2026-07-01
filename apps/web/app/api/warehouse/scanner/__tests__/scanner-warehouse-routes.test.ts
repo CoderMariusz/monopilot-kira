@@ -25,6 +25,8 @@ const ids = {
   wo: '90000000-0000-4000-8000-000000000001',
   material: 'a0000000-0000-4000-8000-000000000001',
   product: 'b0000000-0000-4000-8000-000000000001',
+  site: 'c0000000-0000-4000-8000-000000000001',
+  warehouse: 'd0000000-0000-4000-8000-000000000001',
 };
 
 const fakeClient = {
@@ -95,6 +97,7 @@ function mockMoveQueries(options: {
       return {
         rows: [{
           product_id: ids.product,
+          site_id: ids.site,
           uom: 'kg',
           staging_location_id:
             'materialStagingLocationId' in options ? options.materialStagingLocationId : ids.location,
@@ -116,6 +119,7 @@ function mockMoveQueries(options: {
         rows: [{
           id: ids.lp,
           product_id: ids.product,
+          site_id: ids.site,
           quantity: '10.000',
           available_qty: '8.000',
           reserved_qty: '2.000',
@@ -129,7 +133,9 @@ function mockMoveQueries(options: {
         }],
       };
     }
-    if (sql.includes('from public.locations')) return { rows: [{ id: ids.location }] };
+    if (sql.includes('from public.locations')) {
+      return { rows: [{ id: ids.location, warehouse_id: ids.warehouse, site_id: ids.site }] };
+    }
     if (sql.includes('insert into public.stock_moves')) return { rows: [{ id: ids.move }] };
     // putaway promotion UPDATE (audit F-A01): guarded received→available with RETURNING
     if (sql.includes("set status = 'available'") && sql.includes('returning id::text, lp_number')) {

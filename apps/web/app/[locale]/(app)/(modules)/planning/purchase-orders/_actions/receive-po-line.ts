@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { upsertWac } from '../../../../../../../lib/finance/upsert-wac';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { computeExpiryDate, formatDecimal, parseDecimal } from '../../../../../../../lib/warehouse/scanner/receive-po';
 import { hasWarehousePermission } from '../../../warehouse/_actions/shared';
@@ -28,6 +29,7 @@ type LineForReceive = {
   line_no: number;
   ordered_qty: string;
   uom: string;
+  unit_price: string;
   received_qty: string | null;
   shelf_life_days: number | null;
   shelf_life_mode: string | null;
@@ -102,6 +104,17 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
       await insertLpAutoPutaway(client, userId, {
         lpId: lp.id,
         transactionId: randomUUID(),
+      });
+
+      const receivedQtyKg = formatDecimal(qty);
+      const receivedValue = await multiplyNumeric(client, receivedQtyKg, line.unit_price);
+      await upsertWac(client, {
+        orgId,
+        siteId: warehouse.site_id,
+        itemId: line.item_id,
+        deltaQtyKg: receivedQtyKg,
+        deltaValue: receivedValue,
+        updatedBy: userId,
       });
 
       const grnItem = await insertGrnItem(client, orgId, userId, {
@@ -210,6 +223,7 @@ async function loadLineForUpdate(client: QueryClient, orgId: string, poLineId: s
             pol.line_no,
             pol.qty::text as ordered_qty,
             pol.uom,
+            pol.unit_price::text as unit_price,
             (
               select coalesce(sum(gi.received_qty), 0)::text
                 from public.grn_items gi
@@ -233,6 +247,14 @@ async function loadLineForUpdate(client: QueryClient, orgId: string, poLineId: s
     [orgId, poLineId, OPEN_PO_STATUSES],
   );
   return rows[0] ?? null;
+}
+
+async function multiplyNumeric(client: QueryClient, left: string, right: string | null): Promise<string> {
+  const { rows } = await client.query<{ value: string }>(
+    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
+    [left, right ?? '0'],
+  );
+  return rows[0]?.value ?? '0';
 }
 
 async function resolveWarehouse(

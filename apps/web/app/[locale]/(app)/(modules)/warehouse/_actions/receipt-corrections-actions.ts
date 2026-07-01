@@ -189,12 +189,12 @@ async function lpHasConsumptionOrChildren(ctx: WarehouseContext, lpId: string): 
           where child.org_id = app.current_org_id()
             and child.parent_lp_id = $1::uuid
        )
-       or exists (
-         select 1
+       or (
+         select coalesce(sum(wmc.qty_consumed), 0)
            from public.wo_material_consumption wmc
           where wmc.org_id = app.current_org_id()
             and wmc.lp_id = $1::uuid
-       )
+       ) > 0
      ) as blocked`,
     [lpId],
   );

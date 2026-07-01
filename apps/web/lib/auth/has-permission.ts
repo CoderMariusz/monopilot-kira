@@ -11,7 +11,7 @@ export interface HasPermissionContext {
   client: HasPermissionClient;
 }
 
-const SUPER_ROLES = ['owner', 'admin', 'module_admin', 'org_admin'] as const;
+const SUPER_ROLES = ['owner', 'admin', 'org_admin'] as const;
 
 export async function hasPermission(ctx: HasPermissionContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(

@@ -22,6 +22,7 @@ let heldLpIds: Set<string>;
 let splitReplayChildId: string | null;
 let splitFits: boolean;
 let primaryReservedQty: string;
+let primaryQuantity: string;
 let secondaryReservedQty: string;
 let primaryStatus: string;
 let primaryQaStatus: string;
@@ -46,7 +47,7 @@ function baseLp(overrides: Partial<Record<string, string | null>> = {}) {
     warehouse_id: WAREHOUSE_ID,
     location_id: LOCATION_ID,
     product_id: PRODUCT_ID,
-    quantity: '10.000000',
+    quantity: primaryQuantity,
     reserved_qty: primaryReservedQty,
     uom: 'kg',
     status: primaryStatus,
@@ -136,6 +137,7 @@ describe('LP split/merge/destroy server actions', () => {
     splitReplayChildId = null;
     splitFits = true;
     primaryReservedQty = '0.000000';
+    primaryQuantity = '10.000000';
     secondaryReservedQty = '0.000000';
     primaryStatus = 'available';
     primaryQaStatus = 'released';
@@ -240,6 +242,17 @@ describe('LP split/merge/destroy server actions', () => {
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+
+  it('destroyLp skips stock move for a zero-quantity LP', async () => {
+    primaryQuantity = '0.000000';
+
+    const result = await destroyLp(PRIMARY_LP_ID, 'destroy empty pallet', DESTROY_CLIENT_OP_ID);
+
+    expect(result).toEqual({ ok: true });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(true);
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
   });
 

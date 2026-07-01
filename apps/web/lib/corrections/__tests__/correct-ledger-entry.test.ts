@@ -90,6 +90,15 @@ describe('correction framework authorization', () => {
     ).resolves.toEqual({});
   });
 
+  it('denies corrections against cancelled WOs even when the base permission is present', async () => {
+    await expect(
+      assertCorrectionAllowed(ctx, {
+        permission: 'production.output.correct',
+        woStatus: 'cancelled',
+      }),
+    ).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
   it('calls the e-sign seam when requireEsign=true', async () => {
     const result = await assertCorrectionAllowed(ctx, {
       permission: 'production.output.correct',

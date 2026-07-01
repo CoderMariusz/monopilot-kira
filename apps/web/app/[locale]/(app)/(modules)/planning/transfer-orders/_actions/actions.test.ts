@@ -18,6 +18,7 @@ const TO_ID = '33333333-3333-4333-8333-333333333333';
 const ITEM_ID = '55555555-5555-4555-8555-555555555555';
 const FROM_WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
 const TO_WAREHOUSE_ID = '88888888-8888-4888-8888-888888888888';
+const TO_SITE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -92,6 +93,9 @@ function makeClient(): QueryClient {
       }
       if (normalized.startsWith('select count(*) as archived_count')) {
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
+      }
+      if (normalized.startsWith('select w.site_id::text as site_id')) {
+        return { rows: [{ site_id: TO_SITE_ID }], rowCount: 1 };
       }
       if (normalized.includes('from public.warehouses')) {
         return { rows: warehouseInOrg ? [{ id: String(params[0]) }] : [], rowCount: warehouseInOrg ? 1 : 0 };
@@ -475,6 +479,14 @@ describe('planning transfer order actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data.status).toBe('received');
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({
+      sql: String(sql).replace(/\s+/g, ' ').toLowerCase(),
+      params,
+    }));
+    const lpInsert = calls.find((call) => call.sql.startsWith('insert into public.license_plates'));
+    expect(lpInsert?.sql).toContain('org_id, site_id, warehouse_id');
+    expect(lpInsert?.params?.[0]).toBe(TO_SITE_ID);
+    expect(calls.some((call) => call.sql.startsWith('insert into public.lp_genealogy'))).toBe(true);
   });
 
   it('refuses an illegal transition (draft -> received) server-side', async () => {

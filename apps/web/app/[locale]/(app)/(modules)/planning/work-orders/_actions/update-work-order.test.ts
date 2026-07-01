@@ -127,6 +127,9 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
+      if (normalized.startsWith('update public.schedule_outputs')) {
+        return { rows: [], rowCount: 1 };
+      }
       if (normalized.startsWith('delete from public.wo_materials') || normalized.startsWith('delete from public.wo_operations')) {
         return { rows: [], rowCount: 1 };
       }
@@ -212,6 +215,9 @@ describe('updateWorkOrder', () => {
     expect(materialInsert?.[1]).toEqual([WO_ID, '50.000000', 9, BOM_B_ID]);
     const operationInsert = calls.find(([sql]) => sql.startsWith('insert into public.wo_operations'));
     expect(operationInsert?.[1]).toEqual([WO_ID, '50.000', PRODUCT_B_ID]);
+    const scheduleOutputUpdate = calls.find(([sql]) => sql.startsWith('update public.schedule_outputs'));
+    expect(scheduleOutputUpdate?.[0]).toContain('planned_wo_id = $1::uuid');
+    expect(scheduleOutputUpdate?.[1]).toEqual([WO_ID, '50.000']);
     const updateCall = calls.find(([sql]) => sql.startsWith('update public.work_orders'));
     expect(updateCall?.[1]).toEqual(
       expect.arrayContaining([
