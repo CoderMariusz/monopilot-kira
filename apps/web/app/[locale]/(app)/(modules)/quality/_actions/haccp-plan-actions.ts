@@ -4,6 +4,7 @@ import type pg from 'pg';
 import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
+import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -114,24 +115,6 @@ const activatePlanSchema = z.object({
   planId: uuidSchema,
   signature: z.object({ password: z.string().min(1) }),
 });
-
-async function hasPermission(ctx: QualityContext, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
-}
 
 function toIso(value: Date | string | null | undefined): string | null {
   if (!value) return null;

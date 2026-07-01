@@ -13,6 +13,7 @@
  * (no standalone sensory JSX prototype exists).
  */
 
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 const SENSORY_READ_PERMISSION = 'technical.sensory.read';
@@ -48,21 +49,6 @@ export type SensoryEvaluationDetail = {
 export type GetSensoryEvaluationResult =
   | { ok: true; data: SensoryEvaluationDetail }
   | { ok: false; code: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'READ_FAILED' };
-
-async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
-}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

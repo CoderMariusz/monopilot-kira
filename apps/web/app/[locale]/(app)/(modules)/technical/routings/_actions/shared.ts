@@ -26,6 +26,9 @@
  */
 
 import { z } from 'zod';
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
+
+export { hasPermission };
 
 // ── RBAC permission strings (packages/rbac/src/permissions.enum.ts) ───────────
 export const ROUTING_WRITE_PERMISSION = 'technical.bom.create';
@@ -190,25 +193,6 @@ export function validateOperationSet(
   }
 
   return { ok: true };
-}
-
-// ── RBAC helper (same shape as items/cost shared.ts) ──────────────────────────
-export async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
 }
 
 export function isPgError(err: unknown): err is { code: string } {

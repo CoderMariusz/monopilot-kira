@@ -34,6 +34,7 @@ import {
   guardBusinessFieldEdit,
   guardStatusTransition,
 } from './factory-spec-release-guards';
+import { hasPermission } from '../auth/has-permission';
 
 // ── RBAC permission gating the bundle approval (PRD 03-TECHNICAL §3) ───────────
 // The bundle = factory_spec (internal product spec) + its BOM version. The
@@ -117,21 +118,6 @@ export type RejectBundleInputType = z.infer<typeof RejectBundleInput>;
 
 function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
-}
-
-async function hasPermission(ctx: BundleServiceContext, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
 }
 
 type FactorySpecRow = {

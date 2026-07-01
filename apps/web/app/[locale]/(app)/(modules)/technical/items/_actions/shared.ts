@@ -19,6 +19,9 @@
  */
 
 import { z } from 'zod';
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
+
+export { hasPermission };
 
 import { CostPerKgInput } from '../../cost/_actions/shared';
 
@@ -322,28 +325,6 @@ export type TransitionItemStatusError =
 export type TransitionItemStatusResult =
   | { ok: true; data: { id: string; status: ItemStatus } }
   | { ok: false; error: TransitionItemStatusError; message?: string };
-
-// ── RBAC helper — resolves a permission for the caller, org-scoped under RLS ───
-// Checks BOTH the normalized role_permissions table AND the legacy
-// roles.permissions jsonb cache, because migration 154 writes to both and some
-// older orgs only carry the jsonb form. Mirrors create-fa.ts hasPermission().
-export async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
-}
 
 export function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
