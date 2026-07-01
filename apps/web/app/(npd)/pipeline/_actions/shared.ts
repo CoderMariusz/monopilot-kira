@@ -1,4 +1,4 @@
-import type pg from 'pg';
+export { hasAnyPermission, hasPermission } from '../../../../lib/auth/has-permission';
 
 export const PROJECT_CREATE_PERMISSION = 'npd.project.create';
 export const PROJECT_VIEW_PERMISSION = 'npd.project.view';
@@ -9,7 +9,7 @@ export const DEFAULT_TEMPLATE_ID = 'APEX_DEFAULT';
 
 export type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
 export type QueryClient = {
-  query<T extends pg.QueryResultRow = pg.QueryResultRow>(
+  query<T = Record<string, unknown>>(
     sql: string,
     params?: readonly unknown[],
   ): Promise<QueryResult<T>>;
@@ -24,24 +24,6 @@ export type OrgContextLike = {
 export type ProjectPriority = 'high' | 'normal' | 'low';
 export type ProjectGate = 'G0' | 'G1' | 'G2' | 'G3' | 'G4' | 'Launched';
 export type ChecklistGate = Exclude<ProjectGate, 'Launched'>;
-
-export async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return rows.length > 0;
-}
 
 export function trimOptionalString(value: unknown, maxLength: number): string | null | undefined {
   if (value === undefined || value === null) return null;

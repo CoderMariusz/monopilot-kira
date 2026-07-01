@@ -3,6 +3,7 @@
 import { computeNutrition as computeNutritionRows, nutriScore } from '@monopilot/domain';
 import { z } from 'zod';
 
+import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 const Input = z.object({
@@ -204,23 +205,6 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
     });
     return { ok: false, error: 'persistence_failed' };
   }
-}
-
-async function hasPermission(
-  ctx: { userId: string; orgId: string; client: { query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }> } },
-  permission: string,
-): Promise<boolean> {
-  const result = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return result.rows.length > 0;
 }
 
 function stringifyNutrition(raw: Record<string, unknown>): Record<string, string> {
