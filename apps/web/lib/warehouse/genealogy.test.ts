@@ -140,9 +140,8 @@ describe('LP genealogy junction integration points', () => {
       query: async (sql: string, params: readonly unknown[] = []) => {
         const normalized = normalize(sql);
         expect(params).toEqual([OUTPUT_LP_ID]);
-        expect(normalized).toContain('from public.lp_genealogy lg');
-        expect(normalized).toContain('lg.child_lp_id = current.id');
-        expect(normalized).toContain('lg.parent_lp_id = current.id');
+        expect(normalized).toContain('from public.get_lp_genealogy_org_wide(app.current_org_id(), $1::uuid,');
+        expect(normalized).toContain("'both'");
         return {
           rows: [
             genealogyRow(PARENT_A, 'LP-PARENT-A', 1, null),
@@ -168,8 +167,7 @@ describe('LP genealogy junction integration points', () => {
       query: async (sql: string, params: readonly unknown[] = []) => {
         const normalized = normalize(sql);
         expect(params).toEqual([OUTPUT_LP_ID]);
-        expect(normalized).toContain('select current.parent_lp_id as parent_lp_id');
-        expect(normalized).toContain('and child.parent_lp_id = current.id');
+        expect(normalized).toContain('public.get_lp_genealogy_org_wide(app.current_org_id(), $1::uuid');
         return {
           rows: [
             genealogyRow(LEGACY_PARENT, 'LP-LEGACY-PARENT', 1, null),

@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { verifyPin } from '../../../../../../../../packages/auth/src/verify-pin.js';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import { microToDecimal, toMicro } from '../../../../../../lib/shared/decimal';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
@@ -414,6 +415,39 @@ async function insertLpStateHistory(
   );
 }
 
+async function readWacDeltaValue(
+  ctx: WarehouseContext,
+  input: { itemId: string; signedDeltaQtyKg: string },
+): Promise<string> {
+  const { rows } = await ctx.client.query<{ delta_value: string }>(
+    `select ($2::numeric * coalesce((
+              select wac.avg_cost
+                from public.item_wac_state wac
+               where wac.org_id = app.current_org_id()
+                 and wac.item_id = $1::uuid
+                 and wac.currency_id = (select id from public.currencies where code = 'GBP')
+               limit 1
+            ), 0))::text as delta_value`,
+    [input.itemId, input.signedDeltaQtyKg],
+  );
+  return rows[0]?.delta_value ?? '0';
+}
+
+async function upsertAdjustmentWac(
+  ctx: WarehouseContext,
+  input: { itemId: string; signedDeltaQtyKg: string },
+): Promise<void> {
+  const deltaValue = await readWacDeltaValue(ctx, input);
+  await upsertWac(ctx.client, {
+    orgId: ctx.orgId,
+    siteId: null,
+    itemId: input.itemId,
+    deltaQtyKg: input.signedDeltaQtyKg,
+    deltaValue,
+    updatedBy: ctx.userId,
+  });
+}
+
 export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<DirectAdjustResult> {
   const parsed = directAdjustInputSchema.safeParse(input);
   if (!parsed.success) return failure('invalid_input', 'Invalid direct adjustment input');
@@ -571,6 +605,10 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           transactionId: uuidFromSeed(`${parsed.data.clientOpId}:lp_state:${newLpId}`),
           ext: { stock_adjustment_id: adjustmentId, quantity_after: quantity, esign_ref: signatureReceipt.signatureId },
         });
+        await upsertAdjustmentWac(ctx, {
+          itemId: parsed.data.itemId,
+          signedDeltaQtyKg: quantity,
+        });
         return { ok: true, data: { adjustmentId, lpId: newLpId } };
       }
 
@@ -641,6 +679,10 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
       }
 
       if (!firstAdjustmentId || !firstLpId) return failure('insufficient_stock');
+      await upsertAdjustmentWac(ctx, {
+        itemId: parsed.data.itemId,
+        signedDeltaQtyKg: microToDecimal(-toMicro(quantity)),
+      });
       return { ok: true, data: { adjustmentId: firstAdjustmentId, lpId: firstLpId } };
     });
   } catch (error) {

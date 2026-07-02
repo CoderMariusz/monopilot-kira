@@ -78,6 +78,8 @@ type Behavior = {
   hasPermission?: boolean;
   /** Whether the supervisor has a PIN enrolled. */
   supervisorEnrolled?: boolean;
+  /** Current generated avg_cost from item_wac_state for WAC delta valuation. */
+  wacAvgCost?: string;
 };
 
 function makeClient(behavior: Behavior = {}): QueryClient {
@@ -86,6 +88,7 @@ function makeClient(behavior: Behavior = {}): QueryClient {
     decreaseLps = [{ id: LP_ID, site_id: null, status: 'available', quantity: '5', reserved_qty: '0', uom: 'kg' }],
     hasPermission = true,
     supervisorEnrolled = true,
+    wacAvgCost = '4.25',
   } = behavior;
 
   // `from public.user_roles` is queried both for the initiator and supervisor
@@ -123,6 +126,11 @@ function makeClient(behavior: Behavior = {}): QueryClient {
       }
       if (n.startsWith('insert into public.stock_moves')) return { rows: [], rowCount: 1 };
       if (n.startsWith('insert into public.lp_state_history')) return { rows: [], rowCount: 1 };
+      if (n.startsWith('select ($2::numeric * coalesce') && n.includes('from public.item_wac_state wac')) {
+        const qty = Number(params?.[1] ?? 0);
+        return { rows: [{ delta_value: String(qty * Number(wacAvgCost)) }], rowCount: 1 };
+      }
+      if (n.startsWith('insert into public.item_wac_state')) return { rows: [], rowCount: 1 };
 
       throw new Error(`unexpected query: ${n}`);
     }),
@@ -188,6 +196,12 @@ describe('applyDirectAdjustment — write paths', () => {
     expect(move).toBeDefined();
     const extParam = move!.params.find((p) => typeof p === 'string' && p.includes('stock_adjustment_id')) as string;
     expect(extParam).not.toContain('supervisor_approved_by');
+
+    const wacRead = findCall('from public.item_wac_state wac', 'wac.currency_id = (select id from public.currencies where code =');
+    const wacWrite = findCall('insert into public.item_wac_state');
+    expect(wacRead?.params).toEqual([ITEM_ID, '3']);
+    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '3', '12.75', USER_ID]);
+    expect(calls.indexOf(wacWrite!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
   });
 
   it('(b) successful decrease writes a NEGATIVE move quantity and selects FEFO-ordered legs', async () => {
@@ -210,6 +224,12 @@ describe('applyDirectAdjustment — write paths', () => {
     const extParam = move!.params.find((p) => typeof p === 'string' && p.includes('stock_adjustment_id')) as string;
     expect(extParam).toContain('supervisor_approved_by');
     expect(extParam).toContain(SUPERVISOR_ID);
+
+    const wacRead = findCall('from public.item_wac_state wac', 'wac.currency_id = (select id from public.currencies where code =');
+    const wacWrite = findCall('insert into public.item_wac_state');
+    expect(wacRead?.params).toEqual([ITEM_ID, '-2']);
+    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '-2', '-8.5', USER_ID]);
+    expect(calls.indexOf(wacWrite!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
   });
 
   it('(c) duplicate clientOpId replay short-circuits — no second write', async () => {

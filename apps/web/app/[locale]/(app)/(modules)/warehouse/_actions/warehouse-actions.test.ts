@@ -208,7 +208,7 @@ function makeClient(): QueryClient {
         return { rows: lpExists ? [{ id: LP_ID }] : [], rowCount: lpExists ? 1 : 0 };
       }
 
-      if (normalized.includes('with recursive') && normalized.includes('ancestors') && normalized.includes('descendants')) {
+      if (normalized.includes('public.get_lp_genealogy_org_wide')) {
         return {
           rows: [
             {
@@ -469,19 +469,16 @@ describe('warehouse backend actions', () => {
     });
   });
 
-  it('traceGenealogy uses a cycle-safe recursive CTE in both directions', async () => {
+  it('traceGenealogy delegates to the org-wide genealogy definer function', async () => {
     const result = await traceGenealogy(LP_ID);
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.reason);
     expect(result.data.map((row) => row.direction)).toEqual(['ancestor', 'self', 'descendant']);
-    const cteCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(sql).includes('with recursive'));
-    expect(cteCall).toBeTruthy();
-    const sql = normalize(String(cteCall?.[0]));
-    expect(sql).toContain('ancestors');
-    expect(sql).toContain('descendants');
-    expect(sql).toContain('depth < 20');
-    expect(sql).toContain('not parent.id = any(ancestors.path)');
-    expect(sql).toContain('not child.id = any(descendants.path)');
+    const genealogyCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(sql).includes('public.get_lp_genealogy_org_wide(app.current_org_id(), $1::uuid'),
+    );
+    expect(genealogyCall).toBeTruthy();
+    expect(genealogyCall?.[1]).toEqual([LP_ID]);
   });
 });
