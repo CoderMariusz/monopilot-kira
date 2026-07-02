@@ -76,11 +76,11 @@ function toMicro(decimal: string): bigint {
   return neg ? -micro : micro;
 }
 
-type WoRow = { id: string; wo_number: string };
+type WoRow = { id: string; wo_number: string; site_id: string | null };
 
 async function loadWo(ctx: OrgContextLike, woId: string): Promise<WoRow> {
   const { rows } = await ctx.client.query<WoRow>(
-    `select id, wo_number
+    `select id, wo_number, site_id::text as site_id
        from public.work_orders
       where id = $1::uuid
         and org_id = app.current_org_id()
@@ -133,7 +133,7 @@ export async function recordWaste(
   }
 
   // 3. load WO + lifecycle gate
-  await loadWo(ctx, woId);
+  const wo = await loadWo(ctx, woId);
   const status = await readWoExecutionStatus(ctx, woId);
   if (status === null || !OUTPUT_RECORDABLE_STATES.has(status)) {
     throw new ProductionActionError('wo_not_recordable', 409, { status });
@@ -203,7 +203,7 @@ export async function recordWaste(
          (org_id, site_id, transaction_id, wo_id, category_id, qty_kg, reason_code,
           reason_notes, operator_id, shift_id, scan_event_id, lp_id)
        values
-         (app.current_org_id(), null, $1::uuid, $2::uuid, $3::uuid, $4::numeric, $5,
+         (app.current_org_id(), $11::uuid, $1::uuid, $2::uuid, $3::uuid, $4::numeric, $5,
           $6, $7::uuid, $8, $9::uuid, $10::uuid)
        returning id`,
       [
@@ -217,6 +217,7 @@ export async function recordWaste(
         input.shift_id,
         input.scan_event_id ?? null,
         input.lp_id ?? null,
+        wo.site_id,
       ],
     );
     const row = rows[0];

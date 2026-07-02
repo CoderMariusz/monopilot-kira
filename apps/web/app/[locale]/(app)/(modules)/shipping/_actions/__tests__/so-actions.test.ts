@@ -371,6 +371,23 @@ describe('transitionSalesOrderStatus', () => {
     expect(result).toEqual({ ok: false, error: 'ILLEGAL_TRANSITION', from: 'draft', to: 'shipped' });
     expect(status).toBe('draft');
   });
+
+  it('blocks cancel when a shipped shipment exists on the SO', async () => {
+    status = 'packed';
+    const baseQuery = client.query;
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const q = normalize(sql);
+      if (q.includes('status = any($2::text[])')) {
+        return { rows: [{ id: 'shipment-shipped' }], rowCount: 1 };
+      }
+      return baseQuery(sql, params);
+    }) as typeof client.query;
+
+    const result = await transitionSalesOrderStatus(SO_ID, 'cancelled');
+
+    expect(result).toEqual({ ok: false, error: 'so_cancel_blocked_shipped' });
+    expect(status).toBe('packed');
+  });
 });
 
 describe('allocateSalesOrder', () => {
@@ -546,6 +563,7 @@ describe('allocateSalesOrder', () => {
 
 describe('deallocateSalesOrder', () => {
   it('decrements LP reserved qty, resets allocated qty, and deletes allocations', async () => {
+    status = 'allocated';
     allocationRows = [
       { sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '6', status: 'allocated' },
       { sales_order_line_id: LINE_ID, lp_id: LP_2, qty: '4', status: 'allocated' },

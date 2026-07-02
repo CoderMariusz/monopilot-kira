@@ -33,6 +33,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { V01_PRODUCT_CODE_PATTERN } from '@monopilot/validation';
 
+import { matchesCodeMask } from '../../../../../../lib/documents/code-mask';
+
 import { Button } from '@monopilot/ui/Button';
 import Modal from '@monopilot/ui/Modal';
 import Input from '@monopilot/ui/Input';
@@ -75,15 +77,17 @@ export type FaCreateLabels = {
   errorGeneric: string;
 };
 
-function makeSchema(labels: FaCreateLabels, requireFaPrefix: boolean) {
-  // V01: by default mirror the strict server rule (^FA[A-Z0-9]+$). Callers that
-  // make the product-code prefix configurable (e.g. the onboarding "first
-  // product" wizard) opt out of the hardcoded 'FA' prefix and accept any
-  // non-empty, uppercase-normalized code. V02 (Product Name required) is
-  // unchanged in both modes.
+function makeSchema(labels: FaCreateLabels, requireFaPrefix: boolean, fgCodeMask?: string | null) {
+  // V01: strict FA prefix for the FA-list modal; mask-aware or minimal for the wizard.
   const productCode = requireFaPrefix
     ? z.string().trim().min(1, labels.errorV01).regex(V01_PRODUCT_CODE_PATTERN, labels.errorV01)
-    : z.string().trim().min(1, labels.errorV01);
+    : fgCodeMask
+      ? z
+          .string()
+          .trim()
+          .min(1, labels.errorV01)
+          .refine((value) => matchesCodeMask(value, fgCodeMask), labels.errorV01)
+      : z.string().trim().min(1, labels.errorV01);
 
   return z.object({
     productCode,
@@ -121,6 +125,7 @@ export function FaCreateModal({
   onCreated,
   onClose,
   requireFaPrefix = true,
+  fgCodeMask,
 }: {
   open: boolean;
   labels: FaCreateLabels;
@@ -135,8 +140,13 @@ export function FaCreateModal({
    * non-empty code. V02 (Product Name required) is unaffected.
    */
   requireFaPrefix?: boolean;
+  /** When set with requireFaPrefix=false, client V01 mirrors the org FG code mask. */
+  fgCodeMask?: string | null;
 }) {
-  const schema = React.useMemo(() => makeSchema(labels, requireFaPrefix), [labels, requireFaPrefix]);
+  const schema = React.useMemo(
+    () => makeSchema(labels, requireFaPrefix, fgCodeMask),
+    [labels, requireFaPrefix, fgCodeMask],
+  );
   const methods = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: 'onChange',

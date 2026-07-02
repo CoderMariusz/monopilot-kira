@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../lib/i18n/revalidate-localized';
 
 import { hasPermission } from '../../../lib/auth/has-permission';
 import { writeManufacturingOperationsOutbox } from './_shared/outbox';
@@ -121,7 +121,7 @@ export async function resetManufacturingOperationsToSeed(rawInput: unknown): Pro
         payload: { industryCode: input.industryCode, rowCount: inserted.length },
       });
 
-      revalidatePath('/settings/reference/manufacturing-operations');
+      revalidateLocalized('/settings/reference/manufacturing-operations');
       return { ok: true, data: inserted };
     });
   } catch {

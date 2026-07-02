@@ -85,8 +85,15 @@ type ReplayRow = {
   lp_id: string;
 };
 
-function failure(code: string, message = code): DirectAdjustResult {
+function failure(code: string, message = code): Extract<DirectAdjustResult, { ok: false }> {
   return { ok: false, error: { code, message } };
+}
+
+class DirectAdjustAbort extends Error {
+  constructor(readonly result: Extract<DirectAdjustResult, { ok: false }>) {
+    super(result.error.code);
+    this.name = 'DirectAdjustAbort';
+  }
 }
 
 function parsePositiveQuantity(value: string): string | null {
@@ -499,6 +506,26 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         return { ok: true, data: { adjustmentId: replay.adjustment_id, lpId: replay.lp_id } };
       }
 
+      // For a decrease: resolve the FEFO legs BEFORE writing the e-sign receipt
+      // so that an insufficient-stock determination never commits a receipt for a
+      // doomed adjustment (partial-commit fix). selectLpsForDirectDecrease runs
+      // FOR UPDATE inside the same transaction, so the lock is still held for the
+      // subsequent writes.
+      let decreaseLegs: AdjustmentLeg[] | null = null;
+      if (parsed.data.direction === 'decrease') {
+        decreaseLegs = await selectLpsForDirectDecrease(ctx.client, {
+          warehouseId: parsed.data.warehouseId,
+          locationId: parsed.data.locationId,
+          itemId: parsed.data.itemId,
+          lpId,
+          quantity,
+        });
+        // Defensive guard — selectLpsForDirectDecrease throws when stock is
+        // insufficient, so an empty result here is unexpected; abort without a
+        // receipt so no orphaned e-sign row is committed.
+        if (decreaseLegs.length === 0) throw new DirectAdjustAbort(failure('insufficient_stock'));
+      }
+
       const signatureReceipt = await signEvent(
         {
           signerUserId: userId,
@@ -531,15 +558,17 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         const supervisorPin = parsed.data.supervisorPin ?? '';
 
         // Separation of duties: supervisor MUST NOT be the initiator.
-        if (supervisorId === userId) return failure('supervisor_self_approval');
+        if (supervisorId === userId) throw new DirectAdjustAbort(failure('supervisor_self_approval'));
 
         if (!(await supervisorHasPin(ctx.client, supervisorId))) {
-          return failure('supervisor_pin_not_enrolled');
+          throw new DirectAdjustAbort(failure('supervisor_pin_not_enrolled'));
         }
 
         // Verify the pin against the SUPERVISOR's id (not the initiator's).
         const supervisorPinResult = await verifyPin(supervisorId, supervisorPin, { client: ctx.client });
+        // Intentional commit: lockout counter must persist across txn rollback.
         if (supervisorPinResult === 'locked') return failure('supervisor_pin_locked');
+        // Intentional commit: lockout counter must persist across txn rollback.
         if (supervisorPinResult !== true) return failure('supervisor_pin_invalid');
 
         // The supervisor must independently hold the elevated stock-adjust
@@ -547,7 +576,7 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         // membership — a non-member has no roles here and is rejected.
         const supervisorCtx: WarehouseContext = { userId: supervisorId, orgId, client: ctx.client };
         if (!(await hasWarehousePermission(supervisorCtx, WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION))) {
-          return failure('supervisor_forbidden');
+          throw new DirectAdjustAbort(failure('supervisor_forbidden'));
         }
         supervisorUserId = supervisorId;
       }
@@ -612,13 +641,10 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         return { ok: true, data: { adjustmentId, lpId: newLpId } };
       }
 
-      const legs = await selectLpsForDirectDecrease(ctx.client, {
-        warehouseId: parsed.data.warehouseId,
-        locationId: parsed.data.locationId,
-        itemId: parsed.data.itemId,
-        lpId,
-        quantity,
-      });
+      // decreaseLegs was resolved before signEvent to prevent a receipt commit
+      // for a doomed adjustment; the non-null assertion is safe because the
+      // direction === 'increase' branch above returns early.
+      const legs = decreaseLegs!;
 
       let firstAdjustmentId: string | null = null;
       let firstLpId: string | null = null;
@@ -678,14 +704,16 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         });
       }
 
-      if (!firstAdjustmentId || !firstLpId) return failure('insufficient_stock');
       await upsertAdjustmentWac(ctx, {
         itemId: parsed.data.itemId,
         signedDeltaQtyKg: microToDecimal(-toMicro(quantity)),
       });
-      return { ok: true, data: { adjustmentId: firstAdjustmentId, lpId: firstLpId } };
+      // Non-null assertions are safe: legs.length was guarded > 0 before signEvent,
+      // so the loop ran at least once and set both firstAdjustmentId and firstLpId.
+      return { ok: true, data: { adjustmentId: firstAdjustmentId!, lpId: firstLpId! } };
     });
   } catch (error) {
+    if (error instanceof DirectAdjustAbort) return error.result;
     const code = error instanceof Error ? error.message : 'error';
     if (code === 'insufficient_unreserved' || code === 'insufficient_stock') return failure(code);
     return failure('error', code);

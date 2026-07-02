@@ -73,6 +73,7 @@ type State = {
   wasteInsertConflict: boolean;
   outputInsertConflict: boolean;
   consumptionInsertConflict: boolean;
+  outputExtJsonb: unknown;
 };
 
 let state: State;
@@ -150,6 +151,8 @@ function makeClient(): QueryClient {
                 expiry_date: '2026-12-31',
                 catch_weight_details: null,
                 allergen_profile_snapshot: null,
+                cost_per_kg: '3.50',
+                ext_jsonb: state.outputExtJsonb,
                 registered_by: USER_ID,
                 registered_at: '2026-06-12T08:00:00.000Z',
                 wo_status: state.woStatus,
@@ -260,6 +263,14 @@ function makeClient(): QueryClient {
         return { rows: [{ id: CORRECTION_ID }], rowCount: 1 };
       }
 
+      if (n.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
+        return { rows: [{ value: String(Number(params[0] ?? 0) * Number(params[1] ?? 0)) }], rowCount: 1 };
+      }
+
+      if (n.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
+      }
+
       if (n.startsWith('insert into public.wo_material_consumption')) {
         if (state.consumptionInsertConflict) {
           throw Object.assign(
@@ -339,6 +350,7 @@ beforeEach(() => {
     wasteInsertConflict: false,
     outputInsertConflict: false,
     consumptionInsertConflict: false,
+    outputExtJsonb: null,
   };
   queries = [];
   client = makeClient();
@@ -845,6 +857,48 @@ describe('voidWoOutput', () => {
       }),
       expect.objectContaining({ client }),
     );
+  });
+
+  it('voidWoOutput reverses WAC using the originally-booked snapshot contribution', async () => {
+    state.outputExtJsonb = { wac_qty_kg: '11.111', wac_value: '55.555' };
+
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'entry_error',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params).toEqual([
+      ORG_ID,
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '-11.111',
+      '-55.555',
+      USER_ID,
+    ]);
+    expect(queries.some((q) => normalize(q.sql).startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value'))).toBe(false);
+  });
+
+  it('voidWoOutput falls back to recomputed WAC reversal when no snapshot exists', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'entry_error',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params).toEqual([
+      ORG_ID,
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '-12.345',
+      '-43.2075',
+      USER_ID,
+    ]);
+    expect(console.warn).toHaveBeenCalledWith('[wac] reversal_fallback', { woOutputId: OUTPUT_ID });
   });
 
   it('unlinks the voided output LP from lp_genealogy so the genealogy reader no longer returns it as a child', async () => {

@@ -45,7 +45,7 @@ class MockClient implements QueryClient {
     }
 
     if (normalized.includes('from public.work_orders')) {
-      return { rows: [{ id: WO_ID, wo_number: 'WO-001', uom: 'kg', uom_snapshot: null }] as T[], rowCount: 1 };
+      return { rows: [{ id: WO_ID, wo_number: 'WO-001', site_id: SITE_ID, uom: 'kg', uom_snapshot: null }] as T[], rowCount: 1 };
     }
 
     if (normalized.includes('from public.user_roles')) {

@@ -1,7 +1,9 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
+import { EventType } from '../../../../../../../../../../packages/outbox/src/events.enum';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { safeRevalidatePath } from '../../_actions/revalidate';
 import {
@@ -90,6 +92,16 @@ type RawMaterialRow = {
   nutrition_per_100g: Record<string, unknown> | null;
   allergens_inherited: string[] | null;
 };
+
+function sortedUnique(values: readonly string[] | null | undefined): string[] {
+  return Array.from(new Set(values ?? [])).sort();
+}
+
+function sameStringSet(left: readonly string[] | null | undefined, right: readonly string[] | null | undefined): boolean {
+  const a = sortedUnique(left);
+  const b = sortedUnique(right);
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
 
 function normalizeNutrition(value: Record<string, unknown> | null): Nutrition | null {
   if (!value) return null;
@@ -243,6 +255,25 @@ export async function upsertNutrition(rawInput: unknown): Promise<NutritionActio
       );
       const row = upserted.rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
+
+      if (!sameStringSet(before.rows[0]?.allergens_inherited, row.allergens_inherited)) {
+        await queryClient.query(
+          `insert into public.outbox_events
+             (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+           values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'technical-items-v1')`,
+          [
+            orgId,
+            EventType.REFERENCE_ALLERGENS_BY_RM_BULK_CHANGED,
+            'reference.raw_material',
+            itemRow.id,
+            JSON.stringify({
+              source_event_id: randomUUID(),
+              ingredient_codes: [input.itemCode],
+              process_names: [],
+            }),
+          ],
+        );
+      }
 
       await syncBriefDeclaredProfiles(queryClient, itemRow.id, userId, input.allergensInherited);
 

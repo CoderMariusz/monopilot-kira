@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../lib/i18n/revalidate-localized';
 
 import { hasPermission } from '../../../lib/auth/has-permission';
 import { writeManufacturingOperationsOutbox } from './_shared/outbox';
@@ -100,7 +100,7 @@ export async function deactivateManufacturingOperation(rawInput: unknown): Promi
         },
       });
 
-      revalidatePath('/settings/reference/manufacturing-operations');
+      revalidateLocalized('/settings/reference/manufacturing-operations');
       return { ok: true, data: row, warning };
     });
   } catch {

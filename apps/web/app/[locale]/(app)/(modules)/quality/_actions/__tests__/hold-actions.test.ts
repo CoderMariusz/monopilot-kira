@@ -23,11 +23,16 @@ let allowPermission = true;
 let permissionOverrides: Record<string, boolean> = {};
 let holdAlreadyReleased = false;
 let holdReferenceType: 'lp' | 'wo' = 'lp';
+let otherActiveHoldLpIds: string[] = [];
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => null),
 }));
 
 vi.mock('@monopilot/e-sign', () => ({
@@ -129,6 +134,13 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('from public.v_active_holds')) {
+        return {
+          rows: otherActiveHoldLpIds.map((referenceId) => ({ reference_id: referenceId })),
+          rowCount: otherActiveHoldLpIds.length,
+        };
+      }
+
       if (q.startsWith('select h.id::text') && q.includes('h.disposition')) {
         return {
           rows: [
@@ -200,6 +212,7 @@ describe('quality hold server actions', () => {
     permissionOverrides = {};
     holdAlreadyReleased = false;
     holdReferenceType = 'lp';
+    otherActiveHoldLpIds = [];
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -302,6 +315,55 @@ describe('quality hold server actions', () => {
       signature: { password: 'pw' },
     });
     expect(second).toEqual({ ok: false, reason: 'error', message: 'quality hold is already released' });
+  });
+
+  it("keeps an LP on hold instead of restoring released when another active LP hold remains", async () => {
+    otherActiveHoldLpIds = [LP_ID];
+
+    const result = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
+
+    expect(result.ok).toBe(true);
+    const activeHoldRead = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).includes('from public.v_active_holds'));
+    expect(activeHoldRead?.[1]).toEqual([[LP_ID, TERMINAL_LP_ID], HOLD_ID]);
+
+    const releaseUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql, params]) => normalize(String(sql)).startsWith('update public.license_plates') && params?.[1] === 'released');
+    expect(releaseUpdate?.[1]?.[0]).toEqual([TERMINAL_LP_ID]);
+
+    const history = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.lp_state_history'));
+    expect(JSON.parse(history?.[1]?.[9] as string)).toEqual(
+      expect.objectContaining({
+        qaStatusFrom: 'on_hold',
+        qaStatusTo: 'on_hold',
+      }),
+    );
+  });
+
+  it("restores released when no other active LP holds remain", async () => {
+    otherActiveHoldLpIds = [];
+
+    const result = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
+
+    expect(result.ok).toBe(true);
+    const releaseUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql, params]) => normalize(String(sql)).startsWith('update public.license_plates') && params?.[1] === 'released');
+    expect(releaseUpdate?.[1]?.[0]).toEqual([LP_ID, TERMINAL_LP_ID]);
   });
 
   it('refuses warehouse LP unblock release without quality hold release permission', async () => {

@@ -17,6 +17,9 @@ let insertedQtyUnits: string | null;
 let insertedUnitsUom: string | null;
 let insertedActualWeightKg: string | null;
 let insertedBatchNumber: string | null;
+let insertedSiteId: string | null;
+let insertedLpSiteId: string | null;
+let wacSnapshotUpdate: { params: readonly unknown[] } | null;
 let existingRealOutputCount: string;
 let existingAllOutputCount: string;
 let sequenceCountSql: string | null;
@@ -40,6 +43,7 @@ function makeClient(): QueryClient {
             {
               id: WO_ID,
               wo_number: 'WO-001',
+              site_id: SITE_ID,
               uom: 'kg',
               uom_snapshot: woSnapshot,
             },
@@ -59,6 +63,7 @@ function makeClient(): QueryClient {
               shelf_life_days: null,
               nominal_weight: null,
               variance_tolerance_pct: null,
+              cost_per_kg: '2.50',
             },
           ],
           rowCount: 1,
@@ -81,6 +86,7 @@ function makeClient(): QueryClient {
         insertedQtyUnits = params[11] === null ? null : String(params[11]);
         insertedUnitsUom = params[12] === null ? null : String(params[12]);
         insertedActualWeightKg = params[13] === null ? null : String(params[13]);
+        insertedSiteId = params[14] === null ? null : String(params[14]);
         return {
           rows: [
             {
@@ -111,9 +117,20 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 0 };
       }
       if (normalized.startsWith('insert into public.license_plates')) {
+        insertedLpSiteId = params[0] === null ? null : String(params[0]);
         return { rows: [{ id: '99999999-9999-4999-8999-999999999999' }], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
+        return { rows: [{ value: String(Number(params[0] ?? 0) * Number(params[1] ?? 0)) }], rowCount: 1 };
+      }
+      if (normalized.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: String(params[2] ?? '0'), totalValue: String(params[3] ?? '0'), clamped: false }], rowCount: 1 };
+      }
+      if (normalized.startsWith('update public.wo_outputs') && normalized.includes('ext_jsonb')) {
+        wacSnapshotUpdate = { params };
         return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith('update public.wo_outputs')) {
@@ -139,6 +156,9 @@ describe('registerOutput UOM quantity resolution', () => {
     insertedUnitsUom = null;
     insertedActualWeightKg = null;
     insertedBatchNumber = null;
+    insertedSiteId = null;
+    insertedLpSiteId = null;
+    wacSnapshotUpdate = null;
     existingRealOutputCount = '0';
     existingAllOutputCount = '0';
     sequenceCountSql = null;
@@ -185,6 +205,33 @@ describe('registerOutput UOM quantity resolution', () => {
     });
 
     expect(insertedQtyKg).toBe('111.000');
+  });
+
+  it('stamps created output and output LP with the source WO site_id', async () => {
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '111.000',
+    });
+
+    expect(insertedSiteId).toBe(SITE_ID);
+    expect(insertedLpSiteId).toBe(SITE_ID);
+  });
+
+  it('persists the booked WAC contribution snapshot on wo_outputs.ext_jsonb', async () => {
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '111.000',
+    });
+
+    expect(wacSnapshotUpdate?.params).toEqual([
+      '66666666-6666-4666-8666-666666666666',
+      JSON.stringify({ wac_qty_kg: '111.000', wac_value: '277.5' }),
+      USER_ID,
+    ]);
   });
 
   it('generates the next batch number from real outputs only, skipping correction counter-entries', async () => {

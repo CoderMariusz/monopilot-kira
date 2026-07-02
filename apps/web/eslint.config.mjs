@@ -14,6 +14,108 @@
 //   doesn't include browser/node globals by default. Tracked for follow-up.
 import base from '../../tooling/eslint/base.mjs';
 
+/**
+ * Custom ESLint rules for MonoPilot web (inline plugin avoids flat-config
+ * no-restricted-syntax severity collisions).
+ *
+ * no-ok-false-in-org-context limitations (best-effort):
+ * - Cannot distinguish pre-write (safe) from post-write (dangerous) returns.
+ * - Misses helpers called from the withOrgContext callback.
+ * - Misses computed/spread `ok` values.
+ */
+const monopilotPlugin = {
+  rules: {
+    'no-ok-false-in-org-context': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Disallow return { ok: false } inside withOrgContext callbacks (partial-commit hazard).',
+        },
+        messages: {
+          partialCommit:
+            'return {ok:false} inside withOrgContext COMMITS partial writes — throw a module-local Abort instead (see PromoteAbort in promote-to-production.ts)',
+        },
+        schema: [],
+      },
+      create(context) {
+        function isOkFalseObject(node) {
+          if (!node || node.type !== 'ObjectExpression') return false;
+          return node.properties.some(
+            (prop) =>
+              prop.type === 'Property' &&
+              !prop.computed &&
+              prop.key.type === 'Identifier' &&
+              prop.key.name === 'ok' &&
+              prop.value.type === 'Literal' &&
+              prop.value.value === false,
+          );
+        }
+
+        function isWithOrgContextCallback(fnNode) {
+          const parent = fnNode.parent;
+          return (
+            parent?.type === 'CallExpression' &&
+            parent.callee.type === 'Identifier' &&
+            parent.callee.name === 'withOrgContext' &&
+            parent.arguments[0] === fnNode
+          );
+        }
+
+        function checkReturnStatement(node) {
+          if (!isOkFalseObject(node.argument)) return;
+          let current = node;
+          while (current) {
+            if (
+              (current.type === 'ArrowFunctionExpression' || current.type === 'FunctionExpression') &&
+              isWithOrgContextCallback(current)
+            ) {
+              context.report({ node, messageId: 'partialCommit' });
+              return;
+            }
+            current = current.parent;
+          }
+        }
+
+        return { ReturnStatement: checkReturnStatement };
+      },
+    },
+    'no-export-type-in-use-server': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            "Disallow export type/interface in 'use server' modules (breaks next build).",
+        },
+        messages: {
+          exportType:
+            "'use server' modules may export only async functions — move types to a non-server sibling (local tsc passes; next build fails).",
+        },
+        schema: [],
+      },
+      create(context) {
+        const sourceCode = context.sourceCode;
+        const firstStmt = sourceCode.ast.body[0];
+        const isUseServer =
+          firstStmt?.type === 'ExpressionStatement' &&
+          firstStmt.directive === 'use server';
+        if (!isUseServer) return {};
+
+        function reportExport(node) {
+          context.report({ node, messageId: 'exportType' });
+        }
+
+        return {
+          ExportNamedDeclaration(node) {
+            if (node.exportKind === 'type') reportExport(node);
+            if (node.declaration?.type === 'TSInterfaceDeclaration') reportExport(node);
+          },
+        };
+      },
+    },
+  },
+};
+
 export default [
   ...base,
 
@@ -124,6 +226,16 @@ export default [
           ],
         },
       ],
+    },
+  },
+
+  // MonoPilot custom guards (per-rule severity via inline plugin).
+  {
+    files: ['**/*.{js,jsx,ts,tsx,mjs,mts}'],
+    plugins: { monopilot: monopilotPlugin },
+    rules: {
+      'monopilot/no-ok-false-in-org-context': 'warn',
+      'monopilot/no-export-type-in-use-server': 'warn',
     },
   },
 ];

@@ -14,6 +14,7 @@ import {
 } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
+import { upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 
 const WASTE_CORRECT_PERMISSION = 'production.waste.correct';
@@ -115,6 +116,8 @@ type OutputRow = {
   expiry_date: string | null;
   catch_weight_details: unknown;
   allergen_profile_snapshot: unknown;
+  cost_per_kg: string | null;
+  ext_jsonb: unknown;
   registered_by: string | null;
   registered_at: string;
   wo_status: string | null;
@@ -162,6 +165,21 @@ function negateDecimalString(value: string): string {
   const trimmed = value.trim();
   if (trimmed.startsWith('-')) return trimmed.slice(1);
   return `-${trimmed}`;
+}
+
+function readWacContributionSnapshot(extJsonb: unknown): { wac_qty_kg: string; wac_value: string } | null {
+  if (extJsonb == null || typeof extJsonb !== 'object' || Array.isArray(extJsonb)) return null;
+  const snapshot = extJsonb as { wac_qty_kg?: unknown; wac_value?: unknown };
+  if (typeof snapshot.wac_qty_kg !== 'string' || typeof snapshot.wac_value !== 'string') return null;
+  return { wac_qty_kg: snapshot.wac_qty_kg, wac_value: snapshot.wac_value };
+}
+
+async function multiplyNumeric(ctx: ProductionContext, left: string, right: string | null): Promise<string> {
+  const { rows } = await ctx.client.query<{ value: string }>(
+    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
+    [left, right ?? '0'],
+  );
+  return rows[0]?.value ?? '0';
 }
 
 function isZeroDecimalString(value: string): boolean {
@@ -228,11 +246,14 @@ async function loadOutputForUpdate(ctx: ProductionContext, outputId: string): Pr
             o.expiry_date::text as expiry_date,
             o.catch_weight_details,
             o.allergen_profile_snapshot,
+            i.cost_per_kg::text as cost_per_kg,
+            o.ext_jsonb,
             o.registered_by::text as registered_by,
             o.registered_at::text as registered_at,
             coalesce(we.status, wo.status)::text as wo_status
        from public.wo_outputs o
        join public.work_orders wo on wo.id = o.wo_id and wo.org_id = o.org_id
+       left join public.items i on i.id = o.product_id and i.org_id = o.org_id
        left join public.wo_executions we on we.wo_id = o.wo_id and we.org_id = o.org_id
       where o.org_id = app.current_org_id()
         and o.id = $1::uuid
@@ -937,6 +958,27 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
           created_by: userId,
           updated_by: userId,
         },
+      });
+
+      const wacSnapshot = readWacContributionSnapshot(original.ext_jsonb);
+      let deltaQtyKg: string;
+      let deltaValue: string;
+      if (wacSnapshot) {
+        deltaQtyKg = negateDecimalString(wacSnapshot.wac_qty_kg);
+        deltaValue = negateDecimalString(wacSnapshot.wac_value);
+      } else {
+        console.warn('[wac] reversal_fallback', { woOutputId: original.id });
+        const outputValue = await multiplyNumeric(ctx, original.qty_kg, original.cost_per_kg);
+        deltaQtyKg = negateDecimalString(original.qty_kg);
+        deltaValue = negateDecimalString(outputValue);
+      }
+      await upsertWac(ctx.client, {
+        orgId,
+        siteId: original.site_id,
+        itemId: original.product_id,
+        deltaQtyKg,
+        deltaValue,
+        updatedBy: userId,
       });
 
       await markLpVoided(ctx, original.lp_id);

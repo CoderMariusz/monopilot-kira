@@ -162,6 +162,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): SoDetailLa
       ILLEGAL_TRANSITION: t('errors.illegalTransition'),
       INSUFFICIENT_STOCK: t('errors.insufficientStock'),
       persistence_failed: t('errors.persistence_failed'),
+      so_cancel_blocked_shipped: t('errors.so_cancel_blocked_shipped'),
+      deallocate_not_allowed: t('errors.deallocate_not_allowed'),
     },
   };
 }

@@ -4228,6 +4228,12 @@
       "errorDuplicate": "Код FG уже існує. Виберіть інший код.",
       "errorGeneric": "Не вдалося створити готову продукцію. Спробуйте ще раз."
     },
+    "productCreateWizard": {
+      "subtitleMask": "V01 · FG Code must match your org format. V02 · Product Name required.",
+      "fieldProductCodeHintMask": "Enter a code matching your org FG format (e.g. {example}).",
+      "rangeHintMask": "Product codes follow your org FG format configured in product settings (e.g. {example}).",
+      "errorV01Mask": "FG Code must match your org format (e.g. {example})."
+    },
     "briefList": {
       "title": "Брифи NPD",
       "subtitle": "Брифи — це попередні записи перед FG",
@@ -10408,7 +10414,9 @@
         "illegalTransition": "That status change isn't allowed from the current status.",
         "insufficientStock": "There is not enough released stock to allocate this order.",
         "persistence_failed": "Something went wrong saving. Please retry.",
-        "already_exists": "A customer with that code already exists."
+        "already_exists": "A customer with that code already exists.",
+        "so_cancel_blocked_shipped": "Cannot cancel this order while a shipment is already shipped or delivered.",
+        "deallocate_not_allowed": "Deallocate is only allowed before packing has started."
       }
     },
     "shipments": {
@@ -10463,6 +10471,7 @@
         "errors": {
           "forbidden": "You don’t have permission to do that.",
           "invalid_state": "This sales order can no longer raise a shipment in its current status.",
+          "open_shipment_exists": "An open packing shipment already exists for this sales order.",
           "persistence_failed": "Something went wrong saving. Please retry."
         },
         "notShippable": "This sales order can no longer raise a shipment in its current status."
@@ -11071,6 +11080,30 @@
     "switcherSites": "{n} sites",
     "bannerRole": "PLATFORM ADMIN",
     "bannerActingAs": "acting as",
-    "bannerExit": "Exit act-as"
+    "bannerExit": "Exit act-as",
+    "addAdminTitle": "Add platform admin",
+    "addAdminSubtitle": "Grant cross-org platform-admin access to an existing user by email. The change is audited.",
+    "addAdminEmailLabel": "User email",
+    "addAdminEmailPlaceholder": "name@company.com",
+    "addAdminCancel": "Cancel",
+    "addAdminSubmit": "Add admin",
+    "addAdminSubmitting": "Adding…",
+    "addAdminSuccessAdded": "{email} is now a platform admin.",
+    "addAdminSuccessRevived": "{email} was reinstated as a platform admin.",
+    "addAdminSuccessAlready": "{email} is already a platform admin.",
+    "addAdminSuccessSelf": "You are already a platform admin.",
+    "addAdminErrorNotFound": "No user with that email was found.",
+    "addAdminErrorInvalidEmail": "Enter a valid email address.",
+    "addAdminErrorForbidden": "You do not have permission to add platform admins.",
+    "addAdminErrorUnknown": "Could not add the admin. Try again shortly.",
+    "auditLogTopbarSubtitle": "Full platform audit log",
+    "auditLogTitle": "Platform audit log",
+    "auditLogSubtitle": "Every act-as and platform-admin change, attributed to the real platform admin.",
+    "auditLogBack": "Back to console",
+    "auditLogCount": "{total} entries",
+    "auditLogPageOf": "Page {page} of {pages}",
+    "auditLogPage": "Page {page}",
+    "auditLogPrev": "Previous",
+    "auditLogNext": "Next"
   }
 }

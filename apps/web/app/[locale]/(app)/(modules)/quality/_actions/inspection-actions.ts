@@ -1,7 +1,7 @@
 'use server';
 
 import type pg from 'pg';
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
@@ -118,6 +118,36 @@ const createSchema = z.object({
   dueDate: z.string().date().optional(),
   notes: z.string().trim().max(2000).optional(),
 });
+
+async function resolveInspectionSourceSiteId(
+  ctx: QualityContext,
+  referenceType: ReferenceType,
+  referenceId: string,
+): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ site_id: string | null }>(
+    `select lp.site_id::text as site_id
+       from public.license_plates lp
+      where $1::text = 'lp'
+        and lp.org_id = app.current_org_id()
+        and lp.id = $2::uuid
+     union all
+     select grn.site_id::text as site_id
+       from public.grns grn
+      where $1::text = 'grn'
+        and grn.org_id = app.current_org_id()
+        and grn.id = $2::uuid
+     union all
+     select coalesce(woo.site_id, wo.site_id)::text as site_id
+       from public.wo_outputs woo
+       left join public.work_orders wo on wo.id = woo.wo_id and wo.org_id = woo.org_id
+      where $1::text = 'wo_output'
+        and woo.org_id = app.current_org_id()
+        and woo.id = $2::uuid
+      limit 1`,
+    [referenceType, referenceId],
+  );
+  return rows[0]?.site_id ?? null;
+}
 
 const parameterSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -456,7 +486,7 @@ export async function listInspections(input: {
          left join public.items i on i.id = coalesce(qi.product_id, lp.product_id, woo.product_id) and i.org_id = qi.org_id
          left join public.users assigned on assigned.id = qi.assigned_to and assigned.org_id = qi.org_id
         where qi.org_id = app.current_org_id()
-          and qi.site_id = $4::uuid
+          and (qi.site_id = $4::uuid or qi.site_id is null)
           and ($1::text is null or qi.status = $1)
           and (
             $2::text is null
@@ -657,7 +687,9 @@ export async function createInspection(input: {
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedInspection>> => {
       if (!(await hasPermission(ctx, 'quality.inspection.assign'))) return { ok: false, reason: 'forbidden' };
 
-      const s = await getActiveSiteId({ client: ctx.client });
+      const s =
+        (await resolveInspectionSourceSiteId(ctx, parsed.referenceType, parsed.referenceId)) ??
+        (await getActiveSiteId({ client: ctx.client }));
 
       const inserted = await ctx.client.query<{
         id: string;
@@ -706,7 +738,7 @@ export async function createInspection(input: {
       );
       const row = inserted.rows[0];
       if (!row) throw new Error('quality inspection insert did not return a row');
-      revalidatePath('/quality');
+      revalidateLocalized('/quality');
       return {
         ok: true,
         data: {
@@ -746,7 +778,7 @@ export async function recordInspectionResult(input: {
       );
       const row = updated.rows[0];
       if (!row) throw new Error('quality inspection not found or not editable');
-      revalidatePath('/quality');
+      revalidateLocalized('/quality');
       return {
         ok: true,
         data: {
@@ -836,7 +868,7 @@ export async function submitInspectionDecision(input: {
         note: parsed.note ?? null,
       });
 
-      revalidatePath('/quality');
+      revalidateLocalized('/quality');
       return {
         ok: true,
         data: {

@@ -316,6 +316,82 @@ async function readImpersonationAuditRows(
   }
 }
 
+export interface PlatformAuditPage {
+  entries: PlatformAuditEntry[];
+  page: number;
+  /** True when at least one more page of rows exists after this one. */
+  hasNext: boolean;
+}
+
+export const PLATFORM_AUDIT_PAGE_SIZE = 50;
+
+/**
+ * Full app.platform_audit list for the "View full log" page — newest first,
+ * fixed 50/page. assertPlatformAdmin runs first (defence-in-depth on top of the
+ * (platform) layout guard). Actor emails + target org codes are resolved via
+ * joins so the client renders pre-formatted strings only (no server functions
+ * crossing the boundary).
+ *
+ * Cursor-style windowing: we do NOT run a `count(*)` total (unbounded, gets
+ * pricey as the trail grows). Instead we fetch PLATFORM_AUDIT_PAGE_SIZE + 1
+ * rows at the offset — if we get the extra row there IS a next page, and we
+ * trim it off before returning. The page size is the constant, never a caller
+ * parameter, so no caller can widen the window.
+ *
+ * Unlike listRecentPlatformAudit this reads app.platform_audit ONLY (the
+ * canonical platform control trail); the console dashboard card is the place
+ * that also blends impersonation-attributed public.audit_events.
+ */
+export async function listPlatformAuditPage(page = 1): Promise<PlatformAuditPage> {
+  const owner = await requirePlatformAdminReader();
+
+  const pageSize = PLATFORM_AUDIT_PAGE_SIZE;
+  const safePage = Math.max(1, Math.trunc(page));
+  const offset = (safePage - 1) * pageSize;
+
+  const { rows } = await owner.query<{
+    id: string;
+    occurred_at: string;
+    actor_email: string | null;
+    action: string;
+    target_slug: string | null;
+    target_id: string | null;
+    reason: string | null;
+    metadata: unknown;
+  }>(
+    `select
+        pa.id::text                    as id,
+        pa.occurred_at::text           as occurred_at,
+        actor.email::text              as actor_email,
+        pa.action                      as action,
+        torg.slug                      as target_slug,
+        torg.id::text                  as target_id,
+        pa.reason                      as reason,
+        pa.metadata                    as metadata
+      from app.platform_audit pa
+      left join public.users actor on actor.id = pa.actor_user_id
+      left join public.organizations torg on torg.id = pa.target_org_id
+      order by pa.occurred_at desc, pa.id desc
+      limit $1 offset $2`,
+    [pageSize + 1, offset],
+  );
+
+  const hasNext = rows.length > pageSize;
+  const pageRows = hasNext ? rows.slice(0, pageSize) : rows;
+
+  const entries = pageRows.map((r) => ({
+    id: `pa-${r.id}`,
+    occurredAt: r.occurred_at,
+    actorEmail: r.actor_email,
+    action: r.action,
+    kind: classifyAuditAction(r.action),
+    orgCode: r.target_slug ? deriveOrgCode(r.target_slug, r.target_id ?? '') : null,
+    detail: r.reason ?? metadataDetail(r.metadata),
+  }));
+
+  return { entries, page: safePage, hasNext };
+}
+
 function metadataDetail(metadata: unknown): string | null {
   if (metadata && typeof metadata === 'object') {
     const record = metadata as Record<string, unknown>;

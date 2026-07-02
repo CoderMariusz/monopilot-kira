@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../lib/i18n/revalidate-localized';
 
 import { hasPermission } from '../../../lib/auth/has-permission';
 import { writeManufacturingOperationsOutbox } from './_shared/outbox';
@@ -72,7 +72,7 @@ export async function createManufacturingOperation(rawInput: unknown): Promise<C
         payload: { id: row.id, operationName: row.operation_name, processSuffix: row.process_suffix, industryCode: row.industry_code },
       });
 
-      revalidatePath('/settings/reference/manufacturing-operations');
+      revalidateLocalized('/settings/reference/manufacturing-operations');
       return { ok: true, data: row };
     });
   } catch {

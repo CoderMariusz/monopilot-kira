@@ -141,6 +141,7 @@ type ItemRow = {
 type WoRow = {
   id: string;
   wo_number: string;
+  site_id: string | null;
   uom: string;
   uom_snapshot: Record<string, unknown> | null;
 };
@@ -227,6 +228,7 @@ export function computeCatchWeightSummary(
 async function loadWo(ctx: OrgContextLike, woId: string): Promise<WoRow> {
   const { rows } = await ctx.client.query<WoRow>(
     `select id, wo_number
+            , site_id::text as site_id
             , uom
             , uom_snapshot
        from public.work_orders
@@ -458,6 +460,7 @@ async function createOutputLp(
     expiryDate: string | null; // 'YYYY-MM-DD' from the wo_outputs insert
     transactionId: string;
     actorUserId: string;
+    siteId: string | null;
   },
 ): Promise<{ id: string; lp_number: string }> {
   const warehouse = await resolveWarehouseForSessionSite(ctx);
@@ -486,7 +489,7 @@ async function createOutputLp(
      )
      returning id`,
     [
-      ctx.siteId,
+      input.siteId,
       warehouse.id,
       warehouse.default_location_id,
       lpNumber,
@@ -641,7 +644,7 @@ export async function registerOutput(
           batch_number, qty_kg, uom, catch_weight_details, registered_by, created_by,
           expiry_date, qty_units, units_uom, actual_weight_kg)
        values
-         (app.current_org_id(), null, $1::uuid, $2::uuid, $3, $4::uuid, $5::uuid,
+         (app.current_org_id(), $15::uuid, $1::uuid, $2::uuid, $3, $4::uuid, $5::uuid,
           $6, $7::numeric, $8, $9::jsonb, $10::uuid, $10::uuid,
           case when $11::int is not null then (current_date + ($11::int || ' days')::interval)::date else null end,
           $12::numeric, $13, $14::numeric)
@@ -661,6 +664,7 @@ export async function registerOutput(
         input.qtyUnits ?? null,
         input.unitsUom ?? null,
         input.actualWeightKg ?? null,
+        wo.site_id,
       ],
     );
     const row = rows[0];
@@ -711,6 +715,7 @@ export async function registerOutput(
       expiryDate,
       transactionId: input.transaction_id,
       actorUserId: input.operator_id ?? ctx.userId,
+      siteId: wo.site_id,
     });
     lpId = createdLp.id;
     lpNumber = createdLp.lp_number;
@@ -734,6 +739,19 @@ export async function registerOutput(
     deltaValue: outputValue,
     updatedBy: input.operator_id ?? ctx.userId,
   });
+  await ctx.client.query(
+    `update public.wo_outputs
+        set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb,
+            updated_by = $3::uuid,
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid`,
+    [
+      outputId,
+      JSON.stringify({ wac_qty_kg: resolvedQtyKg, wac_value: outputValue }),
+      input.operator_id ?? ctx.userId,
+    ],
+  );
 
   // 9. outbox (same txn).
   await emitOutbox(ctx, {

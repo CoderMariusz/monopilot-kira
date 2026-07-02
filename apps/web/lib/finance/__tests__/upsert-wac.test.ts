@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { upsertWac } from '../upsert-wac';
+import { resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
 
 import type { QueryClient } from '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/procurement-shared';
 
@@ -57,7 +57,7 @@ describe('upsertWac', () => {
     expect(wacWriteColumns(client.calls[0]?.sql ?? '')).not.toContain('site_id');
   });
 
-  it('updates an existing row with clamped running totals and leaves avg_cost generated', async () => {
+  it('receive -> void returns WAC state to the prior value', async () => {
     const client = new WacMockClient();
     await upsertWac(client, {
       orgId: ORG_ID,
@@ -68,32 +68,41 @@ describe('upsertWac', () => {
       updatedBy: USER_ID,
     });
 
-    await upsertWac(client, {
+    const result = await upsertWac(client, {
       orgId: ORG_ID,
       siteId: SITE_ID,
       itemId: ITEM_ID,
-      deltaQtyKg: '5',
-      deltaValue: '80',
+      deltaQtyKg: '-10',
+      deltaValue: '-100',
       updatedBy: USER_ID,
     });
 
     expect(client.row).toMatchObject({
-      totalQtyKg: '15',
-      totalValue: '180',
-      avgCost: '12',
+      totalQtyKg: '0',
+      totalValue: '0',
+      avgCost: '0',
     });
+    expect(result).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: false });
     const updateSql = normalize(client.calls[1]?.sql ?? '');
     expect(updateSql).toContain('on conflict (org_id, item_id, currency_id) do update set');
-    expect(updateSql).toContain('total_qty_kg = greatest(item_wac_state.total_qty_kg + $3::numeric, 0)');
-    expect(updateSql).toContain('total_value = greatest(item_wac_state.total_value + $4::numeric, 0)');
+    expect(updateSql).toContain('total_qty_kg = excluded.total_qty_kg');
+    expect(updateSql).toContain('total_value = excluded.total_value');
     expect(updateSql).not.toContain('avg_cost');
     expect(updateSql).not.toContain('site_id');
   });
 
-  it('clamps zero quantity edge cases to 0 and leaves generated avg_cost as null', async () => {
+  it('clamp-at-zero: voiding more than running total clamps WAC to 0 and flags it', async () => {
     const client = new WacMockClient();
-
     await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '3',
+      deltaValue: '12',
+      updatedBy: USER_ID,
+    });
+
+    const result = await upsertWac(client, {
       orgId: ORG_ID,
       siteId: null,
       itemId: ITEM_ID,
@@ -105,7 +114,61 @@ describe('upsertWac', () => {
     expect(client.row).toMatchObject({
       totalQtyKg: '0',
       totalValue: '0',
-      avgCost: null,
+      avgCost: '0',
+    });
+    expect(result).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: true });
+  });
+});
+
+describe('resolveWacDeltaQtyKg', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  it('returns resolved:true for a real kg conversion', async () => {
+    const client = new ResolveWacMockClient({ resolved: true, qtyKg: '48' });
+
+    const result = await resolveWacDeltaQtyKg(client, {
+      itemId: ITEM_ID,
+      qty: '2',
+      uom: 'box',
+    });
+
+    expect(result).toEqual({ qtyKg: '48', resolved: true });
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('returns resolved:false for silent fallback qty and warns', async () => {
+    const client = new ResolveWacMockClient({ resolved: false, qtyKg: '5' });
+
+    const result = await resolveWacDeltaQtyKg(client, {
+      itemId: ITEM_ID,
+      qty: '5',
+      uom: 'each',
+    });
+
+    expect(result).toEqual({ qtyKg: '5', resolved: false });
+    expect(console.warn).toHaveBeenCalledWith('[wac] unresolved_uom', {
+      itemId: ITEM_ID,
+      uom: 'each',
+      qty: '5',
+    });
+  });
+
+  it('returns resolved:false when the item row is missing and warns', async () => {
+    const client = new ResolveWacMockClient({ missingItem: true });
+
+    const result = await resolveWacDeltaQtyKg(client, {
+      itemId: ITEM_ID,
+      qty: '7',
+      uom: 'kg',
+    });
+
+    expect(result).toEqual({ qtyKg: '7', resolved: false });
+    expect(console.warn).toHaveBeenCalledWith('[wac] unresolved_uom', {
+      itemId: ITEM_ID,
+      uom: 'kg',
+      qty: '7',
     });
   });
 });
@@ -131,10 +194,28 @@ describe('receivePoLineDesktop WAC integration', () => {
 
     expect(result).toMatchObject({ ok: true, lpId: 'lp-1' });
     const lpIndex = currentClient.calls.findIndex((call) => normalize(call.sql).startsWith('insert into public.license_plates'));
-    const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).startsWith('insert into public.item_wac_state'));
+    const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(lpIndex).toBeGreaterThanOrEqual(0);
     expect(wacIndex).toBeGreaterThan(lpIndex);
     expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '10', '42', USER_ID]);
+  });
+
+  it('unit-mixing case: box item with kg conversion computes WAC on kg basis', async () => {
+    currentClient = new ReceiveMockClient({ lineUom: 'box', unitPrice: '50', wacQtyKg: '48' });
+    const { receivePoLineDesktop } = await import(
+      '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line'
+    );
+
+    const result = await receivePoLineDesktop({
+      poLineId: LINE_ID,
+      qty: '2.000',
+      batchNumber: 'B-BOX',
+      bestBefore: '2026-07-01',
+    });
+
+    expect(result).toMatchObject({ ok: true, lpId: 'lp-1' });
+    const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
+    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID]);
   });
 });
 
@@ -155,24 +236,38 @@ class WacMockClient {
       this.row = {
         totalQtyKg,
         totalValue,
-        avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : null,
+        avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
       };
-      return { rows: [], rowCount: 1 };
+      return { rows: [{ totalQtyKg, totalValue, clamped: compareDecimal(deltaQty, '0') < 0 || compareDecimal(deltaValue, '0') < 0 }] as T[], rowCount: 1 };
     }
 
+    const unclampedQty = addDecimal(this.row.totalQtyKg, deltaQty);
+    const unclampedValue = addDecimal(this.row.totalValue, deltaValue);
     const totalQtyKg = maxDecimal(addDecimal(this.row.totalQtyKg, deltaQty), '0');
     const totalValue = maxDecimal(addDecimal(this.row.totalValue, deltaValue), '0');
+    const clamped = compareDecimal(unclampedQty, '0') < 0 || compareDecimal(unclampedValue, '0') < 0;
     this.row = {
       totalQtyKg,
       totalValue,
-      avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : null,
+      avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
     };
-    return { rows: [], rowCount: 1 };
+    return { rows: [{ totalQtyKg, totalValue, clamped }] as T[], rowCount: 1 };
   }
 }
 
 class ReceiveMockClient implements QueryClient {
   calls: MockCall[] = [];
+  lineUom: string;
+  unitPrice: string;
+  wacQtyKg: string | null;
+  wacResolved: boolean | null;
+
+  constructor(options: { lineUom?: string; unitPrice?: string; wacQtyKg?: string; wacResolved?: boolean } = {}) {
+    this.lineUom = options.lineUom ?? 'kg';
+    this.unitPrice = options.unitPrice ?? '4.20';
+    this.wacQtyKg = options.wacQtyKg ?? null;
+    this.wacResolved = options.wacResolved ?? null;
+  }
 
   async query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }> {
     this.calls.push({ sql, params });
@@ -190,8 +285,8 @@ class ReceiveMockClient implements QueryClient {
             destination_warehouse_id: null,
             line_no: 1,
             ordered_qty: '10.000000',
-            uom: 'kg',
-            unit_price: '4.20',
+            uom: this.lineUom,
+            unit_price: this.unitPrice,
             received_qty: '0.000000',
             shelf_life_days: null,
             shelf_life_mode: null,
@@ -210,7 +305,20 @@ class ReceiveMockClient implements QueryClient {
     if (normalized.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
       return { rows: [{ value: multiplyDecimal(String(params?.[0] ?? '0'), String(params?.[1] ?? '0')) }] as T[] };
     }
-    if (normalized.startsWith('insert into public.item_wac_state')) return { rows: [], rowCount: 1 };
+    if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+      return {
+        rows: [{
+          qty_kg: this.wacQtyKg ?? String(params?.[0] ?? '0'),
+          resolved: this.wacResolved ?? true,
+        }],
+      } as T[];
+    }
+    if (normalized.startsWith('update public.grn_items') && normalized.includes('ext_jsonb')) {
+      return { rows: [], rowCount: 1 };
+    }
+    if (normalized.includes('insert into public.item_wac_state')) {
+      return { rows: [{ totalQtyKg: String(params?.[2] ?? '0'), totalValue: String(params?.[3] ?? '0'), clamped: false }] as T[], rowCount: 1 };
+    }
     if (normalized.includes('max(line_number)')) return { rows: [{ line_number: 1 }] as T[] };
     if (normalized.startsWith('insert into public.grn_items')) return { rows: [{ id: 'grn-item-1' }] as T[] };
     if (normalized.startsWith('insert into public.lp_state_history')) return { rows: [] };
@@ -271,4 +379,22 @@ function multiplyDecimal(left: string, right: string): string {
 
 function divideDecimal(left: string, right: string): string {
   return fromFixed((toFixed(left) * SCALE) / toFixed(right));
+}
+
+class ResolveWacMockClient {
+  constructor(private readonly options: { resolved?: boolean; qtyKg?: string; missingItem?: boolean }) {}
+
+  async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
+    const normalized = normalize(sql);
+    if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+      if (this.options.missingItem) return { rows: [] };
+      return {
+        rows: [{
+          qty_kg: this.options.qtyKg ?? String(params[0]),
+          resolved: this.options.resolved ?? true,
+        }] as T[],
+      };
+    }
+    throw new Error(`unexpected query: ${normalized}`);
+  }
 }

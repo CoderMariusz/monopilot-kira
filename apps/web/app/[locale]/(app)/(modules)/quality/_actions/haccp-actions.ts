@@ -128,6 +128,19 @@ async function writeAuditEvent(
   );
 }
 
+async function resolveWoSiteId(ctx: QualityContext, woId: string | undefined): Promise<string | null> {
+  if (!woId) return null;
+  const { rows } = await ctx.client.query<{ site_id: string | null }>(
+    `select site_id::text as site_id
+       from public.work_orders
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [woId],
+  );
+  return rows[0]?.site_id ?? null;
+}
+
 /**
  * READ-gate predicate for the CCP-monitoring BOARD (listCcps + listMonitoringLog).
  *
@@ -659,9 +672,11 @@ export async function recordMonitoring(data: {
         return { ok: true, data: { withinLimits, ncrId: existing.breach_ncr_id, outboxEmitted: false } };
       }
 
+      const sourceSiteId = await resolveWoSiteId(ctx, parsed.woId);
       const ncr = await ctx.client.query<{ id: string }>(
         `insert into public.ncr_reports (
            org_id,
+           site_id,
            ncr_type,
            severity,
            status,
@@ -673,6 +688,7 @@ export async function recordMonitoring(data: {
          )
          values (
            app.current_org_id(),
+           $5::uuid,
            'quality',
            'critical',
            'open',
@@ -688,6 +704,7 @@ export async function recordMonitoring(data: {
           `Measured value ${parsed.measuredValue} was outside configured CCP limits.`,
           parsed.ccpId,
           ctx.userId,
+          sourceSiteId,
         ],
       );
       const ncrId = ncr.rows[0]?.id;

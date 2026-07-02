@@ -276,6 +276,52 @@ run('createFa — REAL DB integration (T-008)', () => {
     ).rejects.toMatchObject({ name: 'ValidationError', code: 'V02_REQUIRED' });
   });
 
+  it('accepts a code matching the org FG mask and rejects legacy FA codes without allowLegacyFa', async () => {
+    const { createFa } = await import('../create-fa');
+    const { ValidationError } = await import('../errors');
+
+    await owner.query(
+      `insert into public.org_document_settings
+         (org_id, doc_type, number_prefix, number_date_part, number_seq_padding, code_mask)
+       values ($1::uuid, 'fg', 'FG', 'none', 4, 'FGxxxx')
+       on conflict (org_id, doc_type) do update set code_mask = excluded.code_mask`,
+      [seed.orgAId],
+    );
+
+    const maskedCode = `FG${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    await expect(
+      withActionActor(seed.managerUserId, seed.orgAId, () =>
+        createFa({ productCode: maskedCode, productName: 'Masked FG' }),
+      ),
+    ).resolves.toEqual({ productCode: maskedCode });
+
+    const legacyCode = faCode();
+    await expect(
+      withActionActor(seed.managerUserId, seed.orgAId, () =>
+        createFa({ productCode: legacyCode, productName: 'Legacy FA FG' }),
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('accepts legacy FA codes from the FA-list modal path when allowLegacyFa is true', async () => {
+    const { createFa } = await import('../create-fa');
+
+    await owner.query(
+      `insert into public.org_document_settings
+         (org_id, doc_type, number_prefix, number_date_part, number_seq_padding, code_mask)
+       values ($1::uuid, 'fg', 'FG', 'none', 4, 'FGxxxx')
+       on conflict (org_id, doc_type) do update set code_mask = excluded.code_mask`,
+      [seed.orgAId],
+    );
+
+    const legacyCode = faCode();
+    await expect(
+      withActionActor(seed.managerUserId, seed.orgAId, () =>
+        createFa({ productCode: legacyCode, productName: 'Legacy FA FG', allowLegacyFa: true }),
+      ),
+    ).resolves.toEqual({ productCode: legacyCode });
+  });
+
   it('allows core_user with fa.create alias and denies viewer before mutation', async () => {
     const { createFa } = await import('../create-fa');
     const { AuthError } = await import('../errors');

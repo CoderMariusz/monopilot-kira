@@ -46,11 +46,15 @@ function createCandidateHandler(codeMaskRow: QueryResult['rows'][number] | null)
     if (sql.includes('update public.org_document_settings')) {
       return { rows: codeMaskRow ? [codeMaskRow] : [] };
     }
+    if (sql.includes('from public.formulations')) return { rows: [] };
     if (sql.includes('from public.npd_projects')) return { rows: [] };
     if (sql.includes('from public.product')) return { rows: [] };
     if (sql.includes('insert into public.product')) return { rows: [{ product_code: 'ignored-by-test' }] };
     if (sql.includes('update public.npd_projects')) return { rows: [] };
     if (sql.includes('update public.formulations')) return { rows: [] };
+    if (sql.includes('update public.items')) return { rows: [] };
+    if (sql.includes('from public.items')) return { rows: [{ id: 'item-1' }] };
+    if (sql.includes('insert into public.factory_specs')) return { rows: [{ id: 'spec-1' }], rowCount: 1 };
     if (sql.includes('insert into public.outbox_events')) return { rows: [] };
     throw new Error(`unexpected query: ${sql}`);
   };

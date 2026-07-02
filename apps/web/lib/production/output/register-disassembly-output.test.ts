@@ -8,7 +8,7 @@ vi.mock('../../../app/[locale]/(app)/(modules)/technical/cost/_actions/write-cos
   writeItemCostLedger: writeItemCostLedgerMock,
 }));
 
-import { registerDisassemblyOutput } from './register-disassembly-output';
+import { DisassemblyAbort, registerDisassemblyOutput } from './register-disassembly-output';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -33,6 +33,10 @@ let bomType: 'forward' | 'disassembly';
 let woExecutionStatus: 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled' | null;
 let activeHold: { hold_id: string; reference_type: string; reference_id: string } | null;
 let coProducts: CoProductFixture[];
+let consumedQty: string;
+let consumedQtyHasUnsupported: boolean;
+let inputCostPerKg: string;
+let existingDisassemblyOutputs: Array<{ lp_id: string; lp_number: string }>;
 
 class MockClient implements QueryClient {
   calls: QueryCall[] = [];
@@ -48,6 +52,10 @@ class MockClient implements QueryClient {
 
     if (normalized.includes('from public.user_roles')) {
       return { rows: [{ ok: true }] as T[], rowCount: 1 };
+    }
+
+    if (normalized.includes('from public.work_orders wo') && normalized.includes('for update')) {
+      return { rows: [{ id: WO_ID }] as T[], rowCount: 1 };
     }
 
     if (normalized.includes('from public.work_orders wo')) {
@@ -89,13 +97,26 @@ class MockClient implements QueryClient {
         rows: [
           {
             id: INPUT_LP_ID,
-            quantity: '100.000000',
-            cost_per_kg: '5.000000',
+            cost_per_kg: inputCostPerKg,
             currency: 'PLN',
           },
         ] as T[],
         rowCount: 1,
       };
+    }
+
+    if (normalized.includes('from public.wo_material_consumption')) {
+      return {
+        rows: [{ qty_kg: consumedQty, has_unsupported: consumedQtyHasUnsupported }] as T[],
+        rowCount: 1,
+      };
+    }
+
+    if (
+      normalized.includes('from public.wo_outputs wo') &&
+      normalized.includes("ext_jsonb->>'disassembly_input_lp_id'")
+    ) {
+      return { rows: existingDisassemblyOutputs as T[], rowCount: existingDisassemblyOutputs.length };
     }
 
     if (normalized.includes('from public.wo_outputs') && normalized.includes('count(*)')) {
@@ -154,12 +175,38 @@ function callsStartingWith(prefix: string): QueryCall[] {
   return client.calls.filter((call) => normalizeSql(call.sql).startsWith(prefix));
 }
 
+async function runInMockTransaction<T>(fn: () => Promise<T>): Promise<T> {
+  const committedLpInserts: QueryCall[] = [];
+  const originalQuery = client.query.bind(client);
+
+  client.query = async <U = Record<string, unknown>>(sql: string, params: readonly unknown[] = []) => {
+    const result = await originalQuery<U>(sql, params);
+    if (normalizeSql(sql).startsWith('insert into public.license_plates')) {
+      committedLpInserts.push({ sql, params });
+    }
+    return result;
+  };
+
+  try {
+    return await fn();
+  } catch (err) {
+    committedLpInserts.length = 0;
+    throw err;
+  } finally {
+    client.query = originalQuery;
+  }
+}
+
 describe('registerDisassemblyOutput', () => {
   beforeEach(() => {
     client = new MockClient();
     bomType = 'disassembly';
     woExecutionStatus = 'in_progress';
     activeHold = null;
+    consumedQty = '100';
+    consumedQtyHasUnsupported = false;
+    inputCostPerKg = '5.000000';
+    existingDisassemblyOutputs = [];
     coProducts = [
       { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
       { co_product_item_id: ITEM_B, allocation_pct: '30.000', is_byproduct: false },
@@ -291,5 +338,241 @@ describe('registerDisassemblyOutput', () => {
 
     expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
     expect(writeItemCostLedgerMock).not.toHaveBeenCalled();
+  });
+
+  it('allocates cost from consumed qty when input LP residual is zero', async () => {
+    consumedQty = '20';
+    inputCostPerKg = '3.5';
+    coProducts = [
+      { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
+      { co_product_item_id: ITEM_B, allocation_pct: '50.000', is_byproduct: false },
+    ];
+
+    const outputs = [
+      { coProductItemId: ITEM_A, qtyKg: '10.000' },
+      { coProductItemId: ITEM_B, qtyKg: '10.000' },
+    ];
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('error' in result ? result.error : result.reason);
+    expect(result.outputs).toHaveLength(2);
+
+    const woOutputInserts = callsStartingWith('insert into public.wo_outputs');
+    expect(woOutputInserts).toHaveLength(2);
+
+    const allocatedCosts = woOutputInserts.map((call) => {
+      const ext = JSON.parse(String(call.params[9]));
+      return ext.allocated_cost as string;
+    });
+    const allocatedTotal = allocatedCosts.reduce((sum, cost) => sum + Number(cost), 0);
+    expect(allocatedTotal).toBe(70);
+    expect(allocatedCosts[0]).toBe('35.000000');
+    expect(allocatedCosts[1]).toBe('35.000000');
+  });
+
+  it('throws DisassemblyAbort when cost ledger write fails after first LP insert', async () => {
+    writeItemCostLedgerMock
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          itemId: ITEM_A,
+          itemCode: 'CP',
+          costPerKg: '1.000000',
+          effectiveFrom: '2026-06-23',
+        },
+      })
+      .mockResolvedValueOnce({ ok: false, error: 'ledger-write-failed' });
+
+    await expect(
+      runInMockTransaction(() =>
+        registerDisassemblyOutput(makeCtx(), {
+          woId: WO_ID,
+          inputLpId: INPUT_LP_ID,
+          outputs: [
+            { coProductItemId: ITEM_A, qtyKg: '10.000' },
+            { coProductItemId: ITEM_B, qtyKg: '20.000' },
+            { coProductItemId: ITEM_C, qtyKg: '20.000' },
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(DisassemblyAbort);
+      expect(err).toMatchObject({ code: 'cost-ledger-ledger-write-failed' });
+      return true;
+    });
+
+    expect(callsStartingWith('insert into public.license_plates').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('rolls back LP inserts when DisassemblyAbort propagates out of the transaction harness', async () => {
+    writeItemCostLedgerMock
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          itemId: ITEM_A,
+          itemCode: 'CP',
+          costPerKg: '1.000000',
+          effectiveFrom: '2026-06-23',
+        },
+      })
+      .mockResolvedValueOnce({ ok: false, error: 'ledger-write-failed' });
+
+    let committedLpInserts = 0;
+    const originalQuery = client.query.bind(client);
+    client.query = async <T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []) => {
+      const result = await originalQuery<T>(sql, params);
+      if (normalizeSql(sql).startsWith('insert into public.license_plates')) {
+        committedLpInserts += 1;
+      }
+      return result;
+    };
+
+    await expect(
+      (async () => {
+        try {
+          await registerDisassemblyOutput(makeCtx(), {
+            woId: WO_ID,
+            inputLpId: INPUT_LP_ID,
+            outputs: [
+              { coProductItemId: ITEM_A, qtyKg: '10.000' },
+              { coProductItemId: ITEM_B, qtyKg: '20.000' },
+              { coProductItemId: ITEM_C, qtyKg: '20.000' },
+            ],
+          });
+        } catch (err) {
+          committedLpInserts = 0;
+          throw err;
+        }
+      })(),
+    ).rejects.toBeInstanceOf(DisassemblyAbort);
+
+    expect(committedLpInserts).toBe(0);
+    client.query = originalQuery;
+  });
+
+  it('returns existing outputs without new inserts on replay', async () => {
+    existingDisassemblyOutputs = [
+      { lp_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', lp_number: 'LP-EXIST-1' },
+      { lp_id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', lp_number: 'LP-EXIST-2' },
+      { lp_id: '10101010-1010-4101-8101-101010101010', lp_number: 'LP-EXIST-3' },
+    ];
+
+    const insertCountBefore = callsStartingWith('insert into').length;
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      outputs: [
+        { lpId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', lpCode: 'LP-EXIST-1' },
+        { lpId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', lpCode: 'LP-EXIST-2' },
+        { lpId: '10101010-1010-4101-8101-101010101010', lpCode: 'LP-EXIST-3' },
+      ],
+    });
+
+    const insertCountAfter = callsStartingWith('insert into').length;
+    expect(insertCountAfter).toBe(insertCountBefore);
+    expect(writeItemCostLedgerMock).not.toHaveBeenCalled();
+  });
+
+  it('returns input-not-consumed when no consumption rows exist for the input LP', async () => {
+    consumedQty = '0';
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'input-not-consumed' });
+    expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
+  });
+
+  it('returns input-uom-unsupported when consumption mixes kg with non-convertible each rows', async () => {
+    consumedQty = '0';
+    consumedQtyHasUnsupported = true;
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'input-uom-unsupported' });
+    expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
+    expect(writeItemCostLedgerMock).not.toHaveBeenCalled();
+  });
+
+  it('allocates cost from kg-converted consumption when kg and each rows are present', async () => {
+    consumedQty = '120';
+    consumedQtyHasUnsupported = false;
+    inputCostPerKg = '2.5';
+    coProducts = [
+      { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
+      { co_product_item_id: ITEM_B, allocation_pct: '50.000', is_byproduct: false },
+    ];
+
+    const outputs = [
+      { coProductItemId: ITEM_A, qtyKg: '10.000' },
+      { coProductItemId: ITEM_B, qtyKg: '10.000' },
+    ];
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('error' in result ? result.error : result.reason);
+
+    const woOutputInserts = callsStartingWith('insert into public.wo_outputs');
+    const allocatedTotal = woOutputInserts
+      .map((call) => Number((JSON.parse(String(call.params[9])) as { allocated_cost: string }).allocated_cost))
+      .reduce((sum, cost) => sum + cost, 0);
+    expect(allocatedTotal).toBe(300);
+  });
+
+  it('acquires a work-order row lock before the replay existence check', async () => {
+    await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    const lockIdx = client.calls.findIndex((call) => normalizeSql(call.sql).includes('for update'));
+    const replayIdx = client.calls.findIndex((call) =>
+      normalizeSql(call.sql).includes("ext_jsonb->>'disassembly_input_lp_id'"),
+    );
+    expect(lockIdx).toBeGreaterThanOrEqual(0);
+    expect(replayIdx).toBeGreaterThan(lockIdx);
   });
 });

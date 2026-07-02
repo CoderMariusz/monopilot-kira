@@ -6,7 +6,17 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { deallocateSalesOrderInContext } from './so-deallocation';
+import {
+  deriveSalesOrderStatusFromProgress,
+  isLegalShipmentTransition,
+  isShipmentStatus,
+  LIVE_ALLOCATION_SQL,
+  type SalesOrderProgressSnapshot,
+  type SalesOrderStatus,
+  type ShipmentStatus,
+} from './so-transitions';
+import { releaseShipmentLiveAllocationsInContext, voidShipmentBoxesInContext } from './so-shipment-release';
+import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -88,9 +98,9 @@ const SHIPPING_SHIPMENT_PACKED_EVENT = 'shipping.shipment.packed';
 const SHIPPING_SHIPMENT_CONFIRMED_EVENT = 'shipping.shipment.confirmed';
 const WAREHOUSE_LP_TRANSITIONED_EVENT = 'warehouse.lp.transitioned';
 
-const TERMINAL_SHIPMENT_STATUSES = new Set(['delivered', 'cancelled']);
 const CANCEL_BLOCKED_SO_STATUSES = new Set(['delivered', 'partially_delivered', 'cancelled']);
 const UNPACK_BLOCKED_SHIPMENT_STATUSES = new Set(['shipped', 'delivered', 'cancelled']);
+const PRE_SHIP_CANCEL_STATUSES = new Set<ShipmentStatus>(['pending', 'packing', 'packed', 'manifested']);
 
 const reversalInputSchema = z.object({
   shipmentId: z.string().uuid(),
@@ -108,12 +118,19 @@ class ActionError extends Error {
   }
 }
 
+class CancelShipmentAbort extends Error {
+  constructor(readonly result: Extract<ShippingReversalResult, { ok: false }>) {
+    super(result.error);
+  }
+}
+
 function parseInput(input: ShippingReversalInput): z.infer<typeof reversalInputSchema> | null {
   const parsed = reversalInputSchema.safeParse(input);
   return parsed.success ? parsed.data : null;
 }
 
 function errorCode(error: unknown): ShippingReversalError {
+  if (error instanceof CancelShipmentAbort) return error.result.error;
   if (error instanceof ActionError) return error.code;
   const code = (error as { code?: string } | null)?.code;
   if (code === '22P02' || code === '23503' || code === '23514') return 'invalid_input';
@@ -135,6 +152,31 @@ async function requirePermission(ctx: ShippingContext, permission: string): Prom
 }
 
 async function lockShipment(ctx: ShippingContext, shipmentId: string): Promise<ShipmentRow | null> {
+  const { rows: previewRows } = await ctx.client.query<{ sales_order_id: string | null }>(
+    `select sales_order_id::text
+       from public.shipments
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and deleted_at is null`,
+    [shipmentId],
+  );
+  const soId = previewRows[0]?.sales_order_id ?? null;
+  if (!previewRows[0]) return null;
+
+  let salesOrderStatus: string | null = null;
+  if (soId) {
+    const { rows: salesOrderRows } = await ctx.client.query<{ status: string }>(
+      `select status
+         from public.sales_orders
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and deleted_at is null
+        for update`,
+      [soId],
+    );
+    salesOrderStatus = salesOrderRows[0]?.status ?? null;
+  }
+
   const { rows } = await ctx.client.query<ShipmentRow>(
     `select sh.id::text,
             sh.status,
@@ -151,18 +193,8 @@ async function lockShipment(ctx: ShippingContext, shipmentId: string): Promise<S
     [shipmentId],
   );
   const shipment = rows[0] ?? null;
-  if (!shipment?.sales_order_id) return shipment;
-
-  const { rows: salesOrderRows } = await ctx.client.query<{ status: string }>(
-    `select status
-       from public.sales_orders
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-        and deleted_at is null
-      for update`,
-    [shipment.sales_order_id],
-  );
-  shipment.sales_order_status = salesOrderRows[0]?.status ?? null;
+  if (!shipment) return null;
+  shipment.sales_order_status = salesOrderStatus;
   return shipment;
 }
 
@@ -234,7 +266,7 @@ async function lockShipmentAllocations(ctx: ShippingContext, shipment: ShipmentR
         and sb.deleted_at is null
       where ia.org_id = app.current_org_id()
         and ia.deleted_at is null
-        and ia.status in ('allocated', 'picked')
+        and ${LIVE_ALLOCATION_SQL}
       for update of ia`,
     [shipment.sales_order_id, shipment.id],
   );
@@ -460,9 +492,11 @@ async function assertNoDownstreamFinancialRecords(
   return null;
 }
 
-async function recomputeSalesOrderStatusAfterCancel(ctx: ShippingContext, shipment: ShipmentRow): Promise<string | null> {
-  if (!shipment.sales_order_id) return null;
-
+async function loadSalesOrderProgressSnapshot(
+  ctx: ShippingContext,
+  soId: string,
+  excludeShipmentId?: string,
+): Promise<SalesOrderProgressSnapshot> {
   const { rows } = await ctx.client.query<{
     shipment_count: number | string | bigint | null;
     packing_count: number | string | bigint | null;
@@ -477,7 +511,7 @@ async function recomputeSalesOrderStatusAfterCancel(ctx: ShippingContext, shipme
          from public.shipments
         where org_id = app.current_org_id()
           and sales_order_id = $1::uuid
-          and id <> $2::uuid
+          and ($2::uuid is null or id <> $2::uuid)
           and deleted_at is null
           and status <> 'cancelled'
      ),
@@ -490,7 +524,7 @@ async function recomputeSalesOrderStatusAfterCancel(ctx: ShippingContext, shipme
           and sol.deleted_at is null
         where ia.org_id = app.current_org_id()
           and ia.deleted_at is null
-          and ia.status in ('allocated', 'picked')
+          and ${LIVE_ALLOCATION_SQL}
      )
      select count(rs.status)::int as shipment_count,
             count(*) filter (where rs.status = 'packing')::int as packing_count,
@@ -502,28 +536,42 @@ async function recomputeSalesOrderStatusAfterCancel(ctx: ShippingContext, shipme
        from remaining_allocations ra
        left join remaining_shipments rs on true
       group by ra.allocation_count`,
-    [shipment.sales_order_id, shipment.id],
+    [soId, excludeShipmentId ?? null],
   );
 
   const snapshot = rows[0];
-  if (!snapshot) return 'confirmed';
-  const allocationCount = Number(snapshot.allocation_count ?? 0);
-  if (allocationCount === 0) return 'confirmed';
+  if (!snapshot) {
+    return {
+      shipmentCount: 0,
+      packingCount: 0,
+      packedCount: 0,
+      manifestedCount: 0,
+      shippedCount: 0,
+      deliveredCount: 0,
+      liveAllocationCount: 0,
+    };
+  }
 
-  const shipmentCount = Number(snapshot.shipment_count ?? 0);
-  const deliveredCount = Number(snapshot.delivered_count ?? 0);
-  const shippedCount = Number(snapshot.shipped_count ?? 0);
-  const manifestedCount = Number(snapshot.manifested_count ?? 0);
-  const packedCount = Number(snapshot.packed_count ?? 0);
-  const packingCount = Number(snapshot.packing_count ?? 0);
+  return {
+    shipmentCount: Number(snapshot.shipment_count ?? 0),
+    packingCount: Number(snapshot.packing_count ?? 0),
+    packedCount: Number(snapshot.packed_count ?? 0),
+    manifestedCount: Number(snapshot.manifested_count ?? 0),
+    shippedCount: Number(snapshot.shipped_count ?? 0),
+    deliveredCount: Number(snapshot.delivered_count ?? 0),
+    liveAllocationCount: Number(snapshot.allocation_count ?? 0),
+  };
+}
 
-  if (shipmentCount > 0 && deliveredCount === shipmentCount) return 'delivered';
-  if (deliveredCount > 0) return 'partially_delivered';
-  if (shippedCount > 0) return 'shipped';
-  if (manifestedCount > 0) return 'manifested';
-  if (packedCount > 0 && packingCount === 0) return 'packed';
-  if (packedCount > 0 || packingCount > 0) return 'partially_packed';
-  return 'allocated';
+async function recomputeSalesOrderStatusAfterCancel(ctx: ShippingContext, shipment: ShipmentRow): Promise<SalesOrderStatus | null> {
+  if (!shipment.sales_order_id) return null;
+  const snapshot = await loadSalesOrderProgressSnapshot(ctx, shipment.sales_order_id, shipment.id);
+  return deriveSalesOrderStatusFromProgress(snapshot);
+}
+
+async function recomputeSalesOrderStatusAfterVoidPod(ctx: ShippingContext, soId: string): Promise<SalesOrderStatus> {
+  const snapshot = await loadSalesOrderProgressSnapshot(ctx, soId);
+  return deriveSalesOrderStatusFromProgress(snapshot);
 }
 
 export async function cancelShipment(input: ShippingReversalInput): Promise<ShippingReversalResult> {
@@ -540,15 +588,19 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
       if (!shipment) return { ok: false, error: 'not_found' };
       if (shipment.status === 'cancelled') return { ok: true };
       if (
-        shipment.status !== 'shipped' ||
-        TERMINAL_SHIPMENT_STATUSES.has(shipment.status) ||
+        !isShipmentStatus(shipment.status) ||
+        !isLegalShipmentTransition(shipment.status, 'cancelled') ||
+        shipment.status === 'delivered' ||
         CANCEL_BLOCKED_SO_STATUSES.has(shipment.sales_order_status ?? '')
       ) {
         return { ok: false, error: 'invalid_state' };
       }
 
-      const lps = await lockShipmentLps(ctx, shipment.id);
-      const allocations = await lockShipmentAllocations(ctx, shipment);
+      const isShippedCancel = shipment.status === 'shipped';
+      const isPreShipCancel = PRE_SHIP_CANCEL_STATUSES.has(shipment.status as ShipmentStatus);
+
+      const lps = isShippedCancel ? await lockShipmentLps(ctx, shipment.id) : [];
+      const allocations = isPreShipCancel ? await lockShipmentAllocations(ctx, shipment) : [];
       const signatureId = await signReversal(ctx, parsed, CANCEL_SHIPMENT_INTENT, {
         shipment_id: shipment.id,
         sales_order_id: shipment.sales_order_id,
@@ -557,71 +609,51 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
         reason_code: parsed.reasonCode ?? null,
       });
 
-      if (shipment.sales_order_id) {
-        await deallocateSalesOrderInContext(ctx, shipment.sales_order_id);
+      if (isPreShipCancel && shipment.sales_order_id) {
+        await releaseShipmentLiveAllocationsInContext(ctx, shipment.id, shipment.sales_order_id);
       }
 
-      for (const lp of lps) {
-        const { rowCount } = await ctx.client.query(
-          `update public.license_plates
-              set quantity = quantity + $2::numeric,
-                  status = $3,
-                  source_so_id = null,
-                  updated_at = now(),
-                  updated_by = $4::uuid
-            where org_id = app.current_org_id()
-              and id = $1::uuid
-              and status = 'shipped'`,
-          [lp.lp_id, lp.shipped_qty, lp.from_status, userId],
-        );
-        if (rowCount !== 1) throw new ActionError('persistence_failed');
-        await writeLpTransition(ctx, shipment, { ...lp, from_status: 'shipped' }, lp.from_status, parsed.reasonCode ?? null, parsed.note ?? null);
+      if (isShippedCancel) {
+        for (const lp of lps) {
+          const { rowCount } = await ctx.client.query(
+            `update public.license_plates
+                set quantity = quantity + $2::numeric,
+                    status = $3,
+                    source_so_id = null,
+                    updated_at = now(),
+                    updated_by = $4::uuid
+              where org_id = app.current_org_id()
+                and id = $1::uuid
+                and status = 'shipped'`,
+            [lp.lp_id, lp.shipped_qty, lp.from_status, userId],
+          );
+          if (rowCount !== 1) throw new ActionError('persistence_failed');
+          await writeLpTransition(ctx, shipment, { ...lp, from_status: 'shipped' }, lp.from_status, parsed.reasonCode ?? null, parsed.note ?? null);
+        }
       }
 
-      await ctx.client.query(
-        `update public.shipment_box_contents sbc
-            set deleted_at = coalesce(deleted_at, now()),
-                updated_at = now(),
-                updated_by = $2::uuid,
-                ext_data = coalesce(ext_data, '{}'::jsonb) || $3::jsonb
-           from public.shipment_boxes sb
-          where sb.id = sbc.shipment_box_id
-            and sb.org_id = app.current_org_id()
-            and sb.shipment_id = $1::uuid
-            and sbc.org_id = app.current_org_id()
-            and sbc.deleted_at is null`,
-        [
-          shipment.id,
-          userId,
-          JSON.stringify({ cancellation_signature_id: signatureId, cancellation_reason_code: parsed.reasonCode ?? null }),
-        ],
+      await voidShipmentBoxesInContext(
+        ctx,
+        shipment.id,
+        JSON.stringify({
+          cancellation_signature_id: signatureId,
+          cancellation_reason_code: parsed.reasonCode ?? null,
+        }),
       );
 
-      await ctx.client.query(
-        `update public.shipment_boxes
-            set deleted_at = coalesce(deleted_at, now()),
-                updated_at = now(),
-                updated_by = $2::uuid,
-                ext_data = coalesce(ext_data, '{}'::jsonb) || $3::jsonb
-          where org_id = app.current_org_id()
-            and shipment_id = $1::uuid
-            and deleted_at is null`,
-        [
-          shipment.id,
-          userId,
-          JSON.stringify({ cancellation_signature_id: signatureId, cancellation_reason_code: parsed.reasonCode ?? null }),
-        ],
-      );
+      const cancelWrite = await writeShipmentStatusInContext(ctx, shipment.id, 'cancelled', {
+        currentStatus: shipment.status as ShipmentStatus,
+      });
+      if (cancelWrite !== 'ok') throw new ActionError('persistence_failed');
 
-      const { rowCount } = await ctx.client.query(
+      await ctx.client.query(
         `update public.shipments
-            set status = 'cancelled',
-                ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
+            set ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
                 updated_at = now(),
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and status = 'shipped'
+            and status = 'cancelled'
             and deleted_at is null`,
         [
           shipment.id,
@@ -635,26 +667,18 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
           userId,
         ],
       );
-      if (rowCount !== 1) throw new ActionError('persistence_failed');
 
       const targetSoStatus = await recomputeSalesOrderStatusAfterCancel(ctx, shipment);
-      if (shipment.sales_order_id && !targetSoStatus) {
-        return { ok: false, error: 'illegal_transition' };
-      }
-
       if (shipment.sales_order_id && targetSoStatus) {
-        const { rowCount: soRowCount } = await ctx.client.query(
-          `update public.sales_orders
-              set status = $2,
-                  shipped_at = case when $2 = 'shipped' then shipped_at else null end,
-                  updated_at = now(),
-                  updated_by = $3::uuid
-            where org_id = app.current_org_id()
-              and id = $1::uuid
-              and deleted_at is null`,
-          [shipment.sales_order_id, targetSoStatus, userId],
-        );
-        if (soRowCount !== 1) throw new ActionError('persistence_failed');
+        const currentSoStatus = await readLockedSalesOrderStatus(ctx, shipment.sales_order_id);
+        if (currentSoStatus === 'not_found') throw new ActionError('persistence_failed');
+        const soWrite = await writeSalesOrderStatusInContext(ctx, shipment.sales_order_id, targetSoStatus, {
+          currentStatus: currentSoStatus,
+        });
+        if (soWrite === 'illegal_transition') {
+          throw new CancelShipmentAbort({ ok: false, error: 'illegal_transition' });
+        }
+        if (soWrite !== 'ok') throw new ActionError('persistence_failed');
       }
 
       const auditId = await writeAuditEvent(ctx, {
@@ -695,6 +719,7 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
       return { ok: true };
     });
   } catch (error) {
+    if (error instanceof CancelShipmentAbort) return error.result;
     return { ok: false, error: errorCode(error) };
   }
 }
@@ -758,17 +783,21 @@ export async function unpackShipment(input: ShippingReversalInput): Promise<Ship
         ],
       );
 
-      const { rowCount } = await ctx.client.query(
+      const unpackTransition = await writeShipmentStatusInContext(ctx, shipment.id, 'packing', {
+        currentStatus: shipment.status as ShipmentStatus,
+      });
+      if (unpackTransition !== 'ok') throw new ActionError('persistence_failed');
+
+      await ctx.client.query(
         `update public.shipments
-            set status = 'packing',
-                packed_at = null,
+            set packed_at = null,
                 packed_by = null,
                 ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
                 updated_at = now(),
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and status in ('packed', 'manifested')
+            and status = 'packing'
             and deleted_at is null`,
         [
           shipment.id,
@@ -782,7 +811,6 @@ export async function unpackShipment(input: ShippingReversalInput): Promise<Ship
           userId,
         ],
       );
-      if (rowCount !== 1) throw new ActionError('persistence_failed');
 
       const auditId = await writeAuditEvent(ctx, {
         action: 'shipping.shipment.unpacked',
@@ -849,10 +877,14 @@ export async function voidPod(input: ShippingReversalInput): Promise<ShippingRev
         reason_code: parsed.reasonCode ?? null,
       });
 
+      const voidTransition = await writeShipmentStatusInContext(ctx, shipment.id, 'shipped', {
+        currentStatus: 'delivered',
+      });
+      if (voidTransition !== 'ok') throw new ActionError('persistence_failed');
+
       const { rowCount } = await ctx.client.query(
         `update public.shipments
-            set status = 'shipped',
-                delivered_at = null,
+            set delivered_at = null,
                 bol_signed_pdf_url = null,
                 ext_data = coalesce(ext_data, '{}'::jsonb) || jsonb_build_object(
                   'voided_pod', jsonb_build_object(
@@ -869,7 +901,7 @@ export async function voidPod(input: ShippingReversalInput): Promise<ShippingRev
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and status = 'delivered'
+            and status = 'shipped'
             and deleted_at is null`,
         [
           shipment.id,
@@ -883,19 +915,15 @@ export async function voidPod(input: ShippingReversalInput): Promise<ShippingRev
       );
       if (rowCount !== 1) throw new ActionError('persistence_failed');
 
-      if (shipment.sales_order_id && shipment.sales_order_status === 'delivered') {
-        const { rowCount: soRowCount } = await ctx.client.query(
-          `update public.sales_orders
-              set status = 'shipped',
-                  updated_at = now(),
-                  updated_by = $2::uuid
-            where org_id = app.current_org_id()
-              and id = $1::uuid
-              and status = 'delivered'
-              and deleted_at is null`,
-          [shipment.sales_order_id, userId],
-        );
-        if (soRowCount !== 1) throw new ActionError('persistence_failed');
+      let targetSoStatus: SalesOrderStatus | null = null;
+      if (shipment.sales_order_id) {
+        targetSoStatus = await recomputeSalesOrderStatusAfterVoidPod(ctx, shipment.sales_order_id);
+        const currentSoStatus = await readLockedSalesOrderStatus(ctx, shipment.sales_order_id);
+        if (currentSoStatus === 'not_found') throw new ActionError('persistence_failed');
+        const soWrite = await writeSalesOrderStatusInContext(ctx, shipment.sales_order_id, targetSoStatus, {
+          currentStatus: currentSoStatus,
+        });
+        if (soWrite !== 'ok') throw new ActionError('persistence_failed');
       }
 
       const auditId = await writeAuditEvent(ctx, {
@@ -909,7 +937,7 @@ export async function voidPod(input: ShippingReversalInput): Promise<ShippingRev
         },
         afterState: {
           shipment_status: 'shipped',
-          sales_order_status: shipment.sales_order_status === 'delivered' ? 'shipped' : shipment.sales_order_status,
+          sales_order_status: targetSoStatus ?? shipment.sales_order_status,
           pod_voided: true,
           signature_id: signatureId,
           reason_code: parsed.reasonCode ?? null,
@@ -930,7 +958,7 @@ export async function voidPod(input: ShippingReversalInput): Promise<ShippingRev
           previous_shipment_status: shipment.status,
           shipment_status: 'shipped',
           previous_sales_order_status: shipment.sales_order_status,
-          sales_order_status: shipment.sales_order_status === 'delivered' ? 'shipped' : shipment.sales_order_status,
+          sales_order_status: targetSoStatus ?? shipment.sales_order_status,
         },
       });
 

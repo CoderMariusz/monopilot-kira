@@ -100,7 +100,7 @@ function makeClient(): QueryClient {
         q.startsWith('update public.license_plates') ||
         q.startsWith('insert into public.lp_state_history') ||
         q.startsWith('insert into public.stock_moves') ||
-        q.startsWith('delete from public.transfer_order_line_lps') ||
+        q.startsWith('update public.transfer_order_line_lps') ||
         q.startsWith('update public.transfer_orders') ||
         q.startsWith('insert into public.audit_events') ||
         q.startsWith('insert into public.outbox_events')
@@ -162,5 +162,80 @@ describe('reverseToReceiveLine source LP state guards', () => {
       message: 'Source LP is destroyed; receive reversal would create phantom stock.',
     });
     expect(vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).startsWith('update public.license_plates'))).toBe(false);
+  });
+});
+
+describe('reverseToReceiveLine ship-link preservation', () => {
+  beforeEach(() => {
+    sourceStatus = 'shipped';
+    client = makeClient();
+  });
+
+  it('nulls dest_lp_id on transfer_order_line_lps instead of deleting the ship link row', async () => {
+    const result = await reverseToReceiveLine(makeInput());
+
+    expect(result.ok).toBe(true);
+
+    const linkUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+      const q = normalize(String(sql));
+      return q.startsWith('update public.transfer_order_line_lps') && params?.[0] === LINK_ID;
+    });
+    expect(linkUpdate?.[0]).toContain('dest_lp_id = null');
+    expect(linkUpdate?.[1]).toEqual([LINK_ID, USER_ID]);
+
+    const linkDelete = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('delete from public.transfer_order_line_lps'),
+    );
+    expect(linkDelete).toBeUndefined();
+  });
+
+  it('rerolls the TO status to in_transit when received_count is 0 and returns it in result.data.status', async () => {
+    // client is already stubbed with received_count: '0' (makeClient default)
+    const result = await reverseToReceiveLine(makeInput());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+
+    // Observable reroll outcome: returned status field
+    expect(result.data.status).toBe('in_transit');
+
+    // The UPDATE transfer_orders statement must carry 'in_transit' as the status param
+    const toUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+      const q = normalize(String(sql));
+      return q.startsWith('update public.transfer_orders') && params?.[1] === 'in_transit';
+    });
+    expect(toUpdate).toBeDefined();
+    expect(toUpdate?.[1]).toEqual([TO_ID, 'in_transit', USER_ID]);
+  });
+
+  it('rerolls the TO status to partially_received when received_count is greater than 0', async () => {
+    // Override the count stub for this test only
+    vi.mocked(client.query).mockImplementation(async (sql: string) => {
+      const q = normalize(sql);
+      if (q.startsWith('select t.id::text as to_id')) {
+        return { rows: [receivedLink()], rowCount: 1 };
+      }
+      if (q.startsWith('select array_remove')) {
+        return { rows: [{ blockers: [] }], rowCount: 1 };
+      }
+      if (q.startsWith('select count(*) filter')) {
+        return { rows: [{ received_count: '2' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+
+    const result = await reverseToReceiveLine(makeInput());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+
+    expect(result.data.status).toBe('partially_received');
+
+    const toUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+      const q = normalize(String(sql));
+      return q.startsWith('update public.transfer_orders') && params?.[1] === 'partially_received';
+    });
+    expect(toUpdate).toBeDefined();
+    expect(toUpdate?.[1]).toEqual([TO_ID, 'partially_received', USER_ID]);
   });
 });

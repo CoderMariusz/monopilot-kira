@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server';
 import type { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { ProductionAbort } from '../../../../../../../../lib/production/pause-resume-wo';
 import {
   QualityHoldError,
   WoConcurrentModificationError,
@@ -107,6 +108,9 @@ export async function runTransition<TSchema extends z.ZodTypeAny, TData>(
         { ok: false, error: err.error, details: { expectedVersion: err.expectedVersion } },
         { status: err.status },
       );
+    }
+    if (err instanceof ProductionAbort) {
+      return toResponse(err.result);
     }
     // withOrgContext throws on auth/lookup failure (treat as 401/403 surface) or
     // an unexpected DB error (the txn already rolled back).

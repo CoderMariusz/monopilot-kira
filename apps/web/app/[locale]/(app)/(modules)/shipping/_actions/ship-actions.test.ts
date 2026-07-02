@@ -21,7 +21,8 @@ const FIXED_NOW = '2026-06-23T12:34:56.000Z';
 let client: QueryClient;
 let allowPermission = true;
 let shipmentStatus = 'packed';
-let shipmentShipCasSucceeds = true;
+let salesOrderStatus = 'manifested';
+let shipmentTransitionSucceeds = true;
 let boxCount = 1;
 let lpRows: Array<{
   lp_id: string;
@@ -66,6 +67,54 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+
+      if (q.startsWith('select status from public.sales_orders') && q.includes('for update')) {
+        return { rows: [{ status: salesOrderStatus }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select status, sales_order_id::text') && q.includes('from public.shipments') && q.includes('for update')) {
+        return { rows: [{ status: shipmentStatus, sales_order_id: SO_ID }], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.shipments') && q.includes('set status = $2')) {
+        if (!shipmentTransitionSucceeds) {
+          return { rows: [], rowCount: 0 };
+        }
+        const nextStatus = String(params[1]);
+        shipmentStatus = nextStatus;
+        if (nextStatus === 'packed') {
+          packedShipmentUpdate = { shipment_id: params[0], sql };
+        }
+        if (nextStatus === 'shipped') {
+          shippedShipmentUpdate = { shipment_id: params[0], sql };
+        }
+        if (nextStatus === 'delivered') {
+          podUpdate = { shipment_id: params[0], sql };
+        }
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.shipments') && q.includes('set packed_at = now()')) {
+        packedShipmentUpdate = {
+          shipment_id: params[0],
+          packed_by: params[1],
+          sql,
+        };
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.shipments') && q.includes('set shipped_at = now()')) {
+        shippedShipmentUpdate = {
+          shipment_id: params[0],
+          shipped_by: params[1],
+          sql,
+        };
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.inventory_allocations ia') && q.includes('closed_reason')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('select sh.id::text') && q.includes('box_count')) {
@@ -147,7 +196,22 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (q.startsWith('update public.shipments') && q.includes('set delivered_at = now()')) {
+        podUpdate = {
+          shipment_id: params[0],
+          bol_signed_pdf_url: params[1],
+          updated_by: params[2],
+          sql,
+        };
+        return { rows: [{ id: params[0], sales_order_id: SO_ID }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select count(*)::int as remaining_count') && q.includes("status <> 'delivered'")) {
+        return { rows: [{ remaining_count: remainingShipmentCount }], rowCount: 1 };
+      }
+
       if (q.startsWith('update public.sales_orders')) {
+        salesOrderStatus = String(params[1]);
         salesOrderUpdate = {
           sales_order_id: params[0],
           status: params[1],
@@ -174,14 +238,8 @@ function makeClient(): QueryClient {
         return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
-      if (q.startsWith('update public.shipments') && q.includes('delivered_at')) {
-        podUpdate = {
-          shipment_id: params[0],
-          bol_signed_pdf_url: params[1],
-          updated_by: params[2],
-          sql,
-        };
-        return { rows: [{ id: params[0] }], rowCount: 1 };
+      if (q.startsWith('update public.shipments') && q.includes('delivered_at') && !q.includes('set delivered_at = now()')) {
+        return { rows: [], rowCount: 0 };
       }
 
       return { rows: [], rowCount: 0 };
@@ -194,7 +252,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date(FIXED_NOW));
   allowPermission = true;
   shipmentStatus = 'packed';
-  shipmentShipCasSucceeds = true;
+  shipmentTransitionSucceeds = true;
+  salesOrderStatus = 'manifested';
   boxCount = 1;
   lpRows = [
     { lp_id: LP_1, lp_number: 'LP-0001', shipped_qty: '3.000', prior_status: 'available', prior_reserved_qty: '3.000' },
@@ -227,7 +286,6 @@ describe('shipShipment', () => {
       shipment_id: SHIPMENT_ID,
       shipped_by: USER_ID,
     });
-    expect(normalize(String(shippedShipmentUpdate?.sql))).toContain("status = 'shipped'");
     expect(normalize(String(shippedShipmentUpdate?.sql))).toContain('shipped_at = now()');
     expect(shippedLpIds).toEqual([LP_1, LP_2]);
     const lpUpdateSql = queryLog.find(({ sql }) => normalize(sql).includes('update public.license_plates lp'))?.sql;
@@ -306,7 +364,8 @@ describe('shipShipment', () => {
   it('double-ship is rejected and LP is decremented exactly once', async () => {
     await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: true });
 
-    shipmentShipCasSucceeds = false;
+    shipmentTransitionSucceeds = false;
+    shipmentStatus = 'packed';
 
     await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: false, error: 'persistence_failed' });
     expect(queryLog.filter(({ sql }) => normalize(sql).includes('update public.license_plates lp'))).toHaveLength(1);
@@ -325,7 +384,6 @@ describe('sealShipment', () => {
       shipment_id: SHIPMENT_ID,
       packed_by: USER_ID,
     });
-    expect(normalize(String(packedShipmentUpdate?.sql))).toContain("status = 'packed'");
     expect(normalize(String(packedShipmentUpdate?.sql))).toContain('packed_at = now()');
     expect(normalize(String(packedShipmentUpdate?.sql))).toContain('packed_by = $2::uuid');
   });
@@ -413,6 +471,8 @@ describe('recordPod', () => {
     // recordPod now requires the shipment to be 'shipped' (proof-of-delivery
     // follows dispatch); the prior default 'packed' is rejected by the new guard.
     shipmentStatus = 'shipped';
+    salesOrderStatus = 'shipped';
+    remainingShipmentCount = 0;
     const result = await recordPod({
       shipmentId: SHIPMENT_ID,
       signedPdfUrl: 'https://storage.example/pod.pdf',

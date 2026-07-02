@@ -5,7 +5,19 @@ import { revalidatePath } from 'next/cache';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { resolveSalesLinePrice } from './sales-line-price';
-import { deallocateSalesOrderInContext } from './so-deallocation';
+import { cancelOpenShipmentForSoInContext } from './so-shipment-release';
+import {
+  deallocateSalesOrderInContext,
+  releaseRemainingLiveAllocationsInContext,
+} from './so-deallocation';
+import {
+  isLegalSoTransition,
+  isSalesOrderStatus,
+  SO_CANCEL_BLOCKED_SHIPMENT_STATUSES,
+  SO_LEGAL_TRANSITIONS,
+  type SalesOrderStatus,
+} from './so-transitions';
+import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so-status-write';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -15,20 +27,13 @@ type QueryClient = {
 };
 
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
-type SalesOrderStatus =
-  | 'draft'
-  | 'confirmed'
-  | 'allocated'
-  | 'partially_picked'
-  | 'picked'
-  | 'partially_packed'
-  | 'packed'
-  | 'manifested'
-  | 'shipped'
-  | 'partially_delivered'
-  | 'delivered'
-  | 'cancelled';
 type TransitionTarget = SalesOrderStatus;
+
+class SoActionError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
 type AllocationStatus = 'unallocated' | 'partially_allocated' | 'allocated';
 
 export type ForbiddenFailure = { ok: false; error: 'forbidden' };
@@ -130,13 +135,17 @@ export type AllocateSalesOrderSuccess = {
 export type ListSalesOrdersResult = ActionResult<SalesOrderListRow[]>;
 export type GetSalesOrderResult = ActionResult<SalesOrder | null>;
 export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure>;
-export type TransitionSalesOrderStatusResult = ActionResult<SalesOrder | null, ForbiddenFailure | IllegalTransitionError>;
-export type AllocateSalesOrderResult =
+type AllocateSalesOrderResult =
   | AllocateSalesOrderSuccess
   | ForbiddenFailure
   | IllegalTransitionError
   | InsufficientStockError;
-export type DeallocateSalesOrderResult = ActionResult<null>;
+type SoCancelBlockedError = { ok: false; error: 'so_cancel_blocked_shipped' };
+type TransitionSalesOrderStatusResult = ActionResult<
+  SalesOrder | null,
+  ForbiddenFailure | IllegalTransitionError | SoCancelBlockedError
+>;
+type DeallocateSalesOrderResult = ActionResult<null, ForbiddenFailure | { ok: false; error: 'deallocate_not_allowed' }>;
 
 type CreateSalesOrderInput = {
   customer_id: string;
@@ -159,25 +168,6 @@ const SHIP_SO_ALLOCATE = 'ship.so.create';
  * flag to 0 to opt out of the warning entirely.
  */
 const NEAR_EXPIRY_DEFAULT_WARN_DAYS = 7;
-
-const LEGAL_TRANSITIONS: Record<SalesOrderStatus, readonly TransitionTarget[]> = {
-  draft: ['confirmed', 'cancelled'],
-  confirmed: ['allocated', 'cancelled'],
-  allocated: ['partially_picked', 'picked', 'cancelled'],
-  partially_picked: ['picked', 'cancelled'],
-  picked: ['partially_packed', 'packed', 'cancelled'],
-  partially_packed: ['packed', 'cancelled'],
-  packed: ['manifested', 'cancelled'],
-  manifested: ['shipped', 'cancelled'],
-  shipped: ['partially_delivered', 'delivered'],
-  partially_delivered: ['delivered'],
-  delivered: [],
-  cancelled: [],
-};
-
-function isSalesOrderStatus(status: string): status is SalesOrderStatus {
-  return Object.prototype.hasOwnProperty.call(LEGAL_TRANSITIONS, status);
-}
 
 function permissionForTransition(newStatus: TransitionTarget): string {
   if (newStatus === 'confirmed') return SHIP_SO_CONFIRM;
@@ -440,23 +430,48 @@ async function transitionSalesOrderStatusInContext(
   );
   const current = rows[0]?.status;
   if (!current) return null;
-  if (!isSalesOrderStatus(current) || !LEGAL_TRANSITIONS[current].includes(newStatus)) {
+  if (!isSalesOrderStatus(current) || !isLegalSoTransition(current, newStatus)) {
     return { ok: false, error: 'ILLEGAL_TRANSITION', from: current, to: newStatus };
   }
 
   if (newStatus === 'cancelled') {
-    await deallocateSalesOrderInContext(ctx, id);
+    const { rows: blockingShipments } = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.shipments
+        where org_id = app.current_org_id()
+          and sales_order_id = $1::uuid
+          and deleted_at is null
+          and status = any($2::text[])`,
+      [id, SO_CANCEL_BLOCKED_SHIPMENT_STATUSES],
+    );
+    if (blockingShipments.length > 0) {
+      throw new SoActionError('so_cancel_blocked_shipped');
+    }
+
+    const { rows: openShipments } = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.shipments
+        where org_id = app.current_org_id()
+          and sales_order_id = $1::uuid
+          and deleted_at is null
+          and status not in ('shipped', 'delivered', 'cancelled')
+        for update`,
+      [id],
+    );
+    for (const openShipment of openShipments) {
+      await cancelOpenShipmentForSoInContext(ctx, openShipment.id, id);
+    }
+    await releaseRemainingLiveAllocationsInContext(ctx, id);
   }
 
-  await ctx.client.query(
-    `update public.sales_orders
-        set status = $2,
-            updated_by = $3::uuid,
-            shipped_at = case when $2 = 'shipped' then now() else shipped_at end
-      where org_id = app.current_org_id()
-        and id = $1::uuid`,
-    [id, newStatus, ctx.userId],
-  );
+  const writeResult = await writeSalesOrderStatusInContext(ctx, id, newStatus, {
+    currentStatus: current as SalesOrderStatus,
+  });
+  if (writeResult === 'illegal_transition') {
+    throw new SoActionError('ILLEGAL_TRANSITION');
+  }
+  if (writeResult === 'not_found') return null;
+
   return fetchSalesOrder(ctx, id);
 }
 
@@ -596,14 +611,21 @@ export async function transitionSalesOrderStatus(
   id: string,
   newStatus: TransitionTarget,
 ): Promise<TransitionSalesOrderStatusResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<TransitionSalesOrderStatusResult> => {
-    const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    const forbidden = await requirePermission(ctx, permissionForTransition(newStatus));
-    if (forbidden) return forbidden;
-    const result = await transitionSalesOrderStatusInContext(ctx, id, newStatus);
-    if (result && 'error' in result) return result;
-    return { ok: true, data: result };
-  });
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransitionSalesOrderStatusResult> => {
+      const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
+      const forbidden = await requirePermission(ctx, permissionForTransition(newStatus));
+      if (forbidden) return forbidden;
+      const result = await transitionSalesOrderStatusInContext(ctx, id, newStatus);
+      if (result && 'error' in result) return result;
+      return { ok: true, data: result };
+    });
+  } catch (err) {
+    if (err instanceof SoActionError && err.code === 'so_cancel_blocked_shipped') {
+      return { ok: false, error: 'so_cancel_blocked_shipped' };
+    }
+    throw err;
+  }
 }
 
 export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrderResult> {
@@ -624,7 +646,7 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
     );
     const current = statusRows[0]?.status;
     if (!current) return { ok: true, data: null };
-    if (!isSalesOrderStatus(current) || !LEGAL_TRANSITIONS[current].includes('allocated')) {
+    if (!isSalesOrderStatus(current) || !isLegalSoTransition(current, 'allocated')) {
       return { ok: false, error: 'ILLEGAL_TRANSITION', from: current, to: 'allocated' };
     }
 
@@ -794,7 +816,9 @@ export async function deallocateSalesOrder(soId: string): Promise<DeallocateSale
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_SO_ALLOCATE);
     if (forbidden) return forbidden;
-    await deallocateSalesOrderInContext(ctx, soId);
+    const result = await deallocateSalesOrderInContext(ctx, soId);
+    if (result === 'not_found') return { ok: true, data: null };
+    if (result === 'invalid_state') return { ok: false, error: 'deallocate_not_allowed' };
     return { ok: true, data: null };
   });
 }

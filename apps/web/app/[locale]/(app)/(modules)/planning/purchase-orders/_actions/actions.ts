@@ -82,7 +82,7 @@ type PurchaseOrder = {
 };
 
 type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
-type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'no_active_site' | 'ambiguous_site';
+type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'po_open_quantity' | 'no_active_site' | 'ambiguous_site';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
   | { ok: true; data: PurchaseOrder[]; archivedCount: number }
@@ -220,6 +220,25 @@ async function fetchDraftPurchaseOrderForUpdate(client: QueryClient, poId: strin
     [poId],
   );
   return rows[0] ?? null;
+}
+
+async function isPurchaseOrderFullyReceived(client: QueryClient, poId: string): Promise<boolean> {
+  const { rows } = await client.query<{ is_received: boolean }>(
+    `select bool_and(coalesce(rec.received_qty, 0) >= pol.qty) as is_received
+       from public.purchase_order_lines pol
+       left join (
+         select po_line_id, sum(received_qty) as received_qty
+           from public.grn_items
+          where org_id = app.current_org_id()
+            and po_line_id is not null
+            and cancelled_at is null
+          group by po_line_id
+       ) rec on rec.po_line_id = pol.id
+      where pol.org_id = app.current_org_id()
+        and pol.po_id = $1::uuid`,
+    [poId],
+  );
+  return rows[0]?.is_received === true;
 }
 
 async function getPurchaseOrderReceiptState(client: QueryClient, poId: string): Promise<{ activeReceivedCount: number; grnLineCount: number }> {
@@ -782,8 +801,8 @@ export async function deletePurchaseOrderLine(rawInput: unknown): Promise<Purcha
 const PO_TRANSITIONS: Record<string, readonly string[]> = {
   draft: ['sent', 'cancelled'],
   sent: ['draft', 'confirmed', 'cancelled'],
-  confirmed: ['partially_received', 'received', 'cancelled'],
-  partially_received: ['received', 'cancelled'],
+  confirmed: ['cancelled'],
+  partially_received: ['cancelled'],
   received: [],
   cancelled: [],
 };
@@ -888,6 +907,16 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       );
       const previous = before.rows[0];
       if (!previous) return { ok: false, error: 'not_found' };
+
+      if (parsed.data === 'received' || parsed.data === 'partially_received') {
+        const receiptState = await getPurchaseOrderReceiptState(ctx.client, id);
+        if (parsed.data === 'partially_received' && receiptState.activeReceivedCount === 0) {
+          return { ok: false, error: 'po_open_quantity', code: 'po_open_quantity' };
+        }
+        if (parsed.data === 'received' && !(await isPurchaseOrderFullyReceived(ctx.client, id))) {
+          return { ok: false, error: 'po_open_quantity', code: 'po_open_quantity' };
+        }
+      }
 
       // Guard the transition server-side against the legal state machine.
       const allowed = PO_TRANSITIONS[previous.status] ?? [];

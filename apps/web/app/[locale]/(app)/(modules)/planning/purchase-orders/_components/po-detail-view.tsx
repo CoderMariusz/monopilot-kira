@@ -172,15 +172,8 @@ const TRANSITIONS: Record<string, Array<{ to: string; labelKey: keyof PoDetailLa
     { to: 'confirmed', labelKey: 'confirm', variant: 'primary' },
     { to: 'cancelled', labelKey: 'cancel', variant: 'danger' },
   ],
-  confirmed: [
-    { to: 'partially_received', labelKey: 'receivePartial', variant: 'primary' },
-    { to: 'received', labelKey: 'receive', variant: 'primary' },
-    { to: 'cancelled', labelKey: 'cancel', variant: 'danger' },
-  ],
-  partially_received: [
-    { to: 'received', labelKey: 'receive', variant: 'primary' },
-    { to: 'cancelled', labelKey: 'cancel', variant: 'danger' },
-  ],
+  confirmed: [{ to: 'cancelled', labelKey: 'cancel', variant: 'danger' }],
+  partially_received: [{ to: 'cancelled', labelKey: 'cancel', variant: 'danger' }],
   received: [],
   cancelled: [],
 };

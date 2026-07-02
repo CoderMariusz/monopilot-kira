@@ -28,6 +28,14 @@ import {
 } from './shared';
 import { applyTransition } from './wo-state-machine';
 
+/** Thrown after a partial write inside withOrgContext so the txn rolls back. */
+export class ProductionAbort extends Error {
+  constructor(readonly result: ProductionResult<never>) {
+    super(result.ok === false ? result.error : 'abort');
+    this.name = 'ProductionAbort';
+  }
+}
+
 export type PauseWoInput = {
   woId: string;
   transactionId: string;
@@ -103,9 +111,13 @@ export async function pauseWo(
   } catch (err) {
     if (isPgError(err) && err.code === '23503') {
       // FK violation — the category_id does not resolve in this org.
-      return fail('invalid_input', { message: 'reasonCategoryId not found', details: { code: 'invalid_category' } });
+      throw new ProductionAbort(
+        fail('invalid_input', { message: 'reasonCategoryId not found', details: { code: 'invalid_category' } }),
+      );
     }
-    return fail('persistence_failed', { message: err instanceof Error ? err.message : String(err) });
+    throw new ProductionAbort(
+      fail('persistence_failed', { message: err instanceof Error ? err.message : String(err) }),
+    );
   }
 
   await writeOutbox(ctx, {

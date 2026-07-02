@@ -89,7 +89,7 @@ function makeWasteUnitContext(options?: { lpQuantity?: string; lpReserved?: stri
       calls.push({ sql, params });
       const normalized = normalizeSql(sql);
       if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
-      if (normalized.includes('from public.work_orders')) return { rows: [{ id: woId, wo_number: 'WO-UNIT' }] };
+      if (normalized.includes('from public.work_orders')) return { rows: [{ id: woId, wo_number: 'WO-UNIT', site_id: seed.siteId }] };
       if (normalized.includes('from public.wo_executions')) return { rows: [{ status: 'in_progress' }] };
       if (normalized.includes('from public.waste_categories')) return { rows: [{ id: seed.wasteCategoryId }] };
       if (normalized.includes('from public.v_active_holds')) return { rows: [] };
@@ -176,6 +176,20 @@ describe('recordWaste LP inventory integrity', () => {
     expect(fx.calls.some((c) => normalizeSql(c.sql).includes('license_plates'))).toBe(false);
     expect(fx.state.wasteRows).toEqual([{ id: expect.any(String), lp_id: null }]);
   });
+
+  it('stamps waste rows with the source WO site_id', async () => {
+    const fx = makeWasteUnitContext({ lpQuantity: '20', lpReserved: '0' });
+    await recordWaste(fx.ctx, fx.woId, {
+      transaction_id: randomUUID(),
+      category_code: 'TRIM',
+      qty_kg: '5',
+      shift_id: 'A',
+    });
+
+    const insert = fx.calls.find((c) => normalizeSql(c.sql).startsWith('insert into public.wo_waste_log'));
+    expect(insert?.sql).toContain('$11::uuid');
+    expect(insert?.params[10]).toBe(seed.siteId);
+  });
 });
 
 async function seedAll(): Promise<void> {
@@ -260,9 +274,9 @@ async function makeWo(status: string, productId = seed.productId): Promise<{ woI
   const woNumber = `WO${Math.floor(Math.random() * 1_000_000_000)}`;
   await owner.query(
     `insert into public.work_orders
-       (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status)
-     values ($1, $2, $3, $4, 'fg', 100, 'kg', 'RELEASED')`,
-    [woId, seed.orgId, woNumber, productId],
+       (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status)
+     values ($1, $2, $3, $4, $5, 'fg', 100, 'kg', 'RELEASED')`,
+    [woId, seed.orgId, seed.siteId, woNumber, productId],
   );
   await owner.query(
     `insert into public.wo_executions (org_id, wo_id, status) values ($1, $2, $3)`,

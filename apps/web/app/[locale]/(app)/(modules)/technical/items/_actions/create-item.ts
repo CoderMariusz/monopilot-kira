@@ -23,6 +23,13 @@ import {
   writeAudit,
 } from './shared';
 
+class CreateItemAbort extends Error {
+  constructor(readonly result: Extract<CreateItemResult, { ok: false }>) {
+    super(result.error);
+    this.name = 'CreateItemAbort';
+  }
+}
+
 export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
   const parsed = CreateItemInput.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
@@ -71,7 +78,7 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
         ],
       );
       const inserted = rows[0];
-      if (!inserted) return { ok: false, error: 'persistence_failed' };
+      if (!inserted) throw new CreateItemAbort({ ok: false, error: 'persistence_failed' });
 
       if (input.supplierCode) {
         const supplier = await (client as QueryClient).query<{ id: string }>(
@@ -133,7 +140,12 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           userId,
           input: { itemId: inserted.id, costPerKg: input.costPerKg, currency: 'GBP', source: 'manual' },
         });
-        if (!cost.ok) return { ok: false, error: cost.error === 'approver_required' ? 'invalid_input' : cost.error };
+        if (!cost.ok) {
+          throw new CreateItemAbort({
+            ok: false,
+            error: cost.error === 'approver_required' ? 'invalid_input' : cost.error,
+          });
+        }
       }
 
       await writeAudit(client as QueryClient, {
@@ -156,6 +168,7 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       return { ok: true, data: { id: inserted.id, itemCode: input.itemCode } };
     });
   } catch (err) {
+    if (err instanceof CreateItemAbort) return err.result;
     // 23505 unique_violation = items_org_item_code_unique; 23514 check_violation.
     if (isPgError(err) && err.code === '23505') return { ok: false, error: 'already_exists' };
     if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };

@@ -588,10 +588,12 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
       });
 
       await ctx.client.query(
-        `delete from public.transfer_order_line_lps
+        `update public.transfer_order_line_lps
+            set dest_lp_id = null,
+                updated_by = $2::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid`,
-        [link.link_id],
+        [link.link_id, userId],
       );
 
       const nextStatus = await rerollTransferOrderStatus(ctx, link.to_id);

@@ -34,6 +34,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) =>
+    React.createElement('a', { href, ...props }, children),
+}));
+
 const state = vi.hoisted(() => ({
   orgs: [] as unknown[],
   kpis: { organizations: 0, usersAllOrgs: 0, active: 0, trialOrOnboarding: 0 },
@@ -60,6 +65,7 @@ vi.mock('../../../../lib/platform/queries', () => ({
 
 vi.mock('../../../../lib/platform/actions', () => ({
   actAsOrgAction: vi.fn(async () => ({ ok: true })),
+  addPlatformAdminAction: vi.fn(async () => ({ ok: true, outcome: 'added', email: 'x@y.com' })),
 }));
 
 vi.mock('../../../../lib/platform/actor-home-org', () => ({
@@ -176,16 +182,23 @@ describe('Platform console — parity chrome', () => {
     expect(within(auditRow).getByText('2026-07-02 09:41')).toBeInTheDocument();
   });
 
-  it('renders Export / Add-admin / View-full-log as MVP-disabled with a coming-soon title', async () => {
-    state.orgs = [APEX];
+  it('renders Export + Add-admin controls (enabled) and a View-full-log link to /platform/audit', async () => {
+    state.orgs = [APEX, KOBE];
     state.homeOrgId = 'org-apex';
     await renderPage();
 
-    for (const testid of ['platform-export', 'platform-add-admin', 'platform-view-full-log']) {
-      const btn = screen.getByTestId(testid);
-      expect(btn).toBeDisabled();
-      expect(btn).toHaveAttribute('title', 'Coming soon');
-    }
+    // Export is enabled (there are orgs to export).
+    const exportBtn = screen.getByTestId('platform-export');
+    expect(exportBtn).not.toBeDisabled();
+
+    // Add-admin trigger opens a modal (feature enabled, not "coming soon").
+    const addAdmin = screen.getByTestId('platform-add-admin');
+    expect(addAdmin).not.toBeDisabled();
+    expect(addAdmin).not.toHaveAttribute('title', 'Coming soon');
+
+    // View-full-log is now a real link to the guarded audit page.
+    const fullLog = screen.getByTestId('platform-view-full-log');
+    expect(fullLog).toHaveAttribute('href', '/en/platform/audit');
   });
 });
 

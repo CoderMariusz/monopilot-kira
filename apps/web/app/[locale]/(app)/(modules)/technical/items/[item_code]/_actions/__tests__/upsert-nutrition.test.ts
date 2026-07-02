@@ -12,6 +12,8 @@ const ctx = {
     name: 'Pork shoulder',
     item_type: 'rm',
   } as { id: string; item_code: string; name: string; item_type: string } | null,
+  rawMaterialBefore: null as { allergens_inherited: string[] | null } | null,
+  rawMaterialAfterAllergens: null as string[] | null,
   calls: [] as Call[],
 };
 
@@ -29,7 +31,7 @@ function fakeClient() {
         return { rows: ctx.itemRow ? [ctx.itemRow] : [] };
       }
       if (s.includes('from "reference"."rawmaterials"')) {
-        return { rows: [] };
+        return { rows: ctx.rawMaterialBefore ? [{ rm_code: 'RM-1', display_name: 'Pork shoulder', nutrition_per_100g: null, ...ctx.rawMaterialBefore }] : [] };
       }
       if (s.includes('insert into "reference"."rawmaterials"')) {
         return {
@@ -46,10 +48,13 @@ function fakeClient() {
                 protein_g: params[7],
                 salt_g: params[8],
               },
-              allergens_inherited: params[9],
+              allergens_inherited: ctx.rawMaterialAfterAllergens ?? params[9],
             },
           ],
         };
+      }
+      if (s.includes('into public.outbox_events')) {
+        return { rows: [] };
       }
       if (s.includes('into public.audit_log')) {
         return { rows: [] };
@@ -91,6 +96,8 @@ beforeEach(() => {
     name: 'Pork shoulder',
     item_type: 'rm',
   };
+  ctx.rawMaterialBefore = null;
+  ctx.rawMaterialAfterAllergens = null;
   ctx.calls = [];
 });
 
@@ -146,5 +153,37 @@ describe('upsertNutrition', () => {
 
     const audit = ctx.calls.find((c) => /insert into\s+public\.audit_log/i.test(c.sql));
     expect(audit).toBeTruthy();
+  });
+
+  it('emits allergen cascade rebuild outbox when the normalized allergen set changes', async () => {
+    ctx.rawMaterialBefore = { allergens_inherited: ['milk'] };
+    ctx.rawMaterialAfterAllergens = ['milk', 'soybeans'];
+
+    const res = await upsertNutrition({ ...valid, allergensInherited: ['A07', 'A06'] });
+
+    expect(res.ok).toBe(true);
+    const outbox = ctx.calls.find((c) => /insert into\s+public\.outbox_events/i.test(c.sql));
+    expect(outbox).toBeTruthy();
+    expect(outbox!.params.slice(0, 4)).toEqual([
+      ctx.orgId,
+      'reference.allergens_by_rm.bulk_changed',
+      'reference.raw_material',
+      ctx.itemRow!.id,
+    ]);
+    expect(JSON.parse(outbox!.params[4] as string)).toEqual({
+      source_event_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      ingredient_codes: ['RM-1'],
+      process_names: [],
+    });
+  });
+
+  it('does not emit allergen cascade rebuild outbox when the normalized allergen set is unchanged', async () => {
+    ctx.rawMaterialBefore = { allergens_inherited: ['soybeans', 'milk'] };
+    ctx.rawMaterialAfterAllergens = ['milk', 'soybeans'];
+
+    const res = await upsertNutrition({ ...valid, allergensInherited: ['A07', 'A06'] });
+
+    expect(res.ok).toBe(true);
+    expect(ctx.calls.some((c) => /insert into\s+public\.outbox_events/i.test(c.sql))).toBe(false);
   });
 });

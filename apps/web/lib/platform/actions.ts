@@ -12,9 +12,13 @@ import {
   assertPlatformAdmin,
   readPlatformOrgCookie,
 } from './platform-context';
-import type { PlatformActionResult } from './actions-types';
+import type { AddPlatformAdminResult, PlatformActionResult } from './actions-types';
 
 const ACT_AS_MAX_AGE_SECONDS = 60 * 60 * 8;
+
+// Pragmatic email shape check; the authoritative existence check is the
+// public.users citext lookup below.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function requirePlatformActor(): Promise<string> {
   const { data, error } = await getCachedUser();
@@ -92,6 +96,87 @@ export async function actAsOrgAction(orgId: string): Promise<PlatformActionResul
   await writePlatformAudit(actorUserId, 'platform.act_as.entered', targetOrgId);
 
   return { ok: true };
+}
+
+/**
+ * Grant platform-admin to an existing auth user by email.
+ *
+ * Guards (server-resolved, never client-trusted): requirePlatformActor →
+ * assertPlatformAdmin first. The email is resolved to a user id from
+ * public.users using the citext-matching = operator (public.users.email is
+ * citext), so lookup is case-insensitive without lowercasing here.
+ *
+ * Insert-or-revive: app.platform_admins.user_id is the PK, so a conflict means
+ * the user is already (or was previously) an admin. On conflict we set
+ * revoked_at = null → a previously-revoked admin is revived; an active admin is
+ * a no-op. We distinguish the outcomes by reading revoked_at back.
+ *
+ * A successful add/revive writes an app.platform_audit row with action
+ * 'platform.admin.added' (allowed only once mig 411 widens the CHECK — see
+ * _meta/lane-drafts/C1-audit-actions.sql). Self-add and already-admin are
+ * no-op successes and do not write an audit row.
+ */
+export async function addPlatformAdminAction(email: string): Promise<AddPlatformAdminResult> {
+  const actorUserId = await requirePlatformActor();
+
+  const trimmed = (email ?? '').trim();
+  if (trimmed.length === 0 || !EMAIL_RE.test(trimmed)) {
+    return { ok: false, error: 'invalid_email' };
+  }
+
+  const owner = getOwnerPool();
+
+  const found = await owner.query<{ id: string; email: string }>(
+    `select id::text as id, email::text as email
+       from public.users
+      where email = $1::citext
+        and deleted_at is null
+      limit 1`,
+    [trimmed],
+  );
+  const target = found.rows[0];
+  if (!target) return { ok: false, error: 'not_found' };
+
+  // Self-add is a harmless no-op success (the actor is already an admin).
+  if (target.id === actorUserId) {
+    return { ok: true, outcome: 'self', email: target.email };
+  }
+
+  const upserted = await owner.query<{ was_revoked: boolean; existed: boolean }>(
+    `with existing as (
+        select revoked_at from app.platform_admins where user_id = $1::uuid
+      ),
+      upsert as (
+        insert into app.platform_admins (user_id, email, created_by)
+        values ($1::uuid, $2::citext, $3::uuid)
+        on conflict (user_id) do update set revoked_at = null
+        returning true as touched
+      )
+      select
+        (select revoked_at is not null from existing) as was_revoked,
+        (select true from existing) is not null       as existed
+      from upsert`,
+    [target.id, target.email, actorUserId],
+  );
+
+  const row = upserted.rows[0];
+  const existed = row?.existed === true;
+  const wasRevoked = row?.was_revoked === true;
+
+  // Already an active admin → no-op success, no audit noise.
+  if (existed && !wasRevoked) {
+    return { ok: true, outcome: 'already_admin', email: target.email };
+  }
+
+  const outcome: 'revived' | 'added' = existed && wasRevoked ? 'revived' : 'added';
+
+  await writePlatformAudit(actorUserId, 'platform.admin.added', null, {
+    target_user_id: target.id,
+    target_email: target.email,
+    outcome,
+  });
+
+  return { ok: true, outcome, email: target.email };
 }
 
 export async function exitActAsAction(): Promise<PlatformActionResult> {

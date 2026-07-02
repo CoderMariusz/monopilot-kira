@@ -28,6 +28,52 @@ export function renderCodeMask(
   });
 }
 
+/** Example code for UI hints (seq=1, today's date, sample site). */
+export function exampleCodeMask(mask: string, now: Date = new Date()): string {
+  return renderCodeMask(mask, { seq: 1, date: now, siteCode: 'S1' });
+}
+
+function escapeRegExpLiteral(char: string): string {
+  return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Convert an org code mask (see migration 344) into a RegExp that validates a
+ * user-entered product/entity code. Tokens: xxxx = zero-padded digits, [DATE],
+ * [YY], [SITE]; everything else is literal.
+ */
+export function codeMaskToRegExp(mask: string): RegExp {
+  let pattern = '';
+  for (let i = 0; i < mask.length; ) {
+    if (mask.startsWith('[DATE]', i)) {
+      pattern += '\\d{8}';
+      i += 6;
+    } else if (mask.startsWith('[YY]', i)) {
+      pattern += '\\d{2}';
+      i += 4;
+    } else if (mask.startsWith('[SITE]', i)) {
+      pattern += '[A-Z0-9]+';
+      i += 6;
+    } else if (/[xX]/.test(mask[i] ?? '')) {
+      let j = i;
+      while (j < mask.length && /[xX]/.test(mask[j] ?? '')) j += 1;
+      const run = j - i;
+      pattern += `\\d{${run}}`;
+      i = j;
+    } else {
+      pattern += escapeRegExpLiteral(mask[i] ?? '');
+      i += 1;
+    }
+  }
+  return new RegExp(`^${pattern}$`);
+}
+
+export function matchesCodeMask(productCode: string, mask: string): boolean {
+  const normalized = productCode.trim().toUpperCase();
+  if (!normalized) return false;
+  return codeMaskToRegExp(mask).test(normalized);
+}
+
 async function updateAndReturnOldSequence(
   client: QueryClient,
   orgId: string,

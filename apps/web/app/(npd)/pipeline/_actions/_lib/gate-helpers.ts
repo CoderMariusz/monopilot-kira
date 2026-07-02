@@ -433,102 +433,56 @@ export async function createFgCandidate(
   project: GateProjectRow,
   requestedProductCode?: string | null,
 ): Promise<{ productCode: string; created: boolean; mapped: boolean }> {
-  const productCode = await generateFgProductCode(ctx, requestedProductCode, project);
-
-  if (project.product_code) {
-    if (project.product_code !== productCode) throw new GateActionError('FG_ALREADY_LINKED', 409);
-    return { productCode: project.product_code, created: false, mapped: false };
+  const existingLinkedCode = await resolveExistingFgCode(ctx.client, project);
+  if (existingLinkedCode) {
+    if (requestedProductCode?.trim()) {
+      const requested = normalizeProductCode(requestedProductCode, project);
+      if (requested !== existingLinkedCode) {
+        throw new GateActionError('FG_ALREADY_LINKED', 409);
+      }
+    }
+    const repaired = await ensureFgCandidateMapped(ctx, project, existingLinkedCode);
+    if (repaired.created) {
+      await emitOutbox(ctx, {
+        eventType: FG_CREATED_EVENT,
+        aggregateType: 'fg',
+        aggregateId: existingLinkedCode,
+        payload: {
+          org_id: ctx.orgId,
+          actor_user_id: ctx.userId,
+          project_id: project.id,
+          project_code: project.code,
+          product_code: existingLinkedCode,
+          product_name: project.name,
+        },
+        dedupKey: `${FG_CREATED_EVENT}:${existingLinkedCode}`,
+      });
+    }
+    if (repaired.mapped) {
+      await emitOutbox(ctx, {
+        eventType: FG_CANDIDATE_MAPPED_EVENT,
+        aggregateType: 'npd_project',
+        aggregateId: project.id,
+        payload: {
+          org_id: ctx.orgId,
+          actor_user_id: ctx.userId,
+          project_id: project.id,
+          project_code: project.code,
+          product_code: existingLinkedCode,
+          previous_product_code: project.product_code,
+        },
+        dedupKey: `${FG_CANDIDATE_MAPPED_EVENT}:${project.id}:${existingLinkedCode}`,
+      });
+    }
+    return { productCode: existingLinkedCode, created: repaired.created, mapped: repaired.mapped };
   }
+
+  const productCode = await generateFgProductCode(ctx, requestedProductCode, project);
 
   const conflict = await findFgConflict(ctx.client, project.id, productCode);
   if (conflict) throw new GateActionError('FG_ALREADY_LINKED', 409);
 
-  const existing = await ctx.client.query<{ product_code: string }>(
-    `select product_code
-       from public.product
-      where org_id = app.current_org_id()
-        and product_code = $1
-        and deleted_at is null
-      limit 1`,
-    [productCode],
-  );
-  let created = false;
-  if (existing.rows.length === 0) {
-    const inserted = await ctx.client.query<{ product_code: string }>(
-      `insert into public.product
-         (org_id, product_code, product_name, created_by_user, app_version)
-       values
-         (app.current_org_id(), $1, $2, $3::uuid, $4)
-       -- product is a VIEW post-merge-cut → no ON CONFLICT (a view has no constraints; 42P10).
-       -- The SELECT pre-check above already guards existence, so this only runs when absent.
-       returning product_code`,
-      [productCode, project.name, ctx.userId, APP_VERSION],
-    );
-    created = inserted.rows.length > 0;
-  }
-
-  await ctx.client.query(
-    `update public.npd_projects
-        set product_code = $2
-      where id = $1::uuid
-        and org_id = app.current_org_id()
-        and product_code is null`,
-    [project.id, productCode],
-  );
-  await ctx.client.query(
-    `update public.formulations
-        set product_code = $2
-      where org_id = app.current_org_id()
-        and project_id = $1::uuid
-        and product_code is null`,
-    [project.id, productCode],
-  );
-
-  // A12 — pre-fill the FG's commercial fields from the project brief (kill double-
-  // entry). createFgCandidate used to insert only code+name, so Volume / Weight (g) /
-  // Price (Brief) stayed NULL on every project-created FG and had to be re-typed on the
-  // FG detail. Copy them from npd_projects now; coalesce only fills blanks (never
-  // clobbers a value the user already typed). expected_volume is free text → copied
-  // only when it is a plain number. Runs whether the FG was just created or only mapped.
-  const brief = await ctx.client.query<{
-    pack_weight_g: string | null;
-    target_retail_price_eur: string | null;
-    expected_volume: string | null;
-    packs_per_case: string | null;
-  }>(
-    `select pack_weight_g::text, target_retail_price_eur::text, expected_volume, packs_per_case::text
-       from public.npd_projects
-      where id = $1::uuid and org_id = app.current_org_id()`,
-    [project.id],
-  );
-  const b = brief.rows[0];
-  if (b) {
-    const volumeNumeric =
-      b.expected_volume && /^[0-9]+(\.[0-9]+)?$/.test(b.expected_volume.trim())
-        ? b.expected_volume.trim()
-        : null;
-    const parsedPacksPerCase =
-      b.packs_per_case && /^\d+$/.test(b.packs_per_case.trim())
-        ? parseInt(b.packs_per_case.trim(), 10)
-        : NaN;
-    const packsPerCase = Number.isNaN(parsedPacksPerCase) ? null : parsedPacksPerCase;
-    await ctx.client.query(
-      `update public.product
-          set weight      = coalesce(weight,      $2::numeric),
-              price_brief = coalesce(price_brief, $3::numeric),
-              volume      = coalesce(volume,      $4::numeric),
-              packs_per_case = coalesce(packs_per_case, $5::integer)
-        where org_id = app.current_org_id()
-          and product_code = $1`,
-      [
-        productCode,
-        b.pack_weight_g,
-        b.target_retail_price_eur,
-        volumeNumeric,
-        packsPerCase,
-      ],
-    );
-  }
+  const { created } = await ensureFgCandidateMapped(ctx, project, productCode);
 
   if (created) {
     await emitOutbox(ctx, {
@@ -565,6 +519,157 @@ export async function createFgCandidate(
   return { productCode, created, mapped: true };
 }
 
+async function ensureFgCandidateMapped(
+  ctx: OrgContextLike,
+  project: GateProjectRow,
+  productCode: string,
+): Promise<{ created: boolean; mapped: boolean }> {
+  let created = false;
+  let mapped = false;
+
+  const existing = await ctx.client.query<{ product_code: string }>(
+    `select product_code
+       from public.product
+      where org_id = app.current_org_id()
+        and product_code = $1
+        and deleted_at is null
+      limit 1`,
+    [productCode],
+  );
+  if (existing.rows.length === 0) {
+    const inserted = await ctx.client.query<{ product_code: string }>(
+      `insert into public.product
+         (org_id, product_code, product_name, created_by_user, app_version)
+       values
+         (app.current_org_id(), $1, $2, $3::uuid, $4)
+       -- product is a VIEW post-merge-cut → no ON CONFLICT (a view has no constraints; 42P10).
+       -- The SELECT pre-check above already guards existence, so this only runs when absent.
+       returning product_code`,
+      [productCode, project.name, ctx.userId, APP_VERSION],
+    );
+    created = inserted.rows.length > 0;
+    if (created) mapped = true;
+  }
+
+  const projectBackfill = await ctx.client.query(
+    `update public.npd_projects
+        set product_code = $2
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+        and product_code is null`,
+    [project.id, productCode],
+  );
+  if ((projectBackfill.rowCount ?? 0) > 0) mapped = true;
+
+  const formulationBackfill = await ctx.client.query(
+    `update public.formulations
+        set product_code = $2
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and product_code is null`,
+    [project.id, productCode],
+  );
+  if ((formulationBackfill.rowCount ?? 0) > 0) mapped = true;
+
+  if (await ensureFgFactorySpecLink(ctx, project, productCode)) mapped = true;
+
+  await copyBriefFieldsToProduct(ctx, project.id, productCode);
+
+  return { created, mapped };
+}
+
+async function ensureFgFactorySpecLink(
+  ctx: OrgContextLike,
+  project: GateProjectRow,
+  productCode: string,
+): Promise<boolean> {
+  let linked = false;
+
+  const itemLink = await ctx.client.query(
+    `update public.items
+        set npd_project_id = $2::uuid
+      where org_id = app.current_org_id()
+        and item_code = $1
+        and npd_project_id is null`,
+    [productCode, project.id],
+  );
+  if ((itemLink.rowCount ?? 0) > 0) linked = true;
+
+  const { rows: itemRows } = await ctx.client.query<{ id: string }>(
+    `select id
+       from public.items
+      where org_id = app.current_org_id()
+        and item_code = $1
+      limit 1`,
+    [productCode],
+  );
+  const fgItemId = itemRows[0]?.id;
+  if (!fgItemId) return linked;
+
+  const specInsert = await ctx.client.query(
+    `insert into public.factory_specs
+       (org_id, fg_item_id, spec_code, version, status, source, created_by)
+     select app.current_org_id(), $1::uuid, $2, 1, 'draft', 'npd_builder', $3::uuid
+      where not exists (
+        select 1
+          from public.factory_specs
+         where org_id = app.current_org_id()
+           and fg_item_id = $1::uuid
+      )
+     returning id`,
+    [fgItemId, `NPD-${project.code}`, ctx.userId],
+  );
+  if ((specInsert.rowCount ?? 0) > 0) linked = true;
+
+  return linked;
+}
+
+async function copyBriefFieldsToProduct(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+): Promise<void> {
+  // A12 — pre-fill the FG's commercial fields from the project brief (kill double-
+  // entry). createFgCandidate used to insert only code+name, so Volume / Weight (g) /
+  // Price (Brief) stayed NULL on every project-created FG and had to be re-typed on the
+  // FG detail. Copy them from npd_projects now; coalesce only fills blanks (never
+  // clobbers a value the user already typed). expected_volume is free text → copied
+  // only when it is a plain number. Runs whether the FG was just created or only mapped.
+  const brief = await ctx.client.query<{
+    pack_weight_g: string | null;
+    target_retail_price_eur: string | null;
+    expected_volume: string | null;
+    packs_per_case: string | null;
+  }>(
+    `select pack_weight_g::text, target_retail_price_eur::text, expected_volume, packs_per_case::text
+       from public.npd_projects
+      where id = $1::uuid and org_id = app.current_org_id()`,
+    [projectId],
+  );
+  const b = brief.rows[0];
+  if (!b) return;
+
+  const volumeNumeric =
+    b.expected_volume && /^[0-9]+(\.[0-9]+)?$/.test(b.expected_volume.trim())
+      ? b.expected_volume.trim()
+      : null;
+  const parsedPacksPerCase =
+    b.packs_per_case && /^\d+$/.test(b.packs_per_case.trim())
+      ? parseInt(b.packs_per_case.trim(), 10)
+      : NaN;
+  const packsPerCase = Number.isNaN(parsedPacksPerCase) ? null : parsedPacksPerCase;
+  await ctx.client.query(
+    `update public.product
+        set weight      = coalesce(weight,      $2::numeric),
+            price_brief = coalesce(price_brief, $3::numeric),
+            volume      = coalesce(volume,      $4::numeric),
+            packs_per_case = coalesce(packs_per_case, $5::integer)
+      where org_id = app.current_org_id()
+        and product_code = $1`,
+    [productCode, b.pack_weight_g, b.target_retail_price_eur, volumeNumeric, packsPerCase],
+  );
+}
+
 export async function peekSuggestedFgCandidateCode(
   client: QueryClient,
   orgId: string,
@@ -599,6 +704,35 @@ async function countCurrentVersionIngredients(client: QueryClient, projectId: st
     [projectId],
   );
   return Number(rows[0]?.n ?? 0);
+}
+
+async function resolveExistingFgCode(
+  client: QueryClient,
+  project: GateProjectRow,
+): Promise<string | null> {
+  const linkedOnProject = project.product_code?.trim() || null;
+
+  const { rows } = await client.query<{ product_code: string }>(
+    `select product_code
+       from public.formulations
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and product_code is not null
+      limit 1`,
+    [project.id],
+  );
+  const linkedOnFormulation = rows[0]?.product_code?.trim() || null;
+
+  if (linkedOnProject && linkedOnFormulation && linkedOnProject !== linkedOnFormulation) {
+    console.warn('[npd/gate-helpers] FG_LINK_MISMATCH', {
+      projectId: project.id,
+      projectProductCode: linkedOnProject,
+      formulationProductCode: linkedOnFormulation,
+    });
+    throw new GateActionError('FG_LINK_MISMATCH', 409);
+  }
+
+  return linkedOnProject || linkedOnFormulation || null;
 }
 
 async function findFgConflict(

@@ -639,11 +639,11 @@ describe('PoDetailView — header + lines + transitions (parity: po-screens.jsx:
     expect(screen.queryByTestId('po-transition-received')).toBeNull();
   });
 
-  it('exposes confirmed → partially_received / received / cancelled', () => {
+  it('exposes confirmed → cancelled only (receive status rolls up from line receipts)', () => {
     renderDetail({ status: 'confirmed' });
-    expect(screen.getByTestId('po-transition-partially_received')).toBeInTheDocument();
-    expect(screen.getByTestId('po-transition-received')).toBeInTheDocument();
     expect(screen.getByTestId('po-transition-cancelled')).toBeInTheDocument();
+    expect(screen.queryByTestId('po-transition-partially_received')).toBeNull();
+    expect(screen.queryByTestId('po-transition-received')).toBeNull();
   });
 
   it('confirms then calls transitionPurchaseOrderStatus and refreshes', async () => {

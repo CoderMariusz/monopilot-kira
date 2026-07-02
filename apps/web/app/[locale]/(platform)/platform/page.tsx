@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 import { getCachedUser } from "../../../../lib/auth/supabase-server";
@@ -11,9 +12,11 @@ import {
   type PlatformOrganization,
   type PlatformOrgStatus,
 } from "../../../../lib/platform/queries";
-import { actAsOrgAction } from "../../../../lib/platform/actions";
+import { actAsOrgAction, addPlatformAdminAction } from "../../../../lib/platform/actions";
 import { resolvePlatformActorHomeOrgId } from "../../../../lib/platform/actor-home-org";
 import { ActAsButton } from "./_components/act-as-button";
+import { AddAdminModal } from "./_components/add-admin-modal";
+import { ExportOrgsButton, type ExportOrgRow } from "./_components/export-orgs-button";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +98,17 @@ export default async function PlatformConsolePage({ params }: PageProps): Promis
     : { organizations: 0, usersAllOrgs: 0, active: 0, trialOrOnboarding: 0 };
   const audit: PlatformAuditEntry[] = auditResult.ok ? auditResult.value : [];
   const homeOrgId = homeOrgResult.ok ? homeOrgResult.value : null;
+
+  // Pre-format the CSV rows server-side (localised status label) so only plain
+  // data crosses into the Export client component — never a formatter function.
+  const exportRows: ExportOrgRow[] = orgs.map((org) => ({
+    code: org.code,
+    name: org.name,
+    industry: org.industry ?? "",
+    sites: org.siteCount,
+    users: org.userCount,
+    status: t(`status_${org.status}`),
+  }));
 
   return (
     <div data-testid="platform-console">
@@ -196,25 +210,42 @@ export default async function PlatformConsolePage({ params }: PageProps): Promis
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            {/* MVP: buttons visible but disabled — export/add-admin deferred. */}
-            <button
-              type="button"
-              disabled
-              title={t("comingSoon")}
-              data-testid="platform-export"
-              style={{ ...secondaryBtn, opacity: 0.55, cursor: "not-allowed" }}
-            >
-              ⤓ {t("export")}
-            </button>
-            <button
-              type="button"
-              disabled
-              title={t("comingSoon")}
-              data-testid="platform-add-admin"
-              style={{ ...primaryBtn, opacity: 0.55, cursor: "not-allowed" }}
-            >
-              + {t("addAdmin")}
-            </button>
+            {/* Client-side CSV of the rendered orgs — server passes plain data only. */}
+            <ExportOrgsButton
+              label={t("export")}
+              filename="monopilot-organizations.csv"
+              headers={[
+                t("colCode"),
+                t("colName"),
+                t("colIndustry"),
+                t("colSites"),
+                t("colUsers"),
+                t("colStatus"),
+              ]}
+              rows={exportRows}
+            />
+            {/* Add-platform-admin modal — the server action is server-guarded. */}
+            <AddAdminModal
+              addPlatformAdminAction={addPlatformAdminAction}
+              labels={{
+                trigger: t("addAdmin"),
+                title: t("addAdminTitle"),
+                subtitle: t("addAdminSubtitle"),
+                emailLabel: t("addAdminEmailLabel"),
+                emailPlaceholder: t("addAdminEmailPlaceholder"),
+                cancel: t("addAdminCancel"),
+                submit: t("addAdminSubmit"),
+                submitting: t("addAdminSubmitting"),
+                successAdded: t("addAdminSuccessAdded"),
+                successRevived: t("addAdminSuccessRevived"),
+                successAlready: t("addAdminSuccessAlready"),
+                successSelf: t("addAdminSuccessSelf"),
+                errorNotFound: t("addAdminErrorNotFound"),
+                errorInvalidEmail: t("addAdminErrorInvalidEmail"),
+                errorForbidden: t("addAdminErrorForbidden"),
+                errorUnknown: t("addAdminErrorUnknown"),
+              }}
+            />
           </div>
         </div>
 
@@ -371,16 +402,14 @@ export default async function PlatformConsolePage({ params }: PageProps): Promis
               <div style={{ fontSize: 14, fontWeight: 600 }}>{t("auditTitle")}</div>
               <div style={{ fontSize: 12, color: PALETTE.muted, marginTop: 1 }}>{t("auditSubtitle")}</div>
             </div>
-            {/* MVP: full-log link visible but disabled. */}
-            <button
-              type="button"
-              disabled
-              title={t("comingSoon")}
+            {/* Full-log link → guarded /platform/audit page. */}
+            <Link
+              href={`/${locale}/platform/audit`}
               data-testid="platform-view-full-log"
-              style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 11, opacity: 0.55, cursor: "not-allowed" }}
+              style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 11, textDecoration: "none" }}
             >
               {t("viewFullLog")} →
-            </button>
+            </Link>
           </div>
 
           {audit.length === 0 ? (
@@ -519,20 +548,6 @@ const emptyState: React.CSSProperties = {
   textAlign: "center",
   color: PALETTE.muted,
   fontSize: 13,
-};
-
-const primaryBtn: React.CSSProperties = {
-  padding: "6px 14px",
-  borderRadius: 4,
-  fontSize: 12,
-  fontWeight: 500,
-  border: "1px solid transparent",
-  fontFamily: "inherit",
-  background: PALETTE.blue,
-  color: "#fff",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
 };
 
 const secondaryBtn: React.CSSProperties = {

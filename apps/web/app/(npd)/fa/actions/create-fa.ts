@@ -1,14 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { validateProductCodeV01, validateProductNameV02 } from '@monopilot/validation';
+import { validateProductCodeV01, validateProductNameV02, type V01ProductCodeResult } from '@monopilot/validation';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { matchesCodeMask } from '../../../../lib/documents/code-mask';
 import { AuthError, DuplicateError, ValidationError } from './errors';
 
-// RBAC source-of-truth normalizes legacy fa.create to canonical fg.create.
+// RBAC source-of-truth: npd_manager/core_user are granted fg.create (mig 133).
 const FA_CREATE_PERMISSION = 'fg.create';
 const FA_CREATED_EVENT = 'fa.created';
 const APP_VERSION = 'create-fa-v1';
@@ -26,6 +27,8 @@ type OrgContextLike = {
 export type CreateFaInput = {
   productCode: string;
   productName: string;
+  /** When true, legacy ^FA… codes remain valid even when an org FG mask is configured. */
+  allowLegacyFa?: boolean;
 };
 
 export type CreateFaResult = {
@@ -35,6 +38,7 @@ export type CreateFaResult = {
 const createFaInputSchema = z.object({
   productCode: z.string(),
   productName: z.string(),
+  allowLegacyFa: z.boolean().optional(),
 });
 
 export async function createFa(input: CreateFaInput): Promise<CreateFaResult> {
@@ -47,8 +51,12 @@ export async function createFa(input: CreateFaInput): Promise<CreateFaResult> {
     const parsed = createFaInputSchema.safeParse(input);
     if (!parsed.success) throw new ValidationError('INVALID_INPUT', 'Invalid FA creation input');
 
-    const productCode = validateProductCodeV01(parsed.data.productCode);
-    if (!productCode.ok) throw new ValidationError(productCode.code, 'Product_Code must match ^FA[A-Z0-9]+$');
+    const productCode = await validateProductCodeForOrg(
+      context,
+      parsed.data.productCode,
+      parsed.data.allowLegacyFa === true,
+    );
+    if (!productCode.ok) throw new ValidationError(productCode.code, 'Product_Code must match the org FG code format');
 
     const productName = validateProductNameV02(parsed.data.productName);
     if (!productName.ok) throw new ValidationError(productName.code, 'Product_Name is required');
@@ -122,4 +130,33 @@ function safeRevalidatePath(path: string): void {
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }
+}
+
+async function loadFgCodeMask(ctx: OrgContextLike): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ code_mask: string | null }>(
+    `select code_mask
+       from public.org_document_settings
+      where org_id = app.current_org_id()
+        and doc_type = 'fg'
+      limit 1`,
+  );
+  return rows[0]?.code_mask ?? null;
+}
+
+async function validateProductCodeForOrg(
+  ctx: OrgContextLike,
+  input: string,
+  allowLegacyFa = false,
+): Promise<V01ProductCodeResult> {
+  const legacy = validateProductCodeV01(input);
+  const mask = await loadFgCodeMask(ctx);
+  if (!mask) return legacy;
+
+  const productCode = input.trim().toUpperCase();
+  if (matchesCodeMask(productCode, mask)) {
+    return { ok: true, productCode };
+  }
+  // Legacy ^FA… codes stay valid for the FA-list modal only (allowLegacyFa: true).
+  if (allowLegacyFa && legacy.ok) return legacy;
+  return { ok: false, code: 'V01_FORMAT' };
 }

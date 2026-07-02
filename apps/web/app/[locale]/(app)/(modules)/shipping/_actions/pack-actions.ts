@@ -3,6 +3,7 @@
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { packLpIntoBoxCore } from '../../../../../../lib/shipping/pack-lp-into-box';
+import { isSalesOrderStatus, isShipmentStatus, OPEN_SHIPMENT_STATUSES, type ShipmentStatus } from './so-transitions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -12,15 +13,6 @@ type QueryClient = {
 };
 
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
-
-export type ShipmentStatus =
-  | 'pending'
-  | 'packing'
-  | 'packed'
-  | 'manifested'
-  | 'shipped'
-  | 'delivered'
-  | 'exception';
 
 export type ShipmentRow = {
   id: string;
@@ -70,15 +62,13 @@ type ListShipmentsResult = { ok: true; data: ShipmentRow[] } | { ok: false; erro
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_DASHBOARD_VIEW = 'ship.dashboard.view';
 
-const ALLOWED_CREATE_SO_STATUSES = new Set(['allocated', 'partially_allocated']);
-const SHIPMENT_STATUSES = new Set<ShipmentStatus>([
-  'pending',
-  'packing',
+const ALLOWED_CREATE_SO_STATUSES = new Set([
+  'allocated',
+  'partially_picked',
+  'picked',
+  'partially_packed',
   'packed',
   'manifested',
-  'shipped',
-  'delivered',
-  'exception',
 ]);
 
 async function requirePermission(ctx: ShippingContext, permission: string): Promise<{ ok: false; error: string } | null> {
@@ -99,8 +89,8 @@ function toNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
-function isShipmentStatus(value: string): value is ShipmentStatus {
-  return SHIPMENT_STATUSES.has(value as ShipmentStatus);
+function isShipmentStatusLocal(value: string): value is ShipmentStatus {
+  return isShipmentStatus(value);
 }
 
 function mapShipmentRow(row: {
@@ -127,7 +117,7 @@ function mapShipmentRow(row: {
   return {
     id: row.id,
     shipmentNumber: row.shipment_number ?? '',
-    status: isShipmentStatus(row.status) ? row.status : 'exception',
+    status: isShipmentStatusLocal(row.status) ? row.status : 'exception',
     salesOrderNumber: row.sales_order_number,
     customerName: row.customer_name,
     customerCode: row.customer_code,
@@ -226,12 +216,26 @@ export async function createShipment(soId: string): Promise<CreateShipmentResult
         where so.org_id = app.current_org_id()
           and so.id = $1::uuid
           and so.deleted_at is null
-        limit 1`,
+        for update`,
       [soId],
     );
     const salesOrder = soRows[0];
-    if (!salesOrder || !ALLOWED_CREATE_SO_STATUSES.has(salesOrder.status)) {
+    if (!salesOrder || !isSalesOrderStatus(salesOrder.status) || !ALLOWED_CREATE_SO_STATUSES.has(salesOrder.status)) {
       return { ok: false, error: 'invalid_state' };
+    }
+
+    const { rows: openShipmentRows } = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.shipments
+        where org_id = app.current_org_id()
+          and sales_order_id = $1::uuid
+          and deleted_at is null
+          and status = any($2::text[])
+        limit 1`,
+      [soId, OPEN_SHIPMENT_STATUSES],
+    );
+    if (openShipmentRows.length > 0) {
+      return { ok: false, error: 'open_shipment_exists' };
     }
 
     const { rows } = await ctx.client.query<{ id: string }>(
@@ -346,7 +350,7 @@ export async function listShipments(params: { status?: string } = {}): Promise<L
     if (forbidden) return forbidden;
 
     const status = params.status?.trim() || null;
-    if (status && !isShipmentStatus(status)) {
+    if (status && !isShipmentStatusLocal(status)) {
       return { ok: false, error: 'invalid_status' };
     }
 

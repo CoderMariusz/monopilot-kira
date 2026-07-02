@@ -37,6 +37,7 @@ type State = {
   lpBestBeforeDate: string | null;
   lpConsumptionRows: string[];
   lpHasChild: boolean;
+  grnExtJsonb: unknown;
 };
 
 let state: State;
@@ -64,10 +65,14 @@ function makeClient(): QueryClient {
                 id: GRN_ITEM_ID,
                 grn_id: GRN_ID,
                 po_id: PO_ID,
+                item_id: '77777777-7777-4777-8777-777777777777',
                 lp_id: LP_ID,
                 received_qty: '10.000000',
+                uom: 'kg',
+                unit_price: '4.20',
                 cancelled_at: state.cancelledAt,
                 qa_status_initial: 'pending',
+                ext_jsonb: state.grnExtJsonb,
               }]
             : [],
           rowCount: state.grnExists ? 1 : 0,
@@ -120,6 +125,18 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (n.includes('from public.items i') && n.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params[0] ?? '0'), resolved: true }], rowCount: 1 };
+      }
+
+      if (n.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
+        return { rows: [{ value: String(Number(params[0] ?? 0) * Number(params[1] ?? 0)) }], rowCount: 1 };
+      }
+
+      if (n.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
+      }
+
       if (n.includes('bool_and')) {
         return { rows: [{ is_received: false }], rowCount: 1 };
       }
@@ -156,6 +173,7 @@ beforeEach(() => {
     lpBestBeforeDate: '2026-09-15T00:00:00.000Z',
     lpConsumptionRows: [],
     lpHasChild: false,
+    grnExtJsonb: null,
   };
   queries = [];
   client = makeClient();
@@ -190,6 +208,40 @@ describe('receipt corrections actions', () => {
     expect(poActions).toContain('gi.cancelled_at is null');
     const mrp = readFileSync(join(process.cwd(), 'app/[locale]/(app)/(modules)/planning/_actions/mrp.ts'), 'utf8');
     expect(mrp).toContain('gi.cancelled_at is null');
+  });
+
+  it('cancelGrnLine reverses WAC using the originally-booked snapshot contribution', async () => {
+    state.grnExtJsonb = { wac_qty_kg: '9.500000', wac_value: '39.900000' };
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+    expect(result).toEqual({ ok: true });
+
+    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params).toEqual([
+      ORG_ID,
+      '77777777-7777-4777-8777-777777777777',
+      '-9.500000',
+      '-39.900000',
+      USER_ID,
+    ]);
+    expect(queries.some((q) => normalize(q.sql).includes('from public.items i') && normalize(q.sql).includes('as qty_kg'))).toBe(false);
+  });
+
+  it('cancelGrnLine falls back to recomputed WAC reversal when no snapshot exists', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+    expect(result).toEqual({ ok: true });
+
+    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params).toEqual([
+      ORG_ID,
+      '77777777-7777-4777-8777-777777777777',
+      '-10.000000',
+      '-42',
+      USER_ID,
+    ]);
+    expect(console.warn).toHaveBeenCalledWith('[wac] reversal_fallback', { grnItemId: GRN_ITEM_ID });
   });
 
   it.each([

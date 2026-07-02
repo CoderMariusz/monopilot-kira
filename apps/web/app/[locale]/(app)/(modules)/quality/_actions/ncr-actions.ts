@@ -115,6 +115,42 @@ const createSchema = z.object({
   linkedHoldId: uuidSchema.optional(),
 });
 
+async function resolveNcrSourceSiteId(
+  ctx: QualityContext,
+  referenceType: NcrReferenceType | undefined,
+  referenceId: string | undefined,
+): Promise<string | null> {
+  if (!referenceType || !referenceId) return null;
+  const { rows } = await ctx.client.query<{ site_id: string | null }>(
+    `select lp.site_id::text as site_id
+       from public.license_plates lp
+      where $1::text = 'lp'
+        and lp.org_id = app.current_org_id()
+        and lp.id = $2::uuid
+     union all
+     select grn.site_id::text as site_id
+       from public.grns grn
+      where $1::text = 'grn'
+        and grn.org_id = app.current_org_id()
+        and grn.id = $2::uuid
+     union all
+     select wo.site_id::text as site_id
+       from public.work_orders wo
+      where $1::text = 'wo'
+        and wo.org_id = app.current_org_id()
+        and wo.id = $2::uuid
+     union all
+     select qi.site_id::text as site_id
+       from public.quality_inspections qi
+      where $1::text = 'inspection'
+        and qi.org_id = app.current_org_id()
+        and qi.id = $2::uuid
+      limit 1`,
+    [referenceType, referenceId],
+  );
+  return rows[0]?.site_id ?? null;
+}
+
 const investigationSchema = z.object({
   ncrId: uuidSchema,
   rootCause: z.string().trim().max(4000).optional(),
@@ -231,7 +267,7 @@ export async function listNcrs(input: {
          left join public.items i on i.id = n.product_id and i.org_id = n.org_id
          left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
         where n.org_id = app.current_org_id()
-          and n.site_id = $6::uuid
+          and (n.site_id = $6::uuid or n.site_id is null)
           and ($1::text is null or n.status = $1)
           and ($2::text is null or n.severity = $2)
           and ($3::text is null or n.ncr_type = $3)
@@ -431,7 +467,9 @@ export async function createNcr(input: {
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedNcr>> => {
       if (!(await hasPermission(ctx, 'quality.ncr.create'))) return { ok: false, reason: 'forbidden' };
 
-      const s = await getActiveSiteId({ client: ctx.client });
+      const s =
+        (await resolveNcrSourceSiteId(ctx, parsed.referenceType, parsed.referenceId)) ??
+        (await getActiveSiteId({ client: ctx.client }));
 
       const created = await ctx.client.query<CreatedNcr & { ncr_number: string }>(
         `insert into public.ncr_reports (

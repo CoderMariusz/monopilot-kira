@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 const IP_ALLOWLIST_EDIT_PERMISSION = 'settings.ip_allowlist.edit';
@@ -88,7 +88,7 @@ export async function addIpRange(cidr: string, label?: string | null): Promise<A
         ],
       );
 
-      revalidatePath('/settings/security');
+      revalidateLocalized('/settings/security');
       return { ok: true, data: { id: row.id, cidr: row.cidr, label: row.label } };
     } catch {
       return { ok: false, error: 'PERSISTENCE_FAILED' };

@@ -85,7 +85,7 @@ export async function buildFaCreateLabels(locale: string): Promise<FaCreateLabel
 export const createFaAction: CreateFaAction = async (input) => {
   'use server';
   try {
-    return await createFa(input);
+    return await createFa({ ...input, allowLegacyFa: true });
   } catch (error) {
     if (
       error instanceof DuplicateError ||

@@ -4228,6 +4228,12 @@
       "errorDuplicate": "Kod FG już istnieje. Wybierz inny kod.",
       "errorGeneric": "Nie udało się utworzyć wyrobu gotowego. Spróbuj ponownie."
     },
+    "productCreateWizard": {
+      "subtitleMask": "V01 · Kod FG musi pasować do formatu organizacji. V02 · Nazwa produktu wymagana.",
+      "fieldProductCodeHintMask": "Wpisz kod zgodny z formatem FG organizacji (np. {example}).",
+      "rangeHintMask": "Kody produktów stosują format FG skonfigurowany w ustawieniach produktu (np. {example}).",
+      "errorV01Mask": "Kod FG musi pasować do formatu organizacji (np. {example})."
+    },
     "briefList": {
       "title": "Briefy NPD",
       "subtitle": "Briefy to wstępne zgłoszenia przed FG",
@@ -10408,7 +10414,9 @@
         "illegalTransition": "Ta zmiana statusu jest niedozwolona z bieżącego statusu.",
         "insufficientStock": "Brak wystarczającego zwolnionego zapasu, aby zarezerwować to zamówienie.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
-        "already_exists": "Klient z tym kodem już istnieje."
+        "already_exists": "Klient z tym kodem już istnieje.",
+        "so_cancel_blocked_shipped": "Nie można anulować zamówienia, gdy wysyłka została już wysłana lub dostarczona.",
+        "deallocate_not_allowed": "Cofnięcie alokacji jest możliwe tylko przed rozpoczęciem pakowania."
       }
     },
     "shipments": {
@@ -10463,6 +10471,7 @@
         "errors": {
           "forbidden": "Nie masz uprawnień do tej operacji.",
           "invalid_state": "Dla tego zamówienia sprzedaży nie można już utworzyć wysyłki w jego bieżącym statusie.",
+          "open_shipment_exists": "Dla tego zamówienia sprzedaży istnieje już otwarta wysyłka w trakcie pakowania.",
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
         },
         "notShippable": "Dla tego zamówienia sprzedaży nie można już utworzyć wysyłki w jego bieżącym statusie."
@@ -11071,6 +11080,30 @@
     "switcherSites": "{n} zakładów",
     "bannerRole": "ADMINISTRATOR PLATFORMY",
     "bannerActingAs": "działa jako",
-    "bannerExit": "Zakończ act-as"
+    "bannerExit": "Zakończ act-as",
+    "addAdminTitle": "Dodaj administratora platformy",
+    "addAdminSubtitle": "Nadaj istniejącemu użytkownikowi dostęp administratora platformy (ponad organizacjami) na podstawie adresu e-mail. Zmiana jest audytowana.",
+    "addAdminEmailLabel": "E-mail użytkownika",
+    "addAdminEmailPlaceholder": "imie@firma.com",
+    "addAdminCancel": "Anuluj",
+    "addAdminSubmit": "Dodaj administratora",
+    "addAdminSubmitting": "Dodawanie…",
+    "addAdminSuccessAdded": "{email} jest teraz administratorem platformy.",
+    "addAdminSuccessRevived": "{email} został ponownie ustanowiony administratorem platformy.",
+    "addAdminSuccessAlready": "{email} jest już administratorem platformy.",
+    "addAdminSuccessSelf": "Jesteś już administratorem platformy.",
+    "addAdminErrorNotFound": "Nie znaleziono użytkownika o tym adresie e-mail.",
+    "addAdminErrorInvalidEmail": "Podaj prawidłowy adres e-mail.",
+    "addAdminErrorForbidden": "Nie masz uprawnień do dodawania administratorów platformy.",
+    "addAdminErrorUnknown": "Nie udało się dodać administratora. Spróbuj ponownie za chwilę.",
+    "auditLogTopbarSubtitle": "Pełny dziennik audytu platformy",
+    "auditLogTitle": "Dziennik audytu platformy",
+    "auditLogSubtitle": "Każda operacja act-as i zmiana administratora platformy, przypisana do rzeczywistego administratora platformy.",
+    "auditLogBack": "Powrót do konsoli",
+    "auditLogCount": "Wpisy: {total}",
+    "auditLogPageOf": "Strona {page} z {pages}",
+    "auditLogPage": "Strona {page}",
+    "auditLogPrev": "Poprzednia",
+    "auditLogNext": "Następna"
   }
 }

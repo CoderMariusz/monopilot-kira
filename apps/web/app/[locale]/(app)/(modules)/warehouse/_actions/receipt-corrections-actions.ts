@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { CORRECTION_REASON_CODES } from '../../../../../../lib/corrections/correct-ledger-entry';
+import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import { toMicro } from '../../../../../../lib/shared/decimal';
 import {
   hasWarehousePermission,
@@ -62,10 +63,14 @@ type GrnLineForCancel = {
   id: string;
   grn_id: string;
   po_id: string | null;
+  item_id: string;
   lp_id: string | null;
   received_qty: string;
+  uom: string;
+  unit_price: string | null;
   cancelled_at: string | null;
   qa_status_initial: string;
+  ext_jsonb: unknown;
 };
 
 type LicensePlateForCancel = {
@@ -106,15 +111,40 @@ function sameDecimal(a: string | null | undefined, b: string | null | undefined)
   return toMicro(a ?? '0') === toMicro(b ?? '0');
 }
 
+function negateDecimalString(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('-')) return trimmed.slice(1);
+  return `-${trimmed}`;
+}
+
+function readWacContributionSnapshot(extJsonb: unknown): { wac_qty_kg: string; wac_value: string } | null {
+  if (extJsonb == null || typeof extJsonb !== 'object' || Array.isArray(extJsonb)) return null;
+  const snapshot = extJsonb as { wac_qty_kg?: unknown; wac_value?: unknown };
+  if (typeof snapshot.wac_qty_kg !== 'string' || typeof snapshot.wac_value !== 'string') return null;
+  return { wac_qty_kg: snapshot.wac_qty_kg, wac_value: snapshot.wac_value };
+}
+
+async function multiplyNumeric(client: QueryClient, left: string, right: string | null): Promise<string> {
+  const { rows } = await client.query<{ value: string }>(
+    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
+    [left, right ?? '0'],
+  );
+  return rows[0]?.value ?? '0';
+}
+
 async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): Promise<GrnLineForCancel | null> {
   const { rows } = await ctx.client.query<GrnLineForCancel>(
     `select gi.id::text,
             gi.grn_id::text,
             coalesce(g.po_id, pol.po_id)::text as po_id,
+            gi.product_id::text as item_id,
             gi.lp_id::text,
             gi.received_qty::text,
+            gi.uom,
+            pol.unit_price::text as unit_price,
             gi.cancelled_at::text,
-            gi.qa_status_initial
+            gi.qa_status_initial,
+            gi.ext_jsonb
        from public.grn_items gi
        left join public.grns g
          on g.org_id = gi.org_id
@@ -354,6 +384,32 @@ export async function cancelGrnLine(input: unknown): Promise<
             and cancelled_at is null`,
         [line.id, userId, parsed.data.reasonCode, note],
       );
+
+      const wacSnapshot = readWacContributionSnapshot(line.ext_jsonb);
+      let deltaQtyKg: string;
+      let deltaValue: string;
+      if (wacSnapshot) {
+        deltaQtyKg = negateDecimalString(wacSnapshot.wac_qty_kg);
+        deltaValue = negateDecimalString(wacSnapshot.wac_value);
+      } else {
+        console.warn('[wac] reversal_fallback', { grnItemId: line.id });
+        const { qtyKg: receivedQtyKg } = await resolveWacDeltaQtyKg(ctx.client, {
+          itemId: line.item_id,
+          qty: line.received_qty,
+          uom: line.uom,
+        });
+        const receivedValue = await multiplyNumeric(ctx.client, line.received_qty, line.unit_price);
+        deltaQtyKg = negateDecimalString(receivedQtyKg);
+        deltaValue = negateDecimalString(receivedValue);
+      }
+      await upsertWac(ctx.client, {
+        orgId,
+        siteId: null,
+        itemId: line.item_id,
+        deltaQtyKg,
+        deltaValue,
+        updatedBy: userId,
+      });
 
       if (line.po_id) await rollupPurchaseOrderStatus(ctx, line.po_id);
 

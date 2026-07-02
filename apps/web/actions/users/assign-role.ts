@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
@@ -185,8 +185,7 @@ export async function assignRole(input: AssignRoleInput): Promise<AssignRoleResu
       );
 
       try {
-        revalidatePath('/settings/users');
-        revalidatePath('/en/settings/users');
+        revalidateLocalized('/settings/users');
       } catch {
         // Unit tests and non-Next callers do not provide a static-generation store;
         // persistence has already succeeded, so cache invalidation must not mask it.

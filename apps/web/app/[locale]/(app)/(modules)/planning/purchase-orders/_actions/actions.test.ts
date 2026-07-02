@@ -23,6 +23,8 @@ let poExists = true;
 let generatedSeq = 7;
 let failNextAutoInsert = false;
 let currentStatus = 'draft';
+let activeReceivedCount = 0;
+let fullyReceived = false;
 
 const { getActiveSiteIdMock, resolveWriteSiteIdMock } = vi.hoisted(() => ({
   getActiveSiteIdMock: vi.fn(),
@@ -90,7 +92,10 @@ function makeClient(): QueryClient {
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
       }
       if (normalized.startsWith('select count(*) filter')) {
-        return { rows: [{ active_received_count: 0, grn_line_count: 0 }], rowCount: 1 };
+        return { rows: [{ active_received_count: activeReceivedCount, grn_line_count: 0 }], rowCount: 1 };
+      }
+      if (normalized.includes('bool_and')) {
+        return { rows: [{ is_received: fullyReceived }], rowCount: 1 };
       }
       if (normalized.startsWith('select po.id')) {
         return { rows: poExists ? [header({ status: currentStatus })] : [], rowCount: poExists ? 1 : 0 };
@@ -134,6 +139,8 @@ describe('planning purchase order actions', () => {
     generatedSeq = 7;
     failNextAutoInsert = false;
     currentStatus = 'draft';
+    activeReceivedCount = 0;
+    fullyReceived = false;
     getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     resolveWriteSiteIdMock.mockResolvedValue({ ok: true, siteId: SITE_ID });
     client = makeClient();
@@ -324,13 +331,48 @@ describe('planning purchase order actions', () => {
     expect(result.data.status).toBe('sent');
   });
 
-  it('transitions purchase order status on a legal move (confirmed -> partially_received)', async () => {
+  it('rejects manual transition to received when open quantity remains (confirmed -> received)', async () => {
     currentStatus = 'confirmed';
+    activeReceivedCount = 0;
+    fullyReceived = false;
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'received');
+
+    expect(result).toEqual({ ok: false, error: 'po_open_quantity', code: 'po_open_quantity' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders'))).toBe(false);
+  });
+
+  it('rejects manual transition to partially_received without active receipts', async () => {
+    currentStatus = 'confirmed';
+    activeReceivedCount = 0;
+
     const result = await transitionPurchaseOrderStatus(PO_ID, 'partially_received');
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
-    expect(result.data.status).toBe('partially_received');
+    expect(result).toEqual({ ok: false, error: 'po_open_quantity', code: 'po_open_quantity' });
+  });
+
+  it('blocks manual transition to received even when receipt state is complete (edge removed)', async () => {
+    currentStatus = 'confirmed';
+    activeReceivedCount = 1;
+    fullyReceived = true;
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'received');
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders'))).toBe(false);
+  });
+
+  it('refuses cancel when active receipts exist (po_has_receipts guard)', async () => {
+    currentStatus = 'confirmed';
+    activeReceivedCount = 2;
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'cancelled');
+
+    expect(result).toEqual({ ok: false, error: 'po_has_receipts', code: 'po_has_receipts' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders'))).toBe(false);
   });
 
   it('refuses an illegal transition (draft -> confirmed) server-side', async () => {

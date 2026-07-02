@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { upsertWac } from '../../../../../../../lib/finance/upsert-wac';
+import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../../lib/finance/upsert-wac';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { computeExpiryDate, formatDecimal, parseDecimal } from '../../../../../../../lib/warehouse/scanner/receive-po';
 import { hasWarehousePermission } from '../../../warehouse/_actions/shared';
@@ -106,8 +106,13 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
         transactionId: randomUUID(),
       });
 
-      const receivedQtyKg = formatDecimal(qty);
-      const receivedValue = await multiplyNumeric(client, receivedQtyKg, line.unit_price);
+      const receivedQty = formatDecimal(qty);
+      const { qtyKg: receivedQtyKg } = await resolveWacDeltaQtyKg(client, {
+        itemId: line.item_id,
+        qty: receivedQty,
+        uom: line.uom,
+      });
+      const receivedValue = await multiplyNumeric(client, receivedQty, line.unit_price);
       await upsertWac(client, {
         orgId,
         siteId: warehouse.site_id,
@@ -122,13 +127,28 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
         productId: line.item_id,
         poLineId: line.id,
         orderedQty: line.ordered_qty,
-        receivedQty: formatDecimal(qty),
+        receivedQty,
         uom: line.uom,
         batchNumber: input.batchNumber ?? null,
         bestBefore: input.bestBefore ?? null,
         locationId: destLocationId,
         lpId: lp.id,
       });
+
+      await client.query(
+        `update public.grn_items
+            set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $3::jsonb,
+                updated_by = $2::uuid,
+                updated_at = now()
+          where org_id = $1::uuid
+            and id = $4::uuid`,
+        [
+          orgId,
+          userId,
+          JSON.stringify({ wac_qty_kg: receivedQtyKg, wac_value: receivedValue }),
+          grnItem.id,
+        ],
+      );
 
       await insertLpGenesis(client, orgId, userId, {
         lpId: lp.id,

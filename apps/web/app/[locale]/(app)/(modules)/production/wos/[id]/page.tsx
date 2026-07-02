@@ -50,7 +50,10 @@ import { buildWoModalLabels } from '../../_actions/wo-modal-labels';
 // E1 — FG label printing wired through the printers settings actions (mig 304).
 // The action ONLY supports entityType:'lp' and re-enforces RBAC server-side.
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
-import { registerDisassemblyOutput } from '../../../../../../../lib/production/output/register-disassembly-output';
+import {
+  DisassemblyAbort,
+  registerDisassemblyOutput,
+} from '../../../../../../../lib/production/output/register-disassembly-output';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import {
@@ -222,6 +225,9 @@ async function registerDisassemblyOutputDesktop(input: {
       return { ok: false, errorCode: 'quality_hold_active' };
     }
     if (err instanceof ProductionActionError) {
+      return { ok: false, errorCode: err.code };
+    }
+    if (err instanceof DisassemblyAbort) {
       return { ok: false, errorCode: err.code };
     }
     throw err;

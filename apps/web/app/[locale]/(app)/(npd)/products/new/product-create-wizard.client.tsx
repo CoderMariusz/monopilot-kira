@@ -60,6 +60,8 @@ export type ProductCreateWizardProps = {
   locale: string;
   /** Raw, still-encoded returnTo from the URL. */
   returnTo?: string;
+  /** Org FG code mask from org_document_settings (doc_type=fg); drives client V01. */
+  fgCodeMask?: string | null;
 };
 
 export function ProductCreateWizard({
@@ -67,6 +69,7 @@ export function ProductCreateWizard({
   createFaAction,
   locale,
   returnTo,
+  fgCodeMask,
 }: ProductCreateWizardProps) {
   const router = useRouter();
   const fallbackBase = `/${locale}/fg`;
@@ -92,10 +95,8 @@ export function ProductCreateWizard({
       createFaAction={createFaAction}
       onCreated={onCreated}
       onClose={onClose}
-      // The product-code prefix will become configurable in product settings, so
-      // the onboarding first-product wizard must not hardcode the 'FA' prefix.
-      // Accept any non-empty (uppercase-normalized) code here; V02 still applies.
       requireFaPrefix={false}
+      fgCodeMask={fgCodeMask}
     />
   );
 }

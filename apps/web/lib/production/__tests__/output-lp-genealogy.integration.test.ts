@@ -130,9 +130,9 @@ async function makeWo(opts: { consume: boolean }): Promise<{ woId: string; woNum
   const woNumber = `WO9K${Math.floor(Math.random() * 1_000_000_000)}`;
   await owner.query(
     `insert into public.work_orders
-       (id, org_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status)
-     values ($1, $2, $3, $4, 'fg', 100, 'kg', 'RELEASED')`,
-    [woId, seed.orgId, woNumber, seed.fgProductId],
+       (id, org_id, site_id, wo_number, product_id, item_type_at_creation, planned_quantity, uom, status)
+     values ($1, $2, $3, $4, $5, 'fg', 100, 'kg', 'RELEASED')`,
+    [woId, seed.orgId, seed.siteId, woNumber, seed.fgProductId],
   );
   await owner.query(
     `insert into public.wo_executions (org_id, wo_id, status) values ($1, $2, 'in_progress')`,

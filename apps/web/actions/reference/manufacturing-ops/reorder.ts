@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../lib/i18n/revalidate-localized';
 
 import { hasPermission } from '../../../lib/auth/has-permission';
 
@@ -38,7 +38,7 @@ export async function reorderManufacturingOperations(rawInput: unknown): Promise
           order by operation_seq asc, operation_name asc`,
         [],
       );
-      revalidatePath('/settings/reference/manufacturing-operations');
+      revalidateLocalized('/settings/reference/manufacturing-operations');
       return { ok: true, data: rows };
     });
   } catch {

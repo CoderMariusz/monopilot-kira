@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
+import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -33,8 +35,6 @@ export type RecordPodResult = { ok: true } | { ok: false; error: string };
 
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_BOL_SIGN = 'ship.bol.sign';
-const SALES_ORDER_SHIPPED_STATUS = 'shipped';
-const SALES_ORDER_DELIVERED_STATUS = 'delivered';
 const LP_SHIPPED_EVENT_TYPE = 'warehouse.lp.shipped';
 
 class ActionError extends Error {
@@ -127,28 +127,23 @@ export async function sealShipment(shipmentId: string): Promise<SealShipmentResu
         return { ok: false, error: 'no_boxes' };
       }
 
-      const { rows: updatedShipmentRows } = await ctx.client.query<{ id: string }>(
+      const sealResult = await writeShipmentStatusInContext(ctx, shipmentId, 'packed', {
+        currentStatus: 'packing',
+      });
+      if (sealResult !== 'ok') throw new ActionError('persistence_failed');
+
+      await ctx.client.query(
         `update public.shipments
-            set status = 'packed',
-                packed_at = now(),
+            set packed_at = now(),
                 packed_by = $2::uuid,
                 updated_at = now(),
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and status = 'packing'
-            and deleted_at is null
-            and exists (
-              select 1
-                from public.shipment_boxes sb
-               where sb.org_id = app.current_org_id()
-                 and sb.shipment_id = public.shipments.id
-                 and sb.deleted_at is null
-            )
-          returning id::text`,
+            and status = 'packed'
+            and deleted_at is null`,
         [shipmentId, userId],
       );
-      if (!updatedShipmentRows[0]) throw new ActionError('persistence_failed');
 
       return { ok: true };
     });
@@ -190,25 +185,32 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
         return { ok: false, error: 'invalid_state' };
       }
 
+      const soStatus = await readLockedSalesOrderStatus(ctx, shipment.sales_order_id);
+      if (soStatus === 'not_found' || soStatus === 'cancelled') {
+        return { ok: false, error: 'invalid_state' };
+      }
+
       const lpRows = await fetchShipmentLps(ctx, shipmentId);
       const lpIds = lpRows.map((row) => row.lp_id);
       if (lpIds.length === 0) return { ok: false, error: 'invalid_state' };
 
-      const { rows: updatedShipmentRows } = await ctx.client.query<{ id: string }>(
+      const shipTransition = await writeShipmentStatusInContext(ctx, shipmentId, 'shipped', {
+        currentStatus: 'packed',
+      });
+      if (shipTransition !== 'ok') throw new ActionError('persistence_failed');
+
+      await ctx.client.query(
         `update public.shipments
-            set status = 'shipped',
-                shipped_at = now(),
+            set shipped_at = now(),
                 shipped_by = $2::uuid,
                 updated_at = now(),
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and status = 'packed'
-            and deleted_at is null
-          returning id::text`,
+            and status = 'shipped'
+            and deleted_at is null`,
         [shipmentId, userId],
       );
-      if (!updatedShipmentRows[0]) throw new ActionError('persistence_failed');
 
       // Food-safety re-assert (G-QA-01 / G-SHIP-06 / owner per-rule = BLOCK): a
       // quality hold, a QA-status reversion, or an expiry can land AFTER
@@ -294,6 +296,25 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
       );
       if (updatedLpRows.length !== lpIds.length) throw new ActionError('persistence_failed');
 
+      await ctx.client.query(
+        `update public.inventory_allocations ia
+            set status = 'released',
+                released_at = now(),
+                ext_data = coalesce(ia.ext_data, '{}'::jsonb) || jsonb_build_object('closed_reason', $3::text),
+                updated_by = $2::uuid
+           from public.shipment_box_contents sbc
+           join public.shipment_boxes sb on sb.id = sbc.shipment_box_id
+            and sb.org_id = app.current_org_id()
+            and sb.shipment_id = $1::uuid
+            and sb.deleted_at is null
+          where ia.license_plate_id = sbc.license_plate_id
+            and sbc.org_id = app.current_org_id()
+            and sbc.deleted_at is null
+            and ia.org_id = app.current_org_id()
+            and ${LIVE_ALLOCATION_SQL}`,
+        [shipmentId, userId, SHIP_CLOSED_ALLOCATION_REASON],
+      );
+
       const { rowCount: snapshotRowCount } = await ctx.client.query(
         `update public.shipments
             set ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
@@ -347,19 +368,10 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
       );
 
       if (toNumber(remainingRows[0]?.remaining_count) === 0) {
-        const { rows: updatedSoRows } = await ctx.client.query<{ id: string }>(
-          `update public.sales_orders
-              set status = $2,
-                  shipped_at = case when $2 = 'shipped' then now() else shipped_at end,
-                  updated_at = now(),
-                  updated_by = $3::uuid
-            where org_id = app.current_org_id()
-              and id = $1::uuid
-              and deleted_at is null
-            returning id::text`,
-          [shipment.sales_order_id, SALES_ORDER_SHIPPED_STATUS, userId],
-        );
-        if (!updatedSoRows[0]) throw new ActionError('persistence_failed');
+        const soWrite = await writeSalesOrderStatusInContext(ctx, shipment.sales_order_id, 'shipped', {
+          currentStatus: soStatus,
+        });
+        if (soWrite !== 'ok') throw new ActionError('invalid_state');
       }
 
       return { ok: true };
@@ -472,16 +484,20 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
         return { ok: false, error: 'invalid_state' };
       }
 
+      const podTransition = await writeShipmentStatusInContext(ctx, input.shipmentId, 'delivered', {
+        currentStatus: 'shipped',
+      });
+      if (podTransition !== 'ok') throw new ActionError('persistence_failed');
+
       const { rows } = await ctx.client.query<{ id: string; sales_order_id: string | null }>(
         `update public.shipments
-            set status = 'delivered',
-                delivered_at = now(),
+            set delivered_at = now(),
                 bol_signed_pdf_url = $2::text,
                 updated_at = now(),
                 updated_by = $3::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and status = 'shipped'
+            and status = 'delivered'
             and deleted_at is null
           returning id::text, sales_order_id::text`,
         [input.shipmentId, input.signedPdfUrl ?? null, userId],
@@ -490,6 +506,11 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
       if (!shipment) throw new ActionError('persistence_failed');
 
       if (shipment.sales_order_id) {
+        const soStatus = await readLockedSalesOrderStatus(ctx, shipment.sales_order_id);
+        if (soStatus === 'not_found' || soStatus === 'cancelled') {
+          throw new ActionError('invalid_state');
+        }
+
         const { rows: remainingRows } = await ctx.client.query<{ remaining_count: number | string | bigint | null }>(
           `select count(*)::int as remaining_count
              from public.shipments
@@ -500,18 +521,11 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
           [shipment.sales_order_id],
         );
 
-        if (toNumber(remainingRows[0]?.remaining_count) === 0) {
-          await ctx.client.query(
-            `update public.sales_orders
-                set status = $2,
-                    updated_at = now(),
-                    updated_by = $3::uuid
-              where org_id = app.current_org_id()
-                and id = $1::uuid
-                and deleted_at is null`,
-            [shipment.sales_order_id, SALES_ORDER_DELIVERED_STATUS, userId],
-          );
-        }
+        const targetSoStatus = toNumber(remainingRows[0]?.remaining_count) === 0 ? 'delivered' : 'partially_delivered';
+        const soWrite = await writeSalesOrderStatusInContext(ctx, shipment.sales_order_id, targetSoStatus, {
+          currentStatus: soStatus,
+        });
+        if (soWrite !== 'ok') throw new ActionError('invalid_state');
       }
 
       return { ok: true };

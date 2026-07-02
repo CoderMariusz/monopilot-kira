@@ -6,7 +6,7 @@
  * back into onboarding. It reuses the real, Supabase-backed FG create flow:
  *   - labels: next-intl (npd.faCreateModal) with prototype fallback,
  *   - action: the T-008 createFa Server Action (imported, never re-authored),
- *     injected ONLY when RBAC grants `fa.create` (resolved server-side here),
+ *     injected ONLY when RBAC grants `fg.create` (resolved server-side here),
  *   - returnTo: honored client-side after a successful create / cancel.
  *
  * Before this route existed the link 404'd (next-intl localized /products/new to
@@ -16,6 +16,7 @@
 
 import { getTranslations } from 'next-intl/server';
 
+import { exampleCodeMask } from '../../../../../../lib/documents/code-mask';
 import { ProductCreateWizard } from './product-create-wizard.client';
 import {
   type CreateFaAction,
@@ -27,7 +28,7 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
 
-const CREATE_PERMISSION = 'fa.create';
+const CREATE_PERMISSION = 'fg.create';
 
 const DEFAULT_LABELS: FaCreateLabels = {
   title: 'Create Finished Good',
@@ -69,6 +70,49 @@ function translateLabel(t: (key: string) => string, key: keyof FaCreateLabels): 
   } catch {
     return DEFAULT_LABELS[key];
   }
+}
+
+async function resolveFgCodeMask(): Promise<string | null> {
+  try {
+    return await withOrgContext(async (rawCtx): Promise<string | null> => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ code_mask: string | null }>(
+        `select code_mask
+           from public.org_document_settings
+          where org_id = app.current_org_id()
+            and doc_type = 'fg'
+          limit 1`,
+      );
+      return rows[0]?.code_mask ?? null;
+    });
+  } catch (error) {
+    console.error('[products/new] fg code-mask lookup failed:', error);
+    return null;
+  }
+}
+
+function maskExample(mask: string): string {
+  return exampleCodeMask(mask);
+}
+
+async function buildMaskAwareLabels(locale: string, fgCodeMask: string | null): Promise<FaCreateLabels> {
+  const labels = await buildLabels(locale);
+  if (!fgCodeMask) return labels;
+
+  const example = maskExample(fgCodeMask);
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.productCreateWizard' });
+    labels.fieldProductCodeHint = t('fieldProductCodeHintMask', { example });
+    labels.rangeHint = t('rangeHintMask', { example });
+    labels.errorV01 = t('errorV01Mask', { example });
+    labels.subtitle = t('subtitleMask');
+  } catch {
+    labels.fieldProductCodeHint = `Enter a code matching your org FG format (e.g. ${example}).`;
+    labels.rangeHint = `Product codes follow your org FG format (e.g. ${example}).`;
+    labels.errorV01 = `FG Code must match your org format (e.g. ${example}).`;
+    labels.subtitle = 'V01 · FG Code must match your org format. V02 · Product Name required.';
+  }
+  return labels;
 }
 
 async function buildLabels(locale: string): Promise<FaCreateLabels> {
@@ -139,6 +183,7 @@ type ProductNewPageProps = {
   searchParams?: Promise<{ returnTo?: string }>;
   // Test seams (mirror fa/page.tsx convention): bypass DB/RBAC resolution.
   canCreate?: boolean;
+  fgCodeMask?: string | null;
 };
 
 export default async function ProductNewPage(propsInput: unknown = {}) {
@@ -146,7 +191,8 @@ export default async function ProductNewPage(propsInput: unknown = {}) {
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const search = props.searchParams ? await props.searchParams : {};
 
-  const labels = await buildLabels(locale);
+  const fgCodeMask = props.fgCodeMask ?? (await resolveFgCodeMask());
+  const labels = await buildMaskAwareLabels(locale, fgCodeMask);
   const canCreate = props.canCreate ?? (await resolveCanCreate());
 
   return (
@@ -155,6 +201,7 @@ export default async function ProductNewPage(propsInput: unknown = {}) {
       createFaAction={canCreate ? createFaAction : undefined}
       locale={locale}
       returnTo={search.returnTo}
+      fgCodeMask={fgCodeMask}
     />
   );
 }

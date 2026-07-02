@@ -83,6 +83,7 @@ class MockClient implements QueryClient {
           {
             id: WO_ID,
             wo_number: 'WO-001',
+            site_id: SITE_ID,
             uom: 'kg',
             uom_snapshot: null,
           },

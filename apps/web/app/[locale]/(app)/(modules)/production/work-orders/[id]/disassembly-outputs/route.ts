@@ -28,7 +28,10 @@ import {
   type OrgContextLike,
   type QueryClient,
 } from '../../../../../../../../lib/production/shared';
-import { registerDisassemblyOutput } from '../../../../../../../../lib/production/output/register-disassembly-output';
+import {
+  DisassemblyAbort,
+  registerDisassemblyOutput,
+} from '../../../../../../../../lib/production/output/register-disassembly-output';
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -104,6 +107,9 @@ export async function POST(
     }
     if (err instanceof ProductionActionError) {
       return json({ error: err.code }, err.status);
+    }
+    if (err instanceof DisassemblyAbort) {
+      return json({ error: err.code }, statusForError(err.code));
     }
     console.error('[production/disassembly-outputs] POST persistence_failed', {
       woId,

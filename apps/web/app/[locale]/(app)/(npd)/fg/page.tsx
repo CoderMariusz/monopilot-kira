@@ -71,7 +71,7 @@ type ProductLoaderRow = {
 type LoaderResult = { state: PageState; rows: FaListRow[]; canCreate: boolean };
 
 const READ_PERMISSION = 'npd.fa.read';
-const CREATE_PERMISSION = 'fa.create';
+const CREATE_PERMISSION = 'fg.create';
 
 const DEFAULT_LABELS: FaListLabels = {
   title: 'Finished Goods',

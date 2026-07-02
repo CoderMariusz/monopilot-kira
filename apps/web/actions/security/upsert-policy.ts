@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -133,7 +133,7 @@ export async function upsertPolicy(rawInput: UpsertSecurityPolicyInput): Promise
         ],
       );
 
-      revalidatePath('/settings/security');
+      revalidateLocalized('/settings/security');
       return {
         ok: true,
         data: {

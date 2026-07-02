@@ -130,7 +130,9 @@ function makeClient(behavior: Behavior = {}): QueryClient {
         const qty = Number(params?.[1] ?? 0);
         return { rows: [{ delta_value: String(qty * Number(wacAvgCost)) }], rowCount: 1 };
       }
-      if (n.startsWith('insert into public.item_wac_state')) return { rows: [], rowCount: 1 };
+      if (n.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: String(params?.[2] ?? '0'), totalValue: String(params?.[3] ?? '0'), clamped: false }], rowCount: 1 };
+      }
 
       throw new Error(`unexpected query: ${n}`);
     }),

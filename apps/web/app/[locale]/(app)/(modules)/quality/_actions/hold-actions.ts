@@ -689,22 +689,50 @@ export async function releaseHoldCore(
   );
 
   if (heldLps.rows.length > 0) {
-    await ctx.client.query(
-      `update public.license_plates
-          set qa_status = $2,
-              status = case
-                when $5::boolean and status = 'blocked' then 'available'
-                else status
-              end,
-              updated_by = $3::uuid
-        where org_id = app.current_org_id()
-          and id = any($1::uuid[])
-          and status <> all($4::text[])`,
-      [heldLps.rows.map((lp) => lp.id), lpQaStatus, ctx.userId, [...TERMINAL_LP_STATUSES], input.disposition === 'release'],
-    );
+    let restoreReleasedLpIds = heldLps.rows.map((lp) => lp.id);
+    const blockedByOtherHold = new Set<string>();
+    const restoresReleasedQaStatus = lpQaStatus === 'released';
+
+    if (restoresReleasedQaStatus) {
+      const activeHolds = await ctx.client.query<{ reference_id: string }>(
+        `select reference_id::text
+           from public.v_active_holds
+          where org_id = app.current_org_id()
+            and reference_type = 'lp'
+            and reference_id = any($1::uuid[])
+            and hold_id <> $2::uuid`,
+        [restoreReleasedLpIds, input.holdId],
+      );
+      for (const activeHold of activeHolds.rows) blockedByOtherHold.add(activeHold.reference_id);
+      restoreReleasedLpIds = restoreReleasedLpIds.filter((lpId) => !blockedByOtherHold.has(lpId));
+    }
+
+    const lpUpdateIds = restoresReleasedQaStatus ? restoreReleasedLpIds : heldLps.rows.map((lp) => lp.id);
+    if (lpUpdateIds.length > 0) {
+      await ctx.client.query(
+        `update public.license_plates
+            set qa_status = $2,
+                status = case
+                  when $5::boolean and status = 'blocked' then 'available'
+                  else status
+                end,
+                updated_by = $3::uuid
+          where org_id = app.current_org_id()
+            and id = any($1::uuid[])
+            and status <> all($4::text[])`,
+        [
+          lpUpdateIds,
+          lpQaStatus,
+          ctx.userId,
+          [...TERMINAL_LP_STATUSES],
+          input.disposition === 'release',
+        ],
+      );
+    }
 
     for (const lp of heldLps.rows.filter((row) => !TERMINAL_LP_STATUSES.includes(row.status as (typeof TERMINAL_LP_STATUSES)[number]))) {
-      const restoresBlockedStatus = input.disposition === 'release' && lp.status === 'blocked';
+      const restoresQaStatus = !blockedByOtherHold.has(lp.id);
+      const restoresBlockedStatus = input.disposition === 'release' && restoresQaStatus && lp.status === 'blocked';
       const toState = restoresBlockedStatus ? 'available' : lp.status;
       await ctx.client.query(
         `insert into public.lp_state_history (
@@ -748,7 +776,7 @@ export async function releaseHoldCore(
             holdId: input.holdId,
             disposition: input.disposition,
             qaStatusFrom: lp.qa_status,
-            qaStatusTo: lpQaStatus,
+            qaStatusTo: restoresQaStatus ? lpQaStatus : lp.qa_status,
             releaseSource: options.releaseSource,
             statusFrom: lp.status,
             statusTo: toState,
