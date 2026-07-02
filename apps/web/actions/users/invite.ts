@@ -3,6 +3,7 @@
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
 import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from './user-role-policy';
+import { createSupabaseAuthAdmin } from './supabase-admin';
 
 const INVITE_TTL_SECONDS = 604800;
 const INVITE_PERMISSION = 'settings.users.invite';
@@ -133,7 +134,8 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
       return { ok: false, error: 'seat_limit_exceeded' };
     }
 
-    const supabase = await createServerSupabaseClient();
+    // f4.1: generateLink is an admin API — the session client gets 403 not_admin.
+    const supabase = await createSupabaseAuthAdmin();
     const linkResponse = await supabase.auth.admin.generateLink({
       type: 'invite',
       email,

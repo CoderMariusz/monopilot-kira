@@ -31,6 +31,17 @@ vi.mock('../../lib/auth/supabase-server', () => ({
   })),
 }));
 
+// f4.1: generateLink moved to the shared service-role admin factory.
+vi.mock('./supabase-admin', () => ({
+  createSupabaseAuthAdmin: vi.fn(async () => ({
+    auth: {
+      admin: {
+        generateLink: _mockGenerateLink,
+      },
+    },
+  })),
+}));
+
 type QueryCall = { sql: string; params: unknown[] };
 
 type FakeClientOptions = {

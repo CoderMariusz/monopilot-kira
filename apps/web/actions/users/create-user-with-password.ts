@@ -3,6 +3,7 @@
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { isStrongPassword } from './password-policy';
 import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from './user-role-policy';
+import { createSupabaseAuthAdmin } from './supabase-admin';
 
 /**
  * createUserWithPassword — admin-only "create a user directly with a password,
@@ -100,17 +101,7 @@ function normalizeString(value: unknown): string | null {
  * `service_unavailable` instead of silently degrading to the anon key (which
  * would make `auth.admin.createUser` fail closed in a confusing way).
  */
-async function createSupabaseAuthAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('createUserWithPassword requires Supabase service-role env (SUPABASE_SERVICE_ROLE_KEY)');
-  }
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
+// (Factory moved to ./supabase-admin — shared with the invite path since f4.1.)
 
 async function hasSuperRole(client: QueryClient, userId: string, orgId: string): Promise<boolean> {
   const { rows } = await client.query<{ ok: boolean }>(

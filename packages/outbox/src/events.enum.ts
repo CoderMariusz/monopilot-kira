@@ -176,6 +176,7 @@ export enum EventType {
   SETTINGS_UPGRADE_ROLLED_BACK = 'settings.upgrade.rolled_back',
   SETTINGS_UPGRADE_SCHEDULED = 'settings.upgrade.scheduled',
   SETTINGS_USER_ACCEPTED = 'settings.user.accepted',
+  SETTINGS_USER_CREATED_WITH_PASSWORD = 'settings.user.created_with_password',
   SETTINGS_USER_DEACTIVATED = 'settings.user.deactivated',
   SETTINGS_USER_INVITATION_RESENT = 'settings.user.invitation_resent',
   SETTINGS_USER_INVITED = 'settings.user.invited',
