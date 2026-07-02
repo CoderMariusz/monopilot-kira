@@ -83,6 +83,7 @@ import {
   saveWipProcessRoles,
 } from '../../../../../../(npd)/fa/actions/wip-process-actions';
 import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
+import { isLegacyProcessColumn } from './legacy-process-column';
 
 export type { ComponentProcess } from '../../../../../../(npd)/fa/actions/get-component-processes';
 
@@ -94,13 +95,9 @@ export type { ComponentProcess } from '../../../../../../(npd)/fa/actions/get-co
 // numbered slot column.
 // ---------------------------------------------------------------------------
 
-const LEGACY_PROCESS_COLUMN_RE =
-  /^(manufacturing_operation_\d+|operation_yield_\d+|intermediate_code_p\d+|intermediate_code_final|yield_line|pr_code)/;
-
-/** True when a production column key is a legacy fixed-slot process column (S5b filter). */
-export function isLegacyProcessColumn(key: string): boolean {
-  return LEGACY_PROCESS_COLUMN_RE.test(key);
-}
+// isLegacyProcessColumn lives in ./legacy-process-column (plain module) — the
+// server page loader also calls it, and a 'use client' export is uncallable
+// server-side in the production build.
 
 /** An active ManufacturingOperations row, reduced to the picker shape (id + name). */
 export type OperationOption = { id: string; operationName: string };

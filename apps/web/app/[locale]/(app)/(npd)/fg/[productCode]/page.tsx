@@ -72,8 +72,10 @@ import {
   type FaProductionTabLabels,
   type ProdDetailRow,
   type OperationOption,
-  isLegacyProcessColumn,
 } from './_components/fa-production-tab';
+// Plain module — NEVER import a callable from the 'use client' production tab
+// into this Server Component (client reference → runtime throw in prod build).
+import { isLegacyProcessColumn } from './_components/legacy-process-column';
 import {
   getComponentProcesses,
   type ComponentProcess,

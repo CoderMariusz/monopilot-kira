@@ -5436,7 +5436,8 @@
         "fail": "Eșuat",
         "warn": "Avertisment",
         "info": "Info"
-      }
+      },
+      "deleteDisabledHint": "You do not have permission to delete finished goods."
     },
     "faDetailModals": {
       "deptCloseTitle": "Închide departamentul",
@@ -5448,7 +5449,16 @@
       "deptReopenIntro": "Reopening {dept} clears its closed flag so the department can be edited again. The change is recorded in history.",
       "deptReopenConfirm": "Reopen department",
       "deptReopenPending": "Reopening…",
-      "deptReopenError": "Unable to reopen this department."
+      "deptReopenError": "Unable to reopen this department.",
+      "deleteTitle": "Delete FG {productCode}?",
+      "deleteIntro": "This soft-deletes the FG from active NPD views. The audit trail is retained.",
+      "deleteBlockedBuilt": "Built or released FGs are refused by the server action.",
+      "deleteTypeToConfirm": "Type {productCode} to confirm",
+      "deleteReason": "Reason",
+      "deleteReasonPlaceholder": "Explain why this FG should be deleted",
+      "deleteConfirm": "Delete FG",
+      "deletePending": "Deleting...",
+      "deleteError": "Unable to delete FG."
     },
     "faProductionTab": {
       "title": "Detalii producție",

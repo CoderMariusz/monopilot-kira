@@ -5450,7 +5450,8 @@
         "fail": "Niezaliczone",
         "warn": "Ostrzeżenie",
         "info": "Informacja"
-      }
+      },
+      "deleteDisabledHint": "Nie masz uprawnień do usuwania wyrobów gotowych."
     },
     "faDetailModals": {
       "deptCloseTitle": "Zamknij dział",
@@ -5462,7 +5463,16 @@
       "deptReopenIntro": "Ponowne otwarcie działu {dept} usuwa znacznik zamknięcia, dzięki czemu dział można ponownie edytować. Zmiana jest zapisywana w historii.",
       "deptReopenConfirm": "Otwórz ponownie dział",
       "deptReopenPending": "Otwieranie ponowne…",
-      "deptReopenError": "Nie można ponownie otworzyć tego działu."
+      "deptReopenError": "Nie można ponownie otworzyć tego działu.",
+      "deleteTitle": "Usunąć FG {productCode}?",
+      "deleteIntro": "To miękkie usunięcie — FG znika z aktywnych widoków NPD, ślad audytowy zostaje zachowany.",
+      "deleteBlockedBuilt": "Zbudowane lub zwolnione FG są odrzucane przez akcję serwera.",
+      "deleteTypeToConfirm": "Wpisz {productCode}, aby potwierdzić",
+      "deleteReason": "Powód",
+      "deleteReasonPlaceholder": "Wyjaśnij, dlaczego ten FG ma zostać usunięty",
+      "deleteConfirm": "Usuń FG",
+      "deletePending": "Usuwanie…",
+      "deleteError": "Nie można usunąć FG."
     },
     "faProductionTab": {
       "title": "Szczegóły produkcji",
