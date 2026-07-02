@@ -204,16 +204,29 @@ describe('NPD field config actions', () => {
     ).rejects.toThrow('Invalid data_type "currency". Expected one of: text, number, integer, boolean, date, datetime, dropdown, formula, json.');
   });
 
-  it('assignFieldToDepartment rejects invalid stage_code with a clear error', async () => {
-    const { assignFieldToDepartment } = await import('./npd-field-config');
+  it('createDepartment rejects invalid stage_code with a clear error', async () => {
+    const { createDepartment } = await import('./npd-field-config');
 
     await expect(
-      assignFieldToDepartment({
-        department_id: '33333333-3333-4333-8333-333333333333',
-        field_id: '44444444-4444-4444-8444-444444444444',
-        stage_code: 'launch',
-      }),
-    ).rejects.toThrow('Invalid stage_code "launch". Expected one of: brief, recipe, packaging, trial, sensory, pilot, approval, handoff.');
+      createDepartment({ code: 'BAD', name: 'Bad Stage', stage_code: 'launch' }),
+    ).rejects.toThrow('Invalid stage_code "launch". Expected one of: brief, recipe, packaging, costing_nutrition, trial, sensory, pilot, approval, handoff.');
+  });
+
+  it('updateDepartment rejects invalid stage_code with a clear error', async () => {
+    const { updateDepartment } = await import('./npd-field-config');
+
+    await expect(
+      updateDepartment('33333333-3333-4333-8333-333333333333', { stage_code: 'launch' }),
+    ).rejects.toThrow('Invalid stage_code "launch". Expected one of: brief, recipe, packaging, costing_nutrition, trial, sensory, pilot, approval, handoff.');
+  });
+
+  it('createDepartment passes a valid stage_code to the INSERT', async () => {
+    const { createDepartment } = await import('./npd-field-config');
+
+    await createDepartment({ code: 'QA2', name: 'QA Stage', stage_code: 'trial' });
+
+    const insertCall = harness.calls.find((entry) => entry.sql.includes('insert into public.npd_departments'));
+    expect(insertCall?.params).toContain('trial');
   });
 
   it('RBAC gate denies createDepartment when user lacks npd.schema.edit', async () => {
@@ -265,35 +278,27 @@ describe('NPD field config actions', () => {
     expect(harness.calls.some((entry) => entry.sql.includes('update public.npd_departments'))).toBe(false);
   });
 
-  it('deleteDepartment returns cannot_delete_core for Core without issuing DELETE', async () => {
+  it('deleteDepartment returns cannot_delete_core for Core without issuing cascade', async () => {
     const { deleteDepartment } = await import('./npd-field-config');
     harness.departmentCodeRows = [{ code: 'core' }];
 
     const result = await deleteDepartment('33333333-3333-4333-8333-333333333333');
 
     expect(result).toEqual({ ok: false, error: 'cannot_delete_core' });
-    expect(harness.calls.some((entry) => entry.sql.includes('delete from public.npd_departments'))).toBe(false);
+    expect(harness.calls.some((entry) => entry.sql.includes('npd_delete_department'))).toBe(false);
   });
 
-  it('deleteDepartment returns department_in_use when referenced by a project without issuing DELETE', async () => {
-    const { deleteDepartment } = await import('./npd-field-config');
-    harness.projectRows = [{ exists: true }];
-
-    const result = await deleteDepartment('33333333-3333-4333-8333-333333333333');
-
-    expect(result).toEqual({ ok: false, error: 'department_in_use' });
-    expect(harness.calls.some((entry) => entry.sql.includes('delete from public.npd_departments'))).toBe(false);
-  });
-
-  it('deleteDepartment deletes a clean department', async () => {
+  it('deleteDepartment hard-cascades a non-Core department via npd_delete_department', async () => {
     const { deleteDepartment } = await import('./npd-field-config');
 
     const result = await deleteDepartment('33333333-3333-4333-8333-333333333333');
 
     expect(result).toEqual({ ok: true, id: '33333333-3333-4333-8333-333333333333' });
-    const deleteCall = harness.calls.find((entry) => entry.sql.includes('delete from public.npd_departments'));
-    expect(deleteCall?.sql).toContain('app.current_org_id()');
-    expect(deleteCall?.params).toEqual(['33333333-3333-4333-8333-333333333333']);
+    const cascadeCall = harness.calls.find((entry) =>
+      entry.sql.replace(/\s+/g, ' ').trim().toLowerCase().includes('npd_delete_department'),
+    );
+    expect(cascadeCall).toBeDefined();
+    expect(cascadeCall?.params).toEqual(['33333333-3333-4333-8333-333333333333']);
   });
 
   it('updateField persists is_auto=true and auto_source_field', async () => {
@@ -375,25 +380,30 @@ describe('NPD field config actions', () => {
     expect(updateCall?.params).toEqual(['44444444-4444-4444-8444-444444444444', false, null]);
   });
 
-  it('deleteField returns field_in_use for an assigned field without issuing DELETE', async () => {
-    const { deleteField } = await import('./npd-field-config');
-    harness.fieldAssignmentRows = [{ exists: true }];
-
-    const result = await deleteField('44444444-4444-4444-8444-444444444444');
-
-    expect(result).toEqual({ ok: false, error: 'field_in_use' });
-    expect(harness.calls.some((entry) => entry.sql.includes('delete from public.npd_field_catalog'))).toBe(false);
-  });
-
-  it('deleteField deletes an unassigned field', async () => {
+  it('deleteField hard-cascades via npd_delete_field after confirming the field exists', async () => {
     const { deleteField } = await import('./npd-field-config');
 
     const result = await deleteField('44444444-4444-4444-8444-444444444444');
 
     expect(result).toEqual({ ok: true, id: '44444444-4444-4444-8444-444444444444' });
-    const deleteCall = harness.calls.find((entry) => entry.sql.includes('delete from public.npd_field_catalog'));
-    expect(deleteCall?.sql).toContain('app.current_org_id()');
-    expect(deleteCall?.params).toEqual(['44444444-4444-4444-8444-444444444444']);
+    const existsCall = harness.calls.find((entry) =>
+      entry.sql.replace(/\s+/g, ' ').trim().toLowerCase().startsWith('select 1 as ok') &&
+      entry.sql.includes('npd_field_catalog'),
+    );
+    expect(existsCall).toBeDefined();
+    const cascadeCall = harness.calls.find((entry) =>
+      entry.sql.replace(/\s+/g, ' ').trim().toLowerCase().includes('npd_delete_field'),
+    );
+    expect(cascadeCall).toBeDefined();
+    expect(cascadeCall?.params).toEqual(['44444444-4444-4444-8444-444444444444']);
+  });
+
+  it('deleteField throws when the field is not found before issuing any cascade', async () => {
+    const { deleteField } = await import('./npd-field-config');
+    harness.fieldRows = [];
+
+    await expect(deleteField('44444444-4444-4444-8444-444444444444')).rejects.toThrow('NPD field not found.');
+    expect(harness.calls.some((entry) => entry.sql.includes('npd_delete_field'))).toBe(false);
   });
 
   it('getDepartmentFieldConfig returns the joined department/field shape', async () => {
