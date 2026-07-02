@@ -10728,6 +10728,7 @@
           "category": "Kategoria",
           "creditLimit": "Limit kredytowy",
           "email": "E-mail",
+          "addressCount": "Adresy",
           "status": "Status",
           "actions": ""
         },
@@ -10773,6 +10774,107 @@
         "already_exists": "Klient o tym kodzie już istnieje.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
         "address_in_use": "Nie można usunąć tego adresu — jest on powiązany z jednym lub wieloma otwartymi zamówieniami."
+      },
+      "detail": {
+        "title": "Klient",
+        "subtitle": "Profil klienta, adresy i historia zamówień.",
+        "breadcrumbCurrent": "Szczegóły klienta",
+        "notFound": "Nie znaleziono tego klienta.",
+        "backToList": "Wróć do listy klientów",
+        "tabs": {
+          "profile": "Profil",
+          "addresses": "Adresy"
+        },
+        "actions": {
+          "edit": "Edytuj",
+          "deactivate": "Dezaktywuj",
+          "reactivate": "Reaktywuj",
+          "pending": "Zapisywanie…"
+        },
+        "edit": {
+          "title": "Edytuj klienta",
+          "subtitle": "Zaktualizuj dane klienta.",
+          "submit": "Zapisz zmiany",
+          "submitting": "Zapisywanie…"
+        },
+        "profile": {
+          "identityTitle": "Dane identyfikacyjne",
+          "statsTitle": "Statystyki",
+          "yes": "Tak",
+          "no": "Nie",
+          "fields": {
+            "code": "Kod",
+            "name": "Nazwa",
+            "category": "Kategoria",
+            "email": "E-mail",
+            "phone": "Telefon",
+            "taxId": "NIP",
+            "creditLimit": "Limit kredytowy",
+            "active": "Aktywny",
+            "createdAt": "Utworzono",
+            "updatedAt": "Ostatnia aktualizacja"
+          },
+          "stats": {
+            "addressCount": "Wszystkie adresy",
+            "shippingAddressCount": "Adresy dostawy"
+          }
+        },
+        "addresses": {
+          "title": "Adresy ({n})",
+          "add": "Dodaj adres",
+          "hint": "Adresy są używane jako domyślne miejsce dostawy i fakturowania w zamówieniach sprzedaży.",
+          "empty": "Brak adresów",
+          "defaultStar": "★",
+          "notDefault": "—",
+          "edit": "Edytuj",
+          "deactivate": "Usuń",
+          "setDefault": "Ustaw jako domyślny",
+          "pending": "Zapisywanie…",
+          "columns": {
+            "type": "Typ",
+            "default": "Domyślny",
+            "line1": "Adres",
+            "city": "Miasto",
+            "postal": "Kod pocztowy",
+            "country": "Kraj",
+            "actions": ""
+          },
+          "type": {
+            "shipping": "Dostawa",
+            "billing": "Fakturowanie"
+          },
+          "modal": {
+            "createTitle": "Dodaj adres",
+            "editTitle": "Edytuj adres",
+            "subtitle": "Podaj pełny adres pocztowy. Kraj musi być 2-literowym kodem ISO (np. GB).",
+            "typeLabel": "Typ adresu",
+            "defaultLabel": "Ustaw jako domyślny adres dostawy",
+            "defaultHelp": "(dotyczy tylko adresów dostawy)",
+            "line1Label": "Ulica i numer",
+            "line1Placeholder": "Ulica i numer",
+            "line2Label": "Adres — linia 2",
+            "line2Placeholder": "Budynek, piętro, lokal (opcjonalnie)",
+            "cityLabel": "Miasto",
+            "cityPlaceholder": "Warszawa",
+            "stateLabel": "Województwo / region",
+            "statePlaceholder": "Opcjonalnie",
+            "postalLabel": "Kod pocztowy",
+            "postalPlaceholder": "00-001",
+            "countryLabel": "Kraj (ISO-2)",
+            "countryPlaceholder": "PL",
+            "notesLabel": "Uwagi",
+            "notesPlaceholder": "Instrukcje dostawy (opcjonalnie)",
+            "submitCreate": "Dodaj adres",
+            "submitEdit": "Zapisz zmiany",
+            "submitting": "Zapisywanie…",
+            "errors": {
+              "line1Required": "Podaj ulicę i numer.",
+              "cityRequired": "Podaj miasto.",
+              "postalRequired": "Podaj kod pocztowy.",
+              "countryInvalid": "Podaj prawidłowy 2-literowy kod kraju (np. PL)."
+            }
+          }
+        }
       }
     }
   },

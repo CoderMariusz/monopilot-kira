@@ -57,6 +57,52 @@ describe('receive-po-line-core', () => {
     );
   });
 
+  it('runs desktop grn_items backfills before completing a fully received GRN', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      isReceived: true,
+      throwOnGrnItemsWriteAfterCompleted: true,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      baseInput,
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+        async afterGrnItemInserted(receipt) {
+          await client.query(
+            `update public.grn_items
+                set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $3::jsonb,
+                    updated_by = $2::uuid,
+                    updated_at = now()
+              where org_id = $1::uuid
+                and id = $4::uuid`,
+            [ORG_A, USER_A, JSON.stringify({ wac_qty_kg: receipt.qty, wac_value: '100' }), receipt.grnItemId],
+          );
+        },
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, poStatus: 'received' });
+    let grnItemsWriteIdx = -1;
+    client.calls.forEach((call, index) => {
+      if (call.sql.includes('insert into public.grn_items') || call.sql.includes('update public.grn_items')) {
+        grnItemsWriteIdx = index;
+      }
+    });
+    const completedIdx = client.calls.findIndex((call) =>
+      call.sql.includes("update public.grns set status = 'completed'"),
+    );
+    expect(grnItemsWriteIdx).toBeGreaterThan(-1);
+    expect(completedIdx).toBeGreaterThan(-1);
+    expect(grnItemsWriteIdx).toBeLessThan(completedIdx);
+  });
+
   it('requires explicit confirm when qty exceeds ordered but stays within 110% cap', async () => {
     const client = makeClient({ orderedQty: '10.000000', receivedQty: '0.000000' });
 
@@ -117,13 +163,25 @@ function makeClient(options: {
   receivedQty?: string;
   isReceived?: boolean;
   lineMissing?: boolean;
+  throwOnGrnItemsWriteAfterCompleted?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
+  let grnCompleted = false;
   return {
     calls,
     async query<T = unknown>(sql: string, params: readonly unknown[] = []) {
       const normalized = sql.trim().replace(/\s+/g, ' ');
+      if (
+        options.throwOnGrnItemsWriteAfterCompleted &&
+        grnCompleted &&
+        (normalized.includes('insert into public.grn_items') || normalized.includes('update public.grn_items'))
+      ) {
+        throw new Error('V-WH-GRN-001');
+      }
       calls.push({ sql: normalized, params });
+      if (normalized.includes("update public.grns set status = 'completed'")) {
+        grnCompleted = true;
+      }
 
       if (normalized.includes('from public.purchase_order_lines pol') && normalized.includes('for update of pol, po')) {
         return {

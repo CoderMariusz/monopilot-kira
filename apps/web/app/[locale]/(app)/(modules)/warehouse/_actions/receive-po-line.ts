@@ -1,7 +1,5 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
-
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../lib/finance/upsert-wac';
@@ -50,6 +48,39 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
           genesisReasonCode: 'desktop_receive_po',
           genesisReasonText: 'Desktop PO receipt',
           requireOverReceiveConfirm: true,
+          async afterGrnItemInserted(receipt) {
+            const line = await loadLineUnitPrice(client, orgId, receipt.poLineId);
+            if (!line) return;
+
+            const { qtyKg: receivedQtyKg } = await resolveWacDeltaQtyKg(client, {
+              itemId: line.item_id,
+              qty: receipt.qty,
+              uom: receipt.uom,
+            });
+            const receivedValue = await multiplyNumeric(client, receipt.qty, line.unit_price);
+            await upsertWac(client, {
+              orgId,
+              siteId: activeSiteId,
+              itemId: line.item_id,
+              deltaQtyKg: receivedQtyKg,
+              deltaValue: receivedValue,
+              updatedBy: userId,
+            });
+            await client.query(
+              `update public.grn_items
+                  set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $3::jsonb,
+                      updated_by = $2::uuid,
+                      updated_at = now()
+                where org_id = $1::uuid
+                  and id = $4::uuid`,
+              [
+                orgId,
+                userId,
+                JSON.stringify({ wac_qty_kg: receivedQtyKg, wac_value: receivedValue }),
+                receipt.grnItemId,
+              ],
+            );
+          },
         },
       );
 
@@ -64,38 +95,6 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
         };
         const mapped = map[coreResult.code] ?? { ok: false, error: 'error' as const };
         return { ...mapped, poId: coreResult.poId };
-      }
-
-      const line = await loadLineUnitPrice(client, orgId, input.poLineId);
-      if (line) {
-        const { qtyKg: receivedQtyKg } = await resolveWacDeltaQtyKg(client, {
-          itemId: line.item_id,
-          qty: coreResult.qty,
-          uom: coreResult.uom,
-        });
-        const receivedValue = await multiplyNumeric(client, coreResult.qty, line.unit_price);
-        await upsertWac(client, {
-          orgId,
-          siteId: activeSiteId,
-          itemId: line.item_id,
-          deltaQtyKg: receivedQtyKg,
-          deltaValue: receivedValue,
-          updatedBy: userId,
-        });
-        await client.query(
-          `update public.grn_items
-              set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $3::jsonb,
-                  updated_by = $2::uuid,
-                  updated_at = now()
-            where org_id = $1::uuid
-              and id = $4::uuid`,
-          [
-            orgId,
-            userId,
-            JSON.stringify({ wac_qty_kg: receivedQtyKg, wac_value: receivedValue }),
-            coreResult.grnItemId,
-          ],
-        );
       }
 
       return {

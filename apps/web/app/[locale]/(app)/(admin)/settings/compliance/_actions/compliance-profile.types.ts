@@ -42,7 +42,9 @@ export type ComplianceProfileRow = {
   brcgs_site_code: string | null;
   certification_body: string | null;
   certification_grade: string | null;
-  last_audit_date: string | null;
-  next_audit_date: string | null;
+  /** pg driver returns Date objects for `date` columns; mapComplianceProfileRow handles both. */
+  last_audit_date: string | Date | null;
+  /** pg driver returns Date objects for `date` columns; mapComplianceProfileRow handles both. */
+  next_audit_date: string | Date | null;
   registrations: ComplianceRegistrations | null;
 };

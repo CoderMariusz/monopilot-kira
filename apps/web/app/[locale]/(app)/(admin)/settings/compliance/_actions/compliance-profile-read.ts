@@ -21,8 +21,12 @@ function normalizeRegistrations(value: ComplianceRegistrations | null | undefine
   return out;
 }
 
-function formatDate(value: string | null | undefined): string | null {
+function formatDate(value: string | Date | null | undefined): string | null {
   if (!value) return null;
+  // The pg driver returns Date objects for `date` columns; handle both.
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed.slice(0, 10) : null;
 }

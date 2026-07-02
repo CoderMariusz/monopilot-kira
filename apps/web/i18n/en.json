@@ -10728,6 +10728,7 @@
           "category": "Category",
           "creditLimit": "Credit limit",
           "email": "Email",
+          "addressCount": "Addresses",
           "status": "Status",
           "actions": ""
         },
@@ -10773,6 +10774,107 @@
         "already_exists": "A customer with that code already exists.",
         "persistence_failed": "Something went wrong saving. Please retry.",
         "address_in_use": "This address cannot be removed — it is referenced by one or more open orders."
+      },
+      "detail": {
+        "title": "Customer",
+        "subtitle": "Customer profile, addresses and order history.",
+        "breadcrumbCurrent": "Customer detail",
+        "notFound": "This customer could not be found.",
+        "backToList": "Back to customers",
+        "tabs": {
+          "profile": "Profile",
+          "addresses": "Addresses"
+        },
+        "actions": {
+          "edit": "Edit",
+          "deactivate": "Deactivate",
+          "reactivate": "Reactivate",
+          "pending": "Saving…"
+        },
+        "edit": {
+          "title": "Edit customer",
+          "subtitle": "Update the customer's details.",
+          "submit": "Save changes",
+          "submitting": "Saving…"
+        },
+        "profile": {
+          "identityTitle": "Identity",
+          "statsTitle": "Statistics",
+          "yes": "Yes",
+          "no": "No",
+          "fields": {
+            "code": "Code",
+            "name": "Name",
+            "category": "Category",
+            "email": "Email",
+            "phone": "Phone",
+            "taxId": "Tax ID",
+            "creditLimit": "Credit limit",
+            "active": "Active",
+            "createdAt": "Created",
+            "updatedAt": "Last updated"
+          },
+          "stats": {
+            "addressCount": "Total addresses",
+            "shippingAddressCount": "Shipping addresses"
+          }
+        },
+        "addresses": {
+          "title": "Addresses ({n})",
+          "add": "Add address",
+          "hint": "Addresses are used as default shipping and billing destinations on sales orders.",
+          "empty": "No addresses yet",
+          "defaultStar": "★",
+          "notDefault": "—",
+          "edit": "Edit",
+          "deactivate": "Remove",
+          "setDefault": "Set default",
+          "pending": "Saving…",
+          "columns": {
+            "type": "Type",
+            "default": "Default",
+            "line1": "Address",
+            "city": "City",
+            "postal": "Postal code",
+            "country": "Country",
+            "actions": ""
+          },
+          "type": {
+            "shipping": "Shipping",
+            "billing": "Billing"
+          },
+          "modal": {
+            "createTitle": "Add address",
+            "editTitle": "Edit address",
+            "subtitle": "Provide the full postal address. Country must be a 2-letter ISO code (e.g. GB).",
+            "typeLabel": "Address type",
+            "defaultLabel": "Set as default shipping address",
+            "defaultHelp": "(only applies to shipping type)",
+            "line1Label": "Address line 1",
+            "line1Placeholder": "Street and number",
+            "line2Label": "Address line 2",
+            "line2Placeholder": "Building, floor, suite (optional)",
+            "cityLabel": "City",
+            "cityPlaceholder": "London",
+            "stateLabel": "State / county",
+            "statePlaceholder": "Optional",
+            "postalLabel": "Postal code",
+            "postalPlaceholder": "EC1A 1BB",
+            "countryLabel": "Country (ISO-2)",
+            "countryPlaceholder": "GB",
+            "notesLabel": "Notes",
+            "notesPlaceholder": "Delivery instructions (optional)",
+            "submitCreate": "Add address",
+            "submitEdit": "Save changes",
+            "submitting": "Saving…",
+            "errors": {
+              "line1Required": "Enter a street address.",
+              "cityRequired": "Enter a city.",
+              "postalRequired": "Enter a postal code.",
+              "countryInvalid": "Enter a valid 2-letter country code (e.g. GB)."
+            }
+          }
+        }
       }
     }
   },

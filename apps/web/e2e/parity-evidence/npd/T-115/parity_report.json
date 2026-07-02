@@ -12,7 +12,7 @@
     "public.fa_allergen_cascade derived/may_contain (T-038) — mapped to AllergenStatus[] by T-117 wiring"
   ],
   "state_note": "loading/error/permission-denied are owned by the parent formulation editor (T-117); AllergenPanel is a controlled synchronous presentation component, so its states are allergen-presence permutations.",
-  "generated_at": "2026-06-28T09:06:53.782Z",
+  "generated_at": "2026-07-02T18:29:56.011Z",
   "states": {
     "empty": {
       "panelRoot": true,

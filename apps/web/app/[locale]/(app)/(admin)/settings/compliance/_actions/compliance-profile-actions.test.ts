@@ -1,5 +1,6 @@
 /**
  * upsertComplianceProfile — validation, permission gate (settings.org.update), org scoping.
+ * mapComplianceProfileRow — date round-trip: pg Date objects vs ISO strings.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -27,6 +28,7 @@ vi.mock('../../../../../../../lib/auth/has-permission', () => ({
 
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { upsertComplianceProfile } from './compliance-profile-actions';
+import { mapComplianceProfileRow } from './compliance-profile-read';
 
 const hasPermissionMock = vi.mocked(hasPermission);
 
@@ -173,5 +175,48 @@ describe('upsertComplianceProfile', () => {
       registrations: {},
     });
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('mapComplianceProfileRow — date round-trip', () => {
+  const BASE_ROW = {
+    org_id: ORG_ID,
+    brcgs_site_code: 'SITE-001',
+    certification_body: 'BRCGS',
+    certification_grade: 'AA',
+    registrations: { reg: 'val' },
+  };
+
+  it('maps ISO string dates to YYYY-MM-DD', () => {
+    const profile = mapComplianceProfileRow({
+      ...BASE_ROW,
+      last_audit_date: '2025-06-01',
+      next_audit_date: '2026-06-01T00:00:00.000Z',
+    });
+    expect(profile.lastAuditDate).toBe('2025-06-01');
+    expect(profile.nextAuditDate).toBe('2026-06-01');
+  });
+
+  it('maps pg Date objects to YYYY-MM-DD (live pg driver returns Date for date columns)', () => {
+    // This is the bug path: pg returns Date objects, not strings, for `date` columns.
+    const lastDate = new Date('2025-06-01T00:00:00.000Z');
+    const nextDate = new Date('2026-06-01T00:00:00.000Z');
+    const profile = mapComplianceProfileRow({
+      ...BASE_ROW,
+      last_audit_date: lastDate,
+      next_audit_date: nextDate,
+    });
+    expect(profile.lastAuditDate).toBe('2025-06-01');
+    expect(profile.nextAuditDate).toBe('2026-06-01');
+  });
+
+  it('maps null audit dates to null', () => {
+    const profile = mapComplianceProfileRow({
+      ...BASE_ROW,
+      last_audit_date: null,
+      next_audit_date: null,
+    });
+    expect(profile.lastAuditDate).toBeNull();
+    expect(profile.nextAuditDate).toBeNull();
   });
 });

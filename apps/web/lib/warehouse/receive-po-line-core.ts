@@ -34,6 +34,13 @@ export type ReceivePoLineCoreOptions = {
   genesisReasonCode: string;
   genesisReasonText: string;
   requireOverReceiveConfirm: boolean;
+  afterGrnItemInserted?: (receipt: {
+    grnItemId: string;
+    itemId: string;
+    qty: string;
+    uom: string;
+    poLineId: string;
+  }) => Promise<void>;
 };
 
 export type ReceivePoLineCoreSuccess = {
@@ -221,6 +228,14 @@ export async function executeReceivePoLineCore(
   const inspectionId = qcInspectionRequired
     ? await insertQcInspectionForLp(client, ctx, { lpId: lp.id, productId: line.item_id, siteId: lpSiteId })
     : null;
+
+  await options.afterGrnItemInserted?.({
+    grnItemId: grnItem.id,
+    itemId: line.item_id,
+    qty: formatDecimal(qty),
+    uom: line.uom,
+    poLineId: line.id,
+  });
 
   const poStatus = await rollupPurchaseOrderStatus(client, ctx, line.po_id, options.mode);
 
