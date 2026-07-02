@@ -176,6 +176,29 @@ Token deltas (everything else in this file unchanged):
 >    schema (R-E4 live-Postgres pattern), not just unit tests.
 > 5. Shared files get ONE owner per wave (declare in the fan-out brief); i18n keys are
 >    partitioned per lane before dispatch; shared-type modules named explicitly.
+>
+> **Wave-F2 results + hard rules (F2 top-5, binding from F3):** evidence in
+> `_meta/reports/2026-07-02-f2-fleet-report.html` + `_meta/runs/2026-07-02-f2-fable-eval.md`
+> (wave GPA ~4.1; Composer graded BETTER than the pre-F1 Codex/Opus baseline; ONE escape —
+> Codex E7 pg bind-typing 22P02 — caught by the last gate, live-E3, hotfixed <1 h;
+> longitudinal verdict at 2-of-3 waves: "leaning repeatable").
+> 6. Every codex BRIDGE prompt (write AND review) carries the imperative: *"run codex DIRECTLY
+>    and BLOCKING in the foreground; NEVER use a background job wrapper; never report 'running
+>    in background'"*. In F2, 3 of 4 write bridges without it died by backgrounding (~640 s,
+>    1 tool use) while their codex jobs kept running; all 4 review bridges WITH it survived.
+> 7. Reviews of lanes that add or reshape SQL statements run
+>    `python3 scripts/scan-dual-cast-params.py <changed .ts files>` — one `$n` bound with two
+>    different casts, or a non-text cast plus a bare use, fails pg BIND typing (pg types a
+>    parameter from its FIRST cast; a CASE never gets to evaluate — the F2 escape class) —
+>    and, where feasible, PREPARE the changed statements against the live/test DB.
+> 8. MONEY and REGULATORY lanes ship a real-DB test leg: their pg-integration tests run with a
+>    DATABASE_URL (local `pnpm db:up` or the test DB). `describe.skip`'d suites do NOT count
+>    as coverage — the F2 escape lived in exactly such a skipped suite.
+> 9. "Unify X across modules" lanes get the EXACT file list enumerated at planning time; any
+>    file already owned by another lane either moves to that owner or the unification is
+>    re-applied post-merge by Agent-A (the F2 E3↔E5/E6 collision class).
+> 10. Mechanical/sweep lanes are complete when a TREE GREP proves the count (0 remaining /
+>    N converted) — never on the agent's report (kira-mechanical over-claimed in F1 AND F2).
 
 Owner mandate: the orchestrator session (**Agent-A**) runs on **Fable 5** and never implements —
 its whole job is plan → split → fan-out → review arbitration → build-gate → migrations → push →
