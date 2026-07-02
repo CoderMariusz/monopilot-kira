@@ -5,7 +5,7 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 const EDIT_PERMISSION = 'npd.schema.edit';
 
 const DATA_TYPES = ['text', 'number', 'integer', 'boolean', 'date', 'datetime', 'dropdown', 'formula', 'json'] as const;
-const STAGE_CODES = ['brief', 'recipe', 'packaging', 'trial', 'sensory', 'pilot', 'approval', 'handoff'] as const;
+const STAGE_CODES = ['brief', 'recipe', 'packaging', 'costing_nutrition', 'trial', 'sensory', 'pilot', 'approval', 'handoff'] as const;
 
 type DataType = (typeof DATA_TYPES)[number];
 type StageCode = (typeof STAGE_CODES)[number];
@@ -22,6 +22,7 @@ type DepartmentRow = {
   org_id: string;
   code: string;
   name: string;
+  stage_code: StageCode;
   display_order: number;
   active: boolean;
   created_at: string;
@@ -54,12 +55,14 @@ type DepartmentFieldRow = {
 type CreateDepartmentInput = {
   code: string;
   name: string;
+  stage_code?: string;
   display_order?: number;
   active?: boolean;
 };
 
 type UpdateDepartmentPatch = {
   name?: string;
+  stage_code?: string;
   display_order?: number;
   active?: boolean;
 };
@@ -84,22 +87,20 @@ type UpdateFieldPatch = {
 };
 
 type UpdateFieldResult = FieldCatalogRow | { ok: false; error: string };
-type DeleteDepartmentResult = { ok: true; id: string } | { ok: false; error: 'cannot_delete_core' | 'department_in_use' };
-type DeleteFieldResult = { ok: true; id: string } | { ok: false; error: 'field_in_use' };
+type DeleteDepartmentResult = { ok: true; id: string } | { ok: false; error: 'cannot_delete_core' };
+type DeleteFieldResult = { ok: true; id: string };
 
 type AssignFieldInput = {
   department_id: string;
   field_id: string;
   required?: boolean;
   visible?: boolean;
-  stage_code?: string;
   display_order?: number;
 };
 
 type UpdateAssignmentPatch = {
   required?: boolean;
   visible?: boolean;
-  stage_code?: string;
   display_order?: number;
 };
 
@@ -164,9 +165,11 @@ function validateStageCode(value: string): StageCode {
 
 function parseCreateDepartment(input: unknown): CreateDepartmentInput {
   const record = assertRecord(input, 'Department input');
+  const stageCode = readOptionalString(record, 'stage_code');
   return {
     code: readRequiredString(record, 'code'),
     name: readRequiredString(record, 'name'),
+    stage_code: stageCode === undefined ? undefined : validateStageCode(stageCode),
     display_order: readOptionalInteger(record, 'display_order'),
     active: readOptionalBoolean(record, 'active'),
   };
@@ -174,8 +177,10 @@ function parseCreateDepartment(input: unknown): CreateDepartmentInput {
 
 function parseUpdateDepartmentPatch(input: unknown): UpdateDepartmentPatch {
   const record = assertRecord(input, 'Department patch');
+  const stageCode = readOptionalString(record, 'stage_code');
   return {
     name: readOptionalString(record, 'name'),
+    stage_code: stageCode === undefined ? undefined : validateStageCode(stageCode),
     display_order: readOptionalInteger(record, 'display_order'),
     active: readOptionalBoolean(record, 'active'),
   };
@@ -210,24 +215,20 @@ function parseUpdateFieldPatch(input: unknown): UpdateFieldPatch {
 
 function parseAssignField(input: unknown): AssignFieldInput {
   const record = assertRecord(input, 'Assignment input');
-  const stageCode = readOptionalString(record, 'stage_code');
   return {
     department_id: readRequiredString(record, 'department_id'),
     field_id: readRequiredString(record, 'field_id'),
     required: readOptionalBoolean(record, 'required'),
     visible: readOptionalBoolean(record, 'visible'),
-    stage_code: stageCode === undefined ? undefined : validateStageCode(stageCode),
     display_order: readOptionalInteger(record, 'display_order'),
   };
 }
 
 function parseUpdateAssignmentPatch(input: unknown): UpdateAssignmentPatch {
   const record = assertRecord(input, 'Assignment patch');
-  const stageCode = readOptionalString(record, 'stage_code');
   return {
     required: readOptionalBoolean(record, 'required'),
     visible: readOptionalBoolean(record, 'visible'),
-    stage_code: stageCode === undefined ? undefined : validateStageCode(stageCode),
     display_order: readOptionalInteger(record, 'display_order'),
   };
 }
@@ -257,7 +258,7 @@ async function requireNpdSchemaEdit({ client, userId, orgId }: OrgContextLike): 
 
 async function selectDepartmentById(context: OrgContextLike, id: string): Promise<DepartmentRow> {
   const { rows } = await context.client.query<DepartmentRow>(
-    `select id::text, org_id::text, code, name, display_order, active, created_at::text
+    `select id::text, org_id::text, code, name, stage_code, display_order, active, created_at::text
        from public.npd_departments
       where id = $1::uuid
         and org_id = app.current_org_id()
@@ -285,10 +286,14 @@ async function selectFieldById(context: OrgContextLike, id: string): Promise<Fie
 
 async function selectAssignmentById(context: OrgContextLike, id: string): Promise<DepartmentFieldRow> {
   const { rows } = await context.client.query<DepartmentFieldRow>(
-    `select id::text, org_id::text, department_id::text, field_id::text, required, visible, stage_code, display_order
-       from public.npd_department_field
-      where id = $1::uuid
-        and org_id = app.current_org_id()
+    `select df.id::text, df.org_id::text, df.department_id::text, df.field_id::text,
+            df.required, df.visible, d.stage_code, df.display_order
+       from public.npd_department_field df
+       join public.npd_departments d
+         on d.id = df.department_id
+        and d.org_id = df.org_id
+      where df.id = $1::uuid
+        and df.org_id = app.current_org_id()
       limit 1`,
     [id],
   );
@@ -301,7 +306,7 @@ export async function listDepartments(): Promise<DepartmentRow[]> {
   return withOrgContext<DepartmentRow[]>(async (ctx): Promise<DepartmentRow[]> => {
     const context = ctx as OrgContextLike;
     const { rows } = await context.client.query<DepartmentRow>(
-      `select id::text, org_id::text, code, name, display_order, active, created_at::text
+      `select id::text, org_id::text, code, name, stage_code, display_order, active, created_at::text
          from public.npd_departments
         where org_id = app.current_org_id()
         order by display_order, lower(name), lower(code)`,
@@ -316,10 +321,10 @@ export async function createDepartment(input: unknown): Promise<DepartmentRow> {
     const context = ctx as OrgContextLike;
     await requireNpdSchemaEdit(context);
     const { rows } = await context.client.query<DepartmentRow>(
-      `insert into public.npd_departments (org_id, code, name, display_order, active)
-       values (app.current_org_id(), $1, $2, $3, $4)
-       returning id::text, org_id::text, code, name, display_order, active, created_at::text`,
-      [parsed.code, parsed.name, parsed.display_order ?? 0, parsed.active ?? true],
+      `insert into public.npd_departments (org_id, code, name, stage_code, display_order, active)
+       values (app.current_org_id(), $1, $2, $3, $4, $5)
+       returning id::text, org_id::text, code, name, stage_code, display_order, active, created_at::text`,
+      [parsed.code, parsed.name, parsed.stage_code ?? 'brief', parsed.display_order ?? 0, parsed.active ?? true],
     );
     const row = rows[0];
     if (!row) throw new Error('Failed to create NPD department.');
@@ -365,7 +370,7 @@ export async function updateDepartment(id: string, patch: unknown): Promise<Depa
           set ${setClause}
         where id = $1::uuid
           and org_id = app.current_org_id()
-        returning id::text, org_id::text, code, name, display_order, active, created_at::text`,
+        returning id::text, org_id::text, code, name, stage_code, display_order, active, created_at::text`,
       [id, ...updates.map(([, value]) => value)],
     );
     const row = rows[0];
@@ -396,23 +401,8 @@ export async function deleteDepartment(id: string): Promise<DeleteDepartmentResu
       return { ok: false, error: 'cannot_delete_core' };
     }
 
-    const { rows: projectRows } = await context.client.query<{ exists: boolean }>(
-      `select exists (
-         select 1
-           from public.npd_projects
-          where department_id = $1::uuid
-            and org_id = app.current_org_id()
-       ) as exists`,
-      [id],
-    );
-    if (projectRows[0]?.exists) {
-      return { ok: false, error: 'department_in_use' };
-    }
-
     await context.client.query(
-      `delete from public.npd_departments
-        where id = $1::uuid
-          and org_id = app.current_org_id()`,
+      `select public.npd_delete_department($1::uuid)`,
       [id],
     );
     return { ok: true, id };
@@ -544,24 +534,8 @@ export async function deleteField(id: string): Promise<DeleteFieldResult> {
     );
     if (!fieldRows[0]) throw new Error('NPD field not found.');
 
-    const { rows: assignmentRows } = await context.client.query<{ exists: boolean }>(
-      `select exists (
-         select 1
-           from public.npd_department_field
-          where field_id = $1::uuid
-            and org_id = app.current_org_id()
-       ) as exists`,
-      [id],
-    );
-    if (assignmentRows[0]?.exists) {
-      return { ok: false, error: 'field_in_use' };
-    }
-
-    // field VALUES live as physical columns on public.product / fg_npd_ext - this is metadata-only removal; orphaned physical columns are harmless.
     await context.client.query(
-      `delete from public.npd_field_catalog
-        where id = $1::uuid
-          and org_id = app.current_org_id()`,
+      `select public.npd_delete_field($1::uuid)`,
       [id],
     );
     return { ok: true, id };
@@ -572,11 +546,15 @@ export async function listDepartmentFields(departmentId: string): Promise<Depart
   return withOrgContext<DepartmentFieldRow[]>(async (ctx): Promise<DepartmentFieldRow[]> => {
     const context = ctx as OrgContextLike;
     const { rows } = await context.client.query<DepartmentFieldRow>(
-      `select id::text, org_id::text, department_id::text, field_id::text, required, visible, stage_code, display_order
-         from public.npd_department_field
-        where org_id = app.current_org_id()
-          and department_id = $1::uuid
-        order by display_order, id`,
+      `select df.id::text, df.org_id::text, df.department_id::text, df.field_id::text,
+              df.required, df.visible, d.stage_code, df.display_order
+         from public.npd_department_field df
+         join public.npd_departments d
+           on d.id = df.department_id
+          and d.org_id = df.org_id
+        where df.org_id = app.current_org_id()
+          and df.department_id = $1::uuid
+        order by df.display_order, df.id`,
       [departmentId],
     );
     return rows;
@@ -589,16 +567,23 @@ export async function assignFieldToDepartment(input: unknown): Promise<Departmen
     const context = ctx as OrgContextLike;
     await requireNpdSchemaEdit(context);
     const { rows } = await context.client.query<DepartmentFieldRow>(
-      `insert into public.npd_department_field
-         (org_id, department_id, field_id, required, visible, stage_code, display_order)
-       values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, $5, $6)
-       returning id::text, org_id::text, department_id::text, field_id::text, required, visible, stage_code, display_order`,
+      `with inserted as (
+         insert into public.npd_department_field
+           (org_id, department_id, field_id, required, visible, display_order)
+         values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, $5)
+         returning id, org_id, department_id, field_id, required, visible, display_order
+       )
+       select inserted.id::text, inserted.org_id::text, inserted.department_id::text, inserted.field_id::text,
+              inserted.required, inserted.visible, d.stage_code, inserted.display_order
+         from inserted
+         join public.npd_departments d
+           on d.id = inserted.department_id
+          and d.org_id = inserted.org_id`,
       [
         parsed.department_id,
         parsed.field_id,
         parsed.required ?? false,
         parsed.visible ?? true,
-        parsed.stage_code ?? 'brief',
         parsed.display_order ?? 0,
       ],
     );
@@ -617,11 +602,19 @@ export async function updateAssignment(id: string, patch: unknown): Promise<Depa
     if (updates.length === 0) return selectAssignmentById(context, id);
     const setClause = updates.map(([key], index) => `${key} = $${index + 2}`).join(', ');
     const { rows } = await context.client.query<DepartmentFieldRow>(
-      `update public.npd_department_field
-          set ${setClause}
-        where id = $1::uuid
-          and org_id = app.current_org_id()
-        returning id::text, org_id::text, department_id::text, field_id::text, required, visible, stage_code, display_order`,
+      `with updated as (
+         update public.npd_department_field
+            set ${setClause}
+          where id = $1::uuid
+            and org_id = app.current_org_id()
+          returning id, org_id, department_id, field_id, required, visible, display_order
+       )
+       select updated.id::text, updated.org_id::text, updated.department_id::text, updated.field_id::text,
+              updated.required, updated.visible, d.stage_code, updated.display_order
+         from updated
+         join public.npd_departments d
+           on d.id = updated.department_id
+          and d.org_id = updated.org_id`,
       [id, ...updates.map(([, value]) => value)],
     );
     const row = rows[0];

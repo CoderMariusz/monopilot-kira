@@ -12,6 +12,7 @@ type ConfigQueryRow = {
   department_id: string;
   department_code: string;
   department_name: string;
+  department_stage_code: string;
   department_display_order: number;
   department_active: boolean;
   assignment_id: string | null;
@@ -29,6 +30,7 @@ type DepartmentConfig = {
   id: string;
   code: string;
   name: string;
+  stage_code: string;
   display_order: number;
   active: boolean;
   fields: Array<{
@@ -52,6 +54,7 @@ export async function getDepartmentFieldConfig(departmentId?: string): Promise<D
       `select d.id::text as department_id,
               d.code as department_code,
               d.name as department_name,
+              d.stage_code as department_stage_code,
               d.display_order as department_display_order,
               d.active as department_active,
               df.id::text as assignment_id,
@@ -61,7 +64,7 @@ export async function getDepartmentFieldConfig(departmentId?: string): Promise<D
               fc.data_type,
               df.required,
               df.visible,
-              df.stage_code,
+              d.stage_code,
               df.display_order as field_display_order
          from public.npd_departments d
          left join public.npd_department_field df
@@ -85,6 +88,7 @@ export async function getDepartmentFieldConfig(departmentId?: string): Promise<D
           id: row.department_id,
           code: row.department_code,
           name: row.department_name,
+          stage_code: row.department_stage_code,
           display_order: row.department_display_order,
           active: row.department_active,
           fields: [],

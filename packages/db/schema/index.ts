@@ -82,6 +82,15 @@ export type {
 } from './allergen-cascade-rebuild.js';
 export { npdProjects } from './npd-projects.js';
 export type { NewNpdProject, NpdProject } from './npd-projects.js';
+export { npdDepartmentField, npdDepartments, npdFieldCatalog } from './npd-dynamic-fields.js';
+export type {
+  NewNpdDepartment,
+  NewNpdDepartmentField,
+  NewNpdFieldCatalog,
+  NpdDepartment,
+  NpdDepartmentField,
+  NpdFieldCatalog,
+} from './npd-dynamic-fields.js';
 export { gateChecklistItems } from './gate-checklist-items.js';
 export type { GateChecklistItem, NewGateChecklistItem } from './gate-checklist-items.js';
 // NPD project-stage tables (migrations 232-235)
