@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 
 import { AppSidebar } from '../../../components/shell/app-sidebar';
 import { AppTopbar } from '../../../components/shell/app-topbar';
+import { ActAsBanner } from '../../../components/shell/act-as-banner';
 import { SessionExpiryGuard } from './_components/session-expiry-guard.client';
 import { createServerSupabaseClient, getCachedUser } from '../../../lib/auth/supabase-server';
 import { APP_NAV_GROUPS } from '../../../lib/navigation/app-nav';
@@ -11,6 +13,8 @@ import { getNavPermissionContext } from '../../../lib/navigation/nav-permissions
 import { getUserSites } from '../../../lib/site/get-user-sites';
 import { setActiveSite } from '../../../lib/site/site-actions';
 import { getActiveSiteId } from '../../../lib/site/site-context';
+import { getPlatformSwitcherData } from '../../../lib/platform/org-switcher-data';
+import { actAsOrgAction, exitActAsAction } from '../../../lib/platform/actions';
 import type { PhaseOneLanguage, UserLanguage } from '../../../lib/i18n/user-language';
 
 type Locale = 'en' | 'pl' | 'uk' | 'ro';
@@ -160,9 +164,14 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
   // a Server Action / Route Handler — it throws). Create-time site resolution for
   // a restricted user (so line-less creates pass the RLS WITH CHECK) is handled
   // in the DB trigger via app.current_user_id(), not here.
-  const [sites, activeSiteId] = await Promise.all([
+  // Platform super-admin org switcher data — resolves to null (switcher hidden)
+  // for a normal user; only an app.platform_admins row unlocks it. RBAC is
+  // resolved server-side here and never client-trusted. A resolution failure
+  // degrades to null so the normal shell still renders.
+  const [sites, activeSiteId, platformSwitcher] = await Promise.all([
     getUserSites(shellUser.id),
     getActiveSiteId(),
+    getPlatformSwitcherData().catch(() => null),
   ]);
   const topbar = await AppTopbar({
     locale,
@@ -178,7 +187,30 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
     sites,
     activeSiteId,
     setSiteAction: setActiveSite,
+    platformSwitcher,
+    actAsOrgAction,
+    exitActAsAction,
   });
+
+  const actingAs = Boolean(platformSwitcher?.isActingAs);
+  const actAsBanner = actingAs
+    ? await (async () => {
+        const tp = await getTranslations({ locale, namespace: 'platform' });
+        return (
+          <ActAsBanner
+            orgName={platformSwitcher!.currentOrg.name}
+            orgCode={platformSwitcher!.currentOrg.code}
+            actorEmail={shellUser.email}
+            labels={{
+              role: tp('bannerRole'),
+              actingAs: tp('bannerActingAs'),
+              exit: tp('bannerExit'),
+            }}
+            exitActAsAction={exitActAsAction}
+          />
+        );
+      })()
+    : null;
 
   return (
     <div
@@ -187,7 +219,12 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
       style={{
         minHeight: '100vh',
         gridTemplateColumns: 'var(--shell-sidebar-w) minmax(0, 1fr)',
-        gridTemplateRows: 'var(--shell-topbar-h) minmax(0, 1fr)',
+        // The act-as banner takes its own full-width row above the topbar so it
+        // offsets the whole shell (matching the prototype's banner-then-shell
+        // layout); when not acting-as the row collapses to `auto` (0 height).
+        gridTemplateRows: actingAs
+          ? 'auto var(--shell-topbar-h) minmax(0, 1fr)'
+          : 'var(--shell-topbar-h) minmax(0, 1fr)',
       }}
     >
       {/* IDLE-2 (#62): global session-expired interceptor for ALL Server
@@ -195,7 +232,8 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
           and hard-redirects to the idle-login page on the unique
           `x-monopilot-auth: session_expired` response header. */}
       <SessionExpiryGuard locale={locale} />
-      <div style={{ gridColumn: '1 / -1', gridRow: '1 / 2' }}>{topbar}</div>
+      {actAsBanner ? <div style={{ gridColumn: '1 / -1' }}>{actAsBanner}</div> : null}
+      <div style={{ gridColumn: '1 / -1' }}>{topbar}</div>
       <AppSidebar locale={locale} groups={navGroups} />
       <main data-testid="app-shell-main" className="min-w-0 overflow-auto bg-slate-50">
         {children}

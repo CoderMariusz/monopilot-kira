@@ -3,8 +3,10 @@ import { getTranslations } from "next-intl/server";
 
 import { SiteCrumb } from "./site-crumb";
 import { SiteSwitcher, type SiteSwitcherOption } from "./site-switcher";
+import { OrgSwitcher } from "./org-switcher";
 import { UserMenu } from "./user-menu";
 import type { UserMenuLanguagePickerProps } from "../../app/_components/user-menu-language-picker";
+import type { PlatformSwitcherData } from "../../lib/platform/org-switcher-data";
 
 type ShellUser = {
   id: string;
@@ -30,6 +32,15 @@ type AppTopbarProps = {
   activeSiteId?: string | null;
   /** Cookie write seam (lib/site/site-actions.setActiveSite). */
   setSiteAction?: (siteId: string | null) => Promise<{ ok: boolean }>;
+  /**
+   * Platform super-admin org switcher data, resolved server-side ONLY when the
+   * signed-in user is a platform admin (null otherwise → switcher not rendered).
+   * RBAC is server-resolved and never client-trusted.
+   */
+  platformSwitcher?: PlatformSwitcherData | null;
+  /** Audited act-as server actions (lib/platform/actions). */
+  actAsOrgAction?: (orgId: string) => Promise<{ ok: boolean } | { ok: false; error: string }>;
+  exitActAsAction?: () => Promise<{ ok: boolean } | { ok: false; error: string }>;
 };
 
 export async function AppTopbar({
@@ -46,8 +57,12 @@ export async function AppTopbar({
   sites,
   activeSiteId,
   setSiteAction,
+  platformSwitcher,
+  actAsOrgAction,
+  exitActAsAction,
 }: AppTopbarProps): Promise<JSX.Element> {
   const t = await getTranslations({ locale, namespace: "Topbar" });
+  const tp = await getTranslations({ locale, namespace: "platform" });
   const brand = t("brand");
   const searchPlaceholder = t("searchPlaceholder");
 
@@ -74,6 +89,23 @@ export async function AppTopbar({
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        {platformSwitcher && actAsOrgAction && exitActAsAction ? (
+          <OrgSwitcher
+            homeOrg={platformSwitcher.homeOrg}
+            actAsOrgs={platformSwitcher.actAsOrgs}
+            currentOrg={platformSwitcher.currentOrg}
+            isActingAs={platformSwitcher.isActingAs}
+            labels={{
+              trigger: tp("switcherTrigger"),
+              homeHeading: tp("switcherHomeHeading"),
+              actAsHeading: tp("switcherActAsHeading"),
+              footnote: tp("switcherFootnote"),
+              sitesLabel: (count: number) => tp("switcherSites", { n: count }),
+            }}
+            actAsOrgAction={actAsOrgAction}
+            exitActAsAction={exitActAsAction}
+          />
+        ) : null}
         {sites && sites.length > 0 && setSiteAction ? (
           <SiteSwitcher
             sites={sites}

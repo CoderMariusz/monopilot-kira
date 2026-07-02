@@ -66,6 +66,64 @@ export default [
             "Do not instantiate new pg.Pool() directly. Use the managed pool from '@monopilot/db' instead.",
         },
       ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@radix-ui/react-dialog',
+              message:
+                'Import Modal from @monopilot/ui instead of using @radix-ui/react-dialog directly.',
+            },
+            {
+              name: '@monopilot/db',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to packages/db migration paths. Use getAppConnection() instead.',
+            },
+          ],
+          // Content-matching patterns: the previous literal `paths` entries
+          // (`./with-org-context`, `../auth/with-org-context`, …) were a NO-OP
+          // because the real codebase imports the resolver via
+          // `…/lib/auth/with-org-context` at MANY relative depths. Match on the
+          // trailing specifier instead so getOwnerPool is fenced regardless of
+          // depth. The lib/{auth,scim,platform} override block below RE-PERMITS
+          // it for the approved owner-pool trust-chain slices.
+          patterns: [
+            {
+              group: ['**/lib/auth/with-org-context', '**/auth/with-org-context'],
+              importNames: ['getOwnerPool'],
+              message:
+                'getOwnerPool is owner-pool/BYPASSRLS — only apps/web/lib/auth, apps/web/lib/scim, and apps/web/lib/platform may import it.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Owner-pool boundary exceptions for the approved backend trust-chain slices.
+  {
+    files: ['lib/auth/**/*.{js,jsx,ts,tsx,mjs,mts}', 'lib/scim/**/*.{js,jsx,ts,tsx,mjs,mts}', 'lib/platform/**/*.{js,jsx,ts,tsx,mjs,mts}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@radix-ui/react-dialog',
+              message:
+                'Import Modal from @monopilot/ui instead of using @radix-ui/react-dialog directly.',
+            },
+            {
+              name: '@monopilot/db',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to packages/db migration paths. Use getAppConnection() instead.',
+            },
+          ],
+        },
+      ],
     },
   },
 ];

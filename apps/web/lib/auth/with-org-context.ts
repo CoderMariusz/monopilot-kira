@@ -66,6 +66,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { cache } from 'react';
+import { cookies } from 'next/headers';
 import pg from 'pg';
 import { getCachedUser } from './supabase-server';
 
@@ -80,6 +81,8 @@ export interface OrgContext {
   sessionToken: string;
   /** App-role pool client inside the org-context transaction. */
   client: pg.PoolClient;
+  /** True when a platform admin is acting inside a non-home org context. */
+  actAsOrg: boolean;
 }
 
 // ─── Pool factories (mirror lib/scim/middleware.ts pattern) ───────────────────
@@ -173,6 +176,43 @@ async function resolveContextFromTestStub(): Promise<{ userId: string; orgId: st
 
 // ─── Production resolver ──────────────────────────────────────────────────────
 
+const PLATFORM_ORG_COOKIE = 'mp_platform_org';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function readPlatformOrgOverrideCookie(): Promise<{ raw: string | null; orgId: string | null }> {
+  try {
+    const store = await cookies();
+    const value = store.get(PLATFORM_ORG_COOKIE)?.value;
+    if (typeof value !== 'string' || value.length === 0) {
+      return { raw: null, orgId: null };
+    }
+    return { raw: value, orgId: UUID_RE.test(value) ? value : null };
+  } catch {
+    return { raw: null, orgId: null };
+  }
+}
+
+async function logIgnoredPlatformOrgCookie(
+  owner: pg.Pool,
+  userId: string,
+  homeOrgId: string,
+  requestedOrgId: string,
+  reason: string,
+): Promise<void> {
+  await owner.query(
+    `insert into app.platform_audit
+       (actor_user_id, home_org_id, target_org_id, action, reason, metadata)
+     values
+       ($1::uuid, $2::uuid, null, 'platform.act_as.ignored_cookie', $3, $4::jsonb)`,
+    [
+      userId,
+      homeOrgId,
+      reason,
+      JSON.stringify({ requested_org_id: requestedOrgId }),
+    ],
+  );
+}
+
 /**
  * Resolve { userId, orgId } from the Supabase session, MEMOISED PER REQUEST.
  *
@@ -185,7 +225,7 @@ async function resolveContextFromTestStub(): Promise<{ userId: string; orgId: st
  * The per-connection session registration + set_org_context still run per call
  * (each app connection needs its own org binding) — only the resolution is shared.
  */
-const resolveContextFromSupabase = cache(async function resolveContextFromSupabase(): Promise<{ userId: string; orgId: string }> {
+export const resolveContextFromSupabase = cache(async function resolveContextFromSupabase(): Promise<{ userId: string; orgId: string; actAsOrg: boolean }> {
   // getUser() verifies the JWT against Supabase JWKS. NEVER use getSession()
   // for trust decisions — it returns whatever cookies hold without verifying.
   const { data, error } = await getCachedUser();
@@ -210,7 +250,39 @@ const resolveContextFromSupabase = cache(async function resolveContextFromSupaba
     );
   }
 
-  return { userId, orgId: res.rows[0].org_id };
+  const homeOrgId = res.rows[0].org_id;
+  const requested = await readPlatformOrgOverrideCookie();
+  if (!requested.raw) {
+    return { userId, orgId: homeOrgId, actAsOrg: false };
+  }
+  if (!requested.orgId) {
+    await logIgnoredPlatformOrgCookie(owner, userId, homeOrgId, requested.raw, 'invalid_cookie');
+    return { userId, orgId: homeOrgId, actAsOrg: false };
+  }
+
+  const admin = await owner.query<{ ok: boolean }>(
+    `select true as ok
+       from app.platform_admins
+      where user_id = $1::uuid
+        and revoked_at is null
+      limit 1`,
+    [userId],
+  );
+  if (admin.rows.length === 0) {
+    await logIgnoredPlatformOrgCookie(owner, userId, homeOrgId, requested.orgId, 'not_platform_admin');
+    return { userId, orgId: homeOrgId, actAsOrg: false };
+  }
+
+  const target = await owner.query<{ id: string }>(
+    `select id::text as id from public.organizations where id = $1::uuid limit 1`,
+    [requested.orgId],
+  );
+  if (target.rows.length === 0) {
+    await logIgnoredPlatformOrgCookie(owner, userId, homeOrgId, requested.orgId, 'target_org_not_found');
+    return { userId, orgId: homeOrgId, actAsOrg: false };
+  }
+
+  return { userId, orgId: requested.orgId, actAsOrg: true };
 });
 
 // ─── Public HOF ───────────────────────────────────────────────────────────────
@@ -249,8 +321,8 @@ function annotateOrgContextError(phase: string, err: unknown): never {
 export async function withOrgContext<T>(
   action: (ctx: OrgContext) => Promise<T>,
 ): Promise<T> {
-  const { userId, orgId } = isTestEnvWithStub()
-    ? await resolveContextFromTestStub()
+  const { userId, orgId, actAsOrg } = isTestEnvWithStub()
+    ? { ...(await resolveContextFromTestStub()), actAsOrg: false }
     : await resolveContextFromSupabase().catch((err) => annotateOrgContextError('resolve_context', err));
 
   // Fresh session_token per call — guarantees no collision in
@@ -278,7 +350,7 @@ export async function withOrgContext<T>(
     await client
       .query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, orgId])
       .catch((err) => annotateOrgContextError('set_org_context', err));
-    const result = await action({ userId, orgId, sessionToken, client });
+    const result = await action({ userId, orgId, sessionToken, client, actAsOrg });
     await client.query('commit');
     return result;
   } catch (err) {

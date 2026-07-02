@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform Console &amp; Org Shell — MonoPilot</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); }
+
+  /* ============================================================
+   * Prototype harness (dev-only chrome to switch the 3 views)
+   * ============================================================ */
+  .harness { position: sticky; top: 0; z-index: 500; background: #0b1220; color: #cbd5e1;
+    display: flex; align-items: center; gap: 12px; padding: 6px 16px; border-bottom: 1px solid #1e293b;
+    font-size: 12px; }
+  .harness .hlabel { font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; font-size: 10px; color: #64748b; }
+  .harness .hseg { display: flex; gap: 4px; }
+  .harness .hbtn { padding: 5px 12px; border-radius: 4px; border: 1px solid #263449; background: #131c2b;
+    color: #cbd5e1; font-size: 12px; font-family: inherit; cursor: pointer; }
+  .harness .hbtn:hover { background: #1b2637; }
+  .harness .hbtn.on { background: #fff; color: #0b1220; border-color: #fff; font-weight: 600; }
+  .harness .spacer { flex: 1; }
+  .harness .hctx { font-size: 11px; color: #94a3b8; }
+  .harness .hctx b { font-family: var(--font-mono); font-weight: 600; }
+  .harness .hctx b.home { color: var(--green); }
+  .harness .hctx b.plat { color: #93c5fd; }
+  .harness .hctx b.act  { color: #fca5a5; }
+
+  .view { display: none; }
+  .view.on { display: block; }
+
+  /* ============================================================
+   * Shared primitives (from components.html / example-screen.html)
+   * ============================================================ */
+  .btn { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid transparent; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: var(--blue-600); }
+  .btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--gray-050); }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--fs-badge); font-weight: 500; white-space: nowrap; }
+  .badge-green { background: var(--green-050); color: var(--green-700); }
+  .badge-amber { background: var(--amber-050); color: var(--amber-700); }
+  .badge-red { background: var(--red-050); color: var(--red-700); }
+  .badge-blue { background: var(--blue-050); color: var(--blue-700); }
+  .badge-gray { background: var(--gray-050); color: var(--gray-600); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; background: var(--gray-100); border-bottom: 2px solid var(--border); font-weight: 600; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--gray-100); }
+  td.mono, th.mono { font-family: var(--font-mono); font-size: 12px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; }
+  .card-pad { padding: 16px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .card-title { font-size: var(--fs-card-title); font-weight: var(--fw-semi); }
+  .card-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+  .kpi-row { display: grid; gap: 12px; margin-bottom: 16px; }
+  .kpi { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; border-bottom: 3px solid var(--blue); }
+  .kpi.green { border-bottom-color: var(--green); }
+  .kpi.amber { border-bottom-color: var(--amber); }
+  .kpi.gray  { border-bottom-color: var(--gray-300); }
+  .kpi-value { font-size: var(--fs-kpi-value); font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .kpi-label { font-size: 11px; color: var(--muted); font-weight: 500; margin-top: 3px; }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .field-search { flex: 1; max-width: 380px; position: relative; }
+  .field-search input { width: 100%; padding: 7px 12px 7px 32px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--bg) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2364748b' viewBox='0 0 16 16'><path d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/></svg>") no-repeat 10px center; }
+  select.field { padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: #fff; color: var(--text); }
+
+  /* ============================================================
+   * VIEW 1 — Platform Console  (super-admin, above all orgs)
+   * ============================================================ */
+  .plat-top { background: var(--sidebar); color: #fff; display: flex; align-items: center; gap: 14px; padding: 0 24px; height: 56px; }
+  .plat-brand { display: flex; align-items: center; gap: 9px; }
+  .plat-brand .mark { width: 26px; height: 26px; border-radius: 6px; background: linear-gradient(135deg,#334155,#0f172a); display: flex; align-items: center; justify-content: center; color: #93c5fd; font-size: 13px; }
+  .plat-brand .wm { font-weight: 700; font-size: 15px; letter-spacing: 0.01em; }
+  .plat-brand .wm b { color: #93c5fd; font-weight: 700; }
+  .plat-top .plat-sub { font-size: 12px; color: #64748b; border-left: 1px solid #334155; padding-left: 14px; }
+  .plat-top .spacer { flex: 1; }
+  .plat-top .plat-user { font-size: 12px; color: #cbd5e1; }
+  .plat-top .plat-av { width: 30px; height: 30px; border-radius: 50%; background: #334155; color: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; }
+
+  .plat-body { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; gap: 16px; }
+
+  .home-tag { font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--green-700); background: var(--green-050); padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; }
+  .org-name { font-weight: 600; }
+  .org-industry { color: var(--muted); font-size: 12px; }
+
+  .act-btn { padding: 4px 12px; border: 1px solid var(--border); background: #fff; border-radius: 4px; font-size: 12px; font-family: inherit; cursor: pointer; color: var(--text); display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+  .act-btn:hover { border-color: var(--red); color: var(--red-700); background: var(--red-050a); }
+  .act-btn .fl { color: var(--red); }
+
+  .audit-action { font-family: var(--font-mono); font-size: 11px; padding: 1px 7px; border-radius: 4px; background: var(--gray-050); color: var(--gray-600); }
+  .audit-action.enter { background: var(--red-050); color: var(--red-700); }
+  .audit-action.exit  { background: var(--gray-050); color: var(--gray-600); }
+  .audit-action.write { background: var(--amber-050); color: var(--amber-700); }
+  .audit-action.admin { background: var(--blue-050); color: var(--blue-700); }
+
+  /* ============================================================
+   * VIEW 2 / 3 — Org shell (tenant app: sidebar + topbar)
+   * ============================================================ */
+  #sidebar { position: absolute; left: 0; top: var(--top-off, 0); bottom: 0; width: var(--sidebar-w); background: var(--sidebar); color: var(--sidebar-text); overflow-y: auto; }
+  .sidebar-logo { padding: 14px 16px; font-size: 18px; font-weight: 700; color: #fff; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 8px; }
+  .sidebar-logo span { font-size: 11px; color: var(--sub-nav-text); font-weight: 400; }
+  .sidebar-group { padding: 12px 14px 2px; font-size: 10px; color: #475569; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .sidebar-item { padding: 7px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 9px; border-left: 3px solid transparent; }
+  .sidebar-item:hover { background: var(--gray-700); color: #f1f5f9; }
+  .sidebar-item.active { background: var(--blue-900); color: #fff; border-left-color: var(--blue); }
+
+  .org-shell { position: relative; }
+  .shell-topbar { position: relative; height: 56px; background: #fff; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; padding: 0 20px 0 calc(var(--sidebar-w) + 20px); }
+  .shell-topbar .search { flex: 1; max-width: 380px; position: relative; }
+  .shell-topbar .search input { width: 100%; padding: 7px 12px 7px 32px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--bg) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2364748b' viewBox='0 0 16 16'><path d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/></svg>") no-repeat 10px center; }
+  .shell-topbar .spacer { flex: 1; }
+  .shell-topbar .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--blue-050); color: var(--blue-700); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; }
+
+  /* Org switcher (adapted from Multi-Site site-switcher) */
+  .org-switcher { position: relative; }
+  .org-trigger { display: inline-flex; align-items: center; gap: 9px; padding: 6px 10px; background: #fff; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: inherit; cursor: pointer; color: var(--text); min-width: 210px; }
+  .org-trigger:hover { background: var(--gray-050); }
+  .org-trigger .glyph { width: 22px; height: 22px; border-radius: 5px; background: var(--blue-050); color: var(--blue-700); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  .org-trigger .oc { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+  .org-trigger .on-name { font-weight: 600; font-size: 13px; flex: 1; text-align: left; white-space: nowrap; }
+  .org-trigger .chev { color: var(--muted); font-size: 9px; }
+  .org-trigger.act { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-050); }
+  .org-trigger.act .glyph { background: var(--red-050); color: var(--red-700); }
+  .org-trigger.act .on-name { color: var(--red-700); }
+
+  .org-panel { position: absolute; top: calc(100% + 6px); left: 0; min-width: 300px; background: #fff; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 24px rgba(15,23,42,.14); z-index: 300; padding: 6px; }
+  .org-panel .oph { font-size: 9.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: 0.06em; padding: 8px 10px 4px; }
+  .op-row { display: grid; grid-template-columns: 26px 1fr auto; gap: 9px; align-items: center; padding: 8px 10px; border-radius: 4px; cursor: pointer; }
+  .op-row:hover { background: var(--gray-050); }
+  .op-row.on { background: var(--blue-050); }
+  .op-row .g { width: 24px; height: 24px; border-radius: 5px; background: var(--gray-050); color: var(--gray-600); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
+  .op-row .nm { font-size: 12.5px; font-weight: 500; }
+  .op-row .nm small { display: block; color: var(--muted); font-weight: 400; font-size: 10.5px; }
+  .op-row .ck { color: var(--blue); font-weight: 700; }
+  .op-foot { border-top: 1px solid var(--border); margin-top: 4px; padding: 8px 10px; font-size: 11px; color: var(--muted); }
+  .op-foot .mono { color: var(--blue); }
+
+  /* Act-as banner */
+  .actas-banner { display: flex; align-items: center; gap: 12px; padding: 9px 20px 9px calc(var(--sidebar-w) + 20px); background: #b42318; color: #fff; font-size: 12.5px; border-bottom: 1px solid #7f1d1d; }
+  .actas-banner .flag { font-size: 14px; }
+  .actas-banner .role { font-weight: 700; letter-spacing: 0.03em; }
+  .actas-banner .who { font-weight: 600; }
+  .actas-banner .oc { font-family: var(--font-mono); background: rgba(255,255,255,.16); padding: 1px 7px; border-radius: 4px; font-size: 11px; }
+  .actas-banner .spacer { flex: 1; }
+  .actas-banner .exit { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); padding: 4px 12px; border-radius: 4px; font-size: 12px; font-family: inherit; cursor: pointer; font-weight: 600; }
+  .actas-banner .exit:hover { background: rgba(255,255,255,.24); }
+
+  #main { margin-left: var(--sidebar-w); padding: 22px 24px 48px; }
+  .breadcrumb { font-size: var(--fs-breadcrumb); color: var(--muted); margin-bottom: 4px; }
+  .breadcrumb a { color: var(--blue); text-decoration: none; }
+  .page-title { font-size: var(--fs-page-title); font-weight: var(--fw-bold); }
+
+  .rls-note { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; }
+  .rls-note .mono { font-family: var(--font-mono); }
+  .rls-note.act { background: var(--red-050a); border-color: var(--red-050); color: var(--red-700); }
+
+  .split { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
+  .tl-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gray-050); font-size: 12px; align-items: flex-start; }
+  .tl-item:last-child { border: 0; }
+  .tl-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--blue); }
+  .tl-dot.g { background: var(--green); } .tl-dot.a { background: var(--amber); } .tl-dot.r { background: var(--red); }
+  .tl-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .bar { height: 6px; border-radius: 3px; background: var(--gray-050); overflow: hidden; max-width: 90px; }
+  .bar > i { display: block; height: 100%; background: var(--green); }
+
+  @media (max-width: 980px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- ============ Prototype harness ============ -->
+<div class="harness">
+  <span class="hlabel">Prototype harness</span>
+  <div class="hseg">
+    <button class="hbtn" data-view="platform">Platform console</button>
+    <button class="hbtn" data-view="home">Org shell · Home</button>
+    <button class="hbtn" data-view="actas">Org shell · Act-as</button>
+  </div>
+  <span class="spacer"></span>
+  <span class="hctx">Context: <b id="ctxLabel" class="plat">PLATFORM</b></span>
+</div>
+
+<!-- ============================================================
+     VIEW 1 — PLATFORM CONSOLE
+     ============================================================ -->
+<section class="view" id="view-platform">
+  <div class="plat-top">
+    <div class="plat-brand">
+      <div class="mark">⚑</div>
+      <div class="wm">MonoPilot <b>PLATFORM</b></div>
+    </div>
+    <div class="plat-sub">Super-admin console · above all organizations</div>
+    <span class="spacer"></span>
+    <div class="plat-user"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a4cbd3cac1d6e4c9cbcacbd4cdc8cbd08acdcb">[email&#160;protected]</a></div>
+    <div class="plat-av">O</div>
+  </div>
+
+  <div class="plat-body">
+    <div class="eyebrow">⚑ Platform console</div>
+    <div class="page-head">
+      <div>
+        <div class="page-title" style="font-size:24px">Organizations</div>
+        <div class="card-sub">5 organizations · act-as any org to operate inside it — every action is audited.</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary">⤓ Export</button>
+        <button class="btn btn-primary">+ Add platform admin</button>
+      </div>
+    </div>
+
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi"><div class="kpi-value">5</div><div class="kpi-label">Organizations</div></div>
+      <div class="kpi gray"><div class="kpi-value">88</div><div class="kpi-label">Users · all orgs</div></div>
+      <div class="kpi green"><div class="kpi-value">3</div><div class="kpi-label">Active</div></div>
+      <div class="kpi amber"><div class="kpi-value">2</div><div class="kpi-label">Trial / onboarding</div></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="field-search"><input placeholder="Search org name or code…"></div>
+        <select class="field"><option>All statuses</option><option>Active</option><option>Trial</option><option>Onboarding</option></select>
+        <span class="spacer" style="flex:1"></span>
+        <span class="card-sub">Showing 5 of 5</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th class="mono">Code</th><th>Name</th><th>Industry</th>
+          <th class="num">Users</th><th class="num">Sites</th><th>Created</th><th>Last activity</th><th>Status</th><th style="text-align:right">Act as</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">APEX</td>
+            <td><span class="org-name">Apex Dairy</span><span class="home-tag">Home</span></td>
+            <td class="org-industry">Dairy · Food manufacturing</td>
+            <td class="num mono">28</td><td class="num mono">3</td>
+            <td class="mono">2025-11-12</td><td class="muted">2 min ago</td>
+            <td><span class="badge badge-green"><span class="dot" style="background:var(--green)"></span>Active</span></td>
+            <td style="text-align:right"><span class="muted" style="font-size:11px">You are here</span></td>
+          </tr>
+          <tr>
+            <td class="mono">KOBE</td>
+            <td class="org-name">Kobe Dairy</td>
+            <td class="org-industry">Dairy · Co-manufacturing</td>
+            <td class="num mono">41</td><td class="num mono">2</td>
+            <td class="mono">2026-01-08</td><td class="muted">18 min ago</td>
+            <td><span class="badge badge-green"><span class="dot" style="background:var(--green)"></span>Active</span></td>
+            <td style="text-align:right"><button class="act-btn"><span class="fl">⚑</span>Act as</button></td>
+          </tr>
+          <tr>
+            <td class="mono">HARLOW</td>
+            <td class="org-name">Harlow Cold Storage</td>
+            <td class="org-industry">3PL · Cold-chain warehousing</td>
+            <td class="num mono">12</td><td class="num mono">1</td>
+            <td class="mono">2026-03-21</td><td class="muted">3 h ago</td>
+            <td><span class="badge badge-green"><span class="dot" style="background:var(--green)"></span>Active</span></td>
+            <td style="text-align:right"><button class="act-btn"><span class="fl">⚑</span>Act as</button></td>
+          </tr>
+          <tr>
+            <td class="mono">NORDMEAT</td>
+            <td class="org-name">Nordmeat Processing</td>
+            <td class="org-industry">Meat · Primary processing</td>
+            <td class="num mono">7</td><td class="num mono">1</td>
+            <td class="mono">2026-05-02</td><td class="muted">6 days ago</td>
+            <td><span class="badge badge-amber"><span class="dot" style="background:var(--amber)"></span>Trial</span></td>
+            <td style="text-align:right"><button class="act-btn"><span class="fl">⚑</span>Act as</button></td>
+          </tr>
+          <tr>
+            <td class="mono">BAKEHAUS</td>
+            <td class="org-name">BakeHaus GmbH</td>
+            <td class="org-industry">Bakery · Frozen dough</td>
+            <td class="num mono">0</td><td class="num mono">0</td>
+            <td class="mono">2026-06-28</td><td class="muted">—</td>
+            <td><span class="badge badge-blue"><span class="dot" style="background:var(--blue)"></span>Onboarding</span></td>
+            <td style="text-align:right"><button class="act-btn"><span class="fl">⚑</span>Act as</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Recent platform audit</div>
+          <div class="card-sub">Every act-as and cross-org action, attributed to the real platform admin.</div>
+        </div>
+        <button class="btn btn-secondary btn-sm">View full log →</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Time (UTC)</th><th>Actor</th><th>Action</th><th class="mono">Org</th><th>Detail</th>
+        </tr></thead>
+        <tbody>
+          <tr><td class="mono">2026-07-02 09:41</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3a554d545f487a575554554a5356554e145355">[email&#160;protected]</a></td><td><span class="audit-action enter">act_as.enter</span></td><td class="mono">KOBE</td><td>Entered act-as for Kobe Dairy</td></tr>
+          <tr><td class="mono">2026-07-02 09:44</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0d627a63687f4d606263627d64616279236462">[email&#160;protected]</a></td><td><span class="audit-action write">wo.release</span></td><td class="mono">KOBE</td><td>Released WO-2026-0311 (support case #482)</td></tr>
+          <tr><td class="mono">2026-07-02 09:52</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ddb2aab3b8af9db0b2b3b2adb4b1b2a9f3b4b2">[email&#160;protected]</a></td><td><span class="audit-action exit">act_as.exit</span></td><td class="mono">KOBE</td><td>Exited act-as</td></tr>
+          <tr><td class="mono">2026-07-01 16:20</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d0bfa7beb5a290bdbfbebfa0b9bcbfa4feb9bf">[email&#160;protected]</a></td><td><span class="audit-action enter">act_as.enter</span></td><td class="mono">HARLOW</td><td>Entered act-as for Harlow Cold Storage</td></tr>
+          <tr><td class="mono">2026-07-01 16:33</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8ee1f9e0ebfccee3e1e0e1fee7e2e1faa0e7e1">[email&#160;protected]</a></td><td><span class="audit-action write">settings.update</span></td><td class="mono">HARLOW</td><td>Corrected site timezone → Europe/London</td></tr>
+          <tr><td class="mono">2026-07-01 16:35</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="69061e070c1b2904060706190005061d470006">[email&#160;protected]</a></td><td><span class="audit-action exit">act_as.exit</span></td><td class="mono">HARLOW</td><td>Exited act-as</td></tr>
+          <tr><td class="mono">2026-06-30 11:02</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="9bf4ecf5fee9dbf6f4f5f4ebf2f7f4efb5f2f4">[email&#160;protected]</a></td><td><span class="audit-action admin">admin.add</span></td><td class="muted">—</td><td>Added platform admin <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b2ddc2c1f2dfdddcddc2dbdeddc69cdbdd">[email&#160;protected]</a> (dual-control)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="card-sub" style="margin-top:4px">Platform admins sit above tenant RLS. Data inside any org is only reachable via an audited act-as session.</p>
+  </div>
+</section>
+
+<!-- ============================================================
+     VIEW 2 / 3 — ORG SHELL (shared markup; act-as toggled)
+     ============================================================ -->
+<section class="view" id="view-shell">
+  <div class="org-shell">
+    <!-- Act-as banner (only visible in act-as state) -->
+    <div class="actas-banner" id="actasBanner" style="display:none">
+      <span class="flag">⚑</span>
+      <span class="role">PLATFORM ADMIN</span>
+      <span>· acting as</span>
+      <span class="who">Kobe Dairy</span>
+      <span class="oc">KOBE</span>
+      <span class="spacer"></span>
+      <span style="font-size:11px;opacity:.85"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2e4159404b5c6e434140415e4742415a004741">[email&#160;protected]</a></span>
+      <button class="exit" onclick="setState('platform')">← Exit act-as</button>
+    </div>
+
+    <div id="sidebar">
+      <div class="sidebar-logo">MonoPilot <span id="sbTenant">MES · Apex</span></div>
+      <div class="sidebar-group">Core</div>
+      <div class="sidebar-item active">🏠 Dashboard</div>
+      <div class="sidebar-item">⚙️ Settings</div>
+      <div class="sidebar-item">🔧 Technical</div>
+      <div class="sidebar-group">Operations</div>
+      <div class="sidebar-item">📅 Planning</div>
+      <div class="sidebar-item">🏭 Production</div>
+      <div class="sidebar-item">📦 Warehouse</div>
+      <div class="sidebar-item">📱 Scanner</div>
+      <div class="sidebar-group">QA &amp; Shipping</div>
+      <div class="sidebar-item">✅ Quality</div>
+      <div class="sidebar-item">🚚 Shipping</div>
+      <div class="sidebar-group">Premium</div>
+      <div class="sidebar-item">💡 NPD</div>
+      <div class="sidebar-item">💰 Finance</div>
+      <div class="sidebar-item">📊 OEE</div>
+    </div>
+
+    <div class="shell-topbar">
+      <!-- Org switcher -->
+      <div class="org-switcher">
+        <button class="org-trigger" id="orgTrigger" onclick="toggleOrgPanel()">
+          <span class="glyph" id="orgGlyph">AP</span>
+          <span class="oc" id="orgCode">APEX</span>
+          <span class="on-name" id="orgName">Apex Dairy</span>
+          <span class="chev">▼</span>
+        </button>
+        <div class="org-panel" id="orgPanel" style="display:none">
+          <div class="oph">Your home org</div>
+          <div class="op-row on" onclick="pickOrg('home')">
+            <span class="g">AP</span><span class="nm">Apex Dairy <small>APEX · Dairy · 3 sites</small></span><span class="ck">✓</span>
+          </div>
+          <div class="oph">Act as (platform admin · audited)</div>
+          <div class="op-row" onclick="pickOrg('actas')">
+            <span class="g">KO</span><span class="nm">Kobe Dairy <small>KOBE · Dairy · 2 sites</small></span><span></span>
+          </div>
+          <div class="op-row" onclick="pickOrg('actas')">
+            <span class="g">HA</span><span class="nm">Harlow Cold Storage <small>HARLOW · 3PL · 1 site</small></span><span></span>
+          </div>
+          <div class="op-foot">Switching into another org opens an audited <span class="mono">act_as</span> session.</div>
+        </div>
+      </div>
+      <div class="search"><input placeholder="Search WO, PO, LP, product…"></div>
+      <span class="spacer"></span>
+      <span class="badge badge-amber">🛎 3 alerts</span>
+      <div class="avatar" id="shellAvatar">JK</div>
+    </div>
+
+    <div id="main">
+      <div class="breadcrumb"><a href="#" id="crumbOrg">Apex Dairy</a> / Dashboard</div>
+      <div class="page-head" style="margin-bottom:14px">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="card-sub" id="rlsRow" style="margin-top:6px">
+            <span class="rls-note" id="rlsNote">🔒 Data scoped to <span class="mono">APEX</span> via row-level security</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi"><div class="kpi-value" id="k1">12</div><div class="kpi-label">Active work orders</div></div>
+        <div class="kpi green"><div class="kpi-value" id="k2">98.2%</div><div class="kpi-label">On-time · 7 days</div></div>
+        <div class="kpi amber"><div class="kpi-value" id="k3">4</div><div class="kpi-label">Open quality holds</div></div>
+        <div class="kpi gray"><div class="kpi-value" id="k4">1,284</div><div class="kpi-label">License plates on hand</div></div>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Work orders — today</div>
+            <button class="btn btn-secondary btn-sm">View all →</button>
+          </div>
+          <table>
+            <thead><tr><th class="mono">WO #</th><th>Product</th><th>Line</th><th>Progress</th><th>Status</th></tr></thead>
+            <tbody id="woBody">
+              <tr><td class="mono">WO-0143</td><td>Chicken Nuggets 1kg</td><td>Line 1</td><td><div class="bar"><i style="width:36%"></i></div></td><td><span class="badge badge-amber">● In progress</span></td></tr>
+              <tr><td class="mono">WO-0144</td><td>Fish Fingers 500g</td><td>Line 2</td><td class="muted">—</td><td><span class="badge badge-blue">● Released</span></td></tr>
+              <tr><td class="mono">WO-0145</td><td>Serek waniliowy 250g</td><td>Line A</td><td class="muted">—</td><td><span class="badge badge-gray">○ Planned</span></td></tr>
+              <tr><td class="mono">WO-0142</td><td>Jogurt truskawkowy</td><td>Line A</td><td><div class="bar"><i style="width:100%"></i></div></td><td><span class="badge badge-green">✓ Completed</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div class="card-title">Recent activity</div></div>
+          <div class="card-pad" style="padding-top:6px" id="activity">
+            <div class="tl-item"><div class="tl-dot g"></div><div style="flex:1"><strong>John S.</strong> released WO-0143 · 500 kg Chicken Nuggets</div><div class="tl-time">2m</div></div>
+            <div class="tl-item"><div class="tl-dot"></div><div style="flex:1"><strong>Anna K.</strong> created PO-1090 · SpiceMaster · £450</div><div class="tl-time">18m</div></div>
+            <div class="tl-item"><div class="tl-dot a"></div><div style="flex:1"><strong>System</strong> flagged LP-9100 as expiring — 7 days left</div><div class="tl-time">1h</div></div>
+            <div class="tl-item"><div class="tl-dot r"></div><div style="flex:1"><strong>Bob W.</strong> opened QH-23 on Chicken Breast · supplier deviation</div><div class="tl-time">2h</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  const SIDEBAR_H = 0;
+  function setState(state) {
+    // state: 'platform' | 'home' | 'actas'
+    document.querySelectorAll('.hbtn').forEach(b => b.classList.toggle('on', b.dataset.view === state));
+    const ctx = document.getElementById('ctxLabel');
+    const platform = document.getElementById('view-platform');
+    const shell = document.getElementById('view-shell');
+
+    if (state === 'platform') {
+      platform.classList.add('on'); shell.classList.remove('on');
+      ctx.textContent = 'PLATFORM'; ctx.className = 'plat';
+      closeOrgPanel();
+      return;
+    }
+    // org shell states
+    platform.classList.remove('on'); shell.classList.add('on');
+    const actas = state === 'actas';
+    document.getElementById('actasBanner').style.display = actas ? 'flex' : 'none';
+    document.documentElement.style.setProperty('--top-off', actas ? '39px' : '0px');
+    document.querySelector('.org-shell').style.setProperty('--top-off', actas ? '39px' : '0px');
+
+    // Adjust sidebar top offset so it sits under the act-as banner
+    document.getElementById('sidebar').style.top = actas ? '39px' : '0px';
+
+    const trigger = document.getElementById('orgTrigger');
+    trigger.classList.toggle('act', actas);
+
+    if (actas) {
+      set('orgGlyph','KO'); set('orgCode','KOBE'); set('orgName','Kobe Dairy');
+      set('sbTenant','MES · Kobe'); set('crumbOrg','Kobe Dairy');
+      document.getElementById('rlsNote').className = 'rls-note act';
+      document.getElementById('rlsNote').innerHTML = '⚑ Acting as — data scoped to <span class="mono">KOBE</span> under its RLS';
+      set('shellAvatar','O');
+      ctx.textContent = 'ACT-AS · KOBE'; ctx.className = 'act';
+      // swap dashboard numbers to Kobe's data
+      set('k1','9'); set('k2','96.4%'); set('k3','2'); set('k4','2,015');
+      document.getElementById('woBody').innerHTML =
+        '<tr><td class="mono">WO-2026-0311</td><td>Mozzarella 2.5kg</td><td>Line 3</td><td><div class="bar"><i style="width:58%"></i></div></td><td><span class="badge badge-amber">● In progress</span></td></tr>' +
+        '<tr><td class="mono">WO-2026-0312</td><td>Ricotta 1kg</td><td>Line 3</td><td class="muted">—</td><td><span class="badge badge-blue">● Released</span></td></tr>' +
+        '<tr><td class="mono">WO-2026-0309</td><td>Burrata 125g x8</td><td>Line 1</td><td><div class="bar"><i style="width:100%"></i></div></td><td><span class="badge badge-green">✓ Completed</span></td></tr>';
+    } else {
+      set('orgGlyph','AP'); set('orgCode','APEX'); set('orgName','Apex Dairy');
+      set('sbTenant','MES · Apex'); set('crumbOrg','Apex Dairy');
+      document.getElementById('rlsNote').className = 'rls-note';
+      document.getElementById('rlsNote').innerHTML = '🔒 Data scoped to <span class="mono">APEX</span> via row-level security';
+      set('shellAvatar','JK');
+      ctx.textContent = 'HOME · APEX'; ctx.className = 'home';
+      set('k1','12'); set('k2','98.2%'); set('k3','4'); set('k4','1,284');
+      document.getElementById('woBody').innerHTML =
+        '<tr><td class="mono">WO-0143</td><td>Chicken Nuggets 1kg</td><td>Line 1</td><td><div class="bar"><i style="width:36%"></i></div></td><td><span class="badge badge-amber">● In progress</span></td></tr>' +
+        '<tr><td class="mono">WO-0144</td><td>Fish Fingers 500g</td><td>Line 2</td><td class="muted">—</td><td><span class="badge badge-blue">● Released</span></td></tr>' +
+        '<tr><td class="mono">WO-0145</td><td>Serek waniliowy 250g</td><td>Line A</td><td class="muted">—</td><td><span class="badge badge-gray">○ Planned</span></td></tr>' +
+        '<tr><td class="mono">WO-0142</td><td>Jogurt truskawkowy</td><td>Line A</td><td><div class="bar"><i style="width:100%"></i></div></td><td><span class="badge badge-green">✓ Completed</span></td></tr>';
+    }
+    closeOrgPanel();
+  }
+  function set(id, txt) { document.getElementById(id).textContent = txt; }
+  function toggleOrgPanel() { const p = document.getElementById('orgPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
+  function closeOrgPanel() { const p = document.getElementById('orgPanel'); if (p) p.style.display = 'none'; }
+  function pickOrg(target) { setState(target === 'home' ? 'home' : 'actas'); }
+
+  document.querySelectorAll('.hbtn').forEach(b => b.addEventListener('click', () => setState(b.dataset.view)));
+  document.addEventListener('click', e => {
+    const sw = document.querySelector('.org-switcher');
+    if (sw && !sw.contains(e.target)) closeOrgPanel();
+  });
+
+  setState('platform');
+</script>
+</body>
+</html>
