@@ -46,7 +46,7 @@ export const PurchaseOrderStatusSchema = z.enum([
   'received',
   'cancelled',
 ]);
-export const TransferOrderStatusSchema = z.enum(['draft', 'in_transit', 'received', 'cancelled']);
+export const TransferOrderStatusSchema = z.enum(['draft', 'in_transit', 'partially_received', 'received', 'cancelled']);
 
 export const SupplierCreateInput = z.object({
   code: z.string().trim().min(1).max(80),

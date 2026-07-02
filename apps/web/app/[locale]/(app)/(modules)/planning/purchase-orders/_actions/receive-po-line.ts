@@ -644,7 +644,7 @@ async function rollupPurchaseOrderStatus(
             updated_at = now()
       where org_id = $1::uuid
         and id = $2::uuid
-        and status in ('confirmed', 'partially_received')`,
+        and status in ('sent', 'confirmed', 'partially_received')`,
     [orgId, poId, status, userId],
   );
 

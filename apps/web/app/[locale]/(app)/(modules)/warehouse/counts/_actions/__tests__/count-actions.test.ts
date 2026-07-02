@@ -418,6 +418,8 @@ describe('stock count actions', () => {
 
     const lpInsert = queries.find((q) => normalize(q.sql).startsWith('insert into public.license_plates'));
     expect(normalize(lpInsert!.sql)).toContain("'adjustment'");
+    expect(normalize(lpInsert!.sql)).toContain("'pending'");
+    expect(normalize(lpInsert!.sql)).not.toContain("'released'");
     expect(lpInsert!.params).toEqual([
       SITE_ID,
       WAREHOUSE_ID,

@@ -118,15 +118,14 @@ export async function listCalibration(): Promise<CalibrationDueRow[]> {
             cr.reviewer_signed_by,
             cr.retention_until
            from public.calibration_instruments ci
-           left join public.calibration_records cr
-             on cr.instrument_id = ci.id
-            and cr.org_id = app.current_org_id()
-            and cr.calibrated_at = (
-              select max(cr_latest.calibrated_at)
+           left join (
+              select distinct on (cr_latest.instrument_id)
+                     cr_latest.*
                 from public.calibration_records cr_latest
-               where cr_latest.instrument_id = ci.id
-                 and cr_latest.org_id = app.current_org_id()
-            )
+               where cr_latest.org_id = app.current_org_id()
+               order by cr_latest.instrument_id, cr_latest.calibrated_at desc, cr_latest.id desc
+            ) cr
+             on cr.instrument_id = ci.id
           where ci.org_id = app.current_org_id()
           order by cr.next_due_date asc nulls last, ci.instrument_code asc`,
       );

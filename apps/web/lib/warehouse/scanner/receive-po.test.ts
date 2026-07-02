@@ -298,6 +298,25 @@ describe('scanner receive PO service', () => {
     expect(client.statements).not.toContain('begin');
   });
 
+  it('replays a failed client operation as the original error envelope', async () => {
+    const client = makeReceiveClient({
+      replayResultCode: 'over_receive_cap',
+      replayExt: {
+        message: 'Cannot exceed 110% of the ordered quantity',
+      },
+    });
+
+    const result = await receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-failed-replay', qty: '2.5' });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'over_receive_cap',
+      message: 'Cannot exceed 110% of the ordered quantity',
+    });
+    expect(client.calls.some((call) => call.sql.includes('insert into public.grn_items'))).toBe(false);
+    expect(client.statements).not.toContain('begin');
+  });
+
   // LP insert params (audit F-B07): [org, site, warehouse, lpNumber, product, qty,
   // uom, batch, best_before, expiry, shelf_life_mode_snapshot, location, grn, user]
   it('writes the canonical expiry_date from the explicit best-before input (audit F-B07)', async () => {
@@ -552,6 +571,7 @@ function makeReceiveClient(options: {
   isReceived?: boolean;
   lineMissing?: boolean;
   replayExt?: Record<string, unknown>;
+  replayResultCode?: string;
   requireGrnQc?: boolean;
   shelfLifeDays?: number | null;
   shelfLifeMode?: string | null;
@@ -574,7 +594,7 @@ function makeReceiveClient(options: {
       }
       if (normalized.includes('from public.scanner_audit_log') && normalized.includes('client_op_id')) {
         return {
-          rows: options.replayExt ? ([{ result_code: 'ok', ext: options.replayExt }] as T[]) : ([] as T[]),
+          rows: options.replayExt ? ([{ result_code: options.replayResultCode ?? 'ok', ext: options.replayExt }] as T[]) : ([] as T[]),
           rowCount: options.replayExt ? 1 : 0,
         };
       }

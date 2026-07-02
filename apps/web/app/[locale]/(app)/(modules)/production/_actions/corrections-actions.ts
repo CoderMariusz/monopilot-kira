@@ -682,7 +682,7 @@ async function hasOpenLpQualityHold(ctx: ProductionContext, lpId: string): Promi
          from public.quality_holds
         where org_id = app.current_org_id()
           and reference_type = 'lp'
-          and reference_id = $1::text
+          and reference_id = $1::uuid
           and hold_status in ('open', 'investigating', 'escalated', 'quarantined')
           and released_at is null
      ) as ok`,

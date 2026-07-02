@@ -415,7 +415,7 @@ async function createAdjustmentLicensePlate(
      )
      values (
        app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
-       $8, $9::timestamptz, 'available', 'released', 'adjustment', $10::uuid, $10::uuid
+       $8, $9::timestamptz, 'available', 'pending', 'adjustment', $10::uuid, $10::uuid
      )
      returning id::text`,
     [

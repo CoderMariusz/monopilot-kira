@@ -225,7 +225,7 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
-      if (n.includes('with recursive') && n.includes('from public.lp_genealogy lg')) {
+      if (n.includes('public.get_lp_genealogy_org_wide')) {
         const seedLpId = String(params[0]);
         const rows = seedLpId === PARENT_LP_ID
           ? [
@@ -468,6 +468,10 @@ describe('reverseConsumption', () => {
     const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
     expect(lpUpdate?.params).toEqual([LP_ID, '4.250', USER_ID, 'blocked']);
 
+    const holdQuery = queries.find((q) => normalize(q.sql).includes('from public.quality_holds'));
+    expect(holdQuery).toBeDefined();
+    expect(normalize(holdQuery!.sql)).toContain('reference_id = $1::uuid');
+
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history?.params).toContain('blocked');
     expect(history?.params).not.toContain('received');
@@ -490,7 +494,7 @@ describe('reverseConsumption', () => {
     const holdQuery = queries.find((q) => normalize(q.sql).includes('from public.quality_holds'));
     expect(holdQuery).toBeDefined();
     expect(normalize(holdQuery!.sql)).toContain("reference_type = 'lp'");
-    expect(normalize(holdQuery!.sql)).toContain('reference_id = $1::text');
+    expect(normalize(holdQuery!.sql)).toContain('reference_id = $1::uuid');
     expect(normalize(holdQuery!.sql)).toContain("hold_status in ('open', 'investigating', 'escalated', 'quarantined')");
     expect(normalize(holdQuery!.sql)).toContain('released_at is null');
     expect(holdQuery?.params).toEqual([LP_ID]);

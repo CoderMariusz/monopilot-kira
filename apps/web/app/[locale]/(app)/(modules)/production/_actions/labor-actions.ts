@@ -13,7 +13,7 @@ const PRODUCTION_LABOR_WRITE_PERMISSION = 'production.consumption.write';
 const PRODUCTION_VIEW_PERMISSION = 'production.oee.read';
 const SETTINGS_READ_PERMISSION = 'settings.org.read';
 const SETTINGS_WRITE_PERMISSION = 'settings.org.update';
-const DEFAULT_CURRENCY = 'USD';
+const DEFAULT_CURRENCY = 'GBP';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

@@ -930,6 +930,9 @@ describe('convertPlannedToWo', () => {
     expect(workOrderInserts[0][10]).toBe('factory-spec-id');
     expect(workOrderInserts[0][11]).toBe(SITE_ID);
     expect(woMaterialInserts).toEqual([[woId, '8.000000', 1, 'bom-id']]);
+    const materialInsertSql = executed.find((sql) => sql.startsWith('insert into public.wo_materials'))!;
+    expect(materialInsertSql).toContain('select app.current_org_id(), $1::uuid, i.id, bl.component_code');
+    expect(materialInsertSql).not.toContain('coalesce(i.id, bl.id)');
     expect(woOperationInserts).toEqual([[woId, '8.000', DOUGH_ID]]);
     expect(scheduleOutputInserts).toEqual([[woId, DOUGH_ID, '8.000', 'Created from MRP planned order', 'kg', SITE_ID]]);
     expect(woStatusHistoryInserts).toEqual([

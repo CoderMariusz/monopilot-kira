@@ -58,7 +58,12 @@ type BulkMoveGateResult =
         failed: Array<{ projectId: string; error: string; status: number }>;
       };
     }
-  | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED'; status: number };
+  | {
+      ok: false;
+      error: 'INVALID_INPUT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED';
+      status: number;
+      failed?: Array<{ projectId: string; error: string; status: number }>;
+    };
 
 export async function bulkAssignOwner(rawInput: unknown): Promise<BulkProjectMutationResult> {
   const parsed = assignOwnerSchema.safeParse(rawInput);
@@ -132,6 +137,9 @@ export async function bulkMoveGate(rawInput: unknown): Promise<BulkMoveGateResul
 
   safeRevalidatePath('/npd/pipeline');
   safeRevalidatePath('/pipeline');
+  if (failed.length > 0) {
+    return { ok: false, error: 'PERSISTENCE_FAILED', status: 500, failed };
+  }
   return { ok: true, data: { updated: moved.length, projectIds: moved.map((row) => row.projectId), failed } };
 }
 

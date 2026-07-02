@@ -2701,6 +2701,19 @@
         "deleteStatusBlocked": "Only draft versions can be deleted — approved or active versions are never removed.",
         "deleteError": "Unable to delete this BOM version. Please try again."
       },
+      "approveErrors": {
+        "title": "Cannot approve — fix component sourcing first",
+        "intro": "These components are not release-ready:",
+        "reasons": {
+          "ITEM_NOT_ACTIVE": "Item not active",
+          "SUPPLIER_NOT_APPROVED": "Supplier not approved",
+          "SUPPLIER_SPEC_NOT_ACTIVE": "Supplier spec not active",
+          "ALLERGEN_CONFLICT": "Allergen conflict",
+          "COST_REVIEW_PENDING": "Cost review pending",
+          "SPEC_REVIEW_PENDING": "Spec review pending",
+          "QC_RELEASE_MISSING": "QC release missing"
+        }
+      },
       "firstAuthoring": {
         "breadcrumbRoot": "BOM-uri şi rețete",
         "emptyTitle": "Niciun BOM încă",
@@ -9360,8 +9373,8 @@
       },
       "wo": "WO",
       "product": "Product",
-      "good": "Good",
-      "scrap": "Scrap",
+      "good": "Good Output (kg)",
+      "scrap": "Scrap (kg)",
       "oee": "OEE",
       "lastActivity": "Last activity",
       "noLines": "No production lines are configured yet.",

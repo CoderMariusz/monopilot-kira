@@ -71,7 +71,7 @@ export type ReceiveLineResult =
     }
   | {
       ok: false;
-      reason: 'no_warehouse_for_site';
+      reason: string;
       message: string;
     }
   | {
@@ -950,6 +950,13 @@ async function findReplay(
   const row = rows[0];
   if (!row) return null;
   const ext = typeof row.ext === 'string' ? (JSON.parse(row.ext) as Record<string, unknown>) : (row.ext ?? {});
+  if (row.result_code !== 'ok') {
+    return {
+      ok: false,
+      reason: stringOrNull(ext.reason) ?? row.result_code ?? 'failed',
+      message: stringOrNull(ext.message) ?? 'Previous receive attempt failed',
+    };
+  }
   return {
     ok: true,
     replay: true,

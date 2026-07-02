@@ -92,8 +92,19 @@ describe('receivePoLineDesktop', () => {
     expect(autoPutawayHistory?.params).toEqual(['lp-1', 'auto_putaway_po_receive', null, expect.any(String), USER_ID]);
     expect(findCall('insert into public.grn_items')).toBeTruthy();
     const poUpdate = findCall('update public.purchase_orders');
-    expect(poUpdate?.sql).toContain("status in ('confirmed', 'partially_received')");
+    expect(poUpdate?.sql).toContain("status in ('sent', 'confirmed', 'partially_received')");
     expect(poUpdate?.params).toEqual([ORG_ID, PO_ID, 'received', USER_ID]);
+  });
+
+  it('rolls up a receipt when the PO is still sent', async () => {
+    currentClient = makeClient({ orderedQty: '10.000000', receivedQty: '0.000000', isReceived: false });
+
+    const result = await receivePoLineDesktop(baseInput);
+
+    expect(result).toMatchObject({ ok: true, poStatus: 'partially_received' });
+    const poUpdate = findCall('update public.purchase_orders');
+    expect(poUpdate?.sql).toContain("status in ('sent', 'confirmed', 'partially_received')");
+    expect(poUpdate?.params).toEqual([ORG_ID, PO_ID, 'partially_received', USER_ID]);
   });
 
   it('allows a partial re-receive when the cumulative quantity stays within cap', async () => {

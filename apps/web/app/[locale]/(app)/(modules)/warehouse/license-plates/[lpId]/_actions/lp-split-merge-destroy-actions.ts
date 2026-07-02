@@ -479,9 +479,12 @@ export async function mergeLps(primaryLpIdInput: string, secondaryLpIdsInput: st
           lp.product_id === primary.product_id &&
           lp.uom === primary.uom &&
           lp.batch_number === primary.batch_number &&
-          lp.expiry_date === primary.expiry_date,
+          lp.expiry_date === primary.expiry_date &&
+          lp.warehouse_id === primary.warehouse_id &&
+          lp.site_id === primary.site_id &&
+          lp.location_id === primary.location_id,
       );
-      if (!sameSkuLot) return failure('LP product, UOM, batch, and expiry must match before merge');
+      if (!sameSkuLot) return failure('LP product, UOM, batch, expiry, warehouse, site, and location must match before merge');
       if (locked.rows.some((lp) => !SPLIT_MERGE_STATES.has(lp.status))) {
         return failure('only available LPs can be merged');
       }

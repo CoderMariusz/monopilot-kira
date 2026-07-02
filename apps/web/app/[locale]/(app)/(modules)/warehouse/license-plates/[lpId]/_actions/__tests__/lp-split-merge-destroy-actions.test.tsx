@@ -28,6 +28,9 @@ let primaryStatus: string;
 let primaryQaStatus: string;
 let secondaryQaStatus: string;
 let secondaryProductId: string;
+let secondarySiteId: string | null;
+let secondaryWarehouseId: string;
+let secondaryLocationId: string | null;
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -114,6 +117,9 @@ function makeClient(): QueryClient {
               reserved_qty: secondaryReservedQty,
               qa_status: secondaryQaStatus,
               product_id: secondaryProductId,
+              site_id: secondarySiteId,
+              warehouse_id: secondaryWarehouseId,
+              location_id: secondaryLocationId,
             }),
           ],
           rowCount: 2,
@@ -143,6 +149,9 @@ describe('LP split/merge/destroy server actions', () => {
     primaryQaStatus = 'released';
     secondaryQaStatus = 'released';
     secondaryProductId = PRODUCT_ID;
+    secondarySiteId = SITE_ID;
+    secondaryWarehouseId = WAREHOUSE_ID;
+    secondaryLocationId = LOCATION_ID;
     client = makeClient();
   });
 
@@ -204,7 +213,20 @@ describe('LP split/merge/destroy server actions', () => {
 
     const result = await mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'bad merge');
 
-    expect(result).toEqual({ ok: false, error: 'LP product, UOM, batch, and expiry must match before merge' });
+    expect(result).toEqual({ ok: false, error: 'LP product, UOM, batch, expiry, warehouse, site, and location must match before merge' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.lp_genealogy'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+
+  it('mergeLps rejects cross-site or cross-warehouse LPs before writes', async () => {
+    secondarySiteId = 'abababab-abab-4aba-8aba-abababababab';
+    secondaryWarehouseId = 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc';
+
+    const result = await mergeLps(PRIMARY_LP_ID, [SECONDARY_LP_ID], 'bad merge');
+
+    expect(result).toEqual({ ok: false, error: 'LP product, UOM, batch, expiry, warehouse, site, and location must match before merge' });
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.lp_genealogy'))).toBe(false);
