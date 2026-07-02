@@ -1,6 +1,6 @@
 # NPD Rebuild — target model + wave plan (F5 / F6)
 
-Date: 2026-07-02 · Author: orchestrator (Fable) · Status: OWNER-RULED (answers below), open questions in §7
+Date: 2026-07-02, round-2 rulings 2026-07-03 · Author: orchestrator (Fable) · Status: OWNER-RULED incl. round 2 (D14-D18); only two documented defaults remain in §7
 Evidence base: `_meta/audits/2026-07-02-npd/{code-audit.md,browser-walk.md}` (+ screenshots), FG-detail hotfix `ef5b9886`.
 
 ## 1. Owner decisions (2026-07-02, verbatim-derived)
@@ -20,6 +20,11 @@ Evidence base: `_meta/audits/2026-07-02-npd/{code-audit.md,browser-walk.md}` (+ 
 | D11 | **Recipe secondary components**: a component NOT counted toward main yield/composition but COUNTED in cost. Similar table to the packaging one. |
 | D12 | **Item substitutes**: rm3 declares substitute rm1 → they work INTERCHANGEABLY in an order: the substitute is an additional consumable source, not required when the primary is available. |
 | D13 | General mandate: review the WHOLE NPD module together with Settings and lay it out logically (one coherent progression system). |
+| D14 | (R2 2026-07-03) **WIP ≡ recipe.** The Production/WIP process editor merges into the RECIPE stage screen — no separate surface; FG-detail edit surface fully retired. |
+| D15 | (R2) **Recipe cascade tree**: a component that is itself a processed item (has its own recipe) renders as an EXPANDABLE tree node in the recipe view, cascading its WIP cost + nutrition into the parent. |
+| D16 | (R2) **Gate hardness**: G4/Approval ALWAYS hard (+e-sign); all earlier stage gates SOFT (override-with-note). Per-stage hardness toggle in Settings = LATER (deferred, not F5). |
+| D17 | (R2) **D11 secondary components CANCELLED** — concept replaced by component-level SUBSTITUTES: a column on the recipe components table sets a substitute item per component; the substitute may be consumed when the primary is unavailable (if so configured). Supersedes the item-level shape of D12. |
+| D18 | (R2) **Trial booking** = a capacity-reducing time block (day + time) on a line, NO WO; scheduling then shows it as a trial on the line. The pilot WO stays the first real WO. |
 
 ## 2. Target domain model
 
@@ -36,14 +41,16 @@ pipeline stage (9 dots, fixed order)
 - **ONE gate system**: stage advance gate = (a) all `required` fields of that stage's depts filled, (b) auto-derived system checks (see below), (c) e-sign where chartered (G4/approval). The generic manual G-checklist items DIE; approval C1–C7 become the Approval stage's auto-derived gate. Errors always surfaced (no ESIGN silent no-op — browser-walk BREAK#3).
 - **Auto-derived checks by stage**: Recipe = version locked; Packaging = ≥1 primary component; Costing+Nutrition = cost computed + NutriScore computed; Approval = C1..C7 equivalents (allergens declared, docs, no open high risks); Handover = production BOM built. All derived from live data, never manual checkboxes.
 - **Under-gating fix**: `is_all_required_filled` semantics move to the new gate (empty catalog ⇒ nothing required ⇒ pass is now BY DESIGN, not an accident); `done_mrp OR closed_mrp` dual path collapses into the single gate.
-- **Retirements**: FG detail as an *edit* surface (D1 — the FG list + read-only dashboard stay; production/WIP editing follows Q2 below); the phantom `npd_department_field.stage_code` column (dept→stage assignment replaces it); the per-stage dead submit buttons either work (D7) or are removed; gate-modal manual checklists.
+- **Retirements**: FG detail as an *edit* surface (D1 — the FG list + read-only dashboard stay; production/WIP editing merges into the Recipe stage per D14); the phantom `npd_department_field.stage_code` column (dept→stage assignment replaces it); the per-stage dead submit buttons either work (D7) or are removed; gate-modal manual checklists.
 - **FG dashboard rebuild**: reads ACTIVE departments only, groups by stage→dept, read-only; a project/FG is "red" only on missing REQUIRED fields that some stage screen actually renders.
 
 ## 3. Feature specs (new)
 
-**Secondary components (D11)** — `recipe_lines.component_role` (`primary`|`secondary`) or a sibling table mirroring the packaging-components pattern. Secondary lines: excluded from composition %/yield/batch-mass checks; included in recipe cost (same supplier-spec price source); carried into the production BOM at handover flagged secondary (consumed by WO like any line, just not part of the mass balance). UI: separate table under the ingredients table, packaging-style.
+**Secondary components (D11)** — CANCELLED by D17 (round 2). Replaced by component-level substitutes below.
 
-**Substitutes (D12)** — item-level relation `item_substitutes(org_id, item_id, substitute_item_id)` (rm3→rm1). Consumption: a WO material requirement for rm3 accepts LPs of rm1 (desktop consume + scanner consume + reverse paths); consumed qty counts toward the same requirement; stock_moves/genealogy record the ACTUAL item consumed. Guards: substitute must pass the same holds/qa gates; **allergen/QA parity check at declaration time** (see Q4). Touches production+warehouse consume paths ⇒ REGULATORY-adjacent tier (Codex + Opus review).
+**Substitutes (D12 + D17, component-level)** — the recipe components table gains a SUBSTITUTE column: `substitute_item_id` on the recipe/BOM line (or sibling `recipe_line_substitutes` if >1 per line is ever needed — start with one). Carried into the production BOM at handover. Consumption: a WO material requirement whose line declares a substitute accepts LPs of the substitute item WHEN the primary is unavailable (desktop consume + scanner consume + reverse paths); consumed qty counts toward the same requirement; stock_moves/genealogy record the ACTUAL item consumed; substitute passes the same holds/qa gates. DEFAULTS (owner silent on Q4, applied unless vetoed): allergen-profile mismatch = FAIL-CLOSED at declaration; substitution applies at CONSUMPTION ONLY (no MRP/PO suggestion) in F6. Touches production+warehouse consume paths ⇒ REGULATORY tier (Codex + Opus review).
+
+**Recipe cascade tree (D15)** — a recipe line whose component is itself a processed item (has its own locked/active recipe) renders as an expandable tree node: expanding shows the sub-recipe's components with the sub-item's WIP cost and nutrition rolled up into the parent view. Read-only explosion (no cross-recipe editing from the parent); depth-limited recursion with cycle guard; cost source = the same canonical `v_item_effective_cost` path.
 
 **Trial→Planning (D8)** — submit-to-trial creates a trial draft (D7); the trial becomes a plannable demand visible on the planning board as bookable line-time. Canonical owners respected: `schedule_outputs` = planning; NPD only emits/creates the demand row.
 
@@ -65,16 +72,16 @@ pipeline stage (9 dots, fixed order)
 - **N1** [Codex, schema] mig 421+: `npd_departments.stage_code` (dept→stage) + backfill; hard-delete cascade for dept/field incl. jsonb value scrub (D4); drop phantom `npd_department_field.stage_code`; seed updates (mig-386 family).
 - **N2** [Composer, UI] Settings npd-fields rework: stage-assignment picker on dept, reactive refresh, inline delete-hint (§2).
 - **N3** [Codex] stage-section engine: stage-filtered loader (generalize `load-fa-dynamic-sections`), per-field save action (RBAC + validation + auto-derive mirror), wire `<DeptSections>` into ALL stage pages.
-- **N4** [Codex, REGULATORY — Opus review] gate unification: one gate per stage (required-fields + auto-derived checks + e-sign); kill manual checklists; ESIGN errors surfaced; collapse `done_mrp/closed_mrp` dual path.
+- **N4** [Codex, REGULATORY — Opus review] gate unification: one gate per stage (required-fields + auto-derived checks + e-sign); kill manual checklists; ESIGN errors surfaced; collapse `done_mrp/closed_mrp` dual path. Hardness per D16: G4/Approval hard, earlier stages soft override-with-note (audit-logged); Settings hardness toggle DEFERRED.
 - **N5** [Composer] new stage Costing+Nutrition: merged screen, pipeline dot, routes/i18n, C2/C3 auto-derive; negative-margin fix (D10).
 - **N6** [Composer] FG dashboard rebuild (active depts, read-only, stage-grouped) + FG-detail retirement per Q2 answer + projects-table NPD-xxx link (D6).
 - **N7** [kira-easy/Composer] recipe flow smalls: wizard auto-draft (bug 4), submit-to-trial enable + trial-draft create (D7/bug 3).
 - **N8** [kira-mechanical] cleanup: E2E-NPD leftovers, i18n sidecars, dead code from retirements.
 
-**F6 — NPD-materials + planning integration** (depends on F5 spine):
-- **M1** [Codex, schema+cost] secondary components (D11) end-to-end: recipe UI table → cost → handover BOM flag → WO consume.
-- **M2** [Codex, REGULATORY — Opus review] item substitutes (D12): schema, item-master UI, consume-path acceptance (desktop+scanner+reverse), allergen/QA parity guard, genealogy correctness.
-- **M3** [Codex] trial→planning bookable time (D8, planning-owner seam).
+**F6 — NPD-materials + planning integration** (depends on F5 spine; reshaped by R2):
+- **M1** [Codex engine + Composer/kira-ui tree UI] recipe cascade tree (D15): recursive cost+nutrition rollup for processed components, expandable tree in the recipe view, cycle guard.
+- **M2** [Codex, REGULATORY — Opus review] component-level substitutes (D17): recipe-line substitute column (schema+UI), handover BOM carry, consume-path acceptance (desktop+scanner+reverse), allergen fail-closed guard at declaration, genealogy correctness. (Secondary components CANCELLED.)
+- **M3** [Codex] trial→planning capacity block (D8+D18): trial draft books a day+time block on a line REDUCING its capacity, no WO; planning-owner seam respected.
 - **M4** [Composer] pilot→`WO-pilot-FG####` (D9, mask + WO create + gate wiring).
 
 **F7 — (unchanged, ex-F5 backlog)**: WAC integrity wave, real-DB gate infra, 28 B-gaps, rule-13 ESLint, UX-branch harvest — see memory `f4-wave-state`.
@@ -86,16 +93,13 @@ pipeline stage (9 dots, fixed order)
 - FG-detail retirement must not orphan the sub-routes approval depends on (allergens/docs) until their replacement lands — sequence inside F5 (N4 before N6).
 - i18n: append-only sidecars (rule 14); stage screens are i18n-heavy.
 
-## 7. Open questions for the owner (round 2)
+## 7. Round-2 rulings (2026-07-03) — ANSWERED, captured as D14-D18
 
-1. **FG detail retirement scope**: does the WHOLE edit surface go (Core/Production/… sections move to stage screens), keeping only the FG LIST + read-only dashboard? Where do you edit FG data AFTER handover/launch — Technical items? And the Production/WIP process editor currently living on FG detail — move to which stage (Recipe? Pilot?)?
-2. **Costing+Nutrition stage name** (one dot): "Kalkulacja" / "Koszt i żywienie" / other? Confirm position Packaging → C+N → Trial.
-3. **Gate hardness**: early gates (Brief…Sensory) — hard-block until required fields filled, or keep soft override-with-note? Approval/G4 stays hard + e-sign.
-4. **Substitutes safety**: block declaring a substitute whose allergen profile differs from the primary (fail-closed), or warn-only? Do substitutes also apply in MRP/PO suggestion, or ONLY at consumption?
-5. **Secondary components at production**: consumed by the WO as normal BOM lines (scanner shows them), correct? And packaging-table "substitute" column relation to D12 substitutes — same mechanism or packaging keeps its own?
-6. **Trial booking shape**: a schedule BLOCK on a line (time reservation, no WO), with the pilot WO being the first real WO — correct?
+Q1→D14+D15 (WIP≡recipe, cascade tree) · Q3→D16 (G4 hard, rest soft, Settings toggle later) · Q5→D17 (secondary cancelled → component-level substitutes) · Q6→D18 (capacity block, no WO). Two DOCUMENTED DEFAULTS applied unless the owner vetoes:
+- **Q2 stage name**: "Koszt i żywienie" (EN "Costing & Nutrition"), position Packaging → C+N → Trial.
+- **Q4 substitutes safety**: allergen-profile mismatch = BLOCKED at declaration (fail-closed); substitution at CONSUMPTION only (no MRP/PO) in F6.
 
 ## 8. Definition of done (per wave)
 
 F5: create→handover walkable end-to-end on production using ONLY on-screen controls; a field configured in Settings for dept X assigned to stage Y renders on stage Y, gates it when required, and disappears (with values) when the dept is deleted; FG dashboard shows only active depts; live-E3 walk + fix loop GREEN.
-F6: a WO for an item with a substitute consumes either item against one requirement with correct genealogy/ledger; secondary component priced into recipe cost but absent from composition; trial bookable in planning; pilot WO minted with mask.
+F6: a WO whose recipe line declares a substitute consumes either item against one requirement with correct genealogy/ledger (fail-closed allergen guard at declaration); a processed component expands in the recipe as a cascade tree with rolled-up WIP cost + nutrition; a trial books a capacity-reducing block on a line with NO WO; pilot WO minted with mask.
