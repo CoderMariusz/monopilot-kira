@@ -54,6 +54,7 @@ const labels: NpdFieldsScreenLabels = {
     brief: 'Brief',
     recipe: 'Recipe',
     packaging: 'Packaging',
+    costing_nutrition: 'Costing & Nutrition',
     trial: 'Trial',
     sensory: 'Sensory',
     pilot: 'Pilot',
@@ -74,6 +75,7 @@ const labels: NpdFieldsScreenLabels = {
   fieldHelpText: 'Help text',
   departmentCode: 'Department code',
   departmentName: 'Department name',
+  departmentStage: 'Pipeline stage',
   departmentDescription: 'Description',
   newFieldTitle: 'Create NPD field',
   newDepartmentTitle: 'Create NPD department',
@@ -85,10 +87,15 @@ const labels: NpdFieldsScreenLabels = {
   deleteDepartmentUnavailable: 'The core department cannot be deleted.',
   deleteDepartment: 'Delete',
   deleteField: 'Delete from catalog',
-  deleteDepartmentConfirm: 'Delete this department permanently? This cannot be undone.',
-  deleteFieldConfirm: 'Delete this field from the catalog permanently? This cannot be undone.',
-  departmentInUse: 'This department is still in use and cannot be deleted.',
-  fieldInUse: 'This field is still assigned. Remove its assignments first, then delete.',
+  deleteDepartmentTitle: 'Delete department {name}?',
+  deleteDepartmentBody:
+    'This permanently deletes the department, its field assignments, all stored values on FG records, and related gate checklist items. This cannot be undone.',
+  deleteFieldTitle: 'Delete field {name}?',
+  deleteFieldBody:
+    'This permanently deletes the field, its assignments, all stored values on FG records, and related gate checklist items. This cannot be undone.',
+  deleteTypeToConfirm: 'Type {code} to confirm',
+  deleteConfirmButton: 'Delete permanently',
+  deleteDeleting: 'Deleting…',
   fieldAuto: 'Auto-derived',
   fieldAutoHint: 'Compute this field automatically from another catalog field.',
   fieldAutoSource: 'Source field',
@@ -109,7 +116,6 @@ const labels: NpdFieldsScreenLabels = {
   catalogSubtitle: 'Every field defined for this organisation. Delete a field once it is removed from all departments.',
   catalogEmpty: 'No catalog fields are defined.',
   catalogAssignmentCount: '{count} assignments',
-  fieldRemoveFromAllFirst: 'Remove this field from all departments first.',
   catalogColumns: {
     field: 'Field',
     dataType: 'Data type',
@@ -123,6 +129,7 @@ const departments: NpdDepartmentConfigRow[] = [
     id: '11111111-1111-1111-1111-111111111111',
     code: 'technical',
     name: 'Technical',
+    stage_code: 'recipe',
     display_order: 10,
     active: true,
     fields: [
@@ -154,6 +161,7 @@ const departments: NpdDepartmentConfigRow[] = [
     id: '22222222-2222-2222-2222-222222222222',
     code: 'packaging',
     name: 'Packaging',
+    stage_code: 'packaging',
     display_order: 20,
     active: false,
     fields: [
@@ -174,6 +182,7 @@ const departments: NpdDepartmentConfigRow[] = [
     id: '33333333-3333-3333-3333-333333333333',
     code: 'core',
     name: 'Core',
+    stage_code: 'brief',
     display_order: 0,
     active: true,
     fields: [],
@@ -219,8 +228,12 @@ describe('NpdFieldsScreen', () => {
 
     expect(document.querySelector('.sg-title')).toHaveTextContent('NPD fields');
     const table = screen.getByTestId('npd-departments-table');
-    expect(within(table).getByText('Technical')).toBeInTheDocument();
-    expect(within(table).getByText('Packaging')).toBeInTheDocument();
+    expect(
+      within(table).getByTestId('npd-department-row-11111111-1111-1111-1111-111111111111'),
+    ).toHaveTextContent('Technical');
+    expect(
+      within(table).getByTestId('npd-department-row-22222222-2222-2222-2222-222222222222'),
+    ).toHaveTextContent('Packaging');
     // Technical is active, Packaging is inactive in the fixture (Core is also
     // active, so scope the badge assertions to the specific department rows).
     const technicalRow = screen.getByTestId(
@@ -410,12 +423,35 @@ describe('NpdFieldsScreen', () => {
     });
   });
 
-  it('creates a new department via the createDepartment action', async () => {
+  it('groups departments by pipeline stage with stage headers', () => {
+    renderScreen();
+
+    expect(screen.getByTestId('npd-stage-group-brief')).toHaveTextContent('Brief');
+    expect(screen.getByTestId('npd-stage-group-recipe')).toHaveTextContent('Recipe');
+    expect(screen.getByTestId('npd-stage-group-packaging')).toHaveTextContent('Packaging');
+    expect(
+      screen.getByTestId('npd-department-stage-33333333-3333-3333-3333-333333333333'),
+    ).toHaveTextContent('Brief');
+    expect(
+      screen.getByTestId('npd-department-stage-11111111-1111-1111-1111-111111111111'),
+    ).toHaveTextContent('Recipe');
+  });
+
+  it('does not render a per-assignment stage picker in the fields table', () => {
+    renderScreen();
+
+    expect(screen.queryByLabelText(/Target pH Stage/)).not.toBeInTheDocument();
+    const fieldsTable = screen.getByTestId('npd-fields-table');
+    expect(within(fieldsTable).queryByText('Stage')).not.toBeInTheDocument();
+  });
+
+  it('creates a new department with stage_code via the createDepartment action', async () => {
     const createDepartmentAction = vi.fn(async () => ({
       id: 'dept-new',
       org_id: 'org',
       code: 'quality',
       name: 'Quality',
+      stage_code: 'sensory' as const,
       display_order: 30,
       active: true,
       created_at: '2026-06-27T00:00:00.000Z',
@@ -426,21 +462,24 @@ describe('NpdFieldsScreen', () => {
     const dialog = screen.getByRole('dialog', { name: 'Create NPD department' });
     fireEvent.change(within(dialog).getByLabelText('Department code'), { target: { value: 'quality' } });
     fireEvent.change(within(dialog).getByLabelText('Department name'), { target: { value: 'Quality' } });
+    fireEvent.click(within(dialog).getByLabelText('Pipeline stage'));
+    fireEvent.click(screen.getByRole('option', { name: 'Sensory' }));
     fireEvent.submit(within(dialog).getByTestId('npd-new-department-form'));
 
     await waitFor(() => {
       expect(createDepartmentAction).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'quality', name: 'Quality' }),
+        expect.objectContaining({ code: 'quality', name: 'Quality', stage_code: 'sensory' }),
       );
     });
   });
 
-  it('edits a department via the updateDepartment action', async () => {
+  it('edits a department via the updateDepartment action including stage_code', async () => {
     const updateDepartmentAction = vi.fn(async () => ({
       id: departments[0].id,
       org_id: 'org',
       code: 'technical',
       name: 'Technical (renamed)',
+      stage_code: 'pilot' as const,
       display_order: 10,
       active: true,
       created_at: '2026-06-27T00:00:00.000Z',
@@ -452,12 +491,14 @@ describe('NpdFieldsScreen', () => {
     fireEvent.change(within(dialog).getByLabelText('Department name'), {
       target: { value: 'Technical (renamed)' },
     });
+    fireEvent.click(within(dialog).getByLabelText('Pipeline stage'));
+    fireEvent.click(screen.getByRole('option', { name: 'Pilot' }));
     fireEvent.submit(within(dialog).getByTestId('npd-edit-department-form'));
 
     await waitFor(() => {
       expect(updateDepartmentAction).toHaveBeenCalledWith(
         departments[0].id,
-        expect.objectContaining({ name: 'Technical (renamed)' }),
+        expect.objectContaining({ name: 'Technical (renamed)', stage_code: 'pilot' }),
       );
     });
   });
@@ -608,65 +649,41 @@ describe('NpdFieldsScreen', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('confirms then calls deleteDepartmentAction and removes the row on success', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('opens the type-to-confirm dialog and deletes a department on success', async () => {
     const deleteDepartmentAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
     renderScreen({ deleteDepartmentAction });
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Packaging' }));
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Delete this department permanently? This cannot be undone.',
-    );
+    const dialog = screen.getByRole('dialog', { name: 'Delete department Packaging?' });
+    const confirmInput = within(dialog).getByTestId('npd-cascade-delete-confirm-input');
+    const confirmButton = within(dialog).getByTestId('npd-cascade-delete-confirm-button');
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.change(confirmInput, { target: { value: 'packaging' } });
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
+
     await waitFor(() => {
       expect(deleteDepartmentAction).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
     });
-    // The deleted department row disappears from the table.
     const deptTable = screen.getByTestId('npd-departments-table');
     await waitFor(() => {
       expect(within(deptTable).queryByText('Packaging')).not.toBeInTheDocument();
     });
-    confirmSpy.mockRestore();
   });
 
-  it('does NOT call deleteDepartmentAction when the confirm dialog is cancelled', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('does NOT call deleteDepartmentAction when the cascade delete dialog is cancelled', () => {
     const deleteDepartmentAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
     renderScreen({ deleteDepartmentAction });
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Technical' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(confirmSpy).toHaveBeenCalled();
     expect(deleteDepartmentAction).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
-  it('surfaces the in-use message when deleteDepartmentAction refuses with department_in_use', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const deleteDepartmentAction = vi.fn(async () => ({
-      ok: false as const,
-      error: 'department_in_use' as const,
-    }));
-    renderScreen({ deleteDepartmentAction });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Technical' }));
-
-    await waitFor(() => {
-      expect(deleteDepartmentAction).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111');
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId('npd-fields-error')).toHaveTextContent(
-        'This department is still in use and cannot be deleted.',
-      );
-    });
-    // The row stays put since the delete was refused.
-    const deptTable = screen.getByTestId('npd-departments-table');
-    expect(within(deptTable).getByText('Technical')).toBeInTheDocument();
-    confirmSpy.mockRestore();
-  });
-
-  it('maps cannot_delete_core to the core-delete message via the deleteDepartmentUnavailable slot', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('surfaces cannot_delete_core inline inside the delete dialog', async () => {
     const deleteDepartmentAction = vi.fn(async () => ({
       ok: false as const,
       error: 'cannot_delete_core' as const,
@@ -674,13 +691,19 @@ describe('NpdFieldsScreen', () => {
     renderScreen({ deleteDepartmentAction });
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Technical' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete department Technical?' });
+    fireEvent.change(within(dialog).getByTestId('npd-cascade-delete-confirm-input'), {
+      target: { value: 'technical' },
+    });
+    fireEvent.click(within(dialog).getByTestId('npd-cascade-delete-confirm-button'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('npd-fields-error')).toHaveTextContent(
+      expect(within(dialog).getByTestId('npd-cascade-delete-error')).toHaveTextContent(
         'The core department cannot be deleted.',
       );
     });
-    confirmSpy.mockRestore();
+    const deptTable = screen.getByTestId('npd-departments-table');
+    expect(within(deptTable).getByText('Technical')).toBeInTheDocument();
   });
 
   // ── Field catalog section (S1b: reachable hard-delete) ──────────────────────
@@ -712,70 +735,46 @@ describe('NpdFieldsScreen', () => {
     expect(targetRow).toHaveTextContent('1 assignments');
   });
 
-  it('enables Delete for a catalog field with 0 assignments and calls deleteFieldAction', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('enables catalog Delete even when assignments exist and calls deleteFieldAction after type-to-confirm', async () => {
     const deleteFieldAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
     renderScreen({ deleteFieldAction });
 
-    // trial_notes (field-4) has 0 assignments → its catalog Delete is enabled.
-    const deleteButton = screen.getByRole('button', { name: 'Delete from catalog Trial notes' });
+    const deleteButton = screen.getByRole('button', { name: 'Delete from catalog Target pH' });
     expect(deleteButton).toBeEnabled();
 
     fireEvent.click(deleteButton);
+    const dialog = screen.getByRole('dialog', { name: 'Delete field Target pH?' });
+    fireEvent.change(within(dialog).getByTestId('npd-cascade-delete-confirm-input'), {
+      target: { value: 'target_ph' },
+    });
+    fireEvent.click(within(dialog).getByTestId('npd-cascade-delete-confirm-button'));
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Delete this field from the catalog permanently? This cannot be undone.',
-    );
+    await waitFor(() => {
+      expect(deleteFieldAction).toHaveBeenCalledWith('field-1');
+    });
+    const catalogTable = screen.getByTestId('npd-field-catalog-table');
+    await waitFor(() => {
+      expect(within(catalogTable).queryByText('Target pH')).not.toBeInTheDocument();
+    });
+  });
+
+  it('deletes an unassigned catalog field via the type-to-confirm dialog', async () => {
+    const deleteFieldAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
+    renderScreen({ deleteFieldAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete from catalog Trial notes' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete field Trial notes?' });
+    fireEvent.change(within(dialog).getByTestId('npd-cascade-delete-confirm-input'), {
+      target: { value: 'trial_notes' },
+    });
+    fireEvent.click(within(dialog).getByTestId('npd-cascade-delete-confirm-button'));
+
     await waitFor(() => {
       expect(deleteFieldAction).toHaveBeenCalledWith('field-4');
     });
-    // The deleted field disappears from the catalog table.
     const catalogTable = screen.getByTestId('npd-field-catalog-table');
     await waitFor(() => {
       expect(within(catalogTable).queryByText('Trial notes')).not.toBeInTheDocument();
     });
-    confirmSpy.mockRestore();
-  });
-
-  it('disables Delete for a catalog field with >0 assignments and never calls deleteFieldAction', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const deleteFieldAction = vi.fn(async (id: string) => ({ ok: true as const, id }));
-    renderScreen({ deleteFieldAction });
-
-    // Target pH (field-1) has 1 assignment → its catalog Delete is disabled.
-    const deleteButton = screen.getByRole('button', { name: 'Delete from catalog Target pH' });
-    expect(deleteButton).toBeDisabled();
-    expect(deleteButton).toHaveAttribute('title', 'Remove this field from all departments first.');
-
-    fireEvent.click(deleteButton);
-    expect(confirmSpy).not.toHaveBeenCalled();
-    expect(deleteFieldAction).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
-  });
-
-  it('surfaces the in-use message when deleteFieldAction refuses with field_in_use', async () => {
-    // Defensive path: even from the catalog section (count===0 guard), if the
-    // backend still reports the field as assigned, the existing message shows.
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const deleteFieldAction = vi.fn(async () => ({
-      ok: false as const,
-      error: 'field_in_use' as const,
-    }));
-    renderScreen({ deleteFieldAction });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete from catalog Trial notes' }));
-
-    await waitFor(() => {
-      expect(deleteFieldAction).toHaveBeenCalledWith('field-4');
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByText('This field is still assigned. Remove its assignments first, then delete.'),
-      ).toBeInTheDocument();
-    });
-    // The field row remains since the delete was refused.
-    const catalogTable = screen.getByTestId('npd-field-catalog-table');
-    expect(within(catalogTable).getByText('Trial notes')).toBeInTheDocument();
-    confirmSpy.mockRestore();
   });
 });

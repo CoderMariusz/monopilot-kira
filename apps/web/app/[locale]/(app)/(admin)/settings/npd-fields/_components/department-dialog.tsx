@@ -2,16 +2,17 @@
 
 import React, { useState } from 'react';
 
-import { SettingField } from '../../_components';
+import { SelectField, SettingField } from '../../_components';
 import { slugifyCode, type NpdFieldsScreenLabels } from '../npd-fields-screen.client';
 import { DialogShell } from './dialog-shell';
 
-type DepartmentDialogValues = { code: string; name: string; description: string };
+type DepartmentDialogValues = { code: string; name: string; description: string; stage_code: string };
 
 export function DepartmentDialog({
   mode,
   title,
   labels,
+  stageOptions,
   initial,
   pending,
   error,
@@ -23,6 +24,7 @@ export function DepartmentDialog({
   mode: 'create' | 'edit';
   title: string;
   labels: NpdFieldsScreenLabels;
+  stageOptions: Array<{ value: string; label: string }>;
   initial?: DepartmentDialogValues;
   pending: boolean;
   error: string | null;
@@ -34,19 +36,21 @@ export function DepartmentDialog({
   const titleId = React.useId();
   const [code, setCode] = useState(initial?.code ?? '');
   const [name, setName] = useState(initial?.name ?? '');
+  const [stageCode, setStageCode] = useState(initial?.stage_code ?? 'brief');
   const [codeTouched, setCodeTouched] = useState(mode === 'edit');
 
   const effectiveCode = mode === 'create' && !codeTouched ? slugifyCode(name) : code;
-  const canSubmit = !pending && effectiveCode.trim().length > 0 && name.trim().length > 0;
+  const canSubmit = !pending && effectiveCode.trim().length > 0 && name.trim().length > 0 && stageCode.length > 0;
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit) return;
-    // NOTE: npd_departments has no description column (mig 333) and the
-    // createDepartment/updateDepartment actions do not accept one, so we only
-    // submit { code, name }. Description is intentionally not collected to avoid
-    // a silent no-op; a backing column + action change is a separate slice.
-    onSubmit({ code: slugifyCode(effectiveCode), name: name.trim(), description: '' });
+    onSubmit({
+      code: slugifyCode(effectiveCode),
+      name: name.trim(),
+      description: '',
+      stage_code: stageCode,
+    });
   }
 
   return (
@@ -69,6 +73,14 @@ export function DepartmentDialog({
             setCodeTouched(true);
             setCode(value);
           }}
+        />
+        <SelectField
+          id={`${formTestId}-stage`}
+          label={labels.departmentStage}
+          options={stageOptions}
+          value={stageCode}
+          disabled={pending}
+          onChange={setStageCode}
         />
 
         {error ? (

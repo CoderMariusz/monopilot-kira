@@ -1,11 +1,10 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { Fragment, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
-
-import { PageHead, Section, SelectField, SettingField, SRow, Toggle } from '../_components';
+import { PageHead, Section, SelectField, Toggle } from '../_components';
+import { CascadeDeleteDialog } from './_components/cascade-delete-dialog';
 import { DepartmentDialog } from './_components/department-dialog';
 import { FieldDialog } from './_components/field-dialog';
 import {
@@ -19,7 +18,17 @@ import {
   updateField,
 } from './_actions/npd-field-config';
 
-const STAGE_CODES = ['brief', 'recipe', 'packaging', 'trial', 'sensory', 'pilot', 'approval', 'handoff'] as const;
+export const STAGE_CODES = [
+  'brief',
+  'recipe',
+  'packaging',
+  'costing_nutrition',
+  'trial',
+  'sensory',
+  'pilot',
+  'approval',
+  'handoff',
+] as const;
 
 const UI_DATA_TYPES = ['text', 'integer', 'number', 'date', 'datetime', 'boolean', 'dropdown', 'formula'] as const;
 
@@ -35,12 +44,7 @@ export type NpdFieldCatalogRow = {
   help_text?: string | null;
   is_auto?: boolean;
   auto_source_field?: string | null;
-  /**
-   * Number of `npd_department_field` rows that reference this catalog field,
-   * counted across ALL departments (not just the selected one). Provided by the
-   * page loader. A field is hard-deletable only when this is 0; while it is > 0
-   * the catalog Delete is disabled and the backend would return `field_in_use`.
-   */
+  /** Cross-department assignment count; shown for context only (hard-delete cascades). */
   assignment_count?: number;
 };
 
@@ -71,22 +75,10 @@ export const DEACTIVATE_ERROR_CODES = [
 
 export type DeactivateErrorCode = (typeof DEACTIVATE_ERROR_CODES)[number];
 
-/**
- * Error codes the `deleteDepartment` action returns when a delete is refused.
- * `cannot_delete_core` — the immutable core department; `department_in_use` —
- * the department still has dependent data (assignments / project rows).
- */
-export const DELETE_DEPARTMENT_ERROR_CODES = ['cannot_delete_core', 'department_in_use'] as const;
+/** Error codes the `deleteDepartment` action returns when a delete is refused. */
+export const DELETE_DEPARTMENT_ERROR_CODES = ['cannot_delete_core'] as const;
 
 export type DeleteDepartmentErrorCode = (typeof DELETE_DEPARTMENT_ERROR_CODES)[number];
-
-/**
- * Error codes the `deleteField` action returns when a delete is refused.
- * `field_in_use` — the field is still assigned to one or more departments.
- */
-export const DELETE_FIELD_ERROR_CODES = ['field_in_use'] as const;
-
-export type DeleteFieldErrorCode = (typeof DELETE_FIELD_ERROR_CODES)[number];
 
 export type NpdDepartmentFieldRow = {
   assignment_id: string;
@@ -104,6 +96,7 @@ export type NpdDepartmentConfigRow = {
   id: string;
   code: string;
   name: string;
+  stage_code: string;
   display_order: number;
   active: boolean;
   fields: NpdDepartmentFieldRow[];
@@ -142,6 +135,7 @@ export type NpdFieldsScreenLabels = {
   fieldHelpText: string;
   departmentCode: string;
   departmentName: string;
+  departmentStage: string;
   departmentDescription: string;
   newFieldTitle: string;
   newDepartmentTitle: string;
@@ -155,10 +149,13 @@ export type NpdFieldsScreenLabels = {
   deleteDepartmentUnavailable: string;
   deleteDepartment: string;
   deleteField: string;
-  deleteDepartmentConfirm: string;
-  deleteFieldConfirm: string;
-  departmentInUse: string;
-  fieldInUse: string;
+  deleteDepartmentTitle: string;
+  deleteDepartmentBody: string;
+  deleteFieldTitle: string;
+  deleteFieldBody: string;
+  deleteTypeToConfirm: string;
+  deleteConfirmButton: string;
+  deleteDeleting: string;
   fieldAuto: string;
   fieldAutoHint: string;
   fieldAutoSource: string;
@@ -185,8 +182,6 @@ export type NpdFieldsScreenLabels = {
   catalogEmpty: string;
   /** `{count}` placeholder → assignment count, e.g. "3 assignments". */
   catalogAssignmentCount: string;
-  /** Disabled-reason tooltip shown on the catalog Delete while count > 0. */
-  fieldRemoveFromAllFirst: string;
   catalogColumns: {
     field: string;
     dataType: string;
@@ -224,9 +219,7 @@ type UpdateDepartmentAction = typeof updateDepartment;
 type DeleteDepartmentAction = (
   id: string,
 ) => Promise<{ ok: true; id: string } | { ok: false; error: DeleteDepartmentErrorCode }>;
-type DeleteFieldAction = (
-  id: string,
-) => Promise<{ ok: true; id: string } | { ok: false; error: DeleteFieldErrorCode }>;
+type DeleteFieldAction = (id: string) => Promise<{ ok: true; id: string }>;
 
 export type NpdFieldsScreenProps = {
   departments: NpdDepartmentConfigRow[];
@@ -252,6 +245,11 @@ type DialogState =
   | { kind: 'new-department' }
   | { kind: 'edit-field'; field: NpdFieldCatalogRow }
   | { kind: 'edit-department'; department: NpdDepartmentConfigRow }
+  | null;
+
+type DeleteDialogState =
+  | { kind: 'department'; department: NpdDepartmentConfigRow }
+  | { kind: 'field'; field: NpdFieldCatalogRow }
   | null;
 
 function isAutoSourceError(
@@ -312,42 +310,23 @@ function normalizeStage(value: string): StageCode {
   return STAGE_CODES.includes(value as StageCode) ? (value as StageCode) : 'brief';
 }
 
+function stageIndex(stageCode: string): number {
+  const normalized = normalizeStage(stageCode);
+  return STAGE_CODES.indexOf(normalized);
+}
+
+function compareDepartments(a: NpdDepartmentConfigRow, b: NpdDepartmentConfigRow): number {
+  const stageDiff = stageIndex(a.stage_code) - stageIndex(b.stage_code);
+  if (stageDiff !== 0) return stageDiff;
+  if (a.display_order !== b.display_order) return a.display_order - b.display_order;
+  return a.name.localeCompare(b.name);
+}
+
 function statusBadge(active: boolean, labels: NpdFieldsScreenLabels) {
   return active ? (
     <span className="badge badge-green">● {labels.active}</span>
   ) : (
     <span className="badge badge-gray">✕ {labels.inactive}</span>
-  );
-}
-
-function InlineSelect({
-  id,
-  label,
-  value,
-  options,
-  disabled,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  disabled?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Select id={id} name={label} value={value} options={options} disabled={disabled} onValueChange={onChange}>
-      <SelectTrigger id={`${id}-trigger`} aria-label={label}>
-        <SelectValue placeholder={label} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
@@ -378,9 +357,37 @@ export default function NpdFieldsScreen({
   const [pendingTarget, setPendingTarget] = useState<PendingTarget>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
+  const [deleteDialogPending, setDeleteDialogPending] = useState(false);
+  const [deleteDialogError, setDeleteDialogError] = useState<string | null>(null);
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    setDepartmentRows(departments);
+  }, [departments]);
+
+  useEffect(() => {
+    setFieldCatalogRows(fieldCatalog);
+  }, [fieldCatalog]);
+
+  const sortedDepartments = useMemo(
+    () => [...departmentRows].sort(compareDepartments),
+    [departmentRows],
+  );
+
+  const departmentsByStage = useMemo(() => {
+    const grouped = new Map<StageCode, NpdDepartmentConfigRow[]>();
+    for (const stage of STAGE_CODES) {
+      grouped.set(stage, []);
+    }
+    for (const department of sortedDepartments) {
+      const stage = normalizeStage(department.stage_code);
+      grouped.get(stage)?.push(department);
+    }
+    return grouped;
+  }, [sortedDepartments]);
 
   const selectedDepartment = useMemo(
     () => departmentRows.find((department) => department.id === selectedDepartmentId) ?? departmentRows[0],
@@ -392,7 +399,7 @@ export default function NpdFieldsScreen({
     [selectedDepartment],
   );
 
-  const departmentOptions = departmentRows.map((department) => ({
+  const departmentOptions = sortedDepartments.map((department) => ({
     value: department.id,
     label: department.name,
   }));
@@ -505,12 +512,11 @@ export default function NpdFieldsScreen({
     const nextOrder =
       selectedDepartment.fields.reduce((max, field) => Math.max(max, field.display_order), 0) + 10;
     void runMutation({ kind: 'assign', id: selectedDepartment.id }, async () => {
-      const row = await assignFieldAction({
+      const row =       await assignFieldAction({
         department_id: selectedDepartment.id,
         field_id: selectedFieldId,
         required: false,
         visible: true,
-        stage_code: 'brief',
         display_order: nextOrder,
       });
       const catalogField = fieldCatalogRows.find((field) => field.id === selectedFieldId);
@@ -599,78 +605,80 @@ export default function NpdFieldsScreen({
     });
   }
 
+  function openDeleteDialog(next: DeleteDialogState) {
+    if (!canEdit) return;
+    setDeleteDialogError(null);
+    setDeleteDialog(next);
+  }
+
+  function closeDeleteDialog() {
+    if (deleteDialogPending) return;
+    setDeleteDialog(null);
+    setDeleteDialogError(null);
+  }
+
+  async function confirmDeleteDepartment(department: NpdDepartmentConfigRow) {
+    if (!canEdit || !deleteDepartmentAction) return;
+    setDeleteDialogPending(true);
+    setDeleteDialogError(null);
+    setError(null);
+    try {
+      const result = await deleteDepartmentAction(department.id);
+      if (!result.ok) {
+        setDeleteDialogError(
+          result.error === 'cannot_delete_core' ? labels.deleteDepartmentUnavailable : labels.error,
+        );
+        return;
+      }
+      setDepartmentRows((current) => {
+        const remaining = current.filter((row) => row.id !== department.id);
+        if (selectedDepartmentId === department.id) {
+          setSelectedDepartmentId(remaining[0]?.id ?? '');
+        }
+        return remaining;
+      });
+      setDeleteDialog(null);
+      refreshAfterMutation();
+    } catch {
+      setDeleteDialogError(labels.error);
+    } finally {
+      setDeleteDialogPending(false);
+    }
+  }
+
+  async function confirmDeleteField(field: NpdFieldCatalogRow) {
+    if (!canEdit || !deleteFieldAction) return;
+    setDeleteDialogPending(true);
+    setDeleteDialogError(null);
+    setError(null);
+    try {
+      const result = await deleteFieldAction(field.id);
+      setFieldCatalogRows((current) => current.filter((row) => row.id !== field.id));
+      setDepartmentRows((current) =>
+        current.map((department) => ({
+          ...department,
+          fields: department.fields.filter((entry) => entry.field_id !== field.id),
+        })),
+      );
+      setDeleteDialog(null);
+      refreshAfterMutation();
+      void result;
+    } catch {
+      setDeleteDialogError(labels.error);
+    } finally {
+      setDeleteDialogPending(false);
+    }
+  }
+
   function handleDeleteDepartment(department: NpdDepartmentConfigRow) {
     if (!canEdit || !deleteDepartmentAction) return;
-    // Core departments are never deletable; the button is disabled, but guard
-    // here too in case the server-side check is the source of truth.
     if (department.code.toLowerCase() === 'core') return;
-    if (!window.confirm(labels.deleteDepartmentConfirm)) return;
-
-    setPendingTarget({ kind: 'department', id: department.id });
-    setError(null);
-    void (async () => {
-      try {
-        const result = await deleteDepartmentAction(department.id);
-        if (!result.ok) {
-          // Refused: map the union code to a specific localized message.
-          // `cannot_delete_core` reuses the existing deleteDepartmentUnavailable
-          // slot; `department_in_use` uses the dedicated departmentInUse message.
-          setError(
-            result.error === 'cannot_delete_core'
-              ? labels.deleteDepartmentUnavailable
-              : labels.departmentInUse,
-          );
-          return;
-        }
-        // Success: drop the row from local state and reselect a survivor so the
-        // assigned-fields panel never points at a deleted department.
-        setDepartmentRows((current) => {
-          const remaining = current.filter((row) => row.id !== department.id);
-          if (selectedDepartmentId === department.id) {
-            setSelectedDepartmentId(remaining[0]?.id ?? '');
-          }
-          return remaining;
-        });
-        refreshAfterMutation();
-      } catch {
-        setError(labels.error);
-      } finally {
-        setPendingTarget(null);
-      }
-    })();
+    openDeleteDialog({ kind: 'department', department });
   }
 
   function handleDeleteField(field: NpdFieldCatalogRow) {
     if (!canEdit || !deleteFieldAction) return;
-    if (!window.confirm(labels.deleteFieldConfirm)) return;
-
-    // The delete affordance lives on the table row (not in a dialog), so refusals
-    // surface in the same top-level error alert as the other row mutations.
-    setPendingTarget({ kind: 'assignment', id: field.id });
-    setError(null);
-    void (async () => {
-      try {
-        const result = await deleteFieldAction(field.id);
-        if (!result.ok) {
-          // `field_in_use`: explain the remediation (remove assignments first).
-          setError(labels.fieldInUse);
-          return;
-        }
-        // Success: drop the catalog row and any assignment that referenced it.
-        setFieldCatalogRows((current) => current.filter((row) => row.id !== field.id));
-        setDepartmentRows((current) =>
-          current.map((department) => ({
-            ...department,
-            fields: department.fields.filter((entry) => entry.field_id !== field.id),
-          })),
-        );
-        refreshAfterMutation();
-      } catch {
-        setError(labels.error);
-      } finally {
-        setPendingTarget(null);
-      }
-    })();
+    openDeleteDialog({ kind: 'field', field });
   }
 
   function openDialog(next: DialogState) {
@@ -724,21 +732,54 @@ export default function NpdFieldsScreen({
           field_id: created.id,
           required: input.required,
           visible: true,
-          stage_code: 'brief',
           display_order: nextOrder,
         });
+        bumpAssignmentCount(created.id, 1);
       }
+      setFieldCatalogRows((current) => [
+        ...current,
+        {
+          id: created.id,
+          code: created.code,
+          label: created.label,
+          data_type: created.data_type,
+          active: created.active,
+          help_text: created.help_text,
+          is_auto: created.is_auto ?? false,
+          auto_source_field: created.auto_source_field ?? null,
+          assignment_count: input.department_id ? 1 : 0,
+        },
+      ]);
     });
   }
 
-  function handleCreateDepartment(input: { code: string; name: string; description: string }) {
+  function handleCreateDepartment(input: {
+    code: string;
+    name: string;
+    description: string;
+    stage_code: string;
+  }) {
     void runDialogMutation(async () => {
       const nextOrder = departmentRows.reduce((max, d) => Math.max(max, d.display_order), 0) + 10;
-      await createDepartmentAction({
+      const created = await createDepartmentAction({
         code: input.code,
         name: input.name,
+        stage_code: input.stage_code,
         display_order: nextOrder,
       });
+      setDepartmentRows((current) => [
+        ...current,
+        {
+          id: created.id,
+          code: created.code,
+          name: created.name,
+          stage_code: created.stage_code,
+          display_order: created.display_order,
+          active: created.active,
+          fields: [],
+        },
+      ]);
+      setSelectedDepartmentId(created.id);
     });
   }
 
@@ -799,11 +840,21 @@ export default function NpdFieldsScreen({
     })();
   }
 
-  function handleUpdateDepartment(departmentId: string, patch: { name: string }) {
+  function handleUpdateDepartment(
+    departmentId: string,
+    patch: { name: string; stage_code: string },
+  ) {
     void runDialogMutation(async () => {
-      await updateDepartmentAction(departmentId, { name: patch.name });
+      const updated = await updateDepartmentAction(departmentId, {
+        name: patch.name,
+        stage_code: patch.stage_code,
+      });
       setDepartmentRows((current) =>
-        current.map((row) => (row.id === departmentId ? { ...row, name: patch.name } : row)),
+        current.map((row) =>
+          row.id === departmentId
+            ? { ...row, name: updated.name, stage_code: updated.stage_code }
+            : row,
+        ),
       );
     });
   }
@@ -868,79 +919,99 @@ export default function NpdFieldsScreen({
             <table data-testid="npd-departments-table">
               <thead>
                 <tr>
+                  <th>{labels.columns.stage}</th>
                   <th>{labels.selectedDepartment}</th>
                   <th>{labels.active}</th>
                   <th>{labels.columns.actions}</th>
                 </tr>
               </thead>
               <tbody>
-                {departmentRows.map((department) => (
-                  <tr
-                    key={department.id}
-                    data-testid={`npd-department-row-${department.id}`}
-                    data-inactive={department.active ? undefined : 'true'}
-                    style={department.active ? undefined : { opacity: 0.55 }}
-                  >
-                    <td>
-                      <button
-                        type="button"
-                        className={`pill ${selectedDepartment?.id === department.id ? 'on' : ''}`}
-                        aria-pressed={selectedDepartment?.id === department.id}
-                        style={department.active ? undefined : { opacity: 0.6 }}
-                        onClick={() => setSelectedDepartmentId(department.id)}
-                      >
-                        {department.name}
-                      </button>
-                      <span className="muted mono" style={{ marginLeft: 8 }}>
-                        {department.code}
-                      </span>
-                      {department.active ? null : (
-                        <span
-                          className="badge badge-gray"
-                          data-testid={`npd-department-inactive-tag-${department.id}`}
-                          style={{ marginLeft: 8 }}
+                {STAGE_CODES.map((stage) => {
+                  const stageDepartments = departmentsByStage.get(stage) ?? [];
+                  if (stageDepartments.length === 0) return null;
+                  return (
+                    <Fragment key={stage}>
+                      <tr data-testid={`npd-stage-group-${stage}`} className="muted">
+                        <td colSpan={4} style={{ fontWeight: 600, paddingTop: 12 }}>
+                          {labels.stages[stage]}
+                        </td>
+                      </tr>
+                      {stageDepartments.map((department) => (
+                        <tr
+                          key={department.id}
+                          data-testid={`npd-department-row-${department.id}`}
+                          data-stage={stage}
+                          data-inactive={department.active ? undefined : 'true'}
+                          style={department.active ? undefined : { opacity: 0.55 }}
                         >
-                          {labels.inactive}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <Toggle
-                          aria-label={`${department.name} ${labels.active}`}
-                          checked={department.active}
-                          disabled={editDisabled}
-                          onChange={(active) => handleDepartmentActive(department, active)}
-                        />
-                        {statusBadge(department.active, labels)}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          aria-label={`${labels.editAction} ${department.name}`}
-                          disabled={editDisabled}
-                          onClick={() => openDialog({ kind: 'edit-department', department })}
-                        >
-                          {labels.editAction}
-                        </button>
-                        {department.code.toLowerCase() === 'core' ? null : (
-                          <button
-                            type="button"
-                            className="btn btn-danger"
-                            aria-label={`${labels.deleteDepartment} ${department.name}`}
-                            disabled={editDisabled}
-                            onClick={() => handleDeleteDepartment(department)}
-                          >
-                            {labels.deleteDepartment}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <td>
+                            <span className="badge badge-blue" data-testid={`npd-department-stage-${department.id}`}>
+                              {labels.stages[normalizeStage(department.stage_code)]}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className={`pill ${selectedDepartment?.id === department.id ? 'on' : ''}`}
+                              aria-pressed={selectedDepartment?.id === department.id}
+                              style={department.active ? undefined : { opacity: 0.6 }}
+                              onClick={() => setSelectedDepartmentId(department.id)}
+                            >
+                              {department.name}
+                            </button>
+                            <span className="muted mono" style={{ marginLeft: 8 }}>
+                              {department.code}
+                            </span>
+                            {department.active ? null : (
+                              <span
+                                className="badge badge-gray"
+                                data-testid={`npd-department-inactive-tag-${department.id}`}
+                                style={{ marginLeft: 8 }}
+                              >
+                                {labels.inactive}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <Toggle
+                                aria-label={`${department.name} ${labels.active}`}
+                                checked={department.active}
+                                disabled={editDisabled}
+                                onChange={(active) => handleDepartmentActive(department, active)}
+                              />
+                              {statusBadge(department.active, labels)}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                aria-label={`${labels.editAction} ${department.name}`}
+                                disabled={editDisabled}
+                                onClick={() => openDialog({ kind: 'edit-department', department })}
+                              >
+                                {labels.editAction}
+                              </button>
+                              {department.code.toLowerCase() === 'core' ? null : (
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  aria-label={`${labels.deleteDepartment} ${department.name}`}
+                                  disabled={editDisabled}
+                                  onClick={() => handleDeleteDepartment(department)}
+                                >
+                                  {labels.deleteDepartment}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </>
@@ -990,7 +1061,6 @@ export default function NpdFieldsScreen({
                   <th>{labels.columns.dataType}</th>
                   <th>{labels.columns.required}</th>
                   <th>{labels.columns.visible}</th>
-                  <th>{labels.columns.stage}</th>
                   <th>{labels.columns.order}</th>
                   <th>{labels.columns.actions}</th>
                 </tr>
@@ -1036,16 +1106,6 @@ export default function NpdFieldsScreen({
                           checked={field.visible}
                           disabled={rowDisabled}
                           onChange={(visible) => handleAssignmentPatch(field, { visible })}
-                        />
-                      </td>
-                      <td style={{ minWidth: 150 }}>
-                        <InlineSelect
-                          id={`npd-field-stage-${field.assignment_id}`}
-                          label={`${field.label} ${labels.columns.stage}`}
-                          value={normalizeStage(field.stage_code)}
-                          options={stageOptions}
-                          disabled={rowDisabled}
-                          onChange={(stage_code) => handleAssignmentPatch(field, { stage_code })}
                         />
                       </td>
                       <td style={{ width: 110 }}>
@@ -1126,7 +1186,6 @@ export default function NpdFieldsScreen({
             <tbody>
               {fieldCatalogRows.map((field) => {
                 const count = field.assignment_count ?? 0;
-                const deletable = canEdit && count === 0;
                 return (
                   <tr key={field.id} data-testid={`npd-catalog-row-${field.id}`}>
                     <td>
@@ -1149,8 +1208,7 @@ export default function NpdFieldsScreen({
                         type="button"
                         className="btn btn-danger"
                         aria-label={`${labels.deleteField} ${field.label}`}
-                        disabled={!deletable || editDisabled}
-                        title={count > 0 ? labels.fieldRemoveFromAllFirst : undefined}
+                        disabled={editDisabled}
                         onClick={() => handleDeleteField(field)}
                       >
                         {labels.deleteField}
@@ -1228,6 +1286,7 @@ export default function NpdFieldsScreen({
         <DepartmentDialog
           title={labels.newDepartmentTitle}
           labels={labels}
+          stageOptions={stageOptions}
           pending={dialogPending}
           error={dialogError}
           formTestId="npd-new-department-form"
@@ -1235,7 +1294,12 @@ export default function NpdFieldsScreen({
           mode="create"
           onCancel={closeDialog}
           onSubmit={(values) =>
-            handleCreateDepartment({ code: values.code, name: values.name, description: values.description })
+            handleCreateDepartment({
+              code: values.code,
+              name: values.name,
+              description: values.description,
+              stage_code: values.stage_code,
+            })
           }
         />
       ) : null}
@@ -1244,14 +1308,63 @@ export default function NpdFieldsScreen({
         <DepartmentDialog
           title={labels.editDepartmentTitle}
           labels={labels}
-          initial={{ code: dialog.department.code, name: dialog.department.name, description: '' }}
+          stageOptions={stageOptions}
+          initial={{
+            code: dialog.department.code,
+            name: dialog.department.name,
+            description: '',
+            stage_code: normalizeStage(dialog.department.stage_code),
+          }}
           pending={dialogPending}
           error={dialogError}
           formTestId="npd-edit-department-form"
           submitLabel={labels.save}
           mode="edit"
           onCancel={closeDialog}
-          onSubmit={(values) => handleUpdateDepartment(dialog.department.id, { name: values.name })}
+          onSubmit={(values) =>
+            handleUpdateDepartment(dialog.department.id, {
+              name: values.name,
+              stage_code: values.stage_code,
+            })
+          }
+        />
+      ) : null}
+
+      {deleteDialog?.kind === 'department' ? (
+        <CascadeDeleteDialog
+          open
+          title={labels.deleteDepartmentTitle.replace('{name}', deleteDialog.department.name)}
+          body={labels.deleteDepartmentBody}
+          targetCode={deleteDialog.department.code}
+          labels={{
+            cancel: labels.cancel,
+            confirmButton: labels.deleteConfirmButton,
+            deleting: labels.deleteDeleting,
+            typeToConfirm: labels.deleteTypeToConfirm,
+          }}
+          pending={deleteDialogPending}
+          error={deleteDialogError}
+          onCancel={closeDeleteDialog}
+          onConfirm={() => void confirmDeleteDepartment(deleteDialog.department)}
+        />
+      ) : null}
+
+      {deleteDialog?.kind === 'field' ? (
+        <CascadeDeleteDialog
+          open
+          title={labels.deleteFieldTitle.replace('{name}', deleteDialog.field.label)}
+          body={labels.deleteFieldBody}
+          targetCode={deleteDialog.field.code}
+          labels={{
+            cancel: labels.cancel,
+            confirmButton: labels.deleteConfirmButton,
+            deleting: labels.deleteDeleting,
+            typeToConfirm: labels.deleteTypeToConfirm,
+          }}
+          pending={deleteDialogPending}
+          error={deleteDialogError}
+          onCancel={closeDeleteDialog}
+          onConfirm={() => void confirmDeleteField(deleteDialog.field)}
         />
       ) : null}
     </main>
