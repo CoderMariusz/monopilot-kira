@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fala F4 — raport floty (2026-07-02)</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --mut:#94a3b8;
+          --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --acc:#60a5fa; }
+  * { box-sizing:border-box; }
+  body { background:var(--bg); color:var(--txt); font:15px/1.55 -apple-system,'Segoe UI',Roboto,sans-serif; margin:0; padding:24px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:19px; margin:34px 0 10px; color:var(--acc);}
+  .sub { color:var(--mut); margin-bottom:22px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 20px; margin:14px 0; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin:8px 0; }
+  th,td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:.05em; }
+  .ok{color:var(--ok);font-weight:600} .warn{color:var(--warn);font-weight:600} .bad{color:var(--bad);font-weight:600}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}
+  .kpi .v{font-size:24px;font-weight:700} .kpi .l{font-size:12px;color:var(--mut);margin-top:2px}
+  code{background:#0b1220;padding:1px 6px;border-radius:4px;font-size:12.5px}
+  .verdict{border-left:4px solid var(--ok);padding-left:14px}
+  ul{margin:6px 0 6px 18px;padding:0} li{margin:4px 0}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>🎛️ Fala F4 — „egzekwowanie staje się prawdziwe"</h1>
+<div class="sub">2026-07-02 · main <code>95e156d8</code> (łańcuch: wave → f4.1 → f4.2) · migi 418–420 LIVE · produkcja READY · flota: 6 Codex + 5 Composer + kira-easy, 12 recenzji krzyżowych, ~12 rund fix</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="v">12/12</div><div class="l">torów GREEN</div></div>
+  <div class="kpi"><div class="v">~9,3k</div><div class="l">linii netto (128 plików)</div></div>
+  <div class="kpi"><div class="v">3</div><div class="l">migracje live (418–420)</div></div>
+  <div class="kpi"><div class="v">~620</div><div class="l">testów na bramce</div></div>
+  <div class="kpi"><div class="v ok">3→1</div><div class="l">ucieczki vs F3 (nowy kod)</div></div>
+  <div class="kpi"><div class="v ok">8/8</div><div class="l">finalny stan live-E3</div></div>
+</div>
+
+<h2>Co wylądowało</h2>
+<div class="card"><table>
+<tr><th>Tor</th><th>Dostarczone</th><th>Live</th></tr>
+<tr><td>H1</td><td><b>signoff_policies EGZEKWOWANE</b> — wymuszenie 2. podpisu, role podpisujących, zakaz same-user w jednym chokepoincie e-sign; mig 419 zasiał wiersze dla hold-release i NCR-close (status quo do Twojej konfiguracji). Test live: polityka 2-podpisów zablokowała pojedynczy podpis dokładnie tak, jak ma.</td><td class="ok">✔</td></tr>
+<tr><td>H2</td><td><b>Kalibracja pisze</b>: CRUD instrumentów + reaktywacja, rejestracja wyników PASS/FAIL/OUT_OF_SPEC, FAIL → out-of-service</td><td class="ok">✔</td></tr>
+<tr><td>H3</td><td><b>Koniec „od-wysyłania" SO</b> — krawędzie wsteczne usunięte (domknięcie przechodnie udowodnione w recenzji); rewers POD-void za wewnętrzną flagą nieosiągalną z klienta</td><td>—</td></tr>
+<tr><td>H4</td><td><b>WAC</b>: cancel ukończonego WO odwraca zaksięgowaną wartość; nieznany UoM nie zatruwa puli</td><td>—</td></tr>
+<tr><td>H5</td><td><b>Ciche no-opy głośne</b>: zaproszenie usera i inspekcja pokazują błędy; inspekcja stemplowana site'em (nie znika)</td><td class="ok">✔</td></tr>
+<tr><td>H6</td><td><b>Pułapki „All sites"</b>: modal PO z wbudowanym wyborem site; sesje liczenia nie znikają (nagłówek org-wide, linie za bramą site)</td><td class="ok">✔</td></tr>
+<tr><td>H7</td><td><b>Ledger produkcji (Twoja decyzja D1)</b>: consume+output piszą stock_moves, korekty piszą kontrpozycje, idempotentnie</td><td>—</td></tr>
+<tr><td>H8</td><td><b>Trace: bilans masy</b> (wyprodukowane/na stanie/wysłane/odpad, % odzysku — live: 100% na partii testowej) + ostrzeżenia o obcięciu na 3 progach</td><td class="ok">✔</td></tr>
+<tr><td>H9/12</td><td>Drobnica + <b>kasowanie draftów WO</b> (konwencja PO/TO, trwały audyt)</td><td class="ok">✔</td></tr>
+<tr><td>H10</td><td><b>Cykl życia usera</b>: reaktywacja + admin-reset MFA + revocation sesji (naprawił też wieloletni czerwony test resetPassword)</td><td class="ok">✔</td></tr>
+<tr><td>H11</td><td><b>P0 z audytu B</b>: startWo bez snapshotu NIE dobiera już po cichu najnowszego BOM-a — twardy błąd „wymaga release" (ochrona zapisu as-produced/alergenów)</td><td>—</td></tr>
+</table></div>
+
+<h2>Live-E3 + śledztwo na logach: 2 bugi STARSZE niż fala</h2>
+<div class="card">
+<p>Runda 1: 6/8 · po f4.1+f4.2: <b>8/8</b>. Najcenniejsze znalezisko: <b>tworzenie userów było martwe od urodzenia</b> — akcja emitowała event <code>settings.user.created_with_password</code>, którego nigdy nie było w CHECK-u outboxa (23514 → rollback → kompensacyjne skasowanie usera z auth → „persistence_failed"). To była PRAWDZIWA przyczyna „cichego no-opa" z audytu F3. Drugi: zaproszenia szły klientem sesyjnym na API adminowe (403). Trzeci (f4.2, jeszcze głębszy): <b>public.users.id ≠ auth.users.id</b> dla userów tworzonych hasłem — taki user nie mógłby się nawet zalogować. Wszystko naprawione (mig 420 + wspólna fabryka service-role + wyrównanie id), re-test create→deactivate→reactivate <b>PASS end-to-end</b>.</p>
+<p>Jedyna ucieczka NOWEGO kodu: reaktywacja H10 martwa na starcie (splot z powyższym bugiem id + własny dialog połykał błąd — klasa ciszy w świeżym kodzie). Recenzje uratowały przed 3 grubszymi: R-H1 złapał, że chokepoint <b>ceglił changeover alergenów</b> i był martwy dla swoich konsumentów; R-H6 wyciek stanów cross-site; R-H8 zawyżanie bilansu recall o ko-produkty.</p>
+</div>
+
+<h2>Werdykt + F5</h2>
+<div class="card verdict">
+<p><b>Ucieczki F1→F4: 0 · 1 · 3 · 1.</b> Reguły 11–15 zadziałały (5/5 mostków Cursor przeżyło; zero niespodzianek Turbopacka; zero regresji i18n). GPA ~4.1. Najlepszy tor: H3 (zero uwag przy adwersarialnym dowodzie domknięcia przechodniego).</p>
+<p><b>F5 top-tematy:</b> (1) dedykowana baza testowa dla nogi real-DB na bramce (3 fale z rzędu ta sama luka); (2) <b>fala integralności WAC</b> — pula add-only: nic nie schodzi przy konsumpcji/wysyłce + korupcja jednostek przy adjust/count/destroy (P0 z audytu B); (3) ESLint na regułę 13; (4) checklist „każdy nowy dialog ma test koperty błędu"; (5) ekstrakcja patchy path-scoped (daemon skaził worktree H1 — złapane anomalią rozmiaru).</p>
+</div>
+
+<div class="sub" style="margin-top:26px">Artefakty: <code>_meta/runs/2026-07-02-f4-fleet-metrics.md</code> · <code>2026-07-02-f4-fable-eval.md</code> · rekonsyliacja audytu B <code>/tmp/f4/b-reconciliation.md</code> (28 net-nowych luk → backlog F5) · commity <code>273246b7 → ee604b7b → 95e156d8</code></div>
+
+</div></body>
+</html>
