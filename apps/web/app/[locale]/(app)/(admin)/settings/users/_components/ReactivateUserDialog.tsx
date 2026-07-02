@@ -72,15 +72,24 @@ export function ReactivateUserDialog({
     setError(null);
     const targetUser = user;
     startTransition(async () => {
-      const result = await reactivateUserAction({ userId: targetUser.id });
-      if (result.ok) {
-        onReactivated?.(targetUser.id);
-        onClose();
-        return;
+      try {
+        const result = await reactivateUserAction({ userId: targetUser.id });
+        if (result.ok) {
+          onReactivated?.(targetUser.id);
+          onClose();
+          return;
+        }
+        const message = interpolate(labels.failed, { error: result.error });
+        setError(message);
+        onFeedback?.({ kind: 'alert', message });
+      } catch {
+        // Server Action threw (e.g. missing env, auth context failure).
+        // Catch here so startTransition does not silently swallow the error
+        // and leave the dialog closed with zero user feedback (H5 class).
+        const message = interpolate(labels.failed, { error: 'server_error' });
+        setError(message);
+        onFeedback?.({ kind: 'alert', message });
       }
-      const message = interpolate(labels.failed, { error: result.error });
-      setError(message);
-      onFeedback?.({ kind: 'alert', message });
     });
   }
 

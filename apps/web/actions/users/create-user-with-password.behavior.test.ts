@@ -117,12 +117,15 @@ function makeClient(opts: FakeClientOptions): FakeClient {
         if (opts.insertUserFails) {
           throw new Error('insert users failed');
         }
+        // Column order after the authUserId fix (f4.2):
+        // $1=authUserId, $2=orgId, $3=email, $4=name, $5=roleId, $6=language
         client.insertedUser = {
-          org_id: params[0],
-          email: params[1],
-          name: params[2],
-          role_id: params[3],
-          language: params[4],
+          auth_user_id: params[0],
+          org_id: params[1],
+          email: params[2],
+          name: params[3],
+          role_id: params[4],
+          language: params[5],
         };
         return { rows: [{ id: NEW_USER_ID }], rowCount: 1 };
       }
@@ -193,8 +196,9 @@ describe('createUserWithPassword RBAC + provisioning (behavior)', () => {
       password: STRONG_PASSWORD,
       email_confirm: true,
     }));
-    // public.users row is created ACTIVE (sixth positional param = is_active literal true in SQL, no invite_token).
-    expect(currentClient.insertedUser).toMatchObject({ org_id: ORG_ID, email: 'new@example.com', role_id: VIEWER_ROLE_ID, language: 'en' });
+    // public.users row is created ACTIVE with id = authUserId (f4.2 fix) so
+    // withOrgContext can resolve the org for this user when they sign in.
+    expect(currentClient.insertedUser).toMatchObject({ auth_user_id: AUTH_USER_ID, org_id: ORG_ID, email: 'new@example.com', role_id: VIEWER_ROLE_ID, language: 'en' });
     expect(currentClient.insertedUserRole).toMatchObject({ user_id: NEW_USER_ID, role_id: VIEWER_ROLE_ID, org_id: ORG_ID });
     expect(currentClient.auditEvents[0]).toMatchObject({ action: 'settings.user.created_with_password' });
     expect(currentClient.auditEvents[0]?.payload).toMatchObject({ invite_email_sent: false, email_confirmed: true });

@@ -678,6 +678,12 @@ export default function SettingsUsersScreen({
                         {labels.deactivate ?? 'Deactivate'}
                       </Button>
                     )}
+                    {/* Reset MFA is only offered when the user HAS an enrolled
+                        MFA factor — there is nothing to reset for a user who
+                        has never enrolled (effectiveMfaEnrolled = false). This
+                        is defensible design: the absence of the button for
+                        admin@monopilot.test (or any non-enrolled user) is
+                        correct behaviour, not a bug. */}
                     {effectiveMfaEnrolled(user) ? (
                       <Button
                         type="button"

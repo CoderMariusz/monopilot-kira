@@ -294,12 +294,19 @@ export async function createUserWithPassword(
     const authUserId = created.data.user.id;
 
     try {
+      // id must equal the Supabase auth user UUID so that withOrgContext (which
+      // queries `public.users where id = auth_user_id`) can resolve the org for
+      // this user when they sign in. Without this, the random gen_random_uuid()
+      // default would create a mismatch, causing withOrgContext to throw for
+      // every login AND causing reactivateUser's auth-identity guard to return
+      // auth_identity_missing (it calls getUserById(public.users.id) which must
+      // be the auth UUID to succeed).
       const inserted = await client.query<{ id: string }>(
         `insert into public.users
-           (org_id, email, name, role_id, language, is_active, invite_token, invite_token_expires_at, updated_at)
-         values ($1::uuid, $2::citext, $3, $4::uuid, $5, true, null, null, now())
+           (id, org_id, email, name, role_id, language, is_active, invite_token, invite_token_expires_at, updated_at)
+         values ($1::uuid, $2::uuid, $3::citext, $4, $5::uuid, $6, true, null, null, now())
          returning id`,
-        [orgId, email, name, roleId, language],
+        [authUserId, orgId, email, name, roleId, language],
       );
       const newUserId = inserted.rows[0]?.id;
       if (!newUserId) {

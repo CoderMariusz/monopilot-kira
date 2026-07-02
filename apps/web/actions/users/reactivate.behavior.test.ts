@@ -169,4 +169,32 @@ describe('reactivateUser behavior', () => {
     const lookup = currentClient.calls.find((call) => call.sql.includes('invite_token'));
     expect(lookup?.params).toEqual([TARGET_USER_ID, ORG_ID]);
   });
+
+  it('reactivates a password-created-then-deactivated user (invite_token IS NULL, is_active = false)', async () => {
+    // createUserWithPassword sets invite_token = null and is_active = true.
+    // Deactivation then flips is_active to false, leaving invite_token = null.
+    // The guard must NOT block this shape — it should only block NEVER-ACTIVATED
+    // invitees (invite_token IS NOT NULL).
+    currentClient.targetUser = { id: TARGET_USER_ID, is_active: false, invite_token: null };
+    const { reactivateUser } = await loadReactivate();
+
+    const result = await reactivateUser({ targetUserId: TARGET_USER_ID });
+
+    expect(result).toEqual({ ok: true, data: { targetUserId: TARGET_USER_ID, reactivated: true } });
+    expect(_getUserById).toHaveBeenCalledWith(TARGET_USER_ID);
+    expect(currentClient.auditRows[0]).toMatchObject({ action: 'settings.user.reactivated' });
+  });
+
+  it('blocks reactivation of a never-activated invite (invite_token IS NOT NULL)', async () => {
+    // An invited user who never clicked the link has invite_token set.
+    // Reactivating them would bypass the invite-accept lifecycle — guard must fire.
+    currentClient.targetUser = { id: TARGET_USER_ID, is_active: false, invite_token: 'pending-invite-token' };
+    const { reactivateUser } = await loadReactivate();
+
+    const result = await reactivateUser({ targetUserId: TARGET_USER_ID });
+
+    expect(result).toEqual({ ok: false, error: 'not_disabled' });
+    expect(_getUserById).not.toHaveBeenCalled();
+    expect(currentClient.auditRows).toHaveLength(0);
+  });
 });

@@ -878,4 +878,60 @@ describe('SettingsUsersScreen reactivate + MFA reset visibility (F4-H10)', () =>
     await user.click(within(resetDialog).getByRole('button', { name: /^reset mfa$/i }));
     expect(resetUserMfaAction).toHaveBeenCalledWith({ userId: 'user-maria', reason: 'Lost phone' });
   });
+
+  it('keeps the reactivate dialog open and shows an inline error when the action fails (H5 failure-envelope)', async () => {
+    // Regression: previously a failed reactivation would close the dialog with
+    // zero user feedback (H5 class: no toast, no inline alert). The dialog must
+    // stay open and render the error string from the action envelope.
+    const user = userEvent.setup();
+    const reactivateUserAction = vi.fn().mockResolvedValue({ ok: false, error: 'auth_identity_missing' }) as ReactivateUserAction;
+    renderScreen({
+      data: {
+        ...data,
+        users: [...data.users, disabledUser],
+        canDeactivateUsers: true,
+      } as UsersScreenData,
+      labels: { ...labels, ...lifecycleLabels } as UsersScreenLabels,
+      deactivateUserAction: vi.fn(),
+      reactivateUserAction,
+      resetUserMfaAction: vi.fn(),
+    });
+
+    const danRow = screen.getByRole('row', { name: /Dan Disabled dan@example\.com/i });
+    await user.click(within(danRow).getByRole('button', { name: /^reactivate dan disabled$/i }));
+    const reactivateDialog = await screen.findByRole('dialog', { name: /reactivate user/i });
+    await user.click(within(reactivateDialog).getByRole('button', { name: /^reactivate user$/i }));
+
+    // Dialog must remain open with a visible inline error.
+    expect(await screen.findByRole('dialog', { name: /reactivate user/i })).toBeVisible();
+    expect(await within(reactivateDialog).findByRole('alert')).toHaveTextContent(/auth_identity_missing/i);
+  });
+
+  it('shows an inline error in the reactivate dialog when the Server Action throws (server_error catch path)', async () => {
+    // Regression: if the action throws (e.g. missing env, auth context error),
+    // startTransition would silently swallow it, closing the dialog with no
+    // feedback. The try/catch in submit() must catch throws and surface them.
+    const user = userEvent.setup();
+    const reactivateUserAction = vi.fn().mockRejectedValue(new Error('connection refused')) as ReactivateUserAction;
+    renderScreen({
+      data: {
+        ...data,
+        users: [...data.users, disabledUser],
+        canDeactivateUsers: true,
+      } as UsersScreenData,
+      labels: { ...labels, ...lifecycleLabels } as UsersScreenLabels,
+      deactivateUserAction: vi.fn(),
+      reactivateUserAction,
+      resetUserMfaAction: vi.fn(),
+    });
+
+    const danRow = screen.getByRole('row', { name: /Dan Disabled dan@example\.com/i });
+    await user.click(within(danRow).getByRole('button', { name: /^reactivate dan disabled$/i }));
+    const reactivateDialog = await screen.findByRole('dialog', { name: /reactivate user/i });
+    await user.click(within(reactivateDialog).getByRole('button', { name: /^reactivate user$/i }));
+
+    // Dialog must remain open showing the server_error code.
+    expect(await screen.findByRole('dialog', { name: /reactivate user/i })).toBeVisible();
+    expect(await within(reactivateDialog).findByRole('alert')).toHaveTextContent(/server_error/i);
+  });
 });
