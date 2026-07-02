@@ -17,18 +17,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 type Handler = (sql: string, params: readonly unknown[]) => { rows: unknown[] } | undefined;
 
 const handlerHolder: { handler: Handler } = { handler: () => ({ rows: [] }) };
+const transactionEvents: string[] = [];
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: async (action: (ctx: unknown) => Promise<unknown>) =>
-    action({
-      userId: '07300000-0000-4000-8000-0000000000aa',
-      orgId: '07300000-0000-4000-8000-00000000000a',
-      sessionToken: 'tok',
-      client: {
-        query: async (sql: string, params: readonly unknown[] = []) =>
-          handlerHolder.handler(sql, params) ?? { rows: [] },
-      },
-    }),
+  withOrgContext: async (action: (ctx: unknown) => Promise<unknown>) => {
+    try {
+      const result = await action({
+        userId: '07300000-0000-4000-8000-0000000000aa',
+        orgId: '07300000-0000-4000-8000-00000000000a',
+        sessionToken: 'tok',
+        client: {
+          query: async (sql: string, params: readonly unknown[] = []) =>
+            handlerHolder.handler(sql, params) ?? { rows: [] },
+        },
+      });
+      transactionEvents.push('COMMIT');
+      return result;
+    } catch (error) {
+      transactionEvents.push('ROLLBACK');
+      throw error;
+    }
+  },
 }));
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -49,6 +58,7 @@ const ITEM = '07300000-0000-4000-8000-0000000000e1';
 
 afterEach(() => {
   handlerHolder.handler = () => ({ rows: [] });
+  transactionEvents.length = 0;
   releaseMock.mockReset();
   vi.clearAllMocks();
 });
@@ -377,7 +387,7 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
     expect(releaseMock).toHaveBeenCalledWith(PROJECT, expect.objectContaining({ client: expect.any(Object) }));
   });
 
-  it('surfaces release_blocked honestly when the release flow has preflight blockers (no fake BOM)', async () => {
+  it('rolls back and surfaces release_blocked when the release flow has preflight blockers', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.promote'], (sql) => {
       if (/from public.npd_projects/.test(sql) && /current_stage/.test(sql)) {
         return { rows: [{ current_stage: 'handoff', current_gate: 'G4' }] };
@@ -394,10 +404,12 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
       ok: false,
       error: 'PRECONDITION_BLOCKERS',
       status: 409,
-      blockers: [{ code: 'G4_REQUIRED', message: 'G4 required' }],
+      blockers: [{ code: 'bom_not_approved', message: 'BOM not approved' }],
     });
 
     const r = await promoteToProduction({ projectId: PROJECT });
     expect(r).toEqual(expect.objectContaining({ ok: false, error: 'release_blocked' }));
+    expect(transactionEvents).toContain('ROLLBACK');
+    expect(transactionEvents).not.toContain('COMMIT');
   });
 });

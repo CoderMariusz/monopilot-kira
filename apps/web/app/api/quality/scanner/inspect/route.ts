@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { hasPermission, type ProductionContext } from '../../../../../lib/production/shared';
+import { holdsGuard } from '../../../../../lib/production/holds-guard';
 import { requireScannerSession } from '../../../../../lib/scanner/guard';
 import { stringField } from '../../../../../lib/scanner/route-utils';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../lib/scanner/txn-org-context';
@@ -111,8 +112,13 @@ async function applyLpDecision(params: {
   orgId: string;
   decision: Decision;
   note: string | null;
-}): Promise<QaStatus | null> {
+}): Promise<QaStatus | 'quality_hold_active' | null> {
   const qaStatus: QaStatus = params.decision === 'pass' ? 'released' : params.decision === 'fail' ? 'rejected' : 'on_hold';
+  if (qaStatus === 'released') {
+    const hold = await holdsGuard({ client: params.client }, { lpId: params.lpId });
+    if (hold) return 'quality_hold_active';
+  }
+
   const updated = await params.client.query<{ id: string }>(
     `update public.license_plates
         set qa_status = $2,
@@ -256,6 +262,11 @@ export async function POST(request: NextRequest) {
           decision,
           note: note ?? null,
         });
+        if (qaStatus === 'quality_hold_active') {
+          await scopedClient.query('rollback');
+          await auditAttempt(scopedClient, session, operation, 'quality_hold_active', { lpId, clientOpId });
+          return scannerError('quality_hold_active', 409);
+        }
         if (!qaStatus) {
           await scopedClient.query('rollback');
           await auditAttempt(scopedClient, session, operation, 'lp_not_found', { lpId, clientOpId });

@@ -68,6 +68,15 @@ export type PromoteToProductionResult =
 
 const PROMOTE_PERMISSION = 'npd.handoff.promote';
 
+class PromoteAbort extends Error {
+  constructor(
+    readonly code: 'invalid_input' | 'forbidden' | 'release_blocked' | 'persistence_failed',
+    readonly msg?: string,
+  ) {
+    super(code);
+  }
+}
+
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
 };
@@ -138,20 +147,16 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
       const release = await releaseNpdProjectToFactory(projectId, ctx);
       if (!release.ok) {
         if (release.error === 'INVALID_INPUT') {
-          return { ok: false as const, error: 'invalid_input' as const };
+          throw new PromoteAbort('invalid_input');
         }
         if (release.error === 'FORBIDDEN') {
-          return { ok: false as const, error: 'forbidden' as const };
+          throw new PromoteAbort('forbidden');
         }
         if (release.error === 'PRECONDITION_BLOCKERS') {
           // Honest: do NOT fake a BOM. The release pipeline is the BOM owner.
-          return {
-            ok: false as const,
-            error: 'release_blocked' as const,
-            message: release.blockers?.map((b) => b.code).join(',') ?? undefined,
-          };
+          throw new PromoteAbort('release_blocked', release.blockers?.map((b) => b.code).join(',') ?? undefined);
         }
-        return { ok: false as const, error: 'persistence_failed' as const };
+        throw new PromoteAbort('persistence_failed');
       }
 
       const releasedToFactory = true;
@@ -169,7 +174,7 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
         [checklist.id, releaseDestinationBom, ctx.userId],
       );
       const row = updated.rows[0];
-      if (!row) return { ok: false as const, error: 'persistence_failed' as const };
+      if (!row) throw new PromoteAbort('persistence_failed');
 
       await ctx.client.query(
         `insert into public.audit_events
@@ -221,6 +226,8 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
       },
     };
   } catch (error) {
+    if (error instanceof PromoteAbort) return { ok: false, error: error.code, message: error.msg };
+
     console.error('[promoteToProduction] persistence_failed:', error);
     return { ok: false, error: 'persistence_failed' };
   }

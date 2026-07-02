@@ -816,16 +816,23 @@ async function shipTransferOrder(
   const picks: PlannedPick[] = [];
   for (const line of lines.rows) {
     const lps = await ctx.client.query<SourceLpRow>(
-      `select id, quantity::text as quantity, reserved_qty::text as reserved_qty, location_id
-         from public.license_plates
-        where org_id = app.current_org_id()
-          and warehouse_id = $1::uuid
-          and product_id = $2::uuid
-          and uom = $3
-          and status = 'available'
-          and qa_status = 'released'
-          and (quantity - reserved_qty) > 0
-        order by expiry_date asc nulls last, lp_number asc
+      `select lp.id, lp.quantity::text as quantity, lp.reserved_qty::text as reserved_qty, lp.location_id
+         from public.license_plates lp
+        where lp.org_id = app.current_org_id()
+          and lp.warehouse_id = $1::uuid
+          and lp.product_id = $2::uuid
+          and lp.uom = $3
+          and lp.status = 'available'
+          and lp.qa_status = 'released'
+          and (lp.quantity - lp.reserved_qty) > 0
+          and not exists (
+            select 1
+              from public.v_active_holds h
+             where h.org_id = app.current_org_id()
+               and h.reference_type = 'lp'
+               and h.reference_id = lp.id
+          )
+        order by lp.expiry_date asc nulls last, lp.lp_number asc
         for update`,
       [to.from_warehouse_id, line.item_id, line.uom],
     );

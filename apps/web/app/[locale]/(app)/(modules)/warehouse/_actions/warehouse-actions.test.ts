@@ -21,6 +21,7 @@ let lpQaStatus = 'pending';
 let lockActive = false;
 let lpExists = true;
 let lastMoveType = 'transfer';
+let activeHold = false;
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -71,6 +72,13 @@ function makeClient(): QueryClient {
             ? [{ id: LP_ID, lp_number: 'LP-001', status: lpStatus, qa_status: lpQaStatus }]
             : [],
           rowCount: lpExists ? 1 : 0,
+        };
+      }
+
+      if (normalized.includes('from public.v_active_holds')) {
+        return {
+          rows: activeHold ? [{ hold_id: '99999999-9999-4999-8999-999999999999', reference_type: 'lp', reference_id: LP_ID }] : [],
+          rowCount: activeHold ? 1 : 0,
         };
       }
 
@@ -265,6 +273,7 @@ describe('warehouse backend actions', () => {
     lockActive = false;
     lpExists = true;
     lastMoveType = 'transfer';
+    activeHold = false;
     client = makeClient();
   });
 
@@ -401,6 +410,29 @@ describe('warehouse backend actions', () => {
     expect(history?.params?.[5]).toContain('"qaStatusTo":"released"');
     const outbox = calls.find((call) => call.sql.startsWith('insert into public.outbox_events'));
     expect(outbox?.params?.[1]).toContain('"qa_status_to":"released"');
+  });
+
+  it('releaseLpQa refuses released when an active LP hold exists without updating', async () => {
+    activeHold = true;
+
+    const result = await releaseLpQa({ lpId: LP_ID, decision: 'released', note: 'visual OK' });
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'quality_hold_active' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
+    expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('releaseLpQa proceeds with released when no active LP hold exists', async () => {
+    activeHold = false;
+
+    const result = await releaseLpQa({ lpId: LP_ID, decision: 'released' });
+
+    expect(result.ok).toBe(true);
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
+    expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(true);
   });
 
   it('releaseLpQa promotes a received LP to available on release (audit F-A01)', async () => {

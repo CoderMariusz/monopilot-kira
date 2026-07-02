@@ -9,6 +9,7 @@
  * action uses it while keeping the data mutation in the production module.
  */
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { holdsGuard } from '../../../../../../lib/production/holds-guard';
 import {
   hasPermission,
   type ProductionContext,
@@ -108,6 +109,11 @@ export async function releaseWoOutputQa(
         );
         const lp = lpBefore.rows[0];
         if (lp) {
+          if (lpQaStatus === 'released') {
+            const hold = await holdsGuard(ctx, { lpId: row.lp_id });
+            if (hold) throw new Error('quality_hold_active');
+          }
+
           await ctx.client.query(
             `update public.license_plates
                 set qa_status = $2,
@@ -153,6 +159,9 @@ export async function releaseWoOutputQa(
     });
   } catch (error) {
     console.error('[production] releaseWoOutputQa failed', error);
+    if (error instanceof Error && error.message === 'quality_hold_active') {
+      return { ok: false, reason: 'error', message: 'quality_hold_active' };
+    }
     return { ok: false, reason: 'error' };
   }
 }

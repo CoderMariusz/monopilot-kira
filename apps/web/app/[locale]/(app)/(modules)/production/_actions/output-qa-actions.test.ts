@@ -13,6 +13,7 @@ let outputExists = true;
 let outputQaStatus = 'PENDING';
 let outputLpId: string | null = LP_ID;
 let lpQaStatus = 'pending';
+let activeHold = false;
 let client: QueryClient;
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
@@ -57,6 +58,13 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (normalized.includes('from public.v_active_holds')) {
+        return {
+          rows: activeHold ? [{ hold_id: '99999999-9999-4999-8999-999999999999', reference_type: 'lp', reference_id: LP_ID }] : [],
+          rowCount: activeHold ? 1 : 0,
+        };
+      }
+
       if (normalized.startsWith('update public.license_plates')) {
         lpQaStatus = String(params?.[1] ?? lpQaStatus);
         return { rows: [], rowCount: 1 };
@@ -78,6 +86,7 @@ describe('releaseWoOutputQa', () => {
     outputQaStatus = 'PENDING';
     outputLpId = LP_ID;
     lpQaStatus = 'pending';
+    activeHold = false;
     client = makeClient();
   });
 
@@ -106,6 +115,28 @@ describe('releaseWoOutputQa', () => {
     const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
     expect(history?.params?.[3]).toContain('"outputQaStatusTo":"PASSED"');
     expect(history?.params?.[3]).toContain('"qaStatusTo":"released"');
+  });
+
+  it('refuses PASSED when the linked LP has an active hold and does not release the LP', async () => {
+    activeHold = true;
+
+    const result = await releaseWoOutputQa({ outputId: OUTPUT_ID, decision: 'PASSED', note: 'lab pass' });
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'quality_hold_active' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
+    expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('proceeds with PASSED when the linked LP has no active hold', async () => {
+    activeHold = false;
+
+    const result = await releaseWoOutputQa({ outputId: OUTPUT_ID, decision: 'PASSED' });
+
+    expect(result.ok).toBe(true);
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
+    expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(true);
   });
 
   it('maps FAILED to rejected on the linked LP', async () => {

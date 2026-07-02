@@ -28,6 +28,7 @@ const fakeClient = {
 };
 
 let allowPermission = true;
+let activeHold = false;
 
 vi.mock('../../../../../lib/scanner/guard', () => ({
   requireScannerSession: vi.fn(async (_request, _body, _operation, fn) =>
@@ -61,6 +62,7 @@ describe('quality scanner inspect route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     allowPermission = true;
+    activeHold = false;
     fakeClient.query.mockReset();
     fakeClient.query.mockImplementation(async (sql: string) => {
       const q = normalize(sql);
@@ -73,6 +75,12 @@ describe('quality scanner inspect route', () => {
       }
       if (q.startsWith('insert into public.quality_inspections')) {
         return { rows: [{ id: INSPECTION_ID }], rowCount: 1 };
+      }
+      if (q.includes('from public.v_active_holds')) {
+        return {
+          rows: activeHold ? [{ hold_id: HOLD_ID, reference_type: 'lp', reference_id: LP_ID }] : [],
+          rowCount: activeHold ? 1 : 0,
+        };
       }
       if (q.startsWith('update public.license_plates')) {
         return { rows: [{ id: LP_ID }], rowCount: 1 };
@@ -167,6 +175,46 @@ describe('quality scanner inspect route', () => {
       replay: true,
     });
     expect(fakeClient.query.mock.calls.some((call) => normalize(String(call[0])).startsWith('insert into public.quality_inspections'))).toBe(false);
+  });
+
+  it('rejects pass with 409 when an active LP hold exists and does not release the LP', async () => {
+    const { POST } = await import('./route');
+    activeHold = true;
+
+    const response = await POST(
+      request({
+        clientOpId: 'inspect-held-pass',
+        lpId: LP_ID,
+        decision: 'pass',
+      }) as never,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'quality_hold_active' });
+    const calls = fakeClient.query.mock.calls.map((call) => normalize(String(call[0])));
+    expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+    expect(calls).toContain('rollback');
+  });
+
+  it('passes inspection and releases the LP when no active hold exists', async () => {
+    const { POST } = await import('./route');
+    activeHold = false;
+
+    const response = await POST(
+      request({
+        clientOpId: 'inspect-pass-no-hold',
+        lpId: LP_ID,
+        decision: 'pass',
+      }) as never,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, qaStatus: 'released' });
+    const lpUpdate = fakeClient.query.mock.calls.find((call) =>
+      normalize(String(call[0])).startsWith('update public.license_plates'),
+    );
+    expect(lpUpdate?.[1]).toEqual([LP_ID, 'released', session.user_id, ['consumed', 'merged', 'shipped', 'returned']]);
   });
 
   it('returns forbidden when the scanner user lacks quality.inspection.execute', async () => {

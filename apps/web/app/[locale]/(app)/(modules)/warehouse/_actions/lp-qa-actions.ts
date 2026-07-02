@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { holdsGuard } from '../../../../../../lib/production/holds-guard';
 import {
   asTrimmed,
   hasWarehousePermission,
@@ -59,6 +60,11 @@ export async function releaseLpQa(input: ReleaseLpQaInput): Promise<WarehouseRes
       }
       if (lp.qa_status !== 'pending') {
         return { ok: false, reason: 'error', message: 'invalid_state' };
+      }
+
+      if (decision === 'released') {
+        const hold = await holdsGuard(ctx, { lpId });
+        if (hold) return { ok: false, reason: 'error', message: 'quality_hold_active' };
       }
 
       // Lifecycle (audit F-A01, owner decision W9-K-I): QA release auto-promotes

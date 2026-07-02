@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { holdsGuard } from '../../../../../../lib/production/holds-guard';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 
 type QueryClient = {
@@ -322,6 +323,11 @@ async function applyLpDecisionSideEffects(
   if (params.referenceType !== 'lp') return null;
 
   const qaStatus = params.decision === 'pass' ? 'released' : params.decision === 'fail' ? 'rejected' : 'on_hold';
+  if (qaStatus === 'released') {
+    const hold = await holdsGuard(ctx, { lpId: params.referenceId });
+    if (hold) throw new Error('quality_hold_active');
+  }
+
   const updated = await ctx.client.query<{ id: string }>(
     `update public.license_plates
         set qa_status = $2,

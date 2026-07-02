@@ -44,6 +44,7 @@ let grnRows: 'one' | 'none' = 'one';
 let wooRows: 'one' | 'none' = 'one';
 // status returned by submitInspectionDecision's FOR UPDATE select.
 let inspectionStatus = 'in_progress';
+let activeHold = false;
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@monopilot/e-sign', () => ({ signEvent: vi.fn(async () => ({ subjectHash: 'hash' })) }));
@@ -118,6 +119,12 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
+      if (q.includes('from public.v_active_holds')) {
+        return {
+          rows: activeHold ? [{ hold_id: HOLD_ID, reference_type: 'lp', reference_id: LP_ID }] : [],
+          rowCount: activeHold ? 1 : 0,
+        };
+      }
       // applyLpDecisionSideEffects: LP qa_status update (returning id).
       if (q.startsWith('update public.license_plates')) {
         return { rows: [{ id: LP_ID }], rowCount: 1 };
@@ -175,6 +182,7 @@ beforeEach(() => {
   grnRows = 'one';
   wooRows = 'one';
   inspectionStatus = 'in_progress';
+  activeHold = false;
   client = makeClient();
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
   vi.mocked(signEvent).mockClear();
@@ -308,6 +316,27 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
       }),
       expect.objectContaining({ client }),
     );
+  });
+
+  it('refuses decision=pass when an active LP hold exists and does not release the LP', async () => {
+    activeHold = true;
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'pass' });
+
+    expect(res).toMatchObject({ ok: false, reason: 'error', message: 'quality_hold_active' });
+    expect(calls().some((q) => q.includes('from public.v_active_holds'))).toBe(true);
+    expect(calls().some((q) => q.startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('proceeds with decision=pass when no active LP hold exists', async () => {
+    activeHold = false;
+
+    const res = await submitInspectionDecision({ ...baseInput, decision: 'pass' });
+
+    expect(res.ok).toBe(true);
+    const lpUpdate = findCall('update public.license_plates');
+    expect(lpUpdate).toBeTruthy();
+    expect(lpUpdate?.[1]).toEqual([LP_ID, 'released', USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
   });
 
   it('(b) decision=fail issues the LP qa_status=rejected update', async () => {
