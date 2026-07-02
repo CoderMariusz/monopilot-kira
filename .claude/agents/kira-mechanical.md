@@ -25,3 +25,13 @@ Do NOT:
   the task.
 
 Output: the diff summary + the real check output. Keep it terse.
+
+## Completion criterion (binding, wave-F2 lesson)
+
+A sweep/rename/codemod task is DONE only when a TREE GREP proves it: run the
+grep/count that defines the task ("0 remaining", "N converted") and paste the
+command + its output in your report. Your own edit list is NOT evidence — in
+waves F1 and F2 this agent reported sweeps "complete" while the tree still held
+missed callsites (template literals, non-standard quoting). Enumerate matches
+with a broad pattern FIRST (include backtick template literals), then edit,
+then re-grep to zero.

@@ -204,8 +204,20 @@ Owner mandate: the orchestrator session (**Agent-A**) runs on **Fable 5** and ne
 its whole job is plan → split → fan-out → review arbitration → build-gate → migrations → push →
 report. Implementation always goes to the engines/lanes below.
 
-Scale target per wave: **7–8 external engine lanes + 2 Claude lanes**, every code lane in git
-worktree isolation:
+Scale target per wave (owner expansion 2026-07-02, from F3): **8–9 external engine lanes +
+3 Claude lanes** (kira-ui, kira-easy, kira-mechanical), every code lane in git worktree isolation.
+When the owner commissions an app-wide review, add up to **4 read-only Opus lanes** outside the
+code path (domain claim-vs-reality audits on the main checkout + a live-browser CRUD walk) —
+they never edit the tree, so they need no worktree and can run concurrently with writer lanes.
+
+Communication model (how agents talk): hub-and-spoke through Agent-A ONLY — no lane ever talks
+to another lane. Each lane receives a self-contained brief file (`/tmp/<wave>/prompts/<lane>.md`
++ SHARED-RULES.md), works in its isolated worktree, and returns (a) its working tree — the only
+artifact that counts — and (b) a report with `git diff --stat` + raw test stdout. Agent-A extracts
+per-lane patches, resolves collisions, and consolidates; reviewers get the patch + tree, never the
+writer's chat. Agent-B (separate Claude session) coordinates exclusively through
+`~/Projects/_agent_handoff/STATUS.md`. New-i18n-key needs are returned as lane-local key files
+(never direct edits to `en.json`/`pl.json`) and merged by Agent-A at consolidation:
 
 - **Engine lanes.** Composer 2.5 = default writer (`impl-easy`/`impl-standard`, multi-file bulk).
   Codex takes terminal/infra/CI work, SQL-heavy tasks needing live psql, and it is the WRITER on
