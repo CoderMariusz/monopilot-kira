@@ -71,6 +71,11 @@
       "notFound": "Count session not found.",
       "error": "Could not load the count session. Please try again.",
       "none": "—",
+      "closeSession": "Close session",
+      "closingSession": "Closing…",
+      "closeSessionConfirm": "Close this count session? No further counts can be recorded.",
+      "closeSessionError": "Could not close the session. Please try again.",
+      "closeSessionDenied": "You do not have permission to close this session.",
       "tabs": {
         "entry": "Blind count",
         "review": "Variance review"
@@ -214,6 +219,11 @@
       "notFound": "Nie znaleziono inwentaryzacji.",
       "error": "Nie udało się wczytać inwentaryzacji. Spróbuj ponownie.",
       "none": "—",
+      "closeSession": "Zamknij inwentaryzację",
+      "closingSession": "Zamykanie…",
+      "closeSessionConfirm": "Zamknąć tę inwentaryzację? Nie będzie można zapisywać kolejnych liczeń.",
+      "closeSessionError": "Nie udało się zamknąć inwentaryzacji. Spróbuj ponownie.",
+      "closeSessionDenied": "Nie masz uprawnień do zamykania tej inwentaryzacji.",
       "tabs": {
         "entry": "Liczenie w ciemno",
         "review": "Przegląd różnic"

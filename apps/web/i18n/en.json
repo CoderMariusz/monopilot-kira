@@ -8555,6 +8555,7 @@
           "not_found": "Work order not found.",
           "invalid_state": "Only draft or released work orders can be rescheduled.",
           "invalid_line": "The selected line is not an active line of this organization.",
+          "line_site_mismatch": "The selected line belongs to a different site than this work order.",
           "dependency_cycle": "This WO sits on a cyclic dependency chain (V-PLAN-WO-CYCLE) — fix the dependencies first.",
           "persistence_failed": "Saving failed. Try again."
         }

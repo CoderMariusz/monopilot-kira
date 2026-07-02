@@ -20,6 +20,8 @@
  */
 import { z } from 'zod';
 
+import { microToDecimal, toMicro } from '../../shared/decimal';
+import { makeStockMoveNumber } from '../../warehouse/lp-create';
 import {
   PRODUCTION_WASTE_RECORDED_EVENT,
   PRODUCTION_WASTE_WRITE_PERMISSION,
@@ -66,17 +68,24 @@ export type RecordWasteResult = {
   qty_kg: string;
 };
 
-const SCALE = 1_000_000n;
-function toMicro(decimal: string): bigint {
-  const neg = decimal.startsWith('-');
-  const body = neg ? decimal.slice(1) : decimal;
-  const [intPart, fracRaw = ''] = body.split('.');
-  const frac = (fracRaw + '000000').slice(0, 6);
-  const micro = BigInt(intPart || '0') * SCALE + BigInt(frac || '0');
-  return neg ? -micro : micro;
-}
-
 type WoRow = { id: string; wo_number: string; site_id: string | null };
+
+type LpGateRow = {
+  id: string;
+  quantity: string;
+  reserved_qty: string;
+  has_available: boolean;
+  status: string;
+  qa_status: string;
+  uom: string | null;
+  location_id: string | null;
+};
+
+/** wo_waste_log qty_kg subtracts 1:1 from license_plates.quantity — LP uom must be kg. */
+function isKgMassUom(uom: string | null | undefined): boolean {
+  if (uom == null || uom.trim() === '') return true;
+  return uom.trim().toLowerCase() === 'kg';
+}
 
 async function loadWo(ctx: OrgContextLike, woId: string): Promise<WoRow> {
   const { rows } = await ctx.client.query<WoRow>(
@@ -156,12 +165,17 @@ export async function recordWaste(
     });
   }
 
+  let lpLocationId: string | null = null;
   if (input.lp_id) {
-    const lpGate = await ctx.client.query<{ id: string; quantity: string; reserved_qty: string; has_available: boolean }>(
+    const lpGate = await ctx.client.query<LpGateRow>(
       `select id::text as id,
               quantity::text as quantity,
               reserved_qty::text as reserved_qty,
-              (quantity - reserved_qty >= $2::numeric) as has_available
+              (quantity - reserved_qty >= $2::numeric) as has_available,
+              status,
+              qa_status,
+              uom,
+              location_id::text as location_id
          from public.license_plates
         where id = $1::uuid
           and org_id = $3::uuid
@@ -172,6 +186,16 @@ export async function recordWaste(
     const lp = lpGate.rows[0];
     if (!lp) {
       throw new ProductionActionError('invalid_reference', 422, { field: 'lp_id' });
+    }
+    // Mirror assertLpConsumableForProduction (lp-safety-guard.ts) — only released + available LPs.
+    if (lp.qa_status !== 'released') {
+      throw new ProductionActionError('lp_not_released', 409);
+    }
+    if (lp.status !== 'available') {
+      throw new ProductionActionError('lp_not_wasteable', 409, { status: lp.status });
+    }
+    if (!isKgMassUom(lp.uom)) {
+      throw new ProductionActionError('uom_mismatch', 409, { uom: lp.uom });
     }
     if (!lp.has_available) {
       throw new ProductionActionError('insufficient_lp_quantity', 409, {
@@ -193,11 +217,42 @@ export async function recordWaste(
     if (!lpRes.rows[0]) {
       throw new Error('recordWaste: LP decrement failed after availability gate');
     }
+    lpLocationId = lp.location_id;
   }
 
-  // 6. INSERT wo_waste_log.
+  // 6. INSERT wo_waste_log (+ ledger-visible LP decrement when lp_id present).
   let wasteId: string;
   try {
+    if (input.lp_id) {
+      const signedQty = microToDecimal(-toMicro(input.qty_kg));
+      await ctx.client.query(
+        `insert into public.stock_moves (
+           org_id, site_id, move_number, lp_id, move_type, from_location_id, to_location_id,
+           quantity, uom, reason_code, reason_text, transaction_id, wo_id, status, ext_jsonb,
+           created_by, updated_by
+         )
+         values (
+           app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid, null,
+           $5::numeric, $6, $7, $8, $9::uuid, $10::uuid, 'completed', $11::jsonb, $12::uuid, $12::uuid
+         )
+         on conflict (org_id, transaction_id) do nothing`,
+        [
+          wo.site_id,
+          makeStockMoveNumber(input.transaction_id),
+          input.lp_id,
+          lpLocationId,
+          signedQty,
+          'kg',
+          'production_waste',
+          'Production waste LP decrement',
+          input.transaction_id,
+          woId,
+          JSON.stringify({ source: 'production_waste', wo_id: woId, category_code: input.category_code }),
+          ctx.userId,
+        ],
+      );
+    }
+
     const { rows } = await ctx.client.query<{ id: string }>(
       `insert into public.wo_waste_log
          (org_id, site_id, transaction_id, wo_id, category_id, qty_kg, reason_code,

@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { nextEntityCode } from '../../../../lib/documents/code-mask';
 
 const PRODUCTION_WRITE_PERMISSION = 'npd.production.write';
 
@@ -231,31 +232,45 @@ async function getCurrentLaborRate(ctx: OrgContextLike, roleGroup: string): Prom
 }
 
 async function ensureWipItem(ctx: OrgContextLike, processName: string, processId: string): Promise<string> {
-  const itemCode = `WIP-${sanitizeProcessName(processName)}-${processId.slice(0, 8)}`;
+  const linked = await ctx.client.query<{ wip_item_id: string | null }>(
+    `select wip_item_id
+       from public.npd_wip_processes
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      limit 1`,
+    [processId],
+  );
+  const existingItemId = linked.rows[0]?.wip_item_id;
+  if (existingItemId) {
+    const existingItem = await ctx.client.query<{ id: string }>(
+      `select id
+         from public.items
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1`,
+      [existingItemId],
+    );
+    if (existingItem.rows[0]?.id) {
+      return existingItem.rows[0].id;
+    }
+  }
+
+  const itemCode = await mintWipItemCode(ctx, processName, processId);
   const inserted = await ctx.client.query<{ id: string }>(
     `insert into public.items
        (org_id, item_code, item_type, name, origin_module, status, uom_base, created_by)
      values
        (app.current_org_id(), $1, 'intermediate', $2, 'npd', 'active', 'kg', $3::uuid)
-     on conflict (org_id, item_code) do nothing
      returning id`,
     [itemCode, processName, ctx.userId],
   );
 
-  const itemId = inserted.rows[0]?.id ?? (await ctx.client.query<{ id: string }>(
-    `select id
-       from public.items
-      where org_id = app.current_org_id()
-        and item_code = $1
-      limit 1`,
-    [itemCode],
-  )).rows[0]?.id;
-
+  const itemId = inserted.rows[0]?.id;
   if (!itemId) {
     throw new Error('Could not ensure WIP item');
   }
 
-  await ctx.client.query(
+  const linkedProcess = await ctx.client.query(
     `update public.npd_wip_processes
         set wip_item_id = $2::uuid,
             updated_at = now()
@@ -263,8 +278,27 @@ async function ensureWipItem(ctx: OrgContextLike, processName: string, processId
         and org_id = app.current_org_id()`,
     [processId, itemId],
   );
+  if (linkedProcess.rowCount !== 1) {
+    throw new Error('Could not link WIP item to process');
+  }
 
   return itemId;
+}
+
+async function mintWipItemCode(ctx: OrgContextLike, processName: string, processId: string): Promise<string> {
+  try {
+    return await nextEntityCode(ctx.client, ctx.orgId, 'wip');
+  } catch (error) {
+    if (isMissingWipCodeMaskError(error)) {
+      return `WIP-${sanitizeProcessName(processName)}-${processId.slice(0, 8)}`;
+    }
+    throw error;
+  }
+}
+
+function isMissingWipCodeMaskError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message === 'entity_code_settings_missing:wip' || error.message === 'entity_code_mask_missing:wip';
 }
 
 function sanitizeProcessName(processName: string): string {

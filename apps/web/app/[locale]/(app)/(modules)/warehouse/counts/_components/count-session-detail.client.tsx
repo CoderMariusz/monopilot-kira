@@ -58,6 +58,7 @@ type ApproveAction = (input: {
   countLineId: string;
   signature: { password: string };
 }) => Promise<CountClientResult<{ countLineId: string }>>;
+type CloseSessionAction = () => Promise<CountClientResult<void>>;
 
 const LINE_STATUS_VARIANT: Record<string, BadgeVariant> = {
   pending: 'muted',
@@ -143,6 +144,11 @@ export type CountSessionDetailLabels = {
       error: string;
     };
   };
+  closeSession: string;
+  closingSession: string;
+  closeSessionConfirm: string;
+  closeSessionError: string;
+  closeSessionDenied: string;
 };
 
 type Tab = 'entry' | 'review';
@@ -156,15 +162,19 @@ export function CountSessionDetailClient({
   labels,
   recordAction,
   approveAction,
+  closeSessionAction,
 }: {
   session: CountSessionDetail;
   labels: CountSessionDetailLabels;
   recordAction: RecordAction;
   approveAction: ApproveAction;
+  closeSessionAction?: CloseSessionAction;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('entry');
   const dash = labels.none;
+
+  const sessionClosed = session.status === 'closed' || session.status === 'cancelled';
 
   // Lines awaiting a blind count (or being recounted).
   const entryLines = session.lines;
@@ -176,6 +186,9 @@ export function CountSessionDetailClient({
 
   return (
     <div className="flex flex-col gap-5">
+      {closeSessionAction && !sessionClosed ? (
+        <CloseSessionBar labels={labels} closeSessionAction={closeSessionAction} onClosed={() => router.refresh()} />
+      ) : null}
       {/* Tabs (custom — shadcn Tabs composition; no raw control). */}
       <div role="tablist" aria-label={labels.entry.heading} className="flex gap-1 border-b border-slate-200">
         <button
@@ -230,6 +243,53 @@ export function CountSessionDetailClient({
           dash={dash}
         />
       )}
+    </div>
+  );
+}
+
+function CloseSessionBar({
+  labels,
+  closeSessionAction,
+  onClosed,
+}: {
+  labels: CountSessionDetailLabels;
+  closeSessionAction: CloseSessionAction;
+  onClosed: () => void;
+}) {
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function close() {
+    if (!window.confirm(labels.closeSessionConfirm)) return;
+    setErrorMsg(null);
+    startTransition(async () => {
+      const res = await closeSessionAction();
+      if (res.ok) {
+        onClosed();
+        return;
+      }
+      if (res.code === 'forbidden') setErrorMsg(labels.closeSessionDenied);
+      else setErrorMsg(labels.closeSessionError);
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      {errorMsg ? (
+        <span role="alert" data-testid="count-close-session-error" className="text-sm text-red-600">
+          {errorMsg}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        data-testid="count-close-session"
+        onClick={close}
+        disabled={isPending}
+        aria-busy={isPending}
+        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isPending ? labels.closingSession : labels.closeSession}
+      </button>
     </div>
   );
 }

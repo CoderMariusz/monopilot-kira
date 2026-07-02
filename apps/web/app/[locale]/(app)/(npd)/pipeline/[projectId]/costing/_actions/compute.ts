@@ -19,6 +19,7 @@
 
 import { z } from 'zod';
 
+import { hasPermission } from '../../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import {
   COSTING_WATERFALL_STEP_NAMES,
@@ -83,6 +84,7 @@ type ComputeCostingError =
    * on a project that has a locked v1 (live clickthrough §3).
    */
   | 'fg_not_mapped'
+  | 'forbidden'
   | 'persistence_failed';
 
 type ComputeCostingResult =
@@ -121,7 +123,11 @@ export async function computeCosting(raw: unknown): Promise<ComputeCostingResult
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ orgId, client }) => {
+    return await withOrgContext(async ({ orgId, userId, client }) => {
+      if (!(await hasPermission({ userId, orgId, client }, 'npd.costing'))) {
+        return { ok: false as const, error: 'forbidden' as const };
+      }
+
       // 1) Read the per-org margin warn threshold from Reference.AlertThresholds.
       //    value_int holds the percent (e.g. 15). RLS scopes to this org.
       const thr = await client.query<{ value_int: number | null; value_text: string | null }>(

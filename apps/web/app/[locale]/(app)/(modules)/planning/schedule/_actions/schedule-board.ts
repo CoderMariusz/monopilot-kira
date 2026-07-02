@@ -169,6 +169,7 @@ export type RescheduleWorkOrderError =
   | 'not_found'
   | 'invalid_state'
   | 'invalid_line'
+  | 'line_site_mismatch'
   | 'dependency_cycle'
   | 'persistence_failed';
 
@@ -225,10 +226,8 @@ export async function rescheduleWorkOrder(params: {
       }
 
       if (input.lineId) {
-        // production_lines has no site_id column in this schema, so target-line
-        // site matching is deferred until the infra table carries site scope.
-        const lineResult = await ctx.client.query<{ id: string }>(
-          `select id
+        const lineResult = await ctx.client.query<{ id: string; site_id: string | null }>(
+          `select id, site_id::text as site_id
              from public.production_lines
             where org_id = app.current_org_id()
               and id = $1::uuid
@@ -236,7 +235,15 @@ export async function rescheduleWorkOrder(params: {
             limit 1`,
           [input.lineId],
         );
-        if (!lineResult.rows[0]) return { ok: false, error: 'invalid_line' };
+        const line = lineResult.rows[0];
+        if (!line) return { ok: false, error: 'invalid_line' };
+        if (
+          current.site_id != null &&
+          line.site_id != null &&
+          current.site_id !== line.site_id
+        ) {
+          return { ok: false, error: 'line_site_mismatch' };
+        }
       }
 
       // V-PLAN-WO-CYCLE defensive guard — refuse to move a WO sitting on an

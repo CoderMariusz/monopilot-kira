@@ -11,6 +11,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -72,7 +73,7 @@ let woStatusHistoryInserts: Array<readonly unknown[]> = [];
 let conversionRows: Array<Record<string, unknown>> = [];
 let cancelLookupRows: Array<Record<string, unknown>> = [];
 let hasActiveBom = true;
-const createPurchaseOrderMock = vi.fn();
+const createPurchaseOrderCoreMock = vi.fn();
 
 const WO_OTHER = '55555555-5555-4555-8555-555555555555';
 const WO_REWORK = '66666666-6666-4666-8666-666666666666';
@@ -98,8 +99,8 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-vi.mock('../purchase-orders/_actions/actions', () => ({
-  createPurchaseOrder: (input: unknown) => createPurchaseOrderMock(input),
+vi.mock('../purchase-orders/_actions/create-purchase-order-core', () => ({
+  createPurchaseOrderCore: (ctx: unknown, input: unknown) => createPurchaseOrderCoreMock(ctx, input),
 }));
 
 function makeClient(): QueryClient {
@@ -405,8 +406,8 @@ beforeEach(() => {
   conversionRows = [];
   cancelLookupRows = [];
   hasActiveBom = true;
-  createPurchaseOrderMock.mockReset();
-  createPurchaseOrderMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
+  createPurchaseOrderCoreMock.mockReset();
+  createPurchaseOrderCoreMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
 });
 
 describe('cancelPlannedOrder', () => {
@@ -716,7 +717,7 @@ describe('runMrp', () => {
     expect(workOrderInserts[0][4]).toBe('9.000');
     expect(workOrderInserts[0][11]).toBe(SITE_ID);
 
-    createPurchaseOrderMock.mockClear();
+    createPurchaseOrderCoreMock.mockClear();
     const poResult = await convertPlannedToPo([FG_PLANNED_ID]);
     expect(poResult).toEqual({
       ok: true,
@@ -724,7 +725,7 @@ describe('runMrp', () => {
       poIds: [],
       skipped: [{ id: FG_PLANNED_ID, reason: 'not a buy planned order' }],
     });
-    expect(createPurchaseOrderMock).not.toHaveBeenCalled();
+    expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
   });
 
   it('persists the run header + per-item requirements per the mig-178 DDL ({ persist: true })', async () => {
@@ -847,7 +848,7 @@ describe('listMrpRuns', () => {
 });
 
 describe('convertPlannedToPo', () => {
-  it('groups buy planned orders by supplier and calls canonical createPurchaseOrder', async () => {
+  it('groups buy planned orders by supplier and calls createPurchaseOrderCore on the outer ctx', async () => {
     conversionRows = [
       {
         id: PO_PLANNED_ID,
@@ -866,15 +867,46 @@ describe('convertPlannedToPo', () => {
     const result = await convertPlannedToPo([PO_PLANNED_ID]);
 
     expect(result).toEqual({ ok: true, created: 1, poIds: [PO_ID], skipped: [] });
-    expect(createPurchaseOrderMock).toHaveBeenCalledWith({
-      supplierId: SUPPLIER_ID,
-      status: 'draft',
-      expectedDelivery: '2026-06-18',
-      currency: 'GBP',
-      notes: 'Created from MRP planned orders',
-      lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', lineNo: 1 }],
-    });
+    expect(createPurchaseOrderCoreMock).toHaveBeenCalledWith(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        supplierId: SUPPLIER_ID,
+        status: 'draft',
+        expectedDelivery: '2026-06-18',
+        currency: 'GBP',
+        notes: 'Created from MRP planned orders',
+        lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', lineNo: 1 }],
+      },
+    );
     expect(releasedUpdates).toEqual([[[PO_PLANNED_ID], PO_ID]]);
+  });
+
+  it('flatten: convertPlannedToPo opens exactly one withOrgContext and does not nest another', async () => {
+    conversionRows = [
+      {
+        id: PO_PLANNED_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        item_name: 'Wheat flour',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: SUPPLIER_ID,
+        release_status: 'suggested',
+      },
+    ];
+    vi.mocked(withOrgContext).mockClear();
+
+    await convertPlannedToPo([PO_PLANNED_ID]);
+
+    expect(vi.mocked(withOrgContext)).toHaveBeenCalledTimes(1);
+    expect(createPurchaseOrderCoreMock).toHaveBeenCalledTimes(1);
+    expect(createPurchaseOrderCoreMock.mock.calls[0]?.[0]).toEqual({
+      userId: USER_ID,
+      orgId: ORG_ID,
+      client,
+    });
   });
 
   it('skips buy planned orders without a supplier', async () => {
@@ -896,7 +928,7 @@ describe('convertPlannedToPo', () => {
     const result = await convertPlannedToPo([PO_PLANNED_ID]);
 
     expect(result).toEqual({ ok: true, created: 0, poIds: [], skipped: [{ id: PO_PLANNED_ID, reason: 'missing supplier' }] });
-    expect(createPurchaseOrderMock).not.toHaveBeenCalled();
+    expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
   });
 });
 

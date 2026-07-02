@@ -271,6 +271,9 @@ export type ProductionErrorCode =
   | 'invalid_reference'
   | 'insufficient_input_for_output'
   | 'insufficient_lp_quantity'
+  | 'lp_not_wasteable'
+  | 'lp_not_released'
+  | 'uom_mismatch'
   // W9-K-II (F-A04): output-LP creation needs an org default warehouse; 409
   // when the org has none configured (mirrors the scanner GRN receive contract).
   | 'warehouse_not_configured'

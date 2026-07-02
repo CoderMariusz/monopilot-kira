@@ -46,7 +46,7 @@ import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../lib/production/wo-material-scalar';
 import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
-import { createPurchaseOrder } from '../purchase-orders/_actions/actions';
+import { createPurchaseOrderCore } from '../purchase-orders/_actions/create-purchase-order-core';
 import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { hasPlanningWritePermission, writeProcurementAudit, type OrgActionContext } from './procurement-shared';
@@ -1000,8 +1000,9 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
       }
 
       const poIds: string[] = [];
+      const outerCtx = { userId, orgId, client: c };
       for (const [supplierId, rows] of bySupplier) {
-        const result = await createPurchaseOrder({
+        const result = await createPurchaseOrderCore(outerCtx, {
           supplierId,
           status: 'draft',
           expectedDelivery: rows[0]?.due_date,

@@ -7,7 +7,7 @@ vi.mock('../../../../../../../../lib/site/site-context', () => ({
 
 import { revalidatePath } from 'next/cache';
 import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
-import { approveAndApplyVariance, createCountSession, getCountSession, listCountSessions, recordCount } from '../count-actions';
+import { approveAndApplyVariance, closeCountSession, createCountSession, getCountSession, listCountSessions, recordCount } from '../count-actions';
 import type { CountLineStatus } from '../count-types';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -66,6 +66,11 @@ let shrinkageLps: Array<{
 let stockAdjustmentIds: string[];
 /** Configurable count-variance WARN threshold (percent) the mock returns. */
 let countVarianceWarnPct: string;
+/** Session row returned by recordCount FOR UPDATE read. */
+let sessionStatus: string;
+let sessionWarehouseId: string;
+let locationInWarehouse: boolean;
+let itemExists: boolean;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -120,6 +125,32 @@ function makeClient(): QueryClient {
 
       if (n.includes('from public.user_roles')) {
         return { rows: [{ ok: true }], rowCount: 1 };
+      }
+
+      if (n.startsWith('select id::text') && n.includes('from public.count_sessions') && n.includes('for update')) {
+        return {
+          rows: [{
+            id: SESSION_ID,
+            status: sessionStatus,
+            warehouse_id: sessionWarehouseId,
+            site_id: SITE_ID,
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (n.startsWith('select id::text from public.locations')) {
+        return locationInWarehouse ? { rows: [{ id: LOCATION_ID }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+
+      if (n.startsWith('select id::text from public.items')) {
+        return itemExists ? { rows: [{ id: ITEM_ID }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+
+      if (n.startsWith('update public.count_sessions') && n.includes("status = 'closed'")) {
+        return sessionStatus === 'closed' || sessionStatus === 'cancelled'
+          ? { rows: [], rowCount: 0 }
+          : { rows: [{ id: SESSION_ID }], rowCount: 1 };
       }
 
       if (n.startsWith('select id::text from public.count_sessions')) {
@@ -272,6 +303,10 @@ beforeEach(async () => {
   // High default so pre-existing recordCount cases never trip the soft warning;
   // the variance-warning tests set this explicitly.
   countVarianceWarnPct = '100';
+  sessionStatus = 'open';
+  sessionWarehouseId = WAREHOUSE_ID;
+  locationInWarehouse = true;
+  itemExists = true;
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -590,5 +625,48 @@ describe('stock count actions', () => {
     const { signEvent } = await import('@monopilot/e-sign');
     expect(signEvent).not.toHaveBeenCalled();
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'))).toBe(false);
+  });
+
+  it('recordCount rejects a closed session', async () => {
+    sessionStatus = 'closed';
+
+    await expect(
+      recordCount({
+        sessionId: SESSION_ID,
+        locationId: LOCATION_ID,
+        itemId: ITEM_ID,
+        countedQty: '8',
+      }),
+    ).rejects.toThrow('count_session_not_open');
+  });
+
+  it('recordCount rejects a location outside the session warehouse', async () => {
+    locationInWarehouse = false;
+
+    await expect(
+      recordCount({
+        sessionId: SESSION_ID,
+        locationId: LOCATION_ID,
+        itemId: ITEM_ID,
+        countedQty: '8',
+      }),
+    ).rejects.toThrow('location_not_in_warehouse');
+  });
+
+  it('closeCountSession closes an open session and revalidates the list', async () => {
+    sessionStatus = 'open';
+
+    const result = await closeCountSession(SESSION_ID);
+
+    expect(result).toBe(SESSION_ID);
+    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/warehouse/counts', 'page');
+    const update = queries.find((q) => normalize(q.sql).includes("status = 'closed'"));
+    expect(update?.params).toEqual([SESSION_ID, USER_ID]);
+  });
+
+  it('closeCountSession throws when the session is not closable', async () => {
+    sessionStatus = 'closed';
+
+    await expect(closeCountSession(SESSION_ID)).rejects.toThrow('count_session_not_closable');
   });
 });

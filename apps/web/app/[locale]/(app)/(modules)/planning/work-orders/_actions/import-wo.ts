@@ -7,7 +7,7 @@ import {
   type OutputUom,
 } from '../../../../../../../lib/uom/convert';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { createWorkOrder } from './createWorkOrder';
+import { createWorkOrderCore } from './create-work-order-core';
 import {
   PLANNING_WO_WRITE_PERMISSION,
   hasPermission,
@@ -177,7 +177,7 @@ export async function commitWoImport(
         continue;
       }
 
-      const result = await createWorkOrder({
+      const result = await createWorkOrderCore(ctx, {
         productId: item.id,
         itemCode: item.item_code,
         plannedQuantity: quantity.plannedBaseQty,

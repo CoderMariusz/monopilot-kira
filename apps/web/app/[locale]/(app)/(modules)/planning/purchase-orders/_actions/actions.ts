@@ -3,11 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { getActiveSiteId, resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
-  PurchaseOrderCreateInput,
   PurchaseOrderStatusSchema,
   hasPlanningWritePermission,
   isPgError,
@@ -21,6 +19,10 @@ import {
   type ProcurementError,
   type QueryClient,
 } from '../../_actions/procurement-shared';
+import {
+  CreatePurchaseOrderInput,
+  createPurchaseOrderCore,
+} from './create-purchase-order-core';
 
 type PurchaseOrderRow = {
   id: string;
@@ -98,10 +100,6 @@ const UpdatePurchaseOrderInput = z.object({
     .optional(),
   currency: z.string().trim().length(3).optional(),
   notes: z.string().trim().max(2000).optional(),
-});
-
-const CreatePurchaseOrderInput = PurchaseOrderCreateInput.extend({
-  destinationWarehouseId: uuidSchema.optional(),
 });
 
 const AddPurchaseOrderLineInput = z.object({
@@ -412,77 +410,12 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
-      // F10 — never persist site_id=NULL silently. Resolve a concrete site (active
-      // selection -> cookie -> org default -> the org's single active site). If the
-      // org has zero active sites, or >1 with none chosen/default, fail closed with
-      // an actionable error the create modal surfaces (rather than orphaning the PO).
-      const siteResolution = await resolveWriteSiteId(ctx.client);
-      if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
-      const siteId = siteResolution.siteId;
-
-      async function insertHeader(poNumber: string) {
-        return ctx.client.query<PurchaseOrderRow>(
-          `insert into public.purchase_orders
-             (org_id, site_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
-           values
-             (app.current_org_id(), $9::uuid, $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7, $8::uuid, $8::uuid)
-           returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
-                     destination_warehouse_id, null::text as destination_warehouse_name,
-                     status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
-          [
-            poNumber,
-            input.supplierId,
-            input.destinationWarehouseId ?? null,
-            input.status,
-            input.expectedDelivery ?? null,
-            input.currency,
-            input.notes ?? null,
-            userId,
-            siteId,
-          ],
-        );
-      }
-
-      const initialPoNumber = input.poNumber ?? (await nextDocumentNumber(ctx.client, orgId, 'po', new Date()));
-      let insertResult: Awaited<ReturnType<typeof insertHeader>>;
-      try {
-        insertResult = await insertHeader(initialPoNumber);
-      } catch (error) {
-        if (input.poNumber || !isPgError(error) || error.code !== '23505') throw error;
-        insertResult = await insertHeader(await nextDocumentNumber(ctx.client, orgId, 'po', new Date()));
-      }
-
-      const { rows } = insertResult;
-      const header = rows[0];
-      if (!header) return { ok: false, error: 'persistence_failed' };
-
-      for (const line of input.lines) {
-        await ctx.client.query(
-          `insert into public.purchase_order_lines
-             (org_id, po_id, item_id, qty, uom, unit_price, line_no, created_by, updated_by)
-           values
-             (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric, $6::integer, $7::uuid, $7::uuid)`,
-          [header.id, line.itemId, line.qty, line.uom, line.unitPrice, line.lineNo, userId],
-        );
-      }
-
-      await writeProcurementAudit(ctx, {
-        action: 'planning.purchase_order.created',
-        resourceType: 'purchase_order',
-        resourceId: header.id,
-        afterState: {
-          poNumber: header.po_number,
-          status: header.status,
-          lineCount: input.lines.length,
-          destinationWarehouseId: input.destinationWarehouseId ?? null,
-        },
-      });
-      revalidatePurchaseOrderPaths(header.id);
-      return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+      return createPurchaseOrderCore(ctx, input);
     });
+    if (result.ok) revalidatePurchaseOrderPaths(result.data.id);
+    return result;
   } catch (err) {
     const error = pgErrorToResult(err);
     if (error !== 'persistence_failed') return { ok: false, error };

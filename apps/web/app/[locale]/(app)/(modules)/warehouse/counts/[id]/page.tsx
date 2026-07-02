@@ -29,6 +29,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import {
   approveAndApplyVariance,
+  closeCountSession,
   getCountSession,
   recordCount,
 } from '../_actions/count-actions';
@@ -114,6 +115,11 @@ function buildLabels(t: ReturnType<typeof getCountsTranslator>): CountSessionDet
         error: t('esign.errors.error'),
       },
     },
+    closeSession: t('detail.closeSession'),
+    closingSession: t('detail.closingSession'),
+    closeSessionConfirm: t('detail.closeSessionConfirm'),
+    closeSessionError: t('detail.closeSessionError'),
+    closeSessionDenied: t('detail.closeSessionDenied'),
   };
 }
 
@@ -182,12 +188,23 @@ async function DetailContent({ locale, sessionId }: { locale: string; sessionId:
     }
   }
 
+  async function closeCountSessionSafe(): Promise<CountClientResult<void>> {
+    'use server';
+    try {
+      await closeCountSession(sessionId);
+      return { ok: true, data: undefined };
+    } catch (err) {
+      return { ok: false, code: toCountErrorCode(err instanceof Error ? err.message : undefined) };
+    }
+  }
+
   return (
     <CountSessionDetailClient
       session={session}
       labels={buildLabels(t)}
       recordAction={recordCountSafe}
       approveAction={approveVarianceSafe}
+      closeSessionAction={closeCountSessionSafe}
     />
   );
 }

@@ -887,8 +887,16 @@ export async function recordCount(input: RecordCountInput): Promise<CountLine> {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
 
-    const session = await ctx.client.query<{ id: string }>(
-      `select id::text
+    const session = await ctx.client.query<{
+      id: string;
+      status: string;
+      warehouse_id: string;
+      site_id: string | null;
+    }>(
+      `select id::text,
+              status,
+              warehouse_id::text,
+              site_id::text
          from public.count_sessions
         where org_id = app.current_org_id()
           and id = $1::uuid
@@ -896,7 +904,32 @@ export async function recordCount(input: RecordCountInput): Promise<CountLine> {
         for update`,
       [sessionId],
     );
-    if (!session.rows[0]) throw new Error('count_session_not_found');
+    const sessionRow = session.rows[0];
+    if (!sessionRow) throw new Error('count_session_not_found');
+    if (sessionRow.status !== 'open' && sessionRow.status !== 'counting') {
+      throw new Error('count_session_not_open');
+    }
+
+    const locationCheck = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.locations
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and warehouse_id = $2::uuid
+        limit 1`,
+      [locationId, sessionRow.warehouse_id],
+    );
+    if (!locationCheck.rows[0]) throw new Error('location_not_in_warehouse');
+
+    const itemCheck = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.items
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1`,
+      [itemId],
+    );
+    if (!itemCheck.rows[0]) throw new Error('item_not_found');
 
     const onHand = await readCurrentOnHand(ctx.client, { locationId, itemId, lpId });
     const { systemQty } = onHand;
@@ -1157,5 +1190,30 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       esignRef: signatureReceipt.signatureId,
       status: 'applied',
     };
+  });
+}
+
+export async function closeCountSession(sessionId: string): Promise<string> {
+  const normalizedSessionId = assertUuid(sessionId, 'session_id');
+
+  return await withOrgContext(async ({ userId, orgId, client }): Promise<string> => {
+    const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
+    await assertCanAdjustStock(ctx);
+
+    const { rows } = await ctx.client.query<{ id: string }>(
+      `update public.count_sessions
+          set status = 'closed',
+              closed_at = now(),
+              closed_by = $2::uuid
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and status in ('open', 'counting', 'review')
+      returning id::text`,
+      [normalizedSessionId, ctx.userId],
+    );
+    const closedId = rows[0]?.id;
+    if (!closedId) throw new Error('count_session_not_closable');
+    revalidatePath('/[locale]/warehouse/counts', 'page');
+    return closedId;
   });
 }

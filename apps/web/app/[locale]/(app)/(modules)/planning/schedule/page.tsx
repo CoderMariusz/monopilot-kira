@@ -99,6 +99,7 @@ async function BoardContent({ locale }: { locale: string }) {
         not_found: t('schedule.modal.errors.not_found'),
         invalid_state: t('schedule.modal.errors.invalid_state'),
         invalid_line: t('schedule.modal.errors.invalid_line'),
+        line_site_mismatch: t('schedule.modal.errors.line_site_mismatch'),
         dependency_cycle: t('schedule.modal.errors.dependency_cycle'),
         persistence_failed: t('schedule.modal.errors.persistence_failed'),
       },

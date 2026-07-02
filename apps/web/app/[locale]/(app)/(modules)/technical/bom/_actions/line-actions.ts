@@ -324,6 +324,19 @@ export async function deleteBomLine(rawInput: unknown): Promise<BomLineActionRes
       // Renumber the remaining lines into a dense 1..N sequence ordered by the
       // current line_no — keeping line_no consistent with the createBomDraft
       // contract (line_no = position in line order).
+      //
+      // Two-phase renumber avoids 23505 on the non-deferrable (bom_header_id, line_no)
+      // unique constraint at every intermediate step. We use a HIGH-POSITIVE offset
+      // (100000) rather than negative values because the live DB has a
+      // CHECK (line_no > 0) constraint that is NOT deferrable — staging to negatives
+      // would raise 23514 immediately. The offset range (100001..100001+N) is
+      // disjoint from the target range (1..N) for any real BOM, so neither the
+      // CHECK nor the unique is violated during either phase.
+      //
+      // Phase 1: move each row to (its final rank + 100000) — satisfies CHECK > 0
+      //          and unique because 100001..100001+N never collides with existing
+      //          1..N values (the deleted row is already gone).
+      // Phase 2: subtract 100000 — lands every row in 1..N cleanly.
       await c.query(
         `with ranked as (
            select id, row_number() over (order by line_no asc, id asc) as rn
@@ -332,12 +345,20 @@ export async function deleteBomLine(rawInput: unknown): Promise<BomLineActionRes
               and bom_header_id = $1::uuid
          )
          update public.bom_lines bl
-            set line_no = ranked.rn
+            set line_no = ranked.rn + 100000
            from ranked
           where bl.id = ranked.id
             and bl.org_id = app.current_org_id()
             and bl.bom_header_id = $1::uuid
-            and bl.line_no <> ranked.rn`,
+            and bl.line_no <> ranked.rn + 100000`,
+        [input.bomHeaderId],
+      );
+      await c.query(
+        `update public.bom_lines
+            set line_no = line_no - 100000
+          where org_id = app.current_org_id()
+            and bom_header_id = $1::uuid
+            and line_no > 100000`,
         [input.bomHeaderId],
       );
 
@@ -354,7 +375,9 @@ export async function deleteBomLine(rawInput: unknown): Promise<BomLineActionRes
       return { ok: true, data: { lineId: input.lineId, bomHeaderId: input.bomHeaderId } };
     });
   } catch (err) {
-    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
+    if (isPgError(err) && (err.code === '23514' || err.code === '23505')) {
+      return { ok: false, error: 'invalid_input' };
+    }
     console.error('[technical/bom] deleteBomLine persistence_failed', {
       err: err instanceof Error ? err.message : String(err),
     });

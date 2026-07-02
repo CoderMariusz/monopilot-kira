@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createWorkOrder } from './createWorkOrder';
+import { createWorkOrderCore } from './create-work-order-core';
 import { commitWoImport, validateWoImport, type WoImportRow } from './import-wo';
 import type { CreateWorkOrderResult, QueryClient } from './shared';
 
@@ -68,8 +68,8 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-vi.mock('./createWorkOrder', () => ({
-  createWorkOrder: vi.fn(),
+vi.mock('./create-work-order-core', () => ({
+  createWorkOrderCore: vi.fn(),
 }));
 
 function makeClient(): QueryClient {
@@ -130,8 +130,8 @@ function woRow(overrides: Partial<WoImportRow> = {}): WoImportRow {
   };
 }
 
-function createWorkOrderMock() {
-  return vi.mocked(createWorkOrder);
+function createWorkOrderCoreMock() {
+  return vi.mocked(createWorkOrderCore);
 }
 
 function importJobInsertCalls() {
@@ -144,8 +144,8 @@ describe('work order import backend', () => {
     activeBomCodes = new Set(['FG-KG', 'FG-PCS']);
     existingRefs = new Set();
     client = makeClient();
-    createWorkOrderMock().mockReset();
-    createWorkOrderMock().mockImplementation(async (rawInput: unknown) => {
+    createWorkOrderCoreMock().mockReset();
+    createWorkOrderCoreMock().mockImplementation(async (_ctx: unknown, rawInput: unknown) => {
       const input = rawInput as CreateWoPayload;
       return {
         ok: true,
@@ -196,8 +196,8 @@ describe('work order import backend', () => {
       { wo_number: 'WO-FG-KG', external_ref: 'WO-EXT-A' },
       { wo_number: 'WO-FG-PCS', external_ref: 'WO-EXT-B' },
     ]);
-    expect(createWorkOrder).toHaveBeenCalledTimes(2);
-    expect(createWorkOrderMock().mock.calls[0]?.[0]).toEqual(
+    expect(createWorkOrderCore).toHaveBeenCalledTimes(2);
+    expect(createWorkOrderCoreMock().mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         productId: FG_KG_ID,
         itemCode: 'FG-KG',
@@ -208,7 +208,7 @@ describe('work order import backend', () => {
         productionLineId: LINE_ID,
       }),
     );
-    expect(createWorkOrderMock().mock.calls[1]?.[0]).toEqual(
+    expect(createWorkOrderCoreMock().mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
         productId: FG_PCS_ID,
         itemCode: 'FG-PCS',
@@ -217,7 +217,7 @@ describe('work order import backend', () => {
         quantityEnteredUom: 'each',
       }),
     );
-    expect(createWorkOrderMock().mock.results[0]?.type).toBe('return');
+    expect(createWorkOrderCoreMock().mock.results[0]?.type).toBe('return');
     expect(importJobInsertCalls()).toHaveLength(1);
   });
 });

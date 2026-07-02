@@ -24,6 +24,8 @@ type FakeClient = {
   lineExists: boolean;
   /** F7: how many bom_lines INSERT attempts raise 23505 before one succeeds. */
   failInsertsWith23505: number;
+  /** deleteBomLine renumber: throw 23505 on the flip phase when true. */
+  failRenumberFlipWith23505: boolean;
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
@@ -52,6 +54,7 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
     headerStatus: 'draft',
     lineExists: true,
     failInsertsWith23505: 0,
+    failRenumberFlipWith23505: false,
     async query(sql, params = []) {
       client.calls.push({ sql, params });
       const n = normalizeSql(sql);
@@ -80,6 +83,14 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
         return { rows: [] as never[], rowCount: 1 };
       }
       if (n.startsWith('with ranked as')) {
+        return { rows: [] as never[], rowCount: 2 };
+      }
+      if (n.startsWith('update public.bom_lines') && n.includes('set line_no = line_no - 100000')) {
+        if (client.failRenumberFlipWith23505) {
+          const err = new Error('duplicate key value violates unique constraint "bom_lines_header_line_unique"') as Error & { code: string };
+          err.code = '23505';
+          throw err;
+        }
         return { rows: [] as never[], rowCount: 2 };
       }
       if (n.startsWith('insert into public.audit_log')) {
@@ -294,14 +305,27 @@ describe('updateBomLine', () => {
 });
 
 describe('deleteBomLine', () => {
-  it('deletes the line then renumbers remaining lines into a dense sequence', async () => {
+  it('deletes the line then renumbers remaining lines with a two-phase positive-offset staging pass', async () => {
     const { deleteBomLine } = await import('../line-actions');
     const res = await deleteBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID });
     expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
     const del = client.calls.findIndex((c) => normalizeSql(c.sql).startsWith('delete from public.bom_lines'));
-    const renum = client.calls.findIndex((c) => normalizeSql(c.sql).startsWith('with ranked as'));
+    const stage = client.calls.findIndex((c) => normalizeSql(c.sql).startsWith('with ranked as'));
+    const flip = client.calls.findIndex((c) => normalizeSql(c.sql).includes('set line_no = line_no - 100000'));
     expect(del).toBeGreaterThan(-1);
-    expect(renum).toBeGreaterThan(del);
+    expect(stage).toBeGreaterThan(del);
+    expect(flip).toBeGreaterThan(stage);
+    // Phase 1 uses + 100000 offset (CHECK > 0 satisfied; disjoint from 1..N target range).
+    expect(normalizeSql(client.calls[stage]!.sql)).toContain('set line_no = ranked.rn + 100000');
+    // Phase 2 subtracts the offset landing rows in 1..N; guard is > 100000 not < 0.
+    expect(normalizeSql(client.calls[flip]!.sql)).toContain('line_no > 100000');
+  });
+
+  it('maps a renumber 23505 unique violation to invalid_input', async () => {
+    install(makeClient({ failRenumberFlipWith23505: true }));
+    const { deleteBomLine } = await import('../line-actions');
+    const res = await deleteBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID });
+    expect(res).toEqual({ ok: false, error: 'invalid_input' });
   });
 
   it('refuses delete with bom_not_editable on a superseded version', async () => {

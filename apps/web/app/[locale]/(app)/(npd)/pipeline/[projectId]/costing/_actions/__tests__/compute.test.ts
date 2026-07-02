@@ -27,6 +27,7 @@ const orgARole = '07300000-0000-4000-8000-0000000001aa';
 const projectA = '07300000-0000-4000-8000-0000000000ab';
 const productA = 'FA-T073-A';
 const revalidatedPaths = vi.hoisted(() => [] as Array<{ path: string; type?: string }>);
+const hasPermissionMock = vi.hoisted(() => vi.fn(async () => true));
 
 // Shared mutable context the mocked withOrgContext binds the action to.
 const ctxHolder: { orgId: string; userId: string; sessionToken: string; client: pg.PoolClient | null } = {
@@ -46,6 +47,10 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
       client: ctxHolder.client,
     });
   },
+}));
+
+vi.mock('../../../../../../../../../lib/auth/has-permission', () => ({
+  hasPermission: (...args: unknown[]) => hasPermissionMock(...args),
 }));
 
 vi.mock('next/cache', () => ({
@@ -509,6 +514,8 @@ describe('computeCosting (input validation)', () => {
   beforeEach(() => {
     // No DB client bound — validation must reject BEFORE withOrgContext is hit.
     ctxHolder.client = null;
+    hasPermissionMock.mockReset();
+    hasPermissionMock.mockResolvedValue(true);
   });
 
   it('rejects an invalid payload with invalid_input and never touches the DB', async () => {
@@ -529,6 +536,18 @@ describe('computeCosting (input validation)', () => {
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.error).toBe('invalid_input');
+  });
+
+  it('returns forbidden before any DB access when npd.costing is denied', async () => {
+    hasPermissionMock.mockResolvedValue(false);
+    const querySpy = vi.fn(async () => ({ rows: [] }));
+    ctxHolder.client = { query: querySpy } as unknown as pg.PoolClient;
+
+    const { computeCosting } = await import('../compute');
+    const res = await computeCosting({ productCode: productA, scenario: 'target', params: baseParams });
+
+    expect(res).toEqual({ ok: false, error: 'forbidden' });
+    expect(querySpy).not.toHaveBeenCalled();
   });
 
   // Rework finding 3: out-of-bounds inputs must return invalid_input (NOT

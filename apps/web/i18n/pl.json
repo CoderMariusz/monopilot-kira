@@ -7595,6 +7595,7 @@
           "not_found": "Nie znaleziono zlecenia.",
           "invalid_state": "Przeplanować można tylko zlecenia w stanie szkic lub zwolnione.",
           "invalid_line": "Wybrana linia nie jest aktywną linią tej organizacji.",
+          "line_site_mismatch": "Wybrana linia należy do innego zakładu niż to zlecenie produkcyjne.",
           "dependency_cycle": "To ZP leży na cyklicznym łańcuchu zależności (V-PLAN-WO-CYCLE) — najpierw napraw zależności.",
           "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie."
         }

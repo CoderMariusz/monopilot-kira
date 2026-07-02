@@ -24,6 +24,7 @@ let allowPermission = true;
 let currentStatus: string | null = 'DRAFT';
 let updateVisibleStatus: string | null = null;
 let lineExists = true;
+let lineSiteId: string | null = SITE_ID;
 let dependencyEdges: Array<{ parent_wo_id: string; child_wo_id: string }> = [];
 
 const { getActiveSiteIdMock } = vi.hoisted(() => ({
@@ -75,7 +76,10 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.production_lines')) {
         // rescheduleWorkOrder line-belongs-to-org check
-        return { rows: lineExists ? [{ id: LINE_ID }] : [], rowCount: lineExists ? 1 : 0 };
+        return {
+          rows: lineExists ? [{ id: LINE_ID, site_id: lineSiteId }] : [],
+          rowCount: lineExists ? 1 : 0,
+        };
       }
       if (normalized.includes('from public.wo_dependencies')) {
         return { rows: dependencyEdges, rowCount: dependencyEdges.length };
@@ -104,6 +108,7 @@ describe('rescheduleWorkOrder', () => {
     currentStatus = 'DRAFT';
     updateVisibleStatus = null;
     lineExists = true;
+    lineSiteId = SITE_ID;
     dependencyEdges = [];
     client = makeClient();
   });
@@ -218,6 +223,19 @@ describe('rescheduleWorkOrder', () => {
     await expect(
       rescheduleWorkOrder({ woId: WO_ID, lineId: LINE_ID, scheduledStart: START, scheduledEnd: END }),
     ).resolves.toEqual({ ok: false, error: 'invalid_line' });
+  });
+
+  it('rejects cross-site line assignment when WO and line sites differ', async () => {
+    lineSiteId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    await expect(
+      rescheduleWorkOrder({ woId: WO_ID, lineId: LINE_ID, scheduledStart: START, scheduledEnd: END }),
+    ).resolves.toEqual({ ok: false, error: 'line_site_mismatch' });
+
+    expect(client.query).not.toHaveBeenCalledWith(
+      expect.stringContaining('update public.work_orders'),
+      expect.anything(),
+    );
   });
 
   it('V-PLAN-WO-CYCLE: refuses to move a WO sitting on a cyclic dependency chain', async () => {
