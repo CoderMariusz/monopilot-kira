@@ -8,6 +8,7 @@ import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-local
 import { CORRECTION_REASON_CODES } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import { toMicro } from '../../../../../../lib/shared/decimal';
+import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
   hasWarehousePermission,
   uuidFromSeed,
@@ -82,6 +83,8 @@ type LicensePlateForCancel = {
   lp_batch_number: string | null;
   lp_expiry_date: string | null;
   lp_best_before_date: string | null;
+  lp_location_id: string | null;
+  lp_site_id: string | null;
 };
 
 type LicensePlateForMetadata = {
@@ -199,7 +202,9 @@ async function loadLpForCancel(ctx: WarehouseContext, lpId: string): Promise<Lic
             lp.reserved_qty::text as lp_reserved_qty,
             lp.batch_number as lp_batch_number,
             lp.expiry_date::text as lp_expiry_date,
-            lp.best_before_date::text as lp_best_before_date
+            lp.best_before_date::text as lp_best_before_date,
+            lp.location_id::text as lp_location_id,
+            lp.site_id::text as lp_site_id
        from public.license_plates lp
       where lp.org_id = app.current_org_id()
         and lp.id = $1::uuid
@@ -383,6 +388,38 @@ export async function cancelGrnLine(input: unknown): Promise<
             and id = $1::uuid
             and cancelled_at is null`,
         [line.id, userId, parsed.data.reasonCode, note],
+      );
+
+      const stockMoveTransactionId = uuidFromSeed(`warehouse.receipt.cancel.stock_move:${orgId}:${line.id}`);
+      await ctx.client.query(
+        `insert into public.stock_moves (
+           org_id, site_id, move_number, lp_id, move_type, from_location_id,
+           quantity, uom, reason_code, reason_text, transaction_id, grn_id, status,
+           ext_jsonb, created_by, updated_by
+         )
+         values (
+           app.current_org_id(), $1::uuid, $2, $3::uuid, 'return', $4::uuid,
+           $5::numeric, $6, 'receipt_cancelled', $7, $8::uuid, $9::uuid, 'completed',
+           $10::jsonb, $11::uuid, $11::uuid
+         )
+         on conflict (org_id, transaction_id) do nothing`,
+        [
+          lp.lp_site_id,
+          makeStockMoveNumber(stockMoveTransactionId),
+          line.lp_id,
+          lp.lp_location_id,
+          line.received_qty,
+          line.uom,
+          note,
+          stockMoveTransactionId,
+          line.grn_id,
+          JSON.stringify({
+            grn_item_id: line.id,
+            correction_reason_code: parsed.data.reasonCode,
+            received_qty: line.received_qty,
+          }),
+          userId,
+        ],
       );
 
       const wacSnapshot = readWacContributionSnapshot(line.ext_jsonb);

@@ -56,6 +56,30 @@ function requirePermission(permission: string) {
   };
 }
 
+/** Throws FORBIDDEN unless the caller holds at least one of the given permissions. */
+async function requireAnyPermission(ctx: PermissionContext, permissions: [string, ...string[]]): Promise<void> {
+  for (const permission of permissions) {
+    const { rows } = await ctx.client.query<{ ok: boolean }>(
+      `select true as ok
+         from public.user_roles ur
+         join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+         left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+        where ur.user_id = $1::uuid
+          and ur.org_id = $2::uuid
+          and (
+            rp.permission is not null
+            or r.code = $3
+            or r.slug = $3
+            or r.permissions ? $3
+          )
+        limit 1`,
+      [ctx.userId, ctx.orgId, permission],
+    );
+    if (rows.length > 0) return; // any match is sufficient
+  }
+  throw FORBIDDEN;
+}
+
 export async function deactivateUser(input: DeactivateUserInput): Promise<DeactivateUserResult> {
   const targetUserId = normalizeId(input?.targetUserId);
   if (!targetUserId) {
@@ -64,7 +88,9 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
 
   return withOrgContext(async ({ userId, orgId, client }) => {
     try {
-      await requirePermission('org.access.admin')({ client, userId, orgId });
+      // Accepts either the legacy broad grant (org.access.admin) OR the narrower
+      // seeded grant (settings.users.deactivate) — OR-union per F2 carry-over.
+      await requireAnyPermission({ client, userId, orgId }, ['org.access.admin', 'settings.users.deactivate']);
 
       if (targetUserId === userId) {
         return { ok: false, error: 'self_deactivation' };

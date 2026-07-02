@@ -558,6 +558,38 @@ describe('scanner receive PO service', () => {
     expect(client.calls.some((call) => call.sql.includes('insert into public.license_plates'))).toBe(false);
     expect(auditResult(client)).toBe('not_found');
   });
+
+  // F1 — malformed qty must surface as ReceivePoError invalid_qty 400, never as
+  // ReceivePoLineCoreError (which the scanner route does not catch → 500).
+  it('rejects a malformed qty as ReceivePoError invalid_qty 400 before opening a transaction (F1)', async () => {
+    const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '0.000000' });
+
+    await expect(
+      receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-bad-qty', qty: 'not-a-number' }),
+    ).rejects.toMatchObject({ code: 'invalid_qty', status: 400, name: 'ReceivePoError' } satisfies Partial<ReceivePoError>);
+
+    // must not open a transaction — validation fires before begin
+    expect(client.statements).not.toContain('begin');
+    expect(client.calls).toHaveLength(0);
+  });
+
+  // F4 — over-cap audit ext must include orderedQty and receivedQty for diagnostics.
+  it('includes orderedQty and receivedQty in the over-cap audit ext (F4)', async () => {
+    const client = makeReceiveClient({ orderedQty: '10.000000', receivedQty: '10.000000' });
+
+    await expect(receiveScannerPoLine(client, session, { ...input, qty: '1.100001' })).rejects.toMatchObject({
+      code: 'over_receive_cap',
+      status: 409,
+    } satisfies Partial<ReceivePoError>);
+
+    const ext = auditExt(client);
+    expect(ext).toMatchObject({
+      poLineId: LINE_ID,
+      requestedQty: '1.100001',
+      orderedQty: '10.000000',
+      receivedQty: '10.000000',
+    });
+  });
 });
 
 type FakeClient = QueryClient & {

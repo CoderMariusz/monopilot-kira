@@ -42,9 +42,11 @@
  */
 import { createHash } from 'node:crypto';
 
+import { toMicro } from '../../../../../../lib/shared/decimal';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { assertWoNotOnHold } from '../../../../../../lib/production/holds-guard';
 import { assertLpConsumableForProduction } from '../../../../../../lib/production/lp-safety-guard';
+import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
   APP_VERSION,
   emitConsumeBlocked,
@@ -167,6 +169,80 @@ function deterministicTransactionId(seed: string): string {
   // Set version (3) and RFC-4122 variant bits.
   const v = hex.slice(0, 12) + '3' + hex.slice(13, 16) + ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 32);
   return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
+}
+
+function lpStateTransactionId(orgId: string, clientOpId: string): string {
+  return deterministicTransactionId(`${orgId}:desktop-consume:lp-state:${clientOpId}`);
+}
+
+async function writeConsumeLedger(
+  client: QueryClient,
+  input: {
+    orgId: string;
+    userId: string;
+    woId: string;
+    materialId: string;
+    lpId: string;
+    qty: string;
+    uom: string;
+    siteId: string | null;
+    locationId: string | null;
+    fromState: string;
+    toState: string;
+    stockMoveTransactionId: string;
+    lpStateTransactionId: string;
+  },
+): Promise<void> {
+  await client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, from_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, wo_id, wo_material_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'consume_to_wo', $4::uuid,
+       $5::numeric, $6, 'production_consume', 'Desktop WO material consumption',
+       $7::uuid, $8::uuid, $9::uuid, 'completed', $10::jsonb, $11::uuid, $11::uuid
+     )
+     on conflict (org_id, transaction_id) do nothing`,
+    [
+      input.siteId,
+      makeStockMoveNumber(input.stockMoveTransactionId),
+      input.lpId,
+      input.locationId,
+      input.qty,
+      input.uom,
+      input.stockMoveTransactionId,
+      input.woId,
+      input.materialId,
+      JSON.stringify({ source: 'desktop', wo_id: input.woId }),
+      input.userId,
+    ],
+  );
+
+  if (input.toState !== input.fromState) {
+    await client.query(
+      `insert into public.lp_state_history (
+         org_id, site_id, lp_id, from_state, to_state, reason_code, reason_text,
+         wo_id, transaction_id, ext_jsonb, created_by
+       )
+       values (
+         app.current_org_id(), $1::uuid, $2::uuid, $3, $4, 'production_consume',
+         'Desktop WO material consumption', $5::uuid, $6::uuid, $7::jsonb, $8::uuid
+       )
+       on conflict (org_id, transaction_id) do nothing`,
+      [
+        input.siteId,
+        input.lpId,
+        input.fromState,
+        input.toState,
+        input.woId,
+        input.lpStateTransactionId,
+        JSON.stringify({ source: 'desktop', wo_id: input.woId, qty: input.qty, uom: input.uom }),
+        input.userId,
+      ],
+    );
+  }
 }
 
 /**
@@ -435,8 +511,16 @@ export async function recordDesktopConsumption(
         : undefined;
 
       if (lpId) {
-        const lpAvailability = await ctx.client.query<{ id: string }>(
-          `select lp.id::text as id
+        const lpAvailability = await ctx.client.query<{
+          id: string;
+          status: string;
+          site_id: string | null;
+          location_id: string | null;
+        }>(
+          `select lp.id::text as id,
+                  lp.status,
+                  lp.site_id::text as site_id,
+                  lp.location_id::text as location_id
              from public.license_plates lp
             where lp.org_id = app.current_org_id()
               and lp.id = $1::uuid
@@ -450,13 +534,8 @@ export async function recordDesktopConsumption(
         if (!lpAvailability.rows[0]) {
           return { ok: false, reason: 'lp_unavailable' };
         }
-      }
 
-      if (lpId) {
-        // Optional LP decrement with the reserved-qty-safe WHERE — MIRRORS the
-        // scanner route. The pre-mutation gate above owns the user-facing
-        // lp_unavailable return; a no-row here means state changed despite the
-        // lock/read gate, so throw to force withOrgContext rollback.
+        const lpBefore = lpAvailability.rows[0];
         const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
           `update public.license_plates
               set quantity = quantity - $3::numeric,
@@ -475,6 +554,23 @@ export async function recordDesktopConsumption(
         if (!lpRes.rows[0]) {
           throw new Error('recordDesktopConsumption: LP decrement failed after availability gate');
         }
+
+        const lpToState = toMicro(lpRes.rows[0].quantity) <= 0n ? 'consumed' : lpBefore.status;
+        await writeConsumeLedger(ctx.client, {
+          orgId,
+          userId,
+          woId,
+          materialId: gate.id,
+          lpId,
+          qty,
+          uom: gate.uom,
+          siteId: lpBefore.site_id,
+          locationId: lpBefore.location_id,
+          fromState: lpBefore.status,
+          toState: lpToState,
+          stockMoveTransactionId: txnId,
+          lpStateTransactionId: lpStateTransactionId(orgId, clientOpId),
+        });
       }
 
       // (4) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.

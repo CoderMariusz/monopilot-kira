@@ -814,7 +814,11 @@
       },
       "grantedSummary": "{count} permission(s) granted to this role.",
       "granted": "Granted",
-      "otherGroupLabel": "Other"
+      "otherGroupLabel": "Other",
+      "enforcement": {
+        "badge": "Not yet enforced",
+        "tooltip": "Granting this permission has no effect yet — no runtime check uses it."
+      }
     },
     "security": {
       "heading": "Безпека"
@@ -1503,6 +1507,35 @@
       "locations": {
         "warehouseUnassigned": "—"
       }
+    },
+    "compliance": {
+      "title": "Compliance profile",
+      "subtitle": "BRCGS site code, certification body, audit dates, and registration numbers used on generated documents.",
+      "loading": "Loading compliance profile…",
+      "load_error": "Compliance profile could not be loaded.",
+      "save_error": "Compliance profile could not be saved.",
+      "save_success": "Compliance profile saved.",
+      "read_only_label": "Read-only",
+      "read_only_notice": "You need settings.org.update to save compliance profile changes.",
+      "section_certification": "Certification",
+      "section_audits": "Audit schedule",
+      "section_registrations": "Registration numbers",
+      "field_brcgs_site_code": "BRCGS site code",
+      "field_certification_body": "Certification body",
+      "field_certification_grade": "Certification grade",
+      "field_last_audit_date": "Last audit date",
+      "field_next_audit_date": "Next audit date",
+      "field_registration_name": "Registration type",
+      "field_registration_number": "Registration number",
+      "hint_brcgs_site_code": "Printed on PO, BOL, CoA, and factory specification headers.",
+      "hint_certification_body": "Name of the certification body that issued your BRCGS certificate.",
+      "hint_certification_grade": "Grade or level shown on compliance documents (e.g. AA, A, B).",
+      "hint_registrations": "Named registration numbers (e.g. FDA establishment, EC approval).",
+      "action_cancel": "Cancel",
+      "action_save_changes": "Save changes",
+      "action_add_registration": "Add registration",
+      "action_remove_registration": "Remove",
+      "empty_registrations": "No registration numbers configured yet."
     }
   },
   "navigation": {
@@ -1689,7 +1722,8 @@
         "temp_ranges": "Temperature ranges",
         "docks": "Dock doors",
         "scanner_auth": "Sign-off & PINs",
-        "npd_approval": "Approval requirements"
+        "npd_approval": "Approval requirements",
+        "compliance": "Compliance profile"
       }
     },
     "npd": {
@@ -10723,7 +10757,8 @@
         "forbidden": "You don't have permission to do that.",
         "not_found": "That customer could not be found.",
         "already_exists": "A customer with that code already exists.",
-        "persistence_failed": "Something went wrong saving. Please retry."
+        "persistence_failed": "Something went wrong saving. Please retry.",
+        "address_in_use": "This address cannot be removed — it is referenced by one or more open orders."
       }
     }
   },
@@ -11106,5 +11141,55 @@
     "auditLogPage": "Page {page}",
     "auditLogPrev": "Previous",
     "auditLogNext": "Next"
+  },
+  "audit": {
+    "timeline": {
+      "title": "History",
+      "subtitle": "Read-only audit trail for this document.",
+      "empty": "No history yet",
+      "emptyBody": "Changes to this document will appear here.",
+      "colWhen": "When",
+      "colActor": "Actor",
+      "colAction": "Action",
+      "detailsToggle": "Details",
+      "showMore": "Show more",
+      "loadingMore": "Loading…",
+      "unknownActor": "Unknown",
+      "source": {
+        "audit_events": "Audit event",
+        "audit_log": "Audit log",
+        "status_history": "Status change"
+      }
+    }
+  },
+  "warehouse": {
+    "receivePo": {
+      "title": "Receive purchase order",
+      "subtitle": "Receive PO lines into stock without a scanner.",
+      "back": "Back to inbound",
+      "backGrns": "Back to GRNs",
+      "linesTitle": "Lines to receive ({count})",
+      "col": {
+        "ordered": "Ordered",
+        "received": "Received",
+        "outstanding": "Outstanding"
+      },
+      "form": {
+        "batch": "Supplier batch / lot",
+        "overConfirm": "This receipt exceeds the ordered quantity. Check to confirm over-receipt."
+      },
+      "errors": {
+        "over_receive_confirm_required": "Confirm over-receipt before submitting."
+      }
+    },
+    "grnDetail": {
+      "receiveRemaining": "Receive remaining lines",
+      "receiptProgress": "Ordered {ordered} · received {received} · outstanding {outstanding}",
+      "overReceivedBadge": "Over-received",
+      "shortReceivedBadge": "Short"
+    },
+    "inbound": {
+      "receiveDesktop": "Receive on desktop"
+    }
   }
 }

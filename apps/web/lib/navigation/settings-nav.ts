@@ -32,6 +32,7 @@ const group = (id: string, label: string, admin: boolean, items: SettingsNavItem
 export const SETTINGS_NAV_GROUPS = [
   group("organization", "Organization", true, [
     item("profile", "Company profile", "◆", false, "/settings/company"),
+    item("compliance", "Compliance profile", "✓", false, "/settings/compliance"),
     item("sites", "Sites & lines", "▤"),
     // Working infra screens that were URL-only dead-ends (2026-06-11 clickthrough §1).
     // NOTE: /settings/infra/machines is deliberately NOT added — the newer

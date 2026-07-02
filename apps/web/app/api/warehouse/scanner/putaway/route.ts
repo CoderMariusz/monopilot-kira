@@ -43,8 +43,7 @@ export async function POST(request: NextRequest) {
             if (lpAccess !== 'ok') return lpAccess;
             return scannerLocationSiteAccess(scopedClient, input.toLocationId);
           });
-          if (access === 'not_found') return jsonError('not_found', 404);
-          if (access === 'forbidden') return jsonError('forbidden', 403);
+          if (access !== 'ok') return jsonError('not_found', 404);
         }
         return jsonOk(await moveScannerLp(scopedClient, session, input));
       } catch (error) {

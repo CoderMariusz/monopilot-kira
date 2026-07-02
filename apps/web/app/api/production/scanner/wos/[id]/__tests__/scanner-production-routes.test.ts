@@ -1172,7 +1172,7 @@ describe('production scanner WO routes', () => {
     });
   });
 
-  it('start returns 403 when the work order site is not visible to the session user', async () => {
+  it('start normalizes a non-visible work order site to the same 404 shape as a missing work order', async () => {
     const { POST } = await import('../start/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
       const stub = txnStubs(sql);
@@ -1187,8 +1187,8 @@ describe('production scanner WO routes', () => {
 
     const response = await POST(request({ clientOpId: 'op-start-site-forbidden' }) as never, context);
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
     expect(startWoMock).not.toHaveBeenCalled();
   });
 

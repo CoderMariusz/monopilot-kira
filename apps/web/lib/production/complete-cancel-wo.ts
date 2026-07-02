@@ -219,6 +219,37 @@ type CancelAffectedLp = {
   status: string;
 };
 
+type LiveOutputLp = {
+  lp_number: string;
+  qty: string;
+};
+
+async function loadLiveOutputLps(ctx: ProductionContext, woId: string): Promise<LiveOutputLp[]> {
+  const { rows } = await ctx.client.query<LiveOutputLp>(
+    `select lp.lp_number,
+            o.qty_kg::text as qty
+       from public.wo_outputs o
+       join public.license_plates lp
+         on lp.org_id = o.org_id
+        and lp.id = o.lp_id
+      where o.org_id = app.current_org_id()
+        and o.wo_id = $1::uuid
+        and o.correction_of_id is null
+        and o.lp_id is not null
+        and o.qty_kg > 0
+        and lp.status not in ('destroyed', 'consumed')
+        and not exists (
+          select 1
+            from public.wo_outputs correction
+           where correction.org_id = o.org_id
+             and correction.correction_of_id = o.id
+        )
+      order by lp.lp_number asc`,
+    [woId],
+  );
+  return rows;
+}
+
 export async function cancelWo(
   ctx: ProductionContext,
   input: CancelWoInput,
@@ -229,6 +260,20 @@ export async function cancelWo(
   }
 
   const previousStatus = await readWoExecutionStatus(ctx, input.woId);
+
+  if (previousStatus === 'in_progress' || previousStatus === 'paused') {
+    const liveOutputs = await loadLiveOutputLps(ctx, input.woId);
+    if (liveOutputs.length > 0) {
+      return fail('invalid_state', {
+        message:
+          'Registered output license plates are still live — void each output before cancelling this work order.',
+        details: {
+          code: 'live_output_lps_present',
+          outputs: liveOutputs,
+        },
+      });
+    }
+  }
 
   const transition = await applyTransition(ctx, {
     woId: input.woId,

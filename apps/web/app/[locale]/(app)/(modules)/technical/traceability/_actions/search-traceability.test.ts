@@ -19,7 +19,7 @@ function normalize(sql: string): string {
 }
 
 beforeEach(() => {
-  grantedPermissions = new Set(['technical.sensory.read']);
+  grantedPermissions = new Set(['quality.dashboard.view']);
   client = {
     query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
       const normalized = normalize(sql);
@@ -37,7 +37,7 @@ beforeEach(() => {
 });
 
 describe('searchTraceability RBAC', () => {
-  it('returns forbidden without technical.sensory.read', async () => {
+  it('returns forbidden without quality.dashboard.view', async () => {
     grantedPermissions.clear();
 
     const result = await searchTraceability({ query: 'LP-001' });
@@ -46,7 +46,7 @@ describe('searchTraceability RBAC', () => {
     expect(client.query).toHaveBeenCalledTimes(1);
   });
 
-  it('queries trace data when technical.sensory.read is granted', async () => {
+  it('queries trace data when quality.dashboard.view is granted', async () => {
     const result = await searchTraceability({ query: 'LP-001' });
 
     expect(result).toEqual({ ok: true, data: { nodes: [], edges: [] } });

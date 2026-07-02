@@ -24,6 +24,7 @@ import { notFound } from 'next/navigation';
 import { getHoldDetail, releaseHold } from '../../_actions/hold-actions';
 import { getQaHoldsTranslator } from '../../qa-holds-labels';
 import { canReleaseHolds } from '../_components/can-release';
+import { DocumentAuditTimelineSection } from '../../../_components/audit-timeline/document-audit-timeline-section';
 import { buildHoldDetailLabels } from '../_components/labels';
 import { HoldDetailClient } from './_components/hold-detail.client';
 
@@ -82,13 +83,16 @@ async function DetailContent({ locale, holdId }: { locale: string; holdId: strin
   const canRelease = await canReleaseHolds();
 
   return (
-    <HoldDetailClient
-      hold={result.data}
-      canRelease={canRelease}
-      labels={buildHoldDetailLabels(t)}
-      locale={locale}
-      releaseHoldAction={releaseHold}
-    />
+    <div className="flex flex-col gap-4">
+      <HoldDetailClient
+        hold={result.data}
+        canRelease={canRelease}
+        labels={buildHoldDetailLabels(t)}
+        locale={locale}
+        releaseHoldAction={releaseHold}
+      />
+      <DocumentAuditTimelineSection entityType="quality_hold" entityId={result.data.id} locale={locale} />
+    </div>
   );
 }
 

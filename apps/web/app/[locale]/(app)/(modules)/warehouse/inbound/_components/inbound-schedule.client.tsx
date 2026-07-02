@@ -35,6 +35,8 @@ export type InboundRow = {
   docNumber: string;
   /** Detail route, locale-prefixed by the page. */
   href: string;
+  /** Desktop GRN receive route for open POs (optional). */
+  receiveHref?: string | null;
   /** Supplier (PO) or "FROM → TO" warehouse route (TO). */
   party: string;
   status: string;
@@ -55,7 +57,7 @@ export type InboundLabels = {
     upcoming: string;
     upcomingSub: string;
   };
-  columns: { doc: string; type: string; party: string; expected: string; status: string; lines: string };
+  columns: { doc: string; type: string; party: string; expected: string; status: string; lines: string; receive: string };
   type: Record<InboundDocType, string>;
   status: Record<string, string>;
   noDate: string;
@@ -96,6 +98,9 @@ function InboundTable({
           <TableHead scope="col">{labels.columns.status}</TableHead>
           <TableHead scope="col" className="text-right">
             {labels.columns.lines}
+          </TableHead>
+          <TableHead scope="col" className="text-right">
+            {labels.columns.receive}
           </TableHead>
         </TableRow>
       </TableHeader>
@@ -142,6 +147,19 @@ function InboundTable({
               data-testid={`inbound-lines-${r.id}`}
             >
               {r.lineCount === null ? '—' : r.lineCount}
+            </TableCell>
+            <TableCell className="text-right">
+              {r.type === 'po' && r.receiveHref ? (
+                <Link
+                  href={r.receiveHref}
+                  data-testid={`inbound-receive-${r.id}`}
+                  className="text-xs font-semibold text-sky-700 hover:underline"
+                >
+                  {labels.columns.receive}
+                </Link>
+              ) : (
+                <span className="text-slate-400">—</span>
+              )}
             </TableCell>
           </TableRow>
         ))}

@@ -5,6 +5,7 @@ export type DesktopReceiveInput = {
   bestBefore?: string | null;
   toLocationId?: string | null;
   warehouseId?: string | null;
+  confirmOverReceive?: boolean;
 };
 
 export type DesktopReceiveError =
@@ -12,6 +13,7 @@ export type DesktopReceiveError =
   | 'not_found'
   | 'invalid_qty'
   | 'over_receive_cap'
+  | 'over_receive_confirm_required'
   | 'no_warehouse'
   | 'invalid_location'
   | 'invalid_state'

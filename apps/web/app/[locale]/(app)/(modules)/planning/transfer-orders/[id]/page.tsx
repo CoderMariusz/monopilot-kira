@@ -33,6 +33,7 @@ import {
 import { listTransferUnits, listTransferWarehouses, searchTransferItems } from '../_actions/to-form-data';
 import { buildUomDropdown, type UomDropdown } from '../../_actions/uom-dropdown';
 import { canReverseTransferReceipt, reverseToReceiveLine } from '../_actions/reverse-receive';
+import { DocumentAuditTimelineSection } from '../../../_components/audit-timeline/document-audit-timeline-section';
 import { ToDetailView, type ToDetailLabels } from '../_components/to-detail-view';
 import type {
   ReverseToReceiveLineInput,
@@ -301,6 +302,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
   }
 
   return (
+    <div className="flex flex-col gap-4">
     <ToDetailView
       locale={locale}
       transferOrder={result.data}
@@ -315,6 +317,8 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       canReverseReceipt={canReverseReceipt}
       reverseToReceiveLineAction={reverseToReceiveLineAction}
     />
+    <DocumentAuditTimelineSection entityType="transfer_order" entityId={result.data.id} locale={locale} />
+    </div>
   );
 }
 

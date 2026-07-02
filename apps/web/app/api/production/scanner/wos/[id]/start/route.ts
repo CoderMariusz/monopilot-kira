@@ -108,13 +108,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         await insertServerReplay(client, session, {
           operation,
           clientOpId,
-          resultCode: 'forbidden',
+          resultCode: 'not_found',
           woId,
-          ext: { woId, clientOpId, status: 403 },
+          ext: { woId, clientOpId, status: 404 },
         });
         await client.query('commit');
-        await auditAttempt(client, session, operation, 'site_forbidden', { woId, clientOpId });
-        return scannerError('forbidden', 403);
+        await auditAttempt(client, session, operation, 'not_found', { woId, clientOpId });
+        return scannerError('not_found', 404);
       }
 
       const transactionId = scannerTransactionId('start', clientOpId);

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { getOwnerConnection } from '@monopilot/db/test-utils/test-pool.js';
+import { getOwnerConnection } from '../../../../../packages/db/src/clients.js';
 
 import { upsertWac } from '../upsert-wac';
 
@@ -46,7 +46,7 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
 
   afterAll(async () => {
     await ownerPool
-      ?.query('delete from public.item_wac_state where org_id = $1 and item_id = $2', [orgId, itemId])
+      ?.query('delete from public.item_wac_state where org_id = $1', [orgId])
       .catch(() => undefined);
     await ownerPool?.query('delete from public.users where id = $1', [userId]).catch(() => undefined);
     await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
@@ -98,6 +98,46 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
         avg_cost: '12.000000',
         site_id: null,
         currency_code: 'GBP',
+      },
+    ]);
+  });
+
+  it('computes exact weighted-average cost after a second receipt hits the conflict path', async () => {
+    const mergeItemId = randomUUID();
+    await upsertWac(ownerPool, {
+      orgId,
+      siteId: null,
+      itemId: mergeItemId,
+      deltaQtyKg: '3',
+      deltaValue: '6',
+      updatedBy: userId,
+    });
+    await upsertWac(ownerPool, {
+      orgId,
+      siteId: null,
+      itemId: mergeItemId,
+      deltaQtyKg: '7',
+      deltaValue: '35',
+      updatedBy: userId,
+    });
+
+    const { rows } = await ownerPool.query<{
+      total_qty_kg: string;
+      total_value: string;
+      avg_cost: string;
+    }>(
+      `select total_qty_kg::text, total_value::text, avg_cost::text
+         from public.item_wac_state
+        where org_id = $1::uuid
+          and item_id = $2::uuid`,
+      [orgId, mergeItemId],
+    );
+
+    expect(rows).toEqual([
+      {
+        total_qty_kg: '10.000',
+        total_value: '41.0000',
+        avg_cost: '4.100000',
       },
     ]);
   });

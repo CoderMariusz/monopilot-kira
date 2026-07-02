@@ -154,8 +154,24 @@ function makeClient(): QueryClient {
         return { rows: [{ id: LP_ID }], rowCount: 1 };
       }
 
+      // createInspectionHoldIfMissing: existence check — no active hold, so
+      // proceed to insert.
+      if (q.includes('from public.quality_holds') && q.includes('reference_type = $1')) {
+        return { rows: [], rowCount: 0 };
+      }
+
       if (q.startsWith('insert into public.quality_holds')) {
         return { rows: [{ id: HOLD_ID, hold_number: 'HLD-00000001' }], rowCount: 1 };
+      }
+
+      // createHoldCore: LP data fetch for quality_hold_items (selects status +
+      // qa_status alongside id and quantity).
+      if (q.startsWith('select id::text, status, qa_status, quantity::text')) {
+        return { rows: [{ id: LP_ID, status: 'available', qa_status: 'pending', quantity: '10.000000' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.quality_hold_items')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('insert into public.outbox_events')) {
@@ -281,20 +297,20 @@ describe('quality inspection server actions', () => {
 
     // The inline inspection-hold MUST emit the canonical quality.hold.created event
     // (same shape as hold-actions.ts::createHold) so consumers/audit see it.
+    // writeOutbox binds params as [eventType, aggregateId, payloadJson].
     const outbox = vi.mocked(client.query).mock.calls.find(([sql]) =>
       normalize(String(sql)).startsWith('insert into public.outbox_events'),
     );
     expect(outbox).toBeTruthy();
-    expect(normalize(String(outbox?.[0]))).toContain("'quality.hold.created'");
-    expect(outbox?.[1]?.[0]).toBe(HOLD_ID);
-    const payload = JSON.parse(String(outbox?.[1]?.[1] ?? '{}'));
+    expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
+    expect(outbox?.[1]?.[1]).toBe(HOLD_ID);
+    const payload = JSON.parse(String(outbox?.[1]?.[2] ?? '{}'));
     expect(payload).toMatchObject({
       holdId: HOLD_ID,
       holdNumber: 'HLD-00000001',
       referenceType: 'lp',
       referenceId: LP_ID,
       lpIds: [LP_ID],
-      source: 'inspection_decision',
     });
   });
 });

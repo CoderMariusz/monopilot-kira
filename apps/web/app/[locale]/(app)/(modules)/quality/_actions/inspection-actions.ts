@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
+import { releaseLpQaForContext } from '../../warehouse/_actions/lp-qa-actions';
+import { createHoldForContext } from './hold-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -83,6 +85,7 @@ type SubmittedInspection = {
 };
 
 const TERMINAL_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned'] as const;
+const ACTIVE_HOLD_STATUSES = ['open', 'investigating', 'escalated', 'quarantined'] as const;
 
 /** Searchable LP result for the create-inspection reference picker (lp). */
 type LpReferenceResult = {
@@ -251,105 +254,109 @@ function mapDetailRow(row: Parameters<typeof mapListRow>[0] & {
   };
 }
 
-/**
- * Emits the canonical `quality.hold.created` outbox event (same event_type +
- * aggregate_type + app_version + payload shape as hold-actions.ts::createHold's
- * writeOutbox). The inline hold created on an inspection `hold` decision MUST be
- * visible to outbox consumers / audit just like a manually-created hold; the only
- * difference is provenance, captured here in the payload. Stays inside the same
- * withOrgContext transaction as the hold insert (atomic with the decision).
- */
-async function writeHoldCreatedOutbox(
+async function findActiveHoldForReference(
   ctx: QualityContext,
-  params: { holdId: string; holdNumber: string; lpId: string },
-): Promise<void> {
-  await ctx.client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values (app.current_org_id(), 'quality.hold.created', 'quality_hold', $1::uuid, $2::jsonb, 'quality-holds-v1')`,
-    [
-      params.holdId,
-      JSON.stringify({
-        org_id: ctx.orgId,
-        actor_user_id: ctx.userId,
-        holdId: params.holdId,
-        holdNumber: params.holdNumber,
-        referenceType: 'lp',
-        referenceId: params.lpId,
-        lpIds: [params.lpId],
-        source: 'inspection_decision',
-      }),
-    ],
+  params: { referenceType: 'lp' | 'grn'; referenceId: string },
+): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select id::text
+       from public.quality_holds
+      where org_id = app.current_org_id()
+        and reference_type = $1
+        and reference_id = $2::uuid
+        and hold_status = any($3::text[])
+        and released_at is null
+      order by created_at desc
+      limit 1
+      for update`,
+    [params.referenceType, params.referenceId, [...ACTIVE_HOLD_STATUSES]],
   );
+  return rows[0]?.id ?? null;
 }
 
-async function createLpHold(
+async function createInspectionHoldIfMissing(
   ctx: QualityContext,
-  params: { lpId: string; note: string | null },
+  params: { referenceType: 'lp' | 'grn'; referenceId: string; lpIds: string[]; reasonText: string; priority: 'high' | 'critical' },
 ): Promise<void> {
-  const siteId = await getActiveSiteId({ client: ctx.client });
-  const hold = await ctx.client.query<{ id: string; hold_number: string }>(
-    `insert into public.quality_holds (
-       org_id,
-       site_id,
-       reference_type,
-       reference_id,
-       reason_free_text,
-       priority,
-       hold_status,
-       created_by
-     )
-     values (
-       app.current_org_id(),
-       $4::uuid,
-       'lp',
-       $1::uuid,
-       $2,
-       'high',
-       'open',
-       $3::uuid
-     )
-     returning id::text, hold_number`,
-    [params.lpId, params.note ?? 'inspection hold', ctx.userId, siteId],
-  );
-  const createdHold = hold.rows[0];
-  if (!createdHold?.id) throw new Error('quality hold insert did not return a row');
+  const existing = await findActiveHoldForReference(ctx, {
+    referenceType: params.referenceType,
+    referenceId: params.referenceId,
+  });
+  if (existing) return;
 
-  const lp = await ctx.client.query<{ id: string; quantity: string }>(
-    `select id::text, quantity::text
+  const hold = await createHoldForContext(ctx, {
+    referenceType: params.referenceType,
+    referenceId: params.referenceId,
+    reasonText: params.reasonText,
+    priority: params.priority,
+    lpIds: params.lpIds,
+  });
+  if (!hold.ok) throw new Error(hold.message ?? 'quality hold could not be created');
+}
+
+async function findReceivedLpIdsForGrn(ctx: QualityContext, grnId: string): Promise<string[]> {
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select lp_id::text as id
+       from public.grn_items
+      where org_id = app.current_org_id()
+        and grn_id = $1::uuid
+        and lp_id is not null
+     union
+     select id::text as id
        from public.license_plates
       where org_id = app.current_org_id()
-        and id = $1::uuid`,
-    [params.lpId],
+        and grn_id = $1::uuid`,
+    [grnId],
   );
-  const current = lp.rows[0];
-  if (!current) throw new Error('license plate not found');
+  return rows.map((row) => row.id);
+}
 
-  await ctx.client.query(
-    `insert into public.quality_hold_items (
-       org_id,
-       hold_id,
-       license_plate_id,
-       qty_held_kg,
-       item_status,
-       notes
-     )
-     values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held', $4)
-     on conflict (hold_id, license_plate_id) do nothing`,
-    [createdHold.id, current.id, current.quantity, params.note],
+async function findLpIdForWoOutput(ctx: QualityContext, woOutputId: string): Promise<string> {
+  const { rows } = await ctx.client.query<{ lp_id: string | null }>(
+    `select lp_id::text
+       from public.wo_outputs
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1
+      for update`,
+    [woOutputId],
   );
-
-  await writeHoldCreatedOutbox(ctx, {
-    holdId: createdHold.id,
-    holdNumber: createdHold.hold_number,
-    lpId: params.lpId,
-  });
+  const lpId = rows[0]?.lp_id;
+  if (!lpId) throw new Error('wo_output has no license plate to release');
+  return lpId;
 }
 
 async function applyLpDecisionSideEffects(
   ctx: QualityContext,
   params: { referenceType: ReferenceType; referenceId: string; decision: Decision; note: string | null },
 ): Promise<'released' | 'rejected' | 'on_hold' | null> {
+  if (params.referenceType === 'grn') {
+    if (params.decision !== 'fail') return null;
+    const lpIds = await findReceivedLpIdsForGrn(ctx, params.referenceId);
+    if (lpIds.length === 0) throw new Error('grn inspection failed but no received license plates were found');
+    await createInspectionHoldIfMissing(ctx, {
+      referenceType: 'grn',
+      referenceId: params.referenceId,
+      lpIds,
+      reasonText: params.note ?? 'failed GRN inspection',
+      priority: 'high',
+    });
+    return 'on_hold';
+  }
+
+  if (params.referenceType === 'wo_output') {
+    if (params.decision !== 'pass') return null;
+    const lpId = await findLpIdForWoOutput(ctx, params.referenceId);
+    // Deliberate: the signed inspection decision is the gated act (quality.inspection perms + signEvent); the LP release is its side effect — bypassing quality.batch.release here is an R-G1 SHOULD-3 owner-flagged decision (wave F3).
+    const released = await releaseLpQaForContext(
+      { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client },
+      { lpId, decision: 'released', note: params.note ?? undefined },
+      { requirePermission: false },
+    );
+    if (!released.ok) throw new Error(released.message ?? released.reason);
+    return released.data.qaStatus;
+  }
+
   if (params.referenceType !== 'lp') return null;
 
   const qaStatus = params.decision === 'pass' ? 'released' : params.decision === 'fail' ? 'rejected' : 'on_hold';
@@ -384,7 +391,15 @@ async function applyLpDecisionSideEffects(
     [params.referenceId, qaStatus, ctx.userId, [...TERMINAL_LP_STATUSES]],
   );
   if (!updated.rows[0]) throw new Error('license plate not found');
-  if (params.decision === 'hold') await createLpHold(ctx, { lpId: params.referenceId, note: params.note });
+  if (params.decision === 'hold') {
+    await createInspectionHoldIfMissing(ctx, {
+      referenceType: 'lp',
+      referenceId: params.referenceId,
+      lpIds: [params.referenceId],
+      reasonText: params.note ?? 'inspection hold',
+      priority: 'high',
+    });
+  }
   return qaStatus;
 }
 
@@ -831,8 +846,9 @@ export async function submitInspectionDecision(input: {
         reference_type: ReferenceType;
         reference_id: string;
         status: InspectionStatus;
+        parameters: unknown;
       }>(
-        `select id::text, inspection_number, reference_type, reference_id::text, status
+        `select id::text, inspection_number, reference_type, reference_id::text, status, parameters
            from public.quality_inspections
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -843,6 +859,9 @@ export async function submitInspectionDecision(input: {
       if (!current) throw new Error('quality inspection not found');
       if (['passed', 'failed', 'on_hold', 'cancelled'].includes(current.status)) {
         throw new Error('quality inspection decision is already final');
+      }
+      if (parsed.decision === 'pass' && current.status === 'pending' && parseParameters(current.parameters).length === 0) {
+        return { ok: false, reason: 'error', message: 'inspection_parameters_required' };
       }
 
       const nextStatus = parsed.decision === 'pass' ? 'passed' : parsed.decision === 'fail' ? 'failed' : 'on_hold';

@@ -459,7 +459,7 @@ describe('quality hold server actions', () => {
     expect(releaseUpdate?.[1]?.[4]).toBe('b'.repeat(64));
   });
 
-  it('maps LP reference display, reason labels, and item counts for list reads', async () => {
+  it('maps LP reference display, reason labels, and item counts for list reads; SQL includes reference_text for batch holds', async () => {
     const result = await listHolds({ status: 'active', search: 'LP-001', limit: 25 });
 
     expect(result.ok).toBe(true);
@@ -474,6 +474,11 @@ describe('quality hold server actions', () => {
     );
     const listCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('select h.id::text'));
     expect(listCall?.[1]).toEqual(['active', null, 'LP-001', 25, ['open', 'investigating', 'escalated', 'quarantined']]);
+    // Structural: SQL must include h.reference_text in the coalesce so that batch
+    // holds (reference_id = NULL, reference_text = batch code) display the code.
+    expect(normalize(String(listCall?.[0]))).toContain('h.reference_text');
+    // Search filter must also match reference_text so batch holds are searchable.
+    expect(normalize(String(listCall?.[0]))).toContain('h.reference_text ilike');
   });
 
   it('resolves released_by to a display name for hold detail reads without changing stored release notes', async () => {
@@ -494,5 +499,8 @@ describe('quality hold server actions', () => {
     );
     expect(normalize(String(detailCall?.[0]))).toContain('left join public.users releaser');
     expect(normalize(String(detailCall?.[0]))).toContain('coalesce(releaser.display_name, releaser.name, releaser.email::text, h.released_by::text) as released_by');
+    // Structural: detail SQL must also include reference_text so batch hold detail
+    // shows the batch code in the reference field.
+    expect(normalize(String(detailCall?.[0]))).toContain('h.reference_text');
   });
 });

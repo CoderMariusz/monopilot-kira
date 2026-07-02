@@ -12,6 +12,7 @@ import RoleEditor, {
   type SetRolePermissionsFn,
 } from './_components/role-editor.client';
 import { PERMISSION_GROUPS } from './_components/permission-catalog';
+import { PermissionEnforcementBadge } from './_components/permission-enforcement-badge';
 
 /**
  * A role code is any org-scoped business-role code surfaced by the loader. The
@@ -190,6 +191,7 @@ function PermissionsDialog({ role, granted, onClose }: { role: SystemRole; grant
                       <li key={permission} className="flex items-center gap-2">
                         <Checkbox checked={isGranted} disabled aria-label={permission} />
                         <code className="mono text-xs">{permission}</code>
+                        <PermissionEnforcementBadge permission={permission} />
                         {isGranted ? <Badge tone="green">{t('granted')}</Badge> : null}
                       </li>
                     );

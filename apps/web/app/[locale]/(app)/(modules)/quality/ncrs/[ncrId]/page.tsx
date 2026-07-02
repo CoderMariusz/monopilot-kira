@@ -25,6 +25,7 @@ import { notFound } from 'next/navigation';
 
 import { getNcrDetail, updateNcrInvestigation, closeNcr } from '../../_actions/ncr-actions';
 import { getQaNcrsTranslator } from '../../qa-ncrs-labels';
+import { DocumentAuditTimelineSection } from '../../../_components/audit-timeline/document-audit-timeline-section';
 import { buildNcrDetailLabels } from '../_components/labels';
 import { NcrDetailClient } from './_components/ncr-detail.client';
 
@@ -91,13 +92,16 @@ async function DetailContent({ locale, ncrId }: { locale: string; ncrId: string 
   };
 
   return (
-    <NcrDetailClient
-      ncr={detail}
-      labels={buildNcrDetailLabels(t)}
-      locale={locale}
-      updateInvestigationAction={updateNcrInvestigation}
-      closeNcrAction={closeNcr}
-    />
+    <div className="flex flex-col gap-4">
+      <NcrDetailClient
+        ncr={detail}
+        labels={buildNcrDetailLabels(t)}
+        locale={locale}
+        updateInvestigationAction={updateNcrInvestigation}
+        closeNcrAction={closeNcr}
+      />
+      <DocumentAuditTimelineSection entityType="ncr_report" entityId={detail.id} locale={locale} />
+    </div>
   );
 }
 

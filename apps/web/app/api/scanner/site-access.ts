@@ -17,7 +17,7 @@ export async function scannerCanSeeSite(client: QueryClient, siteId: string | nu
 export async function scannerLpSiteAccess(
   client: QueryClient,
   lpId: string,
-): Promise<'ok' | 'not_found' | 'forbidden'> {
+): Promise<'ok' | 'not_found'> {
   const { rows } = await client.query<{ allowed: boolean }>(
     `select app.user_can_see_site(lp.site_id) as allowed
        from public.license_plates lp
@@ -27,13 +27,13 @@ export async function scannerLpSiteAccess(
     [lpId],
   );
   if (!rows[0]) return 'not_found';
-  return rows[0].allowed ? 'ok' : 'forbidden';
+  return rows[0].allowed ? 'ok' : 'not_found';
 }
 
 export async function scannerLocationSiteAccess(
   client: QueryClient,
   locationId: string,
-): Promise<'ok' | 'not_found' | 'forbidden'> {
+): Promise<'ok' | 'not_found'> {
   const { rows } = await client.query<{ allowed: boolean }>(
     `select app.user_can_see_site(w.site_id) as allowed
        from public.locations loc
@@ -46,13 +46,13 @@ export async function scannerLocationSiteAccess(
     [locationId],
   );
   if (!rows[0]) return 'not_found';
-  return rows[0].allowed ? 'ok' : 'forbidden';
+  return rows[0].allowed ? 'ok' : 'not_found';
 }
 
 export async function scannerWoSiteAccess(
   client: QueryClient,
   woId: string,
-): Promise<'ok' | 'not_found' | 'forbidden'> {
+): Promise<'ok' | 'not_found'> {
   const { rows } = await client.query<{ allowed: boolean }>(
     `select app.user_can_see_site(wo.site_id) as allowed
        from public.work_orders wo
@@ -62,5 +62,5 @@ export async function scannerWoSiteAccess(
     [woId],
   );
   if (!rows[0]) return 'not_found';
-  return rows[0].allowed ? 'ok' : 'forbidden';
+  return rows[0].allowed ? 'ok' : 'not_found';
 }

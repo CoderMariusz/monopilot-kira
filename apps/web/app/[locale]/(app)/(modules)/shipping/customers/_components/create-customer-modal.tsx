@@ -72,6 +72,7 @@ export type CreateCustomerLabels = {
     forbidden: string;
     not_found: string;
     already_exists: string;
+    address_in_use: string;
     persistence_failed: string;
   };
 };

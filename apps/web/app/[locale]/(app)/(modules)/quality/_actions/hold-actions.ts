@@ -211,6 +211,171 @@ async function getExplicitDurationDays(ctx: QualityContext, estimatedReleaseAt?:
   return Number(rows[0]?.days ?? 0);
 }
 
+async function createHoldCore(
+  ctx: QualityContext,
+  parsed: z.infer<typeof createSchema>,
+): Promise<CreatedHold> {
+  const siteId = await getActiveSiteId({ client: ctx.client });
+
+  const explicitDurationDays = await getExplicitDurationDays(ctx, parsed.estimatedReleaseAt);
+  const reasonDurationDays = await getReasonDurationDays(ctx, parsed.reasonCodeId);
+  const defaultHoldDurationDays = explicitDurationDays ?? reasonDurationDays;
+
+  const hold = await ctx.client.query<{
+    id: string;
+    hold_number: string;
+    reference_type: ReferenceType;
+    reference_id: string;
+    hold_status: 'open';
+  }>(
+    `insert into public.quality_holds (
+       org_id,
+       site_id,
+       reference_type,
+       reference_id,
+       reference_text,
+       reason_code_id,
+       reason_free_text,
+       priority,
+       hold_status,
+       default_hold_duration_days,
+       created_by
+     )
+     values (
+       app.current_org_id(),
+       $8::uuid,
+       $1,
+       $2::uuid,
+       $9,
+       $3::uuid,
+       $4,
+       $5,
+       'open',
+       $6::int,
+       $7::uuid
+     )
+     returning id::text, hold_number, reference_type, coalesce(reference_text, reference_id::text) as reference_id, hold_status`,
+    [
+      parsed.referenceType,
+      // pg infers a parameter's type from its cast, so one $n used as both
+      // ::uuid and bare text fails at BIND time for batch references (22P02).
+      // Split reference into two parameters computed here instead.
+      parsed.referenceType === 'batch' ? null : parsed.referenceId,
+      parsed.reasonCodeId ?? null,
+      parsed.reasonText ?? null,
+      parsed.priority,
+      defaultHoldDurationDays,
+      ctx.userId,
+      siteId,
+      parsed.referenceType === 'batch' ? parsed.referenceId.trim() : null,
+    ],
+  );
+  const created = hold.rows[0];
+  if (!created) throw new Error('quality hold insert did not return a row');
+
+  const lpIds = [...new Set(parsed.referenceType === 'lp' ? [parsed.referenceId, ...(parsed.lpIds ?? [])] : parsed.lpIds ?? [])];
+  if (lpIds.length > 0) {
+    const lps = await ctx.client.query<{
+      id: string;
+      status: string;
+      qa_status: string;
+      quantity: string;
+    }>(
+      `select id::text, status, qa_status, quantity::text
+         from public.license_plates
+        where org_id = app.current_org_id()
+          and id = any($1::uuid[])
+        order by lp_number`,
+      [lpIds],
+    );
+    const found = new Set(lps.rows.map((lp) => lp.id));
+    const missing = lpIds.filter((lpId) => !found.has(lpId));
+    if (missing.length > 0) throw new Error(`license plate not found: ${missing.join(',')}`);
+
+    for (const lp of lps.rows) {
+      await ctx.client.query(
+        `insert into public.quality_hold_items (
+           org_id,
+           hold_id,
+           license_plate_id,
+           qty_held_kg,
+           item_status
+         )
+         values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held')
+         on conflict (hold_id, license_plate_id) do nothing`,
+        [created.id, lp.id, lp.quantity],
+      );
+    }
+
+    const activeLpIds = lps.rows
+      .filter((lp) => !TERMINAL_LP_STATUSES.includes(lp.status as (typeof TERMINAL_LP_STATUSES)[number]))
+      .map((lp) => lp.id);
+    if (activeLpIds.length > 0) {
+      await ctx.client.query(
+        `update public.license_plates
+            set qa_status = 'on_hold',
+                updated_by = $2::uuid
+          where org_id = app.current_org_id()
+            and id = any($1::uuid[])
+            and status <> all($3::text[])`,
+        [activeLpIds, ctx.userId, [...TERMINAL_LP_STATUSES]],
+      );
+    }
+  }
+
+  if (parsed.referenceType === 'wo') {
+    await ctx.client.query(
+      `update public.wo_outputs
+          set qa_status = 'ON_HOLD',
+              updated_by = $2::uuid
+        where org_id = app.current_org_id()
+          and wo_id = $1::uuid`,
+      [parsed.referenceId, ctx.userId],
+    );
+  }
+
+  await writeOutbox(ctx, {
+    eventType: 'quality.hold.created',
+    aggregateId: created.id,
+    payload: {
+      holdId: created.id,
+      holdNumber: created.hold_number,
+      referenceType: parsed.referenceType,
+      referenceId: parsed.referenceId,
+      lpIds,
+    },
+  });
+
+  return {
+    id: created.id,
+    holdNumber: created.hold_number,
+    referenceType: created.reference_type,
+    referenceId: created.reference_id,
+    status: created.hold_status,
+    heldLpIds: lpIds,
+  };
+}
+
+export async function createHoldForContext(
+  ctx: QualityContext,
+  input: {
+    referenceType: ReferenceType;
+    referenceId: string;
+    reasonCodeId?: string;
+    reasonText?: string;
+    priority: HoldPriority;
+    lpIds?: string[];
+    estimatedReleaseAt?: string;
+  },
+): Promise<ActionResult<CreatedHold>> {
+  try {
+    const parsed = createSchema.parse(input);
+    return { ok: true, data: await createHoldCore(ctx, parsed) };
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function listHolds(input: {
   status?: HoldStatusFilter;
   referenceType?: ReferenceType;
@@ -234,6 +399,7 @@ export async function listHolds(input: {
              end,
              case when h.reference_type = 'wo' then wo.wo_number end,
              case when h.reference_type = 'grn' then grn.grn_number end,
+             h.reference_text,
              h.reference_id::text
            ) as reference_display,
            h.reason_code_id::text,
@@ -274,6 +440,7 @@ export async function listHolds(input: {
           and ($3::text is null or (
             h.hold_number ilike '%' || $3 || '%'
             or h.reference_id::text ilike '%' || $3 || '%'
+            or h.reference_text ilike '%' || $3 || '%'
             or h.reason_free_text ilike '%' || $3 || '%'
             or lp.lp_number ilike '%' || $3 || '%'
             or wo.wo_number ilike '%' || $3 || '%'
@@ -321,6 +488,7 @@ export async function getHoldDetail(holdId: string): Promise<ActionResult<HoldDe
              case when h.reference_type = 'lp' then lp.lp_number || coalesce(' / ' || i.item_code, '') end,
              case when h.reference_type = 'wo' then wo.wo_number end,
              case when h.reference_type = 'grn' then grn.grn_number end,
+             h.reference_text,
              h.reference_id::text
            ) as reference_display,
            h.reason_code_id::text,
@@ -450,148 +618,7 @@ export async function createHold(input: {
     const parsed = createSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedHold>> => {
       if (!(await hasPermission(ctx, 'quality.hold.create'))) return { ok: false, reason: 'forbidden' };
-      const siteId = await getActiveSiteId({ client: ctx.client });
-
-      const explicitDurationDays = await getExplicitDurationDays(ctx, parsed.estimatedReleaseAt);
-      const reasonDurationDays = await getReasonDurationDays(ctx, parsed.reasonCodeId);
-      const defaultHoldDurationDays = explicitDurationDays ?? reasonDurationDays;
-
-      const hold = await ctx.client.query<{
-        id: string;
-        hold_number: string;
-        reference_type: ReferenceType;
-        reference_id: string;
-        hold_status: 'open';
-      }>(
-        `insert into public.quality_holds (
-           org_id,
-           site_id,
-           reference_type,
-           reference_id,
-           reference_text,
-           reason_code_id,
-           reason_free_text,
-           priority,
-           hold_status,
-           default_hold_duration_days,
-           created_by
-         )
-         values (
-           app.current_org_id(),
-           $8::uuid,
-           $1,
-           $2::uuid,
-           $9,
-           $3::uuid,
-           $4,
-           $5,
-           'open',
-           $6::int,
-           $7::uuid
-         )
-         returning id::text, hold_number, reference_type, coalesce(reference_text, reference_id::text) as reference_id, hold_status`,
-        [
-          parsed.referenceType,
-          // pg infers a parameter's type from its cast, so one $n used as both
-          // ::uuid and bare text fails at BIND time for batch references (22P02).
-          // Split reference into two parameters computed here instead.
-          parsed.referenceType === 'batch' ? null : parsed.referenceId,
-          parsed.reasonCodeId ?? null,
-          parsed.reasonText ?? null,
-          parsed.priority,
-          defaultHoldDurationDays,
-          ctx.userId,
-          siteId,
-          parsed.referenceType === 'batch' ? parsed.referenceId.trim() : null,
-        ],
-      );
-      const created = hold.rows[0];
-      if (!created) throw new Error('quality hold insert did not return a row');
-
-      const lpIds = [...new Set(parsed.referenceType === 'lp' ? [parsed.referenceId, ...(parsed.lpIds ?? [])] : parsed.lpIds ?? [])];
-      if (lpIds.length > 0) {
-        const lps = await ctx.client.query<{
-          id: string;
-          status: string;
-          qa_status: string;
-          quantity: string;
-        }>(
-          `select id::text, status, qa_status, quantity::text
-             from public.license_plates
-            where org_id = app.current_org_id()
-              and id = any($1::uuid[])
-            order by lp_number`,
-          [lpIds],
-        );
-        const found = new Set(lps.rows.map((lp) => lp.id));
-        const missing = lpIds.filter((lpId) => !found.has(lpId));
-        if (missing.length > 0) throw new Error(`license plate not found: ${missing.join(',')}`);
-
-        for (const lp of lps.rows) {
-          await ctx.client.query(
-            `insert into public.quality_hold_items (
-               org_id,
-               hold_id,
-               license_plate_id,
-               qty_held_kg,
-               item_status
-             )
-             values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held')
-             on conflict (hold_id, license_plate_id) do nothing`,
-            [created.id, lp.id, lp.quantity],
-          );
-        }
-
-        const activeLpIds = lps.rows
-          .filter((lp) => !TERMINAL_LP_STATUSES.includes(lp.status as (typeof TERMINAL_LP_STATUSES)[number]))
-          .map((lp) => lp.id);
-        if (activeLpIds.length > 0) {
-          await ctx.client.query(
-            `update public.license_plates
-                set qa_status = 'on_hold',
-                    updated_by = $2::uuid
-              where org_id = app.current_org_id()
-                and id = any($1::uuid[])
-                and status <> all($3::text[])`,
-            [activeLpIds, ctx.userId, [...TERMINAL_LP_STATUSES]],
-          );
-        }
-      }
-
-      if (parsed.referenceType === 'wo') {
-        await ctx.client.query(
-          `update public.wo_outputs
-              set qa_status = 'ON_HOLD',
-                  updated_by = $2::uuid
-            where org_id = app.current_org_id()
-              and wo_id = $1::uuid`,
-          [parsed.referenceId, ctx.userId],
-        );
-      }
-
-      await writeOutbox(ctx, {
-        eventType: 'quality.hold.created',
-        aggregateId: created.id,
-        payload: {
-          holdId: created.id,
-          holdNumber: created.hold_number,
-          referenceType: parsed.referenceType,
-          referenceId: parsed.referenceId,
-          lpIds,
-        },
-      });
-
-      return {
-        ok: true,
-        data: {
-          id: created.id,
-          holdNumber: created.hold_number,
-          referenceType: created.reference_type,
-          referenceId: created.reference_id,
-          status: created.hold_status,
-          heldLpIds: lpIds,
-        },
-      };
+      return { ok: true, data: await createHoldCore(ctx, parsed) };
     });
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };

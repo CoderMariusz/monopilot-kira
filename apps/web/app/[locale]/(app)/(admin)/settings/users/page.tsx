@@ -187,9 +187,11 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         hasAnyPermission(permissionCtx, ['settings.users.invite']),
         hasAnyPermission(permissionCtx, ['settings.roles.assign']),
         hasAnyPermission(permissionCtx, ['org.access.admin']),
-        // Deactivate = org.access.admin (the same grant the deactivateUser
-        // Server Action enforces server-side); the button self-gates read-only.
-        hasAnyPermission(permissionCtx, ['org.access.admin']),
+        // Deactivate = org.access.admin OR settings.users.deactivate (the same
+        // OR-union the deactivateUser Server Action enforces server-side); the
+        // button self-gates read-only so the client sees a disabled button when
+        // neither permission is held.
+        hasAnyPermission(permissionCtx, ['org.access.admin', 'settings.users.deactivate']),
       ]);
 
       if (!canView) return { state: 'permission-denied' as const };

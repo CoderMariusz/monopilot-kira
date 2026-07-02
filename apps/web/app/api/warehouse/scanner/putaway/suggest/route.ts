@@ -22,8 +22,7 @@ export async function GET(request: NextRequest) {
           // context (see lib/scanner/txn-org-context.ts).
           const suggestions = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
             const access = await scannerLpSiteAccess(scopedClient, lpId);
-            if (access === 'not_found') throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found.');
-            if (access === 'forbidden') throw new WarehouseScannerError('forbidden', 403, 'Forbidden.');
+            if (access !== 'ok') throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found.');
             return suggestPutawayLocations(scopedClient, lpId);
           });
           return jsonOk({ suggestions });

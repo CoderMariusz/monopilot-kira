@@ -20,6 +20,7 @@ import { Button } from '@monopilot/ui/Button';
 import { Checkbox } from '@monopilot/ui/Checkbox';
 
 import { PERMISSION_GROUPS } from './permission-catalog';
+import { PermissionEnforcementBadge } from './permission-enforcement-badge';
 
 export type EditableRole = {
   /** roles.id (uuid) — required to edit/list permissions. */
@@ -285,6 +286,7 @@ function PermissionsEditorDialog({
                             onCheckedChange={(next) => toggle(permission, next)}
                           />
                           <code className="mono text-xs">{permission}</code>
+                          <PermissionEnforcementBadge permission={permission} />
                         </li>
                       );
                     })}

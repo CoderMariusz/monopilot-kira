@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { receivePoLineDesktop, type DesktopReceiveInput } from './receive-po-line';
+import { receivePoLineDesktop } from './receive-po-line';
+import { getPoForReceive } from '../../../warehouse/_actions/receive-po-line';
+import type { DesktopReceiveInput } from './receive-po-line.types';
 import type { QueryClient } from '../../_actions/procurement-shared';
 
 const ORG_ID = '00000000-0000-4000-8000-00000000000a';
@@ -125,7 +127,7 @@ describe('receivePoLineDesktop', () => {
     const result = await receivePoLineDesktop(baseInput);
 
     expect(result).toEqual({ ok: false, error: 'error' });
-    expect(consoleError).toHaveBeenCalledWith('[planning] receivePoLineDesktop failed', expect.any(Error));
+    expect(consoleError).toHaveBeenCalledWith('[warehouse] receivePoLineDesktop failed', expect.any(Error));
     consoleError.mockRestore();
   });
 
@@ -300,3 +302,73 @@ function findCall(fragment: string): MockCall | undefined {
 function findCalls(fragment: string): MockCall[] {
   return currentClient.calls.filter((call) => call.sql.replace(/\s+/g, ' ').trim().toLowerCase().includes(fragment));
 }
+
+// ── F3: getPoForReceive site visibility ──────────────────────────────────────
+
+describe('getPoForReceive — site visibility (F3)', () => {
+  beforeEach(() => {
+    permissionAllowed = true;
+  });
+
+  it('includes app.user_can_see_site(po.site_id) in the main open-PO query', async () => {
+    currentClient = new MockClient({ orderedQty: '10.000000', receivedQty: '0.000000' });
+
+    await getPoForReceive(PO_ID);
+
+    const poQuery = currentClient.calls.find(
+      (call) => call.sql.includes('from public.purchase_orders po') && call.sql.includes('po.status = any'),
+    );
+    expect(poQuery?.sql).toContain('app.user_can_see_site(po.site_id)');
+  });
+
+  it('includes app.user_can_see_site in the closed-PO fallback query', async () => {
+    // Make the open-PO query return nothing (no open rows) so the fallback fires.
+    currentClient = new MockClient({ orderedQty: '10.000000', receivedQty: '0.000000', existingGrn: null });
+    // Override: the mock already returns [] for purchase_order_lines FOR UPDATE path,
+    // but we need the getPoForReceive path (which queries purchase_orders with status filter).
+    // We use a spy-based client so we can inspect both SQL calls.
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    currentClient = {
+      calls,
+      query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+        calls.push({ sql, params });
+        const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (norm.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+        // Open-PO query returns nothing → triggers fallback
+        if (norm.includes('from public.purchase_orders po') && norm.includes('po.status = any')) {
+          return { rows: [] };
+        }
+        // Closed-PO fallback
+        if (norm.includes('from public.purchase_orders') && norm.includes('limit 1')) {
+          return { rows: [{ id: PO_ID }] };
+        }
+        return { rows: [] };
+      }),
+    } as unknown as MockClient;
+
+    await getPoForReceive(PO_ID);
+
+    const fallback = calls.find(
+      (call) => call.sql.includes('from public.purchase_orders') && call.sql.includes('limit 1'),
+    );
+    expect(fallback?.sql).toContain('app.user_can_see_site(site_id)');
+  });
+
+  it('returns not_found for a PO on a site the user cannot see (open PO returns no rows, fallback also blocked)', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    currentClient = {
+      calls,
+      query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+        calls.push({ sql, params });
+        const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (norm.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+        // Both site-filtered queries return nothing → simulates invisible site
+        return { rows: [] };
+      }),
+    } as unknown as MockClient;
+
+    const result = await getPoForReceive(PO_ID);
+
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+  });
+});

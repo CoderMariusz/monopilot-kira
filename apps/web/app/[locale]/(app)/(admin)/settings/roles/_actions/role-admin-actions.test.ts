@@ -100,7 +100,7 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
       // RBAC gate check
       if (text.includes('from public.user_roles ur') && text.includes('rp.permission')) {
         const perm = params[2] as string;
-        const ok = client.actorPermissions.has(perm);
+        const ok = client.actorPermissions.has(perm) || [...client.actorRoleCodes].some((code) => ['owner', 'admin', 'org_admin'].includes(code));
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
@@ -241,6 +241,32 @@ describe('DEFECT-8 setRolePermissions dual-store consistency', () => {
     runWith(client);
     const res = await setRolePermissions({ roleId: CUSTOM_ROLE_ID, permissions: ['settings.org.read'] });
     expect(res).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('allows a super-role to edit when strict permission rows are empty', async () => {
+    const client = makeClient({
+      actorPermissions: new Set(),
+      actorRoleCodes: new Set(['org_admin']),
+    });
+    runWith(client);
+
+    const res = await setRolePermissions({ roleId: CUSTOM_ROLE_ID, permissions: ['settings.org.read', 'settings.org.update'] });
+
+    expect(res).toEqual({ ok: true, data: { roleId: CUSTOM_ROLE_ID, count: 2 } });
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('update public.roles'))).toBe(true);
+  });
+
+  it('denies a non-super user when the strict permission rows path returns empty', async () => {
+    const client = makeClient({
+      actorPermissions: new Set(),
+      actorRoleCodes: new Set(['role_manager']),
+    });
+    runWith(client);
+
+    const res = await setRolePermissions({ roleId: CUSTOM_ROLE_ID, permissions: ['settings.org.read'] });
+
+    expect(res).toEqual({ ok: false, error: 'forbidden' });
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('update public.roles'))).toBe(false);
   });
 
   it('blocks non-super callers from granting permissions they do not hold', async () => {

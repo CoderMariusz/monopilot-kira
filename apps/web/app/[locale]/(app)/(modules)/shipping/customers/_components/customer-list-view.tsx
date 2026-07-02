@@ -33,6 +33,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
@@ -60,6 +61,7 @@ export type CustomerListLabels = {
     category: string;
     creditLimit: string;
     email: string;
+    addressCount: string;
     status: string;
     actions: string;
   };
@@ -225,7 +227,9 @@ export function CustomerListView({
                 <th className="px-3 py-2">{labels.columns.category}</th>
                 <th className="px-3 py-2">{labels.columns.email}</th>
                 <th className="px-3 py-2 text-right">{labels.columns.creditLimit}</th>
+                <th className="px-3 py-2 text-right">{labels.columns.addressCount}</th>
                 <th className="px-3 py-2">{labels.columns.status}</th>
+                <th className="px-3 py-2">{labels.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -246,8 +250,18 @@ export function CustomerListView({
                       <span className="text-slate-400">{labels.noLimit}</span>
                     )}
                   </td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums">{c.addressCount}</td>
                   <td className="px-3 py-2">
                     <CustomerStatusBadge active={c.isActive} label={c.isActive ? labels.status.active : labels.status.inactive} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/${_locale}/shipping/customers/${c.id}`}
+                      className="text-xs font-medium text-blue-700 hover:underline"
+                      data-testid={`customer-view-${c.id}`}
+                    >
+                      {labels.view}
+                    </Link>
                   </td>
                 </tr>
               ))}

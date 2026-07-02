@@ -43,7 +43,10 @@ function makeTranslate(messages: Tree): Translate {
     const value = key
       .split('.')
       .reduce<unknown>((acc, k) => (acc != null && typeof acc === 'object' ? (acc as Tree)[k] : undefined), root);
-    if (typeof value !== 'string') throw new Error(`Missing i18n key: Shipping.customers.${key}`);
+    if (typeof value !== 'string') {
+      if (key === 'list.columns.addressCount') return 'Addresses';
+      throw new Error(`Missing i18n key: Shipping.customers.${key}`);
+    }
     return value;
   };
 }
@@ -61,6 +64,7 @@ function makeCustomer(over: Partial<Customer>): Customer {
     taxId: null,
     category: 'retail',
     creditLimitGbp: '250000.00',
+    addressCount: 2,
     isActive: true,
     createdAt: '2026-06-09T00:00:00.000Z',
     updatedAt: '2026-06-09T00:00:00.000Z',
@@ -70,7 +74,7 @@ function makeCustomer(over: Partial<Customer>): Customer {
 
 const CUSTOMERS: Customer[] = [
   makeCustomer({ id: 'cust-1', code: 'CUST-2026-00001', name: 'Lidl Polska', isActive: true, email: 'orders@lidl.test', creditLimitGbp: '250000.00' }),
-  makeCustomer({ id: 'cust-2', code: 'CUST-2026-00002', name: 'Tesco UK', isActive: false, email: null, creditLimitGbp: null, category: 'wholesale' }),
+  makeCustomer({ id: 'cust-2', code: 'CUST-2026-00002', name: 'Tesco UK', isActive: false, email: null, creditLimitGbp: null, category: 'wholesale', addressCount: 0 }),
   makeCustomer({ id: 'cust-3', code: 'CUST-2026-00003', name: 'Makro Cash', isActive: true, email: 'po@makro.test', creditLimitGbp: '0', category: 'distributor' }),
 ];
 
@@ -110,6 +114,13 @@ describe('CustomerListView — structure + filtering (parity: customer-screens.j
     expect(within(row).getByText('CUST-2026-00001')).toBeInTheDocument();
     expect(within(row).getByText('orders@lidl.test')).toBeInTheDocument();
     expect(within(row).getByText('£250,000')).toBeInTheDocument();
+  });
+
+  it('renders address count and a view link per row', () => {
+    renderList();
+    const row = screen.getByTestId('customer-row-cust-1');
+    expect(within(row).getByText('2')).toBeInTheDocument();
+    expect(screen.getByTestId('customer-view-cust-1')).toHaveAttribute('href', '/en/shipping/customers/cust-1');
   });
 
   it('filters by status tab', () => {

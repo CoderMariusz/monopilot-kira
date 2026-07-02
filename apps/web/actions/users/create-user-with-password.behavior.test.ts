@@ -46,6 +46,9 @@ type FakeClientOptions = {
   seatLimit: number | null;
   activeUsers: number;
   rolesById: Record<string, { id: string; org_id: string; code: string; is_system: boolean; display_order: number | null }>;
+  actorRoleCodes?: string[];
+  actorPermissions?: string[];
+  rolePermissionsById?: Record<string, string[]>;
   existingEmailInOrg?: boolean;
   insertUserFails?: boolean;
 };
@@ -70,6 +73,23 @@ function makeClient(opts: FakeClientOptions): FakeClient {
     async query(sql: string, params: unknown[] = []) {
       calls.push({ sql, params });
       const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+
+      if (norm.includes('from public.user_roles ur') && norm.includes('r.code = any($3::text[])')) {
+        const superRoles = new Set(params[2] as readonly string[]);
+        const ok = (opts.actorRoleCodes ?? []).some((code) => superRoles.has(code));
+        return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
+      }
+
+      if (norm.startsWith('select distinct permission') && norm.includes('from public.user_roles ur')) {
+        const rows = (opts.actorPermissions ?? ['settings.users.invite']).map((permission) => ({ permission }));
+        return { rows, rowCount: rows.length };
+      }
+
+      if (norm.startsWith('select distinct permission') && norm.includes('from public.role_permissions rp')) {
+        const roleId = params[0] as string;
+        const rows = (opts.rolePermissionsById?.[roleId] ?? []).map((permission) => ({ permission }));
+        return { rows, rowCount: rows.length };
+      }
 
       if (norm.startsWith('select') && norm.includes('role_permissions') && norm.includes('user_roles')) {
         return { rows: opts.hasPermission ? [{ ok: true }] : [], rowCount: opts.hasPermission ? 1 : 0 };
@@ -231,6 +251,49 @@ describe('createUserWithPassword RBAC + provisioning (behavior)', () => {
       expect(_mockCreateUser).not.toHaveBeenCalled();
     },
   );
+
+  it('rejects org_admin as a forbidden default system role', async () => {
+    currentClient = makeClient({ hasPermission: true, seatLimit: null, activeUsers: 0, rolesById: { [OWNER_ROLE_ID]: { id: OWNER_ROLE_ID, org_id: ORG_ID, code: 'org_admin', is_system: true, display_order: 0 } } });
+    const { createUserWithPassword } = await load();
+    const result = await createUserWithPassword({ email: 'new@example.com', password: STRONG_PASSWORD, roleId: OWNER_ROLE_ID });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden_role' });
+    expect(_mockCreateUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects a role whose permissions are outside the non-super assigner grantable subset', async () => {
+    currentClient = makeClient({
+      hasPermission: true,
+      seatLimit: null,
+      activeUsers: 0,
+      rolesById: { [VIEWER_ROLE_ID]: VIEWER_ROLE },
+      actorPermissions: ['settings.users.invite'],
+      rolePermissionsById: { [VIEWER_ROLE_ID]: ['settings.org.read'] },
+    });
+    const { createUserWithPassword } = await load();
+    const result = await createUserWithPassword({ email: 'new@example.com', password: STRONG_PASSWORD, roleId: VIEWER_ROLE_ID });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden_role' });
+    expect(_mockCreateUser).not.toHaveBeenCalled();
+    expect(currentClient.insertedUser).toBeNull();
+  });
+
+  it('allows a super-role assigner even when the strict permission subset is empty', async () => {
+    currentClient = makeClient({
+      hasPermission: true,
+      seatLimit: 100,
+      activeUsers: 0,
+      rolesById: { [VIEWER_ROLE_ID]: VIEWER_ROLE },
+      actorRoleCodes: ['org_admin'],
+      actorPermissions: [],
+      rolePermissionsById: { [VIEWER_ROLE_ID]: ['settings.org.read'] },
+    });
+    const { createUserWithPassword } = await load();
+    const result = await createUserWithPassword({ email: 'new@example.com', password: STRONG_PASSWORD, roleId: VIEWER_ROLE_ID });
+
+    expect(result).toEqual({ ok: true, data: { email: 'new@example.com', userId: NEW_USER_ID } });
+    expect(_mockCreateUser).toHaveBeenCalled();
+  });
 
   it('returns email_taken when the email already exists in the org', async () => {
     currentClient = makeClient({ hasPermission: true, seatLimit: null, activeUsers: 0, rolesById: { [VIEWER_ROLE_ID]: VIEWER_ROLE }, existingEmailInOrg: true });

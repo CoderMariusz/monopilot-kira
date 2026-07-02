@@ -5,8 +5,9 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
-/** Technical module read gate — seeded in packages/db/migrations/236-npd-stage-permissions-org-admin-seed.sql:59 */
-const TECHNICAL_READ_PERMISSION = 'technical.sensory.read';
+/** Traceability read gate — seeded in packages/db/migrations/198-quality-outbox-and-rbac-seed.sql:201 */
+// TODO(seed follow-up): replace with a dedicated technical.traceability.read once seeded — R-G7 F2
+const TECHNICAL_READ_PERMISSION = 'quality.dashboard.view';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(

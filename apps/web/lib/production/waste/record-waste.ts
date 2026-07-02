@@ -20,6 +20,8 @@
  */
 import { z } from 'zod';
 
+import { createHash } from 'node:crypto';
+
 import { microToDecimal, toMicro } from '../../shared/decimal';
 import { makeStockMoveNumber } from '../../warehouse/lp-create';
 import {
@@ -79,12 +81,19 @@ type LpGateRow = {
   qa_status: string;
   uom: string | null;
   location_id: string | null;
+  site_id: string | null;
 };
 
 /** wo_waste_log qty_kg subtracts 1:1 from license_plates.quantity — LP uom must be kg. */
 function isKgMassUom(uom: string | null | undefined): boolean {
   if (uom == null || uom.trim() === '') return true;
   return uom.trim().toLowerCase() === 'kg';
+}
+
+function deterministicLedgerTransactionId(seed: string): string {
+  const hex = createHash('md5').update(seed).digest('hex');
+  const v = hex.slice(0, 12) + '3' + hex.slice(13, 16) + ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 32);
+  return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
 }
 
 async function loadWo(ctx: OrgContextLike, woId: string): Promise<WoRow> {
@@ -175,7 +184,8 @@ export async function recordWaste(
               status,
               qa_status,
               uom,
-              location_id::text as location_id
+              location_id::text as location_id,
+              site_id::text as site_id
          from public.license_plates
         where id = $1::uuid
           and org_id = $3::uuid
@@ -218,6 +228,34 @@ export async function recordWaste(
       throw new Error('recordWaste: LP decrement failed after availability gate');
     }
     lpLocationId = lp.location_id;
+
+    const fullyDestroyed = toMicro(lpRes.rows[0].quantity) <= 0n;
+    if (fullyDestroyed) {
+      await ctx.client.query(
+        `insert into public.lp_state_history (
+           org_id, site_id, lp_id, from_state, to_state, reason_code, reason_text,
+           wo_id, transaction_id, ext_jsonb, created_by
+         )
+         values (
+           app.current_org_id(), $1::uuid, $2::uuid, $3, 'destroyed', 'production_waste',
+           'Production waste LP fully destroyed', $4::uuid, $5::uuid, $6::jsonb, $7::uuid
+         )
+         on conflict (org_id, transaction_id) do nothing`,
+        [
+          // F2: stamp the LP's own site_id, not the WO's — mirrors the
+          // reverse-consume writer (route.ts writeLpRestoredHistory, params.lp.site_id).
+          // A cross-site LP would otherwise get the WO's site stamped here while
+          // the DB trigger only derives site_id from the LP when the column is NULL.
+          lp.site_id,
+          input.lp_id,
+          lp.status,
+          woId,
+          deterministicLedgerTransactionId(`${input.transaction_id}:lp_state`),
+          JSON.stringify({ source: 'production_waste', wo_id: woId, category_code: input.category_code }),
+          ctx.userId,
+        ],
+      );
+    }
   }
 
   // 6. INSERT wo_waste_log (+ ledger-visible LP decrement when lp_id present).

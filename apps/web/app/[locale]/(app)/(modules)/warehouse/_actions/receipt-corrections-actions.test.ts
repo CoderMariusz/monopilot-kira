@@ -145,6 +145,10 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (n.startsWith('insert into public.stock_moves')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       if (n.startsWith('insert into public.lp_state_history')) {
         return { rows: [], rowCount: 1 };
       }
@@ -199,8 +203,16 @@ describe('receipt corrections actions', () => {
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history!.params).toEqual(expect.arrayContaining([LP_ID, 'received', 'returned', 'receipt_cancelled']));
 
+    const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMove).toBeDefined();
+    expect(normalize(stockMove!.sql)).toContain("'return'");
+    expect(stockMove!.params).toEqual(expect.arrayContaining([LP_ID, '10.000000', 'kg', GRN_ID]));
+
+    // wave F3: the receive core was extracted to receive-po-line-core.ts — the
+    // cancelled-line filters are split between the scanner wrapper and the core.
     const receivePo = readFileSync(join(process.cwd(), 'lib/warehouse/scanner/receive-po.ts'), 'utf8');
-    expect((receivePo.match(/cancelled_at is null/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    const receiveCore = readFileSync(join(process.cwd(), 'lib/warehouse/receive-po-line-core.ts'), 'utf8');
+    expect(((receivePo + receiveCore).match(/cancelled_at is null/g) ?? []).length).toBeGreaterThanOrEqual(4);
     const poActions = readFileSync(
       join(process.cwd(), 'app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts'),
       'utf8',

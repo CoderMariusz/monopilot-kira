@@ -38,6 +38,7 @@ import { receivePoLineDesktop } from '../_actions/receive-po-line';
 import type { DesktopReceiveInput } from '../_actions/receive-po-line.types';
 import { listLocations } from '../../../warehouse/_actions/location-read-actions';
 import { buildUomDropdown, type UomDropdown } from '../../_actions/uom-dropdown';
+import { DocumentAuditTimelineSection } from '../../../_components/audit-timeline/document-audit-timeline-section';
 import { PoDetailView, type PoDetailLabels } from '../_components/po-detail-view';
 import type { ReceiveLocationOption } from '../_components/receive-po-line-modal';
 
@@ -338,6 +339,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
   }
 
   return (
+    <div className="flex flex-col gap-4">
     <PoDetailView
       locale={locale}
       po={{
@@ -376,6 +378,8 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       receivePoLineAction={receivePoLineAction}
       receiveLocations={receiveLocations}
     />
+    <DocumentAuditTimelineSection entityType="purchase_order" entityId={po.id} locale={locale} />
+    </div>
   );
 }
 

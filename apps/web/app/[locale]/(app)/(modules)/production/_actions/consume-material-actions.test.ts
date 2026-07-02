@@ -15,6 +15,10 @@ type State = {
   granted: Set<string>;
   materialExists: boolean;
   lpDecrementSucceeds: boolean;
+  /** Quantity string returned by the LP UPDATE …RETURNING quantity::text.
+   *  Postgres NUMERIC(x,6) returns e.g. '0.000000' not '0' — the regression
+   *  pinned by F1: toMicro(qty) <= 0n must be used, not === '0'. */
+  lpRemainingQty: string;
   replayExists: boolean;
   overLimit: boolean;
   overWarn: boolean;
@@ -35,6 +39,10 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
       action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../lib/warehouse/lp-create', () => ({
+  makeStockMoveNumber: vi.fn((transactionId: string) => `SM-${transactionId.replaceAll('-', '').slice(0, 20)}`),
 }));
 
 function normalize(sql: string): string {
@@ -68,7 +76,15 @@ function makeClient(): QueryClient {
       }
       if (n.includes('from public.license_plates lp') && n.includes('quantity - $4::numeric >= lp.reserved_qty')) {
         return state.lpDecrementSucceeds
-          ? { rows: [{ id: LP_ID }], rowCount: 1 }
+          ? {
+              rows: [{
+                id: LP_ID,
+                status: state.lpStatus,
+                site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                location_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              }],
+              rowCount: 1,
+            }
           : { rows: [], rowCount: 0 };
       }
       if (n.includes('from public.license_plates lp')) {
@@ -130,8 +146,14 @@ function makeClient(): QueryClient {
       }
       if (n.startsWith('update public.license_plates')) {
         return state.lpDecrementSucceeds
-          ? { rows: [{ id: LP_ID, quantity: '7.500' }], rowCount: 1 }
+          ? { rows: [{ id: LP_ID, quantity: state.lpRemainingQty }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
+      }
+      if (n.startsWith('insert into public.stock_moves')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (n.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
       }
       if (n.includes('as violates')) {
         return { rows: [{ violates: false }], rowCount: 1 };
@@ -167,6 +189,9 @@ beforeEach(() => {
     granted: new Set(['production.consumption.write']),
     materialExists: true,
     lpDecrementSucceeds: true,
+    // Postgres NUMERIC(x,6) returns '0.000000' on a full-consume, NOT '0'.
+    // Default to the real pg format to catch the F1 regression.
+    lpRemainingQty: '0.000000',
     replayExists: false,
     overLimit: false,
     overWarn: false,
@@ -211,6 +236,32 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
     const update = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
     expect(update?.params).toEqual([ORG_ID, WO_ID, MATERIAL_ID, '2.500']);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
+  });
+
+  it('writes stock_moves and lp_state_history when an LP is fully consumed (pg returns "0.000000")', async () => {
+    // F1 regression: pg NUMERIC(x,6) returns '0.000000', not '0'.
+    // The old === '0' check silently skipped lp_state_history on a full consume.
+    state.lpRemainingQty = '0.000000';
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(true);
+
+    const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMove).toBeDefined();
+    expect(normalize(stockMove!.sql)).toContain("'consume_to_wo'");
+    expect(stockMove!.params).toEqual(expect.arrayContaining([LP_ID, '2.500', 'kg', WO_ID, MATERIAL_ID]));
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(history).toBeDefined();
+    expect(history!.params).toEqual(expect.arrayContaining([LP_ID, 'available', 'consumed', WO_ID]));
+  });
+
+  it('also writes lp_state_history when pg returns the bare "0" form', async () => {
+    state.lpRemainingQty = '0';
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(true);
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(history).toBeDefined();
+    expect(history!.params).toEqual(expect.arrayContaining([LP_ID, 'available', 'consumed', WO_ID]));
   });
 
   it('emits warehouse.material.consumed with the consumption aggregate on the happy path', async () => {

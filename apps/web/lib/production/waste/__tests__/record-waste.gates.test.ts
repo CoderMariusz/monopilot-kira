@@ -24,6 +24,9 @@ const WO_ID = '33333333-3333-4333-8333-333333333333';
 const LP_ID = '44444444-4444-4444-8444-444444444444';
 const TX_ID = '55555555-5555-4555-8555-555555555555';
 const SITE_ID = '66666666-6666-4666-8666-666666666666';
+/** F2: LP's own site — deliberately different from the WO's SITE_ID to catch
+ *  cross-site LP misattribution in lp_state_history. */
+const LP_SITE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const CATEGORY_ID = '77777777-7777-4777-8777-777777777777';
 const LOCATION_ID = '88888888-8888-4888-8888-888888888888';
 const WASTE_ID = '99999999-9999-4999-8999-999999999999';
@@ -34,6 +37,7 @@ let queries: QueryCall[];
 let lpStatus: string;
 let lpQaStatus: string;
 let lpUom: string;
+let remainingLpQty: string;
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -62,12 +66,18 @@ function makeClient(): QueryClient {
             qa_status: lpQaStatus,
             uom: lpUom,
             location_id: LOCATION_ID,
+            // F2: LP's own site — distinct from SITE_ID (the WO's site) so tests can
+            // assert the LP site is stamped on lp_state_history, not the WO's site.
+            site_id: LP_SITE_ID,
           }],
           rowCount: 1,
         };
       }
       if (n.startsWith('update public.license_plates')) {
-        return { rows: [{ id: LP_ID, quantity: '90' }], rowCount: 1 };
+        return { rows: [{ id: LP_ID, quantity: remainingLpQty }], rowCount: 1 };
+      }
+      if (n.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
       }
       if (n.startsWith('insert into public.stock_moves')) {
         return { rows: [], rowCount: 1 };
@@ -102,6 +112,7 @@ describe('recordWaste LP gates', () => {
     lpStatus = 'available';
     lpQaStatus = 'released';
     lpUom = 'kg';
+    remainingLpQty = '90';
   });
 
   it('rejects terminal LP status before decrement', async () => {
@@ -144,6 +155,21 @@ describe('recordWaste LP gates', () => {
     const stockMoveIdx = queries.indexOf(stockMove!);
     const lpUpdateIdx = queries.indexOf(lpUpdate!);
     expect(lpUpdateIdx).toBeLessThan(stockMoveIdx);
+  });
+
+  it('writes lp_state_history when the LP is fully destroyed, stamping the LP site not the WO site', async () => {
+    remainingLpQty = '0';
+
+    await recordWaste(makeCtx(), WO_ID, baseBody);
+
+    const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
+    expect(history).toBeDefined();
+    expect(normalize(history!.sql)).toContain("'destroyed'");
+    // F2 regression pin: lp_state_history.site_id must come from the LP row
+    // (LP_SITE_ID), NOT from the WO (SITE_ID). A cross-site LP previously got
+    // the wrong site stamped because wo.site_id was used here.
+    expect(history!.params).toEqual(expect.arrayContaining([LP_SITE_ID, LP_ID, 'available', WO_ID]));
+    expect(history!.params).not.toContain(SITE_ID);
   });
 
   it('maps stock_moves 23505 to already_recorded like wo_waste_log', async () => {

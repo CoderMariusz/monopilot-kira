@@ -57,7 +57,7 @@ describe('scanner context route site access', () => {
     expect(requireScannerSessionMock).not.toHaveBeenCalled();
   });
 
-  it('rejects an unassigned site with 403 through app.user_can_see_site', async () => {
+  it('normalizes an unassigned site to the same 404 shape as a missing site', async () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
       if (sql.includes('insert into app.session_org_contexts')) return { rows: [] };
@@ -71,8 +71,8 @@ describe('scanner context route site access', () => {
     const { POST } = await import('./route');
     const response = await POST(request({ siteId: '50000000-0000-4000-8000-000000000001' }) as never);
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'site_forbidden' });
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'site_not_found' });
     const siteGateSql = String(
       fakeClient.query.mock.calls.find((call) => String(call[0]).includes('app.user_can_see_site'))?.[0],
     );

@@ -80,6 +80,7 @@ export type GrnDetailLabels = {
     item: string;
     ordered: string;
     received: string;
+    outstanding: string;
     batch: string;
     supplierBatch: string;
     expiry: string;
@@ -117,6 +118,10 @@ export type GrnDetailLabels = {
   };
   /** E2B — per-line delivery-condition (cold-chain) temperature control copy. */
   tempCheck: GrnTempCheckLabels;
+  receiveRemaining?: string;
+  receiptProgress?: string;
+  overReceivedBadge?: string;
+  shortReceivedBadge?: string;
 };
 
 /**
@@ -153,6 +158,22 @@ function CsvExportIcon() {
       />
     </svg>
   );
+}
+
+function receiptLineState(ordered: string | null, received: string): 'none' | 'partial' | 'full' | 'over' | 'short' {
+  if (ordered == null) return 'none';
+  const o = Number(ordered);
+  const r = Number(received);
+  if (!(r > 0)) return 'none';
+  if (r > o) return 'over';
+  if (r >= o) return 'full';
+  return 'partial';
+}
+
+function outstandingQty(ordered: string | null, received: string): string | null {
+  if (ordered == null) return null;
+  const rem = Number(ordered) - Number(received);
+  return String(Number(rem.toFixed(3)));
 }
 
 export function GrnDetailClient({
@@ -315,6 +336,18 @@ export function GrnDetailClient({
         </Card>
       ) : null}
 
+      {grn.poId && grn.status === 'draft' && labels.receiveRemaining ? (
+        <div className="flex justify-end">
+          <Link
+            href={`/${locale}/warehouse/receive-po/${grn.poId}`}
+            data-testid="grn-receive-remaining"
+            className="inline-flex items-center rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 hover:bg-sky-100"
+          >
+            {labels.receiveRemaining}
+          </Link>
+        </div>
+      ) : null}
+
       {/* Receipt-lines table (parity grn-screens.jsx:127-150). */}
       <Card
         data-testid="grn-detail-items-card"
@@ -345,6 +378,7 @@ export function GrnDetailClient({
                 <TableHead scope="col">{labels.col.item}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.col.ordered}</TableHead>
                 <TableHead scope="col" className="text-right">{labels.col.received}</TableHead>
+                <TableHead scope="col" className="text-right">{labels.col.outstanding}</TableHead>
                 <TableHead scope="col">{labels.col.batch}</TableHead>
                 <TableHead scope="col">{labels.col.supplierBatch}</TableHead>
                 <TableHead scope="col">{labels.col.expiry}</TableHead>
@@ -395,10 +429,35 @@ export function GrnDetailClient({
                   <TableCell className="text-right font-mono text-sm tabular-nums">
                     {it.receivedQty} {it.uom}
                   </TableCell>
+                  <TableCell className="text-right font-mono text-sm tabular-nums text-slate-600">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span>
+                        {it.orderedQty == null ? dash : `${outstandingQty(it.orderedQty, it.receivedQty) ?? dash} ${it.uom}`}
+                      </span>
+                      {(() => {
+                        const state = receiptLineState(it.orderedQty, it.receivedQty);
+                        if (state === 'over' && labels.overReceivedBadge) {
+                          return (
+                            <Badge variant="danger" className="text-[10px]" data-testid={`grn-line-over-${it.id}`}>
+                              {labels.overReceivedBadge}
+                            </Badge>
+                          );
+                        }
+                        if (state === 'partial' && grn.status === 'completed' && labels.shortReceivedBadge) {
+                          return (
+                            <Badge variant="warning" className="text-[10px]" data-testid={`grn-line-short-${it.id}`}>
+                              {labels.shortReceivedBadge}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  </TableCell>
                   <TableCell className="font-mono text-[11px] text-slate-600">
                     {it.batchNumber ?? dash}
                   </TableCell>
-                  <TableCell className="font-mono text-[11px] text-slate-500">{dash}</TableCell>
+                  <TableCell className="font-mono text-[11px] text-slate-500">{it.batchNumber ?? dash}</TableCell>
                   <TableCell className="font-mono text-xs text-slate-600">
                     {it.expiryDate ? it.expiryDate.slice(0, 10) : dash}
                   </TableCell>

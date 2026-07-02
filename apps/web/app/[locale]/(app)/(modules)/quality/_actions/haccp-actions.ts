@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { createHoldForContext } from './hold-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -50,12 +51,12 @@ type MonitoringLogRow = {
 };
 
 type MonitoringResult = { withinLimits: boolean; ncrId: string | null; outboxEmitted: boolean };
-type OutputLp = { id: string; quantity: string };
-type CreatedDeviationHold = { id: string; holdNumber: string };
+type OutputLp = { id: string };
+type ActiveHold = { id: string };
 
 const uuidSchema = z.string().uuid();
 const decimalStringSchema = z.string().trim().regex(/^-?\d+(\.\d+)?$/, 'must be a decimal string');
-const TERMINAL_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned'] as const;
+const ACTIVE_HOLD_STATUSES = ['open', 'investigating', 'escalated', 'quarantined'] as const;
 
 const listCcpsSchema = z.object({
   activeOnly: z.boolean().optional(),
@@ -181,106 +182,104 @@ async function writeNcrOpenedOutbox(
   );
 }
 
-async function writeHoldCreatedOutbox(
-  ctx: QualityContext,
-  params: { holdId: string; holdNumber: string; lpId: string },
-): Promise<void> {
-  await ctx.client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values (app.current_org_id(), 'quality.hold.created', 'quality_hold', $1::uuid, $2::jsonb, 'quality-holds-v1')`,
-    [
-      params.holdId,
-      JSON.stringify({
-        org_id: ctx.orgId,
-        actor_user_id: ctx.userId,
-        holdId: params.holdId,
-        holdNumber: params.holdNumber,
-        referenceType: 'lp',
-        referenceId: params.lpId,
-        lpIds: [params.lpId],
-      }),
-    ],
+async function findCcpHoldWindowStart(ctx: QualityContext, params: { ccpId: string; woId: string; logId: string }): Promise<string> {
+  const { rows } = await ctx.client.query<{ window_start: string }>(
+    `select coalesce(
+       (
+         select last_ok.measured_at
+           from public.haccp_monitoring_log last_ok
+          where last_ok.org_id = app.current_org_id()
+            and last_ok.ccp_id = $1::uuid
+            and last_ok.wo_id = $2::uuid
+            and last_ok.within_limits is true
+            and last_ok.measured_at < (
+              select current_log.measured_at
+                from public.haccp_monitoring_log current_log
+               where current_log.org_id = app.current_org_id()
+                 and current_log.id = $3::uuid
+            )
+          order by last_ok.measured_at desc
+          limit 1
+       ),
+       wo.started_at,
+       wo.created_at
+     )::text as window_start
+       from public.work_orders wo
+      where wo.org_id = app.current_org_id()
+        and wo.id = $2::uuid
+      limit 1`,
+    [params.ccpId, params.woId, params.logId],
   );
+  const windowStart = rows[0]?.window_start;
+  if (!windowStart) throw new Error('work order not found for CCP hold window');
+  return windowStart;
 }
 
-async function findCurrentOutputLp(ctx: QualityContext, woId: string): Promise<OutputLp | null> {
+async function findOutputLpsInCcpHoldWindow(
+  ctx: QualityContext,
+  params: { woId: string; windowStart: string },
+): Promise<OutputLp[]> {
   const { rows } = await ctx.client.query<OutputLp>(
-    `select lp.id::text as id, lp.quantity::text as quantity
+    `select lp.id::text as id
        from public.wo_outputs o
        join public.license_plates lp on lp.id = o.lp_id and lp.org_id = o.org_id
       where o.org_id = app.current_org_id()
         and o.wo_id = $1::uuid
         and o.lp_id is not null
-      order by o.registered_at desc, o.created_at desc
-      limit 1
+        and coalesce(o.registered_at, o.created_at) >= $2::timestamptz
+      order by lp.id
       for update of lp`,
-    [woId],
+    [params.woId, params.windowStart],
+  );
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+}
+
+async function findActiveHoldForReference(
+  ctx: QualityContext,
+  params: { referenceType: 'lp' | 'wo'; referenceId: string },
+): Promise<ActiveHold | null> {
+  const { rows } = await ctx.client.query<ActiveHold>(
+    `select id::text
+       from public.quality_holds
+      where org_id = app.current_org_id()
+        and reference_type = $1
+        and reference_id = $2::uuid
+        and hold_status = any($3::text[])
+        and released_at is null
+      order by created_at desc
+      limit 1
+      for update`,
+    [params.referenceType, params.referenceId, [...ACTIVE_HOLD_STATUSES]],
   );
   return rows[0] ?? null;
 }
 
-async function createCcpDeviationHold(
+async function createCcpDeviationHoldIfMissing(
   ctx: QualityContext,
-  params: { lp: OutputLp; ccpCode: string; measuredValue: string },
-): Promise<CreatedDeviationHold> {
-  const reasonText = `CCP breach ${params.ccpCode}: measured value ${params.measuredValue} was outside configured limits.`;
-  const hold = await ctx.client.query<{ id: string; hold_number: string }>(
-    `insert into public.quality_holds (
-       org_id,
-       reference_type,
-       reference_id,
-       reason_free_text,
-       priority,
-       hold_status,
-       created_by
-     )
-     values (
-       app.current_org_id(),
-       'lp',
-       $1::uuid,
-       $2,
-       'critical',
-       'open',
-       $3::uuid
-     )
-     returning id::text, hold_number`,
-    [params.lp.id, reasonText, ctx.userId],
-  );
-  const created = hold.rows[0];
-  if (!created?.id) throw new Error('quality hold insert did not return a row');
-
-  await ctx.client.query(
-    `insert into public.quality_hold_items (
-       org_id,
-       hold_id,
-       license_plate_id,
-       qty_held_kg,
-       item_status,
-       notes
-     )
-     values (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, 'held', $4)
-     on conflict (hold_id, license_plate_id) do nothing`,
-    [created.id, params.lp.id, params.lp.quantity, reasonText],
-  );
-
-  await ctx.client.query(
-    `update public.license_plates
-        set qa_status = 'on_hold',
-            updated_by = $2::uuid
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-        and status <> all($3::text[])`,
-    [params.lp.id, ctx.userId, [...TERMINAL_LP_STATUSES]],
-  );
-
-  await writeHoldCreatedOutbox(ctx, {
-    holdId: created.id,
-    holdNumber: created.hold_number,
-    lpId: params.lp.id,
+  params: { referenceType: 'lp' | 'wo'; referenceId: string; lpIds?: string[]; ccpCode: string; measuredValue: string },
+): Promise<ActiveHold> {
+  const existing = await findActiveHoldForReference(ctx, {
+    referenceType: params.referenceType,
+    referenceId: params.referenceId,
   });
+  if (existing) return existing;
 
-  return { id: created.id, holdNumber: created.hold_number };
+  const reasonText = `CCP breach ${params.ccpCode}: measured value ${params.measuredValue} was outside configured limits.`;
+  const hold = await createHoldForContext(ctx, {
+    referenceType: params.referenceType,
+    referenceId: params.referenceId,
+    reasonText,
+    priority: 'critical',
+    lpIds: params.lpIds,
+  });
+  if (!hold.ok) throw new Error(hold.message ?? 'quality hold could not be created');
+
+  return { id: hold.data.id };
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -725,13 +724,23 @@ export async function recordMonitoring(data: {
         measuredValue: parsed.measuredValue,
       });
 
-      const outputLp = parsed.woId ? await findCurrentOutputLp(ctx, parsed.woId) : null;
-      const deviationNote =
-        parsed.woId && !outputLp
-          ? 'Auto-hold not created: no current output license plate was found for the work order.'
-          : !parsed.woId
-            ? 'Auto-hold not created: no work order target was provided.'
-            : null;
+      let outputLps: OutputLp[] = [];
+      let woHold: ActiveHold | null = null;
+      let firstLpHold: ActiveHold | null = null;
+      if (parsed.woId) {
+        const windowStart = await findCcpHoldWindowStart(ctx, {
+          ccpId: parsed.ccpId,
+          woId: parsed.woId,
+          logId,
+        });
+        outputLps = await findOutputLpsInCcpHoldWindow(ctx, { woId: parsed.woId, windowStart });
+      }
+
+      const deviationNote = !parsed.woId
+        ? 'Auto-hold not created: no work order target was provided.'
+        : outputLps.length === 0
+          ? 'Auto-hold created at work-order level only: no output license plates were found in the CCP breach window.'
+          : null;
 
       const deviation = await ctx.client.query<{ id: string }>(
         `insert into public.ccp_deviations (
@@ -760,18 +769,32 @@ export async function recordMonitoring(data: {
       const deviationId = deviation.rows[0]?.id;
       if (!deviationId) throw new Error('CCP deviation insert did not return a row');
 
-      if (outputLp) {
-        const hold = await createCcpDeviationHold(ctx, {
-          lp: outputLp,
+      if (parsed.woId) {
+        for (const lp of outputLps) {
+          const hold = await createCcpDeviationHoldIfMissing(ctx, {
+            referenceType: 'lp',
+            referenceId: lp.id,
+            ccpCode: ccp.ccp_code,
+            measuredValue: parsed.measuredValue,
+          });
+          firstLpHold ??= hold;
+        }
+
+        woHold = await createCcpDeviationHoldIfMissing(ctx, {
+          referenceType: 'wo',
+          referenceId: parsed.woId,
+          lpIds: outputLps.map((lp) => lp.id),
           ccpCode: ccp.ccp_code,
           measuredValue: parsed.measuredValue,
         });
+
+        const linkedHold = firstLpHold ?? woHold;
         await ctx.client.query(
           `update public.ccp_deviations
               set hold_id = $2::uuid
             where org_id = app.current_org_id()
               and id = $1::uuid`,
-          [deviationId, hold.id],
+          [deviationId, linkedHold.id],
         );
       }
 

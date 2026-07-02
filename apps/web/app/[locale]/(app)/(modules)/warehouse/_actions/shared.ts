@@ -165,6 +165,7 @@ export type GrnListItem = {
   warehouseCode: string | null;
   receiptDate: string;
   completedAt: string | null;
+  poId: string | null;
   /**
    * Count of receipt lines (public.grn_items) on this GRN, org-scoped and rolled
    * up server-side so the list can show a real Items count instead of an em-dash.

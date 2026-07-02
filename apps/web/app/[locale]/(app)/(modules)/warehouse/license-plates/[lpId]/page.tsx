@@ -42,6 +42,7 @@ import { getLpTranslator } from '../lp-labels';
 // crashed every LP detail render (`LP_DEFERRED_ACTIONS is not iterable`, live
 // error digest 1984471676). Type-only imports from the client module are erased
 // at compile time and stay safe.
+import { DocumentAuditTimelineSection } from '../../../_components/audit-timeline/document-audit-timeline-section';
 import {
   LpDetailClient,
   type LpDetailLabels,
@@ -475,23 +476,26 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
   const canPrint = await resolveCanPrint();
 
   return (
-    <LpDetailClient
-      detail={result.data}
-      labels={buildLabels(locale)}
-      locale={locale}
-      releaseQaAction={releaseLpQa}
-      blockLpAction={blockLp}
-      unblockLpAction={unblockLp}
-      reserveLpAction={reserveLp}
-      listOpenWorkOrdersForLpReserveAction={listOpenWorkOrdersForLpReserve}
-      listLocationsAction={listLocations}
-      createStockMoveAction={createStockMove}
-      splitLpAction={splitLp}
-      destroyLpAction={destroyLp}
-      updateLpMetadataAction={updateLpMetadataAction}
-      printLabelAction={printLpLabel}
-      canPrint={canPrint}
-    />
+    <div className="flex flex-col gap-4">
+      <LpDetailClient
+        detail={result.data}
+        labels={buildLabels(locale)}
+        locale={locale}
+        releaseQaAction={releaseLpQa}
+        blockLpAction={blockLp}
+        unblockLpAction={unblockLp}
+        reserveLpAction={reserveLp}
+        listOpenWorkOrdersForLpReserveAction={listOpenWorkOrdersForLpReserve}
+        listLocationsAction={listLocations}
+        createStockMoveAction={createStockMove}
+        splitLpAction={splitLp}
+        destroyLpAction={destroyLp}
+        updateLpMetadataAction={updateLpMetadataAction}
+        printLabelAction={printLpLabel}
+        canPrint={canPrint}
+      />
+      <DocumentAuditTimelineSection entityType="license_plate" entityId={result.data.id} locale={locale} />
+    </div>
   );
 }
 

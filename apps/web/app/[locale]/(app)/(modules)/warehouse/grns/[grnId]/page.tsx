@@ -26,6 +26,8 @@ import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getWhcTranslator } from '../../wh-c-labels';
+import { DocumentAuditTimelineSection } from '../../../_components/audit-timeline/document-audit-timeline-section';
+import { getWhReceiveTranslator } from '../../receive-po/wh-receive-labels';
 import {
   GrnDetailClient,
   type GrnDetailLabels,
@@ -42,7 +44,7 @@ type PageProps = { params: Promise<{ locale: string; grnId: string }> };
 const PROTOTYPE_ANCHOR =
   'prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:96-171';
 
-function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
+function buildLabels(t: ReturnType<typeof getWhcTranslator>, receiveT: ReturnType<typeof getWhReceiveTranslator>): GrnDetailLabels {
   return {
     notesLabel: t('grnDetail.notesLabel'),
     itemsTitle: t('grnDetail.itemsTitle'),
@@ -66,6 +68,7 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
       item: t('grnDetail.columns.item'),
       ordered: t('grnDetail.columns.ordered'),
       received: t('grnDetail.columns.received'),
+      outstanding: receiveT('receivePo.col.outstanding'),
       batch: t('grnDetail.columns.batch'),
       supplierBatch: t('grnDetail.columns.supplierBatch'),
       expiry: t('grnDetail.columns.expiry'),
@@ -138,6 +141,10 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnDetailLabels {
       noRange: t('grnDetail.tempCheck.noRange'),
       error: t('grnDetail.tempCheck.error'),
     },
+    receiveRemaining: receiveT('grnDetail.receiveRemaining'),
+    receiptProgress: receiveT('grnDetail.receiptProgress'),
+    overReceivedBadge: receiveT('grnDetail.overReceivedBadge'),
+    shortReceivedBadge: receiveT('grnDetail.shortReceivedBadge'),
   };
 }
 
@@ -246,6 +253,7 @@ function Panel({
 
 async function DetailContent({ locale, grnId }: { locale: string; grnId: string }) {
   const t = getWhcTranslator(locale);
+  const receiveT = getWhReceiveTranslator(locale);
   const result = await getGrnDetail(grnId);
 
   const backLink = (
@@ -291,7 +299,7 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
       {backLink}
       <GrnDetailClient
         grn={result.data}
-        labels={buildLabels(t)}
+        labels={buildLabels(t, receiveT)}
         locale={locale}
         releaseQaAction={releaseLpQa}
         cancelGrnLineAction={cancelGrnLineAction}
@@ -301,6 +309,7 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
         submitConditionCheck={submitConditionCheckAction}
         canRecordTemp={result.data.status !== 'cancelled' && canRecordTemp}
       />
+      <DocumentAuditTimelineSection entityType="grn" entityId={result.data.id} locale={locale} />
     </div>
   );
 }

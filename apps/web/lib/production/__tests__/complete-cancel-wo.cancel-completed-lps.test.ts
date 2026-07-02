@@ -47,6 +47,10 @@ function makeClient(): QueryClient {
         return { rows: [{ status: executionStatus }] as T[], rowCount: 1 };
       }
 
+      if (normalized.includes('lp.lp_number') && normalized.includes('from public.wo_outputs o')) {
+        return { rows: [] as T[], rowCount: 0 };
+      }
+
       if (normalized.startsWith('select lp.id') && normalized.includes('from public.license_plates lp')) {
         const rows =
           executionStatus === 'completed'

@@ -258,6 +258,60 @@ async function loadItem(ctx: OrgContextLike, productId: string): Promise<ItemRow
   return item;
 }
 
+/**
+ * V-PROD-03: registered output product must match the WO primary item or a
+ * declared co/by-product on the WO schedule / active BOM snapshot.
+ */
+async function assertOutputProductAllowed(
+  ctx: OrgContextLike,
+  woId: string,
+  productId: string,
+  outputType: RegisterOutputInputType['output_type'],
+): Promise<void> {
+  const { rows } = await ctx.client.query<{ allowed: boolean }>(
+    `with wo as (
+       select product_id, active_bom_header_id
+         from public.work_orders
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1
+     ),
+     allowed_products as (
+       select wo.product_id as item_id, 'primary'::text as role
+         from wo
+       union
+       select so.product_id, so.output_role
+         from public.schedule_outputs so
+        where so.org_id = app.current_org_id()
+          and so.planned_wo_id = $1::uuid
+       union
+       select bcp.co_product_item_id,
+              case when bcp.is_byproduct then 'byproduct' else 'co_product' end
+         from public.bom_co_products bcp
+         join wo on wo.active_bom_header_id = bcp.bom_header_id
+        where bcp.org_id = app.current_org_id()
+     )
+     select exists (
+       select 1
+         from allowed_products ap
+        where ap.item_id = $2::uuid
+          and (
+            ($3 = 'primary' and ap.role = 'primary')
+            or ($3 = 'co_product' and ap.role = 'co_product')
+            or ($3 = 'by_product' and ap.role in ('byproduct', 'by_product'))
+          )
+     ) as allowed`,
+    [woId, productId, outputType],
+  );
+  if (!rows[0]?.allowed) {
+    throw new ProductionActionError('invalid_reference', 422, {
+      field: 'product_id',
+      output_type: outputType,
+      message: 'Output product is not declared on this work order or its active BOM.',
+    });
+  }
+}
+
 async function nextBatchNumber(
   ctx: OrgContextLike,
   woId: string,
@@ -561,6 +615,7 @@ export async function registerOutput(
 
   // 3. load WO + item
   const wo = await loadWo(ctx, woId);
+  await assertOutputProductAllowed(ctx, woId, input.product_id, input.output_type);
   const resolvedQtyKg = resolveQtyKg(wo, input);
   // V-PROD-03: registered output quantity must be > 0.
   if (toMicro(resolvedQtyKg) <= 0n) {

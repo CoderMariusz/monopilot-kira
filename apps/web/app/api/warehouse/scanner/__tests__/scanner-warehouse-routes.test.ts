@@ -610,7 +610,7 @@ describe('warehouse scanner routes', () => {
     );
   });
 
-  it('putaway returns 403 when the LP site is not visible to the session user', async () => {
+  it('putaway normalizes a non-visible LP site to the same 404 shape as a missing LP', async () => {
     const { POST } = await import('../putaway/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
@@ -630,8 +630,8 @@ describe('warehouse scanner routes', () => {
       }) as never,
     );
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
   });
 
   const writeRouteLoaders = {

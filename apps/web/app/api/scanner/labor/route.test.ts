@@ -88,11 +88,13 @@ describe('scanner labor route', () => {
     );
   });
 
-  it('GET returns 403 when the work order site is not visible to the user', async () => {
+  // F1 fix: both missing WO (null → no row) and invisible WO (allowed=false) must
+  // return the identical not-found shape — no existence oracle.
+  it('GET returns 404 when the work order does not exist (no row)', async () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       const q = normalize(String(sql));
       if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
-        return { rows: [{ allowed: false }] };
+        return { rows: [] }; // WO missing
       }
       return { rows: [] };
     });
@@ -100,8 +102,56 @@ describe('scanner labor route', () => {
 
     const response = await GET(getRequest() as never);
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
+  });
+
+  it('GET returns 404 (not 403) when the work order exists but is not visible to the user', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: false }] }; // WO exists, site hidden
+      }
+      return { rows: [] };
+    });
+    const { GET } = await import('./route');
+
+    const response = await GET(getRequest() as never);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
+  });
+
+  it('POST returns 404 (not 403) when the work order exists but is not visible to the user', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: false }] }; // WO exists, site hidden
+      }
+      return { rows: [] };
+    });
+    const { POST } = await import('./route');
+
+    const response = await POST(request({ action: 'in', woId: WO_ID }) as never);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
+  });
+
+  it('POST returns 404 when the work order does not exist (no row)', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [] }; // WO missing
+      }
+      return { rows: [] };
+    });
+    const { POST } = await import('./route');
+
+    const response = await POST(request({ action: 'in', woId: WO_ID }) as never);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
   });
 
   it('returns 401 without scanner session', async () => {

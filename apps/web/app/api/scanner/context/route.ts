@@ -35,15 +35,11 @@ export async function POST(request: NextRequest) {
           [siteId],
         );
         if (!rows[0]) return 'not_found' as const;
-        return rows[0].allowed ? ('ok' as const) : ('forbidden' as const);
+        return rows[0].allowed ? ('ok' as const) : ('not_found' as const);
       });
       if (siteAccess === 'not_found') {
         await writeScannerSessionAudit(client, session, 'scanner.context', 'site_not_found', { siteId });
         return jsonError('site_not_found', 404);
-      }
-      if (siteAccess === 'forbidden') {
-        await writeScannerSessionAudit(client, session, 'scanner.context', 'site_forbidden', { siteId });
-        return jsonError('site_forbidden', 403);
       }
     }
 

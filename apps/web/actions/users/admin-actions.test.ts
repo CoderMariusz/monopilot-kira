@@ -22,9 +22,12 @@ function readActionSource(fileName: string): string {
 function expectServerActionGuard(source: string): number {
   expect(source).toContain("'use server'");
   expect(source).toMatch(/withOrgContext\s*\(/);
-  expect(source).toMatch(/requirePermission\s*\(\s*['"][a-z_.]+['"]\s*\)/);
+  // accept either requirePermission('some.perm') or requireAnyPermission(ctx, [...])
+  expect(source).toMatch(/requirePermission\s*\(\s*['"][a-z_.]+['"]\s*\)|requireAnyPermission\s*\(/);
   expect(source).toMatch(/FORBIDDEN|forbidden/);
-  return source.indexOf('requirePermission');
+  const single = source.indexOf('requirePermission(');
+  const any = source.indexOf('requireAnyPermission(');
+  return Math.max(single, any);
 }
 
 function expectOutboxAfterGuard(source: string, guardIndex: number, eventType: string): void {
@@ -54,6 +57,13 @@ describe('T-018 admin user Server Actions', () => {
     expect(source).toMatch(/update\s+public\.users|\.update\(/i);
     expect(source).toMatch(/is_active\s*=\s*false|isActive\s*:\s*false|deleted_at\s*=|deactivated_at\s*=/i);
     expectOutboxAfterGuard(source, guardIndex, 'settings.user.deactivated');
+
+    // F2 carry-over: deactivateUser must accept either org.access.admin OR the
+    // narrower seeded permission settings.users.deactivate (OR-union).
+    expect(source).toContain("'org.access.admin'");
+    expect(source).toContain("'settings.users.deactivate'");
+    // requireAnyPermission helper (or inline OR logic) must be present.
+    expect(source).toMatch(/requireAnyPermission|hasAnyPermission|any.*permission/i);
   });
 
   it('resetPassword enforces RBAC, uses Supabase Auth admin API, and revokes active sessions', () => {

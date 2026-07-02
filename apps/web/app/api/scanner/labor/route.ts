@@ -94,7 +94,7 @@ async function getCurrentLaborState(
   return since ? { state: 'clocked_in', since } : { state: 'clocked_in' };
 }
 
-async function canSeeWorkOrder(client: LaborQueryClient, woId: string): Promise<boolean | null> {
+async function canSeeWorkOrder(client: LaborQueryClient, woId: string): Promise<boolean> {
   const result = await client.query<{ allowed: boolean }>(
     `select app.user_can_see_site(wo.site_id) as allowed
        from public.work_orders wo
@@ -103,7 +103,8 @@ async function canSeeWorkOrder(client: LaborQueryClient, woId: string): Promise<
       limit 1`,
     [woId],
   );
-  return result.rows[0]?.allowed ?? null;
+  // Return false for both missing (null) and invisible: callers collapse to 404.
+  return result.rows[0]?.allowed === true;
 }
 
 export async function GET(request: NextRequest) {
@@ -115,8 +116,7 @@ export async function GET(request: NextRequest) {
       withScannerOrg(client, session, async ({ client: scopedClient, session: scopedSession }) =>
         withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () => {
           const allowed = await canSeeWorkOrder(scopedClient, woId);
-          if (allowed === null) return jsonError('not_found', 404);
-          if (!allowed) return jsonError('forbidden', 403);
+          if (!allowed) return jsonError('not_found', 404);
           return NextResponse.json(
             await getCurrentLaborState(scopedClient, {
               userId: scopedSession.user_id,
@@ -151,8 +151,7 @@ export async function POST(request: NextRequest) {
       withScannerOrg(client, session, async ({ client: scopedClient, session: scopedSession }) =>
         withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () => {
           const allowed = await canSeeWorkOrder(scopedClient, woId);
-          if (allowed === null) return jsonError('not_found', 404);
-          if (!allowed) return jsonError('forbidden', 403);
+          if (!allowed) return jsonError('not_found', 404);
           if (action === 'in') {
             await clockIn(scopedClient, {
               userId: scopedSession.user_id,

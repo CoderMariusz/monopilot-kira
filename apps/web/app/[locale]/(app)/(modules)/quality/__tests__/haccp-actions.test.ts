@@ -18,14 +18,20 @@ const LOG_ID = '44444444-4444-4444-8444-444444444444';
 const NCR_ID = '55555555-5555-4555-8555-555555555555';
 const WO_ID = '66666666-6666-4666-8666-666666666666';
 const LP_ID = '77777777-7777-4777-8777-777777777777';
+const LP_ID_2 = '77777777-7777-4777-8777-777777777778';
 const HOLD_ID = '88888888-8888-4888-8888-888888888888';
 const DEVIATION_ID = '99999999-9999-4999-8999-999999999999';
+const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 let permissions: Set<string>;
 let ccpLimits: { min: string | null; max: string | null };
-let currentOutputLpId: string | null;
+let outputLpIds: string[];
 let openedDeviationLogIds: Set<string>;
+// S2 idempotency: when a referenceId is present here the mock returns an
+// EXISTING hold for that reference — simulating the "hold already open" short-
+// circuit in createCcpDeviationHoldIfMissing (haccp-actions.ts).
+let existingHoldsForReference: Set<string>;
 
 vi.mock('@monopilot/e-sign', () => ({
   signEvent: vi.fn(async () => ({
@@ -43,6 +49,10 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
 function normalize(sql: string): string {
@@ -125,6 +135,10 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('window_start')) {
+        return { rows: [{ window_start: '2026-06-23T08:00:00.000Z' }], rowCount: 1 };
+      }
+
       // listMonitoringLog board read.
       if (q.includes('from public.haccp_monitoring_log l')) {
         return {
@@ -164,8 +178,8 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.wo_outputs o') && q.includes('join public.license_plates lp')) {
         return {
-          rows: currentOutputLpId ? [{ id: currentOutputLpId, quantity: '12.500000' }] : [],
-          rowCount: currentOutputLpId ? 1 : 0,
+          rows: outputLpIds.map((id) => ({ id })),
+          rowCount: outputLpIds.length,
         };
       }
 
@@ -176,6 +190,25 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('insert into public.quality_holds')) {
         return { rows: [{ id: HOLD_ID, hold_number: 'HLD-00001000' }], rowCount: 1 };
+      }
+
+      if (q.includes('from public.quality_holds') && q.includes('reference_type = $1')) {
+        // S2: If the referenceId ($2) is in existingHoldsForReference, simulate an
+        // existing active hold so the INSERT short-circuit in
+        // createCcpDeviationHoldIfMissing is exercised.
+        const refId = String(params[1]);
+        if (existingHoldsForReference.has(refId)) {
+          return { rows: [{ id: HOLD_ID }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (q.startsWith('select id::text, status, qa_status, quantity::text')) {
+        const ids = Array.isArray(params[0]) ? (params[0] as string[]) : [];
+        return {
+          rows: ids.map((id) => ({ id, status: 'available', qa_status: 'pending', quantity: id === LP_ID_2 ? '6.250000' : '12.500000' })),
+          rowCount: ids.length,
+        };
       }
 
       if (q.startsWith('insert into public.quality_hold_items')) {
@@ -257,8 +290,9 @@ describe('quality HACCP server actions', () => {
   beforeEach(() => {
     permissions = new Set(['quality.haccp.plan_edit', 'quality.ccp.deviation_override']);
     ccpLimits = { min: '70.0000', max: '75.0000' };
-    currentOutputLpId = LP_ID;
+    outputLpIds = [LP_ID, LP_ID_2];
     openedDeviationLogIds = new Set();
+    existingHoldsForReference = new Set();
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -352,26 +386,36 @@ describe('quality HACCP server actions', () => {
     expect(logInsert?.[1]?.[3]).toBe(false);
   });
 
-  it('recordMonitoring breach with woId opens a deviation and links a created LP hold', async () => {
+  it('recordMonitoring breach with woId holds every output LP in the breach window plus the WO', async () => {
     ccpLimits = { min: '70.0000', max: null };
 
     const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
 
     expect(result).toEqual({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
     const outputLookup = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).includes('from public.wo_outputs o'));
-    expect(outputLookup?.[1]).toEqual([WO_ID]);
-    const holdInsert = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
-    expect(holdInsert?.[1]).toEqual([
-      LP_ID,
+    expect(outputLookup?.[1]).toEqual([WO_ID, '2026-06-23T08:00:00.000Z']);
+    const holdInserts = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
+    expect(holdInserts.map((call) => call[1]?.[0])).toEqual(['lp', 'lp', 'wo']);
+    expect(holdInserts.map((call) => call[1]?.[1])).toEqual([LP_ID, LP_ID_2, WO_ID]);
+    expect(holdInserts[2]?.[1]).toEqual([
+      'wo',
+      WO_ID,
+      null,
       'CCP breach CCP-COOK: measured value 69.9999 was outside configured limits.',
+      'critical',
+      null,
       USER_ID,
+      SITE_ID,
+      null,
     ]);
     const holdLink = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.ccp_deviations') && normalize(String(sql)).includes('set hold_id'));
     expect(holdLink?.[1]).toEqual([DEVIATION_ID, HOLD_ID]);
     const holdOutbox = vi.mocked(client.query).mock.calls.find(
-      ([sql, params]) => normalize(String(sql)).startsWith('insert into public.outbox_events') && params?.[0] === HOLD_ID,
+      ([sql, params]) => normalize(String(sql)).startsWith('insert into public.outbox_events') && params?.[1] === HOLD_ID,
     );
-    expect(normalize(String(holdOutbox?.[0]))).toContain("'quality.hold.created'");
+    expect(holdOutbox?.[1]?.[0]).toBe('quality.hold.created');
   });
 
   it('recordMonitoring breach without woId opens a deviation with hold_id null', async () => {
@@ -475,5 +519,47 @@ describe('quality HACCP server actions', () => {
       normalize(String(sql)).startsWith('insert into public.haccp_ccps'),
     );
     expect(insert).toBeUndefined();
+  });
+
+  // ── S2: hold existence short-circuit idempotency ──────────────────────────
+
+  it('S2 createCcpDeviationHoldIfMissing: when an active hold already exists for the LP, no new INSERT happens', async () => {
+    ccpLimits = { min: '70.0000', max: null };
+
+    // Simulate LP_ID and LP_ID_2 already having open holds.
+    existingHoldsForReference = new Set([LP_ID, LP_ID_2, WO_ID]);
+
+    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
+
+    expect(result.ok).toBe(true);
+    // The action must succeed — it reuses the existing hold ID, not an error.
+    expect(result).toMatchObject({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
+
+    // No new quality_holds INSERT must have happened (all references returned an
+    // existing row from findActiveHoldForReference).
+    const holdInserts = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
+    expect(holdInserts).toHaveLength(0);
+  });
+
+  it('S2 createCcpDeviationHoldIfMissing: when only the WO already has a hold but LPs do not, LP holds are inserted and WO hold is reused', async () => {
+    ccpLimits = { min: '70.0000', max: null };
+
+    // Only the WO already has a hold; LP_ID and LP_ID_2 do not.
+    existingHoldsForReference = new Set([WO_ID]);
+
+    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
+
+    expect(result.ok).toBe(true);
+
+    const holdInserts = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
+    // LP holds were inserted (LP_ID and LP_ID_2); the WO hold was NOT re-inserted.
+    const insertedRefIds = holdInserts.map((call) => call[1]?.[1]);
+    expect(insertedRefIds).toContain(LP_ID);
+    expect(insertedRefIds).toContain(LP_ID_2);
+    expect(insertedRefIds).not.toContain(WO_ID);
   });
 });

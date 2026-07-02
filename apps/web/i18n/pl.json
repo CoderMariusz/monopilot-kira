@@ -828,7 +828,11 @@
       },
       "grantedSummary": "Tej roli nadano {count} uprawnień.",
       "granted": "Nadane",
-      "otherGroupLabel": "Inne"
+      "otherGroupLabel": "Inne",
+      "enforcement": {
+        "badge": "Jeszcze nieegzekwowane",
+        "tooltip": "Nadanie tego uprawnienia nie ma jeszcze skutku — żaden mechanizm runtime go nie sprawdza."
+      }
     },
     "security": {
       "heading": "Bezpieczeństwo"
@@ -1517,6 +1521,35 @@
       "locations": {
         "warehouseUnassigned": "—"
       }
+    },
+    "compliance": {
+      "title": "Profil zgodności",
+      "subtitle": "Kod zakładu BRCGS, jednostka certyfikująca, daty audytów i numery rejestracyjne używane na generowanych dokumentach.",
+      "loading": "Ładowanie profilu zgodności…",
+      "load_error": "Nie udało się wczytać profilu zgodności.",
+      "save_error": "Nie udało się zapisać profilu zgodności.",
+      "save_success": "Profil zgodności zapisany.",
+      "read_only_label": "Tylko do odczytu",
+      "read_only_notice": "Do zapisania zmian profilu zgodności wymagane jest uprawnienie settings.org.update.",
+      "section_certification": "Certyfikacja",
+      "section_audits": "Harmonogram audytów",
+      "section_registrations": "Numery rejestracyjne",
+      "field_brcgs_site_code": "Kod zakładu BRCGS",
+      "field_certification_body": "Jednostka certyfikująca",
+      "field_certification_grade": "Stopień certyfikacji",
+      "field_last_audit_date": "Data ostatniego audytu",
+      "field_next_audit_date": "Data następnego audytu",
+      "field_registration_name": "Typ rejestracji",
+      "field_registration_number": "Numer rejestracyjny",
+      "hint_brcgs_site_code": "Drukowany w nagłówkach PO, BOL, CoA i specyfikacji fabrycznej.",
+      "hint_certification_body": "Nazwa jednostki certyfikującej, która wydała certyfikat BRCGS.",
+      "hint_certification_grade": "Stopień lub poziom widoczny na dokumentach zgodności (np. AA, A, B).",
+      "hint_registrations": "Nazwane numery rejestracyjne (np. rejestr FDA, zatwierdzenie UE).",
+      "action_cancel": "Anuluj",
+      "action_save_changes": "Zapisz zmiany",
+      "action_add_registration": "Dodaj rejestrację",
+      "action_remove_registration": "Usuń",
+      "empty_registrations": "Nie skonfigurowano jeszcze numerów rejestracyjnych."
     }
   },
   "navigation": {
@@ -1703,7 +1736,8 @@
         "temp_ranges": "Zakresy temperatur",
         "docks": "Bramy dokowe",
         "scanner_auth": "Zatwierdzenia i PIN-y",
-        "npd_approval": "Wymagania zatwierdzenia"
+        "npd_approval": "Wymagania zatwierdzenia",
+        "compliance": "Profil zgodności"
       }
     },
     "npd": {
@@ -10737,7 +10771,8 @@
         "forbidden": "Nie masz uprawnień do wykonania tej operacji.",
         "not_found": "Nie znaleziono tego klienta.",
         "already_exists": "Klient o tym kodzie już istnieje.",
-        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
+        "address_in_use": "Nie można usunąć tego adresu — jest on powiązany z jednym lub wieloma otwartymi zamówieniami."
       }
     }
   },
@@ -11120,5 +11155,55 @@
     "auditLogPage": "Strona {page}",
     "auditLogPrev": "Poprzednia",
     "auditLogNext": "Następna"
+  },
+  "audit": {
+    "timeline": {
+      "title": "Historia",
+      "subtitle": "Tylko do odczytu — ślad audytu tego dokumentu.",
+      "empty": "Brak historii",
+      "emptyBody": "Zmiany tego dokumentu pojawią się tutaj.",
+      "colWhen": "Kiedy",
+      "colActor": "Kto",
+      "colAction": "Akcja",
+      "detailsToggle": "Szczegóły",
+      "showMore": "Pokaż więcej",
+      "loadingMore": "Ładowanie…",
+      "unknownActor": "Nieznany",
+      "source": {
+        "audit_events": "Zdarzenie audytu",
+        "audit_log": "Dziennik audytu",
+        "status_history": "Zmiana statusu"
+      }
+    }
+  },
+  "warehouse": {
+    "receivePo": {
+      "title": "Przyjęcie zamówienia zakupu",
+      "subtitle": "Przyjmij linie ZZ na magazyn bez skanera.",
+      "back": "Powrót do harmonogramu",
+      "backGrns": "Powrót do WPT",
+      "linesTitle": "Linie do przyjęcia ({count})",
+      "col": {
+        "ordered": "Zamówiono",
+        "received": "Przyjęto",
+        "outstanding": "Pozostało"
+      },
+      "form": {
+        "batch": "Partia dostawcy / lot",
+        "overConfirm": "Przyjęcie przekracza zamówioną ilość. Zaznacz, aby potwierdzić nadprzyjęcie."
+      },
+      "errors": {
+        "over_receive_confirm_required": "Potwierdź nadprzyjęcie przed wysłaniem."
+      }
+    },
+    "grnDetail": {
+      "receiveRemaining": "Przyjmij pozostałe linie",
+      "receiptProgress": "Zamówiono {ordered} · przyjęto {received} · pozostało {outstanding}",
+      "overReceivedBadge": "Nadprzyjęcie",
+      "shortReceivedBadge": "Niedobór"
+    },
+    "inbound": {
+      "receiveDesktop": "Przyjmij na pulpicie"
+    }
   }
 }

@@ -34,6 +34,7 @@ import {
 import { getSoCapabilities } from '../_actions/so-form-data';
 import { createShipment } from '../_actions/pack-actions';
 import { getCreateShipmentCapability } from '../shipments/_actions/shipments-data';
+import { DocumentAuditTimelineSection } from '../../_components/audit-timeline/document-audit-timeline-section';
 import { SoDetailView, type SoDetailLabels, type SoActionResult } from '../_components/so-detail-view';
 import {
   CreateShipmentButton,
@@ -198,6 +199,7 @@ async function DetailContent({ locale, soId }: { locale: string; soId: string })
   }
 
   return (
+    <div className="flex flex-col gap-4">
     <SoDetailView
       locale={locale}
       caps={caps}
@@ -238,6 +240,8 @@ async function DetailContent({ locale, soId }: { locale: string; soId: string })
       deallocateSalesOrderAction={deallocateAction}
       transitionSalesOrderStatusAction={transitionAction}
     />
+    <DocumentAuditTimelineSection entityType="sales_order" entityId={so.id} locale={locale} />
+    </div>
   );
 }
 

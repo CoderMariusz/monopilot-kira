@@ -35,6 +35,7 @@ import { listPurchaseOrderLineCounts } from '../../planning/purchase-orders/_act
 import { listTransferOrders } from '../../planning/transfer-orders/_actions/actions';
 import { listTransferWarehouses } from '../../planning/transfer-orders/_actions/to-form-data';
 import { getWhInboundTranslator } from './wh-inbound-labels';
+import { getWhReceiveTranslator } from '../receive-po/wh-receive-labels';
 import {
   InboundScheduleClient,
   type InboundLabels,
@@ -114,6 +115,7 @@ export function partitionInbound(rows: InboundRow[], today: string): InboundPart
 
 function buildLabels(locale: string): InboundLabels {
   const t = getWhInboundTranslator(locale);
+  const receiveT = getWhReceiveTranslator(locale);
   return {
     sections: {
       today: t('inbound.sections.today'),
@@ -130,6 +132,7 @@ function buildLabels(locale: string): InboundLabels {
       expected: t('inbound.columns.expected'),
       status: t('inbound.columns.status'),
       lines: t('inbound.columns.lines'),
+      receive: receiveT('inbound.receiveDesktop'),
     },
     type: { po: t('inbound.type.po'), to: t('inbound.type.to') },
     status: {
@@ -217,6 +220,7 @@ async function InboundContent({ locale }: { locale: string }) {
           type: 'po' as const,
           docNumber: po.poNumber,
           href: `/${locale}/planning/purchase-orders/${po.id}`,
+          receiveHref: `/${locale}/warehouse/receive-po/${po.id}`,
           party: po.supplierName ?? po.supplierCode ?? '—',
           status: po.status,
           expectedDate: dateKey(po.expectedDelivery),
@@ -269,14 +273,16 @@ export default async function InboundRoutePage({ params }: InboundRoutePageProps
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">{t('inbound.subtitle')}</p>
           </div>
-          {/* The receiving flow lives on the scanner — link out, do not re-implement. */}
-          <Link
-            href={`/${locale}/scanner/receive-po`}
-            data-testid="inbound-receive-link"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            {t('inbound.receiveOnScanner')} →
-          </Link>
+          {/* Desktop receive is the primary path; scanner remains available. */}
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/${locale}/scanner/receive-po`}
+              data-testid="inbound-receive-scanner-link"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              {t('inbound.receiveOnScanner')} →
+            </Link>
+          </div>
         </div>
 
         <div className="mt-8">

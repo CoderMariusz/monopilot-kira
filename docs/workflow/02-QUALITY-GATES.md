@@ -110,3 +110,11 @@ Every one of these shipped a GREEN local run while the deployed preview was brok
 Note on outbox vocabulary for the next modules (extends class 5): the SoT enum `packages/outbox/src/events.enum.ts` currently has **no `item.*` events** (only `bom.*`, `fg.bom.released`, `technical.factory_spec.approved`). Any new `item.created`/`item.updated`/etc. emitter MUST extend the enum + regenerate the DB CHECK and pass `check-drift.test.ts` first. Likewise after every migration, regenerate `packages/db/__expected__/schema.sql` (correctly regenerated @167 on the 03-technical Wave-A merge — keep that discipline).
 
 Gate-5 (live click-through as the org-admin test user) is the only gate that reliably catches classes 1, 3, 7, 9, 11, 12 and the stale-schema half of 4. Do not substitute a local green for it.
+
+## Gate 6 — Real Postgres Integration Leg
+
+MONEY and REGULATORY lanes that depend on Postgres semantics must run the real-DB leg from the repo root:
+
+1. Start the local database with `pnpm db:up`.
+2. Run `pnpm test:pg`. By default it uses `postgres://monopilot:monopilot@127.0.0.1:5432/monopilot`; override with `DATABASE_URL=... pnpm test:pg`.
+3. Treat a skipped pg suite as a missing gate when the lane is MONEY or REGULATORY. These tests cover behavior that mocks do not catch, including Postgres bind typing, RLS through `app.current_org_id()`, active-hold views, and NUMERIC WAC math.

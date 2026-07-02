@@ -69,10 +69,9 @@ export async function POST(request: NextRequest) {
             [input.shipmentId],
           );
           if (!shipmentAccess.rows[0]) return { ok: false as const, error: 'invalid_state' };
-          if (!shipmentAccess.rows[0].allowed) return { ok: false as const, error: 'forbidden' };
+          if (!shipmentAccess.rows[0].allowed) return { ok: false as const, error: 'invalid_state' };
           const lpAccess = await scannerLpSiteAccess(scopedClient, input.lpId);
-          if (lpAccess === 'not_found') return { ok: false as const, error: 'lp_not_found' };
-          if (lpAccess === 'forbidden') return { ok: false as const, error: 'forbidden' };
+          if (lpAccess !== 'ok') return { ok: false as const, error: 'lp_not_found' };
         }
         return packLpIntoBoxCore(
           { userId: session.user_id, orgId: session.org_id, client: scopedClient },

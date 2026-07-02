@@ -37,10 +37,12 @@ const CREATE_PERMISSION = 'settings.users.invite';
 const SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT = new Set([
   'owner',
   'admin',
+  'org_admin',
   'org.access.admin',
   'org.platform.admin',
   'org.schema.admin',
 ]);
+const SUPER_ROLE_CODES = ['owner', 'admin', 'org_admin'] as const;
 
 export type CreateUserWithPasswordInput = {
   email: string;
@@ -76,6 +78,13 @@ type RoleRow = {
   display_order: number | null;
 };
 
+type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const email = value.trim().toLowerCase();
@@ -108,6 +117,65 @@ async function createSupabaseAuthAdmin() {
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+async function hasSuperRole(client: QueryClient, userId: string, orgId: string): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (r.code = any($3::text[]) or r.slug = any($3::text[]))
+      limit 1`,
+    [userId, orgId, SUPER_ROLE_CODES],
+  );
+  return rows[0]?.ok === true;
+}
+
+async function readCallerPermissions(client: QueryClient, userId: string, orgId: string): Promise<Set<string>> {
+  const { rows } = await client.query<{ permission: string }>(
+    `select distinct permission
+       from (
+         select rp.permission
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           join public.role_permissions rp on rp.role_id = r.id
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+         union
+         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+       ) grants
+      where permission is not null`,
+    [userId, orgId],
+  );
+  return new Set(rows.map((row) => row.permission));
+}
+
+async function readRolePermissions(client: QueryClient, roleId: string): Promise<string[]> {
+  const { rows } = await client.query<{ permission: string }>(
+    `select distinct permission
+       from (
+         select rp.permission
+           from public.role_permissions rp
+           join public.roles r on r.id = rp.role_id
+          where r.org_id = app.current_org_id()
+            and r.id = $1::uuid
+         union
+         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           from public.roles r
+          where r.org_id = app.current_org_id()
+            and r.id = $1::uuid
+       ) grants
+      where permission is not null
+      order by permission`,
+    [roleId],
+  );
+  return rows.map((row) => row.permission);
 }
 
 export async function createUserWithPassword(
@@ -174,6 +242,19 @@ export async function createUserWithPassword(
       return { ok: false, error: 'forbidden_role' };
     }
     const roleId = role.id;
+
+    // Match the role editor's grantable-subset rule: super roles may assign any
+    // non-system business role; other assigners may only assign roles whose
+    // permissions are all already present in their own grant set.
+    if (!(await hasSuperRole(client, userId, orgId))) {
+      const [callerPermissions, targetPermissions] = await Promise.all([
+        readCallerPermissions(client, userId, orgId),
+        readRolePermissions(client, roleId),
+      ]);
+      if (targetPermissions.some((permission) => !callerPermissions.has(permission))) {
+        return { ok: false, error: 'forbidden_role' };
+      }
+    }
 
     // ── Reject duplicate email within the org before touching Supabase Auth. ─
     const { rows: existingRows } = await client.query<{ id: string }>(

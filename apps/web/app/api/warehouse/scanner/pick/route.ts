@@ -58,15 +58,14 @@ export async function POST(request: NextRequest) {
             );
             const materialRow = material.rows[0];
             if (!materialRow) return 'not_found' as const;
-            if (!materialRow.allowed) return 'forbidden' as const;
+            if (!materialRow.allowed) return 'not_found' as const;
             const lpAccess = await scannerLpSiteAccess(scopedClient, input.lpId);
             if (lpAccess !== 'ok') return lpAccess;
             const toLocationId = input.toLocationId ?? materialRow.staging_location_id;
             if (!toLocationId || !isUuid(toLocationId)) return 'ok' as const;
             return scannerLocationSiteAccess(scopedClient, toLocationId);
           });
-          if (access === 'not_found') return jsonError('not_found', 404);
-          if (access === 'forbidden') return jsonError('forbidden', 403);
+          if (access !== 'ok') return jsonError('not_found', 404);
         }
         return jsonOk(await pickScannerLp(scopedClient, session, input));
       } catch (error) {
