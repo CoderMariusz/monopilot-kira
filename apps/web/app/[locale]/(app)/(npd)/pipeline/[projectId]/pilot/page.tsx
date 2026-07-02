@@ -41,6 +41,8 @@ import { upsertPilotRun } from './_actions/upsert-pilot-run';
 import { listProductionLines } from './_actions/list-production-lines';
 import { getPilotRecipeMaterials } from './_actions/get-pilot-recipe-materials';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -236,6 +238,16 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
   }
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'pilot' });
+  } catch (error) {
+    console.error('[pilot] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 export default async function PilotPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PilotPageProps;
   const { locale, projectId } = props.params
@@ -293,6 +305,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
         recipeMaterials: props.data?.recipeMaterials ?? [],
       }
     : await readPageData(projectId);
+  const stageSections = await readStageSections(projectId);
 
   return (
     <>
@@ -324,6 +337,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
         onUpsertRun={upsertRunAction}
         onLoadRecipeMaterials={loadRecipeMaterialsAction}
       />
+      {stageSections ? <StageDeptSections projectId={projectId} stage="pilot" data={stageSections} /> : null}
     </>
   );
 }

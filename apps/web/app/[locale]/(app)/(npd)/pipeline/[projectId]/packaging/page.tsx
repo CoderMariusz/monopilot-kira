@@ -52,6 +52,8 @@ import {
   type PackagingTier,
   type QueryClient,
 } from './_actions/shared';
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -325,6 +327,16 @@ async function searchPackagingItemsAction(input: {
   return searchItems({ ...input, itemTypes: ['packaging'] });
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'packaging' });
+  } catch (error) {
+    console.error('[packaging] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 export default async function PackagingPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PackagingPageProps;
   const { locale, projectId } = props.params
@@ -347,6 +359,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
   if (!injected && loaded.state === 'ready' && loaded.data) {
     loaded.data.artwork = await readArtworkView(projectId);
   }
+  const stageSections = await readStageSections(projectId);
 
   return (
     <>
@@ -377,6 +390,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
         onDeleteArtwork={deleteArtworkAction}
         searchItemsAction={searchPackagingItemsAction}
       />
+      {stageSections ? <StageDeptSections projectId={projectId} stage="packaging" data={stageSections} /> : null}
     </>
   );
 }

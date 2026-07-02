@@ -32,6 +32,8 @@ import { updateTrialBatch } from './_actions/update-trial-batch';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { TRIAL_READ_PERMISSION, TRIAL_WRITE_PERMISSION, type TrialBatchView, type TrialResult } from './_actions/errors';
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -221,6 +223,16 @@ async function updateTrialAction(call: UpdateTrialCall): Promise<TrialActionOutc
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'trial' });
+  } catch (error) {
+    console.error('[trial] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 export default async function TrialPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as TrialPageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
@@ -231,28 +243,35 @@ export default async function TrialPage(propsInput: unknown = {}) {
   const loaded: LoaderResult = injected
     ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
     : await readPageData(projectId);
+  const stageSections = await readStageSections(projectId);
 
   // When empty but the caller can write, render the screen with an empty table +
   // the "Log new trial" CTA rather than the read-only empty notice.
   if (loaded.state === 'empty' && loaded.data?.canWrite) {
     return (
+      <>
+        <TrialScreen
+          state="ready"
+          data={loaded.data}
+          labels={labels}
+          onLogTrial={logTrialAction}
+          onUpdateTrial={updateTrialAction}
+        />
+        {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} /> : null}
+      </>
+    );
+  }
+
+  return (
+    <>
       <TrialScreen
-        state="ready"
+        state={loaded.state}
         data={loaded.data}
         labels={labels}
         onLogTrial={logTrialAction}
         onUpdateTrial={updateTrialAction}
       />
-    );
-  }
-
-  return (
-    <TrialScreen
-      state={loaded.state}
-      data={loaded.data}
-      labels={labels}
-      onLogTrial={logTrialAction}
-      onUpdateTrial={updateTrialAction}
-    />
+      {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} /> : null}
+    </>
   );
 }

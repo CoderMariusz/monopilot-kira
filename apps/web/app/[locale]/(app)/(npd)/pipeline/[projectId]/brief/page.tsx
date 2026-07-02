@@ -49,6 +49,8 @@ import {
   hasPermission,
   type OrgContextLike,
 } from '../../../../../../(npd)/pipeline/_actions/shared';
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -183,6 +185,16 @@ async function readAttachments(projectId: string): Promise<BriefAttachmentItem[]
   }
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'brief' });
+  } catch (error) {
+    console.error('[brief] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 export default async function ProjectBriefPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as ProjectBriefPageProps;
   const { locale, projectId } = props.params
@@ -208,17 +220,21 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
 
   const attachments =
     !injected && loaded.state === 'ready' && projectId ? await readAttachments(projectId) : [];
+  const stageSections = await readStageSections(projectId);
 
   return (
-    <ProjectBriefScreen
-      state={loaded.state}
-      data={loaded.data}
-      labels={labels}
-      canWrite={canWrite}
-      onUpdate={updateBriefAction}
-      attachments={attachments}
-      onUploadAttachment={uploadAttachmentAction}
-      onDeleteAttachment={deleteAttachmentAction}
-    />
+    <>
+      <ProjectBriefScreen
+        state={loaded.state}
+        data={loaded.data}
+        labels={labels}
+        canWrite={canWrite}
+        onUpdate={updateBriefAction}
+        attachments={attachments}
+        onUploadAttachment={uploadAttachmentAction}
+        onDeleteAttachment={deleteAttachmentAction}
+      />
+      {stageSections ? <StageDeptSections projectId={projectId} stage="brief" data={stageSections} /> : null}
+    </>
   );
 }

@@ -4179,6 +4179,16 @@
       "errorNotFound": "This project could not be found. It may have been deleted.",
       "errorGeneric": "Could not revert the gate. Try again.",
       "forbidden": "You do not have permission to revert gates."
+    },
+    "stageDeptSections": {
+      "noFgLinked": "Department fields are read-only until this project is linked to a Finished Good.",
+      "readOnly": "Read-only",
+      "save": "Save",
+      "saved": "Saved",
+      "saveFailed": "Save failed",
+      "selectPlaceholder": "Select...",
+      "booleanYes": "Yes",
+      "booleanNo": "No"
     }
   },
   "technical": {

@@ -6463,6 +6463,16 @@
       "errorNotFound": "Nie znaleziono tego projektu. Mógł zostać usunięty.",
       "errorGeneric": "Nie udało się cofnąć etapu. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do cofania etapów."
+    },
+    "stageDeptSections": {
+      "noFgLinked": "Pola działów są tylko do odczytu, dopóki projekt nie zostanie połączony z wyrobem gotowym.",
+      "readOnly": "Tylko do odczytu",
+      "save": "Zapisz",
+      "saved": "Zapisano",
+      "saveFailed": "Zapis nie powiódł się",
+      "selectPlaceholder": "Wybierz...",
+      "booleanYes": "Tak",
+      "booleanNo": "Nie"
     }
   },
   "Errors": {

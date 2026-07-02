@@ -27,6 +27,8 @@ import {
   type SensoryLabels,
   type SensoryScreenData,
 } from './_components/sensory-screen';
+import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +85,16 @@ function toPageState(state: SensoryPanelState): PageState {
   return state;
 }
 
+async function readStageSections(projectId: string) {
+  if (!projectId) return null;
+  try {
+    return await loadStageDeptSections({ projectId, stage: 'sensory' });
+  } catch (error) {
+    console.error('[sensory] stage department sections read failed:', error);
+    return null;
+  }
+}
+
 export default async function SensoryPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as SensoryPageProps;
   const { locale, projectId } = props.params
@@ -92,24 +104,31 @@ export default async function SensoryPage(propsInput: unknown = {}) {
   const labels = await buildLabels(locale);
 
   const injected = props.data !== undefined || props.state !== undefined;
+  const stageSections = await readStageSections(projectId);
 
   if (injected) {
     return (
-      <SensoryScreen
-        state={props.state ?? (props.data ? 'ready' : 'empty')}
-        data={props.data ?? null}
-        labels={labels}
-      />
+      <>
+        <SensoryScreen
+          state={props.state ?? (props.data ? 'ready' : 'empty')}
+          data={props.data ?? null}
+          labels={labels}
+        />
+        {stageSections ? <StageDeptSections projectId={projectId} stage="sensory" data={stageSections} /> : null}
+      </>
     );
   }
 
   const result = await getSensoryPanel(projectId);
 
   return (
-    <SensoryScreen
-      state={toPageState(result.state)}
-      data={result.data}
-      labels={labels}
-    />
+    <>
+      <SensoryScreen
+        state={toPageState(result.state)}
+        data={result.data}
+        labels={labels}
+      />
+      {stageSections ? <StageDeptSections projectId={projectId} stage="sensory" data={stageSections} /> : null}
+    </>
   );
 }
