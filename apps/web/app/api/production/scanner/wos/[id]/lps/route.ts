@@ -38,6 +38,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
             where org_id = app.current_org_id()
               and wo_id = $1::uuid
               and id = $2::uuid
+              and exists (
+                select 1
+                  from public.work_orders wo
+                 where wo.org_id = app.current_org_id()
+                   and wo.id = wo_materials.wo_id
+                   and app.user_can_see_site(wo.site_id)
+              )
             limit 1`,
           [woId, materialId],
         );
@@ -54,6 +61,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             where org_id = app.current_org_id()
               and product_id = $1::uuid
               and uom = $2
+              and app.user_can_see_site(site_id)
             order by expiry_date asc nulls last, lp_number asc
             limit 25`,
           [material.product_id, material.uom],

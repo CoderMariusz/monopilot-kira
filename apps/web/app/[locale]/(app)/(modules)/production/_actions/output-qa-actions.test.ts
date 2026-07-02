@@ -60,7 +60,7 @@ function makeClient(): QueryClient {
 
       if (normalized.includes('from public.v_active_holds')) {
         return {
-          rows: activeHold ? [{ hold_id: '99999999-9999-4999-8999-999999999999', reference_type: 'lp', reference_id: LP_ID }] : [],
+          rows: activeHold ? [{ hold_number: 'HLD-0001', priority: 'critical' }] : [],
           rowCount: activeHold ? 1 : 0,
         };
       }
@@ -117,15 +117,19 @@ describe('releaseWoOutputQa', () => {
     expect(history?.params?.[3]).toContain('"qaStatusTo":"released"');
   });
 
-  it('refuses PASSED when the linked LP has an active hold and does not release the LP', async () => {
+  it('keeps the linked LP unreleased on PASSED when another active hold remains', async () => {
     activeHold = true;
 
     const result = await releaseWoOutputQa({ outputId: OUTPUT_ID, decision: 'PASSED', note: 'lab pass' });
 
-    expect(result).toEqual({ ok: false, reason: 'error', message: 'quality_hold_active' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data).toMatchObject({ outputId: OUTPUT_ID, qaStatus: 'PASSED', lpId: LP_ID, lpQaStatus: null });
+    expect(lpQaStatus).toBe('pending');
     const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
     expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('update public.wo_outputs'))).toBe(true);
   });
 
   it('proceeds with PASSED when the linked LP has no active hold', async () => {

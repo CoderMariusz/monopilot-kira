@@ -37,19 +37,15 @@ vi.mock('./i18n/routing', () => ({
 }));
 
 const {
-  auditAdminIpBlockedMock,
   checkIdleTimeoutMock,
   establishOrgContextMock,
   intlHandlerMock,
-  isRequestIpAllowedMock,
   resolveEdgeSecurityContextMock,
   verifyScimBearerMock,
 } = vi.hoisted(() => ({
-  auditAdminIpBlockedMock: vi.fn(),
   checkIdleTimeoutMock: vi.fn(),
   establishOrgContextMock: vi.fn(),
   intlHandlerMock: vi.fn(),
-  isRequestIpAllowedMock: vi.fn(),
   resolveEdgeSecurityContextMock: vi.fn(),
   verifyScimBearerMock: vi.fn(),
 }));
@@ -63,9 +59,7 @@ vi.mock('./lib/auth/session-check', () => ({
 }));
 
 vi.mock('./lib/auth/edge-middleware-policy', () => ({
-  auditAdminIpBlocked: auditAdminIpBlockedMock,
   establishOrgContext: establishOrgContextMock,
-  isRequestIpAllowed: isRequestIpAllowedMock,
   resolveEdgeSecurityContext: resolveEdgeSecurityContextMock,
   verifyScimBearer: verifyScimBearerMock,
 }));
@@ -117,16 +111,13 @@ describe('T-035 edge middleware security composition', () => {
     verifyScimBearerMock.mockResolvedValue(false);
     resolveEdgeSecurityContextMock.mockResolvedValue({
       accessToken: 'fresh-access-token',
-      adminIpAllowlistCidrs: [],
       onboardingCompletedAt: '2026-05-01T00:00:00.000Z',
       orgId: '11111111-1111-1111-1111-111111111111',
       role: 'admin',
       sessionIdleTimeoutMinutes: 60,
     });
-    isRequestIpAllowedMock.mockReturnValue(true);
     checkIdleTimeoutMock.mockResolvedValue(new Response(null, { status: 200 }));
     establishOrgContextMock.mockResolvedValue(undefined);
-    auditAdminIpBlockedMock.mockResolvedValue(undefined);
   });
 
   it('keeps the public bypass list reachable and bypasses guards for a valid SCIM bearer request', async () => {
@@ -159,8 +150,6 @@ describe('T-035 edge middleware security composition', () => {
     expect(verifyScimBearerMock).toHaveBeenCalledWith('Bearer valid-scim-token');
     expect(verifyScimBearerMock).toHaveBeenCalledTimes(1);
     expect(resolveEdgeSecurityContextMock).not.toHaveBeenCalled();
-    expect(isRequestIpAllowedMock).not.toHaveBeenCalled();
-    expect(auditAdminIpBlockedMock).not.toHaveBeenCalled();
     expect(checkIdleTimeoutMock).not.toHaveBeenCalled();
     expect(establishOrgContextMock).not.toHaveBeenCalled();
     expect(intlHandlerMock).not.toHaveBeenCalled();
@@ -181,72 +170,11 @@ describe('T-035 edge middleware security composition', () => {
     }
   });
 
-  it('returns 403 IP_NOT_ALLOWED and writes a sanitized audit row when admin IP allowlist denies /admin', async () => {
-    resolveEdgeSecurityContextMock.mockResolvedValueOnce({
-      accessToken: 'fresh-access-token',
-      adminIpAllowlistCidrs: ['203.0.113.0/24'],
-      onboardingCompletedAt: '2026-05-01T00:00:00.000Z',
-      orgId: '22222222-2222-2222-2222-222222222222',
-      role: 'admin',
-      sessionIdleTimeoutMinutes: 60,
-    });
-    isRequestIpAllowedMock.mockReturnValueOnce(false);
-    const { default: middleware } = await loadMiddleware();
-
-    const response = await middleware(
-      makeRequest('/admin/users', {
-        authorization: 'Bearer secret-scim-or-user-token',
-        cookie: 'sb-access-token=secret-cookie-value',
-        forwardedFor: '198.51.100.42',
-      }),
-    );
-
-    expect(response.status).toBe(403);
-    await expect(response.text()).resolves.toContain('IP_NOT_ALLOWED');
-    expect(auditAdminIpBlockedMock).toHaveBeenCalledWith({
-      attemptedRoute: '/admin/users',
-      eventType: 'admin_ip_blocked',
-      orgId: '22222222-2222-2222-2222-222222222222',
-      sourceIp: '198.51.100.42',
-    });
-    expect(JSON.stringify(auditAdminIpBlockedMock.mock.calls[0])).not.toMatch(/secret|authorization|cookie/i);
-    expect(intlHandlerMock).not.toHaveBeenCalled();
-  });
-
-  it('applies the admin IP allowlist to locale-prefixed admin routes', async () => {
-    resolveEdgeSecurityContextMock.mockResolvedValueOnce({
-      accessToken: 'fresh-access-token',
-      adminIpAllowlistCidrs: ['203.0.113.0/24'],
-      onboardingCompletedAt: '2026-05-01T00:00:00.000Z',
-      orgId: '22222222-2222-2222-2222-222222222222',
-      role: 'admin',
-      sessionIdleTimeoutMinutes: 60,
-    });
-    isRequestIpAllowedMock.mockReturnValueOnce(false);
-    const { default: middleware } = await loadMiddleware();
-
-    const response = await middleware(
-      makeRequest('/en/admin/users', {
-        forwardedFor: '198.51.100.42',
-      }),
-    );
-
-    expect(response.status).toBe(403);
-    expect(auditAdminIpBlockedMock).toHaveBeenCalledWith({
-      attemptedRoute: '/en/admin/users',
-      eventType: 'admin_ip_blocked',
-      orgId: '22222222-2222-2222-2222-222222222222',
-      sourceIp: '198.51.100.42',
-    });
-    expect(intlHandlerMock).not.toHaveBeenCalled();
-  });
-
   it('redirects users with incomplete onboarding before idle timeout or org context resolution', async () => {
     const { default: middleware } = await loadMiddleware();
 
     resolveEdgeSecurityContextMock.mockResolvedValueOnce({
       accessToken: 'fresh-access-token',
-      adminIpAllowlistCidrs: [],
       onboardingCompletedAt: null,
       orgId: '33333333-3333-3333-3333-333333333333',
       role: 'admin',
@@ -257,7 +185,6 @@ describe('T-035 edge middleware security composition', () => {
 
     resolveEdgeSecurityContextMock.mockResolvedValueOnce({
       accessToken: 'fresh-access-token',
-      adminIpAllowlistCidrs: [],
       onboardingCompletedAt: null,
       orgId: '44444444-4444-4444-4444-444444444444',
       role: 'viewer',
@@ -274,7 +201,6 @@ describe('T-035 edge middleware security composition', () => {
   it('allows authenticated locale home to render as the post-login landing page even before onboarding metadata is present', async () => {
     resolveEdgeSecurityContextMock.mockResolvedValueOnce({
       accessToken: 'fresh-access-token',
-      adminIpAllowlistCidrs: [],
       onboardingCompletedAt: null,
       orgId: '55555555-5555-5555-5555-555555555555',
       role: 'member',

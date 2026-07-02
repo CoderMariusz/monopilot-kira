@@ -249,8 +249,8 @@ describe('inventory pivot actions', () => {
     expect(sql).not.toContain('v_inventory_available');
     expect(sql).toContain("lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')");
     expect(sql).toContain('sum(lp.quantity) filter ( where lp.status = \'available\' and lp.qa_status = \'released\' )');
-    // SW: strict site scope is applied with the active site as a bound param.
-    expect(sql).toContain('lp.site_id = $1::uuid');
+    // SW: site scope includes NULL-site stock (F10 owner ruling).
+    expect(sql).toContain('(lp.site_id = $1::uuid or lp.site_id is null)');
     const call = vi
       .mocked(client.query)
       .mock.calls.find(([s]) => normalize(s).includes('from public.license_plates lp'));
@@ -271,7 +271,7 @@ describe('inventory pivot actions', () => {
     });
     const sql = directInventorySql();
     expect(sql).not.toContain('v_inventory_available');
-    expect(sql).toContain('lp.site_id = $1::uuid');
+    expect(sql).toContain('(lp.site_id = $1::uuid or lp.site_id is null)');
   });
 
   it('by batch uses the same on-hand and pickable scope', async () => {
@@ -288,7 +288,7 @@ describe('inventory pivot actions', () => {
     });
     const sql = directInventorySql();
     expect(sql).not.toContain('v_inventory_available');
-    expect(sql).toContain('lp.site_id = $1::uuid');
+    expect(sql).toContain('(lp.site_id = $1::uuid or lp.site_id is null)');
   });
 });
 
@@ -340,5 +340,21 @@ describe('inventory pivot actions — FAIL-CLOSED site scope', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected forbidden');
     expect(result.reason).toBe('forbidden');
+  });
+});
+
+describe('inventory pivot actions — NULL-site stock visibility', () => {
+  it('includes NULL-site license plates in site-filtered reads (F10 owner ruling)', async () => {
+    await getInventoryByProduct();
+    const productSql = directInventorySql();
+    expect(productSql).toContain('(lp.site_id = $1::uuid or lp.site_id is null)');
+
+    await getInventoryByLocation();
+    const locationSql = directInventorySql();
+    expect(locationSql).toContain('(lp.site_id = $1::uuid or lp.site_id is null)');
+
+    await getInventoryByBatch();
+    const batchSql = directInventorySql();
+    expect(batchSql).toContain('(lp.site_id = $1::uuid or lp.site_id is null)');
   });
 });

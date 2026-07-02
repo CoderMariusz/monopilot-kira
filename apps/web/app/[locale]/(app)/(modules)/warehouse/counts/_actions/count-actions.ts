@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
+import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -1053,6 +1054,20 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
     const adjustmentQty = absDecimal(recomputedVarianceQty);
     if (varianceMicro === 0n) throw new Error('variance_is_zero');
 
+    let shrinkageLegs: ShrinkageLeg[] | null = null;
+    if (varianceMicro < 0n) {
+      shrinkageLegs = await selectLpsForShrinkage(ctx.client, {
+        warehouseId: countLineForApply.warehouse_id,
+        locationId: countLineForApply.location_id,
+        itemId: countLineForApply.item_id,
+        lpId: countLineForApply.lp_id,
+        quantity: adjustmentQty,
+      });
+      for (const leg of shrinkageLegs) {
+        await assertNoActiveHoldForLp(leg.lp.id, ctx.client);
+      }
+    }
+
     const signatureReceipt = await signEvent(
       {
         signerUserId: userId,
@@ -1106,14 +1121,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       });
       adjustmentLegs.push({ lpId: adjustedLpId, siteId, quantity: adjustmentQty, uom });
     } else if (varianceMicro < 0n) {
-      const shrinkageLegs = await selectLpsForShrinkage(ctx.client, {
-        warehouseId: countLineForApply.warehouse_id,
-        locationId: countLineForApply.location_id,
-        itemId: countLineForApply.item_id,
-        lpId: countLineForApply.lp_id,
-        quantity: adjustmentQty,
-      });
-      for (const leg of shrinkageLegs) {
+      for (const leg of shrinkageLegs ?? []) {
         await reduceLicensePlateForShrinkage(ctx, {
           lp: leg.lp,
           quantity: leg.quantity,

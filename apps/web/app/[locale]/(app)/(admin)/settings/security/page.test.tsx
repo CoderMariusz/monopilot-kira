@@ -15,8 +15,6 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SecurityScreen, {
-  type AddIpRange,
-  type RemoveIpRange,
   type SaveSecuritySettings,
   type SecurityScreenLabels,
 } from './security-screen.client';
@@ -54,21 +52,16 @@ type SecurityScreenData = {
     idleTimeout: '15' | '30' | '60' | '4h' | 'never';
     maximumSessionLength: '4h' | '8h' | '12h' | '24h';
   };
-  ipAllowlist: Array<{ id: string; cidr: string; label: string | null }>;
   auditLog: AuditLogRow[];
 };
 
 type TestSaveSecuritySettings = SaveSecuritySettings & ReturnType<typeof vi.fn>;
-type TestAddIpRange = AddIpRange & ReturnType<typeof vi.fn>;
-type TestRemoveIpRange = RemoveIpRange & ReturnType<typeof vi.fn>;
 
 type SecurityPageProps = {
   data: SecurityScreenData;
   state?: 'ready' | 'loading' | 'empty' | 'error';
   canManageSecurity: boolean;
   saveSecuritySettings: TestSaveSecuritySettings;
-  addIpRange: TestAddIpRange;
-  removeIpRange: TestRemoveIpRange;
   auditLogHref: string;
 };
 
@@ -76,7 +69,6 @@ const securityAuditTables = [
   'org_security_policies',
   'org_sso_config',
   'scim_tokens',
-  'admin_ip_allowlist',
 ] as const;
 
 const data: SecurityScreenData = {
@@ -103,16 +95,7 @@ const data: SecurityScreenData = {
     idleTimeout: '60',
     maximumSessionLength: '8h',
   },
-  ipAllowlist: [],
   auditLog: [
-    {
-      id: 'audit-06',
-      occurredAt: '2026-05-20 15:01',
-      actorName: 'Ops Admin',
-      action: 'Added admin IP range 10.0.0.0/24',
-      ipAddress: '192.168.1.42',
-      tableName: 'admin_ip_allowlist',
-    },
     {
       id: 'audit-05',
       occurredAt: '2026-05-20 14:54',
@@ -201,27 +184,8 @@ const labels: SecurityScreenLabels = {
   enforceSsoHint: 'Password login disabled for non-admin users when on.',
   scimTitle: 'SCIM',
   scimProvisioning: 'SCIM provisioning',
-  ipAllowlistTitle: 'IP allowlist',
-  ipAllowlistHint: 'Restrict admin login to specific IPs or ranges.',
   notConfigured: 'Not configured',
-  addRange: '+ Add range',
-  addIpRangeTitle: 'Add IP range',
   close: 'Close',
-  addIpRangeHelp: 'Add a CIDR range for administrator sign-in.',
-  ipCidrLabel: 'CIDR range',
-  ipCidrPlaceholder: '203.0.113.0/24',
-  ipCidrHint: 'IPv4 or IPv6 with a prefix.',
-  ipLabelLabel: 'Label (optional)',
-  ipLabelPlaceholder: 'e.g. HQ office',
-  ipAddSubmit: 'Add range',
-  ipAdding: 'Adding…',
-  ipRemove: 'Remove',
-  ipRemoving: 'Removing…',
-  ipRemoveConfirm: 'Remove this IP range from the admin allowlist?',
-  ipErrorInvalid: 'Enter a valid CIDR range.',
-  ipErrorOverlap: 'The all-internet range cannot be allowlisted.',
-  ipErrorForbidden: 'You do not have permission to change the IP allowlist.',
-  ipErrorFailed: 'Could not save the IP range. Try again.',
   notAvailableYet: 'Not available yet',
   auditLogTitle: 'Audit log',
   viewFullLog: 'View full log →',
@@ -246,11 +210,6 @@ async function renderSecurity(overrides: Partial<SecurityPageProps> = {}) {
     state: 'ready',
     canManageSecurity: true,
     saveSecuritySettings: vi.fn(async (_next: SecurityScreenData) => ({ ok: true as const, data })) as TestSaveSecuritySettings,
-    addIpRange: vi.fn(async (cidr: string, label?: string | null) => ({
-      ok: true as const,
-      data: { id: 'ip-new', cidr, label: label ?? null },
-    })) as TestAddIpRange,
-    removeIpRange: vi.fn(async (id: string) => ({ ok: true as const, data: { id } })) as TestRemoveIpRange,
     auditLogHref: '/settings/audit',
     ...overrides,
   };
@@ -310,7 +269,6 @@ describe('SET-012 security screen prototype parity', () => {
       'sessions',
       'sso',
       'scim',
-      'ip-allowlist',
       'audit-preview',
     ]);
 
@@ -327,7 +285,6 @@ describe('SET-012 security screen prototype parity', () => {
       'Provider',
       'Enforce SSO',
       'SCIM provisioning',
-      'IP allowlist',
     ]);
 
     const twoFactor = screen.getByRole('region', { name: /two-factor authentication/i });
@@ -360,15 +317,6 @@ describe('SET-012 security screen prototype parity', () => {
 
     const scim = screen.getByRole('region', { name: /scim/i });
     expect(within(scim).getByRole('checkbox', { name: /scim provisioning/i })).toBeChecked();
-
-    const ipAllowlist = screen.getByRole('region', { name: /ip allowlist/i });
-    expect(within(ipAllowlist).getByText(/not configured/i)).toBeInTheDocument();
-    const addRange = within(ipAllowlist).getByRole('button', { name: /add range/i });
-    expect(addRange).toHaveAttribute('data-modal-target', 'SM-IP-ALLOWLIST');
-    await act(async () => {
-      await user.click(addRange);
-    });
-    expect(screen.getByRole('dialog', { name: /add ip range/i })).toHaveAttribute('data-modal-id', 'SM-IP-ALLOWLIST');
 
     // The four boolean toggles now use the `.sg-toggle` slider (native checkbox
     // input inside `label.sg-toggle`), NOT the shadcn `Switch`. The three 2FA
@@ -408,12 +356,12 @@ describe('SET-012 security screen prototype parity', () => {
 
     // Number fields are native inputs (the `.sg-field` CSS caps width); no shadcn Input slot.
     expect(container.querySelectorAll('input[type="number"]').length).toBe(2);
-    expect(container.querySelectorAll('button[data-slot="button"]').length).toBeGreaterThanOrEqual(2);
+    expect(container.querySelectorAll('button[data-slot="button"]').length).toBeGreaterThanOrEqual(1);
 
     // Rows render via the shared design-system primitives.
     expect(container.querySelectorAll('.sg-section').length).toBeGreaterThanOrEqual(7);
     expect(container.querySelectorAll('.sg-section-foot').length).toBeGreaterThanOrEqual(1);
-    expect(container.querySelectorAll('.sg-row').length).toBe(13);
+    expect(container.querySelectorAll('.sg-row').length).toBe(12);
 
     await user.tab();
     expect(toggleInputs[0]).toHaveFocus();
@@ -452,7 +400,6 @@ describe('SET-012 security screen prototype parity', () => {
           "Provider",
           "Enforce SSO",
           "SCIM provisioning",
-          "IP allowlist",
         ],
         "regions": [
           "page-head",
@@ -461,7 +408,6 @@ describe('SET-012 security screen prototype parity', () => {
           "sessions",
           "sso",
           "scim",
-          "ip-allowlist",
           "audit-preview",
         ],
       }
@@ -506,9 +452,8 @@ describe('SET-012 security screen prototype parity', () => {
     const table = within(auditPreview).getByRole('table', { name: /security audit log preview/i });
     const bodyRows = within(table).getAllByRole('row').slice(1);
 
-    expect(bodyRows).toHaveLength(5);
+    expect(bodyRows).toHaveLength(4);
     expect(bodyRows.map((row) => within(row).getAllByRole('cell')[2]?.textContent)).toEqual([
-      'Added admin IP range 10.0.0.0/24',
       'Rotated SCIM token',
       'Enabled SSO enforcement',
       'Changed password policy',
@@ -596,123 +541,6 @@ describe('SET-012 security screen — wired controls persist through one Save', 
     expect(screen.getByRole('combobox', { name: /maximum session length/i })).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: /scim provisioning/i })).toBeDisabled();
     expect(screen.getByRole('spinbutton', { name: /block reuse of last n passwords/i })).toBeDisabled();
-  });
-});
-
-describe('SET-012 security screen — IP allowlist add/remove', () => {
-  beforeEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-  });
-
-  it('submits the exact CIDR + label payload to addIpRange and lists the new range', async () => {
-    const user = userEvent.setup();
-    const addIpRange = vi.fn(async (cidr: string, label?: string | null) => ({
-      ok: true as const,
-      data: { id: 'ip-9', cidr, label: label ?? null },
-    })) as TestAddIpRange;
-    await renderSecurity({ addIpRange });
-
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /add range/i }));
-    });
-    const dialog = screen.getByRole('dialog', { name: /add ip range/i });
-
-    await act(async () => {
-      await user.type(within(dialog).getByRole('textbox', { name: /cidr range/i }), '203.0.113.0/24');
-      await user.type(within(dialog).getByRole('textbox', { name: /label/i }), 'HQ office');
-    });
-    await act(async () => {
-      await user.click(within(dialog).getByRole('button', { name: /^add range$/i }));
-    });
-
-    expect(addIpRange).toHaveBeenCalledTimes(1);
-    expect(addIpRange).toHaveBeenCalledWith('203.0.113.0/24', 'HQ office');
-
-    // Dialog closes and the new range appears in the allowlist.
-    expect(screen.queryByRole('dialog', { name: /add ip range/i })).not.toBeInTheDocument();
-    const ipAllowlist = screen.getByRole('region', { name: /ip allowlist/i });
-    expect(within(ipAllowlist).getByText('203.0.113.0/24')).toBeInTheDocument();
-    expect(within(ipAllowlist).getByText('HQ office')).toBeInTheDocument();
-  });
-
-  it('omits the optional label when left blank', async () => {
-    const user = userEvent.setup();
-    const addIpRange = vi.fn(async (cidr: string, label?: string | null) => ({
-      ok: true as const,
-      data: { id: 'ip-10', cidr, label: label ?? null },
-    })) as TestAddIpRange;
-    await renderSecurity({ addIpRange });
-
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /add range/i }));
-    });
-    const dialog = screen.getByRole('dialog', { name: /add ip range/i });
-    await act(async () => {
-      await user.type(within(dialog).getByRole('textbox', { name: /cidr range/i }), '10.0.0.0/8');
-    });
-    await act(async () => {
-      await user.click(within(dialog).getByRole('button', { name: /^add range$/i }));
-    });
-
-    expect(addIpRange).toHaveBeenCalledWith('10.0.0.0/8', null);
-  });
-
-  it('surfaces the add-range error inline and keeps the dialog open', async () => {
-    const user = userEvent.setup();
-    const addIpRange = vi.fn(async () => ({
-      ok: false as const,
-      error: 'CIDR_OVERLAP_DEFAULT' as const,
-    })) as TestAddIpRange;
-    await renderSecurity({ addIpRange });
-
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /add range/i }));
-    });
-    const dialog = screen.getByRole('dialog', { name: /add ip range/i });
-    await act(async () => {
-      await user.type(within(dialog).getByRole('textbox', { name: /cidr range/i }), '0.0.0.0/0');
-    });
-    await act(async () => {
-      await user.click(within(dialog).getByRole('button', { name: /^add range$/i }));
-    });
-
-    expect(await within(dialog).findByText(/all-internet range cannot be allowlisted/i)).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: /add ip range/i })).toBeInTheDocument();
-  });
-
-  it('removes a range only after the confirm prompt and calls removeIpRange with its id', async () => {
-    const user = userEvent.setup();
-    const removeIpRange = vi.fn(async (id: string) => ({ ok: true as const, data: { id } })) as TestRemoveIpRange;
-    const confirmSpy = vi.spyOn(window, 'confirm');
-
-    const seeded: SecurityScreenData = {
-      ...data,
-      ipAllowlist: [{ id: 'ip-1', cidr: '198.51.100.0/24', label: 'Branch' }],
-    };
-    await renderSecurity({ data: seeded, removeIpRange });
-
-    const ipAllowlist = screen.getByRole('region', { name: /ip allowlist/i });
-    const removeButton = within(ipAllowlist).getByRole('button', { name: /remove 198\.51\.100\.0\/24/i });
-
-    // Cancel path: confirm returns false -> no action call, row stays.
-    confirmSpy.mockReturnValueOnce(false);
-    await act(async () => {
-      await user.click(removeButton);
-    });
-    expect(removeIpRange).not.toHaveBeenCalled();
-    expect(within(ipAllowlist).getByText('198.51.100.0/24')).toBeInTheDocument();
-
-    // Confirm path: confirm returns true -> action called, row removed.
-    confirmSpy.mockReturnValueOnce(true);
-    await act(async () => {
-      await user.click(removeButton);
-    });
-    expect(removeIpRange).toHaveBeenCalledTimes(1);
-    expect(removeIpRange).toHaveBeenCalledWith('ip-1');
-    expect(within(ipAllowlist).queryByText('198.51.100.0/24')).not.toBeInTheDocument();
-
-    confirmSpy.mockRestore();
   });
 });
 

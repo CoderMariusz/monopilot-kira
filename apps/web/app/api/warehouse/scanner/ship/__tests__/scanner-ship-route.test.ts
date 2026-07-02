@@ -184,6 +184,20 @@ function mockPackQueries(options: {
       return { rows: [], rowCount: 1 };
     }
 
+    if (q.startsWith('update public.license_plates set source_so_id')) {
+      return { rows: [], rowCount: 1 };
+    }
+
+    // Shipment site-gate (select app.user_can_see_site(sh.site_id) from public.shipments)
+    if (q.startsWith('select app.user_can_see_site(sh.site_id)')) {
+      return { rows: [{ allowed: true }], rowCount: 1 };
+    }
+
+    // scannerLpSiteAccess: site-gate LP query (no for update)
+    if (q.startsWith('select app.user_can_see_site(lp.site_id)')) {
+      return { rows: [{ allowed: true }], rowCount: 1 };
+    }
+
     throw new Error(`unexpected query: ${q}`);
   });
 }

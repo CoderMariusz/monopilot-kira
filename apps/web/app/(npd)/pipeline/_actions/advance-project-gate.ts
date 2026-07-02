@@ -55,6 +55,8 @@ const inputSchema = z.object({
   projectId: z.string().uuid(),
   targetStage: z.enum(STAGE_VALUES),
   productCode: z.string().trim().min(1).max(80).optional().nullable(),
+  /** Optional audit note from the advance modal; stored in the outbox event payload. */
+  notes: z.string().trim().max(2000).optional().nullable(),
 });
 
 export type AdvanceProjectGateResult =
@@ -146,6 +148,9 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
           previous_stage: project.current_stage,
           current_stage: targetStage,
           product_code: productCode,
+          // Notes from the advance modal are recorded in the event payload so
+          // they travel with the audit trail — no schema change required.
+          ...(parsed.data.notes ? { notes: parsed.data.notes } : {}),
         },
         dedupKey: `${GATE_ADVANCED_EVENT}:${project.id}:${project.current_stage}:${targetStage}`,
       });

@@ -2,7 +2,7 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
-import { createPurchaseOrder } from './actions';
+import { createPurchaseOrderCore } from './create-purchase-order-core';
 
 export type PoImportRow = {
   external_ref: string;
@@ -130,6 +130,12 @@ export async function commitPoImport(
     ]);
 
     for (const group of groupRows(rowsToCreate)) {
+      const alreadyExists = await checkPoNumberExists(ctx.client, group.externalRef);
+      if (alreadyExists) {
+        failGroup(runtimeFailed, group, 'po_number', `Purchase order number "${group.externalRef}" already exists (duplicate_po_number).`);
+        continue;
+      }
+
       const supplier = suppliers.get(group.supplierCode);
       if (!supplier) {
         failGroup(runtimeFailed, group, 'supplier_code', `Supplier code "${group.supplierCode}" was not found for this org.`);
@@ -158,7 +164,7 @@ export async function commitPoImport(
       }
       if (groupHasLookupFailure) continue;
 
-      const result = await createPurchaseOrder({
+      const result = await createPurchaseOrderCore(ctx, {
         poNumber: group.externalRef,
         supplierId: supplier.id,
         status: 'draft',
@@ -177,7 +183,7 @@ export async function commitPoImport(
         runtimeFailed,
         group,
         'external_ref',
-        `Could not create purchase order for external_ref "${group.externalRef}": ${result.message ?? result.error}.`,
+        `Could not create purchase order for external_ref "${group.externalRef}": ${result.error}.`,
       );
     }
 
@@ -308,6 +314,18 @@ async function loadOrgUnits(client: QueryClient, rawCodes: string[]): Promise<Se
     [codes],
   );
   return new Set(rows.map((row) => row.code));
+}
+
+async function checkPoNumberExists(client: QueryClient, poNumber: string): Promise<boolean> {
+  const { rows } = await client.query<{ exists: boolean }>(
+    `select exists(
+       select 1 from public.purchase_orders
+        where org_id = app.current_org_id()
+          and po_number = $1
+     ) as exists`,
+    [poNumber],
+  );
+  return rows[0]?.exists === true;
 }
 
 async function findExistingPurchaseOrderRefs(client: QueryClient, rawRefs: string[]): Promise<Set<string>> {

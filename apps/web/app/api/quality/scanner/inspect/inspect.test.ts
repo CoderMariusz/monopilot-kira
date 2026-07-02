@@ -149,6 +149,34 @@ describe('quality scanner inspect route', () => {
     expect(auditInsert).toBeTruthy();
   });
 
+  it('replay probe filters on operation for per-operation idempotency', async () => {
+    const { POST } = await import('./route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(sql);
+      if (q.includes('from public.scanner_audit_log') && q.includes('client_op_id')) {
+        return { rows: [], rowCount: 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await POST(
+      request({
+        clientOpId: 'inspect-op-filter',
+        lpId: LP_ID,
+        decision: 'pass',
+      }) as never,
+    );
+
+    const replayProbe = fakeClient.query.mock.calls.find((call) => {
+      const q = normalize(String(call[0]));
+      return q.includes('from public.scanner_audit_log') && q.includes('client_op_id');
+    });
+    expect(replayProbe).toBeTruthy();
+    expect(normalize(String(replayProbe?.[0]))).toContain('and operation = $3');
+    expect(normalize(String(replayProbe?.[0]))).toContain("operation not like 'client.%'");
+    expect(replayProbe?.[1]).toEqual([session.org_id, 'inspect-op-filter', 'quality.scanner.inspect']);
+  });
+
   it('returns replay without creating another inspection', async () => {
     const { POST } = await import('./route');
     fakeClient.query.mockImplementation(async (sql: string) => {

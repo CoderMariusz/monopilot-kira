@@ -9,7 +9,7 @@
  * action uses it while keeping the data mutation in the production module.
  */
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { holdsGuard } from '../../../../../../lib/production/holds-guard';
+import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import {
   hasPermission,
   type ProductionContext,
@@ -97,7 +97,7 @@ export async function releaseWoOutputQa(
       const row = updated.rows[0];
       if (!row) return { ok: false, reason: 'error', message: 'invalid_state' };
 
-      const lpQaStatus = decision === 'PASSED' ? 'released' : 'rejected';
+      let lpQaStatus: 'released' | 'rejected' | null = decision === 'PASSED' ? 'released' : 'rejected';
       if (row.lp_id) {
         const lpBefore = await ctx.client.query<{ id: string; status: string; qa_status: string }>(
           `select id::text, status, qa_status
@@ -109,49 +109,60 @@ export async function releaseWoOutputQa(
         );
         const lp = lpBefore.rows[0];
         if (lp) {
+          let shouldUpdateLpQa = true;
           if (lpQaStatus === 'released') {
-            const hold = await holdsGuard(ctx, { lpId: row.lp_id });
-            if (hold) throw new Error('quality_hold_active');
+            try {
+              await assertNoActiveHoldForLp(row.lp_id, ctx.client);
+            } catch (error) {
+              if (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'QA_HOLD_ACTIVE') {
+                shouldUpdateLpQa = false;
+                lpQaStatus = lp.qa_status === 'rejected' ? 'rejected' : null;
+              } else {
+                throw error;
+              }
+            }
           }
 
-          await ctx.client.query(
-            `update public.license_plates
-                set qa_status = $2,
-                    updated_by = $3::uuid
-              where org_id = app.current_org_id()
-                and id = $1::uuid`,
-            [row.lp_id, lpQaStatus, userId],
-          );
-          await ctx.client.query(
-            `insert into public.lp_state_history
-               (org_id, lp_id, from_state, to_state, reason_code, reason_text, transaction_id, ext_jsonb, created_by)
-             values
-               (
-                 app.current_org_id(),
-                 $1::uuid,
-                 $2,
-                 $3,
-                 'production_output_qa_changed',
-                 $5,
-                 gen_random_uuid(),
-                 $4::jsonb,
-                 $6::uuid
-               )`,
-            [
-              row.lp_id,
-              lp.qa_status,
-              lpQaStatus,
-              JSON.stringify({
-                outputId,
-                outputQaStatusFrom: output.qa_status,
-                outputQaStatusTo: decision,
-                qaStatusFrom: lp.qa_status,
-                qaStatusTo: lpQaStatus,
-              }),
-              note,
-              userId,
-            ],
-          );
+          if (shouldUpdateLpQa) {
+            await ctx.client.query(
+              `update public.license_plates
+                  set qa_status = $2,
+                      updated_by = $3::uuid
+                where org_id = app.current_org_id()
+                  and id = $1::uuid`,
+              [row.lp_id, lpQaStatus, userId],
+            );
+            await ctx.client.query(
+              `insert into public.lp_state_history
+                 (org_id, lp_id, from_state, to_state, reason_code, reason_text, transaction_id, ext_jsonb, created_by)
+               values
+                 (
+                   app.current_org_id(),
+                   $1::uuid,
+                   $2,
+                   $3,
+                   'production_output_qa_changed',
+                   $5,
+                   gen_random_uuid(),
+                   $4::jsonb,
+                   $6::uuid
+                 )`,
+              [
+                row.lp_id,
+                lp.qa_status,
+                lpQaStatus,
+                JSON.stringify({
+                  outputId,
+                  outputQaStatusFrom: output.qa_status,
+                  outputQaStatusTo: decision,
+                  qaStatusFrom: lp.qa_status,
+                  qaStatusTo: lpQaStatus,
+                }),
+                note,
+                userId,
+              ],
+            );
+          }
         }
       }
 

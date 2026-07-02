@@ -69,4 +69,13 @@ describe('listLPs site filter (14-multi-site CL4)', () => {
     expect(call.params[1]).toBe('LP-1');
     expect(call.params[2]).toBe(SITE_ID);
   });
+
+  it('includes NULL-site rows even when a site filter is active (F10 fix)', async () => {
+    const result = await listLPs({ limit: 200, siteId: SITE_ID });
+    expect(result.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    const [call] = calls;
+    // Verify the SQL includes the NULL-site visibility clause
+    expect(call.sql).toContain('$3::uuid is null or lp.site_id = $3::uuid or lp.site_id is null');
+  });
 });

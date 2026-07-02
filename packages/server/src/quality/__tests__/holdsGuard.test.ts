@@ -28,6 +28,90 @@ describe('QaHoldActiveError envelope (unit)', () => {
       reason_code: null,
     });
   });
+
+  it('throws on an active LP hold from the caller context client', async () => {
+    const queries: Array<{ sql: string; values: unknown[] | undefined }> = [];
+    const client = {
+      query: async (sql: string, values?: unknown[]) => {
+        queries.push({ sql, values });
+        return { rows: [{ hold_number: 'HLD-00000042', priority: 'critical' }], rowCount: 1 };
+      },
+    };
+
+    await expect(assertNoActiveHoldForLp('11111111-1111-4111-8111-111111111111', client)).rejects.toMatchObject({
+      status: 409,
+      code: 'QA_HOLD_ACTIVE',
+      holdNumber: 'HLD-00000042',
+    });
+    expect(queries[0]?.sql).toContain('from public.v_active_holds');
+    expect(queries[0]?.sql).toContain('reference_text');
+    expect(queries[0]?.sql).toContain('supplier_batch_number');
+    expect(queries[0]?.sql).toContain('app.current_org_id()');
+    expect(queries[0]?.values).toEqual(['11111111-1111-4111-8111-111111111111']);
+  });
+
+  it('passes when no active LP or batch hold covers the LP', async () => {
+    const client = {
+      query: async () => ({ rows: [], rowCount: 0 }),
+    };
+
+    await expect(assertNoActiveHoldForLp('11111111-1111-4111-8111-111111111111', client)).resolves.toBeUndefined();
+  });
+
+  it('throws on an active batch hold that expands to the LP batch', async () => {
+    const client = {
+      query: async (sql: string) => {
+        expect(sql).toContain("h.reference_type = 'batch'");
+        // Post-mig-412 normalization: both the hold reference_text and the LP columns are
+        // compared via lower(trim(...)) so whitespace/case differences never cause a miss.
+        expect(sql).toContain('lower(trim(h.reference_text))');
+        expect(sql).toContain('lp.batch_number');
+        expect(sql).toContain('lp.supplier_batch_number');
+        return { rows: [{ hold_number: 'HLD-00000043', priority: 'high' }], rowCount: 1 };
+      },
+    };
+
+    await expect(assertNoActiveHoldForLp('11111111-1111-4111-8111-111111111111', client)).rejects.toMatchObject({
+      status: 409,
+      code: 'QA_HOLD_ACTIVE',
+      holdNumber: 'HLD-00000043',
+    });
+  });
+
+  it('normalizes LP batch columns with lower(trim()) in the CTE so mixed-case / padded batch holds match', async () => {
+    const queries: Array<{ sql: string }> = [];
+    const client = {
+      query: async (sql: string) => {
+        queries.push({ sql });
+        return { rows: [], rowCount: 0 };
+      },
+    };
+
+    await assertNoActiveHoldForLp('11111111-1111-4111-8111-111111111111', client);
+    const sql = queries[0]?.sql ?? '';
+    // CTE must normalise LP batch columns so the IN comparison is case/trim-insensitive.
+    expect(sql).toContain('nullif(lower(trim(batch_number))');
+    expect(sql).toContain('nullif(lower(trim(supplier_batch_number))');
+    // Hold side must also be normalised.
+    expect(sql).toContain('lower(trim(h.reference_text))');
+  });
+
+  it('throws on an active WO hold from v_active_holds', async () => {
+    const client = {
+      query: async (sql: string, values?: unknown[]) => {
+        expect(sql).toContain('from public.v_active_holds');
+        expect(sql).toContain('reference_type = $1');
+        expect(values).toEqual(['wo', '22222222-2222-4222-8222-222222222222']);
+        return { rows: [{ hold_number: 'HLD-00000044', priority: 'medium' }], rowCount: 1 };
+      },
+    };
+
+    await expect(assertNoActiveHoldForWo('22222222-2222-4222-8222-222222222222', client)).rejects.toMatchObject({
+      status: 409,
+      code: 'QA_HOLD_ACTIVE',
+      holdNumber: 'HLD-00000044',
+    });
+  });
 });
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -142,7 +226,7 @@ runIntegration('holdsGuard over v_active_holds (integration)', () => {
   it('returns void when no active hold covers the WO', async () => {
     const woId = randomUUID();
     await runUnderOrg(orgAId, async (c) => {
-      await expect(assertNoActiveHoldForWo(woId, orgAId, c)).resolves.toBeUndefined();
+      await expect(assertNoActiveHoldForWo(woId, c)).resolves.toBeUndefined();
     });
   });
 
@@ -150,7 +234,7 @@ runIntegration('holdsGuard over v_active_holds (integration)', () => {
     const woId = randomUUID();
     await insertHold(orgAId, userA, 'wo', woId, 'open', null);
     await runUnderOrg(orgAId, async (c) => {
-      await expect(assertNoActiveHoldForWo(woId, orgAId, c)).rejects.toMatchObject({
+      await expect(assertNoActiveHoldForWo(woId, c)).rejects.toMatchObject({
         status: 409,
         code: 'QA_HOLD_ACTIVE',
       });
@@ -161,7 +245,7 @@ runIntegration('holdsGuard over v_active_holds (integration)', () => {
     const lpId = randomUUID();
     await insertHold(orgAId, userA, 'lp', lpId, 'released', '2026-01-01T00:00:00Z');
     await runUnderOrg(orgAId, async (c) => {
-      await expect(assertNoActiveHoldForLp(lpId, orgAId, c)).resolves.toBeUndefined();
+      await expect(assertNoActiveHoldForLp(lpId, c)).resolves.toBeUndefined();
     });
   });
 
@@ -170,11 +254,11 @@ runIntegration('holdsGuard over v_active_holds (integration)', () => {
     await insertHold(orgAId, userA, 'wo', sharedRef, 'open', null);
     // Under org B context the same reference has no visible hold → guard passes.
     await runUnderOrg(orgBId, async (c) => {
-      await expect(assertNoActiveHoldForWo(sharedRef, orgBId, c)).resolves.toBeUndefined();
+      await expect(assertNoActiveHoldForWo(sharedRef, c)).resolves.toBeUndefined();
     });
     // Under org A context the hold IS visible → guard throws.
     await runUnderOrg(orgAId, async (c) => {
-      await expect(assertNoActiveHoldForWo(sharedRef, orgAId, c)).rejects.toBeInstanceOf(QaHoldActiveError);
+      await expect(assertNoActiveHoldForWo(sharedRef, c)).rejects.toBeInstanceOf(QaHoldActiveError);
     });
   });
 });

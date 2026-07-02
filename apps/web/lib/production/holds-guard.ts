@@ -49,23 +49,49 @@ export async function holdsGuard(
   if (!lpId && !lotId) return null;
 
   try {
-    // Match the polymorphic (reference_type, reference_id) model of the SHIPPED
-    // v_active_holds view (migration 197). lpId → 'lp', lotId → 'batch'. Order
-    // by priority so the most severe hold is surfaced first (mirrors the
-    // canonical gate's priority ordering).
+    // Match the polymorphic (reference_type, reference_id / reference_text) model
+    // of v_active_holds (migration 412 shape).
+    //
+    // LP holds: reference_type = 'lp', reference_id = lpId.
+    //
+    // Batch holds (post-mig-412): reference_type = 'batch', reference_id = NULL,
+    // reference_text = the batch/lot string. We expand by joining to the LP's own
+    // batch_number / supplier_batch_number columns, normalised with lower(trim())
+    // on both sides so whitespace/case differences never cause a miss.
+    //
+    // If lpId is provided, also run the batch expansion against that LP's batch
+    // fields. lotId (the old batch-UUID path) is kept as a reference_id fallback
+    // for any pre-412 holds that still carry a UUID — it is a no-op once all
+    // holds use reference_text.
     const { rows } = await (ctx.client as QueryClient).query<{
       hold_id: string;
       reference_type: string;
-      reference_id: string;
+      reference_id: string | null;
     }>(
-      `select hold_id, reference_type, reference_id
-         from public.v_active_holds
-        where org_id = app.current_org_id()
+      `with target_lp as (
+         select
+           nullif(lower(trim(batch_number)), '') as batch_number,
+           nullif(lower(trim(supplier_batch_number)), '') as supplier_batch_number
+           from public.license_plates
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1
+       )
+       select h.hold_id, h.reference_type, h.reference_id
+         from public.v_active_holds h
+         left join target_lp lp on true
+        where h.org_id = app.current_org_id()
           and (
-            ($1::uuid is not null and reference_type = 'lp' and reference_id = $1::uuid)
-            or ($2::uuid is not null and reference_type = 'batch' and reference_id = $2::uuid)
+            ($1::uuid is not null and h.reference_type = 'lp' and h.reference_id = $1::uuid)
+            or (
+              $1::uuid is not null
+              and h.reference_type = 'batch'
+              and h.reference_text is not null
+              and lower(trim(h.reference_text)) in (lp.batch_number, lp.supplier_batch_number)
+            )
+            or ($2::uuid is not null and h.reference_type = 'batch' and h.reference_id = $2::uuid)
           )
-        order by case priority
+        order by case h.priority
                    when 'critical' then 0
                    when 'high' then 1
                    when 'medium' then 2
@@ -79,8 +105,8 @@ export async function holdsGuard(
     if (!row) return null;
     return {
       holdId: String(row.hold_id),
-      lpId: row.reference_type === 'lp' ? row.reference_id : null,
-      lotId: row.reference_type === 'batch' ? row.reference_id : null,
+      lpId: row.reference_type === 'lp' ? (row.reference_id ?? null) : null,
+      lotId: row.reference_type === 'batch' ? (row.reference_id ?? null) : null,
     };
   } catch (err) {
     // 42P01 = undefined_table: 09-quality has not shipped v_active_holds yet.

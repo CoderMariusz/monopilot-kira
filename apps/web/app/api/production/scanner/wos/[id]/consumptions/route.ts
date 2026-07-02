@@ -68,6 +68,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               and lp.id = c.lp_id
             where c.org_id = app.current_org_id()
               and c.wo_id = $1::uuid
+              and app.user_can_see_site(c.site_id)
               and c.correction_of_id is null
               and c.qty_consumed > 0
               and not exists (

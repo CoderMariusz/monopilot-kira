@@ -52,8 +52,25 @@ const client = {
     if (normalized.includes('from public.wo_material_consumption')) {
       if (params?.[0] === COSTED_WO_ID) {
         return {
-          rows: [{ item_code: 'RM-A', qty_kg: '2.000', cost_per_kg: '3.500000' }],
-          rowCount: 1,
+          rows: [
+            {
+              item_code: 'FILM-KG',
+              uom: null,
+              raw_qty: '200',
+              qty_kg: '1.000',
+              cost_per_kg: '2.400000',
+              unresolved_uom: false,
+            },
+            {
+              item_code: 'FILM-EA',
+              uom: 'each',
+              raw_qty: '200',
+              qty_kg: '0',
+              cost_per_kg: '2.400000',
+              unresolved_uom: true,
+            },
+          ],
+          rowCount: 2,
         };
       }
       return { rows: [], rowCount: 0 };
@@ -71,6 +88,8 @@ const client = {
               currency: 'EUR',
               staffing_count: '1',
               setup_cost: null,
+              expected_duration_minutes: '60',
+              has_labor_rate: true,
             },
           ],
           rowCount: 1,
@@ -111,36 +130,46 @@ beforeEach(() => {
 });
 
 describe('listCompletedWoCosts', () => {
-  it('does not render completed WOs that have no computed cost inputs as zero-cost rows', async () => {
+  it('renders completed WOs with no computed cost inputs as flagged zero-cost rows', async () => {
     const result = await listCompletedWoCosts({ days: 30 });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.rows).toHaveLength(1);
-    expect(result.data.rows[0]?.woId).toBe(COSTED_WO_ID);
-    expect(result.data.rows[0]?.labor?.runtimeMin).toBe('30.000');
-    expect(result.data.rows[0]?.labor?.cost).toBe('10.0000');
-    expect(result.data.rows[0]?.downtimeCost).toBe('10.0000');
-    expect(result.data.rows[0]?.totalCost).toBe('17.0000');
+    expect(result.data.rows).toHaveLength(2);
+    expect(result.data.rows[0]).toMatchObject({ woId: ZERO_WO_ID, zeroCost: true, totalCost: '0.0000' });
+
+    const costed = result.data.rows.find((row) => row.woId === COSTED_WO_ID);
+    expect(costed?.zeroCost).toBe(false);
+    expect(costed?.laborBasis).toBe('planned_duration');
+    expect(costed?.plannedRuntimeMin).toBe('60');
+    expect(costed?.actualRuntimeMin).toBe('30.000000');
+    expect(costed?.downtimeMin).toBe('30.000000');
+    expect(costed?.labor?.runtimeMin).toBe('60.000');
+    expect(costed?.labor?.cost).toBe('20.0000');
+    expect(costed?.downtimeCost).toBe('10.0000');
+    expect(costed?.totalCost).toBe('22.4000');
     expect(calls.some((call) => call.sql.includes('where wo.org_id = app.current_org_id()'))).toBe(true);
   });
 
-  it('costs consumed materials from the active item_cost_history fallback', async () => {
+  it('converts consumed material UoM to kg and excludes unresolved rows from costing', async () => {
     const result = await listCompletedWoCosts({ days: 30 });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    const row = result.data.rows[0];
+    const row = result.data.rows.find((costRow) => costRow.woId === COSTED_WO_ID);
     expect(row?.materials).toEqual([
-      { itemCode: 'RM-A', qtyKg: '2.000', costPerKg: '3.500000', cost: '7.0000' },
+      { itemCode: 'FILM-KG', qtyKg: '1.000', costPerKg: '2.400000', cost: '2.4000' },
     ]);
-    expect(row?.materialsTotal).toBe('7.0000');
-    expect(row?.totalCost).toBe('17.0000');
+    expect(row?.unresolvedUom).toEqual([{ itemCode: 'FILM-EA', uom: 'each', qty: '200' }]);
+    expect(row?.materialsTotal).toBe('2.4000');
+    expect(row?.wasteCost).toBe('0.0000');
+    expect(row?.costPerKgOutput).toBe('2.2400');
 
     const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
     expect(materialsQuery?.sql).toContain('left join lateral');
     expect(materialsQuery?.sql).toContain('from public.item_cost_history');
-    expect(materialsQuery?.sql).toContain('max(coalesce(ch.cost_per_kg, i.cost_per_kg))::text as cost_per_kg');
+    expect(materialsQuery?.sql).toContain('when lower(c.uom) = \'each\' and i.net_qty_per_each is not null');
+    expect(materialsQuery?.sql).toContain('bool_or(qty_kg is null) as unresolved_uom');
   });
 });

@@ -18,8 +18,8 @@ type LineLiveStatusRow = {
   wo_number: string | null;
   product_name: string | null;
   runtime_status: string | null;
-  good_count: string | number | null;
-  scrap_count: string | number | null;
+  good_kg: string | number | null;
+  scrap_kg: string | number | null;
   oee_percent: string | number | null;
   last_activity_at: string | Date | null;
 };
@@ -34,8 +34,8 @@ const LINE_LIVE_STATUS_SELECT = `
          wo.wo_number,
          wo.product_name,
          wo.runtime_status,
-         coalesce(wo.good_count, 0)::text as good_count,
-         coalesce(wo.scrap_count, 0)::text as scrap_count,
+         coalesce(wo.good_kg, 0)::text as good_kg,
+         coalesce(wo.scrap_kg, 0)::text as scrap_kg,
          latest.oee_pct::text as oee_percent,
          activity.last_activity_at
     from public.production_lines pl
@@ -59,8 +59,8 @@ const LINE_LIVE_STATUS_SELECT = `
                  when 'ON_HOLD' then 'paused'
                end
              ) as runtime_status,
-             outputs.good_count,
-             outputs.rejected_count + waste.waste_count as scrap_count,
+             outputs.good_kg,
+             outputs.rejected_kg + waste.waste_kg as scrap_kg,
              w.updated_at,
              e.updated_at as execution_updated_at,
              outputs.last_output_at,
@@ -71,15 +71,15 @@ const LINE_LIVE_STATUS_SELECT = `
         left join public.items i
           on i.org_id = w.org_id and i.id = w.product_id
         left join lateral (
-          select coalesce(sum(o.qty_kg) filter (where o.qa_status <> 'FAILED'), 0) as good_count,
-                 coalesce(sum(o.qty_kg) filter (where o.qa_status = 'FAILED'), 0) as rejected_count,
+          select coalesce(sum(o.qty_kg) filter (where o.qa_status <> 'FAILED'), 0) as good_kg,
+                 coalesce(sum(o.qty_kg) filter (where o.qa_status = 'FAILED'), 0) as rejected_kg,
                  max(o.registered_at) as last_output_at
             from public.wo_outputs o
            where o.org_id = app.current_org_id()
              and o.wo_id = w.id
         ) outputs on true
         left join lateral (
-          select coalesce(sum(wl.qty_kg), 0) as waste_count,
+          select coalesce(sum(wl.qty_kg), 0) as waste_kg,
                  max(wl.recorded_at) as last_waste_at
             from public.wo_waste_log wl
            where wl.org_id = app.current_org_id()
@@ -164,8 +164,8 @@ function mapLine(row: LineLiveStatusRow): LineLiveStatus {
     status: deriveStatus(row.line_status, row.runtime_status),
     currentWONumber: row.wo_number,
     currentProductName: row.product_name,
-    goodCount: numericValue(row.good_count),
-    scrapCount: numericValue(row.scrap_count),
+    goodKg: numericValue(row.good_kg),
+    scrapKg: numericValue(row.scrap_kg),
     oeePercent: nullableNumericValue(row.oee_percent),
     lastActivityAt: toIso(row.last_activity_at),
   };

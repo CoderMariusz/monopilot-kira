@@ -1,6 +1,7 @@
 'use server';
 
 import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
+import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { z } from 'zod';
 
 import { verifyPin } from '../../../../../../../../packages/auth/src/verify-pin.js';
@@ -185,6 +186,10 @@ async function selectLpsForDirectDecrease(
 
   if (remaining > 0n) {
     throw new Error(input.lpId ? 'insufficient_unreserved' : 'insufficient_stock');
+  }
+
+  for (const leg of legs) {
+    await assertNoActiveHoldForLp(leg.lp.id, client);
   }
 
   return legs;
@@ -715,6 +720,9 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
   } catch (error) {
     if (error instanceof DirectAdjustAbort) return error.result;
     const code = error instanceof Error ? error.message : 'error';
+    if (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'QA_HOLD_ACTIVE') {
+      return failure('quality_hold_active');
+    }
     if (code === 'insufficient_unreserved' || code === 'insufficient_stock') return failure(code);
     return failure('error', code);
   }

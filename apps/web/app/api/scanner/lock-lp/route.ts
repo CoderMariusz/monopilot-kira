@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { writeScannerSessionAudit } from '../../../../lib/scanner/audit';
 import { requireScannerSession } from '../../../../lib/scanner/guard';
 import { isRecord, jsonError, jsonOk, readJson, stringField } from '../../../../lib/scanner/route-utils';
+import { withTxnOrgContext } from '../../../../lib/scanner/txn-org-context';
 
 export async function POST(request: NextRequest) {
   const body = await readJson(request);
@@ -18,24 +19,28 @@ export async function POST(request: NextRequest) {
       // lock (held > 5 min) is stealable by the next requester. The CTE
       // captures the PREVIOUS holder (RETURNING alone would only show the
       // post-update row) so a steal can be audited as 'lp_stolen'.
-      const { rows } = await client.query<{ stolen: boolean }>(
-        `with prev as (
+      const { rows } = await withTxnOrgContext(client, session.org_id, session.user_id, () =>
+        client.query<{ stolen: boolean }>(
+          `with prev as (
            select id, locked_by, locked_at
              from public.license_plates
-            where id = $1::uuid and org_id = $2::uuid
+            where id = $1::uuid
+              and org_id = app.current_org_id()
+              and app.user_can_see_site(site_id)
          )
          update public.license_plates lp
-            set locked_by = $3::uuid,
+            set locked_by = $2::uuid,
                 locked_at = now(),
-                updated_by = $3::uuid,
+                updated_by = $2::uuid,
                 updated_at = now()
            from prev
           where lp.id = prev.id
             and (prev.locked_by is null
-                 or prev.locked_by = $3::uuid
+                 or prev.locked_by = $2::uuid
                  or prev.locked_at < now() - interval '5 minutes')
-          returning (prev.locked_by is not null and prev.locked_by <> $3::uuid) as stolen`,
-        [lpId, session.org_id, session.user_id],
+          returning (prev.locked_by is not null and prev.locked_by <> $2::uuid) as stolen`,
+          [lpId, session.user_id],
+        ),
       );
 
       if (!rows[0]) {
@@ -53,16 +58,19 @@ export async function POST(request: NextRequest) {
       return jsonOk({ locked: true });
     }
 
-    await client.query(
-      `update public.license_plates
+    await withTxnOrgContext(client, session.org_id, session.user_id, () =>
+      client.query(
+        `update public.license_plates
           set locked_by = null,
               locked_at = null,
-              updated_by = $3::uuid,
+              updated_by = $2::uuid,
               updated_at = now()
         where id = $1::uuid
-          and org_id = $2::uuid
-          and locked_by = $3::uuid`,
-      [lpId, session.org_id, session.user_id],
+          and org_id = app.current_org_id()
+          and locked_by = $2::uuid
+          and app.user_can_see_site(site_id)`,
+        [lpId, session.user_id],
+      ),
     );
 
     await writeScannerSessionAudit(client, session, 'scanner.lock_lp', 'ok', { lpId, acquire });

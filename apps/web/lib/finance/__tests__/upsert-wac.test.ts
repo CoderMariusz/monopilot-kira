@@ -85,10 +85,29 @@ describe('upsertWac', () => {
     expect(result).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: false });
     const updateSql = normalize(client.calls[1]?.sql ?? '');
     expect(updateSql).toContain('on conflict (org_id, item_id, currency_id) do update set');
-    expect(updateSql).toContain('total_qty_kg = excluded.total_qty_kg');
-    expect(updateSql).toContain('total_value = excluded.total_value');
+    expect(updateSql).toContain('total_qty_kg = greatest(public.item_wac_state.total_qty_kg + $3::numeric, 0)');
+    expect(updateSql).toContain('total_value = greatest(public.item_wac_state.total_value + $4::numeric, 0)');
     expect(updateSql).not.toContain('avg_cost');
     expect(updateSql).not.toContain('site_id');
+  });
+
+  it('conflict path adds the incoming first delta to the current row instead of replacing it', async () => {
+    const client = new WacFirstInsertRaceMockClient();
+
+    const result = await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '10',
+      deltaValue: '100',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toMatchObject({ totalQtyKg: '20', totalValue: '200', clamped: false });
+    const sql = normalize(client.calls[0]?.sql ?? '');
+    expect(sql).toContain('on conflict (org_id, item_id, currency_id) do update set');
+    expect(sql).toContain('total_qty_kg = greatest(public.item_wac_state.total_qty_kg + $3::numeric, 0)');
+    expect(sql).toContain('total_value = greatest(public.item_wac_state.total_value + $4::numeric, 0)');
   });
 
   it('clamp-at-zero: voiding more than running total clamps WAC to 0 and flags it', async () => {
@@ -252,6 +271,22 @@ class WacMockClient {
       avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
     };
     return { rows: [{ totalQtyKg, totalValue, clamped }] as T[], rowCount: 1 };
+  }
+}
+
+class WacFirstInsertRaceMockClient {
+  calls: MockCall[] = [];
+
+  async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
+    this.calls.push({ sql, params });
+    return {
+      rows: [{
+        totalQtyKg: '20',
+        totalValue: '200',
+        clamped: false,
+      }] as T[],
+      rowCount: 1,
+    };
   }
 }
 

@@ -98,3 +98,17 @@ export async function auditAttempt(
 export function requiredClientOpId(body: Record<string, unknown>): string | null {
   return stringField(body, 'clientOpId');
 }
+
+export type ParsedClientOpId =
+  | { ok: true; clientOpId: string }
+  | { ok: false; error: 'missing_fields' | 'invalid_client_op_id' };
+
+/** Trimmed, non-empty clientOpId capped at 120 chars (receive-po contract). */
+export function parseRequiredClientOpId(body: Record<string, unknown>): ParsedClientOpId {
+  const raw = body.clientOpId;
+  if (typeof raw !== 'string') return { ok: false, error: 'missing_fields' };
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, error: 'missing_fields' };
+  if (trimmed.length > 120) return { ok: false, error: 'invalid_client_op_id' };
+  return { ok: true, clientOpId: trimmed };
+}

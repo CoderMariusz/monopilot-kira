@@ -54,8 +54,8 @@ export async function upsertWac(
               now()
          from computed
        on conflict (org_id, item_id, currency_id) do update set
-         total_qty_kg = excluded.total_qty_kg,
-         total_value = excluded.total_value,
+         total_qty_kg = greatest(public.item_wac_state.total_qty_kg + $3::numeric, 0),
+         total_value = greatest(public.item_wac_state.total_value + $4::numeric, 0),
          updated_by = $5::uuid,
          updated_at = now()
        returning total_qty_kg::text, total_value::text

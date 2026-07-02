@@ -77,6 +77,7 @@ async function loadLicensePlateForLabel(client: QueryClient, entityId: string): 
         and i.id = lp.product_id
       where lp.org_id = app.current_org_id()
         and lp.id = $1::uuid
+        and app.user_can_see_site(lp.site_id)
       limit 1`,
     [entityId],
   );

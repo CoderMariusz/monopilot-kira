@@ -2,7 +2,11 @@
 
 import { z } from 'zod';
 
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+
+/** Technical module read gate — seeded in packages/db/migrations/236-npd-stage-permissions-org-admin-seed.sql:59 */
+const TECHNICAL_READ_PERMISSION = 'technical.sensory.read';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -43,7 +47,7 @@ type TraceabilityEdge = {
 
 type TraceabilitySearchResult =
   | { ok: true; data: { nodes: TraceabilityNode[]; edges: TraceabilityEdge[] } }
-  | { ok: false; error: 'invalid_input' | 'persistence_failed'; message?: string };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'persistence_failed'; message?: string };
 
 type NodeRow = {
   node_type: TraceabilityNode['nodeType'];
@@ -76,7 +80,11 @@ export async function searchTraceability(rawInput: unknown): Promise<Traceabilit
   const includeForward = input.direction === 'forward' || input.direction === 'both';
 
   try {
-    return await withOrgContext(async ({ client }): Promise<TraceabilitySearchResult> => {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<TraceabilitySearchResult> => {
+      if (!(await hasPermission({ userId, orgId, client: client as QueryClient }, TECHNICAL_READ_PERMISSION))) {
+        return { ok: false, error: 'forbidden' };
+      }
+
       const qc = client as QueryClient;
       const { rows: nodeRows } = await qc.query<NodeRow>(
         `with seed_lps as (

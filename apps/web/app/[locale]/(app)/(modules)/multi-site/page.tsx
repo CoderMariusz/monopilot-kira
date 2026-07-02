@@ -1,6 +1,10 @@
 import { getTranslations } from "next-intl/server";
 
+import { hasPermission } from "../../../../../lib/auth/has-permission";
 import { withOrgContext } from "../../../../../lib/auth/with-org-context";
+
+/** Cross-site aggregate read — seeded in packages/db/migrations/258-cross-cutting-admin-read-permission-seed.sql:27 */
+const MULTI_SITE_CROSS_SITE_READ_PERMISSION = "multi_site.cross_site.read";
 
 type QueryResult<T> = { rows: T[] };
 type QueryClient = {
@@ -24,7 +28,7 @@ type NetworkKpis = {
 
 type SitesOverviewResult =
   | { ok: true; sites: SiteRow[]; kpis: NetworkKpis }
-  | { ok: false; sites: SiteRow[]; kpis: NetworkKpis };
+  | { ok: false; reason?: "forbidden"; sites: SiteRow[]; kpis: NetworkKpis };
 
 const EMPTY_NETWORK_KPIS: NetworkKpis = {
   siteCount: null,
@@ -40,7 +44,11 @@ function countFromRow(value: string | number | null | undefined): number | null 
 
 async function listSitesOverview(): Promise<SitesOverviewResult> {
   try {
-    const result = await withOrgContext(async ({ client }): Promise<{ sites: SiteRow[]; kpis: NetworkKpis }> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<SitesOverviewResult> => {
+      if (!(await hasPermission({ userId, orgId, client: client as QueryClient }, MULTI_SITE_CROSS_SITE_READ_PERMISSION))) {
+        return { ok: false, reason: "forbidden", sites: [], kpis: EMPTY_NETWORK_KPIS };
+      }
+
       const queryClient = client as QueryClient;
       const sitesPromise = queryClient.query<SiteRow>(
         `select id::text,
@@ -103,6 +111,7 @@ async function listSitesOverview(): Promise<SitesOverviewResult> {
       ]);
 
       return {
+        ok: true,
         sites: sitesResult.rows,
         kpis: {
           siteCount,
@@ -111,7 +120,7 @@ async function listSitesOverview(): Promise<SitesOverviewResult> {
         },
       };
     });
-    return { ok: true, ...result };
+    return result;
   } catch (error) {
     console.error("[multi-site] failed to load sites overview", error);
     return { ok: false, sites: [], kpis: EMPTY_NETWORK_KPIS };
@@ -121,6 +130,7 @@ async function listSitesOverview(): Promise<SitesOverviewResult> {
 export default async function MultiSiteRoutePage() {
   const nav = await getTranslations("Navigation.app.items");
   const t = await getTranslations("MultiSite");
+  const denied = await getTranslations("quality.trace");
   const result = await listSitesOverview();
 
   return (
@@ -129,68 +139,81 @@ export default async function MultiSiteRoutePage() {
         <h1 id="module-landing-multi-site-title" className="text-3xl font-semibold tracking-tight text-slate-950">
           {nav("multiSite")}
         </h1>
-        <div className="grid gap-3 sm:grid-cols-3" aria-label="Network KPIs">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Number of sites</div>
-            <div className="mt-2 text-2xl font-semibold text-slate-950">{result.kpis.siteCount ?? "—"}</div>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Transfer orders in-transit</div>
-            <div className="mt-2 text-2xl font-semibold text-slate-950">
-              {result.kpis.inTransitTransferOrders ?? "—"}
-            </div>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Aggregated inventory</div>
-            <div className="mt-2 text-2xl font-semibold text-slate-950">{result.kpis.inventoryTotalQty ?? "—"}</div>
-          </div>
-        </div>
-        {!result.ok ? (
-          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {t("errorLoad")}
-          </div>
-        ) : result.sites.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-600">
-            {t("empty")}
+        {!result.ok && result.reason === "forbidden" ? (
+          <div
+            role="alert"
+            data-testid="multi-site-denied"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            <div className="font-semibold">{denied("deniedTitle")}</div>
+            <div className="mt-1">{denied("deniedBody")}</div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th scope="col" className="px-4 py-3">
-                    {t("columns.site")}
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    {t("columns.code")}
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    {t("columns.timezone")}
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    {t("columns.country")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {result.sites.map((site) => (
-                  <tr key={site.id}>
-                    <td className="px-4 py-3 font-medium text-slate-950">
-                      {site.name}
-                      {site.is_default ? (
-                        <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          {t("default")}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{site.site_code}</td>
-                    <td className="px-4 py-3 text-slate-600">{site.timezone}</td>
-                    <td className="px-4 py-3 text-slate-600">{site.country ?? t("notSet")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="grid gap-3 sm:grid-cols-3" aria-label="Network KPIs">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Number of sites</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">{result.kpis.siteCount ?? "—"}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Transfer orders in-transit</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">
+                  {result.kpis.inTransitTransferOrders ?? "—"}
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Aggregated inventory</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">{result.kpis.inventoryTotalQty ?? "—"}</div>
+              </div>
+            </div>
+            {!result.ok ? (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {t("errorLoad")}
+              </div>
+            ) : result.sites.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-600">
+                {t("empty")}
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-lg border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th scope="col" className="px-4 py-3">
+                        {t("columns.site")}
+                      </th>
+                      <th scope="col" className="px-4 py-3">
+                        {t("columns.code")}
+                      </th>
+                      <th scope="col" className="px-4 py-3">
+                        {t("columns.timezone")}
+                      </th>
+                      <th scope="col" className="px-4 py-3">
+                        {t("columns.country")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {result.sites.map((site) => (
+                      <tr key={site.id}>
+                        <td className="px-4 py-3 font-medium text-slate-950">
+                          {site.name}
+                          {site.is_default ? (
+                            <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                              {t("default")}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{site.site_code}</td>
+                        <td className="px-4 py-3 text-slate-600">{site.timezone}</td>
+                        <td className="px-4 py-3 text-slate-600">{site.country ?? t("notSet")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
     </section>

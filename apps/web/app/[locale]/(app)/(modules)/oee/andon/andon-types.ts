@@ -12,8 +12,8 @@ export interface LineLiveStatus {
   status: LineStatus;
   currentWONumber: string | null;
   currentProductName: string | null;
-  goodCount: number;
-  scrapCount: number;
+  goodKg: number;
+  scrapKg: number;
   oeePercent: number | null;
   lastActivityAt: string | null;
 }

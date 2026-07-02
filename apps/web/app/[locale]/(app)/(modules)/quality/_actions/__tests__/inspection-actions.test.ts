@@ -121,9 +121,12 @@ function makeClient(): QueryClient {
       }
       if (q.includes('from public.v_active_holds')) {
         return {
-          rows: activeHold ? [{ hold_id: HOLD_ID, reference_type: 'lp', reference_id: LP_ID }] : [],
+          rows: activeHold ? [{ hold_number: 'HLD-0001', priority: 'critical' }] : [],
           rowCount: activeHold ? 1 : 0,
         };
+      }
+      if (q.startsWith('select qa_status') && q.includes('from public.license_plates')) {
+        return { rows: [{ qa_status: 'on_hold' }], rowCount: 1 };
       }
       // applyLpDecisionSideEffects: LP qa_status update (returning id).
       if (q.startsWith('update public.license_plates')) {
@@ -318,12 +321,12 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     );
   });
 
-  it('refuses decision=pass when an active LP hold exists and does not release the LP', async () => {
+  it('keeps LP qa_status held when decision=pass but another active LP hold exists', async () => {
     activeHold = true;
 
     const res = await submitInspectionDecision({ ...baseInput, decision: 'pass' });
 
-    expect(res).toMatchObject({ ok: false, reason: 'error', message: 'quality_hold_active' });
+    expect(res).toMatchObject({ ok: true, data: { status: 'passed', qaStatus: 'on_hold' } });
     expect(calls().some((q) => q.includes('from public.v_active_holds'))).toBe(true);
     expect(calls().some((q) => q.startsWith('update public.license_plates'))).toBe(false);
   });

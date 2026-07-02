@@ -70,15 +70,14 @@ export class QaHoldActiveError extends Error {
 type ActiveHoldRow = {
   hold_number: string;
   priority: HoldPriority;
-  reference_id: string;
 };
 
-/** Minimal query surface satisfied by pg.Pool / pg.PoolClient. */
+/** Minimal query surface satisfied by pg.Pool / pg.PoolClient and the local QueryClient aliases used in each action file. */
 export interface HoldQueryClient {
   query<R extends pg.QueryResultRow = ActiveHoldRow>(
     queryText: string,
     values?: unknown[],
-  ): Promise<pg.QueryResult<R>>;
+  ): Promise<{ rows: R[]; rowCount?: number | null | undefined }>;
 }
 
 /**
@@ -88,17 +87,16 @@ export interface HoldQueryClient {
  * the predicate self-documenting (and to fail closed if a caller forgets to bind org context).
  */
 async function assertNoActiveHoldForReference(
-  referenceType: 'wo' | 'lp' | 'batch' | 'po' | 'grn',
+  referenceType: 'wo' | 'po' | 'grn',
   referenceId: string,
-  orgId: string,
   db: HoldQueryClient,
 ): Promise<void> {
   const { rows } = await db.query<ActiveHoldRow>(
-    `select hold_number, priority, reference_id
+    `select hold_number, priority
        from public.v_active_holds
-      where org_id = $1
-        and reference_type = $2
-        and reference_id = $3
+      where org_id = app.current_org_id()
+        and reference_type = $1
+        and reference_id = $2::uuid
       order by case priority
                  when 'critical' then 0
                  when 'high' then 1
@@ -107,7 +105,7 @@ async function assertNoActiveHoldForReference(
                  else 4
                end
       limit 1`,
-    [orgId, referenceType, referenceId],
+    [referenceType, referenceId],
   );
 
   if (rows.length > 0) {
@@ -125,10 +123,9 @@ async function assertNoActiveHoldForReference(
  */
 export async function assertNoActiveHoldForWo(
   woId: string,
-  orgId: string,
   db: HoldQueryClient,
 ): Promise<void> {
-  await assertNoActiveHoldForReference('wo', woId, orgId, db);
+  await assertNoActiveHoldForReference('wo', woId, db);
 }
 
 /**
@@ -137,8 +134,43 @@ export async function assertNoActiveHoldForWo(
  */
 export async function assertNoActiveHoldForLp(
   lpId: string,
-  orgId: string,
   db: HoldQueryClient,
 ): Promise<void> {
-  await assertNoActiveHoldForReference('lp', lpId, orgId, db);
+  const { rows } = await db.query<ActiveHoldRow>(
+    `with target_lp as (
+       select id,
+              nullif(lower(trim(batch_number)), '') as batch_number,
+              nullif(lower(trim(supplier_batch_number)), '') as supplier_batch_number
+         from public.license_plates
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1
+     )
+     select h.hold_number, h.priority
+       from public.v_active_holds h
+       left join target_lp lp on true
+      where h.org_id = app.current_org_id()
+        and (
+          (h.reference_type = 'lp' and h.reference_id = $1::uuid)
+          or (
+            h.reference_type = 'batch'
+            and h.reference_text is not null
+            and lower(trim(h.reference_text)) in (lp.batch_number, lp.supplier_batch_number)
+          )
+        )
+      order by case h.priority
+                 when 'critical' then 0
+                 when 'high' then 1
+                 when 'medium' then 2
+                 when 'low' then 3
+                 else 4
+               end
+      limit 1`,
+    [lpId],
+  );
+
+  if (rows.length > 0) {
+    const hit = rows[0];
+    throw new QaHoldActiveError(hit.hold_number, hit.priority, null);
+  }
 }

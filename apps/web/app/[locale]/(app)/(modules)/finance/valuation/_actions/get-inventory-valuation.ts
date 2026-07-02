@@ -1,4 +1,11 @@
+import { microToFixed, toMicro } from '../../../../../../../lib/shared/decimal';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
+import type {
+  InventoryValuation,
+  InventoryValuationResult,
+  InventoryValuationRow,
+} from './inventory-valuation-types';
 
 const FINANCE_VALUATION_READ_PERMISSION = 'fin.costs.read';
 
@@ -15,132 +22,141 @@ type FinanceContext = {
   client: QueryClient;
 };
 
-type ValuationDbRow = {
+type ValuedItemRow = {
   item_id: string;
   item_code: string | null;
   item_name: string | null;
+  wac: string;
+  currency: string;
   qty_on_hand: string;
-  wac: string;
-  total_value: string;
-  currency: string;
-};
-
-type GrandTotalDbRow = {
-  currency: string;
   total_value: string;
 };
 
-type InventoryValuationRow = {
-  itemId: string;
-  itemCode: string | null;
-  itemName: string | null;
-  qtyOnHand: string;
-  wac: string;
-  totalValue: string;
-  currency: string;
+type UnvaluedAggregateRow = {
+  lp_count: number;
+  qty: string;
 };
 
-type InventoryValuationGrandTotal = {
-  currency: string;
-  totalValue: string;
-};
+const LP_VALUATION_CTE = `
+with lp_valuation as (
+  select lp.id as lp_id,
+         lp.product_id as item_id,
+         i.item_code,
+         i.name as item_name,
+         lp.quantity,
+         lp.uom,
+         wac.avg_cost as wac,
+         c.code as currency,
+         case
+           when lp.uom = coalesce(i.uom_base, 'kg') or lp.uom = 'base' then lp.quantity
+           when lp.uom = 'each'
+             and i.net_qty_per_each is not null
+             then lp.quantity * i.net_qty_per_each
+           when lp.uom = 'box'
+             and i.net_qty_per_each is not null
+             and i.each_per_box is not null
+             then lp.quantity * i.each_per_box * i.net_qty_per_each
+           else null
+         end as base_qty_kg
+    from public.license_plates lp
+    left join public.items i
+      on i.org_id = app.current_org_id()
+     and i.id = lp.product_id
+    left join public.item_wac_state wac
+      on wac.org_id = app.current_org_id()
+     and wac.item_id = lp.product_id
+    left join public.currencies c
+      on c.id = wac.currency_id
+   where lp.org_id = app.current_org_id()
+     and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
+)`;
 
-type InventoryValuation = {
-  rows: InventoryValuationRow[];
-  grandTotals: InventoryValuationGrandTotal[];
-};
+function formatQty(value: string): string {
+  return microToFixed(toMicro(value), 6);
+}
 
-type InventoryValuationResult =
-  | { ok: true; data: InventoryValuation }
-  | { ok: false; reason: 'forbidden' | 'error' };
+function formatMoney(value: string): string {
+  return microToFixed(toMicro(value), 4);
+}
 
-async function hasFinancePermission(ctx: FinanceContext, permission: string): Promise<boolean> {
-  const res = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r
-         on r.id = ur.role_id
-        and r.org_id = $2::uuid
-       left join public.role_permissions rp
-         on rp.role_id = r.id
-        and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return (res.rowCount ?? res.rows.length) > 0;
+function buildValuation(valuedRows: ValuedItemRow[], unvaluedRow: UnvaluedAggregateRow): InventoryValuation {
+  const rows: InventoryValuationRow[] = valuedRows
+    .map((row) => ({
+      itemId: row.item_id,
+      itemCode: row.item_code,
+      itemName: row.item_name,
+      qtyOnHand: formatQty(row.qty_on_hand),
+      wac: row.wac,
+      totalValue: formatMoney(row.total_value),
+      currency: row.currency,
+    }))
+    .sort((a, b) => {
+      const valueDiff = toMicro(b.totalValue) - toMicro(a.totalValue);
+      if (valueDiff !== 0n) return valueDiff > 0n ? 1 : -1;
+      return (a.itemCode ?? a.itemId).localeCompare(b.itemCode ?? b.itemId);
+    });
+
+  const grandByCurrency = new Map<string, bigint>();
+  for (const row of rows) {
+    const micro = toMicro(row.totalValue);
+    grandByCurrency.set(row.currency, (grandByCurrency.get(row.currency) ?? 0n) + micro);
+  }
+
+  const grandTotals = [...grandByCurrency.entries()]
+    .map(([currency, totalValueMicro]) => ({
+      currency,
+      totalValue: microToFixed(totalValueMicro, 4),
+    }))
+    .sort((a, b) => a.currency.localeCompare(b.currency));
+
+  return {
+    rows,
+    grandTotals,
+    unvalued: {
+      lpCount: unvaluedRow.lp_count,
+      qty: formatQty(unvaluedRow.qty),
+    },
+  };
 }
 
 async function getInventoryValuationInContext(ctx: FinanceContext): Promise<InventoryValuationResult> {
-  if (!(await hasFinancePermission(ctx, FINANCE_VALUATION_READ_PERMISSION))) {
+  if (!(await hasPermission(ctx, FINANCE_VALUATION_READ_PERMISSION))) {
     return { ok: false, reason: 'forbidden' };
   }
 
-  const rows = await ctx.client.query<ValuationDbRow>(
-    `select lp.product_id::text as item_id,
-            i.item_code,
-            i.name as item_name,
-            coalesce(sum(lp.quantity), 0)::text as qty_on_hand,
-            wac.avg_cost::text as wac,
-            round(coalesce(sum(lp.quantity * wac.avg_cost), 0), 4)::text as total_value,
-            c.code as currency
-       from public.license_plates lp
-       join public.item_wac_state wac
-         on wac.org_id = app.current_org_id()
-        and wac.item_id = lp.product_id
-       join public.currencies c
-         on c.id = wac.currency_id
-       left join public.items i
-         on i.org_id = app.current_org_id()
-        and i.id = lp.product_id
-      where lp.org_id = app.current_org_id()
-        and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
-      group by lp.product_id, i.item_code, i.name, wac.avg_cost, c.code
-      order by round(coalesce(sum(lp.quantity * wac.avg_cost), 0), 4) desc, i.item_code asc nulls last`,
-  );
+  const [valuedRes, unvaluedRes] = await Promise.all([
+    ctx.client.query<ValuedItemRow>(
+      `${LP_VALUATION_CTE}
+       select item_id::text,
+              item_code,
+              item_name,
+              wac::text,
+              currency,
+              sum(base_qty_kg)::text as qty_on_hand,
+              sum(base_qty_kg * wac)::text as total_value
+         from lp_valuation
+        where wac is not null
+          and currency is not null
+          and base_qty_kg is not null
+        group by item_id, item_code, item_name, wac, currency
+        order by sum(base_qty_kg * wac) desc nulls last, item_code nulls last`,
+    ),
+    ctx.client.query<UnvaluedAggregateRow>(
+      `${LP_VALUATION_CTE}
+       select count(*)::int as lp_count,
+              coalesce(sum(quantity), 0)::text as qty
+         from lp_valuation
+        where wac is null
+           or currency is null
+           or base_qty_kg is null`,
+    ),
+  ]);
 
-  const grandTotals = await ctx.client.query<GrandTotalDbRow>(
-    `select valued.currency,
-            round(sum(valued.total_value), 4)::text as total_value
-       from (
-         select c.code as currency,
-                coalesce(sum(lp.quantity * wac.avg_cost), 0) as total_value
-           from public.license_plates lp
-           join public.item_wac_state wac
-             on wac.org_id = app.current_org_id()
-            and wac.item_id = lp.product_id
-           join public.currencies c
-             on c.id = wac.currency_id
-          where lp.org_id = app.current_org_id()
-            and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
-          group by c.code
-       ) valued
-      group by valued.currency
-      order by valued.currency asc`,
-  );
+  const unvaluedRow = unvaluedRes.rows[0] ?? { lp_count: 0, qty: '0' };
 
   return {
     ok: true,
-    data: {
-      rows: rows.rows.map((row) => ({
-        itemId: row.item_id,
-        itemCode: row.item_code,
-        itemName: row.item_name,
-        qtyOnHand: String(row.qty_on_hand),
-        wac: String(row.wac),
-        totalValue: String(row.total_value),
-        currency: row.currency,
-      })),
-      grandTotals: grandTotals.rows.map((row) => ({
-        currency: row.currency,
-        totalValue: String(row.total_value),
-      })),
-    },
+    data: buildValuation(valuedRes.rows, unvaluedRow),
   };
 }
 

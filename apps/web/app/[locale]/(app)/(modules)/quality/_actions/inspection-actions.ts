@@ -3,11 +3,11 @@
 import type pg from 'pg';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { signEvent } from '@monopilot/e-sign';
+import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { holdsGuard } from '../../../../../../lib/production/holds-guard';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 
 type QueryClient = {
@@ -354,8 +354,23 @@ async function applyLpDecisionSideEffects(
 
   const qaStatus = params.decision === 'pass' ? 'released' : params.decision === 'fail' ? 'rejected' : 'on_hold';
   if (qaStatus === 'released') {
-    const hold = await holdsGuard(ctx, { lpId: params.referenceId });
-    if (hold) throw new Error('quality_hold_active');
+    try {
+      await assertNoActiveHoldForLp(params.referenceId, ctx.client);
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'QA_HOLD_ACTIVE') {
+        const current = await ctx.client.query<{ qa_status: 'released' | 'rejected' | 'on_hold' | 'pending' | null }>(
+          `select qa_status
+             from public.license_plates
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+            limit 1`,
+          [params.referenceId],
+        );
+        const currentStatus = current.rows[0]?.qa_status;
+        return currentStatus === 'released' || currentStatus === 'rejected' || currentStatus === 'on_hold' ? currentStatus : null;
+      }
+      throw error;
+    }
   }
 
   const updated = await ctx.client.query<{ id: string }>(

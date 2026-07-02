@@ -66,6 +66,14 @@ vi.mock('../../../../../../components/settings/modals/password-reset-modal', () 
   },
 }));
 
+// Mock ONLY the browser download side-effect; keep the real toCsv / isoDateStamp
+// so the CSV shape + filename stamp assertions exercise production code.
+const downloadCsvMock = vi.hoisted(() => vi.fn((_content: string, filename: string) => filename));
+vi.mock('../../../../../../lib/shared/download', async (importActual) => {
+  const actual = await importActual<typeof import('../../../../../../lib/shared/download')>();
+  return { ...actual, downloadCsv: downloadCsvMock };
+});
+
 import SettingsUsersScreen, {
   type PermissionCell,
   type PermissionModuleSummary,
@@ -107,7 +115,10 @@ const labels: UsersScreenLabels = {
   noUsersTitle: 'No users in the "{role}" role',
   noUsersBody: 'Try selecting a different role or invite someone new to this workspace.',
   emptyRoleName: { all: 'all', admin: 'Admin', manager: 'Manager', operator: 'Operator', viewer: 'Viewer' },
-  tableHeaders: { name: 'Name', email: 'Email', role: 'Role', site: 'Site', lastActive: 'Last active', status: 'Status', actions: 'Actions' },
+  tableHeaders: { name: 'Name', email: 'Email', role: 'Role', site: 'Site', mfa: 'MFA', lastLogin: 'Last login', lastActive: 'Last active', status: 'Status', actions: 'Actions' },
+  mfaEnrolled: 'Enrolled',
+  mfaNotEnrolled: 'Not enrolled',
+  lastLoginNever: 'Never',
   statuses: { active: '● Active', invited: '⟳ Invited', disabled: '✕ Disabled' },
   rolePermissions: 'Role permissions',
   rolePermissionsDescription: 'What each role can do across modules. Edit by clicking a cell.',
@@ -188,6 +199,8 @@ const data: UsersScreenData = {
       roleCategory: 'Manager',
       site: 'Kraków HQ',
       assignedSiteIds: ['site-krk'],
+      lastLogin: '2026-05-20 08:00',
+      mfaEnrolled: true,
       lastActive: '2026-05-20 08:00',
       status: 'active',
     },
@@ -202,6 +215,8 @@ const data: UsersScreenData = {
       roleCategory: 'Operator',
       site: 'All sites',
       assignedSiteIds: [],
+      lastLogin: '—',
+      mfaEnrolled: false,
       lastActive: '2026-05-19 10:30',
       status: 'active',
     },
@@ -600,5 +615,120 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
       expect(cells[2]).toHaveTextContent('–');
       expect(within(cells[2]).getByLabelText('No access')).toBeVisible();
     }
+  });
+});
+
+type DeactivateUserAction = (input: { userId: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
+
+const deactivateLabels: Partial<UsersScreenLabels> = {
+  deactivate: 'Deactivate',
+  deactivateUnavailable: 'Deactivation unavailable',
+  deactivateDialogTitle: 'Deactivate user',
+  deactivateDialogBody: '{name} will be signed out and blocked from signing in.',
+  deactivateConfirm: 'Deactivate user',
+  deactivating: 'Deactivating…',
+  deactivateSuccess: 'User deactivated.',
+  deactivateFailed: 'Could not deactivate the user: {error}.',
+  deactivateSelf: 'You cannot deactivate your own account.',
+};
+
+describe('SettingsUsersScreen MFA + last-login columns (F2-C1 item 3)', () => {
+  it('shows MFA-enrolled status and last-login per user in the table', () => {
+    renderScreen();
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    // Maria: MFA enrolled + a real last-login stamp.
+    expect(within(mariaRow).getByTestId('settings-user-mfa')).toHaveAttribute('data-mfa', 'enrolled');
+    expect(within(mariaRow).getByText('2026-05-20 08:00')).toBeVisible();
+
+    // Ola: not enrolled + never-logged-in fallback (lastLogin === '—' → "Never").
+    const olaRow = screen.getByRole('row', { name: /Ola Operator ola@example\.com/i });
+    expect(within(olaRow).getByTestId('settings-user-mfa')).toHaveAttribute('data-mfa', 'not-enrolled');
+    expect(within(olaRow).getByText('Never')).toBeVisible();
+  });
+});
+
+describe('SettingsUsersScreen deactivate flow (F2-C1 item 2)', () => {
+  it('keeps the Deactivate control fail-closed (disabled) when no deactivate action / permission is wired', () => {
+    renderScreen();
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    const control = within(mariaRow).getByRole('button', { name: /deactivation unavailable for maria manager/i });
+    expect(control).toBeDisabled();
+  });
+
+  it('opens a confirm dialog and deactivates the user through the injected Server Action, then marks them visibly distinct', async () => {
+    const user = userEvent.setup();
+    const deactivateUserAction = vi.fn().mockResolvedValue({ ok: true }) as DeactivateUserAction;
+    renderScreen({
+      data: { ...data, canDeactivateUsers: true } as UsersScreenData,
+      labels: { ...labels, ...deactivateLabels } as UsersScreenLabels,
+      deactivateUserAction,
+    } as Partial<SettingsUsersScreenProps>);
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    await user.click(within(mariaRow).getByRole('button', { name: /^deactivate maria manager$/i }));
+
+    // Confirm dialog names the target, then confirm.
+    const dialog = await screen.findByRole('dialog', { name: /deactivate user/i });
+    expect(within(dialog).getByText(/Maria Manager will be signed out/i)).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: /^deactivate user$/i }));
+
+    expect(deactivateUserAction).toHaveBeenCalledWith({ userId: 'user-maria' });
+
+    // Success toast + the row is now visibly the disabled status (optimistic).
+    expect(await screen.findByRole('status')).toHaveTextContent(/deactivated/i);
+    const disabledRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    expect(disabledRow).toHaveAttribute('data-status', 'disabled');
+    expect(within(disabledRow).getByText('✕ Disabled')).toBeVisible();
+    // A deactivated user no longer offers a Deactivate button.
+    expect(within(disabledRow).queryByRole('button', { name: /^deactivate maria manager$/i })).not.toBeInTheDocument();
+  });
+
+  it('surfaces a self-deactivation guard message when the action rejects it', async () => {
+    const user = userEvent.setup();
+    const deactivateUserAction = vi.fn().mockResolvedValue({ ok: false, error: 'self_deactivation' }) as DeactivateUserAction;
+    renderScreen({
+      data: { ...data, canDeactivateUsers: true } as UsersScreenData,
+      labels: { ...labels, ...deactivateLabels } as UsersScreenLabels,
+      deactivateUserAction,
+    } as Partial<SettingsUsersScreenProps>);
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    await user.click(within(mariaRow).getByRole('button', { name: /^deactivate maria manager$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /deactivate user/i });
+    await user.click(within(dialog).getByRole('button', { name: /^deactivate user$/i }));
+
+    // The self-deactivation guard is surfaced (both the dialog inline error and
+    // the page feedback banner name it).
+    const guards = await screen.findAllByText(/cannot deactivate your own account/i);
+    expect(guards.length).toBeGreaterThan(0);
+    // Not marked disabled — the action failed.
+    expect(screen.getByRole('row', { name: /Maria Manager maria@example\.com/i })).toHaveAttribute('data-status', 'active');
+  });
+});
+
+describe('SettingsUsersScreen CSV export shape (F2-C1 item 4)', () => {
+  it('exports email, name, role, sites, MFA, last login, status columns for the visible users', async () => {
+    const user = userEvent.setup();
+    // Capture the CSV the screen hands to the shared downloadCsv helper.
+    downloadCsvMock.mockClear();
+
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: /^export$/i }));
+    await screen.findByRole('status');
+
+    expect(downloadCsvMock).toHaveBeenCalledTimes(1);
+    const [csv, filename] = downloadCsvMock.mock.calls[0] as [string, string];
+    expect(filename).toMatch(/^settings-users-\d{4}-\d{2}-\d{2}\.csv$/);
+
+    const [header, mariaLine, olaLine] = csv.split('\r\n');
+    // Task column order: email, name, role(s), sites, MFA, last login, status.
+    expect(header).toBe('Email,Name,Role,Site,MFA,Last login,Status');
+    // Maria: enrolled MFA + real last-login stamp + active status.
+    expect(mariaLine).toBe('maria@example.com,Maria Manager,Manager,Kraków HQ,Enrolled,2026-05-20 08:00,● Active');
+    // Ola: not enrolled + never-logged-in dash + all-sites.
+    expect(olaLine).toContain('ola@example.com');
+    expect(olaLine).toContain('Not enrolled');
   });
 });

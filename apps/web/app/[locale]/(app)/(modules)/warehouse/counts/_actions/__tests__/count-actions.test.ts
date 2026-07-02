@@ -71,6 +71,7 @@ let sessionStatus: string;
 let sessionWarehouseId: string;
 let locationInWarehouse: boolean;
 let itemExists: boolean;
+let activeHold: boolean;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -248,6 +249,12 @@ function makeClient(): QueryClient {
         return { rows: shrinkageLps, rowCount: shrinkageLps.length };
       }
 
+      if (n.includes('from public.v_active_holds')) {
+        return activeHold
+          ? { rows: [{ hold_number: 'HLD-0001', priority: 'critical' }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+
       if (n.startsWith('update public.license_plates')) {
         return {
           rows: [{
@@ -307,6 +314,7 @@ beforeEach(async () => {
   sessionWarehouseId = WAREHOUSE_ID;
   locationInWarehouse = true;
   itemExists = true;
+  activeHold = false;
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -499,6 +507,23 @@ describe('stock count actions', () => {
 
     const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
     expect(lpUpdate?.params).toEqual([LP_ID, '2', USER_ID, 'destroyed']);
+  });
+
+  it('approveAndApplyVariance blocks shrinkage when the LP has an active hold', async () => {
+    activeHold = true;
+    applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
+
+    await expect(
+      approveAndApplyVariance({
+        countLineId: COUNT_LINE_ID,
+        signature: { password: '123456' },
+      }),
+    ).rejects.toMatchObject({ code: 'QA_HOLD_ACTIVE' });
+
+    expect(queries.some((q) => normalize(q.sql).includes('from public.v_active_holds'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
   });
 
   it('multi-LP FEFO shrinkage drain spreads a reduction across LPs in order', async () => {

@@ -4,9 +4,8 @@
  * MUST stay Edge-safe:
  *  - no `pg`, no `node:crypto`, no eager `@supabase/ssr` server import that
  *    pulls Node-only modules
- *  - pure compute for `isRequestIpAllowed`
- *  - `verifyScimBearer`, `resolveEdgeSecurityContext`, `establishOrgContext`,
- *    and `auditAdminIpBlocked` are async surface points that are wired to
+ *  - `verifyScimBearer`, `resolveEdgeSecurityContext`, and `establishOrgContext`
+ *    are async surface points that are wired to
  *    real lookups in production but default to safe, fail-closed stubs in
  *    Edge/test contexts where Node-only resources are absent.
  *
@@ -20,8 +19,6 @@
 export interface EdgeSecurityContext {
   /** Verified Supabase access token, or null when no session is present. */
   accessToken: string | null;
-  /** Allowlist CIDRs scoped to the resolved org_id, or [] when unknown. */
-  adminIpAllowlistCidrs: readonly string[];
   /** ISO timestamp of onboarding completion; null forces onboarding redirect. */
   onboardingCompletedAt: string | null;
   /** Verified org id, or null when no session is present. */
@@ -30,13 +27,6 @@ export interface EdgeSecurityContext {
   role: 'admin' | 'member' | 'viewer' | 'unauthenticated';
   /** Tenant `idle_timeout_min`. Defaults to 60 when unresolved. */
   sessionIdleTimeoutMinutes: number;
-}
-
-export interface AdminIpBlockedAuditPayload {
-  attemptedRoute: string;
-  eventType: 'admin_ip_blocked';
-  orgId: string | null;
-  sourceIp: string;
 }
 
 const DEFAULT_IDLE_TIMEOUT_MINUTES = 60;
@@ -53,7 +43,7 @@ const DEFAULT_IDLE_TIMEOUT_MINUTES = 60;
  *
  * This is fail-closed: any header that does not match the SCIM token prefix
  * is rejected so an attacker cannot use the SCIM public bypass to skip
- * session/IP allowlist guards on other paths.
+ * session guards on other paths.
  */
 export async function verifyScimBearer(authorizationHeader: string | null | undefined): Promise<boolean> {
   if (typeof authorizationHeader !== 'string') return false;
@@ -200,10 +190,6 @@ function roleClaim(value: string | null): EdgeSecurityContext['role'] {
   return 'member';
 }
 
-function stringArrayClaim(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-}
-
 function numericClaim(value: unknown, fallback: number): number {
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -223,7 +209,6 @@ export async function resolveEdgeSecurityContext(request: unknown): Promise<Edge
   if (!accessToken) {
     return {
       accessToken: null,
-      adminIpAllowlistCidrs: [],
       onboardingCompletedAt: null,
       orgId: null,
       role: 'unauthenticated',
@@ -242,7 +227,6 @@ export async function resolveEdgeSecurityContext(request: unknown): Promise<Edge
 
   return {
     accessToken,
-    adminIpAllowlistCidrs: stringArrayClaim(app.admin_ip_allowlist_cidrs ?? user.admin_ip_allowlist_cidrs),
     onboardingCompletedAt,
     orgId: stringClaim(app.org_id, user.org_id, claims.org_id),
     role,
@@ -260,70 +244,4 @@ export async function resolveEdgeSecurityContext(request: unknown): Promise<Edge
  */
 export async function establishOrgContext(_ctx: EdgeSecurityContext): Promise<void> {
   // Intentionally a no-op in the Edge runtime — see helper docstring.
-}
-
-/**
- * Write a sanitized admin-IP-blocked audit event.
- *
- * The Edge middleware passes ONLY the attempted route, the resolved org id,
- * and the source IP — no Authorization header, no cookies, no request body.
- * Audit persistence is best-effort; failures must NEVER mask the 403 the
- * caller is about to return.
- */
-export async function auditAdminIpBlocked(_payload: AdminIpBlockedAuditPayload): Promise<void> {
-  // Real implementation posts to the audit pipeline; in Edge/test contexts
-  // we treat this as best-effort and swallow.
-}
-
-/**
- * Pure-compute CIDR check used by the admin IP allowlist guard.
- *
- * Fail-closed semantics:
- *  - empty `allowlistCidrs` → false
- *  - malformed `sourceIp` ("unknown", non-IP) → false
- *  - any malformed CIDR in the allowlist → skipped, never throws
- *
- * Supports IPv4 today; IPv6 is rejected (returns false). The middleware
- * always returns 403 when this returns false, so a missing IPv6 match
- * surfaces as an explicit allowlist denial rather than a silent allow.
- */
-export function isRequestIpAllowed(sourceIp: string, allowlistCidrs: readonly string[]): boolean {
-  if (!allowlistCidrs || allowlistCidrs.length === 0) return false;
-  const parsedSource = parseIpv4(sourceIp);
-  if (parsedSource == null) return false;
-  for (const cidr of allowlistCidrs) {
-    const parsedCidr = parseIpv4Cidr(cidr);
-    if (parsedCidr == null) continue;
-    const [base, prefix] = parsedCidr;
-    const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
-    if ((parsedSource & mask) === (base & mask)) return true;
-  }
-  return false;
-}
-
-function parseIpv4(value: string): number | null {
-  if (typeof value !== 'string') return null;
-  const parts = value.trim().split('.');
-  if (parts.length !== 4) return null;
-  let numeric = 0;
-  for (const part of parts) {
-    if (part.length === 0 || part.length > 3) return null;
-    if (!/^[0-9]+$/.test(part)) return null;
-    const octet = Number(part);
-    if (!Number.isInteger(octet) || octet < 0 || octet > 255) return null;
-    numeric = ((numeric << 8) | octet) >>> 0;
-  }
-  return numeric;
-}
-
-function parseIpv4Cidr(value: string): readonly [number, number] | null {
-  if (typeof value !== 'string') return null;
-  const [address, prefixText] = value.trim().split('/');
-  if (!address || prefixText == null) return null;
-  const numericAddress = parseIpv4(address);
-  if (numericAddress == null) return null;
-  if (!/^[0-9]+$/.test(prefixText)) return null;
-  const prefix = Number(prefixText);
-  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) return null;
-  return [numericAddress, prefix] as const;
 }

@@ -124,3 +124,49 @@ export const SETTINGS_NAV_GROUPS = [
     item("my-pin", "E-sign & scanner PIN", "✱", false, "/account/pin"),
   ]),
 ] as const satisfies readonly SettingsNavGroup[];
+
+// ── F2-C1 · settings-nav RBAC gate ─────────────────────────────────────────
+// UI-128 froze the static SETTINGS_NAV_GROUPS shape (permission_key stays null,
+// see settings-nav.test.ts). Rather than mutate that manifest, group visibility
+// is decided by a SEPARATE, server-side filter: `filterSettingsNavGroups`.
+//
+// Every `admin: true` group is an org-configuration area whose pages themselves
+// gate on settings.org.read / settings.org.update / org.access.admin (verified
+// across settings/*/page.tsx). So the nav gate mirrors the pages exactly: an
+// admin group renders only for callers who can read org settings, and the
+// caller-only `myAccount` group (admin:false) is always visible. The permission
+// probe is the caller's responsibility (server component) so the client nav
+// never receives — and so can never leak — links the user cannot open.
+
+/** Permission that unlocks the admin (org-configuration) settings groups. */
+export const SETTINGS_ADMIN_READ_PERMISSION = "settings.org.read" as const;
+
+/**
+ * Permissions ANY of which reveal the admin settings groups. Kept broad so a
+ * user who can edit (but whose role omits the read grant) is never locked out
+ * of a screen they can otherwise reach — the same fail-open-to-the-page
+ * semantics the individual pages use. Platform/super-admin bypass is handled
+ * upstream by hasAnyPermission (app.current_user_is_platform_admin()).
+ */
+export const SETTINGS_ADMIN_NAV_PERMISSIONS = [
+  "settings.org.read",
+  "settings.org.update",
+  "org.access.admin",
+] as const;
+
+export type SettingsNavAccess = {
+  /** True when the caller may see the admin (org-configuration) groups. */
+  canViewAdminSettings: boolean;
+};
+
+/**
+ * Pure, server-side nav filter. `admin: true` groups appear only when
+ * `canViewAdminSettings` is true; non-admin groups (My account) always appear.
+ * Returns a new array — never mutates SETTINGS_NAV_GROUPS.
+ */
+export function filterSettingsNavGroups(
+  groups: readonly SettingsNavGroup[],
+  access: SettingsNavAccess,
+): SettingsNavGroup[] {
+  return groups.filter((navGroup) => !navGroup.admin || access.canViewAdminSettings);
+}

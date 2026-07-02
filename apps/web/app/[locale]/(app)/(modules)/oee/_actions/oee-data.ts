@@ -17,6 +17,7 @@
  * NOT a `'use server'` module: invoked from the OEE Server Component during render.
  */
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { hasPermission } from '../../../../../../lib/auth/has-permission';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -127,26 +128,6 @@ function resolveWindow(input: OeeScreenWindow | undefined): OeeScreenWindow {
   return defaultWindow(7);
 }
 
-async function hasPermission(
-  c: QueryClient,
-  userId: string,
-  orgId: string,
-  permission: string,
-): Promise<boolean> {
-  const { rows } = await c.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
-      limit 1`,
-    [userId, orgId, permission],
-  );
-  return rows.length > 0;
-}
-
 export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenResult> {
   const siteId =
     typeof input?.siteId === 'string' && UUID_RE.test(input.siteId) ? input.siteId : null;
@@ -155,7 +136,7 @@ export async function getOeeScreen(input?: OeeScreenInput): Promise<OeeScreenRes
     return await withOrgContext(async ({ userId, orgId, client }): Promise<OeeScreenResult> => {
       const c = client as QueryClient;
 
-      const allowed = await hasPermission(c, userId, orgId, OEE_VIEW_PERMISSION);
+      const allowed = await hasPermission({ client: c, userId, orgId }, OEE_VIEW_PERMISSION);
       if (!allowed) return { ok: false, reason: 'forbidden' };
 
       // KPI tiles — selected date window. avg() skips NULLs

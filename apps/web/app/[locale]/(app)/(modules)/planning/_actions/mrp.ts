@@ -155,7 +155,14 @@ export type MrpPlannedOrder = {
 };
 
 export type MrpConvertResult =
-  | { ok: true; created: number; poIds?: string[]; woIds?: string[]; skipped: Array<{ id: string; reason: string }> }
+  | {
+      ok: true;
+      created: number;
+      poIds?: string[];
+      woIds?: string[];
+      skipped: Array<{ id: string; reason: string }>;
+      priceWarnings?: Array<{ id: string; reason: string }>;
+    }
   | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
 
 export type MrpCancelResult =
@@ -745,6 +752,12 @@ type PlannedOrderForConversion = {
   release_status: string;
 };
 
+type PlannedOrderPrice = {
+  unitPrice: string;
+  resolved: boolean;
+  source: 'spec' | 'list_price_fallback' | 'none';
+};
+
 type PlannedOrderForCancel = {
   id: string;
   item_id: string;
@@ -804,6 +817,50 @@ async function fetchPlannedOrdersForConversion(
     [ids],
   );
   return rows;
+}
+
+async function resolvePlannedOrderSupplierSpecPrice(
+  c: QueryClient,
+  row: PlannedOrderForConversion,
+): Promise<PlannedOrderPrice> {
+  if (!row.supplier_id) return { unitPrice: '0', resolved: false, source: 'none' };
+
+  const { rows } = await c.query<{ unit_price: string | null }>(
+    `select ss.unit_price::text as unit_price
+       from public.suppliers s
+       join public.supplier_specs ss
+         on ss.org_id = app.current_org_id()
+        and ss.supplier_code = s.code
+        and ss.item_id = $1::uuid
+        and ss.lifecycle_status = 'active'
+        and ss.review_status = 'approved'
+        and ss.unit_price is not null
+        and ss.effective_from <= coalesce($3::date, current_date)
+        and (ss.expiry_date is null or ss.expiry_date >= coalesce($3::date, current_date))
+      where s.org_id = app.current_org_id()
+        and s.id = $2::uuid
+      order by ss.effective_from desc
+      limit 1`,
+    [row.item_id, row.supplier_id, row.due_date],
+  );
+
+  const specPrice = rows[0]?.unit_price;
+  if (specPrice) return { unitPrice: specPrice, resolved: true, source: 'spec' };
+
+  // Fall back to the item's list_price_gbp — same column and org scoping as
+  // po-form-data.ts:154-168 (GBP-only environment, PO currency stays 'GBP').
+  const { rows: itemRows } = await c.query<{ unit_price: string | null }>(
+    `select list_price_gbp::text as unit_price
+       from public.items
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [row.item_id],
+  );
+  const listPrice = itemRows[0]?.unit_price;
+  if (listPrice) return { unitPrice: listPrice, resolved: true, source: 'list_price_fallback' };
+
+  return { unitPrice: '0', resolved: false, source: 'none' };
 }
 
 async function resolvePlannedOrderWriteSiteId(c: QueryClient, row: PlannedOrderForConversion): Promise<string | null> {
@@ -1000,8 +1057,18 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
       }
 
       const poIds: string[] = [];
+      const priceWarnings: Array<{ id: string; reason: string }> = [];
       const outerCtx = { userId, orgId, client: c };
       for (const [supplierId, rows] of bySupplier) {
+        const prices = await Promise.all(rows.map((row) => resolvePlannedOrderSupplierSpecPrice(c, row)));
+        prices.forEach((price, index) => {
+          if (price.source === 'none') {
+            priceWarnings.push({ id: rows[index]!.id, reason: 'missing supplier spec price' });
+          } else if (price.source === 'list_price_fallback') {
+            priceWarnings.push({ id: rows[index]!.id, reason: 'list_price_fallback' });
+          }
+        });
+
         const result = await createPurchaseOrderCore(outerCtx, {
           supplierId,
           status: 'draft',
@@ -1012,7 +1079,7 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
             itemId: row.item_id,
             qty: quantityToNumeric3(row.quantity) ?? row.quantity,
             uom: row.uom,
-            unitPrice: '0',
+            unitPrice: prices[index]?.unitPrice ?? '0',
             lineNo: index + 1,
           })),
         });
@@ -1024,7 +1091,7 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
         await markPlannedOrdersReleased(c, rows.map((row) => row.id), result.data.id);
       }
 
-      return { ok: true, created: poIds.length, poIds, skipped };
+      return { ok: true, created: poIds.length, poIds, skipped, priceWarnings };
     });
   } catch (err) {
     console.error('[planning/mrp] convertPlannedToPo failed', err);

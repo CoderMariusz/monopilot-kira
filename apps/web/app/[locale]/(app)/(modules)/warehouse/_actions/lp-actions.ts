@@ -99,7 +99,7 @@ export async function listLPs(input: LicensePlateListInput = {}): Promise<Wareho
               or i.item_code ilike '%' || $2 || '%'
               or i.name ilike '%' || $2 || '%'
             )
-            and ($3::uuid is null or lp.site_id = $3::uuid)
+            and ($3::uuid is null or lp.site_id = $3::uuid or lp.site_id is null)
           order by lp.created_at desc, lp.lp_number asc
           limit $4::integer`,
         [warehouseId, search, siteId, limit],

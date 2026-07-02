@@ -25,8 +25,8 @@ const runningLine: LineLiveStatus = {
   status: LineStatus.Running,
   currentWONumber: 'WO-1001',
   currentProductName: 'Smoked salmon pack',
-  goodCount: 128.5,
-  scrapCount: 3.25,
+  goodKg: 128.5,
+  scrapKg: 3.25,
   oeePercent: 87.4,
   lastActivityAt: '2026-06-23T10:15:00.000Z',
 };
@@ -38,8 +38,8 @@ const pausedLine: LineLiveStatus = {
   status: LineStatus.Paused,
   currentWONumber: 'WO-1002',
   currentProductName: 'Fish pie',
-  goodCount: 64,
-  scrapCount: 1,
+  goodKg: 64,
+  scrapKg: 1,
   oeePercent: null,
   lastActivityAt: null,
 };

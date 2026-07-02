@@ -6,11 +6,17 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
 import { SETTINGS_NAV_GROUPS } from "../../lib/navigation/settings-nav";
-import type { SettingsNavItem } from "../../lib/navigation/types";
+import type { SettingsNavGroup, SettingsNavItem } from "../../lib/navigation/types";
 
 type SettingsSubNavProps = {
   locale?: string;
   pathnameOverride?: string;
+  /**
+   * RBAC-filtered groups from the server layout (F2-C1). When omitted the nav
+   * falls back to the full manifest so existing tests / any non-gated caller
+   * keep working — the server layout always passes the filtered set.
+   */
+  groups?: readonly SettingsNavGroup[];
 };
 
 const NAV_I18N_NAMESPACE = "Navigation.settings";
@@ -64,12 +70,13 @@ function iconStyle(iconToken: string) {
   return { "--settings-subnav-icon": JSON.stringify(iconToken) } as CSSProperties;
 }
 
-export function SettingsSubNav({ locale, pathnameOverride }: SettingsSubNavProps): JSX.Element {
+export function SettingsSubNav({ locale, pathnameOverride, groups }: SettingsSubNavProps): JSX.Element {
   const pathname = usePathname();
   const runtimeLocale = useLocale();
   const t = useTranslations(NAV_I18N_NAMESPACE);
   const activeLocale = locale ?? runtimeLocale ?? "en";
   const activePathname = pathnameOverride ?? pathname ?? localizedHref(activeLocale, "/settings");
+  const navGroups = groups ?? SETTINGS_NAV_GROUPS;
 
   return (
     <nav
@@ -80,7 +87,7 @@ export function SettingsSubNav({ locale, pathnameOverride }: SettingsSubNavProps
       style={{ width: "var(--shell-subnav-w)" }}
     >
       <div className="flex flex-col gap-5">
-        {SETTINGS_NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <section key={group.id} className="space-y-1.5">
             <h2 className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-shell-muted">
               {t(navI18nKey(group.i18n_key))}

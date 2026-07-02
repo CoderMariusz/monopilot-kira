@@ -471,7 +471,12 @@ async function advanceAdapter(input: { projectId: string; targetGate: TargetGate
   if (!current.ok) return { ok: false as const, error: current.error, status: 400 };
   const next = nextStage(current.data.project.currentStage);
   if (!next) return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
-  const result = await advanceProjectGateAction({ projectId: input.projectId, targetStage: next });
+  const result = await advanceProjectGateAction({
+    projectId: input.projectId,
+    targetStage: next,
+    // Thread the modal notes through to the outbox event payload for the audit trail.
+    notes: input.notes || undefined,
+  });
   if (result.ok) return { ok: true as const, data: result.data };
   return { ok: false as const, error: result.error, status: result.status, blockers: result.blockers };
 }

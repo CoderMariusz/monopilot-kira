@@ -139,8 +139,8 @@ function installQueryMock(options: QueryOptions = {}) {
     if (sql.includes('select app.set_org_context')) return { rows: [] };
     if (sql.includes('delete from app.session_org_contexts')) return { rows: [] };
     if (sql.includes('pg_advisory_xact_lock')) return { rows: [] };
-    if (sql.includes('from public.scanner_audit_log') && sql.includes('select ext')) {
-      return { rows: options.replayExt ? [{ ext: options.replayExt }] : [] };
+    if (sql.includes('from public.scanner_audit_log') && sql.includes('select result_code, ext')) {
+      return { rows: options.replayExt ? [{ result_code: 'ok', ext: options.replayExt }] : [] };
     }
     if (sql.includes('from public.tenant_variations')) {
       return { rows: [{ require_supervisor: options.requireSupervisor === false ? 'false' : 'true' }] };
@@ -517,5 +517,10 @@ describe('scanner reverse-consume route', () => {
     });
     expect(verifyPinMock).not.toHaveBeenCalled();
     expectNoReverseWrites();
+    const replaySql = fakeClient.query.mock.calls.find(
+      (call) => String(call[0]).includes('from public.scanner_audit_log') && String(call[0]).includes('result_code'),
+    );
+    expect(replaySql?.[0]).toContain('operation = $3');
+    expect(replaySql?.[1]).toContain('production.scanner.wos.reverse_consume');
   });
 });

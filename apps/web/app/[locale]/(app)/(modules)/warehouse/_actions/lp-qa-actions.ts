@@ -20,7 +20,7 @@ export type ReleaseLpQaResult = {
   qaStatus: ReleaseLpQaDecision;
 };
 
-const WAREHOUSE_GRN_RECEIVE_PERMISSION = 'warehouse.grn.receive';
+const QUALITY_BATCH_RELEASE_PERMISSION = 'quality.batch.release';
 const TERMINAL_LP_STATUSES = ['consumed', 'destroyed', 'shipped', 'merged', 'returned'] as const;
 
 function isDecision(value: string | null): value is ReleaseLpQaDecision {
@@ -36,7 +36,7 @@ export async function releaseLpQa(input: ReleaseLpQaInput): Promise<WarehouseRes
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<ReleaseLpQaResult>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasWarehousePermission(ctx, WAREHOUSE_GRN_RECEIVE_PERMISSION))) {
+      if (!(await hasWarehousePermission(ctx, QUALITY_BATCH_RELEASE_PERMISSION))) {
         return { ok: false, reason: 'forbidden' };
       }
 

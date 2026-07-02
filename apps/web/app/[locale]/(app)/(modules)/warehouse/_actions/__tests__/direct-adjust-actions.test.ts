@@ -80,6 +80,8 @@ type Behavior = {
   supervisorEnrolled?: boolean;
   /** Current generated avg_cost from item_wac_state for WAC delta valuation. */
   wacAvgCost?: string;
+  /** Active hold returned by the canonical guard. */
+  activeHold?: boolean;
 };
 
 function makeClient(behavior: Behavior = {}): QueryClient {
@@ -89,6 +91,7 @@ function makeClient(behavior: Behavior = {}): QueryClient {
     hasPermission = true,
     supervisorEnrolled = true,
     wacAvgCost = '4.25',
+    activeHold = false,
   } = behavior;
 
   // `from public.user_roles` is queried both for the initiator and supervisor
@@ -104,6 +107,11 @@ function makeClient(behavior: Behavior = {}): QueryClient {
       }
       if (n.includes('from public.stock_moves sm')) {
         return replayRow ? { rows: [replayRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (n.includes('from public.v_active_holds')) {
+        return activeHold
+          ? { rows: [{ hold_number: 'HLD-0001', priority: 'critical' }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
       }
       if (n.includes('from public.user_pins')) {
         return supervisorEnrolled ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -172,6 +180,15 @@ describe('applyDirectAdjustment — guards', () => {
     });
     const result = await applyDirectAdjustment(decreaseInput({ lpId: LP_ID }));
     expect(result).toEqual({ ok: false, error: { code: 'insufficient_unreserved', message: 'insufficient_unreserved' } });
+  });
+
+  it("rejects a decrease from an LP covered by an active hold as 'quality_hold_active' before e-sign", async () => {
+    client = makeClient({ activeHold: true });
+    const result = await applyDirectAdjustment(decreaseInput({ quantity: '2' }));
+
+    expect(result).toEqual({ ok: false, error: { code: 'quality_hold_active', message: 'quality_hold_active' } });
+    expect(findCall('from public.v_active_holds')).toBeDefined();
+    expect(findCall('insert into public.stock_adjustments')).toBeUndefined();
   });
 });
 

@@ -6,6 +6,7 @@ import { isRecord, jsonError, jsonOk, readJson, stringField } from '../../../../
 import { withTxnOrgContext } from '../../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../../lib/scanner/with-scanner-org';
 import { packLpIntoBoxCore } from '../../../../../lib/shipping/pack-lp-into-box';
+import { isUuid, scannerLpSiteAccess } from '../../../scanner/site-access';
 import { auditAttempt } from '../../../production/scanner/_support';
 
 // Maps the shared pack core's result codes to HTTP statuses for the scanner.
@@ -16,6 +17,7 @@ const STATUS_BY_ERROR: Record<string, number> = {
   lp_not_allocated: 409,
   lp_blocked_for_pack: 409,
   invalid_box: 422,
+  forbidden: 403,
   persistence_failed: 500,
 };
 
@@ -56,12 +58,27 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const packResult = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () =>
-        packLpIntoBoxCore(
+      const packResult = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
+        if (isUuid(input.shipmentId) && isUuid(input.lpId)) {
+          const shipmentAccess = await scopedClient.query<{ allowed: boolean }>(
+            `select app.user_can_see_site(sh.site_id) as allowed
+               from public.shipments sh
+              where sh.org_id = app.current_org_id()
+                and sh.id = $1::uuid
+              limit 1`,
+            [input.shipmentId],
+          );
+          if (!shipmentAccess.rows[0]) return { ok: false as const, error: 'invalid_state' };
+          if (!shipmentAccess.rows[0].allowed) return { ok: false as const, error: 'forbidden' };
+          const lpAccess = await scannerLpSiteAccess(scopedClient, input.lpId);
+          if (lpAccess === 'not_found') return { ok: false as const, error: 'lp_not_found' };
+          if (lpAccess === 'forbidden') return { ok: false as const, error: 'forbidden' };
+        }
+        return packLpIntoBoxCore(
           { userId: session.user_id, orgId: session.org_id, client: scopedClient },
           { shipmentId: input.shipmentId, lpId: input.lpId, boxId: input.boxId },
-        ),
-      );
+        );
+      });
 
       if (!packResult.ok) {
         return jsonError(packResult.error, STATUS_BY_ERROR[packResult.error] ?? 422);

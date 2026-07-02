@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
             where sh.org_id = app.current_org_id()
               and sh.deleted_at is null
               and sh.status = 'packing'
+              and app.user_can_see_site(sh.site_id)
             order by sh.created_at desc
             limit 50`,
         );

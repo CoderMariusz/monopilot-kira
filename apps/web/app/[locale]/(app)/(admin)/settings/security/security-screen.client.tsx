@@ -25,12 +25,6 @@ export type AuditLogRow = {
   tableName: string;
 };
 
-export type IpAllowlistEntry = {
-  id: string;
-  cidr: string;
-  label: string | null;
-};
-
 export type SecurityScreenData = {
   twoFactor: {
     enforceAdmins: boolean;
@@ -55,7 +49,6 @@ export type SecurityScreenData = {
     idleTimeout: '15' | '30' | '60' | '4h' | 'never';
     maximumSessionLength: '4h' | '8h' | '12h' | '24h';
   };
-  ipAllowlist: IpAllowlistEntry[];
   auditLog: AuditLogRow[];
 };
 
@@ -64,23 +57,6 @@ export type SaveSecuritySettings = (
 ) => Promise<
   | { ok: true; data?: SecurityScreenData }
   | { ok: false; code?: string; fieldErrors?: Record<string, string>; data?: SecurityScreenData }
->;
-
-/** Mirrors `actions/security/ip-allowlist-add.addIpRange`. */
-export type AddIpRange = (
-  cidr: string,
-  label?: string | null,
-) => Promise<
-  | { ok: true; data: { id: string; cidr: string; label: string | null } }
-  | { ok: false; error: 'INVALID_INPUT' | 'CIDR_OVERLAP_DEFAULT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' }
->;
-
-/** Mirrors `actions/security/ip-allowlist-remove.removeIpRange`. */
-export type RemoveIpRange = (
-  id: string,
-) => Promise<
-  | { ok: true; data: { id: string } }
-  | { ok: false; error: 'INVALID_INPUT' | 'NOT_FOUND' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' }
 >;
 
 export type SecurityScreenLabels = {
@@ -128,27 +104,8 @@ export type SecurityScreenLabels = {
   enforceSsoHint: string;
   scimTitle: string;
   scimProvisioning: string;
-  ipAllowlistTitle: string;
-  ipAllowlistHint: string;
   notConfigured: string;
-  addRange: string;
-  addIpRangeTitle: string;
   close: string;
-  addIpRangeHelp: string;
-  ipCidrLabel: string;
-  ipCidrPlaceholder: string;
-  ipCidrHint: string;
-  ipLabelLabel: string;
-  ipLabelPlaceholder: string;
-  ipAddSubmit: string;
-  ipAdding: string;
-  ipRemove: string;
-  ipRemoving: string;
-  ipRemoveConfirm: string;
-  ipErrorInvalid: string;
-  ipErrorOverlap: string;
-  ipErrorForbidden: string;
-  ipErrorFailed: string;
   notAvailableYet: string;
   auditLogTitle: string;
   viewFullLog: string;
@@ -173,8 +130,6 @@ export type SecurityScreenProps = {
   state?: 'ready' | 'loading' | 'empty' | 'error';
   canManageSecurity: boolean;
   saveSecuritySettings: SaveSecuritySettings;
-  addIpRange: AddIpRange;
-  removeIpRange: RemoveIpRange;
   /** Locale-relative href to the full audit log screen. */
   auditLogHref: string;
 };
@@ -183,7 +138,6 @@ const securityAuditTables = new Set([
   'org_security_policies',
   'org_sso_config',
   'scim_tokens',
-  'admin_ip_allowlist',
 ]);
 
 /**
@@ -271,175 +225,6 @@ function StatusView({ kind, labels }: { kind: 'loading' | 'empty' | 'error' | 'p
   );
 }
 
-/**
- * Light client-side CIDR shape check used only to surface an inline hint before
- * the user submits. Authoritative validation (and the IPv4/IPv6 default-open
- * `0.0.0.0/0` · `::/0` rejection) lives in the `addIpRange` server action — this
- * is a UX affordance, not a security boundary.
- */
-export function looksLikeCidr(value: string): boolean {
-  const trimmed = value.trim();
-  const slash = trimmed.indexOf('/');
-  if (slash < 0) return false;
-  const address = trimmed.slice(0, slash);
-  const prefixText = trimmed.slice(slash + 1);
-  if (!address || !/^[0-9]+$/.test(prefixText)) return false;
-  const prefix = Number(prefixText);
-  if (address.includes(':')) return prefix >= 0 && prefix <= 128;
-  return prefix >= 0 && prefix <= 32 && /^(\d{1,3}\.){3}\d{1,3}$/.test(address);
-}
-
-function ipErrorLabel(
-  error: 'INVALID_INPUT' | 'CIDR_OVERLAP_DEFAULT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' | 'NOT_FOUND',
-  labels: SecurityScreenLabels,
-): string {
-  switch (error) {
-    case 'CIDR_OVERLAP_DEFAULT':
-      return labels.ipErrorOverlap;
-    case 'FORBIDDEN':
-      return labels.ipErrorForbidden;
-    case 'INVALID_INPUT':
-      return labels.ipErrorInvalid;
-    default:
-      return labels.ipErrorFailed;
-  }
-}
-
-function AddIpRangeDialog({
-  open,
-  onClose,
-  labels,
-  addIpRange,
-  onAdded,
-}: {
-  open: boolean;
-  onClose: () => void;
-  labels: SecurityScreenLabels;
-  addIpRange: AddIpRange;
-  onAdded: (entry: IpAllowlistEntry) => void;
-}) {
-  const [cidr, setCidr] = useState('');
-  const [label, setLabel] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, startSubmit] = useTransition();
-
-  React.useEffect(() => {
-    if (!open) {
-      setCidr('');
-      setLabel('');
-      setError(null);
-    }
-  }, [open]);
-
-  if (!open) return null;
-
-  const trimmed = cidr.trim();
-  const showFormatHint = trimmed.length > 0 && !looksLikeCidr(trimmed);
-  const canSubmit = trimmed.length > 0 && !isSubmitting;
-
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    const normalizedLabel = label.trim();
-    startSubmit(async () => {
-      const result = await addIpRange(trimmed, normalizedLabel.length > 0 ? normalizedLabel : null);
-      if (result.ok) {
-        onAdded({ id: result.data.id, cidr: result.data.cidr, label: result.data.label });
-        onClose();
-        return;
-      }
-      setError(ipErrorLabel(result.error, labels));
-    });
-  }
-
-  return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div
-        aria-labelledby="sm-ip-allowlist-title"
-        aria-modal="true"
-        className="modal-box"
-        style={{ width: 440 }}
-        data-focus-trap="radix-dialog"
-        data-modal-id="SM-IP-ALLOWLIST"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="modal-head">
-          <h2 id="sm-ip-allowlist-title" className="modal-title">
-            {labels.addIpRangeTitle}
-          </h2>
-          <Button aria-label={labels.close} className="btn-ghost btn-sm" type="button" onClick={onClose}>
-            ×
-          </Button>
-        </div>
-        <form className="modal-body space-y-3" onSubmit={handleSubmit}>
-          <p className="muted text-sm">{labels.addIpRangeHelp}</p>
-          <div className="space-y-1">
-            <label className="sg-label text-sm" htmlFor="sm-ip-cidr">
-              {labels.ipCidrLabel}
-            </label>
-            <input
-              id="sm-ip-cidr"
-              aria-label={labels.ipCidrLabel}
-              name="cidr"
-              type="text"
-              autoComplete="off"
-              spellCheck={false}
-              className="w-full font-mono"
-              placeholder={labels.ipCidrPlaceholder}
-              value={cidr}
-              disabled={isSubmitting}
-              onChange={(event) => {
-                setCidr(event.target.value);
-                setError(null);
-              }}
-            />
-            <p className="sg-hint text-xs" id="sm-ip-cidr-hint">
-              {labels.ipCidrHint}
-            </p>
-            {showFormatHint ? (
-              <p role="status" className="text-xs font-medium text-amber-700">
-                {labels.ipErrorInvalid}
-              </p>
-            ) : null}
-          </div>
-          <div className="space-y-1">
-            <label className="sg-label text-sm" htmlFor="sm-ip-label">
-              {labels.ipLabelLabel}
-            </label>
-            <input
-              id="sm-ip-label"
-              aria-label={labels.ipLabelLabel}
-              name="label"
-              type="text"
-              maxLength={120}
-              autoComplete="off"
-              className="w-full"
-              placeholder={labels.ipLabelPlaceholder}
-              value={label}
-              disabled={isSubmitting}
-              onChange={(event) => setLabel(event.target.value)}
-            />
-          </div>
-          {error ? (
-            <div role="alert" className="text-xs font-medium text-red-700">
-              {error}
-            </div>
-          ) : null}
-          <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" className="btn-ghost btn-sm" onClick={onClose} disabled={isSubmitting}>
-              {labels.close}
-            </Button>
-            <Button type="submit" className="btn-primary btn-sm" disabled={!canSubmit}>
-              {isSubmitting ? labels.ipAdding : labels.ipAddSubmit}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 export function sortSecurityAuditRows(rows: AuditLogRow[]) {
   return [...rows]
     .filter((row) => securityAuditTables.has(row.tableName))
@@ -453,18 +238,12 @@ export default function SecurityScreen({
   state = 'ready',
   canManageSecurity,
   saveSecuritySettings,
-  addIpRange,
-  removeIpRange,
   auditLogHref,
 }: SecurityScreenProps) {
   const [screenData, setScreenData] = useState(data);
   const [enforceSso, setEnforceSso] = useState(data.sso.enforceSso);
   const [fieldError, setFieldError] = useState<string | null>(null);
-  const [ipDialogOpen, setIpDialogOpen] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
-  const [ipError, setIpError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [isRemoving, startRemoving] = useTransition();
   const auditRows = useMemo(() => sortSecurityAuditRows(screenData.auditLog), [screenData.auditLog]);
 
   if (state === 'loading') return <StatusView kind="loading" labels={labels} />;
@@ -501,29 +280,6 @@ export default function SecurityScreen({
       if (next) set.add(method);
       else set.delete(method);
       return { ...prev, twoFactor: { ...prev.twoFactor, allowedMethods: Array.from(set) } };
-    });
-  }
-
-  function handleIpAdded(entry: IpAllowlistEntry) {
-    setIpError(null);
-    setScreenData((prev) => ({ ...prev, ipAllowlist: [entry, ...prev.ipAllowlist] }));
-  }
-
-  function handleRemoveIp(entry: IpAllowlistEntry) {
-    if (!window.confirm(labels.ipRemoveConfirm)) return;
-    setIpError(null);
-    setRemovingId(entry.id);
-    startRemoving(async () => {
-      const result = await removeIpRange(entry.id);
-      if (result.ok) {
-        setScreenData((prev) => ({
-          ...prev,
-          ipAllowlist: prev.ipAllowlist.filter((row) => row.id !== entry.id),
-        }));
-      } else {
-        setIpError(ipErrorLabel(result.error, labels));
-      }
-      setRemovingId(null);
     });
   }
 
@@ -723,50 +479,6 @@ export default function SecurityScreen({
         </SRow>
       </RegionSection>
 
-      <RegionSection region="ip-allowlist" title={labels.ipAllowlistTitle}>
-        <SRow label={labels.ipAllowlistTitle} hint={labels.ipAllowlistHint}>
-          <div className="space-y-2">
-            {screenData.ipAllowlist.length > 0 ? (
-              <ul className="space-y-1.5" aria-label={labels.ipAllowlistTitle}>
-                {screenData.ipAllowlist.map((entry) => (
-                  <li key={entry.id} className="flex items-center gap-3 text-sm" data-ip-id={entry.id}>
-                    <span className="font-mono text-slate-900">{entry.cidr}</span>
-                    {entry.label ? <span className="text-xs text-slate-500">{entry.label}</span> : null}
-                    <Button
-                      type="button"
-                      className="btn-ghost btn-sm ml-auto text-red-600"
-                      aria-label={`${labels.ipRemove} ${entry.cidr}`}
-                      disabled={isRemoving && removingId === entry.id}
-                      onClick={() => handleRemoveIp(entry)}
-                    >
-                      {isRemoving && removingId === entry.id ? labels.ipRemoving : labels.ipRemove}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="font-mono text-xs text-slate-500">{labels.notConfigured}</div>
-            )}
-            <Button
-              type="button"
-              className="btn-ghost btn-sm text-blue-600"
-              data-modal-target="SM-IP-ALLOWLIST"
-              onClick={(event) => {
-                setIpDialogOpen(true);
-                event.currentTarget.blur();
-              }}
-            >
-              {labels.addRange}
-            </Button>
-            {ipError ? (
-              <div role="alert" className="text-xs font-medium text-red-700">
-                {ipError}
-              </div>
-            ) : null}
-          </div>
-        </SRow>
-      </RegionSection>
-
       <RegionSection
         region="audit-preview"
         title={labels.auditLogTitle}
@@ -815,13 +527,6 @@ export default function SecurityScreen({
         </div>
       </div>
 
-      <AddIpRangeDialog
-        open={ipDialogOpen}
-        onClose={() => setIpDialogOpen(false)}
-        labels={labels}
-        addIpRange={addIpRange}
-        onAdded={handleIpAdded}
-      />
     </main>
   );
 }

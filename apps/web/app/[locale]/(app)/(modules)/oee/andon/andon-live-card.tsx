@@ -123,8 +123,8 @@ export function AndonLiveCard({
           </div>
 
           <div className="grid gap-5 sm:grid-cols-3 lg:grid-cols-1">
-            <Metric label={labels.good} value={formatNumber(line.goodCount)} />
-            <Metric label={labels.scrap} value={formatNumber(line.scrapCount)} />
+            <Metric label={labels.good} value={formatNumber(line.goodKg)} />
+            <Metric label={labels.scrap} value={formatNumber(line.scrapKg)} />
             <Metric label={labels.oee} value={formatOee(line.oeePercent)} />
           </div>
         </div>

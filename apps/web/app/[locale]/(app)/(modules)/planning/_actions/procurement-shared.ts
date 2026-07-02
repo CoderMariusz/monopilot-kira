@@ -20,6 +20,8 @@ export type ProcurementError =
   | 'already_exists'
   | 'invalid_state'
   | 'insufficient_stock'
+  /** E7: shortfall caused (at least in part) by held LPs that were skipped; see skippedHeldLps in the ship response. */
+  | 'insufficient_stock_holds'
   /** W9 RF5 F3: cancel of an in_transit TO with already-received destination LPs is refused. */
   | 'partially_received'
   | 'persistence_failed';

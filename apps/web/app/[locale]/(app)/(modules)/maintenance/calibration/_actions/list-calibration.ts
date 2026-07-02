@@ -1,6 +1,10 @@
 'use server';
 
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+
+/** Maintenance register read — seeded in packages/db/migrations/202-maintenance-outbox-and-rbac-seed.sql:196 */
+const MNT_READ_PERMISSION = 'mnt.asset.read';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -93,7 +97,11 @@ function mapCalibrationRow(row: CalibrationDbRow): CalibrationDueRow {
 
 export async function listCalibration(): Promise<CalibrationDueRow[]> {
   try {
-    return await withOrgContext(async ({ client }): Promise<CalibrationDueRow[]> => {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<CalibrationDueRow[]> => {
+      if (!(await hasPermission({ userId, orgId, client: client as QueryClient }, MNT_READ_PERMISSION))) {
+        return [];
+      }
+
       const qc = client as QueryClient;
       const { rows } = await qc.query<CalibrationDbRow>(
         `select

@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
             where inv.org_id = app.current_org_id()
               and inv.product_id = $1::uuid
               and inv.uom = $2
+              and app.user_can_see_site(lp.site_id)
               and lp.qa_status = 'released'
               and (lp.expiry_date is null or lp.expiry_date::date >= current_date)
               and not exists (

@@ -54,6 +54,8 @@ type FakeClient = {
   roles: FakeRole[];
   rolePermissions: Map<string, Set<string>>;
   actorPermissions: Set<string>;
+  actorRoleCodes: Set<string>;
+  actorRoleIds: Set<string>;
   query: (sql: string, params?: readonly unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -70,9 +72,30 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
     ],
     rolePermissions: new Map([[CUSTOM_ROLE_ID, new Set(['settings.org.read'])]]),
     actorPermissions: new Set([MANAGE_PERMISSION]),
+    actorRoleCodes: new Set(['role_manager']),
+    actorRoleIds: new Set(['role-manager-id']),
     async query(sql: string, params: readonly unknown[] = []) {
       client.calls.push({ sql, params });
       const text = normalize(sql);
+
+      // Super-role check
+      if (text.includes('from public.user_roles ur') && text.includes('r.code = any($3::text[])')) {
+        const superRoles = new Set(params[2] as readonly string[]);
+        const ok = [...client.actorRoleCodes].some((code) => superRoles.has(code));
+        return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
+      }
+
+      // SoD self-role membership check
+      if (text.includes('from public.user_roles') && text.includes('role_id = $3::uuid')) {
+        const ok = client.actorRoleIds.has(params[2] as string);
+        return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
+      }
+
+      // Caller grantable subset query
+      if (text.startsWith('select distinct permission') && text.includes('from public.user_roles ur')) {
+        const rows = [...client.actorPermissions].map((permission) => ({ permission }));
+        return { rows, rowCount: rows.length };
+      }
 
       // RBAC gate check
       if (text.includes('from public.user_roles ur') && text.includes('rp.permission')) {
@@ -86,6 +109,13 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
         const code = params.find((p) => typeof p === 'string' && client.roles.some((r) => r.code === p)) as string | undefined;
         const role = client.roles.find((r) => r.code === code);
         return { rows: role ? [{ id: role.id }] : [], rowCount: role ? 1 : 0 };
+      }
+
+      // readRolePermissions UNION query — must come before the plain role-by-id branch
+      // because it also contains `from public.roles` and `id = $`.
+      if (text.includes('union') && text.includes('role_permissions') && text.includes('from public.roles')) {
+        const set = client.rolePermissions.get(params[0] as string) ?? new Set<string>();
+        return { rows: [...set].map((permission) => ({ permission })), rowCount: set.size };
       }
 
       // Role lookup by id (setRolePermissions / listRolePermissions)
@@ -146,7 +176,7 @@ describe('DEFECT-8 createRole', () => {
   it('refuses system role codes (owner/admin family) with system_role_locked', async () => {
     const client = makeClient();
     runWith(client);
-    for (const code of ['owner', 'admin', 'org.access.admin', 'org.platform.admin', 'org.schema.admin']) {
+    for (const code of ['owner', 'admin', 'org_admin', 'org.access.admin', 'org.platform.admin', 'org.schema.admin']) {
       const res = await createRole({ code, name: 'Hijack' });
       expect(res).toEqual({ ok: false, error: 'system_role_locked' });
     }
@@ -213,11 +243,38 @@ describe('DEFECT-8 setRolePermissions dual-store consistency', () => {
     expect(res).toEqual({ ok: false, error: 'forbidden' });
   });
 
-  it('writes BOTH stores in one txn: delete+insert role_permissions AND rebuild roles.permissions jsonb + audit', async () => {
-    const client = makeClient();
+  it('blocks non-super callers from granting permissions they do not hold', async () => {
+    const client = makeClient({ actorPermissions: new Set([MANAGE_PERMISSION, 'settings.org.read']) });
     runWith(client);
 
+    const res = await setRolePermissions({
+      roleId: CUSTOM_ROLE_ID,
+      permissions: ['settings.org.read', 'settings.org.update'],
+    });
+
+    expect(res).toEqual({ ok: false, error: 'forbidden' });
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('delete from public.role_permissions'))).toBe(false);
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('update public.roles'))).toBe(false);
+  });
+
+  it('blocks non-super callers from modifying a role they currently hold', async () => {
+    const client = makeClient({
+      actorPermissions: new Set([MANAGE_PERMISSION, 'settings.org.read']),
+      actorRoleIds: new Set([CUSTOM_ROLE_ID]),
+    });
+    runWith(client);
+
+    const res = await setRolePermissions({ roleId: CUSTOM_ROLE_ID, permissions: ['settings.org.read'] });
+
+    expect(res).toEqual({ ok: false, error: 'forbidden' });
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('delete from public.role_permissions'))).toBe(false);
+  });
+
+  it('writes BOTH stores in one txn: delete+insert role_permissions AND rebuild roles.permissions jsonb + audit', async () => {
     const nextPerms = ['settings.org.read', 'settings.org.update', 'settings.users.invite'];
+    const client = makeClient({ actorPermissions: new Set([MANAGE_PERMISSION, ...nextPerms]) });
+    runWith(client);
+
     const res = await setRolePermissions({ roleId: CUSTOM_ROLE_ID, permissions: nextPerms });
     expect(res.ok).toBe(true);
 
@@ -247,6 +304,18 @@ describe('DEFECT-8 setRolePermissions dual-store consistency', () => {
     // security-retained (constant in the SQL, per the audit_events red line)
     expect(normalize(audit!.sql)).toContain("'security'");
     expect(normalize(audit!.sql)).toContain('retention_class');
+    expect(normalize(audit!.sql)).toContain('before_state');
+    expect(normalize(audit!.sql)).toContain('after_state');
+    expect(JSON.parse(audit!.params[4] as string)).toEqual({
+      code: 'reviewer',
+      permissions: ['settings.org.read'],
+      removed: [],
+    });
+    expect(JSON.parse(audit!.params[5] as string)).toEqual({
+      code: 'reviewer',
+      permissions: nextPerms,
+      added: ['settings.org.update', 'settings.users.invite'],
+    });
 
     // ordering: both stores written, and the audit is part of the same callback (one txn)
     const delIdx = sqls.findIndex((s) => s.startsWith('delete from public.role_permissions'));

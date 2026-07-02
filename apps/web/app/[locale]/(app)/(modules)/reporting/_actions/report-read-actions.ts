@@ -54,6 +54,9 @@ export type SpendBySupplierRow = {
   lineCount: number;
 };
 
+/** PO statuses that represent committed spend (excludes draft + cancelled). */
+const REAL_SPEND_PO_STATUSES = ['sent', 'confirmed', 'partially_received', 'received'] as const;
+
 type ReportingLoaderInput = {
   days?: number;
   from?: Date;
@@ -969,10 +972,13 @@ export async function procurementSummary(
 
 export async function getSpendBySupplierCore(
   ctx: ReportingContext,
+  input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<SpendBySupplierRow[]>> {
   if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
     return { ok: false, reason: 'forbidden' };
   }
+
+  const window = normalizeWindow(input, 30);
 
   const res = await ctx.client.query<{
     supplier_id: string;
@@ -992,8 +998,12 @@ export async function getSpendBySupplierCore(
          on s.org_id = app.current_org_id()
         and s.id = po.supplier_id
       where po.org_id = app.current_org_id()
+        and po.status = any($1::text[])
+        and po.created_at >= $2::timestamptz
+        and po.created_at <= $3::timestamptz
       group by po.supplier_id, s.name
       order by coalesce(sum(pol.qty * pol.unit_price), 0) desc, s.name asc`,
+    [REAL_SPEND_PO_STATUSES, window.fromIso, window.toIso],
   );
 
   return {
@@ -1066,7 +1076,7 @@ export async function reportingBundle(input: ReportingLoaderInput = {}): Promise
       const procurement = await procurementSummaryCore(ctx, withOrder);
       const receipts = await receiptsSummaryCore(ctx, withOrder);
       const shipments = await shipmentsSummaryCore(ctx, withOrder);
-      const spendBySupplier = await getSpendBySupplierCore(ctx);
+      const spendBySupplier = await getSpendBySupplierCore(ctx, dateWindow);
       const exportAccess = await getReportingExportAccessCore(ctx);
 
       return { production, inventory, quality, procurement, receipts, shipments, spendBySupplier, exportAccess };

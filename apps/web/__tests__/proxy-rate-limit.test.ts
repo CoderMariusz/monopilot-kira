@@ -37,19 +37,15 @@ vi.mock('../i18n/routing', () => ({
 }));
 
 const {
-  auditAdminIpBlockedMock,
   checkIdleTimeoutMock,
   establishOrgContextMock,
   intlHandlerMock,
-  isRequestIpAllowedMock,
   resolveEdgeSecurityContextMock,
   verifyScimBearerMock,
 } = vi.hoisted(() => ({
-  auditAdminIpBlockedMock: vi.fn(),
   checkIdleTimeoutMock: vi.fn(),
   establishOrgContextMock: vi.fn(),
   intlHandlerMock: vi.fn(),
-  isRequestIpAllowedMock: vi.fn(),
   resolveEdgeSecurityContextMock: vi.fn(),
   verifyScimBearerMock: vi.fn(),
 }));
@@ -63,9 +59,7 @@ vi.mock('../lib/auth/session-check', () => ({
 }));
 
 vi.mock('../lib/auth/edge-middleware-policy', () => ({
-  auditAdminIpBlocked: auditAdminIpBlockedMock,
   establishOrgContext: establishOrgContextMock,
-  isRequestIpAllowed: isRequestIpAllowedMock,
   resolveEdgeSecurityContext: resolveEdgeSecurityContextMock,
   verifyScimBearer: verifyScimBearerMock,
 }));
@@ -98,16 +92,13 @@ describe('T-121 proxy rate limiting', () => {
     verifyScimBearerMock.mockResolvedValue(false);
     resolveEdgeSecurityContextMock.mockResolvedValue({
       accessToken: 'fresh-access-token',
-      adminIpAllowlistCidrs: [],
       onboardingCompletedAt: '2026-05-01T00:00:00.000Z',
       orgId: '11111111-1111-1111-1111-111111111111',
       role: 'admin',
       sessionIdleTimeoutMinutes: 60,
     });
-    isRequestIpAllowedMock.mockReturnValue(true);
     checkIdleTimeoutMock.mockResolvedValue(new Response(null, { status: 200 }));
     establishOrgContextMock.mockResolvedValue(undefined);
-    auditAdminIpBlockedMock.mockResolvedValue(undefined);
   });
 
   it('returns 429 on the 6th POST to /api/auth/login from one IP', async () => {

@@ -12,6 +12,7 @@ import { materialIdFromConsumptionExt } from '../../../../../../../lib/correctio
 import { hasPermission, type ProductionContext } from '../../../../../../../lib/production/shared';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
 import { requireScannerSession } from '../../../../../../../lib/scanner/guard';
+import { findServerReplay } from '../../../../../../../lib/scanner/replay';
 import { isRecord, stringField } from '../../../../../../../lib/scanner/route-utils';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../../../lib/scanner/txn-org-context';
 import {
@@ -112,15 +113,9 @@ function replayResponse(ext: Record<string, unknown>) {
 }
 
 async function readReplay(client: ProductionContext['client'], orgId: string, clientOpId: string): Promise<Record<string, unknown> | null> {
-  const replay = await client.query<{ ext: Record<string, unknown> | null }>(
-    `select ext
-       from public.scanner_audit_log
-      where org_id = $1::uuid
-        and client_op_id = $2
-      limit 1`,
-    [orgId, clientOpId],
-  );
-  return isRecord(replay.rows[0]?.ext) ? replay.rows[0].ext : null;
+  const replay = await findServerReplay(client, orgId, clientOpId, OPERATION);
+  if (!replay || replay.result_code !== 'ok') return null;
+  return replay.ext;
 }
 
 async function loadConsumptionForUpdate(
@@ -155,6 +150,7 @@ async function loadConsumptionForUpdate(
        where c.org_id = app.current_org_id()
          and c.wo_id = $1::uuid
          and c.id = $2::uuid
+         and app.user_can_see_site(c.site_id)
          and c.correction_of_id is null
        limit 1
        for update of c`,
@@ -174,6 +170,7 @@ async function loadConsumptionForUpdate(
         and wm.id = $2::uuid
         and c.lp_id = $3::uuid
         and c.qty_consumed = $4::numeric
+        and app.user_can_see_site(c.site_id)
         and c.correction_of_id is null
       order by c.consumed_at desc, c.id desc
       limit 1
@@ -206,6 +203,7 @@ async function loadLicensePlateForUpdate(ctx: ProductionContext, lpId: string): 
        from public.license_plates
       where org_id = app.current_org_id()
         and id = $1::uuid
+        and app.user_can_see_site(site_id)
       limit 1
       for update`,
     [lpId],
@@ -225,6 +223,13 @@ async function lockWoMaterialsAndValidateDecrement(ctx: ProductionContext, origi
           where org_id = app.current_org_id()
             and wo_id = $1::uuid
             and product_id = $2::uuid
+            and exists (
+              select 1
+                from public.work_orders wo
+               where wo.org_id = app.current_org_id()
+                 and wo.id = wo_materials.wo_id
+                 and app.user_can_see_site(wo.site_id)
+            )
           for update
        )
        select id::text as id,
@@ -244,6 +249,13 @@ async function lockWoMaterialsAndValidateDecrement(ctx: ProductionContext, origi
         and wo_id = $1::uuid
         and ${materialId ? 'id' : 'product_id'} = $2::uuid
         and consumed_qty - $3::numeric >= 0
+        and exists (
+          select 1
+            from public.work_orders wo
+           where wo.org_id = app.current_org_id()
+             and wo.id = wo_materials.wo_id
+             and app.user_can_see_site(wo.site_id)
+        )
       for update`,
     [original.wo_id, materialId ?? original.component_id, original.qty_consumed],
   );
@@ -349,6 +361,13 @@ async function decrementConsumedQty(ctx: ProductionContext, original: Consumptio
           where org_id = app.current_org_id()
             and wo_id = $1::uuid
             and product_id = $2::uuid
+            and exists (
+              select 1
+                from public.work_orders wo
+               where wo.org_id = app.current_org_id()
+                 and wo.id = wo_materials.wo_id
+                 and app.user_can_see_site(wo.site_id)
+            )
           for update
        ),
        single_material as (
@@ -377,6 +396,13 @@ async function decrementConsumedQty(ctx: ProductionContext, original: Consumptio
         and wo_id = $1::uuid
         and ${materialId ? 'id' : 'product_id'} = $2::uuid
         and consumed_qty - $3::numeric >= 0
+        and exists (
+          select 1
+            from public.work_orders wo
+           where wo.org_id = app.current_org_id()
+             and wo.id = wo_materials.wo_id
+             and app.user_can_see_site(wo.site_id)
+        )
       returning id::text as id`,
     [original.wo_id, materialId ?? original.component_id, original.qty_consumed],
   );
@@ -395,7 +421,8 @@ async function restoreLicensePlate(
             updated_by = $3::uuid,
             updated_at = now()
       where org_id = app.current_org_id()
-        and id = $1::uuid`,
+        and id = $1::uuid
+        and app.user_can_see_site(site_id)`,
     [params.lp.id, params.original.qty_consumed, ctx.userId, params.toState],
   );
 }

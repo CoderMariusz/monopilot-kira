@@ -135,9 +135,11 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.v_active_holds')) {
+        const lpId = String(params[0] ?? '');
+        const blocked = otherActiveHoldLpIds.includes(lpId);
         return {
-          rows: otherActiveHoldLpIds.map((referenceId) => ({ reference_id: referenceId })),
-          rowCount: otherActiveHoldLpIds.length,
+          rows: blocked ? [{ hold_number: 'HLD-OTHER', priority: 'critical' }] : [],
+          rowCount: blocked ? 1 : 0,
         };
       }
 
@@ -268,6 +270,30 @@ describe('quality hold server actions', () => {
     expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
   });
 
+  it('creates a batch hold with reference_text instead of requiring a UUID reference', async () => {
+    const result = await createHold({
+      referenceType: 'batch',
+      referenceId: 'BATCH-2026-07-02',
+      reasonText: 'retain sample failed',
+      priority: 'high',
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        referenceType: 'batch',
+        referenceId: 'BATCH-2026-07-02',
+      },
+    });
+    const insert = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
+    expect(normalize(String(insert?.[0]))).toContain('reference_text');
+    expect(normalize(String(insert?.[0]))).toContain("case when $1 = 'batch' then $2 else null end");
+    expect(insert?.[1]?.[0]).toBe('batch');
+    expect(insert?.[1]?.[1]).toBe('BATCH-2026-07-02');
+  });
+
   it('releases a hold, e-signs, restores LP qa_status, writes release history, and refuses double release', async () => {
     const result = await releaseHold({
       holdId: HOLD_ID,
@@ -331,7 +357,7 @@ describe('quality hold server actions', () => {
     const activeHoldRead = vi
       .mocked(client.query)
       .mock.calls.find(([sql]) => normalize(String(sql)).includes('from public.v_active_holds'));
-    expect(activeHoldRead?.[1]).toEqual([[LP_ID, TERMINAL_LP_ID], HOLD_ID]);
+    expect(activeHoldRead?.[1]).toEqual([LP_ID]);
 
     const releaseUpdate = vi
       .mocked(client.query)

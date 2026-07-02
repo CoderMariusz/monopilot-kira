@@ -73,6 +73,9 @@ let woStatusHistoryInserts: Array<readonly unknown[]> = [];
 let conversionRows: Array<Record<string, unknown>> = [];
 let cancelLookupRows: Array<Record<string, unknown>> = [];
 let hasActiveBom = true;
+let supplierSpecUnitPrice: string | null = '6.2500';
+/** list_price_gbp the items single-row mock returns (null = column absent/null). */
+let itemListPriceGbp: string | null = '5.0000';
 const createPurchaseOrderCoreMock = vi.fn();
 
 const WO_OTHER = '55555555-5555-4555-8555-555555555555';
@@ -195,6 +198,13 @@ function makeClient(): QueryClient {
         }
         return { rows: conversionRows as never[], rowCount: conversionRows.length };
       }
+      if (normalized.includes('from public.suppliers s') && normalized.includes('join public.supplier_specs ss')) {
+        expect(params[1]).toBe(SUPPLIER_ID);
+        return {
+          rows: supplierSpecUnitPrice == null ? [] : ([{ unit_price: supplierSpecUnitPrice }] as never[]),
+          rowCount: supplierSpecUnitPrice == null ? 0 : 1,
+        };
+      }
       if (normalized.includes('from public.bom_headers')) {
         return { rows: hasActiveBom ? [{ id: 'bom-id', version: 1 }] : [], rowCount: hasActiveBom ? 1 : 0 };
       }
@@ -262,6 +272,14 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.items')) {
         if (typeof params[0] === 'string') {
+          // list_price_gbp fallback: the MRP price resolver issues a targeted query
+          // (select list_price_gbp::text as unit_price … where id = $1::uuid).
+          if (normalized.includes('list_price_gbp')) {
+            return {
+              rows: itemListPriceGbp == null ? [] : ([{ unit_price: itemListPriceGbp }] as never[]),
+              rowCount: itemListPriceGbp == null ? 0 : 1,
+            };
+          }
           const label = itemLabelForId(params[0]);
           return {
             rows: [
@@ -406,6 +424,8 @@ beforeEach(() => {
   conversionRows = [];
   cancelLookupRows = [];
   hasActiveBom = true;
+  supplierSpecUnitPrice = '6.2500';
+  itemListPriceGbp = '5.0000';
   createPurchaseOrderCoreMock.mockReset();
   createPurchaseOrderCoreMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
 });
@@ -724,6 +744,7 @@ describe('runMrp', () => {
       created: 0,
       poIds: [],
       skipped: [{ id: FG_PLANNED_ID, reason: 'not a buy planned order' }],
+      priceWarnings: [],
     });
     expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
   });
@@ -866,7 +887,7 @@ describe('convertPlannedToPo', () => {
 
     const result = await convertPlannedToPo([PO_PLANNED_ID]);
 
-    expect(result).toEqual({ ok: true, created: 1, poIds: [PO_ID], skipped: [] });
+    expect(result).toEqual({ ok: true, created: 1, poIds: [PO_ID], skipped: [], priceWarnings: [] });
     expect(createPurchaseOrderCoreMock).toHaveBeenCalledWith(
       { userId: USER_ID, orgId: ORG_ID, client },
       {
@@ -875,10 +896,46 @@ describe('convertPlannedToPo', () => {
         expectedDelivery: '2026-06-18',
         currency: 'GBP',
         notes: 'Created from MRP planned orders',
-        lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', lineNo: 1 }],
+        lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '6.2500', lineNo: 1 }],
       },
     );
     expect(releasedUpdates).toEqual([[[PO_PLANNED_ID], PO_ID]]);
+    const priceSql = executed.find((sql) => sql.includes('join public.supplier_specs ss'));
+    expect(priceSql).toContain('ss.lifecycle_status = \'active\'');
+    expect(priceSql).toContain('ss.review_status = \'approved\'');
+    expect(priceSql).toContain('ss.unit_price is not null');
+  });
+
+  it('keeps unitPrice 0 and surfaces a warning when no supplier spec price exists', async () => {
+    supplierSpecUnitPrice = null;
+    itemListPriceGbp = null;
+    conversionRows = [
+      {
+        id: PO_PLANNED_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        item_name: 'Wheat flour',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: SUPPLIER_ID,
+        release_status: 'suggested',
+      },
+    ];
+
+    const result = await convertPlannedToPo([PO_PLANNED_ID]);
+
+    expect(result).toEqual({
+      ok: true,
+      created: 1,
+      poIds: [PO_ID],
+      skipped: [],
+      priceWarnings: [{ id: PO_PLANNED_ID, reason: 'missing supplier spec price' }],
+    });
+    expect(createPurchaseOrderCoreMock.mock.calls[0]?.[1]).toMatchObject({
+      lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', lineNo: 1 }],
+    });
   });
 
   it('flatten: convertPlannedToPo opens exactly one withOrgContext and does not nest another', async () => {
@@ -927,8 +984,79 @@ describe('convertPlannedToPo', () => {
 
     const result = await convertPlannedToPo([PO_PLANNED_ID]);
 
-    expect(result).toEqual({ ok: true, created: 0, poIds: [], skipped: [{ id: PO_PLANNED_ID, reason: 'missing supplier' }] });
+    expect(result).toEqual({ ok: true, created: 0, poIds: [], skipped: [{ id: PO_PLANNED_ID, reason: 'missing supplier' }], priceWarnings: [] });
     expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
+  });
+
+  describe('price resolution', () => {
+    const baseConversionRow = {
+      id: PO_PLANNED_ID,
+      item_id: FLOUR_ID,
+      item_code: 'RM-FLOUR',
+      item_name: 'Wheat flour',
+      order_type: 'po',
+      quantity: '25.000000',
+      uom: 'kg',
+      due_date: '2026-06-18',
+      supplier_id: SUPPLIER_ID,
+      release_status: 'suggested',
+    };
+
+    it('(a) uses the supplier spec price when an approved spec exists — list_price_gbp is ignored', async () => {
+      // supplierSpecUnitPrice defaults to '6.2500', itemListPriceGbp to '5.0000'.
+      conversionRows = [baseConversionRow];
+
+      const result = await convertPlannedToPo([PO_PLANNED_ID]);
+
+      expect(result).toEqual({ ok: true, created: 1, poIds: [PO_ID], skipped: [], priceWarnings: [] });
+      expect(createPurchaseOrderCoreMock.mock.calls[0]?.[1]).toMatchObject({
+        lines: [{ itemId: FLOUR_ID, unitPrice: '6.2500' }],
+      });
+      // The list_price fallback query must NOT have been issued.
+      expect(executed.some((sql) => sql.includes('list_price_gbp'))).toBe(false);
+    });
+
+    it('(b) falls back to items.list_price_gbp when no approved supplier spec price exists', async () => {
+      supplierSpecUnitPrice = null;
+      // itemListPriceGbp stays '5.0000'.
+      conversionRows = [baseConversionRow];
+
+      const result = await convertPlannedToPo([PO_PLANNED_ID]);
+
+      expect(result).toEqual({
+        ok: true,
+        created: 1,
+        poIds: [PO_ID],
+        skipped: [],
+        priceWarnings: [{ id: PO_PLANNED_ID, reason: 'list_price_fallback' }],
+      });
+      expect(createPurchaseOrderCoreMock.mock.calls[0]?.[1]).toMatchObject({
+        lines: [{ itemId: FLOUR_ID, unitPrice: '5.0000' }],
+      });
+      // The fallback query must have been issued with correct RLS predicate.
+      const fallbackSql = executed.find((sql) => sql.includes('list_price_gbp'))!;
+      expect(fallbackSql).toBeTruthy();
+      expect(fallbackSql).toContain('app.current_org_id()');
+    });
+
+    it('(c) keeps unitPrice \'0\' and emits missing-spec warning only when neither spec nor list price exists', async () => {
+      supplierSpecUnitPrice = null;
+      itemListPriceGbp = null;
+      conversionRows = [baseConversionRow];
+
+      const result = await convertPlannedToPo([PO_PLANNED_ID]);
+
+      expect(result).toEqual({
+        ok: true,
+        created: 1,
+        poIds: [PO_ID],
+        skipped: [],
+        priceWarnings: [{ id: PO_PLANNED_ID, reason: 'missing supplier spec price' }],
+      });
+      expect(createPurchaseOrderCoreMock.mock.calls[0]?.[1]).toMatchObject({
+        lines: [{ itemId: FLOUR_ID, unitPrice: '0' }],
+      });
+    });
   });
 });
 

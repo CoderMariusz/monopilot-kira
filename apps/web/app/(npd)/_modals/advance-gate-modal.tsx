@@ -451,7 +451,8 @@ export function AdvanceGateModal({
                 disabled={isBlocked}
                 aria-describedby="advance-gate-notes-hint"
                 className={isBlocked ? 'opacity-50' : undefined}
-                {...register('notes')}
+                maxLength={2000}
+          {...register('notes')}
               />
               <span id="advance-gate-notes-hint" className="text-xs text-slate-500">
                 {labels.notesHint}

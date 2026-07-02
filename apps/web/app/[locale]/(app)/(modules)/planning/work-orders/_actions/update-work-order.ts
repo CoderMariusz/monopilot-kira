@@ -54,8 +54,9 @@ const UpdateWorkOrderInput = z.object({
     .refine((value) => Number(value) > 0, 'plannedQuantity must be positive')
     .optional(),
   scheduledStartTime: z.string().datetime({ offset: true }).nullable().optional(),
-  productionLineId: z.string().uuid().optional(),
-  machineId: z.string().uuid().optional(),
+  // null = explicitly clear the field; undefined = keep the current value.
+  productionLineId: z.string().uuid().nullable().optional(),
+  machineId: z.string().uuid().nullable().optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
@@ -288,8 +289,8 @@ export async function updateWorkOrder(params: {
                 planned_quantity = $3::numeric,
                 uom = case when $9::boolean then $12 else wo.uom end,
                 scheduled_start_time = case when $15::boolean then $4::timestamptz else wo.scheduled_start_time end,
-                production_line_id = $5::uuid,
-                machine_id = $6::uuid,
+                production_line_id = case when $16::boolean then $5::uuid else wo.production_line_id end,
+                machine_id = case when $17::boolean then $6::uuid else wo.machine_id end,
                 uom_snapshot = case when $9::boolean then $13::jsonb else wo.uom_snapshot end,
                 ext_jsonb = case
                   -- clear: drop the key. jsonb_set(target,path,NULL) returns NULL
@@ -312,21 +313,23 @@ export async function updateWorkOrder(params: {
                   wo.priority, wo.source_of_demand, wo.source_reference, wo.ext_jsonb->>'notes' as notes,
                   wo.created_at, wo.updated_at`,
         [
-          input.id,
-          nextProductId,
-          nextPlannedQuantity,
-          input.scheduledStartTime ?? null,
-          input.productionLineId ?? current.production_line_id,
-          input.machineId ?? current.machine_id,
-          input.notes === undefined ? current.notes : input.notes === '' ? null : input.notes,
-          ctx.userId,
-          mustResnapshot,
-          bom?.id ?? null,
-          spec?.id ?? null,
-          uomSnapshot?.uomBase ?? null,
-          dbUomSnapshot ? JSON.stringify(dbUomSnapshot) : null,
-          input.notes !== undefined,
-          input.scheduledStartTime !== undefined,
+          input.id,                                                                         // $1
+          nextProductId,                                                                     // $2
+          nextPlannedQuantity,                                                               // $3
+          input.scheduledStartTime ?? null,                                                  // $4
+          input.productionLineId !== undefined ? input.productionLineId : null,              // $5 (value; null when clearing)
+          input.machineId !== undefined ? input.machineId : null,                            // $6 (value; null when clearing)
+          input.notes === undefined ? current.notes : input.notes === '' ? null : input.notes, // $7
+          ctx.userId,                                                                        // $8
+          mustResnapshot,                                                                    // $9
+          bom?.id ?? null,                                                                   // $10
+          spec?.id ?? null,                                                                  // $11
+          uomSnapshot?.uomBase ?? null,                                                      // $12
+          dbUomSnapshot ? JSON.stringify(dbUomSnapshot) : null,                              // $13
+          input.notes !== undefined,                                                         // $14
+          input.scheduledStartTime !== undefined,                                            // $15
+          input.productionLineId !== undefined,                                              // $16 — explicit set/clear flag
+          input.machineId !== undefined,                                                     // $17 — explicit set/clear flag
         ],
       );
       const workOrder = updated.rows[0];

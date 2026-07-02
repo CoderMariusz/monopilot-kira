@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QueryClient } from '../../_actions/procurement-shared';
-import { createPurchaseOrder } from './actions';
+import { createPurchaseOrderCore } from './create-purchase-order-core';
 import { commitPoImport, validatePoImport, type PoImportRow } from './import-po';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -21,6 +21,7 @@ type CreatePoPayload = {
 
 let client: QueryClient;
 let existingRefs: Set<string>;
+let existingPoNumbers: Set<string>;
 let allowPermission = true;
 
 const suppliers: SupplierFixture[] = [
@@ -39,8 +40,8 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-vi.mock('./actions', () => ({
-  createPurchaseOrder: vi.fn(),
+vi.mock('./create-purchase-order-core', () => ({
+  createPurchaseOrderCore: vi.fn(),
 }));
 
 function makeClient(): QueryClient {
@@ -62,7 +63,12 @@ function makeClient(): QueryClient {
     } else if (normalized.includes('from public.unit_of_measure')) {
       const codes = new Set(params[0] as string[]);
       rows = ['kg', 'ea', 'box'].filter((code) => codes.has(code)).map((code) => ({ code }));
+    } else if (normalized.includes('from public.purchase_orders') && normalized.includes('select exists(')) {
+      // per-group duplicate pre-check: select exists(select 1 ... po_number = $1)
+      const poNumber = params[0] as string;
+      rows = [{ exists: existingPoNumbers.has(poNumber) }];
     } else if (normalized.includes('from public.purchase_orders')) {
+      // bulk pre-fetch: po_number = any($1::text[])
       const refs = new Set(params[0] as string[]);
       rows = Array.from(existingRefs).filter((ref) => refs.has(ref)).map((po_number) => ({ po_number }));
     } else if (normalized.includes('insert into public.import_export_jobs')) {
@@ -99,8 +105,8 @@ function validFourRows(): PoImportRow[] {
   ];
 }
 
-function createPurchaseOrderMock() {
-  return vi.mocked(createPurchaseOrder);
+function createPurchaseOrderCoreMock() {
+  return vi.mocked(createPurchaseOrderCore);
 }
 
 function importJobInsertCalls() {
@@ -113,14 +119,15 @@ describe('purchase order import backend', () => {
     vi.setSystemTime(new Date('2026-06-23T12:00:00.000Z'));
     allowPermission = true;
     existingRefs = new Set();
+    existingPoNumbers = new Set();
     client = makeClient();
-    createPurchaseOrderMock().mockReset();
-    createPurchaseOrderMock().mockImplementation(async (rawInput: unknown) => {
+    createPurchaseOrderCoreMock().mockReset();
+    createPurchaseOrderCoreMock().mockImplementation(async (_ctx: unknown, rawInput: unknown) => {
       const input = rawInput as CreatePoPayload;
       return {
         ok: true,
         data: { poNumber: input.poNumber },
-      } as Awaited<ReturnType<typeof createPurchaseOrder>>;
+      } as Awaited<ReturnType<typeof createPurchaseOrderCore>>;
     });
   });
 
@@ -149,7 +156,7 @@ describe('purchase order import backend', () => {
     );
   });
 
-  it('commitPoImport groups four valid rows across two suppliers into two createPurchaseOrder calls', async () => {
+  it('commitPoImport groups four valid rows across two suppliers into two createPurchaseOrderCore calls', async () => {
     const result = await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
 
     expect(result.failed).toEqual([]);
@@ -157,10 +164,10 @@ describe('purchase order import backend', () => {
       { po_number: 'EXT-A', external_ref: 'EXT-A' },
       { po_number: 'EXT-B', external_ref: 'EXT-B' },
     ]);
-    expect(createPurchaseOrder).toHaveBeenCalledTimes(2);
+    expect(createPurchaseOrderCore).toHaveBeenCalledTimes(2);
 
-    const firstPayload = createPurchaseOrderMock().mock.calls[0]?.[0] as CreatePoPayload | undefined;
-    const secondPayload = createPurchaseOrderMock().mock.calls[1]?.[0] as CreatePoPayload | undefined;
+    const firstPayload = createPurchaseOrderCoreMock().mock.calls[0]?.[1] as CreatePoPayload | undefined;
+    const secondPayload = createPurchaseOrderCoreMock().mock.calls[1]?.[1] as CreatePoPayload | undefined;
     expect(firstPayload).toEqual(
       expect.objectContaining({
         poNumber: 'EXT-A',
@@ -183,7 +190,7 @@ describe('purchase order import backend', () => {
 
     const result = await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
 
-    expect(createPurchaseOrder).toHaveBeenCalledTimes(0);
+    expect(createPurchaseOrderCore).toHaveBeenCalledTimes(0);
     expect(result.created).toEqual([]);
     expect(result.skipped).toEqual([
       { external_ref: 'EXT-A', reason: 'Purchase order already exists for external_ref "EXT-A".' },
@@ -201,11 +208,47 @@ describe('purchase order import backend', () => {
       { mode: 'all_or_nothing' },
     );
 
-    expect(createPurchaseOrder).toHaveBeenCalledTimes(0);
+    expect(createPurchaseOrderCore).toHaveBeenCalledTimes(0);
     expect(result.created).toEqual([]);
     expect(result.skipped).toEqual([]);
     expect(result.failed).toHaveLength(1);
     expect(result.failed[0]?.errors[0]).toEqual(expect.objectContaining({ column: 'supplier_code' }));
     expect(importJobInsertCalls()).toHaveLength(0);
+  });
+
+  it('commitPoImport calls createPurchaseOrderCore on the same org context (no nested withOrgContext)', async () => {
+    await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
+
+    const firstCtx = createPurchaseOrderCoreMock().mock.calls[0]?.[0];
+    const secondCtx = createPurchaseOrderCoreMock().mock.calls[1]?.[0];
+    expect(firstCtx).toEqual({ userId: USER_ID, orgId: ORG_ID, client });
+    expect(secondCtx).toEqual({ userId: USER_ID, orgId: ORG_ID, client });
+  });
+
+  it('commitPoImport lands duplicate po_number in failed[] with duplicate_po_number code, not throwing', async () => {
+    // EXT-A already exists in DB (detected by per-group pre-check), EXT-B does not.
+    // The bulk prefetch (existingRefs) does NOT contain EXT-A so those rows reach the group loop;
+    // only the per-group exists-check fires and pushes them to failed[].
+    existingPoNumbers = new Set(['EXT-A']);
+
+    const result = await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
+
+    // EXT-A rows land in failed[], not skipped[]
+    expect(result.skipped).toEqual([]);
+    expect(result.failed).toHaveLength(2); // two rows in the EXT-A group
+    expect(result.failed[0]).toMatchObject({
+      errors: [expect.objectContaining({ column: 'po_number', message: expect.stringContaining('duplicate_po_number') })],
+    });
+    expect(result.failed[1]).toMatchObject({
+      errors: [expect.objectContaining({ column: 'po_number', message: expect.stringContaining('duplicate_po_number') })],
+    });
+
+    // EXT-B group succeeds
+    expect(result.created).toEqual([{ po_number: 'EXT-B', external_ref: 'EXT-B' }]);
+
+    // createPurchaseOrderCore was NOT called for EXT-A
+    expect(createPurchaseOrderCore).toHaveBeenCalledTimes(1);
+    const calledWith = createPurchaseOrderCoreMock().mock.calls[0]?.[1] as CreatePoPayload | undefined;
+    expect(calledWith?.poNumber).toBe('EXT-B');
   });
 });

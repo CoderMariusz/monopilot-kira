@@ -1,4 +1,5 @@
 import { CURRENT_ORG_ID, getLineLiveStatus } from '../../andon-data';
+import { canViewAndonKiosk } from '../../andon-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,17 @@ export async function GET(
   ctx: { params: Promise<{ lineId: string }> },
 ): Promise<Response> {
   const { lineId } = await ctx.params;
+
+  let canView: boolean;
+  try {
+    canView = await canViewAndonKiosk();
+  } catch {
+    return json({ error: 'unauthorized' }, 401);
+  }
+
+  if (!canView) {
+    return json({ error: 'forbidden' }, 403);
+  }
 
   try {
     const data = await getLineLiveStatus(lineId, CURRENT_ORG_ID);

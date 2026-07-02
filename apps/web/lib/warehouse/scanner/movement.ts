@@ -352,6 +352,7 @@ export async function listPickWorkOrders(client: QueryClient, session: ScannerSe
          on material_item.org_id = app.current_org_id()
         and material_item.id = mat.product_id
       where wo.org_id = app.current_org_id()
+        and app.user_can_see_site(wo.site_id)
         and (wo.status = 'RELEASED' or exec.status in ('in_progress', 'paused'))
         and ($1::uuid is null or wo.production_line_id = $1::uuid)
       order by (wo.scheduled_start_time is null) asc,
@@ -650,7 +651,7 @@ async function insertScannerAudit(
        org_id, session_id, user_id, device_id, operation, result_code, client_op_id, ext
      )
      values (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::jsonb)
-     on conflict (org_id, client_op_id) where client_op_id is not null do nothing`,
+     on conflict (org_id, operation, client_op_id) where client_op_id is not null and operation not like 'client.%' do nothing`,
     [session.id, session.user_id, session.device_id, operation, resultCode, clientOpId, JSON.stringify(ext)],
   );
 }
@@ -697,6 +698,7 @@ async function loadMovableLpForUpdate(
        from public.license_plates lp
       where lp.org_id = app.current_org_id()
         and lp.id = $1::uuid
+        and app.user_can_see_site(lp.site_id)
       for update`,
     [lpId, session.user_id],
   );
@@ -751,6 +753,7 @@ async function loadLocationScope(client: QueryClient, locationId: string): Promi
         and w.id = loc.warehouse_id
       where loc.org_id = app.current_org_id()
         and loc.id = $1::uuid
+        and app.user_can_see_site(w.site_id)
       limit 1`,
     [locationId],
   );

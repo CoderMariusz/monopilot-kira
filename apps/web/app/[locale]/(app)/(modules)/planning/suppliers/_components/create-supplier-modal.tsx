@@ -71,10 +71,11 @@ export type CreateSupplierLabels = {
     not_found: string;
     already_exists: string;
     invalid_state: string;
-    // W9-K-II/RF5: present in the shared ProcurementError union (TO ship/cancel);
+    // W9-K-II/RF5/E7: present in the shared ProcurementError union (TO ship/cancel);
     // supplier flows never return these, so the labels are optional and fall
     // back below.
     insufficient_stock?: string;
+    insufficient_stock_holds?: string;
     partially_received?: string;
     persistence_failed: string;
   };

@@ -29,6 +29,8 @@
  * app.current_org_id()). No mocks; real Supabase only.
  */
 
+import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
+
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   hasWarehousePermission,
@@ -183,9 +185,21 @@ export async function listDecreaseLps(
         [locationId, itemId],
       );
 
+      const releasableRows = [];
+      for (const row of rows) {
+        try {
+          await assertNoActiveHoldForLp(row.id, ctx.client);
+          releasableRows.push(row);
+        } catch (error) {
+          if (typeof error !== 'object' || error === null || (error as { code?: string }).code !== 'QA_HOLD_ACTIVE') {
+            throw error;
+          }
+        }
+      }
+
       return {
         ok: true,
-        data: rows.map((r) => ({
+        data: releasableRows.map((r) => ({
           id: r.id,
           lpNumber: r.lp_number,
           availableQty: r.available_qty,

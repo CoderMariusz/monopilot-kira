@@ -19,7 +19,7 @@ const LP_2 = '66666666-6666-4666-8666-666666666666';
 const FIXED_NOW = '2026-06-23T12:34:56.000Z';
 
 let client: QueryClient;
-let allowPermission = true;
+let grantedPermissions = new Set<string>(['ship.pack.close', 'ship.ship.confirm', 'ship.bol.sign']);
 let shipmentStatus = 'packed';
 let salesOrderStatus = 'manifested';
 let shipmentTransitionSucceeds = true;
@@ -66,7 +66,9 @@ function makeClient(): QueryClient {
       const q = normalize(sql);
 
       if (q.includes('from public.user_roles')) {
-        return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+        const permission = String(params?.[2] ?? '');
+        const ok = grantedPermissions.has(permission);
+        return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
       if (q.startsWith('select status from public.sales_orders') && q.includes('for update')) {
@@ -250,7 +252,7 @@ function makeClient(): QueryClient {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(FIXED_NOW));
-  allowPermission = true;
+  grantedPermissions = new Set(['ship.pack.close', 'ship.ship.confirm', 'ship.bol.sign']);
   shipmentStatus = 'packed';
   shipmentTransitionSucceeds = true;
   salesOrderStatus = 'manifested';
@@ -275,6 +277,51 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe('shipShipment RBAC', () => {
+  it('returns forbidden without ship.ship.confirm even when ship.pack.close is granted', async () => {
+    grantedPermissions = new Set(['ship.pack.close']);
+
+    const result = await shipShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('ships when ship.ship.confirm is granted', async () => {
+    grantedPermissions = new Set(['ship.ship.confirm']);
+
+    await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: true });
+  });
+});
+
+describe('sealShipment RBAC', () => {
+  it('returns forbidden without ship.pack.close', async () => {
+    grantedPermissions = new Set(['ship.ship.confirm']);
+    shipmentStatus = 'packing';
+
+    const result = await sealShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
+describe('generateBol RBAC', () => {
+  it('returns forbidden without ship.ship.confirm', async () => {
+    grantedPermissions = new Set(['ship.pack.close']);
+
+    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('generates BOL when ship.ship.confirm is granted', async () => {
+    grantedPermissions = new Set(['ship.ship.confirm']);
+
+    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe('shipShipment', () => {

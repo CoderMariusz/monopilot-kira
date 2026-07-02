@@ -1,3 +1,5 @@
+import { toClientTelemetryOperation } from './replay';
+
 import type { QueryClient } from './db';
 import type { ScannerSessionRow } from './session';
 
@@ -91,13 +93,14 @@ export async function bulkInsertScannerAudit(
       session.id,
       session.user_id,
       session.device_id,
-      entry.operation,
+      toClientTelemetryOperation(entry.operation),
       entry.barcodeRaw ?? null,
       entry.lpId ?? null,
       entry.woId ?? null,
       entry.scanMethod ?? null,
       entry.resultCode ?? null,
-      entry.clientOpId ?? null,
+      // Client telemetry must never occupy server replay keys.
+      null,
       JSON.stringify(entry.ext ?? {}),
     );
     return `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, $${base + 6}, $${base + 7}::uuid, $${base + 8}::uuid, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}::jsonb)`;
@@ -118,8 +121,7 @@ export async function bulkInsertScannerAudit(
        client_op_id,
        ext
      )
-     values ${placeholders.join(', ')}
-     on conflict (org_id, client_op_id) where client_op_id is not null do nothing`,
+     values ${placeholders.join(', ')}`,
     values,
   );
   return result.rowCount ?? 0;

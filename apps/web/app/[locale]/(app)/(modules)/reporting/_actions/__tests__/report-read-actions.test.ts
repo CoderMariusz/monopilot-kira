@@ -111,6 +111,7 @@ function makeClient(): QueryClient {
         return { rows: poStatusRows };
       }
       if (q.includes('from public.purchase_orders po') && q.includes('sum(pol.qty * pol.unit_price)')) {
+        capturedParams.spendBySupplier = [...(params ?? [])];
         return { rows: spendBySupplierRows };
       }
       if (q.includes('min(g.receipt_date)')) return { rows: poCycleRows };
@@ -574,7 +575,7 @@ describe('getReportingExportAccess', () => {
 });
 
 describe('getSpendBySupplier', () => {
-  it('returns mapped supplier spend rows', async () => {
+  it('returns mapped supplier spend rows for committed PO statuses in the period window', async () => {
     const res = await getSpendBySupplier();
 
     expect(res).toEqual([
@@ -585,6 +586,14 @@ describe('getSpendBySupplier', () => {
         lineCount: 3,
       },
     ]);
+    expect(capturedParams.spendBySupplier?.[0]).toEqual([
+      'sent',
+      'confirmed',
+      'partially_received',
+      'received',
+    ]);
+    expect(capturedParams.spendBySupplier?.[1]).toEqual(expect.any(String));
+    expect(capturedParams.spendBySupplier?.[2]).toEqual(expect.any(String));
   });
 
   it('returns an empty array when caller lacks rpt.dashboard.view permission', async () => {

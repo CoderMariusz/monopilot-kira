@@ -220,4 +220,11 @@ describe('work order import backend', () => {
     expect(createWorkOrderCoreMock().mock.results[0]?.type).toBe('return');
     expect(importJobInsertCalls()).toHaveLength(1);
   });
+
+  it('commitWoImport passes the same org context to createWorkOrderCore (no nested withOrgContext)', async () => {
+    await commitWoImport([woRow({ external_ref: 'WO-EXT-A' })], { mode: 'skip_invalid' });
+
+    const coreCtx = createWorkOrderCoreMock().mock.calls[0]?.[0];
+    expect(coreCtx).toEqual({ userId: USER_ID, orgId: ORG_ID, client });
+  });
 });

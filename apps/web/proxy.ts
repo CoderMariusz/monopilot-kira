@@ -15,9 +15,7 @@ import { matchPreset, rateLimitResponse } from '../../packages/rate-limit/src/in
 import { routing } from './i18n/routing';
 import { checkIdleTimeout } from './lib/auth/session-check';
 import {
-  auditAdminIpBlocked,
   establishOrgContext,
-  isRequestIpAllowed,
   resolveEdgeSecurityContext,
   verifyScimBearer,
 } from './lib/auth/edge-middleware-policy';
@@ -86,16 +84,6 @@ function isApiRoute(pathname: string): boolean {
   return pathname === '/api' || pathname.startsWith('/api/');
 }
 
-function sourceIp(req: NextRequest): string {
-  const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwardedFor || req.headers.get('x-real-ip')?.trim() || 'unknown';
-}
-
-function isProtectedAdminRoute(pathname: string): boolean {
-  const normalizedPathname = stripLocalePrefix(pathname);
-  return normalizedPathname === '/admin' || normalizedPathname.startsWith('/admin/');
-}
-
 function redirectTo(req: NextRequest, pathname: string): NextResponse {
   const url = new URL(req.nextUrl.toString());
   url.pathname = pathname;
@@ -128,13 +116,6 @@ function idleServerActionResponse(): NextResponse {
       'x-monopilot-auth': 'session_expired',
       'WWW-Authenticate': 'Bearer',
     },
-  }) as NextResponse;
-}
-
-function forbiddenIpResponse(): NextResponse {
-  return new Response(JSON.stringify({ error: 'IP_NOT_ALLOWED' }), {
-    status: 403,
-    headers: { 'content-type': 'application/json' },
   }) as NextResponse;
 }
 
@@ -196,7 +177,6 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
   }
 
   const securityContext = await resolveEdgeSecurityContext(req);
-  const ip = sourceIp(req);
 
   const idleResponse = await checkIdleTimeout({
     accessToken: securityContext.accessToken,
@@ -211,31 +191,6 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
       return idleServerActionResponse();
     }
     return redirectToIdleLogin(req);
-  }
-
-  // Admin IP allowlist is fail-closed by the policy helper. It runs only after
-  // the Supabase token was verified by checkIdleTimeout, so decoded edge claims
-  // cannot be trusted before signature verification.
-  if (isProtectedAdminRoute(pathname) && securityContext.role === 'admin') {
-    let allowed = false;
-    try {
-      allowed = isRequestIpAllowed(ip, securityContext.adminIpAllowlistCidrs);
-    } catch {
-      allowed = false;
-    }
-    if (!allowed) {
-      try {
-        await auditAdminIpBlocked({
-          attemptedRoute: pathname,
-          eventType: 'admin_ip_blocked',
-          orgId: securityContext.orgId,
-          sourceIp: ip,
-        });
-      } catch {
-        // Fail closed even when audit delivery is unavailable.
-      }
-      return forbiddenIpResponse();
-    }
   }
 
   // Locale home is the post-login landing/check page. It is still behind the

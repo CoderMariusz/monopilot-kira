@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -764,10 +765,13 @@ type ToHeaderForUpdate = {
 
 type SourceLpRow = {
   id: string;
+  lp_number: string;
   quantity: string;
   reserved_qty: string;
   location_id: string | null;
 };
+
+type SkippedHeldLp = { lpId: string; lpCode: string; qty: string; uom: string };
 
 type PlannedPick = {
   lineId: string;
@@ -794,7 +798,7 @@ type PlannedPick = {
 async function shipTransferOrder(
   ctx: OrgActionContext,
   to: ToHeaderForUpdate,
-): Promise<{ ok: true; pickCount: number } | { ok: false; error: ProcurementError; message?: string }> {
+): Promise<{ ok: true; pickCount: number; skippedHeldLps: SkippedHeldLp[] } | { ok: false; error: ProcurementError; message?: string; heldQty?: string }> {
   if (!to.from_warehouse_id) {
     return { ok: false, error: 'invalid_state', message: 'from_warehouse_required' };
   }
@@ -814,9 +818,10 @@ async function shipTransferOrder(
 
   // Phase 1 — plan all picks (locks the candidate LPs), no writes yet.
   const picks: PlannedPick[] = [];
+  const skippedHeldLps: SkippedHeldLp[] = [];
   for (const line of lines.rows) {
     const lps = await ctx.client.query<SourceLpRow>(
-      `select lp.id, lp.quantity::text as quantity, lp.reserved_qty::text as reserved_qty, lp.location_id
+      `select lp.id, lp.lp_number, lp.quantity::text as quantity, lp.reserved_qty::text as reserved_qty, lp.location_id
          from public.license_plates lp
         where lp.org_id = app.current_org_id()
           and lp.warehouse_id = $1::uuid
@@ -825,13 +830,6 @@ async function shipTransferOrder(
           and lp.status = 'available'
           and lp.qa_status = 'released'
           and (lp.quantity - lp.reserved_qty) > 0
-          and not exists (
-            select 1
-              from public.v_active_holds h
-             where h.org_id = app.current_org_id()
-               and h.reference_type = 'lp'
-               and h.reference_id = lp.id
-          )
         order by lp.expiry_date asc nulls last, lp.lp_number asc
         for update`,
       [to.from_warehouse_id, line.item_id, line.uom],
@@ -840,6 +838,16 @@ async function shipTransferOrder(
     let remaining = toMicro6(line.qty);
     for (const lp of lps.rows) {
       if (remaining <= 0n) break;
+      try {
+        await assertNoActiveHoldForLp(lp.id, ctx.client);
+      } catch (error) {
+        if (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'QA_HOLD_ACTIVE') {
+          const availableHeld = toMicro6(lp.quantity) - toMicro6(lp.reserved_qty);
+          skippedHeldLps.push({ lpId: lp.id, lpCode: lp.lp_number, qty: microToText6(availableHeld), uom: line.uom });
+          continue;
+        }
+        throw error;
+      }
       const availableMicro = toMicro6(lp.quantity) - toMicro6(lp.reserved_qty);
       if (availableMicro <= 0n) continue;
       const take = availableMicro < remaining ? availableMicro : remaining;
@@ -857,8 +865,9 @@ async function shipTransferOrder(
     if (remaining > 0n) {
       return {
         ok: false,
-        error: 'insufficient_stock',
+        error: skippedHeldLps.length > 0 ? 'insufficient_stock_holds' : 'insufficient_stock',
         message: `line ${line.line_no}: short by ${microToText6(remaining)} ${line.uom} at source warehouse`,
+        heldQty: skippedHeldLps.length > 0 ? microToText6(skippedHeldLps.reduce((acc, s) => acc + toMicro6(s.qty), 0n)) : undefined,
       };
     }
   }
@@ -913,7 +922,7 @@ async function shipTransferOrder(
     );
   }
 
-  return { ok: true, pickCount: picks.length };
+  return { ok: true, pickCount: picks.length, skippedHeldLps };
 }
 
 /**

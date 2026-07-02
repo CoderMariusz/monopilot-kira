@@ -78,7 +78,7 @@ export async function getInventoryByProduct(): Promise<InventoryResult<Inventory
            from public.license_plates lp
            left join public.items i on i.org_id = app.current_org_id() and i.id = lp.product_id
           where lp.org_id = app.current_org_id()
-            and lp.site_id = $1::uuid
+            and (lp.site_id = $1::uuid or lp.site_id is null)
             and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
           group by lp.product_id, i.item_code, i.name
           order by i.item_code asc nulls last, i.name asc nulls last`,
@@ -146,7 +146,7 @@ export async function getInventoryByLocation(): Promise<InventoryResult<Inventor
            left join public.locations l on l.org_id = app.current_org_id() and l.id = lp.location_id
            left join public.warehouses w on w.org_id = app.current_org_id() and w.id = lp.warehouse_id
           where lp.org_id = app.current_org_id()
-            and lp.site_id = $1::uuid
+            and (lp.site_id = $1::uuid or lp.site_id is null)
             and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
           group by lp.location_id, l.code, lp.warehouse_id, w.code
           order by w.code asc nulls last, l.code asc nulls last`,
@@ -212,7 +212,7 @@ export async function getInventoryByBatch(): Promise<InventoryResult<InventoryBy
            from public.license_plates lp
            left join public.items i on i.org_id = app.current_org_id() and i.id = lp.product_id
           where lp.org_id = app.current_org_id()
-            and lp.site_id = $1::uuid
+            and (lp.site_id = $1::uuid or lp.site_id is null)
             and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
           group by lp.product_id, i.item_code, lp.batch_number
           order by i.item_code asc nulls last, lp.batch_number asc nulls last`,

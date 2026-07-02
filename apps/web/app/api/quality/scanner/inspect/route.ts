@@ -61,7 +61,8 @@ async function createHoldForLp(params: {
     `select id::text, quantity::text
        from public.license_plates
       where org_id = app.current_org_id()
-        and id = $1::uuid`,
+        and id = $1::uuid
+        and app.user_can_see_site(site_id)`,
     [params.lpId],
   );
   const current = lp.rows[0];
@@ -125,6 +126,7 @@ async function applyLpDecision(params: {
             updated_by = $3::uuid
       where org_id = app.current_org_id()
         and id = $1::uuid
+        and app.user_can_see_site(site_id)
         and status <> all($4::text[])
       returning id::text`,
     [params.lpId, qaStatus, params.userId, [...TERMINAL_LP_STATUSES]],
@@ -191,8 +193,10 @@ export async function POST(request: NextRequest) {
            from public.scanner_audit_log
           where org_id = $1::uuid
             and client_op_id = $2
+            and operation = $3
+            and operation not like 'client.%'
           limit 1`,
-          [session.org_id, clientOpId],
+          [session.org_id, clientOpId, operation],
         );
         const replayRow = replay.rows[0];
         if (replayRow) {
@@ -210,6 +214,7 @@ export async function POST(request: NextRequest) {
              from public.license_plates
             where org_id = app.current_org_id()
               and id = $1::uuid
+              and app.user_can_see_site(site_id)
             for update`,
           [lpId],
         );

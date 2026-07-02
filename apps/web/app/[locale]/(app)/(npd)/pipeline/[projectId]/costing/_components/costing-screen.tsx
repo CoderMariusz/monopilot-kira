@@ -300,6 +300,11 @@ export function CostingScreen({
           return message || labels.computeErrorNoCosts;
         case 'margin_hard_fail':
           return labels.computeErrorHardFail;
+        case 'forbidden':
+          // The compute action is only injected when the user can write (server-gated),
+          // so this case is rare — but if it fires, surface the existing forbidden label
+          // rather than the raw code 'forbidden'.
+          return labels.forbidden;
         default:
           return labels.computeError;
       }

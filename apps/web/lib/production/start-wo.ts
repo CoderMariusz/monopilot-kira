@@ -65,6 +65,7 @@ export type StartWoData = {
 
 type WoSnapshotRow = {
   id: string;
+  site_id: string | null;
   active_bom_header_id: string | null;
   active_factory_spec_id: string | null;
   allergen_profile_snapshot: { segregation_required?: boolean } | null;
@@ -86,7 +87,7 @@ export async function startWo(
 
   // (1) Factory-release preflight — read the WO SNAPSHOT, never the live BOM/spec.
   const woRes = await client.query<WoSnapshotRow>(
-      `select id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
+      `select id, site_id::text as site_id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
               production_line_id::text
        from public.work_orders
       where org_id = app.current_org_id() and id = $1::uuid`,
@@ -134,7 +135,7 @@ export async function startWo(
               ))
         where wo.org_id = app.current_org_id()
           and wo.id = $1::uuid
-        returning id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
+        returning id, site_id::text as site_id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
                   production_line_id::text`,
       [input.woId],
     );
@@ -262,10 +263,8 @@ export async function startWo(
     // transactionId can never double-insert an output row (UNIQUE(transaction_id) on wo_outputs).
     const outputTxnId = deriveOutputTxnId(input.woId, row.id);
     const inserted = await client.query<{ id: string }>(
-      // site_id is explicitly NULL until per-site attribution is wired (14-multi-site
-      // T-030); the column is nullable day-1 (migration 181) and every other
-      // wo_outputs write path (register-output / record-waste) binds it explicitly,
-      // so the START materialization matches the canonical site_id contract.
+      // Stamp placeholder outputs with the WO's site_id (same contract as register-output /
+      // record-waste). When the WO has no site, site_id stays NULL.
       // qty_kg = 0: the materialized row is a PLACEHOLDER for the planned
       // output role — actual produced kg arrive via register-output rows.
       // Materializing with expected_qty made recorded output == planned the
@@ -274,7 +273,7 @@ export async function startWo(
       `insert into public.wo_outputs
          (org_id, site_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, uom,
           qa_status, registered_by, created_by)
-       values (app.current_org_id(), null, $1::uuid, $2::uuid, $3, $4::uuid,
+       values (app.current_org_id(), $8::uuid, $1::uuid, $2::uuid, $3, $4::uuid,
                $5, 0, $6, 'PENDING', $7::uuid, $7::uuid)
        on conflict (transaction_id) do nothing
        returning id`,
@@ -286,6 +285,7 @@ export async function startWo(
         deriveBatchNumber(input.woId, row.output_role),
         row.uom,
         ctx.userId,
+        wo.site_id,
       ],
     );
     if (inserted.rows.length > 0) outputsMaterialized += 1;

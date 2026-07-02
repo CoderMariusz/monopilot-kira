@@ -93,6 +93,16 @@ function mockMoveQueries(options: {
     if (sql.includes('from public.scanner_audit_log')) {
       return options.replay ? { rows: [{ ext: { moveId: ids.move } }] } : { rows: [] };
     }
+    // Pick route site-gate: selects app.user_can_see_site(wo.site_id) as allowed + staging_location_id
+    if (options.isPick && sql.includes('from public.wo_materials mat') && sql.includes('app.user_can_see_site')) {
+      return {
+        rows: [{
+          allowed: true,
+          staging_location_id:
+            'materialStagingLocationId' in options ? options.materialStagingLocationId : ids.location,
+        }],
+      };
+    }
     if (options.isPick && sql.includes('from public.wo_materials mat')) {
       return {
         rows: [{
@@ -114,6 +124,10 @@ function mockMoveQueries(options: {
       }
       return options.onHold ? { rows: [{ hold_id: 'f0000000-0000-4000-8000-000000000001' }] } : { rows: [] };
     }
+    // scannerLpSiteAccess: site-gate query on LP WITHOUT for update
+    if (sql.includes('from public.license_plates lp') && !sql.includes('for update')) {
+      return { rows: [{ allowed: true }] };
+    }
     if (sql.includes('from public.license_plates lp') && sql.includes('for update')) {
       return {
         rows: [{
@@ -132,6 +146,11 @@ function mockMoveQueries(options: {
           lock_is_active_for_other_user: options.locked === true,
         }],
       };
+    }
+    // scannerLocationSiteAccess: site-gate query selects app.user_can_see_site as allowed (limit 1, no warehouse_id)
+    // loadLocationScope: selects warehouse_id + site_id; now also contains user_can_see_site after E1c hardening
+    if (sql.includes('from public.locations loc') && sql.includes('as allowed')) {
+      return { rows: [{ allowed: true }] };
     }
     if (sql.includes('from public.locations')) {
       return { rows: [{ id: ids.location, warehouse_id: ids.warehouse, site_id: ids.site }] };
@@ -159,6 +178,10 @@ describe('warehouse scanner routes', () => {
   it('lp lookup returns LP detail with genealogy', async () => {
     const { GET } = await import('../lp/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
+      // LP route site-gate: select id::text from public.license_plates where ... and app.user_can_see_site
+      if (sql.includes('from public.license_plates') && sql.includes('app.user_can_see_site')) {
+        return { rows: [{ id: ids.lp }] };
+      }
       if (sql.includes('from public.license_plates lp') && sql.includes('last_move_at')) {
         return {
           rows: [{
@@ -587,11 +610,56 @@ describe('warehouse scanner routes', () => {
     );
   });
 
+  it('putaway returns 403 when the LP site is not visible to the session user', async () => {
+    const { POST } = await import('../putaway/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
+      if (sql.includes('pg_advisory_xact_lock')) return { rows: [] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp') && !sql.includes('for update')) {
+        return { rows: [{ allowed: false }] };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/putaway', {
+        clientOpId: 'op-site-forbidden',
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+  });
+
   const writeRouteLoaders = {
     putaway: () => import('../putaway/route'),
     move: () => import('../move/route'),
     pick: () => import('../pick/route'),
   } as const;
+
+  it('locked-LP for-update query re-asserts user_can_see_site inside the transaction (E1c hardening)', async () => {
+    // Verify that the SQL executed for the locked row fetch contains the site predicate,
+    // proving the check-then-act gap is closed by re-asserting access on the write path.
+    const { POST } = await import('../putaway/route');
+    mockMoveQueries({});
+
+    await POST(
+      postRequest('/api/warehouse/scanner/putaway', {
+        clientOpId: 'op-site-reassert',
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    const lockedLpCall = fakeClient.query.mock.calls.find(
+      (call) => String(call[0]).includes('from public.license_plates lp') && String(call[0]).includes('for update'),
+    );
+    expect(lockedLpCall).toBeTruthy();
+    expect(String(lockedLpCall?.[0])).toContain('user_can_see_site');
+  });
 
   it.each([
     ['putaway', { clientOpId: 'op-forbidden', lpId: ids.lp, toLocationId: ids.location }],

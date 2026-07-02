@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { assignRole } from '../../../../../../actions/users/assign-role';
 import { assignUserSites } from '../../../../../../actions/users/assign-user-sites';
 import { createUserWithPassword } from '../../../../../../actions/users/create-user-with-password';
+import { deactivateUser } from '../../../../../../actions/users/deactivate';
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
 import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
@@ -53,6 +54,9 @@ type UserRow = {
   invite_token_expires_at: string | Date | null;
   last_login_at: string | Date | null;
   updated_at: string | Date | null;
+  // F2-C1 — TOTP enrollment presence (public.mfa_secrets, mig 028). true = the
+  // user has an enrolled authenticator; the raw secret is never selected.
+  mfa_enrolled: boolean;
 };
 
 type KpiRow = {
@@ -178,10 +182,13 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
     return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
       const permissionCtx = { client: queryClient, userId, orgId };
-      const [canView, canInviteUsers, canAssignRoles, canResetPasswords] = await Promise.all([
+      const [canView, canInviteUsers, canAssignRoles, canResetPasswords, canDeactivateUsers] = await Promise.all([
         hasAnyPermission(permissionCtx, ['settings.users.view', 'settings.users.invite', 'settings.roles.assign', 'settings.users.create', 'settings.users.deactivate']),
         hasAnyPermission(permissionCtx, ['settings.users.invite']),
         hasAnyPermission(permissionCtx, ['settings.roles.assign']),
+        hasAnyPermission(permissionCtx, ['org.access.admin']),
+        // Deactivate = org.access.admin (the same grant the deactivateUser
+        // Server Action enforces server-side); the button self-gates read-only.
         hasAnyPermission(permissionCtx, ['org.access.admin']),
       ]);
 
@@ -212,9 +219,11 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
                   u.invite_token,
                   u.invite_token_expires_at,
                   u.last_login_at,
-                  u.updated_at
+                  u.updated_at,
+                  (ms.user_id is not null) as mfa_enrolled
              from public.users u
              join public.roles r on r.id = u.role_id
+             left join public.mfa_secrets ms on ms.user_id = u.id
             where u.org_id = $1::uuid
             order by u.name asc, u.email asc`,
           [orgId],
@@ -289,6 +298,10 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
           // assignments (0 = unrestricted).
           site: assignment && assignment.names.length > 0 ? assignment.names.join(', ') : labels.allSites,
           assignedSiteIds: assignment?.ids ?? [],
+          // Read-only: authoritative last sign-in (users.last_login_at), never
+          // the softer updated_at bump — an admin needs the true login recency.
+          lastLogin: toIsoString(user.last_login_at),
+          mfaEnrolled: user.mfa_enrolled === true,
           lastActive: toIsoString(user.last_login_at ?? user.updated_at),
           status: user.is_active ? 'active' : user.invite_token ? 'invited' : 'disabled',
         };
@@ -340,6 +353,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
           canInviteUsers,
           canAssignRoles,
           canResetPasswords,
+          canDeactivateUsers,
         },
       };
     });
@@ -389,10 +403,15 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
       email: t('table_email'),
       role: t('table_role'),
       site: t('table_site'),
+      mfa: t('table_mfa'),
+      lastLogin: t('table_last_login'),
       lastActive: t('table_last_active'),
       status: t('table_status'),
       actions: t('table_actions'),
     },
+    mfaEnrolled: t('mfa_enrolled'),
+    mfaNotEnrolled: t('mfa_not_enrolled'),
+    lastLoginNever: t('last_login_never'),
     statuses: {
       active: t('status_active'),
       invited: t('status_invited'),
@@ -470,6 +489,15 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     saveSites: t('save_sites'),
     sitesAssignmentSuccess: t('sites_assignment_success'),
     sitesAssignmentFailed: t('sites_assignment_failed'),
+    deactivate: t('deactivate'),
+    deactivateUnavailable: t('deactivate_unavailable'),
+    deactivateDialogTitle: t('deactivate_dialog_title'),
+    deactivateDialogBody: t('deactivate_dialog_body'),
+    deactivateConfirm: t('deactivate_confirm'),
+    deactivating: t('deactivating'),
+    deactivateSuccess: t('deactivate_success'),
+    deactivateFailed: t('deactivate_failed'),
+    deactivateSelf: t('deactivate_self'),
   };
 }
 
@@ -499,6 +527,19 @@ async function createUserWithPasswordAction(input: {
   'use server';
   const result = await createUserWithPassword(input);
   if (result.ok) return { ok: true, data: result.data };
+  return { ok: false, error: result.error };
+}
+
+// Module-scope `'use server'` adapter for user deactivation. Maps the client's
+// { userId } shape to the deactivateUser action's { targetUserId } shape (same
+// RSC-serialization constraint as resetPasswordAction). The underlying action
+// self-gates on org.access.admin, blocks self-deactivation, scopes to the
+// caller's org, and writes the audit + outbox rows — the page never trusts the
+// client and passes no org_id.
+async function deactivateUserAction(input: { userId: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+  'use server';
+  const result = await deactivateUser({ targetUserId: input.userId });
+  if (result.ok) return { ok: true };
   return { ok: false, error: result.error };
 }
 
@@ -544,6 +585,7 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       assignUserSitesAction={result.data.canAssignRoles ? assignUserSites : undefined}
       resetPasswordAction={resetPasswordAction}
       createUserWithPasswordAction={result.data.canInviteUsers ? createUserWithPasswordAction : undefined}
+      deactivateUserAction={result.data.canDeactivateUsers ? deactivateUserAction : undefined}
     />
   );
 }

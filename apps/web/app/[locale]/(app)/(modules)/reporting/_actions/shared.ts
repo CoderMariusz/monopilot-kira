@@ -1,3 +1,5 @@
+import { hasPermission } from '../../../../../../lib/auth/has-permission';
+
 /**
  * W9-M3 — 12-Reporting read-only slice: shared types + RBAC helper.
  *
@@ -37,25 +39,7 @@ export async function hasReportingPermission(
   ctx: ReportingContext,
   permission: string,
 ): Promise<boolean> {
-  const res = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r
-         on r.id = ur.role_id
-        and r.org_id = $2::uuid
-       left join public.role_permissions rp
-         on rp.role_id = r.id
-        and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return (res.rowCount ?? res.rows.length) > 0;
+  return hasPermission(ctx, permission);
 }
 
 /** Clamp a report window to a sane integer day count. */

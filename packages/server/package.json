@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*.js": "./src/*.ts",
+    "./*": "./src/*.ts"
+  },
   "scripts": {
     "test": "vitest run",
     "lint": "eslint ."

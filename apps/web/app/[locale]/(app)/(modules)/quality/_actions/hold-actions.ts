@@ -2,6 +2,7 @@
 
 import type pg from 'pg';
 import { signEvent } from '@monopilot/e-sign';
+import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
@@ -99,7 +100,7 @@ const uuidSchema = z.string().uuid();
 const createSchema = z
   .object({
     referenceType: z.enum(['lp', 'batch', 'wo', 'po', 'grn']),
-    referenceId: uuidSchema,
+    referenceId: z.string().trim().min(1).max(120),
     reasonCodeId: uuidSchema.optional(),
     reasonText: z.string().trim().max(2000).optional(),
     priority: z.enum(['low', 'medium', 'high', 'critical']),
@@ -108,6 +109,10 @@ const createSchema = z
   })
   .refine((input) => input.reasonCodeId || input.reasonText, {
     message: 'reasonCodeId or reasonText is required',
+  })
+  .refine((input) => input.referenceType === 'batch' || uuidSchema.safeParse(input.referenceId).success, {
+    message: 'referenceId must be a UUID for this reference type',
+    path: ['referenceId'],
   });
 
 const releaseSchema = z.object({
@@ -463,6 +468,7 @@ export async function createHold(input: {
            site_id,
            reference_type,
            reference_id,
+           reference_text,
            reason_code_id,
            reason_free_text,
            priority,
@@ -474,7 +480,8 @@ export async function createHold(input: {
            app.current_org_id(),
            $8::uuid,
            $1,
-           $2::uuid,
+           case when $1 = 'batch' then null else $2::uuid end,
+           case when $1 = 'batch' then $2 else null end,
            $3::uuid,
            $4,
            $5,
@@ -482,7 +489,7 @@ export async function createHold(input: {
            $6::int,
            $7::uuid
          )
-         returning id::text, hold_number, reference_type, reference_id::text, hold_status`,
+         returning id::text, hold_number, reference_type, coalesce(reference_text, reference_id::text) as reference_id, hold_status`,
         [
           parsed.referenceType,
           parsed.referenceId,
@@ -694,16 +701,17 @@ export async function releaseHoldCore(
     const restoresReleasedQaStatus = lpQaStatus === 'released';
 
     if (restoresReleasedQaStatus) {
-      const activeHolds = await ctx.client.query<{ reference_id: string }>(
-        `select reference_id::text
-           from public.v_active_holds
-          where org_id = app.current_org_id()
-            and reference_type = 'lp'
-            and reference_id = any($1::uuid[])
-            and hold_id <> $2::uuid`,
-        [restoreReleasedLpIds, input.holdId],
-      );
-      for (const activeHold of activeHolds.rows) blockedByOtherHold.add(activeHold.reference_id);
+      for (const lpId of restoreReleasedLpIds) {
+        try {
+          await assertNoActiveHoldForLp(lpId, ctx.client);
+        } catch (error) {
+          if (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'QA_HOLD_ACTIVE') {
+            blockedByOtherHold.add(lpId);
+            continue;
+          }
+          throw error;
+        }
+      }
       restoreReleasedLpIds = restoreReleasedLpIds.filter((lpId) => !blockedByOtherHold.has(lpId));
     }
 

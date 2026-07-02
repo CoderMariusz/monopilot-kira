@@ -310,4 +310,27 @@ describe('C3 — Compute costing (empty state)', () => {
       expect(screen.getByTestId('costing-compute-error')).toHaveTextContent(LABELS.computeErrorHardFail),
     );
   });
+
+  it('maps forbidden to the localized forbidden label (never surfaces raw code)', async () => {
+    // computeCosting returns { ok: false, error: 'forbidden' } when the action is called
+    // outside of the server permission gate (e.g. race between tab open and role change).
+    // The UI must show labels.forbidden, NOT the raw string 'forbidden'.
+    const compute = vi.fn().mockResolvedValue({ ok: false, error: 'forbidden' });
+    render(
+      <CostingScreen
+        state="empty"
+        data={null}
+        labels={LABELS}
+        projectId={PROJECT_ID}
+        computeAction={compute}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('costing-compute'));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('costing-compute-error')).toHaveTextContent(LABELS.forbidden),
+    );
+    expect(screen.queryByText('forbidden')).not.toBeInTheDocument();
+  });
 });

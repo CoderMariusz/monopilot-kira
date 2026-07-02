@@ -928,7 +928,7 @@ async function insertAudit(
        org_id, session_id, user_id, device_id, operation, result_code, client_op_id, ext
      )
      values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'scanner.receive_po', $5, $6, $7::jsonb)
-     on conflict (org_id, client_op_id) where client_op_id is not null do nothing`,
+     on conflict (org_id, operation, client_op_id) where client_op_id is not null and operation not like 'client.%' do nothing`,
     [session.org_id, session.id, session.user_id, session.device_id, resultCode, clientOpId, JSON.stringify(ext)],
   );
 }

@@ -5,6 +5,7 @@ import { jsonError, jsonOk, stringField } from '../../../../../../lib/scanner/ro
 import { withTxnOrgContext } from '../../../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../../../lib/scanner/with-scanner-org';
 import { isUuid, suggestPutawayLocations, WarehouseScannerError } from '../../../../../../lib/warehouse/scanner/movement';
+import { scannerLpSiteAccess } from '../../../../scanner/site-access';
 
 export async function GET(request: NextRequest) {
   const lpId = stringField(Object.fromEntries(new URL(request.url).searchParams), 'lpId');
@@ -19,9 +20,12 @@ export async function GET(request: NextRequest) {
         try {
           // app.current_org_id() only resolves inside a txn with a registered
           // context (see lib/scanner/txn-org-context.ts).
-          const suggestions = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, () =>
-            suggestPutawayLocations(scopedClient, lpId),
-          );
+          const suggestions = await withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
+            const access = await scannerLpSiteAccess(scopedClient, lpId);
+            if (access === 'not_found') throw new WarehouseScannerError('lp_not_found', 404, 'Pallet not found.');
+            if (access === 'forbidden') throw new WarehouseScannerError('forbidden', 403, 'Forbidden.');
+            return suggestPutawayLocations(scopedClient, lpId);
+          });
           return jsonOk({ suggestions });
         } catch (error) {
           if (error instanceof WarehouseScannerError) return jsonError(error.code, error.status);

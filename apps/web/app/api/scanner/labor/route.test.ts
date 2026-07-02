@@ -88,6 +88,22 @@ describe('scanner labor route', () => {
     );
   });
 
+  it('GET returns 403 when the work order site is not visible to the user', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: false }] };
+      }
+      return { rows: [] };
+    });
+    const { GET } = await import('./route');
+
+    const response = await GET(getRequest() as never);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+  });
+
   it('returns 401 without scanner session', async () => {
     requireScannerSessionMock.mockResolvedValueOnce({ guardError: true, status: 401, error: 'missing_token' });
     const { POST } = await import('./route');
@@ -103,6 +119,9 @@ describe('scanner labor route', () => {
   it('GET returns clocked_in with since when an open scanner labor row exists for the work order', async () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
       if (q.includes('from public.wo_labor_log') && q.includes('ended_at is null')) {
         return { rows: [{ since: new Date(STARTED_AT) }] };
       }
@@ -133,6 +152,13 @@ describe('scanner labor route', () => {
   });
 
   it('GET returns clocked_out when no open scanner labor row exists for the work order', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
+      return { rows: [] };
+    });
     const { GET } = await import('./route');
 
     const response = await GET(getRequest() as never);
@@ -148,6 +174,13 @@ describe('scanner labor route', () => {
   });
 
   it("action='in' inserts scanner wo_labor_log row after closing the user's prior open row", async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
+      return { rows: [] };
+    });
     const { POST } = await import('./route');
 
     const response = await POST(request({ action: 'in', woId: WO_ID, lineId: LINE_ID }) as never);
@@ -176,6 +209,13 @@ describe('scanner labor route', () => {
   });
 
   it("action='out' closes the user's open log for the work order", async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
+      return { rows: [] };
+    });
     const { POST } = await import('./route');
 
     const response = await POST(request({ action: 'out', woId: WO_ID }) as never);

@@ -34,6 +34,7 @@ export type RecordPodInput = {
 export type RecordPodResult = { ok: true } | { ok: false; error: string };
 
 const SHIP_PACK_CLOSE = 'ship.pack.close';
+const SHIP_SHIP_CONFIRM = 'ship.ship.confirm';
 const SHIP_BOL_SIGN = 'ship.bol.sign';
 const LP_SHIPPED_EVENT_TYPE = 'warehouse.lp.shipped';
 
@@ -156,7 +157,7 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<ShipShipmentResult> => {
       const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-      const forbidden = await requirePermission(ctx, SHIP_PACK_CLOSE);
+      const forbidden = await requirePermission(ctx, SHIP_SHIP_CONFIRM);
       if (forbidden) return forbidden;
 
       const { rows: shipmentRows } = await ctx.client.query<{
@@ -385,7 +386,7 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<GenerateBolResult> => {
       const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-      const forbidden = await requirePermission(ctx, SHIP_PACK_CLOSE);
+      const forbidden = await requirePermission(ctx, SHIP_SHIP_CONFIRM);
       if (forbidden) return forbidden;
 
       const { rows: shipmentRows } = await ctx.client.query<{

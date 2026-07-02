@@ -39,6 +39,9 @@ const EXPECTED_SETTINGS_NAV = [
       // Wave-7 machines CRUD screen (supersedes /settings/infra/machines).
       { key: "machines", label: "Machines", icon: "⚙" },
       { key: "manufacturing-ops", label: "Manufacturing operations", icon: "⚒", highlight: true },
+      // NPD v2 S5a — per-process production DEFAULTS screen (shipped in the
+      // NPD-DYN wave); restores the stale contract to the live manifest.
+      { key: "process-defaults", label: "Process defaults", icon: "⚙" },
       { key: "partners", label: "Suppliers & customers", icon: "↔" },
       { key: "units", label: "Units & conversions", icon: "⚖" },
       // E2B — cold-chain product temperature ranges (mig 315).

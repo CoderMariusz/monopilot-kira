@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { requireScannerSession } from '../../../../../lib/scanner/guard';
+import { withTxnOrgContext } from '../../../../../lib/scanner/txn-org-context';
 import { auditAttempt, scannerError, scannerOk } from '../_support';
 
 type WoListRow = {
@@ -26,8 +27,9 @@ function iso(value: Date | string | null): string | null {
 export async function GET(request: NextRequest) {
   const result = await requireScannerSession(request, null, 'production.scanner.wos.list', async ({ client, session }) => {
     try {
-      const { rows } = await client.query<WoListRow>(
-        `select wo.id,
+      const { rows } = await withTxnOrgContext(client, session.org_id, session.user_id, () =>
+        client.query<WoListRow>(
+          `select wo.id,
                 wo.wo_number,
                 case
                   when exec.status in ('in_progress', 'paused') then exec.status
@@ -53,16 +55,18 @@ export async function GET(request: NextRequest) {
            left join public.production_lines line
              on line.id = wo.production_line_id
             and line.org_id = wo.org_id
-          where wo.org_id = $1::uuid
+          where wo.org_id = app.current_org_id()
+            and app.user_can_see_site(wo.site_id)
             and (
               wo.status = 'RELEASED'
               or exec.status in ('in_progress', 'paused')
             )
-            and ($2::uuid is null or wo.production_line_id = $2::uuid)
+            and ($1::uuid is null or wo.production_line_id = $1::uuid)
           order by (wo.scheduled_start_time is null) asc,
                    wo.scheduled_start_time asc,
                    wo.wo_number asc`,
-        [session.org_id, session.line_id],
+          [session.line_id],
+        ),
       );
 
       await auditAttempt(client, session, 'production.scanner.wos.list', 'ok', { count: rows.length });

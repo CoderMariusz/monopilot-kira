@@ -140,6 +140,15 @@ function ledgerInsertCall() {
   return fakeClient.query.mock.calls.find((call) => String(call[0]).includes('insert into public.wo_material_consumption'));
 }
 
+function txnStubs(sql: string): { rows: unknown[] } | null {
+  if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
+  if (sql.includes('insert into app.session_org_contexts')) return { rows: [] };
+  if (sql.includes('select app.set_org_context')) return { rows: [] };
+  if (sql.includes('delete from app.session_org_contexts')) return { rows: [] };
+  if (sql.includes('pg_advisory_xact_lock')) return { rows: [] };
+  return null;
+}
+
 describe('production scanner WO routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -329,6 +338,7 @@ describe('production scanner WO routes', () => {
       if (sql.includes('from public.scanner_audit_log')) {
         return {
           rows: [{
+            result_code: 'ok',
             ext: {
               materialId: '70000000-0000-0000-0000-000000000001',
               materialName: 'Sugar',
@@ -369,6 +379,9 @@ describe('production scanner WO routes', () => {
       warning: { overconsumed: true, overPct: 10, warnPct: 5 },
     });
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
+    const replaySql = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('from public.scanner_audit_log'));
+    expect(replaySql?.[0]).toContain("operation = $3");
+    expect(replaySql?.[1]).toContain('production.scanner.wos.consume');
   });
 
   it('consume replay with duplicate clientOpId does not insert a duplicate material consumption ledger row', async () => {
@@ -378,6 +391,7 @@ describe('production scanner WO routes', () => {
       if (sql.includes('from public.scanner_audit_log')) {
         return {
           rows: [{
+            result_code: 'ok',
             ext: {
               materialId: '70000000-0000-0000-0000-000000000001',
               materialName: 'Sugar',
@@ -415,6 +429,7 @@ describe('production scanner WO routes', () => {
       if (sql.includes('from public.scanner_audit_log')) {
         return {
           rows: [{
+            result_code: 'ok',
             ext: {
               materialId: '70000000-0000-0000-0000-000000000001',
               qty: '2.500',
@@ -1050,6 +1065,9 @@ describe('production scanner WO routes', () => {
   it('output derives deterministic transaction_id from clientOpId', async () => {
     const { POST } = await import('../output/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
       if (sql.includes('from public.work_orders')) {
         return { rows: [{ product_id: '80000000-0000-0000-0000-000000000001' }] };
       }
@@ -1118,7 +1136,13 @@ describe('production scanner WO routes', () => {
   it('start derives deterministic transaction_id from clientOpId and calls startWo under the scanner org', async () => {
     const { POST } = await import('../start/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.work_orders wo') && sql.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
       return { rows: [] };
     });
     startWoMock.mockResolvedValue({
@@ -1148,6 +1172,26 @@ describe('production scanner WO routes', () => {
     });
   });
 
+  it('start returns 403 when the work order site is not visible to the session user', async () => {
+    const { POST } = await import('../start/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.work_orders wo') && sql.includes('limit 1')) {
+        return { rows: [{ allowed: false }] };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(request({ clientOpId: 'op-start-site-forbidden' }) as never, context);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+    expect(startWoMock).not.toHaveBeenCalled();
+  });
+
   it('start returns 403 forbidden (audited) when the session user lacks production.wo.start', async () => {
     const { POST } = await import('../start/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
@@ -1165,7 +1209,13 @@ describe('production scanner WO routes', () => {
   it('start maps incomplete allergen changeover gate to scanner-specific 409 payload', async () => {
     const { POST } = await import('../start/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.work_orders wo') && sql.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
       return { rows: [] };
     });
     startWoMock.mockResolvedValue({
@@ -1325,5 +1375,220 @@ describe('production scanner WO routes', () => {
     expect((fakeClient.query.mock.calls[registerIdx][1] as unknown[])[1]).toBe(session.org_id);
     expect((fakeClient.query.mock.calls[setCtxIdx][1] as unknown[])[1]).toBe(session.org_id);
     expect(sqls[selectIdx]).toContain('app.current_org_id()');
+  });
+
+  it('output replay returns stored result without calling registerOutput again', async () => {
+    const { POST } = await import('../output/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.scanner_audit_log')) {
+        return {
+          rows: [{
+            result_code: 'ok',
+            ext: {
+              transactionId: scannerTransactionId('output', 'op-output-replay'),
+              output: { output_id: 'out-replay', lp_id: 'lp-replay' },
+              lp_id: 'lp-replay',
+            },
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-output-replay',
+        qtyUnits: '10',
+        unitsUom: 'each',
+        actualWeightKg: '5.250',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      replay: true,
+      lp_id: 'lp-replay',
+      transactionId: scannerTransactionId('output', 'op-output-replay'),
+    });
+    expect(registerOutputMock).not.toHaveBeenCalled();
+  });
+
+  it('waste replay returns stored result without calling recordWaste again', async () => {
+    const { POST } = await import('../waste/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.scanner_audit_log')) {
+        return {
+          rows: [{
+            result_code: 'ok',
+            ext: {
+              transactionId: scannerTransactionId('waste', 'op-waste-replay'),
+              waste: { waste_id: 'waste-replay', qty_kg: '1.250' },
+            },
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-waste-replay',
+        categoryCode: 'TRIM',
+        qtyKg: '1.250',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      replay: true,
+      waste: { waste_id: 'waste-replay', qty_kg: '1.250' },
+    });
+    expect(recordWasteMock).not.toHaveBeenCalled();
+  });
+
+  it('output rejects an oversize clientOpId with 400 invalid_client_op_id', async () => {
+    const { POST } = await import('../output/route');
+    const response = await POST(
+      request({
+        clientOpId: `op-${'x'.repeat(121)}`,
+        qtyUnits: '10',
+        unitsUom: 'each',
+        actualWeightKg: '5.250',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'invalid_client_op_id' });
+    expect(registerOutputMock).not.toHaveBeenCalled();
+  });
+
+  it('waste rejects an oversize clientOpId with 400 invalid_client_op_id', async () => {
+    const { POST } = await import('../waste/route');
+    const response = await POST(
+      request({
+        clientOpId: `op-${'x'.repeat(121)}`,
+        categoryCode: 'TRIM',
+        qtyKg: '1.250',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'invalid_client_op_id' });
+    expect(recordWasteMock).not.toHaveBeenCalled();
+  });
+
+  it('start rejects an oversize clientOpId with 400 invalid_client_op_id', async () => {
+    const { POST } = await import('../start/route');
+    const response = await POST(
+      request({ clientOpId: `op-${'x'.repeat(121)}` }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'invalid_client_op_id' });
+    expect(startWoMock).not.toHaveBeenCalled();
+  });
+
+  it('output replays a recorded failure without calling registerOutput again', async () => {
+    const { POST } = await import('../output/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.scanner_audit_log')) {
+        return {
+          rows: [{
+            result_code: 'not_found',
+            ext: { woId: context.params.id, clientOpId: 'op-output-failed', status: 404 },
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-output-failed',
+        qtyUnits: '10',
+        unitsUom: 'each',
+        actualWeightKg: '5.250',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
+    expect(registerOutputMock).not.toHaveBeenCalled();
+  });
+
+  it('start replays a recorded failure without calling startWo again', async () => {
+    const { POST } = await import('../start/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) {
+        return {
+          rows: [{
+            result_code: 'changeover_signoff_required',
+            ext: {
+              status: 409,
+              changeoverId: '44444444-4444-4444-8444-444444444444',
+            },
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(request({ clientOpId: 'op-start-failed-replay' }) as never, context);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'changeover_signoff_required',
+      changeoverId: '44444444-4444-4444-8444-444444444444',
+    });
+    expect(startWoMock).not.toHaveBeenCalled();
+  });
+
+  it('start replay returns stored result without calling startWo again', async () => {
+    const { POST } = await import('../start/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) {
+        return {
+          rows: [{
+            result_code: 'ok',
+            ext: {
+              transactionId: scannerTransactionId('start', 'op-start-replay'),
+              start: { woId: context.params.id, status: 'in_progress' },
+            },
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(request({ clientOpId: 'op-start-replay' }) as never, context);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      replay: true,
+      start: { woId: context.params.id, status: 'in_progress' },
+    });
+    expect(startWoMock).not.toHaveBeenCalled();
   });
 });

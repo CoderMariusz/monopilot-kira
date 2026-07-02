@@ -15,6 +15,7 @@ import {
 } from '../../../../../../../lib/production/shared';
 import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../../lib/scanner/auth';
 import { requireScannerSession } from '../../../../../../../lib/scanner/guard';
+import { findServerReplay, insertServerReplay } from '../../../../../../../lib/scanner/replay';
 import { isRecord, stringField } from '../../../../../../../lib/scanner/route-utils';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../../../lib/scanner/txn-org-context';
 import {
@@ -138,18 +139,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         // Replay fidelity: only the success path writes client_op_id (auditAttempt
         // rows never carry it), so this row's ext is the original 'ok' response
         // material — reconstruct the original payload instead of a bare marker.
-        const replay = await client.query<{ ext: Record<string, unknown> | null }>(
-          `select ext
-             from public.scanner_audit_log
-            where org_id = $1::uuid
-              and client_op_id = $2
-            limit 1`,
-          [session.org_id, clientOpId],
+        const replay = await findServerReplay(
+          client,
+          session.org_id,
+          clientOpId,
+          'production.scanner.wos.consume',
         );
-        if (replay.rows[0]) {
+        if (replay) {
           await client.query('commit');
           await auditAttempt(client, session, 'production.scanner.wos.consume', 'replay', { woId, materialId, lpId });
-          const storedExt = isRecord(replay.rows[0].ext) ? replay.rows[0].ext : {};
+          const storedExt = replay.ext;
           return scannerOk({
             replay: true,
             ...(typeof storedExt.materialId === 'string' ? { materialId: storedExt.materialId } : {}),
@@ -268,6 +267,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
             and wm.wo_id = $2::uuid
             and wm.id = $3::uuid
             and $4::numeric > 0
+            and exists (
+              select 1
+                from public.work_orders wo
+               where wo.org_id = $1::uuid
+                 and wo.id = wm.wo_id
+                 and app.user_can_see_site(wo.site_id)
+            )
           limit 1
           for update of wm`,
         [session.org_id, woId, materialId, qty],
@@ -378,6 +384,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
             and wo_id = $2::uuid
             and id = $3::uuid
             and $4::numeric > 0
+            and exists (
+              select 1
+                from public.work_orders wo
+               where wo.org_id = $1::uuid
+                 and wo.id = wo_materials.wo_id
+                 and app.user_can_see_site(wo.site_id)
+            )
           returning id, product_id, material_name, consumed_qty::text as consumed_qty, uom`,
         [session.org_id, woId, materialId, qty],
       );
@@ -405,6 +418,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
               and product_id = $6::uuid
               and uom = $7
               and quantity - $3::numeric >= reserved_qty
+              and app.user_can_see_site(site_id)
             returning id, quantity::text as quantity`,
           [session.org_id, lpId, qty, woId, session.user_id, material.product_id, material.uom],
         );
@@ -426,6 +440,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
                         on chosen.id = $2::uuid
                        and chosen.org_id = $1::uuid
                      where cand.org_id = $1::uuid
+                       and app.user_can_see_site(cand.site_id)
+                       and app.user_can_see_site(chosen.site_id)
                        and cand.product_id = $3::uuid
                        and cand.uom = $4
                        and cand.lp_id <> $2::uuid

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { requireScannerSession } from '../../../../../../lib/scanner/guard';
+import { withTxnOrgContext } from '../../../../../../lib/scanner/txn-org-context';
 import { auditAttempt, getWoId, scannerError, scannerOk, type RouteContext } from '../../_support';
 
 type HeaderRow = {
@@ -48,8 +49,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const result = await requireScannerSession(request, null, 'production.scanner.wos.detail', async ({ client, session }) => {
     try {
-      const headerRes = await client.query<HeaderRow>(
-        `select wo.id,
+      const response = await withTxnOrgContext(client, session.org_id, session.user_id, async () => {
+        const headerRes = await client.query<HeaderRow>(
+          `select wo.id,
                 wo.wo_number,
                 case
                   when exec.status in ('in_progress', 'paused') then exec.status
@@ -103,87 +105,98 @@ export async function GET(request: NextRequest, context: RouteContext) {
            left join public.production_lines line
              on line.id = wo.production_line_id
             and line.org_id = wo.org_id
-          where wo.org_id = $1::uuid
-            and wo.id = $2::uuid
+          where wo.org_id = app.current_org_id()
+            and wo.id = $1::uuid
+            and app.user_can_see_site(wo.site_id)
             and (
               wo.status = 'RELEASED'
               or exec.status in ('in_progress', 'paused')
             )
-            and ($3::uuid is null or wo.production_line_id = $3::uuid)
+            and ($2::uuid is null or wo.production_line_id = $2::uuid)
           limit 1`,
-        [session.org_id, woId, session.line_id],
-      );
+          [woId, session.line_id],
+        );
 
-      const header = headerRes.rows[0];
-      if (!header) {
-        await auditAttempt(client, session, 'production.scanner.wos.detail', 'not_found', { woId });
-        return scannerError('not_found', 404);
-      }
+        const header = headerRes.rows[0];
+        if (!header) {
+          await auditAttempt(client, session, 'production.scanner.wos.detail', 'not_found', { woId });
+          return scannerError('not_found', 404);
+        }
 
-      const [materialsRes, outputsRes] = await Promise.all([
-        client.query<MaterialRow>(
-          `select id,
+        const [materialsRes, outputsRes] = await Promise.all([
+          client.query<MaterialRow>(
+            `select id,
                   material_name,
                   required_qty::text as required_qty,
                   consumed_qty::text as consumed_qty,
                   uom,
                   sequence
              from public.wo_materials
-            where org_id = $1::uuid
-              and wo_id = $2::uuid
+            where org_id = app.current_org_id()
+              and wo_id = $1::uuid
+              and exists (
+                select 1
+                  from public.work_orders wo
+                 where wo.org_id = app.current_org_id()
+                   and wo.id = wo_materials.wo_id
+                   and app.user_can_see_site(wo.site_id)
+              )
             order by sequence asc, material_name asc`,
-          [session.org_id, woId],
-        ),
-        client.query<OutputRow>(
-          `select output_type,
+            [woId],
+          ),
+          client.query<OutputRow>(
+            `select output_type,
                   coalesce(sum(qty_kg), 0)::text as qty_kg,
                   sum(qty_units)::text as qty_units,
                   sum(actual_weight_kg)::text as actual_weight_kg,
                   count(*)::text as count
              from public.wo_outputs
-            where org_id = $1::uuid
-              and wo_id = $2::uuid
+            where org_id = app.current_org_id()
+              and wo_id = $1::uuid
+              and app.user_can_see_site(site_id)
             group by output_type
             order by output_type asc`,
-          [session.org_id, woId],
-        ),
-      ]);
+            [woId],
+          ),
+        ]);
 
-      await auditAttempt(client, session, 'production.scanner.wos.detail', 'ok', { woId });
-      return scannerOk({
-        header: {
-          id: header.id,
-          woNumber: header.wo_number,
-          status: header.status,
-          itemCode: header.item_code,
-          productName: header.product_name,
-          plannedQty: header.planned_qty,
-          qtyEntered: header.qty_entered,
-          qtyEnteredUom: header.qty_entered_uom,
-          uomSnapshot: header.uom_snapshot,
-          scheduledStart: iso(header.scheduled_start),
-          lineId: header.line_id,
-          lineCode: header.line_code,
-          producedBaseKg: header.produced_base_kg,
-          producedUnits: header.produced_units,
-        },
-        allergenGate: header.allergen_flag,
-        materials: materialsRes.rows.map((row) => ({
-          id: row.id,
-          materialName: row.material_name,
-          requiredQty: row.required_qty,
-          consumedQty: row.consumed_qty,
-          uom: row.uom,
-          sequence: row.sequence,
-        })),
-        outputs: outputsRes.rows.map((row) => ({
-          outputType: row.output_type,
-          qtyKg: row.qty_kg,
-          qtyUnits: row.qty_units,
-          actualWeightKg: row.actual_weight_kg,
-          count: row.count,
-        })),
+        await auditAttempt(client, session, 'production.scanner.wos.detail', 'ok', { woId });
+        return scannerOk({
+          header: {
+            id: header.id,
+            woNumber: header.wo_number,
+            status: header.status,
+            itemCode: header.item_code,
+            productName: header.product_name,
+            plannedQty: header.planned_qty,
+            qtyEntered: header.qty_entered,
+            qtyEnteredUom: header.qty_entered_uom,
+            uomSnapshot: header.uom_snapshot,
+            scheduledStart: iso(header.scheduled_start),
+            lineId: header.line_id,
+            lineCode: header.line_code,
+            producedBaseKg: header.produced_base_kg,
+            producedUnits: header.produced_units,
+          },
+          allergenGate: header.allergen_flag,
+          materials: materialsRes.rows.map((row) => ({
+            id: row.id,
+            materialName: row.material_name,
+            requiredQty: row.required_qty,
+            consumedQty: row.consumed_qty,
+            uom: row.uom,
+            sequence: row.sequence,
+          })),
+          outputs: outputsRes.rows.map((row) => ({
+            outputType: row.output_type,
+            qtyKg: row.qty_kg,
+            qtyUnits: row.qty_units,
+            actualWeightKg: row.actual_weight_kg,
+            count: row.count,
+          })),
+        });
       });
+      return response;
     } catch (error) {
       await auditAttempt(client, session, 'production.scanner.wos.detail', 'error', {
         woId,

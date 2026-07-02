@@ -76,6 +76,7 @@ export type EditSupplierLabels = {
     // Present in the shared SupplierError union (TO ship/cancel); supplier update
     // never returns these, so they are optional and fall back to persistence_failed.
     insufficient_stock?: string;
+    insufficient_stock_holds?: string;
     partially_received?: string;
     persistence_failed: string;
   };

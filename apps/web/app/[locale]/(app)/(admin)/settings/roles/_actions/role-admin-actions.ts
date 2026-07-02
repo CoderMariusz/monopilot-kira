@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { ALL_PERMISSIONS } from '../../../../../../../../../packages/rbac/src/permissions.enum';
 
 /**
@@ -35,11 +36,13 @@ import { ALL_PERMISSIONS } from '../../../../../../../../../packages/rbac/src/pe
 const SYSTEM_ROLE_CODES = new Set<string>([
   'owner',
   'admin',
+  'org_admin',
   'org.access.admin',
   'org.platform.admin',
   'org.schema.admin',
 ]);
 
+const SUPER_ROLE_CODES = ['owner', 'admin', 'org_admin'] as const;
 const MANAGE_PERMISSION = 'settings.roles.assign';
 const ROLES_SETTINGS_PATH = '/settings/roles';
 const CATALOG: ReadonlySet<string> = new Set(ALL_PERMISSIONS as readonly string[]);
@@ -75,27 +78,58 @@ function normalizeString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/**
- * Dual-store-aware gate read: a grant in EITHER role_permissions OR the
- * roles.permissions jsonb cache satisfies the manage gate (byte-aligned with
- * lib/production/shared.ts hasPermission).
- */
 async function hasManagePermission({ client, userId, orgId }: OrgActionContext): Promise<boolean> {
-  const { rows, rowCount } = await client.query<{ ok: boolean }>(
+  return hasPermission({ client, userId, orgId }, MANAGE_PERMISSION);
+}
+
+async function hasSuperRole({ client, userId, orgId }: OrgActionContext): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
     `select true as ok
        from public.user_roles ur
        join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
       where ur.user_id = $1::uuid
         and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
+        and (r.code = any($3::text[]) or r.slug = any($3::text[]))
       limit 1`,
-    [userId, orgId, MANAGE_PERMISSION],
+    [userId, orgId, SUPER_ROLE_CODES],
   );
-  return (rowCount ?? rows.length) > 0;
+  return rows[0]?.ok === true;
+}
+
+async function callerHasRole({ client, userId, orgId }: OrgActionContext, roleId: string): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles
+      where user_id = $1::uuid
+        and org_id = $2::uuid
+        and role_id = $3::uuid
+      limit 1`,
+    [userId, orgId, roleId],
+  );
+  return rows[0]?.ok === true;
+}
+
+async function readCallerPermissions({ client, userId, orgId }: OrgActionContext): Promise<Set<string>> {
+  const { rows } = await client.query<{ permission: string }>(
+    `select distinct permission
+       from (
+         select rp.permission
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           join public.role_permissions rp on rp.role_id = r.id
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+         union
+         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+       ) grants
+      where permission is not null`,
+    [userId, orgId],
+  );
+  return new Set(rows.map((row) => row.permission));
 }
 
 type RoleRow = { id: string; code: string; name: string; is_system: boolean };
@@ -110,6 +144,28 @@ async function readRoleById(client: QueryClient, roleId: string): Promise<RoleRo
     [roleId],
   );
   return rows[0] ?? null;
+}
+
+async function readRolePermissions(client: QueryClient, roleId: string): Promise<string[]> {
+  const { rows } = await client.query<{ permission: string }>(
+    `select distinct permission
+       from (
+         select rp.permission
+           from public.role_permissions rp
+           join public.roles r on r.id = rp.role_id
+          where r.org_id = app.current_org_id()
+            and r.id = $1::uuid
+         union
+         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           from public.roles r
+          where r.org_id = app.current_org_id()
+            and r.id = $1::uuid
+       ) grants
+      where permission is not null
+      order by permission`,
+    [roleId],
+  );
+  return rows.map((row) => row.permission);
 }
 
 export async function createRole(input: CreateRoleInput): Promise<CreateRoleResult> {
@@ -209,6 +265,18 @@ export async function setRolePermissions(input: SetRolePermissionsInput): Promis
       if (role.is_system || SYSTEM_ROLE_CODES.has(role.code)) {
         return { ok: false, error: 'system_role_locked' };
       }
+      const isSuper = await hasSuperRole({ client, userId, orgId });
+      if (!isSuper) {
+        if (await callerHasRole({ client, userId, orgId }, roleId)) {
+          return { ok: false, error: 'forbidden' };
+        }
+        const callerPermissions = await readCallerPermissions({ client, userId, orgId });
+        if (requested.some((permission) => !callerPermissions.has(permission))) {
+          return { ok: false, error: 'forbidden' };
+        }
+      }
+
+      const beforePermissions = await readRolePermissions(client, roleId);
 
       // ── DUAL-STORE WRITE (single txn) ──────────────────────────────────────
       // (1) normalized role_permissions: delete the rows no longer in the set …
@@ -242,7 +310,16 @@ export async function setRolePermissions(input: SetRolePermissionsInput): Promis
         userId,
         action: 'settings.role_permissions.updated',
         roleId,
-        after: { code: role.code, permissions: requested },
+        before: {
+          code: role.code,
+          permissions: beforePermissions,
+          removed: beforePermissions.filter((permission) => !requested.includes(permission)),
+        },
+        after: {
+          code: role.code,
+          permissions: requested,
+          added: requested.filter((permission) => !beforePermissions.includes(permission)),
+        },
       });
 
       revalidatePath(ROLES_SETTINGS_PATH);
@@ -255,12 +332,27 @@ export async function setRolePermissions(input: SetRolePermissionsInput): Promis
 
 async function writeAudit(
   client: QueryClient,
-  params: { orgId: string; userId: string; action: string; roleId: string; after: Record<string, unknown> },
+  params: {
+    orgId: string;
+    userId: string;
+    action: string;
+    roleId: string;
+    before?: Record<string, unknown> | null;
+    after: Record<string, unknown>;
+  },
 ): Promise<void> {
   await client.query(
     `insert into public.audit_events
-       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, after_state, request_id, retention_class)
-     values ($1::uuid, $2::uuid, 'user', $3, 'role', $4, $5::jsonb, $6::uuid, 'security')`,
-    [params.orgId, params.userId, params.action, params.roleId, JSON.stringify(params.after), randomUUID()],
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, request_id, retention_class)
+     values ($1::uuid, $2::uuid, 'user', $3, 'role', $4, $5::jsonb, $6::jsonb, $7::uuid, 'security')`,
+    [
+      params.orgId,
+      params.userId,
+      params.action,
+      params.roleId,
+      params.before ? JSON.stringify(params.before) : null,
+      JSON.stringify(params.after),
+      randomUUID(),
+    ],
   );
 }

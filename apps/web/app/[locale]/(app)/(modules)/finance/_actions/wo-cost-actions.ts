@@ -24,6 +24,7 @@
  */
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { totalDowntimeMinutes } from '../../../../../../lib/production/oee-snapshot-producer';
 import { microToFixed, toMicro, MICRO_SCALE } from '../../../../../../lib/shared/decimal';
 import {
@@ -57,14 +58,24 @@ export type WoActualCost = {
   product: { itemCode: string | null; name: string | null };
   outputKg: string;
   materials: WoActualCostMaterial[];
+  unresolvedUom: Array<{
+    itemCode: string;
+    uom: string | null;
+    qty: string;
+  }>;
   materialsTotal: string;
   labor: WoActualCostLabor | null;
+  laborBasis: 'planned_duration' | 'actual_runtime' | null;
+  plannedRuntimeMin: string | null;
+  actualRuntimeMin: string;
+  downtimeMin: string;
   downtimeCost: string;
   machineCost: string;
   setupCost: string;
   wasteCost: string;
   totalCost: string;
   costPerKgOutput: string | null;
+  zeroCost: boolean;
   processResolution: {
     operationName: string | null;
     processRowKey: string | null;
@@ -91,8 +102,11 @@ export type CompletedWoWasteCostSummary = {
 
 type MaterialRow = {
   item_code: string | null;
+  uom: string | null;
+  raw_qty: string;
   qty_kg: string;
   cost_per_kg: string | null;
+  unresolved_uom: boolean;
 };
 
 type WoBaseRow = {
@@ -173,36 +187,11 @@ function hasComputedCostInputs(row: WoActualCost): boolean {
   return toMicro(row.totalCost) !== 0n;
 }
 
-async function hasFinancePermission(
-  ctx: FinanceContext,
-  permission: string,
-): Promise<boolean> {
-  const res = await ctx.client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r
-         on r.id = ur.role_id
-        and r.org_id = $2::uuid
-       left join public.role_permissions rp
-         on rp.role_id = r.id
-        and rp.permission = $3
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (
-          rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ? $3
-        )
-      limit 1`,
-    [ctx.userId, ctx.orgId, permission],
-  );
-  return (res.rowCount ?? res.rows.length) > 0;
-}
-
 async function computeWoActualCostInContext(
   ctx: FinanceContext,
   woId: string,
 ): Promise<FinanceActionResult<WoActualCost>> {
-  if (!(await hasFinancePermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
+  if (!(await hasPermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
     return { ok: false, reason: 'forbidden' };
   }
 
@@ -247,26 +236,46 @@ async function computeWoActualCostInContext(
     : new Date().toISOString().slice(0, 10);
 
   const materials = await ctx.client.query<MaterialRow>(
-    `select coalesce(i.item_code, c.component_id::text) as item_code,
-            sum(c.qty_consumed)::text as qty_kg,
-            max(coalesce(ch.cost_per_kg, i.cost_per_kg))::text as cost_per_kg
-       from public.wo_material_consumption c
-       left join public.items i
-         on i.org_id = app.current_org_id()
-        and i.id = c.component_id
-       left join lateral (
-         select cost_per_kg
-           from public.item_cost_history
-          where org_id = app.current_org_id()
-            and item_id = c.component_id
-            and effective_to is null
-          order by effective_from desc
-          limit 1
-       ) ch on true
-      where c.org_id = app.current_org_id()
-        and c.wo_id = $1::uuid
-      group by coalesce(i.item_code, c.component_id::text)
-      order by coalesce(i.item_code, c.component_id::text)`,
+    `with converted as (
+       select coalesce(i.item_code, c.component_id::text) as item_code,
+              c.uom,
+              c.qty_consumed::numeric as raw_qty,
+              case
+                when lower(c.uom) = 'kg' then c.qty_consumed::numeric
+                when lower(c.uom) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then c.qty_consumed::numeric
+                when lower(c.uom) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then c.qty_consumed::numeric
+                when lower(c.uom) = 'each' and i.net_qty_per_each is not null
+                  then c.qty_consumed::numeric * i.net_qty_per_each
+                when lower(c.uom) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null
+                  then c.qty_consumed::numeric * i.each_per_box::numeric * i.net_qty_per_each
+                else null
+              end as qty_kg,
+              coalesce(ch.cost_per_kg, i.cost_per_kg) as cost_per_kg
+         from public.wo_material_consumption c
+         left join public.items i
+           on i.org_id = app.current_org_id()
+          and i.id = c.component_id
+         left join lateral (
+           select cost_per_kg
+             from public.item_cost_history
+            where org_id = app.current_org_id()
+              and item_id = c.component_id
+              and effective_to is null
+            order by effective_from desc
+            limit 1
+         ) ch on true
+        where c.org_id = app.current_org_id()
+          and c.wo_id = $1::uuid
+     )
+     select item_code,
+            case when qty_kg is null then uom else null end as uom,
+            sum(raw_qty)::text as raw_qty,
+            coalesce(sum(qty_kg), 0)::text as qty_kg,
+            max(cost_per_kg)::text as cost_per_kg,
+            bool_or(qty_kg is null) as unresolved_uom
+       from converted
+      group by item_code, case when qty_kg is null then uom else null end
+      order by item_code, case when qty_kg is null then uom else null end`,
     [woId],
   );
 
@@ -356,6 +365,7 @@ async function computeWoActualCostInContext(
         )
       : 0;
   const runtimeMin = clampRuntime(minutesBetween(wo.started_at, wo.completed_at), downtimeMin);
+  const downtimeMinText = Math.max(0, downtimeMin).toFixed(6);
 
   const costMode =
     processRow?.cost_mode === 'per_run'
@@ -365,10 +375,16 @@ async function computeWoActualCostInContext(
         : null;
   const hasHourlyLabor = costMode === 'per_hour' && processRow?.cost_rate != null;
   const laborRuntimeMin = processRow?.expected_duration_minutes ?? runtimeMin;
+  const laborBasis = hasHourlyLabor
+    ? processRow?.expected_duration_minutes != null
+      ? 'planned_duration'
+      : 'actual_runtime'
+    : null;
   const downtimeCost = hasHourlyLabor ? downtimeCostFromLaborRate(downtimeMin, processRow!.cost_rate!) : '0.0000';
   const machineCost = costMode === 'per_run' && processRow?.cost_rate != null ? processRow.cost_rate : null;
+  const resolvedMaterials = materials.rows.filter((row) => !row.unresolved_uom);
   const totals = computeWoActualCostTotals({
-    materials: materials.rows.map((row) => ({
+    materials: resolvedMaterials.map((row) => ({
       itemCode: row.item_code ?? 'UNKNOWN',
       qtyKg: row.qty_kg,
       costPerKg: row.cost_per_kg,
@@ -394,7 +410,19 @@ async function computeWoActualCostInContext(
       product: { itemCode: wo.product_code, name: wo.product_name },
       outputKg: wo.output_kg,
       ...totals,
+      unresolvedUom: materials.rows
+        .filter((row) => row.unresolved_uom)
+        .map((row) => ({
+          itemCode: row.item_code ?? 'UNKNOWN',
+          uom: row.uom,
+          qty: row.raw_qty,
+        })),
+      laborBasis,
+      plannedRuntimeMin: processRow?.expected_duration_minutes ?? null,
+      actualRuntimeMin: runtimeMin,
+      downtimeMin: downtimeMinText,
       downtimeCost,
+      zeroCost: toMicro(totals.totalCost) === 0n,
       processResolution: {
         operationName: processRow?.operation_name ?? null,
         processRowKey: processRow?.row_key ?? null,
@@ -429,7 +457,7 @@ export async function listCompletedWoCosts(
     return await withOrgContext(
       async ({ userId, orgId, client }): Promise<FinanceActionResult<CompletedWoCostsSummary>> => {
         const ctx: FinanceContext = { userId, orgId, client: client as QueryClient };
-        if (!(await hasFinancePermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
+        if (!(await hasPermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
 
@@ -454,7 +482,7 @@ export async function listCompletedWoCosts(
         const costRows: WoCostSummaryRow[] = [];
         for (const row of rows.rows) {
           const result = await computeWoActualCostInContext(ctx, row.wo_id);
-          if (result.ok && hasComputedCostInputs(result.data)) {
+          if (result.ok) {
             costRows.push({ ...result.data, completedAt: iso(row.completed_at) });
           }
         }
@@ -476,7 +504,7 @@ export async function summarizeCompletedWoWasteCost(
     return await withOrgContext(
       async ({ userId, orgId, client }): Promise<FinanceActionResult<CompletedWoWasteCostSummary>> => {
         const ctx: FinanceContext = { userId, orgId, client: client as QueryClient };
-        if (!(await hasFinancePermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
+        if (!(await hasPermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
           return { ok: false, reason: 'forbidden' };
         }
 

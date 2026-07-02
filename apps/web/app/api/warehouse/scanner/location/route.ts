@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
                    on w.org_id = app.current_org_id()
                   and w.id = loc.warehouse_id
                 where loc.org_id = app.current_org_id()
+                  and app.user_can_see_site(w.site_id)
                   and (
                     loc.code = $1
                     or lower(loc.code) = lower($1)
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
                   and w.id = loc.warehouse_id
                 where loc.org_id = app.current_org_id()
                   and ($1::uuid is null or w.site_id = $1::uuid)
+                  and app.user_can_see_site(w.site_id)
                   and coalesce(loc.is_active, true)
                 order by case when loc.location_type in ('receiving', 'default') then 0 else 1 end,
                          loc.level asc,

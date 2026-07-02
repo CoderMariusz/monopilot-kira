@@ -62,8 +62,8 @@ function LineCard({
       <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
         <Metric label={labels.wo} value={line.currentWONumber ?? '-'} />
         <Metric label={labels.oee} value={line.oeePercent == null ? '-' : `${line.oeePercent.toFixed(1)}%`} />
-        <Metric label={labels.good} value={line.goodCount.toLocaleString()} />
-        <Metric label={labels.scrap} value={line.scrapCount.toLocaleString()} />
+        <Metric label={labels.good} value={line.goodKg.toLocaleString()} />
+        <Metric label={labels.scrap} value={line.scrapKg.toLocaleString()} />
       </dl>
 
       <p className="mt-4 text-xs font-medium text-slate-500">

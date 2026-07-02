@@ -6,8 +6,10 @@ import { Button } from '@monopilot/ui/Button';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
 
+import { downloadCsv, isoDateStamp, toCsv as buildCsv } from '../../../../../../lib/shared/download';
 import { PasswordResetModal } from '../../../../../../components/settings/modals/password-reset-modal';
 import { AssignSitesDialog } from './_components/AssignSitesDialog';
+import { DeactivateUserDialog, type DeactivateUserAction } from './_components/DeactivateUserDialog';
 import { InviteDialog } from './_components/InviteDialog';
 import { KpiTile } from './_components/KpiTile';
 import { Pill } from './_components/Pill';
@@ -36,6 +38,10 @@ export type SettingsUser = {
   site: string;
   /** Authoritative ids of the user's currently-assigned org sites (empty = unrestricted). */
   assignedSiteIds: string[];
+  /** Authoritative last sign-in timestamp (users.last_login_at), or "—" when never. */
+  lastLogin: string;
+  /** True when the user has an enrolled TOTP authenticator (public.mfa_secrets). */
+  mfaEnrolled: boolean;
   lastActive: string;
   status: UserStatus;
 };
@@ -70,6 +76,7 @@ export type UsersScreenData = {
   canInviteUsers: boolean;
   canAssignRoles: boolean;
   canResetPasswords?: boolean;
+  canDeactivateUsers?: boolean;
 };
 
 export type UsersSearchParams = {
@@ -104,10 +111,15 @@ export type UsersScreenLabels = {
     email: string;
     role: string;
     site: string;
+    mfa: string;
+    lastLogin: string;
     lastActive: string;
     status: string;
     actions: string;
   };
+  mfaEnrolled: string;
+  mfaNotEnrolled: string;
+  lastLoginNever: string;
   statuses: Record<UserStatus, string>;
   rolePermissions: string;
   rolePermissionsDescription: string;
@@ -173,6 +185,16 @@ export type UsersScreenLabels = {
   saveSites?: string;
   sitesAssignmentSuccess?: string;
   sitesAssignmentFailed?: string;
+  // ── Deactivate user (F2-C1) ────────────────────────────────────────────────
+  deactivate?: string;
+  deactivateUnavailable?: string;
+  deactivateDialogTitle?: string;
+  deactivateDialogBody?: string;
+  deactivateConfirm?: string;
+  deactivating?: string;
+  deactivateSuccess?: string;
+  deactivateFailed?: string;
+  deactivateSelf?: string;
 };
 
 export type InviteUserAction = (input: {
@@ -221,6 +243,7 @@ export type SettingsUsersScreenProps = {
   assignUserSitesAction?: AssignUserSitesAction;
   resetPasswordAction?: ResetPasswordAction;
   createUserWithPasswordAction?: CreateUserWithPasswordAction;
+  deactivateUserAction?: DeactivateUserAction;
 };
 
 const roleFilters: RoleFilter[] = ['all', 'admin', 'manager', 'operator', 'viewer'];
@@ -247,30 +270,57 @@ function permissionTitle(permission: PermissionCell, labels: UsersScreenLabels) 
   return labels.permissionLabels[permission];
 }
 
+function MfaBadge({ enrolled, labels }: { enrolled: boolean; labels: UsersScreenLabels }) {
+  const text = enrolled ? (labels.mfaEnrolled ?? 'Enrolled') : (labels.mfaNotEnrolled ?? 'Not enrolled');
+  return (
+    <span
+      data-testid="settings-user-mfa"
+      data-mfa={enrolled ? 'enrolled' : 'not-enrolled'}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+        enrolled ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'
+      }`}
+    >
+      <span aria-hidden="true">{enrolled ? '🔐' : '—'}</span>
+      {text}
+    </span>
+  );
+}
+
 export function interpolate(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce((acc, [key, value]) => acc.replaceAll(`{${key}}`, String(value)), template);
 }
 
-function toCsv(users: SettingsUser[], labels: UsersScreenLabels) {
-  const headers = [
-    labels.tableHeaders.name,
+/**
+ * Build the user-register CSV. Columns (task F2-C1, item 4): email, name,
+ * role(s), sites, MFA, last login, status. Reuses the shared RFC-4180
+ * `toCsv` helper (lib/shared/download) so quoting/CRLF stay consistent with the
+ * other export screens. `resolveStatus` lets the caller fold optimistic
+ * deactivations into the exported status.
+ */
+function buildUsersCsv(
+  users: SettingsUser[],
+  labels: UsersScreenLabels,
+  resolveStatus: (user: SettingsUser) => UserStatus,
+): string {
+  const header = [
     labels.tableHeaders.email,
+    labels.tableHeaders.name,
     labels.tableHeaders.role,
     labels.tableHeaders.site,
-    labels.tableHeaders.lastActive,
+    labels.tableHeaders.mfa,
+    labels.tableHeaders.lastLogin,
     labels.tableHeaders.status,
   ];
   const rows = users.map((user) => [
-    user.name,
     user.email,
+    user.name,
     user.roleLabel,
     user.site,
-    user.lastActive,
-    labels.statuses[user.status],
+    user.mfaEnrolled ? (labels.mfaEnrolled ?? 'Enrolled') : (labels.mfaNotEnrolled ?? 'Not enrolled'),
+    user.lastLogin,
+    labels.statuses[resolveStatus(user)],
   ]);
-  return [headers, ...rows]
-    .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','))
-    .join('\n');
+  return buildCsv(header, rows);
 }
 
 export default function SettingsUsersScreen({
@@ -283,6 +333,7 @@ export default function SettingsUsersScreen({
   assignUserSitesAction,
   resetPasswordAction,
   createUserWithPasswordAction,
+  deactivateUserAction,
 }: SettingsUsersScreenProps) {
   const [selectedRole, setSelectedRole] = useState<RoleFilter>(normalizeRoleFilter(searchParams?.role));
   const [view, setView] = useState<UsersView>(normalizeView(searchParams?.view));
@@ -291,9 +342,35 @@ export default function SettingsUsersScreen({
   const [roleAssignmentDraft, setRoleAssignmentDraft] = useState<{ user: SettingsUser; roleId: string } | null>(null);
   const [siteAssignmentUser, setSiteAssignmentUser] = useState<SettingsUser | null>(null);
   const [passwordResetUser, setPasswordResetUser] = useState<SettingsUser | null>(null);
+  const [deactivateUser, setDeactivateUser] = useState<SettingsUser | null>(null);
+  // Optimistic: ids the caller just deactivated — flip them to "disabled" in the
+  // list without a full reload; the server row is already updated by the action.
+  const [optimisticDeactivated, setOptimisticDeactivated] = useState<Set<string>>(() => new Set());
   const [feedback, setFeedback] = useState<{ kind: 'status' | 'alert'; message: string } | null>(null);
 
   const canAssignSites = data.canAssignRoles && Boolean(assignUserSitesAction);
+  const canDeactivate = Boolean(data.canDeactivateUsers) && Boolean(deactivateUserAction);
+
+  function openDeactivate(user: SettingsUser) {
+    if (!canDeactivate) {
+      setFeedback({ kind: 'alert', message: labels.deactivateUnavailable ?? 'Deactivation unavailable' });
+      return;
+    }
+    setDeactivateUser(user);
+  }
+
+  function handleDeactivated(userId: string) {
+    setOptimisticDeactivated((prev) => {
+      const next = new Set(prev);
+      next.add(userId);
+      return next;
+    });
+    setFeedback({ kind: 'status', message: labels.deactivateSuccess ?? 'User deactivated.' });
+  }
+
+  function effectiveStatus(user: SettingsUser): UserStatus {
+    return optimisticDeactivated.has(user.id) ? 'disabled' : user.status;
+  }
 
   function openSiteAssignment(user: SettingsUser) {
     if (!canAssignSites) {
@@ -313,16 +390,8 @@ export default function SettingsUsersScreen({
   }, [data.users, query, selectedRole]);
 
   function exportVisibleUsers() {
-    const csv = toCsv(visibleUsers, labels);
-    if (typeof window !== 'undefined' && window.URL?.createObjectURL) {
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = 'settings-users.csv';
-      anchor.click();
-      window.URL.revokeObjectURL(url);
-    }
+    const csv = buildUsersCsv(visibleUsers, labels, effectiveStatus);
+    downloadCsv(csv, `settings-users-${isoDateStamp()}.csv`);
     setFeedback({ kind: 'status', message: labels.exportStatus });
   }
 
@@ -445,24 +514,34 @@ export default function SettingsUsersScreen({
             renderEmptyState()
           ) : view === 'cards' ? (
             <div data-testid="settings-users-card-grid" className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-              {visibleUsers.map((user) => (
-                <article key={user.id} data-testid="settings-user-card" data-role-code={user.roleCode} className="rounded-xl border p-4">
+              {visibleUsers.map((user) => {
+                const status = effectiveStatus(user);
+                const isDisabled = status === 'disabled';
+                return (
+                <article
+                  key={user.id}
+                  data-testid="settings-user-card"
+                  data-role-code={user.roleCode}
+                  data-status={status}
+                  className={`rounded-xl border p-4 ${isDisabled ? 'bg-slate-50 opacity-70' : ''}`}
+                >
                   <div className="mb-3 flex items-start justify-between">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold">{user.initials}</div>
-                    <Pill toneKey={user.status}>{labels.statuses[user.status]}</Pill>
+                    <Pill toneKey={status}>{labels.statuses[status]}</Pill>
                   </div>
-                  <div className="font-semibold">{user.name}</div>
+                  <div className={`font-semibold ${isDisabled ? 'line-through text-slate-400' : ''}`}>{user.name}</div>
                   <div className="mb-3 text-sm text-muted-foreground">{user.email}</div>
-                  <div className="mb-3 flex gap-2">
+                  <div className="mb-3 flex flex-wrap gap-2">
                     <Pill toneKey={user.roleCategory}>
                       <span data-testid="settings-user-role-pill">{user.roleLabel}</span>
                     </Pill>
                     <Pill toneKey="site">{user.site}</Pill>
+                    <MfaBadge enrolled={user.mfaEnrolled} labels={labels} />
                   </div>
                   <div className="border-t pt-2 text-xs text-muted-foreground">
-                    {labels.lastActivePrefix}: {user.lastActive}
+                    {labels.tableHeaders.lastLogin}: {user.lastLogin === '—' ? (labels.lastLoginNever ?? '—') : user.lastLogin}
                   </div>
-                  <div className="mt-3 flex justify-end gap-2">
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
                     <Button
                       type="button"
                       className="text-xs"
@@ -485,9 +564,24 @@ export default function SettingsUsersScreen({
                     >
                       {labels.resetPassword ?? 'Reset password'}
                     </Button>
+                    {isDisabled ? null : (
+                      <Button
+                        type="button"
+                        className="text-xs text-red-700"
+                        data-testid="deactivate-user-button"
+                        disabled={!canDeactivate}
+                        aria-label={canDeactivate
+                          ? `${labels.deactivate ?? 'Deactivate'} ${user.name}`
+                          : `${labels.deactivateUnavailable ?? 'Deactivation unavailable'} for ${user.name}`}
+                        onClick={() => openDeactivate(user)}
+                      >
+                        {labels.deactivate ?? 'Deactivate'}
+                      </Button>
+                    )}
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -499,18 +593,26 @@ export default function SettingsUsersScreen({
                     <th scope="col" className="p-2 text-left">{labels.tableHeaders.email}</th>
                     <th scope="col" className="p-2 text-left">{labels.tableHeaders.role}</th>
                     <th scope="col" className="p-2 text-left">{labels.tableHeaders.site}</th>
-                    <th scope="col" className="p-2 text-left">{labels.tableHeaders.lastActive}</th>
+                    <th scope="col" className="p-2 text-left">{labels.tableHeaders.mfa}</th>
+                    <th scope="col" className="p-2 text-left">{labels.tableHeaders.lastLogin}</th>
                     <th scope="col" className="p-2 text-left">{labels.tableHeaders.status}</th>
                     <th scope="col" className="p-2 text-left">{labels.tableHeaders.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleUsers.map((user) => (
-                    <tr key={user.id} className="border-t">
+                  {visibleUsers.map((user) => {
+                    const status = effectiveStatus(user);
+                    const isDisabled = status === 'disabled';
+                    return (
+                    <tr
+                      key={user.id}
+                      data-status={status}
+                      className={`border-t ${isDisabled ? 'bg-slate-50 text-slate-400 opacity-70' : ''}`}
+                    >
                       <td className="p-2">
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold">{user.initials}</div>
                       </td>
-                      <td className="p-2 font-medium">{user.name}</td>
+                      <td className={`p-2 font-medium ${isDisabled ? 'line-through' : ''}`}>{user.name}</td>
                       <td className="p-2 text-muted-foreground">{user.email}</td>
                       <td className="p-2">
                         <div className="flex items-center gap-2">
@@ -553,23 +655,43 @@ export default function SettingsUsersScreen({
                           </Button>
                         </div>
                       </td>
-                      <td className="p-2 text-muted-foreground">{user.lastActive}</td>
-                      <td className="p-2"><Pill toneKey={user.status}>{labels.statuses[user.status]}</Pill></td>
+                      <td className="p-2"><MfaBadge enrolled={user.mfaEnrolled} labels={labels} /></td>
+                      <td className="p-2 text-muted-foreground">
+                        {user.lastLogin === '—' ? (labels.lastLoginNever ?? '—') : user.lastLogin}
+                      </td>
+                      <td className="p-2"><Pill toneKey={status}>{labels.statuses[status]}</Pill></td>
                       <td className="p-2">
-                        <Button
-                          type="button"
-                          className="text-xs"
-                          disabled={!data.canResetPasswords || !resetPasswordAction}
-                          aria-label={data.canResetPasswords && resetPasswordAction
-                            ? `${labels.resetPassword ?? 'Reset password'} for ${user.name}`
-                            : `${labels.resetPasswordUnavailable ?? 'Password reset unavailable'} for ${user.name}`}
-                          onClick={() => openPasswordReset(user)}
-                        >
-                          {labels.resetPassword ?? 'Reset password'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            className="text-xs"
+                            disabled={!data.canResetPasswords || !resetPasswordAction}
+                            aria-label={data.canResetPasswords && resetPasswordAction
+                              ? `${labels.resetPassword ?? 'Reset password'} for ${user.name}`
+                              : `${labels.resetPasswordUnavailable ?? 'Password reset unavailable'} for ${user.name}`}
+                            onClick={() => openPasswordReset(user)}
+                          >
+                            {labels.resetPassword ?? 'Reset password'}
+                          </Button>
+                          {isDisabled ? null : (
+                            <Button
+                              type="button"
+                              className="text-xs text-red-700"
+                              data-testid="deactivate-user-button"
+                              disabled={!canDeactivate}
+                              aria-label={canDeactivate
+                                ? `${labels.deactivate ?? 'Deactivate'} ${user.name}`
+                                : `${labels.deactivateUnavailable ?? 'Deactivation unavailable'} for ${user.name}`}
+                              onClick={() => openDeactivate(user)}
+                            >
+                              {labels.deactivate ?? 'Deactivate'}
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -653,6 +775,23 @@ export default function SettingsUsersScreen({
         labels={labels}
         siteOptions={data.siteOptions}
         assignUserSitesAction={assignUserSitesAction}
+        onFeedback={setFeedback}
+      />
+      <DeactivateUserDialog
+        open={Boolean(deactivateUser)}
+        user={deactivateUser ? { id: deactivateUser.id, name: deactivateUser.name, email: deactivateUser.email } : null}
+        labels={{
+          title: labels.deactivateDialogTitle ?? 'Deactivate user',
+          body: labels.deactivateDialogBody ?? '{name} will be signed out and blocked from signing in. Their history is retained.',
+          confirm: labels.deactivateConfirm ?? 'Deactivate user',
+          deactivating: labels.deactivating ?? 'Deactivating…',
+          cancel: labels.cancel,
+          failed: labels.deactivateFailed ?? 'Could not deactivate the user: {error}.',
+          self: labels.deactivateSelf ?? 'You cannot deactivate your own account.',
+        }}
+        deactivateUserAction={deactivateUserAction}
+        onClose={() => setDeactivateUser(null)}
+        onDeactivated={handleDeactivated}
         onFeedback={setFeedback}
       />
       {passwordResetUser ? (

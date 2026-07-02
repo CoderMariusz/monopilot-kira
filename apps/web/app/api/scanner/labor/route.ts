@@ -11,6 +11,7 @@ import {
 } from '../../../../lib/scanner/route-utils';
 import { withTxnOrgContext } from '../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../lib/scanner/with-scanner-org';
+import { isUuid } from '../site-access';
 
 type LaborAction = 'in' | 'out';
 type LaborState = 'clocked_in' | 'clocked_out';
@@ -21,14 +22,8 @@ type LaborQueryClient = {
   ): Promise<{ rows: T[] }>;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 function isLaborAction(value: string | null): value is LaborAction {
   return value === 'in' || value === 'out';
-}
-
-function isUuid(value: string | null): value is string {
-  return typeof value === 'string' && UUID_RE.test(value);
 }
 
 function invalidRequest() {
@@ -99,6 +94,18 @@ async function getCurrentLaborState(
   return since ? { state: 'clocked_in', since } : { state: 'clocked_in' };
 }
 
+async function canSeeWorkOrder(client: LaborQueryClient, woId: string): Promise<boolean | null> {
+  const result = await client.query<{ allowed: boolean }>(
+    `select app.user_can_see_site(wo.site_id) as allowed
+       from public.work_orders wo
+      where wo.org_id = app.current_org_id()
+        and wo.id = $1::uuid
+      limit 1`,
+    [woId],
+  );
+  return result.rows[0]?.allowed ?? null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const woId = new URL(request.url).searchParams.get('woId')?.trim() ?? null;
@@ -106,14 +113,17 @@ export async function GET(request: NextRequest) {
 
     const result = await requireScannerSession(request, null, 'scanner.labor', async ({ client, session }) =>
       withScannerOrg(client, session, async ({ client: scopedClient, session: scopedSession }) =>
-        withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () =>
-          NextResponse.json(
+        withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () => {
+          const allowed = await canSeeWorkOrder(scopedClient, woId);
+          if (allowed === null) return jsonError('not_found', 404);
+          if (!allowed) return jsonError('forbidden', 403);
+          return NextResponse.json(
             await getCurrentLaborState(scopedClient, {
               userId: scopedSession.user_id,
               woId,
             }),
-          ),
-        ),
+          );
+        }),
       ),
     );
 
@@ -140,6 +150,9 @@ export async function POST(request: NextRequest) {
     const result = await requireScannerSession(request, body, 'scanner.labor', async ({ client, session }) =>
       withScannerOrg(client, session, async ({ client: scopedClient, session: scopedSession }) =>
         withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () => {
+          const allowed = await canSeeWorkOrder(scopedClient, woId);
+          if (allowed === null) return jsonError('not_found', 404);
+          if (!allowed) return jsonError('forbidden', 403);
           if (action === 'in') {
             await clockIn(scopedClient, {
               userId: scopedSession.user_id,

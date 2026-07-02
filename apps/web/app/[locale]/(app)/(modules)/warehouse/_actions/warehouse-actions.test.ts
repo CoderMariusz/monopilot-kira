@@ -267,7 +267,7 @@ function makeClient(): QueryClient {
 
 describe('warehouse backend actions', () => {
   beforeEach(() => {
-    grantedPermissions = new Set(['warehouse.inventory.read', 'warehouse.stock.move', 'warehouse.lp.reserve', 'warehouse.grn.receive']);
+    grantedPermissions = new Set(['warehouse.inventory.read', 'warehouse.stock.move', 'warehouse.lp.reserve', 'warehouse.grn.receive', 'quality.batch.release']);
     lpStatus = 'available';
     lpQaStatus = 'pending';
     lockActive = false;
@@ -384,8 +384,8 @@ describe('warehouse backend actions', () => {
     expect(calls.some((sql) => sql.startsWith('insert into public.lp_state_history'))).toBe(false);
   });
 
-  it('releaseLpQa requires warehouse.grn.receive before touching LP rows', async () => {
-    grantedPermissions.delete('warehouse.grn.receive');
+  it('releaseLpQa requires quality.batch.release before touching LP rows', async () => {
+    grantedPermissions.delete('quality.batch.release');
 
     const result = await releaseLpQa({ lpId: LP_ID, decision: 'released' });
 

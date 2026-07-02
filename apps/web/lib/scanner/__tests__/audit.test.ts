@@ -30,8 +30,13 @@ describe('bulkInsertScannerAudit', () => {
     const [sql, values] = query.mock.calls[0] as [string, unknown[]];
     // 12 params per row — only 2 rows survive the in-batch dedupe.
     expect(values).toHaveLength(24);
-    expect(sql).toContain('on conflict (org_id, client_op_id) where client_op_id is not null do nothing');
-    expect(values.filter((v) => v === 'op-1')).toHaveLength(1);
+    // No ON CONFLICT clause: client telemetry always sets client_op_id=null so
+    // there is nothing to conflict on; the in-batch deduplication above handles
+    // same-batch duplicate clientOpIds before the query runs.
+    expect(sql).not.toContain('on conflict');
+    expect(values.filter((v) => v === 'op-1')).toHaveLength(0);
+    expect(values.filter((v) => v === 'client.scanner.consume')).toHaveLength(1);
+    expect(values.filter((v) => v === 'client.scanner.output')).toHaveLength(1);
   });
 
   it('keeps multiple entries with NO clientOpId (null never conflicts)', async () => {

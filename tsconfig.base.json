@@ -9,6 +9,7 @@
     "paths": {
       "@monopilot/db": ["packages/db/src/index.ts"],
       "@monopilot/db/*": ["packages/db/src/*"],
+      "@monopilot/server/*": ["packages/server/src/*"],
       "@monopilot/*": ["packages/*/src"]
     },
     "strict": true,
