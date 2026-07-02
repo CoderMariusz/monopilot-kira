@@ -148,6 +148,7 @@ export type FormulationLabels = {
   submitErrorMissingCost: string;
   submitErrorMissingNutritionTarget: string;
   submitErrorNotDraft: string;
+  submitErrorNotLocked: string;
   submitErrorLocked: string;
   submitErrorForbidden: string;
   addVersion?: string;
@@ -1039,6 +1040,8 @@ export function FormulationEditor({
           return labels.submitErrorMissingNutritionTarget;
         case 'VERSION_NOT_DRAFT':
           return labels.submitErrorNotDraft;
+        case 'VERSION_NOT_LOCKED':
+          return labels.submitErrorNotLocked;
         case 'VERSION_LOCKED':
           return labels.submitErrorLocked;
         case 'forbidden':
@@ -1051,10 +1054,9 @@ export function FormulationEditor({
   );
 
   /**
-   * Submit for trial. Server-side action enforces RBAC + the recipe gates; we
-   * only mirror the result. On success we surface the saved/submitted indicator
-   * (same pattern as save) and trigger a server refresh so the version's new
-   * `submitted_for_trial` state re-renders from Supabase.
+   * Submit for trial (D7). Server-side action requires a LOCKED version and seeds a
+   * draft trial row; we only mirror the result. On success we surface the submitted
+   * indicator and trigger a server refresh so the Trial stage can show the draft.
    */
   const onSubmitForTrial = React.useCallback(() => {
     if (!submitForTrialAction || !data || submitStatus === 'submitting') return;
@@ -1286,6 +1288,13 @@ export function FormulationEditor({
   // hard-block (qtyBalanceValid is true), but we surface a hint instead.
   const balanced = calc.qtyBalanceValid;
   const packWeightUnset = calc.qtyBalanceUnset;
+  const canSubmitForTrial =
+    locked &&
+    submitAllowed &&
+    balanced &&
+    Boolean(submitForTrialAction) &&
+    submitStatus !== 'submitting' &&
+    submitStatus !== 'submitted';
   // Read-only batch size = pack weight in kg (6 dp trimmed to a friendly string).
   const batchKgDisplay = packWeightKg ?? '';
 
@@ -1459,7 +1468,7 @@ export function FormulationEditor({
           <Button
             type="button"
             className="btn-primary"
-            disabled={!editable || !submitAllowed || !balanced || !submitForTrialAction || submitStatus === 'submitting'}
+            disabled={!canSubmitForTrial}
             data-status={submitStatus}
             data-testid="submit-for-trial"
             onClick={onSubmitForTrial}

@@ -114,6 +114,8 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
       if (!project) return { ok: false, error: 'PERSISTENCE_FAILED' };
 
       const seeded = await seedChecklistItems(context, project.id, input.templateId);
+      const formulationDraft = await seedFormulationDraft(context, project.id);
+      if (!formulationDraft) return { ok: false, error: 'PERSISTENCE_FAILED' };
       await writeProjectCreatedOutbox(context, project.id, project.code, input, seeded);
       safeRevalidatePath('/pipeline');
 
@@ -229,6 +231,58 @@ async function allocateProjectCode(ctx: OrgContextLike): Promise<string> {
   }
 
   throw new Error('Unable to allocate an unused NPD project code');
+}
+
+/**
+ * Auto-create the first formulation draft (v1) promised by the create-project wizard.
+ * Mirrors createFormulationDraft (formulation/_actions/create-draft.ts) inside the
+ * same org-scoped transaction as the project insert.
+ */
+async function seedFormulationDraft(ctx: OrgContextLike, projectId: string): Promise<string | null> {
+  const existing = await ctx.client.query<{ formulation_id: string; current_version_id: string | null }>(
+    `select id as formulation_id, current_version_id from public.formulations
+      where project_id = $1::uuid and org_id = app.current_org_id() limit 1`,
+    [projectId],
+  );
+
+  let formulationId: string;
+  if (existing.rows[0]) {
+    formulationId = existing.rows[0].formulation_id;
+    if (existing.rows[0].current_version_id) {
+      return existing.rows[0].current_version_id;
+    }
+  } else {
+    const inserted = await ctx.client.query<{ id: string }>(
+      `insert into public.formulations (org_id, project_id, product_code, created_by_user)
+       values (app.current_org_id(), $1::uuid, null, $2::uuid)
+       returning id`,
+      [projectId, ctx.userId],
+    );
+    formulationId = inserted.rows[0]?.id ?? '';
+    if (!formulationId) return null;
+  }
+
+  const nextNum = await ctx.client.query<{ n: number }>(
+    `select coalesce(max(version_number), 0) + 1 as n
+       from public.formulation_versions where formulation_id = $1::uuid`,
+    [formulationId],
+  );
+  const version = await ctx.client.query<{ id: string }>(
+    `insert into public.formulation_versions (formulation_id, version_number, state, created_by_user)
+     values ($1::uuid, $2, 'draft', $3::uuid)
+     returning id`,
+    [formulationId, nextNum.rows[0]?.n ?? 1, ctx.userId],
+  );
+  const versionId = version.rows[0]?.id ?? null;
+  if (!versionId) return null;
+
+  await ctx.client.query(
+    `update public.formulations set current_version_id = $2::uuid
+      where id = $1::uuid and org_id = app.current_org_id()`,
+    [formulationId, versionId],
+  );
+
+  return versionId;
 }
 
 async function seedChecklistItems(ctx: OrgContextLike, projectId: string, templateId: string): Promise<number> {

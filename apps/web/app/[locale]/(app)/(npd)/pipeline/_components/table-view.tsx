@@ -35,9 +35,11 @@
  */
 
 import React from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
+import { projectRoute } from './pipeline-routes';
 import { Button } from '@monopilot/ui/Button';
 import { Checkbox } from '@monopilot/ui/Checkbox';
 import {
@@ -315,6 +317,7 @@ export type TableViewProps = {
 };
 
 export function TableView({ projects, labels, state = 'ready', bulkActions, onSelect }: TableViewProps) {
+  const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { sort, dir } = parseSort(searchParams);
@@ -570,7 +573,15 @@ export function TableView({ projects, labels, state = 'ready', bulkActions, onSe
                       onCheckedChange={(checked) => toggleRow(project.id, checked)}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{project.code}</TableCell>
+                  <TableCell className="font-mono text-xs" onClick={(event) => event.stopPropagation()}>
+                    <Link
+                      href={projectRoute(pathname, project.id)}
+                      prefetch={false}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {project.code}
+                    </Link>
+                  </TableCell>
                   <TableCell className="font-medium text-slate-900">{project.name}</TableCell>
                   <TableCell className="text-slate-500">{project.type}</TableCell>
                   <TableCell>

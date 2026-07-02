@@ -103,6 +103,7 @@ const DEFAULT_LABELS: FormulationLabels = {
   submitErrorMissingCost: 'Every ingredient needs a cost before submitting for trial.',
   submitErrorMissingNutritionTarget: 'Compute nutrition before submitting for trial.',
   submitErrorNotDraft: 'Only a draft version can be submitted for trial.',
+  submitErrorNotLocked: 'Lock the recipe version before submitting for trial.',
   submitErrorLocked: 'This version is locked and cannot be submitted.',
   submitErrorForbidden: 'You do not have permission to submit for trial.',
   addVersion: 'Add version',

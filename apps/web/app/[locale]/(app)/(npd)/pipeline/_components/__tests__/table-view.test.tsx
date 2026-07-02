@@ -132,6 +132,12 @@ function renderView(overrides: Partial<React.ComponentProps<typeof TableView>> =
 }
 
 describe('T-128 Pipeline TableView — parity', () => {
+  it('renders project code as a locale-aware pipeline link (D6)', () => {
+    renderView();
+    const link = screen.getByRole('link', { name: 'DEV-052' });
+    expect(link).toHaveAttribute('href', '/en/pipeline/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+  });
+
   it('renders the 8 prototype columns through the shadcn Table family', () => {
     const { container } = renderView();
     // shadcn Table primitive (data-slot), not a hand-rolled <table>.

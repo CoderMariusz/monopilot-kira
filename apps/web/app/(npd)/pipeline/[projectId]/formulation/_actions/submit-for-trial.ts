@@ -18,15 +18,14 @@ type GateRow = {
 };
 
 export type SubmitForTrialResult =
-  | { ok: true; data: { versionId: string } }
+  | { ok: true; data: { versionId: string; trialCreated: boolean } }
   | {
       ok: false;
       error:
         | 'invalid_input'
         | 'forbidden'
         | 'not_found'
-        | 'VERSION_LOCKED'
-        | 'VERSION_NOT_DRAFT'
+        | 'VERSION_NOT_LOCKED'
         | 'TOTAL_PCT_OUT_OF_RANGE'
         | 'MISSING_COST'
         | 'MISSING_NUTRITION_TARGET'
@@ -80,26 +79,39 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
 
       const row = loaded.rows[0];
       if (!row) return { ok: false, error: 'not_found' };
-      if (row.state === 'locked') return { ok: false, error: 'VERSION_LOCKED' };
-      if (row.state !== 'draft') return { ok: false, error: 'VERSION_NOT_DRAFT' };
+      if (row.state !== 'locked') return { ok: false, error: 'VERSION_NOT_LOCKED' };
       if (!isTotalPctInRange(row.total_pct)) return { ok: false, error: 'TOTAL_PCT_OUT_OF_RANGE' };
       if (Number(row.missing_cost_count) > 0) return { ok: false, error: 'MISSING_COST' };
       if (Number(row.missing_nutrition_target_count) > 0) {
         return { ok: false, error: 'MISSING_NUTRITION_TARGET' };
       }
 
-      await ctx.client.query(
-        `update public.formulation_versions
-            set state = 'submitted_for_trial'
-          where id = $1::uuid
-            and state = 'draft'`,
-        [versionId],
+      const existingTrial = await ctx.client.query<{ id: string }>(
+        `select id from public.trial_batches
+          where project_id = $1::uuid and org_id = app.current_org_id()
+          limit 1`,
+        [projectId],
       );
+      const trialAlreadyExists = existingTrial.rows.length > 0;
+
+      if (!trialAlreadyExists) {
+        await ctx.client.query(
+          `insert into public.trial_batches
+             (org_id, project_id, trial_no, batch_size_kg, result, created_by, updated_by)
+           values (
+             app.current_org_id(), $1::uuid, 'T-1',
+             (select batch_size_kg from public.formulation_versions where id = $2::uuid),
+             'pending', $3::uuid, $3::uuid
+           )`,
+          [projectId, versionId, ctx.userId],
+        );
+      }
+
       await ctx.client.query(
         `insert into public.formulation_audit_log
            (org_id, formulation_id, version_id, event_type, event_payload, actor_user_id)
          values (app.current_org_id(), $1::uuid, $2::uuid, 'formulation.submitted_for_trial', $3::jsonb, $4::uuid)`,
-        [row.formulation_id, versionId, JSON.stringify({ productCode: row.product_code }), ctx.userId],
+        [row.formulation_id, versionId, JSON.stringify({ productCode: row.product_code, trialCreated: !trialAlreadyExists }), ctx.userId],
       );
       await ctx.client.query(
         `insert into public.outbox_events
@@ -114,30 +126,10 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
            'npd-formulation-lifecycle-v1'
          )
          on conflict (org_id, dedup_key) where dedup_key is not null do nothing`,
-        [versionId, JSON.stringify({ formulationId: row.formulation_id, productCode: row.product_code })],
+        [versionId, JSON.stringify({ formulationId: row.formulation_id, productCode: row.product_code, trialCreated: !trialAlreadyExists })],
       );
 
-      // A8 — seed a placeholder "draft" trial at the Trial step (step 4) so it is
-      // not empty when the technologist arrives after submitting for trial.
-      // trial_batches has no explicit state column; result defaults to 'pending'
-      // (the placeholder/draft state). Idempotent: only seeds the FIRST trial for
-      // this project, so a re-submit (or an already-logged trial) never trips the
-      // (org, project, trial_no) unique constraint. batch_size_kg is pre-filled from
-      // the submitted version (kill double-entry); the technologist fills the rest.
-      await ctx.client.query(
-        `insert into public.trial_batches
-           (org_id, project_id, trial_no, batch_size_kg, result, created_by, updated_by)
-         select app.current_org_id(), $1::uuid, 'T-1',
-                (select batch_size_kg from public.formulation_versions where id = $2::uuid),
-                'pending', $3::uuid, $3::uuid
-          where not exists (
-            select 1 from public.trial_batches
-             where project_id = $1::uuid and org_id = app.current_org_id()
-          )`,
-        [projectId, versionId, ctx.userId],
-      );
-
-      return { ok: true, data: { versionId } };
+      return { ok: true, data: { versionId, trialCreated: !trialAlreadyExists } };
     });
   } catch (error) {
     logger.error(

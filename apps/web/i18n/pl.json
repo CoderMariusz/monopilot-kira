@@ -4998,7 +4998,8 @@
       "linkCosting": "Kalkulacja kosztów",
       "picker": {
         "createItemCta": "Utwórz pozycję w module Techniczny"
-      }
+      },
+      "submitErrorNotLocked": "Zablokuj wersję receptury przed zgłoszeniem do próby."
     },
     "costPanel": {
       "title": "Koszt i marża",

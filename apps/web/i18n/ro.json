@@ -4984,7 +4984,8 @@
       "linkCosting": "Costing",
       "picker": {
         "createItemCta": "Create an item in Technical"
-      }
+      },
+      "submitErrorNotLocked": "Lock the recipe version before submitting for trial."
     },
     "costPanel": {
       "title": "Cost și marjă",

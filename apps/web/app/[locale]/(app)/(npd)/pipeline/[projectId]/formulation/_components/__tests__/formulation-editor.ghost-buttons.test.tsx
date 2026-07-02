@@ -54,6 +54,7 @@ const LABELS: FormulationLabels = {
   submitErrorMissingCost: 'Every ingredient needs a cost.',
   submitErrorMissingNutritionTarget: 'Compute nutrition first.',
   submitErrorNotDraft: 'Only a draft can be submitted.',
+  submitErrorNotLocked: 'Lock the recipe version before submitting for trial.',
   submitErrorLocked: 'This version is locked.',
   submitErrorForbidden: 'You do not have permission to submit for trial.',
   compareVersions: 'Compare versions',
@@ -161,7 +162,7 @@ function baseData(overrides: Partial<FormulationEditorData> = {}): FormulationEd
     projectId: 'c5cf521b-59f0-400f-8953-789cee335f1b',
     versionId: V2,
     versionNumber: 2,
-    state: 'draft',
+    state: 'locked',
     productCode: 'PRD-1',
     batchSizeKg: '0.200',
     packWeightG: '200',
@@ -273,6 +274,11 @@ describe('Submit for trial wiring (#1)', () => {
         ],
       }),
     });
+    expect(screen.getByTestId('submit-for-trial')).toBeDisabled();
+  });
+
+  it('disables submit until the recipe version is locked (D7)', () => {
+    renderEditor({ data: baseData({ state: 'draft' }) });
     expect(screen.getByTestId('submit-for-trial')).toBeDisabled();
   });
 
