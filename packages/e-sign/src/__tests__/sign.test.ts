@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setPin } from '@monopilot/auth/src/verify-pin.js';
 import { getAppConnection, getOwnerConnection } from '@monopilot/db/test-utils/test-pool.js';
 import type pg from 'pg';
@@ -10,6 +10,7 @@ import type pg from 'pg';
 import {
   dualSign,
   EPinFailedError,
+  ESignPolicyError,
   EReplayError,
   ESignSoDError,
   hashESignSubject,
@@ -30,6 +31,7 @@ const migrations = [
   '026-pins-rls-org-scoped.sql',
   '054-audit-events-seq-grant.sql',
   '055-e-sign-log.sql',
+  '275-signoff-policies.sql',
 ];
 
 const tenantRowId = '00000000-0000-4000-b000-000000000124';
@@ -37,6 +39,7 @@ const orgId = '00000000-0000-4000-c000-000000000124';
 const primaryUserId = '00000000-0000-4000-a000-000000000124';
 const secondaryUserId = '00000000-0000-4000-a000-000000000125';
 const fixtureRoleSlug = 't124.fixture.user';
+const secondaryFixtureRoleSlug = 't124.fixture.secondary';
 const primaryPin = '123456';
 const secondaryPin = '654321';
 
@@ -121,6 +124,93 @@ describe('T-124 e-sign crypto contract', () => {
       }),
     ).rejects.toThrow(/requires options\.client with active app\.current_org_id\(\) context/);
   });
+
+  it('does not enforce the allergen dual-sign policy for a production changeover signoff event', async () => {
+    const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const originalSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test.invalid';
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon';
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const policyLookups: unknown[][] = [];
+    const client = {
+      query: vi.fn(async (sql: string, params?: unknown[]) => {
+        if (sql.includes('from public.signoff_policies')) {
+          policyLookups.push(params ?? []);
+          const requestedTypes = Array.isArray(params?.[0]) ? params[0] : [];
+          return {
+            rows: requestedTypes.includes('production.changeover.allergen')
+              ? [
+                  {
+                    signoff_type: 'production.changeover.allergen',
+                    required_signatures: 2,
+                    first_signer_role_id: null,
+                    second_signer_role_id: null,
+                    allow_same_user: false,
+                  },
+                ]
+              : [],
+          };
+        }
+        if (sql.includes('select email from public.users')) {
+          return { rows: [{ email: 'signer@test.invalid' }] };
+        }
+        if (sql.includes('select exists')) {
+          return { rows: [{ exists: false }] };
+        }
+        if (sql.includes('select app.current_org_id() as org_id')) {
+          return { rows: [{ org_id: orgId }] };
+        }
+        if (sql.includes('insert into public.e_sign_log')) {
+          return {
+            rows: [
+              {
+                signature_id: '00000000-0000-4000-e000-000000000124',
+                created_at: new Date('2026-07-02T10:00:00.000Z'),
+              },
+            ],
+          };
+        }
+        if (sql.includes('insert into public.audit_events')) {
+          return { rows: [{ id: 124 }] };
+        }
+        return { rows: [] };
+      }),
+    } as unknown as pg.PoolClient;
+
+    try {
+      await expect(
+        signEvent(
+          {
+            signerUserId: primaryUserId,
+            pin: 'account-password',
+            intent: 'production.changeover.signoff',
+            subject: { changeoverId: 'co-1' },
+            nonce: 'n-changeover-policy-fallback',
+          },
+          { client },
+        ),
+      ).resolves.toMatchObject({
+        signerUserId: primaryUserId,
+        intent: 'production.changeover.signoff',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalSupabaseUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      } else {
+        process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
+      }
+      if (originalSupabaseAnonKey === undefined) {
+        delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      } else {
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey;
+      }
+    }
+
+    expect(policyLookups).toEqual([[['production.changeover.signoff']]]);
+  });
 });
 
 async function runWithOrgContext<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>) {
@@ -186,17 +276,35 @@ beforeAll(async () => {
      returning id`,
     [orgId, fixtureRoleSlug],
   );
+  const secondaryRole = await ownerConn.query<{ id: string }>(
+    `insert into public.roles (org_id, slug, system, code, name, permissions, is_system)
+     values ($1::uuid, $2, false, $2, 'T-124 Fixture Secondary', '[]'::jsonb, false)
+     on conflict (org_id, slug) do update
+        set system = excluded.system,
+            code = excluded.code,
+            name = excluded.name,
+            permissions = excluded.permissions,
+            is_system = excluded.is_system
+     returning id`,
+    [orgId, secondaryFixtureRoleSlug],
+  );
   await ownerConn.query(
     `insert into public.users (id, org_id, email, name, role_id)
      values
        ($1::uuid, $3::uuid, 'primary.t124@test.invalid', 'T-124 Primary', $4::uuid),
-       ($2::uuid, $3::uuid, 'secondary.t124@test.invalid', 'T-124 Secondary', $4::uuid)
+       ($2::uuid, $3::uuid, 'secondary.t124@test.invalid', 'T-124 Secondary', $5::uuid)
      on conflict (id) do update
         set org_id = excluded.org_id,
             email = excluded.email,
             name = excluded.name,
             role_id = excluded.role_id`,
-    [primaryUserId, secondaryUserId, orgId, role.rows[0]!.id],
+    [primaryUserId, secondaryUserId, orgId, role.rows[0]!.id, secondaryRole.rows[0]!.id],
+  );
+  await ownerConn.query(
+    `insert into public.user_roles (user_id, role_id, org_id)
+     values ($1::uuid, $2::uuid, $4::uuid), ($3::uuid, $5::uuid, $4::uuid)
+     on conflict (user_id, role_id) do update set org_id = excluded.org_id`,
+    [primaryUserId, role.rows[0]!.id, secondaryUserId, orgId, secondaryRole.rows[0]!.id],
   );
 
   await setPin(primaryUserId, primaryPin);
@@ -207,17 +315,19 @@ afterAll(async () => {
   if (!ownerConn) return;
   await ownerConn.query(`delete from public.e_sign_log where org_id = $1::uuid`, [orgId]);
   await ownerConn.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]);
+  await ownerConn.query(`delete from public.signoff_policies where org_id = $1::uuid`, [orgId]);
   await ownerConn.query(`delete from public.user_pins where user_id in ($1::uuid, $2::uuid)`, [
     primaryUserId,
     secondaryUserId,
   ]);
+  await ownerConn.query(`delete from public.user_roles where org_id = $1::uuid`, [orgId]);
   await ownerConn.query(`delete from public.users where id in ($1::uuid, $2::uuid)`, [
     primaryUserId,
     secondaryUserId,
   ]);
-  await ownerConn.query(`delete from public.roles where org_id = $1::uuid and slug = $2`, [
+  await ownerConn.query(`delete from public.roles where org_id = $1::uuid and slug = any($2::text[])`, [
     orgId,
-    fixtureRoleSlug,
+    [fixtureRoleSlug, secondaryFixtureRoleSlug],
   ]);
   await ownerConn.query(`delete from public.organizations where id = $1::uuid`, [orgId]);
   await ownerConn.query(`delete from public.tenants where id = $1::uuid`, [tenantRowId]);
@@ -229,6 +339,7 @@ beforeEach(async () => {
   if (!ownerConn) return;
   await ownerConn.query(`delete from public.e_sign_log where org_id = $1::uuid`, [orgId]);
   await ownerConn.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]);
+  await ownerConn.query(`delete from public.signoff_policies where org_id = $1::uuid`, [orgId]);
 });
 
 runIntegrationSuite('T-124 e-sign primitive', () => {
@@ -453,5 +564,92 @@ runIntegrationSuite('T-124 e-sign primitive', () => {
       [orgId],
     );
     expect(rows.rows[0]).toEqual({ log_count: 0, audit_count: 0 });
+  });
+
+  it('signoff_policies enforce dual path, signer roles, and same-user rejection', async () => {
+    const roles = await ownerConn.query<{ id: string; slug: string }>(
+      `select id::text, slug from public.roles where org_id = $1::uuid and slug = any($2::text[])`,
+      [orgId, [fixtureRoleSlug, secondaryFixtureRoleSlug]],
+    );
+    const primaryRoleId = roles.rows.find((row) => row.slug === fixtureRoleSlug)?.id;
+    const secondaryRoleId = roles.rows.find((row) => row.slug === secondaryFixtureRoleSlug)?.id;
+    if (!primaryRoleId || !secondaryRoleId) throw new Error('missing fixture roles');
+
+    await ownerConn.query(
+      `insert into public.signoff_policies (
+         org_id, signoff_type, required_signatures, first_signer_role_id,
+         second_signer_role_id, allow_same_user, is_active
+       )
+       values ($1::uuid, 'qa.hold.release', 2, $2::uuid, $3::uuid, false, true)
+       on conflict (org_id, signoff_type) do update
+          set required_signatures = excluded.required_signatures,
+              first_signer_role_id = excluded.first_signer_role_id,
+              second_signer_role_id = excluded.second_signer_role_id,
+              allow_same_user = excluded.allow_same_user,
+              is_active = excluded.is_active`,
+      [orgId, primaryRoleId, secondaryRoleId],
+    );
+
+    await expect(
+      runWithOrgContext(appConn, (client) =>
+        signEvent(
+          {
+            signerUserId: primaryUserId,
+            pin: primaryPin,
+            intent: 'qa.hold.release',
+            subject: { holdId: 'policy-single' },
+          },
+          { client },
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'second_signature_required' });
+
+    await expect(
+      runWithOrgContext(appConn, (client) =>
+        dualSign(
+          {
+            primarySignerUserId: secondaryUserId,
+            primaryPin: secondaryPin,
+            secondarySignerUserId: primaryUserId,
+            secondaryPin: primaryPin,
+            intent: 'qa.hold.release',
+            subject: { holdId: 'policy-role' },
+          },
+          { client },
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ESignPolicyError);
+
+    await expect(
+      runWithOrgContext(appConn, (client) =>
+        dualSign(
+          {
+            primarySignerUserId: primaryUserId,
+            primaryPin,
+            secondarySignerUserId: primaryUserId,
+            secondaryPin: primaryPin,
+            intent: 'qa.hold.release',
+            subject: { holdId: 'policy-same-user' },
+          },
+          { client },
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ESignSoDError);
+
+    const result = await runWithOrgContext(appConn, (client) =>
+      dualSign(
+        {
+          primarySignerUserId: primaryUserId,
+          primaryPin,
+          secondarySignerUserId: secondaryUserId,
+          secondaryPin,
+          intent: 'qa.hold.release',
+          subject: { holdId: 'policy-happy' },
+        },
+        { client },
+      ),
+    );
+    expect(result.primary.signerUserId).toBe(primaryUserId);
+    expect(result.secondary.signerUserId).toBe(secondaryUserId);
   });
 });

@@ -12,6 +12,24 @@ import {
 
 describe('SO_LEGAL_TRANSITIONS matrix', () => {
   const allSoStatuses = Object.keys(SO_LEGAL_TRANSITIONS) as SalesOrderStatus[];
+  const expectedSoTransitions = {
+    draft: ['confirmed', 'cancelled'],
+    confirmed: ['allocated', 'cancelled'],
+    allocated: ['partially_picked', 'picked', 'confirmed', 'cancelled'],
+    partially_picked: ['picked', 'confirmed', 'cancelled'],
+    picked: ['partially_packed', 'packed', 'confirmed', 'cancelled'],
+    partially_packed: ['packed', 'allocated', 'shipped', 'cancelled'],
+    packed: ['manifested', 'partially_packed', 'allocated', 'shipped', 'cancelled'],
+    manifested: ['shipped', 'packed', 'partially_packed', 'allocated', 'confirmed', 'cancelled'],
+    shipped: ['partially_delivered', 'delivered'],
+    partially_delivered: ['delivered', 'shipped'],
+    delivered: ['partially_delivered', 'shipped'],
+    cancelled: [],
+  } satisfies Record<SalesOrderStatus, readonly SalesOrderStatus[]>;
+
+  it('matches the reviewed legal transition table', () => {
+    expect(SO_LEGAL_TRANSITIONS).toEqual(expectedSoTransitions);
+  });
 
   it('allows every declared legal transition', () => {
     for (const from of allSoStatuses) {
@@ -23,7 +41,10 @@ describe('SO_LEGAL_TRANSITIONS matrix', () => {
 
   it('rejects transitions not in the map', () => {
     expect(isLegalSoTransition('draft', 'shipped')).toBe(false);
-    expect(isLegalSoTransition('shipped', 'allocated')).toBe(true);
+    expect(isLegalSoTransition('shipped', 'allocated')).toBe(false);
+    expect(isLegalSoTransition('shipped', 'confirmed')).toBe(false);
+    expect(isLegalSoTransition('partially_delivered', 'allocated')).toBe(false);
+    expect(isLegalSoTransition('partially_delivered', 'confirmed')).toBe(false);
     expect(isLegalSoTransition('cancelled', 'confirmed')).toBe(false);
   });
 
@@ -34,7 +55,12 @@ describe('SO_LEGAL_TRANSITIONS matrix', () => {
     }
   });
 
-  it('allows delivered unwind to shipped for void POD', () => {
+  it('allows shipped to advance to delivered', () => {
+    expect(isLegalSoTransition('shipped', 'delivered')).toBe(true);
+  });
+
+  it('keeps delivered reversals only for guarded POD void paths', () => {
+    expect(isLegalSoTransition('delivered', 'partially_delivered')).toBe(true);
     expect(isLegalSoTransition('delivered', 'shipped')).toBe(true);
   });
 

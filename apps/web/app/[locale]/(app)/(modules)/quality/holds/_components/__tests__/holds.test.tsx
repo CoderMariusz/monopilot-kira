@@ -247,6 +247,26 @@ describe('HoldReleaseModal (MODAL-HOLD-RELEASE parity)', () => {
     fireEvent.click(screen.getByTestId('hold-release-submit'));
     await waitFor(() => expect(screen.getByTestId('hold-release-error')).toHaveTextContent('invalid signature pin'));
   });
+
+  it('maps typed signoff policy failures to release-specific copy', async () => {
+    const releaseHoldAction = vi.fn().mockResolvedValue({
+      ok: false,
+      reason: 'policy',
+      code: 'second_signature_required',
+      message: 'single signEvent requires a second signature',
+    });
+    renderRelease(releaseHoldAction);
+    fireEvent.change(screen.getByTestId('hold-release-reason'), { target: { value: 'cleared by retest' } });
+    fireEvent.change(screen.getByTestId('hold-release-password'), { target: { value: 'pw' } });
+    fireEvent.click(within(screen.getByTestId('hold-release-disposition')).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: RELEASE_LABELS.dispositionOptions.release }));
+    fireEvent.click(screen.getByTestId('hold-release-submit'));
+    await waitFor(() =>
+      expect(screen.getByTestId('hold-release-error')).toHaveTextContent(
+        RELEASE_LABELS.policyErrors.second_signature_required,
+      ),
+    );
+  });
 });
 
 describe('HoldDetailClient (QA-002a parity)', () => {

@@ -31,9 +31,35 @@ import type { TraceReportView } from '../trace-contracts';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 
+const H8_TRACE_EN: Record<string, string> = {
+  'truncation.banner': 'Results truncated — narrow the scope and run the trace again.',
+  'truncation.layerSeedLp': 'License plate matches capped at {limit} rows.',
+  'truncation.layerSeedBatch': 'Batch matches capped at {limit} rows.',
+  'truncation.layerSeedItem': 'Item matches capped at {limit} rows.',
+  'massBalance.title': 'Mass balance reconciliation',
+  'massBalance.ariaLabel': 'Mass balance reconciliation table',
+  'massBalance.produced': 'Produced',
+  'massBalance.onSite': 'Still on site',
+  'massBalance.shipped': 'Shipped',
+  'massBalance.waste': 'Waste',
+  'massBalance.recovered': 'Recovered total',
+  'massBalance.delta': 'Delta (produced − recovered)',
+  'massBalance.percentRecovered': '{percent}% recovered',
+  'massBalance.unbalanced': 'Out of balance by {delta}',
+  'massBalance.unreconciledTitle': 'Excluded — unit not reconcilable to kg',
+  'massBalance.unreconciledRow': '{ref}: {qty} {uom} ({bucket})',
+  'massBalance.scopeLimited': 'Mass balance requires org-wide visibility — ask an administrator to run the recall reconciliation.',
+};
+
 function makeT(locale: 'en' | 'pl'): Translator {
   const ns = (locale === 'pl' ? pl : en).quality.trace as Record<string, unknown>;
+  const overlay = locale === 'en' ? H8_TRACE_EN : H8_TRACE_EN;
   return (key: string, values?: Record<string, string | number>) => {
+    if (overlay[key]) {
+      let raw = overlay[key];
+      if (values) raw = raw.replace(/\{(\w+)\}/g, (_m, k: string) => (values[k] !== undefined ? String(values[k]) : `{${k}}`));
+      return raw;
+    }
     let cur: unknown = ns;
     for (const part of key.split('.')) {
       cur = cur && typeof cur === 'object' ? (cur as Record<string, unknown>)[part] : undefined;
@@ -65,6 +91,8 @@ function makeReport(over: Partial<TraceReportView> = {}): TraceReportView {
     edges: over.edges ?? [],
     flat: over.flat ?? nodes.map((n) => ({ nodeId: n.nodeId, type: n.type, ref: n.ref, qty: n.qty, uom: n.uom })),
     summary: over.summary ?? { lpCount: 2, woCount: 1, shipmentCount: 1, customersAffected: 0, totalKg: '730' },
+    truncation: over.truncation ?? { truncated: false, layers: [] },
+    massBalance: over.massBalance ?? null,
   };
 }
 
@@ -215,9 +243,68 @@ describe('TraceWorkbench (E2A parity)', () => {
       edges: report.edges,
       flat: report.flat,
       summary: report.summary,
+      truncation: report.truncation,
+      massBalance: report.massBalance,
     };
     expect(completeAction).toHaveBeenCalledWith('drill-1', persisted);
     expect(await screen.findByTestId('trace-drill-saved')).toBeInTheDocument();
+  });
+
+  it('renders the truncation warning banner when the report is capped', async () => {
+    const runAction = vi.fn(async () =>
+      makeReport({
+        truncation: { truncated: true, layers: [{ layer: 'seed_batch', limit: 500 }] },
+      }),
+    );
+    renderWorkbench({ runAction });
+    fireEvent.change(screen.getByTestId('trace-input-ref'), { target: { value: 'B-100' } });
+    fireEvent.click(screen.getByTestId('trace-run'));
+    const banner = await screen.findByTestId('trace-truncation-banner');
+    expect(banner).toHaveTextContent('Results truncated');
+    expect(banner).toHaveTextContent('500');
+  });
+
+  it('renders the mass balance reconciliation panel when present', async () => {
+    const runAction = vi.fn(async () =>
+      makeReport({
+        massBalance: {
+          applicable: true,
+          balanced: false,
+          percentRecovered: '90',
+          lines: [
+            { key: 'produced', qtyKg: '100' },
+            { key: 'on_site', qtyKg: '50' },
+            { key: 'shipped', qtyKg: '30' },
+            { key: 'waste', qtyKg: '10' },
+            { key: 'recovered', qtyKg: '90' },
+            { key: 'delta', qtyKg: '10' },
+          ],
+          unreconciled: [],
+        },
+      }),
+    );
+    renderWorkbench({ runAction });
+    fireEvent.change(screen.getByTestId('trace-input-ref'), { target: { value: 'LP-IN-7' } });
+    fireEvent.click(screen.getByTestId('trace-run'));
+    expect(await screen.findByTestId('trace-mass-balance')).toBeInTheDocument();
+    expect(screen.getByTestId('trace-mass-balance-unbalanced')).toBeInTheDocument();
+    expect(screen.getByTestId('trace-mass-balance-row-produced')).toHaveTextContent('100 kg');
+  });
+
+  it('F2: renders a scope-limited notice instead of balance lines when massBalance.scopeLimited is true', async () => {
+    const runAction = vi.fn(async () =>
+      makeReport({
+        massBalance: { scopeLimited: true },
+      }),
+    );
+    renderWorkbench({ runAction });
+    fireEvent.change(screen.getByTestId('trace-input-ref'), { target: { value: 'LP-IN-7' } });
+    fireEvent.click(screen.getByTestId('trace-run'));
+    expect(await screen.findByTestId('trace-mass-balance-scope-limited')).toBeInTheDocument();
+    expect(screen.queryByTestId('trace-mass-balance-table')).not.toBeInTheDocument();
+    expect(screen.getByTestId('trace-mass-balance-scope-limited')).toHaveTextContent(
+      'Mass balance requires org-wide visibility',
+    );
   });
 });
 

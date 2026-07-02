@@ -38,6 +38,7 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
 // site-scoped path is exercised instead of the noActiveSite short-circuit.
 vi.mock('../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => SITE_ID),
+  resolveWriteSiteId: vi.fn(async () => ({ ok: true, siteId: SITE_ID })),
 }));
 
 vi.mock('next/cache', () => ({

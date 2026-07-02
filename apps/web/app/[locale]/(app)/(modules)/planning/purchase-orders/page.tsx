@@ -27,6 +27,11 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
+import { getUserSites } from '../../../../../../lib/site/get-user-sites';
+import { setActiveSite } from '../../../../../../lib/site/site-actions';
+
 import { listPurchaseOrders, createPurchaseOrder } from './_actions/actions';
 import { createExportJob } from './_actions/create-export-job';
 import {
@@ -204,6 +209,19 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         cancel: t('create.picker.cancel'),
         error: t('create.picker.error'),
       },
+      siteRequired: {
+        bannerTitle: t.has('create.siteRequired.bannerTitle')
+          ? t('create.siteRequired.bannerTitle')
+          : 'Select a site to create this purchase order',
+        bannerBody: t.has('create.siteRequired.bannerBody')
+          ? t('create.siteRequired.bannerBody')
+          : 'Purchase orders are stamped with a site. Pick one below — it updates the top-bar site filter for this browser.',
+        pickerLabel: t.has('create.siteRequired.pickerLabel') ? t('create.siteRequired.pickerLabel') : 'Site',
+        allSites: t.has('create.siteRequired.allSites') ? t('create.siteRequired.allSites') : 'All sites',
+        pickerTooltip: t.has('create.siteRequired.pickerTooltip')
+          ? t('create.siteRequired.pickerTooltip')
+          : 'Sets the top-bar site used for site-scoped screens.',
+      },
     },
   };
 }
@@ -218,11 +236,15 @@ async function ListContent({
   archived: boolean;
 }) {
   const t = await getTranslations('Planning.purchaseOrders');
-  const [listResult, suppliers, lineCounts, orgUnits] = await Promise.all([
+  const [listResult, suppliers, lineCounts, orgUnits, siteContext] = await Promise.all([
     listPurchaseOrders({ limit: 200, archived }),
     listPoSuppliers(),
     listPurchaseOrderLineCounts(),
     listPoUnits(),
+    withOrgContext(async ({ userId, client }) => ({
+      sites: await getUserSites(userId),
+      activeSiteId: await getActiveSiteId({ client }),
+    })),
   ]);
   const uom = buildUomDropdown(orgUnits, uomFallbackLabels(locale));
 
@@ -258,6 +280,9 @@ async function ListContent({
       getItemSupplierPriceAction={getItemSupplierPrice}
       createPurchaseOrderAction={createPurchaseOrder}
       createExportJobAction={createExportJob}
+      activeSiteId={siteContext.activeSiteId}
+      sites={siteContext.sites}
+      setSiteAction={setActiveSite}
     />
   );
 }

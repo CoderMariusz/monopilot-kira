@@ -59,9 +59,21 @@ export type HoldReleaseLabels = {
   submitting: string;
   formIncomplete: string;
   validation: { dispositionRequired: string; reasonRequired: string; passwordRequired: string };
+  policyErrors: Record<'second_signature_required' | 'signer_role_not_allowed', string>;
   error: string;
   success: string;
 };
+
+function releaseErrorMessage(
+  labels: HoldReleaseLabels,
+  result: { reason: string; code?: string; message?: string },
+): string {
+  const code = (result.reason === 'policy' ? (result.code ?? result.message) : (result.message ?? result.reason)) ?? result.reason;
+  if (code === 'second_signature_required' || code === 'signer_role_not_allowed') {
+    return labels.policyErrors[code];
+  }
+  return labels.error.replace('{message}', code);
+}
 
 export function HoldReleaseModal({
   open,
@@ -113,8 +125,7 @@ export function HoldReleaseModal({
         signature: { password },
       });
       if (!result.ok) {
-        // Surface e-sign / SoD / forbidden failures VERBATIM (action message).
-        setError(labels.error.replace('{message}', result.message ?? result.reason));
+        setError(releaseErrorMessage(labels, result));
         return;
       }
       reset();

@@ -23,6 +23,7 @@ const WO_ID = '33333333-3333-4333-8333-333333333333';
 const TX_ID = '44444444-4444-4444-8444-444444444444';
 const LP_ID = '55555555-5555-4555-8555-555555555555';
 const SITE_ID = '66666666-6666-4666-8666-666666666666';
+const PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 
@@ -51,12 +52,25 @@ function makeClient(): QueryClient {
         return { rows: [] as T[], rowCount: 0 };
       }
 
-      if (normalized.startsWith('select lp.id') && normalized.includes('from public.license_plates lp')) {
+      if (normalized.startsWith('select o.id::text as output_id') && normalized.includes('from public.wo_outputs o')) {
         const rows =
           executionStatus === 'completed'
-            ? [{ id: LP_ID, site_id: SITE_ID, status: 'available' }]
+            ? [{
+                output_id: '88888888-8888-4888-8888-888888888888',
+                lp_id: LP_ID,
+                site_id: SITE_ID,
+                status: 'available',
+                product_id: PRODUCT_ID,
+                qty_kg: '10.000',
+                fallback_wac_value: '120.0000',
+                ext_jsonb: { wac_qty_kg: '9.500', wac_value: '114.0000' },
+              }]
             : [];
         return { rows: rows as T[], rowCount: rows.length };
+      }
+
+      if (normalized.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: '0.500', totalValue: '6.0000', clamped: false }] as T[], rowCount: 1 };
       }
 
       if (normalized.startsWith('insert into public.lp_state_history')) {
@@ -101,13 +115,17 @@ describe('cancelWo completed-output LP handling', () => {
       expect.objectContaining({ woId: WO_ID, verb: 'cancel', transactionId: TX_ID }),
     );
 
-    const lpSelect = queries.find((query) => normalize(query.sql).startsWith('select lp.id'));
+    const lpSelect = queries.find((query) => normalize(query.sql).startsWith('select o.id::text as output_id'));
     expect(lpSelect).toBeDefined();
     expect(normalize(lpSelect!.sql)).toContain("lp.status not in ('destroyed', 'consumed')");
     expect(normalize(lpSelect!.sql)).toContain('from public.wo_outputs o');
-    expect(normalize(lpSelect!.sql)).toContain('o.lp_id = lp.id');
+    expect(normalize(lpSelect!.sql)).toContain('lp.id = o.lp_id');
     expect(normalize(lpSelect!.sql)).toContain('o.correction_of_id is null');
     expect(lpSelect!.params).toEqual([WO_ID]);
+
+    const wac = queries.find((query) => normalize(query.sql).includes('insert into public.item_wac_state'));
+    expect(wac).toBeDefined();
+    expect(wac!.params).toEqual([ORG_ID, PRODUCT_ID, '-9.500', '-114.0000', USER_ID]);
 
     const history = queries.find((query) => normalize(query.sql).startsWith('insert into public.lp_state_history'));
     expect(history).toBeDefined();

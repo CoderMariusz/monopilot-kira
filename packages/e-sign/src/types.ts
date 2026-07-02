@@ -52,6 +52,7 @@ export interface ESignTxOptions {
    */
   client?: pg.PoolClient;
   requestId?: string;
+  policyMode?: 'single' | 'dual-primary' | 'dual-secondary';
 }
 
 export class EReplayError extends Error {
@@ -72,5 +73,17 @@ export class EPinFailedError extends Error {
   constructor(message = 'Invalid password or PIN') {
     super(message);
     this.name = 'EPinFailedError';
+  }
+}
+
+export type ESignPolicyErrorCode = 'second_signature_required' | 'signer_role_not_allowed';
+
+export class ESignPolicyError extends Error {
+  readonly code: ESignPolicyErrorCode;
+
+  constructor(code: ESignPolicyErrorCode, message = code) {
+    super(message);
+    this.name = 'ESignPolicyError';
+    this.code = code;
   }
 }

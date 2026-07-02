@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { isStrongPassword } from './password-policy';
+import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from './user-role-policy';
 
 /**
  * createUserWithPassword — admin-only "create a user directly with a password,
@@ -34,14 +35,6 @@ import { isStrongPassword } from './password-policy';
  */
 
 const CREATE_PERMISSION = 'settings.users.invite';
-const SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT = new Set([
-  'owner',
-  'admin',
-  'org_admin',
-  'org.access.admin',
-  'org.platform.admin',
-  'org.schema.admin',
-]);
 const SUPER_ROLE_CODES = ['owner', 'admin', 'org_admin'] as const;
 
 export type CreateUserWithPasswordInput = {

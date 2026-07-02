@@ -55,6 +55,7 @@ import {
   type CreatePoResult,
   type GetItemSupplierPriceAction,
 } from './create-po-modal';
+import type { SiteSwitcherOption } from '../../../../../../../components/shell/site-switcher';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import type { PoSupplierOption } from '../_actions/po-form-data';
 import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/create-export-job';
@@ -149,6 +150,10 @@ export type PoListViewProps = {
    * through) and logs an import_export_jobs row; the client triggers the download.
    */
   createExportJobAction: (input: CreateExportJobInput) => Promise<CreateExportJobResult>;
+  /** F4 — top-bar site scope for the create-PO guidance banner + inline picker. */
+  activeSiteId: string | null;
+  sites: SiteSwitcherOption[];
+  setSiteAction: (siteId: string | null) => Promise<{ ok: boolean }>;
 };
 
 function fmtDate(iso: string | null, locale: string): string {
@@ -170,6 +175,9 @@ export function PoListView({
   getItemSupplierPriceAction,
   createPurchaseOrderAction,
   createExportJobAction,
+  activeSiteId,
+  sites,
+  setSiteAction,
 }: PoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/purchase-orders`;
@@ -474,6 +482,9 @@ export function PoListView({
         getItemSupplierPriceAction={getItemSupplierPriceAction}
         createPurchaseOrderAction={createPurchaseOrderAction}
         onCreated={() => router.refresh()}
+        activeSiteId={activeSiteId}
+        sites={sites}
+        setSiteAction={setSiteAction}
       />
     </div>
   );

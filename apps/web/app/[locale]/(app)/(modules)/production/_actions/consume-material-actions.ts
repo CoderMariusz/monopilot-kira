@@ -191,6 +191,7 @@ async function writeConsumeLedger(
     toState: string;
     stockMoveTransactionId: string;
     lpStateTransactionId: string;
+    consumptionId: string;
   },
 ): Promise<void> {
   await client.query(
@@ -215,7 +216,7 @@ async function writeConsumeLedger(
       input.stockMoveTransactionId,
       input.woId,
       input.materialId,
-      JSON.stringify({ source: 'desktop', wo_id: input.woId }),
+      JSON.stringify({ source: 'desktop', wo_id: input.woId, consumption_id: input.consumptionId }),
       input.userId,
     ],
   );
@@ -510,6 +511,7 @@ export async function recordDesktopConsumption(
           }
         : undefined;
 
+      let lpLedgerInput: Omit<Parameters<typeof writeConsumeLedger>[1], 'consumptionId'> | null = null;
       if (lpId) {
         const lpAvailability = await ctx.client.query<{
           id: string;
@@ -556,7 +558,7 @@ export async function recordDesktopConsumption(
         }
 
         const lpToState = toMicro(lpRes.rows[0].quantity) <= 0n ? 'consumed' : lpBefore.status;
-        await writeConsumeLedger(ctx.client, {
+        lpLedgerInput = {
           orgId,
           userId,
           woId,
@@ -570,7 +572,7 @@ export async function recordDesktopConsumption(
           toState: lpToState,
           stockMoveTransactionId: txnId,
           lpStateTransactionId: lpStateTransactionId(orgId, clientOpId),
-        });
+        };
       }
 
       // (4) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.
@@ -650,10 +652,20 @@ export async function recordDesktopConsumption(
           }),
         ],
       );
+      const consumptionId = consumption.rows[0]?.id;
+      if (!consumptionId) {
+        throw new Error('recordDesktopConsumption: consumption insert returned no id');
+      }
 
       if (lpId && lpId !== NIL_UUID) {
+        if (lpLedgerInput) {
+          await writeConsumeLedger(ctx.client, {
+            ...lpLedgerInput,
+            consumptionId,
+          });
+        }
         await emitMaterialConsumed(ctx.client, {
-          aggregateId: consumption.rows[0]?.id ?? woId,
+          aggregateId: consumptionId,
           woId,
           lpId,
           itemId: material.product_id,

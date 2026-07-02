@@ -27,7 +27,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listPlanningWorkOrders } from './_actions/listPlanningWorkOrders';
 import { createWorkOrder } from './_actions/createWorkOrder';
-import { releaseWorkOrder } from './_actions/releaseWorkOrder';
+import { deleteDraftWorkOrder, releaseWorkOrder } from './_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from './_actions/wo-form-data';
 import { WoListView, type WoListLabels } from './_components/wo-list-view';
 import { makeImportLabel } from '../../../../../../lib/import/import-i18n-staging';
@@ -122,6 +122,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     release: t('list.release'),
     releasing: t('list.releasing'),
     confirmRelease: tpl('list.confirmRelease'),
+    deleteDraft: opt('list.deleteDraft', 'Delete draft'),
+    deletingDraft: opt('list.deletingDraft', 'Deleting...'),
+    confirmDeleteDraft: optTpl('list.confirmDeleteDraft', 'Delete draft work order {wo}? This cannot be undone.'),
     tabArchive: archiveLabel(t, locale, 'list.tabs.archive'),
     archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
     backToActive: archiveLabel(t, locale, 'list.backToActive'),
@@ -251,6 +254,7 @@ async function ListContent({
       searchFgProductsAction={searchFgProducts}
       createWorkOrderAction={createWorkOrder}
       releaseWorkOrderAction={releaseWorkOrder}
+      deleteDraftWorkOrderAction={deleteDraftWorkOrder}
     />
   );
 }

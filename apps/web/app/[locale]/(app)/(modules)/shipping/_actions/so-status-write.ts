@@ -18,6 +18,30 @@ type ShippingContext = { userId: string; orgId: string; client: QueryClient };
 
 export type StatusWriteResult = 'ok' | 'not_found' | 'illegal_transition';
 
+type SalesOrderStatusWriteOptions = {
+  currentStatus?: SalesOrderStatus;
+  /**
+   * Internal-only escape hatch for audited shipment reversal flows after stock
+   * has already been restored/recomputed. Do not use for operator SO transitions.
+   */
+  allowShipmentReversal?: boolean;
+};
+
+const SHIPMENT_REVERSAL_FROM: readonly SalesOrderStatus[] = ['shipped', 'partially_delivered', 'delivered'];
+const SHIPMENT_REVERSAL_TO: readonly SalesOrderStatus[] = [
+  'confirmed',
+  'allocated',
+  'partially_packed',
+  'packed',
+  'manifested',
+  'shipped',
+  'partially_delivered',
+];
+
+function isShipmentReversalSoTransition(from: SalesOrderStatus, to: SalesOrderStatus): boolean {
+  return SHIPMENT_REVERSAL_FROM.includes(from) && SHIPMENT_REVERSAL_TO.includes(to);
+}
+
 export async function readLockedSalesOrderStatus(
   ctx: ShippingContext,
   soId: string,
@@ -40,12 +64,16 @@ export async function writeSalesOrderStatusInContext(
   ctx: ShippingContext,
   soId: string,
   newStatus: SalesOrderStatus,
-  options?: { currentStatus?: SalesOrderStatus },
+  options?: SalesOrderStatusWriteOptions,
 ): Promise<StatusWriteResult> {
   const current = options?.currentStatus ?? (await readLockedSalesOrderStatus(ctx, soId));
   if (current === 'not_found') return 'not_found';
   if (current === newStatus) return 'ok';
-  if (!isLegalSoTransition(current, newStatus)) return 'illegal_transition';
+  if (!isLegalSoTransition(current, newStatus)) {
+    if (!options?.allowShipmentReversal || !isShipmentReversalSoTransition(current, newStatus)) {
+      return 'illegal_transition';
+    }
+  }
 
   const { rowCount } = await ctx.client.query(
     `update public.sales_orders

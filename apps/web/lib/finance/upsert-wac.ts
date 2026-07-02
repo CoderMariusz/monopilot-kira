@@ -18,12 +18,28 @@ type WacUpdateResult = {
   totalQtyKg: string;
   totalValue: string;
   clamped: boolean;
+  excluded?: 'unresolved_uom';
 };
 
 export async function upsertWac(
   client: QueryClient,
   { orgId, itemId, deltaQtyKg, deltaValue, updatedBy }: UpsertWacInput,
 ): Promise<WacUpdateResult> {
+  if (isZeroDecimalString(deltaQtyKg) && !isZeroDecimalString(deltaValue)) {
+    console.warn('[wac] unresolved_uom', { orgId, itemId, deltaQtyKg, deltaValue });
+    const { rows } = await client.query<WacUpdateResult>(
+      `select total_qty_kg::text as "totalQtyKg",
+              total_value::text as "totalValue",
+              false as clamped
+         from public.item_wac_state
+        where org_id = $1::uuid
+          and item_id = $2::uuid
+          and currency_id = (select id from public.currencies where code = 'GBP')`,
+      [orgId, itemId],
+    );
+    return { ...(rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false }), excluded: 'unresolved_uom' };
+  }
+
   const { rows } = await client.query<WacUpdateResult>(
     `with existing as materialized (
        select total_qty_kg, total_value
@@ -77,6 +93,7 @@ export async function upsertWac(
 export type WacDeltaQtyKgResolution = {
   qtyKg: string;
   resolved: boolean;
+  marker?: 'unresolved_uom';
 };
 
 export async function resolveWacDeltaQtyKg(
@@ -114,10 +131,55 @@ export async function resolveWacDeltaQtyKg(
   const row = rows[0];
   if (!row) {
     console.warn('[wac] unresolved_uom', { itemId, uom, qty });
-    return { qtyKg: qty, resolved: false };
+    return { qtyKg: '0', resolved: false, marker: 'unresolved_uom' };
   }
   if (!row.resolved) {
     console.warn('[wac] unresolved_uom', { itemId, uom, qty });
+    return { qtyKg: '0', resolved: false, marker: 'unresolved_uom' };
   }
   return { qtyKg: row.qty_kg, resolved: row.resolved };
+}
+
+export type WacReversalDelta = {
+  deltaQtyKg: string;
+  deltaValue: string;
+  source: 'snapshot' | 'fallback';
+};
+
+export function computeWacReversalDelta(input: {
+  extJsonb: unknown;
+  fallbackQtyKg: string;
+  fallbackValue: string;
+}): WacReversalDelta {
+  const snapshot = readWacContributionSnapshot(input.extJsonb);
+  if (snapshot) {
+    return {
+      deltaQtyKg: negateDecimalString(snapshot.wac_qty_kg),
+      deltaValue: negateDecimalString(snapshot.wac_value),
+      source: 'snapshot',
+    };
+  }
+
+  return {
+    deltaQtyKg: negateDecimalString(input.fallbackQtyKg),
+    deltaValue: negateDecimalString(input.fallbackValue),
+    source: 'fallback',
+  };
+}
+
+function readWacContributionSnapshot(extJsonb: unknown): { wac_qty_kg: string; wac_value: string } | null {
+  if (extJsonb == null || typeof extJsonb !== 'object' || Array.isArray(extJsonb)) return null;
+  const snapshot = extJsonb as { wac_qty_kg?: unknown; wac_value?: unknown };
+  if (typeof snapshot.wac_qty_kg !== 'string' || typeof snapshot.wac_value !== 'string') return null;
+  return { wac_qty_kg: snapshot.wac_qty_kg, wac_value: snapshot.wac_value };
+}
+
+function negateDecimalString(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('-')) return trimmed.slice(1);
+  return `-${trimmed}`;
+}
+
+function isZeroDecimalString(value: string): boolean {
+  return /^-?0+(?:\.0+)?$/.test(value.trim());
 }

@@ -233,6 +233,45 @@ describe('InspectionsListClient (QA-005 parity)', () => {
     expect(await screen.findByTestId('inspection-create-error')).toHaveTextContent('GRN-NOPE');
     expect(createInspectionAction).not.toHaveBeenCalled();
   });
+
+  it('create modal: a failing createInspection result shows an inline error and keeps the modal open', async () => {
+    const createInspectionAction = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'error',
+      message: 'no_active_site',
+    }));
+    const createLabels = {
+      ...CREATE_LABELS,
+      siteErrors: {
+        no_active_site: 'Select a site before creating an inspection.',
+        ambiguous_site: 'Select a site in the top bar before creating an inspection.',
+      },
+    };
+    const searchLps = vi.fn(async () => ({ ok: true as const, data: [LP1] }));
+    render(
+      <InspectionsListClient
+        rows={[makeRow({ id: 'a' })]}
+        labels={LIST_LABELS}
+        createLabels={createLabels}
+        locale="en"
+        createInspectionAction={createInspectionAction as never}
+        searchLpsAction={searchLps as never}
+        resolveGrnAction={vi.fn() as never}
+        resolveWoOutputAction={vi.fn() as never}
+        searchAssigneesAction={vi.fn() as never}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('inspection-create-open'));
+    fireEvent.change(screen.getByTestId('inspection-create-lp-search'), { target: { value: 'LP-0001' } });
+    await waitFor(() => expect(searchLps).toHaveBeenCalled());
+    fireEvent.click(await screen.findByTestId(`inspection-create-lp-result-${LP_ID}`));
+    fireEvent.click(screen.getByTestId('inspection-create-submit'));
+
+    await waitFor(() => expect(createInspectionAction).toHaveBeenCalled());
+    expect(await screen.findByTestId('inspection-create-error')).toHaveTextContent(/select a site before creating/i);
+    expect(screen.getByTestId('inspection-create-form')).toBeInTheDocument();
+  });
 });
 
 function makeDetail(over: Partial<InspectionDetail>): InspectionDetail {

@@ -372,6 +372,33 @@ describe('transitionSalesOrderStatus', () => {
     expect(status).toBe('draft');
   });
 
+  it('rejects shipped to allocated so shipped stock cannot be reallocated', async () => {
+    status = 'shipped';
+
+    const result = await transitionSalesOrderStatus(SO_ID, 'allocated');
+
+    expect(result).toEqual({ ok: false, error: 'ILLEGAL_TRANSITION', from: 'shipped', to: 'allocated' });
+    expect(status).toBe('shipped');
+  });
+
+  it('rejects shipped to confirmed through the public SO transition action', async () => {
+    status = 'shipped';
+
+    const result = await transitionSalesOrderStatus(SO_ID, 'confirmed');
+
+    expect(result).toEqual({ ok: false, error: 'ILLEGAL_TRANSITION', from: 'shipped', to: 'confirmed' });
+    expect(status).toBe('shipped');
+  });
+
+  it('allows shipped to delivered as the forward closeout transition', async () => {
+    status = 'shipped';
+
+    const result = await transitionSalesOrderStatus(SO_ID, 'delivered');
+
+    expect(status).toBe('delivered');
+    expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'delivered' } });
+  });
+
   it('blocks cancel when a shipped shipment exists on the SO', async () => {
     status = 'packed';
     const baseQuery = client.query;

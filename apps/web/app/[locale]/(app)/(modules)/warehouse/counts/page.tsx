@@ -27,11 +27,11 @@ import { Suspense } from 'react';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
-import { createCountSession, listCountSessions } from './_actions/count-actions';
-import {
-  listTransferWarehouses,
-  type WarehouseOption,
-} from '../../planning/transfer-orders/_actions/to-form-data';
+import { createCountSession, listCountSessions, listCountWarehouses } from './_actions/count-actions';
+import type { CountWarehouseOption } from './_actions/count-types';
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
+import { setActiveSite } from '../../../../../../lib/site/site-actions';
 import { getCountsTranslator } from './counts-labels';
 import {
   CountSessionListClient,
@@ -90,6 +90,9 @@ function buildLabels(t: ReturnType<typeof getCountsTranslator>): CountSessionLis
       creating: t('create.creating'),
       denied: t('create.denied'),
       error: t('create.error'),
+      siteMismatch: t.has('create.siteMismatch')
+        ? t('create.siteMismatch')
+        : 'This warehouse belongs to a different site. Creating will switch your top-bar site to match so the session stays visible in the list.',
     },
   };
 }
@@ -124,8 +127,12 @@ async function ListContent({ locale }: { locale: string }) {
   const t = getCountsTranslator(locale);
 
   let sessions;
+  let siteContext: { activeSiteId: string | null };
   try {
-    sessions = await listCountSessions();
+    [sessions, siteContext] = await Promise.all([
+      listCountSessions(),
+      withOrgContext(async ({ client }) => ({ activeSiteId: await getActiveSiteId({ client }) })),
+    ]);
   } catch (e) {
     const code = toCountErrorCode(e instanceof Error ? e.message : undefined);
     return (
@@ -146,9 +153,9 @@ async function ListContent({ locale }: { locale: string }) {
 
   // Warehouse options are best-effort: a failed read just yields an empty picker
   // (the dialog shows its "no warehouses" copy) — never blocks the list.
-  let warehouses: WarehouseOption[];
+  let warehouses: CountWarehouseOption[];
   try {
-    warehouses = await listTransferWarehouses();
+    warehouses = await listCountWarehouses();
   } catch {
     warehouses = [];
   }
@@ -160,6 +167,8 @@ async function ListContent({ locale }: { locale: string }) {
       labels={buildLabels(t)}
       locale={locale}
       createAction={createCountSessionSafe}
+      activeSiteId={siteContext.activeSiteId}
+      setSiteAction={setActiveSite}
     />
   );
 }

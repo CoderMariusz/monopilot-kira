@@ -271,6 +271,10 @@ function makeClient(): QueryClient {
         return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
       }
 
+      if (n.startsWith('insert into public.stock_moves')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       if (n.startsWith('insert into public.wo_material_consumption')) {
         if (state.consumptionInsertConflict) {
           throw Object.assign(
@@ -413,6 +417,12 @@ describe('reverseConsumption', () => {
     expect(normalize(lpUpdate!.sql)).toContain("quantity = quantity + $2::numeric");
     expect(normalize(lpUpdate!.sql)).toContain('status = $4');
     expect(lpUpdate?.params).toEqual([LP_ID, '4.250', USER_ID, 'available']);
+
+    const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMove).toBeDefined();
+    expect(normalize(stockMove!.sql)).toContain("'adjustment'");
+    expect(normalize(stockMove!.sql)).toContain("'consumption_reversed'");
+    expect(stockMove?.params).toEqual(expect.arrayContaining([LP_ID, '-4.250', 'kg', 'wrong LP', WO_ID, COMPONENT_ID]));
 
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history).toBeDefined();
@@ -834,6 +844,12 @@ describe('voidWoOutput', () => {
 
     const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
     expect(lpUpdate?.params).toEqual([LP_ID, 'destroyed', USER_ID]);
+
+    const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMove).toBeDefined();
+    expect(normalize(stockMove!.sql)).toContain("'adjustment'");
+    expect(normalize(stockMove!.sql)).toContain("'output_voided'");
+    expect(stockMove?.params).toEqual(expect.arrayContaining([LP_ID, '-12.345', 'kg', 'operator duplicate', WO_ID]));
 
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history).toBeDefined();

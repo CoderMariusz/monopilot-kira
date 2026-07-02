@@ -145,6 +145,14 @@ export function buildHoldReleaseLabels(t: QaHoldsTranslator): HoldReleaseLabels 
       reasonRequired: t('releaseModal.validation.reasonRequired'),
       passwordRequired: t('releaseModal.validation.passwordRequired'),
     },
+    policyErrors: {
+      second_signature_required: t.has('releaseModal.policyErrors.second_signature_required')
+        ? t('releaseModal.policyErrors.second_signature_required')
+        : 'This release requires a second e-signature under the configured sign-off policy.',
+      signer_role_not_allowed: t.has('releaseModal.policyErrors.signer_role_not_allowed')
+        ? t('releaseModal.policyErrors.signer_role_not_allowed')
+        : 'Your role is not allowed to sign this release under the configured sign-off policy.',
+    },
     error: t('releaseModal.error'),
     success: t('releaseModal.success'),
   };

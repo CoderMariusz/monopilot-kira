@@ -22,6 +22,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getPlanningWorkOrder } from '../_actions/getPlanningWorkOrder';
 import { updateWorkOrder } from '../_actions/update-work-order';
+import { deleteDraftWorkOrder } from '../_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from '../_actions/wo-form-data';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
 
@@ -38,6 +39,11 @@ async function updateWorkOrderAction(params: {
 }) {
   'use server';
   return updateWorkOrder(params);
+}
+
+async function deleteDraftWorkOrderAction(params: { id: string }) {
+  'use server';
+  return deleteDraftWorkOrder(params);
 }
 
 export const dynamic = 'force-dynamic';
@@ -101,6 +107,12 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoDetailLa
           persistence_failed: t('errors.persistence_failed'),
         },
       },
+    },
+    deleteDraft: {
+      button: t.has('detail.deleteDraft.button') ? t('detail.deleteDraft.button') : 'Delete draft',
+      pending: t.has('detail.deleteDraft.pending') ? t('detail.deleteDraft.pending') : 'Deleting...',
+      confirm: t.has('detail.deleteDraft.confirm') ? String(t.raw('detail.deleteDraft.confirm')) : 'Delete draft work order {wo}? This cannot be undone.',
+      error: t.has('detail.deleteDraft.error') ? t('detail.deleteDraft.error') : 'Could not delete this draft work order.',
     },
     status: {
       draft: t('woStatus.draft'),
@@ -211,6 +223,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       resources={resources}
       searchFgProductsAction={searchFgProducts}
       updateWorkOrderAction={updateWorkOrderAction}
+      deleteDraftWorkOrderAction={deleteDraftWorkOrderAction}
     />
   );
 }

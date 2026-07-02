@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useEffect, useMemo, useState, useTransition } from 'react';
 
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
@@ -14,6 +14,21 @@ import {
   type UsersScreenData,
   type UsersScreenLabels,
 } from '../users-screen.client';
+import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from '../../../../../../../actions/users/user-role-policy';
+
+function inviteErrorMessage(
+  error: string,
+  labels: UsersScreenLabels,
+  mode: 'invite' | 'password',
+): string {
+  if (mode === 'password' && error === 'forbidden_role') {
+    return labels.userCreationForbiddenRole ?? 'The selected role cannot be assigned directly — choose a non-system role.';
+  }
+  if (mode === 'password') {
+    return interpolate(labels.userCreationFailed ?? 'User creation failed: {error}', { error });
+  }
+  return interpolate(labels.invitationFailed, { error });
+}
 
 export function InviteDialog({
   open,
@@ -34,7 +49,12 @@ export function InviteDialog({
   createUserWithPasswordAction?: CreateUserWithPasswordAction;
   onFeedback: (feedback: { kind: 'status' | 'alert'; message: string } | null) => void;
 }) {
-  const defaultRoleId = data.roles.find((role) => role.category === 'Manager')?.id ?? data.roles[0]?.id ?? '';
+  const assignableRoles = useMemo(
+    () => data.roles.filter((role) => !SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT.has(role.code)),
+    [data.roles],
+  );
+  const defaultRoleId =
+    assignableRoles.find((role) => role.category === 'Manager')?.id ?? assignableRoles[0]?.id ?? '';
   // Invite site picker draws from the real org sites (mig 381 source) when
   // available, falling back to the labels derived from the directory.
   const sites = data.siteOptions.length > 0
@@ -51,9 +71,16 @@ export function InviteDialog({
   const [setPasswordMode, setSetPasswordMode] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const canSetPassword = Boolean(createUserWithPasswordAction);
+
+  useEffect(() => {
+    if (!open) return;
+    setInlineError(null);
+    setRoleId(defaultRoleId);
+  }, [open, defaultRoleId]);
 
   function resetForm() {
     setEmail('');
@@ -66,14 +93,19 @@ export function InviteDialog({
 
   function submitInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setInlineError(null);
 
     if (setPasswordMode) {
       if (!createUserWithPasswordAction || !email.trim() || !roleId || !password) {
-        onFeedback({ kind: 'alert', message: labels.invalidInvite });
+        const message = labels.invalidInvite;
+        setInlineError(message);
+        onFeedback({ kind: 'alert', message });
         return;
       }
       if (password !== confirmPassword) {
-        onFeedback({ kind: 'alert', message: labels.passwordMismatch ?? 'Passwords do not match.' });
+        const message = labels.passwordMismatch ?? 'Passwords do not match.';
+        setInlineError(message);
+        onFeedback({ kind: 'alert', message });
         return;
       }
 
@@ -94,17 +126,17 @@ export function InviteDialog({
           onOpenChange(false);
           return;
         }
-        // forbidden_role has its own label so the user knows WHICH field is wrong
-        const errorMessage = result.error === 'forbidden_role'
-          ? (labels.userCreationForbiddenRole ?? 'The selected role cannot be assigned directly — choose a non-system role.')
-          : interpolate(labels.userCreationFailed ?? 'User creation failed: {error}', { error: result.error });
+        const errorMessage = inviteErrorMessage(result.error, labels, 'password');
+        setInlineError(errorMessage);
         onFeedback({ kind: 'alert', message: errorMessage });
       });
       return;
     }
 
     if (!inviteUserAction || !email.trim() || !roleId) {
-      onFeedback({ kind: 'alert', message: labels.invalidInvite });
+      const message = labels.invalidInvite;
+      setInlineError(message);
+      onFeedback({ kind: 'alert', message });
       return;
     }
 
@@ -123,7 +155,9 @@ export function InviteDialog({
         onOpenChange(false);
         return;
       }
-      onFeedback({ kind: 'alert', message: interpolate(labels.invitationFailed, { error: result.error }) });
+      const errorMessage = inviteErrorMessage(result.error, labels, 'invite');
+      setInlineError(errorMessage);
+      onFeedback({ kind: 'alert', message: errorMessage });
     });
   }
 
@@ -135,6 +169,11 @@ export function InviteDialog({
       <form onSubmit={submitInvite}>
         <Modal.Body>
           <div className="space-y-4 px-5 py-4">
+            {inlineError ? (
+              <p role="alert" data-testid="invite-dialog-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                {inlineError}
+              </p>
+            ) : null}
             {canSetPassword ? (
               <label className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                 <input
@@ -169,7 +208,7 @@ export function InviteDialog({
                   className="w-full rounded-md border px-3 py-2 text-sm"
                   required
                 >
-                  {data.roles.map((role) => (
+                  {assignableRoles.map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.label}
                     </option>

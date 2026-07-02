@@ -30,7 +30,7 @@ import ukMessages from '../../../../../../../i18n/uk.json';
 
 import { WoListView, type WoListLabels } from '../_components/wo-list-view';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
-import type { ListPlanningWorkOrdersResult, GetPlanningWorkOrderResult, CreateWorkOrderResult, ReleaseWorkOrderResult } from '../_actions/shared';
+import type { ListPlanningWorkOrdersResult, GetPlanningWorkOrderResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -67,6 +67,9 @@ const listLabels: WoListLabels = {
   release: enWo.list.release,
   releasing: enWo.list.releasing,
   confirmRelease: enWo.list.confirmRelease,
+  deleteDraft: 'Delete draft',
+  deletingDraft: 'Deleting...',
+  confirmDeleteDraft: 'Delete draft work order {wo}? This cannot be undone.',
   // Archive tab + archived-mode chrome — staged in _meta/i18n-staging/archive-tabs.json.
   tabArchive: 'Archive',
   archivedHint: 'Showing archived work orders.',
@@ -136,6 +139,10 @@ function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}
   ]);
   const createWorkOrderAction = vi.fn<Parameters<React.ComponentProps<typeof WoListView>['createWorkOrderAction']>, Promise<CreateWorkOrderResult>>();
   const releaseWorkOrderAction = vi.fn<Parameters<React.ComponentProps<typeof WoListView>['releaseWorkOrderAction']>, Promise<ReleaseWorkOrderResult>>();
+  const deleteDraftWorkOrderAction = vi.fn<
+    Parameters<NonNullable<React.ComponentProps<typeof WoListView>['deleteDraftWorkOrderAction']>>,
+    Promise<DeleteDraftWorkOrderResult>
+  >();
   const utils = render(
     <WoListView
       locale="en"
@@ -146,10 +153,11 @@ function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}
       searchFgProductsAction={searchFgProductsAction}
       createWorkOrderAction={createWorkOrderAction}
       releaseWorkOrderAction={releaseWorkOrderAction}
+      deleteDraftWorkOrderAction={deleteDraftWorkOrderAction}
       {...props}
     />,
   );
-  return { ...utils, searchFgProductsAction, createWorkOrderAction, releaseWorkOrderAction };
+  return { ...utils, searchFgProductsAction, createWorkOrderAction, releaseWorkOrderAction, deleteDraftWorkOrderAction };
 }
 
 beforeEach(() => {
@@ -224,6 +232,12 @@ describe('WoListView — release with confirm + RBAC (parity: wo-list.jsx:218-22
     expect(screen.queryByTestId('wo-release-wo-2')).toBeNull();
   });
 
+  it('only DRAFT rows expose Delete draft', () => {
+    renderList();
+    expect(screen.getByTestId('wo-delete-draft-wo-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('wo-delete-draft-wo-2')).toBeNull();
+  });
+
   it('confirms then calls releaseWorkOrder with the row id', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const { releaseWorkOrderAction } = renderList();
@@ -240,6 +254,24 @@ describe('WoListView — release with confirm + RBAC (parity: wo-list.jsx:218-22
     const { releaseWorkOrderAction } = renderList();
     fireEvent.click(screen.getByTestId('wo-release-wo-1'));
     expect(releaseWorkOrderAction).not.toHaveBeenCalled();
+  });
+
+  it('confirms then calls deleteDraftWorkOrder with the row id', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { deleteDraftWorkOrderAction } = renderList();
+    deleteDraftWorkOrderAction.mockResolvedValue({ ok: true, id: 'wo-1' });
+
+    fireEvent.click(screen.getByTestId('wo-delete-draft-wo-1'));
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(deleteDraftWorkOrderAction).toHaveBeenCalledWith({ id: 'wo-1' }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('does not call deleteDraftWorkOrder when the confirm is cancelled', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { deleteDraftWorkOrderAction } = renderList();
+    fireEvent.click(screen.getByTestId('wo-delete-draft-wo-1'));
+    expect(deleteDraftWorkOrderAction).not.toHaveBeenCalled();
   });
 
   it('surfaces a forbidden RBAC result inline (server-enforced, not client-trusted)', async () => {

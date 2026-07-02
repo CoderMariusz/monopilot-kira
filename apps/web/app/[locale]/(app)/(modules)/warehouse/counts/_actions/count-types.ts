@@ -14,6 +14,28 @@ export type CreateCountSessionInput = {
   countType: CountType;
 };
 
+export type CountWarehouseOption = {
+  id: string;
+  code: string;
+  name: string;
+  siteId: string | null;
+};
+
+/** Pure helper — plans whether create should switch the top-bar site before persisting. */
+export type CountCreateSitePlan =
+  | { action: 'proceed' }
+  | { action: 'switch_site'; warehouseSiteId: string }
+  | { action: 'blocked'; reason: 'warehouse_site_required' };
+
+export function planCountSessionCreateSite(
+  activeSiteId: string | null,
+  warehouseSiteId: string | null,
+): CountCreateSitePlan {
+  if (!warehouseSiteId) return { action: 'blocked', reason: 'warehouse_site_required' };
+  if (activeSiteId === warehouseSiteId) return { action: 'proceed' };
+  return { action: 'switch_site', warehouseSiteId };
+}
+
 export type CountSession = {
   id: string;
   warehouseId: string;
@@ -72,6 +94,15 @@ export type CountLine = {
 
 export type CountSessionDetail = CountSession & {
   lines: CountLine[];
+  /**
+   * True when the session belongs to a site the current user cannot see.
+   * In that case `lines` is always empty (no counted/variance quantities are
+   * returned). The header (warehouse, status, type) is still readable so the
+   * user is not left with a 404 when navigating to a URL they legitimately
+   * received (F10 vanish-trap fix). The client renders a "restricted" notice
+   * instead of the blind-count/variance tables.
+   */
+  linesRestricted?: boolean;
 };
 
 export type RecordCountInput = {

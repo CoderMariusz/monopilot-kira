@@ -93,58 +93,19 @@ export async function startWo(
       where org_id = app.current_org_id() and id = $1::uuid`,
     [input.woId],
   );
-  let wo = woRes.rows[0];
+  const wo = woRes.rows[0];
   if (!wo) return fail('not_found');
   if (!wo.active_bom_header_id || !wo.active_factory_spec_id) {
-    const healed = await client.query<WoSnapshotRow>(
-      `update public.work_orders wo
-          set active_factory_spec_id = coalesce(wo.active_factory_spec_id, (
-                select fs.id
-                  from public.factory_specs fs
-                 where fs.org_id = app.current_org_id()
-                   and fs.fg_item_id = wo.product_id
-                   and fs.status in ('approved_for_factory', 'released_to_factory')
-                 order by fs.version desc
-                 limit 1
-              )),
-              active_bom_header_id = coalesce(wo.active_bom_header_id, (
-                select bh.id
-                  from public.bom_headers bh
-                 where bh.org_id = app.current_org_id()
-                   and bh.product_id = (
-                     select i.item_code from public.items i
-                      where i.id = wo.product_id and i.org_id = app.current_org_id()
-                   )
-                   and bh.status = 'active'
-                 order by bh.version desc
-                 limit 1
-              )),
-              uom_snapshot = coalesce(wo.uom_snapshot, (
-                select jsonb_build_object(
-                  'output_uom', i.output_uom,
-                  'uom_base', i.uom_base,
-                  'net_qty_per_each', i.net_qty_per_each,
-                  'each_per_box', i.each_per_box,
-                  'boxes_per_pallet', i.boxes_per_pallet,
-                  'weight_mode', i.weight_mode
-                )
-                  from public.items i
-                 where i.id = wo.product_id
-                   and i.org_id = app.current_org_id()
-                 limit 1
-              ))
-        where wo.org_id = app.current_org_id()
-          and wo.id = $1::uuid
-        returning id, site_id::text as site_id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
-                  production_line_id::text`,
-      [input.woId],
-    );
-    wo = healed.rows[0] ?? wo;
-  }
-  if (!wo.active_bom_header_id || !wo.active_factory_spec_id) {
-    return fail('invalid_state_transition', {
-      message: 'WO has no factory-release snapshot (active_bom_header_id / active_factory_spec_id)',
-      details: { code: 'factory_release_missing' },
+    return fail('wo_snapshot_missing', {
+      message: 'WO has no factory-release snapshot; release the work order again in Planning to bind its approved BOM and factory spec before start.',
+      details: {
+        code: 'wo_snapshot_missing',
+        missing: {
+          activeBomHeader: !wo.active_bom_header_id,
+          activeFactorySpec: !wo.active_factory_spec_id,
+        },
+        remediation: 'release_work_order',
+      },
     });
   }
 

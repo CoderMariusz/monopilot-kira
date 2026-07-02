@@ -197,7 +197,11 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
-      if (sql.includes('update public.license_plates')) return { rows: [{ id: 'lp-1', quantity: '7.500' }] };
+      if (sql.includes('update public.license_plates')) {
+        return { rows: [{ id: 'lp-1', quantity: '7.500', site_id: session.site_id, location_id: null }] };
+      }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
+      if (sql.includes('insert into public.stock_moves')) return { rows: [] };
       return { rows: [] };
     });
 
@@ -236,8 +240,12 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
-      if (sql.includes('update public.license_plates')) return { rows: [{ id: 'lp-1', quantity: '2.500' }] };
+      if (sql.includes('update public.license_plates')) {
+        return { rows: [{ id: 'lp-1', quantity: '2.500', site_id: session.site_id, location_id: null }] };
+      }
       if (sql.includes('from public.v_inventory_available cand')) return { rows: [{ violates: false }] };
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
+      if (sql.includes('insert into public.stock_moves')) return { rows: [] };
       return { rows: [] };
     });
 
@@ -294,9 +302,12 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
-      if (sql.includes('update public.license_plates')) return { rows: [{ id: 'lp-1', quantity: '2.500' }] };
+      if (sql.includes('update public.license_plates')) {
+        return { rows: [{ id: 'lp-1', quantity: '2.500', site_id: session.site_id, location_id: null }] };
+      }
       if (sql.includes('from public.v_inventory_available cand')) return { rows: [{ violates: false }] };
       if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
+      if (sql.includes('insert into public.stock_moves')) return { rows: [] };
       return { rows: [] };
     });
 
@@ -353,6 +364,7 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       return { rows: [] };
     });
 
@@ -403,6 +415,7 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       return { rows: [] };
     });
 
@@ -751,6 +764,7 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       return { rows: [] };
     });
 
@@ -790,6 +804,7 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       return { rows: [] };
     });
 
@@ -873,6 +888,7 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       return { rows: [] };
     });
 
@@ -921,6 +937,7 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       return { rows: [] };
     });
 
@@ -975,6 +992,7 @@ describe('production scanner WO routes', () => {
           }],
         };
       }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       return { rows: [] };
     });
 
@@ -1236,6 +1254,51 @@ describe('production scanner WO routes', () => {
       error: 'changeover_signoff_required',
       changeoverId: '44444444-4444-4444-8444-444444444444',
     });
+  });
+
+  it('start surfaces a missing WO factory-release snapshot as the typed 409 code and records replay', async () => {
+    const { POST } = await import('../start/route');
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.work_orders wo') && sql.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
+      return { rows: [] };
+    });
+    startWoMock.mockResolvedValue({
+      ok: false,
+      error: 'wo_snapshot_missing',
+      status: 409,
+      message: 'WO has no factory-release snapshot; release the work order again in Planning to bind its approved BOM and factory spec before start.',
+      details: {
+        code: 'wo_snapshot_missing',
+        missing: { activeBomHeader: true, activeFactorySpec: false },
+        remediation: 'release_work_order',
+      },
+    });
+
+    const response = await POST(request({ clientOpId: 'op-start-missing-snapshot' }) as never, context);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'wo_snapshot_missing',
+      details: {
+        code: 'wo_snapshot_missing',
+        missing: { activeBomHeader: true, activeFactorySpec: false },
+        remediation: 'release_work_order',
+      },
+    });
+    expect(
+      fakeClient.query.mock.calls.some(
+        (call) =>
+          String(call[0]).includes('insert into public.scanner_audit_log') &&
+          (call[1] as unknown[] | undefined)?.includes('wo_snapshot_missing'),
+      ),
+    ).toBe(true);
   });
 
   it('lps returns FEFO candidates for the material in route order with decimal-string qty + ISO expiry', async () => {

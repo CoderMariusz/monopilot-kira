@@ -79,6 +79,27 @@ export type TraceLabels = {
   };
   drillSaved: string;
   drillSaveError: string;
+  truncation: {
+    banner: string;
+    layerSeedLp: string;
+    layerSeedBatch: string;
+    layerSeedItem: string;
+  };
+  massBalance: {
+    title: string;
+    ariaLabel: string;
+    produced: string;
+    onSite: string;
+    shipped: string;
+    waste: string;
+    recovered: string;
+    delta: string;
+    percentRecovered: string;
+    unbalanced: string;
+    unreconciledTitle: string;
+    unreconciledRow: string;
+    scopeLimited: string;
+  };
 };
 
 export type RecallDrillsLabels = {
@@ -181,6 +202,27 @@ export function buildTraceLabels(t: Translator): TraceLabels {
     },
     drillSaved: t('drillSaved'),
     drillSaveError: t('drillSaveError'),
+    truncation: {
+      banner: t('truncation.banner'),
+      layerSeedLp: t('truncation.layerSeedLp'),
+      layerSeedBatch: t('truncation.layerSeedBatch'),
+      layerSeedItem: t('truncation.layerSeedItem'),
+    },
+    massBalance: {
+      title: t('massBalance.title'),
+      ariaLabel: t('massBalance.ariaLabel'),
+      produced: t('massBalance.produced'),
+      onSite: t('massBalance.onSite'),
+      shipped: t('massBalance.shipped'),
+      waste: t('massBalance.waste'),
+      recovered: t('massBalance.recovered'),
+      delta: t('massBalance.delta'),
+      percentRecovered: t('massBalance.percentRecovered'),
+      unbalanced: t('massBalance.unbalanced'),
+      unreconciledTitle: t('massBalance.unreconciledTitle'),
+      unreconciledRow: t('massBalance.unreconciledRow'),
+      scopeLimited: t('massBalance.scopeLimited'),
+    },
   };
 }
 

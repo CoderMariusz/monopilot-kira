@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { signEvent } from './sign.js';
+import { readSignoffPolicy, signEvent } from './sign.js';
 import type { DualSignInput, ESignReceipt, ESignTxOptions } from './types.js';
 import { ESignSoDError } from './types.js';
 
@@ -19,7 +19,8 @@ async function dualSignInClient(
   client: NonNullable<ESignTxOptions['client']>,
   requestId?: string,
 ): Promise<{ primary: ESignReceipt; secondary: ESignReceipt }> {
-  if (sameSigner(input.primarySignerUserId, input.secondarySignerUserId)) {
+  const policy = await readSignoffPolicy(client, input.intent);
+  if ((!policy || policy.allowSameUser === false) && sameSigner(input.primarySignerUserId, input.secondarySignerUserId)) {
     throw new ESignSoDError();
   }
 
@@ -32,7 +33,7 @@ async function dualSignInClient(
       nonce: input.primaryNonce ?? randomUUID(),
       reason: input.reason,
     },
-    { client, requestId },
+    { client, requestId, policyMode: 'dual-primary' },
   );
 
   const secondary = await signEvent(
@@ -44,7 +45,7 @@ async function dualSignInClient(
       nonce: input.secondaryNonce ?? randomUUID(),
       reason: input.reason,
     },
-    { client, requestId },
+    { client, requestId, policyMode: 'dual-secondary' },
   );
 
   return { primary, secondary };
@@ -54,7 +55,7 @@ export async function dualSign(
   input: DualSignInput,
   options: ESignTxOptions = {},
 ): Promise<{ primary: ESignReceipt; secondary: ESignReceipt }> {
-  if (sameSigner(input.primarySignerUserId, input.secondarySignerUserId)) {
+  if (!options.client && sameSigner(input.primarySignerUserId, input.secondarySignerUserId)) {
     throw new ESignSoDError();
   }
 

@@ -36,7 +36,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@monopilot/ui/Tabs';
 
 import { WoStatusBadge } from './wo-status-badge';
 import { EditWoModal, type EditWoLabels, type EditWoResult } from './edit-wo-modal';
-import type { GetPlanningWorkOrderResult } from '../_actions/shared';
+import type { DeleteDraftWorkOrderResult, GetPlanningWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
 type Wo = Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'];
@@ -77,6 +77,12 @@ export type WoDetailLabels = {
     editButton: string;
     modal: EditWoLabels;
   };
+  deleteDraft?: {
+    button: string;
+    pending: string;
+    confirm: string;
+    error: string;
+  };
 };
 
 function fmtTs(iso: string | null, locale: string): string {
@@ -113,6 +119,7 @@ export function WoDetailView({
   resources,
   searchFgProductsAction,
   updateWorkOrderAction,
+  deleteDraftWorkOrderAction,
 }: {
   workOrder: Wo;
   labels: WoDetailLabels;
@@ -130,6 +137,7 @@ export function WoDetailView({
     machineId?: string;
     notes?: string;
   }) => Promise<EditWoResult>;
+  deleteDraftWorkOrderAction?: (params: { id: string }) => Promise<DeleteDraftWorkOrderResult>;
 }) {
   const router = useRouter();
   const wo = workOrder;
@@ -150,6 +158,29 @@ export function WoDetailView({
   const isDraft = wo.status.toUpperCase() === 'DRAFT';
   const canEdit = isDraft && !!labels.edit;
   const [editOpen, setEditOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+
+  async function onDeleteDraft() {
+    if (!deleteDraftWorkOrderAction || deleting) return;
+    if (!window.confirm((labels.deleteDraft?.confirm ?? '').replace('{wo}', wo.woNumber))) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteDraftWorkOrderAction({ id: wo.id });
+      if (!result.ok) {
+        setDeleteError(labels.deleteDraft?.error ?? result.error);
+        setDeleting(false);
+        return;
+      }
+      router.push(`/${locale}/planning/work-orders`);
+      router.refresh();
+    } catch {
+      setDeleteError(labels.deleteDraft?.error ?? 'persistence_failed');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4" data-testid="wo-detail-view" data-prototype-label="plan_wo_detail">
@@ -158,12 +189,32 @@ export function WoDetailView({
         <span className="font-mono text-lg font-semibold text-slate-900">{wo.woNumber}</span>
         <WoStatusBadge status={wo.status} label={statusLabel(wo.status)} />
         <Badge variant="outline">{wo.priority}</Badge>
-        {canEdit && updateWorkOrderAction && searchFgProductsAction && resources && labels.edit ? (
-          <Button type="button" className="btn--secondary btn-sm ml-auto" data-testid="wo-edit-order" onClick={() => setEditOpen(true)}>
-            {labels.edit.editButton}
-          </Button>
-        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          {canEdit && updateWorkOrderAction && searchFgProductsAction && resources && labels.edit ? (
+            <Button type="button" className="btn--secondary btn-sm" data-testid="wo-edit-order" onClick={() => setEditOpen(true)}>
+              {labels.edit.editButton}
+            </Button>
+          ) : null}
+          {isDraft && labels.deleteDraft && deleteDraftWorkOrderAction ? (
+            <Button
+              type="button"
+              className="btn--ghost btn-sm text-red-700 hover:bg-red-50"
+              data-testid="wo-delete-draft"
+              disabled={deleting}
+              aria-busy={deleting}
+              onClick={onDeleteDraft}
+            >
+              {deleting ? labels.deleteDraft.pending : labels.deleteDraft.button}
+            </Button>
+          ) : null}
+        </div>
       </div>
+
+      {deleteError ? (
+        <div role="alert" data-testid="wo-delete-draft-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {deleteError}
+        </div>
+      ) : null}
 
       {canEdit && updateWorkOrderAction && searchFgProductsAction && resources && labels.edit ? (
         <EditWoModal

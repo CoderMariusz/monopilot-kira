@@ -98,7 +98,14 @@ export const NCR_ROOT_CAUSE_CATEGORIES: NcrRootCauseCategory[] = [
   'other',
 ];
 
-export type NcrActionFailure = { ok: false; reason: 'forbidden' | 'error'; message?: string };
+export type NcrActionFailure =
+  | { ok: false; reason: 'forbidden' | 'error'; message?: string }
+  | {
+      ok: false;
+      reason: 'policy';
+      code: 'second_signature_required' | 'signer_role_not_allowed';
+      message?: string;
+    };
 export type NcrActionResult<T> = { ok: true; data: T } | NcrActionFailure;
 
 /** Row shape for the QA-009 list (mirrors ncr-actions.ts NcrListRow). */

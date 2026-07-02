@@ -42,7 +42,7 @@ import { z } from 'zod';
 
 import { upsertWac } from '../../finance/upsert-wac';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
-import { makeLpNumber } from '../../warehouse/lp-create';
+import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
   PRODUCTION_OUTPUT_WRITE_PERMISSION,
@@ -147,6 +147,7 @@ type WoRow = {
 };
 
 type SiteWarehouseTarget = { id: string; default_location_id: string | null };
+type OutputLpMoveRow = { site_id: string | null; location_id: string | null };
 
 const NO_WAREHOUSE_FOR_SITE_MESSAGE =
   'No warehouse is configured for your site — set one in Settings -> Sites';
@@ -784,6 +785,45 @@ export async function registerOutput(
       [outputId, lpId, input.operator_id ?? ctx.userId],
     );
   }
+
+  const outputLp = await ctx.client.query<OutputLpMoveRow>(
+    `select site_id::text as site_id,
+            location_id::text as location_id
+       from public.license_plates
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [lpId],
+  );
+  const outputLpMove = outputLp.rows[0];
+  if (!outputLpMove) {
+    throw new ProductionActionError('invalid_reference', 422);
+  }
+  await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, to_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, wo_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'receipt', $4::uuid,
+       $5::numeric, $6, 'production_output', 'WO output receipt',
+       $7::uuid, $8::uuid, 'completed', $9::jsonb, $10::uuid, $10::uuid
+     )
+     on conflict (org_id, transaction_id) do nothing`,
+    [
+      outputLpMove.site_id,
+      makeStockMoveNumber(input.transaction_id),
+      lpId,
+      outputLpMove.location_id,
+      resolvedQtyKg,
+      input.uom ?? wo.uom,
+      input.transaction_id,
+      woId,
+      JSON.stringify({ source: 'production_output', wo_id: woId, output_id: outputId }),
+      input.operator_id ?? ctx.userId,
+    ],
+  );
 
   const outputValue = await multiplyNumeric(ctx, resolvedQtyKg, item.cost_per_kg);
   await upsertWac(ctx.client, {

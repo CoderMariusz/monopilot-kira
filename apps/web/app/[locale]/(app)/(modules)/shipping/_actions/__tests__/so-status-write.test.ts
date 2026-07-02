@@ -97,4 +97,23 @@ describe('writeSalesOrderStatusInContext illegal transitions', () => {
     expect(result).toBe('illegal_transition');
     expect(updateQueries).toEqual([]);
   });
+
+  it('rejects shipped→confirmed by default without issuing an UPDATE', async () => {
+    const result = await writeSalesOrderStatusInContext(ctx(), SO_ID, 'confirmed', {
+      currentStatus: 'shipped',
+    });
+
+    expect(result).toBe('illegal_transition');
+    expect(updateQueries).toEqual([]);
+  });
+
+  it('allows shipped→confirmed only for audited shipment reversal callers', async () => {
+    const result = await writeSalesOrderStatusInContext(ctx(), SO_ID, 'confirmed', {
+      currentStatus: 'shipped',
+      allowShipmentReversal: true,
+    });
+
+    expect(result).toBe('ok');
+    expect(updateQueries).toHaveLength(1);
+  });
 });

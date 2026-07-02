@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { getActiveSiteId } from '../../../../../../lib/site/site-context';
+import { getActiveSiteId, resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { releaseLpQaForContext } from '../../warehouse/_actions/lp-qa-actions';
 import { createHoldForContext } from './hold-actions';
 
@@ -717,9 +717,16 @@ export async function createInspection(input: {
     return await withOrgContext(async (ctx): Promise<ActionResult<CreatedInspection>> => {
       if (!(await hasPermission(ctx, 'quality.inspection.assign'))) return { ok: false, reason: 'forbidden' };
 
-      const s =
-        (await resolveInspectionSourceSiteId(ctx, parsed.referenceType, parsed.referenceId)) ??
-        (await getActiveSiteId({ client: ctx.client }));
+      const sourceSite = await resolveInspectionSourceSiteId(ctx, parsed.referenceType, parsed.referenceId);
+      const activeSite = await getActiveSiteId({ client: ctx.client });
+      let siteId = activeSite ?? sourceSite;
+      if (!siteId) {
+        const siteResolution = await resolveWriteSiteId(ctx.client);
+        if (!siteResolution.ok) {
+          return { ok: false, reason: 'error', message: siteResolution.reason };
+        }
+        siteId = siteResolution.siteId;
+      }
 
       const inserted = await ctx.client.query<{
         id: string;
@@ -763,7 +770,7 @@ export async function createInspection(input: {
           parsed.dueDate ?? null,
           parsed.notes ?? null,
           ctx.userId,
-          s,
+          siteId,
         ],
       );
       const row = inserted.rows[0];

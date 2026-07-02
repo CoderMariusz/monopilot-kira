@@ -2,16 +2,10 @@
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
+import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from './user-role-policy';
 
 const INVITE_TTL_SECONDS = 604800;
 const INVITE_PERMISSION = 'settings.users.invite';
-const SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT = new Set([
-  'owner',
-  'admin',
-  'org.access.admin',
-  'org.platform.admin',
-  'org.schema.admin',
-]);
 
 export type InviteUserInput = {
   email: string;

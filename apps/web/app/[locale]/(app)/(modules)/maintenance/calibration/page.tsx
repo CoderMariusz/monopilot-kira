@@ -1,168 +1,172 @@
-import { toCsv } from '../../../../../../lib/shared/download';
+import Link from 'next/link';
+
+import {
+  getCalibrationPermissions,
+  listActiveInstruments,
+} from './_actions/calibration-actions';
 import { listCalibration } from './_actions/list-calibration';
+import { CalibrationRegisterClient, type CalibrationRegisterLabels } from './_components/calibration-register.client';
+import { getCalibrationTranslator, type CalibrationTranslator } from './calibration-labels';
 
 export const dynamic = 'force-dynamic';
 
-type CalibrationRow = Awaited<ReturnType<typeof listCalibration>>[number];
+type PageProps = { params: Promise<{ locale: string }> };
 
-function isOverdue(nextDueDate: string | null, today: string): boolean {
-  return nextDueDate !== null && nextDueDate < today;
+function buildLabels(t: CalibrationTranslator): CalibrationRegisterLabels {
+  return {
+    exportCsv: t('list.exportCsv'),
+    instruments: t('list.instruments'),
+    overdue: t('list.overdue'),
+    asOf: t('list.asOf'),
+    emptyTitle: t('list.emptyTitle'),
+    emptyBody: t('list.emptyBody'),
+    col: {
+      instrument: t('list.col.instrument'),
+      type: t('list.col.type'),
+      standard: t('list.col.standard'),
+      range: t('list.col.range'),
+      lastCalibrated: t('list.col.lastCalibrated'),
+      result: t('list.col.result'),
+      certificate: t('list.col.certificate'),
+      nextDue: t('list.col.nextDue'),
+      status: t('list.col.status'),
+    },
+    rangeNotSet: t('list.rangeNotSet'),
+    neverCalibrated: t('list.neverCalibrated'),
+    noRecord: t('list.noRecord'),
+    noCertificate: t('list.noCertificate'),
+    nextDueNotSet: t('list.nextDueNotSet'),
+    statusOverdue: t('list.statusOverdue'),
+    statusDue: t('list.statusDue'),
+    statusNoDue: t('list.statusNoDue'),
+    statusInactive: t('list.statusInactive'),
+    addInstrument: t('list.addInstrument'),
+    recordCalibration: t('list.recordCalibration'),
+    editInstrument: t('list.editInstrument'),
+    types: {
+      scale: t('types.scale'),
+      thermometer: t('types.thermometer'),
+      ph_meter: t('types.ph_meter'),
+      other: t('types.other'),
+    },
+    standards: {
+      ISO_9001: t('standards.ISO_9001'),
+      NIST: t('standards.NIST'),
+      internal: t('standards.internal'),
+      other: t('standards.other'),
+    },
+    results: {
+      PASS: t('results.PASS'),
+      FAIL: t('results.FAIL'),
+      OUT_OF_SPEC: t('results.OUT_OF_SPEC'),
+    },
+    instrument: {
+      createTitle: t('instrument.createTitle'),
+      editTitle: t('instrument.editTitle'),
+      code: t('instrument.code'),
+      codePlaceholder: t('instrument.codePlaceholder'),
+      type: t('instrument.type'),
+      standard: t('instrument.standard'),
+      intervalDays: t('instrument.intervalDays'),
+      rangeMin: t('instrument.rangeMin'),
+      rangeMax: t('instrument.rangeMax'),
+      unit: t('instrument.unit'),
+      unitPlaceholder: t('instrument.unitPlaceholder'),
+      submit: t('instrument.submit'),
+      submitting: t('instrument.submitting'),
+      cancel: t('instrument.cancel'),
+      deactivate: t('instrument.deactivate'),
+      deactivating: t('instrument.deactivating'),
+      reactivate: t('instrument.reactivate'),
+      reactivating: t('instrument.reactivating'),
+      errorRequired: t('instrument.errorRequired'),
+      errorFailed: t('instrument.errorFailed'),
+      errorForbidden: t('instrument.errorForbidden'),
+      types: {
+        scale: t('types.scale'),
+        thermometer: t('types.thermometer'),
+        ph_meter: t('types.ph_meter'),
+        other: t('types.other'),
+      },
+      standards: {
+        ISO_9001: t('standards.ISO_9001'),
+        NIST: t('standards.NIST'),
+        internal: t('standards.internal'),
+        other: t('standards.other'),
+      },
+    },
+    record: {
+      title: t('record.title'),
+      instrument: t('record.instrument'),
+      instrumentPlaceholder: t('record.instrumentPlaceholder'),
+      calibratedAt: t('record.calibratedAt'),
+      result: t('record.result'),
+      resultPass: t('record.resultPass'),
+      resultFail: t('record.resultFail'),
+      resultOutOfSpec: t('record.resultOutOfSpec'),
+      measuredValues: t('record.measuredValues'),
+      measuredPlaceholder: t('record.measuredPlaceholder'),
+      notes: t('record.notes'),
+      certificateRef: t('record.certificateRef'),
+      certificatePlaceholder: t('record.certificatePlaceholder'),
+      submit: t('record.submit'),
+      submitting: t('record.submitting'),
+      cancel: t('record.cancel'),
+      errorRequired: t('record.errorRequired'),
+      errorFailed: t('record.errorFailed'),
+      errorForbidden: t('record.errorForbidden'),
+    },
+  };
 }
 
-function formatRange(row: CalibrationRow): string {
-  if (row.rangeMin === null && row.rangeMax === null) return 'Not set';
-  const unit = row.unitOfMeasure ? ` ${row.unitOfMeasure}` : '';
-  return `${row.rangeMin ?? '...'} - ${row.rangeMax ?? '...'}${unit}`;
-}
+export default async function CalibrationRegisterPage({ params }: PageProps) {
+  const { locale } = await params;
+  const t = getCalibrationTranslator(locale);
+  const permissions = await getCalibrationPermissions();
 
-function statusText(row: CalibrationRow, today: string): string {
-  if (isOverdue(row.nextDueDate, today)) return 'Overdue';
-  if (!row.nextDueDate) return 'No due date';
-  return 'Due';
-}
+  if (!permissions.canRead) {
+    return (
+      <main data-screen="maintenance-calibration-register" className="flex w-full flex-col gap-6 px-6 py-6">
+        <div
+          role="alert"
+          data-testid="calibration-register-denied"
+          data-state="permission-denied"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800"
+        >
+          {t('list.denied')}
+        </div>
+      </main>
+    );
+  }
 
-function buildCsvHref(rows: CalibrationRow[], today: string): string {
-  const csv = toCsv(
-    [
-      'Instrument code',
-      'Instrument type',
-      'Standard',
-      'Range',
-      'Last calibrated',
-      'Result',
-      'Next due date',
-      'Status',
-    ],
-    rows.map((row) => [
-      row.instrumentCode,
-      row.instrumentType,
-      row.standard,
-      formatRange(row),
-      row.calibratedAt ?? '',
-      row.result ?? '',
-      row.nextDueDate ?? '',
-      statusText(row, today),
-    ]),
-  );
-
-  return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
-}
-
-export default async function CalibrationRegisterPage() {
-  const rows = await listCalibration();
-  const today = new Date().toISOString().slice(0, 10);
-  const overdueCount = rows.filter((row) => isOverdue(row.nextDueDate, today)).length;
-  const csvHref = buildCsvHref(rows, today);
+  const [rows, instrumentsResult] = await Promise.all([listCalibration(), listActiveInstruments()]);
+  const instruments = instrumentsResult.ok ? instrumentsResult.data : [];
+  const labels = buildLabels(t);
 
   return (
     <main data-screen="maintenance-calibration-register" className="flex w-full flex-col gap-6 px-6 py-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-500">Maintenance / Calibration</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">
-            Calibration due register
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Read-only register of calibration instruments and their latest calibration record.
-          </p>
-        </div>
-        <a
-          href={csvHref}
-          download={`calibration-due-register-${today}.csv`}
-          className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-        >
-          Export CSV
-        </a>
+      <header>
+        <p className="text-sm font-medium text-slate-500">
+          <Link href={`/${locale}/maintenance`} className="hover:underline">
+            {t('list.breadcrumb.maintenance')}
+          </Link>
+          {' / '}
+          {t('list.breadcrumb.calibration')}
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">{t('list.title')}</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">{t('list.subtitle')}</p>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-md border border-slate-200 bg-white p-4">
-          <p className="text-sm text-slate-500">Instruments</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-950">{rows.length}</p>
-        </div>
-        <div className="rounded-md border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">Overdue</p>
-          <p className="mt-1 text-2xl font-semibold text-red-900">{overdueCount}</p>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white p-4">
-          <p className="text-sm text-slate-500">As of</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-950">{today}</p>
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        {rows.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <h2 className="text-base font-semibold text-slate-950">No calibration instruments found</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Instruments will appear here when they exist for the current organisation.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-normal text-slate-600">
-                <tr>
-                  <th scope="col" className="px-4 py-3">
-                    Instrument
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Type
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Standard
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Range
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Last calibrated
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Result
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Next due
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {rows.map((row) => {
-                  const overdue = isOverdue(row.nextDueDate, today);
-                  return (
-                    <tr
-                      key={row.instrumentId}
-                      className={overdue ? 'bg-red-50 text-red-950' : 'bg-white text-slate-800'}
-                    >
-                      <td className="px-4 py-3 font-medium text-slate-950">{row.instrumentCode}</td>
-                      <td className="px-4 py-3">{row.instrumentType}</td>
-                      <td className="px-4 py-3">{row.standard}</td>
-                      <td className="px-4 py-3">{formatRange(row)}</td>
-                      <td className="px-4 py-3">{row.calibratedAt ?? 'Never'}</td>
-                      <td className="px-4 py-3">{row.result ?? 'No record'}</td>
-                      <td className="px-4 py-3">{row.nextDueDate ?? 'Not set'}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={
-                            overdue
-                              ? 'rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-800'
-                              : 'rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700'
-                          }
-                        >
-                          {statusText(row, today)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <CalibrationRegisterClient
+        rows={rows}
+        instruments={instruments}
+        labels={labels}
+        permissions={{
+          canEditInstrument: permissions.canEditInstrument,
+          canDeactivateInstrument: permissions.canDeactivateInstrument,
+          canRecord: permissions.canRecord,
+        }}
+      />
     </main>
   );
 }

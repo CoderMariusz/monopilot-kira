@@ -307,6 +307,24 @@ describe('NcrCloseModal (MODAL-NCR-CLOSE parity — conditional e-sign)', () => 
     fireEvent.click(screen.getByTestId('ncr-close-submit'));
     await waitFor(() => expect(screen.getByTestId('ncr-close-error')).toHaveTextContent('invalid signature'));
   });
+
+  it('maps typed signoff policy failures to critical-close copy', async () => {
+    const closeNcrAction = vi.fn().mockResolvedValue({
+      ok: false,
+      reason: 'policy',
+      code: 'signer_role_not_allowed',
+      message: 'signer role is not allowed',
+    });
+    renderClose('critical', closeNcrAction);
+    fireEvent.change(screen.getByTestId('ncr-close-resolution'), { target: { value: 'Retested OK, sieve replaced.' } });
+    fireEvent.change(screen.getByTestId('ncr-close-password'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByTestId('ncr-close-submit'));
+    await waitFor(() =>
+      expect(screen.getByTestId('ncr-close-error')).toHaveTextContent(
+        CLOSE_LABELS.policyErrors.signer_role_not_allowed,
+      ),
+    );
+  });
 });
 
 describe('NcrDetailClient (QA-009a parity)', () => {

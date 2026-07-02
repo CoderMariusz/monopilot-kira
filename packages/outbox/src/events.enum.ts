@@ -179,6 +179,7 @@ export enum EventType {
   SETTINGS_USER_DEACTIVATED = 'settings.user.deactivated',
   SETTINGS_USER_INVITATION_RESENT = 'settings.user.invitation_resent',
   SETTINGS_USER_INVITED = 'settings.user.invited',
+  SETTINGS_USER_REACTIVATED = 'settings.user.reactivated',
   SETTINGS_WAREHOUSE_DEACTIVATED = 'settings.warehouse.deactivated',
   SETTINGS_WAREHOUSE_STORAGE_RULES_UPDATED = 'settings.warehouse.storage_rules_updated',
   SHIPMENT_CREATED = 'shipment.created',

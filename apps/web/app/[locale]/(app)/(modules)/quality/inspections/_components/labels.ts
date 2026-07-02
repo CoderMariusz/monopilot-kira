@@ -87,6 +87,10 @@ export function buildInspectionCreateLabels(t: QaInspectionsTranslator): Inspect
     validation: { referenceRequired: t('createModal.validation.referenceRequired') },
     error: t('createModal.error'),
     success: t('createModal.success'),
+    siteErrors: {
+      no_active_site: t('createModal.siteErrors.no_active_site'),
+      ambiguous_site: t('createModal.siteErrors.ambiguous_site'),
+    },
     lookup: {
       lpSearchLabel: t('createModal.lookup.lpSearchLabel'),
       lpSearchPlaceholder: t('createModal.lookup.lpSearchPlaceholder'),

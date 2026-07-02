@@ -19,6 +19,7 @@ export type ShipmentStatus =
   | 'manifested'
   | 'shipped'
   | 'delivered'
+  /** Reserved/unreachable: no writer sets exception yet (F3 audit A3 S-5). */
   | 'exception'
   | 'cancelled';
 
@@ -47,8 +48,8 @@ export const SO_LEGAL_TRANSITIONS: Record<SalesOrderStatus, readonly SalesOrderS
   partially_packed: ['packed', 'allocated', 'shipped', 'cancelled'],
   packed: ['manifested', 'partially_packed', 'allocated', 'shipped', 'cancelled'],
   manifested: ['shipped', 'packed', 'partially_packed', 'allocated', 'confirmed', 'cancelled'],
-  shipped: ['partially_delivered', 'delivered', 'manifested', 'packed', 'partially_packed', 'allocated', 'confirmed'],
-  partially_delivered: ['delivered', 'shipped', 'partially_packed', 'allocated', 'confirmed'],
+  shipped: ['partially_delivered', 'delivered'],
+  partially_delivered: ['delivered', 'shipped'],
   delivered: ['partially_delivered', 'shipped'],
   cancelled: [],
 };

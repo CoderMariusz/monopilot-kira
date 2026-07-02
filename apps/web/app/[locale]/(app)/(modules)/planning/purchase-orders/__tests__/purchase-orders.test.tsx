@@ -131,6 +131,14 @@ const listLabels: PoListLabels = {
       cancel: 'Cancel',
       error: 'Item search failed',
     },
+    siteRequired: {
+      bannerTitle: 'Select a site to create this purchase order',
+      bannerBody:
+        'Purchase orders are stamped with a site. Pick one below — it updates the top-bar site filter for this browser.',
+      pickerLabel: 'Site',
+      allSites: 'All sites',
+      pickerTooltip: 'Sets the top-bar site used for site-scoped screens.',
+    },
   },
 };
 
@@ -214,6 +222,11 @@ const ROWS: PoRow[] = [
   makeRow({ id: 'po-3', poNumber: 'PO-CONF', status: 'confirmed', supplierId: 'sup-1', supplierCode: 'AGRO', supplierName: 'Agro-Fresh Ltd.' }),
 ];
 
+const SITES = [
+  { id: 'site-warsaw', siteCode: 'PL-WAW', name: 'Plant Warsaw', isDefault: true },
+  { id: 'site-krakow', siteCode: 'PL-KRK', name: 'Plant Krakow', isDefault: false },
+];
+
 function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}) {
   const searchPoItemsAction = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue([
     { id: 'item-1', itemCode: 'RM-001', name: 'Pork Belly', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
@@ -222,6 +235,7 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
     .fn<[unknown], Promise<{ ok: true; data: { unitPrice: string | null; currency: string | null; source: 'spec' | 'list_price' | 'none' } }>>()
     .mockResolvedValue({ ok: true, data: { unitPrice: '3.75', currency: 'GBP', source: 'spec' } });
   const createPurchaseOrderAction = vi.fn<[unknown], Promise<CreatePoResult>>();
+  const setSiteAction = vi.fn<[string | null], Promise<{ ok: boolean }>>().mockResolvedValue({ ok: true });
   const createExportJobAction = vi
     .fn<[CreateExportJobInput], Promise<CreateExportJobResult>>()
     .mockResolvedValue({ ok: true, data: { jobId: 'job-1', filename: 'purchase-orders-2026-06-18.csv', csv: 'po_number\r\nPO-DRAFT', rows: 1 } });
@@ -236,10 +250,13 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
       getItemSupplierPriceAction={getItemSupplierPriceAction}
       createPurchaseOrderAction={createPurchaseOrderAction}
       createExportJobAction={createExportJobAction}
+      activeSiteId="site-warsaw"
+      sites={SITES}
+      setSiteAction={setSiteAction}
       {...props}
     />,
   );
-  return { ...utils, searchPoItemsAction, getItemSupplierPriceAction, createPurchaseOrderAction, createExportJobAction };
+  return { ...utils, searchPoItemsAction, getItemSupplierPriceAction, createPurchaseOrderAction, createExportJobAction, setSiteAction };
 }
 
 beforeEach(() => {
@@ -360,6 +377,16 @@ describe('PoListView — Export to file (Wave E-IO)', () => {
 });
 
 describe('PoListView — create modal (parity: po-screens.jsx:45 + modals create-PO)', () => {
+  it('shows a site-required guidance banner with inline picker when top bar is on All sites', () => {
+    renderList({ activeSiteId: null });
+    fireEvent.click(screen.getByTestId('po-list-create'));
+    const banner = screen.getByTestId('create-po-site-required');
+    expect(banner).toHaveTextContent('Select a site to create this purchase order');
+    expect(banner).toHaveTextContent('Purchase orders are stamped with a site');
+    expect(within(banner).getByTestId('app-topbar-site-switcher-select')).toBeInTheDocument();
+    expect(screen.getByTestId('create-po-submit')).toBeDisabled();
+  });
+
   it('auto-opens the create modal on ?new=1 deep-link', () => {
     renderList({ autoOpenCreate: true });
     expect(screen.getByTestId('create-po-form')).toBeInTheDocument();

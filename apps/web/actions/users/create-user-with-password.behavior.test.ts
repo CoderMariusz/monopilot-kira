@@ -219,6 +219,15 @@ describe('createUserWithPassword RBAC + provisioning (behavior)', () => {
     expect(_mockCreateUser).not.toHaveBeenCalled();
   });
 
+  it('rejects a missing roleId before any DB or auth call', async () => {
+    currentClient = makeClient({ hasPermission: true, seatLimit: null, activeUsers: 0, rolesById: { [VIEWER_ROLE_ID]: VIEWER_ROLE } });
+    const { createUserWithPassword } = await load();
+    const result = await createUserWithPassword({ email: 'new@example.com', password: STRONG_PASSWORD });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(_mockCreateUser).not.toHaveBeenCalled();
+  });
+
   it('rejects a cross-org roleId', async () => {
     currentClient = makeClient({ hasPermission: true, seatLimit: null, activeUsers: 0, rolesById: { [CROSS_ORG_ROLE_ID]: { id: CROSS_ORG_ROLE_ID, org_id: OTHER_ORG_ID, code: 'viewer', is_system: false, display_order: 9 } } });
     const { createUserWithPassword } = await load();

@@ -15,6 +15,8 @@ const TXN_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 let woSiteId: string | null = SITE_ID;
+let activeBomHeaderId: string | null = BOM_HEADER_ID;
+let activeFactorySpecId: string | null = FACTORY_SPEC_ID;
 let placeholderSiteId: string | null | undefined;
 
 vi.mock('../../technical/bom/snapshot', () => ({
@@ -45,8 +47,8 @@ function makeClient(): QueryClient {
             {
               id: WO_ID,
               site_id: woSiteId,
-              active_bom_header_id: BOM_HEADER_ID,
-              active_factory_spec_id: FACTORY_SPEC_ID,
+              active_bom_header_id: activeBomHeaderId,
+              active_factory_spec_id: activeFactorySpecId,
               allergen_profile_snapshot: null,
               production_line_id: null,
             },
@@ -90,6 +92,8 @@ function makeCtx(): ProductionContext {
 describe('startWo placeholder output site stamping', () => {
   beforeEach(() => {
     woSiteId = SITE_ID;
+    activeBomHeaderId = BOM_HEADER_ID;
+    activeFactorySpecId = FACTORY_SPEC_ID;
     placeholderSiteId = undefined;
     client = makeClient();
   });
@@ -108,5 +112,29 @@ describe('startWo placeholder output site stamping', () => {
 
     expect(result.ok).toBe(true);
     expect(placeholderSiteId).toBeNull();
+  });
+
+  it('fails closed when the WO factory-release snapshot is missing and never self-heals at start', async () => {
+    activeBomHeaderId = null;
+    activeFactorySpecId = null;
+
+    const result = await startWo(makeCtx(), { woId: WO_ID, transactionId: TXN_ID });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'wo_snapshot_missing',
+      status: 409,
+      details: {
+        code: 'wo_snapshot_missing',
+        missing: { activeBomHeader: true, activeFactorySpec: true },
+        remediation: 'release_work_order',
+      },
+    });
+    expect(placeholderSiteId).toBeUndefined();
+    expect(
+      (client.query as ReturnType<typeof vi.fn>).mock.calls.some((call) =>
+        normalize(String(call[0])).startsWith('update public.work_orders'),
+      ),
+    ).toBe(false);
   });
 });

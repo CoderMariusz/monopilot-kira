@@ -58,6 +58,49 @@ export type TraceEdge = {
 
 export type TraceFlatRow = Pick<TraceNode, 'nodeId' | 'type' | 'ref' | 'qty' | 'uom'>;
 
+export type TraceAffectedCustomer = {
+  customerId: string;
+  customerName: string;
+  customerCode: string | null;
+};
+
+export type TraceTruncationLayerKind = 'seed_lp' | 'seed_batch' | 'seed_item';
+
+export type TraceTruncationLayer = {
+  layer: TraceTruncationLayerKind;
+  limit: number;
+};
+
+export type TraceTruncation = {
+  truncated: boolean;
+  layers: TraceTruncationLayer[];
+};
+
+export type TraceMassBalanceUnreconciled = {
+  ref: string;
+  qty: string;
+  uom: string;
+  bucket: 'produced' | 'on_site' | 'shipped' | 'unattributed_wo_waste';
+  reason?: string;
+};
+
+export type TraceMassBalanceLine = {
+  key: 'produced' | 'on_site' | 'shipped' | 'waste' | 'recovered' | 'delta';
+  qtyKg: string;
+};
+
+export type TraceMassBalance =
+  | {
+      scopeLimited: true;
+    }
+  | {
+      applicable: true;
+      lines: TraceMassBalanceLine[];
+      percentRecovered: string;
+      balanced: boolean;
+      unreconciled: TraceMassBalanceUnreconciled[];
+    };
+
 export type TraceSummary = {
   lpCount: number;
   woCount: number;
@@ -70,7 +113,10 @@ export type TraceReport = {
   nodes: TraceNode[];
   edges: TraceEdge[];
   flat: TraceFlatRow[];
+  affectedCustomers: TraceAffectedCustomer[];
   summary: TraceSummary;
+  truncation: TraceTruncation;
+  massBalance: TraceMassBalance | null;
 };
 
 export type RecallDrill = {
@@ -120,5 +166,8 @@ export type TraceReportView = {
   nodes: TraceNodeView[];
   edges: TraceEdge[];
   flat: TraceFlatRow[];
+  affectedCustomers?: TraceAffectedCustomer[];
   summary: TraceSummary;
+  truncation?: TraceTruncation;
+  massBalance?: TraceMassBalance | null;
 };

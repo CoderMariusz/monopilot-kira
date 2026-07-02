@@ -95,14 +95,38 @@ export async function resetPassword(input: ResetPasswordInput): Promise<ResetPas
         return { ok: false, error: 'reset_failed' };
       }
 
-      // Session invalidation is owned by Supabase Auth, not the app. There is no
-      // public.user_sessions table in this schema (see account/profile/profile-data.ts),
-      // so there is no app-side row on which to set revoked_at — a previous UPDATE here
-      // threw 42P01 at runtime. The recovery link minted above supersedes the target
-      // user's existing tokens on use.
+      // Revoke all active sessions for the target user via the Supabase Auth
+      // admin REST endpoint DELETE /auth/v1/admin/users/{id}/sessions.
+      // The supabase-js SDK v2 does not expose a userId-based admin signOut method
+      // (auth.admin.signOut takes a JWT, not a userId), so we call the endpoint
+      // directly.  Failure is non-fatal: the recovery link already supersedes
+      // existing tokens on first use; we record revokedCount: 0 on API error.
+      let revokedCount = 0;
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (supabaseUrl && serviceRoleKey) {
+          const signOutResp = await fetch(
+            `${supabaseUrl}/auth/v1/admin/users/${targetUserId}/sessions`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${serviceRoleKey}`,
+                apikey: serviceRoleKey,
+              },
+            },
+          );
+          if (signOutResp.ok) {
+            revokedCount = 1;
+          }
+        }
+      } catch {
+        // non-fatal — the recovery link supersedes existing sessions on use
+      }
+
       return {
         ok: true,
-        data: { targetUserId, revokedCount: 0 },
+        data: { targetUserId, revokedCount },
       };
     } catch (error) {
       if (error === FORBIDDEN) {

@@ -3,6 +3,8 @@
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
+import type { CalibrationDueRow } from '../_types/calibration-schemas';
+
 /** Maintenance register read — seeded in packages/db/migrations/202-maintenance-outbox-and-rbac-seed.sql:196 */
 const MNT_READ_PERMISSION = 'mnt.asset.read';
 
@@ -34,29 +36,6 @@ type CalibrationDbRow = {
   next_due_date: Date | string | null;
   reviewer_signed_by: string | null;
   retention_until: Date | string | null;
-};
-
-type CalibrationDueRow = {
-  instrumentId: string;
-  siteId: string | null;
-  equipmentId: string | null;
-  instrumentCode: string;
-  instrumentType: string;
-  standard: string;
-  rangeMin: string | null;
-  rangeMax: string | null;
-  unitOfMeasure: string | null;
-  calibrationIntervalDays: number;
-  active: boolean;
-  recordId: string | null;
-  calibratedAt: string | null;
-  calibratedBy: string | null;
-  standardApplied: string | null;
-  result: string | null;
-  certificateFileUrl: string | null;
-  nextDueDate: string | null;
-  reviewerSignedBy: string | null;
-  retentionUntil: string | null;
 };
 
 function toDateString(value: Date | string | null): string | null {

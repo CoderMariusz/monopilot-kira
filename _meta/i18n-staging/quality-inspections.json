@@ -10,7 +10,10 @@
     "list": {
       "title": "Incoming Inspections",
       "subtitle": "Incoming, in-process and final inspection records.",
-      "breadcrumb": { "quality": "Quality", "inspections": "Inspections" },
+      "breadcrumb": {
+        "quality": "Quality",
+        "inspections": "Inspections"
+      },
       "createInspection": "New inspection",
       "searchPlaceholder": "Search inspection # or reference…",
       "searchLabel": "Search inspections",
@@ -52,7 +55,11 @@
       "title": "Create manual inspection",
       "subtitle": "Open an inspection against a license plate, GRN receipt or work-order output.",
       "refType": "Reference type",
-      "refTypeOptions": { "lp": "License plate", "grn": "GRN", "wo_output": "WO output" },
+      "refTypeOptions": {
+        "lp": "License plate",
+        "grn": "GRN",
+        "wo_output": "WO output"
+      },
       "referenceId": "Reference",
       "referenceIdHelp": "License plate number, GRN number or WO output id.",
       "referenceIdPlaceholder": "LP-XXXX / GRN-XXXX / output id",
@@ -65,9 +72,15 @@
       "cancel": "Cancel",
       "submit": "Create inspection",
       "submitting": "Creating…",
-      "validation": { "referenceRequired": "A reference is required." },
+      "validation": {
+        "referenceRequired": "A reference is required."
+      },
       "error": "Could not create inspection: {message}",
       "success": "Inspection created.",
+      "siteErrors": {
+        "no_active_site": "Select a site before creating an inspection. This organisation has no active site yet — add one in Settings → Sites.",
+        "ambiguous_site": "Select a site in the top bar before creating an inspection."
+      },
       "lookup": {
         "lpSearchLabel": "License plate",
         "lpSearchPlaceholder": "Search LP number or item code…",
@@ -77,12 +90,18 @@
         "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
         "clearPick": "Clear",
         "resultLine": "{lpNumber} · {itemCode} · {qty} {uom} · {status}",
-        "refInputLabel": { "grn": "GRN number", "wo_output": "WO output batch number" },
+        "refInputLabel": {
+          "grn": "GRN number",
+          "wo_output": "WO output batch number"
+        },
         "refInputHelp": {
           "grn": "Enter the GRN number — it is resolved to the receipt on submit.",
           "wo_output": "Enter the work-order output batch number — it is resolved on submit."
         },
-        "refInputPlaceholder": { "grn": "GRN-XXXXXX", "wo_output": "Batch number…" },
+        "refInputPlaceholder": {
+          "grn": "GRN-XXXXXX",
+          "wo_output": "Batch number…"
+        },
         "unresolvedRef": "Could not resolve “{value}”. Check the number and try again.",
         "assigneeSearchPlaceholder": "Search inspector name or email…",
         "assigneePickedChip": "{name} · {email}",
@@ -150,7 +169,9 @@
         "cancel": "Cancel",
         "submit": "Sign & submit",
         "submitting": "Submitting…",
-        "validation": { "passwordRequired": "Your password or PIN is required to sign." },
+        "validation": {
+          "passwordRequired": "Your password or PIN is required to sign."
+        },
         "error": "Could not submit decision: {message}",
         "success": "Decision recorded."
       }
@@ -166,7 +187,10 @@
     "list": {
       "title": "Inspekcje przyjęć",
       "subtitle": "Rekordy inspekcji przyjęć, międzyoperacyjnych i końcowych.",
-      "breadcrumb": { "quality": "Jakość", "inspections": "Inspekcje" },
+      "breadcrumb": {
+        "quality": "Jakość",
+        "inspections": "Inspekcje"
+      },
       "createInspection": "Nowa inspekcja",
       "searchPlaceholder": "Szukaj nr inspekcji lub referencji…",
       "searchLabel": "Szukaj inspekcji",
@@ -208,7 +232,11 @@
       "title": "Utwórz inspekcję ręczną",
       "subtitle": "Otwórz inspekcję dla License Plate, przyjęcia GRN lub wyrobu zlecenia.",
       "refType": "Typ referencji",
-      "refTypeOptions": { "lp": "License Plate", "grn": "GRN", "wo_output": "Wyrób WO" },
+      "refTypeOptions": {
+        "lp": "License Plate",
+        "grn": "GRN",
+        "wo_output": "Wyrób WO"
+      },
       "referenceId": "Referencja",
       "referenceIdHelp": "Numer License Plate, numer GRN lub id wyrobu WO.",
       "referenceIdPlaceholder": "LP-XXXX / GRN-XXXX / id wyrobu",
@@ -221,9 +249,15 @@
       "cancel": "Anuluj",
       "submit": "Utwórz inspekcję",
       "submitting": "Tworzenie…",
-      "validation": { "referenceRequired": "Referencja jest wymagana." },
+      "validation": {
+        "referenceRequired": "Referencja jest wymagana."
+      },
       "error": "Nie udało się utworzyć inspekcji: {message}",
       "success": "Inspekcja utworzona.",
+      "siteErrors": {
+        "no_active_site": "Wybierz zakład przed utworzeniem inspekcji. Ta organizacja nie ma jeszcze aktywnego zakładu — dodaj go w Ustawienia → Zakłady.",
+        "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem inspekcji."
+      },
       "lookup": {
         "lpSearchLabel": "License Plate",
         "lpSearchPlaceholder": "Szukaj numeru LP lub kodu pozycji…",
@@ -233,12 +267,18 @@
         "pickedChip": "{lpNumber} · {itemCode} · {qty} {uom}",
         "clearPick": "Wyczyść",
         "resultLine": "{lpNumber} · {itemCode} · {qty} {uom} · {status}",
-        "refInputLabel": { "grn": "Numer GRN", "wo_output": "Numer partii wyrobu WO" },
+        "refInputLabel": {
+          "grn": "Numer GRN",
+          "wo_output": "Numer partii wyrobu WO"
+        },
         "refInputHelp": {
           "grn": "Wpisz numer GRN — zostanie powiązany z przyjęciem przy zapisie.",
           "wo_output": "Wpisz numer partii wyrobu zlecenia — zostanie ustalony przy zapisie."
         },
-        "refInputPlaceholder": { "grn": "GRN-XXXXXX", "wo_output": "Numer partii…" },
+        "refInputPlaceholder": {
+          "grn": "GRN-XXXXXX",
+          "wo_output": "Numer partii…"
+        },
         "unresolvedRef": "Nie udało się ustalić „{value}”. Sprawdź numer i spróbuj ponownie.",
         "assigneeSearchPlaceholder": "Szukaj imienia lub e-maila inspektora…",
         "assigneePickedChip": "{name} · {email}",
@@ -306,7 +346,9 @@
         "cancel": "Anuluj",
         "submit": "Podpisz i wyślij",
         "submitting": "Wysyłanie…",
-        "validation": { "passwordRequired": "Hasło lub PIN są wymagane do podpisu." },
+        "validation": {
+          "passwordRequired": "Hasło lub PIN są wymagane do podpisu."
+        },
         "error": "Nie udało się wysłać decyzji: {message}",
         "success": "Decyzja zapisana."
       }

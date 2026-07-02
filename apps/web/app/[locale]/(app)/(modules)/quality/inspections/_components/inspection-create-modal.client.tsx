@@ -89,8 +89,26 @@ export type InspectionCreateLabels = {
   validation: { referenceRequired: string };
   error: string;
   success: string;
+  siteErrors?: {
+    no_active_site: string;
+    ambiguous_site: string;
+  };
   lookup: InspectionCreateLookupLabels;
 };
+
+function formatCreateError(
+  result: { reason: string; message?: string },
+  labels: InspectionCreateLabels,
+): string {
+  const code = result.message ?? result.reason;
+  if (code === 'no_active_site' && labels.siteErrors?.no_active_site) {
+    return labels.siteErrors.no_active_site;
+  }
+  if (code === 'ambiguous_site' && labels.siteErrors?.ambiguous_site) {
+    return labels.siteErrors.ambiguous_site;
+  }
+  return labels.error.replace('{message}', code);
+}
 
 export function InspectionCreateModal({
   open,
@@ -234,7 +252,7 @@ export function InspectionCreateModal({
       } else if (refType === 'grn') {
         const res = await resolveGrnAction({ grnNumber: refText.trim() });
         if (!res.ok) {
-          setError(labels.error.replace('{message}', res.message ?? res.reason));
+          setError(formatCreateError(res, labels));
           return;
         }
         if (!res.data) {
@@ -245,7 +263,7 @@ export function InspectionCreateModal({
       } else {
         const res = await resolveWoOutputAction({ batchNumber: refText.trim() });
         if (!res.ok) {
-          setError(labels.error.replace('{message}', res.message ?? res.reason));
+          setError(formatCreateError(res, labels));
           return;
         }
         if (!res.data) {
@@ -263,7 +281,7 @@ export function InspectionCreateModal({
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
       if (!result.ok) {
-        setError(labels.error.replace('{message}', result.message ?? result.reason));
+        setError(formatCreateError(result, labels));
         return;
       }
       const id = result.data?.id;

@@ -366,7 +366,7 @@ function makeClient(): QueryClient {
 }
 
 beforeEach(() => {
-  permissions = new Set(['ship.so.cancel', 'ship.bol.sign', 'ship.pack.close']);
+  permissions = new Set(['ship.so.cancel', 'ship.bol.sign', 'ship.pack.close', 'ship.ship.confirm']);
   shipment = {
     id: SHIPMENT_ID,
     status: 'shipped',

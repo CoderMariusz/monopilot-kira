@@ -1,7 +1,7 @@
 'use server';
 
 import type pg from 'pg';
-import { signEvent } from '@monopilot/e-sign';
+import { ESignPolicyError, signEvent, type ESignPolicyErrorCode } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
@@ -16,7 +16,9 @@ type QueryClient = {
 };
 
 type QualityContext = { userId: string; orgId: string; client: QueryClient };
-type ActionFailure = { ok: false; reason: 'forbidden' | 'error'; message?: string };
+type ActionFailure =
+  | { ok: false; reason: 'forbidden' | 'error'; message?: string }
+  | { ok: false; reason: 'policy'; code: ESignPolicyErrorCode; message?: string };
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
 
 type NcrType = 'quality' | 'yield_issue' | 'allergen_deviation' | 'supplier' | 'process' | 'complaint_related';
@@ -94,6 +96,13 @@ const severitySchema = z.enum(['critical', 'major', 'minor']);
 const statusSchema = z.enum(['draft', 'open', 'investigating', 'awaiting_capa', 'closed', 'reopened', 'cancelled']);
 const referenceTypeSchema = z.enum(['lp', 'batch', 'wo', 'po', 'grn', 'inspection', 'ccp_deviation', 'complaint', 'supplier']);
 const decimalStringSchema = z.string().trim().regex(/^\d+(\.\d+)?$/, 'must be a decimal string');
+
+function actionError(err: unknown): ActionFailure {
+  if (err instanceof ESignPolicyError) {
+    return { ok: false, reason: 'policy', code: err.code, message: err.message };
+  }
+  return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+}
 
 const listSchema = z.object({
   status: statusSchema.optional(),
@@ -287,7 +296,7 @@ export async function listNcrs(input: {
       return { ok: true, data: rows.map(mapListRow) };
     });
   } catch (err) {
-    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+    return actionError(err);
   }
 }
 
@@ -447,7 +456,7 @@ export async function getNcrDetail(ncrId: string): Promise<ActionResult<NcrDetai
       };
     });
   } catch (err) {
-    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+    return actionError(err);
   }
 }
 
@@ -529,7 +538,7 @@ export async function createNcr(input: {
       return { ok: true, data: { id: row.id, ncrNumber: row.ncr_number, status: 'open' } };
     });
   } catch (err) {
-    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+    return actionError(err);
   }
 }
 
@@ -610,7 +619,7 @@ export async function updateNcrInvestigation(input: {
       };
     });
   } catch (err) {
-    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+    return actionError(err);
   }
 }
 
@@ -709,6 +718,6 @@ export async function closeNcr(input: {
       };
     });
   } catch (err) {
-    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+    return actionError(err);
   }
 }

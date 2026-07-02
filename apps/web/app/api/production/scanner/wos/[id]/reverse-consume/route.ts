@@ -15,6 +15,7 @@ import { requireScannerSession } from '../../../../../../../lib/scanner/guard';
 import { findServerReplay } from '../../../../../../../lib/scanner/replay';
 import { isRecord, stringField } from '../../../../../../../lib/scanner/route-utils';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../../../lib/scanner/txn-org-context';
+import { makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
 import {
   auditAttempt,
   getWoId,
@@ -55,6 +56,7 @@ type ConsumptionRow = {
 type LicensePlateRow = {
   id: string;
   site_id: string | null;
+  location_id: string | null;
   status: string;
   qa_status: string;
   quantity: string;
@@ -196,6 +198,7 @@ async function loadLicensePlateForUpdate(ctx: ProductionContext, lpId: string): 
   const { rows } = await ctx.client.query<LicensePlateRow>(
     `select id::text as id,
             site_id::text as site_id,
+            location_id::text as location_id,
             status,
             qa_status,
             quantity::text as quantity,
@@ -348,6 +351,50 @@ async function insertCounterEntry(
   const row = rows[0];
   if (!row) throw new Error('reverse-consume: counter insert returned no row');
   return row;
+}
+
+async function writeConsumptionReverseStockMove(
+  ctx: ProductionContext,
+  params: { original: ConsumptionRow; lp: LicensePlateRow; correctionId: string; reasonCode: CorrectionReasonCode; note: string | null },
+): Promise<void> {
+  const transactionId = correctionTransactionId({
+    orgId: ctx.orgId,
+    table: 'wo_material_consumption',
+    originalId: params.original.id,
+    reasonCode: params.reasonCode,
+  });
+  await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, from_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, wo_id, wo_material_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid,
+       $5::numeric, $6, 'consumption_reversed', $7,
+       $8::uuid, $9::uuid, $10::uuid, 'completed', $11::jsonb, $12::uuid, $12::uuid
+     )
+     on conflict (org_id, transaction_id) do nothing`,
+    [
+      params.lp.site_id ?? params.original.site_id,
+      makeStockMoveNumber(transactionId),
+      params.lp.id,
+      params.lp.location_id,
+      negateDecimalString(params.original.qty_consumed),
+      params.original.uom,
+      params.note,
+      transactionId,
+      params.original.wo_id,
+      params.original.component_id,
+      JSON.stringify({
+        source: 'scannerReverseConsumption',
+        consumption_id: params.original.id,
+        correction_id: params.correctionId,
+        correction_reason_code: params.reasonCode,
+      }),
+      ctx.userId,
+    ],
+  );
 }
 
 async function decrementConsumedQty(ctx: ProductionContext, original: ConsumptionRow): Promise<boolean> {
@@ -713,6 +760,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (lp) {
         lpStatusAfter = lpRestoreTargetState(lp);
         await restoreLicensePlate(ctx, { original, lp, toState: lpStatusAfter });
+        await writeConsumptionReverseStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
         await writeLpRestoredHistory(ctx, { original, lp, toState: lpStatusAfter, reasonCode, note });
       }
 

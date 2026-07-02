@@ -10,6 +10,8 @@ import { downloadCsv, isoDateStamp, toCsv as buildCsv } from '../../../../../../
 import { PasswordResetModal } from '../../../../../../components/settings/modals/password-reset-modal';
 import { AssignSitesDialog } from './_components/AssignSitesDialog';
 import { DeactivateUserDialog, type DeactivateUserAction } from './_components/DeactivateUserDialog';
+import { ReactivateUserDialog, type ReactivateUserAction } from './_components/ReactivateUserDialog';
+import { ResetUserMfaDialog, type ResetUserMfaAction } from './_components/ResetUserMfaDialog';
 import { InviteDialog } from './_components/InviteDialog';
 import { KpiTile } from './_components/KpiTile';
 import { Pill } from './_components/Pill';
@@ -195,6 +197,27 @@ export type UsersScreenLabels = {
   deactivateSuccess?: string;
   deactivateFailed?: string;
   deactivateSelf?: string;
+  // ── Reactivate user (F4-H10) ───────────────────────────────────────────────
+  reactivate?: string;
+  reactivateUnavailable?: string;
+  reactivateDialogTitle?: string;
+  reactivateDialogBody?: string;
+  reactivateConfirm?: string;
+  reactivating?: string;
+  reactivateSuccess?: string;
+  reactivateFailed?: string;
+  // ── Admin MFA reset (F4-H10) ─────────────────────────────────────────────
+  resetMfa?: string;
+  resetMfaUnavailable?: string;
+  resetMfaDialogTitle?: string;
+  resetMfaDialogBody?: string;
+  resetMfaReason?: string;
+  resetMfaReasonPlaceholder?: string;
+  resetMfaReasonRequired?: string;
+  resetMfaConfirm?: string;
+  resettingMfa?: string;
+  resetMfaSuccess?: string;
+  resetMfaFailed?: string;
 };
 
 export type InviteUserAction = (input: {
@@ -244,6 +267,8 @@ export type SettingsUsersScreenProps = {
   resetPasswordAction?: ResetPasswordAction;
   createUserWithPasswordAction?: CreateUserWithPasswordAction;
   deactivateUserAction?: DeactivateUserAction;
+  reactivateUserAction?: ReactivateUserAction;
+  resetUserMfaAction?: ResetUserMfaAction;
 };
 
 const roleFilters: RoleFilter[] = ['all', 'admin', 'manager', 'operator', 'viewer'];
@@ -301,6 +326,7 @@ function buildUsersCsv(
   users: SettingsUser[],
   labels: UsersScreenLabels,
   resolveStatus: (user: SettingsUser) => UserStatus,
+  resolveMfaEnrolled: (user: SettingsUser) => boolean,
 ): string {
   const header = [
     labels.tableHeaders.email,
@@ -316,7 +342,7 @@ function buildUsersCsv(
     user.name,
     user.roleLabel,
     user.site,
-    user.mfaEnrolled ? (labels.mfaEnrolled ?? 'Enrolled') : (labels.mfaNotEnrolled ?? 'Not enrolled'),
+    resolveMfaEnrolled(user) ? (labels.mfaEnrolled ?? 'Enrolled') : (labels.mfaNotEnrolled ?? 'Not enrolled'),
     user.lastLogin,
     labels.statuses[resolveStatus(user)],
   ]);
@@ -334,6 +360,8 @@ export default function SettingsUsersScreen({
   resetPasswordAction,
   createUserWithPasswordAction,
   deactivateUserAction,
+  reactivateUserAction,
+  resetUserMfaAction,
 }: SettingsUsersScreenProps) {
   const [selectedRole, setSelectedRole] = useState<RoleFilter>(normalizeRoleFilter(searchParams?.role));
   const [view, setView] = useState<UsersView>(normalizeView(searchParams?.view));
@@ -343,13 +371,19 @@ export default function SettingsUsersScreen({
   const [siteAssignmentUser, setSiteAssignmentUser] = useState<SettingsUser | null>(null);
   const [passwordResetUser, setPasswordResetUser] = useState<SettingsUser | null>(null);
   const [deactivateUser, setDeactivateUser] = useState<SettingsUser | null>(null);
+  const [reactivateUser, setReactivateUser] = useState<SettingsUser | null>(null);
+  const [resetMfaUser, setResetMfaUser] = useState<SettingsUser | null>(null);
   // Optimistic: ids the caller just deactivated — flip them to "disabled" in the
   // list without a full reload; the server row is already updated by the action.
   const [optimisticDeactivated, setOptimisticDeactivated] = useState<Set<string>>(() => new Set());
+  const [optimisticReactivated, setOptimisticReactivated] = useState<Set<string>>(() => new Set());
+  const [optimisticMfaCleared, setOptimisticMfaCleared] = useState<Set<string>>(() => new Set());
   const [feedback, setFeedback] = useState<{ kind: 'status' | 'alert'; message: string } | null>(null);
 
   const canAssignSites = data.canAssignRoles && Boolean(assignUserSitesAction);
   const canDeactivate = Boolean(data.canDeactivateUsers) && Boolean(deactivateUserAction);
+  const canReactivate = Boolean(data.canDeactivateUsers) && Boolean(reactivateUserAction);
+  const canResetMfa = Boolean(data.canDeactivateUsers) && Boolean(resetUserMfaAction);
 
   function openDeactivate(user: SettingsUser) {
     if (!canDeactivate) {
@@ -365,11 +399,64 @@ export default function SettingsUsersScreen({
       next.add(userId);
       return next;
     });
+    setOptimisticReactivated((prev) => {
+      if (!prev.has(userId)) return prev;
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
     setFeedback({ kind: 'status', message: labels.deactivateSuccess ?? 'User deactivated.' });
   }
 
+  function handleReactivated(userId: string) {
+    setOptimisticReactivated((prev) => {
+      const next = new Set(prev);
+      next.add(userId);
+      return next;
+    });
+    setOptimisticDeactivated((prev) => {
+      if (!prev.has(userId)) return prev;
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+    setFeedback({ kind: 'status', message: labels.reactivateSuccess ?? 'User reactivated.' });
+  }
+
+  function handleMfaReset(userId: string) {
+    setOptimisticMfaCleared((prev) => {
+      const next = new Set(prev);
+      next.add(userId);
+      return next;
+    });
+    setFeedback({ kind: 'status', message: labels.resetMfaSuccess ?? 'MFA enrollment cleared.' });
+  }
+
   function effectiveStatus(user: SettingsUser): UserStatus {
-    return optimisticDeactivated.has(user.id) ? 'disabled' : user.status;
+    if (optimisticReactivated.has(user.id)) return 'active';
+    if (optimisticDeactivated.has(user.id)) return 'disabled';
+    return user.status;
+  }
+
+  function effectiveMfaEnrolled(user: SettingsUser): boolean {
+    if (optimisticMfaCleared.has(user.id)) return false;
+    return user.mfaEnrolled;
+  }
+
+  function openReactivate(user: SettingsUser) {
+    if (!canReactivate) {
+      setFeedback({ kind: 'alert', message: labels.reactivateUnavailable ?? 'Reactivation unavailable' });
+      return;
+    }
+    setReactivateUser(user);
+  }
+
+  function openResetMfa(user: SettingsUser) {
+    if (!canResetMfa) {
+      setFeedback({ kind: 'alert', message: labels.resetMfaUnavailable ?? 'MFA reset unavailable' });
+      return;
+    }
+    setResetMfaUser(user);
   }
 
   function openSiteAssignment(user: SettingsUser) {
@@ -390,7 +477,7 @@ export default function SettingsUsersScreen({
   }, [data.users, query, selectedRole]);
 
   function exportVisibleUsers() {
-    const csv = buildUsersCsv(visibleUsers, labels, effectiveStatus);
+    const csv = buildUsersCsv(visibleUsers, labels, effectiveStatus, effectiveMfaEnrolled);
     downloadCsv(csv, `settings-users-${isoDateStamp()}.csv`);
     setFeedback({ kind: 'status', message: labels.exportStatus });
   }
@@ -536,7 +623,7 @@ export default function SettingsUsersScreen({
                       <span data-testid="settings-user-role-pill">{user.roleLabel}</span>
                     </Pill>
                     <Pill toneKey="site">{user.site}</Pill>
-                    <MfaBadge enrolled={user.mfaEnrolled} labels={labels} />
+                    <MfaBadge enrolled={effectiveMfaEnrolled(user)} labels={labels} />
                   </div>
                   <div className="border-t pt-2 text-xs text-muted-foreground">
                     {labels.tableHeaders.lastLogin}: {user.lastLogin === '—' ? (labels.lastLoginNever ?? '—') : user.lastLogin}
@@ -564,7 +651,20 @@ export default function SettingsUsersScreen({
                     >
                       {labels.resetPassword ?? 'Reset password'}
                     </Button>
-                    {isDisabled ? null : (
+                    {isDisabled ? (
+                      <Button
+                        type="button"
+                        className="text-xs"
+                        data-testid="reactivate-user-button"
+                        disabled={!canReactivate}
+                        aria-label={canReactivate
+                          ? `${labels.reactivate ?? 'Reactivate'} ${user.name}`
+                          : `${labels.reactivateUnavailable ?? 'Reactivation unavailable'} for ${user.name}`}
+                        onClick={() => openReactivate(user)}
+                      >
+                        {labels.reactivate ?? 'Reactivate'}
+                      </Button>
+                    ) : (
                       <Button
                         type="button"
                         className="text-xs text-red-700"
@@ -578,6 +678,20 @@ export default function SettingsUsersScreen({
                         {labels.deactivate ?? 'Deactivate'}
                       </Button>
                     )}
+                    {effectiveMfaEnrolled(user) ? (
+                      <Button
+                        type="button"
+                        className="text-xs text-red-700"
+                        data-testid="reset-user-mfa-button"
+                        disabled={!canResetMfa}
+                        aria-label={canResetMfa
+                          ? `${labels.resetMfa ?? 'Reset MFA'} for ${user.name}`
+                          : `${labels.resetMfaUnavailable ?? 'MFA reset unavailable'} for ${user.name}`}
+                        onClick={() => openResetMfa(user)}
+                      >
+                        {labels.resetMfa ?? 'Reset MFA'}
+                      </Button>
+                    ) : null}
                   </div>
                 </article>
                 );
@@ -655,7 +769,7 @@ export default function SettingsUsersScreen({
                           </Button>
                         </div>
                       </td>
-                      <td className="p-2"><MfaBadge enrolled={user.mfaEnrolled} labels={labels} /></td>
+                      <td className="p-2"><MfaBadge enrolled={effectiveMfaEnrolled(user)} labels={labels} /></td>
                       <td className="p-2 text-muted-foreground">
                         {user.lastLogin === '—' ? (labels.lastLoginNever ?? '—') : user.lastLogin}
                       </td>
@@ -673,7 +787,20 @@ export default function SettingsUsersScreen({
                           >
                             {labels.resetPassword ?? 'Reset password'}
                           </Button>
-                          {isDisabled ? null : (
+                          {isDisabled ? (
+                            <Button
+                              type="button"
+                              className="text-xs"
+                              data-testid="reactivate-user-button"
+                              disabled={!canReactivate}
+                              aria-label={canReactivate
+                                ? `${labels.reactivate ?? 'Reactivate'} ${user.name}`
+                                : `${labels.reactivateUnavailable ?? 'Reactivation unavailable'} for ${user.name}`}
+                              onClick={() => openReactivate(user)}
+                            >
+                              {labels.reactivate ?? 'Reactivate'}
+                            </Button>
+                          ) : (
                             <Button
                               type="button"
                               className="text-xs text-red-700"
@@ -687,6 +814,20 @@ export default function SettingsUsersScreen({
                               {labels.deactivate ?? 'Deactivate'}
                             </Button>
                           )}
+                          {effectiveMfaEnrolled(user) ? (
+                            <Button
+                              type="button"
+                              className="text-xs text-red-700"
+                              data-testid="reset-user-mfa-button"
+                              disabled={!canResetMfa}
+                              aria-label={canResetMfa
+                                ? `${labels.resetMfa ?? 'Reset MFA'} for ${user.name}`
+                                : `${labels.resetMfaUnavailable ?? 'MFA reset unavailable'} for ${user.name}`}
+                              onClick={() => openResetMfa(user)}
+                            >
+                              {labels.resetMfa ?? 'Reset MFA'}
+                            </Button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -792,6 +933,41 @@ export default function SettingsUsersScreen({
         deactivateUserAction={deactivateUserAction}
         onClose={() => setDeactivateUser(null)}
         onDeactivated={handleDeactivated}
+        onFeedback={setFeedback}
+      />
+      <ReactivateUserDialog
+        open={Boolean(reactivateUser)}
+        user={reactivateUser ? { id: reactivateUser.id, name: reactivateUser.name, email: reactivateUser.email } : null}
+        labels={{
+          title: labels.reactivateDialogTitle ?? 'Reactivate user',
+          body: labels.reactivateDialogBody ?? '{name} will be able to sign in again.',
+          confirm: labels.reactivateConfirm ?? 'Reactivate user',
+          reactivating: labels.reactivating ?? 'Reactivating…',
+          cancel: labels.cancel,
+          failed: labels.reactivateFailed ?? 'Could not reactivate the user: {error}.',
+        }}
+        reactivateUserAction={reactivateUserAction}
+        onClose={() => setReactivateUser(null)}
+        onReactivated={handleReactivated}
+        onFeedback={setFeedback}
+      />
+      <ResetUserMfaDialog
+        open={Boolean(resetMfaUser)}
+        user={resetMfaUser ? { id: resetMfaUser.id, name: resetMfaUser.name, email: resetMfaUser.email } : null}
+        labels={{
+          title: labels.resetMfaDialogTitle ?? 'Reset MFA',
+          body: labels.resetMfaDialogBody ?? 'Clear MFA enrollment for {name}. They must enroll again at next login.',
+          reason: labels.resetMfaReason ?? 'Reason',
+          reasonPlaceholder: labels.resetMfaReasonPlaceholder ?? 'Lost authenticator, device reset…',
+          reasonRequired: labels.resetMfaReasonRequired ?? 'Enter a short reason (at least 3 characters).',
+          confirm: labels.resetMfaConfirm ?? 'Reset MFA',
+          resetting: labels.resettingMfa ?? 'Resetting…',
+          cancel: labels.cancel,
+          failed: labels.resetMfaFailed ?? 'Could not reset MFA: {error}.',
+        }}
+        resetUserMfaAction={resetUserMfaAction}
+        onClose={() => setResetMfaUser(null)}
+        onReset={handleMfaReset}
         onFeedback={setFeedback}
       />
       {passwordResetUser ? (

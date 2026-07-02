@@ -37,6 +37,9 @@ function makeClient(): QueryClient {
   return {
     query: async (sql: string, params: readonly unknown[] = []) => {
       const normalized = normalize(sql);
+      if (normalized.includes('allowed_products')) {
+        return { rows: [{ allowed: true }], rowCount: 1 };
+      }
       if (normalized.includes('from public.work_orders')) {
         return {
           rows: [
@@ -119,6 +122,15 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('insert into public.license_plates')) {
         insertedLpSiteId = params[0] === null ? null : String(params[0]);
         return { rows: [{ id: '99999999-9999-4999-8999-999999999999' }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.license_plates')) {
+        return {
+          rows: [{ site_id: insertedLpSiteId ?? SITE_ID, location_id: '88888888-8888-4888-8888-888888888888' }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.startsWith('insert into public.stock_moves')) {
+        return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.lp_state_history')) {
         return { rows: [], rowCount: 1 };

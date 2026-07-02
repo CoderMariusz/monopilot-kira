@@ -2,8 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { verifyPin } from '@monopilot/auth/src/verify-pin.js';
 import { z } from 'zod';
 
-import type { ESignReceipt, ESignTxOptions, SignEventInput } from './types.js';
-import { EPinFailedError, EReplayError } from './types.js';
+import type { ESignIntent, ESignReceipt, ESignTxOptions, SignEventInput } from './types.js';
+import { EPinFailedError, EReplayError, ESignPolicyError } from './types.js';
 
 const signEventSchema = z.object({
   signerUserId: z.string().uuid(),
@@ -41,6 +41,100 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
 
+type QueryClient = NonNullable<ESignTxOptions['client']>;
+
+export type SignoffPolicy = {
+  signoffType: string;
+  requiredSignatures: number;
+  firstSignerRoleId: string | null;
+  secondSignerRoleId: string | null;
+  allowSameUser: boolean;
+};
+
+type SignoffPolicyRow = {
+  signoff_type: string;
+  required_signatures: number;
+  first_signer_role_id: string | null;
+  second_signer_role_id: string | null;
+  allow_same_user: boolean;
+};
+
+function signoffPolicyKeysForIntent(intent: ESignIntent): string[] {
+  return [intent];
+}
+
+export async function readSignoffPolicy(
+  client: QueryClient,
+  intent: ESignIntent,
+): Promise<SignoffPolicy | null> {
+  const signoffTypes = signoffPolicyKeysForIntent(intent);
+  const { rows } = await client.query<SignoffPolicyRow>(
+    `select signoff_type, required_signatures, first_signer_role_id, second_signer_role_id, allow_same_user
+       from public.signoff_policies
+      where org_id = app.current_org_id()
+        and signoff_type = any($1::text[])
+        and is_active = true
+      order by array_position($1::text[], signoff_type)
+      limit 1`,
+    [signoffTypes],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    signoffType: row.signoff_type,
+    requiredSignatures: Number(row.required_signatures),
+    firstSignerRoleId: row.first_signer_role_id,
+    secondSignerRoleId: row.second_signer_role_id,
+    allowSameUser: Boolean(row.allow_same_user),
+  };
+}
+
+async function signerHasRole(
+  client: QueryClient,
+  signerUserId: string,
+  roleId: string,
+): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select (
+        exists (
+          select 1
+            from public.users u
+           where u.org_id = app.current_org_id()
+             and u.id = $1::uuid
+             and u.role_id = $2::uuid
+        )
+        or exists (
+          select 1
+            from public.user_roles ur
+           where ur.org_id = app.current_org_id()
+             and ur.user_id = $1::uuid
+             and ur.role_id = $2::uuid
+        )
+      ) as ok`,
+    [signerUserId, roleId],
+  );
+  return rows[0]?.ok === true;
+}
+
+async function enforceSignoffPolicyForSigner(input: {
+  client: QueryClient;
+  policy: SignoffPolicy | null;
+  signerUserId: string;
+  mode: NonNullable<ESignTxOptions['policyMode']>;
+}): Promise<void> {
+  const { client, policy, signerUserId, mode } = input;
+  if (!policy) return;
+
+  if (mode === 'single' && policy.requiredSignatures === 2) {
+    throw new ESignPolicyError('second_signature_required');
+  }
+
+  const requiredRoleId = mode === 'dual-secondary' ? policy.secondSignerRoleId : policy.firstSignerRoleId;
+  if (requiredRoleId && !(await signerHasRole(client, signerUserId, requiredRoleId))) {
+    throw new ESignPolicyError('signer_role_not_allowed');
+  }
+}
+
 async function verifyLoginPassword(
   client: NonNullable<ESignTxOptions['client']>,
   signerUserId: string,
@@ -73,8 +167,17 @@ async function signEventInClient(
   input: SignEventInput,
   client: NonNullable<ESignTxOptions['client']>,
   requestId?: string,
+  policyMode: NonNullable<ESignTxOptions['policyMode']> = 'single',
 ): Promise<ESignReceipt> {
   const parsed = signEventSchema.parse(input);
+  const policy = await readSignoffPolicy(client, parsed.intent);
+  await enforceSignoffPolicyForSigner({
+    client,
+    policy,
+    signerUserId: parsed.signerUserId,
+    mode: policyMode,
+  });
+
   // Credential precedence (CFR Part 11): the Supabase LOGIN PASSWORD is the
   // canonical e-sign credential; the enrolled step-up PIN is an optional
   // convenience factor. We verify the password first (every e-sign modal
@@ -218,7 +321,7 @@ export async function signEvent(
   options: ESignTxOptions = {},
 ): Promise<ESignReceipt> {
   if (options.client) {
-    return signEventInClient(input, options.client, options.requestId);
+    return signEventInClient(input, options.client, options.requestId, options.policyMode ?? 'single');
   }
 
   return requireClient();

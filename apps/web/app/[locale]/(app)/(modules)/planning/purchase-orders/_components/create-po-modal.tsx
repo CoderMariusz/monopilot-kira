@@ -32,6 +32,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
@@ -43,6 +44,7 @@ import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
 import type { PoSupplierOption } from '../_actions/po-form-data';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
+import { SiteSwitcher, type SiteSwitcherOption } from '../../../../../../../components/shell/site-switcher';
 import { listPoWarehouses } from '../_actions/actions';
 
 /**
@@ -138,6 +140,14 @@ export type CreatePoLabels = {
     cancel: string;
     error: string;
   };
+  /** F4 — guidance when the top bar is on "All sites" (write requires a site). */
+  siteRequired: {
+    bannerTitle: string;
+    bannerBody: string;
+    pickerLabel: string;
+    allSites: string;
+    pickerTooltip: string;
+  };
 };
 
 type CreatePoLine = {
@@ -175,6 +185,12 @@ export type CreatePoModalProps = {
   }) => Promise<CreatePoResult>;
   /** Called after a successful create so the list can refresh. */
   onCreated: () => void;
+  /** Active site from the mp_site_id cookie; null = All sites (show guidance). */
+  activeSiteId: string | null;
+  /** Org sites for the inline picker (same source as the top-bar SiteSwitcher). */
+  sites: SiteSwitcherOption[];
+  /** Cookie write seam — lib/site/site-actions.setActiveSite (never a parallel store). */
+  setSiteAction: (siteId: string | null) => Promise<{ ok: boolean }>;
 };
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
@@ -193,7 +209,11 @@ export function CreatePoModal({
   getItemSupplierPriceAction,
   createPurchaseOrderAction,
   onCreated,
+  activeSiteId,
+  sites,
+  setSiteAction,
 }: CreatePoModalProps) {
+  const router = useRouter();
   const [poNumber, setPoNumber] = React.useState('');
   const [supplierId, setSupplierId] = React.useState('');
   const [destinationWarehouseId, setDestinationWarehouseId] = React.useState('');
@@ -243,6 +263,9 @@ export function CreatePoModal({
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
   const currency = selectedSupplier?.currency ?? 'GBP';
+  const needsSiteSelection = !activeSiteId && sites.length > 0;
+  const noSitesConfigured = sites.length === 0;
+  const createBlocked = needsSiteSelection || noSitesConfigured;
 
   // BUG2 — every line's ItemPicker must search the SELECTED supplier's items only.
   // The picker calls the action with { query, itemTypes }; inject the supplierId so
@@ -348,6 +371,41 @@ export function CreatePoModal({
       <Modal.Header title={labels.title} />
       <Modal.Body>
         <form id="create-po-form" onSubmit={onSubmit} data-testid="create-po-form" className="flex flex-col gap-4">
+          {needsSiteSelection ? (
+            <div
+              role="status"
+              data-testid="create-po-site-required"
+              className="flex flex-col gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900"
+            >
+              <div>
+                <p className="font-medium">{labels.siteRequired.bannerTitle}</p>
+                <p className="mt-1 text-amber-800">{labels.siteRequired.bannerBody}</p>
+              </div>
+              <SiteSwitcher
+                sites={sites}
+                activeSiteId={activeSiteId}
+                labels={{
+                  label: labels.siteRequired.pickerLabel,
+                  allSites: labels.siteRequired.allSites,
+                  tooltip: labels.siteRequired.pickerTooltip,
+                }}
+                setSiteAction={async (siteId) => {
+                  const res = await setSiteAction(siteId);
+                  if (res.ok) router.refresh();
+                  return res;
+                }}
+              />
+            </div>
+          ) : noSitesConfigured ? (
+            <div
+              role="alert"
+              data-testid="create-po-no-sites"
+              className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+            >
+              {labels.errors.no_active_site}
+            </div>
+          ) : null}
+
           {formError ? (
             <div role="alert" data-testid="create-po-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {formError}
@@ -551,7 +609,7 @@ export function CreatePoModal({
           form="create-po-form"
           className="btn--primary"
           data-testid="create-po-submit"
-          disabled={pending}
+          disabled={pending || createBlocked}
           aria-busy={pending}
         >
           {pending ? labels.submitting : labels.submit}

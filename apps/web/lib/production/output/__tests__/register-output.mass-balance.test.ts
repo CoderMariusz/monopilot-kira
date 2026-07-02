@@ -77,6 +77,10 @@ class MockClient implements QueryClient {
       };
     }
 
+    if (normalized.includes('allowed_products')) {
+      return { rows: [{ allowed: true }] as T[], rowCount: 1 };
+    }
+
     if (normalized.includes('from public.work_orders')) {
       return {
         rows: [
@@ -152,8 +156,24 @@ class MockClient implements QueryClient {
       return { rows: [{ id: '99999999-9999-4999-8999-999999999999' }] as T[], rowCount: 1 };
     }
 
+    if (normalized.includes('from public.license_plates')) {
+      return { rows: [{ site_id: SITE_ID, location_id: '88888888-8888-4888-8888-888888888888' }] as T[], rowCount: 1 };
+    }
+
+    if (normalized.startsWith('insert into public.stock_moves')) {
+      return { rows: [] as T[], rowCount: 1 };
+    }
+
     if (normalized.startsWith('insert into public.lp_state_history')) {
       return { rows: [] as T[], rowCount: 1 };
+    }
+
+    if (normalized.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
+      return { rows: [{ value: '0' }] as T[], rowCount: 1 };
+    }
+
+    if (normalized.includes('insert into public.item_wac_state')) {
+      return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }] as T[], rowCount: 1 };
     }
 
     if (normalized.startsWith('update public.wo_outputs')) {

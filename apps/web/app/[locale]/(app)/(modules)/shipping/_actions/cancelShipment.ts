@@ -674,6 +674,7 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
         if (currentSoStatus === 'not_found') throw new ActionError('persistence_failed');
         const soWrite = await writeSalesOrderStatusInContext(ctx, shipment.sales_order_id, targetSoStatus, {
           currentStatus: currentSoStatus,
+          allowShipmentReversal: true,
         });
         if (soWrite === 'illegal_transition') {
           throw new CancelShipmentAbort({ ok: false, error: 'illegal_transition' });
@@ -922,6 +923,7 @@ export async function voidPod(input: ShippingReversalInput): Promise<ShippingRev
         if (currentSoStatus === 'not_found') throw new ActionError('persistence_failed');
         const soWrite = await writeSalesOrderStatusInContext(ctx, shipment.sales_order_id, targetSoStatus, {
           currentStatus: currentSoStatus,
+          allowShipmentReversal: true,
         });
         if (soWrite !== 'ok') throw new ActionError('persistence_failed');
       }

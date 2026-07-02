@@ -35,6 +35,7 @@ export type CustomerDetailLabels = {
   status: { active: string; inactive: string };
   category: Record<string, string>;
   tabs: Record<TabKey, string>;
+  backToList: string;
   actions: {
     edit: string;
     deactivate: string;
@@ -162,7 +163,7 @@ export function CustomerDetailView({
         <div>
           <div className="text-xs text-slate-500">
             <Link href={`/${locale}/shipping/customers`} className="text-blue-700 hover:underline">
-              Customers
+              {labels.backToList}
             </Link>
             {' · '}
             <span className="font-mono">{customer.code}</span>

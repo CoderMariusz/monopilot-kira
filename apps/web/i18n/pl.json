@@ -168,7 +168,26 @@
       "deactivating": "Dezaktywowanie…",
       "deactivate_success": "Użytkownik został dezaktywowany.",
       "deactivate_failed": "Nie udało się dezaktywować użytkownika: {error}.",
-      "deactivate_self": "Nie możesz dezaktywować własnego konta."
+      "deactivate_self": "Nie możesz dezaktywować własnego konta.",
+      "reactivate": "Reaktywuj",
+      "reactivate_unavailable": "Reaktywacja niedostępna",
+      "reactivate_dialog_title": "Reaktywuj użytkownika",
+      "reactivate_dialog_body": "{name} będzie mógł ponownie się zalogować.",
+      "reactivate_confirm": "Reaktywuj użytkownika",
+      "reactivating": "Reaktywacja…",
+      "reactivate_success": "Użytkownik reaktywowany.",
+      "reactivate_failed": "Nie udało się reaktywować użytkownika: {error}.",
+      "reset_mfa": "Resetuj MFA",
+      "reset_mfa_unavailable": "Reset MFA niedostępny",
+      "reset_mfa_dialog_title": "Resetuj MFA",
+      "reset_mfa_dialog_body": "Wyczyść rejestrację MFA dla {name}. Przy następnym logowaniu musi ponownie skonfigurować MFA.",
+      "reset_mfa_reason": "Powód",
+      "reset_mfa_reason_placeholder": "Utracony authenticator, reset urządzenia…",
+      "reset_mfa_reason_required": "Podaj krótki powód (co najmniej 3 znaki).",
+      "reset_mfa_confirm": "Resetuj MFA",
+      "resetting_mfa": "Resetowanie…",
+      "reset_mfa_success": "Rejestracja MFA została wyczyszczona.",
+      "reset_mfa_failed": "Nie udało się zresetować MFA: {error}."
     },
     "features": {
       "title": "Flagi funkcji",
@@ -1550,6 +1569,12 @@
       "action_add_registration": "Dodaj rejestrację",
       "action_remove_registration": "Usuń",
       "empty_registrations": "Nie skonfigurowano jeszcze numerów rejestracyjnych."
+    },
+    "signoff": {
+      "types": {
+        "qa_hold_release": "Zwolnienie blokady jakości",
+        "qa_ncr_close": "Zamknięcie krytycznego NCR"
+      }
     }
   },
   "navigation": {
@@ -6700,7 +6725,10 @@
           "clear": "Wyczyść wszystkie filtry"
         },
         "archivedHint": "Pokazano zarchiwizowane zlecenia produkcyjne.",
-        "backToActive": "Powrót do aktywnych"
+        "backToActive": "Powrót do aktywnych",
+        "deleteDraft": "Usuń wersję roboczą",
+        "deletingDraft": "Usuwanie...",
+        "confirmDeleteDraft": "Usunąć robocze zlecenie produkcyjne {wo}? Tej operacji nie można cofnąć."
       },
       "create": {
         "title": "Utwórz zlecenie produkcyjne",
@@ -6830,6 +6858,12 @@
             "submitting": "Zapisywanie…",
             "invalidStateMsg": "To zlecenie nie jest już wersją roboczą, więc nie można go edytować."
           }
+        },
+        "deleteDraft": {
+          "button": "Usuń wersję roboczą",
+          "pending": "Usuwanie...",
+          "confirm": "Usunąć robocze zlecenie produkcyjne {wo}? Tej operacji nie można cofnąć.",
+          "error": "Nie udało się usunąć tego roboczego zlecenia produkcyjnego."
         }
       },
       "errors": {
@@ -6968,7 +7002,8 @@
           "confirmDeactivate": "Dezaktywować {code}? Istniejące ZZ zachowują powiązanie; nowe ZZ nie mogą wybrać tego dostawcy.",
           "confirmBlock": "Zablokować {code}? Będzie niedostępny dla nowych zamówień zakupu do czasu reaktywacji.",
           "confirmActivate": "Aktywować {code}? Stanie się dostępny dla nowych zamówień zakupu."
-        }
+        },
+        "scorecard": "Zobacz kartę wyników dostawcy"
       },
       "errors": {
         "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź formularz i spróbuj ponownie.",
@@ -7092,6 +7127,13 @@
         "priceSource": {
           "spec": "Z karty dostawcy",
           "list_price": "Z cennika pozycji"
+        },
+        "siteRequired": {
+          "bannerTitle": "Wybierz zakład, aby utworzyć to zamówienie zakupu",
+          "bannerBody": "Zamówienia zakupu są przypisane do zakładu. Wybierz go poniżej — zaktualizuje to filtr zakładu na górnym pasku w tej przeglądarce.",
+          "pickerLabel": "Zakład",
+          "allSites": "Wszystkie zakłady",
+          "pickerTooltip": "Ustawia zakład na górnym pasku używany przez ekrany filtrowane według zakładu."
         }
       },
       "detail": {
@@ -8586,7 +8628,8 @@
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
           "network_error": "Błąd sieci — sprawdź połączenie i spróbuj ponownie.",
           "fallback": "Nie udało się wykonać akcji.",
-          "uom_conversion_unavailable": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym."
+          "uom_conversion_unavailable": "Ten produkt nie ma danych opakowania potrzebnych do przeliczenia jednostek — uzupełnij je w module Technicznym.",
+          "wo_snapshot_missing": "To zlecenie nie ma migawki wydania do produkcji. Wydaj je ponownie w Planowaniu, aby powiązać zatwierdzoną BOM i specyfikację fabryczną przed startem."
         },
         "start": {
           "title": "Rozpocznij zlecenie",
@@ -10017,6 +10060,27 @@
       "nav": {
         "title": "Śledzenie i wycofanie",
         "desc": "Śledź LP, partię lub artykuł w górę i w dół łańcucha oraz zapisuj ćwiczenia wycofania."
+      },
+      "truncation": {
+        "banner": "Wyniki obcięte — zawęź zakres i uruchom śledzenie ponownie.",
+        "layerSeedLp": "Dopasowania tablic LP ograniczone do {limit} wierszy.",
+        "layerSeedBatch": "Dopasowania partii ograniczone do {limit} wierszy.",
+        "layerSeedItem": "Dopasowania pozycji ograniczone do {limit} wierszy."
+      },
+      "massBalance": {
+        "title": "Uzgodnienie bilansu masowego",
+        "ariaLabel": "Tabela uzgodnienia bilansu masowego",
+        "produced": "Wyprodukowano",
+        "onSite": "Na magazynie",
+        "shipped": "Wysłano",
+        "waste": "Odpady",
+        "recovered": "Suma odzyskana",
+        "delta": "Delta (wyprodukowano − odzyskano)",
+        "percentRecovered": "{percent}% odzyskano",
+        "unbalanced": "Niezgodność: {delta}",
+        "unreconciledTitle": "Wykluczone — jednostka nieprzeliczalna na kg",
+        "unreconciledRow": "{ref}: {qty} {uom} ({bucket})",
+        "scopeLimited": "Bilans masowy wymaga widoczności całej organizacji — poproś administratora o przeprowadzenie uzgodnienia wycofania."
       }
     },
     "recallDrills": {
@@ -10326,6 +10390,22 @@
       "openCcpDeviations": {
         "title": "Otwarte odchylenia CCP",
         "desc": "Naruszenia CCP oczekujące na rozwiązanie"
+      }
+    },
+    "holds": {
+      "releaseModal": {
+        "policyErrors": {
+          "second_signature_required": "To zwolnienie wymaga drugiego podpisu elektronicznego zgodnie ze skonfigurowaną zasadą zatwierdzania.",
+          "signer_role_not_allowed": "Twoja rola nie może podpisać tego zwolnienia zgodnie ze skonfigurowaną zasadą zatwierdzania."
+        }
+      }
+    },
+    "ncrs": {
+      "closeModal": {
+        "policyErrors": {
+          "second_signature_required": "Zamknięcie krytycznego NCR wymaga drugiego podpisu elektronicznego zgodnie ze skonfigurowaną zasadą zatwierdzania.",
+          "signer_role_not_allowed": "Twoja rola nie może podpisać zamknięcia tego krytycznego NCR zgodnie ze skonfigurowaną zasadą zatwierdzania."
+        }
       }
     }
   },
@@ -11306,6 +11386,124 @@
     },
     "inbound": {
       "receiveDesktop": "Przyjmij na pulpicie"
+    },
+    "counts": {
+      "create": {
+        "siteMismatch": "Ten magazyn należy do innego zakładu. Utworzenie przełączy zakład na górnym pasku, aby sesja była widoczna na liście."
+      },
+      "detail": {
+        "linesRestricted": "Szczegóły linii liczenia są dostępne tylko dla członków zakładu tej inwentaryzacji."
+      }
+    }
+  },
+  "maintenance": {
+    "calibration": {
+      "list": {
+        "breadcrumb": {
+          "maintenance": "Konserwacja",
+          "calibration": "Kalibracja"
+        },
+        "title": "Rejestr terminów kalibracji",
+        "subtitle": "Przyrządy kalibracyjne i ich ostatnie zapisy kalibracji.",
+        "exportCsv": "Eksport CSV",
+        "instruments": "Przyrządy",
+        "overdue": "Po terminie",
+        "asOf": "Stan na",
+        "emptyTitle": "Brak przyrządów kalibracyjnych",
+        "emptyBody": "Dodaj przyrząd, aby śledzić terminy kalibracji.",
+        "col": {
+          "instrument": "Przyrząd",
+          "type": "Typ",
+          "standard": "Standard",
+          "range": "Zakres",
+          "lastCalibrated": "Ostatnia kalibracja",
+          "result": "Wynik",
+          "certificate": "Certyfikat",
+          "nextDue": "Następny termin",
+          "status": "Status"
+        },
+        "rangeNotSet": "Nie ustawiono",
+        "neverCalibrated": "Nigdy",
+        "noRecord": "Brak wpisu",
+        "noCertificate": "—",
+        "nextDueNotSet": "Nie ustawiono",
+        "statusOverdue": "Po terminie",
+        "statusDue": "Termin",
+        "statusNoDue": "Brak terminu",
+        "statusInactive": "Wyłączony z użycia",
+        "addInstrument": "Dodaj przyrząd",
+        "recordCalibration": "Zapisz kalibrację",
+        "editInstrument": "Edytuj",
+        "denied": "Brak uprawnień do podglądu rejestru kalibracji.",
+        "error": "Nie udało się wczytać rejestru kalibracji."
+      },
+      "instrument": {
+        "createTitle": "Dodaj przyrząd kalibracyjny",
+        "editTitle": "Edytuj przyrząd kalibracyjny",
+        "code": "Kod przyrządu",
+        "codePlaceholder": "np. WAGA-01",
+        "type": "Typ przyrządu",
+        "standard": "Standard kalibracji",
+        "intervalDays": "Interwał kalibracji (dni)",
+        "rangeMin": "Zakres min",
+        "rangeMax": "Zakres max",
+        "unit": "Jednostka",
+        "unitPlaceholder": "np. kg",
+        "submit": "Zapisz przyrząd",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "deactivate": "Dezaktywuj",
+        "deactivating": "Dezaktywacja…",
+        "reactivate": "Reaktywuj",
+        "reactivating": "Reaktywacja…",
+        "errorRequired": "Kod, typ, standard i interwał są wymagane.",
+        "errorFailed": "Nie udało się zapisać przyrządu.",
+        "errorForbidden": "Brak uprawnień do edycji przyrządów."
+      },
+      "record": {
+        "title": "Zapisz kalibrację",
+        "instrument": "Przyrząd",
+        "instrumentPlaceholder": "Wybierz przyrząd",
+        "calibratedAt": "Data kalibracji",
+        "result": "Wynik",
+        "resultPass": "Zaliczony",
+        "resultFail": "Niezaliczony",
+        "resultOutOfSpec": "Poza spec. (skorygowany)",
+        "measuredValues": "Wartości pomiarowe (JSON)",
+        "measuredPlaceholder": "[{\"reference\":\"0 kg\",\"measured\":\"0.02\",\"tolerance_pct\":0.1}]",
+        "notes": "Uwagi",
+        "certificateRef": "Referencja certyfikatu",
+        "certificatePlaceholder": "Nr cert. lub referencja pliku",
+        "submit": "Zapisz wpis",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "errorRequired": "Przyrząd, data i wynik są wymagane.",
+        "errorFailed": "Nie udało się zapisać kalibracji.",
+        "errorForbidden": "Brak uprawnień do zapisywania kalibracji."
+      },
+      "types": {
+        "scale": "Waga",
+        "thermometer": "Termometr",
+        "ph_meter": "Miernik pH",
+        "other": "Inny"
+      },
+      "standards": {
+        "ISO_9001": "ISO 9001",
+        "NIST": "NIST",
+        "internal": "Wewnętrzny",
+        "other": "Inny"
+      },
+      "results": {
+        "PASS": "Zaliczony",
+        "FAIL": "Niezaliczony",
+        "OUT_OF_SPEC": "Poza spec."
+      }
+    }
+  },
+  "createModal": {
+    "siteErrors": {
+      "no_active_site": "Wybierz zakład przed utworzeniem inspekcji. Ta organizacja nie ma jeszcze aktywnego zakładu — dodaj go w Ustawienia → Zakłady.",
+      "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem inspekcji."
     }
   }
 }

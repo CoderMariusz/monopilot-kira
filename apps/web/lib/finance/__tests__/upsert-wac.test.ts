@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
+import { computeWacReversalDelta, resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
 
 import type { QueryClient } from '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/procurement-shared';
 
@@ -137,6 +137,31 @@ describe('upsertWac', () => {
     });
     expect(result).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: true });
   });
+
+  it('excludes unresolved-UoM zero-quantity value deltas from WAC state', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '12',
+      deltaValue: '60',
+      updatedBy: USER_ID,
+    });
+
+    const result = await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '0',
+      deltaValue: '25',
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({ totalQtyKg: '12', totalValue: '60' });
+    expect(client.calls).toHaveLength(2);
+    expect(result).toMatchObject({ totalQtyKg: '12', totalValue: '60', clamped: false, excluded: 'unresolved_uom' });
+  });
 });
 
 describe('resolveWacDeltaQtyKg', () => {
@@ -157,7 +182,7 @@ describe('resolveWacDeltaQtyKg', () => {
     expect(console.warn).not.toHaveBeenCalled();
   });
 
-  it('returns resolved:false for silent fallback qty and warns', async () => {
+  it('returns resolved:false with unresolved_uom marker instead of raw fallback qty and warns', async () => {
     const client = new ResolveWacMockClient({ resolved: false, qtyKg: '5' });
 
     const result = await resolveWacDeltaQtyKg(client, {
@@ -166,7 +191,7 @@ describe('resolveWacDeltaQtyKg', () => {
       uom: 'each',
     });
 
-    expect(result).toEqual({ qtyKg: '5', resolved: false });
+    expect(result).toEqual({ qtyKg: '0', resolved: false, marker: 'unresolved_uom' });
     expect(console.warn).toHaveBeenCalledWith('[wac] unresolved_uom', {
       itemId: ITEM_ID,
       uom: 'each',
@@ -183,12 +208,34 @@ describe('resolveWacDeltaQtyKg', () => {
       uom: 'kg',
     });
 
-    expect(result).toEqual({ qtyKg: '7', resolved: false });
+    expect(result).toEqual({ qtyKg: '0', resolved: false, marker: 'unresolved_uom' });
     expect(console.warn).toHaveBeenCalledWith('[wac] unresolved_uom', {
       itemId: ITEM_ID,
       uom: 'kg',
       qty: '7',
     });
+  });
+});
+
+describe('computeWacReversalDelta', () => {
+  it('reverses the originally-booked snapshot contribution before fallback math', () => {
+    expect(
+      computeWacReversalDelta({
+        extJsonb: { wac_qty_kg: '9.500', wac_value: '114.0000' },
+        fallbackQtyKg: '10.000',
+        fallbackValue: '120.0000',
+      }),
+    ).toEqual({ deltaQtyKg: '-9.500', deltaValue: '-114.0000', source: 'snapshot' });
+  });
+
+  it('falls back to negating recomputed qty and value when no snapshot exists', () => {
+    expect(
+      computeWacReversalDelta({
+        extJsonb: {},
+        fallbackQtyKg: '10.000',
+        fallbackValue: '120.0000',
+      }),
+    ).toEqual({ deltaQtyKg: '-10.000', deltaValue: '-120.0000', source: 'fallback' });
   });
 });
 
@@ -246,6 +293,14 @@ class WacMockClient {
 
   async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
     this.calls.push({ sql, params });
+    if (normalize(sql).startsWith('select total_qty_kg::text as "totalqtykg"')) {
+      return {
+        rows: this.row
+          ? [{ totalQtyKg: this.row.totalQtyKg, totalValue: this.row.totalValue, clamped: false }] as T[]
+          : [],
+        rowCount: this.row ? 1 : 0,
+      };
+    }
     const deltaQty = String(params[2]);
     const deltaValue = String(params[3]);
 
@@ -328,6 +383,9 @@ class ReceiveMockClient implements QueryClient {
           },
         ] as T[],
       };
+    }
+    if (normalized.startsWith('select pol.item_id::text, pol.unit_price::text as unit_price')) {
+      return { rows: [{ item_id: ITEM_ID, unit_price: this.unitPrice }] as T[] };
     }
     if (normalized.includes('from public.warehouses w')) {
       return { rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[] };

@@ -539,7 +539,7 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     await user.click(within(dialog).getByRole('button', { name: /create user/i }));
 
     expect(createUserWithPasswordAction).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/do not match/i);
+    expect(within(dialog).getByTestId('invite-dialog-error')).toHaveTextContent(/do not match/i);
   });
 
   it('shows the forbidden-role specific message (not the opaque invalid_input toast) when the action returns forbidden_role', async () => {
@@ -569,10 +569,43 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     await user.type(within(dialog).getByLabelText('Confirm password'), 'Sup3r-Str0ng-Pass!');
     await user.click(within(dialog).getByRole('button', { name: /create user/i }));
 
-    const alert = await screen.findByRole('alert');
-    // Must show the specific forbidden-role message, NOT "invalid_input"
-    expect(alert).toHaveTextContent(/system role.*cannot be assigned/i);
-    expect(alert).not.toHaveTextContent(/invalid_input/i);
+    const inlineError = await within(dialog).findByTestId('invite-dialog-error');
+    expect(inlineError).toHaveTextContent(/system role.*cannot be assigned/i);
+    expect(inlineError).not.toHaveTextContent(/invalid_input/i);
+    expect(screen.getByRole('dialog', { name: /invite team member/i })).toBeVisible();
+  });
+
+  it('keeps the invite dialog open and shows an inline error when the invite action fails', async () => {
+    const user = userEvent.setup();
+    const inviteUserAction = vi.fn().mockResolvedValue({ ok: false, error: 'seat_limit_exceeded' });
+    renderScreen({ inviteUserAction });
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite team member/i });
+    await user.type(within(dialog).getByRole('textbox', { name: /email address/i }), 'new@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /send invitation/i }));
+
+    expect(await within(dialog).findByTestId('invite-dialog-error')).toHaveTextContent(/seat_limit_exceeded/i);
+    expect(screen.getByRole('dialog', { name: /invite team member/i })).toBeVisible();
+  });
+
+  it('excludes privileged system roles from the invite role picker', async () => {
+    const user = userEvent.setup();
+    renderScreen({
+      data: {
+        ...data,
+        roles: [
+          { id: 'role-admin', code: 'org_admin', label: 'Org Admin', category: 'Admin' },
+          { id: 'role-operator', code: 'operator', label: 'Operator', category: 'Operator' },
+        ],
+      } as UsersScreenData,
+    });
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite team member/i });
+    const rolePicker = within(dialog).getByRole('combobox', { name: /^role$/i });
+    expect(within(rolePicker).queryByRole('option', { name: 'Org Admin' })).not.toBeInTheDocument();
+    expect(within(rolePicker).getByRole('option', { name: 'Operator' })).toBeInTheDocument();
   });
 
   it('renders every permission module group with real role columns and denied cells for a minimal role', () => {
@@ -637,11 +670,9 @@ describe('SettingsUsersScreen MFA + last-login columns (F2-C1 item 3)', () => {
     renderScreen();
 
     const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
-    // Maria: MFA enrolled + a real last-login stamp.
     expect(within(mariaRow).getByTestId('settings-user-mfa')).toHaveAttribute('data-mfa', 'enrolled');
     expect(within(mariaRow).getByText('2026-05-20 08:00')).toBeVisible();
 
-    // Ola: not enrolled + never-logged-in fallback (lastLogin === '—' → "Never").
     const olaRow = screen.getByRole('row', { name: /Ola Operator ola@example\.com/i });
     expect(within(olaRow).getByTestId('settings-user-mfa')).toHaveAttribute('data-mfa', 'not-enrolled');
     expect(within(olaRow).getByText('Never')).toBeVisible();
@@ -730,5 +761,121 @@ describe('SettingsUsersScreen CSV export shape (F2-C1 item 4)', () => {
     // Ola: not enrolled + never-logged-in dash + all-sites.
     expect(olaLine).toContain('ola@example.com');
     expect(olaLine).toContain('Not enrolled');
+  });
+});
+
+type ReactivateUserAction = (input: { userId: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
+type ResetUserMfaAction = (input: { userId: string; reason: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
+
+const disabledUser = {
+  id: 'user-disabled',
+  name: 'Dan Disabled',
+  email: 'dan@example.com',
+  initials: 'DD',
+  roleCode: 'viewer',
+  roleId: 'role-viewer',
+  roleLabel: 'Viewer',
+  roleCategory: 'Viewer' as const,
+  site: 'All sites',
+  assignedSiteIds: [] as string[],
+  lastLogin: '2026-04-01 09:00',
+  mfaEnrolled: true,
+  lastActive: '2026-04-01 09:00',
+  status: 'disabled' as const,
+};
+
+const lifecycleLabels: Partial<UsersScreenLabels> = {
+  reactivate: 'Reactivate',
+  reactivateUnavailable: 'Reactivation unavailable',
+  reactivateDialogTitle: 'Reactivate user',
+  reactivateDialogBody: '{name} will be able to sign in again.',
+  reactivateConfirm: 'Reactivate user',
+  reactivating: 'Reactivating…',
+  reactivateSuccess: 'User reactivated.',
+  reactivateFailed: 'Could not reactivate the user: {error}.',
+  resetMfa: 'Reset MFA',
+  resetMfaUnavailable: 'MFA reset unavailable',
+  resetMfaDialogTitle: 'Reset MFA',
+  resetMfaDialogBody: 'Clear MFA enrollment for {name}.',
+  resetMfaReason: 'Reason',
+  resetMfaReasonPlaceholder: 'Lost authenticator…',
+  resetMfaReasonRequired: 'Enter a short reason.',
+  resetMfaConfirm: 'Reset MFA',
+  resettingMfa: 'Resetting…',
+  resetMfaSuccess: 'MFA enrollment cleared.',
+  resetMfaFailed: 'Could not reset MFA: {error}.',
+};
+
+describe('SettingsUsersScreen reactivate + MFA reset visibility (F4-H10)', () => {
+  it('shows Reactivate only for disabled users and Reset MFA only when MFA is enrolled', () => {
+    renderScreen({
+      data: {
+        ...data,
+        users: [...data.users, disabledUser],
+        canDeactivateUsers: true,
+      } as UsersScreenData,
+      labels: { ...labels, ...lifecycleLabels } as UsersScreenLabels,
+      deactivateUserAction: vi.fn(),
+      reactivateUserAction: vi.fn(),
+      resetUserMfaAction: vi.fn(),
+    });
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    expect(within(mariaRow).getByRole('button', { name: /^deactivate maria manager$/i })).toBeVisible();
+    expect(within(mariaRow).getByRole('button', { name: /reset mfa for maria manager/i })).toBeVisible();
+    expect(within(mariaRow).queryByRole('button', { name: /^reactivate maria manager$/i })).not.toBeInTheDocument();
+
+    const danRow = screen.getByRole('row', { name: /Dan Disabled dan@example\.com/i });
+    expect(within(danRow).getByRole('button', { name: /^reactivate dan disabled$/i })).toBeVisible();
+    expect(within(danRow).queryByRole('button', { name: /^deactivate dan disabled$/i })).not.toBeInTheDocument();
+    expect(within(danRow).getByRole('button', { name: /reset mfa for dan disabled/i })).toBeVisible();
+
+    const olaRow = screen.getByRole('row', { name: /Ola Operator ola@example\.com/i });
+    expect(within(olaRow).queryByRole('button', { name: /reset mfa for ola operator/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps Reactivate and Reset MFA fail-closed when lifecycle actions are not wired', () => {
+    renderScreen({
+      data: {
+        ...data,
+        users: [...data.users, disabledUser],
+        canDeactivateUsers: false,
+      } as UsersScreenData,
+      labels: { ...labels, ...lifecycleLabels } as UsersScreenLabels,
+    });
+
+    const danRow = screen.getByRole('row', { name: /Dan Disabled dan@example\.com/i });
+    expect(within(danRow).getByRole('button', { name: /reactivation unavailable for dan disabled/i })).toBeDisabled();
+    expect(within(danRow).getByRole('button', { name: /mfa reset unavailable for dan disabled/i })).toBeDisabled();
+  });
+
+  it('submits reactivate and MFA reset through the injected Server Actions', async () => {
+    const user = userEvent.setup();
+    const reactivateUserAction = vi.fn().mockResolvedValue({ ok: true }) as ReactivateUserAction;
+    const resetUserMfaAction = vi.fn().mockResolvedValue({ ok: true }) as ResetUserMfaAction;
+    renderScreen({
+      data: {
+        ...data,
+        users: [...data.users, disabledUser],
+        canDeactivateUsers: true,
+      } as UsersScreenData,
+      labels: { ...labels, ...lifecycleLabels } as UsersScreenLabels,
+      deactivateUserAction: vi.fn(),
+      reactivateUserAction,
+      resetUserMfaAction,
+    });
+
+    const danRow = screen.getByRole('row', { name: /Dan Disabled dan@example\.com/i });
+    await user.click(within(danRow).getByRole('button', { name: /^reactivate dan disabled$/i }));
+    const reactivateDialog = await screen.findByRole('dialog', { name: /reactivate user/i });
+    await user.click(within(reactivateDialog).getByRole('button', { name: /^reactivate user$/i }));
+    expect(reactivateUserAction).toHaveBeenCalledWith({ userId: 'user-disabled' });
+
+    const mariaRow = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    await user.click(within(mariaRow).getByRole('button', { name: /reset mfa for maria manager/i }));
+    const resetDialog = await screen.findByRole('dialog', { name: /reset mfa/i });
+    await user.type(within(resetDialog).getByRole('textbox'), 'Lost phone');
+    await user.click(within(resetDialog).getByRole('button', { name: /^reset mfa$/i }));
+    expect(resetUserMfaAction).toHaveBeenCalledWith({ userId: 'user-maria', reason: 'Lost phone' });
   });
 });

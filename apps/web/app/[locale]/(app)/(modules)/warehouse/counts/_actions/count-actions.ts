@@ -24,6 +24,7 @@ import {
   type CountSessionDetail,
   type CountType,
   type CountVarianceWarning,
+  type CountWarehouseOption,
   type CreateCountSessionInput,
   type RecordCountInput,
 } from './count-types';
@@ -208,7 +209,13 @@ async function assertCanAdjustStock(ctx: WarehouseContext): Promise<void> {
   }
 }
 
-async function readCountSessionSummary(client: QueryClient, sessionId: string, siteId: string): Promise<CountSession | null> {
+/**
+ * F4 — org-wide detail read (matches getPurchaseOrder / getTransferOrder F10
+ * read-widening in planning/purchase-orders/_actions/actions.ts:380-398 and
+ * planning/transfer-orders/_actions/actions.ts:367-382: list stays site-filtered,
+ * detail resolves by org_id + id only).
+ */
+async function readCountSessionSummaryOrgWide(client: QueryClient, sessionId: string): Promise<CountSession | null> {
   const { rows } = await client.query<SessionRow>(
     `select cs.id::text,
             cs.warehouse_id::text,
@@ -228,10 +235,9 @@ async function readCountSessionSummary(client: QueryClient, sessionId: string, s
          on cl.session_id = cs.id
       where cs.org_id = app.current_org_id()
         and cs.id = $1::uuid
-        and cs.site_id = $2::uuid
       group by cs.id, cs.warehouse_id, w.code, cs.count_type, cs.status, cs.created_at
       limit 1`,
-    [sessionId, siteId],
+    [sessionId],
   );
   const row = rows[0];
   return row ? mapSession(row) : null;
@@ -788,6 +794,20 @@ async function writeStockAdjustmentAudit(
   );
 }
 
+export async function listCountWarehouses(): Promise<CountWarehouseOption[]> {
+  return await withOrgContext(async ({ userId, orgId, client }): Promise<CountWarehouseOption[]> => {
+    const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
+    await assertCanAdjustStock(ctx);
+    const { rows } = await ctx.client.query<{ id: string; code: string; name: string; site_id: string | null }>(
+      `select id::text, code, name, site_id::text
+         from public.warehouses
+        where org_id = app.current_org_id()
+        order by code`,
+    );
+    return rows.map((r) => ({ id: r.id, code: r.code, name: r.name, siteId: r.site_id }));
+  });
+}
+
 export async function createCountSession(input: CreateCountSessionInput): Promise<string> {
   const warehouseId = assertUuid(input?.warehouseId, 'warehouse_id');
   const countType = assertCountType(input?.countType);
@@ -861,11 +881,30 @@ export async function getCountSession(sessionId: string): Promise<CountSessionDe
   return await withOrgContext(async ({ userId, orgId, client }): Promise<CountSessionDetail> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
-    const activeSiteId = await getActiveSiteId({ client: ctx.client });
-    if (!activeSiteId) throw new Error('count_session_not_found');
 
-    const session = await readCountSessionSummary(ctx.client, normalizedSessionId, activeSiteId);
+    const session = await readCountSessionSummaryOrgWide(ctx.client, normalizedSessionId);
     if (!session) throw new Error('count_session_not_found');
+
+    /**
+     * F1 — site-level line guard: the session HEADER is always returned
+     * (org-wide read, F10 vanish-trap fix). The LINES (counted_qty /
+     * variance_qty per location) are systematic stock-level data that must
+     * not cross site boundaries. Only return them when `user_can_see_site`
+     * passes for the session's site.
+     */
+    const { rows: siteRows } = await ctx.client.query<{ can_see: boolean }>(
+      `select app.user_can_see_site(cs.site_id) as can_see
+         from public.count_sessions cs
+        where cs.org_id = app.current_org_id()
+          and cs.id = $1::uuid
+        limit 1`,
+      [normalizedSessionId],
+    );
+    const canSeeSite = siteRows[0]?.can_see ?? true;
+
+    if (!canSeeSite) {
+      return { ...session, lines: [], linesRestricted: true };
+    }
 
     return {
       ...session,

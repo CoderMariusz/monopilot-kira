@@ -43,6 +43,7 @@ import type {
   TraceReportView,
 } from './trace-contracts';
 import { DIRECTIONS, INPUT_TYPES, toDetailHref, type TraceLabels } from './labels';
+import { TraceMassBalancePanel, TraceTruncationBanner } from './trace-mass-balance-panel';
 
 type TraceNodeCsvView = TraceNodeView & {
   expiryDate?: string | null;
@@ -346,6 +347,10 @@ export function TraceWorkbench({
         </Card>
       ) : (
         <div data-testid="trace-report" data-state="data" className="flex flex-col gap-6">
+          {report.truncation?.truncated ? (
+            <TraceTruncationBanner labels={labels} truncation={report.truncation} />
+          ) : null}
+
           {/* Summary panel — 5 counts */}
           <section aria-label={labels.summary.title} className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-slate-800">{labels.summary.title}</h2>
@@ -357,6 +362,10 @@ export function TraceWorkbench({
               {summaryItem('trace-summary-totalKg', labels.summary.totalKg, `${report.summary.totalKg} kg`)}
             </div>
           </section>
+
+          {report.massBalance ? (
+            <TraceMassBalancePanel labels={labels} massBalance={report.massBalance} />
+          ) : null}
 
           {/* Node tree — supplier→GRN→input LP→WO→output LP→shipment marker */}
           <section aria-label={labels.graph.ariaLabel} className="flex flex-col gap-2">
@@ -509,6 +518,9 @@ function stripView(view: TraceReportView) {
     nodes: view.nodes.map(({ detailHref: _ignored, ...n }) => n),
     edges: view.edges,
     flat: view.flat,
+    affectedCustomers: view.affectedCustomers,
     summary: view.summary,
+    truncation: view.truncation,
+    massBalance: view.massBalance,
   };
 }

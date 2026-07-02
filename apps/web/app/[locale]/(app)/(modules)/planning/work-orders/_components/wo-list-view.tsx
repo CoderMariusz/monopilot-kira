@@ -42,7 +42,7 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { WoStatusBadge } from './wo-status-badge';
 import { CreateWoModal, type CreateWoLabels } from './create-wo-modal';
-import type { ListPlanningWorkOrdersResult, CreateWorkOrderResult, ReleaseWorkOrderResult } from '../_actions/shared';
+import type { ListPlanningWorkOrdersResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
 type WoRow = Extract<ListPlanningWorkOrdersResult, { ok: true }>['workOrders'][number];
@@ -74,6 +74,9 @@ export type WoListLabels = {
   release: string;
   releasing: string;
   confirmRelease: string;
+  deleteDraft: string;
+  deletingDraft: string;
+  confirmDeleteDraft: string;
   /** Archive tab + archived-mode chrome (staged: _meta/i18n-staging/archive-tabs.json). */
   tabArchive: string;
   archivedHint: string;
@@ -126,6 +129,7 @@ export type WoListViewProps = {
     notes?: string;
   }) => Promise<CreateWorkOrderResult>;
   releaseWorkOrderAction: (params: { id: string }) => Promise<ReleaseWorkOrderResult>;
+  deleteDraftWorkOrderAction?: (params: { id: string }) => Promise<DeleteDraftWorkOrderResult>;
 };
 
 function fmtDate(iso: string | null, locale: string): string {
@@ -146,6 +150,7 @@ export function WoListView({
   searchFgProductsAction,
   createWorkOrderAction,
   releaseWorkOrderAction,
+  deleteDraftWorkOrderAction,
 }: WoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/work-orders`;
@@ -153,6 +158,7 @@ export function WoListView({
   const [search, setSearch] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
   const [releasingId, setReleasingId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [rowError, setRowError] = React.useState<{ id: string; message: string } | null>(null);
 
   const counts = React.useMemo(() => {
@@ -197,7 +203,7 @@ export function WoListView({
   }
 
   async function onRelease(wo: WoRow) {
-    if (releasingId) return;
+    if (releasingId || deletingId) return;
     // Confirm gate (parity: release is a state transition — guarded).
     if (!window.confirm(labels.confirmRelease.replace('{wo}', wo.woNumber))) return;
     setReleasingId(wo.id);
@@ -219,6 +225,26 @@ export function WoListView({
       setRowError({ id: wo.id, message: labels.releaseError.persistence_failed });
     } finally {
       setReleasingId(null);
+    }
+  }
+
+  async function onDeleteDraft(wo: WoRow) {
+    if (!deleteDraftWorkOrderAction || releasingId || deletingId) return;
+    if (!window.confirm(labels.confirmDeleteDraft.replace('{wo}', wo.woNumber))) return;
+    setDeletingId(wo.id);
+    setRowError(null);
+    try {
+      const result = await deleteDraftWorkOrderAction({ id: wo.id });
+      if (!result.ok) {
+        setRowError({ id: wo.id, message: labels.releaseError[result.error] ?? labels.releaseError.persistence_failed });
+        setDeletingId(null);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setRowError({ id: wo.id, message: labels.releaseError.persistence_failed });
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -389,16 +415,30 @@ export function WoListView({
                     </td>
                     <td className="px-3 py-2 text-right">
                       {wo.status.toUpperCase() === 'DRAFT' ? (
-                        <Button
-                          type="button"
-                          className="btn--primary btn-sm"
-                          data-testid={`wo-release-${wo.id}`}
-                          disabled={releasingId === wo.id}
-                          aria-busy={releasingId === wo.id}
-                          onClick={() => onRelease(wo)}
-                        >
-                          {releasingId === wo.id ? labels.releasing : labels.release}
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            className="btn--primary btn-sm"
+                            data-testid={`wo-release-${wo.id}`}
+                            disabled={releasingId === wo.id || deletingId === wo.id}
+                            aria-busy={releasingId === wo.id}
+                            onClick={() => onRelease(wo)}
+                          >
+                            {releasingId === wo.id ? labels.releasing : labels.release}
+                          </Button>
+                          {deleteDraftWorkOrderAction ? (
+                            <Button
+                              type="button"
+                              className="btn--ghost btn-sm text-red-700 hover:bg-red-50"
+                              data-testid={`wo-delete-draft-${wo.id}`}
+                              disabled={releasingId === wo.id || deletingId === wo.id}
+                              aria-busy={deletingId === wo.id}
+                              onClick={() => onDeleteDraft(wo)}
+                            >
+                              {deletingId === wo.id ? labels.deletingDraft : labels.deleteDraft}
+                            </Button>
+                          ) : null}
+                        </div>
                       ) : null}
                       {rowError?.id === wo.id ? (
                         <div role="alert" data-testid={`wo-row-error-${wo.id}`} className="mt-1 text-xs text-red-600">

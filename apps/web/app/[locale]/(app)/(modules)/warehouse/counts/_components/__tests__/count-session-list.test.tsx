@@ -64,6 +64,7 @@ function buildLabels(locale: string): CountSessionListLabels {
       creating: t('create.creating'),
       denied: t('create.denied'),
       error: t('create.error'),
+      siteMismatch: t('create.siteMismatch'),
     },
   };
 }
@@ -86,14 +87,16 @@ function makeSession(over: Partial<CountSession>): CountSession {
 }
 
 const WAREHOUSES = [
-  { id: 'wh-1', code: 'WH-MAIN', name: 'Main warehouse' },
-  { id: 'wh-2', code: 'WH-COLD', name: 'Cold store' },
+  { id: 'wh-1', code: 'WH-MAIN', name: 'Main warehouse', siteId: 'site-a' },
+  { id: 'wh-2', code: 'WH-COLD', name: 'Cold store', siteId: 'site-b' },
 ];
 
 function renderList(
   sessions: CountSession[],
   createAction: (input: { warehouseId: string; countType: 'cycle' | 'full' | 'spot' }) => Promise<CountClientResult<{ id: string }>>,
+  options: { activeSiteId?: string | null; setSiteAction?: (siteId: string | null) => Promise<{ ok: boolean }> } = {},
 ) {
+  const setSiteAction = options.setSiteAction ?? vi.fn(async () => ({ ok: true }));
   refreshMock.mockClear();
   pushMock.mockClear();
   return render(
@@ -103,6 +106,8 @@ function renderList(
       labels={EN}
       locale="en"
       createAction={createAction}
+      activeSiteId={options.activeSiteId ?? 'site-a'}
+      setSiteAction={setSiteAction}
     />,
   );
 }
@@ -134,6 +139,25 @@ describe('CountSessionListClient (E10 list + create dialog)', () => {
     fireEvent.click(screen.getByTestId('count-session-new'));
     expect(screen.getByTestId('count-session-create-modal')).toBeInTheDocument();
     expect(screen.getByTestId('count-session-create-confirm')).toBeDisabled();
+  });
+
+  it('warns and switches site before create when the warehouse site differs from the top bar', async () => {
+    const setSiteAction = vi.fn(async () => ({ ok: true }));
+    const action = vi.fn(async () => ({ ok: true as const, data: { id: 'new-session-id' } }));
+    renderList([], action, { activeSiteId: 'site-a', setSiteAction });
+
+    fireEvent.click(screen.getByTestId('count-session-new'));
+    const combos = screen.getAllByRole('combobox');
+    fireEvent.click(combos[0]);
+    fireEvent.click(screen.getByRole('option', { name: 'Cold store' }));
+    expect(screen.getByTestId('count-session-site-mismatch')).toBeInTheDocument();
+
+    fireEvent.click(combos[1]);
+    fireEvent.click(screen.getByRole('option', { name: EN.create.type.cycle }));
+    fireEvent.click(screen.getByTestId('count-session-create-confirm'));
+
+    await waitFor(() => expect(setSiteAction).toHaveBeenCalledWith('site-b'));
+    await waitFor(() => expect(action).toHaveBeenCalledWith({ warehouseId: 'wh-2', countType: 'cycle' }));
   });
 
   it('creates a session: calls the action with warehouse + type, navigates and refreshes', async () => {

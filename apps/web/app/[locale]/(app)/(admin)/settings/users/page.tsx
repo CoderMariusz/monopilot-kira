@@ -4,6 +4,8 @@ import { assignRole } from '../../../../../../actions/users/assign-role';
 import { assignUserSites } from '../../../../../../actions/users/assign-user-sites';
 import { createUserWithPassword } from '../../../../../../actions/users/create-user-with-password';
 import { deactivateUser } from '../../../../../../actions/users/deactivate';
+import { reactivateUser } from '../../../../../../actions/users/reactivate';
+import { resetUserMfa } from '../../../../../../actions/users/reset-user-mfa';
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
 import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
@@ -500,6 +502,25 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     deactivateSuccess: t('deactivate_success'),
     deactivateFailed: t('deactivate_failed'),
     deactivateSelf: t('deactivate_self'),
+    reactivate: t('reactivate'),
+    reactivateUnavailable: t('reactivate_unavailable'),
+    reactivateDialogTitle: t('reactivate_dialog_title'),
+    reactivateDialogBody: t('reactivate_dialog_body'),
+    reactivateConfirm: t('reactivate_confirm'),
+    reactivating: t('reactivating'),
+    reactivateSuccess: t('reactivate_success'),
+    reactivateFailed: t('reactivate_failed'),
+    resetMfa: t('reset_mfa'),
+    resetMfaUnavailable: t('reset_mfa_unavailable'),
+    resetMfaDialogTitle: t('reset_mfa_dialog_title'),
+    resetMfaDialogBody: t('reset_mfa_dialog_body'),
+    resetMfaReason: t('reset_mfa_reason'),
+    resetMfaReasonPlaceholder: t('reset_mfa_reason_placeholder'),
+    resetMfaReasonRequired: t('reset_mfa_reason_required'),
+    resetMfaConfirm: t('reset_mfa_confirm'),
+    resettingMfa: t('resetting_mfa'),
+    resetMfaSuccess: t('reset_mfa_success'),
+    resetMfaFailed: t('reset_mfa_failed'),
   };
 }
 
@@ -541,6 +562,23 @@ async function createUserWithPasswordAction(input: {
 async function deactivateUserAction(input: { userId: string }): Promise<{ ok: true } | { ok: false; error: string }> {
   'use server';
   const result = await deactivateUser({ targetUserId: input.userId });
+  if (result.ok) return { ok: true };
+  return { ok: false, error: result.error };
+}
+
+async function reactivateUserAction(input: { userId: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+  'use server';
+  const result = await reactivateUser({ targetUserId: input.userId });
+  if (result.ok) return { ok: true };
+  return { ok: false, error: result.error };
+}
+
+async function resetUserMfaAction(input: {
+  userId: string;
+  reason: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  'use server';
+  const result = await resetUserMfa({ targetUserId: input.userId, reason: input.reason });
   if (result.ok) return { ok: true };
   return { ok: false, error: result.error };
 }
@@ -588,6 +626,8 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       resetPasswordAction={resetPasswordAction}
       createUserWithPasswordAction={result.data.canInviteUsers ? createUserWithPasswordAction : undefined}
       deactivateUserAction={result.data.canDeactivateUsers ? deactivateUserAction : undefined}
+      reactivateUserAction={result.data.canDeactivateUsers ? reactivateUserAction : undefined}
+      resetUserMfaAction={result.data.canDeactivateUsers ? resetUserMfaAction : undefined}
     />
   );
 }

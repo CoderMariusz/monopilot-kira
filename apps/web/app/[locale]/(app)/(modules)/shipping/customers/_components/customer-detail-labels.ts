@@ -96,6 +96,7 @@ export function buildCustomerDetailLabels(t: Translate): CustomerDetailLabels {
       inactive: t('status.inactive'),
     },
     category,
+    backToList: t('detail.backToList'),
     tabs: {
       profile: t('detail.tabs.profile'),
       addresses: t('detail.tabs.addresses'),

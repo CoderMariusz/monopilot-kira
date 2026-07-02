@@ -18,7 +18,7 @@ import {
   searchInspectionAssignees,
   submitInspectionDecision,
 } from '../inspection-actions';
-import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import { getActiveSiteId, resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -62,6 +62,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 }));
 vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => SITE_ID),
+  resolveWriteSiteId: vi.fn(async () => ({ ok: true, siteId: SITE_ID })),
 }));
 
 function normalize(sql: string): string {
@@ -501,8 +502,31 @@ describe('createInspection — site_id on INSERT', () => {
     expect(insertCall?.[1]?.[7]).toBe(SITE_ID);
   });
 
-  it('binds null for site_id when no active site is resolved', async () => {
+  it('F10: refuses to create with no_active_site instead of writing a null-site inspection', async () => {
     vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
+    vi.mocked(resolveWriteSiteId).mockResolvedValueOnce({ ok: false, reason: 'no_active_site' });
+
+    const res = await createInspection({ referenceType: 'lp', referenceId: LP_ID });
+
+    expect(res).toEqual({ ok: false, reason: 'error', message: 'no_active_site' });
+    const insertCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('insert into public.quality_inspections'),
+    );
+    expect(insertCall).toBeUndefined();
+  });
+
+  it('F10: surfaces ambiguous_site when >1 active site and none chosen/default', async () => {
+    vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
+    vi.mocked(resolveWriteSiteId).mockResolvedValueOnce({ ok: false, reason: 'ambiguous_site' });
+
+    const res = await createInspection({ referenceType: 'lp', referenceId: LP_ID });
+
+    expect(res).toEqual({ ok: false, reason: 'error', message: 'ambiguous_site' });
+  });
+
+  it('falls back to resolveWriteSiteId when neither the reference nor active site resolves', async () => {
+    vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
+    vi.mocked(resolveWriteSiteId).mockResolvedValueOnce({ ok: true, siteId: SITE_ID });
 
     const res = await createInspection({ referenceType: 'lp', referenceId: LP_ID });
     expect(res.ok).toBe(true);
@@ -510,7 +534,8 @@ describe('createInspection — site_id on INSERT', () => {
     const insertCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
       normalize(String(sql)).startsWith('insert into public.quality_inspections'),
     );
-    expect(insertCall?.[1]?.[7]).toBeNull();
+    expect(insertCall?.[1]?.[7]).toBe(SITE_ID);
+    expect(resolveWriteSiteId).toHaveBeenCalled();
   });
 });
 

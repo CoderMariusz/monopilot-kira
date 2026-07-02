@@ -33,7 +33,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 import { COUNT_TYPES, type CountType } from '../_actions/count-types';
 import type { CountSession, CreateCountSessionInput } from '../_actions/count-types';
-import type { WarehouseOption } from '../../../planning/transfer-orders/_actions/to-form-data';
+import { planCountSessionCreateSite, type CountWarehouseOption } from '../_actions/count-types';
 import type { CountClientResult } from './count-client-result';
 
 /** Page-authored adapter: real createCountSession returns a session id (or throws). */
@@ -83,6 +83,8 @@ export type CountSessionListLabels = {
     creating: string;
     denied: string;
     error: string;
+    /** F4 — warehouse site differs from the top-bar site (create will switch scope). */
+    siteMismatch: string;
   };
 };
 
@@ -92,12 +94,18 @@ export function CountSessionListClient({
   labels,
   locale,
   createAction,
+  activeSiteId,
+  setSiteAction,
 }: {
   sessions: CountSession[];
-  warehouses: WarehouseOption[];
+  warehouses: CountWarehouseOption[];
   labels: CountSessionListLabels;
   locale: string;
   createAction: CreateAction;
+  /** Top-bar site scope (mp_site_id cookie); null = All sites. */
+  activeSiteId: string | null;
+  /** Same cookie write seam as the top-bar SiteSwitcher. */
+  setSiteAction: (siteId: string | null) => Promise<{ ok: boolean }>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -108,6 +116,12 @@ export function CountSessionListClient({
 
   const dash = labels.none;
   const valid = warehouseId !== '' && countType !== '';
+  const selectedWarehouse = warehouses.find((w) => w.id === warehouseId) ?? null;
+  const sitePlan = selectedWarehouse
+    ? planCountSessionCreateSite(activeSiteId, selectedWarehouse.siteId)
+    : null;
+  const siteMismatchWarning =
+    sitePlan?.action === 'switch_site' ? labels.create.siteMismatch : null;
 
   function openDialog() {
     setWarehouseId('');
@@ -122,12 +136,25 @@ export function CountSessionListClient({
   }
 
   function confirmCreate() {
-    if (!valid) return;
+    if (!valid || !selectedWarehouse) return;
     // `valid` proves countType is a real CountType (alias narrowing); the cast
     // keeps the input type honest for the action call.
     const selectedType = countType as CountType;
+    const plan = planCountSessionCreateSite(activeSiteId, selectedWarehouse.siteId);
+    if (plan.action === 'blocked') {
+      setErrorMsg(labels.create.error);
+      return;
+    }
     setErrorMsg(null);
     startTransition(async () => {
+      if (plan.action === 'switch_site') {
+        const switched = await setSiteAction(plan.warehouseSiteId);
+        if (!switched.ok) {
+          setErrorMsg(labels.create.error);
+          return;
+        }
+        router.refresh();
+      }
       const res = await createAction({ warehouseId, countType: selectedType });
       if (res.ok) {
         setOpen(false);
@@ -262,6 +289,16 @@ export function CountSessionListClient({
                 ]}
               />
             </label>
+
+            {siteMismatchWarning ? (
+              <div
+                role="status"
+                data-testid="count-session-site-mismatch"
+                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              >
+                {siteMismatchWarning}
+              </div>
+            ) : null}
 
             {errorMsg ? (
               <div

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { releaseWorkOrder } from './releaseWorkOrder';
+import { deleteDraftWorkOrder, releaseWorkOrder } from './releaseWorkOrder';
 import type { QueryClient } from './shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
+const OTHER_ORG_WO_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 
 let client: QueryClient;
@@ -17,6 +18,7 @@ let healedSpecId: string | null = '99999999-9999-4999-8999-999999999999';
 let outputUom: string | null = 'base';
 let netQtyPerEach: string | null = null;
 let eachPerBox: string | null = null;
+let deletedCount = 1;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -24,12 +26,33 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
+}));
+
 function makeClient(): QueryClient {
   return {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      if (normalized.startsWith('select id, wo_number, status')) {
+        const id = String(params[0]);
+        if (id === OTHER_ORG_WO_ID || currentStatus === null) return { rows: [], rowCount: 0 };
+        return {
+          rows: [
+            {
+              id,
+              wo_number: 'WO-DRAFT-001',
+              status: currentStatus,
+              product_id: PRODUCT_ID,
+              planned_quantity: '1000.000',
+              uom: 'kg',
+            },
+          ],
+          rowCount: 1,
+        };
       }
       if (normalized.startsWith('select status from public.work_orders')) {
         return { rows: currentStatus ? [{ status: currentStatus }] : [], rowCount: currentStatus ? 1 : 0 };
@@ -79,9 +102,19 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('insert into public.wo_status_history')) {
         return { rows: [], rowCount: 1 };
       }
+      if (normalized.startsWith('insert into public.audit_events')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('delete from public.work_orders')) {
+        return { rows: [], rowCount: deletedCount };
+      }
       return { rows: [], rowCount: 0 };
     }),
   };
+}
+
+function sqlCalls(): string[] {
+  return (client.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').toLowerCase());
 }
 
 describe('releaseWorkOrder', () => {
@@ -93,6 +126,7 @@ describe('releaseWorkOrder', () => {
     outputUom = 'base';
     netQtyPerEach = null;
     eachPerBox = null;
+    deletedCount = 1;
     client = makeClient();
   });
 
@@ -189,5 +223,46 @@ describe('releaseWorkOrder', () => {
     currentStatus = 'IN_PROGRESS';
 
     await expect(releaseWorkOrder({ id: WO_ID })).resolves.toEqual({ ok: false, error: 'invalid_state' });
+  });
+
+  it('deletes a draft WO and writes history + audit before deleting the header', async () => {
+    const result = await deleteDraftWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({ ok: true, id: WO_ID });
+    const calls = sqlCalls();
+    const historyIndex = calls.findIndex((sql) => sql.startsWith('insert into public.wo_status_history'));
+    const auditIndex = calls.findIndex((sql) => sql.startsWith('insert into public.audit_events'));
+    const deleteIndex = calls.findIndex((sql) => sql.startsWith('delete from public.work_orders'));
+    expect(historyIndex).toBeGreaterThan(-1);
+    expect(auditIndex).toBeGreaterThan(-1);
+    expect(deleteIndex).toBeGreaterThan(-1);
+    expect(historyIndex).toBeLessThan(deleteIndex);
+    expect(auditIndex).toBeLessThan(deleteIndex);
+    expect(calls[deleteIndex]).toContain("and status = 'draft'");
+  });
+
+  it('rejects released or started WO deletion with invalid_state and does not delete', async () => {
+    currentStatus = 'RELEASED';
+
+    const result = await deleteDraftWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(sqlCalls().some((sql) => sql.startsWith('delete from public.work_orders'))).toBe(false);
+  });
+
+  it('blocks unauthorized draft deletion with forbidden before reading the WO', async () => {
+    allowPermission = false;
+
+    const result = await deleteDraftWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(sqlCalls().some((sql) => sql.startsWith('select id, wo_number, status'))).toBe(false);
+  });
+
+  it('respects org scope: a WO outside app.current_org_id is not found and not deleted', async () => {
+    const result = await deleteDraftWorkOrder({ id: OTHER_ORG_WO_ID });
+
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    expect(sqlCalls().some((sql) => sql.startsWith('delete from public.work_orders'))).toBe(false);
   });
 });

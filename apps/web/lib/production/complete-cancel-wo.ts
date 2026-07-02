@@ -20,6 +20,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { computeWacReversalDelta, upsertWac } from '../finance/upsert-wac';
 import { holdsGuard } from './holds-guard';
 import { recordWoCompletionSnapshot } from './oee-snapshot-producer';
 import {
@@ -213,10 +214,15 @@ export type CancelWoData = {
   reservationsReleased: string[];
 };
 
-type CancelAffectedLp = {
-  id: string;
+type CancelAffectedOutputLp = {
+  output_id: string;
+  lp_id: string;
   site_id: string | null;
   status: string;
+  product_id: string;
+  qty_kg: string;
+  fallback_wac_value: string;
+  ext_jsonb: unknown;
 };
 
 type LiveOutputLp = {
@@ -290,24 +296,59 @@ export async function cancelWo(
   const voidedOutputLpIds: string[] = [];
 
   if (previousStatus === 'completed') {
-    const affectedLps = await ctx.client.query<CancelAffectedLp>(
-      `select lp.id, lp.site_id, lp.status
-         from public.license_plates lp
-        where lp.org_id = app.current_org_id()
+    const affectedOutputLps = await ctx.client.query<CancelAffectedOutputLp>(
+      `select o.id::text as output_id,
+              lp.id::text as lp_id,
+              lp.site_id::text as site_id,
+              lp.status,
+              o.product_id::text as product_id,
+              o.qty_kg::text as qty_kg,
+              (o.qty_kg * coalesce(i.cost_per_kg, 0))::text as fallback_wac_value,
+              o.ext_jsonb
+         from public.wo_outputs o
+         join public.license_plates lp
+           on lp.org_id = o.org_id
+          and lp.id = o.lp_id
+         left join public.items i
+           on i.org_id = o.org_id
+          and i.id = o.product_id
+        where o.org_id = app.current_org_id()
+          and o.wo_id = $1::uuid
+          and o.correction_of_id is null
           and lp.status not in ('destroyed', 'consumed')
-          and exists (
+          and not exists (
             select 1
-              from public.wo_outputs o
-             where o.org_id = app.current_org_id()
-               and o.wo_id = $1::uuid
-               and o.lp_id = lp.id
-               and o.correction_of_id is null
+              from public.wo_outputs correction
+             where correction.org_id = o.org_id
+               and correction.correction_of_id = o.id
           )
-        for update`,
+        for update of o, lp`,
       [input.woId],
     );
 
-    for (const lp of affectedLps.rows) {
+    const affectedLpRows = new Map<string, { site_id: string | null; status: string }>();
+    for (const output of affectedOutputLps.rows) {
+      affectedLpRows.set(output.lp_id, { site_id: output.site_id, status: output.status });
+
+      const wacReversal = computeWacReversalDelta({
+        extJsonb: output.ext_jsonb,
+        fallbackQtyKg: output.qty_kg,
+        fallbackValue: output.fallback_wac_value,
+      });
+      if (wacReversal.source === 'fallback') {
+        console.warn('[wac] reversal_fallback', { woOutputId: output.output_id });
+      }
+      await upsertWac(ctx.client, {
+        orgId: ctx.orgId,
+        siteId: output.site_id,
+        itemId: output.product_id,
+        deltaQtyKg: wacReversal.deltaQtyKg,
+        deltaValue: wacReversal.deltaValue,
+        updatedBy: ctx.userId,
+      });
+    }
+
+    for (const [lpId, lp] of affectedLpRows) {
       await ctx.client.query(
         `insert into public.lp_state_history (
            org_id,
@@ -337,7 +378,7 @@ export async function cancelWo(
          )`,
         [
           lp.site_id,
-          lp.id,
+          lpId,
           lp.status,
           input.notes ?? null,
           input.woId,
@@ -351,7 +392,7 @@ export async function cancelWo(
       );
     }
 
-    voidedOutputLpIds.push(...affectedLps.rows.map((lp) => lp.id));
+    voidedOutputLpIds.push(...affectedLpRows.keys());
 
     if (voidedOutputLpIds.length > 0) {
       await ctx.client.query(

@@ -76,4 +76,30 @@ describe('T-018 admin user Server Actions', () => {
     const revokeIndex = source.search(/user_sessions|revoked_at|revoke(d|All)?Sessions|signOut|session.*revoke/i);
     expect(revokeIndex, 'resetPassword must revoke active sessions after password reset').toBeGreaterThan(authAdminIndex);
   });
+
+  it('reactivateUser enforces RBAC OR-union, verifies auth identity, and writes settings.user.reactivated', () => {
+    const source = readActionSource('reactivate.ts');
+    expect(source).toMatch(/export\s+async\s+function\s+reactivateUser\s*\(/);
+
+    const guardIndex = expectServerActionGuard(source);
+    expect(source).toContain("'org.access.admin'");
+    expect(source).toContain("'settings.users.deactivate'");
+    expect(source).toMatch(/auth\.admin\.getUserById|getUserById/);
+    expect(source).toMatch(/is_active\s*=\s*true|isActive\s*:\s*true/i);
+    expectOutboxAfterGuard(source, guardIndex, 'settings.user.reactivated');
+  });
+
+  it('resetUserMfa enforces RBAC, requires a reason, clears auth MFA factors, and audit-logs', () => {
+    const source = readActionSource('reset-user-mfa.ts');
+    expect(source).toMatch(/export\s+async\s+function\s+resetUserMfa\s*\(/);
+
+    const guardIndex = expectServerActionGuard(source);
+    expect(source).toContain("'org.access.admin'");
+    expect(source).toContain("'settings.users.deactivate'");
+    expect(source).toMatch(/normalizeReason|reason/);
+    expect(source).toMatch(/mfa\?\.listFactors|auth\.admin.*mfa|deleteFactor/i);
+    expect(source).toMatch(/mfa_secrets|recovery_codes/);
+    const auditIndex = source.indexOf('settings.user.mfa_reset');
+    expect(auditIndex, 'resetUserMfa must write an audit row with settings.user.mfa_reset').toBeGreaterThan(guardIndex);
+  });
 });

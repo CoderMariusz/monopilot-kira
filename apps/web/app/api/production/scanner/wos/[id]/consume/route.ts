@@ -18,6 +18,7 @@ import { requireScannerSession } from '../../../../../../../lib/scanner/guard';
 import { findServerReplay, insertServerReplay } from '../../../../../../../lib/scanner/replay';
 import { isRecord, stringField } from '../../../../../../../lib/scanner/route-utils';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../../../lib/scanner/txn-org-context';
+import { makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
 import {
   auditAttempt,
   getWoId,
@@ -50,6 +51,13 @@ type MaterialGateRow = {
   over_limit: boolean;
   over_warn: boolean;
   over_pct: string | null;
+};
+
+type ConsumedLpMoveRow = {
+  id: string;
+  quantity: string;
+  site_id: string | null;
+  location_id: string | null;
 };
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
@@ -405,8 +413,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       let fefoAdherence = true;
+      let consumedLpMove: ConsumedLpMoveRow | null = null;
       if (lpId) {
-        const lpRes = await client.query<{ id: string; quantity: string }>(
+        const lpRes = await client.query<ConsumedLpMoveRow>(
           `update public.license_plates
               set quantity = quantity - $3::numeric,
                   status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
@@ -419,7 +428,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
               and uom = $7
               and quantity - $3::numeric >= reserved_qty
               and app.user_can_see_site(site_id)
-            returning id, quantity::text as quantity`,
+            returning id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
           [session.org_id, lpId, qty, woId, session.user_id, material.product_id, material.uom],
         );
         if (!lpRes.rows[0]) {
@@ -431,6 +440,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           });
           return scannerError('lp_unavailable', 409);
         }
+        consumedLpMove = lpRes.rows[0];
 
         const fefo = await client.query<{ violates: boolean }>(
           `select exists (
@@ -483,10 +493,43 @@ export async function POST(request: NextRequest, context: RouteContext) {
           session.org_id,
         ],
       );
+      const consumptionId = consumption.rows[0]?.id;
+      if (!consumptionId) {
+        throw new Error('scanner consume: consumption insert returned no id');
+      }
 
       if (lpId && lpId !== NIL_UUID) {
+        if (!consumedLpMove) {
+          throw new Error('scanner consume: missing LP movement row after LP decrement');
+        }
+        await client.query(
+          `insert into public.stock_moves (
+             org_id, site_id, move_number, lp_id, move_type, from_location_id,
+             quantity, uom, reason_code, reason_text, transaction_id, wo_id, wo_material_id,
+             status, ext_jsonb, created_by, updated_by
+           )
+           values (
+             app.current_org_id(), $1::uuid, $2, $3::uuid, 'consume_to_wo', $4::uuid,
+             $5::numeric, $6, 'production_consume', 'Scanner WO material consumption',
+             $7::uuid, $8::uuid, $9::uuid, 'completed', $10::jsonb, $11::uuid, $11::uuid
+           )
+           on conflict (org_id, transaction_id) do nothing`,
+          [
+            consumedLpMove.site_id,
+            makeStockMoveNumber(txnId),
+            lpId,
+            consumedLpMove.location_id,
+            qty,
+            material.uom,
+            txnId,
+            woId,
+            material.id,
+            JSON.stringify({ source: 'scanner', wo_id: woId, consumption_id: consumptionId, clientOpId }),
+            session.user_id,
+          ],
+        );
         await emitMaterialConsumed(client, {
-          aggregateId: consumption.rows[0]?.id ?? woId,
+          aggregateId: consumptionId,
           woId,
           lpId,
           itemId: material.product_id,

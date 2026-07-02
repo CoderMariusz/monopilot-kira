@@ -178,6 +178,10 @@ export type ReleaseWorkOrderResult =
   | { ok: false; error: PlanningWorkOrderError }
   | { ok: false; error: 'factory_release_incomplete'; missing: Array<'active_bom' | 'factory_spec'> };
 
+export type DeleteDraftWorkOrderResult =
+  | { ok: true; id: string }
+  | { ok: false; error: PlanningWorkOrderError };
+
 export const CreateWorkOrderInput = z.object({
   productId: z.string().uuid(),
   itemCode: z.string().trim().min(1).max(128),

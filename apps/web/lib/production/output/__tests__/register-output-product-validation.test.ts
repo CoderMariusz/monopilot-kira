@@ -25,14 +25,14 @@ function makeClient(): QueryClient {
       queries.push({ sql, params });
       const n = normalize(sql);
 
+      if (n.includes('allowed_products')) {
+        return { rows: [{ allowed: productAllowed }], rowCount: 1 };
+      }
       if (n.includes('from public.work_orders') && n.includes('wo_number')) {
         return {
           rows: [{ id: WO_ID, wo_number: 'WO-001', site_id: SITE_ID, uom: 'kg', uom_snapshot: null }],
           rowCount: 1,
         };
-      }
-      if (n.includes('allowed_products')) {
-        return { rows: [{ allowed: productAllowed }], rowCount: 1 };
       }
       if (n.includes('from public.user_roles')) {
         return { rows: [{ ok: true }], rowCount: 1 };
@@ -85,6 +85,12 @@ function makeClient(): QueryClient {
       }
       if (n.startsWith('insert into public.license_plates')) {
         return { rows: [{ id: '99999999-9999-4999-8999-999999999999' }], rowCount: 1 };
+      }
+      if (n.includes('from public.license_plates')) {
+        return { rows: [{ site_id: SITE_ID, location_id: null }], rowCount: 1 };
+      }
+      if (n.startsWith('insert into public.stock_moves')) {
+        return { rows: [], rowCount: 1 };
       }
       if (n.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
         return { rows: [{ value: '10' }], rowCount: 1 };

@@ -74,6 +74,11 @@ let sessionWarehouseId: string;
 let locationInWarehouse: boolean;
 let itemExists: boolean;
 let activeHold: boolean;
+/**
+ * Controls what app.user_can_see_site returns for the session detail
+ * site-gate query (F1 cross-site inventory leak fix). Default true (visible).
+ */
+let canSeeSite: boolean;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -289,6 +294,10 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (n.includes('app.user_can_see_site')) {
+        return { rows: [{ can_see: canSeeSite }], rowCount: 1 };
+      }
+
       throw new Error(`unexpected query: ${n}`);
     }),
   };
@@ -317,6 +326,7 @@ beforeEach(async () => {
   locationInWarehouse = true;
   itemExists = true;
   activeHold = false;
+  canSeeSite = true;
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -337,15 +347,27 @@ describe('stock count actions', () => {
     expect(revalidateLocalized).toHaveBeenCalledWith('/warehouse/counts', 'page');
   });
 
-  it('filters count session reads to the active site', async () => {
+  it('filters count session LIST reads to the active site', async () => {
     await listCountSessions();
-    await getCountSession(SESSION_ID);
 
     expect(getActiveSiteId).toHaveBeenCalledWith({ client });
-    const sessionReads = queries.filter((q) => normalize(q.sql).startsWith('select cs.id::text'));
-    expect(sessionReads).toHaveLength(2);
-    expect(sessionReads.every((q) => normalize(q.sql).includes('cs.site_id = $1::uuid') || normalize(q.sql).includes('cs.site_id = $2::uuid'))).toBe(true);
-    expect(sessionReads.map((q) => q.params.includes(SITE_ID))).toEqual([true, true]);
+    const listRead = queries.find((q) => normalize(q.sql).startsWith('select cs.id::text') && normalize(q.sql).includes('cs.site_id = $1::uuid'));
+    expect(listRead).toBeTruthy();
+    expect(listRead!.params).toEqual([SITE_ID]);
+  });
+
+  it('F4: resolves count session DETAIL org-wide (no active-site gate)', async () => {
+    vi.mocked(getActiveSiteId).mockResolvedValue(null);
+    await getCountSession(SESSION_ID);
+
+    const detailRead = queries.find(
+      (q) =>
+        normalize(q.sql).startsWith('select cs.id::text') &&
+        normalize(q.sql).includes('from public.count_sessions cs') &&
+        !normalize(q.sql).includes('cs.site_id ='),
+    );
+    expect(detailRead).toBeTruthy();
+    expect(detailRead!.params).toEqual([SESSION_ID]);
   });
 
   it('computes variance_qty as countedQty minus system_qty without exposing system_qty', async () => {
@@ -696,5 +718,52 @@ describe('stock count actions', () => {
     sessionStatus = 'closed';
 
     await expect(closeCountSession(SESSION_ID)).rejects.toThrow('count_session_not_closable');
+  });
+
+  it('F1: getCountSession returns full lines when user_can_see_site passes for the session site', async () => {
+    canSeeSite = true;
+
+    const result = await getCountSession(SESSION_ID);
+
+    // Lines are returned and linesRestricted is falsy.
+    expect(result.linesRestricted).toBeFalsy();
+    expect(Array.isArray(result.lines)).toBe(true);
+    // The site-visibility check query was issued.
+    const siteCheck = queries.find((q) => normalize(q.sql).includes('app.user_can_see_site'));
+    expect(siteCheck).toBeTruthy();
+    // The count_lines select was also issued (lines fetched).
+    const linesRead = queries.find(
+      (q) =>
+        normalize(q.sql).startsWith('select cl.id::text') &&
+        normalize(q.sql).includes('left join public.locations'),
+    );
+    expect(linesRead).toBeTruthy();
+  });
+
+  it('F1: getCountSession returns header + linesRestricted + no quantities when user_can_see_site is false', async () => {
+    canSeeSite = false;
+
+    const result = await getCountSession(SESSION_ID);
+
+    // Header fields are present.
+    expect(result.id).toBe(SESSION_ID);
+    expect(result.warehouseId).toBe(WAREHOUSE_ID);
+    expect(result.status).toBe('open');
+    // Lines are suppressed.
+    expect(result.linesRestricted).toBe(true);
+    expect(result.lines).toEqual([]);
+    // No per-line quantities in the payload (lines array is empty).
+    // Note: the session header carries varianceQty (an aggregate — not a
+    // per-item stock-level value) which is acceptable to return even for
+    // site-restricted users (it's already visible on the list page).
+    const lines = result.lines;
+    expect(lines.every((l) => !('countedQty' in l) && !('varianceQty' in l))).toBe(true);
+    // The count_lines select was NOT issued.
+    const linesRead = queries.find(
+      (q) =>
+        normalize(q.sql).startsWith('select cl.id::text') &&
+        normalize(q.sql).includes('left join public.locations'),
+    );
+    expect(linesRead).toBeUndefined();
   });
 });

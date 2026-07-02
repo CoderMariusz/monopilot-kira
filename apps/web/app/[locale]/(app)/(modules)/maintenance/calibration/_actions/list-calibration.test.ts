@@ -29,7 +29,33 @@ beforeEach(() => {
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
       if (normalized.includes('from public.calibration_instruments')) {
-        return { rows: [], rowCount: 0 };
+        return {
+          rows: [
+            {
+              instrument_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              site_id: null,
+              equipment_id: null,
+              instrument_code: 'SCALE-01',
+              instrument_type: 'scale',
+              standard: 'NIST',
+              range_min: '0.0000',
+              range_max: '50.0000',
+              unit_of_measure: 'kg',
+              calibration_interval_days: 365,
+              active: true,
+              record_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              calibrated_at: new Date('2026-05-01T08:00:00.000Z'),
+              calibrated_by: USER_ID,
+              standard_applied: 'NIST',
+              result: 'PASS',
+              certificate_file_url: 'CERT-2026-001',
+              next_due_date: new Date('2027-05-01T00:00:00.000Z'),
+              reviewer_signed_by: null,
+              retention_until: new Date('2034-05-01T00:00:00.000Z'),
+            },
+          ],
+          rowCount: 1,
+        };
       }
       return { rows: [], rowCount: 0 };
     }),
@@ -45,7 +71,16 @@ describe('listCalibration', () => {
   });
 
   it('queries the register when mnt.asset.read is granted', async () => {
-    await expect(listCalibration()).resolves.toEqual([]);
+    const rows = await listCalibration();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      instrumentCode: 'SCALE-01',
+      result: 'PASS',
+      certificateFileUrl: 'CERT-2026-001',
+      nextDueDate: '2027-05-01',
+      rangeMin: '0.0000',
+      rangeMax: '50.0000',
+    });
     expect(client.query.mock.calls.some(([sql]) => normalize(sql).includes('from public.calibration_instruments'))).toBe(
       true,
     );

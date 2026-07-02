@@ -3,8 +3,9 @@
  *
  * Parity anchor: prototypes/design/Monopilot Design System/technical/
  *   other-screens.jsx:1485-1574 (ContaminationRiskScreen). Line × allergen
- *   cross-contamination risk grid; feeds the allergen-changeover gate in
- *   08-PRODUCTION (PRD §10.5). See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
+ *   cross-contamination risk grid; standalone register today — integration with the
+ *   allergen-changeover gate in 08-PRODUCTION (PRD §10.5) is a roadmap item and is
+ *   NOT yet live. See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  *
  * Wired to the EXISTING contamination service (lib/technical/allergens/
  * contamination.ts, migration 161) via the load-config Server Actions —

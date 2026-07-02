@@ -46,11 +46,23 @@ export type NcrCloseLabels = {
   submitting: string;
   formIncomplete: string;
   validation: { resolutionRequired: string; passwordRequired: string };
+  policyErrors: Record<'second_signature_required' | 'signer_role_not_allowed', string>;
   error: string;
   success: string;
   severityValues: Record<string, string>;
   statusValues: Record<string, string>;
 };
+
+function closeErrorMessage(
+  labels: NcrCloseLabels,
+  result: { reason: string; code?: string; message?: string },
+): string {
+  const code = (result.reason === 'policy' ? (result.code ?? result.message) : (result.message ?? result.reason)) ?? result.reason;
+  if (code === 'second_signature_required' || code === 'signer_role_not_allowed') {
+    return labels.policyErrors[code];
+  }
+  return labels.error.replace('{message}', code);
+}
 
 export type NcrCloseTarget = {
   id: string;
@@ -116,7 +128,7 @@ export function NcrCloseModal({
         ...(isCritical ? { signature: { password } } : {}),
       });
       if (!result.ok) {
-        setError(labels.error.replace('{message}', result.message ?? result.reason));
+        setError(closeErrorMessage(labels, result));
         return;
       }
       reset();

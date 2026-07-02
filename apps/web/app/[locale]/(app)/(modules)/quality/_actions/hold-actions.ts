@@ -1,7 +1,7 @@
 'use server';
 
 import type pg from 'pg';
-import { signEvent } from '@monopilot/e-sign';
+import { ESignPolicyError, signEvent, type ESignPolicyErrorCode } from '@monopilot/e-sign';
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { z } from 'zod';
 
@@ -18,7 +18,9 @@ type QueryClient = {
 
 type QualityContext = { userId: string; orgId: string; client: QueryClient };
 
-type ActionFailure = { ok: false; reason: 'forbidden' | 'error'; message?: string };
+type ActionFailure =
+  | { ok: false; reason: 'forbidden' | 'error'; message?: string }
+  | { ok: false; reason: 'policy'; code: ESignPolicyErrorCode; message?: string };
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
 
 type HoldStatusFilter = 'active' | 'released' | 'all';
@@ -87,6 +89,13 @@ type ReleasedHold = {
 
 const ACTIVE_HOLD_STATUSES = ['open', 'investigating', 'escalated', 'quarantined'] as const;
 const TERMINAL_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned'] as const;
+
+function actionError(err: unknown): ActionFailure {
+  if (err instanceof ESignPolicyError) {
+    return { ok: false, reason: 'policy', code: err.code, message: err.message };
+  }
+  return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+}
 
 const listSchema = z.object({
   status: z.enum(['active', 'released', 'all']).optional(),
@@ -891,7 +900,7 @@ export async function releaseHold(input: {
       });
     });
   } catch (err) {
-    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+    return actionError(err);
   }
 }
 
@@ -958,6 +967,6 @@ export async function releaseHoldFromWarehouseLpUnblock(input: {
       });
     });
   } catch (err) {
-    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+    return actionError(err);
   }
 }

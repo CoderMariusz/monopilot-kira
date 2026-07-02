@@ -82,6 +82,11 @@ function systemQty(line: CountLine): number {
 
 export type CountSessionDetailLabels = {
   none: string;
+  /**
+   * Shown when the session's site is restricted for this user. The header
+   * (warehouse, status, type) is visible but the line quantities are not.
+   */
+  linesRestricted?: string;
   tabs: { entry: string; review: string };
   entry: {
     heading: string;
@@ -183,6 +188,19 @@ export function CountSessionDetailClient({
     () => session.lines.filter((l) => l.countedQty !== null),
     [session.lines],
   );
+
+  /* F1 — site-restricted: return the header notice; suppress both tabs. */
+  if (session.linesRestricted) {
+    return (
+      <div
+        role="alert"
+        data-testid="count-lines-restricted"
+        className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800"
+      >
+        {labels.linesRestricted ?? "The count line details are restricted to members of this session's site."}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">

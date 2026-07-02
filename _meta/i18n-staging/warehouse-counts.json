@@ -54,7 +54,8 @@
       "create": "Create session",
       "creating": "Creating…",
       "denied": "You do not have permission to create count sessions.",
-      "error": "Could not create the session. Please try again."
+      "error": "Could not create the session. Please try again.",
+      "siteMismatch": "This warehouse belongs to a different site. Creating will switch your top-bar site to match so the session stays visible in the list."
     },
     "detail": {
       "title": "Count session {session}",
@@ -76,6 +77,7 @@
       "closeSessionConfirm": "Close this count session? No further counts can be recorded.",
       "closeSessionError": "Could not close the session. Please try again.",
       "closeSessionDenied": "You do not have permission to close this session.",
+      "linesRestricted": "The count line details are restricted to members of this session's site.",
       "tabs": {
         "entry": "Blind count",
         "review": "Variance review"
@@ -202,7 +204,8 @@
       "create": "Utwórz",
       "creating": "Tworzenie…",
       "denied": "Nie masz uprawnień do tworzenia inwentaryzacji.",
-      "error": "Nie udało się utworzyć inwentaryzacji. Spróbuj ponownie."
+      "error": "Nie udało się utworzyć inwentaryzacji. Spróbuj ponownie.",
+      "siteMismatch": "Ten magazyn należy do innego zakładu. Utworzenie przełączy zakład na górnym pasku, aby sesja była widoczna na liście."
     },
     "detail": {
       "title": "Inwentaryzacja {session}",
@@ -224,6 +227,7 @@
       "closeSessionConfirm": "Zamknąć tę inwentaryzację? Nie będzie można zapisywać kolejnych liczeń.",
       "closeSessionError": "Nie udało się zamknąć inwentaryzacji. Spróbuj ponownie.",
       "closeSessionDenied": "Nie masz uprawnień do zamykania tej inwentaryzacji.",
+      "linesRestricted": "Szczegóły linii liczenia są dostępne tylko dla członków zakładu tej inwentaryzacji.",
       "tabs": {
         "entry": "Liczenie w ciemno",
         "review": "Przegląd różnic"

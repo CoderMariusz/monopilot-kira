@@ -9,13 +9,15 @@ import {
   CORRECTION_REASON_CODES,
   CorrectionForbiddenError,
   CorrectionInvalidInputError,
+  correctionTransactionId,
   type CorrectionReasonCode,
   insertCounterEntry,
 } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
-import { upsertWac } from '../../../../../../lib/finance/upsert-wac';
+import { computeWacReversalDelta, upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
+import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 
 const WASTE_CORRECT_PERMISSION = 'production.waste.correct';
 const OUTPUT_CORRECT_PERMISSION = 'production.output.correct';
@@ -147,6 +149,7 @@ type ConsumptionRow = {
 type LicensePlateRow = {
   id: string;
   site_id: string | null;
+  location_id: string | null;
   status: string;
   qa_status: string;
   quantity: string;
@@ -165,13 +168,6 @@ function negateDecimalString(value: string): string {
   const trimmed = value.trim();
   if (trimmed.startsWith('-')) return trimmed.slice(1);
   return `-${trimmed}`;
-}
-
-function readWacContributionSnapshot(extJsonb: unknown): { wac_qty_kg: string; wac_value: string } | null {
-  if (extJsonb == null || typeof extJsonb !== 'object' || Array.isArray(extJsonb)) return null;
-  const snapshot = extJsonb as { wac_qty_kg?: unknown; wac_value?: unknown };
-  if (typeof snapshot.wac_qty_kg !== 'string' || typeof snapshot.wac_value !== 'string') return null;
-  return { wac_qty_kg: snapshot.wac_qty_kg, wac_value: snapshot.wac_value };
 }
 
 async function multiplyNumeric(ctx: ProductionContext, left: string, right: string | null): Promise<string> {
@@ -302,6 +298,7 @@ async function loadLicensePlateForUpdate(ctx: ProductionContext, lpId: string): 
   const { rows } = await ctx.client.query<LicensePlateRow>(
     `select id::text as id,
             site_id::text as site_id,
+            location_id::text as location_id,
             status,
             qa_status,
             quantity::text as quantity,
@@ -498,6 +495,93 @@ async function writeWasteVoidAudit(
         note: params.note,
       }),
       randomUUID(),
+    ],
+  );
+}
+
+async function writeOutputVoidStockMove(
+  ctx: ProductionContext,
+  params: { original: OutputRow; lp: LicensePlateRow; correctionId: string; reasonCode: CorrectionReasonCode; note: string | null },
+): Promise<void> {
+  const transactionId = correctionTransactionId({
+    orgId: ctx.orgId,
+    table: 'wo_outputs',
+    originalId: params.original.id,
+    reasonCode: params.reasonCode,
+  });
+  await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, from_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, wo_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid,
+       $5::numeric, $6, 'output_voided', $7,
+       $8::uuid, $9::uuid, 'completed', $10::jsonb, $11::uuid, $11::uuid
+     )
+     on conflict (org_id, transaction_id) do nothing`,
+    [
+      params.lp.site_id ?? params.original.site_id,
+      makeStockMoveNumber(transactionId),
+      params.lp.id,
+      params.lp.location_id,
+      negateDecimalString(params.original.qty_kg),
+      params.original.uom,
+      params.note,
+      transactionId,
+      params.original.wo_id,
+      JSON.stringify({
+        source: 'voidWoOutput',
+        output_id: params.original.id,
+        correction_id: params.correctionId,
+        correction_reason_code: params.reasonCode,
+      }),
+      ctx.userId,
+    ],
+  );
+}
+
+async function writeConsumptionReverseStockMove(
+  ctx: ProductionContext,
+  params: { original: ConsumptionRow; lp: LicensePlateRow; correctionId: string; reasonCode: CorrectionReasonCode; note: string | null },
+): Promise<void> {
+  const transactionId = correctionTransactionId({
+    orgId: ctx.orgId,
+    table: 'wo_material_consumption',
+    originalId: params.original.id,
+    reasonCode: params.reasonCode,
+  });
+  await ctx.client.query(
+    `insert into public.stock_moves (
+       org_id, site_id, move_number, lp_id, move_type, from_location_id,
+       quantity, uom, reason_code, reason_text, transaction_id, wo_id, wo_material_id,
+       status, ext_jsonb, created_by, updated_by
+     )
+     values (
+       app.current_org_id(), $1::uuid, $2, $3::uuid, 'adjustment', $4::uuid,
+       $5::numeric, $6, 'consumption_reversed', $7,
+       $8::uuid, $9::uuid, $10::uuid, 'completed', $11::jsonb, $12::uuid, $12::uuid
+     )
+     on conflict (org_id, transaction_id) do nothing`,
+    [
+      params.lp.site_id ?? params.original.site_id,
+      makeStockMoveNumber(transactionId),
+      params.lp.id,
+      params.lp.location_id,
+      negateDecimalString(params.original.qty_consumed),
+      params.original.uom,
+      params.note,
+      transactionId,
+      params.original.wo_id,
+      params.original.component_id,
+      JSON.stringify({
+        source: 'reverseConsumption',
+        consumption_id: params.original.id,
+        correction_id: params.correctionId,
+        correction_reason_code: params.reasonCode,
+      }),
+      ctx.userId,
     ],
   );
 }
@@ -960,27 +1044,30 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         },
       });
 
-      const wacSnapshot = readWacContributionSnapshot(original.ext_jsonb);
-      let deltaQtyKg: string;
-      let deltaValue: string;
-      if (wacSnapshot) {
-        deltaQtyKg = negateDecimalString(wacSnapshot.wac_qty_kg);
-        deltaValue = negateDecimalString(wacSnapshot.wac_value);
-      } else {
+      let wacReversal = computeWacReversalDelta({
+        extJsonb: original.ext_jsonb,
+        fallbackQtyKg: original.qty_kg,
+        fallbackValue: '0',
+      });
+      if (wacReversal.source === 'fallback') {
         console.warn('[wac] reversal_fallback', { woOutputId: original.id });
-        const outputValue = await multiplyNumeric(ctx, original.qty_kg, original.cost_per_kg);
-        deltaQtyKg = negateDecimalString(original.qty_kg);
-        deltaValue = negateDecimalString(outputValue);
+        const fallbackValue = await multiplyNumeric(ctx, original.qty_kg, original.cost_per_kg);
+        wacReversal = computeWacReversalDelta({
+          extJsonb: original.ext_jsonb,
+          fallbackQtyKg: original.qty_kg,
+          fallbackValue,
+        });
       }
       await upsertWac(ctx.client, {
         orgId,
         siteId: original.site_id,
         itemId: original.product_id,
-        deltaQtyKg,
-        deltaValue,
+        deltaQtyKg: wacReversal.deltaQtyKg,
+        deltaValue: wacReversal.deltaValue,
         updatedBy: userId,
       });
 
+      await writeOutputVoidStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
       await markLpVoided(ctx, original.lp_id);
       await unlinkLpGenealogyChildren(ctx, original.lp_id);
       await writeLpVoidHistory(ctx, { original, lp, reasonCode, note });
@@ -1112,6 +1199,7 @@ export async function reverseConsumption(input: ReverseConsumptionInput): Promis
       if (lp) {
         const toState = await lpRestoreTargetState(ctx, lp);
         await restoreLicensePlate(ctx, { original, lp, toState });
+        await writeConsumptionReverseStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
         await writeLpRestoredHistory(ctx, { original, lp, toState, reasonCode, note });
       }
 

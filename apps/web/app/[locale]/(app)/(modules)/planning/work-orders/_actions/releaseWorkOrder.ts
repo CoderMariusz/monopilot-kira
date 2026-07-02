@@ -1,11 +1,13 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import { packHierarchyComplete, snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
 import {
   APP_VERSION,
   PLANNING_WO_WRITE_PERMISSION,
   hasPermission,
+  type DeleteDraftWorkOrderResult,
   mapWoHeader,
   type ReleaseWorkOrderResult,
   type WorkOrderRow,
@@ -19,7 +21,14 @@ type ReleasePreflightRow = {
   each_per_box: string | null;
 };
 
+type DraftWorkOrderDeleteRow = Pick<WorkOrderRow, 'id' | 'wo_number' | 'status' | 'product_id' | 'planned_quantity' | 'uom'>;
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function revalidateWorkOrderDeletePaths(id: string): void {
+  revalidateLocalized('/planning/work-orders');
+  revalidateLocalized(`/planning/work-orders/${id}`);
+}
 
 export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseWorkOrderResult> {
   if (!params.id || !UUID_RE.test(params.id)) return { ok: false, error: 'invalid_input' };
@@ -143,6 +152,83 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
     });
   } catch (error) {
     console.error('[releaseWorkOrder] persistence_failed', error);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function deleteDraftWorkOrder(params: { id: string }): Promise<DeleteDraftWorkOrderResult> {
+  if (!params.id || !UUID_RE.test(params.id)) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async (ctx): Promise<DeleteDraftWorkOrderResult> => {
+      if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const current = await ctx.client.query<DraftWorkOrderDeleteRow>(
+        `select id, wo_number, status, product_id, planned_quantity::text as planned_quantity, uom
+           from public.work_orders
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1
+          for update`,
+        [params.id],
+      );
+      const row = current.rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+      if (row.status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
+
+      await ctx.client.query(
+        `insert into public.wo_status_history
+           (org_id, wo_id, from_status, to_status, action, user_id, context_jsonb)
+         values
+           (app.current_org_id(), $1::uuid, 'DRAFT', 'CANCELLED', 'delete_draft', $2::uuid, $3::jsonb)`,
+        [
+          row.id,
+          ctx.userId,
+          JSON.stringify({
+            app_version: APP_VERSION,
+            wo_number: row.wo_number,
+            product_id: row.product_id,
+            planned_quantity: row.planned_quantity,
+            uom: row.uom,
+          }),
+        ],
+      );
+
+      await ctx.client.query(
+        `insert into public.audit_events
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+            before_state, after_state, request_id, retention_class)
+         values
+           (app.current_org_id(), $1::uuid, 'user', 'planning.work_order.deleted', 'work_order', $2,
+            $3::jsonb, null, gen_random_uuid(), 'operational')`,
+        [
+          ctx.userId,
+          row.id,
+          JSON.stringify({
+            id: row.id,
+            wo_number: row.wo_number,
+            status: row.status,
+            product_id: row.product_id,
+            planned_quantity: row.planned_quantity,
+            uom: row.uom,
+          }),
+        ],
+      );
+
+      const deleted = await ctx.client.query(
+        `delete from public.work_orders
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'DRAFT'`,
+        [row.id],
+      );
+      if ((deleted.rowCount ?? 0) !== 1) return { ok: false, error: 'invalid_state' };
+
+      revalidateWorkOrderDeletePaths(row.id);
+      return { ok: true, id: row.id };
+    });
+  } catch (error) {
+    console.error('[deleteDraftWorkOrder] persistence_failed', error);
     return { ok: false, error: 'persistence_failed' };
   }
 }

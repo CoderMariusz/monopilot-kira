@@ -1,10 +1,34 @@
 'use server';
 
-import { z } from 'zod';
-
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { isUserSiteAccessUnrestricted } from '../../../../../../../lib/site/assert-user-site-access';
 import { queryGenealogy, type GenealogyChainNode } from '../../../../../../../lib/warehouse/genealogy';
+
+import {
+  addDecimalStrings,
+  BATCH_SEED_LIMIT,
+  computeMassBalance,
+  isKgUom,
+  ITEM_SEED_LIMIT,
+  LP_SEED_LIMIT,
+  sliceSeedRows,
+  type MassBalanceQtyRow,
+} from './trace-mass-balance';
+import { StartRecallDrillSchema, TraceInputSchema, UuidSchema } from './trace-input-schemas';
+import type {
+  RecallDrill,
+  StartRecallDrillInput,
+  TraceAffectedCustomer,
+  TraceEdge,
+  TraceFlatRow,
+  TraceInput,
+  TraceNode,
+  TraceNodeType,
+  TraceReport,
+  TraceTruncation,
+  TraceTruncationLayer,
+} from './trace-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -14,73 +38,6 @@ type QueryClient = {
 };
 
 type QualityContext = { userId: string; orgId: string; client: QueryClient };
-
-const TraceInputSchema = z.object({
-  inputType: z.enum(['lp', 'batch', 'item']),
-  inputRef: z.string().trim().min(1).max(160),
-  direction: z.enum(['backward', 'forward', 'both']),
-});
-
-const StartRecallDrillSchema = TraceInputSchema.extend({
-  is_drill: z.boolean().optional().default(true),
-});
-
-const UuidSchema = z.string().uuid();
-
-export type TraceInput = z.infer<typeof TraceInputSchema>;
-export type StartRecallDrillInput = z.input<typeof StartRecallDrillSchema>;
-
-export type TraceNodeType =
-  | 'supplier'
-  | 'purchase_order'
-  | 'grn'
-  | 'input_lp'
-  | 'work_order'
-  | 'output_lp'
-  | 'shipment_placeholder';
-
-export type TraceNode = {
-  nodeId: string;
-  type: TraceNodeType;
-  ref: string;
-  label: string;
-  qty: string | null;
-  uom: string | null;
-  expiryDate?: string | null;
-  bestBeforeDate?: string | null;
-  qaStatus?: string | null;
-};
-
-export type TraceEdge = {
-  edgeId: string;
-  from: string;
-  to: string;
-  relation: 'supplied_by' | 'ordered_on' | 'received_on' | 'received_lp' | 'consumed_by' | 'produced' | 'ships_to';
-  qty: string | null;
-  uom: string | null;
-};
-
-export type TraceFlatRow = Pick<TraceNode, 'nodeId' | 'type' | 'ref' | 'qty' | 'uom'>;
-
-export type TraceReport = {
-  nodes: TraceNode[];
-  edges: TraceEdge[];
-  flat: TraceFlatRow[];
-  affectedCustomers: TraceAffectedCustomer[];
-  summary: {
-    lpCount: number;
-    woCount: number;
-    shipmentCount: number;
-    customersAffected: number;
-    totalKg: string;
-  };
-};
-
-export type TraceAffectedCustomer = {
-  customerId: string;
-  customerName: string;
-  customerCode: string | null;
-};
 
 type ForwardShipmentRow = {
   shipment_id: string;
@@ -94,21 +51,6 @@ type ForwardShipmentRow = {
   lp_ref: string;
   shipped_qty: string;
   uom: string | null;
-};
-
-export type RecallDrill = {
-  id: string;
-  inputType: TraceInput['inputType'];
-  inputRef: string;
-  direction: TraceInput['direction'];
-  startedAt: string;
-  completedAt: string | null;
-  durationMs: number | null;
-  result: TraceReport | null;
-  isDrill: boolean;
-  initiatedBy: string | null;
-  createdAt: string;
-  updatedAt: string;
 };
 
 type LpRow = {
@@ -249,36 +191,19 @@ function nodeFlat(node: TraceNode): TraceFlatRow {
   };
 }
 
-function decimalToScaled(value: string, scale: number): bigint {
-  const trimmed = value.trim();
-  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return 0n;
-  const sign = trimmed.startsWith('-') ? -1n : 1n;
-  const unsigned = trimmed.replace(/^-/, '');
-  const [whole, fraction = ''] = unsigned.split('.');
-  return sign * BigInt(`${whole}${fraction.padEnd(scale, '0')}`);
+function mergeTruncation(layers: TraceTruncationLayer[]): TraceTruncation {
+  return {
+    truncated: layers.length > 0,
+    layers,
+  };
 }
 
-function formatScaledDecimal(value: bigint, scale: number): string {
-  const sign = value < 0n ? '-' : '';
-  const abs = value < 0n ? -value : value;
-  if (scale === 0) return `${sign}${abs.toString()}`;
-  const raw = abs.toString().padStart(scale + 1, '0');
-  const whole = raw.slice(0, -scale);
-  const fraction = raw.slice(-scale).replace(/0+$/, '');
-  return `${sign}${whole}${fraction ? `.${fraction}` : ''}`;
-}
+async function resolveSeedLpIds(
+  client: QueryClient,
+  input: TraceInput,
+): Promise<{ lpIds: string[]; truncation: TraceTruncation }> {
+  const layers: TraceTruncationLayer[] = [];
 
-function addDecimalStrings(values: string[]): string {
-  const scale = values.reduce((max, value) => Math.max(max, value.split('.')[1]?.length ?? 0), 0);
-  const total = values.reduce((sum, value) => sum + decimalToScaled(value, scale), 0n);
-  return formatScaledDecimal(total, scale);
-}
-
-function isKg(uom: string | null | undefined): boolean {
-  return uom?.trim().toLowerCase() === 'kg';
-}
-
-async function resolveSeedLpIds(client: QueryClient, input: TraceInput): Promise<string[]> {
   if (input.inputType === 'lp') {
     const { rows } = await client.query<{ id: string }>(
       `select lp.id::text as id
@@ -286,10 +211,12 @@ async function resolveSeedLpIds(client: QueryClient, input: TraceInput): Promise
         where lp.org_id = app.current_org_id()
           and (lp.lp_code = $1 or lp.lp_number = $1)
         order by lp.created_at desc
-        limit 200`,
+        limit ${LP_SEED_LIMIT + 1}`,
       [input.inputRef],
     );
-    return rows.map((row) => row.id);
+    const sliced = sliceSeedRows(rows, LP_SEED_LIMIT, 'seed_lp');
+    if (sliced.layer) layers.push(sliced.layer);
+    return { lpIds: sliced.ids, truncation: mergeTruncation(layers) };
   }
 
   if (input.inputType === 'batch') {
@@ -299,10 +226,12 @@ async function resolveSeedLpIds(client: QueryClient, input: TraceInput): Promise
         where lp.org_id = app.current_org_id()
           and (lp.batch_number = $1 or lp.supplier_batch_number = $1)
         order by lp.created_at desc
-        limit 500`,
+        limit ${BATCH_SEED_LIMIT + 1}`,
       [input.inputRef],
     );
-    return rows.map((row) => row.id);
+    const sliced = sliceSeedRows(rows, BATCH_SEED_LIMIT, 'seed_batch');
+    if (sliced.layer) layers.push(sliced.layer);
+    return { lpIds: sliced.ids, truncation: mergeTruncation(layers) };
   }
 
   const { rows } = await client.query<{ id: string }>(
@@ -312,10 +241,12 @@ async function resolveSeedLpIds(client: QueryClient, input: TraceInput): Promise
       where lp.org_id = app.current_org_id()
         and (lp.product_id::text = $1 or i.item_code = $1)
       order by lp.created_at desc
-      limit 500`,
+      limit ${ITEM_SEED_LIMIT + 1}`,
     [input.inputRef],
   );
-  return rows.map((row) => row.id);
+  const sliced = sliceSeedRows(rows, ITEM_SEED_LIMIT, 'seed_item');
+  if (sliced.layer) layers.push(sliced.layer);
+  return { lpIds: sliced.ids, truncation: mergeTruncation(layers) };
 }
 
 async function fetchLpRows(client: QueryClient, lpIds: string[]): Promise<Map<string, LpRow>> {
@@ -494,6 +425,73 @@ async function fetchWorkOrderRows(client: QueryClient, woIds: string[]): Promise
   return new Map(rows.map((row) => [row.id, row]));
 }
 
+type WasteRow = {
+  wo_id: string | null;
+  lp_id: string | null;
+  wo_number: string | null;
+  qty_kg: string;
+};
+
+/**
+ * Fetches waste rows for the traced set and partitions them:
+ * - attributed: lp_id is in the traced LP set → summed into wasteKg
+ * - unattributed: only wo_id matches (no traced LP) → returned as unreconciled
+ *   entries with bucket 'unattributed_wo_waste' so the UI signals they cannot
+ *   be reliably attributed to the traced batch (F1 sibling over-count fix).
+ */
+async function fetchWastePartitioned(
+  client: QueryClient,
+  woIds: string[],
+  tracedLpIds: string[],
+): Promise<{ wasteKg: string; unattributedWasteRows: import('./trace-mass-balance').MassBalanceQtyRow[] }> {
+  if (woIds.length === 0 && tracedLpIds.length === 0) {
+    return { wasteKg: '0', unattributedWasteRows: [] };
+  }
+  const { rows } = await client.query<WasteRow>(
+    `select w.wo_id::text,
+            w.lp_id::text,
+            wo.wo_number,
+            w.qty_kg::text
+       from public.wo_waste_log w
+       left join public.work_orders wo
+         on wo.org_id = app.current_org_id()
+        and wo.id = w.wo_id
+      where w.org_id = app.current_org_id()
+        and (
+          w.lp_id = any($1::uuid[])
+          or w.wo_id = any($2::uuid[])
+        )`,
+    [tracedLpIds, woIds],
+  );
+
+  const tracedLpSet = new Set(tracedLpIds);
+  const attributedQtys: string[] = [];
+  const unattributedRefs = new Map<string, string>(); // woId → qty sum (text)
+
+  for (const row of rows) {
+    if (row.lp_id && tracedLpSet.has(row.lp_id)) {
+      attributedQtys.push(row.qty_kg);
+    } else {
+      // wo_id matches but LP not in traced set → unattributed
+      const key = row.wo_id ?? 'unknown';
+      const existing = unattributedRefs.get(key);
+      unattributedRefs.set(key, existing ? addDecimalStrings([existing, row.qty_kg]) : row.qty_kg);
+    }
+  }
+
+  const unattributedWasteRows: import('./trace-mass-balance').MassBalanceQtyRow[] = [...unattributedRefs.entries()].map(
+    ([woId, qty]) => {
+      const label = rows.find((r) => r.wo_id === woId)?.wo_number ?? woId;
+      return { ref: label, qty, uom: 'kg' };
+    },
+  );
+
+  return {
+    wasteKg: addDecimalStrings(attributedQtys),
+    unattributedWasteRows,
+  };
+}
+
 function shouldIncludeConsumption(
   row: ConsumptionRow,
   input: TraceInput,
@@ -503,8 +501,150 @@ function shouldIncludeConsumption(
   return outputRows.some((output) => output.wo_id === row.wo_id);
 }
 
+function isProductionLp(lp: LpRow | undefined): boolean {
+  return lp?.origin === 'production' || Boolean(lp?.wo_id);
+}
+
+function resolveMassBalanceScope(
+  input: TraceInput,
+  seedLpIds: string[],
+  lpRows: Map<string, LpRow>,
+  outputRows: OutputRow[],
+): { outputLpIds: string[]; woIds: string[]; batchCodes: string[] } | null {
+  if (input.inputType === 'item') return null;
+
+  const outputLpIds = new Set<string>();
+  const woIds = new Set<string>();
+  const batchCodes = new Set<string>();
+
+  // Seed the scope from the traced LP set (genealogy-resolved lpRows).  Only
+  // output rows whose LP id is already in the traced set are admitted, preventing
+  // co-product / sibling batches produced by the same WO from inflating totals
+  // (F1 sibling over-count fix).  The WO id is retained for waste attribution.
+  for (const output of outputRows) {
+    if (output.output_lp_id && lpRows.has(output.output_lp_id)) {
+      outputLpIds.add(output.output_lp_id);
+      woIds.add(output.wo_id);
+      batchCodes.add(output.batch_number);
+    }
+  }
+
+  for (const lpId of seedLpIds) {
+    const lp = lpRows.get(lpId);
+    if (!isProductionLp(lp)) continue;
+    outputLpIds.add(lpId);
+    if (lp?.wo_id) woIds.add(lp.wo_id);
+    if (lp?.batch_code) batchCodes.add(lp.batch_code);
+  }
+
+  if (input.inputType === 'batch') {
+    batchCodes.add(input.inputRef);
+  }
+
+  if (outputLpIds.size === 0 && woIds.size === 0) return null;
+
+  return {
+    outputLpIds: [...outputLpIds],
+    woIds: [...woIds],
+    batchCodes: [...batchCodes],
+  };
+}
+
+/**
+ * Admits an output row into the traced set ONLY if its LP id or batch code
+ * maps to the exact traced LP/batch set. WO-id membership is intentionally
+ * excluded here: matching only by wo_id would admit co-product/sibling batches
+ * of the same work order and inflate the produced/shipped/waste totals (F1).
+ */
+function outputMatchesScope(output: OutputRow, scope: { outputLpIds: string[]; batchCodes: string[] }): boolean {
+  if (output.output_lp_id && scope.outputLpIds.includes(output.output_lp_id)) return true;
+  return scope.batchCodes.includes(output.batch_number);
+}
+
+/**
+ * Matches an LP into the traced on-site set by exact LP id or batch code only.
+ * WO-id membership is intentionally excluded — matching by wo_id would admit
+ * co-product sibling LPs produced by the same work order and inflate on-site
+ * totals (F1 sibling over-count fix).
+ */
+function lpMatchesScope(lp: LpRow, scope: { outputLpIds: string[]; batchCodes: string[] }): boolean {
+  if (scope.outputLpIds.includes(lp.id)) return true;
+  if (lp.batch_code && scope.batchCodes.includes(lp.batch_code)) return true;
+  return false;
+}
+
+async function buildMassBalance(
+  ctx: QualityContext,
+  input: TraceInput,
+  seedLpIds: string[],
+  lpRows: Map<string, LpRow>,
+  outputRows: OutputRow[],
+  forwardShipmentRows: ForwardShipmentRow[],
+): Promise<TraceReport['massBalance']> {
+  // F2: if the caller is site-restricted their license_plates are pruned by
+  // RLS (mig 383) while wo_outputs / wo_waste_log are org-wide — any balance
+  // computed would fabricate a spurious delta.  Detect the restriction and
+  // short-circuit with scopeLimited so the panel can show an explicit notice.
+  const isUnrestricted = await isUserSiteAccessUnrestricted(ctx.userId, ctx.client);
+  if (!isUnrestricted) {
+    return { scopeLimited: true };
+  }
+
+  const scope = resolveMassBalanceScope(input, seedLpIds, lpRows, outputRows);
+  if (!scope) return null;
+
+  // F1: scope the output rows to exact LP id / batch code only; WO-id membership
+  // is intentionally excluded to prevent co-product sibling batches inflating totals.
+  const scopedOutputs = outputRows.filter((row) => outputMatchesScope(row, scope));
+  const producedRows: MassBalanceQtyRow[] = scopedOutputs.map((row) => ({
+    ref: row.output_ref,
+    qty: row.qty,
+    uom: row.uom,
+  }));
+
+  // F1: on-site LP rows are scoped by exact LP id or batch code; the WO branch
+  // in lpMatchesScope is removed to avoid sibling inflation.
+  const onSiteRows: MassBalanceQtyRow[] = [...lpRows.values()]
+    .filter((lp) => isProductionLp(lp) && lpMatchesScope(lp, scope))
+    .map((lp) => ({
+      ref: lp.display_ref,
+      qty: lp.quantity,
+      uom: lp.uom,
+    }));
+
+  const shippedRows: MassBalanceQtyRow[] = forwardShipmentRows
+    .filter((row) => scope.outputLpIds.includes(row.lp_id))
+    .map((row) => ({
+      ref: row.lp_ref,
+      qty: row.shipped_qty,
+      uom: row.uom,
+    }));
+
+  // F1: split attributed waste (LP in traced set) from unattributed WO-only waste.
+  const { wasteKg, unattributedWasteRows: rawUnattributed } = await fetchWastePartitioned(
+    ctx.client,
+    scope.woIds,
+    scope.outputLpIds,
+  );
+  const unattributedWasteRows = rawUnattributed.map((row) => ({
+    ref: row.ref,
+    qty: row.qty,
+    uom: row.uom ?? 'kg',
+    bucket: 'unattributed_wo_waste' as const,
+    reason: 'unattributed_wo_waste',
+  }));
+
+  return computeMassBalance({
+    producedRows,
+    onSiteRows,
+    shippedRows,
+    wasteKg,
+    unattributedWasteRows,
+  });
+}
+
 async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise<TraceReport> {
-  const seedLpIds = await resolveSeedLpIds(ctx.client, input);
+  const { lpIds: seedLpIds, truncation } = await resolveSeedLpIds(ctx.client, input);
   const seedLpIdSet = new Set(seedLpIds);
 
   const genealogyByLpId = new Map<string, GenealogyChainNode>();
@@ -727,7 +867,7 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
   const lpNodeIds = nodeList.filter((node) => node.type === 'input_lp' || node.type === 'output_lp').map((node) => node.nodeId);
   const kgQuantities = unique(lpNodeIds.map((nodeId) => nodeId.startsWith('lp:') ? nodeId.slice(3) : null))
     .map((lpId) => lpRows.get(lpId))
-    .filter((lp): lp is LpRow => lp !== undefined && isKg(lp.uom))
+    .filter((lp): lp is LpRow => lp !== undefined && isKgUom(lp.uom))
     .map((lp) => lp.quantity);
   const affectedCustomersFromShipments = new Map<string, TraceAffectedCustomer>();
   for (const shipment of forwardShipmentRows) {
@@ -745,6 +885,15 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
         ))
       : await fetchAffectedCustomers(ctx.client, unique([...lpRows.values()].map((lp) => lp.source_so_id)));
 
+  const massBalance = await buildMassBalance(
+    ctx,
+    input,
+    seedLpIds,
+    lpRows,
+    outputRows,
+    forwardShipmentRows,
+  );
+
   return {
     nodes: nodeList,
     edges: edgeList,
@@ -757,6 +906,8 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
       customersAffected: affectedCustomers.length,
       totalKg: addDecimalStrings(kgQuantities),
     },
+    truncation,
+    massBalance,
   };
 }
 

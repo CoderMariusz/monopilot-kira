@@ -48,6 +48,9 @@ type PageProps = { params: Promise<{ locale: string; id: string }> };
 function buildLabels(t: ReturnType<typeof getCountsTranslator>): CountSessionDetailLabels {
   return {
     none: t('detail.none'),
+    linesRestricted: t.has('detail.linesRestricted')
+      ? t('detail.linesRestricted')
+      : "The count line details are restricted to members of this session's site.",
     tabs: { entry: t('detail.tabs.entry'), review: t('detail.tabs.review') },
     entry: {
       heading: t('detail.entry.heading'),

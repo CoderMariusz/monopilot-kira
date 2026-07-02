@@ -21,6 +21,7 @@ const ERROR_CODES = [
   // legacy alias kept mapped for older payloads.
   'changeover_signoff_required',
   'allergen_changeover_required',
+  'wo_snapshot_missing',
   'closed_production_strict_failed',
   'esign_failed',
   'wo_not_recordable',

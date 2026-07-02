@@ -36,6 +36,15 @@ vi.mock('../../../../../../../lib/site/site-context', () => ({
 }));
 
 vi.mock('@monopilot/e-sign', () => ({
+  // wave F4: hold/NCR actions detect policy errors via instanceof — the mock must export the class
+  ESignPolicyError: class ESignPolicyError extends Error {
+    code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  },
+
   signEvent: vi.fn(async () => ({
     signatureId: '88888888-8888-4888-8888-888888888888',
     signerUserId: USER_ID,
