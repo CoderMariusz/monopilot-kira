@@ -199,6 +199,27 @@ Token deltas (everything else in this file unchanged):
 >    re-applied post-merge by Agent-A (the F2 E3↔E5/E6 collision class).
 > 10. Mechanical/sweep lanes are complete when a TREE GREP proves the count (0 remaining /
 >    N converted) — never on the agent's report (kira-mechanical over-claimed in F1 AND F2).
+>
+> **Wave-F3 results + hard rules (F3 top-5, binding from F4):** evidence in
+> `_meta/runs/2026-07-02-f3-fleet-metrics.md` + `2026-07-02-f3-fable-eval.md`
+> (wave GPA ~3.9 on the widest tier yet; 3 escapes, ALL of the class "visible only
+> against a real DB / real locale files", all caught by live-E3 and fixed same-session;
+> longitudinal verdict 3-of-3: Układ A REPEATABLE for fix/hardening tiers; feature
+> tiers need the real-DB leg BEFORE consolidation).
+> 11. The rule-6 DIRECT+BLOCKING imperative goes in EVERY bridge prompt — Cursor bridges
+>    too (F3: 3/3 Codex bridges with it survived; 2/5 Cursor bridges without it died).
+> 12. Rule 8 sharpened: a real-DB leg must make BEHAVIORAL assertions (fixtures → action →
+>    row-state asserts); schema-presence probes do NOT count (the G1 class). Where feasible
+>    the orchestrator runs `pnpm test:pg` against a real DB at the gate BEFORE consolidation.
+> 13. 'use server' modules: NO `export { x } from` / `export * from` re-export statements —
+>    Vercel's Turbopack rejects them while the LOCAL `next build` passes (f3.1 class).
+>    Types AND re-exports both live in non-'use server' siblings.
+> 14. i18n sidecars are APPEND-ONLY: fix rounds merge into the lane's existing sidecar, never
+>    rewrite it; before consolidation the orchestrator greps the namespaces referenced by NEW
+>    components and verifies every key resolves in the merged locale files (the G9 class).
+> 15. A lane must run the FULL pre-existing test files adjacent to every file it modifies
+>    (G1 broke a legacy suite it never ran); mock pg rows must model driver reality —
+>    numeric scale strings ('0.000000') and Date objects for date columns (the G4/G6 classes).
 
 Owner mandate: the orchestrator session (**Agent-A**) runs on **Fable 5** and never implements —
 its whole job is plan → split → fan-out → review arbitration → build-gate → migrations → push →

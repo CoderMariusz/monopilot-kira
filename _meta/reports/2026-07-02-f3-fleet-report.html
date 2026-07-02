@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fala F3 — raport floty + raport braków (2026-07-02)</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --mut:#94a3b8;
+          --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --acc:#60a5fa; }
+  * { box-sizing:border-box; }
+  body { background:var(--bg); color:var(--txt); font:15px/1.55 -apple-system,'Segoe UI',Roboto,sans-serif; margin:0; padding:24px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:19px; margin:34px 0 10px; color:var(--acc);}
+  .sub { color:var(--mut); margin-bottom:22px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 20px; margin:14px 0; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin:8px 0; }
+  th,td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:.05em; }
+  .ok{color:var(--ok);font-weight:600} .warn{color:var(--warn);font-weight:600} .bad{color:var(--bad);font-weight:600}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}
+  .kpi .v{font-size:24px;font-weight:700} .kpi .l{font-size:12px;color:var(--mut);margin-top:2px}
+  code{background:#0b1220;padding:1px 6px;border-radius:4px;font-size:12.5px}
+  .verdict{border-left:4px solid var(--ok);padding-left:14px}
+  ul{margin:6px 0 6px 18px;padding:0} li{margin:4px 0}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>🎛️ Fala F3 — finał protokołu podłużnego (3/3) + raport braków</h1>
+<div class="sub">2026-07-02 · main <code>1d560dc0</code> · migi 415–417 LIVE · produkcja READY · flota: 9 torów silnikowych + 3 Claude + 4 Opusy (audyt) + orkiestrator Fable</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="v">10/10</div><div class="l">torów pisarskich GREEN</div></div>
+  <div class="kpi"><div class="v">112+52</div><div class="l">plików (wave + f3.2), +10,5k linii</div></div>
+  <div class="kpi"><div class="v">3</div><div class="l">migracje live (415–417)</div></div>
+  <div class="kpi"><div class="v">~430</div><div class="l">testów na bramce</div></div>
+  <div class="kpi"><div class="v warn">3→0</div><div class="l">ucieczki (wszystkie naprawione &lt;2h)</div></div>
+  <div class="kpi"><div class="v ok">7/7</div><div class="l">finalny stan live-E3</div></div>
+</div>
+
+<h2>Co wylądowało (funkcjonalnie)</h2>
+<div class="card"><table>
+<tr><th>Tor</th><th>Silnik</th><th>Dostarczone</th><th>Live</th></tr>
+<tr><td>G1</td><td>Codex</td><td><b>CCP auto-hold obejmuje CAŁĄ produkcję od ostatniego dobrego odczytu</b> (nie tylko ostatnie LP) + hold na WO, idempotentnie; oblana inspekcja GRN blokuje LP; zdana inspekcja wo_output zwalnia QA; pass bez parametrów zablokowany</td><td class="ok">✔</td></tr>
+<tr><td>G2</td><td>kira-easy</td><td>Batch-holdy pokazują kod partii na liście/detalu/w wyszukiwarce; mig 415 (drop starego indeksu skanera); unia uprawnień deactivate</td><td class="ok">✔</td></tr>
+<tr><td>G3</td><td>Codex</td><td><b>Noga testów real-DB</b>: <code>pnpm test:pg</code> + suites batch-hold/flip-guard/WAC (mechanizacja luki po ucieczce F2)</td><td>—</td></tr>
+<tr><td>G4</td><td>Composer</td><td>registerOutput waliduje produkt vs WO; cancelWo blokuje przy żywych LP; desktop consume/waste pisze ledger (stock_moves + historia); bramy na recordWaste</td><td class="ok">✔</td></tr>
+<tr><td>G5</td><td>Composer</td><td><b>Oś czasu audytu</b> na detalach PO/TO/SO/GRN/hold/NCR/LP (sekcja „Historia") z mapą parytetu uprawnień</td><td class="ok">✔</td></tr>
+<tr><td>G6</td><td>Composer</td><td><b>Profil compliance organizacji</b> (BRCGS site code, jednostka certyfikująca, daty audytów; mig 416) — zasili nagłówki dokumentów PDF w Fazie 2</td><td class="ok">✔</td></tr>
+<tr><td>G7</td><td>Codex</td><td>Wyrocznia 403/404 znormalizowana (wszystkie trasy skanera + labor); create-user wymaga jawnej roli + grantable-subset; gate trace'u naprawiony semantycznie</td><td>—</td></tr>
+<tr><td>G8</td><td>Composer</td><td><b>Uczciwość RBAC</b>: badge „Jeszcze nieegzekwowane" w edytorze ról; zweryfikowana mapa: 116/262 uprawnień realnie egzekwowanych</td><td class="ok">✔</td></tr>
+<tr><td>G9</td><td>Composer</td><td><b>Master klienta</b>: detal, edycja, deaktywacja, CRUD adresów, pojedynczy default (mig 417), blokada usunięcia adresu w użyciu — tabele mig-211 wreszcie żyją</td><td class="ok">✔</td></tr>
+<tr><td>G10</td><td>Composer</td><td><b>Desktopowe przyjęcie PO (Twój backlog B1)</b>: wspólny rdzeń ze skanerem (25/25 starych testów zielonych), wskaźniki over/short, batch dostawcy</td><td class="ok">✔</td></tr>
+</table></div>
+
+<h2>Przegląd całej aplikacji (4 Opusy) → RAPORT BRAKÓW</h2>
+<div class="card">
+<p>Pełny raport: <code>_meta/audits/2026-07-02-f3-gaps-report.md</code> (TOP-12 z dowodami file:line). Najważniejsze <b>NOWE</b> znaleziska:</p>
+<table>
+<tr><th>#</th><th>Sev</th><th>Znalezisko</th></tr>
+<tr><td>1</td><td class="bad">P1</td><td><b>signoff_policies nieegzekwowane</b> — ekran konfiguracji dual-sign z fali 8 jest dekoracją; nic poza settings nie czyta tej tabeli</td></tr>
+<tr><td>2</td><td class="bad">P1</td><td><b>Kalibracja bez writera</b> — rejestr wyświetla kolumny wyników/certyfikatów, ale NIC ich nie zapisuje</td></tr>
+<tr><td>3</td><td class="bad">P1</td><td><b>SO można „od-wysłać"</b> — shipped→allocated dozwolone; ryzyko realokacji wysłanego stocku</td></tr>
+<tr><td>4</td><td class="bad">P1</td><td><b>cancelWo z completed niszczy LP bez odwrócenia WAC</b> — wycena trwale zawyżona</td></tr>
+<tr><td>5</td><td class="warn">P2</td><td><b>Konsumpcja i output NIE piszą stock_moves</b> — raport ruchów pomija produkcję (decyzja ownera: zakres ledgera)</td></tr>
+<tr><td>6</td><td class="bad">P1</td><td><b>2 ciche no-opy CREATE na produkcji</b>: zaproszenie usera i utworzenie inspekcji — HTTP 200, nic nie powstaje, zero komunikatu</td></tr>
+<tr><td>7</td><td class="warn">P2</td><td>Roadmapa 4.8 nieaktualna — tabela <code>wo_actual_costing</code> skasowana w mig 404; trzeba ją odtworzyć, nie „podpiąć"</td></tr>
+</table>
+<p>Do tego macierz CRUD 17 encji z żywej produkcji (A4) + niezależny audyt Agenta-B w drodze (<code>_meta/reviews/2026-07-02-fleet-audit-B/</code>) — scalę jego nowe pozycje po wylądowaniu. Zamknięte JESZCZE tą falą: klient create-only, desktop GRN, batch-hold display, M14/M15, badge RBAC.</p>
+</div>
+
+<h2>Live-E3: 5/7 → fixy f3.2 → re-test 3/3 PASS</h2>
+<div class="card">
+<table>
+<tr><th>Ucieczka</th><th>Przyczyna źródłowa</th><th>Fix</th></tr>
+<tr><td class="bad">Desktop GRN receive martwy (V-WH-GRN-001)</td><td>Wrapper desktopowy robił update grn_items PO flipie GRN na completed — trigger widzi flip w tej samej transakcji</td><td>Hook w rdzeniu przed rollupem; test regresji z dowodem fail-before-fix; <b>re-test: PO-202607-0014 przyjęte, LP zmintowane</b></td></tr>
+<tr><td class="bad">Detal klienta: surowe klucze i18n</td><td>Runda G9b NADPISAŁA sidecar i18n toru — merge nie miał czego scalić (błąd orkiestracji, nie silnika)</td><td>Odbudowa ~96 kluczy en+pl (+mirror ro/uk); <b>re-test: EN i PL czyste</b></td></tr>
+<tr><td class="warn">Daty audytu compliance znikały</td><td>formatDate wołał .trim() na obiekcie Date z pg — połknięty wyjątek → null</td><td>Obsługa Date|string|null + 3 testy round-trip; <b>re-test: daty persystują</b></td></tr>
+</table>
+<p>Plus 1 błąd bramki deployu (nie dotarł do usera): Turbopack Vercela odrzuca <code>export {...} from</code> w module 'use server' — lokalny build tego NIE łapie. Hotfix f3.1 przed READY. Nowa reguła 13.</p>
+</div>
+
+<h2>Ocena Fable + Composer vs baseline</h2>
+<div class="card">
+<p><b>GPA fali ≈ 3.9</b> (F1 ~4.0 · F2 ~4.1) — na najszerszym dotąd tierze (5 feature-buildów + enforcement + infra) i podwojonej flocie. Najlepszy tor: <b>G8</b> (sam zweryfikował i poprawił własne dane wejściowe, 47→116 z cytatami). Najsłabsze: G5/G6/G9/G10 po 3 (klasyczne słabości Composera: integralność transakcyjna ×2, wszystko co widać tylko na realnej bazie). Wszystkie recenzje krzyżowe coś złapały — <b>recenzja pozostaje nośna</b>.</p>
+<p><b>Composer vs baseline sprzed F1</b>: nadal lepszy — stary receive-po = 500 na produkcji tego samego dnia + ~8 commitów naprawczych; G10 utrzymał 25 starych testów zielonych, a jedyny defekt był w NOWYM kodzie wrappera, naprawiony w 1 rundzie. Zero fabrykacji WSZYSTKICH silników przez 3 fale.</p>
+</div>
+
+<h2 >Werdykt podłużny (3 z 3 fal)</h2>
+<div class="card verdict">
+<p><b>Ucieczki: F1=0 · F2=1 · F3=3</b> (próg „≤1" formalnie nieosiągnięty — ale tier F3 to greenfield features, nie fixy, a WSZYSTKIE 3 ucieczki należą do jednej klasy: „widoczne wyłącznie na prawdziwej bazie / prawdziwych plikach locale"). Architektura bram DZIAŁA — live-E3 złapał 3/3, naprawa &lt;2h — jest tylko o krok za późno dla tierów feature.</p>
+<p><b>Werdykt: Układ A + bramka orkiestratora = POWTARZALNY dla tierów fix/hardening. Dla tierów feature wymaga jednego uzupełnienia strukturalnego: obowiązkowa noga real-DB/real-locale PRZED konsolidacją</b> (infrastruktura już jest — test:pg z toru G3). Zmechanizowane jako reguły 11–15 w <code>docs/workflow/01-MODEL-ROUTING.md</code>.</p>
+<p>Mostki: imperatyw BLOCKING zadziałał w 3/3 Codex; padły 2/5 mostków Cursor bez niego → reguła 11 (imperatyw we WSZYSTKICH mostkach). Rogue-daemon Codexa dwukrotnie podrzucił na main stary diff — wykryty procedurą tree-verify, zrewertowany.</p>
+</div>
+
+<h2>Rekomendacja F4</h2>
+<div class="card">
+<ul>
+<li><b>Batch „kłamstwa egzekwowania"</b> (z raportu braków): signoff_policies → realne wpięcie w dualSign; writer kalibracji; zwężenie przejść SO; WAC przy cancelWo-z-completed.</li>
+<li><b>Batch cichych porażek UX</b>: no-opy user-invite + inspection-create; pułapki „All sites".</li>
+<li><b>Decyzja ownera</b>: zakres ledgera stock_moves (konsumpcja/output) · eskalacja R-G1 SHOULD-3 (auto-release przy zdanej inspekcji omija quality.batch.release — celowe, podpisane w kodzie, wymaga Twojego OK).</li>
+<li>Potem: trace-completion (bilans masy + ostrzeżenie o obcięciu) → mock recall przechodzi; dalej wg ROADMAP (MRP+scheduling jako pierwszy big rock — Twoja D4).</li>
+</ul>
+</div>
+
+<div class="sub" style="margin-top:26px">Artefakty: <code>_meta/runs/2026-07-02-f3-fleet-metrics.md</code> · <code>_meta/runs/2026-07-02-f3-fable-eval.md</code> · <code>_meta/audits/2026-07-02-f3-gaps-report.md</code> · audyty A1–A4 w <code>/tmp/f3/</code> · commity <code>4248cbc0 → 8a350c80 → 28b58511 → 1d560dc0</code> (+ commit dokumentów)</div>
+
+</div></body>
+</html>
