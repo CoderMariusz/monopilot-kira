@@ -27,6 +27,14 @@ export type OrgSwitcherOrg = {
   name: string;
   industry: string | null;
   siteCount: number;
+  /**
+   * Pre-formatted "N sites" label, translated SERVER-SIDE and passed as a plain
+   * string. We must NOT pass a formatter function across the server→client
+   * boundary (React refuses to serialize functions) — that crashed the whole
+   * shell for platform admins. Optional so data-layer objects (which only carry
+   * siteCount) still satisfy the type; the topbar fills it in.
+   */
+  sitesText?: string;
 };
 
 export type OrgSwitcherLabels = {
@@ -35,7 +43,6 @@ export type OrgSwitcherLabels = {
   homeHeading: string;
   actAsHeading: string;
   footnote: string;
-  sitesLabel: (count: number) => string;
 };
 
 export type OrgSwitcherProps = {
@@ -216,7 +223,6 @@ export function OrgSwitcher({
             selected={!isActingAs}
             onSelect={pickHome}
             palette={PALETTE}
-            sitesLabel={labels.sitesLabel}
             testid="app-topbar-org-home"
           />
 
@@ -230,7 +236,6 @@ export function OrgSwitcher({
                   selected={isActingAs && currentOrg.id === org.id}
                   onSelect={() => pickActAs(org.id)}
                   palette={PALETTE}
-                  sitesLabel={labels.sitesLabel}
                   testid={`app-topbar-org-actas-${org.code}`}
                 />
               ))}
@@ -268,14 +273,12 @@ function OrgRow({
   selected,
   onSelect,
   palette,
-  sitesLabel,
   testid,
 }: {
   org: OrgSwitcherOrg;
   selected: boolean;
   onSelect: () => void;
   palette: typeof PALETTE;
-  sitesLabel: (count: number) => string;
   testid: string;
 }): JSX.Element {
   return (
@@ -323,7 +326,7 @@ function OrgRow({
         <small style={{ display: "block", color: palette.muted, fontWeight: 400, fontSize: 10.5 }}>
           {org.code}
           {org.industry ? ` · ${org.industry}` : ""}
-          {` · ${sitesLabel(org.siteCount)}`}
+          {org.sitesText ? ` · ${org.sitesText}` : ""}
         </small>
       </span>
       <span aria-hidden style={{ color: palette.blue, fontWeight: 700 }}>

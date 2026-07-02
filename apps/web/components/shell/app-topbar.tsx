@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 
 import { SiteCrumb } from "./site-crumb";
 import { SiteSwitcher, type SiteSwitcherOption } from "./site-switcher";
-import { OrgSwitcher } from "./org-switcher";
+import { OrgSwitcher, type OrgSwitcherOrg } from "./org-switcher";
 import { UserMenu } from "./user-menu";
 import type { UserMenuLanguagePickerProps } from "../../app/_components/user-menu-language-picker";
 import type { PlatformSwitcherData } from "../../lib/platform/org-switcher-data";
@@ -66,6 +66,15 @@ export async function AppTopbar({
   const brand = t("brand");
   const searchPlaceholder = t("searchPlaceholder");
 
+  // Pre-format the per-org "N sites" label SERVER-SIDE into a plain string.
+  // A formatter function must never be passed to the client OrgSwitcher — React
+  // cannot serialize functions across the server→client boundary and it crashed
+  // the whole shell for platform admins.
+  const withSitesText = (org: OrgSwitcherOrg): OrgSwitcherOrg => ({
+    ...org,
+    sitesText: tp("switcherSites", { n: org.siteCount }),
+  });
+
   return (
     <header
       data-testid="app-topbar"
@@ -91,16 +100,15 @@ export async function AppTopbar({
       <div className="ml-auto flex items-center gap-3">
         {platformSwitcher && actAsOrgAction && exitActAsAction ? (
           <OrgSwitcher
-            homeOrg={platformSwitcher.homeOrg}
-            actAsOrgs={platformSwitcher.actAsOrgs}
-            currentOrg={platformSwitcher.currentOrg}
+            homeOrg={withSitesText(platformSwitcher.homeOrg)}
+            actAsOrgs={platformSwitcher.actAsOrgs.map(withSitesText)}
+            currentOrg={withSitesText(platformSwitcher.currentOrg)}
             isActingAs={platformSwitcher.isActingAs}
             labels={{
               trigger: tp("switcherTrigger"),
               homeHeading: tp("switcherHomeHeading"),
               actAsHeading: tp("switcherActAsHeading"),
               footnote: tp("switcherFootnote"),
-              sitesLabel: (count: number) => tp("switcherSites", { n: count }),
             }}
             actAsOrgAction={actAsOrgAction}
             exitActAsAction={exitActAsAction}

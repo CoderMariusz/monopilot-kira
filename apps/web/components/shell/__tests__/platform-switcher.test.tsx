@@ -27,11 +27,10 @@ const labels = {
   homeHeading: 'Your home org',
   actAsHeading: 'Act as (platform admin · audited)',
   footnote: 'Switching into another org opens an audited act_as session.',
-  sitesLabel: (n: number) => `${n} sites`,
 };
 
-const HOME = { id: 'org-apex', code: 'APEX', name: 'Apex Dairy', industry: 'Dairy', siteCount: 3 };
-const KOBE = { id: 'org-kobe', code: 'KOBE', name: 'Kobe Dairy', industry: 'Dairy', siteCount: 2 };
+const HOME = { id: 'org-apex', code: 'APEX', name: 'Apex Dairy', industry: 'Dairy', siteCount: 3, sitesText: '3 sites' };
+const KOBE = { id: 'org-kobe', code: 'KOBE', name: 'Kobe Dairy', industry: 'Dairy', siteCount: 2, sitesText: '2 sites' };
 
 afterEach(() => {
   cleanup();
